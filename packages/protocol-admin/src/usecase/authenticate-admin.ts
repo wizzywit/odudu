@@ -41,6 +41,7 @@ export interface AuthenticateAdminDeps {
     now: Date,
   ): Promise<boolean>;
   isClientEnabled(tenantId: string, clientDbId: string): Promise<boolean>;
+  isSubjectEnabled(tenantId: string, subjectId: string): Promise<boolean>;
 }
 
 export interface AuthenticateAdminInput {
@@ -212,8 +213,8 @@ export async function authenticateAdmin(
   if (grant?.revokedAt !== null) return unauthenticated('invalid_grant');
 
   // A client_credentials grant has no session at all, which is not a dead
-  // one: a service account is refused here only if its grant is revoked or
-  // its client disabled.
+  // one: a service account is refused here only if its grant is revoked,
+  // its client disabled or its subject disabled.
   if (grant.sessionId !== null) {
     const sid = payload.sid;
     if (typeof sid !== 'string' || sid.length === 0) return unauthenticated('invalid_token');
@@ -223,6 +224,12 @@ export async function authenticateAdmin(
 
   const enabled = await deps.isClientEnabled(matched.id, grant.clientId);
   if (!enabled) return unauthenticated('client_disabled');
+
+  // Disabling a subject ends nothing it holds, so an access token issued
+  // before is refused here rather than living out its lifetime.
+  if (!(await deps.isSubjectEnabled(matched.id, payload.sub))) {
+    return unauthenticated('subject_disabled');
+  }
 
   return {
     kind: 'authenticated',

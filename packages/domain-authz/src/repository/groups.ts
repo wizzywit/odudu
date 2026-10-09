@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
-import { eq, sql } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { groupRoles, groups, subjectGroups, type GroupRecord } from '#/schema/groups';
 
@@ -12,6 +12,8 @@ function toRecord(row: typeof groups.$inferSelect): GroupRecord {
     tenantId: row.tenantId,
     parentId: row.parentId,
     name: row.name,
+    description: row.description,
+    defaultForNewSubjects: row.defaultForNewSubjects,
     path: row.path,
     createdAt: row.createdAt,
   };
@@ -21,6 +23,7 @@ export interface NewGroup {
   tenantId: string;
   name: string;
   parentId: string | null;
+  description?: string | null;
 }
 
 async function findById(tx: TenantScopedDatabase, groupId: string): Promise<GroupRecord | null> {
@@ -53,8 +56,8 @@ export async function effectiveGroupPaths(
 ): Promise<readonly string[]> {
   const result = await tx.execute(sql`
     SELECT g.path AS path
-    FROM groups g
-    JOIN subject_groups sg ON sg.group_id = g.id
+    FROM subject_groups sg
+    CROSS JOIN LATERAL (SELECT path FROM groups WHERE id = sg.group_id OFFSET 0) g
     WHERE sg.subject_id = ${subjectId}
   `);
   return pathRowsSchema.parse(result).map((row) => row.path);
@@ -63,9 +66,8 @@ export async function effectiveGroupPaths(
 // Descendants reachable from `startId` by following parent_id edges
 // downward (child -> parent points up, so this walks the reverse
 // direction). UNION, not UNION ALL: the same termination reasoning as
-// role_composites' closure — see docs/superpowers/p2a-spike-log.md. Exported
-// only for groups.int.test.ts's cyclic-parent_id termination probe; the
-// package's public surface (src/index.ts) does not re-export it.
+// role_composites' closure — see docs/superpowers/p2a-spike-log.md. What
+// deleting a group takes with it, since `groups_parent_fk` cascades.
 export async function descendantsOf(
   tx: TenantScopedDatabase,
   startId: string,
@@ -74,7 +76,9 @@ export async function descendantsOf(
     WITH RECURSIVE descendants(id) AS (
       SELECT id FROM groups WHERE parent_id = ${startId}
       UNION
-      SELECT g.id FROM groups g JOIN descendants d ON g.parent_id = d.id
+      SELECT g.id
+      FROM descendants d
+      CROSS JOIN LATERAL (SELECT id FROM groups WHERE parent_id = d.id OFFSET 0) g
     )
     SELECT id FROM descendants
   `);
@@ -82,19 +86,32 @@ export async function descendantsOf(
   return new Set(rows.map((row) => row.id));
 }
 
-// `startId` and everything above it up to the root, by following
-// `parent_id` edges upward — the same walk `effectiveRoles`' own
-// `group_closure` (#/repository/effective-roles.ts) does from a subject's
-// direct memberships, seeded here from one group instead. What a reparent's
-// own capability ceiling needs: a group moved under `startId` inherits
-// every role mapped to `startId` or any of its ancestors, via that same
-// closure, so the ceiling has to reach as far as this does.
-export async function ancestorsOf(tx: TenantScopedDatabase, startId: string): Promise<Set<string>> {
+// `startId` and everything above it up to the root, by following `parent_id`
+// edges upward — the walk `effectiveRoles`' `group_closure` does from a
+// subject's memberships, seeded from one group instead. A reparent's ceiling
+// reaches as far as this does: a group moved under `startId` inherits every
+// role mapped to it or to any ancestor.
+//
+// Given several groups it answers the union of their chains in one query.
+export async function ancestorsOf(
+  tx: TenantScopedDatabase,
+  start: string | readonly string[],
+): Promise<Set<string>> {
+  const startIds = typeof start === 'string' ? [start] : start;
+  if (startIds.length === 0) return new Set();
+  const seeds = sql.join(
+    startIds.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
   const result = await tx.execute(sql`
     WITH RECURSIVE ancestors(id, parent_id) AS (
-      SELECT id, parent_id FROM groups WHERE id = ${startId}
+      SELECT id, parent_id FROM groups WHERE id IN (${seeds})
       UNION
-      SELECT g.id, g.parent_id FROM groups g JOIN ancestors a ON g.id = a.parent_id
+      SELECT p.id, p.parent_id
+      FROM ancestors a
+      CROSS JOIN LATERAL (
+        SELECT id, parent_id FROM groups WHERE id = a.parent_id OFFSET 0
+      ) p
     )
     SELECT id FROM ancestors
   `);
@@ -148,6 +165,7 @@ export function groupRepository(tx: TenantScopedDatabase) {
           tenantId: input.tenantId,
           parentId: input.parentId,
           name: input.name,
+          description: input.description ?? null,
           path,
         })
         .returning();
@@ -156,6 +174,37 @@ export function groupRepository(tx: TenantScopedDatabase) {
         throw new OduduError('insert_returned_no_row', 'insert into groups returned no row');
       }
       return toRecord(row);
+    },
+
+    async setDescription(groupId: string, description: string | null): Promise<void> {
+      const rows = await tx
+        .update(groups)
+        .set({ description })
+        .where(eq(groups.id, groupId))
+        .returning({ id: groups.id });
+      if (rows.length === 0) {
+        throw new OduduError('group_not_found', `no group with id ${groupId}`);
+      }
+    },
+
+    async setDefaultForNewSubjects(groupId: string, value: boolean): Promise<void> {
+      const rows = await tx
+        .update(groups)
+        .set({ defaultForNewSubjects: value })
+        .where(eq(groups.id, groupId))
+        .returning({ id: groups.id });
+      if (rows.length === 0) {
+        throw new OduduError('group_not_found', `no group with id ${groupId}`);
+      }
+    },
+
+    async defaultsForTenant(): Promise<GroupRecord[]> {
+      const rows = await tx
+        .select()
+        .from(groups)
+        .where(eq(groups.defaultForNewSubjects, true))
+        .orderBy(asc(groups.id));
+      return rows.map(toRecord);
     },
 
     async byPath(path: string): Promise<GroupRecord | null> {
@@ -206,6 +255,35 @@ export function groupRepository(tx: TenantScopedDatabase) {
     async addToSubject(subjectId: string, groupId: string): Promise<void> {
       const group = await requireById(tx, groupId);
       await tx.insert(subjectGroups).values({ tenantId: group.tenantId, subjectId, groupId });
+    },
+
+    // Direct memberships only, like effectiveGroupPaths; ordered by id so a
+    // hash over the list is the same on every read of an unchanged set.
+    async groupsOfSubject(subjectId: string): Promise<GroupRecord[]> {
+      const rows = await tx
+        .select()
+        .from(groups)
+        .where(
+          sql`${groups.id} = ANY(ARRAY(SELECT ${subjectGroups.groupId} FROM ${subjectGroups} WHERE ${subjectGroups.subjectId} = ${subjectId}))`,
+        )
+        .orderBy(asc(groups.id));
+      return rows.map(toRecord);
+    },
+
+    // Delete-then-insert under the caller's own row lock, never a diff —
+    // the same shape as `setRoles` above. Deduplicated on the id the row
+    // holds, not the string given: a uuid matches in either letter case.
+    async setSubjectGroups(subjectId: string, groupIds: readonly string[]): Promise<void> {
+      await tx.delete(subjectGroups).where(eq(subjectGroups.subjectId, subjectId));
+      const joined = new Set<string>();
+      for (const groupId of groupIds) {
+        const group = await requireById(tx, groupId);
+        if (joined.has(group.id)) continue;
+        joined.add(group.id);
+        await tx
+          .insert(subjectGroups)
+          .values({ tenantId: group.tenantId, subjectId, groupId: group.id });
+      }
     },
   };
 }

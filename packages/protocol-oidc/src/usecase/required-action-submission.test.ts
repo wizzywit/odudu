@@ -351,6 +351,7 @@ describe('handleRequiredActionSubmission — enrolling the owed factor', () => {
         subjectId: 'subject-1',
         secret: SUBMISSION.secret,
         code: SUBMISSION.code,
+        authSessionId: AUTH_SESSION_ID,
       },
       REQUEST,
     );

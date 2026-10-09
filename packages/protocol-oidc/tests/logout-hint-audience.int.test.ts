@@ -294,7 +294,7 @@ describe('/logout checks an id_token_hint against the client_id beside it', () =
   // name the session actually live in this request's own browser, not
   // merely one belonging to the same subject.
   it('an agreeing client_id and hint audience does not end a session the hint names for a different login', async () => {
-    const tenantName = `logout-hint-aud-agree-wrong-session-${newId()}`;
+    const tenantName = `logout-hint-wrong-session-${newId()}`;
     const { tenantId } = await setupTenant(tenantName);
     const subjectId = await subjectIdOf(tenantId, USERNAME);
 

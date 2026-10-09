@@ -74,6 +74,20 @@ describe('trustProxy', () => {
   });
 });
 
+describe('the console', () => {
+  it('refuses to build with a base URL and no client key, naming the variable', () => {
+    expect(() =>
+      buildApp({
+        database,
+        ownerDatabase: database,
+        kek: config.ODUDU_KEK,
+        logger: createLogger(config),
+        consoleBaseUrl: 'http://localhost:3000',
+      }),
+    ).toThrow(/ODUDU_CONSOLE_CLIENT_KEY/u);
+  });
+});
+
 describe('admin routes', () => {
   it('serves the admin API and leaves the OIDC routes alone', async () => {
     const app = buildApp({

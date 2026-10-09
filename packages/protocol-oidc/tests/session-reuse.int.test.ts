@@ -545,7 +545,7 @@ describe('the required-action gate applies to a reused session too', () => {
   });
 
   it('does not touch the session it refused to reuse for', async () => {
-    const tenantName = `reuse-required-action-touch-${newId()}`;
+    const tenantName = `reuse-action-touch-${newId()}`;
     const tenantId = await setupTenant(tenantName);
     const subjectId = await subjectIdOf(tenantId, USERNAME);
     const cookie = await signIn(tenantName);

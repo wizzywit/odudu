@@ -63,8 +63,8 @@ async function setupTenant(name: string): Promise<{ tenantId: string }> {
   const tenantId = newId();
   const clientDbId = newId();
   await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
-    // sso_session_idle_seconds raised well past the 30-minute TTL
-    // AUTH_SESSION_TTL_MS fixes for an authentication session, so the one
+    // sso_session_idle_seconds raised well past the tenant's default
+    // 30-minute login_ttl_seconds for an authentication session, so the one
     // expiry test below can advance past the latter without the SSO
     // session itself going idle-expired and confounding the result.
     await tx.insert(tenants).values({
@@ -520,8 +520,8 @@ describe('the account chooser', () => {
   });
 
   // The parked authentication session the chooser rendered against has its
-  // own 30-minute TTL (authn-flows/src/usecase/executor.ts's
-  // AUTH_SESSION_TTL_MS) — the same one every sibling POST is gated by via
+  // own lifetime (the tenant's login_ttl_seconds, 30 minutes by default) —
+  // the same one every sibling POST is gated by via
   // authenticatedSession. A selection posted after it has expired must be
   // refused the same way, not accepted indefinitely merely because
   // nothing here ever marks the row consumed.

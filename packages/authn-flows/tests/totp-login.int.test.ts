@@ -125,6 +125,7 @@ async function enrol(
         subjectId,
         secret: offer.secret,
         code: totpCode(offer.secret, totpCounter(clock.now())),
+        authSessionId: newId(),
       },
       clock,
     ),
@@ -211,6 +212,129 @@ describe('a tenant that requires a second factor collects it as a required actio
     });
   });
 
+  it('credits the confirming code to the attempt it was typed into', async () => {
+    const tenantId = newId();
+    const clock = clockAt();
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, true);
+      return seedUser(tx, tenantId, 'ada');
+    });
+    const authSessionId = await start(tenantId, clock);
+    await withTenant(app.db, tenantId, (tx) =>
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
+    );
+
+    const offer = await withTenant(app.db, tenantId, (tx) =>
+      beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
+    );
+    const code = totpCode(offer.secret, totpCounter(clock.now()));
+    const enrolled = await withTenant(app.db, tenantId, (tx) =>
+      completeTotpEnrolment(
+        tx,
+        { tenantId, subjectId, secret: offer.secret, code, authSessionId },
+        clock,
+      ),
+    );
+    expect(enrolled).toEqual({ kind: 'enrolled' });
+
+    // No second code, and no wait for the next time step: the one that
+    // proved the authenticator is the otp factor of this attempt.
+    const resumed = await withTenant(app.db, tenantId, (tx) =>
+      advance(tx, authSessionId, {}, clock, { logger: SILENT_LOGGER }),
+    );
+    expect(resumed).toEqual({
+      kind: 'success',
+      subjectId,
+      authenticators: ['password', 'otp'],
+    });
+    expect(
+      await withTenant(app.db, tenantId, (tx) => authenticatedSubject(tx, authSessionId, clock)),
+    ).toBe(subjectId);
+  });
+
+  it('credits nothing when the subject already holds an authenticator', async () => {
+    const tenantId = newId();
+    const clock = clockAt();
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, true);
+      return seedUser(tx, tenantId, 'ada');
+    });
+    const authSessionId = await start(tenantId, clock);
+    await withTenant(app.db, tenantId, (tx) =>
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
+    );
+    await enrol(tenantId, subjectId, clock);
+
+    const offer = await withTenant(app.db, tenantId, (tx) =>
+      beginTotpEnrolment(tx, `tenant-${tenantId}`, subjectId),
+    );
+    const refused = await withTenant(app.db, tenantId, (tx) =>
+      completeTotpEnrolment(
+        tx,
+        {
+          tenantId,
+          subjectId,
+          secret: offer.secret,
+          code: totpCode(offer.secret, totpCounter(clock.now())),
+          authSessionId,
+        },
+        clock,
+      ),
+    );
+    expect(refused).toEqual({ kind: 'rejected', reason: 'already_enrolled' });
+    const record = await withTenant(app.db, tenantId, (tx) =>
+      authenticationSessionRepository(tx).byId(authSessionId),
+    );
+    expect(record?.satisfied).toEqual(['password']);
+  });
+
+  it('cannot credit a code to a foreign tenant’s attempt', async () => {
+    const clock = clockAt();
+    const tenantA = newId();
+    const tenantB = newId();
+    const seeded = await withTenant(app.db, tenantA, async (tx) => {
+      await seedTenant(tx, tenantA, true);
+      const subjectId = await seedUser(tx, tenantA, 'ada');
+      const { authSessionId } = await startAuthentication(tx, tenantA, request, clock);
+      await authenticationSessionRepository(tx).bindSubject(authSessionId, subjectId);
+      return { authSessionId, subjectId };
+    });
+    await withTenant(app.db, tenantB, (tx) => seedTenant(tx, tenantB, true));
+
+    // The credential insert names a subject tenant B cannot see, so the
+    // whole enrolment is refused before anything is credited.
+    const secret = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+    await expect(
+      withTenant(app.db, tenantB, (tx) =>
+        completeTotpEnrolment(
+          tx,
+          {
+            tenantId: tenantA,
+            subjectId: seeded.subjectId,
+            secret,
+            code: totpCode(secret, totpCounter(clock.now())),
+            authSessionId: seeded.authSessionId,
+          },
+          clock,
+        ),
+      ),
+    ).rejects.toThrow();
+
+    const found = await withTenant(app.db, tenantA, (tx) =>
+      authenticationSessionRepository(tx).byId(seeded.authSessionId),
+    );
+    expect(found?.satisfied).toEqual([]);
+    expect(
+      await withTenant(app.db, tenantA, (tx) =>
+        credentialRepository(tx).listFor(seeded.subjectId, 'totp'),
+      ),
+    ).toEqual([]);
+  });
+
   it('refuses the enrolment when the confirming code does not match', async () => {
     const tenantId = newId();
     const clock = clockAt();
@@ -225,7 +349,7 @@ describe('a tenant that requires a second factor collects it as a required actio
     const outcome = await withTenant(app.db, tenantId, (tx) =>
       completeTotpEnrolment(
         tx,
-        { tenantId, subjectId, secret: offer.secret, code: '000000' },
+        { tenantId, subjectId, secret: offer.secret, code: '000000', authSessionId: newId() },
         clock,
       ),
     );
@@ -274,7 +398,7 @@ describe('a tenant that requires a second factor collects it as a required actio
   });
 });
 
-describe('a factor with work left after it is written down, and one that finishes is not', () => {
+describe('every factor that succeeds is written down', () => {
   it('records password as satisfied when an otp step follows it', async () => {
     const tenantId = newId();
     const clock = clockAt();
@@ -312,12 +436,44 @@ describe('a factor with work left after it is written down, and one that finishe
       authenticators: ['password', 'otp'],
     });
 
-    // otp finished the login, so it is not written down: a retry after a
-    // refusal downstream has to present a code again.
+    // otp finished the login and is written down as well, so a finished
+    // required action can resume the attempt without asking for a code.
     const afterOtp = await withTenant(app.db, tenantId, (tx) =>
       authenticationSessionRepository(tx).byId(authSessionId),
     );
-    expect(afterOtp?.satisfied).toEqual(['password']);
+    expect(afterOtp?.satisfied).toEqual(['password', 'otp']);
+  });
+
+  it('asks a password-only attempt for a code once its subject holds an authenticator', async () => {
+    const tenantId = newId();
+    const clock = clockAt();
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId, false);
+      return seedUser(tx, tenantId, 'ada');
+    });
+    const authSessionId = await start(tenantId, clock);
+    const signedIn = await withTenant(app.db, tenantId, (tx) =>
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
+    );
+    expect(signedIn).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
+
+    // Enrolled from somewhere other than this attempt, so nothing here
+    // proved the code: the attempt is no longer complete for this subject.
+    await enrol(tenantId, subjectId, clock);
+    expect(
+      await withTenant(app.db, tenantId, (tx) => authenticatedSubject(tx, authSessionId, clock)),
+    ).toBeNull();
+
+    const resumed = await withTenant(app.db, tenantId, (tx) =>
+      advance(tx, authSessionId, {}, clock, { logger: SILENT_LOGGER }),
+    );
+    expect(resumed).toEqual({ kind: 'challenge', form: 'otp' });
+    const record = await withTenant(app.db, tenantId, (tx) =>
+      authenticationSessionRepository(tx).byId(authSessionId),
+    );
+    expect(record?.authenticatedAt).toBeNull();
   });
 
   it('re-challenges otp alone after a wrong code, leaving the password satisfied', async () => {
@@ -666,6 +822,7 @@ describe('tenantSettingsRepository', () => {
       verifySeeded: async (tx, tenantId) => {
         expect(await tenantSettingsRepository(tx).flowSettings(tenantId)).toEqual({
           otpRequired: true,
+          loginWithEmail: false,
           passwordMaxAgeDays: 90,
           lockout: {
             maxFailures: 5,
@@ -716,6 +873,29 @@ describe('tenantSettingsRepository', () => {
       attempt: async (tx, tenantId) => {
         try {
           return await tenantSettingsRepository(tx).passwordPolicy(tenantId);
+        } catch (caught) {
+          return caught instanceof OduduError ? caught.code : 'unexpected';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('tenant_not_found');
+      },
+    });
+  });
+
+  it("cannot read a foreign tenant's login lifetime, and refuses rather than defaulting", async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId, false);
+        await tx.update(tenants).set({ loginTtlSeconds: 120 }).where(eq(tenants.id, tenantId));
+        return tenantId;
+      },
+      verifySeeded: async (tx, tenantId) => {
+        expect(await tenantSettingsRepository(tx).loginTtlSeconds(tenantId)).toBe(120);
+      },
+      attempt: async (tx, tenantId) => {
+        try {
+          return await tenantSettingsRepository(tx).loginTtlSeconds(tenantId);
         } catch (caught) {
           return caught instanceof OduduError ? caught.code : 'unexpected';
         }

@@ -12,6 +12,7 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { type RequestContext } from '@odudu/domain-audit';
 import { isUuid } from '@odudu/kernel';
 import { authorizationCodeRepository } from '#/repository/codes';
+import { tenantLifetimesRepository } from '#/repository/tenant-lifetimes';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
 import { EMPTY_CLAIMS_REQUEST, type ClaimsRequest } from '#/service/claims-request';
@@ -19,11 +20,10 @@ import { decideConsent } from '#/service/consent';
 import { tenantIssuer } from '#/service/issuer';
 import { type PromptValue } from '#/service/prompt';
 
-// A code lives 60 seconds: it is redeemed by a backend within a second or
-// two of the redirect, and a short window shrinks how long an intercepted
-// code is worth anything.
-const AUTHORIZATION_CODE_TTL_MS = 60_000;
-
+// A code lives for the tenant's authorization_code_ttl_seconds, 60 by
+// default and never above 600: it is redeemed by a backend within a second
+// or two of the redirect, and a short window shrinks how long an
+// intercepted code is worth anything.
 export interface IssueAuthorizationCodeInput {
   tenantId: string;
   clientId: string;
@@ -38,10 +38,10 @@ export interface IssueAuthorizationCodeInput {
   // instant as `now`; on a reused session it is the session's own original
   // login, which can be arbitrarily far in the past.
   authTime: Date;
-  // The instant this code is issued, which is what its 60s TTL counts from.
-  // Deliberately separate from `authTime`: a code issued for a reused
-  // session must still expire 60s from now, not 60s from a login that may
-  // have happened minutes or hours ago.
+  // The instant this code is issued, which is what the tenant's code
+  // lifetime counts from. Deliberately separate from `authTime`: a code
+  // issued for a reused session must still expire that long from now, not
+  // from a login that may have happened minutes or hours ago.
   now: Date;
   // The SSO session this code's eventual grant is bound to — copied
   // forward so `/token` can carry it onto `token_grants.session_id`
@@ -64,6 +64,7 @@ export async function issueAuthorizationCode(
   input: IssueAuthorizationCodeInput,
 ): Promise<{ code: string }> {
   const code = generateAuthorizationCode();
+  const lifetimes = await tenantLifetimesRepository(tx).byId(input.tenantId);
   await authorizationCodeRepository(tx).create({
     codeHash: hashAuthorizationCode(code),
     tenantId: input.tenantId,
@@ -75,7 +76,7 @@ export async function issueAuthorizationCode(
     codeChallenge: input.codeChallenge,
     codeChallengeMethod: input.codeChallengeMethod,
     authTime: input.authTime,
-    expiresAt: new Date(input.now.getTime() + AUTHORIZATION_CODE_TTL_MS),
+    expiresAt: new Date(input.now.getTime() + lifetimes.authorizationCodeTtlSeconds * 1000),
     sessionId: input.sessionId,
     resource: input.resource,
     claims: input.claims,
@@ -102,9 +103,8 @@ export type LoginSubmissionOutcome =
   // Authentication succeeded, but a required action is still owed. Nothing
   // is established and no code is issued, for the same reason as
   // 'unverified' above; the authentication session is left unconsumed so
-  // the same session resumes once the action is complete. See
-  // #/usecase/executor.ts's comment above recordSatisfied for why this has
-  // to be decided before completeLogin, never after.
+  // the required-action route resumes the same session once the action is
+  // complete.
   | {
       kind: 'required_action';
       authSessionId: string;
@@ -125,6 +125,8 @@ export type LoginSubmissionOutcome =
       kind: 'consent';
       authSessionId: string;
       clientName: string;
+      clientPages: ClientPages;
+      scopeLabels: ScopeLabels;
       defaultScopes: string[];
       optionalScopes: string[];
       alreadyGranted: string[];
@@ -202,6 +204,9 @@ export type CompleteLoginOutcome =
   // request, or by one that raced this one to the same UPDATE — so nothing
   // was established or issued.
   | { kind: 'already_consumed' }
+  // The subject was disabled after the factors that identified them ran,
+  // so a login parked behind a consent or a required action must not finish.
+  | { kind: 'subject_disabled' }
   // `entry` is the freshly established session's, carrying the only copy of
   // its secret; null when a reused session was touched instead.
   | { kind: 'issued'; sessionId: string; code: string; entry: SessionEntry | null };
@@ -221,6 +226,18 @@ export async function refusedForUnverifiedEmail(
   return status.verified ? null : { hasEmail: status.hasEmail };
 }
 
+// RFC 7591 §2's pages about the client, registered with it and linked from
+// the consent screen; null where the client registered none.
+export interface ClientPages {
+  clientUri: string | null;
+  policyUri: string | null;
+  tosUri: string | null;
+}
+
+// The consent text of each scope that has one, by scope name; a scope with
+// none is shown by its name.
+export type ScopeLabels = Readonly<Record<string, string>>;
+
 // What a consent decision needs about the client beyond decideConsent's own
 // pure inputs: a name to put on the page, and the name<->id mapping a
 // consent POST needs to turn a ticked checkbox (a scope name) back into
@@ -229,6 +246,8 @@ export async function refusedForUnverifiedEmail(
 // once, not per scope.
 export interface ConsentContext {
   clientName: string;
+  clientPages: ClientPages;
+  scopeLabels: ScopeLabels;
   consentRequired: boolean;
   defaultScopes: string[];
   optionalScopes: string[];
@@ -249,6 +268,8 @@ export type ConsentGateOutcome =
   | {
       kind: 'ask';
       clientName: string;
+      clientPages: ClientPages;
+      scopeLabels: ScopeLabels;
       defaultScopes: string[];
       optionalScopes: string[];
       alreadyGranted: string[];
@@ -292,6 +313,8 @@ export async function decideConsentGate(
   return {
     kind: 'ask',
     clientName: context.clientName,
+    clientPages: context.clientPages,
+    scopeLabels: context.scopeLabels,
     defaultScopes: decision.defaultScopes,
     optionalScopes: decision.optionalScopes,
     alreadyGranted: decision.alreadyGranted,
@@ -318,10 +341,9 @@ export interface LoginSubmissionDeps extends ConsentGateDeps {
     tenantId: string,
     subjectId: string,
   ): Promise<{ verified: boolean; hasEmail: boolean }>;
-  // Every action this subject still owes, read fresh on every submission —
-  // an action completed by a separate request to
-  // login-actions/required-action has to be seen the next time this same
-  // auth_session_id is resubmitted, not cached from an earlier attempt.
+  // Every action this subject still owes, read fresh on every submission:
+  // login-actions/required-action resumes this same auth_session_id once an
+  // action is done, and has to find the next one owed, not a cached set.
   // That route reads the same set, and refuses to act on an action it does
   // not find there.
   pendingActions(tenantId: string, subjectId: string): Promise<readonly RequiredAction[]>;
@@ -330,9 +352,10 @@ export interface LoginSubmissionDeps extends ConsentGateDeps {
   // id_token_hint branch below, its only caller.
   resetAuthenticationProgress(tenantId: string, authSessionId: string): Promise<void>;
   // Parks the already-gated `remembered` decision on the authentication
-  // session, read back by consent-submission.ts's own PendingRequest —
-  // the only door that completes a login without asking `remember_me`
-  // itself. See handleLoginSubmission's 'consent' branch, its only caller.
+  // session, read back by the two doors that complete a login without
+  // asking `remember_me` themselves: the consent POST and a finished
+  // required action. See handleLoginSubmission's 'consent' and
+  // 'required_action' branches.
   recordRememberMe(tenantId: string, authSessionId: string, remembered: boolean): Promise<void>;
   // Consumes the authentication session and, only if that succeeds,
   // establishes the SSO session and issues the authorization code — all in
@@ -458,7 +481,7 @@ export async function completeAuthorizedLogin(
   // a retried POST — reaches here after everything upstream succeeds again;
   // completeLogin's atomic consume is what stops it from minting a second
   // SSO session and a second code for the same parked request.
-  if (completed.kind === 'already_consumed') {
+  if (completed.kind === 'already_consumed' || completed.kind === 'subject_disabled') {
     return { kind: 'unauthenticated' };
   }
   const { sessionId, code, entry: issued } = completed;
@@ -622,6 +645,9 @@ export async function handleLoginSubmission(
   // so the same parked request survives the detour.
   const action = nextRequiredAction(await deps.pendingActions(tenant.id, result.subjectId));
   if (action !== null) {
+    // Parked for the same reason the consent branch parks it: the login
+    // resumes from the required-action route, whose form has no such field.
+    await deps.recordRememberMe(tenant.id, authSessionId, remembered);
     return { kind: 'required_action', authSessionId, subjectId: result.subjectId, action };
   }
 
@@ -661,6 +687,8 @@ export async function handleLoginSubmission(
       kind: 'consent',
       authSessionId,
       clientName: gate.clientName,
+      clientPages: gate.clientPages,
+      scopeLabels: gate.scopeLabels,
       defaultScopes: gate.defaultScopes,
       optionalScopes: gate.optionalScopes,
       alreadyGranted: gate.alreadyGranted,

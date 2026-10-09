@@ -505,6 +505,195 @@
       "when": 1789049381714,
       "tag": "0071_session_secret",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1789049381715,
+      "tag": "0072_tenant_name_rule",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1789049381716,
+      "tag": "0073_list_indexes_subjects",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1789049381717,
+      "tag": "0074_list_indexes_tenants_clients",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1789049381718,
+      "tag": "0075_list_indexes_roles_groups_scopes",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1789049381719,
+      "tag": "0076_audit_events_resource_keyset",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1789049381720,
+      "tag": "0077_username_editable",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1789049381721,
+      "tag": "0078_console_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1789049381722,
+      "tag": "0079_list_indexes_subject_claims",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1789049381723,
+      "tag": "0080_list_indexes_outboxes",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1789049381724,
+      "tag": "0081_list_index_group_children",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1789049381725,
+      "tag": "0082_tenant_lifetimes",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1789049381726,
+      "tag": "0083_login_with_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1789049381727,
+      "tag": "0084_client_display_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1789049381728,
+      "tag": "0085_client_id_token_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1789049381729,
+      "tag": "0086_client_previous_secret",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1789049381730,
+      "tag": "0087_group_role_descriptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1789049381731,
+      "tag": "0088_default_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1789049381732,
+      "tag": "0089_scope_client_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1789049381733,
+      "tag": "0090_scope_consent_text",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1789049381734,
+      "tag": "0091_audit_event_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1789049381735,
+      "tag": "0092_execute_actions_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1789049381736,
+      "tag": "0093_action_token_redirect_client",
+      "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1789135781736,
+      "tag": "0094_drop_action_token_redirect",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1789222181736,
+      "tag": "0095_lookup_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1789308581736,
+      "tag": "0096_client_origins",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1789308681736,
+      "tag": "0097_clients_by_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1789308781736,
+      "tag": "0098_clients_secret_by_type",
+      "breakpoints": true
     }
   ]
 }

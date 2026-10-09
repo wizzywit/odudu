@@ -1,15 +1,18 @@
 import { TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED } from '#/token';
 
-// authenticateClient (packages/protocol-oidc/src/usecase/client-authentication.ts)
-// is what both /introspect and /revoke authenticate through, and it accepts
-// a Basic header, a body client_secret, or — verifyClientSecret,
-// packages/domain-tenant/src/service/client.ts — no secret at all from a
-// `none` public client. Only private_key_jwt and tls_client_auth are never
-// dispatched here, so unlike the token endpoint's list this one never
-// varies with ODUDU_TRUST_PROXY.
+// authenticateEndpointClient
+// (packages/protocol-oidc/src/usecase/private-key-jwt-authentication.ts) is
+// what both /introspect and /revoke authenticate through. It accepts a
+// private_key_jwt assertion, a Basic header, a body client_secret, or —
+// verifyClientSecret, packages/domain-tenant/src/service/client.ts — no
+// secret at all from a `none` public client, or a certificate subject a
+// trusted proxy supplies, so like the token endpoint's list this one drops
+// tls_client_auth when ODUDU_TRUST_PROXY is off.
 const INTROSPECTION_AND_REVOCATION_AUTH_METHODS_SUPPORTED = [
   'client_secret_basic',
   'client_secret_post',
+  'private_key_jwt',
+  'tls_client_auth',
   'none',
 ] as const;
 
@@ -82,6 +85,12 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
   // OIDC Discovery §4.1: trimming the terminating "/" is what makes this
   // issuer the string a client re-derives from the URL it fetched.
   const issuer = opts.issuer.replace(/\/+$/, '');
+  const introspectionAndRevocationMethods =
+    opts.tlsClientAuthEnabled === true
+      ? INTROSPECTION_AND_REVOCATION_AUTH_METHODS_SUPPORTED
+      : INTROSPECTION_AND_REVOCATION_AUTH_METHODS_SUPPORTED.filter(
+          (method) => method !== 'tls_client_auth',
+        );
 
   return {
     issuer,
@@ -116,9 +125,8 @@ export function discoveryDocument(opts: DiscoveryDocumentOptions): DiscoveryDocu
       opts.tlsClientAuthEnabled === true
         ? TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED
         : TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED.filter((method) => method !== 'tls_client_auth'),
-    introspection_endpoint_auth_methods_supported:
-      INTROSPECTION_AND_REVOCATION_AUTH_METHODS_SUPPORTED,
-    revocation_endpoint_auth_methods_supported: INTROSPECTION_AND_REVOCATION_AUTH_METHODS_SUPPORTED,
+    introspection_endpoint_auth_methods_supported: introspectionAndRevocationMethods,
+    revocation_endpoint_auth_methods_supported: introspectionAndRevocationMethods,
     authorization_response_iss_parameter_supported: true,
     claims_parameter_supported: true,
     backchannel_logout_supported: true,

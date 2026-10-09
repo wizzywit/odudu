@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { AMENDABLE_ROLE_FIELDS, refusalFor, ROLE_FIELDS } from '#/service/role-patch';
 
 describe('the role amendment allowlist', () => {
+  it('refuses the derived reach field, which no write sets', () => {
+    expect(ROLE_FIELDS).toContain('admin_reach');
+    expect(refusalFor('admin_reach')).toMatch(/derived/u);
+  });
+
   it('admits only description', () => {
     expect(AMENDABLE_ROLE_FIELDS).toEqual(['description']);
   });
@@ -12,8 +17,19 @@ describe('the role amendment allowlist', () => {
     }
   });
 
+  it('names the operation that does set a role’s default', () => {
+    expect(refusalFor('default_for_new_subjects')).toContain(
+      'PUT /admin/tenants/{tenant}/roles/{id}/default',
+    );
+  });
+
   it('gives description no refusal', () => {
     expect(refusalFor('description')).toBeNull();
+  });
+
+  it('never offers the stored search key, which the table has and the wire shape does not', () => {
+    expect(ROLE_FIELDS).not.toContain('name_search');
+    expect(AMENDABLE_ROLE_FIELDS).not.toContain('name_search');
   });
 
   it('gives a field this resource has never heard of no refusal either', () => {
@@ -25,5 +41,11 @@ describe('the role amendment allowlist', () => {
       const known = AMENDABLE_ROLE_FIELDS.includes(field) || refusalFor(field) !== null;
       expect(known, field).toBe(true);
     }
+  });
+  it('refuses a rename as permanent, pointing at no operation that could do it', () => {
+    const reason = refusalFor('name');
+    expect(reason).toContain('ADR 0039');
+    expect(reason).toMatch(/is not offered/u);
+    expect(reason).not.toMatch(/own operation/u);
   });
 });

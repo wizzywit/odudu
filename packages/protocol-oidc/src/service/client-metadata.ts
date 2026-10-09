@@ -1,5 +1,16 @@
+import {
+  CLIENT_AUTH_METHODS,
+  CLIENT_GRANT_TYPES,
+  CLIENT_LIST_LIMIT,
+  DEFAULT_MAX_AGE_MAX,
+  ID_TOKEN_SIGNING_ALGS,
+  listLimitProblem,
+  USERINFO_ENCRYPTION_ENC_DEFAULT,
+  USERINFO_ENCRYPTION_ENCS,
+  USERINFO_SIGNING_ALGS,
+} from '@odudu/contracts/admin';
 import { z } from 'zod';
-import { JWE_ALGS_PERMITTED } from '@odudu/crypto';
+import { JWE_ALGS_PERMITTED, PRIVATE_JWK_MEMBERS } from '@odudu/crypto';
 import { assertFetchableUrl, RemoteAddressRefused } from '#/service/remote-address';
 
 // The RFC 7591 §3.2.2 error codes this validator returns. `error` doubles
@@ -21,35 +32,37 @@ export interface ClientMetadata {
   userinfoEncryptedResponseAlg: string | null;
   userinfoEncryptedResponseEnc: string | null;
   tlsClientAuthSubjectDn: string | null;
+  clientUri: string | null;
+  policyUri: string | null;
+  tosUri: string | null;
+  idTokenSignedResponseAlg: 'RS256' | 'ES256' | null;
+  defaultMaxAge: number | null;
+  requireAuthTime: boolean;
 }
 
+// `field` names the metadata member at fault, when one member is.
 export type ClientMetadataOutcome =
   | { kind: 'ok'; metadata: ClientMetadata }
-  | { kind: 'invalid'; error: ClientMetadataError; description: string };
+  | { kind: 'invalid'; error: ClientMetadataError; description: string; field?: string };
 
-function invalid(error: ClientMetadataError, description: string): ClientMetadataOutcome {
-  return { kind: 'invalid', error, description };
+function invalid(
+  error: ClientMetadataError,
+  description: string,
+  field?: string,
+): ClientMetadataOutcome {
+  return field === undefined
+    ? { kind: 'invalid', error, description }
+    : { kind: 'invalid', error, description, field };
 }
 
 // client_oidc_config_grant_types_check (migration 0007_client_oidc_config.sql).
 // Exported so `seed client --grant-type` (apps/server/src/cli/seed.ts)
 // validates against this, the CHECK constraint's mirror, rather than
 // keeping a second list free to disagree with it.
-export const GRANT_TYPES_PERMITTED = new Set([
-  'authorization_code',
-  'refresh_token',
-  'client_credentials',
-  'urn:ietf:params:oauth:grant-type:token-exchange',
-]);
+export const GRANT_TYPES_PERMITTED = new Set<string>(CLIENT_GRANT_TYPES);
 
 // client_oidc_config_auth_method_check (migration 0045_client_registration_metadata.sql).
-const AUTH_METHODS_PERMITTED = new Set([
-  'client_secret_basic',
-  'client_secret_post',
-  'none',
-  'private_key_jwt',
-  'tls_client_auth',
-]);
+const AUTH_METHODS_PERMITTED = new Set<string>(CLIENT_AUTH_METHODS);
 
 // signing_keys_alg_check (packages/db/drizzle/0003_signing_keys.sql):
 // `RS256` and `ES256` are the only algorithms this server ever generates a
@@ -58,8 +71,8 @@ const AUTH_METHODS_PERMITTED = new Set([
 // (`docs/protocols/oidc-core.md`'s reading note has the exact clauses). A
 // value outside this set used to be accepted and silently answered with
 // whichever algorithm the tenant's active key happened to carry.
-export const USERINFO_SIGNING_ALGS_PERMITTED = ['RS256', 'ES256', 'none'] as const;
-const USERINFO_SIGNING_ALGS = new Set<string>(USERINFO_SIGNING_ALGS_PERMITTED);
+export const USERINFO_SIGNING_ALGS_PERMITTED = USERINFO_SIGNING_ALGS;
+const USERINFO_SIGNING_ALG_SET = new Set<string>(USERINFO_SIGNING_ALGS);
 
 // docs/superpowers/p3b-spike-jwe.md: what the installed jose can produce
 // against a client-published asymmetric key. @odudu/crypto's
@@ -70,20 +83,24 @@ const USERINFO_ENCRYPTION_ALGS = new Set<string>(JWE_ALGS_PERMITTED);
 // The spike found no `enc` value the installed jose fails to produce
 // against any permitted `alg` — this is the full JWA registry, not a
 // narrowing.
-export const USERINFO_ENCRYPTION_ENCS_PERMITTED = [
-  'A128CBC-HS256',
-  'A192CBC-HS384',
-  'A256CBC-HS512',
-  'A128GCM',
-  'A192GCM',
-  'A256GCM',
-] as const;
-const USERINFO_ENCRYPTION_ENCS = new Set<string>(USERINFO_ENCRYPTION_ENCS_PERMITTED);
+export const USERINFO_ENCRYPTION_ENCS_PERMITTED = USERINFO_ENCRYPTION_ENCS;
+const USERINFO_ENCRYPTION_ENC_SET = new Set<string>(USERINFO_ENCRYPTION_ENCS);
 
-// OIDC Dynamic Client Registration §2: this is the default `enc` when
-// `_alg` is registered with no `_enc`.
+// OIDC Dynamic Client Registration §2: the default `enc` when `_alg` is
+// registered with no `_enc`.
 // verified: curl -s https://openid.net/specs/openid-connect-registration-1_0.html
-export const USERINFO_ENCRYPTION_ENC_DEFAULT = 'A128CBC-HS256';
+export { USERINFO_ENCRYPTION_ENC_DEFAULT };
+
+// signing_keys_alg_check: the algorithms this server can hold a signing key
+// for. Unlike `userinfo_signed_response_alg`, `none` is refused: an ID token
+// is the client's proof of who authenticated, never an unsigned claim. Which
+// of the two the tenant holds a key for is the caller's to check, against
+// its own keys (`idTokenAlgUnavailable`, #/usecase/id-token-alg.ts).
+export const ID_TOKEN_SIGNING_ALGS_PERMITTED = ID_TOKEN_SIGNING_ALGS;
+
+function isIdTokenSigningAlg(value: string): value is 'RS256' | 'ES256' {
+  return (ID_TOKEN_SIGNING_ALGS_PERMITTED as readonly string[]).includes(value);
+}
 
 // RFC 7591 §2: the server assigns these, so a client stating one for itself
 // is refused rather than silently overridden — silent override is how a
@@ -133,6 +150,23 @@ function isValidRedirectUri(raw: string): boolean {
   );
 }
 
+// RFC 7591 §2's `client_uri`, `policy_uri` and `tos_uri` are pages a person
+// opens from the consent screen, so of the redirect-URI forms above only the
+// web ones apply: https to any host, http to loopback only, no fragment.
+function isValidWebPageUri(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (url.hash !== '') return false;
+  if (url.protocol === 'https:') return true;
+  return url.protocol === 'http:' && isLoopbackHost(url.hostname);
+}
+
+const WEB_PAGE_FIELDS = ['client_uri', 'policy_uri', 'tos_uri'] as const;
+
 // Registration-time policy for both logout URIs (OIDC Back-Channel Logout
 // 1.0 §2.2, Front-Channel Logout 1.0 §2's own registration metadata): https,
 // absolute, no fragment. Unlike the redirect_uri MAY, no exception is made
@@ -168,6 +202,20 @@ function sharesOriginWithRegisteredRedirectUri(
 
 const jwkSetShape = z.object({ keys: z.array(z.unknown()) });
 
+// A client registers the keys this server verifies its signatures with and
+// encrypts to, never the halves that sign or decrypt: a stored private
+// member would be served back by every read and export of the client.
+function privateMemberRefusal(keys: readonly unknown[]): string | null {
+  for (const [index, key] of keys.entries()) {
+    if (typeof key !== 'object' || key === null) continue;
+    const member = PRIVATE_JWK_MEMBERS.find((name) => Object.hasOwn(key, name));
+    if (member !== undefined) {
+      return `jwks.keys[${String(index)}] carries the private member ${member}; register public keys only`;
+    }
+  }
+  return null;
+}
+
 const metadataShape = z.object({
   redirect_uris: z.array(z.string()).optional(),
   grant_types: z.array(z.string()).optional(),
@@ -183,6 +231,12 @@ const metadataShape = z.object({
   userinfo_encrypted_response_alg: z.string().optional(),
   userinfo_encrypted_response_enc: z.string().optional(),
   tls_client_auth_subject_dn: z.string().optional(),
+  client_uri: z.string().optional(),
+  policy_uri: z.string().optional(),
+  tos_uri: z.string().optional(),
+  id_token_signed_response_alg: z.string().optional(),
+  default_max_age: z.number().int().nonnegative().max(DEFAULT_MAX_AGE_MAX).optional(),
+  require_auth_time: z.boolean().optional(),
 });
 
 // The registration body is an untyped boundary: parsed with Zod, never
@@ -190,7 +244,7 @@ const metadataShape = z.object({
 // jwks exclusivity, URI shape) run after the shape is known to be sound.
 export function parseClientMetadata(
   body: unknown,
-  options: { tlsClientAuthEnabled: boolean },
+  options: { tlsClientAuthEnabled: boolean; boundRedirectUris?: boolean },
 ): ClientMetadataOutcome {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     return invalid('invalid_client_metadata', 'registration body must be a JSON object');
@@ -199,14 +253,17 @@ export function parseClientMetadata(
 
   const assigned = SERVER_ASSIGNED_FIELDS.find((field) => field in raw);
   if (assigned !== undefined) {
-    return invalid('invalid_client_metadata', `${assigned} is assigned by the server`);
+    return invalid('invalid_client_metadata', `${assigned} is assigned by the server`, assigned);
   }
 
   const shape = metadataShape.safeParse(raw);
   if (!shape.success) {
+    const issue = shape.error.issues[0];
+    const member = issue?.path[0];
     return invalid(
       'invalid_client_metadata',
-      shape.error.issues[0]?.message ?? 'malformed client metadata',
+      issue?.message ?? 'malformed client metadata',
+      typeof member === 'string' ? member : undefined,
     );
   }
   const metadata = shape.data;
@@ -214,7 +271,11 @@ export function parseClientMetadata(
   const grantTypes = metadata.grant_types ?? ['authorization_code'];
   const unknownGrant = grantTypes.find((grant) => !GRANT_TYPES_PERMITTED.has(grant));
   if (unknownGrant !== undefined) {
-    return invalid('invalid_client_metadata', `grant_types must not include ${unknownGrant}`);
+    return invalid(
+      'invalid_client_metadata',
+      `grant_types must not include ${unknownGrant}`,
+      'grant_types',
+    );
   }
 
   const tokenEndpointAuthMethod = metadata.token_endpoint_auth_method ?? 'client_secret_basic';
@@ -222,6 +283,7 @@ export function parseClientMetadata(
     return invalid(
       'invalid_client_metadata',
       `token_endpoint_auth_method must not be ${tokenEndpointAuthMethod}`,
+      'token_endpoint_auth_method',
     );
   }
   // docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598:
@@ -232,6 +294,7 @@ export function parseClientMetadata(
     return invalid(
       'invalid_client_metadata',
       'tls_client_auth is unavailable: ODUDU_TRUST_PROXY is off on this deployment',
+      'token_endpoint_auth_method',
     );
   }
 
@@ -248,16 +311,30 @@ export function parseClientMetadata(
     return invalid(
       'invalid_client_metadata',
       'tls_client_auth_subject_dn is required when token_endpoint_auth_method is tls_client_auth',
+      'tls_client_auth_subject_dn',
     );
   }
   const tlsClientAuthSubjectDn =
     tokenEndpointAuthMethod === 'tls_client_auth' ? providedSubjectDn : '';
 
   const userinfoSignedResponseAlg = metadata.userinfo_signed_response_alg ?? null;
-  if (userinfoSignedResponseAlg !== null && !USERINFO_SIGNING_ALGS.has(userinfoSignedResponseAlg)) {
+  if (
+    userinfoSignedResponseAlg !== null &&
+    !USERINFO_SIGNING_ALG_SET.has(userinfoSignedResponseAlg)
+  ) {
     return invalid(
       'invalid_client_metadata',
       `userinfo_signed_response_alg must not be ${userinfoSignedResponseAlg}`,
+      'userinfo_signed_response_alg',
+    );
+  }
+
+  const idTokenSignedResponseAlg = metadata.id_token_signed_response_alg ?? null;
+  if (idTokenSignedResponseAlg !== null && !isIdTokenSigningAlg(idTokenSignedResponseAlg)) {
+    return invalid(
+      'invalid_client_metadata',
+      `id_token_signed_response_alg must not be ${idTokenSignedResponseAlg}`,
+      'id_token_signed_response_alg',
     );
   }
 
@@ -269,14 +346,16 @@ export function parseClientMetadata(
     return invalid(
       'invalid_client_metadata',
       `userinfo_encrypted_response_alg must not be ${userinfoEncryptedResponseAlg}`,
+      'userinfo_encrypted_response_alg',
     );
   }
 
   const providedEnc = metadata.userinfo_encrypted_response_enc ?? null;
-  if (providedEnc !== null && !USERINFO_ENCRYPTION_ENCS.has(providedEnc)) {
+  if (providedEnc !== null && !USERINFO_ENCRYPTION_ENC_SET.has(providedEnc)) {
     return invalid(
       'invalid_client_metadata',
       `userinfo_encrypted_response_enc must not be ${providedEnc}`,
+      'userinfo_encrypted_response_enc',
     );
   }
   // client_oidc_config_userinfo_enc_needs_alg (migration
@@ -287,15 +366,27 @@ export function parseClientMetadata(
     return invalid(
       'invalid_client_metadata',
       'userinfo_encrypted_response_enc requires userinfo_encrypted_response_alg',
+      'userinfo_encrypted_response_enc',
     );
   }
   const userinfoEncryptedResponseEnc =
     userinfoEncryptedResponseAlg === null ? null : (providedEnc ?? USERINFO_ENCRYPTION_ENC_DEFAULT);
 
   const redirectUris = metadata.redirect_uris ?? [];
+  if (options.boundRedirectUris !== false && redirectUris.length > CLIENT_LIST_LIMIT) {
+    return invalid(
+      'invalid_redirect_uri',
+      listLimitProblem('redirect_uris', redirectUris.length),
+      'redirect_uris',
+    );
+  }
   const badRedirectUri = redirectUris.find((uri) => !isValidRedirectUri(uri));
   if (badRedirectUri !== undefined) {
-    return invalid('invalid_redirect_uri', `redirect_uris entry ${badRedirectUri} is not valid`);
+    return invalid(
+      'invalid_redirect_uri',
+      `redirect_uris entry ${badRedirectUri} is not valid`,
+      'redirect_uris',
+    );
   }
   // client_oidc_config_redirect_uris_present: exact array equality, not
   // "contains" — adding refresh_token still needs an interactive grant to
@@ -305,11 +396,29 @@ export function parseClientMetadata(
     return invalid(
       'invalid_redirect_uri',
       'redirect_uris is required unless grant_types is exactly ["client_credentials"]',
+      'redirect_uris',
+    );
+  }
+
+  const badPage = WEB_PAGE_FIELDS.find((field) => {
+    const value = metadata[field];
+    return value !== undefined && !isValidWebPageUri(value);
+  });
+  if (badPage !== undefined) {
+    return invalid(
+      'invalid_client_metadata',
+      `${badPage} must be an absolute https URI, or http on a loopback host, with no fragment`,
+      badPage,
     );
   }
 
   if (metadata.jwks !== undefined && metadata.jwks_uri !== undefined) {
-    return invalid('invalid_client_metadata', 'jwks and jwks_uri are mutually exclusive');
+    return invalid('invalid_client_metadata', 'jwks and jwks_uri are mutually exclusive', 'jwks');
+  }
+
+  if (metadata.jwks !== undefined) {
+    const refusal = privateMemberRefusal(metadata.jwks.keys);
+    if (refusal !== null) return invalid('invalid_client_metadata', refusal, 'jwks');
   }
 
   let jwksUri: string | null = null;
@@ -319,7 +428,7 @@ export function parseClientMetadata(
       jwksUri = metadata.jwks_uri;
     } catch (error) {
       if (!(error instanceof RemoteAddressRefused)) throw error;
-      return invalid('invalid_client_metadata', `jwks_uri: ${error.reason}`);
+      return invalid('invalid_client_metadata', `jwks_uri: ${error.reason}`, 'jwks_uri');
     }
   }
 
@@ -330,6 +439,7 @@ export function parseClientMetadata(
     return invalid(
       'invalid_client_metadata',
       'backchannel_logout_uri must be an absolute https URI with no fragment',
+      'backchannel_logout_uri',
     );
   }
 
@@ -338,12 +448,14 @@ export function parseClientMetadata(
       return invalid(
         'invalid_client_metadata',
         'frontchannel_logout_uri must be an absolute https URI with no fragment',
+        'frontchannel_logout_uri',
       );
     }
     if (!sharesOriginWithRegisteredRedirectUri(metadata.frontchannel_logout_uri, redirectUris)) {
       return invalid(
         'invalid_client_metadata',
         'frontchannel_logout_uri must share its domain, port and scheme with a registered redirect_uri',
+        'frontchannel_logout_uri',
       );
     }
   }
@@ -365,6 +477,12 @@ export function parseClientMetadata(
       userinfoEncryptedResponseAlg,
       userinfoEncryptedResponseEnc,
       tlsClientAuthSubjectDn: tlsClientAuthSubjectDn.length > 0 ? tlsClientAuthSubjectDn : null,
+      clientUri: metadata.client_uri ?? null,
+      policyUri: metadata.policy_uri ?? null,
+      tosUri: metadata.tos_uri ?? null,
+      idTokenSignedResponseAlg,
+      defaultMaxAge: metadata.default_max_age ?? null,
+      requireAuthTime: metadata.require_auth_time ?? false,
     },
   };
 }

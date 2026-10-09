@@ -10,7 +10,7 @@ import {
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { assertionJtiRepository } from '#/repository/assertion-jti';
+import { assertionJtiRepository, jtiLockKey } from '#/repository/assertion-jti';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -160,5 +160,135 @@ describe('assertionJtiRepository', () => {
       expiresAt,
     );
     expect(replay).toBe(false);
+  });
+});
+
+describe('assertionJtiRepository.claimWithin', () => {
+  it('claims on the transaction it is given, and refuses the same jti afterwards', async () => {
+    const first = await withTenant(app.db, tenantId, (tx) =>
+      assertionJtiRepository(app).claimWithin(tx, tenantId, 'client', 'jti-within', expiresAt),
+    );
+    expect(first).toBe(true);
+    const second = await assertionJtiRepository(app).claim(
+      tenantId,
+      'client',
+      'jti-within',
+      expiresAt,
+    );
+    expect(second).toBe(false);
+  });
+
+  it('leaves the jti unspent when that transaction rolls back', async () => {
+    await expect(
+      withTenant(app.db, tenantId, async (tx) => {
+        await assertionJtiRepository(app).claimWithin(
+          tx,
+          tenantId,
+          'client',
+          'jti-gone',
+          expiresAt,
+        );
+        throw new Error('the request failed');
+      }),
+    ).rejects.toThrow();
+    expect(await assertionJtiRepository(app).claim(tenantId, 'client', 'jti-gone', expiresAt)).toBe(
+      true,
+    );
+  });
+
+  it("cannot spend a jti under another tenant's id: row-level security refuses the write", async () => {
+    const other = newId();
+    await withTenant(app.db, other, (tx) => seedTenant(tx, other));
+    await expect(
+      withTenant(app.db, tenantId, (tx) =>
+        assertionJtiRepository(app).claimWithin(tx, other, 'client', 'jti-foreign', expiresAt),
+      ),
+    ).rejects.toThrow();
+    expect(
+      await withTenant(app.db, other, (tx) =>
+        assertionJtiRepository(app).spentWithin(tx, other, 'client', 'jti-foreign'),
+      ),
+    ).toBe(false);
+  });
+
+  it("does not see another tenant's spent jti", async () => {
+    const other = newId();
+    await withTenant(app.db, other, (tx) => seedTenant(tx, other));
+    await withTenant(app.db, other, (tx) =>
+      assertionJtiRepository(app).claimWithin(tx, other, 'client', 'jti-shared', expiresAt),
+    );
+    expect(
+      await withTenant(app.db, tenantId, (tx) =>
+        assertionJtiRepository(app).spentWithin(tx, tenantId, 'client', 'jti-shared'),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('assertionJtiRepository.tryLock', () => {
+  it('is refused, not waited for, while another transaction holds the same jti', async () => {
+    const repository = assertionJtiRepository(app);
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let locked: () => void = () => undefined;
+    const lockTaken = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const holder = withTenant(app.db, tenantId, async (tx) => {
+      expect(await repository.tryLock(tx, tenantId, 'client', 'jti-locked')).toBe(true);
+      locked();
+      await held;
+    });
+    await lockTaken;
+    const contender = await withTenant(app.db, tenantId, (tx) =>
+      repository.tryLock(tx, tenantId, 'client', 'jti-locked'),
+    );
+    const other = await withTenant(app.db, tenantId, (tx) =>
+      repository.tryLock(tx, tenantId, 'client', 'jti-another'),
+    );
+    release();
+    await holder;
+    expect(contender).toBe(false);
+    expect(other).toBe(true);
+    expect(
+      await withTenant(app.db, tenantId, (tx) =>
+        repository.tryLock(tx, tenantId, 'client', 'jti-locked'),
+      ),
+    ).toBe(true);
+  });
+});
+
+describe('the advisory lock key', () => {
+  it('differs for tuples a naive join would alias, and is stable', () => {
+    expect(jtiLockKey('t', 'a:b', 'c')).not.toBe(jtiLockKey('t', 'a', 'b:c'));
+    expect(jtiLockKey('t:a', 'b', 'c')).not.toBe(jtiLockKey('t', 'a:b', 'c'));
+    expect(jtiLockKey('t', 'a', 'c')).toBe(jtiLockKey('t', 'a', 'c'));
+    expect(typeof jtiLockKey('t', 'a', 'c')).toBe('bigint');
+  });
+
+  it('does not let a client_id holding a colon take another client’s lock', async () => {
+    const repository = assertionJtiRepository(app);
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let locked: () => void = () => undefined;
+    const lockTaken = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const holder = withTenant(app.db, tenantId, async (tx) => {
+      await repository.tryLock(tx, tenantId, 'a:b', 'c');
+      locked();
+      await held;
+    });
+    await lockTaken;
+    const aliased = await withTenant(app.db, tenantId, (tx) =>
+      repository.tryLock(tx, tenantId, 'a', 'b:c'),
+    );
+    release();
+    await holder;
+    expect(aliased).toBe(true);
   });
 });

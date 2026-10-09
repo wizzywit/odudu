@@ -52,6 +52,7 @@ async function setupTenant(name: string): Promise<string> {
       id: tenantId,
       name,
       rememberMeAllowed: true,
+      loginWithEmail: false,
       rememberMeMaxSeconds: REMEMBER_ME_MAX_SECONDS,
     });
     await provisionTenant(tx, tenantId);

@@ -40,7 +40,10 @@ describe('migrations', () => {
     `;
 
     expect(rows.map((row) => row.column_name)).toEqual([
+      'access_token_ttl_seconds',
+      'audit_event_types',
       'audit_retention_days',
+      'authorization_code_ttl_seconds',
       'brute_force_failure_reset_seconds',
       'brute_force_lockout_seconds',
       'brute_force_max_failures',
@@ -48,11 +51,16 @@ describe('migrations', () => {
       'client_registration_policy',
       'created_at',
       'display_name',
+      'display_name_search',
       'enabled',
       'id',
+      'id_token_ttl_seconds',
+      'login_ttl_seconds',
+      'login_with_email',
       'max_clients',
       'max_sessions_per_browser',
       'name',
+      'name_search',
       'otp_required',
       'password_history_depth',
       'password_max_age_days',
@@ -63,14 +71,18 @@ describe('migrations', () => {
       'password_require_lowercase',
       'password_require_special',
       'password_require_uppercase',
+      'refresh_token_ttl_seconds',
       'registration_allowed',
       'remember_me_allowed',
       'remember_me_idle_seconds',
       'remember_me_max_seconds',
       'reset_password_allowed',
+      'reset_password_ttl_seconds',
       'sso_session_idle_seconds',
       'sso_session_max_seconds',
+      'username_editable',
       'verify_email',
+      'verify_email_ttl_seconds',
     ]);
   });
 

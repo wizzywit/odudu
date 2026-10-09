@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 // Policies are hand-authored SQL in drizzle/, never declared with pgPolicy():
@@ -9,6 +10,9 @@ import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg
 // without a policy, schema-drift.int.test.ts stops the view drifting.
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey(),
+  // An RFC 1123 DNS label (packages/db/drizzle/0072_tenant_name_rule.sql):
+  // minted straight into an issuer host segment, so a shape a resolver
+  // would reject is refused here rather than reaching one.
   name: text('name').notNull().unique(),
   displayName: text('display_name'),
   enabled: boolean('enabled').notNull().default(true),
@@ -76,4 +80,31 @@ export const tenants = pgTable('tenants', {
   // (packages/db/drizzle/0068_audit_retention.sql). 90 days by default, so
   // an upgraded tenant is bounded rather than growing the table forever.
   auditRetentionDays: integer('audit_retention_days').notNull().default(90),
+  // Whether an administrator may rename a username
+  // (packages/db/drizzle/0077_username_editable.sql, ADR 0039).
+  usernameEditable: boolean('username_editable').notNull().default(false),
+  // The lifetimes this tenant issues with (packages/db/drizzle/0082_tenant_lifetimes.sql).
+  // The three token lifetimes are defaults a client's own value overrides.
+  accessTokenTtlSeconds: integer('access_token_ttl_seconds').notNull().default(300),
+  idTokenTtlSeconds: integer('id_token_ttl_seconds').notNull().default(300),
+  refreshTokenTtlSeconds: integer('refresh_token_ttl_seconds').notNull().default(1_209_600),
+  authorizationCodeTtlSeconds: integer('authorization_code_ttl_seconds').notNull().default(60),
+  loginTtlSeconds: integer('login_ttl_seconds').notNull().default(1800),
+  verifyEmailTtlSeconds: integer('verify_email_ttl_seconds').notNull().default(43_200),
+  resetPasswordTtlSeconds: integer('reset_password_ttl_seconds').notNull().default(300),
+  // Whether the login form accepts a verified email address as well as a
+  // username (packages/db/drizzle/0083_login_with_email.sql).
+  loginWithEmail: boolean('login_with_email').notNull().default(false),
+  // The audit event types the trail stores; the admin pair always
+  // (packages/db/drizzle/0091_audit_event_types.sql).
+  auditEventTypes: text('audit_event_types')
+    .array()
+    .notNull()
+    .default(
+      sql`ARRAY['admin_mutation', 'admin_access', 'authentication', 'session', 'token', 'credential']`,
+    ),
+  // Search keys, in the C collation, filled by the database
+  // (packages/db/drizzle/0074_list_indexes_tenants_clients.sql).
+  nameSearch: text('name_search').generatedAlwaysAs(sql`lower(name)`),
+  displayNameSearch: text('display_name_search').generatedAlwaysAs(sql`lower(display_name)`),
 }).enableRLS();

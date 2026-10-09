@@ -14,6 +14,41 @@ import { provisionClientDefaults } from '#/usecase/provision-defaults';
 export interface ProvisionAdminClientOptions {
   /** Adds `manage-tenants`. Only the system tenant asks for it. */
   readonly crossTenant?: boolean;
+  /**
+   * Creates the client confidential, and makes an existing public one so;
+   * never the reverse. It holds no secret: it authenticates by a key the
+   * caller registers on its OIDC configuration.
+   */
+  readonly confidential?: boolean;
+}
+
+export interface CapabilityRoleGraph {
+  /** Every role on the built-in admin client, by name. */
+  readonly roles: readonly string[];
+  /** Each composite edge between them, as `[parent, child]`. */
+  readonly composites: readonly (readonly [string, string])[];
+}
+
+/**
+ * What `provisionAdminClient` creates on the built-in admin client, as
+ * data: read by a tenant import to tell a capability role the new tenant
+ * provisions from one a document would have to invent.
+ */
+export function capabilityRoleGraph(
+  options: ProvisionAdminClientOptions = {},
+): CapabilityRoleGraph {
+  const composites: (readonly [string, string])[] = [];
+  for (const capability of TENANT_CAPABILITIES) {
+    composites.push([TENANT_ADMIN, capability]);
+    const view = viewCounterpart(capability);
+    if (view !== null) composites.push([capability, view]);
+  }
+  const crossTenant = options.crossTenant === true;
+  if (crossTenant) composites.push([TENANT_ADMIN, MANAGE_TENANTS]);
+  return {
+    roles: [TENANT_ADMIN, ...TENANT_CAPABILITIES, ...(crossTenant ? [MANAGE_TENANTS] : [])],
+    composites,
+  };
 }
 
 export interface ProvisionedAdminClient {
@@ -46,11 +81,11 @@ export async function provisionAdminClient(
       tenantId,
       clientId: ADMIN_CLIENT_ID,
       name: 'Odudu administration',
-      // Public: an administrator authenticates as a subject through the
-      // ordinary login flow, not this client through client_credentials, so
-      // it carries no secret — clients_secret_matches_type (0004_clients.sql)
-      // requires exactly that pairing for type = 'public'.
-      type: 'public',
+      // An administrator signs in as a subject through the ordinary login
+      // flow; this client is the application that flow serves, and that
+      // application either holds a credential of its own (confidential) or
+      // cannot keep one (public). Neither holds a secret hash here.
+      type: options.confidential === true ? 'confidential' : 'public',
       secretHash: null,
       builtinAdmin: true,
     });
@@ -59,26 +94,25 @@ export async function provisionAdminClient(
     // request. Only on the creating pass: the assignments are inserted
     // unconditionally, so a re-run would collide.
     await provisionClientDefaults(tx, client.id);
+  } else if (options.confidential === true && client.type === 'public') {
+    client = await clients.update(client.id, { type: 'confidential' });
   }
   const clientDbId = client.id;
 
   const roles = roleRepository(tx);
-  const ensure = async (name: string): Promise<string> => {
+  const graph = capabilityRoleGraph(options);
+  const ids = new Map<string, string>();
+  for (const name of graph.roles) {
     const found = await roles.byName(name, clientDbId);
-    if (found !== null) return found.id;
-    const role = await roles.create({ tenantId, clientId: clientDbId, name });
-    return role.id;
-  };
-
-  const composite = await ensure(TENANT_ADMIN);
-  for (const capability of TENANT_CAPABILITIES) {
-    const roleId = await ensure(capability);
-    await roles.addComposite(composite, roleId);
-    const view = viewCounterpart(capability);
-    if (view !== null) await roles.addComposite(roleId, await ensure(view));
+    ids.set(name, found?.id ?? (await roles.create({ tenantId, clientId: clientDbId, name })).id);
   }
-  if (options.crossTenant === true) {
-    await roles.addComposite(composite, await ensure(MANAGE_TENANTS));
+  for (const [parent, child] of graph.composites) {
+    const parentId = ids.get(parent);
+    const childId = ids.get(child);
+    if (parentId === undefined || childId === undefined) {
+      throw new Error(`capability role graph names ${parent} or ${child} without a role`);
+    }
+    await roles.addComposite(parentId, childId);
   }
   return { clientDbId };
 }

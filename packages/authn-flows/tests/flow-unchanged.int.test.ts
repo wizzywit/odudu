@@ -145,6 +145,7 @@ describe('a default tenant login, walked for several subject shapes before and a
           subjectId,
           secret: offer.secret,
           code: totpCode(offer.secret, totpCounter(clock.now())),
+          authSessionId: newId(),
         },
         clock,
       ),

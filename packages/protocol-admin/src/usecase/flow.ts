@@ -34,14 +34,19 @@ function toWireShape(record: AuthenticationExecutionRecord): ExecutionStep {
 
 export interface FlowView {
   readonly items: readonly ExecutionStep[];
+  readonly available: readonly string[];
   readonly etag: string;
 }
 
-/** `forTenant` reads in `index` order, which is the flow's meaning, so the `ETag` needs no sort. */
+/**
+ * `forTenant` reads in `index` order, which is the flow's meaning, so the
+ * `ETag` needs no sort. It covers `items` alone: `available` is the
+ * registry's, and no write here changes it.
+ */
 export async function listFlow(tx: TenantScopedDatabase, tenantId: string): Promise<FlowView> {
   const rows = await executionRepository(tx).forTenant(tenantId);
   const items = rows.map(toWireShape);
-  return { items, etag: etagOf({ items }) };
+  return { items, available: registeredAuthenticatorNames(), etag: etagOf({ items }) };
 }
 
 export interface ReplaceFlowInput {
@@ -65,7 +70,12 @@ export type ReplaceFlowOutcome =
   | { kind: 'no_step_runnable_at_start' }
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
-  | { kind: 'ok'; items: readonly ExecutionStep[]; etag: string };
+  | {
+      kind: 'ok';
+      items: readonly ExecutionStep[];
+      available: readonly string[];
+      etag: string;
+    };
 
 /** Replaces a tenant's whole flow — no partial edit is offered, since a flow's meaning is in its order. */
 export async function replaceFlow(
@@ -105,5 +115,10 @@ export async function replaceFlow(
   });
 
   const items = rows.map(toWireShape);
-  return { kind: 'ok', items, etag: etagOf({ items }) };
+  return {
+    kind: 'ok',
+    items,
+    available: registeredAuthenticatorNames(),
+    etag: etagOf({ items }),
+  };
 }

@@ -1,0 +1,209 @@
+/* The breakpoints are the shell's own width, not the viewport's: 1024 and
+   wider a full rail, 640 to 1023 a narrower one, below that a top bar whose
+   menu opens the rail as a sheet. A rail collapsed by choice takes the
+   narrow layout's top bar and sheet at any width. */
+.shell {
+  min-block-size: 100vh;
+}
+
+.frame {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-block-size: 100vh;
+}
+
+.skip {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-start: var(--space-2);
+  z-index: 60;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  color: var(--ink-primary);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-panel);
+  transform: translateY(-200%);
+}
+
+.skip:focus-visible {
+  transform: none;
+}
+
+.rail {
+  position: sticky;
+  inset-block-start: 0;
+  display: flex;
+  flex-direction: column;
+  block-size: 100vh;
+  background: var(--surface-rail);
+}
+
+.railBody {
+  flex: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+}
+
+.railFoot {
+  padding: var(--space-3) var(--space-4);
+  border-block-start: 1px solid var(--border-rail);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.toggleButton {
+  min-block-size: 28px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-rail);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  color: var(--ink-rail);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease);
+}
+
+.toggleButton:hover {
+  background: var(--surface-rail-raised);
+}
+
+.toggleButton:focus-visible {
+  outline: 2px solid var(--rail-accent);
+  outline-offset: 2px;
+}
+
+.shortcut {
+  --key-hint-ink: var(--ink-rail-muted);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.topBar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 10;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  min-block-size: 48px;
+  padding: 0 var(--space-4);
+  color: var(--ink-rail);
+  background: var(--surface-rail);
+}
+
+.topActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.frame[data-collapsed] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.frame[data-collapsed] .topBar {
+  display: flex;
+}
+
+/* Fluid beside the rail; only a very wide screen caps and centres it. */
+.main {
+  flex: 1;
+  inline-size: 100%;
+  max-inline-size: 1600px;
+  margin-inline: auto;
+  padding: 0 var(--space-8) var(--space-8);
+  outline: none;
+}
+
+@container shell (width < 1024px) {
+  .frame {
+    grid-template-columns: 192px minmax(0, 1fr);
+  }
+
+  .main {
+    padding-inline: var(--space-6);
+  }
+}
+
+@container shell (width < 640px) {
+  .frame {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rail {
+    display: none;
+  }
+
+  .topBar {
+    display: flex;
+  }
+
+  .expand {
+    display: none;
+  }
+
+  .main {
+    padding-inline: var(--space-4);
+  }
+}
+
+.brand {
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgb(11 14 13 / 45%);
+}
+
+.overlay[data-entering] {
+  animation: fade var(--motion-panel) var(--ease);
+}
+
+.sheet {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: min(300px, 86vw);
+  background: var(--surface-rail);
+  box-shadow: var(--shadow-overlay);
+}
+
+.sheet[data-entering] {
+  animation: slide var(--motion-panel) var(--ease);
+}
+
+.dialog,
+.sheetRail {
+  block-size: 100%;
+  overflow-y: auto;
+  outline: none;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(-100%);
+  }
+}

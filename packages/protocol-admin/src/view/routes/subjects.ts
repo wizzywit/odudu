@@ -1,18 +1,25 @@
 import {
+  amendProfileRequestSchema,
   amendSubjectRequestSchema,
+  type AmendSubjectRequest,
   createSubjectRequestSchema,
+  listEffectiveRolesQuerySchema,
   listSubjectsQuerySchema,
   setRequiredActionsRequestSchema,
   setRolesRequestSchema,
+  setSubjectGroupsRequestSchema,
+  type SetSubjectGroupsResponse,
   type SetRequiredActionsResponse,
   type SetRolesResponse,
   type Subject,
 } from '@odudu/contracts/admin';
-import { isUniqueViolation, type Database } from '@odudu/db';
+import { isCheckViolation, isUniqueViolation, type Database } from '@odudu/db';
 import { OduduError } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
+import { listAdminCapabilities, listEffectiveRoles } from '#/usecase/effective-roles';
+import { amendProfile, PHONE_E164_MESSAGE, readProfile } from '#/usecase/profile';
 import {
   amendSubject,
   createSubject,
@@ -23,15 +30,27 @@ import {
   listSubjects,
   readRequiredActions,
   readSubject,
+  readSubjectGroups,
   readSubjectRoles,
   setRequiredActions,
   setRoles,
+  setSubjectGroups,
   subjectWireShape,
   type AmendSubjectOutcome,
   type Audit,
   type SubjectView,
+  readUsernamePolicy,
 } from '#/usecase/subjects';
-import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import {
+  cursorProblem,
+  fieldProblem,
+  ifMatchRequired,
+  ifMatchStale,
+  problem,
+  queryProblem,
+  sendProblem,
+  lastAdministratorProblem,
+} from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -72,12 +91,29 @@ function isUniqueViolationNaming(err: unknown, constraint: string): boolean {
   return message.includes(constraint);
 }
 
+// Same shape, for `users_verified_phone_is_e164` (0024_verified_phone_is_
+// e164.sql) — the one CHECK `amendProfile` cannot pre-validate with a
+// TypeScript predicate, since E.164 is only required once
+// `phone_number_verified` is true.
+function isCheckViolationNaming(err: unknown, constraint: string): boolean {
+  if (!isCheckViolation(err)) return false;
+  const cause = err instanceof Error ? err.cause : undefined;
+  const message = cause instanceof Error ? cause.message : err instanceof Error ? err.message : '';
+  return message.includes(constraint);
+}
+
 export function listSubjectsHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
-    // Same narrowing as listClientsHandler (#/view/routes/clients.ts):
-    // ADMIN_ROUTES' `querystringSchema` already validated shape.
-    const query = listSubjectsQuerySchema.parse(request.query);
-    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
+    // ADMIN_ROUTES' `querystringSchema` already validated each parameter's
+    // shape; the one-search-field refinement has no JSON Schema form, so it
+    // is only enforced here.
+    const parsed = listSubjectsQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return sendProblem(reply, request, queryProblem(parsed.error));
+    }
+    const query = parsed.data;
+    const { cursor, limit: requestedLimit, ...filters } = query;
+    const limit = coerceLimit(requestedLimit === undefined ? undefined : String(requestedLimit));
     const tenantName = request.params.tenant;
     if (tenantName === undefined) {
       throw new Error('protocol-admin: subjects route received no :tenant');
@@ -86,18 +122,15 @@ export function listSubjectsHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listSubjects(tx, {
         limit,
-        cursor: query.cursor,
+        cursor,
         cursorKey: deps.cursorKey,
         tenantId: targetTenantId,
-        search: query.search,
+        filters,
+        now: deps.now(),
       }),
     );
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
-      );
+      return sendProblem(reply, request, cursorProblem());
     }
 
     const items = outcome.items.map(subjectWireShape);
@@ -136,6 +169,15 @@ export function readSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
     const wire = subjectWireShape(outcome.subject);
     reply.header('etag', etagOf(wire));
     return reply.code(200).send(wire);
+  };
+}
+
+export function readUsernamePolicyHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const policy = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      readUsernamePolicy(tx, targetTenantId),
+    );
+    return reply.code(200).send({ username_editable: policy.usernameEditable });
   };
 }
 
@@ -191,15 +233,26 @@ export function createSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
         return sendProblem(
           reply,
           request,
-          problem(400, 'about:blank', 'Bad Request', error.message),
+          fieldProblem([{ path: 'email', message: error.message }], error.message),
         );
       }
       throw error;
     }
 
     const wire: Subject = subjectWireShape(view);
+    reply.header('etag', etagOf(wire));
     return reply.code(201).send(wire);
   };
+}
+
+function uniqueConflictDetail(error: unknown, values: AmendSubjectRequest): string | null {
+  if (isUniqueViolationNaming(error, 'users_username_unique')) {
+    return `the username ${JSON.stringify(values.username)} is already in use`;
+  }
+  if (isUniqueViolationNaming(error, 'users_email_unique')) {
+    return `the email ${JSON.stringify(values.email)} is already in use`;
+  }
+  return null;
 }
 
 function amendmentProblem(
@@ -208,19 +261,23 @@ function amendmentProblem(
   outcome: Exclude<AmendSubjectOutcome, { kind: 'ok' }>,
 ): FastifyReply {
   switch (outcome.kind) {
+    case 'last_administrator':
+      return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
+    case 'precondition_required':
+      return sendProblem(reply, request, ifMatchRequired(`a subject's ${outcome.field}`));
     case 'not_found':
       return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
     case 'refused_field':
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+        fieldProblem([{ path: outcome.field, message: outcome.reason }]),
       );
     case 'invalid_value':
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.description}`),
+        fieldProblem([{ path: outcome.field, message: outcome.description }]),
       );
     case 'precondition_failed':
       return sendProblem(
@@ -228,7 +285,25 @@ function amendmentProblem(
         request,
         problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches'),
       );
+    case 'target_ceiling':
+      return targetCeilingProblem(reply, request, outcome.requested);
   }
+}
+
+export function targetCeilingDetail(denied: readonly string[]): string {
+  return `the subject holds what the caller does not: ${denied.join(', ')}`;
+}
+
+export function targetCeilingProblem(
+  reply: FastifyReply,
+  request: AdminRequest,
+  denied: readonly string[],
+): FastifyReply {
+  return sendProblem(
+    reply,
+    request,
+    problem(403, 'about:blank', 'Forbidden', targetCeilingDetail(denied)),
+  );
 }
 
 export function amendSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
@@ -239,26 +314,147 @@ export function amendSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
     }
     const values = amendSubjectRequestSchema.parse(request.body);
 
-    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
-      amendSubject(
-        tx,
-        { audit: deps.audit },
-        {
-          subjectId: id,
-          values,
-          ifMatch: ifMatchHeader(request),
-          actorSubjectId: principal.subjectId,
-          actorTenantId: principal.issuerTenantId,
-          actorClientId: principal.clientDbId,
-        },
-      ),
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
     );
+
+    let outcome: AmendSubjectOutcome;
+    try {
+      outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+        amendSubject(
+          tx,
+          { audit: deps.audit },
+          {
+            tenantId: targetTenantId,
+            subjectId: id,
+            values,
+            ifMatch: ifMatchHeader(request),
+            callerCapabilities,
+            actorSubjectId: principal.subjectId,
+            actorTenantId: principal.issuerTenantId,
+            actorClientId: principal.clientDbId,
+          },
+        ),
+      );
+    } catch (error) {
+      // Caught outside `adminTx`, so the transaction has rolled back and
+      // nothing else the body asked for was applied.
+      const conflict = uniqueConflictDetail(error, values);
+      if (conflict === null) throw error;
+      return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', conflict));
+    }
 
     if (outcome.kind !== 'ok') {
       return amendmentProblem(reply, request, outcome);
     }
     reply.header('etag', outcome.etag);
     return reply.code(200).send(subjectWireShape(outcome.subject));
+  };
+}
+
+export function readProfileHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: GET profile route received no :id');
+    }
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      readProfile(tx, id),
+    );
+    if (outcome.kind === 'not_found') {
+      return sendProblem(
+        reply,
+        request,
+        problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
+      );
+    }
+
+    reply.header('etag', outcome.etag);
+    return reply.code(200).send(outcome.view);
+  };
+}
+
+function profileAmendmentProblem(
+  reply: FastifyReply,
+  request: AdminRequest,
+  outcome: Exclude<Awaited<ReturnType<typeof amendProfile>>, { kind: 'ok' }>,
+): FastifyReply {
+  switch (outcome.kind) {
+    case 'not_found':
+      return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+    case 'refused_field':
+      return sendProblem(
+        reply,
+        request,
+        fieldProblem([{ path: outcome.field, message: outcome.reason }]),
+      );
+    case 'invalid_value':
+      return sendProblem(
+        reply,
+        request,
+        fieldProblem([{ path: outcome.field, message: outcome.description }]),
+      );
+    case 'precondition_failed':
+      return sendProblem(
+        reply,
+        request,
+        problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches'),
+      );
+    case 'target_ceiling':
+      return targetCeilingProblem(reply, request, outcome.requested);
+  }
+}
+
+export function amendProfileHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: PATCH profile route received no :id');
+    }
+    const values = amendProfileRequestSchema.parse(request.body);
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+
+    let outcome: Awaited<ReturnType<typeof amendProfile>>;
+    try {
+      outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+        amendProfile(
+          tx,
+          { audit: deps.audit },
+          {
+            subjectId: id,
+            values,
+            ifMatch: ifMatchHeader(request),
+            callerCapabilities,
+            actorSubjectId: principal.subjectId,
+            actorTenantId: principal.issuerTenantId,
+            actorClientId: principal.clientDbId,
+          },
+        ),
+      );
+    } catch (error) {
+      // The transaction has already rolled back by the time this is
+      // caught — the same shape createSubjectHandler leaves a unique
+      // violation in above.
+      if (isCheckViolationNaming(error, 'users_verified_phone_is_e164')) {
+        return sendProblem(
+          reply,
+          request,
+          fieldProblem([{ path: 'phone_number', message: PHONE_E164_MESSAGE }], PHONE_E164_MESSAGE),
+        );
+      }
+      throw error;
+    }
+
+    if (outcome.kind !== 'ok') {
+      return profileAmendmentProblem(reply, request, outcome);
+    }
+    reply.header('etag', outcome.etag);
+    return reply.code(200).send(outcome.view);
   };
 }
 
@@ -269,12 +465,18 @@ export function deleteSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
       throw new Error('protocol-admin: DELETE subject route received no :id');
     }
 
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteSubject(
         tx,
         { audit: deps.audit },
         {
           subjectId: id,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -283,8 +485,12 @@ export function deleteSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
     );
 
     switch (outcome.kind) {
+      case 'last_administrator':
+        return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+      case 'target_ceiling':
+        return targetCeilingProblem(reply, request, outcome.requested);
       case 'deleted':
         return reply.code(204).send();
     }
@@ -321,6 +527,11 @@ export function deleteCredentialHandler(deps: SubjectsRouteDeps): AdminRouteHand
       throw new Error('protocol-admin: DELETE credential route received no :id/:credentialId');
     }
 
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteCredential(
         tx,
@@ -328,6 +539,7 @@ export function deleteCredentialHandler(deps: SubjectsRouteDeps): AdminRouteHand
         {
           subjectId: id,
           credentialId,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -340,6 +552,8 @@ export function deleteCredentialHandler(deps: SubjectsRouteDeps): AdminRouteHand
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'refused':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'target_ceiling':
+        return targetCeilingProblem(reply, request, outcome.requested);
       case 'deleted':
         return reply.code(204).send();
     }
@@ -394,6 +608,62 @@ export function readSubjectRolesHandler(deps: SubjectsRouteDeps): AdminRouteHand
   };
 }
 
+export function readAdminCapabilitiesHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: GET admin-capabilities route received no :id');
+    }
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      listAdminCapabilities(tx, id),
+    );
+    if (outcome.kind === 'not_found') {
+      return sendProblem(
+        reply,
+        request,
+        problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
+      );
+    }
+    return reply.code(200).send({ items: outcome.items, complete: outcome.complete });
+  };
+}
+
+export function listEffectiveRolesHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: GET effective-roles route received no :id');
+    }
+    const query = listEffectiveRolesQuerySchema.parse(request.query);
+    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      listEffectiveRoles(tx, {
+        tenantId: targetTenantId,
+        subjectId: id,
+        limit,
+        cursor: query.cursor,
+        cursorKey: deps.cursorKey,
+      }),
+    );
+    if (outcome.kind === 'not_found') {
+      return sendProblem(
+        reply,
+        request,
+        problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
+      );
+    }
+    if (outcome.kind === 'invalid_cursor') return sendProblem(reply, request, cursorProblem());
+    if (outcome.next === null) return reply.code(200).send({ items: outcome.items });
+
+    const nextUrl = nextPageUrl(
+      `/admin/tenants/${request.params.tenant ?? ''}/subjects/${id}/effective-roles`,
+      { ...query, limit, cursor: outcome.next },
+    );
+    reply.header('link', `<${nextUrl}>; rel="next"`);
+    return reply.code(200).send({ items: outcome.items, next: outcome.next });
+  };
+}
+
 export function setRequiredActionsHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const id = request.params.id;
@@ -401,6 +671,11 @@ export function setRequiredActionsHandler(deps: SubjectsRouteDeps): AdminRouteHa
       throw new Error('protocol-admin: PUT required-actions route received no :id');
     }
     const body = setRequiredActionsRequestSchema.parse(request.body);
+
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       setRequiredActions(
@@ -410,6 +685,7 @@ export function setRequiredActionsHandler(deps: SubjectsRouteDeps): AdminRouteHa
           tenantId: targetTenantId,
           subjectId: id,
           actions: body.actions,
+          callerCapabilities,
           ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
@@ -424,6 +700,8 @@ export function setRequiredActionsHandler(deps: SubjectsRouteDeps): AdminRouteHa
           request,
           problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
         );
+      case 'target_ceiling':
+        return targetCeilingProblem(reply, request, outcome.requested);
       case 'precondition_required':
         return sendProblem(reply, request, ifMatchRequired('a subject\u2019s required actions'));
       case 'precondition_failed':
@@ -467,19 +745,21 @@ export function setRolesHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
     );
 
     switch (outcome.kind) {
+      case 'last_administrator':
+        return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'unknown_role':
         return sendProblem(
           reply,
           request,
-          problem(
-            400,
-            'about:blank',
-            'Bad Request',
+          fieldProblem(
+            outcome.roleIds.map((id) => ({ path: 'role_ids', message: `names no role ${id}` })),
             `unknown role id(s): ${outcome.roleIds.join(', ')}`,
           ),
         );
+      case 'target_ceiling':
+        return targetCeilingProblem(reply, request, outcome.requested);
       case 'capability_ceiling':
         return sendProblem(
           reply,
@@ -498,6 +778,103 @@ export function setRolesHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
       case 'ok': {
         reply.header('etag', outcome.etag);
         const wire: SetRolesResponse = { items: [...outcome.roles] };
+        return reply.code(200).send(wire);
+      }
+    }
+  };
+}
+
+export function readSubjectGroupsHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: GET groups route received no :id');
+    }
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      readSubjectGroups(tx, id),
+    );
+    if (outcome.kind === 'not_found') {
+      return sendProblem(
+        reply,
+        request,
+        problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
+      );
+    }
+
+    reply.header('etag', outcome.etag);
+    const wire: SetSubjectGroupsResponse = { items: [...outcome.groups] };
+    return reply.code(200).send(wire);
+  };
+}
+
+export function setSubjectGroupsHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: PUT groups route received no :id');
+    }
+    const body = setSubjectGroupsRequestSchema.parse(request.body);
+
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      setSubjectGroups(
+        tx,
+        { audit: deps.audit },
+        {
+          subjectId: id,
+          groupIds: body.group_ids,
+          callerCapabilities,
+          ifMatch: ifMatchHeader(request),
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
+    );
+
+    switch (outcome.kind) {
+      case 'last_administrator':
+        return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
+      case 'not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
+        );
+      case 'unknown_group':
+        return sendProblem(
+          reply,
+          request,
+          fieldProblem(
+            outcome.groupIds.map((id) => ({ path: 'group_ids', message: `names no group ${id}` })),
+            `unknown group id(s): ${outcome.groupIds.join(', ')}`,
+          ),
+        );
+      case 'target_ceiling':
+        return targetCeilingProblem(reply, request, outcome.requested);
+      case 'capability_ceiling':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            403,
+            'about:blank',
+            'Forbidden',
+            `the caller does not hold: ${outcome.requested.join(', ')}`,
+          ),
+        );
+      case 'precondition_required':
+        return sendProblem(reply, request, ifMatchRequired('a subject\u2019s groups'));
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
+      case 'ok': {
+        reply.header('etag', outcome.etag);
+        const wire: SetSubjectGroupsResponse = { items: [...outcome.groups] };
         return reply.code(200).send(wire);
       }
     }

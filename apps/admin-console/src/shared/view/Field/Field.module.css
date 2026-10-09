@@ -1,0 +1,685 @@
+.field {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+/* One line of label above every control, so controls in a row start level. */
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--label-line);
+}
+
+.label {
+  font-size: var(--type-13);
+  font-weight: 500;
+  line-height: var(--label-line);
+  color: var(--ink-primary);
+}
+
+/* A legend laid out as a grid item, so it sits where any label does; the
+   Changed mark goes beside it and every other child takes a whole row. */
+.group {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
+  gap: var(--space-1) var(--space-2);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.group > * {
+  grid-column: 1 / -1;
+}
+
+.group > legend {
+  float: inline-start;
+  grid-column: 1;
+  padding: 0;
+}
+
+.group > .changed {
+  grid-column: 2;
+  justify-self: start;
+  align-self: center;
+}
+
+.changed {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  letter-spacing: 0.02em;
+  color: var(--signal-warning-ink);
+  background: var(--signal-warning);
+}
+
+.input {
+  inline-size: 100%;
+  block-size: var(--control-height);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font: inherit;
+  font-size: var(--type-15);
+  color: var(--ink-primary);
+  background: var(--surface-panel);
+  transition: border-color var(--motion-fast) var(--ease);
+}
+
+.textarea {
+  inline-size: 100%;
+  min-block-size: calc(var(--control-height) * 2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font: inherit;
+  font-size: var(--type-15);
+  line-height: 1.5;
+  color: var(--ink-primary);
+  background: var(--surface-panel);
+  resize: vertical;
+  transition: border-color var(--motion-fast) var(--ease);
+}
+
+.textarea[data-mono] {
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+}
+
+.textarea[data-hovered] {
+  border-color: var(--ink-muted);
+}
+
+.textarea[data-focus-visible],
+.textarea[data-focused] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+  border-color: var(--focus-ring);
+}
+
+.textarea[data-invalid] {
+  border-color: var(--signal-danger-ink);
+}
+
+.count[data-over] {
+  color: var(--signal-danger-ink);
+}
+
+.input[data-mono] {
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+}
+
+.input[data-hovered] {
+  border-color: var(--ink-muted);
+}
+
+.input[data-focus-visible],
+.input[data-focused] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+  border-color: var(--focus-ring);
+}
+
+.input[data-invalid] {
+  border-color: var(--signal-danger-ink);
+}
+
+.input::placeholder {
+  color: var(--ink-muted);
+  opacity: 1;
+}
+
+.input[data-disabled] {
+  border-style: dashed;
+  color: var(--ink-muted);
+  background: var(--surface-sunken);
+}
+
+.field[data-changed] .input,
+.field[data-changed] .textarea,
+.field[data-changed] .trigger,
+.field[data-changed] .comboGroup,
+.group[data-changed] [data-control] {
+  border-inline-start: 3px solid var(--signal-warning-ink);
+}
+
+.description {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+}
+
+.reading {
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  font-variant-numeric: tabular-nums;
+}
+
+.error {
+  font-size: var(--type-13);
+  font-weight: 500;
+  color: var(--signal-danger-ink);
+}
+
+.error::before {
+  content: '! ';
+  font-family: var(--font-mono);
+}
+
+.unitGroup {
+  display: flex;
+  align-items: stretch;
+  max-inline-size: 20rem;
+}
+
+.unitGroup .input {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.unit {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-inline-start: 0;
+  border-start-end-radius: var(--radius-s);
+  border-end-end-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+  background: var(--surface-sunken);
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  inline-size: 100%;
+  max-inline-size: 20rem;
+  block-size: var(--control-height);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font: inherit;
+  font-size: var(--type-15);
+  text-align: start;
+  color: var(--ink-primary);
+  background: var(--surface-panel);
+  cursor: pointer;
+}
+
+.trigger[data-hovered] {
+  border-color: var(--ink-muted);
+}
+
+.trigger[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+  border-color: var(--focus-ring);
+}
+
+.field[data-invalid] .trigger,
+.trigger[data-invalid] {
+  border-color: var(--signal-danger-ink);
+}
+
+.field[data-inline] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.field[data-inline] .trigger {
+  inline-size: auto;
+  min-inline-size: 10rem;
+  block-size: var(--control-height);
+  font-size: var(--type-13);
+}
+
+.field[data-inline] .description {
+  max-inline-size: 32ch;
+  font-size: var(--type-12);
+  line-height: 1.3;
+}
+
+.selectValue {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selectValue[data-placeholder] {
+  color: var(--ink-muted);
+}
+
+.chevron {
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.popover {
+  min-inline-size: var(--trigger-width);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-panel);
+  overflow-y: auto;
+}
+
+.listbox {
+  display: grid;
+  padding: var(--space-1);
+  outline: none;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  min-block-size: 32px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-s);
+  font-size: var(--type-15);
+  color: var(--ink-primary);
+  cursor: pointer;
+  outline: none;
+}
+
+.option[data-focused],
+.option[data-hovered] {
+  background: var(--surface-sunken);
+}
+
+.option[data-selected] {
+  font-weight: 600;
+}
+
+.option[data-selected]::after {
+  content: '✓';
+  margin-inline-start: auto;
+  color: var(--signal-active-ink);
+}
+
+.option[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.toggleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--target-min);
+  cursor: pointer;
+}
+
+.track {
+  position: relative;
+  flex: none;
+  inline-size: 36px;
+  block-size: 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-sunken);
+  transition:
+    background-color var(--motion-fast) var(--ease),
+    border-color var(--motion-fast) var(--ease);
+}
+
+.thumb {
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-start: 2px;
+  inline-size: 14px;
+  block-size: 14px;
+  border-radius: 50%;
+  background: var(--ink-muted);
+  transition:
+    transform var(--motion-fast) var(--ease),
+    background-color var(--motion-fast) var(--ease);
+}
+
+.switch[data-selected] .track {
+  border-color: var(--signal-active-ink);
+  background: var(--signal-active-ink);
+}
+
+.switch[data-selected] .thumb {
+  background: var(--surface-panel);
+  transform: translateX(16px);
+}
+
+.switch[data-focus-visible] .track {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.switch[data-disabled] {
+  cursor: not-allowed;
+}
+
+.state {
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.rows {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.rowField {
+  display: grid;
+  flex: 1;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.pair {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.pairHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: var(--space-2);
+  margin-inline-end: 72px;
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.row > :last-child {
+  margin-block-start: 6px;
+}
+
+.readOnly {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  margin: 0;
+}
+
+.readOnly dd {
+  margin: 0;
+}
+
+.readOnlyValue {
+  font-size: var(--type-15);
+  color: var(--ink-primary);
+  overflow-wrap: anywhere;
+}
+
+.readOnlyValue[data-mono] {
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+}
+
+.readOnlyList {
+  display: grid;
+  gap: var(--space-1);
+  padding: 0;
+  list-style: none;
+}
+
+.unset {
+  color: var(--ink-muted);
+}
+
+.comboGroup {
+  display: flex;
+  align-items: stretch;
+  inline-size: 100%;
+  max-inline-size: 28rem;
+  block-size: var(--control-height);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-panel);
+  transition: border-color var(--motion-fast) var(--ease);
+}
+
+.comboGroup[data-hovered] {
+  border-color: var(--ink-muted);
+}
+
+.comboGroup[data-focus-within] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+  border-color: var(--focus-ring);
+}
+
+.field[data-invalid] .comboGroup,
+.comboGroup[data-invalid] {
+  border-color: var(--signal-danger-ink);
+}
+
+/* The input and its button are one control: the group draws the border. */
+.comboGroup .input,
+.field[data-changed] .comboGroup .input {
+  flex: 1;
+  min-inline-size: 0;
+  block-size: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.comboGroup .input[data-focused],
+.comboGroup .input[data-focus-visible] {
+  outline: none;
+}
+
+.comboButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--control-height);
+  padding: 0;
+  border: 0;
+  border-inline-start: var(--hairline);
+  border-start-end-radius: var(--radius-s);
+  border-end-end-radius: var(--radius-s);
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.comboButton[data-hovered] {
+  color: var(--ink-primary);
+}
+
+.comboButton[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.popover .listbox {
+  max-block-size: 20rem;
+  overflow-y: auto;
+}
+
+.optionLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionDetail {
+  margin-inline-start: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.part {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.parts > * {
+  flex: 1 1 10rem;
+}
+
+.dateInput {
+  display: inline-flex;
+  align-items: center;
+  inline-size: 100%;
+  max-inline-size: 16rem;
+  block-size: var(--control-height);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font-size: var(--type-15);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-primary);
+  background: var(--surface-panel);
+}
+
+.dateInput[data-focus-within] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+  border-color: var(--focus-ring);
+}
+
+.field[data-invalid] .dateInput,
+.dateInput[data-invalid] {
+  border-color: var(--signal-danger-ink);
+}
+
+.segment {
+  padding: 0 1px;
+  border-radius: 2px;
+  outline: none;
+}
+
+.segment[data-placeholder] {
+  color: var(--ink-muted);
+}
+
+.segment[data-type='literal'] {
+  color: var(--ink-muted);
+}
+
+.segment[data-focused] {
+  color: var(--surface-panel);
+  background: var(--focus-ring);
+}
+
+.input[inputmode='numeric'] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The caps keep a field outside a grid from running across a wide form; in
+   a grid cell a control ends where its cell does, level with its row. */
+[data-cell] :is(.trigger, .dateInput, .comboGroup) {
+  max-inline-size: none;
+}
+
+/* Country, number and extension on one line, the number taking the rest;
+   in a narrow cell the country takes a line of its own. */
+.phone {
+  display: grid;
+  grid-template-columns: 12rem minmax(0, 1fr) 7.5rem;
+  gap: var(--space-2);
+}
+
+@container (inline-size < 26rem) {
+  .phone {
+    grid-template-columns: minmax(0, 1fr) 7.5rem;
+  }
+
+  .phone > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* What is known of a birthdate, then the date itself, on one line. */
+.birthdate {
+  display: grid;
+  grid-template-columns: 9.5rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2);
+}
+
+.birthdate .parts {
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+}
+
+.birthdate .parts > * {
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+
+@container (inline-size < 20rem) {
+  .birthdate {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pictureField {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.picture {
+  inline-size: 64px;
+  block-size: 64px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  object-fit: cover;
+  background: var(--surface-sunken);
+}
+
+.pictureNote {
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+}
+
+.readOnlyValue[data-unsaved] {
+  padding-inline-start: var(--space-2);
+  border-inline-start: 3px solid var(--signal-warning-ink);
+}
+
+.unsaved {
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  color: var(--signal-warning-ink);
+}

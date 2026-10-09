@@ -20,6 +20,7 @@ import {
   type GroupRecord,
 } from '#/repository/groups';
 import { effectiveRoles } from '#/repository/effective-roles';
+import { grantNewSubjectDefaults } from '#/repository/new-subject-defaults';
 import { roleRepository, type RoleRecord } from '#/repository/roles';
 
 let containerHandle: TestDatabase | undefined;
@@ -503,6 +504,21 @@ describe('ancestorsOf', () => {
     expect(ancestors.has(sibling.id)).toBe(false);
   });
 
+  it('answers the union of the chains of several groups, in one read', async () => {
+    const tenant = await tenantFixture();
+    const root = await tenant.createGroup('root', null);
+    const left = await tenant.createGroup('left', root.id);
+    const right = await tenant.createGroup('right', root.id);
+    const other = await tenant.createGroup('other', null);
+
+    const ancestors = await withTenant(app.db, tenant.tenantId, (tx) =>
+      ancestorsOf(tx, [left.id, right.id]),
+    );
+
+    expect(ancestors).toEqual(new Set([left.id, right.id, root.id]));
+    expect(ancestors.has(other.id)).toBe(false);
+  });
+
   it('does not see another tenant’s ancestor chain', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {
@@ -522,6 +538,271 @@ describe('ancestorsOf', () => {
       attempt: async (tx, seeded) => ancestorsOf(tx, seeded.childId),
       expectBlocked: (result) => {
         expect(result).toEqual(new Set());
+      },
+    });
+  });
+});
+
+describe('groupsOfSubject', () => {
+  it('lists the groups a subject directly belongs to, ordered by id, not their ancestors', async () => {
+    const tenant = await tenantFixture();
+    const subject = await tenant.insertSubject();
+    const parent = await tenant.createGroup('engineering', null);
+    const child = await tenant.createGroup('platform', parent.id);
+    const other = await tenant.createGroup('sales', null);
+    await tenant.addToSubject(subject, child.id);
+    await tenant.addToSubject(subject, other.id);
+
+    const found = await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).groupsOfSubject(subject),
+    );
+    expect(found.map((group) => group.id)).toEqual([child.id, other.id].sort());
+    expect(found.map((group) => group.path).sort()).toEqual(['/engineering/platform', '/sales']);
+  });
+
+  it('does not see another tenant’s memberships', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subjectId = await insertSubject(tx, tenantId);
+        const group = await groupRepository(tx).create({ tenantId, name: 'eng', parentId: null });
+        await groupRepository(tx).addToSubject(subjectId, group.id);
+        return { subjectId, groupId: group.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const found = await groupRepository(tx).groupsOfSubject(seeded.subjectId);
+        expect(found.map((group) => group.id)).toEqual([seeded.groupId]);
+      },
+      attempt: async (tx, seeded) => groupRepository(tx).groupsOfSubject(seeded.subjectId),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+});
+
+describe('setSubjectGroups', () => {
+  it('replaces the membership set, and a removed group stops appearing', async () => {
+    const tenant = await tenantFixture();
+    const subject = await tenant.insertSubject();
+    const a = await tenant.createGroup('a', null);
+    const b = await tenant.createGroup('b', null);
+    await tenant.addToSubject(subject, a.id);
+
+    await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).setSubjectGroups(subject, [b.id]),
+    );
+    expect(await tenant.effectiveGroupPaths(subject)).toEqual(['/b']);
+
+    await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).setSubjectGroups(subject, []),
+    );
+    expect(await tenant.effectiveGroupPaths(subject)).toEqual([]);
+  });
+
+  it('accepts a repeated id as one membership', async () => {
+    const tenant = await tenantFixture();
+    const subject = await tenant.insertSubject();
+    const a = await tenant.createGroup('a', null);
+
+    await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).setSubjectGroups(subject, [a.id, a.id]),
+    );
+    expect(await tenant.effectiveGroupPaths(subject)).toEqual(['/a']);
+  });
+
+  it('accepts an id repeated in another letter case as one membership', async () => {
+    const tenant = await tenantFixture();
+    const subject = await tenant.insertSubject();
+    const a = await tenant.createGroup('a', null);
+
+    await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).setSubjectGroups(subject, [a.id, a.id.toUpperCase()]),
+    );
+    expect(await tenant.effectiveGroupPaths(subject)).toEqual(['/a']);
+  });
+
+  it('cannot clear another tenant’s subject’s memberships', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subjectId = await insertSubject(tx, tenantId);
+        const group = await groupRepository(tx).create({ tenantId, name: 'eng', parentId: null });
+        await groupRepository(tx).addToSubject(subjectId, group.id);
+        return { subjectId };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect(await effectiveGroupPaths(tx, seeded.subjectId)).toEqual(['/eng']);
+      },
+      attempt: async (tx, seeded) => {
+        await groupRepository(tx).setSubjectGroups(seeded.subjectId, []);
+        return 'returned';
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('returned');
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        expect(await effectiveGroupPaths(tx, seeded.subjectId)).toEqual(['/eng']);
+      },
+    });
+  });
+
+  it('throws group_not_found for another tenant’s group, and writes no membership', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const group = await groupRepository(tx).create({ tenantId, name: 'eng', parentId: null });
+        return { groupId: group.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect(await groupRepository(tx).byId(seeded.groupId)).not.toBeNull();
+      },
+      attempt: async (tx, seeded) => {
+        try {
+          await groupRepository(tx).setSubjectGroups(newId(), [seeded.groupId]);
+          return 'succeeded';
+        } catch (caught) {
+          return caught instanceof Error ? caught.message : 'threw';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toMatch(/no group with id/);
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        const rows = await tx.execute(
+          sql`select subject_id from subject_groups where group_id = ${seeded.groupId}`,
+        );
+        expect(rows).toEqual([]);
+      },
+    });
+  });
+});
+
+describe('setDescription', () => {
+  it('writes and clears a group’s description', async () => {
+    const tenant = await tenantFixture();
+    const group = await tenant.createGroup('engineering', null);
+    const read = async () =>
+      withTenant(app.db, tenant.tenantId, async (tx) => {
+        await groupRepository(tx).setDescription(group.id, 'Builds things');
+        const set = (await groupRepository(tx).byId(group.id))?.description;
+        await groupRepository(tx).setDescription(group.id, null);
+        return [set, (await groupRepository(tx).byId(group.id))?.description];
+      });
+    expect(await read()).toEqual(['Builds things', null]);
+  });
+
+  it('does not reach another tenant’s group', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return groupRepository(tx).create({ tenantId, name: 'engineering', parentId: null });
+      },
+      verifySeeded: async (tx, group) => {
+        expect(await groupRepository(tx).byId(group.id)).not.toBeNull();
+      },
+      attempt: async (tx, group) =>
+        groupRepository(tx)
+          .setDescription(group.id, 'foreign')
+          .then(
+            () => 'written',
+            (error: unknown) => (error instanceof Error ? error.message : 'unknown'),
+          ),
+      expectBlocked: (result) => {
+        expect(result).toMatch(/no group with id/);
+      },
+    });
+  });
+});
+
+describe('setDefaultForNewSubjects and defaultsForTenant', () => {
+  it('sets and unsets the flag defaultsForTenant reads', async () => {
+    const tenant = await tenantFixture();
+    const group = await tenant.createGroup('everyone', null);
+    const defaults = async (value: boolean) =>
+      withTenant(app.db, tenant.tenantId, async (tx) => {
+        await groupRepository(tx).setDefaultForNewSubjects(group.id, value);
+        return (await groupRepository(tx).defaultsForTenant()).map((found) => found.id);
+      });
+    expect(await defaults(true)).toEqual([group.id]);
+    expect(await defaults(false)).toEqual([]);
+  });
+
+  it('neither sets nor lists another tenant’s group', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const group = await groupRepository(tx).create({ tenantId, name: 'all', parentId: null });
+        await groupRepository(tx).setDefaultForNewSubjects(group.id, true);
+        return group;
+      },
+      verifySeeded: async (tx) => {
+        expect(await groupRepository(tx).defaultsForTenant()).toHaveLength(1);
+      },
+      attempt: async (tx, group) => {
+        const listed = await groupRepository(tx).defaultsForTenant();
+        const written = await groupRepository(tx)
+          .setDefaultForNewSubjects(group.id, false)
+          .then(
+            () => 'written',
+            (error: unknown) => (error instanceof Error ? error.message : 'unknown'),
+          );
+        return `${String(listed.length)} listed; ${written}`;
+      },
+      expectBlocked: (result) => {
+        expect(result).toMatch(/^0 listed; no group with id/);
+      },
+      verifyTenantAUnaffected: async (tx) => {
+        expect(await groupRepository(tx).defaultsForTenant()).toHaveLength(1);
+      },
+    });
+  });
+});
+
+describe('grantNewSubjectDefaults', () => {
+  it('hands a subject every default role and group, keeping what it already holds', async () => {
+    const tenant = await tenantFixture();
+    const group = await tenant.createGroup('everyone', null);
+    const role = await tenant.createRole('reader');
+    const result = await withTenant(app.db, tenant.tenantId, async (tx) => {
+      await groupRepository(tx).setDefaultForNewSubjects(group.id, true);
+      await roleRepository(tx).setDefaultForNewSubjects(role.id, true);
+      const subjectId = await insertSubject(tx, tenant.tenantId);
+      await groupRepository(tx).addToSubject(subjectId, group.id);
+      await grantNewSubjectDefaults(tx, subjectId);
+      return {
+        groups: (await groupRepository(tx).groupsOfSubject(subjectId)).map((found) => found.id),
+        roles: (await effectiveRoles(tx, subjectId)).map((found) => found.roleId),
+      };
+    });
+    expect(result).toEqual({ groups: [group.id], roles: [role.id] });
+  });
+
+  it('hands a subject nothing another tenant defines', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const group = await groupRepository(tx).create({ tenantId, name: 'all', parentId: null });
+        await groupRepository(tx).setDefaultForNewSubjects(group.id, true);
+        const role = await roleRepository(tx).create({ tenantId, name: 'reader' });
+        await roleRepository(tx).setDefaultForNewSubjects(role.id, true);
+        return { subjectId: await insertSubject(tx, tenantId) };
+      },
+      verifySeeded: async (tx) => {
+        expect(await groupRepository(tx).defaultsForTenant()).toHaveLength(1);
+      },
+      attempt: async (tx, seeded) => {
+        await grantNewSubjectDefaults(tx, seeded.subjectId);
+        const rows = await tx.execute(sql`
+          select 1 from subject_groups union all select 1 from subject_roles
+        `);
+        return rows.length;
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe(0);
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        expect(await groupRepository(tx).groupsOfSubject(seeded.subjectId)).toEqual([]);
       },
     });
   });

@@ -1,3 +1,5 @@
+import { CLIENT_LIST_LIMIT, USERINFO_ENCRYPTION_ALGS } from '@odudu/contracts/admin';
+import { JWE_ALGS_PERMITTED, PRIVATE_JWK_MEMBERS } from '@odudu/crypto';
 import { describe, expect, it } from 'vitest';
 import { parseClientMetadata } from '#/service/client-metadata';
 
@@ -89,6 +91,32 @@ it('refuses a client that states its keys twice', () => {
     { tlsClientAuthEnabled: false },
   );
   expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
+});
+
+const PUBLIC_EC_JWK = {
+  kty: 'EC',
+  crv: 'P-256',
+  x: 'f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU',
+  y: 'x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0',
+};
+
+it('accepts a jwks carrying only public keys', () => {
+  const outcome = parseClientMetadata(ok({ jwks: { keys: [PUBLIC_EC_JWK] } }), {
+    tlsClientAuthEnabled: false,
+  });
+  expect(outcome.kind).toBe('ok');
+});
+
+it.each(PRIVATE_JWK_MEMBERS)('refuses a jwks key carrying the private member %s', (member) => {
+  const outcome = parseClientMetadata(
+    ok({ jwks: { keys: [PUBLIC_EC_JWK, { ...PUBLIC_EC_JWK, [member]: 'c2VjcmV0' }] } }),
+    { tlsClientAuthEnabled: false },
+  );
+  expect(outcome).toMatchObject({
+    kind: 'invalid',
+    error: 'invalid_client_metadata',
+    description: `jwks.keys[1] carries the private member ${member}; register public keys only`,
+  });
 });
 
 it('refuses a client_id the client proposed for itself', () => {
@@ -457,5 +485,63 @@ describe('[ODUDU-TLS-CLIENT-AUTH-REGISTRATION-GATE-01] tls_client_auth registrat
   it('never refuses an unrelated method for tlsClientAuthEnabled being false', () => {
     const outcome = parseClientMetadata(ok(), { tlsClientAuthEnabled: false });
     expect(outcome.kind).toBe('ok');
+  });
+});
+
+describe('the field an invalid outcome names', () => {
+  it.each([
+    ['redirect_uris', { redirect_uris: ['http://rp.example/cb'] }],
+    ['grant_types', { grant_types: ['password'] }],
+    ['token_endpoint_auth_method', { token_endpoint_auth_method: 'client_secret_jwt' }],
+    ['jwks', { jwks: { keys: [{ kty: 'oct', k: 'c2VjcmV0' }] } }],
+    ['jwks_uri', { jwks_uri: 'http://127.0.0.1/jwks' }],
+    ['userinfo_encrypted_response_enc', { userinfo_encrypted_response_enc: 'A128GCM' }],
+    ['backchannel_logout_uri', { backchannel_logout_uri: 'http://rp.example/logout' }],
+  ])('is %s', (field, over) => {
+    const outcome = parseClientMetadata(ok(over), { tlsClientAuthEnabled: false });
+    expect(outcome).toMatchObject({ kind: 'invalid', field });
+  });
+
+  it('is absent for a body that is not an object', () => {
+    const outcome = parseClientMetadata([], { tlsClientAuthEnabled: false });
+    expect(outcome.kind === 'invalid' && 'field' in outcome).toBe(false);
+  });
+});
+
+describe('the redirect_uris a client may hold', () => {
+  const many = (count: number): string[] =>
+    Array.from({ length: count }, (_, i) => `https://rp.example/cb/${String(i)}`);
+
+  it('accepts a list at the limit', () => {
+    const outcome = parseClientMetadata(ok({ redirect_uris: many(CLIENT_LIST_LIMIT) }), {
+      tlsClientAuthEnabled: false,
+    });
+    expect(outcome.kind).toBe('ok');
+  });
+
+  it('leaves a list it was told not to bound, such as one stored before the bound', () => {
+    const outcome = parseClientMetadata(ok({ redirect_uris: many(CLIENT_LIST_LIMIT + 1) }), {
+      tlsClientAuthEnabled: false,
+      boundRedirectUris: false,
+    });
+    expect(outcome.kind).toBe('ok');
+  });
+
+  it('refuses one past it, saying how many it holds and how many it may', () => {
+    const outcome = parseClientMetadata(ok({ redirect_uris: many(CLIENT_LIST_LIMIT + 1) }), {
+      tlsClientAuthEnabled: false,
+    });
+    expect(outcome).toEqual({
+      kind: 'invalid',
+      error: 'invalid_redirect_uri',
+      description: `redirect_uris holds ${String(CLIENT_LIST_LIMIT + 1)} entries, at most ${String(CLIENT_LIST_LIMIT)}`,
+      field: 'redirect_uris',
+    });
+  });
+});
+
+describe('the algorithms the contracts offer a console', () => {
+  it('are the ones the crypto package can encrypt with', () => {
+    expect([...USERINFO_ENCRYPTION_ALGS]).toEqual([...JWE_ALGS_PERMITTED]);
   });
 });

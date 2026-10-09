@@ -1,7 +1,7 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { clients } from '@odudu/domain-tenant';
-import { eq } from 'drizzle-orm';
+import { asc, eq, gt, sql } from 'drizzle-orm';
 import { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
+import { clientOrigins } from '#/schema/client-origins';
 import { expandWebOrigins } from '#/service/web-origin';
 
 export type { ClientOidcConfig } from '#/schema/client-oidc-config';
@@ -16,6 +16,7 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
       row.tokenEndpointAuthMethod as ClientOidcConfig['tokenEndpointAuthMethod'],
     audiences: row.audiences,
     accessTokenTtlSeconds: row.accessTokenTtlSeconds,
+    idTokenTtlSeconds: row.idTokenTtlSeconds,
     refreshTokenTtlSeconds: row.refreshTokenTtlSeconds,
     clientCredentialsScopes: row.clientCredentialsScopes,
     webOrigins: row.webOrigins,
@@ -32,6 +33,14 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
     userinfoEncryptedResponseAlg: row.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: row.userinfoEncryptedResponseEnc,
     tlsClientAuthSubjectDn: row.tlsClientAuthSubjectDn,
+    clientUri: row.clientUri,
+    policyUri: row.policyUri,
+    tosUri: row.tosUri,
+    // client_oidc_config_id_token_alg_check bounds the column.
+    idTokenSignedResponseAlg:
+      row.idTokenSignedResponseAlg as ClientOidcConfig['idTokenSignedResponseAlg'],
+    defaultMaxAge: row.defaultMaxAge,
+    requireAuthTime: row.requireAuthTime,
   };
 }
 
@@ -43,6 +52,7 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
 // caller that predates them keeps behaving as if they did not exist.
 export type NewClientOidcConfig = Omit<
   ClientOidcConfig,
+  | 'idTokenTtlSeconds'
   | 'clientCredentialsScopes'
   | 'webOrigins'
   | 'postLogoutRedirectUris'
@@ -58,7 +68,14 @@ export type NewClientOidcConfig = Omit<
   | 'userinfoEncryptedResponseAlg'
   | 'userinfoEncryptedResponseEnc'
   | 'tlsClientAuthSubjectDn'
+  | 'clientUri'
+  | 'policyUri'
+  | 'tosUri'
+  | 'idTokenSignedResponseAlg'
+  | 'defaultMaxAge'
+  | 'requireAuthTime'
 > & {
+  idTokenTtlSeconds?: number | null;
   clientCredentialsScopes?: string[];
   webOrigins?: string[];
   postLogoutRedirectUris?: string[];
@@ -74,7 +91,25 @@ export type NewClientOidcConfig = Omit<
   userinfoEncryptedResponseAlg?: string | null;
   userinfoEncryptedResponseEnc?: string | null;
   tlsClientAuthSubjectDn?: string | null;
+  clientUri?: string | null;
+  policyUri?: string | null;
+  tosUri?: string | null;
+  idTokenSignedResponseAlg?: ClientOidcConfig['idTokenSignedResponseAlg'];
+  defaultMaxAge?: number | null;
+  requireAuthTime?: boolean;
 };
+
+// The origins a client allows, rewritten from its lists as the server compares
+// origins (`expandWebOrigins`), so the preflight's probe and the request's
+// check cannot read the same entry two ways.
+async function writeOrigins(tx: TenantScopedDatabase, row: ClientOidcConfig): Promise<void> {
+  await tx.delete(clientOrigins).where(eq(clientOrigins.clientId, row.clientId));
+  const origins = [...expandWebOrigins(row.webOrigins, row.redirectUris)];
+  if (origins.length === 0) return;
+  await tx
+    .insert(clientOrigins)
+    .values(origins.map((origin) => ({ tenantId: row.tenantId, clientId: row.clientId, origin })));
+}
 
 export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
   return {
@@ -90,6 +125,23 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
+    // One keyset page of the tenant's configs, by client id, for the command
+    // that rewrites every client's origins.
+    async page(after: string | undefined, limit: number): Promise<ClientOidcConfig[]> {
+      const rows = await tx
+        .select()
+        .from(clientOidcConfig)
+        .where(after === undefined ? undefined : gt(clientOidcConfig.clientId, after))
+        .orderBy(asc(clientOidcConfig.clientId))
+        .limit(limit);
+      return rows.map(toRecord);
+    },
+
+    // Writes the client's origins again from the lists it holds.
+    async rewriteOrigins(config: ClientOidcConfig): Promise<void> {
+      await writeOrigins(tx, config);
+    },
+
     async create(input: NewClientOidcConfig): Promise<ClientOidcConfig> {
       const rows = await tx
         .insert(clientOidcConfig)
@@ -101,6 +153,7 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
           tokenEndpointAuthMethod: input.tokenEndpointAuthMethod,
           audiences: input.audiences,
           accessTokenTtlSeconds: input.accessTokenTtlSeconds,
+          idTokenTtlSeconds: input.idTokenTtlSeconds ?? null,
           refreshTokenTtlSeconds: input.refreshTokenTtlSeconds,
           clientCredentialsScopes: input.clientCredentialsScopes ?? [],
           webOrigins: input.webOrigins ?? [],
@@ -117,13 +170,21 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
           userinfoEncryptedResponseAlg: input.userinfoEncryptedResponseAlg ?? null,
           userinfoEncryptedResponseEnc: input.userinfoEncryptedResponseEnc ?? null,
           tlsClientAuthSubjectDn: input.tlsClientAuthSubjectDn ?? null,
+          clientUri: input.clientUri ?? null,
+          policyUri: input.policyUri ?? null,
+          tosUri: input.tosUri ?? null,
+          idTokenSignedResponseAlg: input.idTokenSignedResponseAlg ?? null,
+          defaultMaxAge: input.defaultMaxAge ?? null,
+          requireAuthTime: input.requireAuthTime ?? false,
         })
         .returning();
       const row = rows[0];
       if (row === undefined) {
         throw new Error('insert into client_oidc_config returned no row');
       }
-      return toRecord(row);
+      const created = toRecord(row);
+      await writeOrigins(tx, created);
+      return created;
     },
 
     // Every amendable `client_oidc_config` column
@@ -145,7 +206,11 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
       if (row === undefined) {
         throw new Error(`client_oidc_config for client ${clientId} not found while amending it`);
       }
-      return toRecord(row);
+      const updated = toRecord(row);
+      if (patch.webOrigins !== undefined || patch.redirectUris !== undefined) {
+        await writeOrigins(tx, updated);
+      }
+      return updated;
     },
 
     // The exact-match list logout's confirmation and redirect decision reads
@@ -164,21 +229,23 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
     // available at that moment is the tenant's union. The per-client list is
     // enforced on the real request, where the client is known. Joined to
     // `clients` and filtered to `enabled`: a client disabled because its
-    // origin was compromised must not keep that origin working here.
-    async webOriginsForTenant(): Promise<ReadonlySet<string>> {
-      const rows = await tx
-        .select({
-          webOrigins: clientOidcConfig.webOrigins,
-          redirectUris: clientOidcConfig.redirectUris,
-        })
-        .from(clientOidcConfig)
-        .innerJoin(clients, eq(clients.id, clientOidcConfig.clientId))
-        .where(eq(clients.enabled, true));
-      const union = new Set<string>();
-      for (const row of rows) {
-        for (const origin of expandWebOrigins(row.webOrigins, row.redirectUris)) union.add(origin);
-      }
-      return union;
+    // origin was compromised must not keep that origin working here. `origin`
+    // is the normalised form `expandWebOrigins` produces; `client_origins`
+    // (0096) holds each client's, written with its lists.
+    async webOriginAllowed(origin: string): Promise<boolean> {
+      // The origin's rows first, then each one's client, probed by key: left
+      // to join them as it likes the planner may walk every client of every
+      // tenant looking for the first with this origin.
+      const rows = await tx.execute(sql`
+        SELECT o.client_id
+        FROM client_origins o
+        CROSS JOIN LATERAL (
+          SELECT 1 FROM clients c WHERE c.id = o.client_id AND c.enabled OFFSET 0
+        ) enabled_client
+        WHERE o.origin = ${origin}
+        LIMIT 1
+      `);
+      return rows.length > 0;
     },
   };
 }

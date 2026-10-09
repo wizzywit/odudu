@@ -1,0 +1,206 @@
+.skeleton {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.shape {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+/* A bar's box is the line, or the control, it stands for, so nothing moves
+   when the content arrives; the drawn bar is a thinner stroke inside it. */
+.bar {
+  position: relative;
+  display: block;
+  block-size: 1lh;
+  max-inline-size: 100%;
+  --stroke: 12px;
+}
+
+.bar::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block: calc((100% - var(--stroke)) / 2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background-color: var(--surface-sunken);
+}
+
+.bar[data-size='line']:nth-child(3n + 2) {
+  inline-size: 82%;
+}
+
+.bar[data-size='line']:nth-child(3n) {
+  inline-size: 64%;
+}
+
+.bar[data-size='value'] {
+  inline-size: 8rem;
+}
+
+.bar[data-size='label'] {
+  inline-size: 6rem;
+  block-size: var(--label-line);
+}
+
+.bar[data-size='heading'] {
+  inline-size: 10rem;
+  font-size: var(--type-20);
+  line-height: 1.3;
+  --stroke: 16px;
+}
+
+.bar[data-size='title'] {
+  inline-size: 14rem;
+  font-size: var(--type-28);
+  line-height: 1.2;
+  --stroke: 20px;
+}
+
+.bar[data-size='tag'] {
+  inline-size: 4rem;
+  block-size: 22px;
+  --stroke: 100%;
+}
+
+.bar[data-size='field'] {
+  inline-size: min(100%, 24rem);
+  block-size: var(--control-height);
+  --stroke: 100%;
+}
+
+.title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding-inline: var(--space-2);
+  border-block-end: 1px solid var(--border-strong);
+}
+
+.tab {
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+}
+
+.section {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface-panel);
+}
+
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.terms {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.term {
+  display: grid;
+  grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.panel {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface-panel);
+}
+
+.panel:last-child {
+  grid-column: 1 / -1;
+}
+
+.list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.item {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+}
+
+@container shell (width < 1024px) {
+  .panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container shell (width < 640px) {
+  .term {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .section {
+    padding-inline: var(--space-4);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bar::before {
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--surface-panel) 50%,
+      transparent 100%
+    );
+    background-repeat: no-repeat;
+    background-size: 50% 100%;
+    animation: shimmer 1.6s var(--ease) infinite;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -100% 0;
+  }
+
+  to {
+    background-position: 200% 0;
+  }
+}

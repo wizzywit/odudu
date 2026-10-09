@@ -1,6 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import formbody from '@fastify/formbody';
 import {
+  actionTokenRepository,
+  enqueueActionsLink,
+  enqueueResetLink,
+  enqueueVerificationLink,
+} from '@odudu/account';
+import {
   generateSigningKey,
   signingKeyRepository,
   signJwt,
@@ -29,7 +35,7 @@ import {
   TENANT_CAPABILITIES,
   type ClientRecord,
 } from '@odudu/domain-tenant';
-import { FakeClock, newId } from '@odudu/kernel';
+import { DEFAULT_OUTBOX_MAX_ATTEMPTS, FakeClock, newId } from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
   NO_CLIENT_KEY_FETCHER,
@@ -143,6 +149,17 @@ export interface AdminFixture {
   // minted directly, the same way `adminToken` is, so a test can reach
   // `/userinfo` without driving a full authorization_code exchange.
   mintUserinfoAccessToken(tenantName: string, client: TestClient, scope: string): Promise<string>;
+  // Like `mintUserinfoAccessToken`, but for a subject that already exists —
+  // an admin-amended profile's own subject, say — rather than a fresh one
+  // minted alongside the token. So a test can read the claims an admin
+  // write actually reaches, through the same `/userinfo` door a client
+  // does, rather than reading the write back through the admin API itself.
+  mintUserinfoAccessTokenForSubject(
+    tenantName: string,
+    client: TestClient,
+    subjectId: string,
+    scope: string,
+  ): Promise<string>;
 
   // State changes a test needs but no endpoint offers, written directly.
   revokeGrantsFor(tenantName: string): Promise<void>;
@@ -183,7 +200,22 @@ function basicAuth(clientId: string, secret: string): string {
   return `Basic ${Buffer.from(`${clientId}:${secret}`).toString('base64')}`;
 }
 
-export async function startAdminFixture(): Promise<AdminFixture> {
+/** The console base every tenant created through `POST /admin/tenants` here is registered under. */
+export const FIXTURE_CONSOLE_BASE_URL = 'http://console.test';
+
+/** The console key every such tenant's admin client is registered with. */
+export const FIXTURE_CONSOLE_JWKS = {
+  keys: [{ kty: 'EC', crv: 'P-256', x: 'fixture-x', y: 'fixture-y', kid: 'fixture', alg: 'ES256' }],
+};
+
+export interface AdminFixtureOptions {
+  /** Whether the deployment has a sender of its own for a tenant without one. */
+  readonly deploymentSmtp?: boolean;
+  /** Whether the deployment has a public base URL to put in a mailed link. */
+  readonly publicBaseUrl?: boolean;
+}
+
+export async function startAdminFixture(options: AdminFixtureOptions = {}): Promise<AdminFixture> {
   const container: TestDatabase = await startTestDatabase();
   const owner = createDatabase(container.adminUrl);
   await runMigrations(owner.db, MIGRATIONS_DIR);
@@ -191,6 +223,16 @@ export async function startAdminFixture(): Promise<AdminFixture> {
   const app = createDatabase(appUrl, { max: 5 });
 
   const clock = new FakeClock(new Date(Math.floor(Date.now() / 1000) * 1000));
+  // A code expires at `clock` plus its lifetime but is redeemed against the
+  // database's own now(), and `clock` moves only when told to, so a long run
+  // leaves it behind and a fresh code dead on arrival. Every request first moves
+  // it on by the wall time since the last, keeping whatever offset a test gave it.
+  let syncedWall = Date.now();
+  const catchUpToWall = (): void => {
+    const wall = Date.now();
+    clock.advance(wall - syncedWall);
+    syncedWall = wall;
+  };
   // Shared with adminRoutes below — the same instance, so a test can bind a
   // mapper through the admin API and see it reach issuance, and so
   // GET /scopes/:id/mappers can never list a name issuance itself would not
@@ -200,6 +242,10 @@ export async function startAdminFixture(): Promise<AdminFixture> {
   // request_id/ip can be tested here against a header this fixture actually
   // honours rather than against light-my-request's own random id.
   const http = Fastify({ genReqId: () => newId(), requestIdHeader: 'x-request-id' });
+  http.addHook('onRequest', (_request, _reply, done) => {
+    catchUpToWall();
+    done();
+  });
   await http.register(formbody);
   await http.register(
     oidcRoutes({
@@ -223,7 +269,22 @@ export async function startAdminFixture(): Promise<AdminFixture> {
         clock,
         cursorKey: KEK,
         kek: KEK,
+        consoleBaseUrl: FIXTURE_CONSOLE_BASE_URL,
+        consoleClientJwks: FIXTURE_CONSOLE_JWKS,
         claimMappers,
+        deploymentSmtp: options.deploymentSmtp ?? false,
+        outboxMaxAttempts: DEFAULT_OUTBOX_MAX_ATTEMPTS,
+        retireResetLinks: (tx, subjectId) =>
+          actionTokenRepository(tx).invalidateOutstandingPasswordLinks(subjectId),
+        sendAccountLink: async (tx, request) => {
+          if (options.publicBaseUrl === false) return 'unavailable';
+          const tenant = { ...request, issuerBase: FIXTURE_CONSOLE_BASE_URL };
+          if (request.kind === 'reset_password') await enqueueResetLink(tx, tenant, request);
+          else if (request.kind === 'verify_email') {
+            await enqueueVerificationLink(tx, tenant, request);
+          } else await enqueueActionsLink(tx, tenant, request, request);
+          return 'queued';
+        },
       },
       () => {
         if (!failNextAuditWrite) return Promise.resolve();
@@ -722,6 +783,28 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     });
   }
 
+  async function mintUserinfoAccessTokenForSubject(
+    tenantName: string,
+    client: TestClient,
+    subjectId: string,
+    scope: string,
+  ): Promise<string> {
+    const ctx = requireTenant(tenantName);
+    return withTenant(app.db, ctx.id, async (tx) => {
+      const clientRecord = await clientRepository(tx).byClientId(client.clientId);
+      if (clientRecord === null) {
+        throw new Error(`fixture: unknown client ${client.clientId}`);
+      }
+      return mintTokenInTx(tx, ctx, {
+        subjectId,
+        client: clientRecord,
+        sessionId: null,
+        audience: [ctx.issuer],
+        scope,
+      });
+    });
+  }
+
   async function revokeGrantsFor(tenantName: string): Promise<void> {
     const ctx = requireTenant(tenantName);
     const ids = grantsByTenant.get(ctx.id) ?? [];
@@ -808,6 +891,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     tokenRequest,
     callUserinfo,
     mintUserinfoAccessToken,
+    mintUserinfoAccessTokenForSubject,
     revokeGrantsFor,
     revokeCapability,
     disableClientOf,

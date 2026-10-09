@@ -7,18 +7,38 @@ import {
   type AmendSettingsOutcome,
   type Audit,
 } from '#/usecase/settings';
-import { problem, sendProblem } from '#/view/problem';
+import { fieldProblem, problem, sendProblem, type Problem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
+import { endSessionsAfterDisable } from '#/view/routes/disabled-tenant-sessions';
+import { type EndDisabledTenantSessionsDeps } from '#/usecase/end-sessions';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface SettingsRouteDeps {
   readonly database: Database;
   readonly audit: Audit;
+  readonly kek: Uint8Array;
+  readonly now: () => Date;
+  readonly sessionsAudit: EndDisabledTenantSessionsDeps['audit'];
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
   const value = request.headers['if-match'];
   return typeof value === 'string' ? value : undefined;
+}
+
+function settingValueProblem(
+  outcome: Extract<AmendSettingsOutcome, { kind: 'invalid_value' }>,
+): Problem {
+  const expects =
+    outcome.values === undefined
+      ? `expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`
+      : outcome.expected === 'list'
+        ? `expects a list drawn from ${outcome.values.join(', ')}`
+        : `must be one of ${outcome.values.join(', ')}`;
+  return fieldProblem(
+    [{ path: outcome.name, message: expects }],
+    `tenant setting ${outcome.name} ${expects}`,
+  );
 }
 
 export function getSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler {
@@ -62,7 +82,10 @@ export function amendSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler
         return sendProblem(
           reply,
           request,
-          problem(400, 'about:blank', 'Bad Request', error.message),
+          fieldProblem(
+            error.settingNames.map((name) => ({ path: name, message: 'refused that value' })),
+            error.message,
+          ),
         );
       }
       throw error;
@@ -73,22 +96,22 @@ export function amendSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler
         return sendProblem(
           reply,
           request,
-          problem(
-            400,
-            'about:blank',
-            'Bad Request',
+          fieldProblem(
+            [{ path: outcome.name, message: 'is not a tenant setting' }],
             `unknown tenant setting ${JSON.stringify(outcome.name)}; expected one of ${outcome.known.join(', ')}`,
           ),
         );
       case 'invalid_value':
+        return sendProblem(reply, request, settingValueProblem(outcome));
+      case 'out_of_range':
         return sendProblem(
           reply,
           request,
-          problem(
-            400,
-            'about:blank',
-            'Bad Request',
-            `tenant setting ${outcome.name} expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`,
+          fieldProblem(
+            outcome.problems.map(({ name, message }) => ({ path: name, message })),
+            `${String(outcome.problems.length)} tenant setting(s) ${
+              outcome.ranged ? 'outside the permitted range' : 'refused'
+            }, listed under errors`,
           ),
         );
       case 'system_tenant_guarded':
@@ -99,9 +122,14 @@ export function amendSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler
           request,
           problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches'),
         );
-      case 'amended':
+      case 'amended': {
+        if (body.enabled === false) {
+          const failed = await endSessionsAfterDisable(deps, request, principal, targetTenantId);
+          if (failed !== null) return sendProblem(reply, request, failed);
+        }
         reply.header('etag', outcome.etag);
         return reply.code(200).send(outcome.settings);
+      }
     }
   };
 }

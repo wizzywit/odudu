@@ -15,6 +15,7 @@ import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authorizationCodeRepository } from '#/repository/codes';
+import { tenantLifetimesRepository } from '#/repository/tenant-lifetimes';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
 
 let containerHandle: TestDatabase | undefined;
@@ -177,6 +178,37 @@ describe('authorizationCodeRepository', () => {
       verifyTenantAUnaffected: async (tx, codeHash) => {
         const found = await authorizationCodeRepository(tx).byHash(codeHash);
         expect(found?.grantId).toBeNull();
+      },
+    });
+  });
+});
+
+describe('tenantLifetimesRepository', () => {
+  it("cannot read a foreign tenant's lifetimes, and refuses rather than defaulting", async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await tx
+          .insert(tenants)
+          .values({ id: tenantId, name: `ttl-${tenantId}`, authorizationCodeTtlSeconds: 30 });
+        return tenantId;
+      },
+      verifySeeded: async (tx, tenantId) => {
+        expect(await tenantLifetimesRepository(tx).byId(tenantId)).toEqual({
+          accessTokenTtlSeconds: 300,
+          idTokenTtlSeconds: 300,
+          refreshTokenTtlSeconds: 1_209_600,
+          authorizationCodeTtlSeconds: 30,
+        });
+      },
+      attempt: async (tx, tenantId) => {
+        try {
+          return await tenantLifetimesRepository(tx).byId(tenantId);
+        } catch {
+          return 'refused';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('refused');
       },
     });
   });

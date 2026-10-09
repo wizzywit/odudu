@@ -1,21 +1,21 @@
 import { type TenantScopedDatabase } from '@odudu/db';
+import { readOptionalField } from '#/usecase/client-authentication';
 import {
-  authenticateClient,
-  parseBasicAuth,
-  readOptionalField,
-  type ClientAuthenticationDeps,
-} from '#/usecase/client-authentication';
+  authenticateEndpointClient,
+  type ClientRequest,
+  type EndpointAuthenticationDeps,
+} from '#/usecase/private-key-jwt-authentication';
 import {
   introspect,
   type IntrospectionDeps,
   type IntrospectionResponse,
 } from '#/usecase/introspection';
 
-export interface IntrospectionRequestDeps extends IntrospectionDeps, ClientAuthenticationDeps {}
+export interface IntrospectionRequestDeps extends IntrospectionDeps, EndpointAuthenticationDeps {}
 
 // The one orchestration step ahead of `introspect` itself: authenticate the
-// caller the same way `/token` does (`authenticateClient`,
-// `#/usecase/client-authentication.ts`), then hand its identity to the pure
+// caller the same way `/token` does (`authenticateEndpointClient`,
+// `#/usecase/private-key-jwt-authentication.ts`), then hand its identity to the pure
 // decision. A failure to authenticate throws — the same `TokenError`/
 // `TokenRateLimited` `/token` throws — because "who is calling" is not a
 // question `introspect` answers; everything past that point is `{ active:
@@ -23,23 +23,17 @@ export interface IntrospectionRequestDeps extends IntrospectionDeps, ClientAuthe
 export async function respondToIntrospectionRequest(
   tx: TenantScopedDatabase,
   deps: IntrospectionRequestDeps,
-  body: Record<string, string | string[] | undefined>,
-  authorizationHeader: string | undefined,
+  request: ClientRequest,
   now: Date,
 ): Promise<IntrospectionResponse> {
-  const basic = parseBasicAuth(authorizationHeader);
-  const { client, config } = await authenticateClient(
-    tx,
-    deps,
-    basic,
-    readOptionalField(body, 'client_id'),
-    readOptionalField(body, 'client_secret'),
-  );
+  const { client, config, settle } = await authenticateEndpointClient(tx, deps, request);
 
-  const token = readOptionalField(body, 'token') ?? '';
-  return introspect(
-    deps,
-    { token, caller: { clientId: client.clientId, audiences: config.audiences } },
-    now,
+  const token = readOptionalField(request.body, 'token') ?? '';
+  return settle(() =>
+    introspect(
+      deps,
+      { token, caller: { clientId: client.clientId, audiences: config.audiences } },
+      now,
+    ),
   );
 }

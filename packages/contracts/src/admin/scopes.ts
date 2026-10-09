@@ -1,19 +1,44 @@
 import { z } from 'zod';
 import { roleAssignmentSchema } from '#/admin/subjects';
-import { createdAtSchema, cursorQuerySchema, idSchema } from '#/admin/shared';
+import {
+  ASSIGNMENT_LIMIT,
+  createdAtSchema,
+  cursorQuerySchema,
+  idSchema,
+  searchPrefixSchema,
+} from '#/admin/shared';
 
+export const clientScopeAssignmentSchema = z.enum(['default', 'optional']);
+
+/** The longest consent text a scope holds, by its CHECK. */
+export const CONSENT_TEXT_MAX = 500;
+export const consentTextSchema = z.string().min(1).max(CONSENT_TEXT_MAX);
+export const displayOrderSchema = z.number().int().min(0).max(2_147_483_647);
+
+// `default_client_assignment` is how a client created afterwards is assigned
+// the scope — by an administrator, dynamic registration or `odudu seed` —
+// and null when it is not. The consent screen lists scopes by
+// `display_order`, then name, each by its `consent_text` where it has one.
 export const clientScopeSchema = z.object({
   id: idSchema,
   name: z.string(),
   description: z.string().nullable(),
   include_in_id_token: z.boolean(),
   include_in_access_token: z.boolean(),
+  default_client_assignment: clientScopeAssignmentSchema.nullable(),
+  consent_text: z.string().nullable(),
+  display_order: z.number().int(),
   created_at: createdAtSchema,
 });
 export type ClientScope = z.infer<typeof clientScopeSchema>;
 
-export const listScopesQuerySchema = cursorQuerySchema;
+const scopeFilters = { name: searchPrefixSchema.optional() };
+
+export const listScopesQuerySchema = cursorQuerySchema.extend(scopeFilters).strict();
 export type ListScopesQuery = z.infer<typeof listScopesQuerySchema>;
+
+export const countScopesQuerySchema = z.object(scopeFilters).strict();
+export type CountScopesQuery = z.infer<typeof countScopesQuerySchema>;
 
 export const listScopesResponseSchema = z.object({
   items: z.array(clientScopeSchema),
@@ -26,6 +51,9 @@ export const createScopeRequestSchema = z.object({
   description: z.string().min(1).nullable().optional(),
   include_in_id_token: z.boolean().optional(),
   include_in_access_token: z.boolean().optional(),
+  default_client_assignment: clientScopeAssignmentSchema.nullable().optional(),
+  consent_text: consentTextSchema.nullable().optional(),
+  display_order: displayOrderSchema.optional(),
 });
 export type CreateScopeRequest = z.infer<typeof createScopeRequestSchema>;
 
@@ -36,7 +64,7 @@ export const amendScopeRequestSchema = z.record(z.string(), z.unknown());
 export type AmendScopeRequest = z.infer<typeof amendScopeRequestSchema>;
 
 export const setScopeRolesRequestSchema = z.object({
-  role_ids: z.array(idSchema),
+  role_ids: z.array(idSchema).max(ASSIGNMENT_LIMIT),
 });
 export type SetScopeRolesRequest = z.infer<typeof setScopeRolesRequestSchema>;
 
@@ -44,8 +72,6 @@ export const setScopeRolesResponseSchema = z.object({
   items: z.array(roleAssignmentSchema),
 });
 export type SetScopeRolesResponse = z.infer<typeof setScopeRolesResponseSchema>;
-
-export const clientScopeAssignmentSchema = z.enum(['default', 'optional']);
 
 /** One scope as a client carries it — shared by the client shape and the assignment answer. */
 export const clientScopeAssignmentViewSchema = z.object({
@@ -69,3 +95,22 @@ export const assignScopeToClientResponseSchema = z.object({
   scopes: z.array(clientScopeAssignmentViewSchema),
 });
 export type AssignScopeToClientResponse = z.infer<typeof assignScopeToClientResponseSchema>;
+
+// Which clients carry a scope, readable with `manage-tenant` alone: a client
+// named by its row id, `client_id` and name, and nothing of its configuration.
+export const listScopeClientsQuerySchema = cursorQuerySchema.strict();
+export type ListScopeClientsQuery = z.infer<typeof listScopeClientsQuerySchema>;
+
+export const scopeClientSchema = z.object({
+  id: idSchema,
+  client_id: z.string(),
+  name: z.string(),
+  assignment: clientScopeAssignmentSchema,
+});
+export type ScopeClient = z.infer<typeof scopeClientSchema>;
+
+export const listScopeClientsResponseSchema = z.object({
+  items: z.array(scopeClientSchema),
+  next: z.string().optional(),
+});
+export type ListScopeClientsResponse = z.infer<typeof listScopeClientsResponseSchema>;

@@ -6,15 +6,17 @@ import {
 import { type Database } from '@odudu/db';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
+import { etagOf } from '#/service/etag';
 import {
   createKey,
+  deleteKey,
   listKeys,
   promoteKey,
   retireKey,
   type Audit,
   type RetireKeyOutcome,
 } from '#/usecase/keys';
-import { problem, sendProblem } from '#/view/problem';
+import { cursorProblem, ifMatchStale, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -28,7 +30,8 @@ export interface KeysRouteDeps {
 export function listKeysHandler(deps: KeysRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
     const query = listKeysQuerySchema.parse(request.query);
-    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
+    const { cursor, limit: requestedLimit, ...filters } = query;
+    const limit = coerceLimit(requestedLimit === undefined ? undefined : String(requestedLimit));
     const tenantName = request.params.tenant;
     if (tenantName === undefined) {
       throw new Error('protocol-admin: keys route received no :tenant');
@@ -37,17 +40,14 @@ export function listKeysHandler(deps: KeysRouteDeps): AdminRouteHandler {
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listKeys(tx, {
         limit,
-        cursor: query.cursor,
+        cursor,
         cursorKey: deps.cursorKey,
         tenantId: targetTenantId,
+        filters,
       }),
     );
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
-      );
+      return sendProblem(reply, request, cursorProblem());
     }
 
     if (outcome.next === null) {
@@ -61,6 +61,11 @@ export function listKeysHandler(deps: KeysRouteDeps): AdminRouteHandler {
     reply.header('link', `<${nextUrl}>; rel="next"`);
     return reply.code(200).send({ items: outcome.items, next: outcome.next });
   };
+}
+
+function ifMatchHeader(request: AdminRequest): string | undefined {
+  const value = request.headers['if-match'];
+  return typeof value === 'string' ? value : undefined;
 }
 
 export function createKeyHandler(deps: KeysRouteDeps): AdminRouteHandler {
@@ -81,6 +86,7 @@ export function createKeyHandler(deps: KeysRouteDeps): AdminRouteHandler {
       ),
     );
 
+    reply.header('etag', etagOf(key));
     return reply.code(201).send(key);
   };
 }
@@ -98,6 +104,7 @@ export function promoteKeyHandler(deps: KeysRouteDeps): AdminRouteHandler {
         { audit: deps.audit },
         {
           keyId: id,
+          ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -112,7 +119,10 @@ export function promoteKeyHandler(deps: KeysRouteDeps): AdminRouteHandler {
           request,
           problem(404, 'about:blank', 'Not Found', `no signing key ${id}`),
         );
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
       case 'ok':
+        reply.header('etag', etagOf(outcome.key));
         return reply.code(200).send(outcome.key);
     }
   };
@@ -131,6 +141,8 @@ function retirementProblem(
         request,
         problem(404, 'about:blank', 'Not Found', `no signing key ${id}`),
       );
+    case 'precondition_failed':
+      return sendProblem(reply, request, ifMatchStale());
     case 'active':
       return sendProblem(
         reply,
@@ -151,7 +163,8 @@ function retirementProblem(
           'about:blank',
           'Conflict',
           `no remaining signing key produces ${outcome.alg}, still required by ` +
-            `userinfo_signed_response_alg on client(s): ${outcome.clientIds.join(', ')}`,
+            `userinfo_signed_response_alg or id_token_signed_response_alg on client(s): ` +
+            outcome.clientIds.join(', '),
         ),
       );
   }
@@ -170,6 +183,7 @@ export function retireKeyHandler(deps: KeysRouteDeps): AdminRouteHandler {
         { audit: deps.audit },
         {
           keyId: id,
+          ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -180,6 +194,52 @@ export function retireKeyHandler(deps: KeysRouteDeps): AdminRouteHandler {
     if (outcome.kind !== 'ok') {
       return retirementProblem(reply, request, id, outcome);
     }
+    reply.header('etag', etagOf(outcome.key));
     return reply.code(200).send(outcome.key);
+  };
+}
+
+export function deleteKeyHandler(deps: KeysRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: DELETE key route received no :id');
+    }
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      deleteKey(
+        tx,
+        { audit: deps.audit },
+        {
+          keyId: id,
+          ifMatch: ifMatchHeader(request),
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
+    );
+    switch (outcome.kind) {
+      case 'deleted':
+        return reply.code(204).send();
+      case 'not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no key ${id}`),
+        );
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
+      case 'not_retired':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            409,
+            'about:blank',
+            'Conflict',
+            `the key is ${outcome.status}: only a retired key can be deleted; retire it first`,
+          ),
+        );
+    }
   };
 }

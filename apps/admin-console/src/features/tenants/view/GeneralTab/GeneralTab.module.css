@@ -1,0 +1,49 @@
+.tab {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.fixed {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.fixed dt {
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.fixed dd {
+  margin: 0;
+}
+
+.status {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--hairline);
+  border-radius: var(--radius-m);
+  background: var(--surface-panel);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--type-15);
+}
+
+.state,
+.fixedRule,
+.message {
+  margin: 0;
+}
+
+.fixedRule {
+  color: var(--ink-muted);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}

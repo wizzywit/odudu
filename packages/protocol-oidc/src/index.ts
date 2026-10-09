@@ -15,6 +15,7 @@ import {
   initialChallenge,
   loadPendingRequest,
   markSessionAuthenticated,
+  authenticatorsSatisfyFlow,
   pendingChallenge,
   pendingSession,
   readSessionEntries,
@@ -23,14 +24,20 @@ import {
   resetAuthenticationProgress,
   sessionRepository,
   startAuthentication,
+  type AdvanceInput,
   type SessionEntry,
   type SessionLifespans,
 } from '@odudu/authn-flows';
 import { JWE_ALGS_PERMITTED, signingKeyRepository } from '@odudu/crypto';
-import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { auditRepository, type RequestContext } from '@odudu/domain-audit';
-import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
+import {
+  hashPassword,
+  subjectIsEnabled,
+  subjectRepository,
+  userRepository,
+  verifyPassword,
+} from '@odudu/domain-identity';
 import {
   clientRepository,
   clientScopeMapperRepository,
@@ -40,12 +47,13 @@ import {
 import { systemClock, type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { type ClientKeySet } from '#/repository/client-keys';
+import { loadClaimContextIn } from '#/usecase/evaluate-claims';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
 import { tenantLookupRepository } from '#/repository/tenant-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers, type ClaimContext, type LoadedClaimContext } from '#/service/claims';
-import { type LiveClientLookup } from '#/service/client-enabled';
+import { type LiveClientLookup, type LiveSubjectLookup } from '#/service/client-enabled';
 import { type AuditRefusalBudget } from '#/service/audit-refusal-budget';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import {
@@ -157,21 +165,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // way, and the admin API can never list a mapper this registry does
     // not itself run.
     const claimMappers = deps.claimMappers ?? standardClaimMappers();
-    // Roles need a recursive CTE (effectiveRoles), which a claim mapper must
-    // never run itself — resolved here, once per issuance, alongside the
-    // user row, the subject's direct group memberships, and the tenant's
-    // own scope-mapper bindings. `bindings` travels beside `context`, never
-    // inside it, so nothing a mapper receives can read it.
     const loadClaimContext = (tenantId: string, subjectId: string): Promise<LoadedClaimContext> =>
-      withTenant(deps.database.db, tenantId, async (tx) => ({
-        context: {
-          subjectId,
-          user: await userRepository(tx).bySubjectId(subjectId),
-          roles: await effectiveRoles(tx, subjectId),
-          groups: await effectiveGroupPaths(tx, subjectId),
-        },
-        bindings: await clientScopeMapperRepository(tx).bindingsByScopeName(tenantId),
-      }));
+      withTenant(deps.database.db, tenantId, (tx) => loadClaimContextIn(tx, tenantId, subjectId));
 
     // The keys /jwks publishes, and the ones an `id_token_hint` is checked
     // against at /authorize — one definition, so a client trusting the
@@ -253,12 +248,18 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         signingKeyRepository(tx).algorithmsAvailable(),
       );
 
-    // One definition, read by discovery for scopes_supported and by
-    // /authorize for what it will accept, so the advertised list and the
-    // accepted one cannot drift apart.
+    // Discovery's scopes_supported: every scope the tenant defines, at most
+    // SCOPE_LIMIT of them.
     const scopesForTenant = (tenantId: string): Promise<readonly string[]> =>
       withTenant(deps.database.db, tenantId, async (tx) =>
         (await clientScopeRepository(tx).allForTenant()).map((scope) => scope.name),
+      );
+
+    // What /authorize accepts of the scopes a request names, from the same
+    // table, so a scope it accepts is one discovery advertises.
+    const scopesNamed = (tenantId: string, names: readonly string[]): Promise<readonly string[]> =>
+      withTenant(deps.database.db, tenantId, async (tx) =>
+        (await clientScopeRepository(tx).byNames(names)).map((scope) => scope.name),
       );
 
     // The one definition of "is this subject's address verified", read by
@@ -277,6 +278,11 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // read by /authorize's reuse check, by login and consent to grow the
     // set with a fresh login, and by logout's membership check — never
     // trusted for anything but that lookup.
+    const authenticatedSubjectOf = (tenantId: string, authSessionId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) =>
+        authenticatedSubject(tx, authSessionId, clock),
+      );
+
     const resolveSessions = (
       tenant: {
         id: string;
@@ -326,15 +332,31 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           clientOidcConfigRepository(tx).byClientId(clientId),
           clientScopeRepository(tx).forClientByAssignment(clientId),
         ]);
-        const defaultScopes = assignments
+        const ordered = [...assignments].sort(
+          (a, b) =>
+            a.scope.displayOrder - b.scope.displayOrder ||
+            (a.scope.name < b.scope.name ? -1 : a.scope.name > b.scope.name ? 1 : 0),
+        );
+        const defaultScopes = ordered
           .filter((row) => row.assignment === 'default')
           .map((row) => row.scope.name);
-        const optionalScopes = assignments
+        const optionalScopes = ordered
           .filter((row) => row.assignment === 'optional')
           .map((row) => row.scope.name);
+        const scopeLabels = Object.fromEntries(
+          ordered.flatMap((row) =>
+            row.scope.consentText === null ? [] : [[row.scope.name, row.scope.consentText]],
+          ),
+        );
         const scopeIdByName = new Map(assignments.map((row) => [row.scope.name, row.scope.id]));
         return {
           clientName: client?.name ?? '',
+          clientPages: {
+            clientUri: config?.clientUri ?? null,
+            policyUri: config?.policyUri ?? null,
+            tosUri: config?.tosUri ?? null,
+          },
+          scopeLabels,
           consentRequired: config?.consentRequired ?? false,
           defaultScopes,
           optionalScopes,
@@ -359,6 +381,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         input.tenantId,
         async (tx) => {
           const now = clock.now();
+          if (!subjectIsEnabled(await subjectRepository(tx).byId(input.subjectId))) {
+            return { kind: 'subject_disabled' };
+          }
           const consumed = await consumeAuthenticationSession(tx, input.authSessionId, clock);
           if (!consumed) return { kind: 'already_consumed' };
 
@@ -469,6 +494,12 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           return client === null ? null : { enabled: client.enabled };
         }),
     };
+    const liveSubjectLookup: LiveSubjectLookup = {
+      isSubjectEnabled: (tenantId, subjectId) =>
+        withTenant(deps.database.db, tenantId, async (tx) =>
+          subjectIsEnabled(await subjectRepository(tx).byId(subjectId)),
+        ),
+    };
     // No CORS scope: unlike /userinfo, a resource server calls this with
     // its own client credentials, never a browser holding a bearer token,
     // so there is no Origin this endpoint owes a header to.
@@ -476,12 +507,16 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       database: deps.database,
       findTenant,
       listPublishableKeys,
+      clientKeySet,
+      trustProxy: deps.trustProxy ?? false,
+      tlsClientCertHeader: deps.tlsClientCertHeader ?? DEFAULT_TLS_CLIENT_SUBJECT_HEADER,
       verifyPassword,
       clientSecretLimiter,
       auditRefusalBudget: deps.auditRefusalBudget,
       loadGrant: loadIntrospectionGrant,
       isSessionLive: isIntrospectionSessionLive,
       liveClientLookup,
+      liveSubjectLookup,
       clock,
     });
     // Same no-CORS reasoning as /introspect above: a client revokes its own
@@ -490,6 +525,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       database: deps.database,
       findTenant,
       listPublishableKeys,
+      clientKeySet,
+      trustProxy: deps.trustProxy ?? false,
+      tlsClientCertHeader: deps.tlsClientCertHeader ?? DEFAULT_TLS_CLIENT_SUBJECT_HEADER,
       verifyPassword,
       clientSecretLimiter,
       auditRefusalBudget: deps.auditRefusalBudget,
@@ -590,7 +628,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       tls,
       ...passkeyLogin,
       listPublishableKeys,
-      scopesForTenant,
+      scopesNamed,
       resolveClient: (tenantId, oauthClientId) =>
         withTenant(deps.database.db, tenantId, async (tx): Promise<ResolvedClient> => {
           const client = await clientRepository(tx).byClientId(oauthClientId);
@@ -607,6 +645,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withTenant(deps.database.db, tenantId, (tx) => initialChallenge(tx, tenantId)),
       now: () => clock.now(),
       resolveSessions,
+      authenticatedSubject: authenticatedSubjectOf,
       checkEmailVerification,
       pendingActions,
       beginTotpEnrolment: startTotpEnrolment,
@@ -640,6 +679,20 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       // gate and decideConsentGate's 'ask' branch both need to park the
       // request on and render a page against, with no factor actually
       // running.
+      enabledSubjects: (tenantId, subjectIds) =>
+        withTenant(deps.database.db, tenantId, async (tx) => {
+          const enabled = new Set<string>();
+          for (const subjectId of new Set(subjectIds)) {
+            if (subjectIsEnabled(await subjectRepository(tx).byId(subjectId))) {
+              enabled.add(subjectId);
+            }
+          }
+          return enabled;
+        }),
+      sessionMeetsFlow: (tenantId, subjectId, authenticators) =>
+        withTenant(deps.database.db, tenantId, (tx) =>
+          authenticatorsSatisfyFlow(tx, tenantId, subjectId, authenticators),
+        ),
       markAuthenticated: (tenantId, authSessionId, subjectId, authenticators) =>
         withTenant(deps.database.db, tenantId, (tx) =>
           markSessionAuthenticated(tx, authSessionId, subjectId, authenticators, clock),
@@ -671,53 +724,30 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         }),
     });
 
-    registerRequiredActionRoute(app, {
+    // Shared by the login form's POST and by a finished required action,
+    // which resumes the same parked login through the same gates.
+    const loginSubmission = {
       findTenant,
-      ...passkeyLogin,
-      beginTotpEnrolment: startTotpEnrolment,
-      ...passkeyEnrolment,
-      ...passkeySubmission,
-      pendingChallenge: pendingChallengeFor,
-      pendingActions,
-      authenticatedSubject: (tenantId, authSessionId) =>
-        withTenant(deps.database.db, tenantId, (tx) =>
-          authenticatedSubject(tx, authSessionId, clock),
-        ),
-      completeTotpEnrolment: (input, request) =>
-        withTenant(
-          deps.database.db,
-          input.tenantId,
-          (tx) => completeTotpEnrolment(tx, input, clock),
-          request,
-        ),
-      beginRecoveryCodes: startRecoveryCodes,
-      completeRecoveryCodes: (input) =>
-        withTenant(deps.database.db, input.tenantId, (tx) => completeRecoveryCodes(tx, input)),
-      completeUpdatePassword: (input, request) =>
-        withTenant(
-          deps.database.db,
-          input.tenantId,
-          (tx) => completeUpdatePassword(tx, input),
-          request,
-        ),
-    });
-    registerLoginRoute(app, {
-      findTenant,
+      authenticatedSubject: authenticatedSubjectOf,
       tls,
       ...passkeyLogin,
-      ...passkeyAssertion,
       beginTotpEnrolment: startTotpEnrolment,
       beginRecoveryCodes: startRecoveryCodes,
       ...passkeyEnrolment,
-      resetAuthenticationProgress: (tenantId, authSessionId) =>
+      resetAuthenticationProgress: (tenantId: string, authSessionId: string) =>
         withTenant(deps.database.db, tenantId, (tx) =>
           resetAuthenticationProgress(tx, authSessionId),
         ),
-      recordRememberMe: (tenantId, authSessionId, remembered) =>
+      recordRememberMe: (tenantId: string, authSessionId: string, remembered: boolean) =>
         withTenant(deps.database.db, tenantId, (tx) =>
           recordRememberMe(tx, authSessionId, remembered),
         ),
-      advance: (tenantId, authSessionId, input, request) =>
+      advance: (
+        tenantId: string,
+        authSessionId: string,
+        input: AdvanceInput,
+        request: RequestContext,
+      ) =>
         withTenant(
           deps.database.db,
           tenantId,
@@ -728,7 +758,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             }),
           request,
         ),
-      loadPendingRequest: (tenantId, authSessionId) =>
+      loadPendingRequest: (tenantId: string, authSessionId: string) =>
         withTenant(deps.database.db, tenantId, (tx) => loadPendingRequest(tx, authSessionId)),
       pendingChallenge: pendingChallengeFor,
       checkEmailVerification,
@@ -738,10 +768,33 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       grantedScopeIds,
       completeLogin,
       resolveSessions,
+    };
+
+    registerRequiredActionRoute(app, {
+      ...loginSubmission,
+      ...passkeySubmission,
+      completeTotpEnrolment: (input, request) =>
+        withTenant(
+          deps.database.db,
+          input.tenantId,
+          (tx) => completeTotpEnrolment(tx, input, clock),
+          request,
+        ),
+      completeRecoveryCodes: (input) =>
+        withTenant(deps.database.db, input.tenantId, (tx) => completeRecoveryCodes(tx, input)),
+      completeUpdatePassword: (input, request) =>
+        withTenant(
+          deps.database.db,
+          input.tenantId,
+          (tx) => completeUpdatePassword(tx, input),
+          request,
+        ),
     });
+    registerLoginRoute(app, { ...loginSubmission, ...passkeyAssertion });
     registerConsentRoute(app, {
       findTenant,
       tls,
+      authenticatedSubject: authenticatedSubjectOf,
       authenticatedSession: (tenantId, authSessionId) =>
         withTenant(deps.database.db, tenantId, (tx) =>
           authenticatedSession(tx, authSessionId, clock),
@@ -811,9 +864,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     app.register((scope) => {
       registerCors(scope, {
         findTenant,
-        webOriginsForTenant: (tenantId) =>
+        webOriginAllowed: (tenantId, origin) =>
           withTenant(deps.database.db, tenantId, (tx) =>
-            clientOidcConfigRepository(tx).webOriginsForTenant(),
+            clientOidcConfigRepository(tx).webOriginAllowed(origin),
           ),
       });
       registerTokenRoute(scope, {
@@ -825,7 +878,6 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         clientSecretLimiter,
         auditRefusalBudget: deps.auditRefusalBudget,
         claimMappers,
-        loadClaimContext,
         resolveClientWebOrigins,
         clientKeySet,
         trustProxy: deps.trustProxy ?? false,
@@ -851,6 +903,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         loadGrant: loadIntrospectionGrant,
         isSessionLive: isIntrospectionSessionLive,
         liveClientLookup,
+        liveSubjectLookup,
         clock,
       });
     });
@@ -865,8 +918,20 @@ export { tenantIssuer } from '#/service/issuer';
 export { issuerBaseFor, tenantIssuerFor } from '#/view/issuer';
 export { assertionJtiRepository } from '#/repository/assertion-jti';
 export { isWellFormedWebOrigin } from '#/service/web-origin';
+export {
+  CLIENT_TOKEN_TTL_RANGES,
+  clientTokenTtlProblem,
+  type ClientTokenTtlField,
+  type ClientTokenTtlRange,
+} from '#/service/client-token-ttl';
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
-export { provisionAdminClient, ADMIN_CLIENT_REDIRECT_URI } from '#/usecase/provision-admin-client';
+export { idTokenAlgUnavailable } from '#/usecase/id-token-alg';
+export {
+  provisionAdminClient,
+  ADMIN_CLIENT_REDIRECT_URI,
+  type ClientJwks,
+  type ProvisionAdminClientOptions,
+} from '#/usecase/provision-admin-client';
 export { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
 export {
   parseClientMetadata,
@@ -920,6 +985,9 @@ export {
 // (packages/protocol-admin/src/testing/admin-fixture.ts and the
 // authentication chain it exists to test).
 export { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
+export { tokenGrants } from '#/schema/token-grants';
+export { refreshTokens } from '#/schema/refresh-tokens';
+export { backchannelLogoutDeliveries } from '#/schema/logout-deliveries';
 export { endSession, type EndSessionDeps, type EndSessionInput } from '#/usecase/end-session';
 export {
   auditRefusalBudgetKey,
@@ -931,3 +999,9 @@ export {
   type ClientSecretLimiter,
 } from '#/service/client-secret-throttle';
 export { standardClaimMappers, type ClaimContext, type LoadedClaimContext } from '#/service/claims';
+export {
+  evaluateClaims,
+  loadClaimContextIn,
+  type EvaluateClaimsInput,
+  type EvaluateClaimsOutcome,
+} from '#/usecase/evaluate-claims';

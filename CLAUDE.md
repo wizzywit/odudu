@@ -360,7 +360,9 @@ each a two-line wrapper because `FastifyReply` cannot live in the
 transport-free `kernel` package. A route never sets `content-type`,
 `content-security-policy`, `x-frame-options` or `referrer-policy` itself;
 `html-response.test.ts` holds every package's view layer to naming none of
-those itself outside the two files that spread `pageHeaders`.
+those itself outside those two files and the console shell's `spa.ts`,
+which sets its own fixed policy (ADR 0029's amendment); any other wrapper
+gets them only by spreading `pageHeaders`.
 
 **A page that needs a script says so in its return value**, as a
 `RenderedPage` carrying the nonce its own markup used, and `pageHeaders`
@@ -394,8 +396,31 @@ Permitted imports:
 Features expose one `index.ts`. No feature reaches into another's
 internals.
 
+**"No business logic" in a usecase or repository means none, however small
+it looks.** A usecase wires hooks, state and calls together; a repository
+holds queries, mutations and cache keys. Neither decides anything, and
+neither phrases or formats anything. A rule, a message, a failure-to-copy
+mapping and a formatter are each a pure `service` function, and one shared
+by two features lives once in `shared/service`. ADR 0010's amendment has
+the reasoning, and `tests/lint/console-usecase-integration-only.test.ts`
+fails the build on the constructs it can see. A construct it cannot see is
+still a breach.
+
 Domain packages never import protocol packages. Protocol packages never
 import each other.
+
+## Performance and scale
+
+Every increment is designed for one volume: 1,000,000 subjects and 10,000
+clients in a tenant, 10,000 tenants, 100,000,000 audit events. A phase spec
+says how each path it adds behaves there. On the server a collection read is
+bounded under `MAX_LIMIT`, a list or search is served by an index, a list
+endpoint makes a constant number of queries, and an in-process structure
+states its bound. In the console the React Compiler is on, nothing renders
+an unbounded collection, and hand-written `useMemo`, `useCallback` or
+`React.memo` appears only where a measurement asks for it. ADR 0041 has the
+reasoning; P11 still owns replicas, load and p99. Quote these rules in a
+brief, as the layering rules are.
 
 ## Non-negotiables
 

@@ -13,8 +13,10 @@ import {
   reap,
   REAP_LOCK_KEY,
   REAP_ORDER,
+  RETENTION_RULES,
   type ReapOutcome,
   type RetentionPolicy,
+  type RetentionTenant,
   type TableName,
 } from '#/cli/reap';
 
@@ -35,6 +37,12 @@ const SECOND = 1000;
 const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
+
+const TENANT: RetentionTenant = {
+  ssoSessionMaxSeconds: 36_000,
+  bruteForceFailureResetSeconds: 900,
+  auditRetentionDays: 90,
+};
 
 const POLICY: RetentionPolicy = {
   grantSeconds: 7 * 24 * 60 * 60,
@@ -81,6 +89,8 @@ interface Fixture {
   readonly logoutStillRetryingId: string;
   readonly assertionJtiStale: string;
   readonly assertionJtiLive: string;
+  readonly consoleSessionLiveId: string;
+  readonly consoleLoginLiveId: string;
 }
 
 // One tenant carrying, for every reaped table, a row that is eligible and a
@@ -110,6 +120,8 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   const logoutStillRetryingId = newId();
   const assertionJtiStale = `jti-stale-${tenantId}`;
   const assertionJtiLive = `jti-live-${tenantId}`;
+  const consoleSessionLiveId = newId();
+  const consoleLoginLiveId = newId();
 
   await owner.db.execute(sql`
     INSERT INTO tenants (id, name, brute_force_lockout_seconds,
@@ -264,6 +276,33 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
       (${tenantId}, 'app', ${assertionJtiLive}, ${at(1 * HOUR)}::timestamptz)
   `);
 
+  // Past its absolute expiry, idle past thirty minutes, and neither.
+  await owner.db.execute(sql`
+    INSERT INTO console_sessions (id, tenant_id, subject_id, secret_hash, access_token_wrapped,
+                                  refresh_token_wrapped, id_token_wrapped, access_expires_at,
+                                  created_at, last_seen_at, expires_at)
+    VALUES
+      (${newId()}, ${tenantId}, ${subjectId}, sha256(gen_random_uuid()::text::bytea), 'a', 'r',
+       'i', ${at(-1 * HOUR)}::timestamptz, ${at(-12 * HOUR)}::timestamptz,
+       ${at(-1 * MINUTE)}::timestamptz, ${at(-1 * SECOND)}::timestamptz),
+      (${newId()}, ${tenantId}, ${subjectId}, sha256(gen_random_uuid()::text::bytea), 'a', 'r',
+       'i', ${at(-1 * HOUR)}::timestamptz, ${at(-1 * HOUR)}::timestamptz,
+       ${at(-31 * MINUTE)}::timestamptz, ${at(11 * HOUR)}::timestamptz),
+      (${consoleSessionLiveId}, ${tenantId}, ${subjectId}, sha256(gen_random_uuid()::text::bytea),
+       'a', 'r', 'i', ${at(5 * MINUTE)}::timestamptz, ${at(-1 * HOUR)}::timestamptz,
+       ${at(-29 * MINUTE)}::timestamptz, ${at(11 * HOUR)}::timestamptz)
+  `);
+
+  await owner.db.execute(sql`
+    INSERT INTO console_logins (id, tenant_id, state_hash, verifier_wrapped, nonce, return_to,
+                                expires_at)
+    VALUES
+      (${newId()}, ${tenantId}, sha256(gen_random_uuid()::text::bytea), 'v', 'n', '/console/',
+       ${at(-1 * SECOND)}::timestamptz),
+      (${consoleLoginLiveId}, ${tenantId}, sha256(gen_random_uuid()::text::bytea), 'v', 'n',
+       '/console/', ${at(5 * MINUTE)}::timestamptz)
+  `);
+
   return {
     tenant,
     tenantId,
@@ -284,6 +323,8 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
     logoutStillRetryingId,
     assertionJtiStale,
     assertionJtiLive,
+    consoleSessionLiveId,
+    consoleLoginLiveId,
   };
 }
 
@@ -298,6 +339,8 @@ const RELATIONS: Record<TableName, SQL> = {
   email_outbox: sql.raw('email_outbox'),
   backchannel_logout_deliveries: sql.raw('backchannel_logout_deliveries'),
   client_assertion_jti: sql.raw('client_assertion_jti'),
+  console_sessions: sql.raw('console_sessions'),
+  console_logins: sql.raw('console_logins'),
   sessions: sql.raw('sessions'),
   audit_events: sql.raw('audit_events'),
 };
@@ -375,6 +418,74 @@ describe('audit_events retention', () => {
   });
 });
 
+describe('rotated-out client secrets', () => {
+  it('clears one past its window and audits it, and keeps one inside it', async () => {
+    const tenantId = newId();
+    const expired = newId();
+    const live = newId();
+    await owner.db.execute(sql`
+      INSERT INTO tenants (id, name) VALUES (${tenantId}, ${`reap-${tenantId}`})
+    `);
+    await owner.db.execute(sql`
+      INSERT INTO clients (id, tenant_id, client_id, name, type, secret_hash,
+                           previous_secret_hash, previous_secret_expires_at)
+      VALUES
+        (${expired}, ${tenantId}, 'expired', 'expired', 'confidential', 'next', 'old',
+         ${at(-1 * SECOND)}::timestamptz),
+        (${live}, ${tenantId}, 'live', 'live', 'confidential', 'next', 'old',
+         ${at(HOUR)}::timestamptz)
+    `);
+
+    const outcome = await runPass();
+    if (!outcome.ran) throw new Error('the pass did not run');
+    expect(outcome.cleared.client_previous_secrets).toBe(1);
+
+    const rows = await owner.db.execute<{ id: string; previous_secret_hash: string | null }>(sql`
+      SELECT id, previous_secret_hash FROM clients WHERE tenant_id = ${tenantId} ORDER BY client_id
+    `);
+    expect(rows).toEqual([
+      { id: expired, previous_secret_hash: null },
+      { id: live, previous_secret_hash: 'old' },
+    ]);
+    const audited = await owner.db.execute<{ resource_id: string }>(sql`
+      SELECT resource_id FROM audit_events
+       WHERE tenant_id = ${tenantId} AND action = 'client.secret_expired'
+    `);
+    expect(audited.map((row) => row.resource_id)).toEqual([expired]);
+  });
+});
+
+describe('a tenant deleted while the pass is under way', () => {
+  it('yields nothing for it and carries on with the others', async () => {
+    await seedFixture();
+    const doomedId = newId();
+    await owner.db.execute(sql`
+      INSERT INTO tenants (id, name) VALUES (${doomedId}, ${`reap-doomed-${doomedId}`})
+    `);
+    // Deleted by the first statement the pass runs, so the id is already in
+    // the page it read when the pass reaches it.
+    await owner.sql.unsafe(`
+      CREATE FUNCTION reap_test_drop_tenant() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
+      BEGIN
+        DELETE FROM tenants WHERE id = '${doomedId}';
+        RETURN NULL;
+      END $$`);
+    await owner.sql.unsafe(`
+      CREATE TRIGGER reap_test_drop_tenant AFTER DELETE ON authentication_sessions
+        FOR EACH STATEMENT EXECUTE FUNCTION reap_test_drop_tenant()`);
+    try {
+      const outcome = await runPass();
+      expect(outcome.ran).toBe(true);
+      const left = await owner.db.execute<{ n: number }>(sql`
+        SELECT count(*)::int AS n FROM tenants WHERE id = ${doomedId}`);
+      expect(left[0]?.n).toBe(0);
+    } finally {
+      await owner.sql.unsafe('DROP TRIGGER reap_test_drop_tenant ON authentication_sessions');
+      await owner.sql.unsafe('DROP FUNCTION reap_test_drop_tenant()');
+    }
+  });
+});
+
 describe('odudu reap', () => {
   // First, and deliberately: the report is summed over every tenant in the
   // database, so this is the only point at which it can be compared to an
@@ -393,6 +504,8 @@ describe('odudu reap', () => {
       email_outbox: 2,
       backchannel_logout_deliveries: 2,
       client_assertion_jti: 1,
+      console_sessions: 2,
+      console_logins: 1,
       sessions: 1,
       audit_events: 0,
     });
@@ -411,6 +524,8 @@ describe('odudu reap', () => {
       email_outbox: 4,
       backchannel_logout_deliveries: 3,
       client_assertion_jti: 1,
+      console_sessions: 1,
+      console_logins: 1,
       sessions: 1,
       audit_events: 0,
     });
@@ -426,6 +541,8 @@ describe('odudu reap', () => {
       email_outbox: 0,
       backchannel_logout_deliveries: 0,
       client_assertion_jti: 0,
+      console_sessions: 0,
+      console_logins: 0,
       sessions: 0,
       audit_events: 0,
     });
@@ -444,6 +561,76 @@ describe('odudu reap', () => {
     );
     expect(rows.map((row) => row.jti)).toEqual([fixture.assertionJtiLive]);
   });
+
+  it('keeps the console session and pending login that are still live', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const sessions = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM console_sessions WHERE tenant_id = ${fixture.tenantId}`,
+    );
+    const logins = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM console_logins WHERE tenant_id = ${fixture.tenantId}`,
+    );
+    expect(sessions.map((row) => row.id)).toEqual([fixture.consoleSessionLiveId]);
+    expect(logins.map((row) => row.id)).toEqual([fixture.consoleLoginLiveId]);
+  });
+
+  it('keeps a console session seen exactly thirty minutes ago, and deletes one seen earlier', async () => {
+    const tenantId = newId();
+    const subjectId = newId();
+    const atBoundary = newId();
+    const pastBoundary = newId();
+    await owner.db.execute(
+      sql`INSERT INTO tenants (id, name) VALUES (${tenantId}, ${`reap-${tenantId}`})`,
+    );
+    await owner.db.execute(
+      sql`INSERT INTO subjects (id, tenant_id, type) VALUES (${subjectId}, ${tenantId}, 'user')`,
+    );
+    await owner.db.execute(sql`
+      INSERT INTO console_sessions (id, tenant_id, subject_id, secret_hash, access_token_wrapped,
+                                    refresh_token_wrapped, id_token_wrapped, access_expires_at,
+                                    created_at, last_seen_at, expires_at)
+      VALUES
+        (${atBoundary}, ${tenantId}, ${subjectId}, sha256(gen_random_uuid()::text::bytea), 'a',
+         'r', 'i', ${at(0)}::timestamptz, ${at(-1 * HOUR)}::timestamptz,
+         ${at(-30 * MINUTE)}::timestamptz, ${at(0)}::timestamptz),
+        (${pastBoundary}, ${tenantId}, ${subjectId}, sha256(gen_random_uuid()::text::bytea), 'a',
+         'r', 'i', ${at(0)}::timestamptz, ${at(-1 * HOUR)}::timestamptz,
+         ${at(-30 * MINUTE - 1)}::timestamptz, ${at(11 * HOUR)}::timestamptz)
+    `);
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM console_sessions WHERE tenant_id = ${tenantId}`,
+    );
+    expect(rows.map((row) => row.id)).toEqual([atBoundary]);
+  });
+
+  // Each rule's own statement, run under one tenant's context alone: the
+  // DELETEs carry no tenant predicate, so the policy is all that spares
+  // the other tenant's rows.
+  it.each(['console_sessions', 'console_logins'] as const)(
+    'scopes the %s delete to one tenant by row-level security alone',
+    async (table) => {
+      const mine = await seedFixture();
+      const theirs = await seedFixture();
+
+      const before = await countRows(theirs.tenantId, table);
+      const pass = await withEachTenantExclusive(appDb.db, REAP_LOCK_KEY, [mine.tenantId], (tx) =>
+        tx.execute(RETENTION_RULES[table].statement(NOW, POLICY, TENANT)),
+      );
+      expect(pass.acquired).toBe(true);
+
+      expect(await countRows(mine.tenantId, table)).toBe(1);
+      expect(before).toBeGreaterThan(1);
+      expect(await countRows(theirs.tenantId, table)).toBe(before);
+
+      await runPass();
+    },
+  );
 
   // The foreign-tenant probe for this table specifically: the
   // generic "scopes each tenant's statements by row-level security alone"

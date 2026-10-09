@@ -66,12 +66,15 @@ export interface RequiredActionSubmissionDeps {
   // rendered the page: an action completed in another tab has to be gone
   // by the time this one is submitted.
   pendingActions(tenantId: string, subjectId: string): Promise<readonly RequiredAction[]>;
+  // `authSessionId` is the login the code was typed into, which a verified
+  // code counts towards as its otp factor.
   completeTotpEnrolment(
     input: {
       tenantId: string;
       subjectId: string;
       secret: string;
       code: string;
+      authSessionId: string;
     },
     request: RequestContext,
   ): Promise<TotpEnrolmentOutcome>;
@@ -192,6 +195,7 @@ export async function handleRequiredActionSubmission(
       subjectId,
       secret: submission.secret ?? '',
       code: submission.code ?? '',
+      authSessionId,
     },
     request,
   );

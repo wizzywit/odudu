@@ -7,18 +7,24 @@ import { subjectSchema } from '@odudu/contracts/admin';
 // contract rather than a copy of it.
 export const SUBJECT_FIELDS: readonly string[] = Object.keys(subjectSchema.shape);
 
+/** What the tenant decides about a subject amendment: its `username_editable` setting. */
+export interface SubjectAmendPolicy {
+  readonly usernameEditable: boolean;
+}
+
 const REFUSALS: Readonly<Record<string, string>> = {
   id: 'identity: changing it breaks every reference to this subject, tokens already issued included',
   type: 'type silently changes what kind of principal this is — a user becoming a service account needs its own operation, not a general amendment',
-  username:
-    'username carries its own uniqueness and login semantics; renaming it belongs to a dedicated operation, not a general amendment',
   created_at: 'created_at is history',
 };
 
-export function refusalFor(field: string): string | null {
+const USERNAME_NOT_EDITABLE = 'this tenant has not enabled username editing (username_editable)';
+
+export function refusalFor(field: string, policy: SubjectAmendPolicy): string | null {
+  if (field === 'username') return policy.usernameEditable ? null : USERNAME_NOT_EDITABLE;
   return REFUSALS[field] ?? null;
 }
 
-export const AMENDABLE_SUBJECT_FIELDS: readonly string[] = SUBJECT_FIELDS.filter(
-  (field) => refusalFor(field) === null,
-);
+export function amendableSubjectFields(policy: SubjectAmendPolicy): readonly string[] {
+  return SUBJECT_FIELDS.filter((field) => refusalFor(field, policy) === null);
+}

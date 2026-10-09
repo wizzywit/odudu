@@ -1,6 +1,7 @@
 import { actionTokens } from '@odudu/account';
-import { requiredActionRepository } from '@odudu/authn-flows';
-import { signingKeyRepository, signingKeys } from '@odudu/crypto';
+import { CLIENT_LIST_LIMIT, listLimitProblem } from '@odudu/contracts/admin';
+import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
+import { generateSigningKey, signingKeyRepository, signingKeys } from '@odudu/crypto';
 import {
   createDatabase,
   MIGRATIONS_DIR,
@@ -9,19 +10,27 @@ import {
   withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
-import { effectiveRoles } from '@odudu/domain-authz';
+import { effectiveRoles, groupRepository, roleRepository } from '@odudu/domain-authz';
 import { subjects, users } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
   clientRegistrationTokenRepository,
+  clientRepository,
   clients,
   clientScopeRepository,
   SYSTEM_TENANT_ID,
   SYSTEM_TENANT_NAME,
+  TENANT_ADMIN,
   TENANT_DEFAULT_SCOPE_NAMES,
+  TENANT_NAME_RULE,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
-import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
+import {
+  ADMIN_CLIENT_REDIRECT_URI,
+  clientOidcConfig,
+  clientOidcConfigRepository,
+  tenantLookupRepository,
+} from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -177,7 +186,9 @@ describe('seed', () => {
 
     const first = await seed(options);
     await expect(seed(options)).resolves.toMatchObject({ created: false });
-    expect(await countClients(first.tenantId)).toBe(1);
+    // The requested client plus the built-in odudu-admin this tenant's
+    // creation now provisions alongside it.
+    expect(await countClients(first.tenantId)).toBe(2);
     expect(await countSigningKeys(first.tenantId)).toBe(1);
   });
 
@@ -200,6 +211,43 @@ describe('seed', () => {
     const options = uniqueOptions();
 
     await expect(seed({ ...options, redirectUris: ['/callback'] })).rejects.toThrow(/absolute/);
+  });
+
+  // seedClientBootstrap is a third door that can create a tenant
+  // (resolveTenantId's create branch, when the name it is given resolves to
+  // no existing row) — the same rule createTenant and `seed tenant` refuse
+  // through applies here too, so this door cannot hand a caller a reserved
+  // or malformed tenant a raw CHECK violation would otherwise report.
+  it('refuses the reserved tenant name count, creating nothing', async () => {
+    const options = uniqueOptions();
+
+    await expect(seed({ ...options, tenant: 'count' })).rejects.toThrow(/reserved/);
+    const rows = await owner.db.select().from(tenants).where(eq(tenants.name, 'count'));
+    expect(rows).toHaveLength(0);
+  });
+
+  // odudu-admin is reserved for the built-in admin client every tenant is
+  // provisioned with. Requesting it as a *new* tenant's client used to reach
+  // resolveTenantId first: the tenant row committed on the owner connection,
+  // then provisionAdminClient created the public odudu-admin client, then
+  // assertMatchesExisting rejected the requested confidential client inside
+  // the (rolled-back) provisioning transaction — leaving a tenant row with no
+  // flow, admin client or signing key for a retry to find.
+  it('refuses the reserved client id odudu-admin, creating no tenant', async () => {
+    const options = uniqueOptions();
+    const tenantName = options.tenant;
+
+    await expect(seed({ ...options, clientId: ADMIN_CLIENT_ID })).rejects.toThrow(/reserved/);
+    const rows = await owner.db.select().from(tenants).where(eq(tenants.name, tenantName));
+    expect(rows).toHaveLength(0);
+  });
+
+  it('refuses a tenant name that is not a DNS label, naming the rule', async () => {
+    const options = uniqueOptions();
+
+    await expect(seed({ ...options, tenant: 'Acme' })).rejects.toThrow(TENANT_NAME_RULE);
+    const rows = await owner.db.select().from(tenants).where(eq(tenants.name, 'Acme'));
+    expect(rows).toHaveLength(0);
   });
 
   it('refuses a second run with a different client secret for the same client', async () => {
@@ -508,19 +556,58 @@ describe('seed tenant --set', () => {
     expect(result).not.toHaveProperty('settings');
   });
 
-  // The ranges live in CHECK constraints (migrations 0028, 0035, 0041), and
-  // this is what proves the CLI has no way past them.
-  it('cannot write a value the database refuses', async () => {
+  it('refuses a name that is not a DNS label, naming the rule and creating nothing', async () => {
+    await expect(seed(['tenant', '--name', 'Acme'])).rejects.toThrow(TENANT_NAME_RULE);
+    const rows = await owner.db.select().from(tenants).where(eq(tenants.name, 'Acme'));
+    expect(rows).toHaveLength(0);
+  });
+
+  it('refuses the reserved name count, the same as system', async () => {
+    await expect(seed(['tenant', '--name', 'count'])).rejects.toThrow(/reserved/);
+  });
+
+  it('refuses an out-of-range value before creating the tenant, naming every problem', async () => {
     const name = `set-${newId()}`;
 
     await expect(
-      seed(['tenant', '--name', name, '--set', 'password_max_age_days=4000']),
-    ).rejects.toThrow();
+      seed([
+        'tenant',
+        '--name',
+        name,
+        '--set',
+        'password_max_age_days=4000',
+        '--set',
+        'max_clients=-1',
+      ]),
+    ).rejects.toThrow(/password_max_age_days must be between 0 and 3650.*max_clients/su);
 
-    const rows = await owner.db.select().from(tenants).where(eq(tenants.name, name));
-    // The tenant itself was created before the setting was applied, so the
-    // refusal leaves it at the column default rather than at 4000.
-    expect(rows[0]?.passwordMaxAgeDays).toBe(0);
+    expect(await owner.db.select().from(tenants).where(eq(tenants.name, name))).toHaveLength(0);
+  });
+
+  it('judges a value against the stored settings, and writes nothing it refuses', async () => {
+    const name = `set-${newId()}`;
+    const created = await seed(['tenant', '--name', name, '--set', 'sso_session_idle_seconds=600']);
+    if (created.command !== 'tenant') throw new Error('expected the tenant command');
+
+    await expect(
+      seed([
+        'tenant',
+        '--name',
+        name,
+        '--set',
+        'otp_required=true',
+        '--set',
+        'sso_session_max_seconds=300',
+      ]),
+    ).rejects.toThrow(/sso_session_idle_seconds must not exceed sso_session_max_seconds/u);
+
+    expect(await tenantSettings(created.tenantId)).toMatchObject({ otpRequired: false });
+  });
+
+  it('judges a new tenant against the column defaults', async () => {
+    await expect(
+      seed(['tenant', '--name', `set-${newId()}`, '--set', 'sso_session_max_seconds=600']),
+    ).rejects.toThrow(/sso_session_idle_seconds must not exceed sso_session_max_seconds/u);
   });
 
   it('cannot write a client cap the database refuses', async () => {
@@ -553,6 +640,262 @@ describe('seed tenant --set', () => {
     await expect(
       seed(['tenant', '--name', `set-${newId()}`, '--set', 'otp_required']),
     ).rejects.toThrow(/expects name=value/u);
+  });
+});
+
+describe('seed tenant provisions the admin client', () => {
+  // Simulates a tenant seeded before this behaviour existed: provisioned
+  // and keyed, the way `performSeed`/`runTenantCommand` leave a new tenant,
+  // but without the admin client either of them now provisions alongside it.
+  async function createTenantWithoutAdminClient(name: string): Promise<string> {
+    const tenantId = newId();
+    await tenantLookupRepository(owner.db).create({ id: tenantId, name });
+    await withTenant(owner.db, tenantId, async (tx) => {
+      await provisionTenant(tx, tenantId);
+      const generated = await generateSigningKey('RS256', Buffer.alloc(32, 7));
+      await signingKeyRepository(tx).create({
+        id: newId(),
+        tenantId,
+        kid: generated.kid,
+        alg: generated.alg,
+        status: 'active',
+        publicJwk: generated.publicJwk,
+        privateJwkEncrypted: generated.privateJwkEncrypted,
+      });
+    });
+    return tenantId;
+  }
+
+  async function adminClientRoles(tenantId: string): Promise<{ builtinAdmin: boolean } | null> {
+    return withTenant(owner.db, tenantId, async (tx) => {
+      const client = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      if (client === null) return null;
+      const admin = await roleRepository(tx).byName(TENANT_ADMIN, client.id);
+      expect(admin).not.toBeNull();
+      return { builtinAdmin: client.builtinAdmin };
+    });
+  }
+
+  it('creates the built-in admin client via `seed tenant`, once on a second run', async () => {
+    const name = `tenant-admin-${newId()}`;
+
+    const first = await seed(['tenant', '--name', name]);
+    if (first.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(await adminClientRoles(first.tenantId)).toMatchObject({ builtinAdmin: true });
+    expect(await countAdminClients(first.tenantId)).toBe(1);
+
+    const second = await seed(['tenant', '--name', name]);
+    if (second.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(await countAdminClients(second.tenantId)).toBe(1);
+  });
+
+  it('creates the built-in admin client via `seed --tenant`, once on a second run', async () => {
+    const options = uniqueOptions();
+
+    const first = await seed(options);
+    expect(await adminClientRoles(first.tenantId)).toMatchObject({ builtinAdmin: true });
+    expect(await countAdminClients(first.tenantId)).toBe(1);
+
+    const second = await seed(options);
+    expect(second.tenantId).toBe(first.tenantId);
+    expect(await countAdminClients(first.tenantId)).toBe(1);
+  });
+
+  it('gives a tenant seeded before this existed an admin client via `seed tenant`, once on a second run', async () => {
+    const name = `tenant-preexisting-${newId()}`;
+    const tenantId = await createTenantWithoutAdminClient(name);
+    expect(await countAdminClients(tenantId)).toBe(0);
+
+    const first = await seed(['tenant', '--name', name]);
+    if (first.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(first.created).toBe(false);
+    expect(await countAdminClients(tenantId)).toBe(1);
+
+    const second = await seed(['tenant', '--name', name]);
+    if (second.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(await countAdminClients(tenantId)).toBe(1);
+  });
+
+  it('gives a tenant seeded before this existed an admin client via `seed --tenant`, once on a second run', async () => {
+    const options = uniqueOptions();
+    const tenantId = await createTenantWithoutAdminClient(options.tenant);
+    expect(await countAdminClients(tenantId)).toBe(0);
+
+    const first = await seed(options);
+    expect(first.tenantId).toBe(tenantId);
+    expect(await countAdminClients(tenantId)).toBe(1);
+
+    const second = await seed(options);
+    expect(second.tenantId).toBe(tenantId);
+    expect(await countAdminClients(tenantId)).toBe(1);
+  });
+});
+
+describe("seed registers the console's URIs on the admin client", () => {
+  const BASE = 'http://console.test';
+
+  async function adminClientUris(
+    tenantId: string,
+  ): Promise<{ redirectUris: string[]; postLogoutRedirectUris: string[] } | undefined> {
+    const rows = await owner.db
+      .select({
+        redirectUris: clientOidcConfig.redirectUris,
+        postLogoutRedirectUris: clientOidcConfig.postLogoutRedirectUris,
+      })
+      .from(clientOidcConfig)
+      .innerJoin(clients, eq(clients.id, clientOidcConfig.clientId))
+      .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, ADMIN_CLIENT_ID)));
+    return rows[0];
+  }
+
+  async function withBaseUrl<T>(env: Record<string, string>, run: () => Promise<T>): Promise<T> {
+    Object.assign(process.env, env);
+    try {
+      return await run();
+    } finally {
+      for (const key of Object.keys(env)) Reflect.deleteProperty(process.env, key);
+    }
+  }
+
+  const registered = {
+    redirectUris: [ADMIN_CLIENT_REDIRECT_URI, `${BASE}/console/auth/callback`],
+    postLogoutRedirectUris: [`${BASE}/console/`],
+  };
+
+  it('via `seed tenant`', async () => {
+    const result = await withBaseUrl({ ODUDU_PUBLIC_BASE_URL: BASE }, () =>
+      seed(['tenant', '--name', `console-${newId()}`]),
+    );
+    if (result.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(await adminClientUris(result.tenantId)).toEqual(registered);
+  });
+
+  it('via `seed --tenant`', async () => {
+    const result = await withBaseUrl({ ODUDU_PUBLIC_BASE_URL: BASE }, () => seed(uniqueOptions()));
+    expect(await adminClientUris(result.tenantId)).toEqual(registered);
+  });
+
+  it('via `seed admin`', async () => {
+    const result = await withBaseUrl({ ODUDU_PUBLIC_BASE_URL: BASE }, () =>
+      seedAdmin({ username: `console-${newId()}` }),
+    );
+    expect(await adminClientUris(result.tenantId)).toEqual(registered);
+  });
+
+  it('registers nothing while the console is off', async () => {
+    const result = await withBaseUrl({ ODUDU_PUBLIC_BASE_URL: BASE, ODUDU_CONSOLE: 'false' }, () =>
+      seed(['tenant', '--name', `console-off-${newId()}`]),
+    );
+    if (result.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(await adminClientUris(result.tenantId)).toEqual({
+      redirectUris: [ADMIN_CLIENT_REDIRECT_URI],
+      postLogoutRedirectUris: [],
+    });
+  });
+});
+
+describe('seeded client lifetimes', () => {
+  async function lifetimesOf(tenantName: string, clientId: string) {
+    const tenantId = (await owner.db.select().from(tenants).where(eq(tenants.name, tenantName)))[0]
+      ?.id;
+    if (tenantId === undefined) throw new Error('expected the seeded tenant');
+    return withTenant(owner.db, tenantId, async (tx) => {
+      const rows = await tx
+        .select()
+        .from(clients)
+        .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, clientId)));
+      const client = rows[0];
+      if (client === undefined) throw new Error('expected the seeded client');
+      const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+      return {
+        access: config?.accessTokenTtlSeconds,
+        id: config?.idTokenTtlSeconds,
+        refresh: config?.refreshTokenTtlSeconds,
+      };
+    });
+  }
+
+  it('leaves both doors’ clients to the tenant’s lifetimes', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await seed([
+      'client',
+      '--tenant',
+      options.tenant,
+      '--client-id',
+      'inherits-spa',
+      '--public',
+      '--redirect-uri',
+      'https://app.example/callback',
+    ]);
+
+    const inherited = { access: null, id: null, refresh: null };
+    expect(await lifetimesOf(options.tenant, options.clientId)).toEqual(inherited);
+    expect(await lifetimesOf(options.tenant, 'inherits-spa')).toEqual(inherited);
+  });
+});
+
+describe('seed client and the tenant’s default scopes', () => {
+  it('assigns what the tenant marks, and not what it unmarks', async () => {
+    const options = uniqueOptions();
+    const first = await seed(options);
+    await withTenant(owner.db, first.tenantId, async (tx) => {
+      const scopes = clientScopeRepository(tx);
+      // The owner bypasses row-level security, so the tenant is named here.
+      const phone = (await scopes.allForTenant()).find(
+        (scope) => scope.tenantId === first.tenantId && scope.name === 'phone',
+      );
+      if (phone === undefined) throw new Error('expected the provisioned phone scope');
+      await scopes.amend(phone.id, { defaultClientAssignment: null });
+      await scopes.create({
+        tenantId: first.tenantId,
+        name: 'reports:read',
+        defaultClientAssignment: 'default',
+      });
+    });
+    await seed([
+      'client',
+      '--tenant',
+      options.tenant,
+      '--client-id',
+      'marked-spa',
+      '--public',
+      '--redirect-uri',
+      'https://app.example/callback',
+    ]);
+
+    const expected = [...TENANT_DEFAULT_SCOPE_NAMES.filter((name) => name !== 'phone')];
+    expect(await assignedScopes(first.tenantId, 'marked-spa')).toEqual(
+      [...expected, 'reports:read'].sort(),
+    );
+  });
+});
+
+describe('seed client and the limit on a client’s lists', () => {
+  it.each([
+    ['--redirect-uri', 'redirect_uris', (i: number) => `https://app.example/cb/${String(i)}`],
+    ['--web-origin', 'web_origins', (i: number) => `https://o${String(i)}.example`],
+    [
+      '--post-logout-redirect-uri',
+      'post_logout_redirect_uris',
+      (i: number) => `https://app.example/out/${String(i)}`,
+    ],
+  ])('refuses %s past the limit, in the words the API uses', async (flag, field, make) => {
+    const options = uniqueOptions();
+    await seed(options);
+    const flags = Array.from({ length: CLIENT_LIST_LIMIT + 1 }, (_, i) => [flag, make(i)]).flat();
+    await expect(
+      seed([
+        'client',
+        '--tenant',
+        options.tenant,
+        '--client-id',
+        'too-many',
+        '--public',
+        ...(flag === '--redirect-uri' ? [] : ['--redirect-uri', 'https://app.example/callback']),
+        ...flags,
+      ]),
+    ).rejects.toThrow(listLimitProblem(field, CLIENT_LIST_LIMIT + 1));
   });
 });
 
@@ -769,6 +1112,71 @@ describe('seed registration-token', () => {
     await expect(
       seed(['registration-token', '--tenant', `no-such-${newId()}`, '--uses', '1', '--ttl', '600']),
     ).rejects.toThrow(/no tenant named/u);
+  });
+});
+
+describe('seed user --require-password-change', () => {
+  async function seedUser(...extra: string[]) {
+    const tenant = `forced-${newId()}`;
+    await seed(['tenant', '--name', tenant]);
+    const result = await seed([
+      'user',
+      '--tenant',
+      tenant,
+      '--username',
+      'grace',
+      '--password',
+      'correct horse battery',
+      ...extra,
+    ]);
+    if (result.command !== 'user') throw new Error('expected user');
+    return withTenant(owner.db, result.tenantId, (tx) =>
+      requiredActionRepository(tx).pendingFor(result.userSubjectId),
+    );
+  }
+
+  it('queues a forced password change for the user it creates', async () => {
+    expect(await seedUser('--require-password-change')).toEqual(['update-password']);
+  });
+
+  it('queues nothing without it', async () => {
+    expect(await seedUser()).toEqual([]);
+  });
+});
+
+describe('seed user and the tenant’s defaults', () => {
+  it('joins the default groups and receives the default roles', async () => {
+    const tenant = `defaults-${newId()}`;
+    const created = await seed(['tenant', '--name', tenant]);
+    if (created.command !== 'tenant') throw new Error('expected tenant');
+    const { groupId, roleId } = await withTenant(owner.db, created.tenantId, async (tx) => {
+      const group = await groupRepository(tx).create({
+        tenantId: created.tenantId,
+        name: 'everyone',
+        parentId: null,
+      });
+      await groupRepository(tx).setDefaultForNewSubjects(group.id, true);
+      const role = await roleRepository(tx).create({ tenantId: created.tenantId, name: 'reader' });
+      await roleRepository(tx).setDefaultForNewSubjects(role.id, true);
+      return { groupId: group.id, roleId: role.id };
+    });
+
+    const result = await seed([
+      'user',
+      '--tenant',
+      tenant,
+      '--username',
+      'grace',
+      '--password',
+      'correct horse battery',
+    ]);
+    if (result.command !== 'user') throw new Error('expected user');
+    await withTenant(owner.db, result.tenantId, async (tx) => {
+      const groups = await groupRepository(tx).groupsOfSubject(result.userSubjectId);
+      expect(groups.map((group) => group.id)).toEqual([groupId]);
+      const reach = await effectiveRoles(tx, result.userSubjectId);
+      expect(reach.map((role) => role.roleId)).toContain(roleId);
+    });
   });
 });
 

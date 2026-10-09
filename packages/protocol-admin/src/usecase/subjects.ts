@@ -1,10 +1,27 @@
 import { requiredActionRepository, type RequiredAction } from '@odudu/authn-flows';
-import { type Credential, type Subject } from '@odudu/contracts/admin';
+import {
+  heldAdminCapabilitySchema,
+  SUBJECT_SEARCH_FIELDS,
+  usernameSchema,
+  type Credential,
+  type GroupFields,
+  type ListSubjectsQuery,
+  type HeldAdminCapability,
+  type ListedSubject,
+} from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { roleRepository, roles, subjectRoles } from '@odudu/domain-authz';
+import {
+  grantNewSubjectDefaults,
+  groupRepository,
+  roleRepository,
+  roles,
+  subjectGroups,
+  subjectRoles,
+} from '@odudu/domain-authz';
 import {
   credentialRepository,
   isEmailAddress,
+  loginFailures,
   passwordExpired,
   subjectRepository,
   subjects,
@@ -14,13 +31,46 @@ import {
   type CredentialType,
   type SubjectRecord,
 } from '@odudu/domain-identity';
-import { tenantSettingsRepository } from '@odudu/domain-tenant';
+import { clients, tenantSettingsRepository } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
-import { and, asc, eq, gt, inArray, like, ne } from 'drizzle-orm';
-import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
-import { decodeCursor, encodeCursor } from '#/service/cursor';
-import { etagOf, matches, requiredPrecondition } from '#/service/etag';
-import { AMENDABLE_SUBJECT_FIELDS, refusalFor } from '#/service/subjects-patch';
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  notInArray,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import { type SelectedFields } from 'drizzle-orm/pg-core';
+import { redactedDiff } from '#/service/audit-detail';
+import {
+  capabilitiesOfGroupsAndAncestors,
+  capabilitiesReachableFrom,
+  holdersOf,
+  holdersOfAny,
+  adminCapabilitiesOf,
+  type HeldCapability,
+  overreach,
+  targetOverreach,
+} from '#/service/capability-ceiling';
+import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
+import { etagOf, requiredPrecondition } from '#/service/etag';
+import { groupWireShape } from '#/service/group-wire';
+import { amendableSubjectFields, refusalFor } from '#/service/subjects-patch';
+import {
+  guardLastAdministrator,
+  type LastAdministratorRefusal,
+} from '#/usecase/last-administrator';
+import {
+  prefixRangeConditions,
+  requireSearchKey,
+  type ListPosition,
+} from '#/usecase/prefix-search';
 
 const COLLECTION = 'subjects';
 
@@ -43,6 +93,8 @@ export interface SubjectView {
   readonly email: string | null;
   readonly enabled: boolean;
   readonly createdAt: Date;
+  /** Set by a listing filtered by capability, for the whole page at once. */
+  readonly adminCapabilities?: readonly HeldCapability[];
 }
 
 function subjectsJoinedWithUsers(tx: TenantScopedDatabase) {
@@ -70,7 +122,9 @@ export interface SubjectAuditEvent {
     | 'subject.delete'
     | 'subject.credential_delete'
     | 'subject.required_actions_set'
-    | 'subject.roles_set';
+    | 'subject.roles_set'
+    | 'subject.groups_set'
+    | 'subject.profile_amend';
   readonly resourceType: 'subject';
   readonly resourceId: string;
   readonly actorSubjectId: string;
@@ -83,56 +137,257 @@ export interface SubjectAuditEvent {
 /** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: SubjectAuditEvent) => Promise<void>;
 
+export interface TargetCeilingInput {
+  readonly subjectId: string;
+  /** The caller's own admin capabilities, resolved in the tenant its token was issued from. */
+  readonly callerCapabilities: ReadonlySet<string>;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface TargetCeilingRefusal {
+  readonly kind: 'target_ceiling';
+  readonly requested: readonly string[];
+}
+
+// `targetOverreach` (#/service/capability-ceiling.ts), with the refused row
+// an attempted privilege escalation always gets, filed under the action the
+// caller attempted — on the subject, unless `resource` names the row the
+// action is filed on instead. Null when the caller covers the target. Every
+// route that mutates a subject calls this first, under the subject's lock.
+export async function refuseOverTargetCeiling<A extends string, R extends string = 'subject'>(
+  tx: TenantScopedDatabase,
+  audit: (
+    tx: TenantScopedDatabase,
+    event: {
+      action: A;
+      resourceType: R;
+      resourceId: string;
+      actorSubjectId: string;
+      actorTenantId: string;
+      actorClientId: string;
+      outcome: 'refused';
+      detail: Record<string, unknown>;
+    },
+  ) => Promise<void>,
+  action: A,
+  input: TargetCeilingInput,
+  resource?: { readonly type: R; readonly id: string },
+): Promise<TargetCeilingRefusal | null> {
+  const denied = await targetOverreach(tx, input.subjectId, input.callerCapabilities);
+  if (denied.length === 0) return null;
+  await audit(tx, {
+    action,
+    resourceType: resource?.type ?? ('subject' as R),
+    resourceId: resource?.id ?? input.subjectId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'refused',
+    detail: { denied },
+  });
+  return { kind: 'target_ceiling', requested: denied };
+}
+
+// The lock every mutation of one subject serialises on; false when there is
+// none. `no key update` conflicts with itself, so two admin mutations still
+// queue, but not with the key-share lock every insert referencing the
+// subject takes: `FOR UPDATE` here deadlocks against a login that touched
+// a session, or cleared its failures, and then inserts a row naming the
+// subject. `deleteSubject`'s own delete still takes the full lock.
+export async function lockSubjectRow(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+): Promise<boolean> {
+  const rows = await tx
+    .select({ id: subjects.id })
+    .from(subjects)
+    .where(eq(subjects.id, subjectId))
+    .for('no key update');
+  return rows.length > 0;
+}
+
+/** Every `listSubjectsQuerySchema` parameter except the page controls. */
+export type SubjectFilters = Omit<ListSubjectsQuery, 'cursor' | 'limit'>;
+
 export interface ListSubjectsInput {
   readonly limit: number;
   readonly cursor: string | undefined;
   readonly cursorKey: Uint8Array;
   readonly tenantId: string;
-  /** A username prefix. A subject with no `users` row never matches one. */
-  readonly search: string | undefined;
+  /** A subject with no `users` row never matches a search. */
+  readonly filters: SubjectFilters;
+  /** What `?locked=` is judged against. */
+  readonly now: Date;
 }
 
 export type ListSubjectsOutcome =
   { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly SubjectView[]; next: string | null };
 
+const SEARCH_KEYS = {
+  username: users.usernameSearch,
+  email: users.emailSearch,
+  name: users.nameSearch,
+  given_name: users.givenNameSearch,
+  family_name: users.familyNameSearch,
+} as const;
+
+type SearchKeyColumn = (typeof SEARCH_KEYS)[keyof typeof SEARCH_KEYS];
+
+function searchOf(
+  filters: SubjectFilters,
+): { readonly column: SearchKeyColumn; readonly prefix: string } | undefined {
+  for (const field of SUBJECT_SEARCH_FIELDS) {
+    const prefix = filters[field];
+    if (prefix !== undefined) return { column: SEARCH_KEYS[field], prefix };
+  }
+  return undefined;
+}
+
+// `isLockedOut` (@odudu/domain-identity) in SQL: locked while `locked_until` is still ahead.
+function lockedSubjects(tx: TenantScopedDatabase, now: Date) {
+  return tx
+    .select({ id: loginFailures.subjectId })
+    .from(loginFailures)
+    .where(gt(loginFailures.lockedUntil, now));
+}
+
+function exactFilterConditions(
+  filters: SubjectFilters,
+  tx: TenantScopedDatabase,
+  now: Date,
+): SQL[] {
+  const conditions: SQL[] = [];
+  if (filters.type !== undefined) conditions.push(eq(subjects.type, filters.type));
+  if (filters.locked === 'true')
+    conditions.push(sql`${subjects.id} = ANY (ARRAY(${lockedSubjects(tx, now)}))`);
+  if (filters.locked === 'false') {
+    conditions.push(notInArray(subjects.id, lockedSubjects(tx, now)));
+  }
+  if (filters.enabled === 'true') conditions.push(isNull(subjects.disabledAt));
+  if (filters.enabled === 'false') conditions.push(isNotNull(subjects.disabledAt));
+  if (filters.role !== undefined) {
+    const holders = tx
+      .select({ id: subjectRoles.subjectId })
+      .from(subjectRoles)
+      .where(eq(subjectRoles.roleId, filters.role));
+    conditions.push(inArray(subjects.id, holders));
+  }
+  if (filters.group !== undefined) {
+    const members = tx
+      .select({ id: subjectGroups.subjectId })
+      .from(subjectGroups)
+      .where(eq(subjectGroups.groupId, filters.group));
+    conditions.push(inArray(subjects.id, members));
+  }
+  // Matched as an array the holders are collected into first, which the
+  // planner takes for a handful of keys: left as a subquery, its estimate for
+  // the recursive closure sends it through every subject of the tenant.
+  if (filters.capability === 'any') {
+    conditions.push(sql`${subjects.id} = ANY (ARRAY${holdersOfAny()})`);
+  } else if (filters.capability !== undefined) {
+    conditions.push(sql`${subjects.id} = ANY (ARRAY${holdersOf(filters.capability)})`);
+  }
+  return conditions;
+}
+
+/**
+ * The WHERE clause of the subjects listing, over `subjectListRows`, and so
+ * also of its count, which passes no position.
+ */
+export async function subjectListConditions(
+  tx: TenantScopedDatabase,
+  filters: SubjectFilters,
+  after: ListPosition | undefined,
+  now: Date,
+): Promise<SQL[]> {
+  const conditions = exactFilterConditions(filters, tx, now);
+  const search = searchOf(filters);
+  if (search === undefined) {
+    if (after !== undefined) conditions.push(gt(subjects.id, after.id));
+    return conditions;
+  }
+  const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+  conditions.push(
+    ...(await prefixRangeConditions(tx, search.column, users.subjectId, search.prefix, position)),
+  );
+  return conditions;
+}
+
+/**
+ * The subjects listing's FROM: `subjects` left-joined to `users`, whose
+ * columns the search and the view read. Shared with its count.
+ */
+export function subjectListRows<T extends SelectedFields>(tx: TenantScopedDatabase, fields: T) {
+  return tx.select(fields).from(subjects).leftJoin(users, eq(subjects.id, users.subjectId));
+}
+
+/** The subjects listing's order, which its keyset cursor and its count both follow. */
+export function subjectListOrder(filters: SubjectFilters): SQL[] {
+  const search = searchOf(filters);
+  return search === undefined ? [asc(subjects.id)] : [asc(search.column), asc(users.subjectId)];
+}
+
+// A searched listing is one range scan of the search column's index
+// (0073_list_indexes_subjects.sql): both bounds and the keyset are
+// leakproof comparisons on that column, so row-level security leaves them
+// in the index condition. `docs/phases/p4d.md` records the plan.
 export async function listSubjects(
   tx: TenantScopedDatabase,
   input: ListSubjectsInput,
 ): Promise<ListSubjectsOutcome> {
-  let after: string | undefined;
+  const filters = filterDigest(input.filters);
+  const search = searchOf(input.filters);
+  let after: ListPosition | undefined;
   if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    const decoded = decodeCursor(
+      input.cursorKey,
+      COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
-    after = decoded.after;
+    if (search !== undefined && decoded.sort === undefined) return { kind: 'invalid_cursor' };
+    after = { id: decoded.after, sort: decoded.sort };
   }
 
-  const conditions = [
-    ...(after === undefined ? [] : [gt(subjects.id, after)]),
-    // `like` with no wildcard in the operand escapes nothing, so a
-    // caller's `_`/`%` is honoured as a wildcard rather than literal text —
-    // acceptable here because the result is still scoped to this tenant by
-    // row-level security, never a query a caller can widen past that.
-    ...(input.search === undefined ? [] : [like(users.username, `${input.search}%`)]),
-  ];
-
-  const rows = await subjectsJoinedWithUsers(tx)
+  const conditions = await subjectListConditions(tx, input.filters, after, input.now);
+  const searchKey = search?.column;
+  const rows = await subjectListRows(tx, {
+    ...SUBJECT_VIEW_COLUMNS,
+    searchKey: searchKey ?? sql<null>`null`,
+  })
     .where(conditions.length === 0 ? undefined : and(...conditions))
-    .orderBy(asc(subjects.id))
+    .orderBy(...subjectListOrder(input.filters))
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;
-  const items = (hasMore ? rows.slice(0, input.limit) : rows).map(narrowRow);
-  const last = items[items.length - 1];
+  const page = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = page[page.length - 1];
   const next =
     hasMore && last !== undefined
       ? encodeCursor(input.cursorKey, {
           after: last.id,
+          ...(searchKey === undefined ? {} : { sort: requireSearchKey(last.searchKey) }),
           collection: COLLECTION,
           tenantId: input.tenantId,
+          filters,
         })
       : null;
 
-  return { kind: 'ok', items, next };
+  const items = page.map(narrowRow);
+  if (input.filters.capability === undefined) return { kind: 'ok', items, next };
+  const held = await adminCapabilitiesOf(
+    tx,
+    items.map((item) => item.id),
+  );
+  return {
+    kind: 'ok',
+    items: items.map((item) => ({ ...item, adminCapabilities: held.get(item.id) ?? [] })),
+    next,
+  };
 }
 
 export type ReadSubjectOutcome = { kind: 'not_found' } | { kind: 'ok'; subject: SubjectView };
@@ -155,9 +410,9 @@ export interface ComposeUserSubjectInput {
 // Shared by self-registration (`createAccount`, apps/server/src/app.ts) and
 // administrative creation below, so the two doors cannot drift on what "a
 // new subject" means: a subject, its user row, and the tenant's
-// `default_for_new_subjects` roles. Self-registration adds a password
-// credential on top of this; the admin door below adds an `update-password`
-// required action instead.
+// `default_for_new_subjects` roles and groups. Self-registration adds a
+// password credential on top of this; the admin door below adds an
+// `update-password` required action instead.
 export async function composeUserSubject(
   tx: TenantScopedDatabase,
   input: ComposeUserSubjectInput,
@@ -169,10 +424,7 @@ export async function composeUserSubject(
     username: input.username,
     email: input.email,
   });
-  const defaults = await roleRepository(tx).defaultsForTenant();
-  for (const role of defaults) {
-    await roleRepository(tx).assignToSubject(subject.id, role.id);
-  }
+  await grantNewSubjectDefaults(tx, subject.id);
   return { subjectId: subject.id };
 }
 
@@ -229,7 +481,7 @@ export async function createSubject(
 // The wire shape a caller reads back — the same mapping on a list, a `GET`
 // and a `POST`'s response, so a subject read one way is never shaped
 // differently from the same subject read another.
-export function subjectWireShape(view: SubjectView): Subject {
+export function subjectWireShape(view: SubjectView): ListedSubject {
   return {
     id: view.id,
     type: view.type,
@@ -237,13 +489,31 @@ export function subjectWireShape(view: SubjectView): Subject {
     email: view.email,
     enabled: view.enabled,
     created_at: view.createdAt.toISOString(),
+    ...(view.adminCapabilities === undefined
+      ? {}
+      : {
+          admin_capabilities: view.adminCapabilities.map((held) => ({
+            name: heldName(held.name),
+            direct: held.direct,
+          })),
+        }),
   };
 }
 
+const HELD_NAMES = heldAdminCapabilitySchema.shape.name.options;
+
+function heldName(name: string): HeldAdminCapability['name'] {
+  const found = HELD_NAMES.find((candidate) => candidate === name);
+  if (found === undefined) throw new Error(`protocol-admin: ${name} is no admin capability`);
+  return found;
+}
+
 export interface AmendSubjectInput {
+  readonly tenantId: string;
   readonly subjectId: string;
   readonly values: Readonly<Record<string, unknown>>;
   readonly ifMatch: string | undefined;
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -257,14 +527,18 @@ export type AmendSubjectOutcome =
   | { kind: 'not_found' }
   | { kind: 'refused_field'; field: string; reason: string }
   | { kind: 'invalid_value'; field: string; description: string }
+  | { kind: 'precondition_required'; field: string }
   | { kind: 'precondition_failed' }
-  | { kind: 'ok'; subject: SubjectView; etag: string };
+  | TargetCeilingRefusal
+  | { kind: 'ok'; subject: SubjectView; etag: string }
+  | LastAdministratorRefusal;
 
 // Wrapped in `{ value }` rather than the bare type, so a present-but-null
 // `email` and an untouched field both type-check as distinct from each
 // other — `patch.email !== undefined` alone tells them apart, with no
 // second `'email' in patch` check needed at the write site.
 interface SubjectPatch {
+  username?: { value: string };
   enabled?: { value: boolean };
   email?: { value: string | null };
 }
@@ -283,11 +557,12 @@ async function lockSubjectForAmend(
   subject: typeof subjects.$inferSelect;
   user: typeof users.$inferSelect | null;
 } | null> {
+  // `no key update`, for the reason `lockSubjectRow` gives.
   const subjectRows = await tx
     .select()
     .from(subjects)
     .where(eq(subjects.id, subjectId))
-    .for('update');
+    .for('no key update');
   const subject = subjectRows[0];
   if (subject === undefined) return null;
   const userRows = await tx
@@ -311,28 +586,70 @@ function viewOfLocked(
   };
 }
 
-/** Amends `email` and `enabled` — the only two fields a subject exposes to a general amendment. */
+/**
+ * Amends `email` and `enabled`, and `username` where the tenant's
+ * `username_editable` is on. A username another subject holds propagates
+ * as `users_username_unique`'s raw driver error, for the reason
+ * `createSubject` gives; the route answers `409` outside the transaction.
+ */
 export async function amendSubject(
   tx: TenantScopedDatabase,
   deps: AmendSubjectDeps,
   input: AmendSubjectInput,
 ): Promise<AmendSubjectOutcome> {
+  if (!('enabled' in input.values)) return amendSubjectUnguarded(tx, deps, input);
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'subject.amend',
+      resourceType: 'subject',
+      resourceId: input.subjectId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => amendSubjectUnguarded(inner, deps, input),
+  );
+}
+
+// The one setting a rename turns on, read on its own for whoever reads subjects.
+export async function readUsernamePolicy(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+): Promise<{ usernameEditable: boolean }> {
+  const settings = await tenantSettingsRepository(tx).byId(tenantId);
+  return { usernameEditable: settings?.username_editable === true };
+}
+
+async function amendSubjectUnguarded(
+  tx: TenantScopedDatabase,
+  deps: AmendSubjectDeps,
+  input: AmendSubjectInput,
+): Promise<AmendSubjectOutcome> {
+  const policy = await readUsernamePolicy(tx, input.tenantId);
+  const amendable = amendableSubjectFields(policy);
   for (const field of Object.keys(input.values)) {
-    if (!AMENDABLE_SUBJECT_FIELDS.includes(field)) {
+    if (!amendable.includes(field)) {
       return {
         kind: 'refused_field',
         field,
-        reason: refusalFor(field) ?? `${field} is not a subject field`,
+        reason: refusalFor(field, policy) ?? `${field} is not a subject field`,
       };
     }
   }
 
   const locked = await lockSubjectForAmend(tx, input.subjectId);
   if (locked === null) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.amend', input);
+  if (refused !== null) return refused;
 
-  const currentEtag = etagOf(subjectWireShape(viewOfLocked(locked)));
-  if (matches(input.ifMatch, currentEtag) === 'mismatch') {
-    return { kind: 'precondition_failed' };
+  // A rename must name the version it read: one administrator's rename
+  // silently undoing another's is what the precondition exists to stop.
+  const current = subjectWireShape(viewOfLocked(locked));
+  const currentEtag = etagOf(current);
+  const precondition = requiredPrecondition(input.ifMatch, currentEtag);
+  if (precondition === 'failed') return { kind: 'precondition_failed' };
+  if (precondition === 'required' && 'username' in input.values) {
+    return { kind: 'precondition_required', field: 'username' };
   }
 
   // Every field is validated before any of them is written into `patch` —
@@ -344,6 +661,24 @@ export async function amendSubject(
   // that is what keeps a field added later from being written inline
   // without going through this validation first.
   const patch: SubjectPatch = {};
+  if ('username' in input.values) {
+    const parsed = usernameSchema.safeParse(input.values.username);
+    if (!parsed.success) {
+      return {
+        kind: 'invalid_value',
+        field: 'username',
+        description: 'username must be a non-empty string',
+      };
+    }
+    if (locked.user === null) {
+      return {
+        kind: 'invalid_value',
+        field: 'username',
+        description: `subject ${input.subjectId} has no user profile to carry a username`,
+      };
+    }
+    if (parsed.data !== locked.user.username) patch.username = { value: parsed.data };
+  }
   if ('enabled' in input.values) {
     if (typeof input.values.enabled !== 'boolean') {
       return { kind: 'invalid_value', field: 'enabled', description: 'enabled must be a boolean' };
@@ -376,13 +711,27 @@ export async function amendSubject(
     patch.email = { value };
   }
 
+  // A rename to the name the subject already has, with nothing else asked
+  // of it, changes nothing and so records nothing.
+  if ('username' in input.values && Object.keys(patch).length === 0) {
+    return { kind: 'ok', subject: viewOfLocked(locked), etag: currentEtag };
+  }
+
   if (patch.enabled !== undefined) {
     await subjectRepository(tx).setEnabled(input.subjectId, patch.enabled.value);
   }
   if (patch.email !== undefined) {
     await userRepository(tx).updateEmail(input.subjectId, patch.email.value);
   }
+  if (patch.username !== undefined) {
+    await userRepository(tx).updateUsername(input.subjectId, patch.username.value);
+  }
 
+  const after = await readSubject(tx, input.subjectId);
+  if (after.kind !== 'ok') {
+    throw new Error(`subject ${input.subjectId} not found immediately after its own amendment`);
+  }
+  const afterWire = subjectWireShape(after.subject);
   await deps.audit(tx, {
     action: 'subject.amend',
     resourceType: 'subject',
@@ -391,17 +740,14 @@ export async function amendSubject(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: redactedDiff('subject', current, afterWire),
   });
-
-  const after = await readSubject(tx, input.subjectId);
-  if (after.kind !== 'ok') {
-    throw new Error(`subject ${input.subjectId} not found immediately after its own amendment`);
-  }
-  return { kind: 'ok', subject: after.subject, etag: etagOf(subjectWireShape(after.subject)) };
+  return { kind: 'ok', subject: after.subject, etag: etagOf(afterWire) };
 }
 
 export interface DeleteSubjectInput {
   readonly subjectId: string;
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -411,7 +757,8 @@ export interface DeleteSubjectDeps {
   readonly audit: Audit;
 }
 
-export type DeleteSubjectOutcome = { kind: 'not_found' } | { kind: 'deleted' };
+export type DeleteSubjectOutcome =
+  { kind: 'not_found' } | TargetCeilingRefusal | { kind: 'deleted' } | LastAdministratorRefusal;
 
 // The delete itself is one statement: every table that names a subject
 // (users, user_credentials, sessions, token_grants, subject_roles, …)
@@ -422,6 +769,28 @@ export async function deleteSubject(
   deps: DeleteSubjectDeps,
   input: DeleteSubjectInput,
 ): Promise<DeleteSubjectOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'subject.delete',
+      resourceType: 'subject',
+      resourceId: input.subjectId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => deleteSubjectUnguarded(inner, deps, input),
+  );
+}
+
+async function deleteSubjectUnguarded(
+  tx: TenantScopedDatabase,
+  deps: DeleteSubjectDeps,
+  input: DeleteSubjectInput,
+): Promise<DeleteSubjectOutcome> {
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.delete', input);
+  if (refused !== null) return refused;
+
   const rows = await tx.delete(subjects).where(eq(subjects.id, input.subjectId)).returning({
     id: subjects.id,
   });
@@ -537,6 +906,7 @@ export function credentialWireShape(view: CredentialView): Credential {
 export interface DeleteCredentialInput {
   readonly subjectId: string;
   readonly credentialId: string;
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -547,7 +917,10 @@ export interface DeleteCredentialDeps {
 }
 
 export type DeleteCredentialOutcome =
-  { kind: 'not_found' } | { kind: 'refused'; reason: string } | { kind: 'deleted' };
+  | { kind: 'not_found' }
+  | { kind: 'refused'; reason: string }
+  | TargetCeilingRefusal
+  | { kind: 'deleted' };
 
 // `password` and `password-history` are refused: the first has its own
 // rotation surface (a password change, never a bare delete — a subject
@@ -558,6 +931,10 @@ export async function deleteCredential(
   deps: DeleteCredentialDeps,
   input: DeleteCredentialInput,
 ): Promise<DeleteCredentialOutcome> {
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.credential_delete', input);
+  if (refused !== null) return refused;
+
   const rows = await tx
     .select({
       id: userCredentials.id,
@@ -595,6 +972,7 @@ export interface SetRequiredActionsInput {
   readonly subjectId: string;
   readonly actions: readonly RequiredAction[];
   readonly ifMatch: string | undefined;
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -606,6 +984,7 @@ export interface SetRequiredActionsDeps {
 
 export type SetRequiredActionsOutcome =
   | { kind: 'not_found' }
+  | TargetCeilingRefusal
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
   | { kind: 'ok'; actions: readonly RequiredAction[]; etag: string };
@@ -640,12 +1019,14 @@ export async function setRequiredActions(
   // COMMITTED, two concurrent replacements with no lock each delete a
   // snapshot the other's inserts are invisible to, and both commit —
   // leaving the union of the two requests rather than either one alone.
-  const subjectRows = await tx
-    .select({ id: subjects.id })
-    .from(subjects)
-    .where(eq(subjects.id, input.subjectId))
-    .for('update');
-  if (subjectRows.length === 0) return { kind: 'not_found' };
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(
+    tx,
+    deps.audit,
+    'subject.required_actions_set',
+    input,
+  );
+  if (refused !== null) return refused;
 
   // Compared under the lock taken above, so the set it hashes is the set
   // the replacement below overwrites.
@@ -676,7 +1057,17 @@ export async function setRequiredActions(
 export interface RoleAssignment {
   readonly id: string;
   readonly name: string;
+  readonly client_id: string | null;
+  readonly client_key: string | null;
 }
+
+/** The columns a `RoleAssignment` reads, over `roles` left-joined to its owning client. */
+export const roleAssignmentColumns = {
+  id: roles.id,
+  name: roles.name,
+  client_id: roles.clientId,
+  client_key: clients.clientId,
+};
 
 export interface SetRolesInput {
   readonly subjectId: string;
@@ -704,9 +1095,11 @@ export type SetRolesOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_role'; roleIds: readonly string[] }
   | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | TargetCeilingRefusal
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
-  | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
+  | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string }
+  | LastAdministratorRefusal;
 
 export type ReadSubjectRolesOutcome =
   { kind: 'not_found' } | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
@@ -718,9 +1111,10 @@ async function assignedRoles(
   subjectId: string,
 ): Promise<readonly RoleAssignment[]> {
   return tx
-    .select({ id: roles.id, name: roles.name })
+    .select(roleAssignmentColumns)
     .from(subjectRoles)
     .innerJoin(roles, eq(subjectRoles.roleId, roles.id))
+    .leftJoin(clients, eq(clients.id, roles.clientId))
     .where(eq(subjectRoles.subjectId, subjectId))
     .orderBy(asc(roles.id));
 }
@@ -746,16 +1140,31 @@ export async function setRoles(
   deps: SetRolesDeps,
   input: SetRolesInput,
 ): Promise<SetRolesOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'subject.roles_set',
+      resourceType: 'subject',
+      resourceId: input.subjectId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => setRolesUnguarded(inner, deps, input),
+  );
+}
+
+async function setRolesUnguarded(
+  tx: TenantScopedDatabase,
+  deps: SetRolesDeps,
+  input: SetRolesInput,
+): Promise<SetRolesOutcome> {
   // Locked for the same reason setRequiredActions locks its subject row:
   // a mutex around the delete-then-insert below, so two concurrent
   // replacements serialise instead of each committing a partial view of
   // the other's write.
-  const subjectRows = await tx
-    .select({ id: subjects.id })
-    .from(subjects)
-    .where(eq(subjects.id, input.subjectId))
-    .for('update');
-  if (subjectRows.length === 0) return { kind: 'not_found' };
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.roles_set', input);
+  if (refused !== null) return refused;
 
   // Under the same lock the replacement runs under, so the assignment this
   // hashes is the assignment being overwritten.
@@ -823,4 +1232,140 @@ export async function setRoles(
 
   const assigned = await assignedRoles(tx, input.subjectId);
   return { kind: 'ok', roles: assigned, etag: etagOf({ items: assigned }) };
+}
+
+export interface SetSubjectGroupsInput {
+  readonly subjectId: string;
+  readonly groupIds: readonly string[];
+  /** See `SetRolesInput.callerCapabilities` — the same ceiling. */
+  readonly callerCapabilities: ReadonlySet<string>;
+  readonly ifMatch: string | undefined;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export type SetSubjectGroupsOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'unknown_group'; groupIds: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | TargetCeilingRefusal
+  | { kind: 'precondition_required' }
+  | { kind: 'precondition_failed' }
+  | { kind: 'ok'; groups: readonly GroupFields[]; etag: string }
+  | LastAdministratorRefusal;
+
+export type ReadSubjectGroupsOutcome =
+  { kind: 'not_found' } | { kind: 'ok'; groups: readonly GroupFields[]; etag: string };
+
+// The tag is over the body GET answers, so a reparent that rewrites a
+// member's `path` changes it even though the membership did not.
+function subjectGroupsEtag(memberships: readonly GroupFields[]): string {
+  return etagOf({ items: memberships });
+}
+
+async function memberGroups(tx: TenantScopedDatabase, subjectId: string): Promise<GroupFields[]> {
+  return (await groupRepository(tx).groupsOfSubject(subjectId)).map(groupWireShape);
+}
+
+export async function readSubjectGroups(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+): Promise<ReadSubjectGroupsOutcome> {
+  const subject = await subjectRepository(tx).byId(subjectId);
+  if (subject === null) return { kind: 'not_found' };
+  const memberships = await memberGroups(tx, subjectId);
+  return { kind: 'ok', groups: memberships, etag: subjectGroupsEtag(memberships) };
+}
+
+// The capability ceiling (CWE-269) over membership rather than assignment:
+// joining a group grants every role mapped to it or its ancestors, so the
+// whole resulting set is measured the way `effectiveRoles` would resolve it
+// and compared against the caller's own — the same rule `setRoles` applies.
+export async function setSubjectGroups(
+  tx: TenantScopedDatabase,
+  deps: SetRolesDeps,
+  input: SetSubjectGroupsInput,
+): Promise<SetSubjectGroupsOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'subject.groups_set',
+      resourceType: 'subject',
+      resourceId: input.subjectId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => setSubjectGroupsUnguarded(inner, deps, input),
+  );
+}
+
+async function setSubjectGroupsUnguarded(
+  tx: TenantScopedDatabase,
+  deps: SetRolesDeps,
+  input: SetSubjectGroupsInput,
+): Promise<SetSubjectGroupsOutcome> {
+  // Locked for the same reason `setRoles` locks it: the delete-then-insert
+  // below is serialised against a concurrent replacement.
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.groups_set', input);
+  if (refused !== null) return refused;
+
+  const current = await memberGroups(tx, input.subjectId);
+  const precondition = requiredPrecondition(input.ifMatch, subjectGroupsEtag(current));
+  if (precondition !== 'ok') {
+    return precondition === 'required'
+      ? { kind: 'precondition_required' }
+      : { kind: 'precondition_failed' };
+  }
+
+  const repository = groupRepository(tx);
+  const missing: string[] = [];
+  // Keyed by the id the row holds: a uuid matches in either letter case,
+  // so two spellings of one id are one membership.
+  const found = new Set<string>();
+  for (const groupId of input.groupIds) {
+    // `groups.id` is a `uuid` column; a non-uuid id is missing, not a 500.
+    const group = isUuid(groupId) ? await repository.byId(groupId) : null;
+    if (group === null) missing.push(groupId);
+    else found.add(group.id);
+  }
+  if (missing.length > 0) return { kind: 'unknown_group', groupIds: [...new Set(missing)] };
+  const uniqueGroupIds = [...found];
+
+  const requestedCapabilities = await capabilitiesOfGroupsAndAncestors(tx, uniqueGroupIds);
+  const denied = overreach(requestedCapabilities, input.callerCapabilities);
+  if (denied.length > 0) {
+    await deps.audit(tx, {
+      action: 'subject.groups_set',
+      resourceType: 'subject',
+      resourceId: input.subjectId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { denied },
+    });
+    return { kind: 'capability_ceiling', requested: denied };
+  }
+
+  await repository.setSubjectGroups(input.subjectId, uniqueGroupIds);
+  const updated = await memberGroups(tx, input.subjectId);
+
+  await deps.audit(tx, {
+    action: 'subject.groups_set',
+    resourceType: 'subject',
+    resourceId: input.subjectId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+    detail: redactedDiff(
+      'subject',
+      { group_ids: current.map((group) => group.id) },
+      { group_ids: updated.map((group) => group.id) },
+    ),
+  });
+
+  return { kind: 'ok', groups: updated, etag: subjectGroupsEtag(updated) };
 }

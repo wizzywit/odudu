@@ -3,5 +3,11 @@
   "compilerOptions": {
     "allowJs": true
   },
-  "include": ["**/*.ts", "../.dependency-cruiser.cjs"]
+  "include": ["**/*.ts", "../.dependency-cruiser.cjs"],
+  // Parsed by its lint, never compiled: these files import the console's own
+  // modules, which resolve only inside apps/admin-console.
+  "exclude": [
+    "lint/fixtures/console-reads-not-mutations/**",
+    "lint/fixtures/console-folder-imports/**"
+  ]
 }

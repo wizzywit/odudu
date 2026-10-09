@@ -13,6 +13,11 @@ export function isCheckViolation(error: unknown): boolean {
   return hasSqlState(error, '23514');
 }
 
+/** SQLSTATE 55P03: a lock not taken within `lock_timeout`. */
+export function isLockNotAvailable(error: unknown): boolean {
+  return hasSqlState(error, '55P03');
+}
+
 // The walk does not stop at the first `code` it meets: a wrapper carrying one
 // of its own would otherwise mask the violation nested under it, and the
 // answerable 400 escapes as a 500 instead.

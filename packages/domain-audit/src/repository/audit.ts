@@ -1,12 +1,13 @@
-import { type TenantScopedDatabase } from '@odudu/db';
+import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
-import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { type PgInsertValue } from 'drizzle-orm/pg-core';
 import { auditEvents, type AuditEventRecord } from '#/schema/audit-events';
 import {
   assertActionKnown,
   assertDetailAllowed,
   isAuditReason,
+  AUDIT_EVENT_TYPES,
   type AuditEventInput,
   type AuditEventType,
 } from '#/service/vocabulary';
@@ -17,17 +18,51 @@ export interface AuditCursorPosition {
   readonly id: string;
 }
 
-export interface AuditEventFilter {
+/** Which rows a listing, a count or an export of the trail reads. */
+export interface AuditEventCriteria {
   readonly eventType?: AuditEventType | undefined;
   readonly actorSubjectId?: string | undefined;
   readonly resourceType?: string | undefined;
+  readonly resourceId?: string | undefined;
   readonly action?: string | undefined;
   readonly outcome?: 'allowed' | 'refused' | 'failed' | undefined;
   readonly from?: Date | undefined;
   readonly to?: Date | undefined;
+}
+
+export interface AuditEventFilter extends AuditEventCriteria {
   readonly after?: AuditCursorPosition | undefined;
   /** Fetched as `limit + 1` by the caller, to learn whether another page follows. */
   readonly limit: number;
+}
+
+function criteriaConditions(filter: AuditEventCriteria): SQL[] {
+  const conditions: SQL[] = [];
+  if (filter.eventType !== undefined) {
+    conditions.push(eq(auditEvents.eventType, filter.eventType));
+  }
+  if (filter.actorSubjectId !== undefined) {
+    conditions.push(eq(auditEvents.actorSubjectId, filter.actorSubjectId));
+  }
+  if (filter.resourceType !== undefined) {
+    conditions.push(eq(auditEvents.resourceType, filter.resourceType));
+  }
+  if (filter.resourceId !== undefined) {
+    conditions.push(eq(auditEvents.resourceId, filter.resourceId));
+  }
+  if (filter.action !== undefined) {
+    conditions.push(eq(auditEvents.action, filter.action));
+  }
+  if (filter.outcome !== undefined) {
+    conditions.push(eq(auditEvents.outcome, filter.outcome));
+  }
+  if (filter.from !== undefined) {
+    conditions.push(sql`${auditEvents.occurredAt} >= ${filter.from.toISOString()}::timestamptz`);
+  }
+  if (filter.to !== undefined) {
+    conditions.push(sql`${auditEvents.occurredAt} <= ${filter.to.toISOString()}::timestamptz`);
+  }
+  return conditions;
 }
 
 // A writer that names no actor tenant is recording an actor of the row's
@@ -59,6 +94,31 @@ function validatedRow(event: AuditEventInput): PgInsertValue<typeof auditEvents>
   };
 }
 
+const ALWAYS_STORED: ReadonlySet<AuditEventType> = new Set(['admin_mutation', 'admin_access']);
+
+// The tenant's `audit_event_types` (0091_audit_event_types.sql), read where the
+// row is written so a change applies from the next event on. A tenant this
+// transaction cannot see stores everything.
+async function storedTypes(tx: TenantScopedDatabase): Promise<ReadonlySet<string>> {
+  const rows = await tx
+    .select({ types: tenants.auditEventTypes })
+    .from(tenants)
+    .where(sql`${tenants.id} = ${ROW_TENANT}`);
+  const types = rows[0]?.types;
+  return types === undefined ? new Set(AUDIT_EVENT_TYPES) : new Set(types);
+}
+
+async function storedOf(
+  tx: TenantScopedDatabase,
+  events: readonly AuditEventInput[],
+): Promise<readonly AuditEventInput[]> {
+  if (events.every((event) => ALWAYS_STORED.has(event.eventType))) return events;
+  const stored = await storedTypes(tx);
+  return events.filter(
+    (event) => ALWAYS_STORED.has(event.eventType) || stored.has(event.eventType),
+  );
+}
+
 export function auditRepository(tx: TenantScopedDatabase) {
   return {
     // No tenantId field: audit_events.tenant_id defaults to the same
@@ -66,14 +126,18 @@ export function auditRepository(tx: TenantScopedDatabase) {
     // transaction to — the tenant the event happened to, not whichever
     // tenant issued the caller's own token.
     async record(event: AuditEventInput): Promise<void> {
-      await tx.insert(auditEvents).values(validatedRow(event));
+      const row = validatedRow(event);
+      if ((await storedOf(tx, [event])).length === 0) return;
+      await tx.insert(auditEvents).values(row);
     },
 
     // Every event is checked before any is written, and all of them go in
     // one statement: a caller whose row count varies with what happened
     // still issues the same number of statements either way.
     async recordAll(events: readonly AuditEventInput[]): Promise<void> {
-      const rows = events.map(validatedRow);
+      const validated = events.map((event) => ({ event, row: validatedRow(event) }));
+      const kept = new Set(await storedOf(tx, events));
+      const rows = validated.filter(({ event }) => kept.has(event)).map(({ row }) => row);
       if (rows.length === 0) return;
       await tx.insert(auditEvents).values(rows);
     },
@@ -84,30 +148,7 @@ export function auditRepository(tx: TenantScopedDatabase) {
     // Postgres uses to answer "strictly before the last row of the
     // previous page" without a second OR-of-conditions branch.
     async list(filter: AuditEventFilter): Promise<AuditEventRecord[]> {
-      const conditions: SQL[] = [];
-      if (filter.eventType !== undefined) {
-        conditions.push(eq(auditEvents.eventType, filter.eventType));
-      }
-      if (filter.actorSubjectId !== undefined) {
-        conditions.push(eq(auditEvents.actorSubjectId, filter.actorSubjectId));
-      }
-      if (filter.resourceType !== undefined) {
-        conditions.push(eq(auditEvents.resourceType, filter.resourceType));
-      }
-      if (filter.action !== undefined) {
-        conditions.push(eq(auditEvents.action, filter.action));
-      }
-      if (filter.outcome !== undefined) {
-        conditions.push(eq(auditEvents.outcome, filter.outcome));
-      }
-      if (filter.from !== undefined) {
-        conditions.push(
-          sql`${auditEvents.occurredAt} >= ${filter.from.toISOString()}::timestamptz`,
-        );
-      }
-      if (filter.to !== undefined) {
-        conditions.push(sql`${auditEvents.occurredAt} <= ${filter.to.toISOString()}::timestamptz`);
-      }
+      const conditions = criteriaConditions(filter);
       if (filter.after !== undefined) {
         conditions.push(
           sql`(${auditEvents.occurredAt}, ${auditEvents.id}) < (${filter.after.occurredAt.toISOString()}::timestamptz, ${filter.after.id})`,
@@ -120,6 +161,25 @@ export function auditRepository(tx: TenantScopedDatabase) {
         .where(conditions.length === 0 ? undefined : and(...conditions))
         .orderBy(desc(auditEvents.occurredAt), desc(auditEvents.id))
         .limit(filter.limit);
+    },
+
+    // The listing's own statement with a LIMIT of `cap + 1`, so a count reads
+    // at most that many rows however long the trail, and says so when capped.
+    async count(
+      filter: AuditEventCriteria,
+      cap: number,
+    ): Promise<{ count: number; capped: boolean }> {
+      const conditions = criteriaConditions(filter);
+      const matching = tx
+        .select({ one: sql<number>`1`.as('one') })
+        .from(auditEvents)
+        .where(conditions.length === 0 ? undefined : and(...conditions))
+        .orderBy(desc(auditEvents.occurredAt), desc(auditEvents.id))
+        .limit(cap + 1)
+        .as('matching');
+      const rows = await tx.select({ n: count() }).from(matching);
+      const n = rows[0]?.n ?? 0;
+      return { count: Math.min(n, cap), capped: n > cap };
     },
   };
 }

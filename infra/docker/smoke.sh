@@ -12,6 +12,16 @@ fi
 set -a
 source .env
 set +a
+# The stack refuses to start without the console's private key. Its database is
+# new on every run, so a key made for this run is enough and .env stays as it was.
+export ODUDU_CONSOLE_CLIENT_KEY="${ODUDU_CONSOLE_CLIENT_KEY:-$(./console-key.sh)}"
+
+# Its own project and ports, so that it runs beside the development stack
+# and tearing it down below never takes that stack's containers with it.
+export COMPOSE_PROJECT_NAME=odudu-smoke
+export ODUDU_HOST_PORT=3100
+export POSTGRES_HOST_PORT=5452
+BASE="http://localhost:$ODUDU_HOST_PORT"
 
 cleanup() { docker compose down -v --remove-orphans || true; }
 trap cleanup EXIT
@@ -20,7 +30,7 @@ docker compose up -d --build
 
 ready=0
 for _ in $(seq 1 60); do
-  if curl -fsS http://localhost:3000/health/ready > /dev/null 2>&1; then
+  if curl -fsS "$BASE/health/ready" > /dev/null 2>&1; then
     echo "odudu became ready"
     ready=1
     break
@@ -85,7 +95,7 @@ set -o pipefail
 
 docker compose exec -T odudu node dist/main.js seed \
   --tenant smoke --client smoke-app --client-secret smoke-secret \
-  --redirect-uri http://localhost:3000/cb --user smoke --password correct-horse-battery \
+  --redirect-uri "$BASE/cb" --user smoke --password correct-horse-battery \
   --email smoke@example.com
 
 VERIFIER=$(openssl rand -hex 32)
@@ -107,12 +117,12 @@ b64url_decode() {
 AUTH_HTML=$(curl -sS -f --get \
   --data-urlencode 'response_type=code' \
   --data-urlencode 'client_id=smoke-app' \
-  --data-urlencode 'redirect_uri=http://localhost:3000/cb' \
+  --data-urlencode "redirect_uri=$BASE/cb" \
   --data-urlencode 'scope=openid' \
   --data-urlencode 'state=s' \
   --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' \
-  'http://localhost:3000/tenants/smoke/protocol/openid-connect/auth')
+  "$BASE/tenants/smoke/protocol/openid-connect/auth")
 
 # First match only, and `q` rather than a pipe to `head`, which would
 # leave sed to be killed by SIGPIPE under the `pipefail` set above. The
@@ -133,7 +143,7 @@ curl -sS -f -D "$LOGIN_HEADERS" -o /dev/null \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=smoke' \
   --data-urlencode 'password=correct-horse-battery' \
-  'http://localhost:3000/tenants/smoke/login-actions/authenticate'
+  "$BASE/tenants/smoke/login-actions/authenticate"
 
 CODE=$(grep -i '^location:' "$LOGIN_HEADERS" | sed -n 's/.*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r\n')
 rm -f "$LOGIN_HEADERS"
@@ -142,9 +152,9 @@ test -n "$CODE" || { echo "smoke: no authorization code issued" >&2; exit 1; }
 TOKEN_RESPONSE=$(curl -sS -f -u smoke-app:smoke-secret \
   --data-urlencode 'grant_type=authorization_code' \
   --data-urlencode "code=$CODE" \
-  --data-urlencode 'redirect_uri=http://localhost:3000/cb' \
+  --data-urlencode "redirect_uri=$BASE/cb" \
   --data-urlencode "code_verifier=$VERIFIER" \
-  'http://localhost:3000/tenants/smoke/protocol/openid-connect/token')
+  "$BASE/tenants/smoke/protocol/openid-connect/token")
 
 ACCESS=$(printf '%s' "$TOKEN_RESPONSE" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 test -n "$ACCESS" || { echo "smoke: no access token issued" >&2; exit 1; }
@@ -153,5 +163,37 @@ TYP=$(b64url_decode "${ACCESS%%.*}" | sed -n 's/.*"typ":"\([^"]*\)".*/\1/p')
 test "$TYP" = "at+jwt" || { echo "smoke: access token typ was '$TYP', expected at+jwt" >&2; exit 1; }
 
 echo "smoke: full code+PKCE exchange completed against the container"
+
+# The image carries the console build, and the gateway serves it: the shell
+# with the exact policy the gateway sets, and a content-hashed asset the
+# shell names, cached as immutable. The policy is read from the gateway's
+# source, since this job runs with no node_modules to import it through.
+EXPECTED_CSP=$(awk '/^export const SHELL_CSP =/{f=1;next} f{print; if (/;$/) exit}' \
+  ../../packages/console-gateway/src/view/spa.ts \
+  | sed 's/^[^"]*"\(.*\)".*$/\1/' | tr -d '\n')
+test -n "$EXPECTED_CSP" || { echo "smoke: could not read SHELL_CSP from spa.ts" >&2; exit 1; }
+
+SHELL_HEADERS="$(mktemp)"
+SHELL_HTML=$(curl -sS -D "$SHELL_HEADERS" "$BASE/console/")
+SHELL_STATUS=$(sed -n '1s/^HTTP\/[0-9.]* \([0-9]*\).*/\1/p' "$SHELL_HEADERS")
+SHELL_CSP=$({ grep -i '^content-security-policy:' "$SHELL_HEADERS" || true; } | sed 's/^[^:]*: //' | tr -d '\r\n')
+rm -f "$SHELL_HEADERS"
+test "$SHELL_STATUS" = "200" || { echo "smoke: GET /console/ answered $SHELL_STATUS, expected 200" >&2; exit 1; }
+test "$SHELL_CSP" = "$EXPECTED_CSP" || {
+  echo "smoke: the shell's CSP was '$SHELL_CSP', expected '$EXPECTED_CSP'" >&2
+  exit 1
+}
+
+ASSET=$(printf '%s' "$SHELL_HTML" | sed -n 's/.*src="\(\/console\/assets\/[^"]*\)".*/\1/p' | sed -n 1p)
+test -n "$ASSET" || { echo "smoke: the shell names no /console/assets/ script" >&2; exit 1; }
+ASSET_HEADERS=$(curl -sS -D - -o /dev/null "$BASE$ASSET")
+ASSET_STATUS=$(printf '%s' "$ASSET_HEADERS" | sed -n '1s/^HTTP\/[0-9.]* \([0-9]*\).*/\1/p')
+test "$ASSET_STATUS" = "200" || { echo "smoke: GET $ASSET answered $ASSET_STATUS, expected 200" >&2; exit 1; }
+printf '%s' "$ASSET_HEADERS" | grep -i '^cache-control:.*immutable' > /dev/null || {
+  echo "smoke: $ASSET is not cached as immutable" >&2
+  exit 1
+}
+
+echo "smoke: the console shell and $ASSET are served from the image"
 
 exit 0

@@ -9,6 +9,7 @@ type ResourceAllowlist = Record<string, FieldSensitivity>;
 const ALLOWLISTS: Record<string, ResourceAllowlist> = {
   client: {
     name: 'value',
+    description: 'value',
     enabled: 'value',
     type: 'value',
     full_scope_allowed: 'value',
@@ -17,6 +18,7 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     token_endpoint_auth_method: 'value',
     audiences: 'value',
     access_token_ttl_seconds: 'value',
+    id_token_ttl_seconds: 'value',
     refresh_token_ttl_seconds: 'value',
     client_credentials_scopes: 'value',
     web_origins: 'value',
@@ -24,6 +26,12 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     jwks_uri: 'value',
     frontchannel_logout_uri: 'value',
     backchannel_logout_uri: 'value',
+    client_uri: 'value',
+    policy_uri: 'value',
+    tos_uri: 'value',
+    id_token_signed_response_alg: 'value',
+    default_max_age: 'value',
+    require_auth_time: 'value',
     // `jwks` reaches here through `clientWireShape` and can really change
     // on an amend. `secret_hash` and `password_encrypted` cannot: neither
     // is ever part of a client's wire shape, and `rotateClientSecret`
@@ -42,13 +50,20 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
   },
   group: {
     name: 'value',
+    description: 'value',
     parent_id: 'value',
+    default_for_new_subjects: 'value',
   },
   role: {
     name: 'value',
+    description: 'value',
+    default_for_new_subjects: 'value',
   },
   scope: {
     name: 'value',
+    default_client_assignment: 'value',
+    consent_text: 'value',
+    display_order: 'value',
   },
   signing_key: {
     status: 'value',
@@ -58,6 +73,49 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     username: 'value',
     email: 'value',
     enabled: 'value',
+    group_ids: 'value',
+    // `consent.revoke`'s own pair: the consent it revoked names no row of
+    // its own a caller could look up (`consents` carries no wire id), so
+    // the client it was against and what it granted travel in `detail`
+    // instead, on the subject the consent belonged to.
+    client_id: 'value',
+    scope_names: 'value',
+  },
+  // `birthdate`, `phone_number` and every `address_*` member are a
+  // stronger identifier than the rest of a profile, on the same order as
+  // `client`'s `secret_hash` above — diffed as `{ changed: true }`, never
+  // by value. `profile_updated_at` names no member here: it is stamped by
+  // the write, never a patch input, so it never appears in a diff at all.
+  subject_profile: {
+    name: 'value',
+    given_name: 'value',
+    family_name: 'value',
+    middle_name: 'value',
+    nickname: 'value',
+    preferred_username: 'value',
+    profile: 'value',
+    picture: 'value',
+    website: 'value',
+    gender: 'value',
+    zoneinfo: 'value',
+    locale: 'value',
+    email_verified: 'value',
+    phone_number_verified: 'value',
+    birthdate: 'sensitive',
+    phone_number: 'sensitive',
+    address_formatted: 'sensitive',
+    address_street: 'sensitive',
+    address_locality: 'sensitive',
+    address_region: 'sensitive',
+    address_postal_code: 'sensitive',
+    address_country: 'sensitive',
+  },
+  registration_token: {
+    remaining_uses: 'value',
+    expires_at: 'value',
+    // Never in `registrationTokenWireShape` — kept sensitive anyway, on the
+    // same reasoning as `client`'s `secret_hash` above.
+    token_hash: 'sensitive',
   },
 };
 

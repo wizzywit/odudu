@@ -13,6 +13,12 @@ export const CLIENT_ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-typ
 // rather than choosing its own window.
 export const MAX_ASSERTION_LIFETIME_SECONDS = 300;
 
+// Seconds of leeway a third-party client's clock is forgiven on `exp` and
+// `nbf` (RFC 7523 §3 lets a server allow a small one). A `jti` is remembered
+// until `exp` plus this, so it is never forgotten while its assertion is still
+// acceptable; the lifetime ceiling above takes none. docs/protocols/rfc7523.md.
+export const ASSERTION_LEEWAY_SECONDS = 30;
+
 export interface ClientAssertionBody {
   readonly client_assertion?: unknown;
   readonly client_assertion_type?: unknown;
@@ -104,14 +110,14 @@ export function parseClientAssertion(
   if (claims.aud !== expected.audience) return { kind: 'invalid' };
 
   const nowSeconds = now.getTime() / 1000;
-  if (claims.exp <= nowSeconds) return { kind: 'invalid' };
+  if (claims.exp + ASSERTION_LEEWAY_SECONDS <= nowSeconds) return { kind: 'invalid' };
   if (claims.exp - nowSeconds > MAX_ASSERTION_LIFETIME_SECONDS) return { kind: 'invalid' };
 
   return {
     kind: 'ok',
     claimedClientId: claims.sub,
     jti: claims.jti,
-    expiresAt: new Date(claims.exp * 1000),
+    expiresAt: new Date((claims.exp + ASSERTION_LEEWAY_SECONDS) * 1000),
     assertion: body.client_assertion,
   };
 }

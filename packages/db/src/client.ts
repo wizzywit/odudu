@@ -12,21 +12,38 @@ export interface DatabaseHandle {
 
 export interface DatabaseOptions {
   max?: number;
-  // Sees the text of every statement sent, never its parameters; for a test
-  // asserting that two paths issue the same statements.
-  onQuery?: (query: string) => void;
+  // Tests only (tests/lint/query-hook-tests-only.test.ts): sees every
+  // statement sent with its parameters, which carry password hashes, secret
+  // hashes, emails and TOTP seeds. Never log what it is handed. `connection`
+  // numbers the pooled connection that sent the statement, so a caller can
+  // follow one transaction's tenant binding; `types` are the parameter type
+  // OIDs the driver declared, 0 where it left the server to infer one.
+  onQueryForTests?: (
+    query: string,
+    parameters: readonly unknown[],
+    connection: number,
+    types: readonly number[],
+  ) => void;
 }
 
 export function createDatabase(url: string, options: DatabaseOptions = {}): DatabaseHandle {
-  const onQuery = options.onQuery;
+  const onQuery = options.onQueryForTests;
   const sql = postgres(url, {
     max: options.max ?? 10,
+    // A closure over roles or groups is costed above jit_above_cost whatever it
+    // reads, and compiling ~400 functions for a seventeen-row lookup took 1.2 s.
+    connection: { jit: 'off' },
     onnotice: () => undefined,
     ...(onQuery === undefined
       ? {}
       : {
-          debug: (_connection: number, query: string) => {
-            onQuery(query);
+          debug: (
+            connection: number,
+            query: string,
+            parameters: readonly unknown[],
+            types: readonly number[],
+          ) => {
+            onQuery(query, parameters, connection, types);
           },
         }),
   });

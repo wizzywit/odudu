@@ -27,7 +27,7 @@ describe('resolveDiscoveryDocument', () => {
     expect(doc).toBeNull();
   });
 
-  it('returns null for a disabled tenant', async () => {
+  it('still describes a disabled tenant, whose keys stay published', async () => {
     const doc = await resolveDiscoveryDocument(
       {
         findTenant: () =>
@@ -40,6 +40,7 @@ describe('resolveDiscoveryDocument', () => {
             rememberMeIdleSeconds: 604_800,
             rememberMeMaxSeconds: 2_592_000,
             rememberMeAllowed: false,
+            loginWithEmail: false,
             maxSessionsPerBrowser: 25,
             clientRegistrationPolicy: 'disabled',
           }),
@@ -53,7 +54,37 @@ describe('resolveDiscoveryDocument', () => {
       'disabled-tenant',
       'https://idp.example',
     );
-    expect(doc).toBeNull();
+    expect(doc?.issuer).toBe('https://idp.example/tenants/disabled-tenant');
+  });
+  it('advertises no registration endpoint for a disabled tenant, which refuses it', async () => {
+    const doc = await resolveDiscoveryDocument(
+      {
+        findTenant: () =>
+          Promise.resolve({
+            id: 'r1',
+            enabled: false,
+            verifyEmail: false,
+            ssoSessionMaxSeconds: 36_000,
+            ssoSessionIdleSeconds: 1_800,
+            rememberMeIdleSeconds: 604_800,
+            rememberMeMaxSeconds: 2_592_000,
+            rememberMeAllowed: false,
+            loginWithEmail: false,
+            maxSessionsPerBrowser: 25,
+            clientRegistrationPolicy: 'open',
+          }),
+        claimNames,
+        scopesForTenant,
+        algorithmsAvailable,
+        userinfoEncryptionAlgSupported,
+        userinfoEncryptionEncSupported,
+        trustProxy: false,
+      },
+      'disabled-tenant',
+      'https://idp.example',
+    );
+    expect(doc).not.toBeNull();
+    expect(doc).not.toHaveProperty('registration_endpoint');
   });
 
   it('builds the document under the resolved issuer for an enabled tenant', async () => {
@@ -69,6 +100,7 @@ describe('resolveDiscoveryDocument', () => {
             rememberMeIdleSeconds: 604_800,
             rememberMeMaxSeconds: 2_592_000,
             rememberMeAllowed: false,
+            loginWithEmail: false,
             maxSessionsPerBrowser: 25,
             clientRegistrationPolicy: 'disabled',
           }),
@@ -98,6 +130,7 @@ describe('resolveDiscoveryDocument', () => {
             rememberMeIdleSeconds: 604_800,
             rememberMeMaxSeconds: 2_592_000,
             rememberMeAllowed: false,
+            loginWithEmail: false,
             maxSessionsPerBrowser: 25,
             clientRegistrationPolicy: 'disabled',
           }),
@@ -127,6 +160,7 @@ describe('resolveDiscoveryDocument', () => {
             rememberMeIdleSeconds: 604_800,
             rememberMeMaxSeconds: 2_592_000,
             rememberMeAllowed: false,
+            loginWithEmail: false,
             maxSessionsPerBrowser: 25,
             clientRegistrationPolicy: 'disabled',
           }),
@@ -166,6 +200,7 @@ describe('resolveDiscoveryDocument', () => {
               rememberMeIdleSeconds: 604_800,
               rememberMeMaxSeconds: 2_592_000,
               rememberMeAllowed: false,
+              loginWithEmail: false,
               maxSessionsPerBrowser: 25,
               clientRegistrationPolicy,
             }),
@@ -204,6 +239,7 @@ describe('resolveDiscoveryDocument', () => {
               rememberMeIdleSeconds: 604_800,
               rememberMeMaxSeconds: 2_592_000,
               rememberMeAllowed: false,
+              loginWithEmail: false,
               maxSessionsPerBrowser: 25,
               clientRegistrationPolicy: 'disabled',
             }),
@@ -236,6 +272,7 @@ describe('resolveDiscoveryDocument', () => {
             rememberMeIdleSeconds: 604_800,
             rememberMeMaxSeconds: 2_592_000,
             rememberMeAllowed: false,
+            loginWithEmail: false,
             maxSessionsPerBrowser: 25,
             clientRegistrationPolicy: 'disabled',
           }),
@@ -265,6 +302,7 @@ describe('resolveDiscoveryDocument', () => {
             rememberMeIdleSeconds: 604_800,
             rememberMeMaxSeconds: 2_592_000,
             rememberMeAllowed: false,
+            loginWithEmail: false,
             maxSessionsPerBrowser: 25,
             clientRegistrationPolicy: 'disabled',
           }),
@@ -295,6 +333,7 @@ describe('resolveDiscoveryDocument', () => {
             rememberMeIdleSeconds: 604_800,
             rememberMeMaxSeconds: 2_592_000,
             rememberMeAllowed: false,
+            loginWithEmail: false,
             maxSessionsPerBrowser: 25,
             clientRegistrationPolicy: 'disabled',
           }),
@@ -324,6 +363,7 @@ describe('resolveDiscoveryDocument', () => {
             rememberMeIdleSeconds: 604_800,
             rememberMeMaxSeconds: 2_592_000,
             rememberMeAllowed: false,
+            loginWithEmail: false,
             maxSessionsPerBrowser: 25,
             clientRegistrationPolicy: 'disabled',
           }),

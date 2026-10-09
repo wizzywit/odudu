@@ -8,7 +8,11 @@ export {
 } from '#/schema/roles';
 export { roleRepository, type NewRole, type RolePatch } from '#/repository/roles';
 export {
+  effectiveRolePage,
   effectiveRoles,
+  compositesWithin,
+  heldAmong,
+  heldAmongQuery,
   rolesReachableFrom,
   type EffectiveRole,
 } from '#/repository/effective-roles';
@@ -17,5 +21,7 @@ export {
   groupRepository,
   effectiveGroupPaths,
   ancestorsOf,
+  descendantsOf,
   type NewGroup,
 } from '#/repository/groups';
+export { grantNewSubjectDefaults } from '#/repository/new-subject-defaults';

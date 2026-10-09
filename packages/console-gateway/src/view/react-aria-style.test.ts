@@ -1,0 +1,153 @@
+import { createHash } from 'node:crypto';
+import { readFileSync, readdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { SHELL_CSP } from '#/view/spa';
+
+// React Aria prepends <style> elements whose text is fixed in its source.
+// The shell's CSP admits each by hash, so the hashes are recomputed here
+// from the version the console is built with: an upgrade that changes a
+// text, or adds an injection site, fails this rather than the page.
+const CONSOLE_PACKAGE = join(
+  import.meta.dirname,
+  '..',
+  '..',
+  '..',
+  '..',
+  'apps',
+  'admin-console',
+  'package.json',
+);
+
+function packageDir(from: string, name: string): string {
+  return dirname(createRequire(from).resolve(`${name}/package.json`));
+}
+
+const RAC_DIR = packageDir(CONSOLE_PACKAGE, 'react-aria-components');
+const REACT_ARIA_DIR = packageDir(join(RAC_DIR, 'package.json'), 'react-aria');
+const REACT_STATELY_DIR = packageDir(join(RAC_DIR, 'package.json'), 'react-stately');
+
+const INJECTORS = [
+  'dist/private/interactions/usePress.mjs',
+  'dist/private/overlays/usePreventScroll.mjs',
+] as const;
+
+function modules(dir: string): string[] {
+  return readdirSync(dir, { recursive: true, encoding: 'utf8' })
+    .filter((file) => file.endsWith('.mjs'))
+    .map((file) => file.split('\\').join('/'));
+}
+
+// Each way a script can add a <style> element or a style attribute, both of
+// which style-src governs. Setting a property through `el.style` does not.
+const STYLE_INJECTIONS = [
+  /createElement\(\s*['"]style['"]\s*\)/u,
+  /setAttribute\(\s*['"]style['"]/u,
+  /(?:inner|outer)HTML\s*\+?=[^;]*<style/u,
+  /insertAdjacentHTML\([^;]*<style/u,
+];
+
+function injectsStyle(source: string): boolean {
+  return STYLE_INJECTIONS.some((pattern) => pattern.test(source));
+}
+
+function injectingModules(root: string): string[] {
+  return modules(join(root, 'dist'))
+    .map((file) => `dist/${file}`)
+    .filter((file) => injectsStyle(readFileSync(join(root, file), 'utf8')))
+    .sort();
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[$^.*+?()[\]{}|\\]/gu, '\\$&');
+}
+
+// The text a module assigns to its style element, as its template literal
+// evaluates: each `${…VAR}` replaced by that module-level string constant.
+function injectedText(source: string): string {
+  const assignments = [...source.matchAll(/style\.textContent = `([^`]*)`\.trim\(\)/gu)];
+  expect(assignments).toHaveLength(1);
+  const template = assignments[0]?.[1] ?? '';
+  return template
+    .replace(/\$\{([^}]+)\}/gu, (_match, name: string) => {
+      const constant = new RegExp(`const ${escapeRegExp(name)} = '([^']*)';`, 'u');
+      const value = constant.exec(source)?.[1];
+      if (value === undefined) throw new Error(`no string constant ${name} in the module`);
+      return value;
+    })
+    .trim();
+}
+
+function hashSource(text: string): string {
+  return `'sha256-${createHash('sha256').update(text, 'utf8').digest('base64')}'`;
+}
+
+function styleSources(csp: string): string[] {
+  const directive = csp
+    .split(';')
+    .map((part) => part.trim().split(/\s+/u))
+    .find(([name]) => name === 'style-src');
+  return directive?.slice(1) ?? [];
+}
+
+describe("the shell's style-src and the React Aria it is built with", () => {
+  it.each([
+    ["document.createElement('style')"],
+    ["el.setAttribute('style', 'color: red')"],
+    ['el.setAttribute("style", css)'],
+    ["el.innerHTML = '<style>p {}</style>'"],
+    ["el.insertAdjacentHTML('beforeend', `<style>${css}</style>`)"],
+  ])('recognises %s as a style the CSP governs', (source) => {
+    expect(injectsStyle(source)).toBe(true);
+  });
+
+  it.each([["el.style.color = 'red'"], ["el.innerHTML = '<p>styled</p>'"]])(
+    'leaves %s alone, which style-src does not govern',
+    (source) => {
+      expect(injectsStyle(source)).toBe(false);
+    },
+  );
+
+  // Reading every module of three packages takes longer than a test's own
+  // budget on a cold checkout or a busy runner, so the read has a budget of its own.
+  const found: { rac: string[]; stately: string[]; aria: string[] } = {
+    rac: [],
+    stately: [],
+    aria: [],
+  };
+  beforeAll(() => {
+    found.rac = injectingModules(RAC_DIR);
+    found.stately = injectingModules(REACT_STATELY_DIR);
+    found.aria = injectingModules(REACT_ARIA_DIR);
+  }, 60_000);
+
+  it('finds no style injection outside the modules it hashes', () => {
+    expect(found.rac).toEqual([]);
+    expect(found.stately).toEqual([]);
+    expect(found.aria).toEqual([...INJECTORS].sort());
+  });
+
+  it("names the pressable style's hash", () => {
+    const text = injectedText(readFileSync(join(REACT_ARIA_DIR, INJECTORS[0]), 'utf8'));
+    expect(text).toBe(
+      '@layer {\n  [data-react-aria-pressable] {\n    touch-action: pan-x pan-y pinch-zoom;\n  }\n}',
+    );
+    expect(styleSources(SHELL_CSP)).toContain(hashSource(text));
+  });
+
+  it("names the hash of usePreventScroll's iOS WebKit style", () => {
+    const text = injectedText(readFileSync(join(REACT_ARIA_DIR, INJECTORS[1]), 'utf8'));
+    expect(text).toBe('@layer {\n  * {\n    overscroll-behavior: contain;\n  }\n}');
+    expect(styleSources(SHELL_CSP), `usePreventScroll's style: ${hashSource(text)}`).toContain(
+      hashSource(text),
+    );
+  });
+
+  it('admits nothing else inline', () => {
+    const hashes = INJECTORS.map((file) =>
+      hashSource(injectedText(readFileSync(join(REACT_ARIA_DIR, file), 'utf8'))),
+    );
+    expect(styleSources(SHELL_CSP)).toEqual(["'self'", ...hashes]);
+  });
+});

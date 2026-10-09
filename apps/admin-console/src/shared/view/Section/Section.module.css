@@ -1,0 +1,87 @@
+.section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface-panel);
+}
+
+.section[data-dirty] {
+  border-color: var(--border-strong);
+}
+
+.header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-6) 0;
+}
+
+.title {
+  overflow-wrap: anywhere;
+  font-size: var(--type-20);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.description {
+  max-inline-size: 68ch;
+  overflow-wrap: anywhere;
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+}
+
+.restored {
+  margin-block-start: var(--space-1);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6) var(--space-6);
+}
+
+.notice > * {
+  margin: 0 var(--space-6) var(--space-4);
+}
+
+.saveBar {
+  border-end-start-radius: var(--radius-m);
+  border-end-end-radius: var(--radius-m);
+  overflow: hidden;
+}
+
+/* Under 640 the save bar follows the thumb: pinned to the bottom of the
+   viewport for as long as its section is on screen. */
+@container shell (width < 640px) {
+  .header {
+    padding-inline: var(--space-4);
+  }
+
+  .fields {
+    padding-inline: var(--space-4);
+  }
+
+  .notice > * {
+    margin-inline: var(--space-4);
+  }
+
+  .saveBar {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: 5;
+  }
+}
+
+.title:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.held {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--type-13);
+  color: var(--signal-warning-ink);
+}

@@ -32,7 +32,9 @@ const UNDECLARED_TABLES = new Set(['__drizzle_migrations']);
 // pg_get_constraintdef's own rendering, so it is compared verbatim.
 const EXPECTED_CHECKS: Record<string, string> = {
   'action_tokens.action_tokens_type_check':
-    "CHECK ((type = ANY (ARRAY['verify_email'::text, 'reset_password'::text])))",
+    "CHECK ((type = ANY (ARRAY['verify_email'::text, 'reset_password'::text, 'execute_actions'::text])))",
+  'action_tokens.action_tokens_actions_check':
+    "CHECK (((type = 'execute_actions'::text) = ((actions IS NOT NULL) AND (cardinality(actions) > 0))))",
   'tenants.tenants_audit_retention_days_range':
     'CHECK (((audit_retention_days >= 1) AND (audit_retention_days <= 3650)))',
   'audit_events.audit_events_outcome':
@@ -65,12 +67,15 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((assignment = ANY (ARRAY['default'::text, 'optional'::text])))",
   'client_scopes.client_scopes_name_is_scope_token':
     "CHECK ((name ~ '^[\\x21\\x23-\\x5B\\x5D-\\x7E]+$'::text))",
+  'console_logins.console_logins_state_hash_length': 'CHECK ((octet_length(state_hash) = 32))',
+  'console_sessions.console_sessions_secret_hash_length':
+    'CHECK ((octet_length(secret_hash) = 32))',
   'groups.groups_name_has_no_slash': "CHECK (((name !~ '/'::text) AND (name <> ''::text)))",
   'groups.groups_path_is_absolute': "CHECK ((path ~~ '/%'::text))",
   'clients.clients_registration_origin_check':
     "CHECK ((registration_origin = ANY (ARRAY['seeded'::text, 'anonymous'::text, 'token'::text, 'operator'::text])))",
   'clients.clients_secret_matches_type':
-    "CHECK ((((type = 'confidential'::text) AND (secret_hash IS NOT NULL)) OR ((type = 'public'::text) AND (secret_hash IS NULL))))",
+    "CHECK (((type <> 'public'::text) OR (secret_hash IS NULL)))",
   'clients.clients_type_check':
     "CHECK ((type = ANY (ARRAY['public'::text, 'confidential'::text])))",
   'tenants.tenants_brute_force_bounds':
@@ -80,6 +85,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'tenants.tenants_max_clients_range': 'CHECK ((max_clients >= 0))',
   'tenants.tenants_max_sessions_per_browser_range':
     'CHECK (((max_sessions_per_browser >= 1) AND (max_sessions_per_browser <= 32)))',
+  'tenants.tenants_name_dns_label':
+    "CHECK ((name ~ '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$'::text))",
   'tenants.tenants_password_history_bounds':
     'CHECK (((password_history_depth >= 0) AND (password_history_depth <= 24)))',
   'tenants.tenants_password_max_age_bounds':
@@ -122,6 +129,38 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK (((NOT phone_number_verified) OR ((phone_number IS NOT NULL) AND (phone_number ~ '^\\+[1-9][0-9]{1,14}(;ext=[0-9]+)?$'::text))))",
   'users.users_zoneinfo_shape':
     "CHECK (((zoneinfo IS NULL) OR (zoneinfo ~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$'::text)))",
+  'client_oidc_config.client_oidc_config_id_token_ttl_ceiling':
+    'CHECK (((id_token_ttl_seconds >= 1) AND (id_token_ttl_seconds <= 3600)))',
+  'tenants.tenants_access_token_ttl_range':
+    'CHECK (((access_token_ttl_seconds >= 1) AND (access_token_ttl_seconds <= 3600)))',
+  'tenants.tenants_authorization_code_ttl_range':
+    'CHECK (((authorization_code_ttl_seconds >= 1) AND (authorization_code_ttl_seconds <= 600)))',
+  'tenants.tenants_id_token_ttl_range':
+    'CHECK (((id_token_ttl_seconds >= 1) AND (id_token_ttl_seconds <= 3600)))',
+  'tenants.tenants_login_ttl_range':
+    'CHECK (((login_ttl_seconds >= 60) AND (login_ttl_seconds <= 86400)))',
+  'tenants.tenants_refresh_token_ttl_floor': 'CHECK ((refresh_token_ttl_seconds >= 1))',
+  'tenants.tenants_reset_password_ttl_range':
+    'CHECK (((reset_password_ttl_seconds >= 60) AND (reset_password_ttl_seconds <= 86400)))',
+  'tenants.tenants_verify_email_ttl_range':
+    'CHECK (((verify_email_ttl_seconds >= 60) AND (verify_email_ttl_seconds <= 604800)))',
+  'clients.clients_description_length': 'CHECK ((char_length(description) <= 1000))',
+  'groups.groups_description_length': 'CHECK ((char_length(description) <= 1000))',
+  'roles.roles_description_length': 'CHECK ((char_length(description) <= 1000))',
+  'client_scopes.client_scopes_default_client_assignment_check':
+    "CHECK ((default_client_assignment = ANY (ARRAY['default'::text, 'optional'::text])))",
+  'client_scopes.client_scopes_consent_text_length':
+    'CHECK (((char_length(consent_text) >= 1) AND (char_length(consent_text) <= 500)))',
+  'client_scopes.client_scopes_display_order_floor': 'CHECK ((display_order >= 0))',
+  'tenants.tenants_audit_event_types_check':
+    "CHECK (((audit_event_types @> ARRAY['admin_mutation'::text, 'admin_access'::text]) AND (audit_event_types <@ ARRAY['admin_mutation'::text, 'admin_access'::text, 'authentication'::text, 'session'::text, 'token'::text, 'credential'::text])))",
+  'client_oidc_config.client_oidc_config_id_token_alg_check':
+    "CHECK ((id_token_signed_response_alg = ANY (ARRAY['RS256'::text, 'ES256'::text])))",
+  'client_oidc_config.client_oidc_config_default_max_age_range': 'CHECK ((default_max_age >= 0))',
+  'clients.clients_previous_secret_pair':
+    'CHECK (((previous_secret_hash IS NULL) = (previous_secret_expires_at IS NULL)))',
+  'clients.clients_previous_secret_confidential':
+    "CHECK (((previous_secret_hash IS NULL) OR (type = 'confidential'::text)))",
 };
 
 interface ColumnRow {
@@ -130,6 +169,7 @@ interface ColumnRow {
   sql_type: string;
   not_null: boolean;
   has_default: boolean;
+  generated: boolean;
 }
 
 interface CheckRow {
@@ -165,10 +205,17 @@ function schemaFiles(): string[] {
 }
 
 // `${type} NOT NULL` and `${type} NULL`, plus ` DEFAULT` when the column
-// declares one — one comparable string per column, so a mismatch reports
-// what differs rather than just that something does.
-function describeColumn(sqlType: string, notNull: boolean, hasDefault: boolean): string {
-  return `${sqlType} ${notNull ? 'NOT NULL' : 'NULL'}${hasDefault ? ' DEFAULT' : ''}`;
+// declares one or ` GENERATED` when it is a stored generated column — one
+// comparable string per column, so a mismatch reports what differs rather
+// than just that something does.
+function describeColumn(
+  sqlType: string,
+  notNull: boolean,
+  hasDefault: boolean,
+  generated: boolean,
+): string {
+  const suffix = generated ? ' GENERATED' : hasDefault ? ' DEFAULT' : '';
+  return `${sqlType} ${notNull ? 'NOT NULL' : 'NULL'}${suffix}`;
 }
 
 async function declaredTables(): Promise<DeclaredTable[]> {
@@ -190,7 +237,12 @@ async function declaredTables(): Promise<DeclaredTable[]> {
         columns: new Map(
           config.columns.map((column) => [
             column.name,
-            describeColumn(column.getSQLType(), column.notNull, column.hasDefault),
+            describeColumn(
+              column.getSQLType(),
+              column.notNull,
+              column.hasDefault,
+              column.generated !== undefined,
+            ),
           ]),
         ),
       });
@@ -222,7 +274,8 @@ beforeAll(async () => {
            a.attname                                as column_name,
            format_type(a.atttypid, a.atttypmod)     as sql_type,
            a.attnotnull                             as not_null,
-           a.atthasdef                              as has_default
+           a.atthasdef and a.attgenerated = ''     as has_default,
+           a.attgenerated <> ''                     as generated
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
       join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
@@ -262,7 +315,7 @@ describe('TypeScript schema against the migrated database', () => {
       const fromDatabase = Object.fromEntries(
         migratedColumns.map((row) => [
           row.column_name,
-          describeColumn(row.sql_type, row.not_null, row.has_default),
+          describeColumn(row.sql_type, row.not_null, row.has_default, row.generated),
         ]),
       );
       const fromTypeScript = Object.fromEntries([...table.columns].sort());

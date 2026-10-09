@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { glob } from 'node:fs/promises';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // "No ceremony, no verbose block headers" is unfalsifiable as written: a
@@ -11,6 +12,8 @@ import { describe, expect, it } from 'vitest';
 // an ordering constraint, a rejected alternative or a failure mode fits inside
 // it; what does not fit is an essay, and an essay's durable content belongs in
 // an ADR or a docs/protocols/ reading note with a pointer from the code.
+const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
+
 const MAX_BLOCK_WEIGHT = 8;
 
 // Prettier's printWidth. A line wider than this is one line on disk and more
@@ -19,14 +22,27 @@ const MAX_BLOCK_WEIGHT = 8;
 const PRINT_WIDTH = 100;
 
 const SOURCE_TREES = [
-  'packages/*/src/**/*.ts',
-  'packages/*/tests/**/*.ts',
-  'apps/*/src/**/*.ts',
-  'apps/*/tests/**/*.ts',
+  'packages/*/src/**/*.{ts,tsx}',
+  'packages/*/tests/**/*.{ts,tsx}',
+  'apps/*/src/**/*.{ts,tsx}',
+  'apps/*/tests/**/*.{ts,tsx}',
   'tools/*/src/**/*.ts',
   'tests/**/*.ts',
   '*.ts',
 ];
+
+async function scannedFiles(): Promise<string[]> {
+  const files: string[] = [];
+  for (const pattern of SOURCE_TREES) {
+    for await (const file of glob(pattern, {
+      cwd: REPO_ROOT,
+      exclude: (entry) => path.basename(entry) === 'node_modules',
+    })) {
+      files.push(file.split(path.sep).join('/'));
+    }
+  }
+  return files;
+}
 
 export interface CommentBlock {
   readonly line: number;
@@ -61,7 +77,7 @@ export function commentBlocks(source: string): CommentBlock[] {
 
     if (insideBlockComment) {
       if (line.includes('*/')) insideBlockComment = false;
-    } else if (line.startsWith('/*')) {
+    } else if (line.startsWith('/*') || line.startsWith('{/*')) {
       isComment = true;
       insideBlockComment = !line.includes('*/');
     } else if (line.startsWith('//')) {
@@ -70,7 +86,7 @@ export function commentBlocks(source: string): CommentBlock[] {
 
     if (isComment) {
       start ??= index + 1;
-      const delimiterOnly = line === '/**' || line === '/*' || line === '*/';
+      const delimiterOnly = ['/**', '/*', '*/', '{/*', '*/}'].includes(line);
       if (!delimiterOnly) weight += Math.max(1, Math.ceil(line.length / PRINT_WIDTH));
     } else if (line !== '') {
       flush();
@@ -81,25 +97,29 @@ export function commentBlocks(source: string): CommentBlock[] {
   return blocks;
 }
 
-describe('a comment block stays within the ceiling', () => {
+describe('a comment block stays within the ceiling', { timeout: 60_000 }, () => {
   it('holds across every source tree', async () => {
     const offenders: string[] = [];
 
-    for (const pattern of SOURCE_TREES) {
-      for await (const file of glob(pattern)) {
-        const source = await readFile(file, 'utf8');
-        for (const block of commentBlocks(source)) {
-          if (block.weight <= MAX_BLOCK_WEIGHT) continue;
-          offenders.push(
-            `${file}:${String(block.line)} — comment block of ${String(block.weight)} lines, ` +
-              `limit is ${String(MAX_BLOCK_WEIGHT)}. Compress it, or move what is durable to an ` +
-              `ADR or a docs/protocols/ reading note and leave a one-line pointer.`,
-          );
-        }
+    for (const file of await scannedFiles()) {
+      const source = await readFile(path.join(REPO_ROOT, file), 'utf8');
+      for (const block of commentBlocks(source)) {
+        if (block.weight <= MAX_BLOCK_WEIGHT) continue;
+        offenders.push(
+          `${file}:${String(block.line)} — comment block of ${String(block.weight)} lines, ` +
+            `limit is ${String(MAX_BLOCK_WEIGHT)}. Compress it, or move what is durable to an ` +
+            `ADR or a docs/protocols/ reading note and leave a one-line pointer.`,
+        );
       }
     }
 
     expect(offenders, offenders.join('\n')).toEqual([]);
+  });
+
+  it('reaches every source tree, component files included', async () => {
+    const files = await scannedFiles();
+    expect(files).toContain('apps/admin-console/src/app/App/App.tsx');
+    expect(files).toContain('packages/kernel/src/config.ts');
   });
 });
 
@@ -128,6 +148,13 @@ describe('the ceiling cannot be met by reformatting', () => {
   it('leaves a comment trailing a line of code alone', () => {
     const blocks = commentBlocks('export const x = 1; // why\n');
     expect(blocks).toEqual([]);
+  });
+
+  it('counts a JSX comment as a block', () => {
+    const prose = essay.slice(0, 9).map((line) => line.replace('//', ' '));
+    const jsx = ['  {/*', ...prose, '  */}'].join('\n');
+    const blocks = commentBlocks(`const A = () => (\n  <p>\n${jsx}\n  </p>\n);\n`);
+    expect(blocks).toEqual([{ line: 3, weight: 9 }]);
   });
 
   it('gives a JSDoc block the same budget, not two lines less', () => {

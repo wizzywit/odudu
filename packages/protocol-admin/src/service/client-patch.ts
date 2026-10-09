@@ -27,9 +27,15 @@ const REFUSALS: Readonly<Record<string, string>> = {
   registration_origin: 'registration_origin is provenance; rewriting it falsifies a record',
   service_subject_id: 'service_subject_id re-points role assignments and needs its own operation',
   secret_hash: 'secret_hash is rotated through its own endpoint',
+  previous_secret_hash:
+    'previous_secret_hash is kept by a rotation and cleared when its window ends',
+  previous_secret_expires_at:
+    "previous_secret_expires_at is set by a rotation's grace_seconds and cannot be extended",
   type: "type silently changes a live client's security model in both directions",
   builtin_admin:
     "builtin_admin marks the client a tenant's administration roles hang from; changing it needs its own operation, not a general amendment",
+  client_id_search: 'client_id_search is derived from client_id by the database',
+  name_search: 'name_search is derived from name by the database; amend name instead',
 };
 
 export function refusalFor(field: string): string | null {
@@ -51,6 +57,10 @@ export const AMENDABLE_CLIENT_FIELDS: readonly string[] = ALL_FIELDS.filter(
 // refused on this client until somebody decides otherwise.
 export const BUILTIN_ADMIN_AMENDABLE_FIELDS: readonly string[] = [
   'name',
+  'description',
+  'client_uri',
+  'policy_uri',
+  'tos_uri',
   'consent_required',
   'frontchannel_logout_uri',
   'backchannel_logout_uri',

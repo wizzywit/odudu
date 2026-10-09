@@ -12,7 +12,7 @@ describe('resolveJwks', () => {
     expect(jwks).toBeNull();
   });
 
-  it('returns null for a disabled tenant without reading keys', async () => {
+  it("still publishes a disabled tenant's keys", async () => {
     let calledListKeys = false;
     const jwks = await resolveJwks(
       {
@@ -26,18 +26,19 @@ describe('resolveJwks', () => {
             rememberMeIdleSeconds: 604_800,
             rememberMeMaxSeconds: 2_592_000,
             rememberMeAllowed: false,
+            loginWithEmail: false,
             maxSessionsPerBrowser: 25,
             clientRegistrationPolicy: 'disabled',
           }),
         listPublishableKeys: () => {
           calledListKeys = true;
-          return Promise.resolve([]);
+          return Promise.resolve([{ kid: 'a', alg: 'RS256', publicJwk }]);
         },
       },
       'disabled-tenant',
     );
-    expect(jwks).toBeNull();
-    expect(calledListKeys).toBe(false);
+    expect(jwks?.keys.map((key) => key.kid)).toEqual(['a']);
+    expect(calledListKeys).toBe(true);
   });
 
   it('assembles the published set for an enabled tenant', async () => {
@@ -53,6 +54,7 @@ describe('resolveJwks', () => {
             rememberMeIdleSeconds: 604_800,
             rememberMeMaxSeconds: 2_592_000,
             rememberMeAllowed: false,
+            loginWithEmail: false,
             maxSessionsPerBrowser: 25,
             clientRegistrationPolicy: 'disabled',
           }),

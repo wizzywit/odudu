@@ -3,7 +3,6 @@ import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import { outboxRepository, renderResetPassword } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
-import { RESET_PASSWORD_TTL_SECONDS } from '#/usecase/verify-email';
 
 // Re-exported so the view layer can reach these without importing the
 // repository directly (no-view-to-repository, .dependency-cruiser.cjs):
@@ -55,25 +54,43 @@ export async function requestPasswordReset(
   await withTenant(deps.database.db, deps.tenantId, async (tx) => {
     const user = await deps.findByEmail(tx, email);
     if (user === null) return;
-    const { token } = await actionTokenRepository(tx).issue({
-      tenantId: deps.tenantId,
-      subjectId: user.subjectId,
-      type: 'reset_password',
-      email: user.email,
-      ttlSeconds: RESET_PASSWORD_TTL_SECONDS,
-    });
-    const link = `${issuerBase}/tenants/${deps.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
-    await outboxRepository(tx).enqueue({
-      tenantId: deps.tenantId,
-      ...renderResetPassword({
-        to: user.email,
-        link,
-        tenantDisplayName: deps.tenantDisplayName,
-      }),
-    });
+    await enqueueResetLink(tx, { ...deps, issuerBase }, user);
   });
 
   return { kind: 'requested' };
+}
+
+/** Where a link is minted for, and what the mail carrying it names. */
+export interface ActionLinkTenant {
+  readonly tenantId: string;
+  readonly tenantName: string;
+  readonly tenantDisplayName: string;
+  readonly issuerBase: string;
+}
+
+/**
+ * The token and the mail carrying it, in the caller's transaction: the one
+ * write both a self-service reset request and an administrator's make, so
+ * the link either sends is the same link.
+ */
+export async function enqueueResetLink(
+  tx: TenantScopedDatabase,
+  tenant: ActionLinkTenant,
+  user: { readonly subjectId: string; readonly email: string },
+): Promise<void> {
+  const tokens = actionTokenRepository(tx);
+  const { token } = await tokens.issue({
+    tenantId: tenant.tenantId,
+    subjectId: user.subjectId,
+    type: 'reset_password',
+    email: user.email,
+    ttlSeconds: await tokens.lifetimeOf(tenant.tenantId, 'reset_password'),
+  });
+  const link = `${tenant.issuerBase}/tenants/${tenant.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
+  await outboxRepository(tx).enqueue({
+    tenantId: tenant.tenantId,
+    ...renderResetPassword({ to: user.email, link, tenantDisplayName: tenant.tenantDisplayName }),
+  });
 }
 
 export interface CompletePasswordResetDeps {
@@ -125,8 +142,8 @@ export type CompletePasswordResetResult =
   | { kind: 'invalid_password'; violations: PolicyViolation[] };
 
 // One transaction: consuming the token, setting the new password, and
-// retiring every other outstanding reset-password link for the same
-// subject all commit or roll back together, so a reader never observes a
+// retiring every other outstanding link that can set the same subject's
+// password all commit or roll back together, so a reader never observes a
 // spent link with the old password still active, nor a sibling link still
 // redeemable after the account is recovered. The policy is checked against
 // a non-consuming `peek` first: a weak password must not burn a link the
@@ -162,7 +179,7 @@ export async function completePasswordReset(
 
       await deps.setPassword(tx, record.subjectId, newPassword);
       await deps.clearPasswordUpdateAction(tx, record.subjectId);
-      await actionTokenRepository(tx).invalidateOutstanding(record.subjectId, 'reset_password');
+      await actionTokenRepository(tx).invalidateOutstandingPasswordLinks(record.subjectId);
       await auditRepository(tx).record({
         eventType: 'credential',
         action: 'password.reset',

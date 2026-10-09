@@ -178,6 +178,21 @@ async function expectOneRow(tenant: SeededTenant, posted: Posted, name: string):
   expect(rows[0]?.detail).toEqual({});
 }
 
+// A finished enrolment carries straight on to the recovery codes it owes,
+// so one request writes both rows.
+async function expectRows(tenant: SeededTenant, posted: Posted, names: string[]): Promise<void> {
+  const rows = await rowsFor(tenant, posted);
+  expect(rows.map((row) => row.action).sort()).toEqual([...names].sort());
+  for (const row of rows) {
+    expect(row).toMatchObject({
+      eventType: 'credential',
+      outcome: 'allowed',
+      actorSubjectId: tenant.subjectId,
+      requestId: posted.requestId,
+    });
+  }
+}
+
 function offeredSecret(body: string): string {
   const secret = /name="secret" value="([^"]*)"/.exec(body)?.[1];
   if (secret === undefined) throw new Error('no secret offered on the enrolment page');
@@ -249,18 +264,10 @@ describe('enrolling a TOTP app, then being shown recovery codes', () => {
       secret,
       code,
     });
-    expect(enrolled.res.body).toContain('name="password"');
-    await expectOneRow(tenant, enrolled, 'otp.enrolled');
-    expect(await credentialRows(tenant)).toHaveLength(1);
-
-    clock.advance(31_000);
-    await passwordStep(tenant, authSessionId);
-    const shown = await login(tenant, {
-      auth_session_id: authSessionId,
-      code: totpCode(secret, totpCounter(clock.now())),
-    });
+    const shown = enrolled;
     expect(shown.res.body).toContain('Save your recovery codes');
-    await expectOneRow(tenant, shown, 'recovery_codes.issued');
+    await expectRows(tenant, enrolled, ['otp.enrolled', 'recovery_codes.issued']);
+    expect(await credentialRows(tenant)).toHaveLength(2);
 
     const everything = JSON.stringify(await credentialRows(tenant));
     expect(everything).not.toContain(secret);
@@ -289,7 +296,7 @@ describe('recovery codes', () => {
     const acknowledged = await action(tenant, 'generate-recovery-codes', {
       auth_session_id: authSessionId,
     });
-    expect(acknowledged.res.statusCode).toBe(200);
+    expect(acknowledged.res.statusCode).toBe(302);
     expect(await rowsFor(tenant, acknowledged)).toEqual([]);
     expect(await credentialRows(tenant)).toHaveLength(2);
   });
@@ -320,9 +327,9 @@ describe('enrolling a passkey', () => {
       credential,
       label: 'Work laptop',
     });
-    expect(enrolled.res.body).toContain('name="password"');
-    await expectOneRow(tenant, enrolled, 'passkey.enrolled');
-    expect(await credentialRows(tenant)).toHaveLength(1);
+    expect(enrolled.res.body).toContain('Save your recovery codes');
+    await expectRows(tenant, enrolled, ['passkey.enrolled', 'recovery_codes.issued']);
+    expect(await credentialRows(tenant)).toHaveLength(2);
   });
 });
 
@@ -345,7 +352,7 @@ describe('changing a password the login owes', () => {
       auth_session_id: authSessionId,
       password: candidate,
     });
-    expect(changed.res.statusCode).toBe(200);
+    expect(changed.res.statusCode).toBe(302);
     await expectOneRow(tenant, changed, 'password.changed');
 
     const everything = JSON.stringify(await credentialRows(tenant));

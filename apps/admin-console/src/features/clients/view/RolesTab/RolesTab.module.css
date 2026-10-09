@@ -1,0 +1,49 @@
+.tab {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+.panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--hairline);
+  border-radius: var(--radius-m);
+  background: var(--surface-panel);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--type-15);
+}
+
+.text,
+.message,
+.rule {
+  margin: 0;
+  overflow-wrap: anywhere;
+  max-inline-size: 72ch;
+}
+
+.rule {
+  color: var(--ink-muted);
+}
+
+.message:empty {
+  display: none;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.form {
+  display: grid;
+  gap: var(--space-4);
+  max-inline-size: 640px;
+}

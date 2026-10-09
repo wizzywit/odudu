@@ -54,3 +54,16 @@ export async function readSuite(reportPath: string): Promise<TestResult[]> {
 
   return results;
 }
+
+export async function readSuites(reportPaths: readonly string[]): Promise<TestResult[]> {
+  const suites = await Promise.all(
+    reportPaths.map(async (path) => {
+      try {
+        return await readSuite(path);
+      } catch (error) {
+        throw new Error(`cannot read the test report ${path}`, { cause: error });
+      }
+    }),
+  );
+  return suites.flat();
+}

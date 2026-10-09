@@ -26,12 +26,11 @@ export type ConsentDecision =
 // inert for every seeded and token-registered client.
 export function decideConsent(input: ConsentInput): ConsentDecision {
   const requested = new Set(input.requestedScopes);
-  const defaultSet = new Set(input.defaultScopes);
-  const optionalSet = new Set(input.optionalScopes);
   const grantedSet = new Set(input.grantedScopes);
 
-  const askDefault = [...requested].filter((scope) => defaultSet.has(scope));
-  const askOptional = [...requested].filter((scope) => optionalSet.has(scope));
+  // In the client's own order, which is the one the consent screen shows.
+  const askDefault = input.defaultScopes.filter((scope) => requested.has(scope));
+  const askOptional = input.optionalScopes.filter((scope) => requested.has(scope));
   const alreadyGranted = askOptional.filter((scope) => grantedSet.has(scope));
   const ask = (): ConsentDecision => ({
     kind: 'ask',

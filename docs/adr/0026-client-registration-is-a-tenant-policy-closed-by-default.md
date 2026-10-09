@@ -86,3 +86,22 @@ share one code path (`registerClient`,
 `packages/protocol-oidc/src/usecase/client-registration.ts`), which is what
 keeps the two indistinguishable by construction rather than by two branches
 that happen to return the same status today.
+
+## Amendment, 2026-09-30
+
+The comparison above with a disabled tenant no longer holds: a disabled
+tenant keeps serving `/certs` and discovery, since the Back-Channel Logout
+Tokens its disable queued are signed with its keys and its relying parties
+must validate them (Back-Channel Logout 1.0 §2.6). Its `registration_endpoint`
+is still refused, with every other protocol request.
+
+That gives up, for a disabled tenant, what the Context above calls an
+enumeration oracle: for as long as it stays disabled, discovery and `/certs`
+tell it from a tenant that does not exist. This is accepted. Its existence was
+already public before the disable — its relying parties are configured with
+its issuer, and its discovery document was served to anyone — the key
+material is public by design, and the alternative leaves every Logout Token
+the disable queued unverifiable. The disclosure ends when the tenant is
+deleted. Registration's `404` for a disabled tenant still refuses, but no
+longer conceals the tenant; for an enabled tenant whose policy is `disabled`,
+the reasoning above is unchanged.

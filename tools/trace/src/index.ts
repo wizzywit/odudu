@@ -2,7 +2,8 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseRows, readingNoteHeadings, type Row } from '#/parse';
 import { reconcile, type SilencedMusts } from '#/reconcile';
-import { readSuite } from '#/suite';
+import { reportPaths } from '#/report-paths';
+import { readSuites } from '#/suite';
 
 const PROTOCOLS = 'docs/protocols';
 const CENSUS = 'tools/trace/silenced-musts.json';
@@ -55,7 +56,7 @@ async function loadTables(): Promise<{
 
 const strict = process.env.ODUDU_TRACE_STRICT === '1';
 const { rows, headings, errors: parseErrors } = await loadTables();
-const results = await readSuite(process.argv[2] ?? 'trace-report.json');
+const results = await readSuites(await reportPaths(process.cwd(), process.argv.slice(2)));
 const findings = reconcile(rows, results, { strict, headings, silenced: await loadCensus() });
 
 // A row a `fatal` finding names cannot be trusted to be what it declares —

@@ -3,6 +3,7 @@ export {
   auditRepository,
   type AuditCursorPosition,
   type AuditEventFilter,
+  type AuditEventCriteria,
 } from '#/repository/audit';
 export {
   assertActionKnown,

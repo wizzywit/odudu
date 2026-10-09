@@ -1,14 +1,17 @@
+import { CONSOLE_SESSION_IDLE_SECONDS } from '@odudu/console-gateway';
 import {
   bypassesRowLevelSecurity,
   createDatabase,
+  tenantIdPages,
   tenants,
   withEachTenantExclusive,
   type DatabaseHandle,
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { loadConfig, OduduError, type Config } from '@odudu/kernel';
+import { expireRotatedClientSecrets } from '@odudu/protocol-admin';
 import { BACKCHANNEL_LOGOUT_MAX_ATTEMPTS } from '@odudu/protocol-oidc';
-import { sql, type SQL } from 'drizzle-orm';
+import { eq, sql, type SQL } from 'drizzle-orm';
 
 /**
  * The tables `reap` is answerable for. A name added here has no rule until
@@ -27,11 +30,22 @@ export type TableName =
   | 'email_outbox'
   | 'backchannel_logout_deliveries'
   | 'client_assertion_jti'
+  | 'console_sessions'
+  | 'console_logins'
   | 'sessions'
   | 'audit_events';
 
 /** Rows deleted per table, summed over every tenant the pass visited. */
 export type ReapReport = Record<TableName, number>;
+
+/**
+ * What the pass cleared without deleting a row: a rotated-out client
+ * secret past its window, whose hash nothing can authenticate with any
+ * more. Each is audited where it is cleared.
+ */
+export interface ClearReport {
+  readonly client_previous_secrets: number;
+}
 
 /**
  * Why a pass did nothing. Distinct from a report of zeros, at both levels:
@@ -44,7 +58,7 @@ export type ReapSkipReason =
 
 export type ReapOutcome =
   | { readonly ran: false; readonly reason: ReapSkipReason }
-  | { readonly ran: true; readonly deleted: ReapReport };
+  | { readonly ran: true; readonly deleted: ReapReport; readonly cleared: ClearReport };
 
 /**
  * One window per table that has one of its own, in seconds. `refresh_tokens`
@@ -99,26 +113,48 @@ export function retentionPolicyFromConfig(config: Config): RetentionPolicy {
  */
 export const REAP_LOCK_KEY = 20_260_915;
 
+/**
+ * The three settings of the tenant being reaped that a window depends on.
+ * Read once per tenant and folded into a bound cutoff, so a statement's
+ * predicate compares a column with a value the planner can see, and reaches
+ * the expired rows through the index on that column.
+ */
+export interface RetentionTenant {
+  readonly ssoSessionMaxSeconds: number;
+  readonly bruteForceFailureResetSeconds: number;
+  readonly auditRetentionDays: number;
+}
+
 interface RetentionRule {
   /** Tables whose rows this one's predicate assumes are already gone. */
   readonly after: readonly TableName[];
-  readonly statement: (now: Date, policy: RetentionPolicy) => SQL;
+  readonly statement: (now: Date, policy: RetentionPolicy, tenant: RetentionTenant) => SQL;
 }
 
-// Written against the aliases `g` (token_grants) and `r` (tenants): every
-// statement that uses this binds both. A family is past retention once its
-// age exceeds the window — floored by the tenant's own maximum session life,
-// so a window configured shorter than the grant it retains cannot be
-// expressed — and once no refresh token of it is still usable, which is
-// what stops a retention pass killing a token a client holds.
-function grantPastRetention(now: Date, policy: RetentionPolicy): SQL {
+function before(now: Date, seconds: number): string {
+  return new Date(now.getTime() - seconds * 1000).toISOString();
+}
+
+// Written against the alias `g` (token_grants). A family is past retention
+// once its age exceeds the window — floored by the tenant's own maximum
+// session life, so a window configured shorter than the grant it retains
+// cannot be expressed — and once no refresh token of it is still usable,
+// which is what stops a retention pass killing a token a client holds. The
+// first bound is the later of the two windows' cutoffs, so the grants a
+// pass has to look at are one range of `token_grants_by_created`.
+function grantPastRetention(now: Date, policy: RetentionPolicy, tenant: RetentionTenant): SQL {
+  const sessionCutoff = before(now, Math.max(policy.grantSeconds, tenant.ssoSessionMaxSeconds));
+  const offlineCutoff = before(
+    now,
+    Math.max(policy.offlineGrantSeconds, tenant.ssoSessionMaxSeconds),
+  );
+  const laterCutoff = sessionCutoff > offlineCutoff ? sessionCutoff : offlineCutoff;
   return sql`
-    g.created_at < ${now.toISOString()}::timestamptz - make_interval(secs => greatest(
-      CASE WHEN g.session_id IS NULL
-        THEN ${policy.offlineGrantSeconds}::integer
-        ELSE ${policy.grantSeconds}::integer
-      END,
-      r.sso_session_max_seconds))
+    g.created_at < ${laterCutoff}::timestamptz
+    AND g.created_at < CASE WHEN g.session_id IS NULL
+          THEN ${offlineCutoff}::timestamptz
+          ELSE ${sessionCutoff}::timestamptz
+        END
     AND NOT EXISTS (
       SELECT 1 FROM refresh_tokens live
        WHERE live.tenant_id = g.tenant_id
@@ -128,20 +164,19 @@ function grantPastRetention(now: Date, policy: RetentionPolicy): SQL {
   `;
 }
 
-const RETENTION_RULES: Record<TableName, RetentionRule> = {
+export const RETENTION_RULES: Record<TableName, RetentionRule> = {
   // Deleted here rather than left to the ON DELETE CASCADE on
   // refresh_tokens_grant_fk: a cascade deletes the rows without this pass
   // counting them, so the report would show nothing for a table that had
   // just been emptied.
   refresh_tokens: {
     after: [],
-    statement: (now, policy) => sql`
+    statement: (now, policy, tenant) => sql`
       DELETE FROM refresh_tokens t
-       USING token_grants g, tenants r
+       USING token_grants g
        WHERE g.tenant_id = t.tenant_id
          AND g.id = t.grant_id
-         AND r.id = g.tenant_id
-         AND ${grantPastRetention(now, policy)}
+         AND ${grantPastRetention(now, policy, tenant)}
     `,
   },
 
@@ -155,7 +190,7 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
   // retained for good, in the table ADR 0021 exists to bound.
   authorization_codes: {
     after: [],
-    statement: (now, policy) => sql`
+    statement: (now, policy, tenant) => sql`
       DELETE FROM authorization_codes c
        WHERE c.expires_at < ${now.toISOString()}::timestamptz
              - make_interval(secs => ${policy.authorizationCodeSeconds}::integer)
@@ -166,21 +201,18 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
               WHERE gone.tenant_id = c.tenant_id AND gone.id = c.grant_id)
            OR EXISTS (
              SELECT 1 FROM token_grants g
-               JOIN tenants r ON r.id = g.tenant_id
               WHERE g.tenant_id = c.tenant_id
                 AND g.id = c.grant_id
-                AND ${grantPastRetention(now, policy)})
+                AND ${grantPastRetention(now, policy, tenant)})
          )
     `,
   },
 
   token_grants: {
     after: ['refresh_tokens', 'authorization_codes'],
-    statement: (now, policy) => sql`
+    statement: (now, policy, tenant) => sql`
       DELETE FROM token_grants g
-       USING tenants r
-       WHERE r.id = g.tenant_id
-         AND ${grantPastRetention(now, policy)}
+       WHERE ${grantPastRetention(now, policy, tenant)}
     `,
   },
 
@@ -238,13 +270,9 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
   // accounts as a scheduled job. A row with no last failure is kept.
   login_failures: {
     after: [],
-    statement: (now) => sql`
+    statement: (now, _policy, tenant) => sql`
       DELETE FROM login_failures f
-       USING tenants r
-       WHERE r.id = f.tenant_id
-         AND f.last_failure_at IS NOT NULL
-         AND f.last_failure_at <= ${now.toISOString()}::timestamptz
-             - make_interval(secs => r.brute_force_failure_reset_seconds)
+       WHERE f.last_failure_at <= ${before(now, tenant.bruteForceFailureResetSeconds)}::timestamptz
          AND (f.locked_until IS NULL OR f.locked_until <= ${now.toISOString()}::timestamptz)
     `,
   },
@@ -309,6 +337,29 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
     `,
   },
 
+  // No policy window, for the reason client_assertion_jti has none: a
+  // session past its absolute expiry or idle past CONSOLE_SESSION_IDLE_SECONDS
+  // has already ended, and the gateway would delete it on sight. Its grant
+  // is not revoked here: it is bound to the SSO session, whose idle limit
+  // ends it (apps/server/tests/console-session.int.test.ts).
+  console_sessions: {
+    after: [],
+    statement: (now) => sql`
+      DELETE FROM console_sessions c
+       WHERE c.expires_at < ${now.toISOString()}::timestamptz
+          OR c.last_seen_at < ${now.toISOString()}::timestamptz
+             - make_interval(secs => ${CONSOLE_SESSION_IDLE_SECONDS}::integer)
+    `,
+  },
+
+  console_logins: {
+    after: [],
+    statement: (now) => sql`
+      DELETE FROM console_logins l
+       WHERE l.expires_at < ${now.toISOString()}::timestamptz
+    `,
+  },
+
   // Last, and only once nothing points at it. The ON DELETE SET NULL on
   // token_grants.session_id is a backstop this must never reach: nulling a
   // session-bound grant's session would promote it to an offline one, which
@@ -335,12 +386,9 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
   // has no `after` and needs none.
   audit_events: {
     after: [],
-    statement: (now) => sql`
+    statement: (now, _policy, tenant) => sql`
       DELETE FROM audit_events e
-       USING tenants r
-       WHERE r.id = e.tenant_id
-         AND e.occurred_at < ${now.toISOString()}::timestamptz
-             - make_interval(days => r.audit_retention_days)
+       WHERE e.occurred_at < ${before(now, tenant.auditRetentionDays * 24 * 60 * 60)}::timestamptz
     `,
   },
 };
@@ -362,6 +410,8 @@ export const REAP_ORDER: readonly TableName[] = [
   'email_outbox',
   'backchannel_logout_deliveries',
   'client_assertion_jti',
+  'console_sessions',
+  'console_logins',
   'sessions',
   'audit_events',
 ];
@@ -397,17 +447,37 @@ function emptyReport(): ReapReport {
   return report;
 }
 
+async function retentionTenantOf(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+): Promise<RetentionTenant | undefined> {
+  const rows = await tx
+    .select({
+      ssoSessionMaxSeconds: tenants.ssoSessionMaxSeconds,
+      bruteForceFailureResetSeconds: tenants.bruteForceFailureResetSeconds,
+      auditRetentionDays: tenants.auditRetentionDays,
+    })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId));
+  return rows[0];
+}
+
 async function reapTenant(
   tx: TenantScopedDatabase,
+  tenantId: string,
   now: Date,
   policy: RetentionPolicy,
-): Promise<ReapReport> {
+): Promise<{ deleted: ReapReport; cleared: ClearReport }> {
   const report = emptyReport();
+  const tenant = await retentionTenantOf(tx, tenantId);
+  // Deleted since its page was read: nothing of it is left to reap.
+  if (tenant === undefined) return { deleted: report, cleared: { client_previous_secrets: 0 } };
   for (const table of REAP_ORDER) {
-    const result = await tx.execute(RETENTION_RULES[table].statement(now, policy));
+    const result = await tx.execute(RETENTION_RULES[table].statement(now, policy, tenant));
     report[table] = result.count;
   }
-  return report;
+  const clientPreviousSecrets = await expireRotatedClientSecrets(tx, now);
+  return { deleted: report, cleared: { client_previous_secrets: clientPreviousSecrets } };
 }
 
 export interface ReapDeps {
@@ -420,6 +490,16 @@ export interface ReapDeps {
    * cannot be read from inside one (ADR 0009's amendment of 2026-09-13).
    */
   readonly ownerDatabase: DatabaseHandle;
+  /**
+   * Passed straight through to `withEachTenantExclusive`. Production leaves
+   * it unset; a test uses it to make the lock's outcome deterministic under
+   * concurrency.
+   */
+  readonly onLockAttempt?: (acquired: boolean) => Promise<void> | void;
+}
+
+async function* allTenantIds(owner: DatabaseHandle): AsyncGenerator<string> {
+  for await (const page of tenantIdPages(owner.db)) yield* page;
 }
 
 // Both halves of ADR 0021's claim that the policy is the scoping, checked
@@ -459,30 +539,30 @@ export async function reap(
   assertReapOrder();
   await assertRolesAreRight(deps);
 
-  const rows = await deps.ownerDatabase.db
-    .select({ id: tenants.id })
-    .from(tenants)
-    .orderBy(tenants.id);
-  const tenantIds = rows.map((row) => row.id);
-  // Trustworthy, after the check above: an empty list means an empty
-  // database and not a filtered read. Still said out loud, because a report
-  // of zeros for a database nobody has seeded reads as a healthy pass.
-  if (tenantIds.length === 0) {
-    return { ran: false, reason: 'no tenant was enumerated' };
-  }
-
-  const pass = await withEachTenantExclusive(deps.database.db, REAP_LOCK_KEY, tenantIds, (tx) =>
-    reapTenant(tx, now, policy),
+  const pass = await withEachTenantExclusive(
+    deps.database.db,
+    REAP_LOCK_KEY,
+    allTenantIds(deps.ownerDatabase),
+    (tx, tenantId) => reapTenant(tx, tenantId, now, policy),
+    deps.onLockAttempt,
   );
   if (!pass.acquired) {
     return { ran: false, reason: 'another instance holds the retention lock' };
   }
+  // Trustworthy, after the check above: no tenant visited means an empty
+  // database and not a filtered read. Still said out loud, because a report
+  // of zeros for a database nobody has seeded reads as a healthy pass.
+  if (pass.values.length === 0) {
+    return { ran: false, reason: 'no tenant was enumerated' };
+  }
 
   const deleted = emptyReport();
+  let clientPreviousSecrets = 0;
   for (const tenantReport of pass.values) {
-    for (const table of REAP_ORDER) deleted[table] += tenantReport[table];
+    for (const table of REAP_ORDER) deleted[table] += tenantReport.deleted[table];
+    clientPreviousSecrets += tenantReport.cleared.client_previous_secrets;
   }
-  return { ran: true, deleted };
+  return { ran: true, deleted, cleared: { client_previous_secrets: clientPreviousSecrets } };
 }
 
 // Reads its own configuration and opens its own connections, the way the

@@ -3,10 +3,14 @@ import {
   isSystemTenantId,
   SYSTEM_TENANT_DISABLE_REFUSED,
   coerceTenantSetting,
+  listSettingValues,
   TENANT_SETTING_NAMES,
   tenantSettingsRepository,
   TenantSettingCheckViolationError,
+  tenantSettingProblems,
+  type TenantSettingProblem,
   type TenantSettingsRecord,
+  type TenantSettingValue,
 } from '@odudu/domain-tenant';
 import { etagOf, matches } from '#/service/etag';
 
@@ -45,7 +49,7 @@ export async function readSettings(
 
 export interface AmendSettingsInput {
   readonly tenantId: string;
-  readonly values: Readonly<Record<string, boolean | number | string>>;
+  readonly values: Readonly<Record<string, TenantSettingValue>>;
   readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
@@ -59,18 +63,27 @@ export interface AmendSettingsDeps {
 export type AmendSettingsOutcome =
   | { kind: 'amended'; settings: TenantSettingsRecord; etag: string }
   | { kind: 'unknown_setting'; name: string; known: readonly string[] }
-  | { kind: 'invalid_value'; name: string; expected: 'boolean' | 'integer' | 'text' }
+  | {
+      kind: 'invalid_value';
+      name: string;
+      expected: 'boolean' | 'integer' | 'text' | 'list';
+      values?: readonly string[];
+    }
+  | {
+      kind: 'out_of_range';
+      problems: readonly TenantSettingProblem[];
+      /** Whether any is a range; a list setting's problem is a refusal of its members. */
+      ranged: boolean;
+    }
   | { kind: 'system_tenant_guarded'; reason: string }
   | { kind: 'precondition_failed' };
 
-// Thrown, never returned: by the time the CHECK fires, the UPDATE has
-// already left Postgres refusing every further statement on this
-// connection until a ROLLBACK, which is what throwing out of `withTenant`'s
-// transaction triggers, rather than trying to recover and continue inside
-// an already-aborted one. `settingNames` is every name this request
-// supplied — a CHECK's own name does not reliably map back to one column
-// (some name more than one), so a request that touched more than one
-// setting cannot say which of them was refused.
+// A backstop: `tenantSettingProblems` refuses every range first. Thrown,
+// never returned: by the time the CHECK fires, the UPDATE has left Postgres
+// refusing every further statement until a ROLLBACK, which throwing out of
+// `withTenant`'s transaction triggers. `settingNames` is every name this
+// request supplied — a CHECK's own name does not reliably map back to one
+// column, so a request touching several cannot say which was refused.
 export class AmendSettingsRefusedError extends Error {
   readonly settingNames: readonly string[];
 
@@ -84,7 +97,7 @@ export class AmendSettingsRefusedError extends Error {
 interface CoercedSetting {
   readonly name: string;
   readonly column: string;
-  readonly value: boolean | number | string;
+  readonly value: TenantSettingValue;
 }
 
 type CoerceAllResult = { kind: 'ok'; settings: readonly CoercedSetting[] } | AmendSettingsOutcome;
@@ -92,15 +105,26 @@ type CoerceAllResult = { kind: 'ok'; settings: readonly CoercedSetting[] } | Ame
 // Every supplied name goes through `coerceTenantSetting` — the same map
 // `seed tenant --set` applies through — before any of them touches the
 // database, so a typo in the second field never leaves the first applied.
-function coerceAll(values: Readonly<Record<string, boolean | number | string>>): CoerceAllResult {
+function coerceAll(values: Readonly<Record<string, TenantSettingValue>>): CoerceAllResult {
   const settings: CoercedSetting[] = [];
   for (const [name, raw] of Object.entries(values)) {
-    const outcome = coerceTenantSetting(name, String(raw));
+    // The comma-separated spelling is `seed tenant --set`'s; this API takes a
+    // list setting as an array and nothing else.
+    const listValues = listSettingValues(name);
+    if (listValues !== null && !Array.isArray(raw)) {
+      return { kind: 'invalid_value', name, expected: 'list', values: listValues };
+    }
+    const outcome = coerceTenantSetting(name, typeof raw === 'object' ? raw : String(raw));
     if (outcome.kind === 'unknown_setting') {
       return { kind: 'unknown_setting', name, known: TENANT_SETTING_NAMES };
     }
     if (outcome.kind === 'invalid_value') {
-      return { kind: 'invalid_value', name, expected: outcome.expected };
+      return {
+        kind: 'invalid_value',
+        name,
+        expected: outcome.expected,
+        ...(outcome.values === undefined ? {} : { values: outcome.values }),
+      };
     }
     settings.push({ name, column: outcome.column, value: outcome.value });
   }
@@ -121,7 +145,18 @@ export async function amendSettings(
     (setting) => setting.column === 'enabled' && setting.value === false,
   );
   if (disabling !== undefined && isSystemTenantId(input.tenantId)) {
-    return { kind: 'system_tenant_guarded', reason: SYSTEM_TENANT_DISABLE_REFUSED };
+    const reason = SYSTEM_TENANT_DISABLE_REFUSED;
+    await deps.audit(tx, {
+      action: 'tenant.amend_settings',
+      resourceType: 'tenant',
+      resourceId: input.tenantId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { reason },
+    });
+    return { kind: 'system_tenant_guarded', reason };
   }
 
   // Locked, not merely read: the comparison and the UPDATE below have to be
@@ -142,6 +177,17 @@ export async function amendSettings(
   // decides whether the caller was looking at the row it is being shown.
   if (coerced.settings.length === 0) {
     return { kind: 'amended', settings: current.settings, etag: current.etag };
+  }
+
+  // Judged over the stored row with the patch laid on it, so a patch that
+  // moves only an idle lifetime is held to the maximum already stored.
+  const problems = tenantSettingProblems({
+    ...current.settings,
+    ...Object.fromEntries(coerced.settings.map((setting) => [setting.name, setting.value])),
+  });
+  if (problems.length > 0) {
+    const ranged = problems.some(({ name }) => listSettingValues(name) === null);
+    return { kind: 'out_of_range', problems, ranged };
   }
 
   const columns = Object.fromEntries(

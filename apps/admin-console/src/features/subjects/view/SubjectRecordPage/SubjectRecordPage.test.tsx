@@ -1,0 +1,226 @@
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, expect, it } from 'vitest';
+import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
+import { inTurn, json, pending, problem } from '#/testing/fakeTransport.ts';
+import { consoleAt, renderConsoleAt, resetConsole, whoami } from '#/testing/renderConsole.tsx';
+import {
+  ADA_AT,
+  ADA_ID,
+  ADMIN_ROLES,
+  assigned,
+  S,
+  subject,
+  subjectRoutes,
+} from '#/testing/subjectsFixtures.ts';
+
+afterEach(() => {
+  resetConsole();
+  sessionStorage.clear();
+});
+
+it('heads the record with the username, its status, and a tab per concern', async () => {
+  renderConsoleAt(ADA_AT, subjectRoutes());
+  expect(await screen.findByRole('heading', { level: 1, name: 'ada' })).toBeVisible();
+  expect(screen.getAllByText('enabled')[0]).toBeVisible();
+  const tabs = screen.getByRole('tablist', { name: 'Subject sections' });
+  expect(tabs).toHaveTextContent('Profile');
+  expect(tabs).toHaveTextContent('Credentials');
+  expect(screen.getByRole('tab', { name: 'Profile' })).toHaveAttribute('aria-selected', 'true');
+});
+
+it('climbs back to the subjects through a breadcrumb', async () => {
+  renderConsoleAt(ADA_AT, subjectRoutes());
+  await screen.findByRole('heading', { level: 1, name: 'ada' });
+  const trail = screen.getByRole('navigation', { name: 'Breadcrumb' });
+  expect(within(trail).getByRole('link', { name: 'Subjects' })).toHaveAttribute(
+    'href',
+    '/console/acme/subjects',
+  );
+  expect(within(trail).getByText('ada')).toHaveAttribute('aria-current', 'page');
+});
+
+it('keeps the tab in the address', async () => {
+  const user = userEvent.setup();
+  const { router } = renderConsoleAt(ADA_AT, subjectRoutes());
+  await user.click(await screen.findByRole('tab', { name: 'Credentials' }));
+  await waitFor(() => {
+    expect(router.state.location.search).toEqual({ tab: 'credentials' });
+  });
+  expect(await screen.findByRole('heading', { level: 2, name: 'Password' })).toBeVisible();
+});
+
+it('names a subject with no username by its kind and id', async () => {
+  const bot = subject(ADA_ID, null, { type: 'service' });
+  renderConsoleAt(ADA_AT, subjectRoutes(undefined, { [`GET ${S}/${ADA_ID}`]: json(bot) }));
+  expect(await screen.findByRole('heading', { level: 1, name: `service ${ADA_ID}` })).toBeVisible();
+});
+
+it('says a subject that does not exist is not there', async () => {
+  renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(undefined, {
+      [`GET ${S}/${ADA_ID}`]: problem(404, 'about:blank', 'Not Found'),
+    }),
+  );
+  expect(await screen.findByText('No such subject')).toBeVisible();
+});
+
+it('passes axe in both themes', async () => {
+  expect(
+    await axeInBothThemes(
+      () => consoleAt(ADA_AT, subjectRoutes()).element,
+      () => screen.findByRole('tablist', { name: 'Subject sections' }),
+    ),
+  ).toEqual({ light: [], dark: [] });
+});
+
+it('marks the Profile tab while one of its sections holds an edit', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(ADA_AT, subjectRoutes());
+  await user.type(await screen.findByRole('textbox', { name: 'Full name' }), 'Ada');
+  expect(screen.getByRole('tab', { name: 'Profile, unsaved changes' })).toBeVisible();
+  expect(screen.getByRole('tab', { name: 'Credentials' })).toBeVisible();
+});
+
+it('follows a whoami re-read after a 403, in the rail and on the page, without a reload', async () => {
+  const user = userEvent.setup();
+  let revoked = false;
+  const refused = problem(403, 'about:blank', 'Forbidden');
+  const { router } = renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(undefined, {
+      'GET /console/api/admin/tenants/acme/whoami': (request) =>
+        whoami(revoked ? ['view-users'] : ['view-users', 'manage-users', 'manage-clients'])(
+          request,
+        ),
+      [`PATCH ${S}/${ADA_ID}/profile`]: (request) => {
+        revoked = true;
+        return refused(request);
+      },
+    }),
+  );
+  const rail = await screen.findByRole('navigation', { name: 'Areas of acme' });
+  expect(await within(rail).findByRole('link', { name: 'Clients' })).toBeVisible();
+  await user.type(await screen.findByRole('textbox', { name: 'Nickname' }), 'Countess');
+  await user.click(screen.getByRole('button', { name: 'Save Name' }));
+  expect(await screen.findByRole('note')).toHaveTextContent(
+    'You can view subjects but not change them (needs manage-users).',
+  );
+  expect(within(rail).queryByRole('link', { name: 'Clients' })).toBeNull();
+  expect(within(rail).getByRole('link', { name: 'Subjects' })).toBeVisible();
+  expect(screen.queryByRole('textbox', { name: 'Nickname' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Delete/u })).toBeNull();
+  // The refused edit is kept, marked as never saved, with only a way to drop it.
+  expect(screen.queryByRole('button', { name: /^Save/u })).toBeNull();
+  expect(screen.getByText('Countess').closest('dd')).toHaveTextContent('Countess · not saved');
+  const name = screen.getByRole('region', { name: 'Name' });
+  expect(within(name).getByRole('status')).toHaveTextContent(
+    'Your change here was not saved and cannot be saved now.',
+  );
+  expect(screen.getByRole('tab', { name: 'Profile, unsaved changes' })).toBeVisible();
+  await user.click(within(name).getByRole('button', { name: 'Discard your change to Name' }));
+  expect(screen.queryByText(/not saved/u)).toBeNull();
+  expect(screen.getByRole('tab', { name: 'Profile' })).toBeVisible();
+  // Nothing is held any more, so leaving asks nothing.
+  await user.click(within(rail).getByRole('link', { name: 'Subjects' }));
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe('/acme/subjects');
+  });
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+});
+
+it('reads whoami once, however many parts of the page ask what it says', async () => {
+  const { sent } = renderConsoleAt(ADA_AT, subjectRoutes());
+  await screen.findByRole('textbox', { name: 'Nickname' });
+  expect(sent.filter((s) => s.path.endsWith('/whoami'))).toHaveLength(1);
+});
+
+const FULL_HOLDER = {
+  [`GET ${S}/${ADA_ID}/admin-capabilities`]: json({
+    items: ADMIN_ROLES.map((role, i) => ({
+      ...assigned(role),
+      via:
+        i === 0
+          ? [{ kind: 'direct' }]
+          : [{ kind: 'composite', parent_role_id: 'r-full', parent_name: 'tenant-admin' }],
+    })),
+    complete: true,
+  }),
+};
+
+it('offers no change to a subject holding more than the caller, and says so once', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(['view-users', 'manage-users', 'manage-sessions'], FULL_HOLDER),
+  );
+  const note = await screen.findByText(/ada holds .* which you do not/u);
+  expect(note).toHaveTextContent(
+    'ada holds manage-tenant, manage-clients, manage-keys and view-audit, which you do not, so you can view ada but change nothing here.',
+  );
+  expect(screen.queryByRole('button', { name: /Disable|Delete/u })).toBeNull();
+  expect(screen.queryByRole('textbox', { name: 'Full name' })).toBeNull();
+  for (const tab of [
+    'Credentials',
+    'Groups',
+    'Roles',
+    'Required actions',
+    'Sessions',
+    'Consents',
+  ]) {
+    await user.click(screen.getByRole('tab', { name: tab }));
+    await screen.findByRole('tabpanel', { name: tab });
+    expect(
+      screen.queryByRole('button', { name: /Issue|Send|Remove|Revoke|End|Save|Email|Clear/u }),
+      tab,
+    ).toBeNull();
+    expect(screen.queryByRole('checkbox'), tab).toBeNull();
+    expect(screen.queryByRole('listbox'), tab).toBeNull();
+  }
+});
+
+it('passes axe in both themes, beyond reach', async () => {
+  expect(
+    await axeInBothThemes(
+      () => consoleAt(ADA_AT, subjectRoutes(['view-users', 'manage-users'], FULL_HOLDER)).element,
+      () => screen.findByText(/which you do not/u),
+    ),
+  ).toEqual({ light: [], dark: [] });
+});
+
+it('names both reasons when the caller lacks manage-users and the subject holds more', async () => {
+  renderConsoleAt(ADA_AT, subjectRoutes(['view-users', 'manage-sessions'], FULL_HOLDER));
+  expect(
+    await screen.findByText('You can view subjects but not change them (needs', { exact: false }),
+  ).toBeVisible();
+  expect(await screen.findByText(/ada holds .* which you do not/u)).toBeVisible();
+});
+
+it('offers no write until what the subject holds is read', async () => {
+  renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(undefined, { [`GET ${S}/${ADA_ID}/admin-capabilities`]: pending() }),
+  );
+  await screen.findByRole('heading', { level: 1, name: 'ada' });
+  await screen.findByRole('region', { name: 'Account' });
+  expect(screen.queryByRole('button', { name: /Disable|Delete/u })).toBeNull();
+  expect(screen.queryByRole('textbox', { name: 'Full name' })).toBeNull();
+});
+
+it('holds every write when what the subject holds could not be read, and reads it again', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(undefined, {
+      [`GET ${S}/${ADA_ID}/admin-capabilities`]: inTurn(
+        problem(500),
+        json({ items: [], complete: true }),
+      ),
+    }),
+  );
+  const note = await screen.findByText(/could not be read, so nothing here can be changed/u);
+  expect(screen.queryByRole('button', { name: /Disable|Delete/u })).toBeNull();
+  await user.click(within(note).getByRole('button', { name: 'Read it again' }));
+  expect(await screen.findByRole('button', { name: 'Disable ada' })).toBeVisible();
+});

@@ -33,6 +33,194 @@ module.exports = {
       to: { path: '(^|/)packages/authn-flows/' },
     },
     {
+      name: 'console-gateway-imports-no-protocol',
+      severity: 'error',
+      comment:
+        'The console gateway is a backend-for-frontend under /console; it never reaches a ' +
+        'protocol implementation or a login-flow rendering package directly.',
+      from: { path: '(^|/)packages/console-gateway/' },
+      to: { path: '(^|/)packages/(?:protocol-|authn-flows)[^/]*/' },
+    },
+    {
+      name: 'console-gateway-allowlist',
+      severity: 'error',
+      comment:
+        'The console gateway reaches the server only as an OAuth client does, so of the ' +
+        'workspace it may import the kernel, db, crypto, contracts, domain-tenant and ' +
+        'domain-identity packages and nothing else. The rule covers src/ minus its *.test.ts ' +
+        'files; those and everything under tests/ are held only by ' +
+        'console-gateway-imports-no-protocol, so they may import any package but the ' +
+        'protocol packages and authn-flows.',
+      from: {
+        path: '(^|/)packages/console-gateway/src/',
+        pathNot: '\\.test\\.ts$',
+      },
+      to: {
+        path: '(^|/)packages/',
+        pathNot:
+          '(^|/)node_modules/|(^|/)packages/(?:console-gateway|kernel|db|crypto|contracts|domain-tenant|domain-identity)/',
+      },
+    },
+    {
+      name: 'console-feature-imports-only-index',
+      severity: 'error',
+      comment:
+        "A console feature's index.ts is its only importable surface, to other features and to " +
+        'app/ alike; everything else in it can change without anything outside noticing.',
+      // From app/ the group is empty, so no feature is exempt; from a feature
+      // it is that feature, which may reach its own internals.
+      from: { path: '(^|/)apps/admin-console/src/(?:app/|features/([^/]+)/)' },
+      // $2 is substituted unescaped; tests/lint/console-feature-names.test.ts keeps it regex-safe.
+      to: { path: '(^|/)apps/admin-console/src/features/(?!$2/)[^/]+/(?!index\\.ts$)' },
+    },
+    {
+      name: 'console-service-imports-only-service',
+      severity: 'error',
+      comment:
+        'A console service is pure: it imports other services, its own or shared/service, and ' +
+        '@odudu/contracts, and nothing else. A feature index.ts is refused too, since it ' +
+        'reaches views and usecases, and through them the stores. libphonenumber-js is admitted ' +
+        'as the one pure library a service computes with: numbering plans are data, not I/O.',
+      from: {
+        path: '(^|/)apps/admin-console/src/(?:service|.*/service)(?:/|\\.tsx?$)',
+        pathNot: '\\.test\\.tsx?$',
+      },
+      to: {
+        pathNot:
+          '(^|/)apps/admin-console/src/(?:service|.*/service)(?:/|\\.tsx?$)|(^|/)packages/contracts/|/node_modules/libphonenumber-js/',
+      },
+    },
+    {
+      name: 'console-index-exports-view-usecase-service',
+      severity: 'error',
+      comment:
+        "A console feature's index.ts publishes its own views, usecases and services. A " +
+        'repository or adapter published there would hand another feature the store or the ' +
+        'wire past every layer rule; a type-only export of anything is allowed.',
+      from: { path: '(^|/)apps/admin-console/src/features/([^/]+)/index\\.ts$' },
+      // $2 is substituted unescaped; tests/lint/console-feature-names.test.ts keeps it regex-safe.
+      to: {
+        pathNot: '(^|/)apps/admin-console/src/features/$2/(?:view|usecase|service)(?:/|\\.tsx?$)',
+        dependencyTypesNot: ['type-only'],
+      },
+    },
+    {
+      name: 'console-shared-imports-no-feature',
+      severity: 'error',
+      comment: 'shared/ holds only what two or more features use, so it depends on none of them.',
+      from: { path: '(^|/)apps/admin-console/src/shared/' },
+      to: { path: '(^|/)apps/admin-console/src/features/' },
+    },
+    {
+      name: 'console-nothing-imports-app',
+      severity: 'error',
+      comment:
+        'app/ is the composition root. With console-feature-imports-only-index it is the one ' +
+        "place that sees every feature's index.ts together, and nothing below it sees app/.",
+      from: { path: '(^|/)apps/admin-console/src/(?:shared|features)/' },
+      to: { path: '(^|/)apps/admin-console/src/app/' },
+    },
+    {
+      name: 'console-view-no-transport',
+      severity: 'error',
+      comment:
+        'A console view reaches the gateway and the cross-feature stores only through a usecase.',
+      from: { path: '(^|/)apps/admin-console/src/(?:view|.*/view)(?:/|\\.tsx?$)' },
+      to: { path: '(^|/)apps/admin-console/src/shared/(?:transport|repository)/' },
+    },
+    {
+      name: 'console-usecase-no-transport',
+      severity: 'error',
+      comment:
+        'A console usecase orchestrates; it reaches the gateway, the page and the session ' +
+        'events through a repository. A type-only import names a shape and is allowed.',
+      from: {
+        path: '(^|/)apps/admin-console/src/(?:usecase|.*/usecase)(?:/|\\.tsx?$)',
+        pathNot: '\\.test\\.tsx?$',
+      },
+      to: {
+        path: '(^|/)apps/admin-console/src/shared/transport/',
+        dependencyTypesNot: ['type-only'],
+      },
+    },
+    {
+      name: 'console-transport-context-in-repository',
+      severity: 'error',
+      comment:
+        'The injected transport is read by repositories, which decide what to fetch and when, ' +
+        'and provided by app/. Tests and src/testing build their own.',
+      from: {
+        path: '(^|/)apps/admin-console/src/',
+        pathNot:
+          '(^|/)apps/admin-console/src/(?:app/|testing/|(?:repository|.*/repository)(?:/|\\.tsx?$))|\\.test\\.tsx?$',
+      },
+      to: {
+        path: '(^|/)apps/admin-console/src/shared/transport/useTransport\\.ts$',
+        dependencyTypesNot: ['type-only'],
+      },
+    },
+    {
+      name: 'console-transport-client-in-adapter',
+      severity: 'error',
+      comment:
+        'The gateway, the logout call and the transport bundle are the wire: an adapter uses ' +
+        'them and app/ builds them. Anywhere else a type-only import is all that is needed.',
+      from: {
+        path: '(^|/)apps/admin-console/src/',
+        pathNot:
+          '(^|/)apps/admin-console/src/(?:app/|testing/|shared/transport/|(?:adapter|.*/adapter)(?:/|\\.tsx?$))|\\.test\\.tsx?$',
+      },
+      to: {
+        path: '(^|/)apps/admin-console/src/shared/transport/(?:gateway|auth|transport)\\.ts$',
+        dependencyTypesNot: ['type-only'],
+      },
+    },
+    {
+      name: 'console-nothing-ships-testing',
+      severity: 'error',
+      comment:
+        "src/testing/ holds the console's test fixtures, which import vitest. Only tests and " +
+        'src/testing/ itself may import it, so neither app/ nor main.tsx pulls it into the bundle.',
+      from: {
+        path: '(^|/)apps/admin-console/src/',
+        pathNot: '(^|/)apps/admin-console/src/testing/|\\.test\\.tsx?$',
+      },
+      to: { path: '(^|/)apps/admin-console/src/testing/' },
+    },
+    {
+      name: 'console-nothing-imports-gallery',
+      severity: 'error',
+      comment:
+        'gallery/ is a development-only entry that the production build never reaches; ' +
+        'anything that imported it would drag it into the bundle.',
+      from: { path: '(^|/)apps/admin-console/src/(?:app|shared|features)/' },
+      to: { path: '(^|/)apps/admin-console/src/gallery/' },
+    },
+    {
+      name: 'console-gallery-shows-only-view',
+      severity: 'error',
+      comment:
+        'The gallery renders the design system with sample data, so it needs shared/view and ' +
+        'the pure rules in shared/service, and never a store, the transport or a feature.',
+      from: { path: '(^|/)apps/admin-console/src/gallery/' },
+      to: {
+        path: '(^|/)apps/admin-console/src/',
+        pathNot: '(^|/)apps/admin-console/src/(?:gallery|shared/view|shared/service)/',
+      },
+    },
+    {
+      name: 'no-server-to-testing',
+      severity: 'error',
+      comment:
+        "apps/server/src/testing/ holds the server's integration-test harness; nothing it " +
+        'ships may depend on it.',
+      from: {
+        path: '(^|/)apps/server/src/',
+        pathNot: '(^|/)apps/server/src/testing/|\\.test\\.ts$',
+      },
+      to: { path: '(^|/)apps/server/src/testing/' },
+    },
+    {
       name: 'no-protocol-to-protocol',
       severity: 'error',
       comment:
@@ -62,32 +250,33 @@ module.exports = {
     // height > 1: the optional group wraps a quantifier). The alternation
     // below is unquantified, so it stays star-height 1 while still matching
     // `view` directly under `src` or nested arbitrarily deep beneath it, in
-    // that left-to-right order.
+    // that left-to-right order. The trailing group holds a single-file layer,
+    // `view.tsx` beside `adapter.ts`, to the same rules as a layer folder.
     {
       name: 'no-view-to-repository',
       severity: 'error',
-      from: { path: '/src/(?:view|.*/view)/' },
-      to: { path: '/src/(?:repository|.*/repository)/' },
+      from: { path: '/src/(?:view|.*/view)(?:/|\\.tsx?$)' },
+      to: { path: '/src/(?:repository|.*/repository)(?:/|\\.tsx?$)' },
     },
     {
       name: 'no-view-to-adapter',
       severity: 'error',
-      from: { path: '/src/(?:view|.*/view)/' },
-      to: { path: '/src/(?:adapter|.*/adapter)/' },
+      from: { path: '/src/(?:view|.*/view)(?:/|\\.tsx?$)' },
+      to: { path: '/src/(?:adapter|.*/adapter)(?:/|\\.tsx?$)' },
     },
     {
       name: 'no-usecase-to-adapter',
       severity: 'error',
-      from: { path: '/src/(?:usecase|.*/usecase)/' },
-      to: { path: '/src/(?:adapter|.*/adapter)/' },
+      from: { path: '/src/(?:usecase|.*/usecase)(?:/|\\.tsx?$)' },
+      to: { path: '/src/(?:adapter|.*/adapter)(?:/|\\.tsx?$)' },
     },
     {
       name: 'service-is-a-leaf',
       severity: 'error',
       comment: 'service holds domain logic and depends on no other layer.',
-      from: { path: '/src/(?:service|.*/service)/' },
+      from: { path: '/src/(?:service|.*/service)(?:/|\\.tsx?$)' },
       to: {
-        path: '/src/(?:(?:view|usecase|repository|adapter)|.*/(?:view|usecase|repository|adapter))/',
+        path: '/src/(?:(?:view|usecase|repository|adapter)|.*/(?:view|usecase|repository|adapter))(?:/|\\.tsx?$)',
       },
     },
     {
@@ -97,15 +286,20 @@ module.exports = {
         "`src/testing/` holds fixtures reused across a package's own test files, reachable " +
         'only via `#/` because ESLint forbids relative test imports and `#/*` maps to ' +
         '`./src/*.ts` (see packages/protocol-oidc/src/testing/). None of the five layers has a ' +
-        'legitimate reason to depend on test-only code.',
+        'legitimate reason to depend on test-only code; a test beside one is not layer code.',
       from: {
-        path: '/src/(?:(?:view|usecase|repository|adapter|service)|.*/(?:view|usecase|repository|adapter|service))/',
+        path: '/src/(?:(?:view|usecase|repository|adapter|service)|.*/(?:view|usecase|repository|adapter|service))(?:/|\\.tsx?$)',
+        pathNot: '\\.test\\.tsx?$',
       },
       to: { path: '/src/(?:testing|.*/testing)/' },
     },
   ],
   options: {
     doNotFollow: { path: 'node_modules' },
+    // The browser tests' generated report, which bundles a viewer of its own,
+    // and built output: the console's bundle and its lazy chunks import each
+    // other, a cycle the bundler made and no source holds.
+    exclude: { path: '/(?:playwright-report|test-results|dist)/' },
     tsPreCompilationDeps: true,
     tsConfig: { fileName: 'tsconfig.base.json' },
     enhancedResolveOptions: { exportsFields: ['exports'], conditionNames: ['import', 'default'] },

@@ -12,6 +12,7 @@ import { loadDocument, scanFences, structuralProblems } from './markdown.js';
 const DOCUMENTS: readonly (readonly [name: string, atLeast: number])[] = [
   ['docs/request-paths.md', 400],
   ['docs/admin-paths.md', 80],
+  ['docs/console-paths.md', 30],
   ['README.md', 20],
 ];
 

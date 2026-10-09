@@ -12,7 +12,8 @@
   "main": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test:node-esm": "node scripts/node-esm-smoke.ts"
+    "test:node-esm": "node scripts/node-esm-smoke.ts",
+    "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
   },
   "dependencies": {
     "@odudu/authn-flows": "workspace:*",
@@ -34,6 +35,7 @@
   },
   "devDependencies": {
     "@fastify/formbody": "9.0.0",
+    "@odudu/account": "workspace:*",
     "@odudu/testkit": "workspace:*",
     "vitest": "5.0.0"
   }

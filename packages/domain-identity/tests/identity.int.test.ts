@@ -155,6 +155,55 @@ describe('subjectRepository', () => {
 });
 
 describe('userRepository', () => {
+  it('finds a user by a verified address in any case, and only by a verified one', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const verified = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      await insertUserRow(tx, verified.id, tenantId, {
+        email: 'Ada@Example.test',
+        emailVerified: true,
+      });
+      const unverified = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      await insertUserRow(tx, unverified.id, tenantId, { email: 'bob@example.test' });
+
+      const found = await userRepository(tx).byVerifiedEmail('ADA@example.TEST');
+      expect(found?.subject.id).toBe(verified.id);
+      expect(await userRepository(tx).byVerifiedEmail('bob@example.test')).toBeNull();
+    });
+  });
+
+  it('answers no user for an address two users hold in different cases', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      for (const email of ['ada@example.test', 'ADA@example.test']) {
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+        await insertUserRow(tx, subject.id, tenantId, { email, emailVerified: true });
+      }
+      expect(await userRepository(tx).byVerifiedEmail('ada@example.test')).toBeNull();
+    });
+  });
+
+  it('cannot find a user by a verified address under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+        const email = `ada-${newId()}@example.test`;
+        await insertUserRow(tx, subject.id, tenantId, { email, emailVerified: true });
+        return email;
+      },
+      verifySeeded: async (tx, email) => {
+        expect(await userRepository(tx).byVerifiedEmail(email)).not.toBeNull();
+      },
+      attempt: async (tx, email) => userRepository(tx).byVerifiedEmail(email),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+    });
+  });
+
   it('finds a user with its subject by username', async () => {
     const tenantId = newId();
     const username = `alice-${newId()}`;

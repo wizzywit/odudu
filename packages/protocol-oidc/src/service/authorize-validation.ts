@@ -38,12 +38,18 @@ const SUPPORTED_RESPONSE_MODE = 'query';
 // is not assigned are both invalid_scope: RFC 6749 §3.3 lets the server
 // refuse rather than silently narrow, and a client told nothing is a client
 // that believes it holds a scope it does not.
+// The scope tokens a request names: what is looked up, so that what the
+// tenant defines is never read whole to check them.
+export function requestedScopeTokens(scope: string | undefined): string[] {
+  return (scope ?? 'openid').split(' ').filter((token) => token.length > 0);
+}
+
 function scopesAreGrantable(
   scope: string | undefined,
   knownToTenant: ReadonlySet<string>,
   assignedToClient: ReadonlySet<string>,
 ): boolean {
-  const tokens = (scope ?? 'openid').split(' ').filter((token) => token.length > 0);
+  const tokens = requestedScopeTokens(scope);
   if (tokens.length === 0) return false;
   return tokens.every((token) => knownToTenant.has(token) && assignedToClient.has(token));
 }
@@ -85,9 +91,8 @@ export function validateAuthorizationRequest(
   params: Record<string, string | undefined>,
   client: ClientRecord | null,
   config: ClientOidcConfig | null,
-  // The tenant's own scope vocabulary, and the subset of it this client is
-  // assigned. Discovery advertises the first of these, from the same read,
-  // so what is advertised and what is accepted cannot drift apart.
+  // Which of the scopes the request names the tenant defines, and the subset
+  // of the tenant's vocabulary this client is assigned.
   knownScopes: ReadonlySet<string>,
   clientScopes: ReadonlySet<string>,
   // Set when normalizeAuthorizeQuery collapsed a repeated query parameter

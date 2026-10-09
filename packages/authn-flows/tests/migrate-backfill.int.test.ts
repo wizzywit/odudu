@@ -157,3 +157,206 @@ describe('the recovery-code backfill, run by a schema owner that is not a superu
     expect(scoped).toHaveLength(1);
   });
 });
+
+// The last migration before client lifetimes began inheriting the tenant's.
+const BEFORE_THE_LIFETIMES = 81;
+
+describe('the client lifetime rewrite, run by a schema owner that is not a superuser', () => {
+  let lifetimesHandle: DatabaseHandle | undefined;
+
+  afterAll(async () => {
+    await lifetimesHandle?.close();
+  });
+
+  it('inherits what never chose, keeps what did, and pins the built-in admin client', async () => {
+    const database = `${OWNER}_lifetimes`;
+    await adminHandle?.sql.unsafe(`CREATE DATABASE ${database} OWNER ${OWNER}`);
+    const url = new URL(container.adminUrl);
+    url.username = OWNER;
+    url.password = OWNER;
+    url.pathname = `/${database}`;
+    lifetimesHandle = createDatabase(url.toString(), { max: 2 });
+    const db = lifetimesHandle;
+
+    const tenantId = newId();
+    const defaulted = newId();
+    const chosen = newId();
+    const admin = newId();
+    await runMigrations(db.db, await migrationsThrough(BEFORE_THE_LIFETIMES));
+    await withTenant(db.db, tenantId, async (tx) => {
+      await tx.execute(
+        sql`insert into tenants (id, name) values (${tenantId}, ${`t-${tenantId}`})`,
+      );
+      for (const [id, builtin, access] of [
+        [defaulted, false, 300],
+        [chosen, false, 900],
+        [admin, true, 300],
+      ] as const) {
+        await tx.execute(sql`
+          insert into clients (id, tenant_id, client_id, name, type, builtin_admin)
+          values (${id}, ${tenantId}, ${id}, ${id}, 'public', ${builtin})`);
+        await tx.execute(sql`
+          insert into client_oidc_config (client_id, tenant_id, redirect_uris, grant_types,
+                                          token_endpoint_auth_method, access_token_ttl_seconds,
+                                          refresh_token_ttl_seconds)
+          values (${id}, ${tenantId}, ARRAY['https://app.example/cb'], ARRAY['authorization_code'],
+                  'none', ${access}, 1209600)`);
+      }
+    });
+
+    await runMigrations(db.db, MIGRATIONS_DIR);
+
+    const rows = await withTenant(db.db, tenantId, (tx) =>
+      tx.execute<{
+        client_id: string;
+        access_token_ttl_seconds: number | null;
+        id_token_ttl_seconds: number | null;
+        refresh_token_ttl_seconds: number | null;
+      }>(sql`select client_id, access_token_ttl_seconds, id_token_ttl_seconds,
+                    refresh_token_ttl_seconds from client_oidc_config`),
+    );
+    const byId = new Map(rows.map((row) => [row.client_id, row]));
+    expect(byId.get(defaulted)).toMatchObject({
+      access_token_ttl_seconds: null,
+      id_token_ttl_seconds: null,
+      refresh_token_ttl_seconds: null,
+    });
+    expect(byId.get(chosen)).toMatchObject({
+      access_token_ttl_seconds: 900,
+      id_token_ttl_seconds: 900,
+      refresh_token_ttl_seconds: null,
+    });
+    expect(byId.get(admin)).toMatchObject({
+      access_token_ttl_seconds: 300,
+      id_token_ttl_seconds: 300,
+      refresh_token_ttl_seconds: 1_209_600,
+    });
+
+    const forced = await db.sql<{ relname: string; relforcerowsecurity: boolean }[]>`
+      select relname, relforcerowsecurity from pg_class
+       where relname in ('clients', 'client_oidc_config') order by relname
+    `;
+    expect(forced.map((table) => table.relforcerowsecurity)).toEqual([true, true]);
+  }, 180_000);
+});
+
+// The last migration before client scopes carry their own default assignment.
+const BEFORE_THE_SCOPE_DEFAULTS = 88;
+
+describe('the scope default assignment, run by a schema owner that is not a superuser', () => {
+  let scopesHandle: DatabaseHandle | undefined;
+
+  afterAll(async () => {
+    await scopesHandle?.close();
+  });
+
+  it('marks the provisioned vocabulary as it was assigned, and nothing else', async () => {
+    const database = `${OWNER}_scope_defaults`;
+    await adminHandle?.sql.unsafe(`CREATE DATABASE ${database} OWNER ${OWNER}`);
+    const url = new URL(container.adminUrl);
+    url.username = OWNER;
+    url.password = OWNER;
+    url.pathname = `/${database}`;
+    scopesHandle = createDatabase(url.toString(), { max: 2 });
+    const db = scopesHandle;
+
+    const tenantId = newId();
+    await runMigrations(db.db, await migrationsThrough(BEFORE_THE_SCOPE_DEFAULTS));
+    await withTenant(db.db, tenantId, async (tx) => {
+      await tx.execute(
+        sql`insert into tenants (id, name) values (${tenantId}, ${`t-${tenantId}`})`,
+      );
+      for (const name of ['openid', 'offline_access', 'reports:read']) {
+        await tx.execute(sql`
+          insert into client_scopes (id, tenant_id, name) values (${newId()}, ${tenantId}, ${name})`);
+      }
+    });
+
+    await runMigrations(db.db, MIGRATIONS_DIR);
+
+    const rows = await withTenant(db.db, tenantId, (tx) =>
+      tx.execute<{ name: string; default_client_assignment: string | null }>(
+        sql`select name, default_client_assignment from client_scopes order by name`,
+      ),
+    );
+    expect(rows.map((row) => ({ ...row }))).toEqual([
+      { name: 'offline_access', default_client_assignment: 'optional' },
+      { name: 'openid', default_client_assignment: 'default' },
+      { name: 'reports:read', default_client_assignment: null },
+    ]);
+    const forced = await db.sql<{ relforcerowsecurity: boolean }[]>`
+      select relforcerowsecurity from pg_class where relname = 'client_scopes'
+    `;
+    expect(forced.map((table) => table.relforcerowsecurity)).toEqual([true]);
+  }, 180_000);
+});
+
+// The last migration before each client's allowed origins got a table.
+const BEFORE_THE_ORIGINS = 95;
+
+describe('the client origins backfill, run by a schema owner that is not a superuser', () => {
+  let originsHandle: DatabaseHandle | undefined;
+
+  afterAll(async () => {
+    await originsHandle?.close();
+  });
+
+  it('writes a row for each existing client origin, and none for a form it cannot read', async () => {
+    const database = `${OWNER}_origins`;
+    await adminHandle?.sql.unsafe(`CREATE DATABASE ${database} OWNER ${OWNER}`);
+    const url = new URL(container.adminUrl);
+    url.username = OWNER;
+    url.password = OWNER;
+    url.pathname = `/${database}`;
+    originsHandle = createDatabase(url.toString(), { max: 2 });
+    const db = originsHandle;
+
+    const tenantId = newId();
+    const plain = newId();
+    const derived = newId();
+    const unicode = newId();
+    await runMigrations(db.db, await migrationsThrough(BEFORE_THE_ORIGINS));
+    await withTenant(db.db, tenantId, async (tx) => {
+      await tx.execute(
+        sql`insert into tenants (id, name) values (${tenantId}, ${`t-${tenantId}`})`,
+      );
+      for (const [id, uris, origins] of [
+        [plain, ['https://app.example/cb'], ['https://Listed.example:443']],
+        [derived, ['https://spa.example:8443/cb', 'myapp:/cb'], ['+']],
+        [unicode, ['https://münchen.example/cb'], ['https://münchen.example']],
+      ] as const) {
+        await tx.execute(sql`
+          insert into clients (id, tenant_id, client_id, name, type)
+          values (${id}, ${tenantId}, ${id}, ${id}, 'public')`);
+        await tx.execute(sql`
+          insert into client_oidc_config (client_id, tenant_id, redirect_uris, grant_types,
+                                          token_endpoint_auth_method, web_origins)
+          values (${id}, ${tenantId}, ${sql.raw(`ARRAY[${uris.map((u) => `'${u}'`).join(',')}]::text[]`)},
+                  ARRAY['authorization_code'], 'none',
+                  ${sql.raw(`ARRAY[${origins.map((o) => `'${o}'`).join(',')}]::text[]`)})`);
+      }
+    });
+
+    await runMigrations(db.db, MIGRATIONS_DIR);
+
+    const rows = await withTenant(db.db, tenantId, (tx) =>
+      tx.execute<{ client_id: string; origin: string }>(
+        sql`select client_id, origin from client_origins order by origin`,
+      ),
+    );
+    expect(
+      rows.map((row) => [
+        row.client_id === plain ? 'plain' : row.client_id === derived ? 'derived' : 'unicode',
+        row.origin,
+      ]),
+    ).toEqual([
+      ['plain', 'https://listed.example'],
+      ['derived', 'https://spa.example:8443'],
+    ]);
+    const forced = await db.sql<{ relname: string; relforcerowsecurity: boolean }[]>`
+      select relname, relforcerowsecurity from pg_class
+       where relname in ('client_oidc_config', 'client_origins') order by relname
+    `;
+    expect(forced.map((table) => table.relforcerowsecurity)).toEqual([true, true]);
+  }, 180_000);
+});

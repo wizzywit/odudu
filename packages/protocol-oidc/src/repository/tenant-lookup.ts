@@ -25,6 +25,9 @@ export interface TenantLookup {
   // field against: a request to remember a login is only ever honoured
   // when this is true, never on the field's say-so alone.
   rememberMeAllowed: boolean;
+  // Whether the login form names an email address beside the username
+  // (packages/db/drizzle/0083_login_with_email.sql).
+  loginWithEmail: boolean;
   // The cap admitSession (ADR 0033) evicts down to before inserting a new
   // session.
   maxSessionsPerBrowser: number;
@@ -59,6 +62,7 @@ export function tenantLookupRepository(db: Database) {
           rememberMeIdleSeconds: tenants.rememberMeIdleSeconds,
           rememberMeMaxSeconds: tenants.rememberMeMaxSeconds,
           rememberMeAllowed: tenants.rememberMeAllowed,
+          loginWithEmail: tenants.loginWithEmail,
           maxSessionsPerBrowser: tenants.maxSessionsPerBrowser,
           clientRegistrationPolicy: tenants.clientRegistrationPolicy,
         })
@@ -90,6 +94,7 @@ export function tenantLookupRepository(db: Database) {
           rememberMeIdleSeconds: tenants.rememberMeIdleSeconds,
           rememberMeMaxSeconds: tenants.rememberMeMaxSeconds,
           rememberMeAllowed: tenants.rememberMeAllowed,
+          loginWithEmail: tenants.loginWithEmail,
           maxSessionsPerBrowser: tenants.maxSessionsPerBrowser,
           clientRegistrationPolicy: tenants.clientRegistrationPolicy,
         });

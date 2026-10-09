@@ -83,9 +83,12 @@ const SWEPT: ReapOutcome = {
     email_outbox: 0,
     backchannel_logout_deliveries: 0,
     client_assertion_jti: 0,
+    console_sessions: 0,
+    console_logins: 0,
     sessions: 1,
     audit_events: 0,
   },
+  cleared: { client_previous_secrets: 1 },
 };
 
 describe('whether the server reaps on its own schedule', () => {
@@ -159,7 +162,7 @@ describe('reapModule', () => {
 
     expect(log.lines).toContainEqual({
       level: 'info',
-      payload: { deleted: SWEPT.deleted },
+      payload: { deleted: SWEPT.deleted, cleared: SWEPT.cleared },
       message: 'retention pass complete',
     });
   });

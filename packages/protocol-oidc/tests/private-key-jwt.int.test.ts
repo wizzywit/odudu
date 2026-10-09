@@ -11,7 +11,7 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { hashPassword, subjectRepository } from '@odudu/domain-identity';
-import { clients } from '@odudu/domain-tenant';
+import { clientRepository, clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import Fastify, {
@@ -24,6 +24,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
 import { clientKeySet, type ClientKeyRequest } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { tokenGrantRepository } from '#/repository/grants';
+import { refreshTokenRepository } from '#/repository/refresh';
+import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { CLIENT_ASSERTION_TYPE } from '#/service/client-assertion';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import {
@@ -38,13 +41,16 @@ let ownerHandle: DatabaseHandle | undefined;
 let appHandle: DatabaseHandle | undefined;
 let httpApp: FastifyInstance | undefined;
 
+let appUrlForPools = '';
 let container: TestDatabase;
 let owner: DatabaseHandle;
 let app: DatabaseHandle;
 let http: FastifyInstance;
 
 const KEK = Buffer.alloc(32, 13);
-const NOW = new Date('2026-09-21T00:00:00Z');
+// The wall clock, not a fixed instant: /revoke reads an access token's own
+// signature and expiry, which jose checks against the real time.
+const NOW = new Date();
 
 // The Host `http.inject` sends when a request names none — `view/issuer.ts`
 // derives the audience an assertion must carry from exactly this, so the
@@ -79,7 +85,14 @@ function jwksFor(key: SigningKeyRecord): { keys: Record<string, unknown>[] } {
 function signAssertion(
   key: SigningKeyRecord,
   clientId: string,
-  overrides: { jti?: string; aud?: string; exp?: number; iss?: string; sub?: string } = {},
+  overrides: {
+    jti?: string;
+    aud?: string;
+    exp?: number;
+    nbf?: number;
+    iss?: string;
+    sub?: string;
+  } = {},
 ): Promise<string> {
   return signClientAssertion({
     key,
@@ -135,6 +148,8 @@ async function createClient(
     jwks?: unknown;
     jwksUri?: string;
     enabled?: boolean;
+    grantTypes?: string[];
+    redirectUris?: string[];
   },
 ): Promise<void> {
   const dbId = newId();
@@ -155,8 +170,8 @@ async function createClient(
   await clientOidcConfigRepository(tx).create({
     clientId: dbId,
     tenantId: TENANT_ID,
-    redirectUris: [],
-    grantTypes: ['client_credentials'],
+    redirectUris: input.redirectUris ?? [],
+    grantTypes: input.grantTypes ?? ['client_credentials'],
     tokenEndpointAuthMethod: input.method,
     audiences: [],
     accessTokenTtlSeconds: 300,
@@ -189,6 +204,13 @@ async function setupTenant(): Promise<void> {
       clientId: 'pkj-client',
       method: 'private_key_jwt',
       jwksUri: 'https://pkj-client.example/jwks.json',
+    });
+    await createClient(tx, {
+      clientId: 'refresh-client',
+      method: 'private_key_jwt',
+      jwks: jwksFor(inlineKey),
+      grantTypes: ['client_credentials', 'refresh_token'],
+      redirectUris: ['https://app.example/cb'],
     });
     await createClient(tx, {
       clientId: 'inline-jwks-client',
@@ -265,6 +287,7 @@ beforeAll(async () => {
   await runMigrations(owner.db, MIGRATIONS_DIR);
 
   const appUrl = await createAppRole(container.adminUrl);
+  appUrlForPools = appUrl;
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
@@ -523,5 +546,412 @@ describe('[ODUDU-PRIVATE-KEY-JWT-01] private_key_jwt at /token', () => {
     const [first, second] = await Promise.all([token({ assertion }), token({ assertion })]);
     const statuses = [first.statusCode, second.statusCode].sort();
     expect(statuses).toEqual([200, 401]);
+  });
+});
+
+async function postForm(
+  endpoint: 'revoke' | 'token/introspect',
+  fields: Record<string, string>,
+): Promise<LightMyRequestResponse> {
+  return http.inject({
+    method: 'POST',
+    url: `/tenants/${TENANT}/protocol/openid-connect/${endpoint}`,
+    payload: new URLSearchParams(fields).toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
+}
+
+function withAssertion(assertion: string, fields: Record<string, string>): Record<string, string> {
+  return { ...fields, client_assertion_type: CLIENT_ASSERTION_TYPE, client_assertion: assertion };
+}
+
+async function issuedAccessToken(): Promise<string> {
+  const res = await token({ assertion: await signAssertion(clientKey, 'pkj-client') });
+  expect(res.statusCode).toBe(200);
+  return res.json<{ access_token: string }>().access_token;
+}
+
+async function isRevoked(accessToken: string): Promise<boolean> {
+  const payload = JSON.parse(
+    Buffer.from(accessToken.split('.')[1] ?? '', 'base64url').toString('utf8'),
+  ) as { grant_id: string };
+  return withTenant(app.db, TENANT_ID, async (tx) => {
+    const grant = await tokenGrantRepository(tx).byId(payload.grant_id);
+    return grant?.revokedAt != null;
+  });
+}
+
+describe('[ODUDU-PRIVATE-KEY-JWT-02] private_key_jwt at /revoke and /introspect', () => {
+  it('revokes a token for a client that presents a valid assertion', async () => {
+    const accessToken = await issuedAccessToken();
+    expect(await isRevoked(accessToken)).toBe(false);
+
+    const assertion = await signAssertion(clientKey, 'pkj-client');
+    const res = await postForm('revoke', withAssertion(assertion, { token: accessToken }));
+    expect(res.statusCode).toBe(200);
+    expect(await isRevoked(accessToken)).toBe(true);
+  });
+
+  it('refuses a revocation that presents no client authentication', async () => {
+    const accessToken = await issuedAccessToken();
+    const res = await postForm('revoke', { token: accessToken, client_id: 'pkj-client' });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+    expect(await isRevoked(accessToken)).toBe(false);
+  });
+
+  it('refuses a revocation signed by a key the client does not publish', async () => {
+    const accessToken = await issuedAccessToken();
+    const forged = await signAssertion(strangerKey, 'pkj-client');
+    const res = await postForm('revoke', withAssertion(forged, { token: accessToken }));
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+    expect(await isRevoked(accessToken)).toBe(false);
+  });
+
+  it('refuses a revocation whose assertion names another audience', async () => {
+    const accessToken = await issuedAccessToken();
+    const wrong = await signAssertion(clientKey, 'pkj-client', {
+      aud: `${TENANT_ISSUER_BASE}/tenants/${TENANT_B}/protocol/openid-connect/token`,
+    });
+    const res = await postForm('revoke', withAssertion(wrong, { token: accessToken }));
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+    expect(await isRevoked(accessToken)).toBe(false);
+  });
+
+  it('refuses an assertion already spent at the token endpoint', async () => {
+    const accessToken = await issuedAccessToken();
+    const assertion = await signAssertion(clientKey, 'pkj-client');
+    expect((await token({ assertion })).statusCode).toBe(200);
+    const res = await postForm('revoke', withAssertion(assertion, { token: accessToken }));
+    expect(res.statusCode).toBe(401);
+    expect(await isRevoked(accessToken)).toBe(false);
+  });
+
+  it('refuses an assertion alongside a client_secret', async () => {
+    const accessToken = await issuedAccessToken();
+    const assertion = await signAssertion(clientKey, 'pkj-client');
+    const res = await postForm(
+      'revoke',
+      withAssertion(assertion, { token: accessToken, client_secret: 'whatever' }),
+    );
+    expect(res.statusCode).toBe(401);
+    expect(await isRevoked(accessToken)).toBe(false);
+  });
+
+  it('answers an introspection that presents a valid assertion', async () => {
+    const accessToken = await issuedAccessToken();
+    const assertion = await signAssertion(clientKey, 'pkj-client');
+    const res = await postForm(
+      'token/introspect',
+      withAssertion(assertion, { token: accessToken }),
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toHaveProperty('active');
+  });
+
+  it('answers the introspection of an unauthenticated caller with the same refusal', async () => {
+    const accessToken = await issuedAccessToken();
+    const res = await postForm('token/introspect', {
+      token: accessToken,
+      client_id: 'pkj-client',
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+  });
+
+  it('advertises private_key_jwt for introspection and revocation', async () => {
+    const res = await http.inject({ url: `/tenants/${TENANT}/.well-known/openid-configuration` });
+    const doc = res.json<{
+      introspection_endpoint_auth_methods_supported: string[];
+      revocation_endpoint_auth_methods_supported: string[];
+    }>();
+    expect(doc.introspection_endpoint_auth_methods_supported).toContain('private_key_jwt');
+    expect(doc.revocation_endpoint_auth_methods_supported).toContain('private_key_jwt');
+  });
+});
+
+describe('[ODUDU-PRIVATE-KEY-JWT-03] a pool no larger than the requests in flight', () => {
+  // Each request holds a connection for its transaction; a jti claimed on a
+  // connection of its own would need a second, and N requests on N
+  // connections would all wait for it.
+  it.each([2, 3])(
+    'serves %i concurrent assertions on a pool of that many connections',
+    async (size) => {
+      const small = createDatabase(appUrlForPools, { max: size });
+      const server = Fastify();
+      await server.register(formbody);
+      await server.register(
+        oidcRoutes({
+          database: small,
+          ownerDatabase: owner,
+          kek: KEK,
+          clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+          auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
+          clientKeySet: clientKeySet({ lookup, request, now: () => NOW, allowPrivate: false }),
+          clock: { now: () => NOW },
+        }),
+      );
+      await server.ready();
+      try {
+        const assertions = await Promise.all(
+          Array.from({ length: size }, () => signAssertion(inlineKey, 'inline-jwks-client')),
+        );
+        const answers = await Promise.race([
+          Promise.all(
+            assertions.map((assertion) =>
+              server.inject({
+                method: 'POST',
+                url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+                payload: new URLSearchParams({
+                  grant_type: 'client_credentials',
+                  client_assertion_type: CLIENT_ASSERTION_TYPE,
+                  client_assertion: assertion,
+                }).toString(),
+                headers: { 'content-type': 'application/x-www-form-urlencoded' },
+              }),
+            ),
+          ),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => {
+              reject(new Error('the pool is exhausted: requests are waiting for a connection'));
+            }, 8000);
+          }),
+        ]);
+        expect(answers.map((answer) => answer.statusCode)).toEqual(Array(size).fill(200));
+      } finally {
+        await server.close();
+        await small.close();
+      }
+    },
+  );
+});
+
+async function bareServer(
+  size: number,
+): Promise<{ server: FastifyInstance; close: () => Promise<void> }> {
+  const small = createDatabase(appUrlForPools, { max: size });
+  const server = Fastify();
+  await server.register(formbody);
+  await server.register(
+    oidcRoutes({
+      database: small,
+      ownerDatabase: owner,
+      kek: KEK,
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
+      clientKeySet: clientKeySet({ lookup, request, now: () => NOW, allowPrivate: false }),
+      clock: { now: () => NOW },
+    }),
+  );
+  await server.ready();
+  return {
+    server,
+    close: async () => {
+      await server.close();
+      await small.close();
+    },
+  };
+}
+
+function tokenForm(
+  assertion: string,
+  extra: Record<string, string> = {},
+): { method: 'POST'; url: string; payload: string; headers: Record<string, string> } {
+  return {
+    method: 'POST',
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+    payload: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_assertion_type: CLIENT_ASSERTION_TYPE,
+      client_assertion: assertion,
+      ...extra,
+    }).toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  };
+}
+
+async function spentJtis(jti: string): Promise<number> {
+  const rows = await owner.sql<{ n: string }[]>`
+    select count(*)::text as n from client_assertion_jti where jti = ${jti}`;
+  return Number(rows[0]?.n ?? '0');
+}
+
+describe('[ODUDU-PRIVATE-KEY-JWT-04] a jti is never waited on', () => {
+  it.each([1, 2, 3, 4, 5])(
+    'refuses a concurrent replay while the other use is refused after authentication (round %i)',
+    async () => {
+      const jti = newId();
+      const assertion = await signAssertion(inlineKey, 'inline-jwks-client', { jti });
+      // Both ask for a scope the client may not have, so whichever authenticates
+      // fails afterwards. Exactly one may get that far: the other is a replay.
+      const answers = await Promise.all([
+        http.inject(tokenForm(assertion, { scope: 'not-a-scope-this-client-has' })),
+        http.inject(tokenForm(assertion, { scope: 'not-a-scope-this-client-has' })),
+      ]);
+      expect(answers.map((answer) => answer.statusCode).sort()).toEqual([400, 401]);
+      expect(await spentJtis(jti)).toBe(1);
+    },
+  );
+
+  it('leaves the jti spent after a request that failed after authentication', async () => {
+    const jti = newId();
+    const assertion = await signAssertion(inlineKey, 'inline-jwks-client', { jti });
+    const first = await http.inject(tokenForm(assertion, { scope: 'not-a-scope-this-client-has' }));
+    expect(first.statusCode).toBeGreaterThanOrEqual(400);
+    expect(first.statusCode).not.toBe(401);
+    expect((await http.inject(tokenForm(assertion))).statusCode).toBe(401);
+    expect(await spentJtis(jti)).toBe(1);
+  });
+
+  it('fails closed when the jti store rejects the write: refused, nothing spent, no replay wins', async () => {
+    const jti = `poison-${newId()}`;
+    await owner.sql`
+      create or replace function reject_poisoned_jti() returns trigger language plpgsql as $$
+      begin
+        if new.jti like 'poison-%' then raise exception 'jti store unavailable'; end if;
+        return new;
+      end $$`;
+    await owner.sql`create trigger reject_poisoned_jti before insert on client_assertion_jti
+      for each row execute function reject_poisoned_jti()`;
+    try {
+      const assertion = await signAssertion(inlineKey, 'inline-jwks-client', { jti });
+      const refused = await http.inject(
+        tokenForm(assertion, { scope: 'not-a-scope-this-client-has' }),
+      );
+      expect(refused.statusCode).toBe(400);
+      expect(refused.json<{ error: string }>().error).toBe('invalid_scope');
+      expect(await spentJtis(jti)).toBe(0);
+      // The pinned state: while the store refuses the write, nothing is spent, and
+      // nothing is let through either, because a success must spend before it commits.
+      const replay = await http.inject(tokenForm(assertion));
+      expect(replay.statusCode).not.toBe(200);
+      expect(await spentJtis(jti)).toBe(0);
+    } finally {
+      await owner.sql`drop trigger reject_poisoned_jti on client_assertion_jti`;
+    }
+  });
+
+  it('takes no second connection on either path: a pool of one serves a refusal and a success', async () => {
+    const { server, close } = await bareServer(1);
+    try {
+      const jti = newId();
+      const assertion = await signAssertion(inlineKey, 'inline-jwks-client', { jti });
+      const refused = await Promise.race([
+        server.inject(tokenForm(assertion, { scope: 'not-a-scope-this-client-has' })),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('the refusal waited for a second connection'));
+          }, 1500);
+        }),
+      ]);
+      expect(refused.statusCode).toBe(400);
+      expect(await spentJtis(jti)).toBe(1);
+      expect((await server.inject(tokenForm(assertion))).statusCode).toBe(401);
+      const fresh = await signAssertion(inlineKey, 'inline-jwks-client');
+      expect((await server.inject(tokenForm(fresh))).statusCode).toBe(200);
+    } finally {
+      await close();
+    }
+  });
+
+  it('refuses N+1 replays of one assertion on a pool of N without hanging, beside a refresh', async () => {
+    const size = 3;
+    const { server, close } = await bareServer(size);
+    try {
+      const refresh = await withTenant(app.db, TENANT_ID, async (tx) => {
+        const client = await clientRepository(tx).byClientId('refresh-client');
+        if (client === null) throw new Error('no refresh-client');
+        const grant = await tokenGrantRepository(tx).create({
+          id: newId(),
+          tenantId: TENANT_ID,
+          clientId: client.id,
+          subjectId: serviceSubjectId,
+          scope: '',
+          audience: [],
+        });
+        const token = generateRefreshToken();
+        await refreshTokenRepository(tx).create({
+          tokenHash: hashRefreshToken(token),
+          tenantId: TENANT_ID,
+          grantId: grant.id,
+          expiresAt: new Date(NOW.getTime() + 1_209_600_000),
+        });
+        return token;
+      });
+      const replayed = await signAssertion(inlineKey, 'inline-jwks-client', { jti: newId() });
+      const refreshAssertion = await signAssertion(inlineKey, 'refresh-client');
+      const calls = [
+        ...Array.from({ length: size + 1 }, () => server.inject(tokenForm(replayed))),
+        server.inject(
+          tokenForm(refreshAssertion, { grant_type: 'refresh_token', refresh_token: refresh }),
+        ),
+      ];
+      const answers = await Promise.race([
+        Promise.all(calls),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('requests are waiting: the pool is starved'));
+          }, 8000);
+        }),
+      ]);
+      const replays = answers.slice(0, size + 1).map((answer) => answer.statusCode);
+      expect(replays.filter((status) => status === 200)).toHaveLength(1);
+      expect(replays.filter((status) => status === 401)).toHaveLength(size);
+      expect(answers[size + 1]?.statusCode).toBe(200);
+    } finally {
+      await close();
+    }
+  });
+});
+
+describe('[ODUDU-PRIVATE-KEY-JWT-05] what an assertion must agree with', () => {
+  it('refuses a body client_id that names another client than the assertion', async () => {
+    const assertion = await signAssertion(inlineKey, 'inline-jwks-client');
+    const res = await http.inject(tokenForm(assertion, { client_id: 'pkj-client' }));
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+    expect(lastLoggedReason()).toBe('client_id does not match the assertion');
+  });
+
+  it('accepts a body client_id that names the assertion’s own client', async () => {
+    const assertion = await signAssertion(inlineKey, 'inline-jwks-client');
+    const res = await http.inject(tokenForm(assertion, { client_id: 'inline-jwks-client' }));
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('allows 30 s of leeway on exp: 29 s past expiry is accepted, 31 s is refused', async () => {
+    const base = Math.floor(NOW.getTime() / 1000);
+    const within = await signAssertion(inlineKey, 'inline-jwks-client', { exp: base - 29 });
+    const beyond = await signAssertion(inlineKey, 'inline-jwks-client', { exp: base - 31 });
+    expect((await http.inject(tokenForm(within))).statusCode).toBe(200);
+    expect((await http.inject(tokenForm(beyond))).statusCode).toBe(401);
+  });
+
+  it('allows 30 s of leeway on nbf: 29 s ahead is accepted, 31 s is refused', async () => {
+    const base = Math.floor(NOW.getTime() / 1000);
+    const within = await signAssertion(inlineKey, 'inline-jwks-client', { nbf: base + 29 });
+    const beyond = await signAssertion(inlineKey, 'inline-jwks-client', { nbf: base + 31 });
+    expect((await http.inject(tokenForm(within))).statusCode).toBe(200);
+    expect((await http.inject(tokenForm(beyond))).statusCode).toBe(401);
+  });
+
+  it('remembers a jti until exp plus the leeway, so the reaper cannot free it while it is acceptable', async () => {
+    const jti = newId();
+    const exp = Math.floor(NOW.getTime() / 1000) + 60;
+    const assertion = await signAssertion(inlineKey, 'inline-jwks-client', { jti, exp });
+    expect((await http.inject(tokenForm(assertion))).statusCode).toBe(200);
+    const rows = await owner.sql<{ epoch: string }[]>`
+      select extract(epoch from expires_at)::text as epoch from client_assertion_jti where jti = ${jti}`;
+    expect(Number(rows[0]?.epoch)).toBe(exp + 30);
+  });
+
+  it('the lifetime ceiling takes no leeway: 301 s is refused, 300 s accepted', async () => {
+    const base = Math.floor(NOW.getTime() / 1000);
+    const tooLong = await signAssertion(inlineKey, 'inline-jwks-client', { exp: base + 301 });
+    const longest = await signAssertion(inlineKey, 'inline-jwks-client', { exp: base + 300 });
+    expect((await http.inject(tokenForm(tooLong))).statusCode).toBe(401);
+    expect((await http.inject(tokenForm(longest))).statusCode).toBe(200);
   });
 });

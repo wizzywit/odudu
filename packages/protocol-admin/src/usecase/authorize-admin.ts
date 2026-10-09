@@ -12,8 +12,14 @@ export interface AuthorizeAdminTarget {
   readonly tenantId: string;
 }
 
+// `alsoAdmits` names what would have admitted the caller besides `missing`.
 export type AuthorizeAdminOutcome =
-  { readonly kind: 'allowed' } | { readonly kind: 'forbidden'; readonly missing: AdminCapability };
+  | { readonly kind: 'allowed' }
+  | {
+      readonly kind: 'forbidden';
+      readonly missing: AdminCapability;
+      readonly alsoAdmits: readonly AdminCapability[];
+    };
 
 const ALLOWED: AuthorizeAdminOutcome = { kind: 'allowed' };
 
@@ -28,6 +34,7 @@ export async function authorizeAdmin(
   principal: AdminPrincipal,
   target: AuthorizeAdminTarget,
   required: AdminCapability | null,
+  alsoAdmits: readonly AdminCapability[] = [],
 ): Promise<AuthorizeAdminOutcome> {
   const crossTenant = principal.issuerTenantId !== target.tenantId;
   if (!crossTenant && required === null) return ALLOWED;
@@ -41,9 +48,11 @@ export async function authorizeAdmin(
   );
 
   if (crossTenant && !names.has(MANAGE_TENANTS)) {
-    return { kind: 'forbidden', missing: MANAGE_TENANTS };
+    return { kind: 'forbidden', missing: MANAGE_TENANTS, alsoAdmits: [] };
   }
-  if (required !== null && !names.has(required)) return { kind: 'forbidden', missing: required };
+  if (required !== null && !names.has(required) && !alsoAdmits.some((also) => names.has(also))) {
+    return { kind: 'forbidden', missing: required, alsoAdmits };
+  }
 
   return ALLOWED;
 }

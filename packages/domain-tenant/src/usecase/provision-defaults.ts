@@ -43,10 +43,6 @@ export const TENANT_DEFAULT_SCOPE_NAMES: readonly string[] = DEFAULT_SCOPES.map(
   (defaultScope) => defaultScope.scope.name,
 );
 
-const ASSIGNMENT_BY_DEFAULT_NAME: ReadonlyMap<string, ClientScopeAssignment> = new Map(
-  DEFAULT_SCOPES.map((defaultScope) => [defaultScope.scope.name, defaultScope.assignment]),
-);
-
 // Called once per tenant, at the point the tenant itself is created — the
 // bootstrap seed command and every test fixture that stands up a tenant call
 // this so that a tenant is never left without a scope vocabulary.
@@ -55,28 +51,26 @@ export async function provisionTenantDefaults(
   tenantId: string,
 ): Promise<void> {
   const repository = clientScopeRepository(tx);
-  for (const { scope } of DEFAULT_SCOPES) {
-    await repository.create({ tenantId, ...scope });
+  for (const { scope, assignment } of DEFAULT_SCOPES) {
+    await repository.create({ tenantId, ...scope, defaultClientAssignment: assignment });
   }
 }
 
 // A scope reaches a token only when the tenant defines it *and* the client is
-// assigned it, so a newly provisioned client starts with the tenant's standard
-// vocabulary and nothing else. A scope the tenant gained afterwards — a
-// resource server's own `reports:read`, say — is assigned deliberately. The
-// assignment kind travels with each scope rather than being one blanket
-// choice — `resolveScope` grants an `'optional'` scope exactly like a
-// `'default'` one, but P3's consent screen will need to tell them apart.
+// assigned it, so a newly provisioned client starts with the scopes its
+// tenant marks with a `defaultClientAssignment` and nothing else — the
+// standard vocabulary above until an administrator changes the marks. The
+// assignment kind travels with each scope: `resolveScope` grants an
+// `'optional'` scope exactly like a `'default'` one, but the consent screen
+// tells them apart.
 export async function provisionClientDefaults(
   tx: TenantScopedDatabase,
   clientId: string,
 ): Promise<void> {
   const repository = clientScopeRepository(tx);
-  const defined = await repository.allForTenant();
-  for (const scope of defined) {
-    const assignment = ASSIGNMENT_BY_DEFAULT_NAME.get(scope.name);
-    if (assignment !== undefined) {
-      await repository.assign(clientId, scope.id, assignment);
+  for (const scope of await repository.allForTenant()) {
+    if (scope.defaultClientAssignment !== null) {
+      await repository.assign(clientId, scope.id, scope.defaultClientAssignment);
     }
   }
 }

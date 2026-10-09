@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor, SCOPE_FIELDS } from '#/service/scope-patch';
 
 describe('the client scope amendment allowlist', () => {
-  it('admits description and both include flags', () => {
+  it('admits description, both include flags, the client default and the consent fields', () => {
     expect(AMENDABLE_SCOPE_FIELDS).toEqual([
       'description',
       'include_in_id_token',
       'include_in_access_token',
+      'default_client_assignment',
+      'consent_text',
+      'display_order',
     ]);
   });
 
@@ -22,6 +25,11 @@ describe('the client scope amendment allowlist', () => {
     }
   });
 
+  it('never offers the stored search key, which the table has and the wire shape does not', () => {
+    expect(SCOPE_FIELDS).not.toContain('name_search');
+    expect(AMENDABLE_SCOPE_FIELDS).not.toContain('name_search');
+  });
+
   it('gives a field this resource has never heard of no refusal either', () => {
     expect(refusalFor('secret_hash')).toBeNull();
   });
@@ -31,5 +39,11 @@ describe('the client scope amendment allowlist', () => {
       const known = AMENDABLE_SCOPE_FIELDS.includes(field) || refusalFor(field) !== null;
       expect(known, field).toBe(true);
     }
+  });
+  it('refuses a rename as permanent, pointing at no operation that could do it', () => {
+    const reason = refusalFor('name');
+    expect(reason).toContain('ADR 0039');
+    expect(reason).toMatch(/is not offered/u);
+    expect(reason).not.toMatch(/own operation/u);
   });
 });

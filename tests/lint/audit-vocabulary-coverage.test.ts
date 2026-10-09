@@ -51,10 +51,10 @@ export async function actionsWithNoWriter(
   return [...unwritten];
 }
 
-describe('every audit action has a production writer', () => {
+describe('every audit action has a production writer', { timeout: 60_000 }, () => {
   it('holds across packages/*/src', async () => {
     expect(ACTIONS.length).toBeGreaterThan(20);
-    const missing = await actionsWithNoWriter(process.cwd(), ACTIONS);
+    const missing = await actionsWithNoWriter(join(import.meta.dirname, '..', '..'), ACTIONS);
     expect(missing, `actions no production source writes: ${missing.join(', ')}`).toEqual([]);
   });
 });

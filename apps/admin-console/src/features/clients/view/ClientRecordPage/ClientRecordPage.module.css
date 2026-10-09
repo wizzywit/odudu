@@ -1,0 +1,17 @@
+.tab {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+.text,
+.message,
+.rule {
+  margin: 0;
+  overflow-wrap: anywhere;
+  max-inline-size: 72ch;
+}
+
+.rule {
+  color: var(--ink-muted);
+}

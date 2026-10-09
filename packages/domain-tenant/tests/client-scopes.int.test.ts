@@ -7,10 +7,11 @@ import {
   type DatabaseHandle,
   type TenantScopedDatabase,
 } from '@odudu/db';
+import { CLIENT_SCOPE_LIMIT } from '@odudu/contracts/admin';
 import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   clientScopeRepository,
@@ -193,6 +194,99 @@ describe('byName', () => {
   });
 });
 
+describe('countUpTo', () => {
+  it('counts the scopes of the tenant, and stops at the limit', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    for (const name of ['a', 'b', 'c']) await create({ name, tenantId });
+
+    const counted = await withTenant(app.db, tenantId, async (tx) => ({
+      all: await clientScopeRepository(tx).countUpTo(10),
+      stopped: await clientScopeRepository(tx).countUpTo(2),
+    }));
+
+    expect(counted).toEqual({ all: 3, stopped: 2 });
+  });
+
+  it('counts no scope of another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await clientScopeRepository(tx).create({ tenantId, name: 'reports:read' });
+      },
+      verifySeeded: async (tx) => {
+        expect(await clientScopeRepository(tx).countUpTo(10)).toBe(1);
+      },
+      attempt: async (tx) => clientScopeRepository(tx).countUpTo(10),
+      expectBlocked: (result) => {
+        expect(result).toBe(0);
+      },
+    });
+  });
+});
+
+describe('lockCreation', () => {
+  it('locks the tenant row it is asked about, and finds no other tenant’s', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return tenantId;
+      },
+      verifySeeded: async (tx, tenantId) => {
+        expect(await clientScopeRepository(tx).lockCreation(tenantId)).toBe(true);
+      },
+      attempt: (tx, tenantId) => clientScopeRepository(tx).lockCreation(tenantId),
+      expectBlocked: (result) => {
+        expect(result).toBe(false);
+      },
+    });
+  });
+});
+
+describe('byNames', () => {
+  it('finds the scopes named, in one read, and skips a name that is no scope', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await create({ name: 'reports:read', tenantId });
+    await create({ name: 'reports:write', tenantId });
+
+    const found = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).byNames(['reports:read', 'reports:write', 'nothing']),
+    );
+
+    expect(found.map((scope) => scope.name).sort()).toEqual(['reports:read', 'reports:write']);
+  });
+
+  it('answers in the order the names were given, each once', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    for (const name of ['b', 'a', 'c', 'd']) await create({ name, tenantId });
+
+    const found = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).byNames(['d', 'b', 'x', 'a', 'd', 'c']),
+    );
+
+    expect(found.map((scope) => scope.name)).toEqual(['d', 'b', 'a', 'c']);
+  });
+
+  it('cannot find another tenant’s scopes by name', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await clientScopeRepository(tx).create({ tenantId, name: 'reports:read' });
+        return ['reports:read'];
+      },
+      verifySeeded: async (tx, names) => {
+        expect(await clientScopeRepository(tx).byNames(names)).toHaveLength(1);
+      },
+      attempt: async (tx, names) => clientScopeRepository(tx).byNames(names),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+});
+
 describe('assignment', () => {
   it('refuses an assignment that is neither default nor optional', async () => {
     const tenantId = newId();
@@ -321,6 +415,69 @@ describe('assignOrUpdate', () => {
   });
 });
 
+describe('unassign', () => {
+  it('removes an existing assignment and reports true', async () => {
+    const tenantId = newId();
+    const { clientId, scopeId } = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const clientId = await insertClient(tx, tenantId);
+      const scope = await clientScopeRepository(tx).create({ tenantId, name: 'openid' });
+      await clientScopeRepository(tx).assign(clientId, scope.id, 'default');
+      return { clientId, scopeId: scope.id };
+    });
+
+    const removed = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).unassign(clientId, scopeId),
+    );
+    expect(removed).toBe(true);
+
+    const scopes = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).forClient(clientId),
+    );
+    expect(scopes).toEqual([]);
+  });
+
+  it('reports false when no such assignment exists', async () => {
+    const tenantId = newId();
+    const { clientId, scopeId } = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const clientId = await insertClient(tx, tenantId);
+      const scope = await clientScopeRepository(tx).create({ tenantId, name: 'openid' });
+      return { clientId, scopeId: scope.id };
+    });
+
+    const removed = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).unassign(clientId, scopeId),
+    );
+    expect(removed).toBe(false);
+  });
+
+  it('cannot unassign another tenant’s client scope assignment', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const clientId = await insertClient(tx, tenantId);
+        const scope = await clientScopeRepository(tx).create({ tenantId, name: 'openid' });
+        await clientScopeRepository(tx).assign(clientId, scope.id, 'default');
+        return { clientId, scopeId: scope.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const scopes = await clientScopeRepository(tx).forClient(seeded.clientId);
+        expect(scopes.map((scope) => scope.name)).toContain('openid');
+      },
+      attempt: async (tx, seeded) =>
+        clientScopeRepository(tx).unassign(seeded.clientId, seeded.scopeId),
+      expectBlocked: (result) => {
+        expect(result).toBe(false);
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        const scopes = await clientScopeRepository(tx).forClient(seeded.clientId);
+        expect(scopes.map((scope) => scope.name)).toContain('openid');
+      },
+    });
+  });
+});
+
 describe('byId', () => {
   it('finds a scope created in the same tenant', async () => {
     const scope = await create({ name: 'profile' });
@@ -443,5 +600,236 @@ describe('delete', () => {
         expect(await clientScopeRepository(tx).byId(scope.id)).not.toBeNull();
       },
     });
+  });
+});
+
+describe('countAssignedUpTo', () => {
+  it('counts what one client carries, and stops at the limit', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const clientId = await withTenant(app.db, tenantId, (tx) => insertClient(tx, tenantId));
+    for (const name of ['a', 'b', 'c']) {
+      const scope = await create({ name, tenantId });
+      await withTenant(app.db, tenantId, (tx) =>
+        clientScopeRepository(tx).assign(clientId, scope.id, 'default'),
+      );
+    }
+    const repository = (tx: TenantScopedDatabase) => clientScopeRepository(tx);
+    expect(
+      await withTenant(app.db, tenantId, (tx) => repository(tx).countAssignedUpTo(clientId, 10)),
+    ).toBe(3);
+    expect(
+      await withTenant(app.db, tenantId, (tx) => repository(tx).countAssignedUpTo(clientId, 2)),
+    ).toBe(2);
+  });
+
+  it('counts nothing for another tenant’s client', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const clientId = await insertClient(tx, tenantId);
+        const scope = await clientScopeRepository(tx).create({ tenantId, name: 'openid' });
+        await clientScopeRepository(tx).assign(clientId, scope.id, 'default');
+        return clientId;
+      },
+      verifySeeded: async (tx, clientId) => {
+        expect(await clientScopeRepository(tx).countAssignedUpTo(clientId, 10)).toBe(1);
+      },
+      attempt: async (tx, clientId) => clientScopeRepository(tx).countAssignedUpTo(clientId, 10),
+      expectBlocked: (result) => {
+        expect(result).toBe(0);
+      },
+    });
+  });
+});
+
+describe('countDefaultsUpTo', () => {
+  it('counts the scopes the tenant marks for every new client, and stops at the limit', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await withTenant(app.db, tenantId, async (tx) => {
+      const repository = clientScopeRepository(tx);
+      await repository.create({ tenantId, name: 'a', defaultClientAssignment: 'default' });
+      await repository.create({ tenantId, name: 'b', defaultClientAssignment: 'optional' });
+      await repository.create({ tenantId, name: 'unmarked' });
+    });
+    expect(
+      await withTenant(app.db, tenantId, (tx) =>
+        clientScopeRepository(tx).countDefaultsUpTo(tenantId, 10),
+      ),
+    ).toBe(2);
+    expect(
+      await withTenant(app.db, tenantId, (tx) =>
+        clientScopeRepository(tx).countDefaultsUpTo(tenantId, 1),
+      ),
+    ).toBe(1);
+  });
+
+  it('counts nothing for another tenant’s scopes', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await clientScopeRepository(tx).create({
+          tenantId,
+          name: 'openid',
+          defaultClientAssignment: 'default',
+        });
+        return tenantId;
+      },
+      verifySeeded: async (tx, tenantId) => {
+        expect(await clientScopeRepository(tx).countDefaultsUpTo(tenantId, 10)).toBe(1);
+      },
+      attempt: async (tx, tenantId) => clientScopeRepository(tx).countDefaultsUpTo(tenantId, 10),
+      expectBlocked: (result) => {
+        expect(result).toBe(0);
+      },
+    });
+  });
+
+  it('counts only the tenant named when the connection sees every tenant', async () => {
+    const mine = newId();
+    const theirs = newId();
+    for (const tenantId of [mine, theirs]) {
+      await withTenant(owner.db, tenantId, (tx) => seedTenant(tx, tenantId));
+      await withTenant(owner.db, tenantId, async (tx) => {
+        await clientScopeRepository(tx).create({
+          tenantId,
+          name: 'marked',
+          defaultClientAssignment: 'default',
+        });
+      });
+    }
+    expect(
+      await withTenant(owner.db, mine, (tx) =>
+        clientScopeRepository(tx).countDefaultsUpTo(mine, 10),
+      ),
+    ).toBe(1);
+  });
+});
+
+// The bound is held under a lock, so two writers at the edge are not both let through.
+async function finishesWhileHeld<R>(
+  tenantId: string,
+  lock: (tx: TenantScopedDatabase) => Promise<unknown>,
+  act: () => Promise<R>,
+  wait = 400,
+): Promise<boolean> {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let signalLocked!: () => void;
+  const locked = new Promise<void>((resolve) => {
+    signalLocked = resolve;
+  });
+  const holder = withTenant(app.db, tenantId, async (tx) => {
+    await lock(tx);
+    signalLocked();
+    await held;
+  });
+  await locked;
+  const pending = act();
+  const early = await Promise.race([
+    pending.then(() => true),
+    new Promise<boolean>((resolve) => {
+      setTimeout(() => {
+        resolve(false);
+      }, wait);
+    }),
+  ]);
+  release();
+  await holder;
+  await pending.catch(() => undefined);
+  return early;
+}
+
+describe('the limit under concurrent writers', () => {
+  it('waits for a lock on the client before it counts what the client carries', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const clientId = await withTenant(app.db, tenantId, (tx) => insertClient(tx, tenantId));
+    const scope = await create({ name: 'waits', tenantId });
+    const early = await finishesWhileHeld(
+      tenantId,
+      (tx) => tx.execute(sql`select id from clients where id = ${clientId} for no key update`),
+      () =>
+        withTenant(app.db, tenantId, (tx) =>
+          clientScopeRepository(tx).assignOrUpdate(clientId, scope.id, 'default'),
+        ),
+    );
+    expect(early).toBe(false);
+  });
+
+  it('waits for a lock on the tenant before it counts what is marked, on create and on amend', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const plain = await create({ name: 'plain', tenantId });
+    const lock = (tx: TenantScopedDatabase) =>
+      tx.execute(sql`select id from tenants where id = ${tenantId} for no key update`);
+    const created = await finishesWhileHeld(tenantId, lock, () =>
+      withTenant(app.db, tenantId, (tx) =>
+        clientScopeRepository(tx).create({
+          tenantId,
+          name: 'marked-on-create',
+          defaultClientAssignment: 'default',
+        }),
+      ),
+    );
+    expect(created).toBe(false);
+    const amended = await finishesWhileHeld(tenantId, lock, () =>
+      withTenant(app.db, tenantId, (tx) =>
+        clientScopeRepository(tx).amend(plain.id, { defaultClientAssignment: 'default' }),
+      ),
+    );
+    expect(amended).toBe(false);
+  });
+
+  it('lets exactly one of two assigns at the edge in', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const clientId = await withTenant(app.db, tenantId, (tx) => insertClient(tx, tenantId));
+    await owner.sql`
+      insert into client_scopes (id, tenant_id, name)
+      select gen_random_uuid(), ${tenantId}, 'filler-' || g from generate_series(1, ${CLIENT_SCOPE_LIMIT} + 1) g`;
+    await owner.sql`
+      insert into client_scope_assignments (tenant_id, client_id, client_scope_id, assignment)
+      select ${tenantId}, ${clientId}, id, 'optional' from client_scopes
+       where tenant_id = ${tenantId} order by name limit ${CLIENT_SCOPE_LIMIT} - 1`;
+    const left = await owner.sql<{ id: string }[]>`
+      select id from client_scopes where tenant_id = ${tenantId}
+         and id not in (select client_scope_id from client_scope_assignments where client_id = ${clientId}) limit 2`;
+    const outcomes = await Promise.allSettled(
+      left.map((scope) =>
+        withTenant(app.db, tenantId, (tx) =>
+          clientScopeRepository(tx).assignOrUpdate(clientId, scope.id, 'default'),
+        ),
+      ),
+    );
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    const [held] = await owner.sql<{ n: string }[]>`
+      select count(*) as n from client_scope_assignments where client_id = ${clientId}`;
+    expect(held?.n).toBe(String(CLIENT_SCOPE_LIMIT));
+  });
+
+  it('lets exactly one of two marks at the edge in', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await owner.sql`
+      insert into client_scopes (id, tenant_id, name, default_client_assignment)
+      select gen_random_uuid(), ${tenantId}, 'marked-' || g, 'default' from generate_series(1, ${CLIENT_SCOPE_LIMIT} - 1) g`;
+    const first = await create({ name: 'first', tenantId });
+    const second = await create({ name: 'second', tenantId });
+    const outcomes = await Promise.allSettled(
+      [first, second].map((scope) =>
+        withTenant(app.db, tenantId, (tx) =>
+          clientScopeRepository(tx).amend(scope.id, { defaultClientAssignment: 'default' }),
+        ),
+      ),
+    );
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    const [marked] = await owner.sql<{ n: string }[]>`
+      select count(*) as n from client_scopes
+       where tenant_id = ${tenantId} and default_client_assignment is not null`;
+    expect(marked?.n).toBe(String(CLIENT_SCOPE_LIMIT));
   });
 });

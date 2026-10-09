@@ -6,8 +6,13 @@ import {
 } from '@odudu/authn-flows';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { endSession as endOidcSession, tokenGrantRepository } from '@odudu/protocol-oidc';
-import { eq } from 'drizzle-orm';
-import { decodeCursor, encodeCursor } from '#/service/cursor';
+import { asc, eq } from 'drizzle-orm';
+import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
+import {
+  lockSubjectRow,
+  refuseOverTargetCeiling,
+  type TargetCeilingRefusal,
+} from '#/usecase/subjects';
 
 const COLLECTION = 'sessions';
 
@@ -19,9 +24,7 @@ export interface SessionView {
   readonly clientIds: readonly string[];
 }
 
-export interface SessionAuditEvent {
-  readonly action: 'session.end';
-  readonly resourceType: 'session';
+interface SessionAuditFields {
   readonly resourceId: string;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
@@ -29,6 +32,15 @@ export interface SessionAuditEvent {
   readonly outcome: 'allowed' | 'refused' | 'failed';
   readonly detail?: Record<string, unknown>;
 }
+
+// `session.end_all` is filed on the subject, since it names no one session;
+// each session it ended also carries its own `session.ended` row.
+export type SessionAuditEvent =
+  | (SessionAuditFields & { readonly action: 'session.end'; readonly resourceType: 'session' })
+  | (SessionAuditFields & {
+      readonly action: 'session.end_all';
+      readonly resourceType: 'subject';
+    });
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: SessionAuditEvent) => Promise<void>;
@@ -91,9 +103,16 @@ export async function listSessions(
   tx: TenantScopedDatabase,
   input: ListSessionsInput,
 ): Promise<ListSessionsOutcome> {
+  const filters = filterDigest({});
   let after: string | undefined;
   if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    const decoded = decodeCursor(
+      input.cursorKey,
+      COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
     after = decoded.after;
   }
@@ -120,6 +139,7 @@ export async function listSessions(
           after: last.id,
           collection: COLLECTION,
           tenantId: input.tenantId,
+          filters,
         })
       : null;
 
@@ -130,6 +150,7 @@ export interface EndSessionInput {
   readonly tenantId: string;
   readonly subjectId: string;
   readonly sessionId: string;
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -142,7 +163,7 @@ export interface EndSessionDeps {
   readonly kek: Uint8Array;
 }
 
-export type EndSessionOutcome = { kind: 'not_found' } | { kind: 'ended' };
+export type EndSessionOutcome = { kind: 'not_found' } | TargetCeilingRefusal | { kind: 'ended' };
 
 // Locked so the ownership check below and P3b's own end-session write run
 // against the one row a concurrent amendment cannot move out from under
@@ -171,6 +192,13 @@ export async function endSession(
   deps: EndSessionDeps,
   input: EndSessionInput,
 ): Promise<EndSessionOutcome> {
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'session.end', input, {
+    type: 'session',
+    id: input.sessionId,
+  });
+  if (refused !== null) return refused;
+
   const locked = await lockOwnedSession(tx, input.subjectId, input.sessionId);
   if (locked === null) return { kind: 'not_found' };
 
@@ -198,4 +226,77 @@ export async function endSession(
   });
 
   return { kind: 'ended' };
+}
+
+export interface EndAllSessionsInput {
+  readonly tenantId: string;
+  readonly subjectId: string;
+  readonly callerCapabilities: ReadonlySet<string>;
+  readonly lifespans: SessionLifespans;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+  readonly issuer: string;
+  readonly now: Date;
+}
+
+export type EndAllSessionsOutcome =
+  { kind: 'not_found' } | TargetCeilingRefusal | { kind: 'ended'; ended: number };
+
+// Every live session through the same `endSession` one session's `DELETE`
+// makes, so each has its grants revoked and its back-channel deliveries
+// enqueued exactly as ending it alone would — rather than `endMany`, which
+// moves the ceilings and nothing else. The subject row is locked first,
+// as it is for a single end, so the two serialize against each other; the
+// session rows are then locked in `id` order.
+export async function endAllSessions(
+  tx: TenantScopedDatabase,
+  deps: EndSessionDeps,
+  input: EndAllSessionsInput,
+): Promise<EndAllSessionsOutcome> {
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'session.end_all', input, {
+    type: 'subject',
+    id: input.subjectId,
+  });
+  if (refused !== null) return refused;
+
+  await tx
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(eq(sessions.subjectId, input.subjectId))
+    .orderBy(asc(sessions.id))
+    .for('update');
+  const live = await sessionRepository(tx).liveBySubject(
+    input.subjectId,
+    input.lifespans,
+    input.now,
+  );
+  for (const record of live) {
+    await endOidcSession(
+      tx,
+      { kek: deps.kek },
+      {
+        tenantId: input.tenantId,
+        sessionId: record.id,
+        subjectId: input.subjectId,
+        now: input.now,
+        issuer: input.issuer,
+        via: 'admin',
+      },
+    );
+  }
+
+  await deps.audit(tx, {
+    action: 'session.end_all',
+    resourceType: 'subject',
+    resourceId: input.subjectId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+    detail: { ended: live.length },
+  });
+
+  return { kind: 'ended', ended: live.length };
 }

@@ -31,11 +31,13 @@ let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
 let appHandle: DatabaseHandle | undefined;
 let httpApp: FastifyInstance | undefined;
+let httpLiveApp: FastifyInstance | undefined;
 
 let container: TestDatabase;
 let owner: DatabaseHandle;
 let app: DatabaseHandle;
 let http: FastifyInstance;
+let httpLive: FastifyInstance;
 
 const CLIENT_ID = 'required-action-gate-client';
 const REDIRECT_URI = 'https://app.example/callback';
@@ -216,33 +218,49 @@ beforeAll(async () => {
     }),
   );
   await http.ready();
+
+  // Sessions are stamped by the database's own clock, so a request that
+  // resolves an SSO cookie has to be answered by a server on the real one.
+  httpLive = Fastify();
+  httpLiveApp = httpLive;
+  await httpLive.register(formbody);
+  await httpLive.register(
+    oidcRoutes({
+      database: app,
+      ownerDatabase: owner,
+      kek: KEK,
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
+      clientKeySet: NO_CLIENT_KEY_FETCHER,
+    }),
+  );
+  await httpLive.ready();
 }, 120_000);
 
 afterAll(async () => {
   await httpApp?.close();
+  await httpLiveApp?.close();
   await appHandle?.close();
   await ownerHandle?.close();
   await containerHandle?.stop();
 });
 
-// Enrols the second factor and stops there — which is one closed tab, not
-// an unusual sequence. Completing configure-totp asks for recovery codes,
-// and the page that writes them sits behind the second factor, so the
-// account is left owing the action and holding no codes at all.
-async function abandonAfterTotpEnrolment(tenantName: string): Promise<string> {
-  const authSessionId = await startAuthSession(tenantName);
-  const owed = await login(tenantName, {
-    auth_session_id: authSessionId,
-    username: USERNAME,
-    password: PASSWORD,
+// The state a closed tab leaves when the enrolment was finished somewhere
+// the recovery codes never followed: a TOTP credential, no codes, and
+// generate-recovery-codes owed. Written directly, because an enrolment
+// finished through the login now carries straight on to the codes page.
+async function holdTotpOwingCodes(tenantId: string, subjectId: string): Promise<string> {
+  const secret = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+  await withTenant(app.db, tenantId, async (tx) => {
+    await credentialRepository(tx).insert({
+      tenantId,
+      subjectId,
+      type: 'totp',
+      secret: { kind: 'totp', secret, digits: 6, lastStep: totpCounter(clock.now()) },
+    });
+    await requiredActionRepository(tx).complete(subjectId, 'configure-totp');
+    await requiredActionRepository(tx).add(tenantId, subjectId, 'generate-recovery-codes');
   });
-  const secret = offeredSecret(owed.body);
-  const enrolled = await actionPost(tenantName, 'configure-totp', {
-    auth_session_id: authSessionId,
-    secret,
-    code: totpCode(secret, totpCounter(clock.now())),
-  });
-  expect(enrolled.statusCode).toBe(200);
   return secret;
 }
 
@@ -261,19 +279,9 @@ async function abandonRecoveryCodePage(
     password: PASSWORD,
   });
   const secret = offeredSecret(owed.body);
-  await actionPost(tenantName, 'configure-totp', {
+  const shown = await actionPost(tenantName, 'configure-totp', {
     auth_session_id: authSessionId,
     secret,
-    code: totpCode(secret, totpCounter(clock.now())),
-  });
-  clock.advance(31_000);
-  await login(tenantName, {
-    auth_session_id: authSessionId,
-    username: USERNAME,
-    password: PASSWORD,
-  });
-  const shown = await login(tenantName, {
-    auth_session_id: authSessionId,
     code: totpCode(secret, totpCounter(clock.now())),
   });
   const codes = codesOn(shown.body);
@@ -300,7 +308,7 @@ async function settleOwedRecoveryCodes(tenantName: string, secret: string): Prom
   const acknowledged = await actionPost(tenantName, 'generate-recovery-codes', {
     auth_session_id: authSessionId,
   });
-  expect(acknowledged.statusCode).toBe(200);
+  expect(acknowledged.statusCode).toBe(302);
 }
 
 describe('a required action is not satisfiable before the login that owes it is complete', () => {
@@ -314,7 +322,7 @@ describe('a required action is not satisfiable before the login that owes it is 
     const tenantName = `gate-bypass-${newId()}`;
     const tenantId = await setupTenant(tenantName, true);
     const subjectId = await subjectIdOf(tenantId);
-    const secret = await abandonAfterTotpEnrolment(tenantName);
+    const secret = await holdTotpOwingCodes(tenantId, subjectId);
     expect(await pendingFor(tenantId, subjectId)).toEqual(['generate-recovery-codes']);
     expect(await storedCodeIds(tenantId, subjectId)).toEqual([]);
 
@@ -502,13 +510,12 @@ describe('a required action is not satisfiable before the login that owes it is 
     expect(await storedCodeIds(tenantId, subjectId)).toEqual([]);
   });
 
-  // The gate rests on a record of completion, and that record has to move
-  // back. Enrolling the factor a tenant asked for makes the OTP step apply to
-  // a session that had nothing left to pass, so re-running the login parks
-  // it on a challenge again — and the action owed after the enrolment must
-  // wait for that challenge. A record that only ever moved forwards would
-  // still call this attempt finished, for as long as the session lives.
-  it('stops treating a session as finished once an enrolment makes a factor apply', async () => {
+  // The gate rests on whether the flow, as it stands for the subject now, is
+  // satisfied in this session. An authenticator enrolled from another
+  // attempt makes the OTP step apply to a session that had nothing left to
+  // pass, and nothing in that session proved a code — so the action the
+  // enrolment owes must wait for one, however finished the session looked.
+  it('stops treating a session as finished once an enrolment elsewhere makes a factor apply', async () => {
     const tenantName = `gate-reapplies-${newId()}`;
     const tenantId = await setupTenant(tenantName, true);
     const subjectId = await subjectIdOf(tenantId);
@@ -521,23 +528,28 @@ describe('a required action is not satisfiable before the login that owes it is 
       username: USERNAME,
       password: PASSWORD,
     });
-    const secret = offeredSecret(owed.body);
-    const enrolled = await actionPost(tenantName, 'configure-totp', {
-      auth_session_id: authSessionId,
-      secret,
-      code: totpCode(secret, totpCounter(clock.now())),
-    });
-    expect(enrolled.statusCode).toBe(200);
-    expect(await pendingFor(tenantId, subjectId)).toEqual(['generate-recovery-codes']);
+    expect(owed.body).toContain('otpauth://totp/');
 
-    // Same session, login re-run: now there is a code to ask for.
-    clock.advance(31_000);
-    const challenged = await login(tenantName, {
-      auth_session_id: authSessionId,
+    // A second attempt, in another tab, enrols the authenticator.
+    const elsewhere = await startAuthSession(tenantName);
+    const offered = await login(tenantName, {
+      auth_session_id: elsewhere,
       username: USERNAME,
       password: PASSWORD,
     });
-    expect(challenged.body).toContain('name="code"');
+    const secret = offeredSecret(offered.body);
+    await withTenant(app.db, tenantId, (tx) =>
+      credentialRepository(tx).insert({
+        tenantId,
+        subjectId,
+        type: 'totp',
+        secret: { kind: 'totp', secret, digits: 6, lastStep: totpCounter(clock.now()) },
+      }),
+    );
+    await withTenant(app.db, tenantId, async (tx) => {
+      await requiredActionRepository(tx).complete(subjectId, 'configure-totp');
+      await requiredActionRepository(tx).add(tenantId, subjectId, 'generate-recovery-codes');
+    });
 
     const refused = await actionPost(tenantName, 'generate-recovery-codes', {
       auth_session_id: authSessionId,
@@ -548,7 +560,10 @@ describe('a required action is not satisfiable before the login that owes it is 
     expect(refused.statusCode).toBe(400);
     expect(refused.body).toContain('no longer valid');
 
-    // Passing the code is what makes the action reachable, and then it is.
+    // The first attempt resumed asks for the code, and passing it is what
+    // makes the action reachable.
+    const challenged = await login(tenantName, { auth_session_id: authSessionId });
+    expect(challenged.body).toContain('name="code"');
     clock.advance(31_000);
     const reached = await login(tenantName, {
       auth_session_id: authSessionId,
@@ -654,7 +669,7 @@ describe('a required action is not satisfiable before the login that owes it is 
       password: 'a considerably better passphrase than the old one',
     });
 
-    expect(changed.statusCode).toBe(200);
+    expect(changed.statusCode).toBe(302);
     expect(await pendingFor(tenantId, subjectId)).toEqual([]);
     expect(await storedPassword(tenantId, subjectId)).not.toBe(before);
   });
@@ -748,5 +763,163 @@ describe('a required action is not satisfiable before the login that owes it is 
     expect(stillOwed.statusCode).toBe(200);
     expect(stillOwed.headers['set-cookie']).toBeUndefined();
     expect(stillOwed.body).toContain("Can't sign in yet");
+  });
+
+  // A live SSO cookie won by password alone, for a subject who then enrols
+  // TOTP elsewhere and owes the recovery codes that enrolment brings.
+  async function passwordOnlyCookieOfTotpHolder(
+    tenantName: string,
+    tenantId: string,
+  ): Promise<{ cookie: string; subjectId: string }> {
+    const subjectId = await subjectIdOf(tenantId);
+    const form = await httpLive.inject({ url: authorizeUrl(tenantName) });
+    const authSessionId = /name="auth_session_id" value="([^"]*)"/.exec(form.body)?.[1] ?? '';
+    const submit = (url: string, fields: Record<string, string>) =>
+      httpLive.inject({
+        method: 'POST',
+        url: `/tenants/${tenantName}/login-actions/${url}`,
+        payload: new URLSearchParams(fields).toString(),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      });
+    let signedIn = await submit('authenticate', {
+      auth_session_id: authSessionId,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+    if (signedIn.statusCode === 200 && signedIn.body.includes('name="decision"')) {
+      signedIn = await submit('consent', { auth_session_id: authSessionId, decision: 'allow' });
+    }
+    expect(signedIn.statusCode).toBe(302);
+    const raw = signedIn.headers['set-cookie'];
+    const values = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+    const cookie = values.find((value) => !value.includes('-persistent='))?.split(';')[0];
+    if (cookie === undefined) throw new Error('the login set no session cookie');
+    await holdTotpOwingCodes(tenantId, subjectId);
+    return { cookie, subjectId };
+  }
+
+  it('renders the login form, not recovery codes, for a reused password-only session of a TOTP holder', async () => {
+    const tenantName = `gate-reuse-codes-${newId()}`;
+    const tenantId = await setupTenant(tenantName, false);
+    const { cookie, subjectId } = await passwordOnlyCookieOfTotpHolder(tenantName, tenantId);
+    const before = await storedCodeIds(tenantId, subjectId);
+
+    const reused = await httpLive.inject({ url: authorizeUrl(tenantName), headers: { cookie } });
+
+    expect(reused.statusCode).toBe(200);
+    expect(reused.body).toContain('name="password"');
+    expect(codesOn(reused.body)).toEqual([]);
+    expect(await storedCodeIds(tenantId, subjectId)).toEqual(before);
+  });
+
+  it('renders the login form, not consent, for that session when consent is asked', async () => {
+    const tenantName = `gate-reuse-consent-${newId()}`;
+    const tenantId = await setupTenant(tenantName, false, true);
+    const { cookie, subjectId } = await passwordOnlyCookieOfTotpHolder(tenantName, tenantId);
+    await withTenant(app.db, tenantId, (tx) =>
+      requiredActionRepository(tx).complete(subjectId, 'generate-recovery-codes'),
+    );
+
+    const reused = await httpLive.inject({
+      url: `${authorizeUrl(tenantName)}&prompt=consent`,
+      headers: { cookie },
+    });
+
+    expect(reused.statusCode).toBe(200);
+    expect(reused.body).toContain('name="password"');
+    expect(reused.body).not.toContain('name="decision"');
+  });
+
+  it('issues nothing when the recovery page is reloaded by that session', async () => {
+    const tenantName = `gate-reuse-reload-${newId()}`;
+    const tenantId = await setupTenant(tenantName, false);
+    const { cookie, subjectId } = await passwordOnlyCookieOfTotpHolder(tenantName, tenantId);
+    const before = await storedCodeIds(tenantId, subjectId);
+
+    for (let reload = 0; reload < 2; reload += 1) {
+      const reused = await httpLive.inject({ url: authorizeUrl(tenantName), headers: { cookie } });
+      expect(codesOn(reused.body)).toEqual([]);
+    }
+
+    expect(await storedCodeIds(tenantId, subjectId)).toEqual(before);
+  });
+
+  it('answers a chosen password-only session of a TOTP holder with the login form', async () => {
+    const tenantName = `gate-reuse-chooser-${newId()}`;
+    const tenantId = await setupTenant(tenantName, false);
+    const { cookie, subjectId } = await passwordOnlyCookieOfTotpHolder(tenantName, tenantId);
+    const before = await storedCodeIds(tenantId, subjectId);
+    const chooser = await httpLive.inject({
+      url: `${authorizeUrl(tenantName)}&prompt=select_account`,
+      headers: { cookie },
+    });
+    const authSessionId = /name="auth_session_id" value="([^"]*)"/.exec(chooser.body)?.[1] ?? '';
+    const sessionId = /name="session_id" value="([^"]*)"/.exec(chooser.body)?.[1] ?? '';
+    expect(sessionId).not.toBe('');
+
+    const chosen = await httpLive.inject({
+      method: 'POST',
+      url: `/tenants/${tenantName}/login-actions/select-account`,
+      payload: new URLSearchParams({
+        auth_session_id: authSessionId,
+        session_id: sessionId,
+      }).toString(),
+      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+    });
+
+    expect(chosen.statusCode).toBe(200);
+    expect(chosen.body).toContain('name="password"');
+    expect(codesOn(chosen.body)).toEqual([]);
+    expect(await storedCodeIds(tenantId, subjectId)).toEqual(before);
+  });
+
+  it('refuses a consent decision from a subject disabled after the password was accepted', async () => {
+    const tenantName = `gate-disabled-${newId()}`;
+    const tenantId = await setupTenant(tenantName, false, true);
+    const subjectId = await subjectIdOf(tenantId);
+    const authSessionId = await startAuthSession(tenantName);
+    const asked = await login(tenantName, {
+      auth_session_id: authSessionId,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+    expect(asked.body).toContain('name="decision"');
+    await withTenant(app.db, tenantId, (tx) => subjectRepository(tx).setEnabled(subjectId, false));
+
+    const refused = await consentPost(tenantName, {
+      auth_session_id: authSessionId,
+      decision: 'allow',
+    });
+
+    expect(refused.statusCode).not.toBe(302);
+    expect(refused.headers['set-cookie']).toBeUndefined();
+    expect(refused.headers.location).toBeUndefined();
+    expect(await sessionCount(tenantId)).toBe(0);
+  });
+
+  it('refuses the resume of a finished required action for a subject disabled meanwhile', async () => {
+    const tenantName = `gate-disabled-resume-${newId()}`;
+    const tenantId = await setupTenant(tenantName, false);
+    const subjectId = await subjectIdOf(tenantId);
+    await withTenant(app.db, tenantId, (tx) =>
+      requiredActionRepository(tx).add(tenantId, subjectId, 'update-password'),
+    );
+    const authSessionId = await startAuthSession(tenantName);
+    const owed = await login(tenantName, {
+      auth_session_id: authSessionId,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+    expect(owed.body).toContain('Change your password');
+    await withTenant(app.db, tenantId, (tx) => subjectRepository(tx).setEnabled(subjectId, false));
+
+    const refused = await actionPost(tenantName, 'update-password', {
+      auth_session_id: authSessionId,
+      password: 'a considerably better passphrase than the old one',
+    });
+
+    expect(refused.statusCode).not.toBe(302);
+    expect(refused.headers['set-cookie']).toBeUndefined();
+    expect(await sessionCount(tenantId)).toBe(0);
   });
 });

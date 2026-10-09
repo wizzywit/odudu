@@ -1,0 +1,21 @@
+.form {
+  display: grid;
+  gap: var(--space-4);
+  max-inline-size: 60ch;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.message {
+  margin: 0;
+  max-inline-size: 72ch;
+}
+
+.message:empty {
+  display: none;
+}

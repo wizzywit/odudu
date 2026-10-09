@@ -50,6 +50,14 @@ function toResponseBody(client: RegisteredClient): Record<string, unknown> {
     ...(metadata.tlsClientAuthSubjectDn === null
       ? {}
       : { tls_client_auth_subject_dn: metadata.tlsClientAuthSubjectDn }),
+    ...(metadata.clientUri === null ? {} : { client_uri: metadata.clientUri }),
+    ...(metadata.policyUri === null ? {} : { policy_uri: metadata.policyUri }),
+    ...(metadata.tosUri === null ? {} : { tos_uri: metadata.tosUri }),
+    ...(metadata.idTokenSignedResponseAlg === null
+      ? {}
+      : { id_token_signed_response_alg: metadata.idTokenSignedResponseAlg }),
+    ...(metadata.defaultMaxAge === null ? {} : { default_max_age: metadata.defaultMaxAge }),
+    ...(metadata.requireAuthTime ? { require_auth_time: true } : {}),
   };
 }
 
@@ -69,9 +77,10 @@ export function registerClientRegistrationRoute(
     );
 
     switch (outcome.kind) {
-      // A disabled tenant answers exactly like an unknown one: distinguishing
-      // "exists but closed" from "does not exist" is an enumeration oracle
-      // for nothing gained (ADR 0026).
+      // A tenant closed to registration answers exactly like an unknown one:
+      // telling "exists but closed" from "does not exist" is an enumeration
+      // oracle for nothing gained (ADR 0026). A disabled tenant is refused the
+      // same way, though its discovery document already shows it exists.
       case 'not_found':
         return reply.code(404).send();
       case 'unauthorized':

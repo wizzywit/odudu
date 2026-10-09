@@ -230,25 +230,61 @@ describe('enrolling the second factor a tenant asked for', () => {
     expect(wrong.body).toContain('Set up your authenticator');
     expect(await storedTotp(tenantId, subjectId)).toEqual([]);
 
-    const enrolled = await enrolmentPost(tenantName, 'configure-totp', {
+    // The code that proves the authenticator is this login's second factor,
+    // so the login carries straight on to what the enrolment now owes: the
+    // codes, shown once, with no cookie and no code issued.
+    const codesOwed = await enrolmentPost(tenantName, 'configure-totp', {
       auth_session_id: authSessionId,
       secret,
       code: totpCode(secret, totpCounter(clock.now())),
     });
-    expect(enrolled.statusCode).toBe(200);
-    expect(enrolled.body).toContain('name="password"');
+    expect(codesOwed.statusCode).toBe(200);
     expect(await storedTotp(tenantId, subjectId)).toHaveLength(1);
-    // The factor is enrolled and a recovery path for it is now owed: a
-    // second factor nobody can produce any more is a locked-out account.
+    expect(codesOwed.headers['set-cookie']).toBeUndefined();
+    expect(codesOwed.body).toContain('Save your recovery codes');
+    expect(codesOwed.body).toContain('only time they are shown');
+    // A second factor nobody can produce any more is a locked-out account,
+    // so the recovery path is owed until this page is acknowledged.
     expect(
       await withTenant(app.db, tenantId, (tx) =>
         requiredActionRepository(tx).pendingFor(subjectId),
       ),
     ).toEqual(['generate-recovery-codes']);
 
-    // The enrolment's own code spent its time step, so the login's second
-    // factor needs the next one.
-    clock.advance(31_000);
+    const completed = await enrolmentPost(tenantName, 'generate-recovery-codes', {
+      auth_session_id: authSessionId,
+    });
+    expect(
+      await withTenant(app.db, tenantId, (tx) =>
+        requiredActionRepository(tx).pendingFor(subjectId),
+      ),
+    ).toEqual([]);
+    expect(completed.statusCode).toBe(302);
+    const location = completed.headers.location;
+    if (typeof location !== 'string') throw new Error('expected a location header');
+    expect(new URL(location).searchParams.get('code')).toBeTruthy();
+  });
+
+  // The enrolment's code spent its time step, and a later login asks for
+  // a code from a later one (RFC 6238 §5.2), beside the recovery field.
+  it('[RFC6238-5.2-03] asks the next login for a fresh code, with a recovery code beside it', async () => {
+    const tenantName = `totp-next-${newId()}`;
+    await setupTenant(tenantName, true);
+    const enrolling = await startAuthSession(tenantName);
+    const owed = await login(tenantName, {
+      auth_session_id: enrolling,
+      username: USERNAME,
+      password: PASSWORD,
+    });
+    const secret = offeredSecret(owed.body);
+    await enrolmentPost(tenantName, 'configure-totp', {
+      auth_session_id: enrolling,
+      secret,
+      code: totpCode(secret, totpCounter(clock.now())),
+    });
+    await enrolmentPost(tenantName, 'generate-recovery-codes', { auth_session_id: enrolling });
+
+    const authSessionId = await startAuthSession(tenantName);
     const secondFactor = await login(tenantName, {
       auth_session_id: authSessionId,
       username: USERNAME,
@@ -259,43 +295,21 @@ describe('enrolling the second factor a tenant asked for', () => {
     // Beside the app's code, not behind a second page: somebody reaching
     // for a recovery code has already lost what the first field asks for.
     expect(secondFactor.body).toContain('name="recovery_code"');
+    expect(secondFactor.body).not.toContain('name="username"');
 
-    // The second factor is satisfied, so now the owed action is reached:
-    // the codes, shown once, with no cookie and no code issued.
-    const codesOwed = await login(tenantName, {
+    const sameStep = await login(tenantName, {
       auth_session_id: authSessionId,
       code: totpCode(secret, totpCounter(clock.now())),
     });
-    expect(codesOwed.statusCode).toBe(200);
-    expect(codesOwed.headers['set-cookie']).toBeUndefined();
-    expect(codesOwed.body).toContain('Save your recovery codes');
-    expect(codesOwed.body).toContain('only time they are shown');
+    expect(sameStep.statusCode).toBe(200);
+    expect(sameStep.headers.location).toBeUndefined();
 
-    const acknowledged = await enrolmentPost(tenantName, 'generate-recovery-codes', {
-      auth_session_id: authSessionId,
-    });
-    expect(acknowledged.statusCode).toBe(200);
-    // The password this attempt already satisfied is not asked for again:
-    // what the parked login is still waiting on is the code.
-    expect(acknowledged.body).toContain('name="code"');
-    expect(acknowledged.body).not.toContain('name="username"');
-    expect(
-      await withTenant(app.db, tenantId, (tx) =>
-        requiredActionRepository(tx).pendingFor(subjectId),
-      ),
-    ).toEqual([]);
-
-    // The code above spent its time step, so the login's second factor
-    // needs the next one (RFC 6238 §5.2).
     clock.advance(31_000);
     const completed = await login(tenantName, {
       auth_session_id: authSessionId,
       code: totpCode(secret, totpCounter(clock.now())),
     });
     expect(completed.statusCode).toBe(302);
-    const location = completed.headers.location;
-    if (typeof location !== 'string') throw new Error('expected a location header');
-    expect(new URL(location).searchParams.get('code')).toBeTruthy();
   });
 
   // Passing the password step is permission to finish the login that asked
@@ -398,15 +412,9 @@ describe('signing in with a recovery code instead of the second factor', () => {
       password: PASSWORD,
     });
     const secret = offeredSecret(owed.body);
-    await enrolmentPost(tenantName, 'configure-totp', {
+    const shown = await enrolmentPost(tenantName, 'configure-totp', {
       auth_session_id: enrolling,
       secret,
-      code: totpCode(secret, totpCounter(clock.now())),
-    });
-    clock.advance(31_000);
-    await login(tenantName, { auth_session_id: enrolling, username: USERNAME, password: PASSWORD });
-    const shown = await login(tenantName, {
-      auth_session_id: enrolling,
       code: totpCode(secret, totpCounter(clock.now())),
     });
     const codes = offeredCodes(shown.body);

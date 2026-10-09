@@ -11,15 +11,22 @@ export const smtpConfigSchema = z.object({
   username: z.string().nullable(),
   password_set: z.boolean(),
   starttls: z.boolean().nullable(),
+  // Whose relay the tenant's mail goes through: its own row, else the
+  // deployment's `ODUDU_SMTP_*` sender, else none, and mail is only logged.
+  effective: z.enum(['tenant', 'deployment', 'none']),
 });
 export type SmtpConfig = z.infer<typeof smtpConfigSchema>;
 
-// A full replace, the same shape `PUT /scopes/:id/roles` gives its role
-// set: omitting `password` clears it rather than leaving a previous one in
-// place, since GET never hands one back to resend unchanged.
+// The registered-port range (RFC 6335 §6): a socket cannot bind above it,
+// so a value outside is refused rather than stored to fail at send time.
+export const smtpPortSchema = z.number().int().min(1).max(65535);
+
+// A full replace, except for `password`, which GET never hands back to
+// resend: omitted, the stored one is kept, provided host, port and username
+// are unchanged; `null` clears it.
 export const putSmtpRequestSchema = z.object({
   host: z.string().min(1),
-  port: z.number().int().positive(),
+  port: smtpPortSchema,
   from_address: z.string().min(1),
   username: z.string().min(1).nullable().optional(),
   password: z.string().min(1).nullable().optional(),

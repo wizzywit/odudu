@@ -15,6 +15,7 @@ const FOREIGN: TenantLookup = {
   rememberMeIdleSeconds: 3600,
   rememberMeMaxSeconds: 7200,
   rememberMeAllowed: false,
+  loginWithEmail: false,
   maxSessionsPerBrowser: 5,
   clientRegistrationPolicy: 'disabled',
 };
@@ -53,6 +54,7 @@ function deps(key: SigningKeyRecord, overrides: Partial<AuthenticateAdminDeps>) 
     loadGrant: () => Promise.resolve(null),
     isSessionLive: () => Promise.resolve(false),
     isClientEnabled: () => Promise.resolve(false),
+    isSubjectEnabled: () => Promise.resolve(false),
   };
   return { ...base, ...overrides };
 }

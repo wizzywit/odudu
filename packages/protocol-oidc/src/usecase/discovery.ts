@@ -23,15 +23,16 @@ export interface DiscoveryUsecaseDeps {
   trustProxy: boolean;
 }
 
-// Null for both an unknown tenant and a disabled one: the view layer turns
-// either into 404, so neither distinguishes itself from the other.
+// Null for an unknown tenant, which the view layer turns into 404. A disabled
+// tenant is still described, since it still publishes the keys its queued
+// Logout Tokens are signed with; every other endpoint refuses it.
 export async function resolveDiscoveryDocument(
   deps: DiscoveryUsecaseDeps,
   tenantName: string,
   issuerBase: string,
 ): Promise<DiscoveryDocument | null> {
   const tenant = await deps.findTenant(tenantName);
-  if (!tenant?.enabled) return null;
+  if (tenant === null) return null;
   // Sorted: the rows arrive in whatever order the table hands over, and a
   // document that reshuffles between identical requests cannot be diffed.
   const scopesSupported = [...(await deps.scopesForTenant(tenant.id))].sort();
@@ -44,7 +45,7 @@ export async function resolveDiscoveryDocument(
     userinfoSigningAlgSupported: [...algs, 'none'],
     userinfoEncryptionAlgSupported: deps.userinfoEncryptionAlgSupported,
     userinfoEncryptionEncSupported: deps.userinfoEncryptionEncSupported,
-    clientRegistrationEnabled: tenant.clientRegistrationPolicy !== 'disabled',
+    clientRegistrationEnabled: tenant.enabled && tenant.clientRegistrationPolicy !== 'disabled',
     tlsClientAuthEnabled: deps.trustProxy,
   });
 }

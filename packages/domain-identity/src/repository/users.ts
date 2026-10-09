@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { OduduError } from '@odudu/kernel';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { subjects, type SubjectRecord } from '#/schema/subjects';
 import { isEmailAddress } from '#/service/email';
 import { users, type UserRecord } from '#/schema/users';
@@ -75,6 +75,11 @@ export interface ProfileUpdate {
   addressCountry?: string | null;
 }
 
+export interface VerificationUpdate {
+  emailVerified?: boolean;
+  phoneNumberVerified?: boolean;
+}
+
 export interface UserWithSubject {
   subject: SubjectRecord;
   user: UserRecord;
@@ -100,6 +105,27 @@ export function userRepository(tx: TenantScopedDatabase) {
         .where(eq(users.username, username));
       const row = rows[0];
       return row === undefined ? null : { subject: toSubject(row.subject), user: toUser(row.user) };
+    },
+
+    // The login form's lookup when a tenant accepts an email address there:
+    // a verified address, matched case-insensitively. users_email_unique is
+    // case-sensitive, so two subjects may hold one address in two cases;
+    // that answers no subject rather than either of them.
+    async byVerifiedEmail(email: string): Promise<UserWithSubject | null> {
+      const rows = await tx
+        .select({ subject: subjects, user: users })
+        .from(users)
+        .innerJoin(subjects, eq(subjects.id, users.subjectId))
+        .where(
+          and(
+            eq(users.emailSearch, sql`lower(${email}) COLLATE "C"`),
+            eq(users.emailVerified, true),
+          ),
+        )
+        .limit(2);
+      const row = rows[0];
+      if (row === undefined || rows.length > 1) return null;
+      return { subject: toSubject(row.subject), user: toUser(row.user) };
     },
 
     // The claim mapper registry's lookup: an access token carries `sub`,
@@ -186,6 +212,55 @@ export function userRepository(tx: TenantScopedDatabase) {
       return toUser(row);
     },
 
+    // `email_verified` and `phone_number_verified` are claims about the
+    // current value of `email`/`phone_number`, not profile data, so they're
+    // set here rather than folded into `updateProfile` — the same reasoning
+    // that keeps `markEmailVerified` a write of its own. Setting either flag
+    // asserts the operator verified it by some means outside this server;
+    // `users_verified_phone_is_e164` still refuses a verified number that
+    // isn't E.164-shaped. Both are claims too, so `profile_updated_at` moves
+    // when one actually changes — the same dirty check as `updateProfile`.
+    async setVerification(subjectId: string, patch: VerificationUpdate): Promise<UserRecord> {
+      const currentRows = await tx.select().from(users).where(eq(users.subjectId, subjectId));
+      const current = currentRows[0];
+      if (current === undefined) {
+        throw new OduduError('user_not_found', `user ${subjectId} not found`);
+      }
+
+      const patchedKeys = Object.keys(patch) as (keyof VerificationUpdate)[];
+      const changed = patchedKeys.some((key) => patch[key] !== current[key]);
+      if (!changed) {
+        return toUser(current);
+      }
+
+      const rows = await tx
+        .update(users)
+        .set({ ...patch, profileUpdatedAt: new Date() })
+        .where(eq(users.subjectId, subjectId))
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('user_not_found', `user ${subjectId} not found`);
+      }
+      return toUser(row);
+    },
+
+    // `amendProfile`'s (@odudu/protocol-admin) own lock: reads the row
+    // `FOR UPDATE` so a concurrent PATCH cannot compute its `ETag` or its
+    // audit `before` against a row this transaction is about to change out
+    // from under it. Symmetric to `bySubjectId`, never called from the hot
+    // token-issuance path that one serves, which taking a lock would only
+    // slow down for no reason.
+    async lockBySubjectId(subjectId: string): Promise<UserRecord | null> {
+      const rows = await tx
+        .select()
+        .from(users)
+        .where(eq(users.subjectId, subjectId))
+        .for('update');
+      const row = rows[0];
+      return row === undefined ? null : toUser(row);
+    },
+
     // Deliberately not part of updateProfile, whose own comment excludes
     // email for the same reason this exists on its own: changing the
     // address is not a profile edit, it is a new claim to verify.
@@ -202,6 +277,22 @@ export function userRepository(tx: TenantScopedDatabase) {
       const rows = await tx
         .update(users)
         .set({ email, emailVerified: false })
+        .where(eq(users.subjectId, subjectId))
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('user_not_found', `user ${subjectId} not found`);
+      }
+      return toUser(row);
+    },
+
+    // `users_username_unique` refuses a name another subject in the tenant
+    // holds, as a raw driver error the caller maps: it has already aborted
+    // the transaction, so there is no outcome left to return from here.
+    async updateUsername(subjectId: string, username: string): Promise<UserRecord> {
+      const rows = await tx
+        .update(users)
+        .set({ username })
         .where(eq(users.subjectId, subjectId))
         .returning();
       const row = rows[0];

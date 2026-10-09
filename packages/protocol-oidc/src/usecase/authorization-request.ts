@@ -11,6 +11,7 @@ import { isUuid } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import {
+  requestedScopeTokens,
   validateAuthorizationRequest,
   type AuthorizeOutcome,
 } from '#/service/authorize-validation';
@@ -24,6 +25,8 @@ import { parseResource } from '#/service/resource-indicator';
 import {
   decideConsentGate,
   refusedForUnverifiedEmail,
+  type ClientPages,
+  type ScopeLabels,
   type ConsentGateDeps,
   type LoginSubmissionDeps,
 } from '#/usecase/login-submission';
@@ -35,7 +38,13 @@ export type AuthorizationRequestOutcome =
   // `form` names what the rendered login page should ask for first —
   // whatever the tenant's flow would offer nobody has submitted anything
   // yet (authn-flows' initialChallenge).
-  | { kind: 'started'; authSessionId: string; form: string; rememberMeAllowed: boolean }
+  | {
+      kind: 'started';
+      authSessionId: string;
+      form: string;
+      rememberMeAllowed: boolean;
+      loginWithEmail: boolean;
+    }
   // Session reuse: a code issued with no page ever rendered and no fresh
   // authentication session started. Carries exactly what the form-POST
   // success redirect carries, because the client cannot tell the two apart.
@@ -51,6 +60,8 @@ export type AuthorizationRequestOutcome =
       kind: 'consent';
       authSessionId: string;
       clientName: string;
+      clientPages: ClientPages;
+      scopeLabels: ScopeLabels;
       defaultScopes: string[];
       optionalScopes: string[];
       alreadyGranted: string[];
@@ -127,9 +138,10 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // Scoped to the resolved tenant by the caller composing this dependency
   // (index.ts), the same way listPublishableKeys is for the JWKS route.
   resolveClient(tenantId: string, oauthClientId: string): Promise<ResolvedClient>;
-  // Shared with the discovery usecase, so a scope this endpoint accepts is
-  // one the discovery document advertises and vice versa.
-  scopesForTenant(tenantId: string): Promise<readonly string[]>;
+  // The names, of those given, that the tenant defines as scopes: the same
+  // vocabulary discovery advertises, asked about only the scopes a request
+  // names.
+  scopesNamed(tenantId: string, names: readonly string[]): Promise<readonly string[]>;
   startAuthentication(
     tenantId: string,
     request: Extract<AuthorizeOutcome, { kind: 'ok' }>['request'],
@@ -173,6 +185,18 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // issueAuthorizationCode the form path uses, wrapped with the touch in
   // one transaction the way completeLogin wraps its own two writes.
   completeReuse(input: CompleteReuseInput): Promise<{ code: string }>;
+  // Whether `authenticators` leave `subjectId` nothing to pass under the
+  // flow as it stands now. A reused session that does not is not reused:
+  // the login form asks for what it lacks, as `prompt=login` does.
+  sessionMeetsFlow(
+    tenantId: string,
+    subjectId: string,
+    authenticators: readonly string[],
+  ): Promise<boolean>;
+  // Which of `subjectIds` are enabled. A session of a subject disabled since
+  // it was made is not reused and not offered by the chooser: the login form
+  // is, and refuses them there.
+  enabledSubjects(tenantId: string, subjectIds: readonly string[]): Promise<ReadonlySet<string>>;
   // Starts a fresh authentication session already bound and authenticated
   // for `subjectId`, with `authenticators` as its satisfied set — the
   // reuse path's way of giving a consent decision something to park the
@@ -294,7 +318,7 @@ export async function handleAuthorizationRequest(
     params,
     resolved.client,
     resolved.config,
-    new Set(await deps.scopesForTenant(tenant.id)),
+    new Set(await deps.scopesNamed(tenant.id, requestedScopeTokens(params.scope))),
     new Set(resolved.scopes),
     repeatedKey,
   );
@@ -320,6 +344,10 @@ export async function handleAuthorizationRequest(
   if (resourceOutcome.kind === 'invalid_target') return reject('invalid_target');
   const audience = resourceOutcome.audience;
 
+  // OIDC Dynamic Client Registration §2: a request's own `max_age` wins,
+  // and the client's `default_max_age` stands in where it carries none.
+  const maxAge = outcome.maxAge ?? resolved.config?.defaultMaxAge ?? null;
+
   // OIDC Core §5.5. Parsed below the §4.1.2.1 boundary, same as `resource`
   // above: a malformed parameter is reported at the client's own
   // redirect_uri, not rendered.
@@ -330,7 +358,7 @@ export async function handleAuthorizationRequest(
   // asks one question (`token-issuance.ts` excludes `auth_time` from what
   // this synthesis could otherwise narrow away).
   const claims: ClaimsRequest =
-    outcome.maxAge === null
+    maxAge === null
       ? claimsOutcome.request
       : {
           ...claimsOutcome.request,
@@ -378,7 +406,13 @@ export async function handleAuthorizationRequest(
     },
     header,
   );
-  const resolvedSessions = sessions.map(toReusableSession);
+  const enabled = await deps.enabledSubjects(
+    tenant.id,
+    sessions.map((session) => session.subjectId),
+  );
+  const resolvedSessions = sessions
+    .filter((session) => enabled.has(session.subjectId))
+    .map(toReusableSession);
   // A hint, or a `claims` request's `sub`, names one subject, so only that
   // subject's sessions are reusable or offered by the chooser — both
   // constraints apply together when both are present. The chooser POST's
@@ -391,17 +425,27 @@ export async function handleAuthorizationRequest(
   const decision = decideReuse({
     sessions: candidateSessions,
     prompts: outcome.prompts,
-    maxAge: outcome.maxAge,
+    maxAge,
     now: deps.now(),
   });
 
   if (decision.kind === 'refuse') return reject(decision.error);
 
-  if (decision.kind === 'reuse') {
-    const resolvedSession = resolvedSessions.find((s) => s.id === decision.sessionId);
-    if (resolvedSession === undefined) {
-      throw new Error('unreachable: decideReuse reused a session outside the resolved set');
-    }
+  const reusedSession =
+    decision.kind === 'reuse'
+      ? resolvedSessions.find((s) => s.id === decision.sessionId)
+      : undefined;
+  if (decision.kind === 'reuse' && reusedSession === undefined) {
+    throw new Error('unreachable: decideReuse reused a session outside the resolved set');
+  }
+  const reuseIsStale =
+    decision.kind === 'reuse' &&
+    reusedSession !== undefined &&
+    !(await deps.sessionMeetsFlow(tenant.id, decision.subjectId, reusedSession.authenticators));
+  if (reuseIsStale && outcome.prompts.has('none')) return reject('login_required');
+
+  if (decision.kind === 'reuse' && reusedSession !== undefined && !reuseIsStale) {
+    const resolvedSession = reusedSession;
     if (resolved.client === null) {
       throw new Error('unreachable: validateAuthorizationRequest succeeded with a null client');
     }
@@ -491,6 +535,8 @@ export async function handleAuthorizationRequest(
         kind: 'consent',
         authSessionId,
         clientName: gate.clientName,
+        clientPages: gate.clientPages,
+        scopeLabels: gate.scopeLabels,
         defaultScopes: gate.defaultScopes,
         optionalScopes: gate.optionalScopes,
         alreadyGranted: gate.alreadyGranted,
@@ -527,7 +573,7 @@ export async function handleAuthorizationRequest(
       ...(claimsSubject !== null ? { claimsSubject } : {}),
       // Re-checked against whichever session is posted back — see
       // handleSelectAccountSubmission's own withinMaxAge call.
-      ...(outcome.maxAge !== null ? { maxAge: outcome.maxAge } : {}),
+      ...(maxAge !== null ? { maxAge } : {}),
       resource: [...audience],
       claims,
     });
@@ -580,6 +626,7 @@ export async function handleAuthorizationRequest(
     authSessionId,
     form: initial.form,
     rememberMeAllowed: tenant.rememberMeAllowed,
+    loginWithEmail: tenant.loginWithEmail,
   };
 }
 
@@ -624,7 +671,10 @@ export async function handleSelectAccountSubmission(
     return { kind: 'unauthenticated' };
   }
 
-  if (answer.useOther) {
+  // The same parked authentication session, not a fresh one: nobody was
+  // ever bound to it, so the ordinary login form resumes it exactly as if
+  // it had rendered that form to begin with.
+  const startedLogin = async (): Promise<SelectAccountOutcome> => {
     const initial = await deps.initialChallenge(tenant.id);
     if (initial.kind !== 'challenge') {
       if (initial.kind === 'success') {
@@ -637,16 +687,16 @@ export async function handleSelectAccountSubmission(
         state: pending.state,
       };
     }
-    // The same parked authentication session, not a fresh one: nobody was
-    // ever bound to it, so the ordinary login form resumes it exactly as if
-    // it had rendered that form to begin with.
     return {
       kind: 'started',
       authSessionId,
       form: initial.form,
       rememberMeAllowed: tenant.rememberMeAllowed,
+      loginWithEmail: tenant.loginWithEmail,
     };
-  }
+  };
+
+  if (answer.useOther) return startedLogin();
 
   const tenantShape = {
     id: tenant.id,
@@ -698,6 +748,13 @@ export async function handleSelectAccountSubmission(
   );
   if (refusal !== null) return reject('login_required');
 
+  if (!(await deps.enabledSubjects(tenant.id, [chosen.subjectId])).has(chosen.subjectId)) {
+    return startedLogin();
+  }
+  if (!(await deps.sessionMeetsFlow(tenant.id, chosen.subjectId, chosen.authenticators))) {
+    return startedLogin();
+  }
+
   const action = nextRequiredAction(await deps.pendingActions(tenant.id, chosen.subjectId));
   if (action !== null) {
     await deps.markAuthenticated(tenant.id, authSessionId, chosen.subjectId, chosen.authenticators);
@@ -719,6 +776,8 @@ export async function handleSelectAccountSubmission(
       kind: 'consent',
       authSessionId,
       clientName: gate.clientName,
+      clientPages: gate.clientPages,
+      scopeLabels: gate.scopeLabels,
       defaultScopes: gate.defaultScopes,
       optionalScopes: gate.optionalScopes,
       alreadyGranted: gate.alreadyGranted,

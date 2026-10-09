@@ -4,10 +4,11 @@ import { OduduError } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 
 // What one `advance` needs from the tenant row: whether it demands a second
-// factor, how long it lets a password stand, and how many wrong passwords
-// an account tolerates.
+// factor, whether its login form takes an email address, how long it lets a
+// password stand, and how many wrong passwords an account tolerates.
 export interface FlowSettings {
   otpRequired: boolean;
+  loginWithEmail: boolean;
   passwordMaxAgeDays: number;
   lockout: LockoutPolicy;
 }
@@ -29,6 +30,7 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
       const rows = await tx
         .select({
           otpRequired: tenants.otpRequired,
+          loginWithEmail: tenants.loginWithEmail,
           passwordMaxAgeDays: tenants.passwordMaxAgeDays,
           maxFailures: tenants.bruteForceMaxFailures,
           lockoutSeconds: tenants.bruteForceLockoutSeconds,
@@ -43,6 +45,7 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
       }
       return {
         otpRequired: row.otpRequired,
+        loginWithEmail: row.loginWithEmail,
         passwordMaxAgeDays: row.passwordMaxAgeDays,
         lockout: {
           maxFailures: row.maxFailures,
@@ -51,6 +54,19 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
           failureResetSeconds: row.failureResetSeconds,
         },
       };
+    },
+
+    // How long a login may stay open (packages/db/drizzle/0082_tenant_lifetimes.sql).
+    async loginTtlSeconds(tenantId: string): Promise<number> {
+      const rows = await tx
+        .select({ loginTtlSeconds: tenants.loginTtlSeconds })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId));
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('tenant_not_found', `no tenant with id ${tenantId} in this context`);
+      }
+      return row.loginTtlSeconds;
     },
 
     // The whole policy, read only where a password is being written — the

@@ -1,4 +1,5 @@
-import { pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { boolean, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from '@odudu/db';
 import { roles } from '#/schema/roles';
 
@@ -11,12 +12,17 @@ export const groups = pgTable('groups', {
     .references(() => tenants.id, { onDelete: 'cascade' }),
   parentId: uuid('parent_id'),
   name: text('name').notNull(),
+  description: text('description'),
+  defaultForNewSubjects: boolean('default_for_new_subjects').notNull().default(false),
   // Denormalized and maintained only by groupRepository: `/engineering` for
   // a root group, `/engineering/platform` for its child. Read, never
   // derived, so a group's ancestry is one column away rather than a
   // recursive walk.
   path: text('path').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  // Search key, in the C collation, filled by the database
+  // (packages/db/drizzle/0075_list_indexes_roles_groups_scopes.sql).
+  nameSearch: text('name_search').generatedAlwaysAs(sql`lower(name)`),
 }).enableRLS();
 
 export interface GroupRecord {
@@ -24,6 +30,8 @@ export interface GroupRecord {
   tenantId: string;
   parentId: string | null;
   name: string;
+  description: string | null;
+  defaultForNewSubjects: boolean;
   path: string;
   createdAt: Date;
 }

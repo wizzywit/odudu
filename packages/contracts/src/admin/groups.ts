@@ -1,18 +1,53 @@
 import { z } from 'zod';
 import { roleAssignmentSchema } from '#/admin/subjects';
-import { createdAtSchema, cursorQuerySchema, idSchema } from '#/admin/shared';
+import {
+  ASSIGNMENT_LIMIT,
+  createdAtSchema,
+  cursorQuerySchema,
+  descriptionSchema,
+  idSchema,
+  searchPrefixSchema,
+} from '#/admin/shared';
+import { adminReachSchema } from '#/admin/roles';
 
-export const groupSchema = z.object({
+export const groupFieldsSchema = z.object({
   id: idSchema,
   name: z.string(),
+  description: z.string().nullable(),
   parent_id: idSchema.nullable(),
+  default_for_new_subjects: z.boolean(),
   path: z.string(),
   created_at: createdAtSchema,
 });
+export type GroupFields = z.infer<typeof groupFieldsSchema>;
+
+// `admin_reach` is what membership hands out: the group's roles and every
+// ancestor's. A group's own record adds what deleting it would take away,
+// its whole subtree's included.
+export const groupSchema = groupFieldsSchema.extend({ admin_reach: adminReachSchema });
 export type Group = z.infer<typeof groupSchema>;
 
-export const listGroupsQuerySchema = cursorQuerySchema;
+// `holds_default_group`: this group or one beneath it is a default for new
+// subjects, which is what bars moving it under a parent that hands out a
+// capability.
+export const groupRecordSchema = groupSchema.extend({
+  subtree_admin_reach: adminReachSchema,
+  holds_default_group: z.boolean(),
+});
+export type GroupRecord = z.infer<typeof groupRecordSchema>;
+
+// One level of the tree: the children of the group `parent` names, or the
+// groups with no parent at all under `root`.
+const groupFilters = {
+  name: searchPrefixSchema.optional(),
+  parent: z.union([z.uuid(), z.literal('root')]).optional(),
+};
+
+export const listGroupsQuerySchema = cursorQuerySchema.extend(groupFilters).strict();
 export type ListGroupsQuery = z.infer<typeof listGroupsQuerySchema>;
+
+export const countGroupsQuerySchema = z.object(groupFilters).strict();
+export type CountGroupsQuery = z.infer<typeof countGroupsQuerySchema>;
 
 export const listGroupsResponseSchema = z.object({
   items: z.array(groupSchema),
@@ -22,23 +57,46 @@ export type ListGroupsResponse = z.infer<typeof listGroupsResponseSchema>;
 
 export const createGroupRequestSchema = z.object({
   name: z.string().min(1),
+  description: descriptionSchema.nullable().optional(),
   parent_id: idSchema.nullable().optional(),
 });
 export type CreateGroupRequest = z.infer<typeof createGroupRequestSchema>;
 
-// `parent_id` is the only field a general amendment reaches: reparenting,
-// through groupRepository.reparent, which is what recomputes `path` for
-// the group and every descendant and refuses a cycle. `name` and `path`
-// have no amendment door of their own yet — see group-patch.ts.
+// A general amendment reaches `description`, and `parent_id` through
+// groupRepository.reparent, which is what recomputes `path` for the group
+// and every descendant and refuses a cycle. `name` is never amended, by
+// ADR 0039, and `path` follows from it and the parent.
 export const amendGroupRequestSchema = z.record(z.string(), z.unknown());
 export type AmendGroupRequest = z.infer<typeof amendGroupRequestSchema>;
 
+export const setGroupDefaultRequestSchema = z.object({
+  default: z.boolean(),
+});
+export type SetGroupDefaultRequest = z.infer<typeof setGroupDefaultRequestSchema>;
+
 export const setGroupRolesRequestSchema = z.object({
-  role_ids: z.array(idSchema),
+  role_ids: z.array(idSchema).max(ASSIGNMENT_LIMIT),
 });
 export type SetGroupRolesRequest = z.infer<typeof setGroupRolesRequestSchema>;
 
+// Each mapped role carries what it hands out, so the group's page judges a
+// change to the mapping without a read per role.
+export const groupRoleSchema = roleAssignmentSchema.extend({ admin_reach: adminReachSchema });
+export type GroupRole = z.infer<typeof groupRoleSchema>;
+
 export const setGroupRolesResponseSchema = z.object({
-  items: z.array(roleAssignmentSchema),
+  items: z.array(groupRoleSchema),
 });
 export type SetGroupRolesResponse = z.infer<typeof setGroupRolesResponseSchema>;
+
+// A subject's direct memberships. Lives beside `groupSchema` rather than in
+// #/admin/subjects, which this module already imports from.
+export const setSubjectGroupsRequestSchema = z.object({
+  group_ids: z.array(idSchema).max(ASSIGNMENT_LIMIT),
+});
+export type SetSubjectGroupsRequest = z.infer<typeof setSubjectGroupsRequestSchema>;
+
+export const setSubjectGroupsResponseSchema = z.object({
+  items: z.array(groupFieldsSchema),
+});
+export type SetSubjectGroupsResponse = z.infer<typeof setSubjectGroupsResponseSchema>;

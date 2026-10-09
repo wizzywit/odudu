@@ -695,6 +695,32 @@ mandatory PKCE the dominant cause and `private_key_jwt` unexercised;
 re-tallying by condition reversed both. The next plan run against this
 project should start from the condition list.
 
+## The console over https
+
+`run-console-check.sh` is not an OIDF plan. It uses this stack because it
+is the only one behind real TLS with `ODUDU_TLS` and `ODUDU_TRUST_PROXY`
+on, and so the only place the console's `__Host-` cookies can be seen
+leaving the server. It brings up `compose.yaml` under its own project,
+`odudu-console-check`, without the suite. It seeds a tenant and an
+administrator, then plays the browser with curl against `https://odudu`,
+the stack's `ODUDU_PUBLIC_BASE_URL`, reached through the proxy's published
+port and trusting the proxy's own certificate. It covers the login, the
+tenant's sign-in form, the callback and `GET /console/api/session`, and
+exits non-zero if either console cookie lacks `Secure`, `HttpOnly`, its
+`SameSite` or `Path=/`. The callback is the gateway redeeming its code as a
+confidential client, so a run of it is also the one place that exchange is
+seen behind TLS: every `run-*.sh` script makes a console key for its stack
+with `../docker/console-key.sh`, since `compose.yaml` refuses to start
+without one and none is committed. The `conformance` job runs it after
+Config OP, and it gates the build. A local run printed, after its compose and seed
+output:
+
+```
+ok: set-cookie: __Host-odudu-console-login=…; HttpOnly; SameSite=Lax; Path=/; Max-Age=600; Secure
+ok: set-cookie: __Host-odudu-console=…; HttpOnly; SameSite=Strict; Path=/; Secure
+console check passed
+```
+
 ## Running it yourself
 
 ```bash
@@ -711,4 +737,7 @@ pnpm conformance:config-op
 pnpm conformance:dynamic-op
 # same shape as run-basic-op.sh: polls all 23 modules, then prints where it
 # wrote the summary JSON and the suite's own zip export
+
+# The console's cookies over https — runs in CI (gating), about two minutes
+./infra/conformance/run-console-check.sh
 ```

@@ -15,12 +15,14 @@ export const actionTokens = pgTable('action_tokens', {
   type: text('type').notNull(),
   tokenHash: text('token_hash').notNull(),
   email: text('email'),
+  // The required actions an execute_actions link takes its subject through.
+  actions: text('actions').array(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   consumedAt: timestamp('consumed_at', { withTimezone: true }),
 }).enableRLS();
 
-export type ActionTokenType = 'verify_email' | 'reset_password';
+export type ActionTokenType = 'verify_email' | 'reset_password' | 'execute_actions';
 
 export interface ActionTokenRecord {
   id: string;
@@ -29,6 +31,7 @@ export interface ActionTokenRecord {
   type: ActionTokenType;
   tokenHash: string;
   email: string | null;
+  actions: readonly string[] | null;
   createdAt: Date;
   expiresAt: Date;
   consumedAt: Date | null;

@@ -1,15 +1,17 @@
 import { isCheckViolation, tenants, type TenantScopedDatabase } from '@odudu/db';
 import { eq } from 'drizzle-orm';
-import { TENANT_SETTING_COLUMNS, type TenantSettingName } from '#/service/tenant-settings';
+import {
+  TENANT_SETTING_COLUMNS,
+  type TenantSettingName,
+  type TenantSettingValue,
+} from '#/service/tenant-settings';
 
 type TenantColumn = keyof typeof tenants.$inferSelect;
 
 // `display_name` is the one text setting with no default (schema/tenants.ts),
 // so a tenant that never set one reads back `null` here, exactly as the
 // column holds it.
-export type TenantSettingsRecord = Readonly<
-  Record<TenantSettingName, boolean | number | string | null>
->;
+export type TenantSettingsRecord = Readonly<Record<TenantSettingName, TenantSettingValue | null>>;
 
 /** Thrown by `amend` when a supplied value is refused by a CHECK constraint. */
 export class TenantSettingCheckViolationError extends Error {
@@ -22,7 +24,7 @@ export class TenantSettingCheckViolationError extends Error {
 function primitiveColumn(
   row: typeof tenants.$inferSelect,
   column: TenantColumn,
-): boolean | number | string | null {
+): TenantSettingValue | null {
   const value = row[column];
   if (
     value === null ||
@@ -32,11 +34,14 @@ function primitiveColumn(
   ) {
     return value;
   }
+  if (Array.isArray(value) && value.every((member) => typeof member === 'string')) {
+    return value;
+  }
   throw new Error(`tenant setting column ${column} is not a primitive`);
 }
 
 function toRecord(row: typeof tenants.$inferSelect): TenantSettingsRecord {
-  const settings = {} as Record<TenantSettingName, boolean | number | string | null>;
+  const settings = {} as Record<TenantSettingName, TenantSettingValue | null>;
   for (const { name, column } of TENANT_SETTING_COLUMNS) {
     settings[name] = primitiveColumn(row, column);
   }
@@ -76,7 +81,7 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
 
     async amend(
       tenantId: string,
-      columns: Readonly<Record<string, boolean | number | string>>,
+      columns: Readonly<Record<string, TenantSettingValue>>,
     ): Promise<TenantSettingsRecord> {
       let rows: (typeof tenants.$inferSelect)[];
       try {

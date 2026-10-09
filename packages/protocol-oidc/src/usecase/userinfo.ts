@@ -14,8 +14,12 @@ import {
   type LoadedClaimContext,
   narrowToRequestedClaims,
 } from '#/service/claims';
-import { clientIsLive, type LiveClientLookup } from '#/service/client-enabled';
-import { narrowByScopeMappings } from '#/service/scope-mapping';
+import {
+  clientIsLive,
+  type LiveClientLookup,
+  type LiveSubjectLookup,
+} from '#/service/client-enabled';
+import { mappedClaims } from '#/service/issued-claims';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 
@@ -44,6 +48,7 @@ export interface UserinfoDeps {
   // client's tokens read no differently than a dead grant or a dead
   // session, past this check.
   liveClientLookup: LiveClientLookup;
+  liveSubjectLookup: LiveSubjectLookup;
   // The role set a granted scope reaches, and whether the token's client
   // bypasses that intersection — the same gate token issuance applies, so
   // a role withheld from a token cannot resurface here.
@@ -215,6 +220,9 @@ export async function resolveUserinfo(
   ) {
     return { kind: 'invalid_token', clientId };
   }
+  if (!(await deps.liveSubjectLookup.isSubjectEnabled(tenant.id, payload.sub))) {
+    return { kind: 'invalid_token', clientId };
+  }
 
   // Session liveness is what makes revocation real inside an access
   // token's hour (design spec §8.2) — the same check `/introspect` and
@@ -241,11 +249,10 @@ export async function resolveUserinfo(
     clientId,
     scope,
   );
-  const narrowedCtx: ClaimContext = {
-    ...ctx.context,
-    roles: narrowByScopeMappings(ctx.context.roles, reachableRoleIds, fullScopeAllowed),
-  };
-  const assembled = await deps.claimMappers.assemble(scope, narrowedCtx, ctx.bindings);
+  const assembled = await mappedClaims(deps.claimMappers, scope, ctx, {
+    reachableRoleIds,
+    fullScopeAllowed,
+  });
   // `sub` is kept regardless of what was requested — OIDC Core §5.3.2's own
   // response, not a claim `narrowToRequestedClaims` was ever meant to cut.
   const requested = requestedClaimsOf(payload.requested_userinfo_claims);

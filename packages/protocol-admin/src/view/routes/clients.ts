@@ -1,7 +1,8 @@
 import {
   amendClientRequestSchema,
   createClientRequestSchema,
-  cursorQuerySchema,
+  listClientsQuerySchema,
+  rotateClientSecretQuerySchema,
   type Client,
   type CreateClientResponse,
   type RotateClientSecretResponse,
@@ -13,6 +14,7 @@ import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
 import {
   amendClient,
+  clientWire,
   clientWireShape,
   createClient,
   deleteClient,
@@ -24,7 +26,16 @@ import {
   type ClientView,
   type CreateClientOutcome,
 } from '#/usecase/clients';
-import { problem, sendProblem } from '#/view/problem';
+import {
+  ceilingProblem,
+  cursorProblem,
+  fieldProblem,
+  problem,
+  queryProblem,
+  sendProblem,
+  type Problem,
+  lastAdministratorProblem,
+} from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -34,13 +45,42 @@ export interface ClientsRouteDeps {
   readonly hashClientSecret: (secret: string) => Promise<string>;
   readonly tlsClientAuthEnabled: boolean;
   readonly audit: Audit;
+  readonly now: () => Date;
+  /** See `SubjectsRouteDeps.callerCapabilities` (#/view/routes/subjects.ts) — the same ceiling. */
+  readonly callerCapabilities: (
+    issuerTenantId: string,
+    subjectId: string,
+  ) => Promise<ReadonlySet<string>>;
+}
+
+export function serviceAccountCeilingProblem(
+  reply: FastifyReply,
+  request: AdminRequest,
+  denied: readonly string[],
+): FastifyReply {
+  return sendProblem(
+    reply,
+    request,
+    problem(
+      403,
+      'about:blank',
+      'Forbidden',
+      `the client's service account holds what the caller does not: ${denied.join(', ')}`,
+    ),
+  );
 }
 
 // `clientWireShape` (usecase/clients.ts) is the one mapping, so the bytes
 // this serialises and the bytes `amendClient`'s own `If-Match` check hashes
 // can never drift apart.
 function toWireClient(view: ClientView): Client {
-  return clientWireShape(view);
+  return clientWire(view);
+}
+
+// The `ETag` is taken over the stored fields alone: what the service account
+// holds changes with its roles, which no write to the client made.
+function etagOfView(view: ClientView): string {
+  return etagOf(clientWireShape(view));
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -48,12 +88,22 @@ function ifMatchHeader(request: AdminRequest): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+function metadataProblem(outcome: { description: string; field?: string }): Problem {
+  return outcome.field === undefined
+    ? problem(400, 'about:blank', 'Bad Request', outcome.description)
+    : fieldProblem([{ path: outcome.field, message: outcome.description }], outcome.description);
+}
+
 export function listClientsHandler(deps: ClientsRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
-    // Same narrowing as listTenantsHandler (#/view/routes/tenants.ts):
-    // ADMIN_ROUTES' `querystringSchema` already validated shape.
-    const query = cursorQuerySchema.parse(request.query);
-    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
+    // Same narrowing as listTenantsHandler (#/view/routes/tenants.ts).
+    const parsed = listClientsQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return sendProblem(reply, request, queryProblem(parsed.error));
+    }
+    const query = parsed.data;
+    const { cursor, limit: requestedLimit, ...filters } = query;
+    const limit = coerceLimit(requestedLimit === undefined ? undefined : String(requestedLimit));
     const tenantName = request.params.tenant;
     if (tenantName === undefined) {
       throw new Error('protocol-admin: clients route received no :tenant');
@@ -62,17 +112,14 @@ export function listClientsHandler(deps: ClientsRouteDeps): AdminRouteHandler {
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listClients(tx, {
         limit,
-        cursor: query.cursor,
+        cursor,
         cursorKey: deps.cursorKey,
         tenantId: targetTenantId,
+        filters,
       }),
     );
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
-      );
+      return sendProblem(reply, request, cursorProblem());
     }
 
     const items = outcome.items.map(toWireClient);
@@ -108,9 +155,8 @@ export function readClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
       );
     }
 
-    const wire = toWireClient(outcome.client);
-    reply.header('etag', etagOf(wire));
-    return reply.code(200).send(wire);
+    reply.header('etag', etagOfView(outcome.client));
+    return reply.code(200).send(toWireClient(outcome.client));
   };
 }
 
@@ -174,22 +220,18 @@ export function createClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
           ),
         );
       case 'invalid_metadata':
-        return sendProblem(
-          reply,
-          request,
-          problem(400, 'about:blank', 'Bad Request', outcome.description),
-        );
+        return sendProblem(reply, request, metadataProblem(outcome));
       case 'refused_field':
         return sendProblem(
           reply,
           request,
-          problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+          fieldProblem([{ path: outcome.field, message: outcome.reason }]),
         );
       case 'invalid_value':
         return sendProblem(
           reply,
           request,
-          problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.description}`),
+          fieldProblem([{ path: outcome.field, message: outcome.description }]),
         );
       case 'at_capacity':
         return sendProblem(
@@ -203,10 +245,12 @@ export function createClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
           ),
         );
       case 'ok': {
+        const client = toWireClient(outcome.client);
         const wire: CreateClientResponse = {
-          ...toWireClient(outcome.client),
+          ...client,
           ...(outcome.secret === null ? {} : { client_secret: outcome.secret }),
         };
+        reply.header('etag', etagOfView(outcome.client));
         return reply.code(201).send(wire);
       }
     }
@@ -225,20 +269,16 @@ function amendmentProblem(
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+        fieldProblem([{ path: outcome.field, message: outcome.reason }]),
       );
     case 'invalid_value':
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.description}`),
+        fieldProblem([{ path: outcome.field, message: outcome.description }]),
       );
     case 'invalid_metadata':
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', outcome.description),
-      );
+      return sendProblem(reply, request, metadataProblem(outcome));
     case 'precondition_required':
       return sendProblem(
         reply,
@@ -260,6 +300,8 @@ function amendmentProblem(
       return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
     case 'auth_method_changes_type':
       return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+    case 'target_ceiling':
+      return serviceAccountCeilingProblem(reply, request, outcome.requested);
   }
 }
 
@@ -270,6 +312,10 @@ export function amendClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: PATCH client route received no :id');
     }
     const values = amendClientRequestSchema.parse(request.body);
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       amendClient(
@@ -279,6 +325,7 @@ export function amendClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
           clientDbId: id,
           values,
           ifMatch: ifMatchHeader(request),
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -300,6 +347,10 @@ export function deleteClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
     if (id === undefined) {
       throw new Error('protocol-admin: DELETE client route received no :id');
     }
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteClient(
@@ -307,6 +358,7 @@ export function deleteClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
         { audit: deps.audit },
         {
           clientDbId: id,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -315,10 +367,16 @@ export function deleteClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
     );
 
     switch (outcome.kind) {
+      case 'last_administrator':
+        return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'builtin_admin_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'target_ceiling':
+        return serviceAccountCeilingProblem(reply, request, outcome.requested);
+      case 'capability_ceiling':
+        return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
       case 'deleted':
         return reply.code(204).send();
     }
@@ -331,13 +389,22 @@ export function rotateClientSecretHandler(deps: ClientsRouteDeps): AdminRouteHan
     if (id === undefined) {
       throw new Error('protocol-admin: POST client secret route received no :id');
     }
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
+    // Fastify's ajv compiler already validated the querystring against this
+    // schema (ADMIN_ROUTES' `querystringSchema`); parsing again only narrows it.
+    const query = rotateClientSecretQuerySchema.parse(request.query);
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       rotateClientSecret(
         tx,
-        { hashClientSecret: deps.hashClientSecret, audit: deps.audit },
+        { hashClientSecret: deps.hashClientSecret, audit: deps.audit, now: deps.now },
         {
           clientDbId: id,
+          graceSeconds: query.grace_seconds ?? 0,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -354,6 +421,19 @@ export function rotateClientSecretHandler(deps: ClientsRouteDeps): AdminRouteHan
           request,
           problem(409, 'about:blank', 'Conflict', 'a public client has no secret to rotate'),
         );
+      case 'no_secret_method':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            409,
+            'about:blank',
+            'Conflict',
+            `a client that authenticates with ${outcome.method} has no secret to rotate`,
+          ),
+        );
+      case 'target_ceiling':
+        return serviceAccountCeilingProblem(reply, request, outcome.requested);
       case 'ok': {
         const wire: RotateClientSecretResponse = {
           ...toWireClient(outcome.client),

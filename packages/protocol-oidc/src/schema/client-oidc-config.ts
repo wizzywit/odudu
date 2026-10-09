@@ -17,8 +17,11 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   grantTypes: text('grant_types').array().notNull(),
   tokenEndpointAuthMethod: text('token_endpoint_auth_method').notNull(),
   audiences: text('audiences').array().notNull().default([]),
-  accessTokenTtlSeconds: integer('access_token_ttl_seconds').notNull().default(300),
-  refreshTokenTtlSeconds: integer('refresh_token_ttl_seconds').notNull().default(1_209_600),
+  // Null takes the tenant's own lifetime
+  // (packages/db/drizzle/0082_tenant_lifetimes.sql).
+  accessTokenTtlSeconds: integer('access_token_ttl_seconds'),
+  idTokenTtlSeconds: integer('id_token_ttl_seconds'),
+  refreshTokenTtlSeconds: integer('refresh_token_ttl_seconds'),
   // The ceiling on what client_credentials may request — resource-server
   // scopes (e.g. `reports:read`), not the OIDC vocabulary the tenant's
   // client_scopes carry, since this grant has no consent screen and no
@@ -63,6 +66,16 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   // (client_oidc_config_tls_client_auth_needs_subject_dn), so it stays
   // nullable here the way jwksUri does for private_key_jwt.
   tlsClientAuthSubjectDn: text('tls_client_auth_subject_dn'),
+  // RFC 7591 §2's pages about the client, linked from the consent screen
+  // (packages/db/drizzle/0084_client_display_metadata.sql).
+  clientUri: text('client_uri'),
+  policyUri: text('policy_uri'),
+  tosUri: text('tos_uri'),
+  // OIDC Dynamic Client Registration §2's ID token settings
+  // (packages/db/drizzle/0085_client_id_token_settings.sql).
+  idTokenSignedResponseAlg: text('id_token_signed_response_alg'),
+  defaultMaxAge: integer('default_max_age'),
+  requireAuthTime: boolean('require_auth_time').notNull().default(false),
 }).enableRLS();
 
 // Redirect URIs and grant types are OAuth vocabulary; they live here rather
@@ -75,8 +88,9 @@ export interface ClientOidcConfig {
   grantTypes: string[];
   tokenEndpointAuthMethod: TokenEndpointAuthMethod;
   audiences: string[];
-  accessTokenTtlSeconds: number;
-  refreshTokenTtlSeconds: number;
+  accessTokenTtlSeconds: number | null;
+  idTokenTtlSeconds: number | null;
+  refreshTokenTtlSeconds: number | null;
   clientCredentialsScopes: string[];
   webOrigins: string[];
   postLogoutRedirectUris: string[];
@@ -92,4 +106,10 @@ export interface ClientOidcConfig {
   userinfoEncryptedResponseAlg: string | null;
   userinfoEncryptedResponseEnc: string | null;
   tlsClientAuthSubjectDn: string | null;
+  clientUri: string | null;
+  policyUri: string | null;
+  tosUri: string | null;
+  idTokenSignedResponseAlg: 'RS256' | 'ES256' | null;
+  defaultMaxAge: number | null;
+  requireAuthTime: boolean;
 }

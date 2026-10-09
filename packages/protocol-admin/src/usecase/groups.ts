@@ -1,39 +1,40 @@
-import { type Group } from '@odudu/contracts/admin';
-import { type TenantScopedDatabase } from '@odudu/db';
-import { ancestorsOf, groupRepository, groupRoles, groups, roles } from '@odudu/domain-authz';
+import { ASSIGNMENT_LIMIT, type GroupFields, type ListGroupsQuery } from '@odudu/contracts/admin';
+import { isUniqueViolation, withSavepoint, type TenantScopedDatabase } from '@odudu/db';
+import { descendantsOf, groupRepository, groupRoles, groups, roles } from '@odudu/domain-authz';
+import { clients } from '@odudu/domain-tenant';
 import { isUuid, OduduError } from '@odudu/kernel';
-import { asc, eq, gt, inArray } from 'drizzle-orm';
-import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
-import { decodeCursor, encodeCursor } from '#/service/cursor';
+import { and, asc, eq, gt, inArray, isNull, type SQL } from 'drizzle-orm';
+import {
+  capabilitiesOfGroupsAndAncestors,
+  capabilitiesOfSubtree,
+  capabilitiesReachableFrom,
+  overreach,
+  replacementOverreach,
+} from '#/service/capability-ceiling';
+import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
+import { readKeyedPage } from '#/service/in-order';
+import { checkDescription } from '#/service/description';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
+import { groupWireShape } from '#/service/group-wire';
 import { AMENDABLE_GROUP_FIELDS, refusalFor } from '#/service/group-patch';
-import { type RoleAssignment } from '#/usecase/subjects';
-
-// The admin-client capability names a group would hand a subject placed
-// under it — everything mapped to `groupId` or any of its ancestors,
-// `group_closure` (`effectiveRoles`, @odudu/domain-authz) is what actually
-// grants inherited roles, so the ceiling has to reach as far up as that
-// does, not just the group named directly.
-async function capabilitiesOfGroupAndAncestors(
-  tx: TenantScopedDatabase,
-  groupId: string,
-): Promise<ReadonlySet<string>> {
-  const chain = await ancestorsOf(tx, groupId);
-  if (chain.size === 0) return new Set();
-  const mapped = await tx
-    .select({ roleId: groupRoles.roleId })
-    .from(groupRoles)
-    .where(inArray(groupRoles.groupId, [...chain]));
-  return capabilitiesReachableFrom(
-    tx,
-    mapped.map((row) => row.roleId),
-  );
-}
+import { redactedDiff } from '#/service/audit-detail';
+import { holdsDefaultGroup, lockDefaultReach } from '#/usecase/default-reach';
+import {
+  guardLastAdministrator,
+  type LastAdministratorRefusal,
+} from '#/usecase/last-administrator';
+import {
+  prefixRangeConditions,
+  requireSearchKey,
+  type ListPosition,
+} from '#/usecase/prefix-search';
+import { roleAssignmentColumns, type RoleAssignment } from '#/usecase/subjects';
 
 const COLLECTION = 'groups';
 
 export interface GroupAuditEvent {
-  readonly action: 'group.create' | 'group.amend' | 'group.delete' | 'group.roles_set';
+  readonly action:
+    'group.create' | 'group.amend' | 'group.delete' | 'group.roles_set' | 'group.default_set';
   readonly resourceType: 'group';
   readonly resourceId: string;
   readonly actorSubjectId: string;
@@ -46,66 +47,119 @@ export interface GroupAuditEvent {
 /** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: GroupAuditEvent) => Promise<void>;
 
-export function groupWireShape(group: {
-  id: string;
-  name: string;
-  parentId: string | null;
-  path: string;
-  createdAt: Date;
-}): Group {
-  return {
-    id: group.id,
-    name: group.name,
-    parent_id: group.parentId,
-    path: group.path,
-    created_at: group.createdAt.toISOString(),
-  };
-}
+/** Every `listGroupsQuerySchema` parameter except the page controls. */
+export type GroupFilters = Omit<ListGroupsQuery, 'cursor' | 'limit'>;
 
 export interface ListGroupsInput {
   readonly limit: number;
   readonly cursor: string | undefined;
   readonly cursorKey: Uint8Array;
   readonly tenantId: string;
+  readonly filters: GroupFilters;
 }
 
 export type ListGroupsOutcome =
-  { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly Group[]; next: string | null };
+  { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly GroupFields[]; next: string | null };
 
+/** The groups listing's order, which its keyset cursor and its count both follow. */
+export function groupListOrder(filters: GroupFilters): SQL[] {
+  return filters.name === undefined ? [asc(groups.id)] : [asc(groups.nameSearch), asc(groups.id)];
+}
+
+/** The WHERE clause of the groups listing, and of its count, which passes no position. */
+export async function groupListConditions(
+  tx: TenantScopedDatabase,
+  filters: GroupFilters,
+  after: ListPosition | undefined,
+): Promise<SQL[]> {
+  const conditions: SQL[] = [];
+  if (filters.parent === 'root') conditions.push(isNull(groups.parentId));
+  else if (filters.parent !== undefined) conditions.push(eq(groups.parentId, filters.parent));
+  if (filters.name === undefined) {
+    if (after !== undefined) conditions.push(gt(groups.id, after.id));
+    return conditions;
+  }
+  const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+  conditions.push(
+    ...(await prefixRangeConditions(tx, groups.nameSearch, groups.id, filters.name, position)),
+  );
+  return conditions;
+}
+
+// A searched listing is one range scan of `groups_name_search`
+// (0075_list_indexes_roles_groups_scopes.sql), the way `listSubjects` is.
 export async function listGroups(
   tx: TenantScopedDatabase,
   input: ListGroupsInput,
 ): Promise<ListGroupsOutcome> {
-  let after: string | undefined;
+  const filters = filterDigest(input.filters);
+  const prefix = input.filters.name;
+  let after: ListPosition | undefined;
   if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    const decoded = decodeCursor(
+      input.cursorKey,
+      COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
-    after = decoded.after;
+    if (prefix !== undefined && decoded.sort === undefined) return { kind: 'invalid_cursor' };
+    after = { id: decoded.after, sort: decoded.sort };
   }
 
-  const rows = await tx
-    .select()
-    .from(groups)
-    .where(after === undefined ? undefined : gt(groups.id, after))
-    .orderBy(asc(groups.id))
-    .limit(input.limit + 1);
+  const conditions = await groupListConditions(tx, input.filters, after);
+  const where = conditions.length === 0 ? undefined : and(...conditions);
+  const order = groupListOrder(input.filters);
+  // A search reads its page of keys from the search index alone, then the rows
+  // by id: the planner prices a bitmap of every match against an ordered scan,
+  // and the keys cost nothing it can get wrong.
+  let rows: (typeof groups.$inferSelect)[];
+  if (prefix === undefined) {
+    rows = await tx
+      .select()
+      .from(groups)
+      .where(where)
+      .orderBy(...order)
+      .limit(input.limit + 1);
+  } else {
+    rows = await readKeyedPage(
+      async () =>
+        (
+          await tx
+            .select({ id: groups.id })
+            .from(groups)
+            .where(where)
+            .orderBy(...order)
+            .limit(input.limit + 1)
+        ).map((row) => row.id),
+      (ids) =>
+        tx
+          .select()
+          .from(groups)
+          .where(inArray(groups.id, [...ids])),
+      (row) => row.id,
+    );
+  }
 
   const hasMore = rows.length > input.limit;
-  const items = (hasMore ? rows.slice(0, input.limit) : rows).map(groupWireShape);
-  const last = items[items.length - 1];
+  const page = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = page[page.length - 1];
   const next =
     hasMore && last !== undefined
       ? encodeCursor(input.cursorKey, {
           after: last.id,
+          ...(prefix === undefined ? {} : { sort: requireSearchKey(last.nameSearch) }),
           collection: COLLECTION,
           tenantId: input.tenantId,
+          filters,
         })
       : null;
 
-  return { kind: 'ok', items, next };
+  return { kind: 'ok', items: page.map((row) => groupWireShape(row)), next };
 }
 
-export type ReadGroupOutcome = { kind: 'not_found' } | { kind: 'ok'; group: Group };
+export type ReadGroupOutcome = { kind: 'not_found' } | { kind: 'ok'; group: GroupFields };
 
 export async function readGroup(
   tx: TenantScopedDatabase,
@@ -118,6 +172,7 @@ export async function readGroup(
 export interface CreateGroupInput {
   readonly tenantId: string;
   readonly name: string;
+  readonly description: string | null;
   readonly parentId: string | null;
   /** The caller's own admin-client capability names — see `AmendGroupInput`'s for the same ceiling. */
   readonly callerCapabilities: ReadonlySet<string>;
@@ -131,7 +186,8 @@ export interface CreateGroupDeps {
 }
 
 export type CreateGroupOutcome =
-  { kind: 'capability_ceiling'; requested: readonly string[] } | { kind: 'ok'; group: Group };
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
+  | { kind: 'ok'; group: GroupFields };
 
 // `OduduError('group_not_found')` from `groupRepository.create` (a
 // `parent_id` naming no group) propagates out of this function instead of
@@ -156,7 +212,7 @@ export async function createGroup(
     if (!isUuid(input.parentId)) {
       throw new OduduError('group_not_found', `no group with id ${input.parentId}`);
     }
-    const requestedCapabilities = await capabilitiesOfGroupAndAncestors(tx, input.parentId);
+    const requestedCapabilities = await capabilitiesOfGroupsAndAncestors(tx, [input.parentId]);
     const denied = overreach(requestedCapabilities, input.callerCapabilities);
     if (denied.length > 0) {
       await deps.audit(tx, {
@@ -177,6 +233,7 @@ export async function createGroup(
     tenantId: input.tenantId,
     name: input.name,
     parentId: input.parentId,
+    description: input.description,
   });
 
   await deps.audit(tx, {
@@ -199,9 +256,9 @@ export interface AmendGroupInput {
   /**
    * The caller's own admin-client capability names — the same ceiling
    * `setRoles` (#/usecase/subjects.ts) enforces, applied here to
-   * reparenting: moving a group under a new parent must never hand it (and
-   * every subject placed in it) a capability the caller does not itself
-   * hold, via the new parent's own roles or any of its ancestors'.
+   * reparenting in both directions: moving a group must never hand its
+   * subjects a capability the caller does not hold, through the new
+   * parent's chain, nor take one away, through the old parent's.
    */
   readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
@@ -219,9 +276,12 @@ export type AmendGroupOutcome =
   | { kind: 'refused_field'; field: string; reason: string }
   | { kind: 'invalid_value'; field: string; description: string }
   | { kind: 'precondition_failed' }
-  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'cycle' }
-  | { kind: 'ok'; group: Group; etag: string };
+  | { kind: 'name_taken'; name: string }
+  | { kind: 'default_group_capability'; capabilities: readonly string[] }
+  | { kind: 'ok'; group: GroupFields; etag: string }
+  | LastAdministratorRefusal;
 
 async function lockGroupForAmend(
   tx: TenantScopedDatabase,
@@ -231,8 +291,26 @@ async function lockGroupForAmend(
   return rows[0] ?? null;
 }
 
-/** `parent_id` is the only amendable field: reparenting, via `groupRepository.reparent`. */
+/** `description`, and `parent_id`: reparenting, via `groupRepository.reparent`. */
 export async function amendGroup(
+  tx: TenantScopedDatabase,
+  deps: AmendGroupDeps,
+  input: AmendGroupInput,
+): Promise<AmendGroupOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'group.amend',
+      resourceType: 'group',
+      resourceId: input.groupId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => amendGroupUnguarded(inner, deps, input),
+  );
+}
+
+async function amendGroupUnguarded(
   tx: TenantScopedDatabase,
   deps: AmendGroupDeps,
   input: AmendGroupInput,
@@ -255,6 +333,15 @@ export async function amendGroup(
     return { kind: 'precondition_failed' };
   }
 
+  let description: { value: string | null } | undefined;
+  if ('description' in input.values) {
+    const checked = checkDescription(input.values.description);
+    if (checked.kind === 'invalid') {
+      return { kind: 'invalid_value', field: 'description', description: checked.message };
+    }
+    description = { value: checked.value };
+  }
+
   let parentId: string | null | undefined;
   if ('parent_id' in input.values) {
     const value = input.values.parent_id;
@@ -275,8 +362,28 @@ export async function amendGroup(
     if (!isUuid(parentId) || (await groupRepository(tx).byId(parentId)) === null) {
       return { kind: 'unknown_parent' };
     }
-    const requestedCapabilities = await capabilitiesOfGroupAndAncestors(tx, parentId);
-    const denied = overreach(requestedCapabilities, input.callerCapabilities);
+  }
+
+  // `groups_path_unique` would refuse the rewrite inside the transaction,
+  // so a sibling holding the name is looked for first.
+  if (parentId !== undefined && parentId !== locked.parentId) {
+    const above = parentId === null ? null : await groupRepository(tx).byId(parentId);
+    const taken = await groupRepository(tx).byPath(`${above?.path ?? ''}/${locked.name}`);
+    if (taken !== null && taken.id !== input.groupId) {
+      return { kind: 'name_taken', name: locked.name };
+    }
+  }
+
+  if (parentId !== undefined) {
+    const gained =
+      typeof parentId === 'string' ? await capabilitiesOfGroupsAndAncestors(tx, [parentId]) : [];
+    const lost =
+      locked.parentId === null || locked.parentId === parentId
+        ? []
+        : await capabilitiesOfGroupsAndAncestors(tx, [locked.parentId]);
+    const granted = overreach(new Set(gained), input.callerCapabilities);
+    const removed = overreach(new Set(lost), input.callerCapabilities);
+    const denied = [...new Set([...granted, ...removed])];
     if (denied.length > 0) {
       await deps.audit(tx, {
         action: 'group.amend',
@@ -288,19 +395,62 @@ export async function amendGroup(
         outcome: 'refused',
         detail: { denied },
       });
-      return { kind: 'capability_ceiling', requested: denied };
+      return { kind: 'capability_ceiling', requested: granted, removed };
     }
   }
 
-  if (parentId !== undefined) {
-    try {
-      await groupRepository(tx).reparent(input.groupId, parentId);
-    } catch (error) {
-      if (error instanceof OduduError && error.code === 'group_reparent_cycle') {
-        return { kind: 'cycle' };
-      }
-      throw error;
+  if (typeof parentId === 'string') {
+    // The rows the reparent rewrites, and the parent its foreign key checks,
+    // are locked before the default-reach lock, as every other writer of it
+    // locks its rows first (#/usecase/default-reach.ts).
+    const subtree = [...(await descendantsOf(tx, input.groupId))].sort();
+    if (subtree.length > 0) {
+      await tx
+        .select({ id: groups.id })
+        .from(groups)
+        .where(inArray(groups.id, subtree))
+        .for('update');
     }
+    await tx.select({ id: groups.id }).from(groups).where(eq(groups.id, parentId)).for('key share');
+    await lockDefaultReach(tx);
+    if (await holdsDefaultGroup(tx, input.groupId)) {
+      const capabilities = [...(await capabilitiesOfGroupsAndAncestors(tx, [parentId]))].sort();
+      if (capabilities.length > 0) {
+        await deps.audit(tx, {
+          action: 'group.amend',
+          resourceType: 'group',
+          resourceId: input.groupId,
+          actorSubjectId: input.actorSubjectId,
+          actorTenantId: input.actorTenantId,
+          actorClientId: input.actorClientId,
+          outcome: 'refused',
+          detail: { denied: capabilities },
+        });
+        return { kind: 'default_group_capability', capabilities };
+      }
+    }
+  }
+
+  // A savepoint, so a sibling committed since the name check above, which
+  // `groups_path_unique` refuses at the rewrite, leaves the transaction usable
+  // and takes the description change back with it.
+  try {
+    await withSavepoint(tx, async (inner) => {
+      if (description !== undefined) {
+        await groupRepository(inner).setDescription(input.groupId, description.value);
+      }
+      if (parentId !== undefined) {
+        await groupRepository(inner).reparent(input.groupId, parentId);
+      }
+    });
+  } catch (error) {
+    if (error instanceof OduduError && error.code === 'group_reparent_cycle') {
+      return { kind: 'cycle' };
+    }
+    if (isUniqueViolation(error) && parentId !== undefined) {
+      return { kind: 'name_taken', name: locked.name };
+    }
+    throw error;
   }
 
   await deps.audit(tx, {
@@ -322,6 +472,8 @@ export async function amendGroup(
 
 export interface DeleteGroupInput {
   readonly groupId: string;
+  /** See `AmendGroupInput`'s: what the delete takes away is held to it. */
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -331,13 +483,54 @@ export interface DeleteGroupDeps {
   readonly audit: Audit;
 }
 
-export type DeleteGroupOutcome = { kind: 'not_found' } | { kind: 'deleted' };
+export type DeleteGroupOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
+  | { kind: 'deleted' }
+  | LastAdministratorRefusal;
 
 export async function deleteGroup(
   tx: TenantScopedDatabase,
   deps: DeleteGroupDeps,
   input: DeleteGroupInput,
 ): Promise<DeleteGroupOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'group.delete',
+      resourceType: 'group',
+      resourceId: input.groupId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => deleteGroupUnguarded(inner, deps, input),
+  );
+}
+
+async function deleteGroupUnguarded(
+  tx: TenantScopedDatabase,
+  deps: DeleteGroupDeps,
+  input: DeleteGroupInput,
+): Promise<DeleteGroupOutcome> {
+  if ((await lockGroupForAmend(tx, input.groupId)) === null) return { kind: 'not_found' };
+  const denied = overreach(
+    await capabilitiesOfSubtree(tx, input.groupId),
+    input.callerCapabilities,
+  );
+  if (denied.length > 0) {
+    await deps.audit(tx, {
+      action: 'group.delete',
+      resourceType: 'group',
+      resourceId: input.groupId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { denied },
+    });
+    return { kind: 'capability_ceiling', requested: [], removed: denied };
+  }
+
   const deleted = await groupRepository(tx).delete(input.groupId);
   if (!deleted) return { kind: 'not_found' };
 
@@ -371,10 +564,12 @@ export interface SetGroupRolesDeps {
 export type SetGroupRolesOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_role'; roleIds: readonly string[] }
-  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
-  | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
+  | { kind: 'default_group_capability'; capabilities: readonly string[] }
+  | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string }
+  | LastAdministratorRefusal;
 
 export type ReadGroupRolesOutcome =
   { kind: 'not_found' } | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
@@ -386,9 +581,10 @@ async function mappedRoles(
   groupId: string,
 ): Promise<readonly RoleAssignment[]> {
   return tx
-    .select({ id: roles.id, name: roles.name })
+    .select(roleAssignmentColumns)
     .from(groupRoles)
     .innerJoin(roles, eq(groupRoles.roleId, roles.id))
+    .leftJoin(clients, eq(clients.id, roles.clientId))
     .where(eq(groupRoles.groupId, groupId))
     .orderBy(asc(roles.id));
 }
@@ -421,6 +617,24 @@ export async function setGroupRoles(
   deps: SetGroupRolesDeps,
   input: SetGroupRolesInput,
 ): Promise<SetGroupRolesOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'group.roles_set',
+      resourceType: 'group',
+      resourceId: input.groupId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => setGroupRolesUnguarded(inner, deps, input),
+  );
+}
+
+async function setGroupRolesUnguarded(
+  tx: TenantScopedDatabase,
+  deps: SetGroupRolesDeps,
+  input: SetGroupRolesInput,
+): Promise<SetGroupRolesOutcome> {
   const group = await lockGroupForRoles(tx, input.groupId);
   if (group === null) return { kind: 'not_found' };
 
@@ -447,18 +661,25 @@ export async function setGroupRoles(
       : await tx
           .select({ id: roles.id, name: roles.name })
           .from(roles)
-          .where(inArray(roles.id, queryableRoleIds));
+          .where(inArray(roles.id, queryableRoleIds))
+          .orderBy(asc(roles.id))
+          .for('key share');
   const foundIds = new Set(found.map((role) => role.id));
   const missing = uniqueRoleIds.filter((id) => !foundIds.has(id));
   if (missing.length > 0) {
     return { kind: 'unknown_role', roleIds: missing };
   }
 
-  // The same ceiling `setRoles` (#/usecase/subjects.ts) enforces: mapping a
-  // role onto a group the caller belongs to must never hand it, and every
-  // subject in it, a capability the caller does not itself hold.
-  const requestedCapabilities = await capabilitiesReachableFrom(tx, uniqueRoleIds);
-  const denied = overreach(requestedCapabilities, input.callerCapabilities);
+  // The same ceiling `setRoles` (#/usecase/subjects.ts) enforces, on the
+  // delta: a role mapped here must not hand the group's subjects a
+  // capability the caller does not hold, nor a role left out take one away.
+  const breach = await replacementOverreach(
+    tx,
+    (await mappedRoles(tx, input.groupId)).map((role) => role.id),
+    uniqueRoleIds,
+    input.callerCapabilities,
+  );
+  const denied = [...new Set([...breach.granted, ...breach.removed])];
   if (denied.length > 0) {
     await deps.audit(tx, {
       action: 'group.roles_set',
@@ -470,7 +691,25 @@ export async function setGroupRoles(
       outcome: 'refused',
       detail: { denied },
     });
-    return { kind: 'capability_ceiling', requested: denied };
+    return { kind: 'capability_ceiling', requested: breach.granted, removed: breach.removed };
+  }
+
+  await lockDefaultReach(tx);
+  if (await holdsDefaultGroup(tx, input.groupId)) {
+    const capabilities = [...(await capabilitiesReachableFrom(tx, uniqueRoleIds))].sort();
+    if (capabilities.length > 0) {
+      await deps.audit(tx, {
+        action: 'group.roles_set',
+        resourceType: 'group',
+        resourceId: input.groupId,
+        actorSubjectId: input.actorSubjectId,
+        actorTenantId: input.actorTenantId,
+        actorClientId: input.actorClientId,
+        outcome: 'refused',
+        detail: { denied: capabilities },
+      });
+      return { kind: 'default_group_capability', capabilities };
+    }
   }
 
   await groupRepository(tx).setRoles(input.groupId, uniqueRoleIds);
@@ -487,4 +726,79 @@ export async function setGroupRoles(
 
   const mapped = await mappedRoles(tx, input.groupId);
   return { kind: 'ok', roles: mapped, etag: etagOf({ items: mapped }) };
+}
+
+export interface SetGroupDefaultInput {
+  readonly groupId: string;
+  readonly value: boolean;
+  readonly ifMatch: string | undefined;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface SetGroupDefaultDeps {
+  readonly audit: Audit;
+}
+
+export type SetGroupDefaultOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'default_group_capability'; capabilities: readonly string[] }
+  | { kind: 'too_many_defaults' }
+  | { kind: 'precondition_failed' }
+  | { kind: 'ok'; group: GroupFields; etag: string };
+
+// The role default's rule (`setRoleDefault`, #/usecase/roles.ts) applied to
+// what membership hands out: the group's own roles and every ancestor's, which
+// `effectiveRoles` gives its members. No capability at all, whoever the
+// caller is. Unsetting is never refused.
+export async function setGroupDefault(
+  tx: TenantScopedDatabase,
+  deps: SetGroupDefaultDeps,
+  input: SetGroupDefaultInput,
+): Promise<SetGroupDefaultOutcome> {
+  if (!isUuid(input.groupId)) return { kind: 'not_found' };
+  const locked = await lockGroupForAmend(tx, input.groupId);
+  if (locked === null) return { kind: 'not_found' };
+  const before = groupWireShape(locked);
+  if (matches(input.ifMatch, etagOf(before)) === 'mismatch') return { kind: 'precondition_failed' };
+
+  if (input.value) {
+    await lockDefaultReach(tx);
+    if (
+      !locked.defaultForNewSubjects &&
+      (await groupRepository(tx).defaultsForTenant()).length >= ASSIGNMENT_LIMIT
+    ) {
+      return { kind: 'too_many_defaults' };
+    }
+    const capabilities = [...(await capabilitiesOfGroupsAndAncestors(tx, [input.groupId]))].sort();
+    if (capabilities.length > 0) {
+      await deps.audit(tx, {
+        action: 'group.default_set',
+        resourceType: 'group',
+        resourceId: input.groupId,
+        actorSubjectId: input.actorSubjectId,
+        actorTenantId: input.actorTenantId,
+        actorClientId: input.actorClientId,
+        outcome: 'refused',
+        detail: { denied: capabilities },
+      });
+      return { kind: 'default_group_capability', capabilities };
+    }
+  }
+
+  await groupRepository(tx).setDefaultForNewSubjects(input.groupId, input.value);
+  const after: GroupFields = { ...before, default_for_new_subjects: input.value };
+
+  await deps.audit(tx, {
+    action: 'group.default_set',
+    resourceType: 'group',
+    resourceId: input.groupId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+    detail: redactedDiff('group', before, after),
+  });
+  return { kind: 'ok', group: after, etag: etagOf(after) };
 }

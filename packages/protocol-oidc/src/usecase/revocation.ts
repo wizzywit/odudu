@@ -1,18 +1,19 @@
 import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { type ClientRecord } from '@odudu/domain-tenant';
 import { auditRepository } from '@odudu/domain-audit';
 import { tokenGrantRepository } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
 import { invalidGrant, withAudit } from '#/service/errors';
 import { hashRefreshToken } from '#/service/refresh';
+import { readOptionalField } from '#/usecase/client-authentication';
 import {
-  authenticateClient,
-  parseBasicAuth,
-  readOptionalField,
-  type ClientAuthenticationDeps,
-} from '#/usecase/client-authentication';
+  authenticateEndpointClient,
+  type ClientRequest,
+  type EndpointAuthenticationDeps,
+} from '#/usecase/private-key-jwt-authentication';
 
-export interface RevocationDeps extends ClientAuthenticationDeps {
+export interface RevocationDeps extends EndpointAuthenticationDeps {
   readonly issuer: string;
   readonly keys: readonly SigningKeyRecord[];
 }
@@ -55,20 +56,21 @@ async function resolveGrantId(
 export async function respondToRevocationRequest(
   tx: TenantScopedDatabase,
   deps: RevocationDeps,
-  body: Record<string, string | string[] | undefined>,
-  authorizationHeader: string | undefined,
+  request: ClientRequest,
   now: Date,
 ): Promise<void> {
-  const basic = parseBasicAuth(authorizationHeader);
-  const { client } = await authenticateClient(
-    tx,
-    deps,
-    basic,
-    readOptionalField(body, 'client_id'),
-    readOptionalField(body, 'client_secret'),
-  );
+  const { client, settle } = await authenticateEndpointClient(tx, deps, request);
+  await settle((work) => revokeFor(work, deps, request, client, now));
+}
 
-  const token = readOptionalField(body, 'token') ?? '';
+async function revokeFor(
+  tx: TenantScopedDatabase,
+  deps: RevocationDeps,
+  request: ClientRequest,
+  client: ClientRecord,
+  now: Date,
+): Promise<void> {
+  const token = readOptionalField(request.body, 'token') ?? '';
   const grantId = await resolveGrantId(tx, deps, token);
   if (grantId === undefined) return;
 

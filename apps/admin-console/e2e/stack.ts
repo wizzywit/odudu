@@ -1,0 +1,164 @@
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { z } from 'zod';
+
+const DOCKER_DIR = path.resolve(import.meta.dirname, '../../../infra/docker');
+// Never the development stack's project: its containers are somebody's work.
+const PROJECT = process.env.COMPOSE_PROJECT_NAME ?? 'odudu-e2e';
+
+function compose(args: readonly string[]): string {
+  return execFileSync(
+    'docker',
+    ['compose', '--project-directory', DOCKER_DIR, '-p', PROJECT, ...args],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+}
+
+export function seed(args: readonly string[]): string {
+  return compose(['exec', '-T', 'odudu', 'node', 'dist/main.js', 'seed', ...args]);
+}
+
+// As the database owner, which row level security does not filter.
+export function psql(sql: string): string {
+  return compose([
+    'exec',
+    '-T',
+    'postgres',
+    'sh',
+    '-c',
+    'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tA -c "$0"',
+    sql,
+  ]).trim();
+}
+
+const account = z.object({ tenant: z.string(), username: z.string(), password: z.string() });
+
+const seededSchema = z.object({
+  // A tenant administrator, and one of the same tenant who must change a password.
+  admin: account,
+  forced: account,
+  // One whose console session a test ends, so no other test loses its own.
+  expiring: account,
+  // An administrator of a second tenant, to switch to.
+  other: account,
+  // A system administrator, signed in to `system`.
+  system: account,
+  // An operator of `admin`'s tenant holding manage-tenant alone.
+  limited: account,
+  // A tenant administrator of a tenant of its own, whose settings a test changes.
+  overview: account,
+  // A system administrator whose console session a test ends mid-edit.
+  resumer: account,
+  // Tenants the System area's tests change, one per test that changes one.
+  tenants: z.object({
+    // Edited, disabled and enabled again.
+    general: z.string(),
+    // Holds a confidential client, and is exported and imported.
+    source: z.string(),
+    // Changed behind an open page, for a 412.
+    conflict: z.string(),
+    // Edited by `resumer` when the session ends.
+    resume: z.string(),
+    // The prefix every tenant a test creates starts with.
+    prefix: z.string(),
+  }),
+  // Subjects of system the System administrators tests grant, revoke or sign in as.
+  systemAdmins: z.object({
+    // Holds no role, and is granted tenant-admin.
+    candidate: account,
+    // A system administrator whose tenant-admin is revoked.
+    revokee: account,
+    // Holds manage-tenants and view-users alone.
+    limited: account,
+    // Holds no role, and is offered a grant that meets a 412.
+    bystander: account,
+    // The username the guided step creates.
+    created: z.string(),
+  }),
+  // A tenant of its own for the Subjects tests, and the subjects each changes.
+  subjects: z.object({
+    // Holds tenant-admin there.
+    admin: account,
+    // Holds view-users alone.
+    viewer: account,
+    // Usernames of subjects whose profiles a test edits, one per test.
+    edited: z.string(),
+    conflict: z.string(),
+    // Whose details a test enters through the typed fields, and whose
+    // birthdate another enters by keyboard alone.
+    typed: z.string(),
+    keyed: z.string(),
+    // Whose filled-in profile the layout tests measure, and nothing changes.
+    measured: z.string(),
+    // Locked out by a test, then cleared.
+    locked: account,
+    // Issued a one-time password, which then signs in.
+    issued: account,
+    // Deleted by a test.
+    doomed: z.string(),
+    // A tenant administrator who deletes their own subject.
+    departing: account,
+    // An administrator of a second tenant, where a test turns renaming on.
+    renamer: account,
+    // The subject of that tenant the test renames.
+    renamed: z.string(),
+    // The prefix every subject a test creates starts with.
+    prefix: z.string(),
+    // Joins a group and is given a role.
+    member: z.string(),
+    // Given a required action, then signs in to meet it.
+    asked: account,
+    // Given an admin capability by a tenant administrator.
+    holder: z.string(),
+    // Holds view-audit, and is given more from the System area by keyboard.
+    listed: z.string(),
+    // A tenant administrator who ends their own sessions.
+    ender: account,
+    // Whose groups change behind an open page, for a 412.
+    raced: z.string(),
+    // A tenant administrator whose console session a test ends mid-edit,
+    // and the subject whose profile they were editing.
+    resumer: account,
+    drafted: z.string(),
+  }),
+  // A tenant of its own for the Clients tests.
+  clients: z.object({
+    // Holds tenant-admin there.
+    admin: account,
+    // Holds manage-clients alone.
+    limited: account,
+    // Holds manage-clients and manage-sessions.
+    sessions: account,
+    // Sign in through a client, to have a session and a grant of their own.
+    walkers: z.array(account),
+  }),
+  // A tenant of its own for the Groups and Roles tests.
+  groupsRoles: z.object({
+    // Holds tenant-admin there.
+    admin: account,
+    // Holds manage-tenant alone.
+    limited: account,
+    // A member of /eng.
+    member: z.string(),
+  }),
+});
+
+export type Account = z.infer<typeof account>;
+export type Seeded = z.infer<typeof seededSchema>;
+
+const STATE = 'E2E_SEEDED';
+
+export function publish(seeded: Seeded): void {
+  process.env[STATE] = JSON.stringify(seeded);
+}
+
+export function seeded(): Seeded {
+  const raw = process.env[STATE];
+  if (raw === undefined) throw new Error(`${STATE} is unset; run through e2e/run.sh`);
+  return seededSchema.parse(JSON.parse(raw));
+}
+
+// Sends the Logout Tokens that are due, as an operator would from the command line.
+export function sendLogouts(): string {
+  return compose(['exec', '-T', 'odudu', 'node', 'dist/main.js', 'send-logouts']);
+}

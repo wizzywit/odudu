@@ -1,0 +1,8 @@
+.shortcut {
+  align-self: center;
+}
+
+.problem {
+  margin: var(--space-3) 0 0;
+  color: var(--signal-danger-ink);
+}

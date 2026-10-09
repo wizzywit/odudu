@@ -55,18 +55,28 @@ const DUMMY_SUBJECT_ID = '00000000-0000-0000-0000-000000000000';
 
 interface PasswordAttempt {
   verification: PasswordVerification;
-  // Whatever the username resolved to, or the placeholder above — what the
+  // Whatever the login resolved to, or the placeholder above — what the
   // credential lookup, the lockout read and the failure write are all keyed
   // on, so the same four statements run whether the account exists or not.
   keyedOn: string;
   onRecord: { lockedUntil: Date | null };
 }
 
+// Where the tenant accepts an address, an input carrying `@` names the
+// subject whose verified address it is before any whose username it is: a
+// verified address proves control of a mailbox, while anybody can choose a
+// username that copies one and would otherwise shadow its owner's sign-in.
+// Both lookups run for every login, so a username, an address and a miss
+// each cost the same statements and none of them answers faster.
 async function passwordAttemptFor(
   tx: TenantScopedDatabase,
-  username: string,
+  login: string,
+  loginWithEmail: boolean,
 ): Promise<PasswordAttempt> {
-  const found = await userRepository(tx).byUsername(username);
+  const accounts = userRepository(tx);
+  const byUsername = await accounts.byUsername(login);
+  const byEmail = loginWithEmail ? await accounts.byVerifiedEmail(login) : null;
+  const found = login.includes('@') ? (byEmail ?? byUsername) : (byUsername ?? byEmail);
   const keyedOn = found === null ? DUMMY_SUBJECT_ID : found.subject.id;
   const storedHash = await credentialRepository(tx).passwordFor(keyedOn);
   const onRecord = await loginFailureRepository(tx).forSubject(keyedOn);
@@ -92,7 +102,7 @@ async function runPasswordStep(
   if (input.username === undefined || input.password === undefined) {
     return passwordStep(input, { subjectId: null, storedHash: null });
   }
-  const attempt = await passwordAttemptFor(tx, input.username);
+  const attempt = await passwordAttemptFor(tx, input.username, context.loginWithEmail);
   const outcome = await passwordStep(input, attempt.verification);
   const failures = loginFailureRepository(tx);
 
@@ -325,6 +335,7 @@ interface StepContext {
   // The tenant's own brute-force numbers, read alongside every other switch
   // one `advance` needs (see tenantSettingsRepository.flowSettings).
   lockout: LockoutPolicy;
+  loginWithEmail: boolean;
 }
 
 type TenantAuthenticatorFn = (
@@ -364,6 +375,7 @@ interface FlowFacts {
   // Zero where the tenant does not age passwords out, which is the default.
   passwordMaxAgeDays: number;
   lockout: LockoutPolicy;
+  loginWithEmail: boolean;
   satisfied: ReadonlySet<string>;
   assertionOffered: boolean;
   recoveryCodeOffered: boolean;
@@ -396,6 +408,7 @@ async function flowFacts(
     otpRequired: settings.otpRequired,
     passwordMaxAgeDays: settings.passwordMaxAgeDays,
     lockout: settings.lockout,
+    loginWithEmail: settings.loginWithEmail,
     satisfied: request.satisfied,
     assertionOffered: request.assertionOffered,
     recoveryCodeOffered: request.recoveryCodeOffered,
@@ -543,8 +556,6 @@ export async function dispatchNext(
   return { kind: 'ran', authenticator: decision.authenticator, result: await run(input) };
 }
 
-const AUTH_SESSION_TTL_MS = 30 * 60_000;
-
 export async function startAuthentication(
   tx: TenantScopedDatabase,
   tenantId: string,
@@ -552,11 +563,12 @@ export async function startAuthentication(
   clock: Clock = systemClock,
 ): Promise<{ authSessionId: string }> {
   const id = newId();
+  const ttlSeconds = await tenantSettingsRepository(tx).loginTtlSeconds(tenantId);
   await authenticationSessionRepository(tx).create({
     id,
     tenantId,
     pendingRequest: request,
-    expiresAt: new Date(clock.now().getTime() + AUTH_SESSION_TTL_MS),
+    expiresAt: new Date(clock.now().getTime() + ttlSeconds * 1000),
   });
   return { authSessionId: id };
 }
@@ -626,6 +638,7 @@ async function loadFlowContext(
       now: clock.now(),
       publicBaseUrl: options.publicBaseUrl ?? null,
       lockout: loaded.facts.lockout,
+      loginWithEmail: loaded.facts.loginWithEmail,
     }),
   };
 }
@@ -681,6 +694,7 @@ export async function initialChallenge(
     now: clock.now(),
     publicBaseUrl: null,
     lockout: facts.lockout,
+    loginWithEmail: facts.loginWithEmail,
   });
   const dispatched = await dispatchNext(registry, steps, new Set(), {});
   if (dispatched.kind !== 'ran') {
@@ -765,6 +779,16 @@ async function recordSettled(
 // `AuthenticatorResult`, this names every authenticator the login actually
 // used, in the order it ran, because that is the record `establishSession`
 // needs to carry forward onto the session (see its own doc comment).
+function carriesCredential(input: AdvanceInput): boolean {
+  return (
+    input.username !== undefined ||
+    input.password !== undefined ||
+    input.code !== undefined ||
+    input.recoveryCode !== undefined ||
+    input.assertion !== undefined
+  );
+}
+
 export type AdvanceOutcome =
   | { kind: 'success'; subjectId: string; authenticators: string[] }
   | { kind: 'challenge'; form: string }
@@ -789,13 +813,29 @@ export async function advance(
     options.logger,
   );
 
-  const dispatched = await dispatchNext(registry, steps, satisfied, input);
+  let dispatched = await dispatchNext(registry, steps, satisfied, input);
+  // Every step the flow requires of the bound subject, as it stands now, is
+  // satisfied in this attempt. With nothing submitted that is a finished
+  // required action resuming the login. A submission still runs from the
+  // first step, so whoever answers it passes the subject guard below.
+  if (dispatched.kind === 'complete' && record.subjectId !== null) {
+    if (!carriesCredential(input)) {
+      await authenticationSessionRepository(tx).recordAuthenticated(authSessionId, clock.now());
+      return { kind: 'success', subjectId: record.subjectId, authenticators: record.satisfied };
+    }
+    dispatched = await dispatchNext(registry, steps, new Set(), input);
+  }
   if (dispatched.kind !== 'ran') {
     return { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
   }
 
   const { authenticator, result } = dispatched;
-  if (result.kind === 'challenge') return result;
+  if (result.kind === 'challenge') {
+    // A step this attempt has not satisfied applies to its subject, so the
+    // attempt is not finished, whatever an earlier one recorded.
+    await authenticationSessionRepository(tx).recordAuthenticated(authSessionId, null);
+    return result;
+  }
   if (result.kind === 'failure') {
     const refused = result.audit ?? { reason: 'bad_credential', subjectId: record.subjectId };
     await audit.refused(authenticator, refused.subjectId, refused.reason, refused.lockoutTripped);
@@ -846,14 +886,7 @@ export async function advance(
   // its completion waits for the change.
   await recordPasswordExpiryIfOwed(tx, record.tenantId, subjectId, facts.passwordMaxAgeDays, clock);
 
-  // Whether this login is done, or a further factor remains, decided
-  // before `satisfied` is written: two outcomes downstream of this function
-  // (an id_token_hint naming a different subject, an unverified email)
-  // leave the session unconsumed on purpose so the same session can retry
-  // — and a retry has to re-run this authenticator exactly as the first
-  // attempt did, not find it already satisfied. Persisting is therefore
-  // only for a factor that has more work left after it, never for the one
-  // that finishes the login.
+  await authenticationSessionRepository(tx).recordSatisfied(authSessionId, authenticator);
   const forSubject = bindRegistry(tx, {
     tenantId: record.tenantId,
     subjectId,
@@ -861,19 +894,20 @@ export async function advance(
     now: clock.now(),
     publicBaseUrl: options.publicBaseUrl ?? null,
     lockout: facts.lockout,
+    loginWithEmail: facts.loginWithEmail,
   });
   const after = await dispatchNext(forSubject, stepsForSubject, updatedSatisfied, {});
 
   let outcome: AdvanceOutcome;
   if (after.kind === 'ran') {
-    await authenticationSessionRepository(tx).recordSatisfied(authSessionId, authenticator);
     const settled = await settle(after.result, subjectId);
     await recordSettled(audit, after.authenticator, settled, subjectId);
     if (settled.kind === 'success') {
+      await authenticationSessionRepository(tx).recordSatisfied(authSessionId, after.authenticator);
       outcome = {
         kind: 'success',
         subjectId: settled.subjectId,
-        authenticators: [...record.satisfied, authenticator, after.authenticator],
+        authenticators: [...new Set([...record.satisfied, authenticator, after.authenticator])],
       };
     } else if (settled.kind === 'failure') {
       outcome = { kind: 'failure', reason: settled.reason };
@@ -883,7 +917,11 @@ export async function advance(
   } else if (after.kind === 'fail') {
     outcome = { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
   } else {
-    outcome = { kind: 'success', subjectId, authenticators: [...record.satisfied, authenticator] };
+    outcome = {
+      kind: 'success',
+      subjectId,
+      authenticators: [...new Set([...record.satisfied, authenticator])],
+    };
   }
 
   // What a required-action submission is judged against, since it carries no
@@ -928,10 +966,10 @@ export async function pendingSession(
 // Whom a required-action submission may act for: the subject a *finished*
 // authentication bound to this session, plus the authenticators it
 // finished with — carried forward into a later consent decision
-// (protocol-oidc's completeAuthorizedLogin). Liveness alone is not enough
-// here the way it is for pendingSession: the first factor binds the
-// subject while later ones are still outstanding, and a session already
-// consumed into an authorization code is a form the browser still had open.
+// (protocol-oidc's completeAuthorizedLogin). Finished means every step the
+// flow requires of that subject *now* is satisfied in this session, so an
+// authenticator enrolled elsewhere since unfinishes it; `authenticatedAt`
+// alone was written by the last attempt and cannot know that.
 export async function authenticatedSession(
   tx: TenantScopedDatabase,
   authSessionId: string,
@@ -941,7 +979,30 @@ export async function authenticatedSession(
   if (record === null || !sessionIsLive(record, clock.now())) return null;
   if (record.authenticatedAt === null) return null;
   if (record.subjectId === null) return null;
+  if (!(await authenticatorsSatisfyFlow(tx, record.tenantId, record.subjectId, record.satisfied))) {
+    return null;
+  }
   return { subjectId: record.subjectId, authenticators: record.satisfied };
+}
+
+// Whether `authenticators` leave the subject nothing to pass under the flow
+// as it stands now. The reuse path asks it of a reused SSO session's `amr`
+// before promoting that session, for the reason authenticatedSession asks it
+// of a parked one.
+export async function authenticatorsSatisfyFlow(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  subjectId: string,
+  authenticators: readonly string[],
+): Promise<boolean> {
+  const satisfied = new Set(authenticators);
+  const { steps } = await loadSteps(tx, tenantId, {
+    subjectId,
+    satisfied,
+    assertionOffered: false,
+    recoveryCodeOffered: false,
+  });
+  return nextStep(steps, { satisfied }).kind === 'complete';
 }
 
 export async function authenticatedSubject(
@@ -987,10 +1048,10 @@ export async function resetAuthenticationProgress(
   await authenticationSessionRepository(tx).resetProgress(authSessionId);
 }
 
-// Parks a gated `remember_me` decision on the parked request, for the one
-// caller (handleLoginSubmission's 'consent' branch) that hands a login off
-// to a door — the consent POST — which completes it without asking the
-// field itself. See PendingRequest.rememberMe for the read side.
+// Parks a gated `remember_me` decision on the parked request, for a login
+// handed off to a door that completes it without asking the field itself:
+// the consent POST, or a finished required action. See
+// PendingRequest.rememberMe for the read side.
 export async function recordRememberMe(
   tx: TenantScopedDatabase,
   authSessionId: string,

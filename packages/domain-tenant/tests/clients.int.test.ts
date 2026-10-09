@@ -163,6 +163,22 @@ describe('clientRepository', () => {
     expect((cause as Error).message).toContain('clients_secret_matches_type');
   });
 
+  it('accepts a confidential client with no secret: its method is not a secret one', async () => {
+    const tenantId = newId();
+    const clientId = `keyed-${newId()}`;
+
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await insertClient(tx, tenantId, { clientId, type: 'confidential', secretHash: null });
+    });
+
+    const found = await withTenant(app.db, tenantId, (tx) =>
+      clientRepository(tx).byClientId(clientId),
+    );
+    expect(found?.type).toBe('confidential');
+    expect(found?.secretHash).toBeNull();
+  });
+
   it('isolates clients by tenant', async () => {
     await expectTenantIsolation(app.db, {
       table: 'clients',
@@ -241,6 +257,17 @@ describe('clientRepository', () => {
       expectBlocked: (result) => {
         expect(result).toMatchObject({ threw: true });
       },
+    });
+  });
+
+  it('counts clients no further than the tenant allows', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await tx.update(tenants).set({ maxClients: 2 }).where(eq(tenants.id, tenantId));
+      for (let n = 0; n < 5; n += 1) await insertClient(tx, tenantId);
+      const capacity = await clientRepository(tx).lockCapacity(tenantId);
+      expect(capacity).toEqual({ maxClients: 2, count: 2 });
     });
   });
 

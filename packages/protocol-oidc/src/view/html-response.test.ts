@@ -11,10 +11,17 @@ const REPO_ROOT = join(VIEW_DIR, '..', '..', '..', '..');
 const PACKAGES_DIR = join(REPO_ROOT, 'packages');
 const APPS_DIR = join(REPO_ROOT, 'apps');
 const HEADER_NAMES = ['content-security-policy', 'x-frame-options', 'referrer-policy'];
-// The two files that legitimately spread the header set `pageHeaders`
-// (`@odudu/kernel`) returns — every other view-layer file gets it only by
-// going through one of them.
-const EXEMPT_FILES = ['html-response.ts', 'verification-html.ts'];
+// The files that legitimately name a page header: `html-response.ts` and
+// `verification-html.ts`, which spread `pageHeaders` (`@odudu/kernel`), and
+// `console-gateway`'s `spa.ts`, the static shell with its own fixed policy
+// (ADR 0029's amendment). Any other wrapper — `console-gateway`'s
+// `send-page.ts` among them — gets these headers only by spreading
+// `pageHeaders`, and names none of them itself.
+const EXEMPT_FILES = [
+  'packages/protocol-oidc/src/view/html-response.ts',
+  'packages/account/src/view/verification-html.ts',
+  'packages/console-gateway/src/view/spa.ts',
+];
 
 async function sourcesUnder(dir: string): Promise<{ path: string; text: string }[]> {
   const found: { path: string; text: string }[] = [];
@@ -158,11 +165,18 @@ describe('[ODUDU-VIEW-HTML-01] an HTML response cannot leave without its framing
   // names; every view-layer file gets them by spreading its result rather
   // than naming a header itself, which is what let referrer-policy diverge
   // between the two exits this file and verification-html.ts now share.
-  it('is one of only two files across every package that names a page header', async () => {
+  // By path, so a file of the same name anywhere else is held to the rule.
+  it('exempts only files that exist, each named by its path from the repository root', async () => {
+    const sources = new Set((await viewSources()).map((f) => f.path.slice(REPO_ROOT.length + 1)));
+    expect(EXEMPT_FILES.filter((path) => !sources.has(path))).toEqual([]);
+  });
+
+  it('allows only the documented files to name a page header', async () => {
     const offenders = (await viewSources())
-      .filter((f) => !EXEMPT_FILES.includes(f.path.split('/').pop() ?? ''))
+      .map((f) => ({ ...f, path: f.path.slice(REPO_ROOT.length + 1) }))
+      .filter((f) => !EXEMPT_FILES.includes(f.path))
       .filter((f) => HEADER_NAMES.some((name) => f.text.includes(name)))
-      .map((f) => f.path.slice(REPO_ROOT.length + 1));
+      .map((f) => f.path);
     expect(offenders).toEqual([]);
   });
 });

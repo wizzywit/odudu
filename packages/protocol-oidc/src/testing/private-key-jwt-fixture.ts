@@ -38,6 +38,7 @@ export interface SignClientAssertionInput {
   jti?: string;
   aud?: string;
   exp?: number;
+  nbf?: number;
   iss?: string;
   sub?: string;
 }
@@ -51,6 +52,7 @@ export async function signClientAssertion(input: SignClientAssertionInput): Prom
       aud: input.aud ?? input.audience,
       exp: input.exp ?? nowSeconds + 60,
       jti: input.jti ?? newId(),
+      ...(input.nbf === undefined ? {} : { nbf: input.nbf }),
     },
     { key: input.key, kek: input.kek },
   );

@@ -6,10 +6,13 @@ import {
   TENANT_ADMIN,
   TENANT_CAPABILITIES,
 } from '@odudu/domain-tenant';
-import { type Group } from '@odudu/contracts/admin';
+import { type GroupFields } from '@odudu/contracts/admin';
 import { newId } from '@odudu/kernel';
+import { sql } from 'drizzle-orm';
+import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { etagOf } from '#/service/etag';
+import { storedFields } from '#/testing/stored-fields';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import {
   amendGroup,
@@ -160,7 +163,7 @@ describe('GET /admin/tenants/{t}/groups/{id}', () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.headers.etag).toBe(etagOf(res.json()));
+    expect(res.headers.etag).toBe(etagOf(storedFields(res.json())));
   });
 
   it('404s an id no group holds', async () => {
@@ -438,7 +441,7 @@ describe('PUT /admin/tenants/{t}/groups/{id}/roles', () => {
   });
 });
 
-describe('is refused for every capability but manage-tenant, on every route', () => {
+describe('is refused for every capability but manage-tenant, on every route but the list', () => {
   it('GET /groups, GET /groups/:id, PATCH /groups/:id, DELETE /groups/:id, PUT roles', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const adminToken = await fixture.adminToken(t.name, ['manage-tenant']);
@@ -457,7 +460,9 @@ describe('is refused for every capability but manage-tenant, on every route', ()
         url: `/admin/tenants/${t.name}/groups`,
         headers: { authorization: `Bearer ${token}` },
       });
-      expect(list.statusCode, `GET /groups as ${capability}`).toBe(403);
+      // The list alone is also a user manager's to pick from.
+      const picks = capability === 'view-users' || capability === 'manage-users';
+      expect(list.statusCode, `GET /groups as ${capability}`).toBe(picks ? 200 : 403);
 
       const read = await fixture.http.inject({
         method: 'GET',
@@ -708,7 +713,7 @@ async function makeGroup(
   tenantId: string,
   name: string,
   audit: (tx: TenantScopedDatabase, e: GroupAuditEvent) => Promise<void> = () => Promise.resolve(),
-): Promise<Group> {
+): Promise<GroupFields> {
   const outcome = await withTenant(fixture.app.db, tenantId, (tx) =>
     createGroup(
       tx,
@@ -716,6 +721,7 @@ async function makeGroup(
       {
         tenantId,
         name,
+        description: null,
         parentId: null,
         callerCapabilities: new Set(),
         actorSubjectId: 'test',
@@ -857,6 +863,7 @@ describe('audit', () => {
         { audit: ok.audit },
         {
           groupId: group.id,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -873,6 +880,7 @@ describe('audit', () => {
         { audit: refused.audit },
         {
           groupId: newId(),
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -928,5 +936,154 @@ describe('audit', () => {
     // An attempted privilege escalation is the one refusal this phase
     // records, so the row is the assertion rather than its absence.
     expect(refused.events.map((event) => event.outcome)).toEqual(['refused']);
+  });
+});
+
+async function seedNamed(tenantName: string, name: string): Promise<string> {
+  const token = await fixture.adminToken(tenantName, ['manage-tenant']);
+  const res = await createGroupHttp(token, tenantName, { name });
+  if (res.statusCode !== 201) throw new Error(`could not create group ${name}: ${res.body}`);
+  return res.json<{ id: string }>().id;
+}
+
+async function listAt(tenantName: string, query: string): Promise<LightMyRequestResponse> {
+  const token = await fixture.adminToken(tenantName, ['manage-tenant']);
+  return fixture.http.inject({
+    method: 'GET',
+    url: `/admin/tenants/${tenantName}/groups?${query}`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+function namesOf(res: LightMyRequestResponse): string[] {
+  return res.json<{ items: { name: string }[] }>().items.map((item) => item.name);
+}
+
+// PostgreSQL's own answer, in the order a searched listing promises, so no
+// expectation here folds a string in JavaScript.
+async function nameMatches(tenantId: string, prefix: string): Promise<string[]> {
+  const rows = await fixture.owner.db.execute<{ name: string }>(sql`
+    select name from groups
+     where tenant_id = ${tenantId} and starts_with(lower(name), lower(${prefix}))
+     order by lower(name) collate "C", id
+  `);
+  return rows.map((row) => row.name);
+}
+
+describe('GET /admin/tenants/{t}/groups — search', () => {
+  it('finds a name case-insensitively, ordered by the folded name, then by id', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    for (const name of ['Billing-c', 'BILLING-A', 'billing-b', 'Billing-a2', 'other']) {
+      await seedNamed(t.name, name);
+    }
+
+    const res = await listAt(t.name, 'name=billing');
+    expect(res.statusCode).toBe(200);
+    const expected = await nameMatches(t.id, 'billing');
+    expect(expected).toHaveLength(4);
+    expect(namesOf(res)).toEqual(expected);
+  });
+
+  it('pages a name search one row at a time, each match once and in order', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    for (const name of ['ops-b', 'OPS-a', 'ops-c', 'other']) await seedNamed(t.name, name);
+
+    const seen: string[] = [];
+    let query = 'name=ops&limit=1';
+    for (let page = 0; page < 5; page += 1) {
+      const res = await listAt(t.name, query);
+      expect(res.statusCode).toBe(200);
+      const body = res.json<{ items: { name: string }[]; next?: string }>();
+      seen.push(...body.items.map((item) => item.name));
+      if (body.next === undefined) break;
+      query = `name=ops&limit=1&cursor=${encodeURIComponent(body.next)}`;
+    }
+    expect(seen).toEqual(['OPS-a', 'ops-b', 'ops-c']);
+  });
+
+  it('reads _ and % as ordinary characters', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    for (const name of ['axb', 'a_b', 'a%b']) await seedNamed(t.name, name);
+
+    expect(namesOf(await listAt(t.name, 'name=a_b'))).toEqual(['a_b']);
+    expect(namesOf(await listAt(t.name, 'name=a%25'))).toEqual(['a%b']);
+  });
+
+  it('finds nothing searching for a group that belongs to another tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const other = await fixture.createTenant(`acme-${newId()}`);
+    await seedNamed(other.name, 'foreign-group');
+
+    const res = await listAt(t.name, 'name=foreign');
+    expect(res.statusCode).toBe(200);
+    expect(namesOf(res)).toEqual([]);
+  });
+
+  it('refuses an unknown parameter with 400 naming it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const res = await listAt(t.name, 'search=a');
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('search');
+  });
+
+  it.each([
+    ['another search', 'name=a&limit=1', 'name=b&limit=1'],
+    ['a filter added', 'limit=1', 'name=a&limit=1'],
+    ['a filter dropped', 'name=a&limit=1', 'limit=1'],
+  ])('refuses a cursor replayed under %s', async (_label, minted, replayedUnder) => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    for (const name of ['a-1', 'a-2', 'b-1', 'b-2']) await seedNamed(t.name, name);
+
+    const first = await listAt(t.name, minted);
+    const next = first.json<{ next?: string }>().next;
+    if (next === undefined) throw new Error('expected a next cursor');
+
+    const replayed = await listAt(t.name, `${replayedUnder}&cursor=${encodeURIComponent(next)}`);
+    expect(replayed.statusCode).toBe(400);
+    expect(replayed.json<{ detail: string }>().detail).toBe('cursor is invalid or expired');
+  });
+});
+
+describe('the groups name_search column', () => {
+  it('is refused on create, filled by the database, and never answered', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const forged = await createGroupHttp(token, t.name, {
+      name: 'Mixed-Case',
+      name_search: 'forged',
+    });
+    expect(forged.statusCode).toBe(400);
+    expect(forged.json<{ detail: string }>().detail).toContain('name_search');
+
+    const res = await createGroupHttp(token, t.name, { name: 'Mixed-Case' });
+    expect(res.statusCode).toBe(201);
+    const created = res.json<Record<string, unknown>>();
+    expect(created).not.toHaveProperty('name_search');
+
+    const rows = await fixture.owner.db.execute<{ name_search: string }>(
+      sql`select name_search from groups where id = ${String(created.id)}`,
+    );
+    expect(rows.map((row) => row.name_search)).toEqual(['mixed-case']);
+
+    const read = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/groups/${String(created.id)}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(read.json<Record<string, unknown>>()).not.toHaveProperty('name_search');
+  });
+
+  it('is refused by PATCH with a reason', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const id = await seedNamed(t.name, `x-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/groups/${id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { name_search: 'forged' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('name_search');
   });
 });

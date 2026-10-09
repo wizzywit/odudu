@@ -216,6 +216,7 @@ beforeAll(async () => {
       return (await verifyPassword(current, candidate)) ? [REUSED_PASSWORD] : [];
     },
     clearPasswordUpdateAction: () => Promise.resolve(),
+    addRequiredActions: () => Promise.resolve(),
   });
   await http.ready();
 }, 120_000);

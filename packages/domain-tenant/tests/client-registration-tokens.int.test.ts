@@ -172,7 +172,8 @@ describe('mint', () => {
   // it wrote is invisible from another tenant's context, the ordinary
   // row-filtering property `expectTenantIsolation` would cover directly if
   // this table were keyed simply — checked here through a raw select
-  // instead, since the repository exposes no read of its own to attempt.
+  // instead of `list()` (probed on its own below), so this one keeps
+  // working even if `list()`'s own filtering ever changed.
   it('does not expose a minted token to another tenant', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {
@@ -197,5 +198,216 @@ describe('mint', () => {
         expect(result).toEqual([]);
       },
     });
+  });
+});
+
+describe('list', () => {
+  it('lists a live token, never its hash', async () => {
+    const tenantId = await newTenant();
+    const { id } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 3, ttlSeconds: 3600 }),
+    );
+
+    const items = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list({ limit: 50 }),
+    );
+
+    expect(items).toHaveLength(1);
+    const item = items[0];
+    expect(item?.id).toBe(id);
+    expect(item?.remainingUses).toBe(3);
+    expect(item).not.toHaveProperty('tokenHash');
+  });
+
+  it('never lists a spent-out token', async () => {
+    const tenantId = await newTenant();
+    const { token } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
+    );
+    await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).spend(tenantId, token),
+    );
+
+    const items = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list({ limit: 50 }),
+    );
+
+    expect(items).toEqual([]);
+  });
+
+  it('never lists an expired token', async () => {
+    const tenantId = await newTenant();
+    const { token } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
+    );
+    await backdateExpiry(hashOf(token), new Date(Date.now() - 1000));
+
+    const items = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list({ limit: 50 }),
+    );
+
+    expect(items).toEqual([]);
+  });
+
+  it('never lists a token minted in another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 });
+        return { tenantId };
+      },
+      verifySeeded: async (tx) => {
+        const items = await clientRegistrationTokenRepository(tx).list({ limit: 50 });
+        expect(items).toHaveLength(1);
+      },
+      attempt: async (tx) => clientRegistrationTokenRepository(tx).list({ limit: 50 }),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+});
+
+describe('revoke', () => {
+  it('revokes a token, after which it can no longer be spent', async () => {
+    const tenantId = await newTenant();
+    const { id, token } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
+    );
+
+    const revoked = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).revoke(id),
+    );
+    expect(revoked?.id).toBe(id);
+    expect(revoked?.remainingUses).toBe(1);
+
+    const spent = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).spend(tenantId, token),
+    );
+    expect(spent).toBe(false);
+  });
+
+  it('answers null for an id that names no token', async () => {
+    const tenantId = await newTenant();
+
+    const revoked = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).revoke(newId()),
+    );
+
+    expect(revoked).toBeNull();
+  });
+
+  it('answers null for a token already spent to zero uses', async () => {
+    const tenantId = await newTenant();
+    const { id, token } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
+    );
+    await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).spend(tenantId, token),
+    );
+
+    const revoked = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).revoke(id),
+    );
+
+    expect(revoked).toBeNull();
+  });
+
+  it('answers null for an already-expired token', async () => {
+    const tenantId = await newTenant();
+    const { id, token } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
+    );
+    await backdateExpiry(hashOf(token), new Date(Date.now() - 1000));
+
+    const revoked = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).revoke(id),
+    );
+
+    expect(revoked).toBeNull();
+  });
+
+  it('does not revoke a token minted in another tenant, even given that token’s own id', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const { id } = await clientRegistrationTokenRepository(tx).mint({
+          tenantId,
+          uses: 1,
+          ttlSeconds: 3600,
+        });
+        return { tenantId, id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const items = await clientRegistrationTokenRepository(tx).list({ limit: 50 });
+        expect(items.map((item) => item.id)).toContain(seeded.id);
+      },
+      attempt: async (tx, seeded) => clientRegistrationTokenRepository(tx).revoke(seeded.id),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+    });
+  });
+});
+
+describe('list pagination', () => {
+  it('pages at the given limit, in id order', async () => {
+    const tenantId = await newTenant();
+    const minted = [];
+    for (let i = 0; i < 3; i++) {
+      minted.push(
+        await withTenant(app.db, tenantId, (tx) =>
+          clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
+        ),
+      );
+    }
+    const [first, second, third] = [...minted.map((m) => m.id)].sort();
+    if (first === undefined || second === undefined || third === undefined) {
+      throw new Error('expected three minted ids');
+    }
+
+    const firstPage = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list({ limit: 1 }),
+    );
+    expect(firstPage.map((item) => item.id)).toEqual([first]);
+
+    const secondPage = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list({ after: first, limit: 1 }),
+    );
+    expect(secondPage.map((item) => item.id)).toEqual([second]);
+
+    const thirdPage = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list({ after: second, limit: 1 }),
+    );
+    expect(thirdPage.map((item) => item.id)).toEqual([third]);
+  });
+
+  it('resumes past an anchor that has since been revoked', async () => {
+    const tenantId = await newTenant();
+    const minted = [];
+    for (let i = 0; i < 3; i++) {
+      minted.push(
+        await withTenant(app.db, tenantId, (tx) =>
+          clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
+        ),
+      );
+    }
+    const [, second] = [...minted.map((m) => m.id)].sort();
+    if (second === undefined) throw new Error('expected a second minted id');
+
+    const firstPage = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list({ limit: 1 }),
+    );
+    const anchor = firstPage[0]?.id;
+    if (anchor === undefined) throw new Error('expected a first page');
+
+    await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).revoke(anchor),
+    );
+
+    const secondPage = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list({ after: anchor, limit: 1 }),
+    );
+    expect(secondPage.map((item) => item.id)).toEqual([second]);
   });
 });

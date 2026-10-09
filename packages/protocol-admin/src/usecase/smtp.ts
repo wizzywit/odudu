@@ -2,6 +2,7 @@ import { unwrapSecret, wrapSecret } from '@odudu/crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { smtpSender, type EmailSender, type SmtpConfig as SmtpTransportConfig } from '@odudu/email';
 import { type SmtpConfig } from '@odudu/contracts/admin';
+import { etagOf, matches } from '#/service/etag';
 import { checkSmtpDestination, type SmtpDestinationPolicy } from '#/service/smtp-destination';
 import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
 
@@ -19,7 +20,7 @@ export interface SmtpAuditEvent {
 /** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: SmtpAuditEvent) => Promise<void>;
 
-function toWireShape(record: TenantSmtpRecord | null): SmtpConfig {
+function toWireShape(record: TenantSmtpRecord | null, deploymentSmtp: boolean): SmtpConfig {
   if (record === null) {
     return {
       configured: false,
@@ -29,6 +30,7 @@ function toWireShape(record: TenantSmtpRecord | null): SmtpConfig {
       username: null,
       password_set: false,
       starttls: null,
+      effective: deploymentSmtp ? 'deployment' : 'none',
     };
   }
   return {
@@ -39,11 +41,17 @@ function toWireShape(record: TenantSmtpRecord | null): SmtpConfig {
     username: record.username,
     password_set: record.passwordEncrypted !== null,
     starttls: record.starttls,
+    effective: 'tenant',
   };
 }
 
-export async function readSmtp(tx: TenantScopedDatabase, tenantId: string): Promise<SmtpConfig> {
-  return toWireShape(await tenantSmtpRepository(tx).byTenantId(tenantId));
+/** `deploymentSmtp`: whether the deployment has a sender of its own for a tenant without one. */
+export async function readSmtp(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  deploymentSmtp: boolean,
+): Promise<SmtpConfig> {
+  return toWireShape(await tenantSmtpRepository(tx).byTenantId(tenantId), deploymentSmtp);
 }
 
 export interface DeleteSmtpInput {
@@ -87,33 +95,76 @@ export async function deleteSmtp(
 
 export interface PutSmtpInput {
   readonly tenantId: string;
+  readonly ifMatch: string | undefined;
   readonly host: string;
   readonly port: number;
   readonly fromAddress: string;
   readonly username: string | null;
-  readonly password: string | null;
+  readonly password: SmtpPasswordChange;
   readonly starttls: boolean;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
 }
 
+// A write never reads the password back, so leaving it out keeps the stored one.
+export type SmtpPasswordChange =
+  { kind: 'keep' } | { kind: 'clear' } | { kind: 'set'; password: string };
+
 export interface PutSmtpDeps {
   readonly audit: Audit;
   readonly kek: Uint8Array;
+  readonly deploymentSmtp: boolean;
 }
+
+export type PutSmtpOutcome =
+  | { kind: 'precondition_failed' }
+  | { kind: 'starttls_required' }
+  | { kind: 'password_required' }
+  | { kind: 'ok'; config: SmtpConfig; etag: string };
 
 export async function putSmtp(
   tx: TenantScopedDatabase,
   deps: PutSmtpDeps,
   input: PutSmtpInput,
-): Promise<SmtpConfig> {
+): Promise<PutSmtpOutcome> {
+  const current = await tenantSmtpRepository(tx).lockByTenantId(input.tenantId);
+  if (matches(input.ifMatch, etagOf(toWireShape(current, deps.deploymentSmtp))) === 'mismatch') {
+    return { kind: 'precondition_failed' };
+  }
+
+  // A kept password goes only where it was entered for: moved to another
+  // relay or account, it would authenticate to whoever runs that one.
+  if (
+    input.password.kind === 'keep' &&
+    current?.passwordEncrypted != null &&
+    (current.host !== input.host ||
+      current.port !== input.port ||
+      current.username !== input.username)
+  ) {
+    return { kind: 'password_required' };
+  }
+
+  const passwordEncrypted =
+    input.password.kind === 'keep'
+      ? (current?.passwordEncrypted ?? null)
+      : input.password.kind === 'clear'
+        ? null
+        : wrapSecret(input.password.password, deps.kek);
+  // A configuration that authenticates and does not require TLS puts the
+  // username and password on the wire in cleartext (CWE-319), a kept
+  // password included. Refused rather than silently upgraded, so the stored
+  // row says what the transport will actually do.
+  if ((input.username !== null || passwordEncrypted !== null) && !input.starttls) {
+    return { kind: 'starttls_required' };
+  }
+
   const record = await tenantSmtpRepository(tx).upsert(input.tenantId, {
     host: input.host,
     port: input.port,
     fromAddress: input.fromAddress,
     username: input.username,
-    passwordEncrypted: input.password === null ? null : wrapSecret(input.password, deps.kek),
+    passwordEncrypted,
     starttls: input.starttls,
   });
 
@@ -127,7 +178,8 @@ export async function putSmtp(
     outcome: 'allowed',
   });
 
-  return toWireShape(record);
+  const config = toWireShape(record, deps.deploymentSmtp);
+  return { kind: 'ok', config, etag: etagOf(config) };
 }
 
 export type SenderFromRecordOutcome =

@@ -1,7 +1,17 @@
+import { withTenant } from '@odudu/db';
+import { subjectRepository } from '@odudu/domain-identity';
 import { SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+
+function subjectOf(token: string): string {
+  const payload = token.split('.')[1] ?? '';
+  const claims: unknown = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+  if (typeof claims !== 'object' || claims === null || !('sub' in claims))
+    throw new Error('no sub');
+  return String(claims.sub);
+}
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -64,6 +74,38 @@ describe('admin authentication', () => {
       method: 'GET',
       url: `/admin/tenants/${t.name}/whoami`,
       headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('refuses a token whose subject has been disabled since it was issued', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const call = () =>
+      fixture.http.inject({
+        method: 'GET',
+        url: `/admin/tenants/${t.name}/whoami`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+    expect((await call()).statusCode).toBe(200);
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      subjectRepository(tx).setEnabled(subjectOf(token), false),
+    );
+    const refused = await call();
+    expect(refused.statusCode).toBe(401);
+    expect(refused.json()).toMatchObject({ type: 'about:blank', title: 'Unauthorized' });
+  });
+
+  it('refuses a service account whose subject has been disabled', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const client = await fixture.createServiceAccountClient(t.name, ['manage-users']);
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      subjectRepository(tx).setEnabled(subjectOf(client.token), false),
+    );
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects`,
+      headers: { authorization: `Bearer ${client.token}` },
     });
     expect(res.statusCode).toBe(401);
   });

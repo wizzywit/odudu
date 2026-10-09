@@ -75,19 +75,20 @@ export function authenticationSessionRepository(tx: TenantScopedDatabase) {
       return rows.length > 0;
     },
 
-    // Appends unconditionally rather than checking membership first: the
-    // executor only ever calls this once per authenticator per session (a
-    // satisfied one is never re-run — see `nextStep`), so a duplicate would
-    // signal a bug upstream, not something this write needs to guard
-    // against. Readers treat `satisfied` as a set (`Set` membership), so an
-    // accidental duplicate would be harmless even so.
+    // A set kept in order: a resubmitted attempt re-runs its first step, and
+    // the `amr` derived from this list must not name a factor twice.
     async recordSatisfied(id: string, authenticator: string): Promise<void> {
       await tx
         .update(authenticationSessions)
         .set({
           satisfied: sql`array_append(${authenticationSessions.satisfied}, ${authenticator})`,
         })
-        .where(eq(authenticationSessions.id, id));
+        .where(
+          and(
+            eq(authenticationSessions.id, id),
+            sql`not (${authenticator} = any(${authenticationSessions.satisfied}))`,
+          ),
+        );
     },
 
     // Written on every factor that succeeds, including the one that

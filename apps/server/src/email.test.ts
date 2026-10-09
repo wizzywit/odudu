@@ -43,5 +43,7 @@ describe('buildEmailSender', () => {
     const sender = buildEmailSender(config, silentLogger);
 
     expect(sender).not.toHaveProperty('sent');
+    // What `GET /smtp` reports as the deployment's own sender turns on this.
+    expect(sender.kind).toBe('smtp');
   });
 });

@@ -1,5 +1,5 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 
 export interface EffectiveRole {
@@ -32,41 +32,177 @@ export async function effectiveRoles(
   tx: TenantScopedDatabase,
   subjectId: string,
 ): Promise<readonly EffectiveRole[]> {
+  // Lateral lookups, never joins: the planner cannot hash them against a scan of
+  // the tenant's roles (docs/phases/p4d.md, "Server query plans").
   const result = await tx.execute(sql`
+    ${closureOf(subjectId)}
+    SELECT r.id AS role_id, r.name AS name, cl.client_id AS client_key
+    FROM role_closure rc
+    CROSS JOIN LATERAL (
+      SELECT id, name, client_id FROM roles WHERE id = rc.role_id OFFSET 0
+    ) r
+    LEFT JOIN clients cl ON cl.id = r.client_id
+  `);
+  return effectiveRoleRowsSchema.parse(result).map(toEffectiveRole);
+}
+
+export interface EffectiveRolePage {
+  /** The role id the page resumes strictly after; undefined for the first. */
+  readonly after: string | undefined;
+  readonly limit: number;
+}
+
+// `effectiveRoles`, `limit` of it at a time in role id order: what a listing
+// answers with, where token issuance needs the whole set.
+export async function effectiveRolePage(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+  page: EffectiveRolePage,
+): Promise<readonly EffectiveRole[]> {
+  const after = page.after === undefined ? sql`` : sql`WHERE role_id > ${page.after}::uuid`;
+  const result = await tx.execute(sql`
+    ${closureOf(subjectId)}
+    SELECT r.id AS role_id, r.name AS name, cl.client_id AS client_key
+    FROM (
+      SELECT role_id FROM role_closure ${after} ORDER BY role_id LIMIT ${page.limit}::integer
+    ) rc
+    CROSS JOIN LATERAL (
+      SELECT id, name, client_id FROM roles WHERE id = rc.role_id OFFSET 0
+    ) r
+    LEFT JOIN clients cl ON cl.id = r.client_id
+    ORDER BY r.id
+  `);
+  return effectiveRoleRowsSchema.parse(result).map(toEffectiveRole);
+}
+
+// Which of `roleIds` the subject holds, effectively.
+export async function heldAmong(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+  roleIds: readonly string[],
+): Promise<ReadonlySet<string>> {
+  if (roleIds.length === 0) return new Set();
+  const ids = sql.join(
+    roleIds.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+  const result = await tx.execute(sql`
+    ${closureOf(subjectId)}
+    SELECT role_id FROM role_closure WHERE role_id IN (${ids})
+  `);
+  return new Set(
+    z
+      .array(z.object({ role_id: z.string() }))
+      .parse(result)
+      .map((row) => row.role_id),
+  );
+}
+
+// The roles of a set the subject holds, effectively, where the set is a
+// subquery over `extraCtes` (a `granting(...) AS (...)` the caller writes): a
+// set too large to name in a list. At most `limit` come back, in role id order.
+export async function heldAmongQuery(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+  query: { readonly extraCtes: SQL; readonly candidates: SQL; readonly limit: number },
+): Promise<readonly string[]> {
+  const result = await tx.execute(sql`
+    ${closureOf(subjectId)},
+    ${query.extraCtes}
+    SELECT role_id FROM role_closure
+     WHERE role_id IN (${query.candidates})
+     ORDER BY role_id
+     LIMIT ${query.limit}
+  `);
+  return z
+    .array(z.object({ role_id: z.string() }))
+    .parse(result)
+    .map((row) => row.role_id);
+}
+
+export interface CompositeEdge {
+  readonly parentRoleId: string;
+  readonly parentName: string;
+  readonly childRoleId: string;
+}
+
+// The edges to `childIds` from roles the subject holds, found from the held
+// side: a role nested under thousands of others is read for the few that are
+// held, not for all of them.
+export async function compositesWithin(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+  childIds: readonly string[],
+): Promise<readonly CompositeEdge[]> {
+  if (childIds.length === 0) return [];
+  const ids = sql.join(
+    childIds.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+  const result = await tx.execute(sql`
+    ${closureOf(subjectId)}
+    SELECT rc.parent_role_id AS parent_role_id, r.name AS parent_name,
+           rc.child_role_id AS child_role_id
+    FROM role_closure p
+    CROSS JOIN LATERAL (
+      SELECT parent_role_id, child_role_id FROM role_composites
+       WHERE parent_role_id = p.role_id AND child_role_id IN (${ids}) OFFSET 0
+    ) rc
+    CROSS JOIN LATERAL (SELECT name FROM roles WHERE id = rc.parent_role_id OFFSET 0) r
+    ORDER BY rc.parent_role_id
+  `);
+  return z
+    .array(
+      z.object({ parent_role_id: z.string(), parent_name: z.string(), child_role_id: z.string() }),
+    )
+    .parse(result)
+    .map((row) => ({
+      parentRoleId: row.parent_role_id,
+      parentName: row.parent_name,
+      childRoleId: row.child_role_id,
+    }));
+}
+
+function toEffectiveRole(row: z.infer<typeof effectiveRoleRowSchema>): EffectiveRole {
+  return { roleId: row.role_id, name: row.name, clientKey: row.client_key };
+}
+
+// The `WITH RECURSIVE` every reading of a subject's roles starts from,
+// ending in `role_closure`.
+function closureOf(subjectId: string): SQL {
+  return sql`
     WITH RECURSIVE group_closure AS (
       SELECT g.id, g.parent_id
-      FROM groups g
-      JOIN subject_groups sg ON sg.group_id = g.id
+      FROM subject_groups sg
+      CROSS JOIN LATERAL (
+        SELECT id, parent_id FROM groups WHERE id = sg.group_id OFFSET 0
+      ) g
       WHERE sg.subject_id = ${subjectId}
       UNION
       SELECT p.id, p.parent_id
-      FROM groups p
-      JOIN group_closure c ON p.id = c.parent_id
+      FROM group_closure c
+      CROSS JOIN LATERAL (
+        SELECT id, parent_id FROM groups WHERE id = c.parent_id OFFSET 0
+      ) p
     ),
     seed_roles AS (
       SELECT role_id FROM subject_roles WHERE subject_id = ${subjectId}
       UNION
-      SELECT gr.role_id FROM group_roles gr JOIN group_closure gc ON gc.id = gr.group_id
+      SELECT gr.role_id
+      FROM group_closure gc
+      CROSS JOIN LATERAL (
+        SELECT role_id FROM group_roles WHERE group_id = gc.id OFFSET 0
+      ) gr
     ),
     role_closure AS (
       SELECT role_id FROM seed_roles
       UNION
       SELECT rc.child_role_id AS role_id
-      FROM role_composites rc
-      JOIN role_closure c ON rc.parent_role_id = c.role_id
-    )
-    SELECT r.id AS role_id, r.name AS name, cl.client_id AS client_key
-    FROM role_closure rc
-    JOIN roles r ON r.id = rc.role_id
-    LEFT JOIN clients cl ON cl.id = r.client_id
-  `);
-  const rows = effectiveRoleRowsSchema.parse(result);
-
-  return rows.map((row) => ({
-    roleId: row.role_id,
-    name: row.name,
-    clientKey: row.client_key,
-  }));
+      FROM role_closure c
+      CROSS JOIN LATERAL (
+        SELECT child_role_id FROM role_composites WHERE parent_role_id = c.role_id OFFSET 0
+      ) rc
+    )`;
 }
 
 // The capability closure of an explicit set of role ids: each one plus
@@ -81,6 +217,8 @@ export async function rolesReachableFrom(
   roleIds: readonly string[],
 ): Promise<readonly EffectiveRole[]> {
   if (roleIds.length === 0) return [];
+  // Lateral lookups, never joins: the planner cannot hash them against a scan of
+  // the tenant's roles (docs/phases/p4d.md, "Server query plans").
   const idList = sql.join(
     roleIds.map((id) => sql`${id}`),
     sql`, `,
@@ -90,12 +228,16 @@ export async function rolesReachableFrom(
       SELECT id AS role_id FROM roles WHERE id IN (${idList})
       UNION
       SELECT rc.child_role_id AS role_id
-      FROM role_composites rc
-      JOIN closure c ON rc.parent_role_id = c.role_id
+      FROM closure c
+      CROSS JOIN LATERAL (
+        SELECT child_role_id FROM role_composites WHERE parent_role_id = c.role_id OFFSET 0
+      ) rc
     )
     SELECT r.id AS role_id, r.name AS name, cl.client_id AS client_key
     FROM closure c
-    JOIN roles r ON r.id = c.role_id
+    CROSS JOIN LATERAL (
+      SELECT id, name, client_id FROM roles WHERE id = c.role_id OFFSET 0
+    ) r
     LEFT JOIN clients cl ON cl.id = r.client_id
   `);
   const rows = effectiveRoleRowsSchema.parse(result);

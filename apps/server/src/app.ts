@@ -1,6 +1,10 @@
 import cookie from '@fastify/cookie';
 import formbody from '@fastify/formbody';
 import {
+  actionTokenRepository,
+  enqueueActionsLink,
+  enqueueResetLink,
+  enqueueVerificationLink,
   tenantSettingsRepository,
   registerActionTokenRoute,
   registerRegistrationRoute,
@@ -10,15 +14,17 @@ import {
 } from '@odudu/account';
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { requiredActionRepository } from '@odudu/authn-flows';
+import { consoleGateway } from '@odudu/console-gateway';
 import {
   credentialRepository,
   evaluatePassword,
   hashPassword,
   REUSED_PASSWORD,
+  subjectRepository,
   userRepository,
   verifyPassword,
 } from '@odudu/domain-identity';
-import { newId } from '@odudu/kernel';
+import { DEFAULT_CONSOLE_DIR, DEFAULT_OUTBOX_MAX_ATTEMPTS, newId } from '@odudu/kernel';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -30,6 +36,7 @@ import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
 import { createClientKeyRequest, defaultClientKeyLookup } from '#/client-key-transport';
+import { type ConsoleKeys, missingConsoleKey } from '#/console-key';
 import { registerHealth } from '#/health';
 import { slidingWindow } from '#/throttle';
 
@@ -62,6 +69,27 @@ export interface AppDeps {
    * passkey enrolment reports itself unsupported for the same reason.
    */
   readonly publicBaseUrl?: string;
+  /**
+   * `publicBaseUrl` while the console is on, and unset while it is off: a
+   * tenant created through the admin API is registered the console's
+   * redirect and post-logout URIs under it.
+   */
+  readonly consoleBaseUrl?: string | undefined;
+  /**
+   * The key the gateway authenticates with as every tenant's admin client,
+   * and the public set a tenant created through the admin API registers.
+   * Required with `consoleBaseUrl`: a console that cannot authenticate
+   * would fail every sign-in rather than the boot.
+   */
+  readonly consoleKeys?: ConsoleKeys | undefined;
+  /**
+   * `ODUDU_CONSOLE_DIR`: the built single-page app the gateway serves under
+   * `/console/*`. Defaults to the same path the config schema does, so a
+   * caller with no reason to move it can leave it unset.
+   */
+  readonly consoleDir?: string;
+  /** The console gateway's clock, so a test can age a pending sign-in. */
+  readonly consoleNow?: () => Date;
   /**
    * Whether to trust `X-Forwarded-*` headers when deriving `request.ip`.
    * Defaults to `false`: with no reverse proxy in front of the server,
@@ -108,6 +136,13 @@ export interface AppDeps {
    * `jwks_uri` is not. Defaults `false`; loopback stays refused either way.
    */
   readonly allowPrivateSmtpHosts?: boolean;
+  /**
+   * Whether the deployment has an SMTP sender of its own, which a tenant
+   * with no relay of its own falls back to. Defaults `false`.
+   */
+  readonly deploymentSmtp?: boolean;
+  /** `ODUDU_OUTBOX_MAX_ATTEMPTS`, what the admin API's mail listing calls `failed`. */
+  readonly outboxMaxAttempts?: number;
 }
 
 export interface ThrottleSettings {
@@ -158,6 +193,9 @@ const THROTTLED_POSTS: ReadonlySet<string> = new Set([
   '/tenants/:tenant/login-actions/authenticate',
   '/tenants/:tenant/login-actions/registration',
   '/tenants/:tenant/login-actions/reset-password',
+  '/admin/tenants/:tenant/subjects/:id/password-reset',
+  '/admin/tenants/:tenant/subjects/:id/verification',
+  '/admin/tenants/:tenant/subjects/:id/actions-email',
 ]);
 
 // The composition-root half of self-registration: @odudu/account never
@@ -250,6 +288,20 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(cookie);
 
   registerHealth(app, deps);
+  if (deps.consoleBaseUrl !== undefined) {
+    if (deps.consoleKeys === undefined) throw missingConsoleKey();
+    app.register(
+      consoleGateway({
+        database: deps.database,
+        ownerDatabase: deps.ownerDatabase,
+        kek: deps.kek,
+        publicBaseUrl: deps.consoleBaseUrl,
+        clientKey: deps.consoleKeys.key,
+        consoleDir: deps.consoleDir ?? DEFAULT_CONSOLE_DIR,
+        ...(deps.consoleNow === undefined ? {} : { now: deps.consoleNow }),
+      }),
+    );
+  }
   app.register(
     adminRoutes({
       database: deps.database,
@@ -257,9 +309,24 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       logger: deps.logger,
       cursorKey: deps.kek,
       kek: deps.kek,
+      consoleBaseUrl: deps.consoleBaseUrl,
+      consoleClientJwks: deps.consoleKeys?.jwks,
       trustProxy: deps.trustProxy ?? false,
       claimMappers,
       allowPrivateSmtpHosts: deps.allowPrivateSmtpHosts ?? false,
+      deploymentSmtp: deps.deploymentSmtp ?? false,
+      outboxMaxAttempts: deps.outboxMaxAttempts ?? DEFAULT_OUTBOX_MAX_ATTEMPTS,
+      retireResetLinks: (tx, subjectId) =>
+        actionTokenRepository(tx).invalidateOutstandingPasswordLinks(subjectId),
+      sendAccountLink: async (tx, request) => {
+        if (deps.publicBaseUrl === undefined) return 'unavailable';
+        const tenant = { ...request, issuerBase: deps.publicBaseUrl };
+        if (request.kind === 'reset_password') await enqueueResetLink(tx, tenant, request);
+        else if (request.kind === 'verify_email')
+          await enqueueVerificationLink(tx, tenant, request);
+        else await enqueueActionsLink(tx, tenant, request, request);
+        return 'queued';
+      },
     }),
   );
   app.register(
@@ -292,8 +359,23 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     markVerified: async (tx, subjectId) => {
       await userRepository(tx).markEmailVerified(subjectId);
     },
+    // A subject an administrator created has no password until a link gives
+    // it its first, the way `POST …/subjects/:id/password` creates one.
     setPassword: async (tx, subjectId, password) => {
-      await credentialRepository(tx).setPassword(subjectId, await hashPassword(password));
+      const credentials = credentialRepository(tx);
+      const hash = await hashPassword(password);
+      if ((await credentials.passwordFor(subjectId)) !== null) {
+        await credentials.setPassword(subjectId, hash);
+        return;
+      }
+      const subject = await subjectRepository(tx).byId(subjectId);
+      if (subject === null) throw new Error(`no subject ${subjectId}`);
+      await credentials.insert({
+        tenantId: subject.tenantId,
+        subjectId,
+        type: 'password',
+        secret: { kind: 'password', hash },
+      });
     },
     getUsername: async (tx, subjectId) => {
       const user = await userRepository(tx).bySubjectId(subjectId);
@@ -310,6 +392,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     },
     clearPasswordUpdateAction: (tx, subjectId) =>
       requiredActionRepository(tx).complete(subjectId, 'update-password'),
+    addRequiredActions: async (tx, tenantId, subjectId, actions) => {
+      for (const action of actions) {
+        await requiredActionRepository(tx).add(tenantId, subjectId, action);
+      }
+    },
   });
 
   registerRegistrationRoute(app, {

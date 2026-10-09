@@ -1,6 +1,6 @@
 import { isUniqueViolation, tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
-import { count, eq } from 'drizzle-orm';
+import { count, eq, lte, sql } from 'drizzle-orm';
 import { clients, type ClientRecord } from '#/schema/clients';
 
 export type { ClientRecord } from '#/schema/clients';
@@ -19,9 +19,12 @@ function toRecord(row: typeof clients.$inferSelect): ClientRecord {
     tenantId: row.tenantId,
     clientId: row.clientId,
     name: row.name,
+    description: row.description,
     enabled: row.enabled,
     type: row.type as ClientRecord['type'],
     secretHash: row.secretHash,
+    previousSecretHash: row.previousSecretHash,
+    previousSecretExpiresAt: row.previousSecretExpiresAt,
     createdAt: row.createdAt,
     serviceSubjectId: row.serviceSubjectId,
     fullScopeAllowed: row.fullScopeAllowed,
@@ -34,6 +37,7 @@ export interface NewClient {
   tenantId: string;
   clientId: string;
   name: string;
+  description?: string | null;
   type: 'public' | 'confidential';
   secretHash: string | null;
   enabled?: boolean;
@@ -48,7 +52,7 @@ export interface NewClient {
 
 // What the registration endpoint's cap check locks and counts, returned
 // together so a caller cannot read the count without having taken the lock
-// the comparison depends on.
+// the comparison depends on. `count` stops at `maxClients`.
 export interface ClientCapacity {
   maxClients: number;
   count: number;
@@ -95,6 +99,7 @@ export function clientRepository(tx: TenantScopedDatabase) {
             tenantId: input.tenantId,
             clientId: input.clientId,
             name: input.name,
+            description: input.description ?? null,
             type: input.type,
             secretHash: input.secretHash,
             enabled: input.enabled ?? true,
@@ -122,7 +127,12 @@ export function clientRepository(tx: TenantScopedDatabase) {
     // refused anything else by name.
     async update(
       id: string,
-      patch: Partial<Pick<typeof clients.$inferInsert, 'name' | 'enabled' | 'fullScopeAllowed'>>,
+      patch: Partial<
+        Pick<
+          typeof clients.$inferInsert,
+          'name' | 'description' | 'enabled' | 'fullScopeAllowed' | 'type'
+        >
+      >,
     ): Promise<ClientRecord> {
       const rows = await tx.update(clients).set(patch).where(eq(clients.id, id)).returning();
       const row = rows[0];
@@ -140,11 +150,21 @@ export function clientRepository(tx: TenantScopedDatabase) {
     },
 
     // `secret_hash` is refused by the general amendment (client-patch.ts's
-    // `refusalFor`) and rotated only through here.
-    async rotateSecret(id: string, secretHash: string): Promise<ClientRecord> {
+    // `refusalFor`) and rotated only through here. `previous` keeps the
+    // replaced secret valid until its instant; null ends it now, and either
+    // way whatever an earlier rotation kept is gone.
+    async rotateSecret(
+      id: string,
+      secretHash: string,
+      previous: { readonly hash: string; readonly expiresAt: Date } | null = null,
+    ): Promise<ClientRecord> {
       const rows = await tx
         .update(clients)
-        .set({ secretHash })
+        .set({
+          secretHash,
+          previousSecretHash: previous?.hash ?? null,
+          previousSecretExpiresAt: previous?.expiresAt ?? null,
+        })
         .where(eq(clients.id, id))
         .returning();
       const row = rows[0];
@@ -152,6 +172,17 @@ export function clientRepository(tx: TenantScopedDatabase) {
         throw new Error(`client ${id} not found while rotating its secret`);
       }
       return toRecord(row);
+    },
+
+    // Every previous secret whose window ended at or before `now`, cleared,
+    // answering the clients it was cleared from.
+    async clearExpiredPreviousSecrets(now: Date): Promise<ClientRecord[]> {
+      const rows = await tx
+        .update(clients)
+        .set({ previousSecretHash: null, previousSecretExpiresAt: null })
+        .where(lte(clients.previousSecretExpiresAt, now))
+        .returning();
+      return rows.map(toRecord);
     },
 
     // `SELECT ... FOR NO KEY UPDATE` on the tenant row before the `COUNT`, in
@@ -170,10 +201,15 @@ export function clientRepository(tx: TenantScopedDatabase) {
       if (maxClients === undefined) {
         throw new Error(`tenant ${tenantId} not found while locking its client capacity`);
       }
-      const countRows = await tx
-        .select({ count: count() })
+      // Counted no further than the cap, which is all the comparison needs:
+      // a tenant with a million clients costs no more to refuse than one at it.
+      const held = tx
+        .select({ one: sql<number>`1`.as('one') })
         .from(clients)
-        .where(eq(clients.tenantId, tenantId));
+        .where(eq(clients.tenantId, tenantId))
+        .limit(maxClients)
+        .as('held');
+      const countRows = await tx.select({ count: count() }).from(held);
       return { maxClients, count: countRows[0]?.count ?? 0 };
     },
   };

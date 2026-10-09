@@ -112,7 +112,11 @@ function operationFor(route: AdminRoute): OpenApiOperation {
   const responses: Record<string, OpenApiResponse> = {
     [status]: {
       description: status === '201' ? 'Created' : 'OK',
-      content: { 'application/json': { schema: jsonSchemaFor(route.responseSchema) } },
+      content: {
+        [route.successMediaType ?? 'application/json']: {
+          schema: jsonSchemaFor(route.responseSchema),
+        },
+      },
     },
     '401': PROBLEM_DETAILS_RESPONSE,
   };
@@ -124,7 +128,11 @@ function operationFor(route: AdminRoute): OpenApiOperation {
     summary:
       route.capability === null
         ? 'Requires an authenticated admin caller.'
-        : `Requires the "${route.capability}" capability.`,
+        : route.alsoAdmits === undefined
+          ? `Requires the "${route.capability}" capability.`
+          : `Requires the "${route.capability}" capability, or ${route.alsoAdmits
+              .map((also) => `"${also}"`)
+              .join(' or ')}.`,
     ...(route.description === undefined ? {} : { description: route.description }),
     parameters: [
       ...pathParametersFor(route.pattern),

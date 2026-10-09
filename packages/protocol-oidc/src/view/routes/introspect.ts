@@ -4,8 +4,9 @@ import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { type Clock, systemClock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
-import { type LiveClientLookup } from '#/service/client-enabled';
+import { type LiveClientLookup, type LiveSubjectLookup } from '#/service/client-enabled';
 import { type IntrospectionGrant } from '#/usecase/introspection';
+import { type ClientKeySet } from '#/usecase/token-issuance';
 import { type AuditRefusalBudget } from '#/service/audit-refusal-budget';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
@@ -13,6 +14,7 @@ import {
   respondToIntrospectionRequest,
   type IntrospectionRequestDeps,
 } from '#/usecase/introspection-request';
+import { keepingSpend, unsettle } from '#/usecase/private-key-jwt-authentication';
 import { recordRefusal } from '#/usecase/record-refusal';
 import { tenantIssuerFor } from '#/view/issuer';
 
@@ -25,6 +27,9 @@ export interface IntrospectRouteDeps {
       } & SessionLifespans)
     | null
   >;
+  clientKeySet: ClientKeySet;
+  trustProxy: boolean;
+  tlsClientCertHeader: string;
   listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
   // Reused, never re-implemented — see #/usecase/client-authentication.ts.
@@ -44,6 +49,7 @@ export interface IntrospectRouteDeps {
     now: Date,
   ): Promise<boolean>;
   liveClientLookup: LiveClientLookup;
+  liveSubjectLookup: LiveSubjectLookup;
   clock?: Clock;
 }
 
@@ -63,9 +69,14 @@ export function registerIntrospectRoute(app: FastifyInstance, deps: IntrospectRo
 
     const requestDeps: IntrospectionRequestDeps = {
       tenantId: tenant.id,
+      database: deps.database,
+      clientKeySet: deps.clientKeySet,
+      trustProxy: deps.trustProxy,
+      tlsClientCertHeader: deps.tlsClientCertHeader,
       verifyPassword: deps.verifyPassword,
       clientSecretLimiter: deps.clientSecretLimiter,
       logger: request.log,
+      now: () => now,
       issuer,
       keys,
       lifespans: {
@@ -78,22 +89,31 @@ export function registerIntrospectRoute(app: FastifyInstance, deps: IntrospectRo
       isSessionLive: (sessionId, lifespans, sessionNow) =>
         deps.isSessionLive(tenant.id, sessionId, lifespans, sessionNow),
       liveClientLookup: deps.liveClientLookup,
+      liveSubjectLookup: deps.liveSubjectLookup,
     };
 
     const context = requestContextFrom(request);
     try {
-      const response = await withTenant(
-        deps.database.db,
-        tenant.id,
-        (tx) =>
-          respondToIntrospectionRequest(
-            tx,
-            requestDeps,
-            request.body,
-            request.headers.authorization,
-            now,
-          ),
-        context,
+      const response = unsettle(
+        await withTenant(
+          deps.database.db,
+          tenant.id,
+          (tx) =>
+            keepingSpend(() =>
+              respondToIntrospectionRequest(
+                tx,
+                requestDeps,
+                {
+                  body: request.body,
+                  authorizationHeader: request.headers.authorization,
+                  headers: request.headers,
+                  rawHeaders: request.raw.rawHeaders,
+                },
+                now,
+              ),
+            ),
+          context,
+        ),
       );
       return await reply.code(200).header('cache-control', 'no-store').send(response);
     } catch (err) {

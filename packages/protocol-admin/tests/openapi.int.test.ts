@@ -82,6 +82,28 @@ describe('the published OpenAPI document', () => {
     );
   });
 
+  it.each([
+    ['/admin/tenants/{tenant}/roles', ['limit', 'cursor', 'name', 'client']],
+    ['/admin/tenants/{tenant}/groups', ['limit', 'cursor', 'name', 'parent']],
+    ['/admin/tenants/{tenant}/sessions', ['limit', 'cursor', 'client']],
+    ['/admin/tenants/{tenant}/scopes', ['limit', 'cursor', 'name']],
+    ['/admin/tenants/{tenant}/keys', ['limit', 'cursor', 'status', 'alg']],
+  ])('documents the %s listing filters as query parameters', async (path, expected) => {
+    const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
+    const doc = res.json<{
+      paths: Record<string, Record<string, { parameters: { name: string; in: string }[] }>>;
+    }>();
+    const query = (doc.paths[path]?.get?.parameters ?? [])
+      .filter((parameter) => parameter.in === 'query')
+      .map((parameter) => parameter.name);
+    expect(query.sort()).toEqual([...expected].sort());
+  });
+
+  it('names no stored search column anywhere, in a request or a response', async () => {
+    const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
+    expect(res.body).not.toMatch(/\w_search\b/u);
+  });
+
   it('describes no route the router does not register', async () => {
     const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
     const doc = res.json<{ paths: Record<string, Record<string, unknown>> }>();

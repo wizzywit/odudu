@@ -376,17 +376,20 @@ describe('amr and acr, from the executions that actually ran', () => {
     expect(jwtPayload(idToken).acr).toBe('2');
   });
 
-  it('a session recorded before this column existed carries no amr and no acr', async () => {
+  // A session with no recorded methods cannot show that it satisfied the
+  // flow, so it is not reused: the login form asks again, and no code is
+  // issued carrying an amr and acr nobody can vouch for.
+  it('a session recorded before this column existed is not reused', async () => {
     const tenantName = `amr-claim-legacy-${newId()}`;
     await setupTenant(tenantName);
 
     const { cookie, sessionId } = await signInAndRedeem(tenantName);
     await setSessionAuthenticators(sessionId, []);
 
-    const { idToken } = await reuseAndRedeem(tenantName, cookie);
+    const res = await http.inject({ url: authorizeUrl(tenantName), headers: { cookie } });
 
-    expect(jwtPayload(idToken).amr).toBeUndefined();
-    expect(jwtPayload(idToken).acr).toBeUndefined();
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('name="password"');
   });
 
   // Seeds `satisfied` with `otp` directly (the same artifice the two tests

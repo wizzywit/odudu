@@ -622,6 +622,8 @@ describe('failed and abandoned logins', () => {
       csrf: authSessionId,
     });
     expect(res.statusCode).toBe(400);
+    expect(res.body).toContain('This sign-in attempt is no longer valid. Go back and start again.');
+    expect(res.headers.location).toBeUndefined();
     expect(await countAuthorizationCodes(tenantName)).toBe(0);
   });
 });

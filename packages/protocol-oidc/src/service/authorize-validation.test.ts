@@ -22,6 +22,9 @@ const client: ClientRecord = {
   fullScopeAllowed: false,
   registrationOrigin: 'seeded',
   builtinAdmin: false,
+  description: null,
+  previousSecretHash: null,
+  previousSecretExpiresAt: null,
 };
 
 const config: ClientOidcConfig = {
@@ -32,6 +35,7 @@ const config: ClientOidcConfig = {
   tokenEndpointAuthMethod: 'client_secret_basic',
   audiences: [],
   accessTokenTtlSeconds: 300,
+  idTokenTtlSeconds: null,
   refreshTokenTtlSeconds: 1_209_600,
   clientCredentialsScopes: [],
   webOrigins: [],
@@ -48,6 +52,12 @@ const config: ClientOidcConfig = {
   userinfoEncryptedResponseAlg: null,
   userinfoEncryptedResponseEnc: null,
   tlsClientAuthSubjectDn: null,
+  clientUri: null,
+  policyUri: null,
+  tosUri: null,
+  idTokenSignedResponseAlg: null,
+  defaultMaxAge: null,
+  requireAuthTime: false,
 };
 
 // One list stands for both halves of the rule these tests exercise: the

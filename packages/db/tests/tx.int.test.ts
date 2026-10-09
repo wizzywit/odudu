@@ -245,6 +245,20 @@ describe('withSavepoint', () => {
 describe('withEachTenantExclusive', () => {
   const LOCK_KEY = 917_231;
 
+  it('visits the tenants of a stream as they arrive', async () => {
+    async function* stream(): AsyncGenerator<string> {
+      await Promise.resolve();
+      yield TENANT_A;
+      yield TENANT_B;
+    }
+    const pass = await withEachTenantExclusive(app.db, LOCK_KEY, stream(), (_tx, tenantId) =>
+      Promise.resolve(tenantId),
+    );
+
+    if (!pass.acquired) throw new Error('expected the lock to be free');
+    expect(pass.values).toEqual([TENANT_A, TENANT_B]);
+  });
+
   it('binds each tenant in turn inside one transaction', async () => {
     const pass = await withEachTenantExclusive(
       app.db,

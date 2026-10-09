@@ -4,7 +4,6 @@ import { outboxRepository, renderVerifyEmail } from '@odudu/email';
 import { OduduError } from '@odudu/kernel';
 import { actionTokenRepository } from '#/repository/action-tokens';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
-import { VERIFY_EMAIL_TTL_SECONDS } from '#/usecase/verify-email';
 
 // Re-exported so the view layer can reach these without importing the
 // repository directly (no-view-to-repository, .dependency-cruiser.cjs):
@@ -138,12 +137,13 @@ export async function register(
         if (!deps.verifyEmailEnabled || deps.issuerBase === undefined) {
           return { subjectId: account.subjectId };
         }
-        const { token } = await actionTokenRepository(tx).issue({
+        const tokens = actionTokenRepository(tx);
+        const { token } = await tokens.issue({
           tenantId: deps.tenantId,
           subjectId: account.subjectId,
           type: 'verify_email',
           email: input.email,
-          ttlSeconds: VERIFY_EMAIL_TTL_SECONDS,
+          ttlSeconds: await tokens.lifetimeOf(deps.tenantId, 'verify_email'),
         });
         const link = `${deps.issuerBase}/tenants/${deps.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
         await outboxRepository(tx).enqueue({

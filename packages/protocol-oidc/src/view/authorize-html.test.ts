@@ -43,6 +43,17 @@ describe('renderLoginForm', () => {
     expect(page.html).toContain(page.body);
   });
 
+  it('titles the second-factor form for what it asks, not as a second sign-in', () => {
+    const otp = renderLoginForm('acme', 'session-id', 'otp');
+    expect(otp.title).toBe('Enter your authentication code');
+    expect(otp.body).toContain('name="code"');
+    expect(otp.body).toContain('<button type="submit">Verify</button>');
+    expect(otp.body).not.toContain('Sign in');
+    const recovery = renderLoginForm('acme', 'session-id', 'recovery-code');
+    expect(recovery.title).toBe('Enter a recovery code');
+    expect(recovery.body).toContain('<button type="submit">Verify</button>');
+  });
+
   it('offers remember me when the tenant allows it', () => {
     const page = renderLoginForm('acme', 'session-id', 'password', false, true);
     expect(page.body).toContain(
@@ -54,5 +65,18 @@ describe('renderLoginForm', () => {
   it('offers nothing when the tenant does not allow it', () => {
     const page = renderLoginForm('acme', 'session-id', 'password', false, false);
     expect(page.body).not.toContain('remember_me');
+  });
+
+  // The tenant name is the one request-derived value this page interpolates
+  // into markup at all — the form's own `action` — so it is escaped like any
+  // other. Exercised here directly against the pure renderer rather than
+  // through a stored tenant, since a name shaped like this can no longer
+  // reach a row (tenants_name_dns_label,
+  // packages/db/drizzle/0072_tenant_name_rule.sql).
+  it('escapes a tenant name that is not a DNS label', () => {
+    const page = renderLoginForm('esc"><script>alert(1)<x', 'session-id', 'password');
+    expect(page.body).not.toContain('<script>');
+    expect(page.body).toContain('&lt;script&gt;');
+    expect(page.body).toContain('&quot;&gt;');
   });
 });

@@ -248,7 +248,7 @@ beforeAll(async () => {
   await runMigrations(owner.db, MIGRATIONS_DIR);
 
   const appUrl = await createAppRole(container.adminUrl);
-  appHandle = createDatabase(appUrl, { max: 5, onQuery: (query) => captured?.push(query) });
+  appHandle = createDatabase(appUrl, { max: 5, onQueryForTests: (query) => captured?.push(query) });
   app = appHandle;
 
   http = Fastify();

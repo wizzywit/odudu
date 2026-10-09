@@ -1,13 +1,17 @@
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
-import { type FastifyInstance } from 'fastify';
+import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { peekActionToken } from '#/usecase/action-token';
 import {
   completePasswordReset,
   type PasswordPolicy,
   type PolicyViolation,
 } from '#/usecase/reset-password';
+import {
+  completeRequiredActions,
+  type CompleteRequiredActionsDeps,
+} from '#/usecase/execute-actions';
 import { completeEmailVerification } from '#/usecase/verify-email';
 import {
   renderResetLinkFailedPage,
@@ -16,6 +20,10 @@ import {
   renderResetPasswordSucceededPage,
   renderResetPasswordWeakPage,
 } from '#/view/reset-html';
+import {
+  renderRequiredActionsForm,
+  renderRequiredActionsSucceededPage,
+} from '#/view/required-actions-html';
 import {
   renderVerificationFailedPage,
   renderVerificationSucceededPage,
@@ -65,6 +73,9 @@ export interface ActionTokenRouteDeps {
     tx: TenantScopedDatabase,
     subjectId: string,
   ) => Promise<void>;
+  // Injected for the same reason: the subject's owed actions are
+  // @odudu/authn-flows' table, which this package does not import.
+  readonly addRequiredActions: CompleteRequiredActionsDeps['addRequiredActions'];
 }
 
 // @fastify/formbody parses a repeated query or body field into an array; a
@@ -78,6 +89,60 @@ function firstString(value: string | string[] | undefined): string | undefined {
 function firstNonEmptyString(value: string | string[] | undefined): string | undefined {
   if (typeof value !== 'string' || value.length === 0) return undefined;
   return value;
+}
+
+async function completeActionsLink(
+  request: FastifyRequest<{ Body: Record<string, string | string[] | undefined> }>,
+  reply: FastifyReply,
+  deps: ActionTokenRouteDeps,
+  tenant: ActionTokenTenantLookup,
+  key: string,
+  setsPassword: boolean,
+): Promise<FastifyReply> {
+  if (setsPassword && !tenant.resetPasswordAllowed) {
+    return sendVerificationHtml(reply, 400, renderResetLinkFailedPage());
+  }
+  const candidate = readPasswordField(request.body.password);
+  if (candidate.kind === 'too_long') {
+    return sendVerificationHtml(
+      reply,
+      400,
+      renderResetPasswordWeakPage([PASSWORD_TOO_LONG.message]),
+    );
+  }
+  const password =
+    candidate.kind === 'present' && candidate.password.length > 0 ? candidate.password : undefined;
+
+  const result = await completeRequiredActions(
+    {
+      database: deps.database,
+      tenantId: tenant.id,
+      request: requestContextFrom(request),
+      setPassword: deps.setPassword,
+      passwordPolicy: tenant.passwordPolicy,
+      evaluatePassword: deps.evaluatePassword,
+      getUsername: deps.getUsername,
+      unchangedPasswordViolations: deps.unchangedPasswordViolations,
+      clearPasswordUpdateAction: deps.clearPasswordUpdateAction,
+      addRequiredActions: deps.addRequiredActions,
+    },
+    key,
+    password,
+  );
+  switch (result.kind) {
+    case 'invalid':
+      return sendVerificationHtml(reply, 400, renderResetLinkFailedPage());
+    case 'password_required':
+      return sendVerificationHtml(reply, 400, renderResetPasswordRequiredPage());
+    case 'invalid_password':
+      return sendVerificationHtml(
+        reply,
+        400,
+        renderResetPasswordWeakPage(result.violations.map((violation) => violation.message)),
+      );
+    case 'done':
+      return sendVerificationHtml(reply, 200, renderRequiredActionsSucceededPage(result.remaining));
+  }
 }
 
 // Not under /protocol/openid-connect/: this is Odudu's own account UI, the
@@ -115,6 +180,24 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
       return sendVerificationHtml(reply, 200, renderResetPasswordForm(request.params.tenant, key));
     }
 
+    // A link that sets a password is a reset link, and the reset kill switch
+    // stops it the same way.
+    if (peeked.type === 'execute_actions') {
+      if (peeked.setsPassword && !tenant.resetPasswordAllowed) {
+        return sendVerificationHtml(reply, 400, renderResetLinkFailedPage());
+      }
+      return sendVerificationHtml(
+        reply,
+        200,
+        renderRequiredActionsForm(
+          request.params.tenant,
+          key,
+          peeked.actionLabels,
+          peeked.setsPassword,
+        ),
+      );
+    }
+
     const result = await completeEmailVerification(
       {
         database: deps.database,
@@ -141,7 +224,15 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
     const candidate = readPasswordField(body.password);
     const tenant = key === undefined ? null : await deps.findTenant(request.params.tenant);
 
-    if (key === undefined || !tenant?.enabled || !tenant.resetPasswordAllowed) {
+    if (key === undefined || !tenant?.enabled) {
+      return sendVerificationHtml(reply, 400, renderResetLinkFailedPage());
+    }
+
+    const peeked = await peekActionToken({ database: deps.database, tenantId: tenant.id }, key);
+    if (peeked.kind === 'usable' && peeked.type === 'execute_actions') {
+      return completeActionsLink(request, reply, deps, tenant, key, peeked.setsPassword);
+    }
+    if (!tenant.resetPasswordAllowed) {
       return sendVerificationHtml(reply, 400, renderResetLinkFailedPage());
     }
 

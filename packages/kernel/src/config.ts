@@ -72,6 +72,13 @@ const publicBaseUrl = z
     return `${parsed.protocol}//${parsed.host}`;
   });
 
+// The container image's own layout for the built console; shared with
+// `apps/server/src/app.ts`'s own default so the two can never drift apart.
+/** `ODUDU_OUTBOX_MAX_ATTEMPTS` when unset. */
+export const DEFAULT_OUTBOX_MAX_ATTEMPTS = 5;
+
+export const DEFAULT_CONSOLE_DIR = '/app/console';
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   ODUDU_HTTP_HOST: z.string().min(1).default('0.0.0.0'),
@@ -209,7 +216,12 @@ const schema = z.object({
   // messages already queued: one that has spent the new ceiling stops
   // being retried and starts its retention window, without anything
   // having happened to it.
-  ODUDU_OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(5),
+  ODUDU_OUTBOX_MAX_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(DEFAULT_OUTBOX_MAX_ATTEMPTS),
   // The first retry's delay; each further attempt doubles it.
   ODUDU_OUTBOX_RETRY_BACKOFF_SECONDS: z.coerce.number().int().min(1).max(86_400).default(60),
   // A back-channel logout is enqueued the instant a session ends, so this
@@ -251,6 +263,21 @@ const schema = z.object({
   ODUDU_SMTP_PASSWORD: z.string().min(1).optional(),
   ODUDU_SMTP_STARTTLS: booleanEnvVar,
   ODUDU_PUBLIC_BASE_URL: publicBaseUrl,
+  // The administration console under /console. On unless turned off, and
+  // while on it needs ODUDU_PUBLIC_BASE_URL: its redirect URI is built from
+  // that base, never from a request (apps/server/src/config-guard.ts).
+  ODUDU_CONSOLE: enabledEnvVar,
+  // The one key pair the console's gateway authenticates with as every
+  // tenant's built-in admin client (private_key_jwt): an ES256 private JWK,
+  // base64-encoded like ODUDU_KEK, which `odudu console keygen` prints.
+  // Required while the console is on; apps/server/src/console-key.ts reads it.
+  ODUDU_CONSOLE_CLIENT_KEY: z.string().min(1).optional(),
+  // The key being replaced, kept registered on every tenant until the pass
+  // that drops it. A private or a public JWK, base64-encoded; only the public
+  // half is used.
+  ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS: z.string().min(1).optional(),
+  // The built console's static files, as the container image lays them out.
+  ODUDU_CONSOLE_DIR: z.string().min(1).default(DEFAULT_CONSOLE_DIR),
   // Lets a bounded address-checked fetch — the JWKS fetcher
   // (@odudu/protocol-oidc's client-keys repository) or the back-channel
   // logout transport (apps/server/src/logout-delivery-transport.ts) —
@@ -269,6 +296,15 @@ const schema = z.object({
 });
 
 export type Config = Readonly<z.infer<typeof schema>>;
+
+/**
+ * The base the console's redirect and post-logout URIs are registered
+ * under on every tenant's built-in admin client, or `undefined` when there
+ * is nothing to register: the console is off, or no base is configured.
+ */
+export function consoleBaseUrl(config: Config): string | undefined {
+  return config.ODUDU_CONSOLE ? config.ODUDU_PUBLIC_BASE_URL : undefined;
+}
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = schema

@@ -287,6 +287,30 @@ describe('[RFC7662-2.2-02] an unentitled caller gets the fused active:false, not
   });
 });
 
+describe("[RFC7662-2.2-04] a disabled subject's token gets the fused active:false", () => {
+  // Disabling ends nothing the subject holds, so its token still verifies,
+  // its grant and client are live, and only the subject says it is over.
+  it("answers active false, and nothing else, once the token's subject is disabled", async () => {
+    const token = await mintToken();
+    const segment = token.split('.')[1] ?? '';
+    const claims: unknown = JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'));
+    const sub =
+      typeof claims === 'object' && claims !== null && 'sub' in claims ? claims.sub : null;
+    if (typeof sub !== 'string') throw new Error('expected a sub claim');
+    const auth = basic(API_CLIENT_ID, API_CLIENT_SECRET);
+    expect((await introspect({ token, auth })).json()).toMatchObject({ active: true });
+
+    await withTenant(app.db, TENANT_ID, (tx) => subjectRepository(tx).setEnabled(sub, false));
+    try {
+      const response = await introspect({ token, auth });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ active: false });
+    } finally {
+      await withTenant(app.db, TENANT_ID, (tx) => subjectRepository(tx).setEnabled(sub, true));
+    }
+  });
+});
+
 describe('[RFC7662-2.2-03] a token this server never minted also gets the fused active:false', () => {
   // The third leg of the fused MUST, pinned separately from
   // RFC7662-2.2-02's caller-not-addressed case: an authenticated caller

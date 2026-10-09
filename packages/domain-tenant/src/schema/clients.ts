@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { boolean, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from '@odudu/db';
 
@@ -11,9 +12,16 @@ export const clients = pgTable('clients', {
     .references(() => tenants.id, { onDelete: 'cascade' }),
   clientId: text('client_id').notNull(),
   name: text('name').notNull(),
+  // An administrator's note on what the client is for
+  // (packages/db/drizzle/0084_client_display_metadata.sql).
+  description: text('description'),
   enabled: boolean('enabled').notNull().default(true),
   type: text('type').notNull(),
   secretHash: text('secret_hash'),
+  // The secret a rotation replaced and the instant it stops authenticating
+  // (packages/db/drizzle/0086_client_previous_secret.sql).
+  previousSecretHash: text('previous_secret_hash'),
+  previousSecretExpiresAt: timestamp('previous_secret_expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   // Nullable: a public client has no service account. Populated for
   // confidential clients when the client is provisioned, and read by the
@@ -40,6 +48,10 @@ export const clients = pgTable('clients', {
   // authorization here too — `authorizeAdmin` matches a role's client
   // against `ADMIN_CLIENT_ID` by that same string.
   builtinAdmin: boolean('builtin_admin').notNull().default(false),
+  // Search keys, in the C collation, filled by the database
+  // (packages/db/drizzle/0074_list_indexes_tenants_clients.sql).
+  clientIdSearch: text('client_id_search').generatedAlwaysAs(sql`lower(client_id)`),
+  nameSearch: text('name_search').generatedAlwaysAs(sql`lower(name)`),
 }).enableRLS();
 
 // Lives beside the table, not in the repository, so that `service` (which
@@ -52,9 +64,12 @@ export interface ClientRecord {
   tenantId: string;
   clientId: string;
   name: string;
+  description: string | null;
   enabled: boolean;
   type: 'public' | 'confidential';
   secretHash: string | null;
+  previousSecretHash: string | null;
+  previousSecretExpiresAt: Date | null;
   createdAt: Date;
   serviceSubjectId: string | null;
   fullScopeAllowed: boolean;

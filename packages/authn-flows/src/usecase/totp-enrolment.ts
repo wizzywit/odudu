@@ -3,8 +3,10 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
 import { systemClock, type Clock } from '@odudu/kernel';
+import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { oweRecoveryCodesIfNoneUnspent } from '#/usecase/recovery-codes';
+import { OTP } from '#/service/authenticators/names';
 import { isTotpSecretShape, totpEnrolmentUri } from '#/service/authenticators/totp';
 import { type TotpEnrolmentOffer } from '#/view/totp-enrolment-html';
 
@@ -33,7 +35,16 @@ export type TotpEnrolmentOutcome =
 
 export async function completeTotpEnrolment(
   tx: TenantScopedDatabase,
-  input: { tenantId: string; subjectId: string; secret: string; code: string },
+  // `authSessionId` names the login the code was typed into. The code just
+  // proved possession of the new authenticator, so that login records its
+  // otp factor and is not asked for a code again.
+  input: {
+    tenantId: string;
+    subjectId: string;
+    secret: string;
+    code: string;
+    authSessionId: string;
+  },
   clock: Clock = systemClock,
 ): Promise<TotpEnrolmentOutcome> {
   const existing = await credentialRepository(tx).listFor(input.subjectId, 'totp');
@@ -49,16 +60,16 @@ export async function completeTotpEnrolment(
   });
   if (!verified.ok) return { kind: 'rejected', reason: 'invalid_code' };
 
-  // The confirming code is spent by the credential it creates: without
-  // `lastStep`, the very code just typed into this form would still be
-  // valid as the second factor of the login waiting behind it (RFC 6238
-  // §5.2, docs/protocols/rfc6238.md).
+  // The confirming code is spent by the credential it creates: `lastStep`
+  // stops the same code being replayed at a later login (RFC 6238 §5.2,
+  // docs/protocols/rfc6238.md).
   await credentialRepository(tx).insert({
     tenantId: input.tenantId,
     subjectId: input.subjectId,
     type: 'totp',
     secret: { kind: 'totp', secret: input.secret, digits: 6, lastStep: verified.step },
   });
+  await authenticationSessionRepository(tx).recordSatisfied(input.authSessionId, OTP);
   await requiredActionRepository(tx).complete(input.subjectId, 'configure-totp');
   await auditRepository(tx).record({
     eventType: 'credential',

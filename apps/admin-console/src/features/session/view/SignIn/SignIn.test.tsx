@@ -1,0 +1,82 @@
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { expect, it, vi } from 'vitest';
+import { SignIn } from '#/features/session/view/SignIn';
+import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
+
+const check = (tenant: string) => (tenant === 'acme' ? undefined : 'Not a tenant name.');
+
+it('asks which tenant, and refuses a name the check refuses under its field', async () => {
+  const user = userEvent.setup();
+  const onSignIn = vi.fn();
+  render(<SignIn remembered={null} onSignIn={onSignIn} check={check} />);
+  const field = screen.getByRole('textbox', { name: 'Which tenant do you administer?' });
+  await user.type(field, 'Acme');
+  await user.click(screen.getByRole('button', { name: 'Continue to sign-in' }));
+  expect(field).toHaveAccessibleDescription(/Not a tenant name\./u);
+  expect(onSignIn).not.toHaveBeenCalled();
+
+  await user.clear(field);
+  await user.type(field, 'acme');
+  await user.click(screen.getByRole('button', { name: 'Continue to sign-in' }));
+  expect(onSignIn).toHaveBeenCalledWith('acme');
+});
+
+it('offers the remembered tenant first, and the question on request', async () => {
+  const user = userEvent.setup();
+  const onSignIn = vi.fn();
+  render(<SignIn remembered="acme" onSignIn={onSignIn} check={check} />);
+  await user.click(screen.getByRole('button', { name: 'Sign in to acme' }));
+  expect(onSignIn).toHaveBeenCalledWith('acme');
+  await user.click(screen.getByRole('button', { name: 'A different tenant' }));
+  expect(screen.getByRole('textbox', { name: 'Which tenant do you administer?' })).toBeVisible();
+});
+
+it('lets a system administrator enter a tenant rather than sign in to it', async () => {
+  const user = userEvent.setup();
+  render(<SignIn remembered={null} enters onSignIn={() => undefined} check={check} />);
+  expect(screen.getByRole('button', { name: 'Enter tenant' })).toBeVisible();
+  await user.type(screen.getByRole('textbox'), 'acme');
+  expect(screen.getByRole('button', { name: 'Enter acme' })).toBeVisible();
+});
+
+it('says why the last sign-in came back, above the question and apart from its field', () => {
+  render(
+    <SignIn
+      remembered={null}
+      notice="Sign-in was cancelled."
+      onSignIn={() => undefined}
+      check={check}
+    />,
+  );
+  expect(screen.getByRole('alert')).toHaveTextContent('Sign-in was cancelled.');
+  expect(screen.getByRole('textbox')).not.toHaveAccessibleDescription(/cancelled/u);
+});
+
+it('names the session a sign-in elsewhere would replace, above the question', () => {
+  render(
+    <SignIn
+      remembered={null}
+      replacing={{ tenant: 'acme', subjectId: 's1', username: 'grace' }}
+      onSignIn={() => undefined}
+      check={check}
+    />,
+  );
+  expect(screen.getByText(/signing in to another tenant/u)).toHaveTextContent(
+    "You're signed in to acme as grace; signing in to another tenant ends that session once it succeeds.",
+  );
+});
+
+it('passes axe in both themes, asking, remembering, and with a notice', async () => {
+  for (const [remembered, notice] of [
+    [null, null],
+    ['acme', null],
+    [null, 'Sign-in was cancelled.'],
+  ] as const) {
+    expect(
+      await axeInBothThemes(() => (
+        <SignIn remembered={remembered} notice={notice} onSignIn={() => undefined} check={check} />
+      )),
+    ).toEqual({ light: [], dark: [] });
+  }
+});

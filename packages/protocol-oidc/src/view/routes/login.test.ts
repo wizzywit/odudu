@@ -13,6 +13,7 @@ const TENANT = {
   ssoSessionMaxSeconds: 36_000,
   ssoSessionIdleSeconds: 1_800,
   rememberMeAllowed: true,
+  loginWithEmail: false,
   rememberMeIdleSeconds: 604_800,
   rememberMeMaxSeconds: 2_592_000,
   maxSessionsPerBrowser: 25,
@@ -41,6 +42,7 @@ function deps(): LoginRouteDeps {
     advance: vi
       .fn()
       .mockResolvedValue({ kind: 'success', subjectId: 'subject-1', authenticators: ['password'] }),
+    authenticatedSubject: vi.fn().mockResolvedValue('subject-1'),
     loadPendingRequest: vi.fn().mockResolvedValue(PENDING),
     resolveClientId: vi.fn().mockResolvedValue('client-uuid-1'),
     checkEmailVerification: vi.fn().mockResolvedValue({ verified: true, hasEmail: true }),

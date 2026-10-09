@@ -1,0 +1,12 @@
+export const line001 = 1;
+export const line002 = 2;
+export const line003 = 3;
+export const line004 = 4;
+export const line005 = 5;
+export const line006 = 6;
+export const line007 = 7;
+export const line008 = 8;
+export const line009 = 9;
+export const line010 = 10;
+export const line011 = 11;
+export const line012 = 12;

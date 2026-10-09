@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { sessions, type SessionRecord } from '#/schema/sessions';
 import { type SessionEntry } from '#/service/session-entry';
@@ -14,6 +14,20 @@ function stillLive(row: SessionRow, tenant: SessionLifespans, now: Date): boolea
   if (row.secretHash === null) return false;
   const { idleSeconds } = lifespanFor(tenant, row.remembered);
   return isSessionLive(row, idleSeconds, now);
+}
+
+/**
+ * `stillLive` as a predicate on `sessions`, for a read that pages or counts
+ * live sessions in SQL rather than filtering every row it fetched: the same
+ * three conditions, each boundary as exclusive as `isSessionLive`'s.
+ */
+export function liveSessionCondition(tenant: SessionLifespans, now: Date): SQL {
+  const at = now.toISOString();
+  return sql`(${sessions.secretHash} IS NOT NULL
+    AND ${sessions.expiresAt} > ${at}::timestamptz
+    AND ${sessions.lastActiveAt} > ${at}::timestamptz - make_interval(secs => CASE
+      WHEN ${sessions.remembered} THEN ${tenant.rememberMeIdleSeconds}::integer
+      ELSE ${tenant.ssoSessionIdleSeconds}::integer END))`;
 }
 
 // A live session together with the entry the browser proved it with — the

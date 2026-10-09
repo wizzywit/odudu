@@ -29,16 +29,18 @@ Whether a refusal becomes a row is decided by what the refused request
 **names**, and a row is written only where something bounds how many a
 caller can cause:
 
-| Refusal                                                                  | Row                     | What bounds it                                                  |
-| ------------------------------------------------------------------------ | ----------------------- | --------------------------------------------------------------- |
-| Login failure: bad credential, locked out, unknown subject               | yes                     | the per-IP throttle on `login-actions/authenticate`             |
-| Client authentication failure naming a **registered** client, any method | yes, while under budget | `auditRefusalBudget`, below                                     |
-| Client authentication failure naming an **unregistered** `client_id`     | no, a `warn` line       | nothing needed: no row                                          |
-| Refusal after the client authenticated                                   | yes, while under budget | `auditRefusalBudget`: a public client proves nothing but a name |
-| Admin `401`                                                              | no, a `warn` line       | nothing needed                                                  |
-| Admin `403` to an authenticated caller                                   | yes                     | the caller is authenticated, and the row names it               |
-| Foreign-issuer admin token, signature valid                              | yes                     | the caller holds a genuine token, and the row names its subject |
-| Foreign-issuer admin token, forged or issuer not served here             | no, a `warn` line       | nothing needed                                                  |
+| Refusal                                                                             | Row                                          | What bounds it                                                  |
+| ----------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------- |
+| Login failure: bad credential, locked out, unknown subject                          | yes                                          | the per-IP throttle on `login-actions/authenticate`             |
+| Client authentication failure naming a **registered** client, any method            | yes, while under budget                      | `auditRefusalBudget`, below                                     |
+| Client authentication failure naming an **unregistered** `client_id`                | no, a `warn` line                            | nothing needed: no row                                          |
+| Refusal after the client authenticated                                              | yes, while under budget                      | `auditRefusalBudget`: a public client proves nothing but a name |
+| Admin `401`                                                                         | no, a `warn` line                            | nothing needed                                                  |
+| Admin `403` to an authenticated caller                                              | yes                                          | the caller is authenticated, and the row names it               |
+| Admin `409` guarding the built-in admin surface (amendment, 2026-09-28)             | yes                                          | the caller is authenticated, and the row names it               |
+| A subject a tenant-wide admin door leaves beyond the ceiling (ADR 0040, 2026-09-30) | no refused row; counted on the `allowed` row | the one row the door writes carries the count                   |
+| Foreign-issuer admin token, signature valid                                         | yes                                          | the caller holds a genuine token, and the row names its subject |
+| Foreign-issuer admin token, forged or issuer not served here                        | no, a `warn` line                            | nothing needed                                                  |
 
 `auditRefusalBudget` is an in-memory sliding window keyed on
 `(tenant, client)`, built from the same `slidingWindow` helper as the
@@ -166,3 +168,30 @@ what the caller chose to claim, and an investigation reads `ip`, the actor
 columns and `occurred_at` instead. Gating the header on `ODUDU_TRUST_PROXY`
 was rejected: it would break every transcript's scoping and protect a value
 that proves nothing either way.
+
+## Amendment, 2026-09-28 — a `409` guarding the built-in admin surface
+
+An admin `409` that refuses to change what every administrator of a tenant
+depends on is a refusal to an authenticated caller, and writes a row the way
+a `403` does, with the reason under `detail.reason`. That is
+`builtin_admin_guarded` — amending or deleting the tenant's built-in admin
+client, unassigning one of its scopes, deleting one of its roles, and adding
+or removing a composite of one — `openid_guarded`, on deleting the `openid`
+scope, and `system_tenant_guarded`, on disabling the system tenant through
+`PATCH /admin/tenants/{tenant}` or `PATCH /settings`. The same protection
+already wrote a row at create (`reserved_client_id`,
+`default_on_admin_client`), so the question an operator asks — who tried to
+delete `tenant-admin` — had an answer on one door and none on the others.
+A `409` that reports a conflict with the data rather than a guard, such as
+a cycle, a taken name or a stale `If-Match`, is not a refusal of the caller
+and writes nothing.
+
+## Amendment, 2026-09-29 — a `409` guarding the last administrator
+
+A `409` of type `about:blank#last-administrator` is the same kind of
+refusal as `builtin_admin_guarded`:
+a guard on what every administrator of a tenant depends on, refused to an
+authenticated caller. So it writes a `refused` row under the action the
+caller attempted, with the reason under `detail.reason`, on every door
+ADR 0040's amendment lists. The attempted write itself is undone first,
+inside a savepoint, so the row is the only trace it leaves.

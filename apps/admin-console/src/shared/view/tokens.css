@@ -1,0 +1,83 @@
+/*
+ * Instrument's tokens. Every colour is declared once, as light-dark(light,
+ * dark) in hex, which tokens.test.ts reads to hold each ink to 4.5:1 on its
+ * surface and amber apart from the other signals. The theme follows the
+ * system unless <html data-theme> names one.
+ */
+:root {
+  color-scheme: light dark;
+
+  --surface-page: light-dark(#e7eae9, #151a19);
+  --surface-grid: light-dark(#dde1df, #1b2120);
+  --surface-panel: light-dark(#ffffff, #1c2221);
+  --surface-sunken: light-dark(#f3f5f4, #121716);
+  --surface-rail: light-dark(#111514, #0b0e0d);
+  --surface-rail-raised: light-dark(#1f2624, #1a201f);
+  --border: light-dark(#d4d9d7, #2a3230);
+  --border-strong: light-dark(#b3bab7, #3a4441);
+  --border-rail: light-dark(#262e2c, #1d2322);
+
+  --ink-primary: light-dark(#161b1a, #e4e9e7);
+  --ink-muted: light-dark(#56605d, #9ba6a2);
+  --ink-rail: light-dark(#e4e9e7, #e4e9e7);
+  --ink-rail-muted: light-dark(#9ba6a2, #8b9692);
+
+  --signal-active: light-dark(#dcf0e6, #143a2d);
+  --signal-active-ink: light-dark(#0a6344, #6fd8a8);
+  --signal-warning: light-dark(#f1e6d8, #3a2c1e);
+  --signal-warning-ink: light-dark(#74502a, #d2a06a);
+  --signal-danger: light-dark(#fae3d7, #48220f);
+  --signal-danger-ink: light-dark(#9c3a0e, #f59d73);
+  /* Amber means system authority and nothing else. */
+  --signal-system: light-dark(#f6d88a, #4d3706);
+  --signal-system-ink: light-dark(#573a00, #f7c95a);
+
+  --focus-ring: light-dark(#0a7c55, #4fc894);
+  --rail-accent: light-dark(#4fc894, #4fc894);
+
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --type-12: 12px;
+  --type-13: 13px;
+  --type-15: 15px;
+  --type-20: 20px;
+  --type-28: 28px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --radius-s: 3px;
+  --radius-m: 4px;
+  --hairline: 1px solid var(--border);
+  --shadow-overlay:
+    0 1px 2px light-dark(rgb(17 21 20 / 8%), rgb(0 0 0 / 40%)),
+    0 8px 24px light-dark(rgb(17 21 20 / 12%), rgb(0 0 0 / 50%));
+
+  --motion-fast: 120ms;
+  --motion-panel: 200ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  --target-min: 24px;
+  /* Every single-line control: inputs, selects, comboboxes, dates, buttons. */
+  --control-height: 40px;
+  --label-line: 20px;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-panel: 0ms;
+  }
+}

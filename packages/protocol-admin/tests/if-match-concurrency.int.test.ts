@@ -1,5 +1,6 @@
 import { withTenant } from '@odudu/db';
 import { roleRepository, roles as rolesTable, subjectRoles } from '@odudu/domain-authz';
+import { subjectRepository, userRepository } from '@odudu/domain-identity';
 import { ADMIN_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { eq, sql } from 'drizzle-orm';
@@ -8,6 +9,7 @@ import { etagOf } from '#/service/etag';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import { amendClient, clientWireShape, readClient } from '#/usecase/clients';
 import { listFlow, replaceFlow } from '#/usecase/flow';
+import { amendProfile, readProfile } from '#/usecase/profile';
 import { amendSettings, readSettings } from '#/usecase/settings';
 import { setRequiredActions, setRoles } from '#/usecase/subjects';
 
@@ -130,6 +132,7 @@ describe('two concurrent writes carrying the same If-Match', () => {
         clientDbId: client.id,
         values: { name: 'first' },
         ifMatch: etag,
+        callerCapabilities: new Set<string>(),
         actorSubjectId: 'first',
         actorTenantId: 'test-tenant',
         actorClientId: 'test-client',
@@ -145,6 +148,7 @@ describe('two concurrent writes carrying the same If-Match', () => {
         clientDbId: client.id,
         values: { name: 'second' },
         ifMatch: etag,
+        callerCapabilities: new Set<string>(),
         actorSubjectId: 'second',
         actorTenantId: 'test-tenant',
         actorClientId: 'test-client',
@@ -158,6 +162,68 @@ describe('two concurrent writes carrying the same If-Match', () => {
     expect((await second).kind).toBe('precondition_failed');
     const after = await withTenant(fixture.app.db, t.id, (tx) => readClient(tx, client.id));
     expect(after.kind === 'ok' ? after.client.name : null).toBe('first');
+  });
+});
+
+describe('two concurrent profile amendments carrying the same If-Match', () => {
+  it('lets the first win and refuses the second, never reading a stale row', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const subjectId = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const subject = await subjectRepository(tx).create({ tenantId: t.id, type: 'user' });
+      await userRepository(tx).create({
+        subjectId: subject.id,
+        tenantId: t.id,
+        username: `profile-${newId()}`,
+      });
+      return subject.id;
+    });
+    const before = await withTenant(fixture.app.db, t.id, (tx) => readProfile(tx, subjectId));
+    if (before.kind !== 'ok') throw new Error('expected the freshly created profile to exist');
+    const held = gate();
+
+    const first = withTenant(fixture.app.db, t.id, async (tx) => {
+      const outcome = await amendProfile(
+        tx,
+        { audit: AUDIT },
+        {
+          subjectId,
+          values: { nickname: 'first' },
+          ifMatch: before.etag,
+          callerCapabilities: new Set<string>(),
+          actorSubjectId: 'first',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      );
+      held.arrive();
+      await held.open;
+      return outcome;
+    });
+
+    await held.reached;
+    const second = withTenant(fixture.app.db, t.id, (tx) =>
+      amendProfile(
+        tx,
+        { audit: AUDIT },
+        {
+          subjectId,
+          values: { nickname: 'second' },
+          ifMatch: before.etag,
+          callerCapabilities: new Set<string>(),
+          actorSubjectId: 'second',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
+    );
+
+    await awaitBlockedTransaction();
+    held.release();
+
+    expect((await first).kind).toBe('ok');
+    expect((await second).kind).toBe('precondition_failed');
+    const after = await withTenant(fixture.app.db, t.id, (tx) => readProfile(tx, subjectId));
+    expect(after.kind === 'ok' ? after.view.nickname : null).toBe('first');
   });
 });
 
@@ -255,6 +321,7 @@ describe('two concurrent replacements whose If-Match matches whatever it finds',
           tenantId: t.id,
           subjectId,
           actions: ['configure-totp'],
+          callerCapabilities: new Set<string>(),
           ifMatch: '*',
           actorSubjectId: 'first',
           actorTenantId: 'test-tenant',
@@ -277,6 +344,7 @@ describe('two concurrent replacements whose If-Match matches whatever it finds',
           tenantId: t.id,
           subjectId,
           actions: ['generate-recovery-codes'],
+          callerCapabilities: new Set<string>(),
           ifMatch: '*',
           actorSubjectId: 'second',
           actorTenantId: 'test-tenant',

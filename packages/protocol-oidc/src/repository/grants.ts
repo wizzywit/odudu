@@ -135,6 +135,31 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       return rows.length;
     },
 
+    // The admin API's consent-revoke write: every grant a subject holds
+    // against one client, live or offline alike — narrower than
+    // `revokeForSession`, which only ever reaches one session's own bound
+    // grants. A second revoke matches no rows because of the
+    // `isNull(revokedAt)` predicate, so an already-revoked grant keeps its
+    // first timestamp and is not counted.
+    async revokeForSubjectClient(
+      subjectId: string,
+      clientId: string,
+      revokedAt: Date,
+    ): Promise<number> {
+      const rows = await tx
+        .update(tokenGrants)
+        .set({ revokedAt })
+        .where(
+          and(
+            eq(tokenGrants.subjectId, subjectId),
+            eq(tokenGrants.clientId, clientId),
+            isNull(tokenGrants.revokedAt),
+          ),
+        )
+        .returning({ id: tokenGrants.id });
+      return rows.length;
+    },
+
     async bySession(sessionId: string): Promise<TokenGrantRecord[]> {
       const rows = await tx.select().from(tokenGrants).where(eq(tokenGrants.sessionId, sessionId));
       return rows.map(toRecord);
@@ -145,7 +170,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // `token_grants.client_id` and `client_oidc_config.client_id` are both
     // the clients table's surrogate id, never the OAuth client_id string,
     // so the join needs no third table. Filtered to `enabled`, the same way
-    // `webOriginsForTenant` (client-oidc-config.ts) is.
+    // `webOriginAllowed` (client-oidc-config.ts) is.
     async clientsForSession(sessionId: string): Promise<ClientLogoutTarget[]> {
       const rows = await tx
         .selectDistinct({

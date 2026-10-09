@@ -20,6 +20,7 @@ import Fastify, {
   type LightMyRequestResponse,
 } from 'fastify';
 import net from 'node:net';
+import { sql } from 'drizzle-orm';
 import { pino } from 'pino';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { NO_CLIENT_KEY_FETCHER, oidcRoutes } from '#/index';
@@ -39,7 +40,8 @@ let owner: DatabaseHandle;
 let app: DatabaseHandle;
 
 const KEK = Buffer.alloc(32, 17);
-const NOW = new Date('2026-09-21T00:00:00Z');
+// The wall clock: /revoke reads an access token's own expiry against it.
+const NOW = new Date();
 const SUBJECT_DN = 'CN=client-a,O=Example';
 // RFC 2253's own escaping of an embedded comma keeps the space that
 // follows it — the exact shape nginx's `$ssl_client_s_dn` emits, and a
@@ -547,5 +549,126 @@ describe('tls_client_auth at /token', () => {
       token_endpoint_auth_method: 'tls_client_auth',
       tls_client_auth_subject_dn: 'CN=new-client',
     });
+  });
+});
+
+async function endpoint(
+  path: 'revoke' | 'token/introspect',
+  input: {
+    server?: FastifyInstance;
+    fields: Record<string, string>;
+    headers?: Record<string, string>;
+  },
+): Promise<LightMyRequestResponse> {
+  const server = input.server ?? trusted;
+  if (server === undefined) throw new Error('server not ready');
+  return server.inject({
+    method: 'POST',
+    url: `/tenants/${TENANT}/protocol/openid-connect/${path}`,
+    payload: new URLSearchParams(input.fields).toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded', ...(input.headers ?? {}) },
+  });
+}
+
+async function accessTokenOf(): Promise<string> {
+  const res = await token({ client: 'tls-client', headers: certHeader(SUBJECT_DN) });
+  expect(res.statusCode).toBe(200);
+  return res.json<{ access_token: string }>().access_token;
+}
+
+async function isRevoked(accessToken: string): Promise<boolean> {
+  const payload = JSON.parse(
+    Buffer.from(accessToken.split('.')[1] ?? '', 'base64url').toString('utf8'),
+  ) as { grant_id: string };
+  return withTenant(app.db, TENANT_ID, async (tx) => {
+    const rows = await tx.execute<{ revoked_at: Date | null }>(
+      sql`select revoked_at from token_grants where id = ${payload.grant_id}`,
+    );
+    return rows[0]?.revoked_at != null;
+  });
+}
+
+describe('[ODUDU-TLS-CLIENT-AUTH-ENDPOINTS-01] tls_client_auth at /revoke and /introspect', () => {
+  it('revokes a token for a client whose certificate subject matches', async () => {
+    const accessToken = await accessTokenOf();
+    const res = await endpoint('revoke', {
+      fields: { token: accessToken, client_id: 'tls-client' },
+      headers: certHeader(SUBJECT_DN),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(await isRevoked(accessToken)).toBe(true);
+  });
+
+  it('refuses a revocation whose certificate subject differs, leaving the grant alone', async () => {
+    const accessToken = await accessTokenOf();
+    const res = await endpoint('revoke', {
+      fields: { token: accessToken, client_id: 'tls-client' },
+      headers: certHeader('CN=someone-else'),
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+    expect(await isRevoked(accessToken)).toBe(false);
+  });
+
+  it('refuses the method at /revoke while ODUDU_TRUST_PROXY is off', async () => {
+    if (untrusted === undefined) throw new Error('server not ready');
+    const accessToken = await accessTokenOf();
+    const res = await endpoint('revoke', {
+      server: untrusted,
+      fields: { token: accessToken, client_id: 'tls-client' },
+      headers: certHeader(SUBJECT_DN),
+    });
+    expect(res.statusCode).toBe(401);
+    expect(await isRevoked(accessToken)).toBe(false);
+  });
+
+  it('refuses a certificate presented alongside a client_secret at /revoke', async () => {
+    const accessToken = await accessTokenOf();
+    const res = await endpoint('revoke', {
+      fields: { token: accessToken, client_id: 'tls-client', client_secret: 'x' },
+      headers: certHeader(SUBJECT_DN),
+    });
+    expect(res.statusCode).toBe(401);
+    expect(await isRevoked(accessToken)).toBe(false);
+  });
+
+  it('refuses a duplicated certificate header at /revoke', async () => {
+    const accessToken = await accessTokenOf();
+    const res = await endpoint('revoke', {
+      fields: { token: accessToken, client_id: 'tls-client' },
+      headers: { [HEADER]: `${SUBJECT_DN}, ${SUBJECT_DN}` },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(await isRevoked(accessToken)).toBe(false);
+  });
+
+  it('answers an introspection from a matching certificate, and refuses a differing one', async () => {
+    const accessToken = await accessTokenOf();
+    const ok = await endpoint('token/introspect', {
+      fields: { token: accessToken, client_id: 'tls-client' },
+      headers: certHeader(SUBJECT_DN),
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toHaveProperty('active');
+    const refused = await endpoint('token/introspect', {
+      fields: { token: accessToken, client_id: 'tls-client' },
+      headers: certHeader('CN=someone-else'),
+    });
+    expect(refused.statusCode).toBe(401);
+  });
+
+  it('lists tls_client_auth for both endpoints when TLS client authentication is enabled, and not otherwise', async () => {
+    if (trusted === undefined || untrusted === undefined) throw new Error('server not ready');
+    const url = `/tenants/${TENANT}/.well-known/openid-configuration`;
+    interface Doc {
+      introspection_endpoint_auth_methods_supported: string[];
+      revocation_endpoint_auth_methods_supported: string[];
+    }
+    const on = (await trusted.inject({ url })).json<Doc>();
+    expect(on.introspection_endpoint_auth_methods_supported).toContain('tls_client_auth');
+    expect(on.revocation_endpoint_auth_methods_supported).toContain('tls_client_auth');
+    const off = (await untrusted.inject({ url })).json<Doc>();
+    expect(off.introspection_endpoint_auth_methods_supported).not.toContain('tls_client_auth');
+    expect(off.revocation_endpoint_auth_methods_supported).not.toContain('tls_client_auth');
   });
 });

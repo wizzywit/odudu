@@ -1,0 +1,16 @@
+{
+  "name": "@odudu/turbo-cache",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
+  },
+  "bin": {
+    "odudu-turbo-cache-prune": "./src/index.ts"
+  }
+}

@@ -543,6 +543,30 @@ describe('[OIDC-RPINITIATED-2-01] the confirmation page is asked for on both tri
     expect(row?.expiresAt.getTime()).toBeLessThanOrEqual(Date.now());
   });
 
+  // The confirmation POST answers 302 to the client's registered
+  // post_logout_redirect_uri, and Chromium holds that redirect to the
+  // page's form-action, so the policy names that origin and no other.
+  it('licenses the form to end at a registered redirect, and at nothing unregistered', async () => {
+    const tenantName = `logout-form-action-${newId()}`;
+    await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
+    const formAction = async (redirect: string) => {
+      const res = await http.inject({
+        url: logoutUrl(tenantName, { client_id: CLIENT_ID, post_logout_redirect_uri: redirect }),
+        headers: { cookie },
+      });
+      expect(res.body).toContain('<title>Sign out?</title>');
+      return String(res.headers['content-security-policy'])
+        .split('; ')
+        .find((directive) => directive.startsWith('form-action'));
+    };
+
+    expect(await formAction(POST_LOGOUT_REDIRECT_URI)).toBe(
+      "form-action 'self' https://app.example",
+    );
+    expect(await formAction('https://elsewhere.example/after-logout')).toBe("form-action 'self'");
+  });
+
   it('when the hint names somebody other than the current session', async () => {
     const tenantName = `logout-mismatch-${newId()}`;
     const { tenantId } = await setupTenant(tenantName);
@@ -774,7 +798,7 @@ describe.each(['GET', 'POST'] as const)(
     // reach different outcomes once posted back (302 versus 400), so a
     // single pinned case cannot stand in for both.
     it('drops the redirect whether or not it is registered', async () => {
-      const tenantName = `logout-audmismatch-unregistered-${method.toLowerCase()}-${newId()}`;
+      const tenantName = `logout-aud-unreg-${method.toLowerCase()}-${newId()}`;
       const { tenantId } = await setupTenant(tenantName);
       const cookie = await signIn(tenantName);
       const sessionId = sessionIdFromCookie(cookie);
@@ -982,7 +1006,7 @@ describe('[ODUDU-LOGOUT-NOSESSION-REDIRECT-01] a matched redirect is honoured ev
   });
 
   it('still shows the no-session page when the requested uri is not registered', async () => {
-    const tenantName = `logout-nosession-badredirect-${newId()}`;
+    const tenantName = `logout-nosession-badredir-${newId()}`;
     await setupTenant(tenantName);
 
     const res = await http.inject({

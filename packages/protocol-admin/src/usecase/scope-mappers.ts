@@ -8,11 +8,9 @@ import {
 import { eq } from 'drizzle-orm';
 import { etagOf, requiredPrecondition } from '#/service/etag';
 
-// The one fragment of `ClaimMapperRegistry<Ctx>` (@odudu/kernel) this
-// package needs — a name lookup with no claim context in it — so this
-// usecase depends on that shape rather than on `@odudu/protocol-oidc`'s own
-// `ClaimContext`, which a protocol package may never import (protocol
-// packages never import each other). The composition root
+// The one fragment of `ClaimMapperRegistry<Ctx>` (@odudu/kernel) binding
+// needs — a name lookup with no claim context in it — so this usecase
+// depends on that shape alone. The composition root
 // (apps/server/src/app.ts) passes its one real `ClaimMapperRegistry`
 // instance, unchanged, as this.
 export interface MapperCatalogue {

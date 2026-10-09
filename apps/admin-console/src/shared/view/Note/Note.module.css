@@ -1,0 +1,14 @@
+.note {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-s);
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+  background: var(--surface-sunken);
+}
+
+.capability {
+  font-size: var(--type-12);
+  color: var(--ink-primary);
+}

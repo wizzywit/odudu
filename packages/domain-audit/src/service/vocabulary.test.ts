@@ -7,6 +7,19 @@ import {
 } from '#/service/vocabulary';
 
 describe('assertDetailAllowed', () => {
+  it('accepts what else would have admitted a refused caller, as a list of names', () => {
+    expect(() => {
+      assertDetailAllowed('capability.refused', {
+        capability: 'manage-tenant',
+        also_admits: ['view-users'],
+        reason: 'missing_capability',
+      });
+    }).not.toThrow();
+    expect(() => {
+      assertDetailAllowed('capability.refused', { capability: 'x', also_admits: 'view-users' });
+    }).toThrow(/also_admits/);
+  });
+
   it('accepts the detail keys token.issue names', () => {
     expect(() => {
       assertDetailAllowed('token.issue', { grant_type: 'authorization_code', scope: 'openid' });

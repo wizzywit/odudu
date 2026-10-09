@@ -121,7 +121,7 @@ describe('[ODUDU-AUTHN-FLOW-ORDER-01] a tenant dispatches its own ordered execut
     expect(result).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
   });
 
-  it('persists nothing for a factor that finishes the login, so a retry re-runs it', async () => {
+  it('persists the factor that finishes the login, and resumes the attempt on an empty submission', async () => {
     const tenantId = newId();
     const password = 'correct-horse-battery-staple';
     const subjectId = await withTenant(app.db, tenantId, (tx) =>
@@ -140,21 +140,64 @@ describe('[ODUDU-AUTHN-FLOW-ORDER-01] a tenant dispatches its own ordered execut
     );
     expect(first).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
 
-    // Nothing was written: password was the login's last factor, and a
-    // retry (an id_token_hint mismatch, an unverified email — both leave
-    // the session unconsumed downstream of this function) has to re-run it
-    // exactly as the first attempt did, not find it already satisfied.
     const record = await withTenant(app.db, tenantId, (tx) =>
       authenticationSessionRepository(tx).byId(authSessionId),
     );
-    expect(record?.satisfied).toEqual([]);
+    expect(record?.satisfied).toEqual(['password']);
 
-    const second = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password }, undefined, {
-        logger: SILENT_LOGGER,
-      }),
+    // What a finished required action resumes the login with: nothing is
+    // asked again, because nothing the flow requires is outstanding.
+    const resumed = await withTenant(app.db, tenantId, (tx) =>
+      advance(tx, authSessionId, {}, undefined, { logger: SILENT_LOGGER }),
     );
-    expect(second).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
+    expect(resumed).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
+    const after = await withTenant(app.db, tenantId, (tx) =>
+      authenticationSessionRepository(tx).byId(authSessionId),
+    );
+    expect(after?.satisfied).toEqual(['password']);
+    expect(after?.authenticatedAt).not.toBeNull();
+  });
+
+  it('does not resume an attempt no factor has bound to a subject', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenantAndUser(tx, tenantId, 'ada', 'correct-horse-battery-staple'),
+    );
+    const authSessionId = await withTenant(app.db, tenantId, async (tx) => {
+      const { authSessionId: id } = await startAuthentication(tx, tenantId, request);
+      return id;
+    });
+
+    const empty = await withTenant(app.db, tenantId, (tx) =>
+      advance(tx, authSessionId, {}, undefined, { logger: SILENT_LOGGER }),
+    );
+    expect(empty).toEqual({ kind: 'challenge', form: 'password' });
+  });
+
+  it('cannot resume a foreign tenant’s finished attempt', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subjectId = await seedTenantAndUser(tx, tenantId, 'ada', 'pw-for-the-probe-1');
+        const { authSessionId } = await startAuthentication(tx, tenantId, request);
+        const repository = authenticationSessionRepository(tx);
+        await repository.bindSubject(authSessionId, subjectId);
+        await repository.recordSatisfied(authSessionId, 'password');
+        return authSessionId;
+      },
+      verifySeeded: async (tx, authSessionId) => {
+        const found = await authenticationSessionRepository(tx).byId(authSessionId);
+        expect(found?.authenticatedAt).toBeNull();
+      },
+      attempt: async (tx, authSessionId) =>
+        advance(tx, authSessionId, {}, undefined, { logger: SILENT_LOGGER }),
+      expectBlocked: (result) => {
+        expect(result).toEqual({ kind: 'failure', reason: 'authentication_session_expired' });
+      },
+      verifyTenantAUnaffected: async (tx, authSessionId) => {
+        const found = await authenticationSessionRepository(tx).byId(authSessionId);
+        expect(found?.authenticatedAt).toBeNull();
+      },
+    });
   });
 });
 

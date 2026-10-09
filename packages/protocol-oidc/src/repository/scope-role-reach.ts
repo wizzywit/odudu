@@ -9,12 +9,7 @@ async function resolveClientScopes(
   tx: TenantScopedDatabase,
   grantedScope: readonly string[],
 ): Promise<ClientScopeRecord[]> {
-  const found: ClientScopeRecord[] = [];
-  for (const name of grantedScope) {
-    const clientScope = await clientScopeRepository(tx).byName(name);
-    if (clientScope !== null) found.push(clientScope);
-  }
-  return found;
+  return clientScopeRepository(tx).byNames(grantedScope);
 }
 
 // Which roles a granted scope set reaches, read fresh per issuance because

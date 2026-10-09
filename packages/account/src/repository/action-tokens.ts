@@ -1,6 +1,6 @@
-import { type TenantScopedDatabase } from '@odudu/db';
+import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import { createHash, randomBytes } from 'node:crypto';
 import { actionTokens, type ActionTokenRecord, type ActionTokenType } from '#/schema/action-tokens';
 
@@ -21,14 +21,15 @@ function sha256Hex(token: string): string {
 
 // ttlSeconds carries no default: `verify_email` and `reset_password` tokens
 // have very different exposure profiles (a day-long password-reset window
-// is an account-takeover window), so a caller states the value it means
-// rather than inheriting one invisibly. See VERIFY_EMAIL_TTL_SECONDS and
-// RESET_PASSWORD_TTL_SECONDS in #/usecase/verify-email.
+// is an account-takeover window), so a caller states the value it means —
+// the tenant's own, through `lifetimeOf`, rather than one inherited
+// invisibly.
 export interface IssueActionToken {
   tenantId: string;
   subjectId: string;
   type: ActionTokenType;
   email?: string;
+  actions?: readonly string[];
   ttlSeconds: number;
 }
 
@@ -40,6 +41,7 @@ function toRecord(row: typeof actionTokens.$inferSelect): ActionTokenRecord {
     type: row.type as ActionTokenType,
     tokenHash: row.tokenHash,
     email: row.email,
+    actions: row.actions,
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
     consumedAt: row.consumedAt,
@@ -48,6 +50,23 @@ function toRecord(row: typeof actionTokens.$inferSelect): ActionTokenRecord {
 
 export function actionTokenRepository(tx: TenantScopedDatabase) {
   return {
+    // The tenant's lifetime for a link of this type
+    // (packages/db/drizzle/0082_tenant_lifetimes.sql). A link taking its
+    // subject through required actions signs them in by their mailbox, as a
+    // reset link does, so it takes the reset link's lifetime.
+    async lifetimeOf(tenantId: string, type: ActionTokenType): Promise<number> {
+      const rows = await tx
+        .select({
+          verifyEmail: tenants.verifyEmailTtlSeconds,
+          resetPassword: tenants.resetPasswordTtlSeconds,
+        })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId));
+      const row = rows[0];
+      if (row === undefined) throw new Error(`tenant ${tenantId} is not visible here`);
+      return type === 'verify_email' ? row.verifyEmail : row.resetPassword;
+    },
+
     async issue(input: IssueActionToken): Promise<{ token: string }> {
       const token = generateActionToken();
       await tx.insert(actionTokens).values({
@@ -57,6 +76,7 @@ export function actionTokenRepository(tx: TenantScopedDatabase) {
         type: input.type,
         tokenHash: sha256Hex(token),
         email: input.email ?? null,
+        actions: input.actions === undefined ? null : [...input.actions],
         expiresAt: new Date(Date.now() + input.ttlSeconds * 1000),
         consumedAt: null,
       });
@@ -108,22 +128,26 @@ export function actionTokenRepository(tx: TenantScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
-    // Called alongside a successful consume, in the same transaction: a
-    // completed reset has to retire every other outstanding reset-password
-    // link for the same subject, not just the one just spent, or a second
-    // mailed link (a prior request, or one an attacker triggered) stays
-    // redeemable for its own five minutes after the legitimate owner has
-    // already regained the account. The just-consumed row is unaffected —
-    // this only ever touches rows still `consumed_at IS NULL`.
-    async invalidateOutstanding(subjectId: string, type: ActionTokenType): Promise<void> {
+    // Called alongside a successful consume, in the same transaction:
+    // whatever sets a subject's password retires every other outstanding
+    // link that could set it — each reset link, and each actions link naming
+    // `update-password` — or a second mailed link stays redeemable after the
+    // owner has regained the account. Rows already consumed are untouched.
+    async invalidateOutstandingPasswordLinks(subjectId: string): Promise<void> {
       await tx
         .update(actionTokens)
         .set({ consumedAt: new Date() })
         .where(
           and(
             eq(actionTokens.subjectId, subjectId),
-            eq(actionTokens.type, type),
             isNull(actionTokens.consumedAt),
+            or(
+              eq(actionTokens.type, 'reset_password'),
+              and(
+                eq(actionTokens.type, 'execute_actions'),
+                sql`'update-password' = ANY(${actionTokens.actions})`,
+              ),
+            ),
           ),
         );
     },
