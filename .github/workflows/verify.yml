@@ -22,8 +22,9 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     # Bounded by a cold cache: every package's tests run when nothing is
-    # restored, which is a full suite of 15 minutes or more.
-    timeout-minutes: 30
+    # restored, as after any lockfile change, which took 30 minutes on
+    # 2026-10-09; a cancelled run saves no cache, so a rerun would fail the same way.
+    timeout-minutes: 45
     env:
       TURBO_CACHE_DIR: .turbo/cache
       TURBO_RUN_SUMMARY: 'true'
