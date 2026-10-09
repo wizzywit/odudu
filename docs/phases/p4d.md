@@ -1840,7 +1840,8 @@ context (`loadClaimContext`, a `withTenant` inside the request's transaction), f
 every grant. N concurrent assertions on a pool of N hung: `[ODUDU-PRIVATE-KEY-JWT-03]`
 failed first. The claim context is now read on the request's transaction. The jti is
 claimed by an advisory lock tried on that transaction, never waited for, with the row
-inserted on it after the work, or on a connection of its own if the work fails; why
+inserted on it after the work, or after a savepoint rolled the failed work back, so
+no second connection is ever taken; why
 that and not a plain insert is `docs/protocols/rfc7523.md`'s "A jti is never waited
 on". A refresh token's rotation still takes a connection beside the request's,
 deliberately (ADR 0019): a refresh holds three at once, the gateway's row lock, the
