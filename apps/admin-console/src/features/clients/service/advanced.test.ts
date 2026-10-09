@@ -9,6 +9,7 @@ import {
   keysPayload,
   needsSubjectDn,
   parseJwks,
+  secretFixedNote,
   userinfoContentOptions,
   userinfoEncryptionOptions,
   userinfoPayload,
@@ -159,4 +160,27 @@ describe('userinfo', () => {
       userinfo_encrypted_response_enc: 'A256GCM',
     });
   });
+});
+
+describe('secretFixedNote', () => {
+  it('names a public client as having no secret', () => {
+    expect(secretFixedNote({ type: 'public', token_endpoint_auth_method: 'none' })).toBe(
+      'A public client has no secret to rotate.',
+    );
+  });
+
+  it.each(['private_key_jwt', 'tls_client_auth'])('names a %s client as having none', (method) => {
+    expect(secretFixedNote({ type: 'confidential', token_endpoint_auth_method: method })).toBe(
+      `A client that authenticates with ${method} has no secret to rotate.`,
+    );
+  });
+
+  it.each(['client_secret_basic', 'client_secret_post'])(
+    'says nothing of a %s client',
+    (method) => {
+      expect(
+        secretFixedNote({ type: 'confidential', token_endpoint_auth_method: method }),
+      ).toBeNull();
+    },
+  );
 });

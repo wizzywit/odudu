@@ -226,4 +226,15 @@ export const FIXED_BY_DESIGN: readonly { label: string; value: string; why: stri
 export const SECRET_RULE =
   'Rotating makes a new secret, shown once. Until its grace period ends the previous secret keeps authenticating beside it, so an application can be given the new one without a gap. A grace of 0 s replaces it at once, the right answer to a leak.';
 
-export const PUBLIC_SECRET_FIXED = 'A public client has no secret to rotate.';
+const PUBLIC_SECRET_FIXED = 'A public client has no secret to rotate.';
+
+/** Why a client has no secret to rotate, or `null` when it holds one. */
+export function secretFixedNote(client: {
+  type: string;
+  token_endpoint_auth_method: string;
+}): string | null {
+  if (client.type === 'public') return PUBLIC_SECRET_FIXED;
+  const method = client.token_endpoint_auth_method;
+  if (method === 'client_secret_basic' || method === 'client_secret_post') return null;
+  return `A client that authenticates with ${method} has no secret to rotate.`;
+}

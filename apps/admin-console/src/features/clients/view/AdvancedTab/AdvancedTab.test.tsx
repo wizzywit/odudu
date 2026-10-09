@@ -85,6 +85,26 @@ it('says a public client authenticates with nothing, and offers no method and no
   expect(screen.queryByRole('button', { name: /^Rotate the secret/u })).toBeNull();
 });
 
+it('says a client that authenticates with a key has no secret, and offers no rotation', async () => {
+  renderConsoleAt(
+    AT,
+    clientRoutes(undefined, {
+      [`GET ${C}/c-bill`]: json(
+        { ...BILLING, token_endpoint_auth_method: 'private_key_jwt' },
+        200,
+        {
+          etag: '"c-bill-1"',
+        },
+      ),
+    }),
+  );
+  await open();
+  expect(
+    screen.getByText('A client that authenticates with private_key_jwt has no secret to rotate.'),
+  ).toBeVisible();
+  expect(screen.queryByRole('button', { name: /^Rotate the secret/u })).toBeNull();
+});
+
 it('publishes a key set pasted here, and clears the address with it', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(AT, patching({ jwks: { keys: [] } }));

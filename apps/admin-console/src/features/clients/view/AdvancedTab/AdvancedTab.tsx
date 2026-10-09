@@ -14,7 +14,7 @@ import {
   KEYS_BLOCKED,
   KEYS_RULE,
   PUBLIC_AUTH_FIXED,
-  PUBLIC_SECRET_FIXED,
+  secretFixedNote,
   SECRET_RULE,
   SECTIONS_ADVANCED,
   SUBJECT_DN_RULE,
@@ -135,6 +135,7 @@ export function AdvancedTab({
   const { auth, keys, userinfo, audiences, exchange } = page;
   const method = auth.values.token_endpoint_auth_method;
   const source = keys.values.key_source;
+  const secretFixed = secretFixedNote(client);
   return (
     <div className={styles.tab}>
       <Installation tenant={tenant} clientDbId={client.id} />
@@ -279,8 +280,8 @@ export function AdvancedTab({
           />
         </SaveSection>
       </ReadOnlyFields>
-      {client.type === 'public' ? (
-        <p className={styles.rule}>{PUBLIC_SECRET_FIXED}</p>
+      {secretFixed !== null ? (
+        <p className={styles.rule}>{secretFixed}</p>
       ) : writable ? (
         <Rotation client={client} secret={secret} />
       ) : null}

@@ -124,7 +124,7 @@ export {
   needsSubjectDn,
   parseJwks,
   PUBLIC_AUTH_FIXED,
-  PUBLIC_SECRET_FIXED,
+  secretFixedNote,
   SECRET_RULE,
   SECTIONS_ADVANCED,
   SUBJECT_DN_RULE,
