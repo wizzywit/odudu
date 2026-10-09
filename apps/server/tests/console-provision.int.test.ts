@@ -7,7 +7,12 @@ import {
 } from '@odudu/db';
 import { roles } from '@odudu/domain-authz';
 import { ADMIN_CLIENT_ID, clients, MANAGE_TENANTS, SYSTEM_TENANT_ID } from '@odudu/domain-tenant';
-import { generateClientKey, loadClientKey } from '@odudu/crypto';
+import {
+  generateClientKey,
+  loadClientKey,
+  registeredClientJwks,
+  verifyJwtClaims,
+} from '@odudu/crypto';
 import { newId } from '@odudu/kernel';
 import { ADMIN_CLIENT_REDIRECT_URI, clientOidcConfig } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -270,6 +275,35 @@ describe('seeding under a console base', () => {
       withEnv({ ODUDU_PUBLIC_BASE_URL: NEW_BASE, ODUDU_TRUST_PROXY: 'true' }, () =>
         seed(['tenant', '--name', `refused-${newId()}`]),
       ),
+    ).rejects.toThrow(/ODUDU_CONSOLE_CLIENT_KEY/u);
+  });
+});
+
+describe('odudu console assertion', () => {
+  const env = { ODUDU_PUBLIC_BASE_URL: NEW_BASE, ODUDU_TRUST_PROXY: 'true' };
+
+  it("prints an assertion the tenant's token endpoint accepts, signed with the console's key", async () => {
+    const assertion = await withEnv({ ...env, ODUDU_CONSOLE_CLIENT_KEY: KEY_A }, () =>
+      consoleCommand(['assertion', '--tenant', 'acme']),
+    );
+    const key = await loadClientKey(KEY_A);
+    const claims = await verifyJwtClaims(assertion, registeredClientJwks(key, []), {
+      issuer: ADMIN_CLIENT_ID,
+      audience: `${NEW_BASE}/tenants/acme/protocol/openid-connect/token`,
+      now: new Date(),
+    });
+    expect(claims).toMatchObject({ iss: ADMIN_CLIENT_ID, sub: ADMIN_CLIENT_ID });
+  });
+
+  it('refuses without a tenant', async () => {
+    await expect(
+      withEnv({ ...env, ODUDU_CONSOLE_CLIENT_KEY: KEY_A }, () => consoleCommand(['assertion'])),
+    ).rejects.toMatchObject({ code: 'console_invalid_options' });
+  });
+
+  it('refuses with no client key, naming the variable', async () => {
+    await expect(
+      withEnv(env, () => consoleCommand(['assertion', '--tenant', 'acme'])),
     ).rejects.toThrow(/ODUDU_CONSOLE_CLIENT_KEY/u);
   });
 });
