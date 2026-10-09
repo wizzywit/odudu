@@ -224,3 +224,119 @@ describe("provisionAdminClient: the console's URIs", () => {
     expect(redirectUris.at(-1)).toBe('https://new.example.test/console/auth/callback');
   });
 });
+
+const KEY_A = {
+  keys: [{ kty: 'EC', crv: 'P-256', x: 'a', y: 'a', kid: 'a', alg: 'ES256', use: 'sig' }],
+};
+const KEY_B = {
+  keys: [
+    { kty: 'EC', crv: 'P-256', x: 'b', y: 'b', kid: 'b', alg: 'ES256', use: 'sig' },
+    ...KEY_A.keys,
+  ],
+};
+
+async function authentication(tenantId: string): Promise<{
+  type: string;
+  secretHash: string | null;
+  method: string;
+  jwks: unknown;
+}> {
+  return withTenant(app.db, tenantId, async (tx) => {
+    const client = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+    if (client === null) throw new Error('the admin client was not provisioned');
+    const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+    if (config === null) throw new Error('the admin client has no OIDC configuration');
+    return {
+      type: client.type,
+      secretHash: client.secretHash,
+      method: config.tokenEndpointAuthMethod,
+      jwks: config.jwks,
+    };
+  });
+}
+
+async function rowVersions(tenantId: string): Promise<string> {
+  const rows = await owner.sql<{ xmin: string }[]>`
+    select c.xmin::text as xmin from clients k
+    join client_oidc_config c on c.client_id = k.id
+    where k.tenant_id = ${tenantId} and k.client_id = ${ADMIN_CLIENT_ID}`;
+  const clientRows = await owner.sql<{ xmin: string }[]>`
+    select xmin::text as xmin from clients
+    where tenant_id = ${tenantId} and client_id = ${ADMIN_CLIENT_ID}`;
+  return `${rows[0]?.xmin ?? ''}/${clientRows[0]?.xmin ?? ''}`;
+}
+
+describe('provisionAdminClient: the console key', () => {
+  it('creates a client that authenticates with private_key_jwt under the given key', async () => {
+    const tenantId = await freshTenant();
+    await provision(tenantId, { consoleClientJwks: KEY_A });
+
+    expect(await authentication(tenantId)).toEqual({
+      type: 'confidential',
+      secretHash: null,
+      method: 'private_key_jwt',
+      jwks: KEY_A,
+    });
+  });
+
+  it('creates a public client with method none when given no key', async () => {
+    const tenantId = await freshTenant();
+    await provision(tenantId, {});
+
+    expect(await authentication(tenantId)).toEqual({
+      type: 'public',
+      secretHash: null,
+      method: 'none',
+      jwks: null,
+    });
+  });
+
+  it('converts a public client provisioned before the key existed', async () => {
+    const tenantId = await freshTenant();
+    await provision(tenantId, { consoleBaseUrl: 'https://idp.example.test' });
+    await provision(tenantId, {
+      consoleBaseUrl: 'https://idp.example.test',
+      consoleClientJwks: KEY_A,
+    });
+
+    expect(await authentication(tenantId)).toEqual({
+      type: 'confidential',
+      secretHash: null,
+      method: 'private_key_jwt',
+      jwks: KEY_A,
+    });
+    expect((await registeredUris(tenantId)).redirectUris).toContain(
+      'https://idp.example.test/console/auth/callback',
+    );
+  });
+
+  it('writes nothing on a second pass with the same key', async () => {
+    const tenantId = await freshTenant();
+    await provision(tenantId, { consoleClientJwks: KEY_A });
+    const before = await rowVersions(tenantId);
+
+    await provision(tenantId, { consoleClientJwks: KEY_A });
+
+    expect(await rowVersions(tenantId)).toBe(before);
+  });
+
+  it('replaces the registered keys when the key set changes', async () => {
+    const tenantId = await freshTenant();
+    await provision(tenantId, { consoleClientJwks: KEY_A });
+    await provision(tenantId, { consoleClientJwks: KEY_B });
+
+    expect((await authentication(tenantId)).jwks).toEqual(KEY_B);
+  });
+
+  it('leaves the key alone on a pass given none', async () => {
+    const tenantId = await freshTenant();
+    await provision(tenantId, { consoleClientJwks: KEY_A });
+    await provision(tenantId, {});
+
+    expect(await authentication(tenantId)).toMatchObject({
+      type: 'confidential',
+      method: 'private_key_jwt',
+      jwks: KEY_A,
+    });
+  });
+});

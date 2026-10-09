@@ -10,6 +10,7 @@ import {
   tenantLookupRepository,
   tokenGrantRepository,
   type ClaimContext,
+  type ClientJwks,
 } from '@odudu/protocol-oidc';
 import { type FastifyPluginAsync } from 'fastify';
 import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
@@ -246,6 +247,9 @@ export interface AdminRoutesDeps {
   // imported here has the console's redirect and post-logout URIs
   // registered on its admin client under this base. Unset, it has neither.
   consoleBaseUrl?: string | undefined;
+  // The public keys the console's gateway signs with: a tenant created or
+  // imported here has its admin client registered confidential, under them.
+  consoleClientJwks?: ClientJwks | undefined;
   // Gates `tls_client_auth` client creation the same way `/token` and
   // dynamic registration gate it (`OidcRoutesDeps.trustProxy`,
   // @odudu/protocol-oidc) — off by default, since a `tls_client_auth`
@@ -431,6 +435,7 @@ function buildAdminRoutes(
       kek: deps.kek,
       audit: tenantAudit,
       consoleBaseUrl: deps.consoleBaseUrl,
+      consoleClientJwks: deps.consoleClientJwks,
       callerCapabilities,
       now: () => clock.now(),
       sessionsAudit: tenantSessionsAudit,
@@ -445,6 +450,7 @@ function buildAdminRoutes(
       kek: deps.kek,
       audit: tenantImportAudit,
       consoleBaseUrl: deps.consoleBaseUrl,
+      consoleClientJwks: deps.consoleClientJwks,
       hashClientSecret: hashPassword,
       tlsClientAuthEnabled: deps.trustProxy ?? false,
       claimMappers: deps.claimMappers,

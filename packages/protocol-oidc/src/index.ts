@@ -926,6 +926,7 @@ export { idTokenAlgUnavailable } from '#/usecase/id-token-alg';
 export {
   provisionAdminClient,
   ADMIN_CLIENT_REDIRECT_URI,
+  type ClientJwks,
   type ProvisionAdminClientOptions,
 } from '#/usecase/provision-admin-client';
 export { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';

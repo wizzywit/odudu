@@ -1316,6 +1316,7 @@ export interface RotateClientSecretDeps {
 export type RotateClientSecretOutcome =
   | { kind: 'not_found' }
   | { kind: 'not_confidential' }
+  | { kind: 'no_secret_method'; method: string }
   | TargetCeilingRefusal
   | { kind: 'ok'; client: ClientView; secret: string };
 
@@ -1328,6 +1329,13 @@ export async function rotateClientSecret(
   const clientRow = await clientRepository(tx).byId(input.clientDbId);
   if (clientRow === null) return { kind: 'not_found' };
   if (clientRow.type !== 'confidential') return { kind: 'not_confidential' };
+  // A secret this client could never present would be stored and shown once
+  // for nothing: its method is a key or a certificate.
+  const method = (await clientOidcConfigRepository(tx).byClientId(input.clientDbId))
+    ?.tokenEndpointAuthMethod;
+  if (method !== undefined && method !== 'client_secret_basic' && method !== 'client_secret_post') {
+    return { kind: 'no_secret_method', method };
+  }
   const refused = await refuseOverServiceAccountCeiling(
     tx,
     deps.audit,

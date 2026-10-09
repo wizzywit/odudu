@@ -37,6 +37,7 @@ import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   FIXTURE_CONSOLE_BASE_URL,
+  FIXTURE_CONSOLE_JWKS,
   startAdminFixture,
   type AdminFixture,
 } from '#/testing/admin-fixture';
@@ -333,6 +334,28 @@ describe('POST /admin/tenant-imports', () => {
       `${FIXTURE_CONSOLE_BASE_URL}/console/auth/callback`,
     ]);
     expect(config?.postLogoutRedirectUris).toEqual([`${FIXTURE_CONSOLE_BASE_URL}/console/`]);
+  });
+
+  it("registers the console's key on the imported tenant's admin client", async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const answer = (
+      await postImport(token, {
+        name: `import-${newId()}`,
+        document: await exportOf(token, source.name),
+      })
+    ).json<ImportAnswer>();
+
+    const stored = await withTenant(fixture.app.db, answer.tenant.id, async (tx) => {
+      const client = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      if (client === null) throw new Error('the admin client was not provisioned');
+      return { client, config: await clientOidcConfigRepository(tx).byClientId(client.id) };
+    });
+    expect(stored.client.type).toBe('confidential');
+    expect(stored.config).toMatchObject({
+      tokenEndpointAuthMethod: 'private_key_jwt',
+      jwks: FIXTURE_CONSOLE_JWKS,
+    });
   });
 
   it('gives imported subjects no credential and an update-password action', async () => {

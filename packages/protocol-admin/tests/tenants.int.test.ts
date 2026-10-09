@@ -10,6 +10,7 @@ import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   FIXTURE_CONSOLE_BASE_URL,
+  FIXTURE_CONSOLE_JWKS,
   startAdminFixture,
   type AdminFixture,
 } from '#/testing/admin-fixture';
@@ -69,6 +70,28 @@ describe('POST /admin/tenants', () => {
       `${FIXTURE_CONSOLE_BASE_URL}/console/auth/callback`,
     ]);
     expect(config?.postLogoutRedirectUris).toEqual([`${FIXTURE_CONSOLE_BASE_URL}/console/`]);
+  });
+
+  it("registers the console's key on the new admin client, which authenticates with it", async () => {
+    const token = await fixture.systemAdminToken(['manage-tenants']);
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: `keyed-${newId()}` },
+    });
+    expect(res.statusCode).toBe(201);
+    const { id } = res.json<{ id: string }>();
+    const stored = await withTenant(fixture.app.db, id, async (tx) => {
+      const client = await clientRepository(tx).byClientId('odudu-admin');
+      if (client === null) throw new Error('the admin client was not provisioned');
+      return { client, config: await clientOidcConfigRepository(tx).byClientId(client.id) };
+    });
+    expect(stored.client).toMatchObject({ type: 'confidential', secretHash: null });
+    expect(stored.config).toMatchObject({
+      tokenEndpointAuthMethod: 'private_key_jwt',
+      jwks: FIXTURE_CONSOLE_JWKS,
+    });
   });
 
   it('records the caller’s request id and address on its own tenant.create row', async () => {

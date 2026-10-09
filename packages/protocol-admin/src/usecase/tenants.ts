@@ -20,6 +20,7 @@ import {
   backchannelLogoutDeliveries,
   BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
   provisionAdminClient,
+  type ClientJwks,
 } from '@odudu/protocol-oidc';
 import { and, asc, eq, gt, isNull, lt, sql, type SQL } from 'drizzle-orm';
 import { countAtMost } from '#/usecase/capped-count';
@@ -88,6 +89,8 @@ export interface CreateTenantDeps {
   readonly audit: Audit;
   /** Registers the console's URIs on the new admin client; unset while the console is off. */
   readonly consoleBaseUrl?: string | undefined;
+  /** Registers the console's key on it, making the admin client confidential. */
+  readonly consoleClientJwks?: ClientJwks | undefined;
 }
 
 export type CreateTenantOutcome =
@@ -141,7 +144,10 @@ export async function insertProvisionedTenant(
   tx: TenantScopedDatabase,
   kek: Uint8Array,
   row: { readonly id: string; readonly name: string; readonly displayName: string | null },
-  consoleBaseUrl: string | undefined,
+  console: {
+    readonly baseUrl: string | undefined;
+    readonly clientJwks: ClientJwks | undefined;
+  },
 ): Promise<TenantRecord> {
   let rows: TenantRecord[];
   try {
@@ -153,7 +159,10 @@ export async function insertProvisionedTenant(
   const created = rows[0];
   if (created === undefined) throw new Error('insert into tenants returned no row');
   await provisionTenant(tx, row.id);
-  await provisionAdminClient(tx, row.id, { consoleBaseUrl });
+  await provisionAdminClient(tx, row.id, {
+    consoleBaseUrl: console.baseUrl,
+    consoleClientJwks: console.clientJwks,
+  });
   await mintSigningKey(tx, row.id, kek);
   return created;
 }
@@ -194,7 +203,7 @@ export async function createTenant(
           tx,
           deps.kek,
           { id, name: input.name, displayName: input.displayName ?? null },
-          deps.consoleBaseUrl,
+          { baseUrl: deps.consoleBaseUrl, clientJwks: deps.consoleClientJwks },
         );
 
         // Written inside the same transaction as the row it describes: a

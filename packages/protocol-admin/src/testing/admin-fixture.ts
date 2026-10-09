@@ -203,6 +203,11 @@ function basicAuth(clientId: string, secret: string): string {
 /** The console base every tenant created through `POST /admin/tenants` here is registered under. */
 export const FIXTURE_CONSOLE_BASE_URL = 'http://console.test';
 
+/** The console key every such tenant's admin client is registered with. */
+export const FIXTURE_CONSOLE_JWKS = {
+  keys: [{ kty: 'EC', crv: 'P-256', x: 'fixture-x', y: 'fixture-y', kid: 'fixture', alg: 'ES256' }],
+};
+
 export interface AdminFixtureOptions {
   /** Whether the deployment has a sender of its own for a tenant without one. */
   readonly deploymentSmtp?: boolean;
@@ -251,6 +256,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         cursorKey: KEK,
         kek: KEK,
         consoleBaseUrl: FIXTURE_CONSOLE_BASE_URL,
+        consoleClientJwks: FIXTURE_CONSOLE_JWKS,
         claimMappers,
         deploymentSmtp: options.deploymentSmtp ?? false,
         outboxMaxAttempts: DEFAULT_OUTBOX_MAX_ATTEMPTS,

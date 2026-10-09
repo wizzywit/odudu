@@ -36,6 +36,7 @@ import {
   clientOidcConfigRepository,
   type ClientMetadata,
   type ClientOidcConfig,
+  type ClientJwks,
 } from '@odudu/protocol-oidc';
 import { tenantSmtpRepository } from '#/repository/tenant-smtp';
 import { CLAIM_KEY } from '#/usecase/profile';
@@ -66,6 +67,7 @@ export interface ImportTenantDeps {
   readonly audit: Audit;
   /** Registers the console's URIs on the new admin client; unset while the console is off. */
   readonly consoleBaseUrl?: string | undefined;
+  readonly consoleClientJwks?: ClientJwks | undefined;
   readonly hashClientSecret: (secret: string) => Promise<string>;
   readonly tlsClientAuthEnabled: boolean;
   readonly claimMappers: MapperCatalogue;
@@ -449,7 +451,7 @@ export async function importTenant(
             name: input.name,
             displayName: input.displayName ?? document.settings.display_name,
           },
-          deps.consoleBaseUrl,
+          { baseUrl: deps.consoleBaseUrl, clientJwks: deps.consoleClientJwks },
         );
         const clientSecrets = await writeDocument(tx, deps, id, document, metadata);
 

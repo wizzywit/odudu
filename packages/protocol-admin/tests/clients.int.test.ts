@@ -1294,6 +1294,60 @@ describe('POST /admin/tenants/{t}/clients/{id}/secret', () => {
     expect(res.statusCode).toBe(409);
   });
 
+  it('refuses to rotate the secret of a client that authenticates with a key', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const created = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        client_id: `keyed-${newId()}`,
+        token_endpoint_auth_method: 'private_key_jwt',
+        jwks: { keys: [] },
+        grant_types: ['client_credentials'],
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const { id } = created.json<{ id: string }>();
+
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients/${id}/secret`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ detail: string }>().detail).toContain('private_key_jwt');
+  });
+
+  it("refuses to rotate the built-in admin client's secret, which signs in with the console's key", async () => {
+    const token = await fixture.systemAdminToken(['manage-tenants', 'manage-clients']);
+    const name = `keyed-${newId()}`;
+    const made = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name },
+    });
+    expect(made.statusCode).toBe(201);
+    const list = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${name}/clients?client_id=odudu-admin`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const admin = list
+      .json<{ items: { id: string; client_id: string }[] }>()
+      .items.find((client) => client.client_id === 'odudu-admin');
+    expect(admin).toBeDefined();
+
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${name}/clients/${admin?.id ?? ''}/secret`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(409);
+  });
+
   it('calls audit exactly once on a successful rotation', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const created = await fixture.createConfidentialClient(t.name, {});

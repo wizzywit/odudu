@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { CLIENT_LIST_LIMIT, listLimitProblem } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
@@ -28,6 +29,17 @@ export interface ProvisionAdminClientOptions extends ClientAndRolesOptions {
    * unset, the registered URIs are left as they are.
    */
   readonly consoleBaseUrl?: string | undefined;
+  /**
+   * The public keys the console's gateway signs its client assertions with.
+   * Set, the client is confidential and authenticates by `private_key_jwt`
+   * under exactly these keys, creating or converting it; unset, it is left
+   * as it is, which for a new client is public.
+   */
+  readonly consoleClientJwks?: ClientJwks | undefined;
+}
+
+export interface ClientJwks {
+  readonly keys: readonly Record<string, unknown>[];
 }
 
 /**
@@ -41,10 +53,14 @@ export async function provisionAdminClient(
   tenantId: string,
   options: ProvisionAdminClientOptions = {},
 ): Promise<ProvisionedAdminClient> {
-  const provisioned = await provisionClientAndRoles(tx, tenantId, options);
-  await provisionOidcConfig(tx, tenantId, provisioned.clientDbId);
-  if (options.consoleBaseUrl !== undefined) {
-    await registerConsoleUris(tx, provisioned.clientDbId, options.consoleBaseUrl);
+  const { consoleBaseUrl, consoleClientJwks, ...rolesOptions } = options;
+  const provisioned = await provisionClientAndRoles(tx, tenantId, {
+    ...rolesOptions,
+    confidential: consoleClientJwks !== undefined,
+  });
+  await provisionOidcConfig(tx, tenantId, provisioned.clientDbId, consoleClientJwks);
+  if (consoleBaseUrl !== undefined) {
+    await registerConsoleUris(tx, provisioned.clientDbId, consoleBaseUrl);
   }
   return provisioned;
 }
@@ -97,18 +113,31 @@ async function provisionOidcConfig(
   tx: TenantScopedDatabase,
   tenantId: string,
   clientDbId: string,
+  jwks: ClientJwks | undefined,
 ): Promise<void> {
   const repository = clientOidcConfigRepository(tx);
-  if ((await repository.byClientId(clientDbId)) !== null) return;
+  const existing = await repository.byClientId(clientDbId);
+  if (existing !== null) {
+    if (
+      jwks !== undefined &&
+      (existing.tokenEndpointAuthMethod !== 'private_key_jwt' ||
+        !isDeepStrictEqual(existing.jwks, jwks))
+    ) {
+      await repository.update(clientDbId, { tokenEndpointAuthMethod: 'private_key_jwt', jwks });
+    }
+    return;
+  }
 
   await repository.create({
     clientId: clientDbId,
     tenantId,
     redirectUris: [ADMIN_CLIENT_REDIRECT_URI],
-    // An administrator logs in as a subject and refreshes; the client
-    // holds no secret, so it authenticates at /token with none.
+    // An administrator logs in as a subject and refreshes. The client
+    // itself holds either the console's key, which signs its assertion at
+    // /token, or nothing and authenticates with none.
     grantTypes: ['authorization_code', 'refresh_token'],
-    tokenEndpointAuthMethod: 'none',
+    tokenEndpointAuthMethod: jwks === undefined ? 'none' : 'private_key_jwt',
+    ...(jwks === undefined ? {} : { jwks }),
     audiences: [ADMIN_API_AUDIENCE],
     // Its own, never the tenant's default: nobody may amend this client,
     // so a tenant raising its default must not lengthen admin tokens.

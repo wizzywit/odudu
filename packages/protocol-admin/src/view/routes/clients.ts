@@ -421,6 +421,17 @@ export function rotateClientSecretHandler(deps: ClientsRouteDeps): AdminRouteHan
           request,
           problem(409, 'about:blank', 'Conflict', 'a public client has no secret to rotate'),
         );
+      case 'no_secret_method':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            409,
+            'about:blank',
+            'Conflict',
+            `a client that authenticates with ${outcome.method} has no secret to rotate`,
+          ),
+        );
       case 'target_ceiling':
         return serviceAccountCeilingProblem(reply, request, outcome.requested);
       case 'ok': {

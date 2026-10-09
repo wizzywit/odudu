@@ -7,6 +7,7 @@ import {
 import { type Database } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { SYSTEM_TENANT_ID, TENANT_NAME_RULE } from '@odudu/domain-tenant';
+import { type ClientJwks } from '@odudu/protocol-oidc';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
 import {
@@ -32,6 +33,7 @@ export interface TenantsRouteDeps {
   readonly kek: Uint8Array;
   readonly audit: Audit;
   readonly consoleBaseUrl?: string | undefined;
+  readonly consoleClientJwks?: ClientJwks | undefined;
   readonly callerCapabilities: (
     issuerTenantId: string,
     subjectId: string,
@@ -128,6 +130,7 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
         kek: deps.kek,
         audit: deps.audit,
         consoleBaseUrl: deps.consoleBaseUrl,
+        consoleClientJwks: deps.consoleClientJwks,
       },
       {
         name: body.name,
