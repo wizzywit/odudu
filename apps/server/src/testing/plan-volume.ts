@@ -148,6 +148,9 @@ create temp table vol_service as
 insert into subjects (id, tenant_id, type) select id, ${t}, 'service' from vol_service;
 update clients c set type = 'confidential', secret_hash = 'x', service_subject_id = s.id
   from vol_service s where c.tenant_id = ${t} and c.client_id = 'app-' || s.n;
+update client_oidc_config o set token_endpoint_auth_method = 'client_secret_basic'
+  from clients c join vol_service s on c.client_id = 'app-' || s.n
+ where c.tenant_id = ${t} and o.client_id = c.id;
 insert into subject_roles (tenant_id, subject_id, role_id)
 select ${t}, s.id, r.id
   from vol_service s
