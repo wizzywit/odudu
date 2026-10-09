@@ -6,6 +6,7 @@ import { type Clock, systemClock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { type LiveClientLookup, type LiveSubjectLookup } from '#/service/client-enabled';
 import { type IntrospectionGrant } from '#/usecase/introspection';
+import { type ClientKeySet } from '#/usecase/token-issuance';
 import { type AuditRefusalBudget } from '#/service/audit-refusal-budget';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
@@ -25,6 +26,7 @@ export interface IntrospectRouteDeps {
       } & SessionLifespans)
     | null
   >;
+  clientKeySet: ClientKeySet;
   listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
   // Reused, never re-implemented — see #/usecase/client-authentication.ts.
@@ -64,6 +66,8 @@ export function registerIntrospectRoute(app: FastifyInstance, deps: IntrospectRo
 
     const requestDeps: IntrospectionRequestDeps = {
       tenantId: tenant.id,
+      database: deps.database,
+      clientKeySet: deps.clientKeySet,
       verifyPassword: deps.verifyPassword,
       clientSecretLimiter: deps.clientSecretLimiter,
       logger: request.log,

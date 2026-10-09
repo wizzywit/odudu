@@ -88,22 +88,15 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
     ]);
   });
 
-  // authenticateClient (packages/protocol-oidc/src/usecase/client-authentication.ts)
-  // is what /introspect and /revoke both authenticate through, and it
-  // accepts the two password methods plus `none` for a public client —
-  // never private_key_jwt or tls_client_auth, regardless of
-  // ODUDU_TRUST_PROXY.
-  it('advertises exactly the three methods a public or confidential client can present for introspection and revocation', () => {
-    expect([...doc.introspection_endpoint_auth_methods_supported].sort()).toEqual([
-      'client_secret_basic',
-      'client_secret_post',
-      'none',
-    ]);
-    expect([...doc.revocation_endpoint_auth_methods_supported].sort()).toEqual([
-      'client_secret_basic',
-      'client_secret_post',
-      'none',
-    ]);
+  // authenticateEndpointClient
+  // (packages/protocol-oidc/src/usecase/private-key-jwt-authentication.ts)
+  // is what /introspect and /revoke both authenticate through: the two
+  // password methods, a private_key_jwt assertion, and `none` for a public
+  // client — never tls_client_auth, regardless of ODUDU_TRUST_PROXY.
+  it('advertises exactly the four methods a client can present for introspection and revocation', () => {
+    const methods = ['client_secret_basic', 'client_secret_post', 'none', 'private_key_jwt'];
+    expect([...doc.introspection_endpoint_auth_methods_supported].sort()).toEqual(methods);
+    expect([...doc.revocation_endpoint_auth_methods_supported].sort()).toEqual(methods);
   });
 
   it('names the issuer with no trailing slash', () => {

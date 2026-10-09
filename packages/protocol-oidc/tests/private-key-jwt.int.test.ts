@@ -24,6 +24,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
 import { clientKeySet, type ClientKeyRequest } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { tokenGrantRepository } from '#/repository/grants';
 import { CLIENT_ASSERTION_TYPE } from '#/service/client-assertion';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import {
@@ -44,7 +45,9 @@ let app: DatabaseHandle;
 let http: FastifyInstance;
 
 const KEK = Buffer.alloc(32, 13);
-const NOW = new Date('2026-09-21T00:00:00Z');
+// The wall clock, not a fixed instant: /revoke reads an access token's own
+// signature and expiry, which jose checks against the real time.
+const NOW = new Date();
 
 // The Host `http.inject` sends when a request names none — `view/issuer.ts`
 // derives the audience an assertion must carry from exactly this, so the
@@ -523,5 +526,128 @@ describe('[ODUDU-PRIVATE-KEY-JWT-01] private_key_jwt at /token', () => {
     const [first, second] = await Promise.all([token({ assertion }), token({ assertion })]);
     const statuses = [first.statusCode, second.statusCode].sort();
     expect(statuses).toEqual([200, 401]);
+  });
+});
+
+async function postForm(
+  endpoint: 'revoke' | 'token/introspect',
+  fields: Record<string, string>,
+): Promise<LightMyRequestResponse> {
+  return http.inject({
+    method: 'POST',
+    url: `/tenants/${TENANT}/protocol/openid-connect/${endpoint}`,
+    payload: new URLSearchParams(fields).toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
+}
+
+function withAssertion(assertion: string, fields: Record<string, string>): Record<string, string> {
+  return { ...fields, client_assertion_type: CLIENT_ASSERTION_TYPE, client_assertion: assertion };
+}
+
+async function issuedAccessToken(): Promise<string> {
+  const res = await token({ assertion: await signAssertion(clientKey, 'pkj-client') });
+  expect(res.statusCode).toBe(200);
+  return res.json<{ access_token: string }>().access_token;
+}
+
+async function isRevoked(accessToken: string): Promise<boolean> {
+  const payload = JSON.parse(
+    Buffer.from(accessToken.split('.')[1] ?? '', 'base64url').toString('utf8'),
+  ) as { grant_id: string };
+  return withTenant(app.db, TENANT_ID, async (tx) => {
+    const grant = await tokenGrantRepository(tx).byId(payload.grant_id);
+    return grant?.revokedAt != null;
+  });
+}
+
+describe('[ODUDU-PRIVATE-KEY-JWT-02] private_key_jwt at /revoke and /introspect', () => {
+  it('revokes a token for a client that presents a valid assertion', async () => {
+    const accessToken = await issuedAccessToken();
+    expect(await isRevoked(accessToken)).toBe(false);
+
+    const assertion = await signAssertion(clientKey, 'pkj-client');
+    const res = await postForm('revoke', withAssertion(assertion, { token: accessToken }));
+    expect(res.statusCode).toBe(200);
+    expect(await isRevoked(accessToken)).toBe(true);
+  });
+
+  it('refuses a revocation that presents no client authentication', async () => {
+    const accessToken = await issuedAccessToken();
+    const res = await postForm('revoke', { token: accessToken, client_id: 'pkj-client' });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+    expect(await isRevoked(accessToken)).toBe(false);
+  });
+
+  it('refuses a revocation signed by a key the client does not publish', async () => {
+    const accessToken = await issuedAccessToken();
+    const forged = await signAssertion(strangerKey, 'pkj-client');
+    const res = await postForm('revoke', withAssertion(forged, { token: accessToken }));
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+    expect(await isRevoked(accessToken)).toBe(false);
+  });
+
+  it('refuses a revocation whose assertion names another audience', async () => {
+    const accessToken = await issuedAccessToken();
+    const wrong = await signAssertion(clientKey, 'pkj-client', {
+      aud: `${TENANT_ISSUER_BASE}/tenants/${TENANT_B}/protocol/openid-connect/token`,
+    });
+    const res = await postForm('revoke', withAssertion(wrong, { token: accessToken }));
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+    expect(await isRevoked(accessToken)).toBe(false);
+  });
+
+  it('refuses an assertion already spent at the token endpoint', async () => {
+    const accessToken = await issuedAccessToken();
+    const assertion = await signAssertion(clientKey, 'pkj-client');
+    expect((await token({ assertion })).statusCode).toBe(200);
+    const res = await postForm('revoke', withAssertion(assertion, { token: accessToken }));
+    expect(res.statusCode).toBe(401);
+    expect(await isRevoked(accessToken)).toBe(false);
+  });
+
+  it('refuses an assertion alongside a client_secret', async () => {
+    const accessToken = await issuedAccessToken();
+    const assertion = await signAssertion(clientKey, 'pkj-client');
+    const res = await postForm(
+      'revoke',
+      withAssertion(assertion, { token: accessToken, client_secret: 'whatever' }),
+    );
+    expect(res.statusCode).toBe(401);
+    expect(await isRevoked(accessToken)).toBe(false);
+  });
+
+  it('answers an introspection that presents a valid assertion', async () => {
+    const accessToken = await issuedAccessToken();
+    const assertion = await signAssertion(clientKey, 'pkj-client');
+    const res = await postForm(
+      'token/introspect',
+      withAssertion(assertion, { token: accessToken }),
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toHaveProperty('active');
+  });
+
+  it('answers the introspection of an unauthenticated caller with the same refusal', async () => {
+    const accessToken = await issuedAccessToken();
+    const res = await postForm('token/introspect', {
+      token: accessToken,
+      client_id: 'pkj-client',
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+  });
+
+  it('advertises private_key_jwt for introspection and revocation', async () => {
+    const res = await http.inject({ url: `/tenants/${TENANT}/.well-known/openid-configuration` });
+    const doc = res.json<{
+      introspection_endpoint_auth_methods_supported: string[];
+      revocation_endpoint_auth_methods_supported: string[];
+    }>();
+    expect(doc.introspection_endpoint_auth_methods_supported).toContain('private_key_jwt');
+    expect(doc.revocation_endpoint_auth_methods_supported).toContain('private_key_jwt');
   });
 });

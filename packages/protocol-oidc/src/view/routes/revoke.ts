@@ -3,6 +3,7 @@ import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { type Clock, systemClock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
+import { type ClientKeySet } from '#/usecase/token-issuance';
 import { type AuditRefusalBudget } from '#/service/audit-refusal-budget';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
@@ -13,6 +14,7 @@ import { recordRefusal } from '#/usecase/record-refusal';
 export interface RevokeRouteDeps {
   database: DatabaseHandle;
   findTenant(name: string): Promise<{ id: string; enabled: boolean } | null>;
+  clientKeySet: ClientKeySet;
   listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
   // Reused, never re-implemented — see #/usecase/client-authentication.ts.
@@ -38,6 +40,8 @@ export function registerRevokeRoute(app: FastifyInstance, deps: RevokeRouteDeps)
 
     const requestDeps: RevocationDeps = {
       tenantId: tenant.id,
+      database: deps.database,
+      clientKeySet: deps.clientKeySet,
       verifyPassword: deps.verifyPassword,
       clientSecretLimiter: deps.clientSecretLimiter,
       logger: request.log,

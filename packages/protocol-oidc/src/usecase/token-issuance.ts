@@ -1,10 +1,5 @@
 import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
-import {
-  signJwt,
-  signingKeyRepository,
-  verifyJwtAgainstJwkSet,
-  type SigningKeyRecord,
-} from '@odudu/crypto';
+import { signJwt, signingKeyRepository, type SigningKeyRecord } from '@odudu/crypto';
 import {
   withSavepoint,
   withTenant,
@@ -15,7 +10,6 @@ import { auditRepository, type AuditReason, type RequestContext } from '@odudu/d
 import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, clientScopeRepository, type ClientRecord } from '@odudu/domain-tenant';
 import { type ClaimMapperRegistry, type Clock, newId } from '@odudu/kernel';
-import { assertionJtiRepository } from '#/repository/assertion-jti';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
@@ -27,7 +21,7 @@ import { rotateRefreshToken } from '#/usecase/refresh-rotation';
 import { acrFor, amrFor } from '#/service/acr';
 import { hashAuthorizationCode } from '#/service/authorization-code';
 import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
-import { parseClientAssertion, type AssertionOutcome } from '#/service/client-assertion';
+import { parseClientAssertion } from '#/service/client-assertion';
 import {
   type ClaimContext,
   type LoadedClaimContext,
@@ -73,6 +67,12 @@ import {
   type ClientAuthenticationDeps,
   type RefusalLogger,
 } from '#/usecase/client-authentication';
+import {
+  authenticatePrivateKeyJwt,
+  refusedAuthentication,
+  refusePrivateKeyJwt,
+  tokenEndpointOf,
+} from '#/usecase/private-key-jwt-authentication';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
 
 // The client's configuration with every lifetime resolved against the
@@ -936,112 +936,6 @@ async function issueClientCredentialsTokens(
   };
 }
 
-// `claimedClientId`, not `clientId`: nothing here is verified until a
-// signature check passes, so the log names it for what it is — the
-// assertion's own say-so — the same distinction `client-assertion.ts` draws
-// in `AssertionOutcome`'s own doc comment. Shared by `authenticatePrivateKeyJwt`
-// below and `issueTokens`'s own both-methods-presented refusal, so that
-// refusal — upstream of the eight branches below and not one of them — logs
-// a reason too, instead of being the one assertion refusal that doesn't.
-function refusePrivateKeyJwt(
-  deps: TokenIssuanceDeps,
-  reason: string,
-  claimedClientId?: string,
-  resolved?: { client: ClientRecord; reason: AuditReason },
-): never {
-  deps.logger.warn(
-    { reason, ...(claimedClientId !== undefined ? { claimedClientId } : {}) },
-    'private_key_jwt authentication refused',
-  );
-  throw refusedAuthentication('private_key_jwt', resolved);
-}
-
-// A refusal is recorded only once the claimed client resolved to a
-// registered one; before that it names nobody (ADR 0037).
-function refusedAuthentication(
-  method: string,
-  resolved: { client: ClientRecord; reason: AuditReason } | undefined,
-): TokenError {
-  const refusal = invalidClient(WWW_AUTHENTICATE);
-  if (resolved === undefined) return refusal;
-  return withAudit(refusal, {
-    action: 'client.authenticate',
-    reason: resolved.reason,
-    clientDbId: resolved.client.id,
-    method,
-  });
-}
-
-// RFC 7523 §2.2 / OIDC Core §9's `private_key_jwt`. Every failure reports
-// the same `invalid_client`, verification runs before the jti is ever
-// claimed, and the timing residual that leaves open is stated rather than
-// hidden — see docs/protocols/rfc7523.md's reading notes for why each of
-// those holds. The specific reason goes to `deps.logger`; only an operator
-// reads it.
-async function authenticatePrivateKeyJwt(
-  tx: TenantScopedDatabase,
-  deps: TokenIssuanceDeps,
-  outcome: Exclude<AssertionOutcome, { kind: 'unsupported' }>,
-  tokenEndpoint: string,
-): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
-  const fail = (reason: string, resolved?: { client: ClientRecord; reason: AuditReason }): never =>
-    refusePrivateKeyJwt(
-      deps,
-      reason,
-      outcome.kind === 'ok' ? outcome.claimedClientId : undefined,
-      resolved,
-    );
-
-  if (outcome.kind !== 'ok') return fail('assertion failed structural validation');
-
-  const client = await clientRepository(tx).byClientId(outcome.claimedClientId);
-  if (client === null) return fail('unknown client');
-  const badCredential = { client, reason: 'bad_credential' } as const;
-  // `authenticateClient`'s password path gets this only incidentally, inside
-  // `verifyClientSecret` (packages/domain-tenant/src/service/client.ts) —
-  // this path calls no such function, so a disabled client must be refused
-  // here explicitly or the operator's one revocation lever does nothing to
-  // a private_key_jwt client.
-  if (!client.enabled) return fail('client is disabled', badCredential);
-
-  const config = await clientOidcConfigRepository(tx).byClientId(client.id);
-  if (config?.tokenEndpointAuthMethod !== 'private_key_jwt') {
-    return fail('client is not registered for private_key_jwt', badCredential);
-  }
-
-  let jwks: unknown;
-  if (config.jwks !== null) {
-    jwks = config.jwks;
-  } else if (config.jwksUri !== null) {
-    try {
-      jwks = await deps.clientKeySet.fetch(config.jwksUri, deps.tenantId);
-    } catch (err) {
-      // A fetch that fails is this server failing to reach the client's
-      // keys, not the client failing to authenticate, so it writes no row.
-      return fail(err instanceof Error ? err.message : 'jwks_uri fetch failed');
-    }
-  } else {
-    return fail('client publishes no keys', badCredential);
-  }
-
-  const verified = await verifyJwtAgainstJwkSet(outcome.assertion, jwks, {
-    issuer: outcome.claimedClientId,
-    audience: tokenEndpoint,
-    now: deps.clock.now(),
-  });
-  if (!verified) return fail('assertion signature did not verify', badCredential);
-
-  const claimed = await assertionJtiRepository(deps.database).claim(
-    deps.tenantId,
-    outcome.claimedClientId,
-    outcome.jti,
-    outcome.expiresAt,
-  );
-  if (!claimed) return fail('jti already spent', { client, reason: 'replayed' });
-
-  return { client, config };
-}
-
 // Shares `refusePrivateKeyJwt`'s shape (same log message pattern, same
 // single invalid_client) rather than its function: the two methods refuse
 // for entirely different reasons, and folding them into one function would
@@ -1427,7 +1321,7 @@ export async function issueTokens(
   // OIDC Core §9: the audience a private_key_jwt assertion must name is
   // this tenant's own token endpoint — the same string discovery.ts's
   // token_endpoint publishes (contracts/discovery.ts).
-  const tokenEndpoint = `${deps.issuer}/protocol/openid-connect/token`;
+  const tokenEndpoint = tokenEndpointOf(deps.issuer);
   const assertionOutcome = parseClientAssertion(body, deps.clock.now(), {
     audience: tokenEndpoint,
   });

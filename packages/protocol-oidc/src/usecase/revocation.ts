@@ -5,14 +5,13 @@ import { tokenGrantRepository } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
 import { invalidGrant, withAudit } from '#/service/errors';
 import { hashRefreshToken } from '#/service/refresh';
+import { readOptionalField } from '#/usecase/client-authentication';
 import {
-  authenticateClient,
-  parseBasicAuth,
-  readOptionalField,
-  type ClientAuthenticationDeps,
-} from '#/usecase/client-authentication';
+  authenticateEndpointClient,
+  type PrivateKeyJwtDeps,
+} from '#/usecase/private-key-jwt-authentication';
 
-export interface RevocationDeps extends ClientAuthenticationDeps {
+export interface RevocationDeps extends PrivateKeyJwtDeps {
   readonly issuer: string;
   readonly keys: readonly SigningKeyRecord[];
 }
@@ -59,14 +58,7 @@ export async function respondToRevocationRequest(
   authorizationHeader: string | undefined,
   now: Date,
 ): Promise<void> {
-  const basic = parseBasicAuth(authorizationHeader);
-  const { client } = await authenticateClient(
-    tx,
-    deps,
-    basic,
-    readOptionalField(body, 'client_id'),
-    readOptionalField(body, 'client_secret'),
-  );
+  const { client } = await authenticateEndpointClient(tx, deps, body, authorizationHeader);
 
   const token = readOptionalField(body, 'token') ?? '';
   const grantId = await resolveGrantId(tx, deps, token);
