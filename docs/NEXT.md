@@ -7,7 +7,7 @@ tenant rename is done. P4 has been split five ways.** Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
 "P4 became four phases, then five" subsection has the reasoning.
 
-The order is **P4a → P4c → P4e → P4d → P4f → P4b**, and the letters deliberately
+The order is **P4a → P4c → P4e → P4d → P4g → P4f → P4b**, and the letters deliberately
 do not read in execution order, because `P4b` was spent on theming before P4
 split and an accepted ADR cites it. P4a was token exchange
 ([spec](superpowers/specs/2026-09-23-p4a-token-exchange-design.md)); P4c was
