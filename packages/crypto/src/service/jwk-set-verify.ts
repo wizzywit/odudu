@@ -30,6 +30,8 @@ export async function verifyJwtClaims(
     audience: string;
     now: Date;
     algorithms?: readonly ('RS256' | 'ES256')[];
+    /** Seconds of leeway on `exp` and `nbf`; none unless named. */
+    clockToleranceSeconds?: number;
   },
 ): Promise<Record<string, unknown> | null> {
   if (!isJwkSet(jwks)) return null;
@@ -39,6 +41,9 @@ export async function verifyJwtClaims(
       issuer: opts.issuer,
       audience: opts.audience,
       currentDate: opts.now,
+      ...(opts.clockToleranceSeconds === undefined
+        ? {}
+        : { clockTolerance: opts.clockToleranceSeconds }),
       ...(opts.algorithms ? { algorithms: [...opts.algorithms] } : {}),
     });
     return payload;
@@ -50,7 +55,7 @@ export async function verifyJwtClaims(
 export async function verifyJwtAgainstJwkSet(
   token: string,
   jwks: unknown,
-  opts: { issuer: string; audience: string; now: Date },
+  opts: { issuer: string; audience: string; now: Date; clockToleranceSeconds?: number },
 ): Promise<boolean> {
   return (await verifyJwtClaims(token, jwks, opts)) !== null;
 }

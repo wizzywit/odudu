@@ -10,6 +10,7 @@ import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
 import { issueTokens, type ClientKeySet, type TokenResponse } from '#/usecase/token-issuance';
 import { tenantIssuerFor } from '#/view/issuer';
+import { keepingSpend, unsettle } from '#/usecase/private-key-jwt-authentication';
 import { recordRefusal } from '#/usecase/record-refusal';
 
 export interface TokenRouteDeps {
@@ -79,40 +80,44 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
 
     const context = requestContextFrom(request);
     try {
-      const response: TokenResponse = await withTenant(
-        deps.database.db,
-        tenant.id,
-        (tx) =>
-          issueTokens(
-            tx,
-            {
-              database: deps.database,
-              tenantId: tenant.id,
-              issuer,
-              kek: deps.kek,
-              clock: deps.clock,
-              now: () => deps.clock.now(),
-              lifespans: {
-                ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
-                ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
-                rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
-                rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
-              },
-              verifyPassword: deps.verifyPassword,
-              clientSecretLimiter: deps.clientSecretLimiter,
-              claimMappers: deps.claimMappers,
-              clientKeySet: deps.clientKeySet,
-              logger: request.log,
-              trustProxy: deps.trustProxy,
-              tlsClientCertHeader: deps.tlsClientCertHeader,
-              request: context,
-            },
-            request.body,
-            request.headers.authorization,
-            request.headers,
-            request.raw.rawHeaders,
-          ),
-        context,
+      const response: TokenResponse = unsettle(
+        await withTenant(
+          deps.database.db,
+          tenant.id,
+          (tx) =>
+            keepingSpend(() =>
+              issueTokens(
+                tx,
+                {
+                  database: deps.database,
+                  tenantId: tenant.id,
+                  issuer,
+                  kek: deps.kek,
+                  clock: deps.clock,
+                  now: () => deps.clock.now(),
+                  lifespans: {
+                    ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+                    ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+                    rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+                    rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
+                  },
+                  verifyPassword: deps.verifyPassword,
+                  clientSecretLimiter: deps.clientSecretLimiter,
+                  claimMappers: deps.claimMappers,
+                  clientKeySet: deps.clientKeySet,
+                  logger: request.log,
+                  trustProxy: deps.trustProxy,
+                  tlsClientCertHeader: deps.tlsClientCertHeader,
+                  request: context,
+                },
+                request.body,
+                request.headers.authorization,
+                request.headers,
+                request.raw.rawHeaders,
+              ),
+            ),
+          context,
+        ),
       );
 
       return await reply

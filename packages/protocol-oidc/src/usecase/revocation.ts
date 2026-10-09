@@ -60,7 +60,7 @@ export async function respondToRevocationRequest(
   now: Date,
 ): Promise<void> {
   const { client, settle } = await authenticateEndpointClient(tx, deps, request);
-  await settle(() => revokeFor(tx, deps, request, client, now));
+  await settle((work) => revokeFor(work, deps, request, client, now));
 }
 
 async function revokeFor(

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ASSERTION_LEEWAY_SECONDS,
   CLIENT_ASSERTION_TYPE,
   MAX_ASSERTION_LIFETIME_SECONDS,
   parseClientAssertion,
@@ -45,7 +46,7 @@ describe('parseClientAssertion', () => {
       kind: 'ok',
       claimedClientId: 'client-a',
       jti: validClaims.jti,
-      expiresAt: new Date(validClaims.exp * 1000),
+      expiresAt: new Date((validClaims.exp + ASSERTION_LEEWAY_SECONDS) * 1000),
       assertion: jwt(validClaims),
     });
   });
@@ -72,8 +73,25 @@ describe('parseClientAssertion', () => {
     ).toBe('invalid');
   });
 
-  it('refuses one that has expired', () => {
-    expect(parseClientAssertion(body(expiredClaims), now, expected).kind).toBe('invalid');
+  it('accepts one that expired less than the leeway ago, and refuses one that expired longer ago', () => {
+    const at = (secondsAgo: number) => ({ ...validClaims, exp: nowSeconds - secondsAgo });
+    expect(parseClientAssertion(body(at(29)), now, expected).kind).toBe('ok');
+    expect(parseClientAssertion(body(at(31)), now, expected).kind).toBe('invalid');
+  });
+
+  it('keeps its jti for the leeway beyond exp, so it is remembered while it is still acceptable', () => {
+    const parsed = parseClientAssertion(body(validClaims), now, expected);
+    expect(parsed).toMatchObject({
+      kind: 'ok',
+      expiresAt: new Date((validClaims.exp + ASSERTION_LEEWAY_SECONDS) * 1000),
+    });
+  });
+
+  it('refuses one that has long expired', () => {
+    expect(parseClientAssertion(body(expiredClaims), now, expected).kind).toBe('ok');
+    expect(
+      parseClientAssertion(body({ ...validClaims, exp: nowSeconds - 3600 }), now, expected).kind,
+    ).toBe('invalid');
   });
 
   it('refuses one with no jti, since replay cannot be detected without it', () => {

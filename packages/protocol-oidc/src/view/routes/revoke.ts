@@ -9,6 +9,7 @@ import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
 import { respondToRevocationRequest, type RevocationDeps } from '#/usecase/revocation';
 import { tenantIssuerFor } from '#/view/issuer';
+import { keepingSpend, unsettle } from '#/usecase/private-key-jwt-authentication';
 import { recordRefusal } from '#/usecase/record-refusal';
 
 export interface RevokeRouteDeps {
@@ -56,22 +57,26 @@ export function registerRevokeRoute(app: FastifyInstance, deps: RevokeRouteDeps)
 
     const context = requestContextFrom(request);
     try {
-      await withTenant(
-        deps.database.db,
-        tenant.id,
-        (tx) =>
-          respondToRevocationRequest(
-            tx,
-            requestDeps,
-            {
-              body: request.body,
-              authorizationHeader: request.headers.authorization,
-              headers: request.headers,
-              rawHeaders: request.raw.rawHeaders,
-            },
-            now,
-          ),
-        context,
+      unsettle(
+        await withTenant(
+          deps.database.db,
+          tenant.id,
+          (tx) =>
+            keepingSpend(() =>
+              respondToRevocationRequest(
+                tx,
+                requestDeps,
+                {
+                  body: request.body,
+                  authorizationHeader: request.headers.authorization,
+                  headers: request.headers,
+                  rawHeaders: request.raw.rawHeaders,
+                },
+                now,
+              ),
+            ),
+          context,
+        ),
       );
       return await reply.code(200).header('cache-control', 'no-store').send();
     } catch (err) {

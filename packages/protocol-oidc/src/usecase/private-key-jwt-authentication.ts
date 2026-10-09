@@ -1,12 +1,16 @@
 import { verifyJwtAgainstJwkSet } from '@odudu/crypto';
-import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import { withSavepoint, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { type AuditReason } from '@odudu/domain-audit';
 import { clientRepository, type ClientRecord } from '@odudu/domain-tenant';
 import { tlsClientAuthSubjectMatches, tlsClientSubject } from '#/service/tls-client-auth';
 import { assertionJtiRepository } from '#/repository/assertion-jti';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
-import { parseClientAssertion, type AssertionOutcome } from '#/service/client-assertion';
+import {
+  ASSERTION_LEEWAY_SECONDS,
+  parseClientAssertion,
+  type AssertionOutcome,
+} from '#/service/client-assertion';
 import { invalidClient, withAudit, type TokenError } from '#/service/errors';
 import {
   authenticateClient,
@@ -135,6 +139,7 @@ export async function authenticatePrivateKeyJwt(
     issuer: outcome.claimedClientId,
     audience: tokenEndpoint,
     now: deps.now(),
+    clockToleranceSeconds: ASSERTION_LEEWAY_SECONDS,
   });
   if (!verified) return fail('assertion signature did not verify', badCredential);
 
@@ -149,18 +154,36 @@ export async function authenticatePrivateKeyJwt(
     return fail('jti already spent', { client, reason: 'replayed' });
   }
 
-  // Spent when the request's work is done, on its own transaction; spent on a
-  // connection of its own, before that transaction lets go of the lock, if the
-  // work fails, so no replay can slip between the rollback and the spending.
+  // The work runs under a savepoint. Done, the jti is spent on the request's own
+  // transaction, so success takes no connection beside its own. Failed, the
+  // savepoint is rolled back, taking the failed work's writes with it, the jti is
+  // spent on the same transaction, and the refusal is handed up as a value
+  // (`SpentRefusal`) for the route to rethrow once the transaction has committed:
+  // the spend and the release of the lock are one commit, on one connection.
   const settle: Settle = async (work) => {
+    let result: Awaited<ReturnType<typeof work>>;
     try {
-      const result = await work();
-      await jtis.claimWithin(tx, deps.tenantId, oauthClientId, jti, expiresAt);
-      return result;
+      result = await withSavepoint(tx, work);
     } catch (err) {
-      await spendQuietly(deps, { tenantId: deps.tenantId, oauthClientId, jti, expiresAt });
-      throw err;
+      try {
+        await withSavepoint(tx, (inner) =>
+          jtis.claimWithin(inner, deps.tenantId, oauthClientId, jti, expiresAt),
+        );
+      } catch (spendErr) {
+        // The store refused the write. Nothing is spent, and nothing can be: a
+        // replay that gets through must spend before it commits, and fails the same way.
+        deps.logger.warn(
+          {
+            claimedClientId: oauthClientId,
+            error: spendErr instanceof Error ? spendErr.message : 'unknown',
+          },
+          'an assertion jti could not be spent after a refused request',
+        );
+      }
+      throw new SpentRefusal(err);
     }
+    await jtis.claimWithin(tx, deps.tenantId, oauthClientId, jti, expiresAt);
+    return result;
   };
   return { client, config, settle };
 }
@@ -262,48 +285,42 @@ async function authenticateTlsClientAuth(
   return { client, config };
 }
 
-export interface SpentAssertion {
-  readonly tenantId: string;
-  readonly oauthClientId: string;
-  readonly jti: string;
-  readonly expiresAt: Date;
-}
+/**
+ * A refusal that happened after the assertion was spent. The transaction must
+ * commit that spend, so it travels as a value out of the transaction's callback
+ * (`keepingSpend`) and is rethrown after (`unsettle`).
+ */
+export class SpentRefusal extends Error {
+  readonly refusal: unknown;
 
-// How long a failing request waits for a connection to spend its jti on before
-// it gives up and logs: the pool being exhausted is the one case it cannot spend.
-const SPEND_PATIENCE_MS = 2000;
-
-// Never throws and never delays the refusal it follows by more than the
-// patience above: an error here must not turn a refused request into a 500.
-async function spendQuietly(deps: PrivateKeyJwtDeps, spent: SpentAssertion): Promise<void> {
-  let timer: NodeJS.Timeout | undefined;
-  try {
-    await Promise.race([
-      assertionJtiRepository(deps.database).claim(
-        spent.tenantId,
-        spent.oauthClientId,
-        spent.jti,
-        spent.expiresAt,
-      ),
-      new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, SPEND_PATIENCE_MS);
-      }),
-    ]);
-  } catch (err) {
-    deps.logger.warn(
-      {
-        claimedClientId: spent.oauthClientId,
-        error: err instanceof Error ? err.message : 'unknown',
-      },
-      'an assertion jti could not be spent after a refused request',
-    );
-  } finally {
-    clearTimeout(timer);
+  constructor(refusal: unknown) {
+    super('a refusal after the assertion was spent');
+    this.name = 'SpentRefusal';
+    this.refusal = refusal;
   }
 }
 
+export type Settled<T> =
+  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly refusal: unknown };
+
+/** For the transaction's callback: a refusal after a spend is returned, so the transaction commits. */
+export async function keepingSpend<T>(run: () => Promise<T>): Promise<Settled<T>> {
+  try {
+    return { ok: true, value: await run() };
+  } catch (err) {
+    if (err instanceof SpentRefusal) return { ok: false, refusal: err.refusal };
+    throw err;
+  }
+}
+
+/** For after the transaction: the value, or the refusal rethrown. */
+export function unsettle<T>(settled: Settled<T>): T {
+  if (settled.ok) return settled.value;
+  throw settled.refusal;
+}
+
 /** Runs what a request does once authenticated, and spends its assertion's jti either way. */
-export type Settle = <T>(work: () => Promise<T>) => Promise<T>;
+export type Settle = <T>(work: (tx: TenantScopedDatabase) => Promise<T>) => Promise<T>;
 
 export interface AuthenticatedClient {
   readonly client: ClientRecord;
@@ -311,7 +328,10 @@ export interface AuthenticatedClient {
   readonly settle: Settle;
 }
 
-const NOTHING_TO_SETTLE: Settle = (work) => work();
+const nothingToSettle =
+  (tx: TenantScopedDatabase): Settle =>
+  (work) =>
+    work(tx);
 
 export interface ClientRequest {
   readonly body: Record<string, string | string[] | undefined>;
@@ -386,5 +406,5 @@ export async function authenticateEndpointClient(
     certificateSubject !== null
       ? await authenticateTlsClientAuth(tx, deps, certificateSubject, clientId)
       : await authenticateClient(tx, deps, basic, clientId, bodyClientSecret);
-  return { ...authenticated, settle: NOTHING_TO_SETTLE };
+  return { ...authenticated, settle: nothingToSettle(tx) };
 }

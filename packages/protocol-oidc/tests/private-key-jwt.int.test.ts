@@ -85,7 +85,14 @@ function jwksFor(key: SigningKeyRecord): { keys: Record<string, unknown>[] } {
 function signAssertion(
   key: SigningKeyRecord,
   clientId: string,
-  overrides: { jti?: string; aud?: string; exp?: number; iss?: string; sub?: string } = {},
+  overrides: {
+    jti?: string;
+    aud?: string;
+    exp?: number;
+    nbf?: number;
+    iss?: string;
+    sub?: string;
+  } = {},
 ): Promise<string> {
   return signClientAssertion({
     key,
@@ -798,7 +805,7 @@ describe('[ODUDU-PRIVATE-KEY-JWT-04] a jti is never waited on', () => {
     expect(await spentJtis(jti)).toBe(1);
   });
 
-  it('survives its own spending failing: the refusal is still answered', async () => {
+  it('fails closed when the jti store rejects the write: refused, nothing spent, no replay wins', async () => {
     const jti = `poison-${newId()}`;
     await owner.sql`
       create or replace function reject_poisoned_jti() returns trigger language plpgsql as $$
@@ -810,11 +817,42 @@ describe('[ODUDU-PRIVATE-KEY-JWT-04] a jti is never waited on', () => {
       for each row execute function reject_poisoned_jti()`;
     try {
       const assertion = await signAssertion(inlineKey, 'inline-jwks-client', { jti });
-      const res = await http.inject(tokenForm(assertion, { scope: 'not-a-scope-this-client-has' }));
-      expect(res.statusCode).toBe(400);
-      expect(res.json<{ error: string }>().error).toBe('invalid_scope');
+      const refused = await http.inject(
+        tokenForm(assertion, { scope: 'not-a-scope-this-client-has' }),
+      );
+      expect(refused.statusCode).toBe(400);
+      expect(refused.json<{ error: string }>().error).toBe('invalid_scope');
+      expect(await spentJtis(jti)).toBe(0);
+      // The pinned state: while the store refuses the write, nothing is spent, and
+      // nothing is let through either, because a success must spend before it commits.
+      const replay = await http.inject(tokenForm(assertion));
+      expect(replay.statusCode).not.toBe(200);
+      expect(await spentJtis(jti)).toBe(0);
     } finally {
       await owner.sql`drop trigger reject_poisoned_jti on client_assertion_jti`;
+    }
+  });
+
+  it('takes no second connection on either path: a pool of one serves a refusal and a success', async () => {
+    const { server, close } = await bareServer(1);
+    try {
+      const jti = newId();
+      const assertion = await signAssertion(inlineKey, 'inline-jwks-client', { jti });
+      const refused = await Promise.race([
+        server.inject(tokenForm(assertion, { scope: 'not-a-scope-this-client-has' })),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('the refusal waited for a second connection'));
+          }, 1500);
+        }),
+      ]);
+      expect(refused.statusCode).toBe(400);
+      expect(await spentJtis(jti)).toBe(1);
+      expect((await server.inject(tokenForm(assertion))).statusCode).toBe(401);
+      const fresh = await signAssertion(inlineKey, 'inline-jwks-client');
+      expect((await server.inject(tokenForm(fresh))).statusCode).toBe(200);
+    } finally {
+      await close();
     }
   });
 
@@ -883,14 +921,33 @@ describe('[ODUDU-PRIVATE-KEY-JWT-05] what an assertion must agree with', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it('allows no clock leeway: an assertion that expired a second ago is refused', async () => {
-    const assertion = await signAssertion(inlineKey, 'inline-jwks-client', {
-      exp: Math.floor(NOW.getTime() / 1000) - 1,
-    });
-    expect((await http.inject(tokenForm(assertion))).statusCode).toBe(401);
+  it('allows 30 s of leeway on exp: 29 s past expiry is accepted, 31 s is refused', async () => {
+    const base = Math.floor(NOW.getTime() / 1000);
+    const within = await signAssertion(inlineKey, 'inline-jwks-client', { exp: base - 29 });
+    const beyond = await signAssertion(inlineKey, 'inline-jwks-client', { exp: base - 31 });
+    expect((await http.inject(tokenForm(within))).statusCode).toBe(200);
+    expect((await http.inject(tokenForm(beyond))).statusCode).toBe(401);
   });
 
-  it('allows no clock leeway at the far end: a lifetime of 301 s is refused, 300 s accepted', async () => {
+  it('allows 30 s of leeway on nbf: 29 s ahead is accepted, 31 s is refused', async () => {
+    const base = Math.floor(NOW.getTime() / 1000);
+    const within = await signAssertion(inlineKey, 'inline-jwks-client', { nbf: base + 29 });
+    const beyond = await signAssertion(inlineKey, 'inline-jwks-client', { nbf: base + 31 });
+    expect((await http.inject(tokenForm(within))).statusCode).toBe(200);
+    expect((await http.inject(tokenForm(beyond))).statusCode).toBe(401);
+  });
+
+  it('remembers a jti until exp plus the leeway, so the reaper cannot free it while it is acceptable', async () => {
+    const jti = newId();
+    const exp = Math.floor(NOW.getTime() / 1000) + 60;
+    const assertion = await signAssertion(inlineKey, 'inline-jwks-client', { jti, exp });
+    expect((await http.inject(tokenForm(assertion))).statusCode).toBe(200);
+    const rows = await owner.sql<{ epoch: string }[]>`
+      select extract(epoch from expires_at)::text as epoch from client_assertion_jti where jti = ${jti}`;
+    expect(Number(rows[0]?.epoch)).toBe(exp + 30);
+  });
+
+  it('the lifetime ceiling takes no leeway: 301 s is refused, 300 s accepted', async () => {
     const base = Math.floor(NOW.getTime() / 1000);
     const tooLong = await signAssertion(inlineKey, 'inline-jwks-client', { exp: base + 301 });
     const longest = await signAssertion(inlineKey, 'inline-jwks-client', { exp: base + 300 });

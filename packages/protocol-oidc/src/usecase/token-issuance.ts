@@ -1219,9 +1219,9 @@ export async function issueTokens(
     rawHeaders,
   });
 
-  return settle(async () => {
+  return settle(async (work) => {
     try {
-      return await issueForAuthenticatedClient(tx, deps, request, client, config);
+      return await issueForAuthenticatedClient(work, deps, request, client, config);
     } catch (err) {
       if (err instanceof TokenError && err.audit === undefined) {
         throw annotatedAfterAuthentication(err, request.grantType, client);

@@ -14,6 +14,7 @@ import {
   respondToIntrospectionRequest,
   type IntrospectionRequestDeps,
 } from '#/usecase/introspection-request';
+import { keepingSpend, unsettle } from '#/usecase/private-key-jwt-authentication';
 import { recordRefusal } from '#/usecase/record-refusal';
 import { tenantIssuerFor } from '#/view/issuer';
 
@@ -93,22 +94,26 @@ export function registerIntrospectRoute(app: FastifyInstance, deps: IntrospectRo
 
     const context = requestContextFrom(request);
     try {
-      const response = await withTenant(
-        deps.database.db,
-        tenant.id,
-        (tx) =>
-          respondToIntrospectionRequest(
-            tx,
-            requestDeps,
-            {
-              body: request.body,
-              authorizationHeader: request.headers.authorization,
-              headers: request.headers,
-              rawHeaders: request.raw.rawHeaders,
-            },
-            now,
-          ),
-        context,
+      const response = unsettle(
+        await withTenant(
+          deps.database.db,
+          tenant.id,
+          (tx) =>
+            keepingSpend(() =>
+              respondToIntrospectionRequest(
+                tx,
+                requestDeps,
+                {
+                  body: request.body,
+                  authorizationHeader: request.headers.authorization,
+                  headers: request.headers,
+                  rawHeaders: request.raw.rawHeaders,
+                },
+                now,
+              ),
+            ),
+          context,
+        ),
       );
       return await reply.code(200).header('cache-control', 'no-store').send(response);
     } catch (err) {

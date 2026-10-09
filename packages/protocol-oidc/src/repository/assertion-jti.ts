@@ -1,10 +1,23 @@
 import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { and, eq, sql } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
 import { clientAssertionJti } from '#/schema/client-assertion-jti';
 
 // `claim` takes the pool handle and opens a transaction of its own, so its
 // write commits whatever becomes of the caller's: how a jti is spent after a
 // request has failed. The rest act on the request's own transaction.
+// The 64 bits of a SHA-256 over the three parts, each prefixed by its length so
+// no choice of client_id or jti can make two different tuples one string, and
+// collision-resistant so a holder of a key cannot craft a jti that takes
+// another client's lock. Signed, as `pg_try_advisory_xact_lock` takes a bigint.
+export function jtiLockKey(tenantId: string, oauthClientId: string, jti: string): bigint {
+  const hash = createHash('sha256');
+  for (const part of [tenantId, oauthClientId, jti]) {
+    hash.update(`${String(Buffer.byteLength(part, 'utf8'))}:${part}`, 'utf8');
+  }
+  return hash.digest().readBigInt64BE(0);
+}
+
 export function assertionJtiRepository(database: DatabaseHandle) {
   return {
     // A transaction-scoped advisory lock on (tenant, client, jti), tried and
@@ -19,7 +32,7 @@ export function assertionJtiRepository(database: DatabaseHandle) {
       jti: string,
     ): Promise<boolean> {
       const rows = await tx.execute<{ locked: boolean }>(
-        sql`select pg_try_advisory_xact_lock(hashtextextended(${`${tenantId}:${oauthClientId}:${jti}`}, 0)) as locked`,
+        sql`select pg_try_advisory_xact_lock(${jtiLockKey(tenantId, oauthClientId, jti).toString()}::bigint) as locked`,
       );
       return rows[0]?.locked === true;
     },
