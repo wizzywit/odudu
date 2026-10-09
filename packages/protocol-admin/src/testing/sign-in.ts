@@ -90,7 +90,6 @@ export async function submitPassword(
   password: string,
   scope = 'openid',
 ): Promise<LightMyRequestResponse> {
-  fixture.catchUpToWall();
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: clientId,

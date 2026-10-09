@@ -78,14 +78,6 @@ export interface AdminFixture {
   readonly app: DatabaseHandle;
   readonly http: FastifyInstance;
   readonly clock: FakeClock;
-  /**
-   * Moves `clock` on by the wall time that has passed since the last call (or
-   * since the fixture started), keeping whatever offset a test gave it. A code
-   * expires at `clock` plus its lifetime but is redeemed against the database's
-   * own now(), and `clock` moves only when told to, so a long run leaves it
-   * behind and a fresh code dead on arrival. Called before a login.
-   */
-  catchUpToWall(): void;
   readonly systemTenantId: string;
 
   /** Creates a tenant, provisions its flow and its admin client, mints a key. */
@@ -231,6 +223,10 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
   const app = createDatabase(appUrl, { max: 5 });
 
   const clock = new FakeClock(new Date(Math.floor(Date.now() / 1000) * 1000));
+  // A code expires at `clock` plus its lifetime but is redeemed against the
+  // database's own now(), and `clock` moves only when told to, so a long run
+  // leaves it behind and a fresh code dead on arrival. Every request first moves
+  // it on by the wall time since the last, keeping whatever offset a test gave it.
   let syncedWall = Date.now();
   const catchUpToWall = (): void => {
     const wall = Date.now();
@@ -246,6 +242,10 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
   // request_id/ip can be tested here against a header this fixture actually
   // honours rather than against light-my-request's own random id.
   const http = Fastify({ genReqId: () => newId(), requestIdHeader: 'x-request-id' });
+  http.addHook('onRequest', (_request, _reply, done) => {
+    catchUpToWall();
+    done();
+  });
   await http.register(formbody);
   await http.register(
     oidcRoutes({
@@ -872,7 +872,6 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
     app,
     http,
     clock,
-    catchUpToWall,
     systemTenantId: systemTenant.id,
     createTenant,
     stop,
