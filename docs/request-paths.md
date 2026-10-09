@@ -9551,8 +9551,10 @@ curl -sS -X POST http://localhost:3082/tenants/tls-demo/clients-registrations/op
 ```
 
 The client's token, with the header a proxy would set from the certificate it
-verified (`$CID` is the `client_id` above). Token strings are cut to 24
-characters, as elsewhere:
+verified (`$CID` is the `client_id` above). The status line and headers are as
+sent; the body below is **not the bytes on the wire**: it is the response read
+back by `python3` and printed with the access token cut to its first 24
+characters and an ellipsis, so its quotes and spacing are Python's:
 
 ```bash
 curl -sS -D - -H 'x-ssl-client-s-dn: CN=tls-demo-client,O=Example' \

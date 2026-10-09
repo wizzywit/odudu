@@ -181,7 +181,12 @@ client page says why instead of offering a rotation.
   accepted `aud` at all three. Discovery lists the method for both.
 - The administrator who redeemed a code at `/token` as a public client with
   nothing but PKCE cannot any more while the console is on. `odudu console
-assertion --tenant <name>` prints an assertion for whoever holds the key.
+assertion --tenant <name>` prints an assertion for whoever holds the key. It
+  is key-holder-equivalent: it asks nothing the key does not already allow, so it
+  guards nothing and records instead. It refuses a tenant that does not exist and
+  writes an audit row (`console.assertion`, `admin_mutation`) naming the tenant and
+  the command, never the assertion; the redemption it enables is audited at
+  `/token` as any other.
 
 ### Rejected
 

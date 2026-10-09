@@ -1838,15 +1838,14 @@ claim committed in a transaction of its own so a rollback could not release it, 
 held a second connection beside the request's. `/token` did the same for the claim
 context (`loadClaimContext`, a `withTenant` inside the request's transaction), for
 every grant. N concurrent assertions on a pool of N hung: `[ODUDU-PRIVATE-KEY-JWT-03]`
-failed first, then failed again after the jti was moved, until the claim context was
-read on the request's own transaction as well. Now the jti is claimed on the request's
-transaction (`claimWithin`), and a request that then fails spends it afterwards on a
-connection of its own (`spendAfterFailure`, once the transaction is gone), so a refused
-request still leaves its assertion unreplayable. A refresh token's rotation still takes
-a connection beside the request's, deliberately: reuse detection must survive the
-request's rollback (ADR 0019), which is why the console's refresh semaphore still
-allows two refreshes only where the pool keeps two connections free. An earlier
-resizing of that semaphore for the jti claim was reverted with the claim.
+failed first. The claim context is now read on the request's transaction. The jti is
+claimed by an advisory lock tried on that transaction, never waited for, with the row
+inserted on it after the work, or on a connection of its own if the work fails; why
+that and not a plain insert is `docs/protocols/rfc7523.md`'s "A jti is never waited
+on". A refresh token's rotation still takes a connection beside the request's,
+deliberately (ADR 0019): a refresh holds three at once, the gateway's row lock, the
+token request's transaction and the rotation's, so the console's refresh semaphore is
+`min(2, floor((max - 2) / 3))`.
 
 **Rotation touches every tenant's row, and says so.** One `odudu console
 provision` pass visits each tenant in a transaction of its own and writes only where

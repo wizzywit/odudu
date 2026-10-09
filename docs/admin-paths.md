@@ -962,8 +962,9 @@ provisioned 2 tenants
 ### Rotating the console's key
 
 The README's four steps, on the same two tenants, with `$A` the key the stack runs
-on and `$B` the one `console keygen` printed (cut to 60 characters here; the line
-is the whole configuration entry). The query reads each tenant's registered key
+on and `$B` the one `console keygen` printed (cut to its first 60 characters here, which is the
+variable's name and the first 35 of the key's; the line is the whole configuration
+entry). The query reads each tenant's registered key
 set:
 
 ```bash

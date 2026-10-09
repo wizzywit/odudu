@@ -1264,7 +1264,8 @@ confidential. An administrator with no console runs a listener on the
 loopback port and completes the flow with PKCE as before, but the code
 redeems only with an assertion from the holder of the key, which
 `odudu console assertion --tenant <name>` prints (one minute's lifetime, one
-use). The admin API refuses such a token once its grant is revoked, its
+use; the command writes an audit row against the tenant and refuses one that does
+not exist). The admin API refuses such a token once its grant is revoked, its
 session has ended, or its client or its subject has been disabled
 ([docs/admin-paths.md](docs/admin-paths.md#the-shape-of-it)). While the console
 is on (`ODUDU_CONSOLE`, default `true`), the same client is also registered
