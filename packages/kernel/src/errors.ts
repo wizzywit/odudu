@@ -6,6 +6,7 @@ export type ErrorCode =
   | 'module_stop_failed'
   | 'tenant_context_missing'
   | 'kek_invalid'
+  | 'client_key_invalid'
   | 'signing_key_not_found'
   | 'jwt_header_invalid'
   | 'jwt_kid_missing'

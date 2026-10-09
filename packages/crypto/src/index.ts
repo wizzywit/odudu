@@ -31,3 +31,11 @@ export {
   verifyTotp,
   type TotpAlgorithm,
 } from '#/service/totp';
+export {
+  generateClientKey,
+  loadClientKey,
+  loadRetiredClientKey,
+  registeredClientJwks,
+  signClientAssertion,
+  type ClientKey,
+} from '#/service/client-key';
