@@ -660,10 +660,10 @@ describe('[ODUDU-TLS-CLIENT-AUTH-ENDPOINTS-01] tls_client_auth at /revoke and /i
   it('lists tls_client_auth for both endpoints when TLS client authentication is enabled, and not otherwise', async () => {
     if (trusted === undefined || untrusted === undefined) throw new Error('server not ready');
     const url = `/tenants/${TENANT}/.well-known/openid-configuration`;
-    type Doc = {
+    interface Doc {
       introspection_endpoint_auth_methods_supported: string[];
       revocation_endpoint_auth_methods_supported: string[];
-    };
+    }
     const on = (await trusted.inject({ url })).json<Doc>();
     expect(on.introspection_endpoint_auth_methods_supported).toContain('tls_client_auth');
     expect(on.revocation_endpoint_auth_methods_supported).toContain('tls_client_auth');
