@@ -1834,7 +1834,10 @@ claimed in a transaction of its own, so it survives a rollback of the request, a
 that is a third connection while the token call's transaction and the gateway's row
 lock hold two. The refresh semaphore from Part 2, which kept two refreshes from
 deadlocking a pool, is now sized by three connections each, `floor((max - 2) / 3)`
-capped at 2: a pool of 10 still runs two, a pool of 7 or fewer runs one.
+capped at 2: a pool of 10 still runs two, a pool of 7 or fewer runs one. The same
+claim bounds `/token` for any `private_key_jwt` client: as many concurrent assertions
+as the pool has connections each hold one and wait for another. That predates the
+console, is not bounded by the semaphore, and is placed on P11, which owns load.
 
 **Rotation touches every tenant's row, and says so.** One `odudu console
 provision` pass visits each tenant in a transaction of its own and writes only where
