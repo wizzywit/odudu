@@ -2,7 +2,12 @@ import { generateClientKey, signClientAssertion } from '@odudu/crypto';
 import { createDatabase, tenantIdPages, withTenant, type DatabaseHandle } from '@odudu/db';
 import { ADMIN_CLIENT_ID, SYSTEM_TENANT_ID } from '@odudu/domain-tenant';
 import { loadConfig, OduduError } from '@odudu/kernel';
-import { type ClientJwks, provisionAdminClient } from '@odudu/protocol-oidc';
+import { auditRepository } from '@odudu/domain-audit';
+import {
+  type ClientJwks,
+  provisionAdminClient,
+  tenantLookupRepository,
+} from '@odudu/protocol-oidc';
 import { parseArgs } from 'node:util';
 import { assertConsoleConfigured } from '#/config-guard';
 import { consoleProvisioning, loadConsoleKeys } from '#/console-key';
@@ -47,7 +52,9 @@ export async function provisionConsole(
 // `odudu console assertion --tenant <name>` prints a one-minute assertion
 // that authenticates `odudu-admin` at that tenant's token endpoint, for an
 // administrator redeeming a code without the console: only the holder of the
-// console's key can, which is the point of its being confidential.
+// console's key can, which is the point of its being confidential. Holding the
+// key is equivalent to running this, so the command asks nothing more of the
+// operator; it records that it ran, against the tenant, and names no secret.
 async function assertionFor(argv: readonly string[]): Promise<string> {
   const { values } = parseArgs({ args: [...argv], options: { tenant: { type: 'string' } } });
   if (values.tenant === undefined) {
@@ -63,11 +70,39 @@ async function assertionFor(argv: readonly string[]): Promise<string> {
       'console assertion has no key to sign with while ODUDU_CONSOLE=false',
     );
   }
-  return signClientAssertion(keys.key, {
-    clientId: ADMIN_CLIENT_ID,
-    audience: `${base}/tenants/${encodeURIComponent(values.tenant)}/protocol/openid-connect/token`,
-    now: new Date(),
-  });
+  const tenantName = values.tenant;
+  const owner = createDatabase(config.ODUDU_DATABASE_URL);
+  const runtime = config.ODUDU_APP_DATABASE_URL
+    ? createDatabase(config.ODUDU_APP_DATABASE_URL)
+    : owner;
+  try {
+    const tenant = await tenantLookupRepository(owner.db).byName(tenantName);
+    if (tenant === null) {
+      throw new OduduError(
+        'console_invalid_options',
+        `no tenant named ${JSON.stringify(tenantName)}`,
+      );
+    }
+    const assertion = await signClientAssertion(keys.key, {
+      clientId: ADMIN_CLIENT_ID,
+      audience: `${base}/tenants/${encodeURIComponent(tenantName)}/protocol/openid-connect/token`,
+      now: new Date(),
+    });
+    await withTenant(runtime.db, tenant.id, (tx) =>
+      auditRepository(tx).record({
+        eventType: 'admin_mutation',
+        action: 'console.assertion',
+        outcome: 'allowed',
+        resourceType: 'tenant',
+        resourceId: tenant.id,
+        detail: { command: 'odudu console assertion', tenant: tenantName },
+      }),
+    );
+    return assertion;
+  } finally {
+    if (runtime !== owner) await runtime.close();
+    await owner.close();
+  }
 }
 
 // `odudu console keygen` prints the configuration line for a new client key.

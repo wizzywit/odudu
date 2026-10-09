@@ -282,17 +282,56 @@ describe('seeding under a console base', () => {
 describe('odudu console assertion', () => {
   const env = { ODUDU_PUBLIC_BASE_URL: NEW_BASE, ODUDU_TRUST_PROXY: 'true' };
 
+  async function tenantNamed(): Promise<{ name: string; id: string }> {
+    const name = `assert-${newId().slice(-12)}`;
+    const seeded = await seed(['tenant', '--name', name]);
+    if (seeded.command !== 'tenant') throw new Error('expected the tenant command');
+    return { name, id: seeded.tenantId };
+  }
+
+  async function auditRows(
+    tenantId: string,
+  ): Promise<{ action: string; event_type: string; resource_id: string; detail: unknown }[]> {
+    return owner.sql`
+      select action, event_type, resource_id, detail from audit_events
+      where tenant_id = ${tenantId} and action = 'console.assertion'`;
+  }
+
   it("prints an assertion the tenant's token endpoint accepts, signed with the console's key", async () => {
+    const tenant = await tenantNamed();
     const assertion = await withEnv({ ...env, ODUDU_CONSOLE_CLIENT_KEY: KEY_A }, () =>
-      consoleCommand(['assertion', '--tenant', 'acme']),
+      consoleCommand(['assertion', '--tenant', tenant.name]),
     );
     const key = await loadClientKey(KEY_A);
     const claims = await verifyJwtClaims(assertion, registeredClientJwks(key, []), {
       issuer: ADMIN_CLIENT_ID,
-      audience: `${NEW_BASE}/tenants/acme/protocol/openid-connect/token`,
+      audience: `${NEW_BASE}/tenants/${tenant.name}/protocol/openid-connect/token`,
       now: new Date(),
     });
     expect(claims).toMatchObject({ iss: ADMIN_CLIENT_ID, sub: ADMIN_CLIENT_ID });
+  });
+
+  it('writes an audit row naming the tenant and the operator command, and never the assertion', async () => {
+    const tenant = await tenantNamed();
+    const assertion = await withEnv({ ...env, ODUDU_CONSOLE_CLIENT_KEY: KEY_A }, () =>
+      consoleCommand(['assertion', '--tenant', tenant.name]),
+    );
+    const rows = await auditRows(tenant.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      event_type: 'admin_mutation',
+      resource_id: tenant.id,
+      detail: { command: 'odudu console assertion', tenant: tenant.name },
+    });
+    expect(JSON.stringify(rows)).not.toContain(assertion);
+  });
+
+  it('refuses a tenant that does not exist, minting and writing nothing', async () => {
+    await expect(
+      withEnv({ ...env, ODUDU_CONSOLE_CLIENT_KEY: KEY_A }, () =>
+        consoleCommand(['assertion', '--tenant', 'no-such-tenant']),
+      ),
+    ).rejects.toMatchObject({ code: 'console_invalid_options' });
   });
 
   it('refuses without a tenant', async () => {
