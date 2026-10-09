@@ -707,8 +707,12 @@ the stack's `ODUDU_PUBLIC_BASE_URL`, reached through the proxy's published
 port and trusting the proxy's own certificate. It covers the login, the
 tenant's sign-in form, the callback and `GET /console/api/session`, and
 exits non-zero if either console cookie lacks `Secure`, `HttpOnly`, its
-`SameSite` or `Path=/`. The `conformance` job runs it after Config OP, and
-it gates the build. A local run printed, after its compose and seed
+`SameSite` or `Path=/`. The callback is the gateway redeeming its code as a
+confidential client, so a run of it is also the one place that exchange is
+seen behind TLS: every `run-*.sh` script makes a console key for its stack
+with `../docker/console-key.sh`, since `compose.yaml` refuses to start
+without one and none is committed. The `conformance` job runs it after
+Config OP, and it gates the build. A local run printed, after its compose and seed
 output:
 
 ```

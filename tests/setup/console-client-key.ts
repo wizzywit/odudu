@@ -6,5 +6,6 @@ import { generateKeyPairSync } from 'node:crypto';
 // key sets its own.
 if (process.env.ODUDU_CONSOLE_CLIENT_KEY === undefined) {
   const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
-  process.env.ODUDU_CONSOLE_CLIENT_KEY = JSON.stringify(privateKey.export({ format: 'jwk' }));
+  const jwk = JSON.stringify(privateKey.export({ format: 'jwk' }));
+  process.env.ODUDU_CONSOLE_CLIENT_KEY = Buffer.from(jwk, 'utf8').toString('base64');
 }

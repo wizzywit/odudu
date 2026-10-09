@@ -9,6 +9,10 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
+# The stack refuses to start without the console's private key, which
+# .env.example cannot carry; this adds one the first time and nothing after.
+./ensure-console-key.sh
+
 set -a
 source .env
 set +a

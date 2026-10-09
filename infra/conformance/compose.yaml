@@ -34,6 +34,9 @@ services:
       ODUDU_APP_DATABASE_URL: postgres://odudu_svc:odudu_svc@postgres:5432/odudu
       ODUDU_LOG_LEVEL: info
       ODUDU_KEK: KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=
+      # Made for each run by the script that starts it
+      # (../docker/console-key.sh): a private key is never committed.
+      ODUDU_CONSOLE_CLIENT_KEY: ${ODUDU_CONSOLE_CLIENT_KEY:?start this stack with a run-*.sh script}
       # A conformance run always sits behind proxy's TLS termination — see
       # README.md's answer to whether a Config OP plan accepts http://.
       ODUDU_TLS: 'true'

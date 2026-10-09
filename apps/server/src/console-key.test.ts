@@ -28,14 +28,16 @@ describe('loadConsoleKeys', () => {
 
   it('refuses a key it cannot read, naming the variable and the reason', async () => {
     const config = loadConfig({ ...base, ODUDU_CONSOLE_CLIENT_KEY: 'nope' });
-    await expect(loadConsoleKeys(config)).rejects.toThrow(/ODUDU_CONSOLE_CLIENT_KEY.*not JSON/su);
+    await expect(loadConsoleKeys(config)).rejects.toThrow(
+      /ODUDU_CONSOLE_CLIENT_KEY.*not base64-encoded JSON/su,
+    );
   });
 
   it('refuses a previous key it cannot read, naming that variable', async () => {
     const config = loadConfig({
       ...base,
       ODUDU_CONSOLE_CLIENT_KEY: await generateClientKey(),
-      ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS: '{"kty":"oct","k":"AAAA"}',
+      ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS: Buffer.from('{"kty":"oct","k":"AAAA"}').toString('base64'),
     });
     await expect(loadConsoleKeys(config)).rejects.toThrow(
       /ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS.*P-256/su,

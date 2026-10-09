@@ -14,6 +14,10 @@ if [ ! -f "$DOCKER_DIR/.env" ]; then
   exit 1
 fi
 
+# The stack refuses to start without the console's private key, which .env.example
+# cannot carry; this adds one to .env the first time and nothing after.
+"$DOCKER_DIR/ensure-console-key.sh"
+
 # The caller's ports win over whatever .env names for the development stack,
 # so this never lands on that stack's ports.
 host_port="${ODUDU_HOST_PORT:-3080}"

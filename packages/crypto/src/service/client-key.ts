@@ -22,12 +22,15 @@ export interface ClientKey {
   readonly publicJwk: Record<string, unknown>;
 }
 
+// The configured form is the base64 of the JWK's JSON, as ODUDU_KEK is base64:
+// one line with no character an environment file, a shell or a manifest
+// would have to quote.
 function parseJwk(serialized: string): Record<string, unknown> {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(serialized);
+    parsed = JSON.parse(Buffer.from(serialized, 'base64').toString('utf8'));
   } catch {
-    throw new OduduError('client_key_invalid', 'the key is not JSON');
+    throw new OduduError('client_key_invalid', 'the key is not base64-encoded JSON');
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new OduduError('client_key_invalid', 'the key is not a JSON object');
@@ -49,12 +52,13 @@ async function publicJwkOf(jwk: Record<string, unknown>): Promise<Record<string,
   return { ...base, kid, alg: ALG, use: 'sig' };
 }
 
-/** A new signing key as the one-line private JWK the configuration holds. */
+/** A new signing key in the form the configuration holds: its private JWK, base64-encoded. */
 export async function generateClientKey(): Promise<string> {
   const { privateKey } = await generateKeyPair(ALG, { extractable: true });
   const jwk = (await exportJWK(privateKey)) as Record<string, unknown>;
   const { kid } = await publicJwkOf(jwk);
-  return JSON.stringify({ ...jwk, kid, alg: ALG, use: 'sig' });
+  const serialized = JSON.stringify({ ...jwk, kid, alg: ALG, use: 'sig' });
+  return Buffer.from(serialized, 'utf8').toString('base64');
 }
 
 /**

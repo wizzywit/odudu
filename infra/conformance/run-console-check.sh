@@ -9,6 +9,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The stack refuses to start without the console's key, and none is committed.
+export ODUDU_CONSOLE_CLIENT_KEY="${ODUDU_CONSOLE_CLIENT_KEY:-$("$SCRIPT_DIR/../docker/console-key.sh")}"
 PROJECT=odudu-console-check
 NETWORK=odudu-conformance
 TENANT=console-check
