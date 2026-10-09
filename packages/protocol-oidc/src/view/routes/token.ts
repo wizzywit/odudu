@@ -4,12 +4,13 @@ import { requestContextFrom } from '@odudu/domain-audit';
 import { type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { corsHeadersForRequest } from '#/service/cors';
-import { type ClaimContext, type LoadedClaimContext } from '#/service/claims';
+import { type ClaimContext } from '#/service/claims';
 import { type AuditRefusalBudget } from '#/service/audit-refusal-budget';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
 import { issueTokens, type ClientKeySet, type TokenResponse } from '#/usecase/token-issuance';
 import { tenantIssuerFor } from '#/view/issuer';
+import { spendAfterFailure, type SpentAssertion } from '#/usecase/private-key-jwt-authentication';
 import { recordRefusal } from '#/usecase/record-refusal';
 
 export interface TokenRouteDeps {
@@ -34,7 +35,6 @@ export interface TokenRouteDeps {
   // for the same subject and scope come from the same registry, so one can
   // never carry a claim the other omits.
   claimMappers: ClaimMapperRegistry<ClaimContext>;
-  loadClaimContext(tenantId: string, subjectId: string): Promise<LoadedClaimContext>;
   // The real request's CORS decision, unlike the preflight's, is checked
   // against this one client's own expanded origins — resolved to an empty
   // set for a client_id this tenant does not have, so the header is simply
@@ -79,6 +79,7 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
     const issuer = tenantIssuerFor(request, request.params.tenant);
 
     const context = requestContextFrom(request);
+    const spends: SpentAssertion[] = [];
     try {
       const response: TokenResponse = await withTenant(
         deps.database.db,
@@ -102,7 +103,6 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
               verifyPassword: deps.verifyPassword,
               clientSecretLimiter: deps.clientSecretLimiter,
               claimMappers: deps.claimMappers,
-              loadClaimContext: (tenantId, subjectId) => deps.loadClaimContext(tenantId, subjectId),
               clientKeySet: deps.clientKeySet,
               logger: request.log,
               trustProxy: deps.trustProxy,
@@ -113,6 +113,7 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
             request.headers.authorization,
             request.headers,
             request.raw.rawHeaders,
+            spends,
           ),
         context,
       );
@@ -124,6 +125,7 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
         .header('pragma', 'no-cache')
         .send(response);
     } catch (err) {
+      await spendAfterFailure(deps.database, spends);
       if (err instanceof TokenRateLimited || err instanceof TokenError) {
         await recordRefusal(
           { database: deps.database, logger: request.log, budget: deps.auditRefusalBudget },

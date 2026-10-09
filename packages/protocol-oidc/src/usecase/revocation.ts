@@ -8,10 +8,11 @@ import { hashRefreshToken } from '#/service/refresh';
 import { readOptionalField } from '#/usecase/client-authentication';
 import {
   authenticateEndpointClient,
-  type PrivateKeyJwtDeps,
+  type ClientRequest,
+  type EndpointAuthenticationDeps,
 } from '#/usecase/private-key-jwt-authentication';
 
-export interface RevocationDeps extends PrivateKeyJwtDeps {
+export interface RevocationDeps extends EndpointAuthenticationDeps {
   readonly issuer: string;
   readonly keys: readonly SigningKeyRecord[];
 }
@@ -54,11 +55,11 @@ async function resolveGrantId(
 export async function respondToRevocationRequest(
   tx: TenantScopedDatabase,
   deps: RevocationDeps,
-  body: Record<string, string | string[] | undefined>,
-  authorizationHeader: string | undefined,
+  request: ClientRequest,
   now: Date,
 ): Promise<void> {
-  const { client } = await authenticateEndpointClient(tx, deps, body, authorizationHeader);
+  const { body } = request;
+  const { client } = await authenticateEndpointClient(tx, deps, request);
 
   const token = readOptionalField(body, 'token') ?? '';
   const grantId = await resolveGrantId(tx, deps, token);

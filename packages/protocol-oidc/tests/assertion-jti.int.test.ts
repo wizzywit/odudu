@@ -162,3 +162,50 @@ describe('assertionJtiRepository', () => {
     expect(replay).toBe(false);
   });
 });
+
+describe('assertionJtiRepository.claimWithin', () => {
+  it('claims on the transaction it is given, and refuses the same jti afterwards', async () => {
+    const first = await withTenant(app.db, tenantId, (tx) =>
+      assertionJtiRepository(app).claimWithin(tx, tenantId, 'client', 'jti-within', expiresAt),
+    );
+    expect(first).toBe(true);
+    const second = await assertionJtiRepository(app).claim(
+      tenantId,
+      'client',
+      'jti-within',
+      expiresAt,
+    );
+    expect(second).toBe(false);
+  });
+
+  it('leaves the jti unspent when that transaction rolls back', async () => {
+    await expect(
+      withTenant(app.db, tenantId, async (tx) => {
+        await assertionJtiRepository(app).claimWithin(
+          tx,
+          tenantId,
+          'client',
+          'jti-gone',
+          expiresAt,
+        );
+        throw new Error('the request failed');
+      }),
+    ).rejects.toThrow();
+    expect(await assertionJtiRepository(app).claim(tenantId, 'client', 'jti-gone', expiresAt)).toBe(
+      true,
+    );
+  });
+
+  it("cannot spend another tenant's jti", async () => {
+    const other = newId();
+    await withTenant(app.db, other, (tx) => seedTenant(tx, other));
+    await withTenant(app.db, other, (tx) =>
+      assertionJtiRepository(app).claimWithin(tx, other, 'client', 'jti-shared', expiresAt),
+    );
+    expect(
+      await withTenant(app.db, tenantId, (tx) =>
+        assertionJtiRepository(app).claimWithin(tx, tenantId, 'client', 'jti-shared', expiresAt),
+      ),
+    ).toBe(true);
+  });
+});

@@ -86,13 +86,15 @@ describe('[OIDC-DISCOVERY-3-01] the discovery document', () => {
       'private_key_jwt',
       'tls_client_auth',
     ]);
+    expect(withTls.introspection_endpoint_auth_methods_supported).toContain('tls_client_auth');
+    expect(withTls.revocation_endpoint_auth_methods_supported).toContain('tls_client_auth');
   });
 
   // authenticateEndpointClient
   // (packages/protocol-oidc/src/usecase/private-key-jwt-authentication.ts)
   // is what /introspect and /revoke both authenticate through: the two
   // password methods, a private_key_jwt assertion, and `none` for a public
-  // client — never tls_client_auth, regardless of ODUDU_TRUST_PROXY.
+  // client; tls_client_auth joins them only where the deployment can honour it.
   it('advertises exactly the four methods a client can present for introspection and revocation', () => {
     const methods = ['client_secret_basic', 'client_secret_post', 'none', 'private_key_jwt'];
     expect([...doc.introspection_endpoint_auth_methods_supported].sort()).toEqual(methods);

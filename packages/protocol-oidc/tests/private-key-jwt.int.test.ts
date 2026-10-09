@@ -39,6 +39,7 @@ let ownerHandle: DatabaseHandle | undefined;
 let appHandle: DatabaseHandle | undefined;
 let httpApp: FastifyInstance | undefined;
 
+let appUrlForPools = '';
 let container: TestDatabase;
 let owner: DatabaseHandle;
 let app: DatabaseHandle;
@@ -268,6 +269,7 @@ beforeAll(async () => {
   await runMigrations(owner.db, MIGRATIONS_DIR);
 
   const appUrl = await createAppRole(container.adminUrl);
+  appUrlForPools = appUrl;
   appHandle = createDatabase(appUrl, { max: 5 });
   app = appHandle;
 
@@ -650,4 +652,60 @@ describe('[ODUDU-PRIVATE-KEY-JWT-02] private_key_jwt at /revoke and /introspect'
     expect(doc.introspection_endpoint_auth_methods_supported).toContain('private_key_jwt');
     expect(doc.revocation_endpoint_auth_methods_supported).toContain('private_key_jwt');
   });
+});
+
+describe('[ODUDU-PRIVATE-KEY-JWT-03] a pool no larger than the requests in flight', () => {
+  // Each request holds a connection for its transaction; a jti claimed on a
+  // connection of its own would need a second, and N requests on N
+  // connections would all wait for it.
+  it.each([2, 3])(
+    'serves %i concurrent assertions on a pool of that many connections',
+    async (size) => {
+      const small = createDatabase(appUrlForPools, { max: size });
+      const server = Fastify();
+      await server.register(formbody);
+      await server.register(
+        oidcRoutes({
+          database: small,
+          ownerDatabase: owner,
+          kek: KEK,
+          clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+          auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
+          clientKeySet: clientKeySet({ lookup, request, now: () => NOW, allowPrivate: false }),
+          clock: { now: () => NOW },
+        }),
+      );
+      await server.ready();
+      try {
+        const assertions = await Promise.all(
+          Array.from({ length: size }, () => signAssertion(inlineKey, 'inline-jwks-client')),
+        );
+        const answers = await Promise.race([
+          Promise.all(
+            assertions.map((assertion) =>
+              server.inject({
+                method: 'POST',
+                url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+                payload: new URLSearchParams({
+                  grant_type: 'client_credentials',
+                  client_assertion_type: CLIENT_ASSERTION_TYPE,
+                  client_assertion: assertion,
+                }).toString(),
+                headers: { 'content-type': 'application/x-www-form-urlencoded' },
+              }),
+            ),
+          ),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => {
+              reject(new Error('the pool is exhausted: requests are waiting for a connection'));
+            }, 8000);
+          }),
+        ]);
+        expect(answers.map((answer) => answer.statusCode)).toEqual(Array(size).fill(200));
+      } finally {
+        await server.close();
+        await small.close();
+      }
+    },
+  );
 });

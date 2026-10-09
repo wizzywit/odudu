@@ -2,6 +2,7 @@ import { verifyJwtAgainstJwkSet } from '@odudu/crypto';
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { type AuditReason } from '@odudu/domain-audit';
 import { clientRepository, type ClientRecord } from '@odudu/domain-tenant';
+import { tlsClientAuthSubjectMatches, tlsClientSubject } from '#/service/tls-client-auth';
 import { assertionJtiRepository } from '#/repository/assertion-jti';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
@@ -28,6 +29,16 @@ export interface PrivateKeyJwtDeps extends ClientAuthenticationDeps {
  * publishes as `token_endpoint`. OIDC Core §9 asks for it, and one value
  * leaves nothing to choose between at /revoke and /introspect.
  */
+export interface EndpointAuthenticationDeps extends PrivateKeyJwtDeps {
+  readonly issuer: string;
+  // Gates tls_client_auth exactly as it gates Fastify's own `X-Forwarded-*`
+  // trust: the proxy-supplied subject header is as forgeable as those, so it
+  // is read only when an operator has said a proxy in front controls it.
+  readonly trustProxy: boolean;
+  // `ODUDU_TLS_CLIENT_CERT_HEADER`: no two proxies agree on a name.
+  readonly tlsClientCertHeader: string;
+}
+
 export function tokenEndpointOf(issuer: string): string {
   return `${issuer}/protocol/openid-connect/token`;
 }
@@ -79,6 +90,7 @@ export async function authenticatePrivateKeyJwt(
   deps: PrivateKeyJwtDeps,
   outcome: Exclude<AssertionOutcome, { kind: 'unsupported' }>,
   tokenEndpoint: string,
+  spends?: SpentAssertion[],
 ): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
   const fail = (reason: string, resolved?: { client: ClientRecord; reason: AuditReason }): never =>
     refusePrivateKeyJwt(
@@ -127,48 +139,210 @@ export async function authenticatePrivateKeyJwt(
   });
   if (!verified) return fail('assertion signature did not verify', badCredential);
 
-  const claimed = await assertionJtiRepository(deps.database).claim(
-    deps.tenantId,
-    outcome.claimedClientId,
-    outcome.jti,
-    outcome.expiresAt,
+  const spent: SpentAssertion = {
+    tenantId: deps.tenantId,
+    oauthClientId: outcome.claimedClientId,
+    jti: outcome.jti,
+    expiresAt: outcome.expiresAt,
+  };
+  const claimed = await assertionJtiRepository(deps.database).claimWithin(
+    tx,
+    spent.tenantId,
+    spent.oauthClientId,
+    spent.jti,
+    spent.expiresAt,
   );
   if (!claimed) return fail('jti already spent', { client, reason: 'replayed' });
+  spends?.push(spent);
 
   return { client, config };
 }
 
+// Shares `refusePrivateKeyJwt`'s shape (same log message pattern, same
+// single invalid_client) rather than its function: the two methods refuse
+// for entirely different reasons, and folding them into one function would
+// make a future change to one method's logging silently change the
+// other's too.
+export function refuseTlsClientAuth(
+  deps: PrivateKeyJwtDeps,
+  reason: string,
+  claimedClientId?: string,
+  client?: ClientRecord,
+): never {
+  deps.logger.warn(
+    { reason, ...(claimedClientId !== undefined ? { claimedClientId } : {}) },
+    'tls_client_auth authentication refused',
+  );
+  throw refusedAuthentication(
+    'tls_client_auth',
+    client === undefined ? undefined : { client, reason: 'bad_credential' },
+  );
+}
+
+// RFC 8705 §2.1's PKI mutual-TLS method, proxy-terminated
+// (`tls-client-auth.ts` has the deployment shape). Seven preconditions,
+// each checked here explicitly rather than assumed: a client_id was
+// presented, the client is known, enabled, confidential, registered for
+// this method, a registered subject exists, and it matches. `enabled` in
+// particular is checked directly rather than inherited from a callee —
+// nothing here may assume a property of the client that some other
+// function established.
+async function authenticateTlsClientAuth(
+  tx: TenantScopedDatabase,
+  deps: PrivateKeyJwtDeps,
+  certificateSubject: string,
+  claimedClientId: string | undefined,
+): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
+  if (claimedClientId === undefined) {
+    return refuseTlsClientAuth(deps, 'no client_id presented alongside the certificate');
+  }
+
+  const client = await clientRepository(tx).byClientId(claimedClientId);
+  if (client === null) return refuseTlsClientAuth(deps, 'unknown client', claimedClientId);
+  if (!client.enabled)
+    return refuseTlsClientAuth(deps, 'client is disabled', claimedClientId, client);
+  // tls_client_auth is a confidential-client method — checked again here
+  // rather than trusted from registration. The only confidentiality check
+  // on this path: `evaluateClientCredentialsGrant` also refuses a public
+  // client, but only for the client_credentials grant it belongs to —
+  // authorization_code and refresh_token have no such downstream check, so
+  // for those grants this is the only thing standing between a public
+  // client and a token.
+  if (client.type !== 'confidential') {
+    return refuseTlsClientAuth(deps, 'client is not confidential', claimedClientId, client);
+  }
+
+  const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+  // client-metadata.ts's `parseClientMetadata` stores
+  // `tlsClientAuthSubjectDn` only for a client registered `tls_client_auth`
+  // — a client of any other method always reaches this with `config`
+  // either absent or carrying a null subject, so skipping this check
+  // would still 401 there, at the null-subject check below, just with a
+  // less specific reason logged. True only because that storage rule
+  // holds; checked directly anyway, not trusted.
+  if (config?.tokenEndpointAuthMethod !== 'tls_client_auth') {
+    return refuseTlsClientAuth(
+      deps,
+      'client is not registered for tls_client_auth',
+      claimedClientId,
+      client,
+    );
+  }
+  // Unreachable only because the check immediately above already pinned
+  // `tokenEndpointAuthMethod === 'tls_client_auth'`, and
+  // client_oidc_config_tls_client_auth_needs_subject_dn (migration
+  // 0055_client_tls_client_auth_subject_dn.sql) guarantees a non-null
+  // subject for exactly that method — the constraint alone does not, since
+  // it says nothing about any other method. Checked anyway, the same
+  // defense the client_credentials path takes on `serviceSubjectId` above.
+  if (config.tlsClientAuthSubjectDn === null) {
+    return refuseTlsClientAuth(
+      deps,
+      'client has no registered certificate subject',
+      claimedClientId,
+      client,
+    );
+  }
+  if (!tlsClientAuthSubjectMatches(certificateSubject, config.tlsClientAuthSubjectDn)) {
+    return refuseTlsClientAuth(
+      deps,
+      'certificate subject does not match the registered value',
+      claimedClientId,
+      client,
+    );
+  }
+
+  return { client, config };
+}
+
+export interface SpentAssertion {
+  readonly tenantId: string;
+  readonly oauthClientId: string;
+  readonly jti: string;
+  readonly expiresAt: Date;
+}
+
 /**
- * Client authentication for the endpoints that take no grant — /revoke and
- * /introspect: an assertion, or the Basic and body-secret methods
- * `authenticateClient` already answers. Presenting both is refused, as at
- * /token (RFC 6749 §2.3).
+ * An assertion's jti is claimed on the request's own transaction, so a
+ * request that then fails rolls the claim back. Called once that transaction
+ * is gone, this spends each jti the request had claimed on a connection of
+ * its own, so a refused request does not leave its assertion replayable.
+ */
+export async function spendAfterFailure(
+  database: DatabaseHandle,
+  spends: readonly SpentAssertion[],
+): Promise<void> {
+  for (const spent of spends) {
+    await assertionJtiRepository(database).claim(
+      spent.tenantId,
+      spent.oauthClientId,
+      spent.jti,
+      spent.expiresAt,
+    );
+  }
+}
+
+export interface ClientRequest {
+  // Filled with each assertion this authentication claims; the route passes
+  // it to `spendAfterFailure` if the request fails.
+  readonly spends?: SpentAssertion[];
+  readonly body: Record<string, string | string[] | undefined>;
+  readonly authorizationHeader: string | undefined;
+  readonly headers: Record<string, string | string[] | undefined>;
+  // Node's own `IncomingMessage.rawHeaders`, which alone can tell a header
+  // sent twice from one value holding a comma.
+  readonly rawHeaders: readonly string[];
+}
+
+/**
+ * Client authentication for every endpoint that authenticates one — /token,
+ * /revoke and /introspect: a private_key_jwt assertion, a certificate subject
+ * a trusted proxy supplies (tls_client_auth), or the Basic and body-secret
+ * methods `authenticateClient` answers. A client presents exactly one
+ * (RFC 6749 §2.3), and a presentation of two is refused before either runs.
  */
 export async function authenticateEndpointClient(
   tx: TenantScopedDatabase,
-  deps: PrivateKeyJwtDeps & { readonly issuer: string },
-  body: Record<string, string | string[] | undefined>,
-  authorizationHeader: string | undefined,
+  deps: EndpointAuthenticationDeps,
+  request: ClientRequest,
 ): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
+  const { body } = request;
   const tokenEndpoint = tokenEndpointOf(deps.issuer);
   const assertion = parseClientAssertion(body, deps.now(), { audience: tokenEndpoint });
-  const basic = parseBasicAuth(authorizationHeader);
+  const basic = parseBasicAuth(request.authorizationHeader);
   const bodyClientSecret = readOptionalField(body, 'client_secret');
-  if (assertion.kind === 'unsupported') {
-    return authenticateClient(
-      tx,
-      deps,
-      basic,
-      readOptionalField(body, 'client_id'),
-      bodyClientSecret,
-    );
+  const certResult = tlsClientSubject(request.headers, request.rawHeaders, {
+    trustProxy: deps.trustProxy,
+    headerName: deps.tlsClientCertHeader,
+  });
+  // A duplicated header is refused outright, never downgraded to "no
+  // certificate presented", which would leave an operator debugging a
+  // completely unexplained 401.
+  if (certResult.kind === 'duplicated') {
+    refuseTlsClientAuth(deps, 'certificate subject header presented more than once');
   }
-  if (basic !== undefined || bodyClientSecret !== undefined) {
+  const certificateSubject = certResult.kind === 'present' ? certResult.subject : null;
+
+  if (
+    certificateSubject !== null &&
+    (assertion.kind !== 'unsupported' || basic !== undefined || bodyClientSecret !== undefined)
+  ) {
+    refuseTlsClientAuth(deps, 'certificate presented alongside another authentication method');
+  }
+  if (assertion.kind !== 'unsupported' && (basic !== undefined || bodyClientSecret !== undefined)) {
     refusePrivateKeyJwt(
       deps,
       'assertion presented alongside a client_secret',
       assertion.kind === 'ok' ? assertion.claimedClientId : undefined,
     );
   }
-  return authenticatePrivateKeyJwt(tx, deps, assertion, tokenEndpoint);
+
+  const clientId = readOptionalField(body, 'client_id');
+  if (assertion.kind !== 'unsupported') {
+    return authenticatePrivateKeyJwt(tx, deps, assertion, tokenEndpoint, request.spends);
+  }
+  if (certificateSubject !== null) {
+    return authenticateTlsClientAuth(tx, deps, certificateSubject, clientId);
+  }
+  return authenticateClient(tx, deps, basic, clientId, bodyClientSecret);
 }

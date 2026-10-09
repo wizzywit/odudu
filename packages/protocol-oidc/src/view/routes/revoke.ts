@@ -9,12 +9,15 @@ import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
 import { respondToRevocationRequest, type RevocationDeps } from '#/usecase/revocation';
 import { tenantIssuerFor } from '#/view/issuer';
+import { spendAfterFailure, type SpentAssertion } from '#/usecase/private-key-jwt-authentication';
 import { recordRefusal } from '#/usecase/record-refusal';
 
 export interface RevokeRouteDeps {
   database: DatabaseHandle;
   findTenant(name: string): Promise<{ id: string; enabled: boolean } | null>;
   clientKeySet: ClientKeySet;
+  trustProxy: boolean;
+  tlsClientCertHeader: string;
   listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
   // Reused, never re-implemented — see #/usecase/client-authentication.ts.
@@ -42,6 +45,8 @@ export function registerRevokeRoute(app: FastifyInstance, deps: RevokeRouteDeps)
       tenantId: tenant.id,
       database: deps.database,
       clientKeySet: deps.clientKeySet,
+      trustProxy: deps.trustProxy,
+      tlsClientCertHeader: deps.tlsClientCertHeader,
       verifyPassword: deps.verifyPassword,
       clientSecretLimiter: deps.clientSecretLimiter,
       logger: request.log,
@@ -51,6 +56,7 @@ export function registerRevokeRoute(app: FastifyInstance, deps: RevokeRouteDeps)
     };
 
     const context = requestContextFrom(request);
+    const spends: SpentAssertion[] = [];
     try {
       await withTenant(
         deps.database.db,
@@ -59,14 +65,20 @@ export function registerRevokeRoute(app: FastifyInstance, deps: RevokeRouteDeps)
           respondToRevocationRequest(
             tx,
             requestDeps,
-            request.body,
-            request.headers.authorization,
+            {
+              body: request.body,
+              authorizationHeader: request.headers.authorization,
+              headers: request.headers,
+              rawHeaders: request.raw.rawHeaders,
+              spends,
+            },
             now,
           ),
         context,
       );
       return await reply.code(200).header('cache-control', 'no-store').send();
     } catch (err) {
+      await spendAfterFailure(deps.database, spends);
       if (err instanceof TokenRateLimited || err instanceof TokenError) {
         await recordRefusal(
           { database: deps.database, logger: request.log, budget: deps.auditRefusalBudget },

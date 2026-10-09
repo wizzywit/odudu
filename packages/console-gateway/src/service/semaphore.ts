@@ -30,10 +30,8 @@ export function semaphore(limit: number): Semaphore {
   };
 }
 
-// A refresh holds one pooled connection for the session's row lock while its
-// token call holds another for its transaction and a third, briefly, for the
-// assertion's jti claim, which commits on a connection of its own. At most two
-// refreshes run at once, and only as many as leave two connections free.
+// A refresh holds one pooled connection while its token call needs another,
+// so at most two refreshes run at once and at least two connections stay free.
 export function refreshConcurrency(poolMax: number): number {
-  return Math.max(1, Math.min(2, Math.floor((poolMax - 2) / 3)));
+  return Math.max(1, Math.min(2, poolMax - 2));
 }

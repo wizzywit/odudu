@@ -8,10 +8,10 @@ import {
 } from '@odudu/db';
 import { auditRepository, type AuditReason, type RequestContext } from '@odudu/domain-audit';
 import { subjectRepository } from '@odudu/domain-identity';
-import { clientRepository, clientScopeRepository, type ClientRecord } from '@odudu/domain-tenant';
+import { clientScopeRepository, type ClientRecord } from '@odudu/domain-tenant';
 import { type ClaimMapperRegistry, type Clock, newId } from '@odudu/kernel';
 import { type ClientKeySet } from '#/repository/client-keys';
-import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
+import { type ClientOidcConfig } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
@@ -21,7 +21,6 @@ import { rotateRefreshToken } from '#/usecase/refresh-rotation';
 import { acrFor, amrFor } from '#/service/acr';
 import { hashAuthorizationCode } from '#/service/authorization-code';
 import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
-import { parseClientAssertion } from '#/service/client-assertion';
 import {
   type ClaimContext,
   type LoadedClaimContext,
@@ -58,21 +57,17 @@ import {
   type ExchangeTokenType,
 } from '#/service/token-exchange';
 import { withRegisteredClaimsWinning } from '#/service/token-claims';
-import { tlsClientAuthSubjectMatches, tlsClientSubject } from '#/service/tls-client-auth';
 import {
-  authenticateClient,
-  parseBasicAuth,
   readOptionalField,
   WWW_AUTHENTICATE,
   type ClientAuthenticationDeps,
   type RefusalLogger,
 } from '#/usecase/client-authentication';
 import {
-  authenticatePrivateKeyJwt,
-  refusedAuthentication,
-  refusePrivateKeyJwt,
-  tokenEndpointOf,
+  authenticateEndpointClient,
+  type SpentAssertion,
 } from '#/usecase/private-key-jwt-authentication';
+import { loadClaimContextIn } from '#/usecase/evaluate-claims';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
 
 // The client's configuration with every lifetime resolved against the
@@ -121,7 +116,6 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   // registry, so a claim present in one can never be missing from the
   // other for the same subject and scope.
   claimMappers: ClaimMapperRegistry<ClaimContext>;
-  loadClaimContext(tenantId: string, subjectId: string): Promise<LoadedClaimContext>;
   // RFC 7523 §2.2's fetcher for a client's jwks_uri — the dereference
   // `usecase/client-registration.ts` deliberately never performs (P3a
   // reverted that). private_key_jwt authentication is the one caller.
@@ -526,7 +520,7 @@ async function issueAuthorizationCodeTokens(
 
   // Loaded once per issuance and shared by the access token below and the
   // ID token that follows it — see loadClaimContext's own doc comment.
-  const claimContext = await deps.loadClaimContext(deps.tenantId, code.subjectId);
+  const claimContext = await loadClaimContextIn(tx, deps.tenantId, code.subjectId);
   const reachable = await reachableRoleIds(tx, scope);
   const accessTokenScope = await accessTokenEligibleScope(tx, scope);
 
@@ -781,7 +775,7 @@ async function issueRefreshTokens(
 
   const scope = [...decision.scope];
   const key = await signingKeyRepository(tx).active();
-  const claimContext = await deps.loadClaimContext(deps.tenantId, grant.subjectId);
+  const claimContext = await loadClaimContextIn(tx, deps.tenantId, grant.subjectId);
   const reachable = await reachableRoleIds(tx, scope);
   const accessTokenScope = await accessTokenEligibleScope(tx, scope);
 
@@ -873,7 +867,7 @@ async function issueClientCredentialsTokens(
   const scope = [...decision.scope];
   const now = deps.clock.now();
   const key = await signingKeyRepository(tx).active();
-  const claimContext = await deps.loadClaimContext(deps.tenantId, serviceSubjectId);
+  const claimContext = await loadClaimContextIn(tx, deps.tenantId, serviceSubjectId);
   const reachable = await reachableRoleIds(tx, scope);
   const accessTokenScope = await accessTokenEligibleScope(tx, scope);
 
@@ -934,103 +928,6 @@ async function issueClientCredentialsTokens(
     expires_in: config.accessTokenTtlSeconds,
     scope: scope.join(' '),
   };
-}
-
-// Shares `refusePrivateKeyJwt`'s shape (same log message pattern, same
-// single invalid_client) rather than its function: the two methods refuse
-// for entirely different reasons, and folding them into one function would
-// make a future change to one method's logging silently change the
-// other's too.
-function refuseTlsClientAuth(
-  deps: TokenIssuanceDeps,
-  reason: string,
-  claimedClientId?: string,
-  client?: ClientRecord,
-): never {
-  deps.logger.warn(
-    { reason, ...(claimedClientId !== undefined ? { claimedClientId } : {}) },
-    'tls_client_auth authentication refused',
-  );
-  throw refusedAuthentication(
-    'tls_client_auth',
-    client === undefined ? undefined : { client, reason: 'bad_credential' },
-  );
-}
-
-// RFC 8705 §2.1's PKI mutual-TLS method, proxy-terminated
-// (`tls-client-auth.ts` has the deployment shape). Seven preconditions,
-// each checked here explicitly rather than assumed: a client_id was
-// presented, the client is known, enabled, confidential, registered for
-// this method, a registered subject exists, and it matches. `enabled` in
-// particular is checked directly rather than inherited from a callee —
-// nothing here may assume a property of the client that some other
-// function established.
-async function authenticateTlsClientAuth(
-  tx: TenantScopedDatabase,
-  deps: TokenIssuanceDeps,
-  certificateSubject: string,
-  claimedClientId: string | undefined,
-): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
-  if (claimedClientId === undefined) {
-    return refuseTlsClientAuth(deps, 'no client_id presented alongside the certificate');
-  }
-
-  const client = await clientRepository(tx).byClientId(claimedClientId);
-  if (client === null) return refuseTlsClientAuth(deps, 'unknown client', claimedClientId);
-  if (!client.enabled)
-    return refuseTlsClientAuth(deps, 'client is disabled', claimedClientId, client);
-  // tls_client_auth is a confidential-client method — checked again here
-  // rather than trusted from registration. The only confidentiality check
-  // on this path: `evaluateClientCredentialsGrant` also refuses a public
-  // client, but only for the client_credentials grant it belongs to —
-  // authorization_code and refresh_token have no such downstream check, so
-  // for those grants this is the only thing standing between a public
-  // client and a token.
-  if (client.type !== 'confidential') {
-    return refuseTlsClientAuth(deps, 'client is not confidential', claimedClientId, client);
-  }
-
-  const config = await clientOidcConfigRepository(tx).byClientId(client.id);
-  // client-metadata.ts's `parseClientMetadata` stores
-  // `tlsClientAuthSubjectDn` only for a client registered `tls_client_auth`
-  // — a client of any other method always reaches this with `config`
-  // either absent or carrying a null subject, so skipping this check
-  // would still 401 there, at the null-subject check below, just with a
-  // less specific reason logged. True only because that storage rule
-  // holds; checked directly anyway, not trusted.
-  if (config?.tokenEndpointAuthMethod !== 'tls_client_auth') {
-    return refuseTlsClientAuth(
-      deps,
-      'client is not registered for tls_client_auth',
-      claimedClientId,
-      client,
-    );
-  }
-  // Unreachable only because the check immediately above already pinned
-  // `tokenEndpointAuthMethod === 'tls_client_auth'`, and
-  // client_oidc_config_tls_client_auth_needs_subject_dn (migration
-  // 0055_client_tls_client_auth_subject_dn.sql) guarantees a non-null
-  // subject for exactly that method — the constraint alone does not, since
-  // it says nothing about any other method. Checked anyway, the same
-  // defense the client_credentials path takes on `serviceSubjectId` above.
-  if (config.tlsClientAuthSubjectDn === null) {
-    return refuseTlsClientAuth(
-      deps,
-      'client has no registered certificate subject',
-      claimedClientId,
-      client,
-    );
-  }
-  if (!tlsClientAuthSubjectMatches(certificateSubject, config.tlsClientAuthSubjectDn)) {
-    return refuseTlsClientAuth(
-      deps,
-      'certificate subject does not match the registered value',
-      claimedClientId,
-      client,
-    );
-  }
-
-  return { client, config };
 }
 
 // Reached only if StructuredRequest gains a variant the dispatch below does
@@ -1200,7 +1097,7 @@ async function issueExchangedTokens(
     };
   }
 
-  const claimContext = await deps.loadClaimContext(deps.tenantId, subject.token.subjectId);
+  const claimContext = await loadClaimContextIn(tx, deps.tenantId, subject.token.subjectId);
   const reachable = await reachableRoleIds(tx, scope);
 
   if (issuedType === 'id_token') {
@@ -1316,60 +1213,16 @@ export async function issueTokens(
   // check; `headers` above cannot answer that question (see
   // tls-client-auth.ts's own comment on why).
   rawHeaders: readonly string[],
+  spends?: SpentAssertion[],
 ): Promise<TokenResponse> {
   const request = parseStructure(body);
-  // OIDC Core §9: the audience a private_key_jwt assertion must name is
-  // this tenant's own token endpoint — the same string discovery.ts's
-  // token_endpoint publishes (contracts/discovery.ts).
-  const tokenEndpoint = tokenEndpointOf(deps.issuer);
-  const assertionOutcome = parseClientAssertion(body, deps.clock.now(), {
-    audience: tokenEndpoint,
+  const { client, config } = await authenticateEndpointClient(tx, deps, {
+    body,
+    authorizationHeader,
+    headers,
+    rawHeaders,
+    ...(spends === undefined ? {} : { spends }),
   });
-  const basic = parseBasicAuth(authorizationHeader);
-  const bodyClientSecret = readOptionalField(body, 'client_secret');
-  const certResult = tlsClientSubject(headers, rawHeaders, {
-    trustProxy: deps.trustProxy,
-    headerName: deps.tlsClientCertHeader,
-  });
-  // A duplicated header is refused outright, the same way every other
-  // tls_client_auth refusal is — never silently downgraded to "no
-  // certificate presented", which would leave an operator debugging a
-  // completely unexplained 401.
-  if (certResult.kind === 'duplicated') {
-    refuseTlsClientAuth(deps, 'certificate subject header presented more than once');
-  }
-  const certificateSubject = certResult.kind === 'present' ? certResult.subject : null;
-
-  // RFC 7521 §4.2 / RFC 6749 §2.3: a client presents exactly one
-  // authentication mechanism per request. `authenticateClient` already
-  // refuses Basic alongside a body secret; this extends the same
-  // one-method rule to the certificate subject, refused before any path
-  // runs rather than silently preferring one and dropping the other.
-  if (
-    certificateSubject !== null &&
-    (assertionOutcome.kind !== 'unsupported' ||
-      basic !== undefined ||
-      bodyClientSecret !== undefined)
-  ) {
-    refuseTlsClientAuth(deps, 'certificate presented alongside another authentication method');
-  }
-  if (
-    assertionOutcome.kind !== 'unsupported' &&
-    (basic !== undefined || bodyClientSecret !== undefined)
-  ) {
-    refusePrivateKeyJwt(
-      deps,
-      'assertion presented alongside a client_secret',
-      assertionOutcome.kind === 'ok' ? assertionOutcome.claimedClientId : undefined,
-    );
-  }
-
-  const { client, config } =
-    assertionOutcome.kind !== 'unsupported'
-      ? await authenticatePrivateKeyJwt(tx, deps, assertionOutcome, tokenEndpoint)
-      : certificateSubject !== null
-        ? await authenticateTlsClientAuth(tx, deps, certificateSubject, request.clientId)
-        : await authenticateClient(tx, deps, basic, request.clientId, bodyClientSecret);
 
   try {
     return await issueForAuthenticatedClient(tx, deps, request, client, config);
