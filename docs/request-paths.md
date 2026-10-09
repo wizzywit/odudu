@@ -804,11 +804,13 @@ curl -sS http://localhost:3000/tenants/demo/.well-known/openid-configuration
   "introspection_endpoint_auth_methods_supported": [
     "client_secret_basic",
     "client_secret_post",
+    "private_key_jwt",
     "none"
   ],
   "revocation_endpoint_auth_methods_supported": [
     "client_secret_basic",
     "client_secret_post",
+    "private_key_jwt",
     "none"
   ],
   "authorization_response_iss_parameter_supported": true,
@@ -9495,6 +9497,14 @@ getting `invalid_request` rather than `invalid_client`.
 | An empty `client_id` from a public client                                                                                                                    | 401    | `invalid_client`         |
 | `GET` instead of `POST`                                                                                                                                      | 404    | —                        |
 
+`/revoke` and `/introspect` read the same client authentication: a
+`private_key_jwt` assertion, whose `aud` is this tenant's `/token` URL at all
+three endpoints, or either password method, and refuse a failed one with the
+same `401` and `invalid_client`.
+The built-in `odudu-admin` client is one that authenticates this way, and the
+console's refusals and acceptances at `/token` and `/revoke` are transcripts in
+[Console paths](console-paths.md#the-gateway-is-a-confidential-client).
+
 Every 401 carries `WWW-Authenticate: Basic realm="token"`. Every response,
 success or failure, carries `cache-control: no-store` and `pragma:
 no-cache`.
@@ -10089,19 +10099,19 @@ session lifecycle. A citation of either half here means that half.
 
 **`/introspect` and `/revoke`**
 
-- **A `private_key_jwt` or `tls_client_auth` client can never call either
-  endpoint.** Both authenticate through `authenticateClient` alone, which
-  only reads a Basic header or a body `client_secret`; a client registered
-  for either assertion-based method presents neither and is refused every
-  time. `private_key_jwt` introduced the gap; `tls_client_auth` inherited
-  it. A decision, not a gap in either RFC: neither requires a particular
-  set of client-authentication methods, and closing it extends `/token`'s
-  assertion and certificate dispatch to two more routes rather than
-  changing introspection or revocation — `rfc7662.md`'s "Only the two
-  password methods reach this endpoint" carries the reasoning. **P13** closes
-  it, whose criterion now names both methods at both endpoints: it is a
-  client-authentication change, and P13 is the phase that reworks client
-  authentication for FAPI 2.0.
+- **A `tls_client_auth` client can never call either endpoint.** Both
+  authenticate through `authenticateEndpointClient`, which reads a
+  `private_key_jwt` assertion, a Basic header or a body `client_secret`; a
+  client registered for `tls_client_auth` presents none of them and is
+  refused every time. `private_key_jwt` reached both on 2026-10-09, for the
+  console's gateway, which signs its revocation. A decision, not a gap in
+  either RFC: neither requires a particular set of client-authentication
+  methods, and closing the rest extends `/token`'s certificate dispatch to
+  two more routes rather than changing introspection or revocation —
+  `rfc7662.md`'s "`tls_client_auth` does not reach this endpoint" carries the
+  reasoning. **P13** closes it, whose criterion now names that method at both
+  endpoints: it is a client-authentication change, and P13 is the phase that
+  reworks client authentication for FAPI 2.0.
 
 **`/userinfo`**
 

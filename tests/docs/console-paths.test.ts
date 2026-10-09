@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../../apps/server/src/app.js';
 import { createLogger } from '../../apps/server/src/logger.js';
+import { CONSOLE_KEYS } from '../../apps/server/src/testing/console-key.js';
 import { type DatabaseHandle } from '../../packages/db/src/index.js';
 import { loadConfig } from '../../packages/kernel/src/index.js';
 import { backticked, fencedBlocks, loadDocument, sections } from './markdown.js';
@@ -46,6 +47,7 @@ async function consoleRoutes(): Promise<Route[]> {
     kek: config.ODUDU_KEK,
     logger: createLogger(config),
     consoleBaseUrl: BASE,
+    consoleKeys: CONSOLE_KEYS,
     consoleDir: '/nonexistent/odudu-console-docs-check',
   });
   const routes: Route[] = [];

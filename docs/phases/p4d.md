@@ -1785,6 +1785,71 @@ KB (97.4%), and about 233.8 KB first load against 242 KB. The next task that
 imports a shared view with a heavy dependency should check the build before it
 spends the rest.
 
+## Part 4 — `odudu-admin` becomes a confidential client
+
+The decision and its rejected alternatives are ADR 0038's amendment of
+2026-10-09. What building it found:
+
+**The plan's CHECK could not be written.** It proposed relaxing
+`clients_secret_matches_type` to `confidential AND (secret_hash IS NOT NULL OR
+token_endpoint_auth_method <> 'client_secret_*')`. The method is on
+`client_oidc_config`, and a CHECK on `clients` reads no other table, so the
+constraint now says only that a public client holds no secret
+(`0098_clients_secret_by_type.sql`). `grep -n -A3 clients_secret_matches_type
+packages/db/drizzle/0004_clients.sql` was run before the plan was believed
+here, as CLAUDE.md asks of a claim about this repository, and showed the
+columns of one table only.
+
+**`jwks_uri` was not a choice.** `ODUDU_ALLOW_PRIVATE_CLIENT_URLS` does not admit a
+loopback address, and a `jwks_uri` must be `https`; a stack whose base URL is
+`http://localhost:3080` can never serve its own key set. Run, not read:
+`assertPublicAddresses(['127.0.0.1'], { allowPrivate: true })` throws
+`address 127.0.0.1 is a loopback address`, and `assertFetchableUrl('http://…')`
+throws `scheme must be https, not http`.
+
+**`/revoke` and `/introspect` never dispatched `private_key_jwt`.** Discovery
+said so in a comment, and `[ODUDU-PRIVATE-KEY-JWT-02]` failed first for it. A
+client authenticating that way could not revoke its own token, so the gateway's
+logout would have answered `401` to a revocation it ignores the result of: the
+refresh token would have outlived the session it belonged to. The check moved to
+`usecase/private-key-jwt-authentication.ts` and both endpoints share it, with the
+token endpoint's URL as the one `aud` at all three. `tls_client_auth` stays at
+`/token` alone, placed on P13 as before.
+
+**A `/revoke` test against a fixed clock would have passed for the wrong reason.** Revoking an
+access token reads its signature and expiry against the real clock, so a token
+minted under a clock pinned in 2026-09 was "unknown" and `/revoke` answered `200`
+having revoked nothing, which RFC 7009 §2.2 requires. The suite's clock is now the
+wall clock, and the first case proves the grant is revoked before the others rely
+on its not being.
+
+**The key's shape.** Base64 of the private JWK, as `ODUDU_KEK` is base64: a bare JWK in
+an `.env` file wants quoting that `docker compose`, `source` and `node --env-file`
+each do differently. The `kid` is the RFC 7638 thumbprint, never configuration.
+The gateway stamps assertions with the wall clock, not the console clock tests move,
+because the server checks an assertion's lifetime against its own.
+
+**Rotation touches every tenant's row, and says so.** One `odudu console
+provision` pass visits each tenant in a transaction of its own and writes only where
+the registered keys differ; rotation is two such passes around a roll, and a third
+if a tenant was created during it (README, "Rotating the console's key").
+Measured, on the transcript stack with 1,000 bare tenants added by `insert`: a pass that
+creates every tenant's admin client took 18.2 s over 1,002 tenants, a pass that
+writes nothing 12.4 s, a pass that rewrites every tenant's registered keys 16.1 s,
+and the pass that drops the old key 11.0 s. That is 11 to 18 ms a tenant, so 10,000
+tenants is two to three minutes a pass: a tenant is read and, only when its keys
+differ, written once, in a transaction of its own, so no pass holds more than one
+tenant's rows.
+
+**Things this made false, found by running the suites rather than by search.**
+Every test that seeded under a console base URL needed the key; they take a
+per-run key from `tests/setup/console-client-key.ts` rather than a committed one.
+Three console tests presented a refresh token or a revocation with no client
+authentication and expected `invalid_grant`; they got `invalid_client` until given
+the gateway's assertion. A rotate-secret route that answered
+`200` with a secret no `private_key_jwt` client could present now answers `409`,
+and the client page says why instead of offering a rotation.
+
 ## Performance
 
 ### The React Compiler

@@ -717,6 +717,7 @@ Two credential files, each read by a different thing, neither committed:
 
 ```bash
 cp infra/docker/.env.example infra/docker/.env   # the compose stack
+./infra/docker/ensure-console-key.sh             # ...and its console key, below
 cp .env.example .env                             # the server, run on your host
 ```
 
@@ -734,6 +735,25 @@ node -e "console.log('ODUDU_KEK=' + require('node:crypto').randomBytes(32).toStr
 
 Changing this value later makes every private signing key already wrapped
 with the old one unreadable.
+
+**The console's key.** While the console is on, which is the default, the
+server also refuses to boot without `ODUDU_CONSOLE_CLIENT_KEY`, naming it: the
+private key the console's gateway authenticates with, as every tenant's
+`odudu-admin` client, by `private_key_jwt`
+([ADR 0038](docs/adr/0038-the-admin-console-and-its-gateway.md)). It is an
+ES256 private JWK, base64-encoded as the KEK is. `infra/docker/.env.example`
+carries none, since a private key is not something to commit; after copying
+it, `./infra/docker/ensure-console-key.sh` adds one to `infra/docker/.env`
+and changes nothing if one is there. For the host run:
+
+```bash
+node apps/server/src/main.ts console keygen >> .env
+```
+
+Every tenant registers the key's public half, so the key outlives the
+database it was made for: a stack you keep keeps its key, and a different
+one means `odudu console provision` (below). With `ODUDU_CONSOLE=false` no key
+is read.
 
 That has a consequence worth knowing before you hit it. The two files hold
 **different** keys — the compose stack's throwaway one, and the one you just
@@ -892,6 +912,7 @@ running:
 
 ```bash
 cd infra/docker
+./ensure-console-key.sh   # the stack refuses to start without the console's key
 export COMPOSE_PROJECT_NAME=odudu-try ODUDU_HOST_PORT=3090 POSTGRES_HOST_PORT=5472
 docker compose up -d --build
 until curl -fsS http://localhost:3090/health/ready; do sleep 2; done
@@ -1214,23 +1235,30 @@ docker compose exec -T odudu node dist/main.js seed grant-role \
 grace's first sign-in asks for a new password, then asks her to sign in
 with it. Without the flag, `seed user` queues nothing.
 
-The `odudu-admin` client is provisioned as a public client authorised with
-`authorization_code` and `refresh_token`, carrying the tenant's default
-scopes, the admin API's resource identifier `urn:odudu:params:admin-api` as
-its registered audience, and the loopback redirect URI
-`http://127.0.0.1:8080/callback` (RFC 8252 §7.3): an administrator with no
-console obtains a token by running a listener on that exact port and
-completing the flow with PKCE. The admin API refuses such a token once its
-grant is revoked, its session has ended, or its client or its subject has
-been disabled
-([docs/admin-paths.md](docs/admin-paths.md#the-shape-of-it)). While the console is on (`ODUDU_CONSOLE`,
-default `true`), the same client is also registered
+The `odudu-admin` client is provisioned authorised with `authorization_code`
+and `refresh_token`, carrying the tenant's default scopes, the admin API's
+resource identifier `urn:odudu:params:admin-api` as its registered audience,
+and the loopback redirect URI `http://127.0.0.1:8080/callback` (RFC 8252
+§7.3). While the console is on it is a **confidential client authenticating
+by `private_key_jwt`**, holding no secret and registering the public half of
+`ODUDU_CONSOLE_CLIENT_KEY`; with `ODUDU_CONSOLE=false` it is public, as it was
+before the console existed, and is never made public again once it is
+confidential. An administrator with no console runs a listener on the
+loopback port and completes the flow with PKCE as before, but the code
+redeems only with an assertion from the holder of the key, which
+`odudu console assertion --tenant <name>` prints (one minute's lifetime, one
+use). The admin API refuses such a token once its grant is revoked, its
+session has ended, or its client or its subject has been disabled
+([docs/admin-paths.md](docs/admin-paths.md#the-shape-of-it)). While the console
+is on (`ODUDU_CONSOLE`, default `true`), the same client is also registered
 `${ODUDU_PUBLIC_BASE_URL}/console/auth/callback` as a redirect URI and
 `${ODUDU_PUBLIC_BASE_URL}/console/` as a post-logout redirect URI — by
 `seed admin`, `seed tenant`, `seed --tenant`, `POST /admin/tenants` and
-`POST /admin/tenant-imports` alike, and never from a request's `Host`.
-Redirect matching is exact, so after setting or changing
-`ODUDU_PUBLIC_BASE_URL`, re-register every tenant's admin client:
+`POST /admin/tenant-imports` alike, and never from a request's `Host`. Each
+of them refuses, naming `ODUDU_CONSOLE_CLIENT_KEY`, rather than leave a
+client public while the console is on. Redirect matching is exact, so after
+setting or changing `ODUDU_PUBLIC_BASE_URL`, or the console's key, re-register
+every tenant's admin client:
 
 ```bash
 node --env-file=.env apps/server/src/main.ts console provision
@@ -1238,8 +1266,23 @@ node --env-file=.env apps/server/src/main.ts console provision
 
 It prints `provisioned <n> tenants`. Each tenant's console URIs are replaced
 by the current base's, and every other URI on the client, the loopback
-included, is kept. With `ODUDU_CONSOLE=false` it refuses, having nothing to
-register, and nothing else touches a registered console URI either.
+included, is kept; a public `odudu-admin` is made confidential, and every
+tenant registers exactly the keys now configured. A second run writes
+nothing. With `ODUDU_CONSOLE=false` it refuses, having nothing to register,
+and nothing else touches a registered console URI either.
+
+**Rotating the console's key** is an overlap, so no tenant is ever without
+the key the gateway signs with. `odudu console keygen` makes the new one. Then:
+
+1. Set `ODUDU_CONSOLE_CLIENT_KEY` to it and `ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS`
+   to the value it replaces, and run `console provision` with that
+   environment, before any server signs with the new key. Every tenant now
+   registers both.
+2. Roll the servers.
+3. Run `console provision` again: a tenant created during the roll by a
+   server still on the old key registered it alone.
+4. Unset `ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS` and run `console provision` a
+   last time. The old key is gone from every tenant.
 
 **Client origins are rebuilt once after upgrading past `0096`.** The
 migration backfills `client_origins` only for values already in the form the
@@ -1286,8 +1329,9 @@ tokens server-side and gives the browser nothing but a session cookie:
   PKCE and the admin API's `resource`. `return_to` must be a `/console/`
   path; anything else falls back to `/console/`.
 - `GET /console/auth/callback` checks `state` against the login cookie and
-  the RFC 9207 `iss`, exchanges the code, verifies the ID token and its
-  nonce, and sets the session cookie. A console session the browser's
+  the RFC 9207 `iss`, exchanges the code (signing the assertion
+  `odudu-admin` authenticates with), verifies the ID token and its nonce, and
+  sets the session cookie. A console session the browser's
   cookie still names, in any tenant, is ended and its grant revoked once
   the new session is written, so switching tenants leaves one session and a
   refused or cancelled sign-in leaves the old one as it was; a wait of more
@@ -1625,10 +1669,13 @@ A real deployment today looks like:
    `http` base too, since the console cookie follows the base's scheme and
    would lose `Secure` while every other cookie keeps it; an `http` base
    with TLS off boots with a warning that the cookie is `odudu-console`
-   without `Secure`. Set `ODUDU_CONSOLE=false` to serve no
+   without `Secure`. It refuses, naming `ODUDU_CONSOLE_CLIENT_KEY`, to boot
+   without the private key its gateway authenticates with as
+   `odudu-admin`. Set `ODUDU_CONSOLE=false` to serve no
    console at all. `ODUDU_CONSOLE_DIR` names the built console's
    directory, `/app/console` by default. Run
-   `node dist/main.js console provision` once after changing the base.
+   `node dist/main.js console provision` once after changing the base or
+   the key.
 
 ### What is not built yet
 
