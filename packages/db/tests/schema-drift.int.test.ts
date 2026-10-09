@@ -75,7 +75,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'clients.clients_registration_origin_check':
     "CHECK ((registration_origin = ANY (ARRAY['seeded'::text, 'anonymous'::text, 'token'::text, 'operator'::text])))",
   'clients.clients_secret_matches_type':
-    "CHECK ((((type = 'confidential'::text) AND (secret_hash IS NOT NULL)) OR ((type = 'public'::text) AND (secret_hash IS NULL))))",
+    "CHECK (((type <> 'public'::text) OR (secret_hash IS NULL)))",
   'clients.clients_type_check':
     "CHECK ((type = ANY (ARRAY['public'::text, 'confidential'::text])))",
   'tenants.tenants_brute_force_bounds':

@@ -687,6 +687,13 @@
       "when": 1789308681736,
       "tag": "0097_clients_by_type",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1789308781736,
+      "tag": "0098_clients_secret_by_type",
+      "breakpoints": true
     }
   ]
 }
