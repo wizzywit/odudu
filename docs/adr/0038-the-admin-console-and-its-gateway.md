@@ -95,3 +95,105 @@ need one cookie name per tenant and every request routed to the right one,
 which reopens the tab-acting-as-someone-else risk the switch page closes.
 AWS's opt-in multi-session is the model if a need appears: bounded, opt-in,
 and isolated per session by subdomain.
+
+## Amendment (2026-10-09): the gateway authenticates as `odudu-admin`
+
+Nothing chose "public" for `odudu-admin`: it was the provisioning default
+from before a gateway existed, and the decision above recorded it only as a
+fact. The gateway is a server and can hold a credential, so by the same BFF
+reading of RFC 10017 it authenticates at the token endpoint. That puts a
+second lock on a stolen authorization code, binds the refresh token to client
+authentication, and stops any other page from starting a login as the
+console.
+
+**Decision.** `odudu-admin` is a confidential client authenticating by
+`private_key_jwt` (RFC 7523 §2.2, OIDC Core §9). One ES256 key pair is held by
+the gateway and registered, as its public half, on every tenant's
+`odudu-admin`. The gateway signs a fresh assertion — `iss` and `sub` the
+client, `aud` the tenant's token endpoint, a minute's lifetime, a new `jti`
+— on the authorization-code exchange, the refresh and the revocation, the
+three requests that name the client. Nothing else it sends is authenticated
+this way: the admin API still sees only the subject's bearer token.
+
+**The key is registered inline (`jwks`), not by `jwks_uri`.** The server's
+own `private_key_jwt` support was read, and run, before this was chosen.
+A `jwks_uri` is fetched through an address guard that refuses anything not
+`https` and refuses loopback addresses outright, whatever
+`ODUDU_ALLOW_PRIVATE_CLIENT_URLS` says (`service/remote-address.ts`);
+`ODUDU_PUBLIC_BASE_URL` is `http://localhost:…` on every development, CI and
+documentation stack, and a container does not reach its own published port.
+A success is cached for five minutes, so a rotation would have to wait out the
+cache; a failure is cached for thirty seconds, so the server fetching its own
+public URL and failing once would refuse that tenant's console sign-in for as
+long. An inline key set has none of that: the
+check is a read of the client's own row.
+
+**Rotation does not edit tenants one at a time, but it does write every
+tenant's row.** That is the price of `jwks`, and it is paid by the command
+that already exists for a changed base URL, `odudu console provision`, which
+visits each tenant in a transaction of its own and writes only where the
+registered keys differ. A key is replaced in an overlap, so no tenant ever
+lacks the key the gateway signs with:
+
+1. `odudu console keygen` makes the new key. Set `ODUDU_CONSOLE_CLIENT_KEY` to
+   it and `ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS` to the old value (a private or a
+   public key; only the public half is read).
+2. Run `odudu console provision` with that environment, before any server
+   signs with the new key. Every tenant now registers both.
+3. Roll the servers. A tenant created during the roll by a server still on
+   the old key registers it alone, so run `provision` once more afterwards.
+4. Unset `ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS`, run `provision` again, and the
+   old key is gone from every tenant.
+
+**Configuration.** `ODUDU_CONSOLE_CLIENT_KEY` is the signing key: an ES256
+private JWK, base64-encoded as `ODUDU_KEK` is, so no environment file,
+manifest or shell has a character to quote. Its `kid` is its RFC 7638
+thumbprint, never a value the configuration supplies. It is required while
+the console is on (`ODUDU_CONSOLE` is not `false` and a base URL is set): the
+server refuses to start without it, naming the variable and the switch, and
+so do `seed` and `console provision`. No stack's `.env.example` carries one,
+since a private key is not something to commit; `infra/docker/ensure-console-key.sh`
+adds one to a `.env`, and the conformance scripts make one per run.
+With the console off nothing is read and a new `odudu-admin` stays public, as
+before; `provisionAdminClient` converts a public one to confidential and never
+converts it back.
+
+**`clients_secret_matches_type` is relaxed, not worked around.** The
+constraint required a secret hash on every confidential client. Whether a
+confidential client has a secret depends on its authentication method, which
+is on `client_oidc_config`, and a CHECK on `clients` cannot read another
+table, so "relax it for non-secret methods" cannot be written there. Migration
+`0098_clients_secret_by_type.sql` keeps the half that protects something — a
+public client carries no secret — and drops the other. A confidential client
+with no hash cannot authenticate by secret (`verifyClientSecret` refuses it),
+so the absence fails closed. The alternative, a hash of a secret nobody was
+given, is what every other `private_key_jwt` client carries today: a credential
+shaped value that can never be presented, one Argon2 hash per tenant at
+conversion, and a stored secret the rotate route would then offer to replace.
+That route now refuses a client whose method is not a secret one, and the
+client page says why instead of offering a rotation.
+
+**Consequences found on the way, fixed here.**
+
+- `/revoke` and `/introspect` authenticated through the password methods alone,
+  so a `private_key_jwt` client could not call either. Both now share the
+  assertion check `/token` runs, with the token endpoint's URL as the one
+  accepted `aud` at all three. Discovery lists the method for both.
+- The administrator who redeemed a code at `/token` as a public client with
+  nothing but PKCE cannot any more while the console is on. `odudu console
+assertion --tenant <name>` prints an assertion for whoever holds the key.
+
+### Rejected
+
+- **Keep `odudu-admin` public.** Nothing in its favour but inertia: the code
+  and the refresh token are redeemable by anyone holding them, and any page can
+  start a login as the console.
+- **A `client_secret` per tenant.** The gateway would hold 10,000 secrets and
+  rotate each one, with a grace window per tenant, against one key pair and one
+  command.
+- **The server reading the key set from configuration for this one client.**
+  Rotation would be a configuration change with no tenant written, but the
+  console's key would then sit outside the data model: the admin API would show
+  a client authenticating by `private_key_jwt` with no keys, and the token
+  endpoint would have a branch for one client's identity.
+- **`jwks_uri`.** Above.
