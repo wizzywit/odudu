@@ -274,8 +274,8 @@ importers:
         specifier: 2.0.4
         version: 2.0.4
       zod:
-        specifier: 4.6.1
-        version: 4.6.1
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       '@odudu/testkit':
         specifier: workspace:*
@@ -287,8 +287,8 @@ importers:
   packages/contracts:
     dependencies:
       zod:
-        specifier: 4.6.1
-        version: 4.6.1
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       vitest:
         specifier: 5.0.0
@@ -366,8 +366,8 @@ importers:
         specifier: 0.45.2
         version: 0.45.2(postgres@3.4.9)
       zod:
-        specifier: 4.6.1
-        version: 4.6.1
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       '@odudu/testkit':
         specifier: workspace:*
@@ -391,8 +391,8 @@ importers:
         specifier: 0.45.2
         version: 0.45.2(postgres@3.4.9)
       zod:
-        specifier: 4.6.1
-        version: 4.6.1
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       '@odudu/testkit':
         specifier: workspace:*
@@ -451,8 +451,8 @@ importers:
         specifier: 5.0.0
         version: 5.0.0(@types/node@24.13.4)(vite@8.2.2(@types/node@24.13.4)(esbuild@0.28.2)(tsx@4.23.13)(yaml@2.9.0))
       zod:
-        specifier: 4.6.1
-        version: 4.6.1
+        specifier: 4.6.5
+        version: 4.6.5
 
   packages/kernel:
     dependencies:
@@ -460,8 +460,8 @@ importers:
         specifier: 1.2.1
         version: 1.2.1
       zod:
-        specifier: 4.6.1
-        version: 4.6.1
+        specifier: 4.6.5
+        version: 4.6.5
 
   packages/protocol-admin:
     dependencies:
@@ -511,8 +511,8 @@ importers:
         specifier: 5.12.5
         version: 5.12.5
       zod:
-        specifier: 4.6.1
-        version: 4.6.1
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       '@fastify/formbody':
         specifier: 9.0.0
@@ -563,8 +563,8 @@ importers:
         specifier: 5.12.5
         version: 5.12.5
       zod:
-        specifier: 4.6.1
-        version: 4.6.1
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       '@fastify/formbody':
         specifier: 9.0.0
@@ -3809,8 +3809,8 @@ packages:
     resolution: {integrity: sha512-zK7YHHz4ZXpW89AHXUPbQVGKI7uvkd3hzusTdotCg1UxyaVtg0zFJSTfW/Dq5f7OBBVnq6cZIaC8Ti4hb6dtCA==}
     engines: {node: '>= 14'}
 
-  zod@4.6.1:
-    resolution: {integrity: sha512-341aRWQsve0rvronKNTqZpjmzdbUDlFuzHaI/XLg/Ej82qffDJRRfBTCuv7+9q/rMjB6LSLyEBnW4InJeMtt/Q==}
+  zod@4.6.5:
+    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
 
 snapshots:
 
@@ -6019,7 +6019,7 @@ snapshots:
 
   mutation-server-protocol@0.4.1:
     dependencies:
-      zod: 4.6.1
+      zod: 4.6.5
 
   mutation-testing-elements@3.8.4: {}
 
@@ -6856,4 +6856,4 @@ snapshots:
       compress-commons: 6.0.2
       readable-stream: 4.7.0
 
-  zod@4.6.1: {}
+  zod@4.6.5: {}

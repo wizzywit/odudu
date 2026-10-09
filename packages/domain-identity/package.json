@@ -18,7 +18,7 @@
     "@odudu/db": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "drizzle-orm": "0.45.2",
-    "zod": "4.6.1"
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@odudu/testkit": "workspace:*",
