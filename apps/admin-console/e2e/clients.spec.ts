@@ -784,6 +784,9 @@ test('the back-channel deliveries of a client are those its ended sessions queue
   browser,
   page,
 }) => {
+  // Six `send-logouts` runs through `docker compose exec`, two real sign-ins and a
+  // page of deliveries: 25 to 30 s on a developer's machine, against a 30 s limit.
+  test.slow();
   const app = await application('notified');
   await signIn(page, admin);
   await openClient(page, 'notified', 'logout');
