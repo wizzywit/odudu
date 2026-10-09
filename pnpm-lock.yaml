@@ -198,8 +198,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/testkit
       drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(postgres@3.4.9)
+        specifier: 0.45.3
+        version: 0.45.3(postgres@3.4.9)
       tsup:
         specifier: 8.5.1
         version: 8.5.1(postcss@8.5.28)(supports-color@7.2.0)(tsx@4.23.13)(typescript@6.0.3)(yaml@2.9.0)
@@ -222,8 +222,8 @@ importers:
         specifier: workspace:*
         version: link:../kernel
       drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(postgres@3.4.9)
+        specifier: 0.45.3
+        version: 0.45.3(postgres@3.4.9)
       fastify:
         specifier: 5.12.5
         version: 5.12.5
@@ -268,8 +268,8 @@ importers:
         specifier: 14.0.2
         version: 14.0.2
       drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(postgres@3.4.9)
+        specifier: 0.45.3
+        version: 0.45.3(postgres@3.4.9)
       qrcode-generator:
         specifier: 2.0.4
         version: 2.0.4
@@ -303,8 +303,8 @@ importers:
         specifier: workspace:*
         version: link:../kernel
       drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(postgres@3.4.9)
+        specifier: 0.45.3
+        version: 0.45.3(postgres@3.4.9)
       jose:
         specifier: 6.2.12
         version: 6.2.12
@@ -322,8 +322,8 @@ importers:
         specifier: workspace:*
         version: link:../kernel
       drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(postgres@3.4.9)
+        specifier: 0.45.3
+        version: 0.45.3(postgres@3.4.9)
       postgres:
         specifier: 3.4.9
         version: 3.4.9
@@ -344,8 +344,8 @@ importers:
         specifier: workspace:*
         version: link:../kernel
       drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(postgres@3.4.9)
+        specifier: 0.45.3
+        version: 0.45.3(postgres@3.4.9)
     devDependencies:
       '@odudu/testkit':
         specifier: workspace:*
@@ -363,8 +363,8 @@ importers:
         specifier: workspace:*
         version: link:../kernel
       drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(postgres@3.4.9)
+        specifier: 0.45.3
+        version: 0.45.3(postgres@3.4.9)
       zod:
         specifier: 4.6.5
         version: 4.6.5
@@ -388,8 +388,8 @@ importers:
         specifier: workspace:*
         version: link:../kernel
       drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(postgres@3.4.9)
+        specifier: 0.45.3
+        version: 0.45.3(postgres@3.4.9)
       zod:
         specifier: 4.6.5
         version: 4.6.5
@@ -413,8 +413,8 @@ importers:
         specifier: workspace:*
         version: link:../kernel
       drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(postgres@3.4.9)
+        specifier: 0.45.3
+        version: 0.45.3(postgres@3.4.9)
     devDependencies:
       '@odudu/testkit':
         specifier: workspace:*
@@ -432,8 +432,8 @@ importers:
         specifier: workspace:*
         version: link:../kernel
       drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(postgres@3.4.9)
+        specifier: 0.45.3
+        version: 0.45.3(postgres@3.4.9)
       nodemailer:
         specifier: 10.0.13
         version: 10.0.13
@@ -505,8 +505,8 @@ importers:
         specifier: 3.0.1
         version: 3.0.1(ajv@8.20.0)
       drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(postgres@3.4.9)
+        specifier: 0.45.3
+        version: 0.45.3(postgres@3.4.9)
       fastify:
         specifier: 5.12.5
         version: 5.12.5
@@ -557,8 +557,8 @@ importers:
         specifier: workspace:*
         version: link:../kernel
       drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(postgres@3.4.9)
+        specifier: 0.45.3
+        version: 0.45.3(postgres@3.4.9)
       fastify:
         specifier: 5.12.5
         version: 5.12.5
@@ -2334,8 +2334,8 @@ packages:
     resolution: {integrity: sha512-avsq/xk4YPIrn0CgleX5bjT9Y8IT1p9PxrNQ++RBQ2WEyFfHCTDsT9kmyxz+H/axnjAwg8wJWEIuPGOUuNupiA==}
     engines: {node: '>= 14.17'}
 
-  drizzle-orm@0.45.2:
-    resolution: {integrity: sha512-kY0BSaTNYWnoDMVoyY8uxmyHjpJW1geOmBMdSSicKo9CIIWkSxMIj2rkeSR51b8KAPB7m+qysjuHme5nKP+E5Q==}
+  drizzle-orm@0.45.3:
+    resolution: {integrity: sha512-CAloER21cDdcgZ1OmjrZX82EeRNsdP+y0onX/eyoYDaYzki/adrAa91lzM5jWh7zZPK4qUbw/6LGv9J+A+uizA==}
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=4'
@@ -2343,6 +2343,7 @@ packages:
       '@libsql/client': '>=0.10.0'
       '@libsql/client-wasm': '>=0.10.0'
       '@neondatabase/serverless': '>=0.10.0'
+      '@netlify/db': '>=0.4.0'
       '@op-engineering/op-sqlite': '>=2'
       '@opentelemetry/api': ^1.4.1
       '@planetscale/database': '>=1.13'
@@ -2378,6 +2379,8 @@ packages:
       '@libsql/client-wasm':
         optional: true
       '@neondatabase/serverless':
+        optional: true
+      '@netlify/db':
         optional: true
       '@op-engineering/op-sqlite':
         optional: true
@@ -5422,7 +5425,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.45.2(postgres@3.4.9):
+  drizzle-orm@0.45.3(postgres@3.4.9):
     optionalDependencies:
       postgres: 3.4.9
 
