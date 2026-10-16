@@ -8,7 +8,7 @@ whole-branch review and awaits the merge into `main`. P4 has been split five way
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
 "P4 became four phases, then five" subsection has the reasoning.
 
-The order is **P4a → P4c → P4e → P4d → P4g → P4f → P4b → P4h**, and the letters deliberately
+The order is **P4a → P4c → P4e → P4d → P4g → P4b → P5a → P4f → P4h**, and the letters deliberately
 do not read in execution order, because `P4b` was spent on theming before P4
 split and an accepted ADR cites it. P4a was token exchange
 ([spec](archive/specs/2026-09-23-p4a-token-exchange-design.md)); P4c was
@@ -97,7 +97,7 @@ another paragraph. `tests/docs/next-budget.test.ts` holds the file to 400
 lines and any one section to 130, so an entry that has somewhere better to
 live is pushed there rather than accumulating here.
 
-## What P4g, P4f and P4b inherit
+## What P4g, P4b and P4f inherit
 
 **A console to build on, and the ways in.** The SPA talks to nothing but
 `/console/api/session`, `/console/api/admin/*`, `/console/auth/login` and

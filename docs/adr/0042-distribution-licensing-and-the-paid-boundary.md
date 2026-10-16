@@ -91,3 +91,20 @@ Dependabot's version bumps.
   it would rule out the commercial licence.
 - **No contribution terms until they are needed.** Retrofitting them means
   contacting every past contributor.
+
+## Amendment 2026-10-16: the MCP server is open
+
+An MCP server that exposes the admin API to a person's own assistant (Claude,
+Cursor and others) is part of the open product. It is a door onto the open
+admin API, held to the same capability ceiling, and the agent layer (P5)
+supplies the guardrails for its destructive tools; it ships in two phases, P5a (read tools and reversible writes) and P5b (the destructive tools). What stays paid is the hosted
+service's own assistance: natural-language administration inside the console,
+configuration review, audit anomaly explanation and policy suggestions. The
+paid layer may use the MCP server's tools; the open server never depends on it.
+
+The open product ships the MCP server and no built-in assistant. A person who
+wants AI in their administration connects their own client, with their own
+account, to that server; Odudu stores no AI provider key and hosts no chat
+surface. A basic bring-your-own-key panel is not planned, and is reopened only
+if users ask for it. The paid layer is the managed assistant, the proactive
+work that needs an always-on service, and the hosted service around them.
