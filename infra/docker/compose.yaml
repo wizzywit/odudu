@@ -102,7 +102,7 @@ services:
   # `docker compose --profile swagger up`. It loads the document live from
   # the server above, so a restarted server shows its new routes on reload.
   swagger:
-    image: swaggerapi/swagger-ui:v5.33.0@sha256:f9b8432be04e320406157e26c3ff52a7e9a4bea7eabe5477e9636791737eb119
+    image: swaggerapi/swagger-ui:v5.34.0@sha256:58c1fbf5f5cf6d2ae857e4d1296cb02192fa5de472c1cd76f58b2be99523e1d0
     profiles: ['swagger']
     environment:
       URL: http://localhost:${ODUDU_HOST_PORT:-3000}/admin/openapi.json
