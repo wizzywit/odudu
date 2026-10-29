@@ -9,7 +9,12 @@ import {
 } from '#/features/branding/adapter/theme';
 import { scopeKeyPart, themeRecord, type ThemeScope } from '#/features/branding/service';
 import { useRecordSaving } from '#/shared/repository/useSavingSections';
-import { recordKey, themeVersionsKey, themeWriteKey } from '#/shared/repository/queryKeys';
+import {
+  recordKey,
+  themeVersionsKey,
+  themeWriteKey,
+  themeWritesKey,
+} from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import type { RecordEntry } from '#/shared/repository/useRecord';
 import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
@@ -101,7 +106,7 @@ export function useThemeRunning(tenant: string, scope: ThemeScope): ThemeRunning
   const publish = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'publish') });
   const discard = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'discard') });
   const revert = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'revert') });
-  const every = useIsMutating({ mutationKey: ['theme-write', tenant] });
+  const every = useIsMutating({ mutationKey: themeWritesKey(tenant) });
   const sections = useRecordSaving(tenant, themeRecord(scope));
   return {
     publish: publish > 0,

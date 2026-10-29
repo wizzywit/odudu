@@ -145,6 +145,11 @@ export function themeWriteKey(tenant: string, scope: string, write: string) {
   return ['theme-write', tenant, scope, write] as const;
 }
 
+// Every write to a tenant's theme while it runs, whichever scope or part.
+export function themeWritesKey(tenant: string) {
+  return ['theme-write', tenant] as const;
+}
+
 // What a tenant's mail inherits from its published theme, read again once
 // a newer version is published.
 export function mailBrandingKey(tenant: string, publishedVersion: number) {
