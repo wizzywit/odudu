@@ -54,8 +54,8 @@ export function Branding(): ReactElement {
           Odudu look
         </label>
         <label className={styles.look}>
-          <input className={styles.pickOther} type="radio" name="branding-look" value="other" />{' '}
-          A tenant&apos;s theme
+          <input className={styles.pickOther} type="radio" name="branding-look" value="other" /> A
+          tenant&apos;s theme
         </label>
       </fieldset>
     </Section>

@@ -245,7 +245,8 @@ export const BRANDING: BrandingItem = {
   legend: 'The same sign-in page in two looks, both drawn by the server',
   caption: 'Same page and same markup. The second look is a tenant theme.',
   alt: {
-    odudu: "The sign-in page in Odudu's own look: its mark and name above the form, on a plain grid.",
+    odudu:
+      "The sign-in page in Odudu's own look: its mark and name above the form, on a plain grid.",
     other:
       "The same sign-in page in a tenant's theme: the tenant's purple colours, a monospaced font, a round logo and a soft purple background behind the form.",
   },

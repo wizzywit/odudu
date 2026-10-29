@@ -10,7 +10,7 @@ describe('Branding', () => {
     const band = $('section[data-section="branding"]');
     expect(band).toHaveLength(1);
     expect(band.find('h2').text()).toBe(BRANDING.title);
-        expect(band.find('[data-aside] [data-frame="look"]')).toHaveLength(1);
+    expect(band.find('[data-aside] [data-frame="look"]')).toHaveLength(1);
     expect(band.find('[data-aside] fieldset')).toHaveLength(0);
     expect(band.find('fieldset')).toHaveLength(1);
   });
