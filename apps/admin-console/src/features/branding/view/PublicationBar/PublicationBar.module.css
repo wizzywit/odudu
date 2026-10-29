@@ -50,7 +50,15 @@
   .actions {
     grid-area: actions;
     flex-wrap: nowrap;
-    max-inline-size: 12rem;
+    max-inline-size: 14rem;
+  }
+
+  .folded {
+    flex: none;
+  }
+
+  .folded button {
+    min-inline-size: 4.5rem;
   }
 
   .title,
