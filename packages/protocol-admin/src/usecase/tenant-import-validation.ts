@@ -436,7 +436,7 @@ function messageOverrideProblems(
   document.message_overrides.forEach((override, index) => {
     const at = `document.message_overrides[${String(index)}]`;
     if (!environment.isKnownMessageKey(override.key)) {
-      problems.add(`${at}.key`, 'is not the key of any page message');
+      problems.add(`${at}.key`, 'is not the key of any page or mail message');
     }
     const problem = environment.messageProblem(override.key, override.message);
     if (problem !== null) problems.add(`${at}.message`, `${problem} (override of ${override.key})`);

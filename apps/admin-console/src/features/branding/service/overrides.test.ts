@@ -27,7 +27,7 @@ describe('a refused override', () => {
   it('says a key the catalogue does not hold is unknown, in the console’s words', () => {
     const outcome = overrideFailure(
       refused(400, 'about:blank', {
-        errors: [{ path: 'key', message: 'is not the key of any page message' }],
+        errors: [{ path: 'key', message: 'is not the key of any page or mail message' }],
       }),
     );
     expect(outcome.errors).toEqual({ key: UNKNOWN_KEY });
