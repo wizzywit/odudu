@@ -35,7 +35,7 @@ async function openClientBranding(page: Page): Promise<void> {
   await expect(page.getByRole('region', { name: 'Publish', exact: true })).toBeVisible();
 }
 
-const strip = (page: Page): Locator => page.getByRole('region', { name: 'Preview' });
+const strip = (page: Page): Locator => page.getByRole('region', { name: 'Preview', exact: true });
 
 for (const [name, viewport] of WIDTHS) {
   test.describe(`on ${name}`, () => {
@@ -234,6 +234,8 @@ test.describe('on a phone', () => {
         for (const node of controls) {
           const box = node.getBoundingClientRect();
           if (box.width === 0 || box.height === 0) continue;
+          // The select a custom one keeps for forms, which is not what is pressed.
+          if (node.closest('[aria-hidden=true]') !== null) continue;
           const name = `${node.tagName.toLowerCase()} "${(node.getAttribute('aria-label') ?? node.textContent).trim().slice(0, 30)}"`;
           if (box.height < 43.5) small.push(`${name} ${String(Math.round(box.height))}px`);
           if (/^(INPUT|SELECT|TEXTAREA)$/u.test(node.tagName)) {
