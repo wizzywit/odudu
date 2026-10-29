@@ -11,7 +11,7 @@ import {
   clientsCount,
   clientsOffered,
 } from '#/features/scopes/service';
-import { useClientPicker } from '#/features/scopes/repository/useClientPicker';
+import { useClientPicker } from '#/shared/repository/useClientPicker';
 import { lacking } from '#/shared/service/access';
 import type { PickerState } from '#/shared/service/picker';
 import type { AdminCapability } from '#/shared/service/principal';
