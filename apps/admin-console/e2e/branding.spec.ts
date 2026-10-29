@@ -92,8 +92,8 @@ test('a sandboxed preview is drawn styled, and a published theme changes the rea
 
   const section = await customiseLight(page, '#ffe8d6');
   await save(section);
-  await expect(page.getByRole('region', { name: 'Publish' })).toContainText(
-    'A saved draft is waiting',
+  await expect(page.getByRole('region', { name: 'Publish', exact: true })).toContainText(
+    'Changed: Colours and font',
   );
   const body = preview(page).locator('body');
   await expect
@@ -118,7 +118,7 @@ test('a sandboxed preview is drawn styled, and a published theme changes the rea
   await before.close();
 
   await page.getByRole('button', { name: 'Publish the draft' }).click();
-  await expect(page.getByRole('region', { name: 'Publish' })).toContainText(
+  await expect(page.getByRole('region', { name: 'Publish', exact: true })).toContainText(
     'Version 1 is published.',
   );
   const after = await visit(browser, publish.tenant);
@@ -177,7 +177,7 @@ test('a failing contrast pair blocks publishing, and the server is not asked', a
   await expect(panel.getByRole('status')).toContainText(/fail/u);
   await save(section);
 
-  const publish = page.getByRole('region', { name: 'Publish' });
+  const publish = page.getByRole('region', { name: 'Publish', exact: true });
   await expect(publish.getByRole('button', { name: 'Publish the draft' })).toBeDisabled();
   await expect(publish.getByRole('note')).toContainText(
     'Fix the contrast before publishing: Light: Text on page',
@@ -196,7 +196,7 @@ test('reset asks first, then returns the tenant to Instrument’s own pages', as
   const section = await customiseLight(page, '#d6f0ff');
   await save(section);
   await page.getByRole('button', { name: 'Publish the draft' }).click();
-  await expect(page.getByRole('region', { name: 'Publish' })).toContainText(
+  await expect(page.getByRole('region', { name: 'Publish', exact: true })).toContainText(
     'Version 1 is published.',
   );
   const themed = await visit(browser, reset.tenant);
@@ -207,13 +207,13 @@ test('reset asks first, then returns the tenant to Instrument’s own pages', as
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toContainText('Deletes the draft and unpublishes the theme');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
-  await expect(page.getByRole('region', { name: 'Publish' })).toContainText(
+  await expect(page.getByRole('region', { name: 'Publish', exact: true })).toContainText(
     'Version 1 is published.',
   );
 
   await page.getByRole('button', { name: 'Reset to default…' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Reset to default' }).click();
-  await expect(page.getByRole('region', { name: 'Publish' })).toContainText(
+  await expect(page.getByRole('region', { name: 'Publish', exact: true })).toContainText(
     'Nothing published yet',
   );
   const plain = await visit(browser, reset.tenant);
@@ -238,7 +238,9 @@ test('works from the keyboard alone', async ({ page }) => {
   await tabTo(page, section.getByRole('button', { name: /^Save/u }));
   await page.keyboard.press('Enter');
   await expect(section.getByRole('button', { name: /^Save/u })).toBeHidden();
-  await expect(page.getByRole('region', { name: 'Publish' })).toContainText('A saved draft');
+  await expect(page.getByRole('region', { name: 'Publish', exact: true })).toContainText(
+    'Changed: Colours and font',
+  );
 
   // The Pages tab, by arrow, then a page picked and a template written. The
   // way round passes the stylesheet editor, left with Escape.
@@ -332,7 +334,7 @@ test('edits the stylesheet, meets a refusal on its line, and publishes it to the
   await before.close();
 
   await page.getByRole('button', { name: 'Publish the draft' }).click();
-  await expect(page.getByRole('region', { name: 'Publish' })).toContainText(
+  await expect(page.getByRole('region', { name: 'Publish', exact: true })).toContainText(
     'Version 1 is published.',
   );
   const after = await visit(browser, styled.tenant);
@@ -705,7 +707,7 @@ test('a client has its own theme over the tenant’s, and a name in French', asy
   expect(await surface(before.page)).not.toBe('rgb(255, 232, 214)');
   await before.close();
   await page.getByRole('button', { name: 'Publish the draft' }).click();
-  await expect(page.getByRole('region', { name: 'Publish' })).toContainText(
+  await expect(page.getByRole('region', { name: 'Publish', exact: true })).toContainText(
     'Version 1 is published.',
   );
   const after = await visit(browser, client.tenant);
@@ -714,7 +716,7 @@ test('a client has its own theme over the tenant’s, and a name in French', asy
 
   // The tenant's own theme is untouched by the client's.
   await page.goto(`/console/${client.tenant}/branding`);
-  await expect(page.getByRole('region', { name: 'Publish' })).toContainText(
+  await expect(page.getByRole('region', { name: 'Publish', exact: true })).toContainText(
     'Nothing published yet',
   );
 });
@@ -728,7 +730,7 @@ test('publishes from the Pages tab, reverts the tab to what is published, and di
   await page.goto(`/console/${publication.tenant}/branding?tab=pages`);
   const section = page.getByRole('region', { name: 'Page templates' });
   const editor = section.getByRole('textbox', { name: 'Sign in: template' });
-  const bar = page.getByRole('region', { name: 'Publish' });
+  const bar = page.getByRole('region', { name: 'Publish', exact: true });
   const publish = bar.getByRole('button', { name: 'Publish the draft' });
   const template = (heading: string): string =>
     `{{error}}{{form.open}}{{fields}}{{submit}}{{form.close}}<h2>${heading}</h2>`;
@@ -736,12 +738,12 @@ test('publishes from the Pages tab, reverts the tab to what is published, and di
   await editor.fill(template('One'));
   await save(section);
   await expect(bar).toContainText('Changed: Page templates');
-  await expect(page.getByRole('tab', { name: 'Pages, changes to publish' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^Pages\s*, changes to publish$/u })).toBeVisible();
   await expectAccessible(page, { exclude: [FRAME] });
 
   await publish.click();
   await expect(bar).toContainText('Version 1 is published.');
-  await expect(bar).toContainText('The draft matches what people see.');
+  await expect(bar).toContainText('No draft.');
   await expect(page.getByRole('tab', { name: 'Pages', exact: true })).toBeVisible();
 
   await editor.fill(template('Two'));
