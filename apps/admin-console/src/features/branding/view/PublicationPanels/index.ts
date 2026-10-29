@@ -1,6 +1,5 @@
 export {
-  PublishPanel,
   ResetPanel,
-  StatusPanel,
+  RevertPanel,
   VersionsPanel,
 } from '#/features/branding/view/PublicationPanels/PublicationPanels';

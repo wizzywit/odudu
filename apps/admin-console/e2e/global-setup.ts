@@ -541,6 +541,7 @@ export default function globalSetup(): void {
       styled: { tenant: `${run}-b9`, username: 'kite', password: password() },
       catalogue: { tenant: `${run}-b10`, username: 'piper', password: password() },
       client: { tenant: `${run}-b11`, username: 'swallow', password: password() },
+      publication: { tenant: `${run}-b12`, username: 'ibis', password: password() },
     },
     lockouts: {
       main: { tenant: `${run}-l1`, username: 'curie', password: password() },

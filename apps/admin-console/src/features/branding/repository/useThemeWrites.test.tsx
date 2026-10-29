@@ -62,3 +62,42 @@ it('writes a reset’s answer over the record', async () => {
   });
   expect(queryClient.getQueryData(['record', 'acme', 'theme'])).toBeDefined();
 });
+
+it('writes a discard’s answer over the record and leaves the versions alone', async () => {
+  const { wrapper, queryClient, invalidated } = harness({
+    [`DELETE ${TH}/draft`]: json({ ...draftedView(), draft: null, changed: [] }),
+  });
+  const { result } = renderHook(() => useThemeWrites('acme', TENANT), { wrapper });
+  await act(async () => {
+    await result.current.discard.run('"d1"');
+  });
+  const entry = queryClient.getQueryData<{ result: { data: ThemeView; etag: string }; by: string }>(
+    ['record', 'acme', 'theme'],
+  );
+  expect(entry?.by).toBe('save');
+  expect(entry?.result.data.draft).toBeNull();
+  expect(entry?.result.data.published).not.toBeNull();
+  expect(invalidated).not.toHaveBeenCalled();
+});
+
+it('writes a revert’s answer over the record, and reads again when the draft has moved on', async () => {
+  const { wrapper, queryClient, invalidated } = harness({
+    [`PUT ${TH}`]: json(draftedView(), 200, { etag: '"d2"' }),
+  });
+  const { result } = renderHook(() => useThemeWrites('acme', TENANT), { wrapper });
+  await act(async () => {
+    await result.current.revert.run({ body: { stylesheet: null }, tag: '"d1"' });
+  });
+  expect(queryClient.getQueryData(['record', 'acme', 'theme'])).toBeDefined();
+  expect(invalidated).not.toHaveBeenCalled();
+
+  const stale = harness({ [`PUT ${TH}`]: problem(412, 'about:blank', 'Precondition Failed') });
+  const again = renderHook(() => useThemeWrites('acme', TENANT), { wrapper: stale.wrapper });
+  await act(async () => {
+    await again.result.current.revert.run({ body: { stylesheet: null }, tag: '"old"' });
+  });
+  expect(stale.invalidated).toHaveBeenCalledWith({
+    queryKey: ['record', 'acme', 'theme'],
+    exact: true,
+  });
+});

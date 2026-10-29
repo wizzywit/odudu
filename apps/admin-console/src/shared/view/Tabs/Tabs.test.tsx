@@ -37,6 +37,22 @@ it('says in words that a tab holds unsaved changes', () => {
   expect(screen.getByRole('tab', { name: 'Tokens, unsaved changes' })).toBeInTheDocument();
 });
 
+it('says in words that a tab holds part of a change not yet published, beside any unsaved dot', () => {
+  render(
+    <Tabs
+      label="Client sections"
+      tabs={[
+        { id: 'a', label: 'A', changed: true, panel: <p>a</p> },
+        { id: 'b', label: 'B', dirty: true, changed: true, panel: <p>b</p> },
+      ]}
+    />,
+  );
+  expect(screen.getByRole('tab', { name: 'A, changes to publish' })).toBeInTheDocument();
+  expect(
+    screen.getByRole('tab', { name: 'B, unsaved changes, changes to publish' }),
+  ).toBeInTheDocument();
+});
+
 it('reports a selection it is told to control', async () => {
   const user = userEvent.setup();
   const onSelectionChange = vi.fn();

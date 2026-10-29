@@ -25,7 +25,6 @@ export function ThemePanel({ tenant, branding, view, tag }: PanelProps) {
           tag={tag}
           gone={branding.record.gone}
           published={branding.published}
-          onPublished={branding.setPublished}
         />
       }
     />

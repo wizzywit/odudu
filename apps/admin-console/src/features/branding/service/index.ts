@@ -12,6 +12,7 @@ export * from '#/features/branding/service/overrides';
 export * from '#/features/branding/service/palette';
 export * from '#/features/branding/service/preview';
 export * from '#/features/branding/service/problems';
+export * from '#/features/branding/service/publication';
 export * from '#/features/branding/service/publish';
 export * from '#/features/branding/service/scope';
 export * from '#/features/branding/service/selectors';
