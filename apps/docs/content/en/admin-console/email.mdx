@@ -36,6 +36,8 @@ The password is stored, never shown again. To remove it, turn on **Remove the st
 
 Under **Test message**, enter an address in **Send to** and choose **Send test message**. The console sends one message through the saved relay and tells you what the server answered. It uses the saved relay, so save first.
 
+The message wears the tenant's published theme (its logo and colours) and its own wording, as a verification mail does. It is not a client's mail, because no sign-in is behind it, unless you choose one: **Send as client** offers the client you signed in with, which is the default when you may manage clients, **The tenant's own look**, and the tenant's other clients. A client with no theme of its own, or one that is disabled, shows the tenant's look. Choosing a client needs the manage-clients capability as well as manage-tenant.
+
 ## 4. Watch the delivery
 
 The **Delivery** list shows the latest mail the tenant sent or tried to send, newest first. Use **Show** to look at only **Queued**, **Retrying**, **Failed** or **Sent** messages, and **Refresh** to read it again. A message is failed once every attempt is spent. The list never shows a message's body, because it carries a link that signs somebody in.
