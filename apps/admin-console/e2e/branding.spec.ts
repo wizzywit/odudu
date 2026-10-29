@@ -534,7 +534,7 @@ test('sets a message override, refuses a key that is not a message, and removes 
   await key.fill('no.such.key');
   await text.fill('Hello');
   await page.getByRole('button', { name: 'Save override' }).click();
-  await expect(page.getByText(/not the key of any page message/u)).toBeVisible();
+  await expect(page.getByText(/not the key of any page or mail message/u)).toBeVisible();
   forgive(problems, '/message-overrides/en/no.such.key');
 
   // The list offers the keys the pages hold, a bounded number at a time, each

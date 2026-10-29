@@ -80,7 +80,7 @@ export function putMessageOverrideHandler(deps: MessageOverridesRouteDeps): Admi
         return sendProblem(
           reply,
           request,
-          fieldProblem([{ path: 'key', message: 'is not the key of any page message' }]),
+          fieldProblem([{ path: 'key', message: 'is not the key of any page or mail message' }]),
         );
       case 'invalid_message':
         return sendProblem(

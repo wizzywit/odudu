@@ -93,7 +93,7 @@ describe('PUT and DELETE /message-overrides/{locale}/{key}', () => {
     const res = await put(ctx, 'fr', 'login.nonesuch', 'x');
     expect(res.statusCode).toBe(400);
     expect(res.json<{ errors: unknown[] }>().errors).toEqual([
-      { path: 'key', message: 'is not the key of any page message' },
+      { path: 'key', message: 'is not the key of any page or mail message' },
     ]);
     expect((await list(ctx, 'locale=fr')).items).toEqual([]);
     expect(fixture.invalidatedOverrides).not.toContain(ctx.tenant.id);

@@ -5,7 +5,7 @@ import {
   outboxRepository,
   renderRecoveryCodesRevoked,
   renderSecondFactorRemoved,
-  type MailBrandingResolver,
+  type MailLookResolver,
 } from '@odudu/email';
 import { eq } from 'drizzle-orm';
 
@@ -27,7 +27,7 @@ export async function enqueueCredentialNotice(
   tx: TenantScopedDatabase,
   input: { readonly tenantId: string; readonly subjectId: string; readonly now: Date },
   notice: CredentialNotice,
-  resolveMailBranding?: MailBrandingResolver,
+  resolveMailLook?: MailLookResolver,
 ): Promise<'queued' | 'no_address'> {
   const [user] = await tx
     .select({ email: users.email, locale: users.locale })
@@ -43,7 +43,7 @@ export async function enqueueCredentialNotice(
     tenantDisplayName: tenant?.displayName ?? tenant?.name ?? '',
     locale: user.locale,
     now: input.now,
-    ...(await mailContext(tx, resolveMailBranding, {
+    ...(await mailContext(tx, resolveMailLook, {
       tenantId: input.tenantId,
       tenantName: tenant?.name ?? '',
     })),

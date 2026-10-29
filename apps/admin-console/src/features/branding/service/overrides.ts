@@ -19,7 +19,7 @@ import type { GatewayFailure, GatewayResult, Problem } from '#/shared/service/re
 export const OVERRIDES_TITLE = 'Message overrides';
 
 export const OVERRIDES_DESCRIPTION =
-  'The tenant’s own wording for the messages its pages show, per language. A language with no override shows the catalogue’s text. Mail is not changed by these.';
+  'The tenant’s own wording for the messages its pages and its mail show, per language. A language with no override shows the catalogue’s text. Mail follows the tenant’s theme only. A client’s own theme never reaches it.';
 
 export const OVERRIDE_CAP = MESSAGE_OVERRIDE_LIMIT;
 
@@ -30,7 +30,7 @@ export const OVERRIDE_LENGTH = MESSAGE_OVERRIDE_MAX_LENGTH;
 export const KEY_LABEL = 'Message key';
 
 export const KEY_NOTE =
-  'The key of the page message to replace, such as login.title. Choose one from the list, with its English text beside it, or type it; a key the server does not know is refused.';
+  'The key of the page or mail message to replace, such as login.title or reset.subject. Choose one from the list, with its English text beside it, or type it; a key the server does not know is refused.';
 
 export const MESSAGE_LABEL = 'Text shown instead';
 
@@ -50,7 +50,7 @@ export const NOUN = { one: 'override', other: 'overrides' } as const;
 // What the console says in place of the server's field messages: the server
 // names a path, the console says what to do about it.
 export const UNKNOWN_KEY =
-  'That is not the key of any page message. Keys look like login.title, and the catalogue is in English.';
+  'That is not the key of any page or mail message. Keys look like login.title, and the catalogue is in English.';
 
 export const OVER_BOUND = `The tenant already has ${String(OVERRIDE_CAP)} message overrides, the most it may hold. Remove one first; changing an override that exists is always allowed.`;
 
@@ -132,12 +132,13 @@ export function savedText(locale: string, key: string): string {
   return `The ${locale} text for ${key} was saved.`;
 }
 
-export const REMOVED_TEXT = 'The override was removed. The page shows the catalogue’s text again.';
+export const REMOVED_TEXT =
+  'The override was removed. The page or mail shows the catalogue’s text again.';
 
 export const ALREADY_REMOVED = 'That override is already gone. The list is read again.';
 
 export function removeConsequence(override: Pick<MessageOverride, 'locale' | 'key'>): string {
-  return `Pages in ${override.locale} show the catalogue’s text for ${override.key} again. Other languages are not affected.`;
+  return `Pages and mail in ${override.locale} show the catalogue’s text for ${override.key} again. Other languages are not affected.`;
 }
 
 export function askedRemoval(asked: Pick<MessageOverride, 'locale' | 'key'> | null): string {

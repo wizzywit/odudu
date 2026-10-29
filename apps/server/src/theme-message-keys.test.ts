@@ -1,3 +1,4 @@
+import { isMailMessageKey, MAIL_MESSAGES } from '@odudu/email';
 import { PAGE_KINDS, scanSlots, type PageKind } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import {
@@ -34,6 +35,23 @@ describe('isOverridableMessageKey', () => {
     expect(isOverridableMessageKey('verification.succeeded.title')).toBe(true);
   });
 
+  it('accepts every key a mail reads, derived from the mail catalogue', () => {
+    expect(Object.keys(MAIL_MESSAGES).length).toBeGreaterThan(50);
+    for (const key of Object.keys(MAIL_MESSAGES)) {
+      expect(isOverridableMessageKey(key), key).toBe(true);
+    }
+  });
+
+  it('keeps a mail key out of every page, and a page key out of the mail', () => {
+    for (const key of Object.keys(MAIL_MESSAGES)) {
+      for (const kind of KINDS) expect(isThemeMessageKey(kind, key), `${kind} ${key}`).toBe(false);
+    }
+    for (const section of pageMessageCatalogue().sections) {
+      if (section.kinds.length === 0) continue;
+      for (const { key } of section.messages) expect(isMailMessageKey(key), key).toBe(false);
+    }
+  });
+
   it('refuses a key in none, and Object.prototype names', () => {
     expect(isOverridableMessageKey('login.nonesuch')).toBe(false);
     expect(isOverridableMessageKey('')).toBe(false);
@@ -61,6 +79,15 @@ describe('pageMessageCatalogue', () => {
     }
   });
 
+  it('ends with one section of the mail messages, which fills no page kind', () => {
+    const mail = sections.at(-1);
+    expect(mail?.kinds).toEqual([]);
+    expect(mail?.messages.map((message) => message.key).sort()).toEqual(
+      Object.keys(MAIL_MESSAGES).sort(),
+    );
+    expect(sections.filter((section) => section.kinds.length === 0)).toHaveLength(1);
+  });
+
   it('puts every page kind in one section and no section twice', () => {
     const seen = sections.flatMap((section) => section.kinds);
     expect([...seen].sort()).toEqual([...KINDS].sort());
@@ -75,8 +102,8 @@ describe('pageMessageCatalogue', () => {
     }
   });
 
-  it('lists only keys a template can write as {{t "key"}}, so a pick is never malformed', () => {
-    for (const section of sections) {
+  it('lists only keys a template can write as {{t "key"}} in a page section, so a pick is never malformed', () => {
+    for (const section of sections.filter((entry) => entry.kinds.length > 0)) {
       for (const { key } of section.messages) {
         expect(scanSlots(`{{t "${key}"}}`), key).toEqual([
           { kind: 'text', name: key, index: 0, end: key.length + 8 },
@@ -100,6 +127,19 @@ describe('overrideProblemFor', () => {
     expect(overrideProblemFor('login.context', 'to reach {app}')).toContain('{app}');
     expect(overrideProblemFor('login.title', 'Hi {name')).toContain('not a valid message');
     expect(overrideProblemFor('login.title', '')).toContain('empty');
+  });
+
+  it('does not offer the attribution a mail carries, as a page has none', () => {
+    for (const key of ['mail.brand', 'mail.copyright', 'mail.poweredBy']) {
+      expect(isOverridableMessageKey(key), key).toBe(false);
+    }
+  });
+
+  it('holds a mail key to the arguments its English text reads', () => {
+    expect(overrideProblemFor('reset.subject', 'For {tenant}')).toBeNull();
+    expect(overrideProblemFor('reset.subject', 'For {nobody}')).toContain('{nobody}');
+    expect(overrideProblemFor('reset.reason', 'Because of {tenant}')).toBeNull();
+    expect(overrideProblemFor('reset.button', 'Go {tenant}')).toContain('{tenant}');
   });
 
   it('asks only the syntax rules of a key it has no page text for', () => {

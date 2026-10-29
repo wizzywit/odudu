@@ -1,5 +1,5 @@
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
-import { type MailBrandingResolver } from '@odudu/email';
+import { type MailLookResolver } from '@odudu/email';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
 import { type FastifyInstance, type FastifyReply } from 'fastify';
@@ -57,7 +57,7 @@ export interface RegistrationRouteDeps extends BrandedLocaleDeps {
   readonly now: () => Date;
   // Reads the tenant's theme for the mail this route queues, as it does for
   // the page: a route cannot queue a mail without being handed it.
-  readonly resolveMailBranding: MailBrandingResolver;
+  readonly resolveMailLook: MailLookResolver;
   readonly createAccount: (
     tx: TenantScopedDatabase,
     tenantId: string,
@@ -204,7 +204,7 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
         resetPasswordAllowed: tenant.resetPasswordAllowed,
         authenticationSessionId: referenceToResume(held, returnTo),
         now: deps.now,
-        resolveMailBranding: deps.resolveMailBranding,
+        resolveMailLook: deps.resolveMailLook,
         createAccount: deps.createAccount,
         lockAddress: deps.lockAddress,
         findTaken: deps.findTaken,

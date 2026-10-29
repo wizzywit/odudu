@@ -33,7 +33,7 @@ export async function enqueueActionsLink(
 ): Promise<void> {
   const actions = orderedActions(link.actions);
   if (actions.length === 0) throw new Error('an actions link names no action this server takes');
-  const mail = await mailContext(tx, tenant.resolveMailBranding, tenant);
+  const mail = await mailContext(tx, tenant.resolveMailLook, tenant);
   const tokens = actionTokenRepository(tx);
   const { token } = await tokens.issue({
     tenantId: tenant.tenantId,

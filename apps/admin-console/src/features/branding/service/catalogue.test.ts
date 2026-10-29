@@ -2,6 +2,7 @@ import type { MessageCatalogueResponse } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import {
   allMessages,
+  MAIL_GROUP_LABEL,
   messageOptions,
   messagesOf,
   messagesForKind,
@@ -51,6 +52,32 @@ describe('allMessages', () => {
       { key: 'register.title', text: 'Create an account' },
       { key: 'shared.cancel', text: 'Cancel' },
     ]);
+  });
+});
+
+describe('the mail section', () => {
+  const WITH_MAIL: MessageCatalogueResponse = {
+    sections: [
+      ...CATALOGUE.sections,
+      { kinds: [], messages: [{ key: 'reset.subject', en: 'Reset your {tenant} password' }] },
+    ],
+  };
+
+  it('is offered to an override, marked as mail, and to no page kind', () => {
+    expect(allMessages(WITH_MAIL).find((m) => m.key === 'reset.subject')).toEqual({
+      key: 'reset.subject',
+      text: 'Reset your {tenant} password',
+      group: MAIL_GROUP_LABEL,
+    });
+    expect(allMessages(WITH_MAIL).find((m) => m.key === 'login.title')?.group).toBeUndefined();
+    for (const kind of ['sign-in', 'consent', 'registration', 'notice'] as const) {
+      expect(messagesForKind(WITH_MAIL, kind).map((m) => m.key)).not.toContain('reset.subject');
+    }
+  });
+
+  it('shows its group beside the English text in the picker', () => {
+    const [option] = messageOptions(allMessages(WITH_MAIL).filter((m) => m.group !== undefined));
+    expect(option?.detail).toBe(`${MAIL_GROUP_LABEL}: Reset your {tenant} password`);
   });
 });
 

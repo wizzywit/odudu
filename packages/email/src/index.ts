@@ -34,8 +34,10 @@ export {
   mailContext,
   tenantMailContext,
   type TenantMailContext,
-  type MailBrandingResolver,
+  type MailLookResolver,
   type MailContext,
+  type MailOverrides,
+  type MailTenantLook,
   type MailTenantScope,
 } from '#/usecase/mail-context';
 export {
@@ -44,3 +46,4 @@ export {
   mailSchemeColours,
   type SchemeColours,
 } from '#/service/preview';
+export { MAIL_MESSAGES, isMailMessageKey } from '#/service/messages';

@@ -11,7 +11,7 @@ import {
   resolveMailBranding,
   type ResolveBrandingDeps,
 } from '@odudu/domain-theme';
-import { type MailBrandingResolver } from '@odudu/email';
+import { type MailThemeResolver } from '#/mail-look';
 import { clientRepository } from '@odudu/domain-tenant';
 import { systemClock, type BrandingResolver, type PageBranding } from '@odudu/kernel';
 import { type Logger as PinoLogger } from 'pino';
@@ -20,7 +20,7 @@ export interface Branding {
   resolveBranding: BrandingResolver;
   // The tenant's theme as its mail wears it, read in the transaction the mail
   // is queued in; the page resolver's cache answers it when it can.
-  resolveMailBranding: MailBrandingResolver;
+  resolveMailBranding: MailThemeResolver;
   // Whether a client_id is a registered client of the tenant, for the one
   // `return_to` an account page reads a client from.
   isClientOfTenant: (tenantId: string, clientId: string) => Promise<boolean>;

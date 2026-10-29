@@ -1,5 +1,6 @@
 import { putSmtpRequestSchema, testSmtpRequestSchema } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
+import { type MailLookResolver } from '@odudu/email';
 import { readPasswordField } from '@odudu/kernel';
 import { etagOf } from '#/service/etag';
 import { type SmtpDestinationPolicy } from '#/service/smtp-destination';
@@ -32,6 +33,8 @@ export interface SmtpRouteDeps {
   /** Whether the deployment has a sender of its own, which a tenant without one falls back to. */
   readonly deploymentSmtp: boolean;
   readonly now: () => Date;
+  /** The tenant's wording, which the test mail is read through like any other. */
+  readonly resolveMailLook?: MailLookResolver | undefined;
 }
 
 export function readSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
@@ -174,7 +177,7 @@ export function testSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
     // an unreachable or slow SMTP host must never hold a pooled connection
     // for the length of the attempt.
     const readOutcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
-      readSmtpForTest(tx, targetTenantId),
+      readSmtpForTest(tx, targetTenantId, deps.resolveMailLook),
     );
     if (readOutcome.kind === 'not_configured') {
       await record('not_configured');
@@ -189,6 +192,7 @@ export function testSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
       to: body.to,
       tenantDisplayName: readOutcome.tenantDisplayName,
       now: deps.now(),
+      ...readOutcome.wording,
     });
     switch (sendOutcome.kind) {
       case 'refused_destination':

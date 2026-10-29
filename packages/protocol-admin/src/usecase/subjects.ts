@@ -1,4 +1,4 @@
-import { type MailBrandingResolver } from '@odudu/email';
+import { type MailLookResolver } from '@odudu/email';
 import { BIDI_REFUSED_MESSAGE, refusesBidi } from '@odudu/contracts';
 import {
   onSecondFactorRemoved,
@@ -963,7 +963,7 @@ export interface DeleteCredentialDeps {
    * usecase runs without a theme store; its route deps require it, so no route
    * queues a notice without one.
    */
-  readonly resolveMailBranding?: MailBrandingResolver | undefined;
+  readonly resolveMailLook?: MailLookResolver | undefined;
   /**
    * Ends the subject's sessions in this transaction and says how many ended;
    * given only when the request asked for it. Injected because the sessions
@@ -1045,7 +1045,7 @@ export async function deleteCredential(
         factor: row.type,
         codes: recoveryCodesRevoked > 0,
       },
-      deps.resolveMailBranding,
+      deps.resolveMailLook,
     );
   }
   return { kind: 'deleted' };

@@ -1,5 +1,5 @@
 import { type MessageCatalogueResponse } from '@odudu/contracts/admin';
-import { type MailBrandingResolver } from '@odudu/email';
+import { type MailLookResolver } from '@odudu/email';
 import { sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
 import { type DatabaseHandle, type TenantScopedDatabase, withTenant } from '@odudu/db';
@@ -305,7 +305,7 @@ export interface AdminRoutesDeps {
   sendAccountLink: SendAccountLink;
   // The tenant's theme as its mail wears it, for the notices this package
   // queues itself; wired at the composition root beside the page resolver.
-  resolveMailBranding: MailBrandingResolver;
+  resolveMailLook: MailLookResolver;
   // `ODUDU_OUTBOX_MAX_ATTEMPTS`, the attempts the mail sender makes before it
   // stops offering a message: what `GET …/mail` reports as `failed`.
   outboxMaxAttempts: number;
@@ -445,7 +445,7 @@ function buildAdminRoutes(
       cursorKey: deps.cursorKey,
       audit: subjectAudit,
       now: () => clock.now(),
-      resolveMailBranding: deps.resolveMailBranding,
+      resolveMailLook: deps.resolveMailLook,
       callerCapabilities,
     };
     const rolesDeps: RolesRouteDeps = {
@@ -491,6 +491,7 @@ function buildAdminRoutes(
       },
       deploymentSmtp: deps.deploymentSmtp ?? false,
       now: () => clock.now(),
+      resolveMailLook: deps.resolveMailLook,
     };
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,
@@ -560,7 +561,7 @@ function buildAdminRoutes(
     const clientPreviewInfo = themePreviewInfoHandler(previewDeps, 'client');
     const mailDeps = {
       database: deps.database.db,
-      resolveMailBranding: deps.resolveMailBranding,
+      resolveMailLook: deps.resolveMailLook,
       now: () => clock.now(),
     };
     const clientsDeps: ClientsRouteDeps = {
@@ -640,7 +641,7 @@ function buildAdminRoutes(
       audit: accountRecoveryAudit,
       callerCapabilities,
       retireResetLinks: deps.retireResetLinks,
-      resolveMailBranding: deps.resolveMailBranding,
+      resolveMailLook: deps.resolveMailLook,
       now: () => clock.now(),
     };
     const auditDeps: AuditRouteDeps = {

@@ -102,4 +102,35 @@ describe('sendTestMessage, the mail it sends', () => {
   it('names the tenant it was sent for', async () => {
     expect((await sentAt('2031-06-01T12:00:00Z')).html).toContain('<bdi>Demo</bdi>');
   });
+
+  it('carries the tenant’s own wording, in the language it offers', async () => {
+    const sent: EmailMessage[] = [];
+    await sendTestMessage(
+      RECORD,
+      KEK,
+      admitting('203.0.113.10'),
+      {
+        to: 'ops@example.test',
+        tenantDisplayName: 'Demo',
+        now: new Date('2026-10-29T00:00:00Z'),
+        tenantDefaultLocale: 'en',
+        supportedLocales: ['en'],
+        overrides: {
+          en: { 'smtpTest.heading': 'Acme relay check', 'smtpTest.subject': 'Acme SMTP' },
+        },
+      },
+      () =>
+        Promise.resolve({
+          kind: 'ok',
+          sender: {
+            send: (message) => {
+              sent.push(message);
+              return Promise.resolve();
+            },
+          },
+        }),
+    );
+    expect(sent[0]?.subject).toBe('Acme SMTP');
+    expect(sent[0]?.html).toContain('Acme relay check');
+  });
 });
