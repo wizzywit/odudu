@@ -7,6 +7,7 @@ import {
 import { type Database } from '@odudu/db';
 import { type FastifyReply } from 'fastify';
 import {
+  discardDraft,
   listVersions,
   publishDraft,
   readTheme,
@@ -39,6 +40,7 @@ export interface ThemeHandlers {
   readonly versions: AdminRouteHandler;
   readonly restore: AdminRouteHandler;
   readonly reset: AdminRouteHandler;
+  readonly discard: AdminRouteHandler;
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -62,6 +64,7 @@ function wireView(view: ThemeViewResult): ThemeView {
     sources: view.sources,
     draft_sources: view.draftSources,
     tenant_sources: view.tenantSources,
+    changed: view.changed,
   };
 }
 
@@ -171,6 +174,17 @@ export function themeHandlers(deps: ThemeRouteDeps, scope: 'tenant' | 'client'):
             request,
             problem(409, 'about:blank#theme-no-draft', 'Conflict', 'there is no draft to publish'),
           );
+        case 'nothing_to_publish':
+          return sendProblem(
+            reply,
+            request,
+            problem(
+              409,
+              'about:blank#theme-nothing-to-publish',
+              'Conflict',
+              'the draft matches the published theme, so there is nothing to publish',
+            ),
+          );
         case 'precondition_failed':
           return sendProblem(reply, request, ifMatchStale());
         case 'invalid':
@@ -237,6 +251,29 @@ export function themeHandlers(deps: ThemeRouteDeps, scope: 'tenant' | 'client'):
           });
         case 'restored':
           deps.invalidateTenant(tenantId);
+          return sendView(reply, outcome.view);
+      }
+    },
+
+    discard: async (request, reply, principal, tenantId) => {
+      const target = targetOf(request, tenantId);
+      const outcome = await adminTx(deps.database, request, tenantId, (tx) =>
+        discardDraft(tx, usecaseDeps, target, actorOf(principal), {
+          ifMatch: ifMatchHeader(request),
+        }),
+      );
+      switch (outcome.kind) {
+        case 'not_found':
+          return notFound(reply, request);
+        case 'precondition_required':
+          return sendProblem(
+            reply,
+            request,
+            ifMatchRequired('the draft theme', request.headers['if-match']),
+          );
+        case 'precondition_failed':
+          return sendProblem(reply, request, ifMatchStale());
+        case 'discarded':
           return sendView(reply, outcome.view);
       }
     },

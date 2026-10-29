@@ -167,6 +167,9 @@ const INFO_STATEMENTS = 9;
 const CLIENT_THEME_STATEMENTS = 10;
 const CLIENT_READ_STATEMENTS = 9;
 const CONTENT_STATEMENTS = 7;
+const THEME_READ_STATEMENTS = 8;
+const DISCARD_STATEMENTS = 13;
+const CLIENT_DISCARD_STATEMENTS = 15;
 
 async function statementsFor(w: World, path: string, capabilities?: string[]): Promise<number> {
   branding.invalidateTenant(w.tenantId);
@@ -175,6 +178,110 @@ async function statementsFor(w: World, path: string, capabilities?: string[]): P
   expect(result.statusCode, result.body).toBe(200);
   return statements.filter(isWork).length;
 }
+
+async function draftOnly(w: World, themeBody: ThemeBody, clientPath?: string): Promise<void> {
+  await withTenant(appDb.db, w.tenantId, async (tx) => {
+    const themes = themeRepository(tx);
+    const clientId = clientPath === undefined ? null : (clientPath.split('/')[2] ?? null);
+    const scope = { tenantId: w.tenantId, clientId };
+    await themes.saveDraft(scope, themeBody, (await themes.draft(scope))?.etag ?? null);
+  });
+}
+
+describe('which pieces of a draft differ', () => {
+  const ALL = theme({
+    tokens: { light: LIGHT, dark: NIGHT },
+    stylesheet: '.page { color: red; }',
+    templates: {
+      'sign-in':
+        '<div>{{t "login.title"}}{{error}}{{form.open}}{{fields}}{{submit}}{{form.close}}</div>',
+    },
+  });
+
+  it('costs the same few statements whatever the draft differs in', async () => {
+    const none = await world();
+    const one = await world();
+    const every = await world();
+    await publish(none, theme({}));
+    await draftOnly(one, theme({ stylesheet: '.a { }' }));
+    await draftOnly(every, ALL);
+    const base = await statementsFor(none, '/theme');
+    const single = await statementsFor(one, '/theme');
+    const all = await statementsFor(every, '/theme');
+    expect(single).toBe(all);
+    expect(all).toBeLessThanOrEqual(THEME_READ_STATEMENTS);
+    expect(base).toBeLessThanOrEqual(all);
+  });
+
+  it('is empty for the tenant’s draft when only another tenant’s differs', async () => {
+    const mine = await world();
+    const theirs = await world();
+    await draftOnly(theirs, ALL);
+    await draftOnly(mine, theme({}));
+    const view = (await get(mine, '/theme')).json<{ changed: string[] }>();
+    expect(view.changed).toEqual([]);
+    const theirView = (await get(theirs, '/theme')).json<{ changed: string[] }>();
+    expect(theirView.changed).toEqual(['tokens', 'stylesheet', 'templates']);
+  });
+});
+
+describe('discarding a draft', () => {
+  async function discardStatements(w: World, path: string, body: ThemeBody): Promise<number> {
+    const [theme, draft] = [path, `${path}/draft`];
+    await draftOnly(w, body, path.startsWith('/clients') ? path : undefined);
+    const bearer = await token(w, ['manage-tenant', 'manage-clients']);
+    const current = await get(w, theme, bearer);
+    const etag = String(current.headers.etag);
+    const { result, statements } = await recorder.record(() =>
+      app.inject({
+        method: 'DELETE',
+        url: `/admin/tenants/${w.name}${draft}`,
+        headers: { authorization: `Bearer ${bearer}`, 'if-match': etag },
+      }),
+    );
+    expect(result.statusCode, result.body).toBe(200);
+    return statements.filter(isWork).length;
+  }
+
+  it('costs the same few statements whatever the draft names', async () => {
+    const small = await world();
+    const large = await world();
+    const logo = await putLogo(large, { width: 16, height: 16 });
+    const few = await discardStatements(small, '/theme', theme({ stylesheet: '.a { }' }));
+    const many = await discardStatements(
+      large,
+      '/theme',
+      theme({
+        tokens: { light: LIGHT, dark: NIGHT },
+        stylesheet: '.a { }',
+        assets: { logo: { assetId: logo.id, alt: 'Acme' } },
+      }),
+    );
+    expect(many).toBe(few);
+    expect(many).toBeLessThanOrEqual(DISCARD_STATEMENTS);
+  });
+
+  it('costs a client’s draft the same few statements, two for the client', async () => {
+    const w = await world();
+    const path = await clientPath(w);
+    const statements = await discardStatements(w, path, theme({ stylesheet: '.a { }' }));
+    expect(statements).toBeLessThanOrEqual(CLIENT_DISCARD_STATEMENTS);
+  });
+
+  it('leaves another tenant’s draft where it is, whatever the caller names', async () => {
+    const mine = await world();
+    const theirs = await world();
+    await draftOnly(theirs, theme({ stylesheet: '.theirs { }' }));
+    const etag = String((await get(theirs, '/theme')).headers.etag);
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${theirs.name}/theme/draft`,
+      headers: { authorization: `Bearer ${await token(mine)}`, 'if-match': etag },
+    });
+    expect(res.statusCode).toBe(401);
+    expect((await get(theirs, '/theme')).json<{ draft: unknown }>().draft).not.toBeNull();
+  });
+});
 
 describe('the message catalogue', () => {
   it('reads nothing a tenant holds: the same few statements with overrides as without', async () => {

@@ -68,6 +68,17 @@
   background: var(--signal-warning-ink);
 }
 
+/* A square outline against the unsaved dot's round fill, so the two differ by
+   shape and not by colour alone. */
+.changed {
+  box-sizing: border-box;
+  inline-size: 8px;
+  block-size: 8px;
+  border: 2px solid var(--signal-active-ink);
+  border-radius: 0;
+  background: transparent;
+}
+
 .panel {
   padding: var(--space-6);
   border: 1px solid var(--border);

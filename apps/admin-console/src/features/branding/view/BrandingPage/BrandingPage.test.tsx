@@ -35,6 +35,7 @@ function failingDraft() {
     draft: { ...EMPTY, tokens: { light: failingLight } },
     sources: {},
     draft_sources: { 'tokens.light': 'tenant' },
+    changed: ['tokens'],
   });
 }
 
@@ -58,9 +59,9 @@ it('shows which layer supplies each piece', async () => {
 
 it('says what is published and what is only a draft', async () => {
   renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
-  const status = await screen.findByRole('region', { name: 'Status' });
-  expect(within(status).getByText('Version 1 is published.')).toBeVisible();
-  expect(within(status).getByText('A saved draft is waiting to be published.')).toBeVisible();
+  const bar = await screen.findByRole('region', { name: 'Publish' });
+  expect(within(bar).getByText('Version 1 is published.')).toBeVisible();
+  expect(within(bar).getByText('Changed: Images')).toBeVisible();
 });
 
 describe('contrast', () => {
@@ -423,7 +424,7 @@ describe('the area', () => {
     expect(
       within(tabs)
         .getAllByRole('tab')
-        .map((tab) => tab.textContent),
+        .map((tab) => tab.textContent.split(',')[0]),
     ).toEqual(['Theme', 'Pages', 'Mail', 'Languages']);
   });
 

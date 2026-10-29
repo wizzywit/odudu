@@ -673,8 +673,8 @@ describe('access', () => {
       !route.pattern.includes('/theme/stylesheet-hooks'),
   );
 
-  it('covers the sixteen routes of a tenant’s and a client’s theme', () => {
-    expect(themeRoutes).toHaveLength(16);
+  it('covers the eighteen routes of a tenant’s and a client’s theme', () => {
+    expect(themeRoutes).toHaveLength(18);
   });
 
   it('every route needs its capability, and a read-only role is refused', async () => {
