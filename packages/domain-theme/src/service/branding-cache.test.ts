@@ -15,13 +15,14 @@ describe('brandingCache', () => {
 describe('createBrandingCache', () => {
   it('the cache never holds more than maxEntries', () => {
     const cache = cacheAt({ now: 0 });
-    for (let i = 0; i < 100_000; i += 1) {
+    const total = brandingCache.maxEntries * 3;
+    for (let i = 0; i < total; i += 1) {
       cache.set(`t:${String(i)}`, 't', 'v', 10, cache.generation('t'));
       expect(cache.size()).toBeLessThanOrEqual(brandingCache.maxEntries);
     }
     expect(cache.size()).toBe(brandingCache.maxEntries);
     expect(cache.get('t:0')).toBeUndefined();
-    expect(cache.get('t:99999')).toEqual({ value: 'v' });
+    expect(cache.get(`t:${String(total - 1)}`)).toEqual({ value: 'v' });
   });
 
   it('never holds more than maxBytes of weight', () => {
