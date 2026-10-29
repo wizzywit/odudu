@@ -438,6 +438,15 @@ describe('POST /admin/tenants/{t}/smtp/test, with a client chosen', () => {
     expect(bare(foreign.body)).toBe(bare(missing.body));
   });
 
+  it('refuses an id that is not a row id with 400 before the database, whoever asks', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const both = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+    await relayed(both, t.name);
+    const res = await withClient(both, t.name, 'odudu-admin');
+    expect(res.statusCode, res.body).toBe(400);
+    expect(res.body).toContain('client_id');
+  });
+
   it('needs manage-clients as well: manage-tenant alone is refused with 403', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const tenantOnly = await fixture.adminToken(t.name, ['manage-tenant']);

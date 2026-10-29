@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { idSchema } from '#/admin/shared';
 
 // The password itself is never in this shape — `password_set` is the only
 // signal a caller gets about it, whether reading a config just written or
@@ -39,7 +38,7 @@ export type PutSmtpRequest = z.infer<typeof putSmtpRequestSchema>;
 // names it; absent, the message wears the tenant's own look.
 export const testSmtpRequestSchema = z.object({
   to: z.string().min(1),
-  client_id: idSchema.optional(),
+  client_id: z.uuid().optional(),
 });
 export type TestSmtpRequest = z.infer<typeof testSmtpRequestSchema>;
 
