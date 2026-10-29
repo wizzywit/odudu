@@ -7,7 +7,7 @@ import {
   serveBrand,
   type ServeBrandDeps,
 } from '@odudu/domain-theme';
-import { systemClock } from '@odudu/kernel';
+import { servedAssetHeaders, systemClock } from '@odudu/kernel';
 import { type FastifyPluginCallback, type FastifyReply, type FastifyRequest } from 'fastify';
 
 const IMMUTABLE = 'public, max-age=31536000, immutable';
@@ -90,10 +90,8 @@ export function brandRoutes(deps: {
       ifNoneMatch: request.headers['if-none-match'],
     });
     if (found === null) return sendBrandMiss(reply);
-    reply
-      .header('x-content-type-options', 'nosniff')
-      .header('etag', found.etag)
-      .header('cache-control', IMMUTABLE);
+    for (const [name, value] of servedAssetHeaders('cross-origin')) reply.header(name, value);
+    reply.header('etag', found.etag).header('cache-control', IMMUTABLE);
     if (found.kind === 'unchanged') return reply.code(304).send();
     return reply.code(200).header('content-type', found.contentType).send(found.bytes);
   }

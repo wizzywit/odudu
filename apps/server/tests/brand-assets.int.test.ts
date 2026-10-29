@@ -195,6 +195,8 @@ describe('a published image', () => {
     expect(res.headers['content-type']).toBe('image/png');
     expect(res.headers['cache-control']).toBe('public, max-age=31536000, immutable');
     expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
+    expect(res.headers['cross-origin-resource-policy']).toBe('cross-origin');
     expect(res.headers.etag).toBe(`"${image}"`);
     expect(res.headers['set-cookie']).toBeUndefined();
   });
@@ -367,6 +369,8 @@ describe('what a themed page links', () => {
       expect(sha256(res.rawPayload), url).toBe(hash);
       expect(res.headers['cache-control']).toBe('public, max-age=31536000, immutable');
       expect(res.headers['x-content-type-options']).toBe('nosniff');
+      expect(res.headers['content-security-policy'], url).toBe("default-src 'none'; sandbox");
+      expect(res.headers['cross-origin-resource-policy'], url).toBe('cross-origin');
       expect(res.headers['set-cookie']).toBeUndefined();
     }
     const css = await app.inject({ url: sheet ?? '' });

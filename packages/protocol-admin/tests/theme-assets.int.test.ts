@@ -746,6 +746,8 @@ describe('GET /theme/assets/:assetId/content', () => {
     expect(res.statusCode, res.body.slice(0, 200)).toBe(200);
     expect(res.headers['content-type']).toBe(image.mime);
     expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
+    expect(res.headers['cross-origin-resource-policy']).toBe('same-origin');
     expect(res.headers['cache-control']).toBe('private, no-store');
     expect(res.rawPayload.equals(stored_?.bytes ?? Buffer.alloc(0))).toBe(true);
     expect(res.rawPayload.length).toBe(image.bytes);

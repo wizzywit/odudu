@@ -95,7 +95,8 @@ one of another tenant, or that does not exist, answers `404`.
   stored bytes of an uploaded image, whether or not a published theme names it:
   how an admin sees an image before any public address serves it. The type is the
   one it was stored as (`image/png`, `image/jpeg` or `image/webp`), with
-  `X-Content-Type-Options: nosniff` and `Cache-Control: private, no-store`. A
+  `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`,
+  `Cross-Origin-Resource-Policy: same-origin` and `Cache-Control: private, no-store`. A
   stored image is at most 1.25 MiB and the read is one statement. `404` for an
   image that does not exist or is another tenant's, `400` for an id that is not
   one. It changes nothing and writes no audit event. The console's Theme tab
