@@ -112,7 +112,7 @@ function hooksSection(): string {
   const hooks = stylesheetHooks();
   return [
     '## CSS hooks',
-    `A theme’s stylesheet may name only what is listed here, and these are version ${String(hooks.version)} of the list. A hook is renamed or removed only with a new version; adding one does not make a new version. The console’s Selectors you can use shows this same list. A stylesheet cannot define a custom property of its own.`,
+    `A theme’s stylesheet may name only what is listed here, and these are version ${String(hooks.version)} of the list. A hook is renamed or removed only with a new version; adding one does not make a new version. The console’s Selectors you can use and Design values you can use show this same list. A stylesheet cannot define a custom property of its own.`,
     names(
       'Classes the pages render',
       'A rule names a class as a selector, for example `.logo { display: none; }`. `.logo-light` and `.logo-dark` hide one variant of the logo.',
@@ -121,7 +121,7 @@ function hooksSection(): string {
     ),
     names(
       'One class for each page kind',
-      'Each page carries the class `page-` and its kind, so a rule can style one page alone.',
+      'The `main` element of every themed page carries the class `page-` and its kind, so a rule can style one page alone, with no template needed.',
       hooks.page_kind_classes,
       '.',
     ),

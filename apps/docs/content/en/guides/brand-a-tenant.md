@@ -8,7 +8,7 @@ sidebar_position: 11
 
 A tenant's people meet Odudu's pages when they sign in, consent or reset a password. This guide gives one tenant, `brand-guide`, its own look through the admin API: colours, a logo, a stylesheet and a layout for the sign-in page. You will save a draft, preview it, publish it, see the page people get, try some refusals, and go back. [Branding](../concepts/branding.mdx) explains the model, and [Branding in the console](../admin-console/branding.mdx) does the same work with screens.
 
-The commands below are illustrative, not part of the docs commands job: they need an administrator's token: [Getting the token](../reference/transcripts/admin-paths/getting-the-token.md) shows how to get one that holds `manage-tenants`. They were run by hand, in order, in one run against a stack, and each output is what came back, trimmed where it is long. Run them in bash or zsh with `curl`, `jq` and `base64` installed, and keep to one terminal, since each step uses the variables of the one before. A token lasts five minutes, so fetch it again when a command answers `401`. The stack they were run against was on port 3226, so the one address in the output that names a port says 3226 where yours says 3000.
+The commands below are illustrative, not part of the docs commands job: they need an administrator's token: [Getting the token](../reference/transcripts/admin-paths/getting-the-token.md) shows how to get one that holds `manage-tenants`. They were run by hand, in order, in one run against a stack, and each output is what came back, trimmed where it is long. Run them in bash or zsh with `curl`, `jq` and `base64` installed, and keep to one terminal, since each step uses the variables of the one before. A token lasts five minutes, so fetch it again when a command answers `401`. The stack they were run against was on port 3227, so the addresses in the output that name a port say 3227 where yours says 3000.
 
 ## 1. Make a tenant and an app to sign in to
 
@@ -65,7 +65,7 @@ LOGO_ID=$(jq -r .id logo.json)
 ```
 
 ```
-{"id":"01a187a4-12fb-7e67-b38e-673a574b60b4","sha256":"a29e9a30ae3bba272037b15dc7a11d55bbc3d23d4e8a167b2781a00619dcda32","mime":"image/png","width":64,"height":64,"bytes":258,"kind":"logo"}
+{"id":"01a188ee-9380-7dd0-a584-242362a903a6","sha256":"a29e9a30ae3bba272037b15dc7a11d55bbc3d23d4e8a167b2781a00619dcda32","mime":"image/png","width":64,"height":64,"bytes":258,"kind":"logo"}
 ```
 
 The image is decoded and stored again, so its metadata is gone, and the same picture uploaded twice is one image. Nothing serves it until a published theme names it.
@@ -82,21 +82,19 @@ cat > style.css <<'EOF'
 EOF
 ```
 
-The rules name only classes, elements and design values from the [branding reference](../reference/generated/branding.md#css-hooks). `page-sign-in` is the class for the sign-in page; the server does not put it on the page, so the template does, in the next step.
+The rules name only classes, elements and design values from the [branding reference](../reference/generated/branding.md#css-hooks). `page-sign-in` is the class the server puts on the sign-in page's `<main>`, as it puts `page-` and the kind on every themed page, so these rules apply without anything in the template.
 
 Write the template, which is covered under [Change a page's layout by hand](#change-a-pages-layout-by-hand):
 
 ```text
 cat > signin.tpl <<'EOF'
-<div class="page-sign-in">
-  <h1>{{t "login.title"}}</h1>
-  {{error}}
-  {{form.open}}
-    {{fields}}
-    {{submit}}
-  {{form.close}}
-  <p class="help"><small>Need help? <a href="https://example.com/help" rel="noopener noreferrer">Ask the help desk</a></small></p>
-</div>
+<h1>{{t "login.title"}}</h1>
+{{error}}
+{{form.open}}
+  {{fields}}
+  {{submit}}
+{{form.close}}
+<p class="help"><small>Need help? <a href="https://example.com/help" rel="noopener noreferrer">Ask the help desk</a></small></p>
 EOF
 ```
 
@@ -122,7 +120,7 @@ jq -c '{published, draft_sources: (.draft_sources | with_entries(select(.value !
 
 ```
 HTTP/1.1 200 OK
-etag: "a43a95500f8c50a6109db80cb0660604a3e93b1a063e81dbe7aa0de17608efe3"
+etag: "2ca24d8c4a017bc04e663a7ab44af9f4ceb91ffffebc02c9d552d7549124f575"
 {"published":null,"draft_sources":{"tokens.light":"tenant","stylesheet":"tenant","templates.sign-in":"tenant","assets.logo":"tenant"}}
 ```
 
@@ -134,16 +132,16 @@ The preview is the real sign-in page filled with sample values, in the light or 
 
 ```text
 curl -sS -o preview.html -H "Authorization: Bearer $ADMIN_TOKEN" "$P/theme/preview?kind=sign-in&scheme=light" -w '%{http_code}\n'
-grep -n -E '<div class="page|<h1>|\.page-sign-in h1|Need help' preview.html | cut -c1-120
+grep -n -E '<main|<h1>|\.page-sign-in h1|Need help' preview.html | cut -c1-120
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/theme/preview/info?kind=sign-in"
 ```
 
 ```
 200
 12:.page-sign-in h1 { letter-spacing: 0.04em; border-top: 4px solid var(--focus-ring); padding-top: var(--space-3); }
-20:<div class="page-sign-in">
-21:  <h1>Sign in</h1>
-30:  <p class="help"><small>Need help? <a href="https://example.com/help" rel="noopener noreferrer">Ask the help desk</a></small></p>
+18:<main class="page page-sign-in">
+20:<h1>Sign in</h1>
+29:<p class="help"><small>Need help? <a href="https://example.com/help" rel="noopener noreferrer">Ask the help desk</a></small></p>
 {"kind":"sign-in","from":"draft","shown":"tenant","faults":[],"refused":[],"unfilled":false}
 ```
 
@@ -161,6 +159,19 @@ curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/publish | jq -
 {"version":1,"sources":{"tokens.light":"tenant","stylesheet":"tenant","templates.sign-in":"tenant","assets.logo":"tenant"},"warnings":["stylesheet","templates.sign-in"]}
 ```
 
+A publish consumes the draft, so publishing again with nothing new saved is refused:
+
+```text
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -w '\n%{http_code}\n' $P/theme/publish
+```
+
+```
+{"type":"about:blank#theme-no-draft","title":"Conflict","status":409,"detail":"there is no draft to publish","instance":"01a188ee-946f-7005-adef-7d6b07148037"}
+409
+```
+
+In the console, the **Publish** bar above every tab names what the draft would change and holds **Publish** back, saying "Nothing to publish", when it would change nothing.
+
 Another replica of the server shows the previous theme for up to 30 seconds after a publish, the lifetime of its cache.
 
 ## 6. See the page people get
@@ -170,16 +181,16 @@ Ask for the sign-in page again, as the app would.
 ```text
 . ./signin.sh
 grep -i "^content-security" headers.txt | tr -d '\r'
-grep -n -E 'stylesheet|class="logo|<div class="page|<h1>' signin.html | cut -c1-200
+grep -n -E 'stylesheet|class="logo|<main|<h1>' signin.html | cut -c1-200
 ```
 
 ```
-content-security-policy: default-src 'none'; style-src http://localhost:3226/instrument/instrument.css http://localhost:3226/tenants/brand-guide/brand/e5c1f0b59d1ee47789b8e5cea965b573995e05914e97a286b0452a6f14c040bc.css; font-src 'self'; img-src http://localhost:3226/tenants/brand-guide/brand/a29e9a30ae3bba272037b15dc7a11d55bbc3d23d4e8a167b2781a00619dcda32.png http://localhost:3226/instrument/favicon.svg http://localhost:3226/instrument/favicon.ico; frame-ancestors 'none'; form-action 'self' https://app.example; base-uri 'none'; script-src 'nonce-TG3NDkwS8Mg3OUfsjidczQ=='; connect-src 'self'
+content-security-policy: default-src 'none'; style-src http://localhost:3227/instrument/instrument.css http://localhost:3227/tenants/brand-guide/brand/e5c1f0b59d1ee47789b8e5cea965b573995e05914e97a286b0452a6f14c040bc.css; font-src 'self'; img-src http://localhost:3227/tenants/brand-guide/brand/a29e9a30ae3bba272037b15dc7a11d55bbc3d23d4e8a167b2781a00619dcda32.png http://localhost:3227/instrument/favicon.svg http://localhost:3227/instrument/favicon.ico; frame-ancestors 'none'; form-action 'self' https://app.example; base-uri 'none'; script-src 'nonce-zZjWXCRa51db8AryWNlyjg=='; connect-src 'self'
 8:<link rel="stylesheet" href="/instrument/instrument.css">
 9:<link rel="stylesheet" href="/tenants/brand-guide/brand/e5c1f0b59d1ee47789b8e5cea965b573995e05914e97a286b0452a6f14c040bc.css">
+14:<main class="page page-sign-in">
 15:<p class="brand"><img class="logo" src="/tenants/brand-guide/brand/a29e9a30ae3bba272037b15dc7a11d55bbc3d23d4e8a167b2781a00619dcda32.png" alt="Brand Guide"></p>
-16:<div class="page-sign-in">
-17:  <h1>Sign in</h1>
+16:<h1>Sign in</h1>
 ```
 
 The page's policy was written for this theme. Its `style-src` and `img-src` name exactly the stylesheet and the logo by address, and no policy was widened for any other tenant. The names are hashes of the contents, so a changed theme is a new address. The server draws the logo itself, above the template. Fetch the stylesheet from the address in the page:
@@ -211,15 +222,13 @@ It is the palette as custom properties, then your rules. It is served as a file 
 A template is the HTML of one page kind, and what the sign-in step above used is the shape of all of them. This is the same template, written out. It is what the console's **Pages** tab edits:
 
 ```
-<div class="page-sign-in">
-  <h1>{{t "login.title"}}</h1>
-  {{error}}
-  {{form.open}}
-    {{fields}}
-    {{submit}}
-  {{form.close}}
-  <p class="help"><small>Need help? <a href="https://example.com/help" rel="noopener noreferrer">Ask the help desk</a></small></p>
-</div>
+<h1>{{t "login.title"}}</h1>
+{{error}}
+{{form.open}}
+  {{fields}}
+  {{submit}}
+{{form.close}}
+<p class="help"><small>Need help? <a href="https://example.com/help" rel="noopener noreferrer">Ask the help desk</a></small></p>
 ```
 
 The rules:
@@ -230,7 +239,7 @@ The rules:
 - A slot that the page kind does not have is refused. So is a slot written inside an attribute or a comment.
 - `{{t "login.title"}}` inserts a message from the page's catalogue in the visitor's language, so the template follows the tenant's languages and its message overrides. A key the catalogue does not hold is refused.
 - Plain HTML only: no scripts, styles, forms, inputs, buttons, frames or event attributes. A link must go to an `https` address and carry `rel="noopener noreferrer"`. An image must be one the theme itself uploaded, and carry `alt` text.
-- The server does not put the page-kind class on the page, so a template that wants one of the `page-` hooks writes it, as the first line does.
+- The server puts the page's own class, `page-sign-in` here, on the `<main>` of every themed page, so a template needs no wrapper to use the `page-` hooks.
 
 What refuses a template is shown by saving some. Each refusal is a `400`, and the draft is left as it was:
 
@@ -272,10 +281,25 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme | jq -c '{draft, publi
 
 ## 7. A second version, and going back
 
-Change the focus colour and publish again. The draft is gone after a publish, so this one needs no `If-Match`. The first version is archived, and the versions list is newest first:
+Change the focus colour and save it as a draft. Saving returns the draft's `ETag`, which a discard or a replacement must send. A draft can be thrown away without publishing it, and only the draft goes:
 
 ```text
 sed -i.bak 's/#0044aa/#8a2be2/g' draft.json
+curl -sS -D headers.txt -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" --data-binary @draft.json $P/theme -o /dev/null -w '%{http_code}\n'
+ETAG=$(sed -n 's/^etag: //p' headers.txt | tr -d '\r')
+curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" -H "If-Match: $ETAG" $P/theme/draft -o /dev/null -w '%{http_code}\n'
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme | jq -c '{draft, published: .published.version}'
+```
+
+```
+200
+200
+{"draft":null,"published":1}
+```
+
+The console does the same with **Discard draft**, behind a confirmation. Save the change again and publish it. The first version is archived, and the versions list is newest first:
+
+```text
 curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" --data-binary @draft.json $P/theme -o /dev/null -w '%{http_code}\n'
 curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/publish | jq -c '{version: .published.version}'
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/versions | jq -c '.items[] | {id, version, state}'
@@ -284,8 +308,8 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/versions | jq -c '.ite
 ```
 200
 {"version":2}
-{"id":"01a187a5-5a28-77ae-85b6-f617ab78237c","version":2,"state":"published"}
-{"id":"01a187a5-19ea-73f2-8483-edefed40ba2b","version":1,"state":"archived"}
+{"id":"01a188ee-96ed-780e-91e7-7857ffd7938f","version":2,"state":"published"}
+{"id":"01a188ee-93dd-77b0-bf93-cd17fa505aaa","version":1,"state":"archived"}
 ```
 
 Restoring version 1 publishes a copy of it as a new version and leaves the draft alone:

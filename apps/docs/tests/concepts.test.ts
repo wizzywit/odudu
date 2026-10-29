@@ -70,36 +70,47 @@ describe('the concept pages', () => {
   });
 });
 
-describe('each concept page embeds one diagram', () => {
-  it.each(PAGES)('%s has exactly one, named for it, with a title and a description', (page) => {
+// The diagrams a page embeds, in order: the one named for it, then any more it explains with.
+const DIAGRAMS_OF: Readonly<Record<string, readonly string[]>> = {
+  branding: ['branding', 'branding-parts', 'branding-publishing'],
+};
+
+function diagramsOf(page: string): readonly string[] {
+  return DIAGRAMS_OF[page] ?? [page];
+}
+
+describe('each concept page embeds its diagrams', () => {
+  it.each(PAGES)('%s has its diagrams, each with a title and a description', (page) => {
     const found = [...body(page).matchAll(DIAGRAM)];
-    expect(found).toHaveLength(1);
-    const [, name = '', title = '', desc = '', inWords = ''] = found[0] ?? [];
-    expect(name).toBe(page);
-    expect(title.length).toBeGreaterThan(5);
-    expect(desc.length).toBeGreaterThan(80);
-    // The Markdown copy drops the drawing and keeps this sentence.
-    expect(inWords).toBe(desc);
+    expect(found.map((match) => match[1])).toEqual(diagramsOf(page));
+    for (const [, , title = '', desc = '', inWords = ''] of found) {
+      expect(title.length).toBeGreaterThan(5);
+      expect(desc.length).toBeGreaterThan(80);
+      // The Markdown copy drops the drawing and keeps this sentence.
+      expect(inWords).toBe(desc);
+    }
     expect(body(page)).not.toMatch(/<img\b|!\[/u);
     expect(body(page)).toContain("import { Diagram } from '@site/src/shared/view/Diagram';");
   });
 
-  it.each(PAGES)('the built %s page carries one described svg inline', (page) => {
+  it.each(PAGES)('the built %s page carries each described svg inline', (page) => {
     const $ = load(path.join(docsDir('pages'), 'concepts', page, 'index.html'));
     const svgs = $('article svg[role="img"]').toArray();
-    expect(svgs).toHaveLength(1);
-    const [, , title = '', desc = ''] = [...body(page).matchAll(DIAGRAM)][0] ?? [];
-    expect($(svgs[0]).find('title').text()).toBe(title);
-    expect($(svgs[0]).find('desc').text()).toBe(desc);
+    const found = [...body(page).matchAll(DIAGRAM)];
+    expect(svgs).toHaveLength(found.length);
     expect($('article img[src*="diagrams"]').length).toBe(0);
-    expect($(svgs[0]).attr('aria-labelledby')).toBe($(svgs[0]).find('title').attr('id'));
-    expect($(svgs[0]).attr('aria-describedby')).toBe($(svgs[0]).find('desc').attr('id'));
+    svgs.forEach((svg, index) => {
+      const [, , title = '', desc = ''] = found[index] ?? [];
+      expect($(svg).find('title').text()).toBe(title);
+      expect($(svg).find('desc').text()).toBe(desc);
+      expect($(svg).attr('aria-labelledby')).toBe($(svg).find('title').attr('id'));
+      expect($(svg).attr('aria-describedby')).toBe($(svg).find('desc').attr('id'));
+    });
   });
 
   it.each(PAGES)('the Markdown copy of %s keeps the words and drops the drawing', (page) => {
     const copy = readFileSync(path.join(docsDir('pages'), 'concepts', `${page}.md`), 'utf8');
-    const [, , , desc = ''] = [...body(page).matchAll(DIAGRAM)][0] ?? [];
-    expect(copy).toContain(desc);
+    for (const [, , , desc = ''] of body(page).matchAll(DIAGRAM)) expect(copy).toContain(desc);
     expect(copy).not.toMatch(/<Diagram|<svg|import Diagram/u);
   });
 });
@@ -118,7 +129,8 @@ describe('the diagram component', () => {
 
   it('draws every diagram, each with a name a page uses', () => {
     const diagrams = sources.find(([name]) => name === 'diagrams.tsx')?.[1] ?? '';
-    for (const page of PAGES) expect(diagrams, page).toMatch(new RegExp(`['"]?${page}['"]?:`, 'u'));
+    for (const name of PAGES.flatMap(diagramsOf))
+      expect(diagrams, name).toMatch(new RegExp(`['"]?${name}['"]?:`, 'u'));
   });
 });
 

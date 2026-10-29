@@ -5,6 +5,7 @@ import { chromium, type Browser, type Page } from '@playwright/test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PAGES_BASE, PAGES_DOCS_BASE } from '#docs/site.config.ts';
 import { declaredTexts } from '#docs/tests/support/diagram-markup.ts';
+import type { DiagramName } from '#docs/src/shared/view/Diagram/diagrams.tsx';
 import { DOCS_ROOT, distDir } from '#docs/tests/support/dist.ts';
 
 const PAGES = [
@@ -17,6 +18,18 @@ const PAGES = [
   'consent-and-audit',
   'branding',
 ] as const;
+
+interface Drawn {
+  readonly page: (typeof PAGES)[number];
+  readonly name: DiagramName;
+}
+
+// Each diagram is drawn for a page; a page may hold more than one.
+const EXTRA: readonly Drawn[] = [
+  { page: 'branding', name: 'branding-publishing' },
+  { page: 'branding', name: 'branding-parts' },
+];
+const DIAGRAMS: readonly Drawn[] = [...PAGES.map((page) => ({ page, name: page })), ...EXTRA];
 
 // The smallest a diagram's text may render, in CSS pixels, at a phone's width.
 const LEAST_PHONE_TEXT = 12;
@@ -93,9 +106,9 @@ interface Measured {
 // rectangle of the drawing that holds its whole box, or the page when none
 // does. A text that is only partly over a rectangle is reported, because
 // neither surface then decides how readable it is.
-async function measure(page: Page): Promise<Measured> {
-  return page.evaluate(() => {
-    const svg = document.querySelector('article svg[role="img"]');
+async function measure(page: Page, diagram: string): Promise<Measured> {
+  return page.evaluate((wanted) => {
+    const svg = document.querySelector(`article svg[data-diagram="${wanted}"]`);
     if (!(svg instanceof SVGSVGElement)) throw new Error('no diagram on the page');
     const box = svg.viewBox.baseVal;
     const scale = svg.getBoundingClientRect().width / box.width;
@@ -153,7 +166,7 @@ async function measure(page: Page): Promise<Measured> {
       page: background,
       overflow: document.documentElement.scrollWidth > window.innerWidth,
     };
-  });
+  }, diagram);
 }
 
 async function setTheme(page: Page, wanted: 'light' | 'dark'): Promise<void> {
@@ -176,7 +189,7 @@ async function setTheme(page: Page, wanted: 'light' | 'dark'): Promise<void> {
 // Every text the drawing declares is in the page, in order, inside the drawing:
 // a drawing that is right on the server and wrong once the browser has drawn it
 // again shows up as a count or a position that is not the declared one.
-function expectDeclared(seen: Measured, name: (typeof PAGES)[number], how: string): void {
+function expectDeclared(seen: Measured, name: DiagramName, how: string): void {
   expect(
     seen.texts.map((text) => text.words),
     `${name} ${how}`,
@@ -189,7 +202,7 @@ function expectDeclared(seen: Measured, name: (typeof PAGES)[number], how: strin
 
 async function shown(page: Page): Promise<void> {
   await hydrated(page);
-  await page.locator('article svg[role="img"]').waitFor();
+  await page.locator('article svg[role="img"]').first().waitFor();
 }
 
 async function hydrated(page: Page): Promise<void> {
@@ -214,14 +227,14 @@ describe('the concept diagrams in a browser, following the site toggle', () => {
         page.on('console', (message) => {
           if (message.type() === 'error') problems.push(message.text());
         });
-        for (const name of PAGES) {
-          await page.goto(`${origin}${PAGES_DOCS_BASE}concepts/${name}/`);
+        for (const { page: slug, name } of DIAGRAMS) {
+          await page.goto(`${origin}${PAGES_DOCS_BASE}concepts/${slug}/`);
           await setTheme(page, theme);
           // The toggle's choice is kept, so a fresh load shows the page with the menu shut.
-          await page.goto(`${origin}${PAGES_DOCS_BASE}concepts/${name}/`);
+          await page.goto(`${origin}${PAGES_DOCS_BASE}concepts/${slug}/`);
           expect(await page.locator('html').getAttribute('data-theme')).toBe(theme);
           await shown(page);
-          const seen = await measure(page);
+          const seen = await measure(page, name);
           expectDeclared(seen, name, 'after hydration');
           const background = channels(seen.page);
           expect(seen.texts.length, name).toBeGreaterThan(5);
@@ -256,19 +269,19 @@ describe('the concept diagrams in a browser, following the site toggle', () => {
           // Reached by the router, the drawing is made in the browser, not read from the page.
           await page.goto(`${origin}${PAGES_DOCS_BASE}concepts/`);
           await hydrated(page);
-          await page.locator(`article a[href$="/concepts/${name}/"]`).first().click();
-          await page.waitForURL(`**/concepts/${name}/`);
+          await page.locator(`article a[href$="/concepts/${slug}/"]`).first().click();
+          await page.waitForURL(`**/concepts/${slug}/`);
           await shown(page);
-          expectDeclared(await measure(page), name, 'after navigation');
+          expectDeclared(await measure(page, name), name, 'after navigation');
           // Drawn again in the same page: the module's state outlives a render.
           await page.goBack();
           await hydrated(page);
           await page.goForward();
           await shown(page);
-          expectDeclared(await measure(page), name, 'after coming back to it');
+          expectDeclared(await measure(page, name), name, 'after coming back to it');
           await setTheme(page, theme === 'light' ? 'dark' : 'light');
           await setTheme(page, theme);
-          expectDeclared(await measure(page), name, 'after the theme was toggled');
+          expectDeclared(await measure(page, name), name, 'after the theme was toggled');
         }
         expect(problems).toEqual([]);
         await context.close();
