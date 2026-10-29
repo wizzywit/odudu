@@ -14,11 +14,8 @@ const IMMUTABLE = 'public, max-age=31536000, immutable';
 
 // Every brand URL that is not served answers this, whatever made it so.
 export function sendBrandMiss(reply: FastifyReply): FastifyReply {
-  return reply
-    .code(404)
-    .header('x-content-type-options', 'nosniff')
-    .header('cache-control', 'no-store')
-    .send();
+  for (const [name, value] of servedAssetHeaders('cross-origin')) reply.header(name, value);
+  return reply.code(404).header('cache-control', 'no-store').send();
 }
 
 const BRAND_PATH = /^\/tenants\/[^/?]*\/brand\//u;

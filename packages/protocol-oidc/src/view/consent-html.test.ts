@@ -28,6 +28,12 @@ const BASE = {
 };
 
 describe('renderConsentPage', () => {
+  it('[ODUDU-THEME-CLIENTNAME-01] names the client in the heading of the page', () => {
+    const page = renderConsentPage(BASE, DEFAULT_PAGE_LOCALE);
+    expect(page.body).toContain('<header class="intro">');
+    expect(page.body).toMatch(/<h1>[^]*Acme Dashboard[^]*<\/h1>/u);
+  });
+
   it('escapes a hostile client name and never emits the raw form', () => {
     const page = renderConsentPage(
       { ...BASE, clientName: '<script>alert(1)</script>' },

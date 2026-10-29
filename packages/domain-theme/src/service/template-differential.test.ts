@@ -85,6 +85,10 @@ function disagreements(template: string): string[] {
   const body = bodyOf(filledDocument(template));
   const found: string[] = [];
   const all = elements(body);
+  const written = fillTemplate(template, PARTS, (key) => key).match(/data-srv/gu)?.length ?? 0;
+  const kept = all.filter(isServer).length;
+  if (kept !== written)
+    found.push(`${String(written)} server elements written, ${String(kept)} kept`);
   const forms = all.filter((el) => el.tagName === 'form');
   if (forms.length !== 1) found.push(`${String(forms.length)} forms`);
   const form = forms[0];
@@ -132,36 +136,39 @@ describe('[ODUDU-THEME-PARSE-01] the checker parses a template as the browser pa
     };
   }
 
-  it('finds no accepted template whose filled page reads differently', () => {
-    const next = rng(20261029);
-    const pick = <T>(list: readonly T[]): T => list[Math.floor(next() * list.length)] as T;
-    let accepted = 0;
-    const wrong: string[] = [];
-    for (let i = 0; i < 6000; i += 1) {
-      const tokens = [...REQUIRED];
-      const put = (token: string, at: number): void => {
-        tokens.splice(at, 0, token);
-      };
-      for (let k = 0; k < 1 + Math.floor(next() * 4); k += 1) {
-        if (next() < 0.3) {
-          put(pick(SINGLES), Math.floor(next() * (tokens.length + 1)));
-        } else {
-          const [open, close] = pick(WRAPPERS);
-          const from = Math.floor(next() * (tokens.length + 1));
-          const to = from + Math.floor(next() * (tokens.length + 1 - from));
-          put(close, to);
-          put(open, from);
+  it.each([20261029, 7, 99, 1234])(
+    'finds no accepted template whose filled page reads differently, seed %i',
+    (seed) => {
+      const next = rng(seed);
+      const pick = <T>(list: readonly T[]): T => list[Math.floor(next() * list.length)] as T;
+      let accepted = 0;
+      const wrong: string[] = [];
+      for (let i = 0; i < 20000; i += 1) {
+        const tokens = [...REQUIRED];
+        const put = (token: string, at: number): void => {
+          tokens.splice(at, 0, token);
+        };
+        for (let k = 0; k < 1 + Math.floor(next() * 4); k += 1) {
+          if (next() < 0.3) {
+            put(pick(SINGLES), Math.floor(next() * (tokens.length + 1)));
+          } else {
+            const [open, close] = pick(WRAPPERS);
+            const from = Math.floor(next() * (tokens.length + 1));
+            const to = from + Math.floor(next() * (tokens.length + 1 - from));
+            put(close, to);
+            put(open, from);
+          }
         }
+        const template = tokens.join('');
+        if (checkTemplate('sign-in', template).length > 0) continue;
+        accepted += 1;
+        const found = disagreements(template);
+        if (found.length > 0) wrong.push(`${template}  =>  ${found.join(', ')}`);
       }
-      const template = tokens.join('');
-      if (checkTemplate('sign-in', template).length > 0) continue;
-      accepted += 1;
-      const found = disagreements(template);
-      if (found.length > 0) wrong.push(`${template}  =>  ${found.join(', ')}`);
-    }
-    expect(accepted).toBeGreaterThan(200);
-    expect(wrong.slice(0, 10)).toEqual([]);
-  });
+      expect(accepted).toBeGreaterThan(200);
+      expect(wrong.slice(0, 10)).toEqual([]);
+    },
+  );
 
   const ADVERSARIAL: [string, string][] = [
     [

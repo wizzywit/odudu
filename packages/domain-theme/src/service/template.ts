@@ -476,7 +476,10 @@ export function checkTemplate(
     formParents.has('form.close') &&
     formParents.get('form.open') !== formParents.get('form.close')
   ) {
-    add('form-pair', 'form.open and form.close sit in the same element');
+    add(
+      'form-pair',
+      'form.open and form.close must be in the same element, not split across cells',
+    );
   }
   for (const offset of sourceTags) {
     if (!explicit.has(offset)) add('unparsed-tag', template.slice(offset, offset + 16), offset);

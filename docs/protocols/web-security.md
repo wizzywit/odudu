@@ -36,11 +36,12 @@ same link in a text no check can read.
 
 ### What a stylesheet cannot do
 
-The checker refuses, on every part but the decorative ones, zero or tiny
-text and boxes, transparent text and text the colour of its background in
-the same rule, and refuses everywhere an outline that is removed. It also
-refuses to hide or collapse the consent page's heading, which names the
-client, unless the rule is scoped to another page kind. Two parts are not
+The checker refuses, on every part but the decorative ones, tiny text and
+boxes that clip, large margins and padding, faint text and text the colour of
+its background or of the Instrument page surfaces, and refuses everywhere an
+outline that is removed, reset, faint, pushed away or the colour of the page.
+It also refuses to hide or collapse the consent page's heading and scope
+list, unless the rule is scoped to another page kind. Two parts are not
 promised: colours paired across two rules are not compared, so a contrast
 failure built from two rules is caught only by the colour pairs the theme
 declares, and a box-shadow can still draw over the page.
@@ -49,7 +50,8 @@ declares, and a box-shadow can still draw over the page.
 
 A differential test fills templates with the server's own markup and parses
 the whole page as a browser does, then compares it with the parse the
-checker made. It found three ways a template could change what a browser
+checker made, over four seeds of 20,000 generated templates and a list of
+hand-written adversarial ones. It found three ways a template could change what a browser
 builds from its slots: a part between table parts, a part inside a link, and
 the form's opening and closing in different cells. All three are refused.
 
@@ -74,7 +76,7 @@ and display names are stripped of line breaks before they reach a header.
 | Odudu             | MAY    | a template link goes to any `https` address                                                                              | —                           | accepted: "Why a template may link anywhere" |
 | Odudu             | MAY    | a theme and the name a client is shown under are the tenant administrators' own words                                    | —                           | accepted: "Who writes a theme"               |
 | OIDC Core 3.1.2.4 | SHOULD | the consent page tells the person which client is asking, and a stylesheet cannot hide that                              | `ODUDU-THEME-CLIENTNAME-01` | covered                                      |
-| Odudu             | MUST   | a mail wears the client of the sign-in it was asked from, as the resume link does                                        | `ODUDU-THEME-RESUME-01`     | covered                                      |
+| Odudu             | MUST   | the client a mail wears is the held sign-in's, never one the request carried                                             | `ODUDU-THEME-RESUME-01`     | covered                                      |
 | OIDC Core 3.1.2.1 | MAY    | `ui_locales` orders the languages a page is shown in                                                                     | `ODUDU-THEME-LOCALE-01`     | covered                                      |
 | WCAG 2.2 1.4.3    | SHOULD | text reaches 4.5:1 against what it sits on; a theme is refused at publish otherwise                                      | `ODUDU-THEME-CONTRAST-01`   | covered                                      |
 | WCAG 2.2 1.4.11   | SHOULD | borders and the focus ring reach 3:1                                                                                     | `ODUDU-THEME-CONTRAST-02`   | covered                                      |
@@ -83,5 +85,5 @@ and display names are stripped of line breaks before they reach a header.
 | WCAG 2.2 3.1.1    | SHOULD | the page declares its language and direction                                                                             | `ODUDU-THEME-LANG-01`       | covered                                      |
 | WCAG 2.2 3.1.2    | SHOULD | a passage in another language than the page's is marked with its own language                                            | —                           | gap                                          |
 | RFC 3834 §5       | SHOULD | automatically generated mail carries `Auto-Submitted` with a value other than `no`                                       | `RFC3834-5-01`              | covered                                      |
-| Odudu             | MUST   | no line break reaches a mail header from a tenant name, a subject or an override                                         | `ODUDU-THEME-MAILHEADER-01` | covered                                      |
+| Odudu             | MUST   | no line break reaches a mail subject from a tenant display name or an override                                           | `ODUDU-THEME-MAILHEADER-01` | covered                                      |
 | Odudu             | MUST   | a relay is never a loopback, link-local or private address unless the deployment says its relay is internal              | `ODUDU-THEME-RELAY-01`      | covered                                      |

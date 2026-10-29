@@ -164,7 +164,7 @@ describe('a mail with the tenant’s own wording', () => {
     expect(mail.html).toContain('<bdi>&lt;script&gt;x&lt;/script&gt;&amp;amp;</bdi>');
   });
 
-  it('cannot end the subject header: a break in the override becomes a space', () => {
+  it('[ODUDU-THEME-MAILHEADER-01] cannot end the subject header: a break in the override becomes a space', () => {
     const mail = renderResetPassword({
       ...base,
       overrides: { en: { 'reset.subject': 'Hi\r\nBcc: evil@example.test\u2028x' } },

@@ -53,10 +53,11 @@ const TEMPLATE_MESSAGES: Record<TemplateIssueCode, string> = {
   'unclosed-element': 'An element is never closed.',
   'too-deep': 'The template is nested deeper than the limit.',
   'too-many-elements': 'The template has more elements than the limit.',
-  'form-pair': 'form.open and form.close come together, in that order.',
+  'form-pair':
+    'form.open and form.close come together, in that order, in one element: not split across cells or paragraphs.',
   'form-placement': 'A part that belongs inside the form is outside it.',
   'part-placement':
-    'A part may not sit in a paragraph, heading, link or table part, where a browser moves it.',
+    'A part may not sit inside a link or between table parts, where a browser moves it.',
 };
 
 const STYLESHEET_MESSAGES: Record<StylesheetIssueCode, string> = {
