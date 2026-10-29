@@ -192,8 +192,9 @@ export interface AdminRoute {
     readonly contentTypes: readonly string[];
     readonly limitFor: (query: unknown) => number | null;
     // What a refused declared type answers (status 415), before the body is
-    // read; without it Fastify's own generic refusal would.
-    readonly unsupportedType?: { type: string; title: string; detail: string };
+    // read, its detail naming the type declared; without it Fastify's own
+    // generic refusal would.
+    readonly unsupportedType?: { type: string; title: string };
   };
   // Extra prose `/admin/openapi.json` carries beside the generated
   // capability summary — for a caveat a generated client's user needs
@@ -1022,8 +1023,6 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       unsupportedType: {
         type: 'about:blank#asset-unsupported-type',
         title: 'Unsupported Media Type',
-        detail:
-          'the declared type is not image/png, image/jpeg, image/webp or application/octet-stream',
       },
     },
     description:

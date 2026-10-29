@@ -4,6 +4,7 @@ import {
   SELECTOR_GROUPS,
   SELECTORS_LABEL,
   selectorOptions,
+  valueOptions,
   STYLESHEET_REFUSALS,
 } from '#/features/branding/service';
 
@@ -28,7 +29,6 @@ describe('selectorOptions', () => {
       'a',
       ':hover',
       '::before',
-      'var(--ink-primary)',
     ]);
   });
 
@@ -39,7 +39,7 @@ describe('selectorOptions', () => {
     expect(details.get('main')).toBe(SELECTOR_GROUPS.elements);
     expect(details.get(':hover')).toBe(SELECTOR_GROUPS.pseudoClasses);
     expect(details.get('::before')).toBe(SELECTOR_GROUPS.pseudoElements);
-    expect(details.get('var(--ink-primary)')).toBe(SELECTOR_GROUPS.tokens);
+    expect(details.get('var(--ink-primary)')).toBeUndefined();
   });
 
   it('names a page kind it has no label for by the class itself, so a new kind still shows', () => {
@@ -67,6 +67,15 @@ describe('selectorOptions', () => {
         tokens: [],
       }),
     ).toEqual([]);
+  });
+});
+
+describe('valueOptions', () => {
+  it('offers each design value as var(), apart from the selectors', () => {
+    const values = valueOptions(HOOKS);
+    expect(values.map((o) => o.id)).toEqual(['var(--ink-primary)']);
+    expect(values[0]?.detail).toBe(SELECTOR_GROUPS.tokens);
+    expect(selectorOptions(HOOKS).some((o) => o.id.startsWith('var('))).toBe(false);
   });
 });
 
