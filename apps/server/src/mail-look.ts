@@ -2,7 +2,8 @@ import { withSavepoint, type TenantScopedDatabase } from '@odudu/db';
 import { messageOverrideRepository } from '@odudu/domain-tenant';
 import {
   isMailMessageKey,
-  type MailBrandingResolver,
+  MAIL_MESSAGES,
+  type MailLookResolver,
   type MailOverrides,
   type MailTenantScope,
 } from '@odudu/email';
@@ -15,35 +16,49 @@ export type MailThemeResolver = (
 
 // The tenant's wording for the mail messages, in the transaction the mail is
 // queued in: one statement for every language, so what a mail costs does not
-// depend on whose language it turns out to be. Only mail keys are kept, and a
-// read that fails leaves the catalogue's words rather than the mail unsent.
-async function mailOverrides(tx: TenantScopedDatabase, tenantId: string): Promise<MailOverrides> {
-  try {
-    const held = await withSavepoint(tx, (inner) =>
-      messageOverrideRepository(inner, { isKnownKey: isMailMessageKey }).forMail(tenantId),
-    );
-    return Object.fromEntries(
-      Object.entries(held).map(([locale, messages]) => [
-        locale,
-        Object.fromEntries(Object.entries(messages).filter(([key]) => isMailMessageKey(key))),
-      ]),
-    );
-  } catch {
-    return {};
-  }
+// depend on whose language it turns out to be, and only the mail keys are
+// selected. It reads in a savepoint, so a statement that fails leaves the
+// transaction usable for the mail that is written in it.
+export function readMailOverrides(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+): Promise<MailOverrides> {
+  return withSavepoint(tx, (inner) =>
+    messageOverrideRepository(inner, { isKnownKey: isMailMessageKey }).forMail(
+      tenantId,
+      Object.keys(MAIL_MESSAGES),
+    ),
+  );
 }
 
-// What a queued mail is dressed and worded with: the theme the pages use,
-// and the tenant's message overrides, each read so that the other failing
-// does not take it down.
-export function createMailLook(theme: MailThemeResolver): MailBrandingResolver {
+export interface MailLookDeps {
+  theme: MailThemeResolver;
+  log: (problem: { tenantId: string; what: string; error: string }) => void;
+  readOverrides?: (tx: TenantScopedDatabase, tenantId: string) => Promise<MailOverrides>;
+}
+
+// What a queued mail is dressed and worded with: the theme the pages use and
+// the tenant's message overrides. Each is read so that the other failing does
+// not take it down, and a failure is logged with the tenant and the kind of
+// error, never with text the tenant wrote.
+export function createMailLook(deps: MailLookDeps): MailLookResolver {
+  const readOverrides = deps.readOverrides ?? readMailOverrides;
+  const failed = (tenantId: string, what: string, error: unknown): void => {
+    deps.log({ tenantId, what, error: error instanceof Error ? error.name : typeof error });
+  };
   return async (tx, scope) => {
     let branding: MailBranding | null = null;
     try {
-      branding = await theme(tx, scope);
-    } catch {
-      branding = null;
+      branding = await deps.theme(tx, scope);
+    } catch (error) {
+      failed(scope.tenantId, 'theme', error);
     }
-    return { branding, overrides: await mailOverrides(tx, scope.tenantId) };
+    if (scope.wording === false) return { branding, overrides: {} };
+    try {
+      return { branding, overrides: await readOverrides(tx, scope.tenantId) };
+    } catch (error) {
+      failed(scope.tenantId, 'wording', error);
+      return { branding, overrides: {} };
+    }
   };
 }

@@ -506,7 +506,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       logger: deps.logger,
       publicBaseUrl: deps.publicBaseUrl,
     });
-  const mailLook = createMailLook(branding.resolveMailBranding);
+  const mailLook = createMailLook({
+    theme: branding.resolveMailBranding,
+    log: ({ tenantId, what, error }) => {
+      deps.logger.warn(
+        { tenantId, what, error },
+        'mail was queued without the tenant’s theme or wording, the defaults are used',
+      );
+    },
+  });
   const messageOverrides =
     deps.messageOverrides ??
     createDatabaseMessageOverrides({ database: deps.database, logger: deps.logger });
@@ -535,14 +543,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       outboxMaxAttempts: deps.outboxMaxAttempts ?? DEFAULT_OUTBOX_MAX_ATTEMPTS,
       retireResetLinks: (tx, subjectId) =>
         actionTokenRepository(tx).invalidateOutstandingPasswordLinks(subjectId),
-      resolveMailBranding: mailLook,
+      resolveMailLook: mailLook,
       sendAccountLink: async (tx, request) => {
         if (deps.publicBaseUrl === undefined) return 'unavailable';
         const tenant = {
           ...request,
           issuerBase: deps.publicBaseUrl,
           now: () => systemClock.now(),
-          resolveMailBranding: mailLook,
+          resolveMailLook: mailLook,
         };
         if (request.kind === 'reset_password') await enqueueResetLink(tx, tenant, request);
         else if (request.kind === 'verify_email')
@@ -582,7 +590,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   const themed = {
     resolveBranding: branding.resolveBranding,
-    resolveMailBranding: mailLook,
+    resolveMailLook: mailLook,
     resolveOverrides: messageOverrides.resolveOverrides,
     isClientOfTenant: branding.isClientOfTenant,
   };

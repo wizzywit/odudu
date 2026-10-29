@@ -17,6 +17,10 @@ interface MailContext {
   readonly branding?: MailBranding | null | undefined;
   // The tenant's own wording, by language; the mail reads the one of its own.
   readonly overrides?: Readonly<Record<string, Readonly<Record<string, string>>>> | undefined;
+  // The languages the tenant offers, as its pages are negotiated against; a
+  // recipient's language outside them gets the tenant's default or English.
+  // Absent, the languages this build holds a catalogue for.
+  readonly supportedLocales?: readonly string[] | undefined;
 }
 
 interface MailInput extends MailContext {
@@ -43,19 +47,25 @@ const PDI = '\u2069';
 // paragraph separators.
 const LINE_CONTROLS = /[\u0000-\u001F\u007F-\u009F\u2028\u2029]+/gu;
 
-function mailLocale({ locale, tenantDefaultLocale, overrides }: MailContext): PageLocale {
+function mailLocale({
+  locale,
+  tenantDefaultLocale,
+  overrides,
+  supportedLocales,
+}: MailContext): PageLocale {
   const negotiated = negotiateLocale({
     uiLocales: [],
     subjectLocale: locale ?? null,
     authenticated: true,
     tenantDefault: tenantDefaultLocale ?? null,
     acceptLanguage: null,
-    supported: catalogue.locales,
+    supported: supportedLocales ?? catalogue.locales,
   });
-  const own = overrides?.[negotiated.tag];
-  return own === undefined || !Object.hasOwn(overrides ?? {}, negotiated.tag)
-    ? negotiated
-    : { ...negotiated, overrides: own };
+  const own =
+    overrides !== undefined && Object.hasOwn(overrides, negotiated.tag)
+      ? overrides[negotiated.tag]
+      : undefined;
+  return own === undefined ? negotiated : { ...negotiated, overrides: own };
 }
 
 // A header cannot carry an isolate, so the subject loses the controls that

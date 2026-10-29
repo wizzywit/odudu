@@ -10,7 +10,7 @@ import { type MailBranding, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { mailContext, tenantMailContext, type MailBrandingResolver } from '#/usecase/mail-context';
+import { mailContext, tenantMailContext, type MailLookResolver } from '#/usecase/mail-context';
 
 let container: TestDatabase;
 let owner: DatabaseHandle;
@@ -48,7 +48,7 @@ describe('mailContext', () => {
   it("reads the tenant's default language and its theme in the one transaction", async () => {
     const t = await tenant('fr');
     const asked: unknown[] = [];
-    const resolve: MailBrandingResolver = (_tx, scope) => {
+    const resolve: MailLookResolver = (_tx, scope) => {
       asked.push(scope);
       return Promise.resolve({ branding: BRANDING, overrides: { fr: { 'reset.button': 'Go' } } });
     };
@@ -59,6 +59,7 @@ describe('mailContext', () => {
       branding: BRANDING,
       overrides: { fr: { 'reset.button': 'Go' } },
       tenantDefaultLocale: 'fr',
+      supportedLocales: ['en', 'fr'],
     });
     expect(asked).toEqual([{ tenantId: t.id, tenantName: t.name }]);
   });
@@ -68,7 +69,12 @@ describe('mailContext', () => {
     const context = await withTenant(app.db, t.id, (tx) =>
       mailContext(tx, undefined, { tenantId: t.id, tenantName: t.name }),
     );
-    expect(context).toEqual({ branding: null, overrides: {}, tenantDefaultLocale: null });
+    expect(context).toEqual({
+      branding: null,
+      overrides: {},
+      tenantDefaultLocale: null,
+      supportedLocales: ['en'],
+    });
   });
 
   it("does not read another tenant's default language from this tenant's transaction", async () => {
@@ -82,11 +88,16 @@ describe('mailContext', () => {
 
   it('is unthemed, and still reads the language, when the resolver rejects', async () => {
     const t = await tenant('fr');
-    const resolve: MailBrandingResolver = () => Promise.reject(new Error('theme store down'));
+    const resolve: MailLookResolver = () => Promise.reject(new Error('theme store down'));
     const context = await withTenant(app.db, t.id, (tx) =>
       mailContext(tx, resolve, { tenantId: t.id, tenantName: t.name }),
     );
-    expect(context).toEqual({ branding: null, overrides: {}, tenantDefaultLocale: 'fr' });
+    expect(context).toEqual({
+      branding: null,
+      overrides: {},
+      tenantDefaultLocale: 'fr',
+      supportedLocales: ['en', 'fr'],
+    });
   });
 });
 
@@ -101,6 +112,7 @@ describe('tenantMailContext', () => {
       branding: null,
       overrides: {},
       tenantDefaultLocale: 'fr',
+      supportedLocales: ['en', 'fr'],
       displayName: 'Acme Ltd',
     });
   });

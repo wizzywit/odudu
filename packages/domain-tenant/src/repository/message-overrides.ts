@@ -1,7 +1,7 @@
 import { canonicalLocale } from '@odudu/contracts';
 import { MAX_LIMIT } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { and, asc, eq, gt, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { messageOverrides } from '#/schema/message-overrides';
 
 // ADR 0043: bounded in count per tenant, across every locale.
@@ -113,10 +113,15 @@ export function messageOverrideRepository(tx: TenantScopedDatabase, deps: Messag
       return Object.fromEntries(rows.map((row) => [row.key, row.message]));
     },
 
-    // Every override of the tenant as locale to key-to-message maps, which a
-    // mail reads because the language it is written in is only known once
-    // the recipient is: one statement, at most MAX_MESSAGE_OVERRIDES rows.
-    async forMail(tenantId: string): Promise<Record<string, Record<string, string>>> {
+    // The overrides of the tenant under the given keys as locale to
+    // key-to-message maps, which a mail reads because the language it is
+    // written in is only known once the recipient is: one statement, at most
+    // MAX_MESSAGE_OVERRIDES rows.
+    async forMail(
+      tenantId: string,
+      keys: readonly string[],
+    ): Promise<Record<string, Record<string, string>>> {
+      if (keys.length === 0) return {};
       const rows = await tx
         .select({
           locale: messageOverrides.locale,
@@ -124,7 +129,9 @@ export function messageOverrideRepository(tx: TenantScopedDatabase, deps: Messag
           message: messageOverrides.message,
         })
         .from(messageOverrides)
-        .where(eq(messageOverrides.tenantId, tenantId))
+        .where(
+          and(eq(messageOverrides.tenantId, tenantId), inArray(messageOverrides.key, [...keys])),
+        )
         .limit(MAX_MESSAGE_OVERRIDES);
       const byLocale: Record<string, Record<string, string>> = {};
       for (const { locale, key, message } of rows) {

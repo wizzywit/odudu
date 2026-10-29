@@ -34,7 +34,7 @@ export {
   mailContext,
   tenantMailContext,
   type TenantMailContext,
-  type MailBrandingResolver,
+  type MailLookResolver,
   type MailContext,
   type MailOverrides,
   type MailTenantLook,

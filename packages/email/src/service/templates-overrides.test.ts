@@ -22,10 +22,15 @@ const ACTIONS = [
 ];
 
 describe('the mail message keys', () => {
-  it('are exactly the keys of the English catalogue', () => {
-    expect(Object.keys(MAIL_MESSAGES).sort()).toEqual(Object.keys(en).sort());
-    for (const key of Object.keys(en)) expect(isMailMessageKey(key)).toBe(true);
-    for (const key of ['constructor', '__proto__', 'login.title', '']) {
+  it('are the English catalogue without the attribution a page does not carry either', () => {
+    const attribution = ['mail.brand', 'mail.copyright', 'mail.poweredBy'];
+    expect(Object.keys(MAIL_MESSAGES).sort()).toEqual(
+      Object.keys(en)
+        .filter((key) => !attribution.includes(key))
+        .sort(),
+    );
+    for (const key of Object.keys(MAIL_MESSAGES)) expect(isMailMessageKey(key)).toBe(true);
+    for (const key of [...attribution, 'constructor', '__proto__', 'login.title', '']) {
       expect(isMailMessageKey(key)).toBe(false);
     }
   });
@@ -47,7 +52,7 @@ describe('the mail message keys', () => {
     ]
       .map((mail) => mail.subject + mail.text + mail.html)
       .join('\n');
-    const unread = Object.keys(en).filter((key) => !shown.includes(`«${key}»`));
+    const unread = Object.keys(MAIL_MESSAGES).filter((key) => !shown.includes(`«${key}»`));
     expect(unread).toEqual([]);
   });
 });
@@ -85,6 +90,28 @@ describe('a mail with the tenant’s own wording', () => {
     );
     const mail = renderResetPassword({ ...base, locale: 'ar', overrides: wrongLanguage });
     expect(mail.html).toContain('ARABIC HEADING');
+  });
+
+  it('offers the languages the tenant offers, as its pages are negotiated', () => {
+    const french = { fr: { 'reset.heading': 'EN FRANCAIS' } };
+    const offered = renderResetPassword({
+      ...base,
+      locale: 'fr',
+      supportedLocales: ['en', 'fr'],
+      overrides: french,
+    });
+    expect(offered.html).toContain('EN FRANCAIS');
+    expect(offered.html).toContain('<html lang="fr"');
+    const notOffered = renderResetPassword({
+      ...base,
+      locale: 'fr',
+      supportedLocales: ['en'],
+      overrides: french,
+    });
+    expect(notOffered.html).not.toContain('EN FRANCAIS');
+    expect(notOffered.html).toContain('<html lang="en"');
+    const onlyEnglish = renderResetPassword({ ...base, locale: 'ar', supportedLocales: ['en'] });
+    expect(onlyEnglish.html).toContain('<html lang="en"');
   });
 
   it('follows the tenant default language when the recipient has none', () => {

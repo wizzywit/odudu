@@ -5,13 +5,13 @@ import {
   inlineMark,
   tenantMailContext,
   renderVerifyEmail,
-  type MailBrandingResolver,
+  type MailLookResolver,
   type MailOverrides,
 } from '@odudu/email';
 import { type MailBranding } from '@odudu/kernel';
 
 export interface MailPreviewDeps {
-  readonly resolveMailBranding: MailBrandingResolver;
+  readonly resolveMailLook: MailLookResolver;
 }
 
 export interface TenantMail {
@@ -21,16 +21,21 @@ export interface TenantMail {
   readonly displayName: string;
 }
 
-// What the tenant's mail is dressed in as of its published theme: the read a
-// queued mail makes, so the preview and the mail cannot disagree. One tenant
-// statement, plus the resolver's own read of the published theme, which the
-// resolver bounds and caches; neither grows with what the theme names.
+// What the tenant's mail is dressed and worded in as of its published theme
+// and its message overrides: the read a queued mail makes, so the preview and
+// the mail cannot disagree. The tenant's row, the resolver's read of the
+// published theme (which it bounds and caches) and, unless `wording` is
+// false, one read of the overrides; none grows with what they hold.
 export async function tenantMail(
   tx: TenantScopedDatabase,
   deps: MailPreviewDeps,
   tenant: { tenantId: string; tenantName: string },
+  wording = true,
 ): Promise<TenantMail> {
-  const { displayName, ...context } = await tenantMailContext(tx, deps.resolveMailBranding, tenant);
+  const { displayName, ...context } = await tenantMailContext(tx, deps.resolveMailLook, {
+    ...tenant,
+    wording,
+  });
   return { ...context, displayName: displayName ?? tenant.tenantName };
 }
 
