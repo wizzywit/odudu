@@ -13,13 +13,15 @@ export const KIND_DESCRIPTIONS: Record<PageKind, string> = {
   'passkey-enrolment': 'Adding a passkey.',
   'recovery-codes': 'Showing the new recovery codes once.',
   'update-password': 'Choosing a new password when one is required.',
-  'required-action': 'A step required before sign-in can finish, with no page of its own.',
+  'required-action': 'The page shown when a required step cannot be offered by this deployment.',
   registration: 'Creating an account.',
   reset: 'Asking for, and then choosing, a new password.',
-  verification: 'Confirming an email address.',
-  'required-actions': 'Several required steps on one page.',
+  verification:
+    'The page an emailed link opens, asking the person to confirm before the link is used.',
+  'required-actions': 'The page an emailed link opens, listing the steps to complete.',
   'authorize-error': 'A sign-in request that cannot go on and cannot be sent back to the app.',
-  'email-unverified': 'A person whose email address is not yet confirmed.',
+  'email-unverified':
+    'The page shown when sign-in is stopped until the person’s email address is confirmed.',
   'logged-out': 'The page shown after a sign-out.',
   notice: 'An outcome with nothing to submit.',
 };

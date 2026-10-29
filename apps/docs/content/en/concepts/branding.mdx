@@ -28,7 +28,8 @@ A page is drawn from three layers: the **client** the person came from, the **te
 - **Images**: a logo, a dark-scheme logo, a favicon and a **background** drawn behind the page, with the form still on its own panel.
 - **One stylesheet**, in plain CSS.
 - **Page templates**, one for each kind of page.
-- **Message overrides**: the wording of a page or a mail in each language, kept by the tenant.
+
+Beside the theme, the tenant keeps message overrides, the wording of a page or a mail in each language. They are saved directly, with no draft.
 
 ## Parts and slots
 
@@ -42,7 +43,7 @@ A template is HTML with named **slots**. The server fills each one in, and the t
 
 _In words: A template written by the tenant holds a heading, then the slots for the error, the form's opening, the fields, the submit button and the form's closing. The server fills each slot in with its own markup, including the hidden fields and the anti-forgery proof, and returns the finished page._
 
-Each page kind has **required** parts, which appear exactly once, and **optional** ones, at most once. A form's parts sit between its opening and closing slots, in order. An unknown slot, a missing or repeated part and a part outside the form are all refused. The [branding reference](../reference/generated/branding.md#page-kinds-and-their-parts) lists each kind's parts, and [Brand a tenant](../guides/brand-a-tenant.md#change-a-pages-layout-by-hand) edits a template by hand. `{{t "login.title"}}` inserts a message in the person's language, and a key the catalogue lacks is refused.
+Each page kind has **required** parts, which appear exactly once, and **optional** ones, at most once. A form's parts sit between its opening and closing slots. An unknown slot, a missing or repeated part and a part outside the form are all refused. The [branding reference](../reference/generated/branding.md#page-kinds-and-their-parts) lists each kind's parts, and [Brand a tenant](../guides/brand-a-tenant.md#change-a-pages-layout-by-hand) edits a template by hand. `{{t "login.title"}}` inserts a message in the person's language, and a key the catalogue lacks is refused.
 
 ## The safety model
 
@@ -65,10 +66,10 @@ A tenant, and each client, has **one draft**, saved whole and previewed by the c
 <Diagram
   name="branding-publishing"
   title="Draft, published version and versions"
-  desc="A single draft is published as a whole into the published version that people see, or not at all. The version it replaces is kept in a list of the twenty newest. Discarding the draft deletes only the draft, and restoring a version publishes a copy of it."
+  desc="A single draft is published as a whole into the published version that people see, or not at all. The version it replaces is kept in a list of the twenty newest. Discarding the draft deletes only the draft, publishing uses the draft up, and restoring a version publishes a copy of it and leaves the draft alone."
 />
 
-_In words: A single draft is published as a whole into the published version that people see, or not at all. The version it replaces is kept in a list of the twenty newest. Discarding the draft deletes only the draft, and restoring a version publishes a copy of it._
+_In words: A single draft is published as a whole into the published version that people see, or not at all. The version it replaces is kept in a list of the twenty newest. Discarding the draft deletes only the draft, publishing uses the draft up, and restoring a version publishes a copy of it and leaves the draft alone._
 
 ## Mail and languages
 

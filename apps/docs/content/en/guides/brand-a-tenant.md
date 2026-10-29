@@ -8,7 +8,7 @@ sidebar_position: 11
 
 A tenant's people meet Odudu's pages when they sign in, consent or reset a password. This guide gives one tenant, `brand-guide`, its own look through the admin API: colours, a logo, a stylesheet and a layout for the sign-in page. You will save a draft, preview it, publish it, see the page people get, try some refusals, and go back. [Branding](../concepts/branding.mdx) explains the model, and [Branding in the console](../admin-console/branding.mdx) does the same work with screens.
 
-The commands below are illustrative, not part of the docs commands job: they need an administrator's token: [Getting the token](../reference/transcripts/admin-paths/getting-the-token.md) shows how to get one that holds `manage-tenants`. They were run by hand, in order, in one run against a stack, and each output is what came back, trimmed where it is long. Run them in bash or zsh with `curl`, `jq` and `base64` installed, and keep to one terminal, since each step uses the variables of the one before. A token lasts five minutes, so fetch it again when a command answers `401`. The stack they were run against was on port 3227, so the addresses in the output that name a port say 3227 where yours says 3000.
+The commands below are illustrative, not part of the docs commands job: they need an administrator's token: [Getting the token](../reference/transcripts/admin-paths/getting-the-token.md) shows how to get one that holds `manage-tenants`, `manage-tenant` and `manage-clients`. They were run by hand, in order, in one run against a stack, and each output is what came back, trimmed where it is long. Run them in bash or zsh with `curl`, `jq` and `base64` installed, and keep to one terminal, since each step uses the variables of the one before. A token lasts five minutes, so fetch it again when a command answers `401`. The stack they were run against was on port 3227, so the addresses in the output that name a port say 3227 where yours says 3000.
 
 ## 1. Make a tenant and an app to sign in to
 
@@ -269,7 +269,7 @@ try_template '<img src="https://example.com/x.png" alt="x">{{error}}{{form.open}
 {"code":"img-src","detail":"img src"}
 ```
 
-In order: a script and a slot the page has no part for; a missing `{{submit}}` and a doubled `{{fields}}`; `{{fields}}` outside the form; a link that is not `https` and has no `rel`; an image that is not the theme's. A `<form>` is refused as an element, and the other codes, such as `slot-in-attribute`, `comment`, `unknown-message-key` and `form-pair`, name the rule from the list above. Each refusal carries the `line` and `column` of what it is about. The draft is untouched:
+In order: a script and a slot the page has no part for; a missing `{{submit}}` and a doubled `{{fields}}`; `{{fields}}` outside the form; a link that is not `https` and has no `rel`; an image that is not the theme's. A `<form>` is refused as an element, and the other codes, such as `slot-in-attribute`, `comment`, `unknown-message-key` and `form-pair`, name the rule from the list above. Each refusal that points at something in the template carries its `line` and `column`. The draft is untouched:
 
 ```text
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme | jq -c '{draft, published: .published.version}'

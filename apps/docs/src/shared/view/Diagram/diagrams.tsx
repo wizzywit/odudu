@@ -468,7 +468,7 @@ function brandingPublishing(): Drawing {
     { y: 232, title: 'Versions', line: 'the twenty newest, kept', tone: 'panel' },
   ];
   return {
-    height: 400,
+    height: 430,
     draw: (head) => (
       <>
         {boxes.map(({ y, title, line, tone }) => (
@@ -498,6 +498,12 @@ function brandingPublishing(): Drawing {
         </DiagramText>
         <DiagramText x={MID} y={374} ink="muted">
           Reset unpublishes; the versions remain.
+        </DiagramText>
+        <DiagramText x={MID} y={394} ink="muted">
+          Publishing uses the draft up.
+        </DiagramText>
+        <DiagramText x={MID} y={414} ink="muted">
+          Restore leaves the draft alone.
         </DiagramText>
       </>
     ),
