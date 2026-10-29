@@ -1,0 +1,12 @@
+.scope {
+  min-inline-size: 0;
+}
+
+@media (pointer: coarse), (max-width: 48rem) {
+  .scope {
+    --target-min: 44px;
+    --control-height: 44px;
+    --input-size: 16px;
+    --input-size-mono: 16px;
+  }
+}
