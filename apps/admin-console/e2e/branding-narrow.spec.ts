@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, expectAccessible, expectFitsViewport, signIn, test } from './fixtures';
-import { FRAME, MAIL_FRAME } from './branding-frames';
+import { FRAME, MAIL_SHEET_FRAME, SHEET_FRAME } from './branding-frames';
 import { seeded } from './stack';
 
 const branding = seeded().config.branding;
@@ -170,7 +170,7 @@ test.describe('on a phone', () => {
 
     const sheet = page.getByRole('dialog', { name: 'Page preview' });
     await expect(sheet).toBeVisible();
-    const frame = sheet.locator(FRAME);
+    const frame = sheet.locator(SHEET_FRAME);
     await expect(frame).toHaveAttribute('sandbox', '');
     const box = await frame.boundingBox();
     expect(box?.width ?? 0).toBeGreaterThan(300);
@@ -246,7 +246,7 @@ test.describe('on a phone', () => {
     await expect(pane.getByText('Email · Light · The tenant’s default')).toBeVisible();
     await pane.getByRole('button', { name: 'Open preview' }).click();
     const sheet = page.getByRole('dialog', { name: 'Page preview' });
-    await expect(sheet.locator(MAIL_FRAME)).toHaveAttribute('sandbox', '');
+    await expect(sheet.locator(MAIL_SHEET_FRAME)).toHaveAttribute('sandbox', '');
     await page.keyboard.press('Escape');
     await expect(sheet).toBeHidden();
   });
@@ -367,6 +367,44 @@ test.describe('on a phone', () => {
     }
   });
 
+  test('the sheet and the More menu, which are portals, keep 44 pixel targets and 16 pixel inputs', async ({
+    page,
+  }) => {
+    test.slow();
+    await signIn(page, branding.layout);
+    await openTab(page, 'Pages');
+    await strip(page).getByRole('button', { name: 'Open preview' }).click();
+    const sheet = page.getByRole('dialog', { name: 'Page preview' });
+    await expect(sheet).toBeVisible();
+    const inSheet = await sheet.evaluate((node) =>
+      [...node.querySelectorAll('button, select, input')].map((control) => {
+        const box = control.getBoundingClientRect();
+        return {
+          name: `${control.tagName.toLowerCase()} ${(control.getAttribute('aria-label') ?? control.textContent).trim().slice(0, 20)}`,
+          height: box.height,
+          font: Number.parseFloat(getComputedStyle(control).fontSize),
+          field: control.tagName !== 'BUTTON',
+        };
+      }),
+    );
+    expect(inSheet.length).toBeGreaterThan(2);
+    for (const control of inSheet) {
+      expect(control.height, control.name).toBeGreaterThanOrEqual(43.5);
+      if (control.field) expect(control.font, control.name).toBeGreaterThanOrEqual(16);
+    }
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
+
+    const bar = page.getByRole('region', { name: 'Publish', exact: true });
+    await bar.getByRole('button', { name: 'More publishing actions' }).click();
+    const items = await page
+      .getByRole('menu', { name: 'More publishing actions' })
+      .getByRole('menuitem')
+      .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height));
+    expect(items.length).toBeGreaterThan(0);
+    for (const height of items) expect(height).toBeGreaterThanOrEqual(43.5);
+  });
+
   test('has nothing axe can find, with the sheet open', async ({ page }) => {
     test.slow();
     await signIn(page, branding.layout);
@@ -377,3 +415,26 @@ test.describe('on a phone', () => {
     await expectAccessible(page, { exclude: [FRAME] });
   });
 });
+
+// The bar folds when the editor under it is 48rem wide or less, and the editor's own
+// Revert panel is put away at the same width, so at no width are both gone or both there.
+for (const width of [1118, 1120, 1122, 1124, 1126, 639, 641, 767, 769]) {
+  test.describe(`at ${String(width)} pixels`, () => {
+    test.use({ viewport: { width, height: 900 } });
+
+    test('Revert is on the bar or on the tab, never on neither and never on both', async ({
+      page,
+    }) => {
+      test.slow();
+      await signIn(page, branding.layout);
+      await openTab(page, 'Pages');
+      const bar = page.getByRole('region', { name: 'Publish', exact: true });
+      const folded = await bar.getByRole('button', { name: 'More publishing actions' }).isVisible();
+      const panel = await page
+        .getByRole('region', { name: 'Revert to published' })
+        .getByRole('button', { name: 'Revert this tab to published' })
+        .isVisible();
+      expect(folded, `folded ${String(folded)}, panel ${String(panel)}`).toBe(!panel);
+    });
+  });
+}

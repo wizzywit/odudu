@@ -29,9 +29,9 @@
 /* Narrow, the bar is one row: what is waiting as a short line (its sentence is the
    count's title), Publish, and a menu for what else the bar does. */
 /* The bar is wider than the editor under it by the tab panel's padding and
-   borders, 3.2rem, so it folds exactly when the editor's own Revert panel is
-   put away: 48rem there, 51.2rem here. */
-@container (inline-size < 51.2rem) {
+   borders, 50px, so it folds exactly when the editor's own Revert panel is
+   put away: 48rem there, 48rem and 50px (51.125rem) here. */
+@container (inline-size < 51.125rem) {
   .row {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
