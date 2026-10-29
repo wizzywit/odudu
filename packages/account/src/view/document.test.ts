@@ -208,3 +208,27 @@ describe('the brand block', () => {
     for (const url of loaded) expect(imgSrc).toContain(`https://idp.example${url}`);
   });
 });
+
+describe('the main element names the page kind of a themed page', () => {
+  const branding: ResolvedBranding = {
+    origin: 'https://idp.example',
+    templates: {},
+    tokensCss: '',
+    stylesheetUrl: '/t/a/abc.css',
+    faviconUrl: null,
+    logo: null,
+    assetUrls: [],
+  };
+
+  it('adds page-<kind> only with a branding', () => {
+    const themed = page('x', '', null, [], { tag: 'en', dir: 'ltr', branding }, 'sign-in');
+    expect(themed.html).toContain('<main class="page page-sign-in">');
+    const plain = page('x', '', null, [], { tag: 'en', dir: 'ltr' }, 'sign-in');
+    expect(plain.html).toContain('<main class="page">');
+  });
+
+  it('adds nothing for a page with no kind', () => {
+    const themed = page('x', '', null, [], { tag: 'en', dir: 'ltr', branding });
+    expect(themed.html).toContain('<main class="page">');
+  });
+});

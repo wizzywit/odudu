@@ -64,6 +64,7 @@ export function renderResetRequestForm(
     null,
     [],
     locale,
+    'reset',
   );
 }
 
@@ -85,6 +86,7 @@ export function renderResetRequestedPage(
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -114,6 +116,7 @@ export function renderResetRequestFailedPage(
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -155,6 +158,7 @@ export function renderResetPasswordForm(
     password.script,
     [],
     locale,
+    'reset',
   );
 }
 
@@ -195,6 +199,7 @@ function resetSucceeded(
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -220,5 +225,6 @@ export function renderResetLinkFailedPage(
     null,
     [],
     locale,
+    'notice',
   );
 }

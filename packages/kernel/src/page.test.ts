@@ -5,11 +5,13 @@ import {
   brandMarkup,
   brandingHead,
   brandingProblems,
+  mainClass,
   pageHeaders,
   reloadOnRestore,
   withBranding,
   type ResolvedBranding,
 } from '#/page';
+import { PAGE_KINDS, type PageKind } from '#/page-kinds';
 
 const headerMap = (page: Parameters<typeof pageHeaders>[0]): Record<string, string> =>
   Object.fromEntries(pageHeaders(page).map(([name, value]) => [name, value]));
@@ -860,5 +862,27 @@ describe('brandMarkup', () => {
     };
     const out = brandMarkup(themed(branding({ logo })).locale, MARK);
     expect(out).not.toContain('evil');
+  });
+});
+
+describe('the class of the main element', () => {
+  it('is `page` alone for an unthemed page, whatever its kind', () => {
+    expect(mainClass(MARKUP_ONLY_PAGE.locale)).toBe('page');
+    expect(mainClass(MARKUP_ONLY_PAGE.locale, 'sign-in')).toBe('page');
+  });
+
+  it('adds the kind to a themed page', () => {
+    expect(mainClass(themed(branding()).locale, 'sign-in')).toBe('page page-sign-in');
+  });
+
+  it('is `page` alone for a themed page outside any tenant, which has no kind', () => {
+    expect(mainClass(themed(branding()).locale)).toBe('page');
+  });
+
+  it('names every kind there is, and refuses a name that is not one', () => {
+    for (const kind of Object.keys(PAGE_KINDS) as PageKind[]) {
+      expect(mainClass(themed(branding()).locale, kind)).toBe(`page page-${kind}`);
+    }
+    expect(mainClass(themed(branding()).locale, '"><script>' as PageKind)).toBe('page');
   });
 });

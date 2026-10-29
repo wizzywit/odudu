@@ -64,5 +64,6 @@ ${qrSvg(offer.uri)}
     null,
     [],
     locale,
+    'totp-enrolment',
   );
 }

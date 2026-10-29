@@ -4,6 +4,8 @@ import {
   brandMarkup,
   brandingHead,
   isPageTheme,
+  mainClass,
+  type PageKind,
   type PageLocale,
   type PageScript,
   type RenderedPage,
@@ -63,6 +65,7 @@ export function page(
   script: PageScript | null = null,
   frames: readonly string[] = [],
   locale: PageLocale = DEFAULT_PAGE_LOCALE,
+  kind?: PageKind,
 ): RenderedPage {
   return {
     title,
@@ -81,7 +84,7 @@ export function page(
 ${brandingHead(locale)}
 </head>
 <body>
-<main class="page">
+<main class="${mainClass(locale, kind)}">
 ${brandMarkup(locale, MARK)}
 ${body}
 </main>
