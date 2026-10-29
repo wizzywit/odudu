@@ -34,7 +34,7 @@ The password is stored, never shown again. To remove it, turn on **Remove the st
 
 ## 3. Send a test message
 
-Under **Test message**, enter an address in **Send to** and choose **Send test message**. The console sends one message through the saved relay and tells you what the server answered. It uses the saved relay, so save first.
+Under **Test message**, enter an address in **Send to** and choose **Send test message**. The console sends one message through the saved relay and tells you what the server answered. It uses the saved relay, so save first. **Send to** takes exactly one address, and the test is limited like the other mail-sending routes, so a burst of sends from one place is refused for a minute. A refused test says what failed in one fixed sentence; the relay's own reply is in the server log.
 
 The message wears the tenant’s published theme (its logo and colours) and its own wording, as a verification mail does. Under **Send as client** the console starts on the client you signed in with, `odudu-admin`, when you may read the tenant’s clients and the list holds it, and the message then wears that client’s theme over the tenant’s; a client with no theme of its own, or a disabled one, shows the tenant’s look. The list is searched a page at a time, so `odudu-admin` is preselected only when it is on the page already loaded; otherwise the tenant’s own look is sent, the line under the picker says so, and you can search for the client. Pick another client of the tenant to send as it, or choose **Use the tenant’s own look** to send no client. Without the manage-clients capability the choice is closed and the tenant’s own look is sent. Choosing a client needs manage-clients as well as manage-tenant.
 

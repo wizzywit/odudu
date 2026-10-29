@@ -1,3 +1,4 @@
+import { testRecipientSchema } from '@odudu/contracts/admin';
 import { writeRefusal } from '#/shared/service/capabilities';
 import { writeFailureText } from '#/shared/service/failure';
 import type { GatewayResult } from '#/shared/service/result';
@@ -7,11 +8,14 @@ export interface TestOutcome {
   text: string;
 }
 
+export const TEST_RECIPIENT_RULE = 'Enter one email address: no list, no name and no line break.';
+
 export function testBlocked(to: string, configured: boolean): string | undefined {
   if (!configured) {
     return 'Save a relay of this tenant’s own first: the test sends through the saved one.';
   }
   if (to.trim() === '') return 'Enter the address to send to.';
+  if (!testRecipientSchema.safeParse(to.trim()).success) return TEST_RECIPIENT_RULE;
   return undefined;
 }
 
