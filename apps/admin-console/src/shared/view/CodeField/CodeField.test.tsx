@@ -600,7 +600,9 @@ describe('wrapping lines where the editor is stacked', () => {
       getPropertyValue: () => '',
     };
     vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudo) =>
-      element.tagName === 'TEXTAREA' ? (rows as CSSStyleDeclaration) : real(element, pseudo),
+      element.tagName === 'TEXTAREA'
+        ? (rows as unknown as CSSStyleDeclaration)
+        : real(element, pseudo),
     );
     try {
       const { container } = render(<Narrow start={'x '.repeat(400)} />);
