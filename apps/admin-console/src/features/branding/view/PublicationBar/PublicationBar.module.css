@@ -1,0 +1,31 @@
+.bar {
+  display: grid;
+  gap: var(--space-3);
+  margin-block-end: var(--space-6);
+}
+
+.outcome {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.outcome:empty {
+  position: absolute;
+}
+
+.refused {
+  margin: 0;
+  max-inline-size: 72ch;
+  color: var(--signal-danger-ink);
+  overflow-wrap: anywhere;
+}
+
+.issues {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-6);
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  overflow-wrap: anywhere;
+}

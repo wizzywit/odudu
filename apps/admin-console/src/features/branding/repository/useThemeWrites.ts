@@ -1,6 +1,12 @@
-import type { PublishThemeResponse, ThemeView } from '@odudu/contracts/admin';
+import type { PublishThemeResponse, PutThemeRequest, ThemeView } from '@odudu/contracts/admin';
 import { useQueryClient } from '@tanstack/react-query';
-import { publishTheme, resetTheme, restoreVersion } from '#/features/branding/adapter/theme';
+import {
+  discardThemeDraft,
+  publishTheme,
+  putTheme,
+  resetTheme,
+  restoreVersion,
+} from '#/features/branding/adapter/theme';
 import { scopeKeyPart, themeRecord, type ThemeScope } from '#/features/branding/service';
 import { recordKey, themeVersionsKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
@@ -9,15 +15,23 @@ import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
 import { isStale } from '#/shared/service/failure';
 import type { GatewayResult, GatewaySuccess } from '#/shared/transport/gateway';
 
+// The draft written again whole, on the tag it was read with.
+export interface Revert {
+  body: PutThemeRequest;
+  tag: string;
+}
+
 export interface ThemeWrites {
   publish: Write<string, GatewayResult<PublishThemeResponse>>;
+  discard: Write<string, GatewayResult<ThemeView>>;
+  revert: Write<Revert, GatewayResult<ThemeView>>;
   restore: Write<string, GatewayResult<ThemeView>>;
   reset: Write<void, GatewayResult<ThemeView>>;
 }
 
-// Publishing, restoring and resetting each answer the theme as it now stands,
-// which replaces the record so the sections rebase on it, and each changes
-// the versions list.
+// Publishing, restoring, resetting, discarding and reverting each answer the
+// theme as it now stands, which replaces the record so the sections rebase on
+// it; all but the last two change the versions list.
 export function useThemeWrites(tenant: string, scope: ThemeScope): ThemeWrites {
   const client = useQueryClient();
   const { invalidate, invalidateExact } = useInvalidate();
@@ -27,6 +41,12 @@ export function useThemeWrites(tenant: string, scope: ThemeScope): ThemeWrites {
     client.setQueryData<RecordEntry<ThemeView>>(key, { result, by: 'save' });
     invalidate(versions);
   };
+  // A write of the draft alone leaves the versions as they are; a draft it
+  // found moved on is read again.
+  const replaceDraft = (result: GatewayResult<ThemeView>): void => {
+    if (result.ok) client.setQueryData<RecordEntry<ThemeView>>(key, { result, by: 'save' });
+    else if (isStale(result)) invalidateExact(key);
+  };
   return {
     publish: useGatewayWrite({
       send: (gateway, tag: string) => publishTheme(gateway, tenant, scope, tag),
@@ -34,6 +54,14 @@ export function useThemeWrites(tenant: string, scope: ThemeScope): ThemeWrites {
         if (result.ok) keep(result);
         else if (isStale(result)) invalidateExact(key);
       },
+    }),
+    discard: useGatewayWrite({
+      send: (gateway, tag: string) => discardThemeDraft(gateway, tenant, scope, tag),
+      onSuccess: replaceDraft,
+    }),
+    revert: useGatewayWrite({
+      send: (gateway, { body, tag }: Revert) => putTheme(gateway, tenant, scope, body, tag),
+      onSuccess: replaceDraft,
     }),
     restore: useGatewayWrite({
       send: (gateway, versionId: string) => restoreVersion(gateway, tenant, scope, versionId),

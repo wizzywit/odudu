@@ -223,8 +223,38 @@ describe('POST /theme/assets', () => {
       const body = res.json<{ type: string; title: string; detail: string }>();
       expect(body.type, contentType).toBe('about:blank#asset-unsupported-type');
       expect(body.title, contentType).toBe('Unsupported Media Type');
-      expect(body.detail, contentType).toContain('declared type');
+      expect(body.detail, contentType).toContain(
+        `the declared type is ${contentType.split(';').at(0) ?? ''}`,
+      );
+      expect(body.detail, contentType).not.toContain('the image is not');
     }
+  });
+
+  it('accepts a valid type however it is written, parameters and case included', async () => {
+    const ctx = await tenantCtx();
+    const res = await upload(ctx, 'logo', makePng(), { contentType: 'IMAGE/PNG; x=y' });
+    expect(res.statusCode, res.body).toBe(201);
+  });
+
+  it('refuses a malformed declared type, naming it only as a safe token and bounded', async () => {
+    const ctx = await tenantCtx();
+    for (const contentType of ['image/png image/png', 'image/png,image/jpeg', 'image/', ';']) {
+      const res = await upload(ctx, 'logo', makePng(), { contentType });
+      expect(res.statusCode, contentType).toBe(415);
+    }
+    const hostile = `text/"><script>${'a'.repeat(5000)}`;
+    const res = await upload(ctx, 'logo', makePng(), { contentType: hostile });
+    expect(res.statusCode).toBe(415);
+    const detail = res.json<{ detail: string }>().detail;
+    expect(detail).not.toMatch(/[<>"]/u);
+    expect(detail.length).toBeLessThan(200);
+  });
+
+  it('refuses a content-type given twice, as a proxy joins the two', async () => {
+    const ctx = await tenantCtx();
+    const res = await upload(ctx, 'logo', makePng(), { contentType: 'image/png, image/png' });
+    expect(res.statusCode, res.body).toBe(415);
+    expect(res.json()).toMatchObject({ type: 'about:blank#asset-unsupported-type' });
   });
 
   it('refuses a body with no declared type the same way', async () => {

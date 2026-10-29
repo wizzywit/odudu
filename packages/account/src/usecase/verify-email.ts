@@ -5,7 +5,7 @@ import {
   mailContext,
   outboxRepository,
   renderVerifyEmail,
-  type MailBrandingResolver,
+  type MailLookResolver,
   type MailContext,
 } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
@@ -19,7 +19,7 @@ export interface SendVerificationEmailDeps {
   // The send time of the mail, from the caller's clock.
   readonly now: () => Date;
   // Themes the mail the way the tenant's pages are; absent, it is unthemed.
-  readonly resolveMailBranding?: MailBrandingResolver | undefined;
+  readonly resolveMailLook?: MailLookResolver | undefined;
 }
 
 export interface SendVerificationEmailInput {
@@ -51,7 +51,7 @@ export async function enqueueVerificationLink(
   input: SendVerificationEmailInput,
   context?: MailContext,
 ): Promise<void> {
-  const mail = context ?? (await mailContext(tx, tenant.resolveMailBranding, tenant));
+  const mail = context ?? (await mailContext(tx, tenant.resolveMailLook, tenant));
   const tokens = actionTokenRepository(tx);
   const { token } = await tokens.issue({
     tenantId: tenant.tenantId,

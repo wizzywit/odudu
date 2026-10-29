@@ -12,7 +12,7 @@ afterEach(() => {
 
 const AT = '/console/acme/branding';
 
-it('holds the panels in the order a theme is made: look, then publish, then undo', async () => {
+it('holds the panels in the order a theme is made: publication, look, then undo', async () => {
   renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
   await screen.findByRole('region', { name: 'Versions' });
   const names = screen
@@ -20,22 +20,22 @@ it('holds the panels in the order a theme is made: look, then publish, then undo
     .map((region) => region.getAttribute('aria-label') ?? region.querySelector('h2')?.textContent);
   const shown = names.filter((name) =>
     [
-      'Status',
+      'Publish',
       'Colours and font',
       'Contrast',
       'Images',
-      'Publish',
+      'Revert to published',
       'Versions',
       'Reset to default',
       'Preview',
     ].includes(name ?? ''),
   );
   expect(shown).toEqual([
-    'Status',
+    'Publish',
     'Colours and font',
     'Contrast',
     'Images',
-    'Publish',
+    'Revert to published',
     'Versions',
     'Reset to default',
     'Preview',

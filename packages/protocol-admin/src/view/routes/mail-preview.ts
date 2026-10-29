@@ -42,7 +42,7 @@ export function mailBrandingHandler(deps: MailPreviewRouteDeps): AdminRouteHandl
   return async (request, reply, _principal, tenantId) => {
     const tenantName = tenantNameOf(request);
     const mail = await adminTx(deps.database, request, tenantId, (tx) =>
-      tenantMail(tx, deps, { tenantId, tenantName }),
+      tenantMail(tx, deps, { tenantId, tenantName }, false),
     );
     return reply.code(200).send(mailBrandingView(mail.branding));
   };

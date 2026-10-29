@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   deleteAsset,
+  discardThemeDraft,
   previewSource,
   publishTheme,
   putTheme,
@@ -112,6 +113,23 @@ describe('writing', () => {
     expect(fake.sent.map((sent) => `${sent.method} ${sent.path}`)).toEqual([
       `DELETE ${TH}`,
       `POST ${TH}/versions/v1/restore`,
+    ]);
+  });
+
+  it('discards the draft with a DELETE on the draft, on its tag, beside the tenant or the client', async () => {
+    const fake = fakeTransport({
+      [`DELETE ${TH}/draft`]: json(themeView()),
+      [`DELETE ${CLIENT_TH}/draft`]: json(themeView({ scope: 'client' })),
+    });
+    const gateway = fake.transport.gateway;
+    expect(await discardThemeDraft(gateway, 'acme', { kind: 'tenant' }, '"d1"')).toMatchObject({
+      ok: true,
+      etag: NO_DRAFT_TAG,
+    });
+    await discardThemeDraft(gateway, 'acme', { kind: 'client', id: 'c1' }, '"d2"');
+    expect(fake.sent.map((sent) => `${sent.method} ${sent.path} ${String(sent.ifMatch)}`)).toEqual([
+      `DELETE ${TH}/draft "d1"`,
+      `DELETE ${CLIENT_TH}/draft "d2"`,
     ]);
   });
 

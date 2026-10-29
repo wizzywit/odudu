@@ -8,7 +8,9 @@ import {
   announcePublish,
   currentOutcome,
   NO_OUTCOME,
+  writeCapability,
   type PublishOutcome,
+  type ThemeScope,
 } from '#/features/branding/service';
 import { useToast } from '#/shared/repository/useToasts';
 import { reportFailure } from '#/shared/service/settled';
@@ -23,6 +25,7 @@ export interface Publication {
 
 export function usePublication({
   tenant,
+  scope,
   view,
   tag,
   unsaved,
@@ -32,6 +35,7 @@ export function usePublication({
   onOutcome,
 }: {
   tenant: string;
+  scope: ThemeScope;
   view: ThemeView;
   tag: string;
   // The sections holding unsaved edits.
@@ -60,7 +64,7 @@ export function usePublication({
         .then((result) => {
           answered(publishOutcomeOf(result, publishFailure, tag));
           reportFailure(result, (failure) => {
-            refusal.report(failure, 'manage-tenant');
+            refusal.report(failure, writeCapability(scope));
           });
         })
         .catch(() => {

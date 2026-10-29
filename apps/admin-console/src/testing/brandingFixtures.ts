@@ -45,6 +45,7 @@ export function themeView(changes: Record<string, unknown> = {}) {
     sources: {},
     draft_sources: null,
     tenant_sources: null,
+    changed: [],
     ...changes,
   };
 }
@@ -67,6 +68,7 @@ export function draftedView(moreAssets: Record<string, unknown> = {}) {
     },
     sources: { 'tokens.light': 'tenant', 'assets.logo': 'default' },
     draft_sources: { 'tokens.light': 'tenant', 'assets.logo': 'tenant' },
+    changed: ['assets'],
   });
 }
 
@@ -180,7 +182,7 @@ export const STYLESHEET_HOOKS = {
   tokens: [
     '--ink-primary',
     '--surface-page',
-    ...Array.from({ length: 40 }, (_, n) => `--space-${String(n + 10)}`),
+    ...Array.from({ length: 60 }, (_, n) => `--space-${String(n + 10)}`),
   ],
 };
 

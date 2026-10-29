@@ -9,11 +9,13 @@ import {
   checkTemplate,
   contrastFailures,
   parseThemeBody,
+  changedPieces,
   pieceSources,
   themeRepository,
   THEME_VERSION_LIMIT,
   type AssetRef,
   type BodyIssue,
+  type DiffPiece,
   type PieceName,
   type ThemeBody,
   type ThemeScope,
@@ -32,7 +34,12 @@ import {
 } from '#/service/theme-issues';
 
 export interface ThemeAuditEvent {
-  readonly action: 'theme.draft_saved' | 'theme.published' | 'theme.restored' | 'theme.reset';
+  readonly action:
+    | 'theme.draft_saved'
+    | 'theme.draft_discarded'
+    | 'theme.published'
+    | 'theme.restored'
+    | 'theme.reset';
   readonly resourceType: 'theme';
   // The tenant for its own theme, the client's row id for a client's.
   readonly resourceId: string;
@@ -79,6 +86,8 @@ export interface ThemeViewResult {
   } | null;
   readonly sources: Record<string, Source>;
   readonly draftSources: Record<string, Source> | null;
+  // The parts of the draft that differ from the scope's own published body.
+  readonly changed: DiffPiece[];
   // What the tenant's published theme supplies, for a client's view; null for the tenant's own.
   readonly tenantSources: Record<string, Source> | null;
   // The draft's validator, for the `ETag` header; null without a draft.
@@ -140,6 +149,7 @@ async function viewOf(tx: TenantScopedDatabase, target: ThemeTarget): Promise<Th
           },
     sources: sourcesOf([published?.body ?? null, ...below], names),
     draftSources: draft === null ? null : sourcesOf([draft.body, ...below], names),
+    changed: changedPieces(draft?.body ?? null, published?.body ?? null),
     tenantSources: client ? sourcesOf([tenant?.body ?? null], ['tenant']) : null,
     draftEtag: draft?.etag ?? null,
   };
@@ -271,6 +281,7 @@ export async function saveDraft(
 export type PublishOutcome =
   | { kind: 'not_found' }
   | { kind: 'no_draft' }
+  | { kind: 'nothing_to_publish' }
   | { kind: 'precondition_failed' }
   | { kind: 'invalid'; errors: FieldError[] }
   | { kind: 'published'; view: ThemeViewResult; warnings: ThemeWarning[] };
@@ -300,6 +311,13 @@ export async function publishDraft(
     return { kind: 'precondition_failed' };
   }
 
+  // A draft with the published content would be a second version of the
+  // same theme.
+  const current = await themes.published(scope);
+  if (changedPieces(draft.body, current?.body ?? null).length === 0) {
+    return { kind: 'nothing_to_publish' };
+  }
+
   const parsed = parseThemeBody(draft.body);
   if (!parsed.ok) return { kind: 'invalid', errors: bodyIssueErrors(parsed.issues) };
   const held = await holdAssets(tx, target, parsed.body);
@@ -324,6 +342,46 @@ export async function publishDraft(
     view: await viewOf(tx, target),
     warnings: themeWarnings(parsed.body),
   };
+}
+
+export type DiscardDraftOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'precondition_required' }
+  | { kind: 'precondition_failed' }
+  | { kind: 'discarded'; view: ThemeViewResult };
+
+// Deletes the draft alone. Without one there is nothing to discard: the
+// theme is answered as it is, unless an ETag names a draft that is gone.
+export async function discardDraft(
+  tx: TenantScopedDatabase,
+  deps: ThemeDeps,
+  target: ThemeTarget,
+  actor: Actor,
+  input: { ifMatch: string | undefined },
+): Promise<DiscardDraftOutcome> {
+  if (!(await clientExists(tx, target))) return { kind: 'not_found' };
+  const themes = themeRepository(tx);
+  const scope = scopeOf(target);
+  const current = await themes.lockDraft(scope);
+  if (current === null) {
+    return input.ifMatch === undefined
+      ? { kind: 'discarded', view: await viewOf(tx, target) }
+      : { kind: 'precondition_failed' };
+  }
+  const precondition = requiredPrecondition(input.ifMatch, `"${current.etag}"`);
+  if (precondition === 'required') return { kind: 'precondition_required' };
+  if (precondition === 'failed') return { kind: 'precondition_failed' };
+
+  await themes.deleteDraft(scope);
+  await deps.audit(tx, {
+    action: 'theme.draft_discarded',
+    resourceType: 'theme',
+    resourceId: target.clientRowId ?? target.tenantId,
+    ...actor,
+    outcome: 'allowed',
+    detail: auditDetail(target),
+  });
+  return { kind: 'discarded', view: await viewOf(tx, target) };
 }
 
 export type RestoreOutcome =

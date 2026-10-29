@@ -250,6 +250,10 @@ const seededSchema = z.object({
       catalogue: account,
       // A client's own theme over the tenant's, and its name in French.
       client: account,
+      // The publication bar shared by the tabs: published from Pages, reverted, discarded.
+      publication: account,
+      // The selectors list: a stylesheet saved with what it offered.
+      selectors: account,
     }),
     // One tenant per test that reads its mail, each with its outbox seeded.
     mail: z.object({

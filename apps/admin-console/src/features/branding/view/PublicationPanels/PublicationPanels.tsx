@@ -1,14 +1,5 @@
-import type { ThemeView } from '@odudu/contracts/admin';
 import {
-  draftText,
-  ISSUES_LABEL,
   NO_VERSIONS,
-  PUBLISH_BODY,
-  PUBLISH_LABEL,
-  PUBLISH_TITLE,
-  PUBLISHING,
-  publishedTag,
-  publishedText,
   RESET_CONFIRM,
   RESET_LABEL,
   RESET_TITLE,
@@ -18,19 +9,21 @@ import {
   restoreBody,
   restoreName,
   restoreTitle,
-  STATUS_TITLE,
+  REVERT_LABEL,
+  REVERT_TITLE,
+  REVERTING,
+  revertLead,
   VERSIONS_COLUMNS,
   VERSIONS_FAILED,
   VERSIONS_TABLE_LABEL,
   VERSIONS_TITLE,
   versionRows,
   versionsLead,
-  WARNINGS_NOTE,
-  WARNINGS_TITLE,
+  type ScopedTab,
   type ThemeScope,
   type VersionRow,
 } from '#/features/branding/service';
-import type { Publication } from '#/features/branding/usecase/usePublication';
+import type { Revert } from '#/features/branding/usecase/useRevert';
 import type { Versions } from '#/features/branding/usecase/useVersions';
 import type { Removal } from '#/shared/usecase/useConfirmedChange';
 import { Button } from '#/shared/view/Button';
@@ -44,61 +37,26 @@ import { FormSkeleton } from '#/shared/view/Skeleton';
 import { StatusTag } from '#/shared/view/StatusTag';
 import styles from '#/features/branding/view/PublicationPanels/PublicationPanels.module.css';
 
-export function StatusPanel({ view }: { view: ThemeView }) {
-  const tag = publishedTag(view);
+export function RevertPanel({
+  scope,
+  tab,
+  revert,
+}: {
+  scope: ThemeScope;
+  tab: ScopedTab;
+  revert: Revert;
+}) {
   return (
-    <Panel title={STATUS_TITLE}>
-      <p className={recordTab.text}>
-        <StatusTag tone={tag.tone}>{tag.text}</StatusTag> {publishedText(view)}
-      </p>
-      <p className={recordTab.rule}>{draftText(view)}</p>
-    </Panel>
-  );
-}
-
-export function PublishPanel({ publication }: { publication: Publication }) {
-  const { outcome } = publication;
-  return (
-    <Panel title={PUBLISH_TITLE}>
-      <p className={recordTab.rule}>{PUBLISH_BODY}</p>
-      {publication.hold === undefined ? null : <Note tone="warning">{publication.hold}</Note>}
+    <Panel title={REVERT_TITLE}>
+      <p className={recordTab.rule}>{revertLead(scope, tab)}</p>
+      {revert.hold === undefined ? null : <Note>{revert.hold}</Note>}
       <div className={recordTab.actions}>
-        <Button
-          variant="primary"
-          isDisabled={publication.busy || publication.hold !== undefined}
-          onPress={publication.publish}
-        >
-          {publication.busy ? PUBLISHING : PUBLISH_LABEL}
+        <Button isDisabled={revert.busy || revert.hold !== undefined} onPress={revert.revert}>
+          {revert.busy ? REVERTING : REVERT_LABEL}
         </Button>
       </div>
       <div role="status" className={styles.outcome}>
-        {outcome.message === null ? null : <p className={styles.refused}>{outcome.message}</p>}
-        {outcome.issues.lines.length === 0 ? null : (
-          <>
-            <p className={recordTab.rule}>{ISSUES_LABEL}</p>
-            <ul className={styles.issues}>
-              {outcome.issues.lines.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-            {outcome.issues.more === null ? null : (
-              <p className={recordTab.rule}>{outcome.issues.more}</p>
-            )}
-          </>
-        )}
-        {outcome.warnings.length === 0 ? null : (
-          <>
-            <p className={recordTab.text}>
-              <strong>{WARNINGS_TITLE}</strong>
-            </p>
-            <p className={recordTab.rule}>{WARNINGS_NOTE}</p>
-            <ul className={styles.issues}>
-              {outcome.warnings.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          </>
-        )}
+        {revert.problem === null ? null : <p className={styles.refused}>{revert.problem}</p>}
       </div>
     </Panel>
   );

@@ -1145,6 +1145,8 @@ describeFields(themeViewSchema, {
     'The same for the draft as it would be if published, or null when there is no draft.',
   tenant_sources:
     'On a client’s theme, the layer that supplies each piece of the tenant’s own published theme: `tenant` where the tenant sets it, `default` where it does not, so a piece the client sets can say which of the tenant’s it hides. Null on the tenant’s own theme. It needs no capability beyond the client’s own theme read.',
+  changed:
+    'The parts of the draft (`tokens`, `assets`, `stylesheet`, `templates`) that differ from this scope’s own published theme, compared by the server on their stored form, in that order. Empty when there is no draft or the draft matches what is published; nothing published compares as the empty theme. Publishing is refused with `about:blank#theme-nothing-to-publish` while it is empty.',
 });
 describeFields(publishedThemeSchema, {
   id: 'The version’s identifier, which `restore` names.',
@@ -1285,13 +1287,13 @@ describeFields(listMessageOverridesResponseSchema, {
 });
 describeFields(messageCatalogueResponseSchema, {
   sections:
-    'One section per package that fills pages, each with the page kinds it fills. The list is the same for every tenant and holds a few hundred messages in all.',
+    'One section per package that fills pages, each with the page kinds it fills, and last the section of mail messages, which has no page kinds. The list is the same for every tenant and holds a few hundred messages in all.',
 });
 describeFields(messageCatalogueSectionSchema, {
   kinds:
-    'The page kinds filled from this section. A template of one of them may name, in `{{t "key"}}`, only a key of its own section.',
+    'The page kinds filled from this section; empty for the mail messages. A template of one of them may name, in `{{t "key"}}`, only a key of its own section.',
   messages:
-    'Every message of the section in key order. A message override may name the key of any section.',
+    'Every message of the section in key order. A message override may name the key of any section, mail included.',
 });
 describeFields(messageCatalogueEntrySchema, {
   key: 'The key a template names in `{{t "key"}}` and an override is set under.',

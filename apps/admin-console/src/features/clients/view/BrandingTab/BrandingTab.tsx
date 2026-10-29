@@ -4,6 +4,7 @@ import {
   BRANDING_SECTIONS_LABEL,
   BRANDING_TAB_LABELS,
   PagesPanel,
+  PublicationBar,
   SCOPED_TABS,
   ThemePanel,
   type ScopedTab,
@@ -36,17 +37,21 @@ function Editing({ tenant, id }: { tenant: string; id: string }) {
             pages: <PagesPanel tenant={tenant} branding={branding} view={view} tag={tag} />,
           };
           return (
-            <Tabs
-              label={BRANDING_SECTIONS_LABEL}
-              selectedKey={page.tab}
-              onSelectionChange={page.selectTab}
-              tabs={SCOPED_TABS.map((tab) => ({
-                id: tab,
-                label: BRANDING_TAB_LABELS[tab],
-                dirty: page.edited.has(tab),
-                panel: panels[tab],
-              }))}
-            />
+            <>
+              <PublicationBar tenant={tenant} branding={branding} view={view} tag={tag} />
+              <Tabs
+                label={BRANDING_SECTIONS_LABEL}
+                selectedKey={page.tab}
+                onSelectionChange={page.selectTab}
+                tabs={SCOPED_TABS.map((tab) => ({
+                  id: tab,
+                  label: BRANDING_TAB_LABELS[tab],
+                  dirty: page.edited.has(tab),
+                  changed: branding.changed.has(tab),
+                  panel: panels[tab],
+                }))}
+              />
+            </>
           );
         }}
       </ReadGate>

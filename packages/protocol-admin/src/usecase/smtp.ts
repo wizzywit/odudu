@@ -4,6 +4,9 @@ import {
   renderSmtpTest,
   smtpSender,
   type EmailSender,
+  type MailLookResolver,
+  type MailOverrides,
+  type SmtpTestInput,
   type SmtpConfig as SmtpTransportConfig,
 } from '@odudu/email';
 import { type SmtpConfig } from '@odudu/contracts/admin';
@@ -234,20 +237,53 @@ export function smtpConfigFromRecord(
   };
 }
 
+// What the test mail is worded with, beyond the tenant's name: its own wording
+// and the languages it offers, read as a queued mail reads them.
+export interface SmtpTestWording {
+  readonly overrides: MailOverrides;
+  readonly tenantDefaultLocale: string | null;
+  readonly supportedLocales: readonly string[];
+}
+
 export type ReadSmtpForTestOutcome =
-  { kind: 'not_configured' } | { kind: 'ok'; record: TenantSmtpRecord; tenantDisplayName: string };
+  | { kind: 'not_configured' }
+  | {
+      kind: 'ok';
+      record: TenantSmtpRecord;
+      tenantDisplayName: string;
+      wording: SmtpTestWording;
+    };
 
 export async function readSmtpForTest(
   tx: TenantScopedDatabase,
   tenantId: string,
+  resolveLook?: MailLookResolver,
 ): Promise<ReadSmtpForTestOutcome> {
   const record = await tenantSmtpRepository(tx).byTenantId(tenantId);
   if (record === null) return { kind: 'not_configured' };
   const [tenant] = await tx
-    .select({ name: tenants.name, displayName: tenants.displayName })
+    .select({
+      name: tenants.name,
+      displayName: tenants.displayName,
+      defaultLocale: tenants.defaultLocale,
+      supportedLocales: tenants.supportedLocales,
+    })
     .from(tenants)
     .where(eq(tenants.id, tenantId));
-  return { kind: 'ok', record, tenantDisplayName: tenant?.displayName ?? tenant?.name ?? '' };
+  const name = tenant?.name ?? '';
+  // The resolver reads in a savepoint and does not reject; one that does
+  // leaves the test mail in the catalogue's words.
+  const look = await resolveLook?.(tx, { tenantId, tenantName: name }).catch(() => null);
+  return {
+    kind: 'ok',
+    record,
+    tenantDisplayName: tenant?.displayName ?? name,
+    wording: {
+      overrides: look?.overrides ?? {},
+      tenantDefaultLocale: tenant?.defaultLocale ?? null,
+      supportedLocales: tenant?.supportedLocales ?? [],
+    },
+  };
 }
 
 export type SendTestMessageOutcome =
@@ -267,7 +303,7 @@ export async function sendTestMessage(
   record: TenantSmtpRecord,
   kek: Uint8Array,
   policy: SmtpDestinationPolicy,
-  message: { readonly to: string; readonly tenantDisplayName: string; readonly now: Date },
+  message: SmtpTestInput,
   buildSender: typeof smtpSenderFromRecord = smtpSenderFromRecord,
 ): Promise<SendTestMessageOutcome> {
   const built = await buildSender(record, kek, policy);

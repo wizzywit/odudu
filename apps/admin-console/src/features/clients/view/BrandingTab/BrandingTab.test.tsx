@@ -27,10 +27,11 @@ afterEach(() => {
 const AT = '/console/acme/clients/c-bill?tab=branding';
 
 // A client whose draft and published theme both set the light colours.
-function overriding() {
+function overriding(changed: string[] = []) {
   const body = { ...EMPTY, tokens: { light: OWN_LIGHT } };
   return clientView({
-    draft: body,
+    changed,
+    draft: changed.length === 0 ? body : { ...body, stylesheet: '.page { color: red; }' },
     published: { id: 'cv1', version: 1, published_at: '2026-10-20T09:00:00.000Z', body },
     sources: { 'tokens.light': 'client' },
     draft_sources: { 'tokens.light': 'client' },
@@ -138,7 +139,7 @@ describe('saving the client’s theme', () => {
     const user = userEvent.setup();
     const { sent } = renderConsoleAt(
       AT,
-      clientBrandingRoutes(themeAnswer(overriding(), '"cd1"'), {
+      clientBrandingRoutes(themeAnswer(overriding(['stylesheet']), '"cd1"'), {
         [`POST ${CTH}/publish`]: problem(409, 'about:blank#theme-no-draft', 'Conflict', {
           detail: 'There is no draft to publish.',
         }),
@@ -155,6 +156,91 @@ describe('saving the client’s theme', () => {
       'aria-selected',
       'true',
     );
+  });
+});
+
+describe('the publication bar and the revert', () => {
+  const OWN = { ...EMPTY, tokens: { light: OWN_LIGHT } };
+
+  function pending() {
+    return clientView({
+      draft: { ...OWN, stylesheet: '.page { color: red; }', templates: { 'sign-in': 'x' } },
+      published: {
+        id: 'cv1',
+        version: 1,
+        published_at: '2026-10-20T09:00:00.000Z',
+        body: OWN,
+      },
+      changed: ['stylesheet', 'templates'],
+    });
+  }
+
+  it('sits above the two tabs and names what the client’s draft changes', async () => {
+    renderConsoleAt(AT, clientBrandingRoutes(themeAnswer(pending(), '"cd1"')));
+    const bar = await screen.findByRole('region', { name: 'Publish' });
+    expect(within(bar).getByText('Changed: Stylesheet, Page templates')).toBeVisible();
+    expect(screen.getByRole('tab', { name: 'Theme, changes to publish' })).toBeVisible();
+    expect(screen.getByRole('tab', { name: 'Pages, changes to publish' })).toBeVisible();
+  });
+
+  it('discards on the client’s own route and says what stays', async () => {
+    const user = userEvent.setup();
+    const { sent } = renderConsoleAt(
+      AT,
+      clientBrandingRoutes(themeAnswer(pending(), '"cd1"'), {
+        [`DELETE ${CTH}/draft`]: json(clientView({ published: pending().published })),
+      }),
+    );
+    const bar = await screen.findByRole('region', { name: 'Publish' });
+    await user.click(within(bar).getByRole('button', { name: 'Discard draft…' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent('client’s saved draft');
+    await user.click(within(dialog).getByRole('button', { name: 'Discard draft' }));
+    await waitFor(() => {
+      expect(sent.some((s) => s.method === 'DELETE')).toBe(true);
+    });
+    expect(sent.filter((s) => s.method !== 'GET').map((s) => s.path)).toEqual([`${CTH}/draft`]);
+  });
+
+  it('reverts a tab to the client’s own published layer, falling back below where it has none', async () => {
+    const user = userEvent.setup();
+    const { sent } = renderConsoleAt(
+      AT,
+      clientBrandingRoutes(themeAnswer(pending(), '"cd1"'), {
+        [`PUT ${CTH}`]: json(clientView(), 200, { etag: '"cd2"' }),
+      }),
+    );
+    const panel = await screen.findByRole('region', { name: 'Revert to published' });
+    expect(panel).toHaveTextContent(/falls back to the tenant’s theme/u);
+    await user.click(within(panel).getByRole('button', { name: 'Revert this tab to published' }));
+    await waitFor(() => {
+      expect(sent.some((s) => s.method === 'PUT')).toBe(true);
+    });
+    expect(sent.find((s) => s.method === 'PUT')?.body).toEqual({
+      tokens: OWN.tokens,
+      assets: {},
+      stylesheet: null,
+      templates: { 'sign-in': 'x' },
+    });
+  });
+});
+
+describe('a refusal on a client’s page', () => {
+  it('names manage-clients, as the writes of a client’s theme need', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(
+      AT,
+      clientBrandingRoutes(themeAnswer(overriding(), '"cd1"'), {
+        [`PUT ${CTH}`]: problem(403, 'about:blank', 'Forbidden'),
+      }),
+    );
+    const section = await colours();
+    await user.click(within(section).getByRole('switch', { name: 'Use my own dark colours' }));
+    await user.click(within(section).getByRole('button', { name: /Save/u }));
+    expect(
+      await within(section).findByText(/it needs the manage-clients capability/u),
+    ).toBeVisible();
+    expect(section).not.toHaveTextContent('manage-tenant');
   });
 });
 

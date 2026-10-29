@@ -92,6 +92,30 @@ export async function publishTheme(
   );
 }
 
+// Only the draft goes: the published theme and its versions stay.
+export async function discardThemeDraft(
+  gateway: Gateway,
+  tenant: string,
+  scope: ThemeScope,
+  tag: string,
+): Promise<GatewayResult<ThemeView>> {
+  const ifMatch = ifMatchOf(tag);
+  const options = { ...(ifMatch === undefined ? {} : { ifMatch }), schema: themeViewSchema };
+  return tagged(
+    staleWhenTagMissing(
+      scope.kind === 'tenant'
+        ? await adminCall(gateway, 'DELETE', tenant, ['theme', 'draft'], options)
+        : await adminCall(
+            gateway,
+            'DELETE',
+            tenant,
+            ['clients', scope.id, 'theme', 'draft'],
+            options,
+          ),
+    ),
+  );
+}
+
 export async function resetTheme(
   gateway: Gateway,
   tenant: string,

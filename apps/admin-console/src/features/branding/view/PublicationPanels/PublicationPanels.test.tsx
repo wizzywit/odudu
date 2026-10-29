@@ -55,9 +55,9 @@ it('says the versions could not be loaded, and tries again', async () => {
 
 it('says nothing is published when nothing is', async () => {
   renderConsoleAt(AT, brandingRoutes(themeAnswer(themeView())));
-  const status = await screen.findByRole('region', { name: 'Status' });
-  expect(within(status).getByText(/Nothing published yet/u)).toBeVisible();
-  expect(within(status).getByText('No draft.')).toBeVisible();
+  const bar = await screen.findByRole('region', { name: 'Publish' });
+  expect(within(bar).getByText(/Nothing published yet/u)).toBeVisible();
+  expect(within(bar).getByText('No draft.')).toBeVisible();
 });
 
 it('has nothing axe can find in either theme', async () => {

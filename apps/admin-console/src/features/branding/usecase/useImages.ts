@@ -24,10 +24,11 @@ import {
   type SlotStates,
   type Thumbnail,
   type ThemeScope,
+  themeRefusal,
+  writeCapability,
 } from '#/features/branding/service';
 import { useLatest } from '#/shared/repository/useLatest';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { writeRefusal } from '#/shared/service/capabilities';
 
 export interface Images {
   save: SectionSave<ImageValues>;
@@ -67,10 +68,10 @@ export function useImages({
     section: 'images',
     label: IMAGES_TITLE,
     etag: tag,
-    capability: 'manage-tenant',
+    capability: writeCapability(scope),
     gone,
     refusal,
-    explain: writeRefusal,
+    explain: themeRefusal(scope),
     fields: imageFields(imageValues(view)),
     save: imageSave(tenant, scope, view),
   });
@@ -94,7 +95,7 @@ export function useImages({
                   save.edit(imageField(at), image);
                 },
                 report: (failure) => {
-                  refusal.report(failure, 'manage-tenant');
+                  refusal.report(failure, writeCapability(scope));
                 },
               });
             })

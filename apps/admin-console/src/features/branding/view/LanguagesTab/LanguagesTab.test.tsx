@@ -76,8 +76,8 @@ it('refuses a key not in en with its wording', async () => {
     AT,
     languagesRoutes({
       [`PUT ${MO}/en/no.such.key`]: problem(400, 'about:blank', 'Bad Request', {
-        detail: 'key: is not the key of any page message',
-        errors: [{ path: 'key', message: 'is not the key of any page message' }],
+        detail: 'key: is not the key of any page or mail message',
+        errors: [{ path: 'key', message: 'is not the key of any page or mail message' }],
       }),
     }),
   );

@@ -9,6 +9,8 @@ export const PUBLISH_TITLE = 'Publish';
 export const PUBLISH_BODY =
   'Publishing makes the saved draft what people see on the sign-in and account pages, and keeps the version it replaces. Nothing is published until you do.';
 
+export const NOTHING_TO_PUBLISH = 'Nothing to publish: the draft matches what people see.';
+
 export const NO_DRAFT_HOLD = 'There is no draft to publish. Save a change first.';
 
 export function unsavedHold(sections: readonly string[]): string {
@@ -26,6 +28,7 @@ export function publishHold({
 }): string | undefined {
   if (unsaved.length > 0) return unsavedHold(unsaved);
   if (view.draft === null) return NO_DRAFT_HOLD;
+  if (view.changed.length === 0) return NOTHING_TO_PUBLISH;
   return contrast;
 }
 
@@ -39,10 +42,6 @@ export function publishedTag(view: ThemeView): { text: string; tone: 'active' | 
   return view.published === null
     ? { text: 'Not published', tone: 'neutral' }
     : { text: 'Published', tone: 'active' };
-}
-
-export function draftText(view: ThemeView): string {
-  return view.draft === null ? 'No draft.' : 'A saved draft is waiting to be published.';
 }
 
 export const PUBLISHED_TOAST = 'Theme published';
@@ -86,6 +85,7 @@ export const WARNINGS_NOTE =
 export function refusalText(problem: Problem, verb: string): string | null {
   const subtype = problemSubtype(problem);
   if (subtype === 'theme-no-draft') return NO_DRAFT_HOLD;
+  if (subtype === 'theme-nothing-to-publish') return NOTHING_TO_PUBLISH;
   if (subtype === 'theme-assets-missing') {
     return `This version cannot be ${verb}: an image it names has been deleted.`;
   }

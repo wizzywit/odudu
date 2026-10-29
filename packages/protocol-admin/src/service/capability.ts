@@ -192,8 +192,9 @@ export interface AdminRoute {
     readonly contentTypes: readonly string[];
     readonly limitFor: (query: unknown) => number | null;
     // What a refused declared type answers (status 415), before the body is
-    // read; without it Fastify's own generic refusal would.
-    readonly unsupportedType?: { type: string; title: string; detail: string };
+    // read, its detail naming the type declared; without it Fastify's own
+    // generic refusal would.
+    readonly unsupportedType?: { type: string; title: string };
   };
   // Extra prose `/admin/openapi.json` carries beside the generated
   // capability summary — for a caveat a generated client's user needs
@@ -251,7 +252,7 @@ const THEME_DRAFT =
   '`*`, and with `412` when it no longer matches, leaving the draft as it was. The first draft ' +
   'of a scope needs none.';
 
-// The seven routes that make up a scope's theme, under the tenant or under one
+// The routes that make up a scope's theme, under the tenant or under one
 // client. The tenant's own theme needs `manage-tenant`, a client's
 // `manage-clients`, the capability every other client write needs.
 function themeRoutes(
@@ -267,7 +268,10 @@ function themeRoutes(
       responseSchema: themeViewSchema,
       description:
         `The ${noun}\u2019s draft and published theme, and for each piece the layer that ` +
-        `supplies it (\`client\`, \`tenant\` or \`default\`). ${THEME_DRAFT}`,
+        `supplies it (\`client\`, \`tenant\` or \`default\`). \`changed\` names the parts of the ` +
+        'draft (`tokens`, `assets`, `stylesheet`, `templates`) that differ from the ' +
+        `${noun}\u2019s own published theme, compared by the server on their stored form; it is ` +
+        `empty without a draft, and nothing published compares as the empty theme. ${THEME_DRAFT}`,
     },
     {
       method: 'PUT',
@@ -295,7 +299,9 @@ function themeRoutes(
         'contrast pair is refused as a `400` naming the colour. A stylesheet or a template ' +
         'cannot be proven accessible, so each earns an entry in `warnings`, which does not ' +
         'block. `409` (`about:blank#theme-no-draft`) when there is no draft, which is also ' +
-        'what the second of two simultaneous publishes of one draft receives. `If-Match` is ' +
+        'what the second of two simultaneous publishes of one draft receives, and ' +
+        '`409` (`about:blank#theme-nothing-to-publish`) when the draft has the published ' +
+        'content, which would only add a version identical to the last. `If-Match` is ' +
         `optional here and, when sent, must name the draft being published. ${THEME_CACHE}`,
     },
     {
@@ -352,6 +358,19 @@ function themeRoutes(
         'of this page kind that failed the checks, and whether the template could not be ' +
         'filled. Reads the draft and the published themes only, at most five statements ' +
         'whatever the theme names. `404` for a client that is not the tenant\u2019s.',
+    },
+    {
+      method: 'DELETE',
+      pattern: `${base}/theme/draft`,
+      capability,
+      responseSchema: themeViewSchema,
+      description:
+        `Discards the ${noun}\u2019s draft and nothing else: the published theme, its versions ` +
+        'and what users see are untouched, so, unlike the reset, it never unpublishes the ' +
+        'live theme. The draft\u2019s `ETag` is required as `If-Match`, refused with `428` when it is ' +
+        'missing or `*` and with `412` when it no longer matches. A scope with no draft ' +
+        'answers its theme as it is (`412` when an `ETag` names a draft that is gone). ' +
+        'Answers the theme as it now is.',
     },
     {
       method: 'DELETE',
@@ -960,13 +979,14 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-tenant',
     responseSchema: messageCatalogueResponseSchema,
     description:
-      'The messages a tenant\u2019s pages are filled from, as the keys a template may name in ' +
+      'The messages a tenant\u2019s pages and mail are filled from, as the keys a template may name in ' +
       '`{{t "key"}}` and a message override may be set under, each with its English text. ' +
       'The catalogue is part of the build and the same for every tenant, so the answer is ' +
       'built once and reads nothing from the database: three sections, one per package ' +
-      'that fills pages, a few hundred messages in all and well under 100 KB, never paged. ' +
-      'A template of a page kind may name only a key of the section that lists that kind; ' +
-      'an override may name the key of any section. Mail messages are not listed.',
+      'that fills pages, and a fourth of mail messages with no page kinds, a few hundred ' +
+      'messages in all and well under 100 KB, never paged. A template of a page kind may ' +
+      'name only a key of the section that lists that kind; an override may name the key ' +
+      'of any section, mail included.',
   },
   {
     method: 'GET',
@@ -1022,8 +1042,6 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       unsupportedType: {
         type: 'about:blank#asset-unsupported-type',
         title: 'Unsupported Media Type',
-        detail:
-          'the declared type is not image/png, image/jpeg, image/webp or application/octet-stream',
       },
     },
     description:

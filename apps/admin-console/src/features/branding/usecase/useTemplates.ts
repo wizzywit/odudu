@@ -17,9 +17,10 @@ import {
   type PlacedProblems,
   type TemplateValues,
   type ThemeScope,
+  themeRefusal,
+  writeCapability,
 } from '#/features/branding/service';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { writeRefusal } from '#/shared/service/capabilities';
 import type { SizeReading } from '#/shared/service/format';
 
 export interface Templates {
@@ -55,10 +56,10 @@ export function useTemplates({
     section: 'templates',
     label: TEMPLATES_SECTION_TITLE,
     etag: tag,
-    capability: 'manage-tenant',
+    capability: writeCapability(scope),
     gone,
     refusal,
-    explain: writeRefusal,
+    explain: themeRefusal(scope),
     fields: templateFields(templateValues(view)),
     save: templateSave(tenant, scope, view),
   });

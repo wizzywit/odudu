@@ -7,7 +7,7 @@ import {
   mailContext,
   renderFinishRegistration,
   renderRegistrationDuplicate,
-  type MailBrandingResolver,
+  type MailLookResolver,
 } from '@odudu/email';
 import { BidiControlError, containsBidiControl, OduduError } from '@odudu/kernel';
 import { pendingRegistrationRepository } from '#/repository/pending-registrations';
@@ -61,7 +61,7 @@ export interface RegisterDeps {
   // The send time of the mail, from the caller's clock.
   readonly now: () => Date;
   // Themes the mail the way the tenant's pages are; absent, it is unthemed.
-  readonly resolveMailBranding?: MailBrandingResolver | undefined;
+  readonly resolveMailLook?: MailLookResolver | undefined;
 
   // Injected for the same reason verify-email.ts's getCurrentEmail and
   // markVerified are: @odudu/account depends on neither
@@ -229,7 +229,7 @@ async function requestVerification(
     deps.database.db,
     deps.tenantId,
     async (tx): Promise<RegisterOutcome> => {
-      const mail = await mailContext(tx, deps.resolveMailBranding, deps);
+      const mail = await mailContext(tx, deps.resolveMailLook, deps);
       const taken = await deps.findTaken(tx, deps.tenantId, input);
       if (taken.username) return { kind: 'username_taken' };
       if (taken.emailOwner !== null) {

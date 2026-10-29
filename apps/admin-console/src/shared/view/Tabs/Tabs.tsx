@@ -13,6 +13,8 @@ export interface TabItem {
   id: string;
   label: string;
   dirty?: boolean;
+  // Holds part of what a pending change would alter, not yet applied.
+  changed?: boolean;
   panel: ReactNode;
 }
 
@@ -44,6 +46,12 @@ export function Tabs({
               <>
                 <span className={styles.dirty} aria-hidden="true" />
                 <VisuallyHidden elementType="span">, unsaved changes</VisuallyHidden>
+              </>
+            ) : null}
+            {tab.changed === true ? (
+              <>
+                <span className={styles.changed} aria-hidden="true" />
+                <VisuallyHidden elementType="span">, changes to publish</VisuallyHidden>
               </>
             ) : null}
           </Tab>

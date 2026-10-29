@@ -9,6 +9,7 @@ import {
   isAuthnMessageKey,
 } from '@odudu/authn-flows';
 import { type MessageCatalogueResponse } from '@odudu/contracts/admin';
+import { isMailMessageKey, MAIL_MESSAGES } from '@odudu/email';
 import { overrideProblem, placeholderProblem } from '@odudu/i18n';
 import { type PageKind } from '@odudu/kernel';
 import {
@@ -38,23 +39,31 @@ export function pageKindOwners(kind: PageKind): number {
   return OWNERS.filter((owner) => Object.hasOwn(owner.kinds, kind)).length;
 }
 
-// Whether a key is an entry of the English catalogue of any page, which is
-// what a tenant's message override may name.
+// Whether a key is an entry of the English catalogue of any page or of the
+// mail messages, which is what a tenant's message override may name.
 export function isOverridableMessageKey(key: string): boolean {
-  return OWNERS.some((owner) => owner.has(key));
+  return isMailMessageKey(key) || OWNERS.some((owner) => owner.has(key));
 }
 
-// What the three catalogues hold, by the page kinds each fills: the keys a
-// template may name and an override may be set under, with their English
-// text. Static for a build, so the answer is built once.
+function entries(messages: Readonly<Record<string, string>>): { key: string; en: string }[] {
+  return Object.keys(messages)
+    .sort()
+    .map((key) => ({ key, en: messages[key] ?? '' }));
+}
+
+// What the catalogues hold, by the page kinds each fills: the keys a template
+// may name and an override may be set under, with their English text. The
+// last section is the mail messages, which fill no page kind and which no
+// template may name. Static for a build, so the answer is built once.
 function buildCatalogue(): MessageCatalogueResponse {
   return {
-    sections: OWNERS.map((owner) => ({
-      kinds: Object.keys(owner.kinds) as PageKind[],
-      messages: Object.keys(owner.messages)
-        .sort()
-        .map((key) => ({ key, en: owner.messages[key] ?? '' })),
-    })),
+    sections: [
+      ...OWNERS.map((owner) => ({
+        kinds: Object.keys(owner.kinds) as PageKind[],
+        messages: entries(owner.messages),
+      })),
+      { kinds: [], messages: entries(MAIL_MESSAGES) },
+    ],
   };
 }
 
