@@ -5,6 +5,7 @@ import { useMailBranding } from '#/features/branding/repository/useMailBranding'
 import {
   DEFAULT_MAIL_CHOICE,
   mailChoiceWith,
+  mailClientId,
   mailClientOf,
   mailFrameKey,
   type MailChoice,
@@ -41,7 +42,11 @@ export function useMailTab(tenant: string, view: ThemeView | undefined, asked: b
   const [client, setClient] = useState<MailClient | null>(null);
   const [loaded, setLoaded] = useState('');
   const picker = useClientPicker(tenant, asked);
-  const choice = mailChoiceWith(DEFAULT_MAIL_CHOICE, { scheme, locale, client: client?.id ?? '' });
+  const choice = mailChoiceWith(DEFAULT_MAIL_CHOICE, {
+    scheme,
+    locale,
+    client: mailClientId(client),
+  });
   const version = view?.published?.version;
   const frameKey = mailFrameKey(version, choice);
   return {

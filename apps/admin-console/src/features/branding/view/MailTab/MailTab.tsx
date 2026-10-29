@@ -5,6 +5,7 @@ import {
   MAIL_CLIENTS_NOTE,
   MAIL_FAILED,
   MAIL_FRAME_TITLE,
+  mailClientName,
   mailInheritsLead,
   MAIL_INHERITS_TITLE,
   MAIL_LOADING_BRANDING,
@@ -59,7 +60,7 @@ export function MailPreview({ mail }: { mail: Mail }) {
         </InlineFields>
       </div>
       <MailClientChoice mail={mail} />
-      <p className={styles.note}>{mailPreviewNote(mail.client?.name ?? null)}</p>
+      <p className={styles.note}>{mailPreviewNote(mailClientName(mail.client))}</p>
       <PreviewFrame
         title={MAIL_FRAME_TITLE}
         src={mail.src}
@@ -152,7 +153,7 @@ export function MailInherits({ mail }: { mail: Mail }) {
         <h2 id={heading} className={styles.heading}>
           {MAIL_INHERITS_TITLE}
         </h2>
-        <p className={recordTab.rule}>{mailInheritsLead(mail.client?.name ?? null)}</p>
+        <p className={recordTab.rule}>{mailInheritsLead(mailClientName(mail.client))}</p>
         <p className={recordTab.rule}>{MAIL_CLIENTS_NOTE}</p>
       </section>
       <Logos branding={branding.data} origin={mail.origin} />

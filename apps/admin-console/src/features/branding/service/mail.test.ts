@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MAIL_CHOICE,
   logoViews,
+  mailClientId,
+  mailClientName,
   mailClientOf,
+  mailClientSelection,
   mailInheritsLead,
   mailPreviewNote,
   LOGO_ELSEWHERE,
@@ -98,5 +101,21 @@ describe('what the mail tab says about whose mail it shows', () => {
     expect(mailClientOf(options, ['a', 'b'])).toEqual({ id: 'b', name: 'B' });
     expect(mailClientOf(options, [])).toBeNull();
     expect(mailClientOf(options, ['gone'])).toBeNull();
+  });
+});
+
+describe('what a chosen client means to the mail tab', () => {
+  const billing = { id: 'c1', name: 'Billing' };
+
+  it('is the tenant’s own with no client: no id, no name, nothing selected', () => {
+    expect(mailClientId(null)).toBe('');
+    expect(mailClientName(null)).toBeNull();
+    expect(mailClientSelection(null)).toEqual([]);
+  });
+
+  it('is the client’s id, name and selection once one is chosen', () => {
+    expect(mailClientId(billing)).toBe('c1');
+    expect(mailClientName(billing)).toBe('Billing');
+    expect(mailClientSelection(billing)).toEqual(['c1']);
   });
 });

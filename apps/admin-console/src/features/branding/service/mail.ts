@@ -91,6 +91,21 @@ export function mailClientOf(
   return found === undefined ? null : { id: found.id, name: found.name };
 }
 
+// What the choice of client means to the rest of the tab: the id the routes
+// are asked with (empty is the tenant's own), the name the wording uses, and
+// the ids the picker shows as selected.
+export function mailClientId(client: MailClient | null): string {
+  return client === null ? '' : client.id;
+}
+
+export function mailClientName(client: MailClient | null): string | null {
+  return client === null ? null : client.name;
+}
+
+export function mailClientSelection(client: MailClient | null): string[] {
+  return client === null ? [] : [client.id];
+}
+
 export const TENANT_DEFAULT_LANGUAGE = 'The tenant’s default';
 
 export const MAIL_LOCALE_OPTIONS: readonly Choice[] = [
