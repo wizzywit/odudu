@@ -1,6 +1,6 @@
 ---
 title: 'GET /mail/preview and GET /mail/branding'
-description: 'The verification mail as a tenant’s or a client’s published theme dresses it, and the logo and colours it inherits, for manage-tenant or manage-clients.'
+description: 'The verification mail as a tenant’s or a client’s published theme dresses it, and the logo and colours it inherits.'
 ---
 
 # `GET /mail/preview` and `GET /mail/branding`
