@@ -180,7 +180,7 @@ export const STYLESHEET_HOOKS = {
   tokens: [
     '--ink-primary',
     '--surface-page',
-    ...Array.from({ length: 40 }, (_, n) => `--space-${String(n + 10)}`),
+    ...Array.from({ length: 60 }, (_, n) => `--space-${String(n + 10)}`),
   ],
 };
 
