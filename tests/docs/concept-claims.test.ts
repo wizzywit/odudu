@@ -28,6 +28,7 @@ const PAGES = [
   'sessions',
   'tokens',
   'consent-and-audit',
+  'branding',
 ] as const;
 
 function body(page: string): string {

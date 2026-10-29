@@ -18,6 +18,8 @@ The guides assume you have done the [quick start](../quick-start/index.mdx), so 
 5. [Coming from Keycloak](./keycloak.md) maps its ideas to Odudu's and says what does not move.
 6. [WordPress](./wordpress.md) lets people sign in to a WordPress site with the OpenID Connect Generic Client plugin. It was tested by hand, not by an example app.
 
+7. [Brand a tenant](./brand-a-tenant.md) gives a tenant's sign-in page its own colours, logo, stylesheet and layout through the admin API. It needs an administrator's token, so its commands are not part of the docs commands job.
+
 ## Then learn what happens underneath
 
 Each of these follows one journey and shows trimmed pieces of a real run, with a link to the full recording.

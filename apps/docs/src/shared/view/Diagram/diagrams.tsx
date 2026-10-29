@@ -423,6 +423,44 @@ function consentAndAudit(): Drawing {
   };
 }
 
+function branding(): Drawing {
+  const layers: { y: number; title: string; line: string; tone: 'panel' | 'accent' }[] = [
+    { y: 8, title: 'The client', line: 'only the pieces it sets', tone: 'accent' },
+    { y: 104, title: 'The tenant', line: 'the pieces the client left alone', tone: 'accent' },
+    { y: 200, title: 'Instrument', line: 'what neither one set', tone: 'panel' },
+  ];
+  return {
+    height: 380,
+    draw: (head) => (
+      <>
+        {layers.map(({ y, title, line, tone }) => (
+          <g key={title}>
+            <DiagramBox x={10} y={y} w={320} h={72} tone={tone} />
+            <DiagramText x={MID} y={y + 30} bold size={15}>
+              {title}
+            </DiagramText>
+            <DiagramText x={MID} y={y + 52} ink="muted">
+              {line}
+            </DiagramText>
+          </g>
+        ))}
+        <DiagramArrow head={head} d={vertical(MID, 80, 102)} />
+        <DiagramArrow head={head} d={vertical(MID, 176, 198)} />
+        <DiagramArrow head={head} d={vertical(MID, 272, 304)} />
+        <DiagramText x={MID} y={326} bold>
+          Each piece comes from the first layer that has it
+        </DiagramText>
+        <DiagramText x={MID} y={348} ink="muted">
+          colours, font, images, stylesheet, page layouts
+        </DiagramText>
+        <DiagramText x={MID} y={368} ink="muted">
+          a piece is never mixed, only chosen
+        </DiagramText>
+      </>
+    ),
+  };
+}
+
 export const DRAWINGS = {
   tenants: tenants(),
   clients: clients(),
@@ -431,6 +469,7 @@ export const DRAWINGS = {
   sessions: sessions(),
   tokens: tokens(),
   'consent-and-audit': consentAndAudit(),
+  branding: branding(),
 } satisfies Record<string, Drawing>;
 
 export type DiagramName = keyof typeof DRAWINGS;

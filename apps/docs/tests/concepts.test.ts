@@ -15,6 +15,7 @@ const PAGES = [
   'sessions',
   'tokens',
   'consent-and-audit',
+  'branding',
 ] as const;
 
 function source(page: string): string {
@@ -39,7 +40,7 @@ function repoText(file: string): string {
 }
 
 describe('the concept pages', () => {
-  it('are exactly the seven the section lists, beside its index', () => {
+  it('are exactly the eight the section lists, beside its index', () => {
     const found = readdirSync(CONTENT)
       .filter((name) => /\.mdx?$/u.test(name) && name !== 'index.md')
       .map((name) => name.replace(/\.mdx$/u, ''))

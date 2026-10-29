@@ -15,6 +15,7 @@ const PAGES = [
   'sessions',
   'tokens',
   'consent-and-audit',
+  'branding',
 ] as const;
 
 // The smallest a diagram's text may render, in CSS pixels, at a phone's width.
