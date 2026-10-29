@@ -49,7 +49,9 @@ export function PreviewShell({
       <p className={styles.lead}>{lead}</p>
       <div className={styles.notes}>{notes}</div>
       <div className={styles.live}>{live}</div>
-      <div className={styles.stage}>{sheet.isOpen ? null : <PreviewFrame {...frame} />}</div>
+      <div className={styles.stage}>
+        <PreviewFrame {...frame} />
+      </div>
       <p role="status" className={styles.summary}>
         {summary}
       </p>

@@ -67,8 +67,6 @@ it('keeps the strip’s frame out of the tab order and the sheet’s in it, name
   expect(within(sheet).getByTitle('Preview of the page, full size')).not.toHaveAttribute(
     'tabindex',
   );
-  // The strip's frame is not loaded a second time while the sheet shows the page.
-  expect(screen.queryByTitle('Preview of the page')).toBeNull();
 });
 
 it('moves focus into the sheet, keeps it there, and gives it back to Open on Escape', async () => {

@@ -26,6 +26,12 @@
     inset-block-end: 0;
     z-index: 5;
   }
+
+  /* A field being edited is never under the strip: while one has focus the
+     strip stays where the editor ends. */
+  .workspace:has(.editor :focus-within) .preview {
+    position: static;
+  }
 }
 
 @container (inline-size >= 64rem) {

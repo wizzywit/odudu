@@ -53,9 +53,3 @@ samp {
 [data-shell] {
   container: shell / inline-size;
 }
-
-/* A page with a preview strip pinned to the bottom edge keeps a field that
-   takes focus clear of it. */
-html:has([data-preview-strip]) {
-  scroll-padding-block-end: 8rem;
-}
