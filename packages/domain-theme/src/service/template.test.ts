@@ -577,3 +577,36 @@ describe('an unterminated construct', () => {
     expect(issue).toMatchObject({ line: 2, column: 1 });
   });
 });
+
+describe('where a browser would move a part', () => {
+  const PARTS = '{{error}}{{form.open}}{{fields}}{{submit}}{{form.close}}';
+
+  it('refuses parts between table parts, which a browser lifts out of the table', () => {
+    expect(codes(`<table>${PARTS}</table>`)).toContain('part-placement');
+    expect(codes(`<table><tr>${PARTS}</tr></table>`)).toContain('part-placement');
+  });
+
+  it('refuses a part inside a link, which a link in it would end', () => {
+    expect(
+      codes(
+        `<a href="https://x.example" rel="noopener noreferrer">{{error}}</a>${PARTS.replace('{{error}}', '')}`,
+      ),
+    ).toContain('part-placement');
+  });
+
+  it('refuses a form opened in one cell and closed in another', () => {
+    expect(
+      codes(
+        '{{error}}<table><tr><td>{{form.open}}</td><td>{{fields}}{{submit}}{{form.close}}</td></tr></table>',
+      ),
+    ).toContain('form-pair');
+  });
+
+  it('accepts a form held whole by one cell', () => {
+    expect(
+      codes(
+        '{{error}}<table><tr><td>{{form.open}}{{fields}}{{submit}}{{form.close}}</td></tr></table>',
+      ),
+    ).toEqual([]);
+  });
+});

@@ -55,6 +55,8 @@ const TEMPLATE_MESSAGES: Record<TemplateIssueCode, string> = {
   'too-many-elements': 'The template has more elements than the limit.',
   'form-pair': 'form.open and form.close come together, in that order.',
   'form-placement': 'A part that belongs inside the form is outside it.',
+  'part-placement':
+    'A part may not sit in a paragraph, heading, link or table part, where a browser moves it.',
 };
 
 const STYLESHEET_MESSAGES: Record<StylesheetIssueCode, string> = {

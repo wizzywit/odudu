@@ -39,7 +39,8 @@ export type TemplateIssueCode =
   | 'too-deep'
   | 'too-many-elements'
   | 'form-pair'
-  | 'form-placement';
+  | 'form-placement'
+  | 'part-placement';
 
 export interface TemplateIssue {
   code: TemplateIssueCode;
@@ -167,8 +168,28 @@ const OMISSIBLE_END: ReadonlySet<string> = new Set([
   'hr',
   'wbr',
 ]);
+// Where a browser moves what the server puts in a slot: text between table
+// parts is lifted out in front of the table, a form opened there is closed at
+// once, and a link inside a link ends the first.
+const NOT_FOR_PARTS: ReadonlySet<string> = new Set(['a', 'table', 'tbody', 'thead', 'tfoot', 'tr']);
 const VOID_ELEMENTS: ReadonlySet<string> = new Set(['br', 'hr', 'img', 'wbr']);
 const HAS_BRACES = /\{\{|\}\}/;
+
+// Where the parser put a node against where the source has it: it lifts
+// whatever sits between table parts out in front of the table, so a node's
+// source position falls after a sibling that follows it in the tree. Text
+// merged into an earlier node is placed by its end.
+function firstLifted(children: Node[]): number | null {
+  let latest = Infinity;
+  let found: number | null = null;
+  for (let i = children.length - 1; i >= 0; i -= 1) {
+    const location = children[i]?.sourceCodeLocation ?? null;
+    if (location === null) continue;
+    if (location.endOffset > latest) found = location.startOffset;
+    latest = Math.min(latest, location.startOffset);
+  }
+  return found;
+}
 
 function isHttps(value: string): boolean {
   if (!/^https:/i.test(value) || /[\u0000- \u007f]/.test(value)) return false;
@@ -378,7 +399,15 @@ export function checkTemplate(
   // Slots the parser saw in text. A slot written with entities, or one a
   // tag splits, never matches the source's count.
   let slotsInText = 0;
+  // Where the form's two halves sit: a browser closes a form at the end of
+  // the cell or paragraph it was opened in, whatever came before its close.
+  const formParents = new Map<string, Node | null>();
   let treeElements = 0;
+  const checkOrder = (children: Node[]): void => {
+    const at = firstLifted(children);
+    if (at !== null) add('part-placement', 'markup between table parts', at);
+  };
+  checkOrder(fragment.childNodes);
   const stack: { node: Node; depth: number }[] = fragment.childNodes
     .toReversed()
     .map((node) => ({ node, depth: 1 }));
@@ -395,7 +424,19 @@ export function checkTemplate(
       if (inRawText && HAS_BRACES.test(node.value)) {
         add('slot-in-raw-text', parent.tagName, parent.sourceCodeLocation?.startTag?.startOffset);
       } else if (!inRawText) {
-        slotsInText += scanSlots(node.value).filter((slot) => slot.kind !== 'malformed').length;
+        const found = scanSlots(node.value).filter((slot) => slot.kind !== 'malformed');
+        slotsInText += found.length;
+        const parts = found.filter((slot) => slot.kind === 'part');
+        const at = node.sourceCodeLocation?.startOffset;
+        for (const part of parts) {
+          if (part.name === 'form.open' || part.name === 'form.close') {
+            formParents.set(part.name, parent);
+          }
+        }
+        const holder = parent !== null && defaultTreeAdapter.isElementNode(parent);
+        if (parts.length > 0 && holder && NOT_FOR_PARTS.has(parent.tagName)) {
+          add('part-placement', `${parts[0]?.name ?? ''} in ${parent.tagName}`, at);
+        }
       }
     } else if (defaultTreeAdapter.isElementNode(node)) {
       treeElements += 1;
@@ -424,10 +465,18 @@ export function checkTemplate(
       } else {
         checkAttributes(node, options, add);
       }
+      checkOrder(node.childNodes);
       for (const child of node.childNodes.toReversed()) {
         stack.push({ node: child, depth: depth + 1 });
       }
     }
+  }
+  if (
+    formParents.has('form.open') &&
+    formParents.has('form.close') &&
+    formParents.get('form.open') !== formParents.get('form.close')
+  ) {
+    add('form-pair', 'form.open and form.close sit in the same element');
   }
   for (const offset of sourceTags) {
     if (!explicit.has(offset)) add('unparsed-tag', template.slice(offset, offset + 16), offset);
