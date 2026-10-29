@@ -50,6 +50,7 @@
   .actions {
     grid-area: actions;
     flex-wrap: nowrap;
+    max-inline-size: 12rem;
   }
 
   .title,

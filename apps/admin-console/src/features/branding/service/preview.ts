@@ -33,6 +33,9 @@ export const PREVIEW_SHEET_TITLE = 'Page preview';
 
 export const PREVIEW_CLOSE_LABEL = 'Close preview';
 
+// Said in the strip when the preview shows something other than the saved draft.
+export const PREVIEW_DIFFERS = 'not the saved draft';
+
 // The strip's line of what it shows: the page, its scheme, and what else the
 // preview was asked for.
 export function previewSummary(...parts: readonly string[]): string {

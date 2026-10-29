@@ -49,6 +49,11 @@ function preview(page: Page): FrameLocator {
 
 async function customiseLight(page: Page, background: string): Promise<Locator> {
   const section = page.getByRole('region', { name: 'Colours and font' });
+  // Narrow, each palette is folded under its legend.
+  const fold = section.getByRole('button', { name: 'Light colours' });
+  if ((await fold.isVisible()) && (await fold.getAttribute('aria-expanded')) === 'false') {
+    await fold.click();
+  }
   await section.getByText('Use my own light colours', { exact: true }).click();
   await section
     .getByRole('textbox', { name: 'Light page background', exact: true })

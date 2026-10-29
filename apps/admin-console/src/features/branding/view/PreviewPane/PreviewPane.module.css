@@ -4,7 +4,7 @@
 }
 
 /* Under the strip, where the panel's own gap is not there to separate it. */
-@container (inline-size < 64rem) {
+@container (inline-size < 48rem) {
   .fallback:not(:empty) {
     padding-block-start: var(--space-2);
   }

@@ -63,10 +63,10 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   max-block-size: 28rem;
-  min-block-size: calc(10 * 1.5 * var(--type-13) + 2 * var(--space-2));
+  min-block-size: calc(10 * 1.5 * var(--input-size-mono) + 2 * var(--space-2));
   overflow: auto;
   font-family: var(--font-mono);
-  font-size: var(--type-13);
+  font-size: var(--input-size-mono);
   line-height: 1.5;
   tab-size: 2;
   font-variant-ligatures: none;

@@ -2,6 +2,7 @@ import {
   FALLBACK_TITLE,
   PAGE_KIND_LABELS,
   PAGE_KIND_OPTIONS,
+  PREVIEW_DIFFERS,
   PREVIEW_FRAME_TITLE,
   PREVIEW_KIND_LABEL,
   PREVIEW_NOTE,
@@ -28,6 +29,7 @@ export function PreviewPane({ preview, pickKind }: { preview: Preview; pickKind:
       summary={previewSummary(
         PAGE_KIND_LABELS[preview.choice.kind],
         SCHEME_LABELS[preview.choice.scheme],
+        preview.fallback.length === 0 ? '' : PREVIEW_DIFFERS,
       )}
       lead={PREVIEW_NOTE}
       controls={

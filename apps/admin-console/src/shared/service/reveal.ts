@@ -12,3 +12,8 @@ export function revealOffset(
   const overshoot = item.start + item.size + margin - (view.start + view.size);
   return overshoot > 0 ? view.scrolled + overshoot : null;
 }
+
+// Scrolls a row sideways to an offset `revealOffset` gave.
+export function scrollRowTo(row: HTMLElement, offset: number): void {
+  row.scrollLeft = offset;
+}

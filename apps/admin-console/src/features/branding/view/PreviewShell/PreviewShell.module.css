@@ -48,7 +48,7 @@
 
 /* Stacked under the editor the pane is the strip: a miniature, a line, and
    the button, over whatever notice the preview has. */
-@container (inline-size < 64rem) {
+@container (inline-size < 48rem) {
   .pane {
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
@@ -79,9 +79,15 @@
     display: none;
   }
 
+  /* Kept for a screen reader, which hears a notice as it arrives; the strip
+     says in its line that there is one, and the sheet shows it. */
   .live {
-    display: block;
-    grid-area: live;
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .stage {
@@ -89,13 +95,14 @@
   }
 
   .summary {
-    display: block;
     grid-area: summary;
     margin: 0;
     font-size: var(--type-13);
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow-wrap: anywhere;
   }
 
   .open {

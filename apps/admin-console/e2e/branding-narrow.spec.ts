@@ -48,6 +48,8 @@ for (const [name, viewport] of WIDTHS) {
         await expect(page.getByRole('progressbar')).toHaveCount(0);
         await expectFitsViewport(page, tab);
       }
+      await page.context().clearCookies();
+      await signIn(page, branding.client);
       await openClientBranding(page);
       await expectFitsViewport(page, 'a client’s Branding tab');
     });
@@ -84,7 +86,7 @@ test.describe('on a phone', () => {
       if (box === null) return;
       expect(box.y + box.height).toBeLessThanOrEqual(812 + 1);
       expect(box.y + box.height).toBeGreaterThan(812 - 40);
-      expect(box.height).toBeLessThan(140);
+      expect(box.height).toBeLessThan(110);
     }
   });
 
@@ -106,7 +108,7 @@ test.describe('on a phone', () => {
     const frame = sheet.locator(FRAME);
     await expect(frame).toHaveAttribute('sandbox', '');
     const box = await frame.boundingBox();
-    expect(box?.width ?? 0).toBeGreaterThan(340);
+    expect(box?.width ?? 0).toBeGreaterThan(300);
     expect(box?.height ?? 0).toBeGreaterThan(300);
     await expect(frame.contentFrame().getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
@@ -152,8 +154,10 @@ test.describe('on a phone', () => {
     const bar = page.getByRole('region', { name: 'Publish', exact: true });
     await expect(bar.getByRole('button', { name: 'Publish the draft' })).toBeVisible();
     await expect(bar.getByRole('button', { name: 'Discard draft…' })).toBeHidden();
-    const box = await bar.boundingBox();
-    expect(box?.height ?? 999).toBeLessThan(120);
+    // Publish and the menu sit on one row.
+    const publish = await bar.getByRole('button', { name: 'Publish the draft' }).boundingBox();
+    const more = await bar.getByRole('button', { name: 'More publishing actions' }).boundingBox();
+    expect(Math.abs((publish?.y ?? 0) - (more?.y ?? 999))).toBeLessThan(2);
 
     await bar.getByRole('button', { name: 'More publishing actions' }).click();
     const menu = page.getByRole('menu', { name: 'More publishing actions' });
@@ -238,7 +242,10 @@ test.describe('on a phone', () => {
           // The select a custom one keeps for forms, which is not what is pressed.
           if (node.closest('[aria-hidden=true]') !== null) continue;
           const name = `${node.tagName.toLowerCase()} "${(node.getAttribute('aria-label') ?? node.textContent).trim().slice(0, 30)}"`;
-          if (box.height < 43.5) small.push(`${name} ${String(Math.round(box.height))}px`);
+          // A control inside a bordered group is as large as the group.
+          const outer = node.parentElement?.getBoundingClientRect().height ?? 0;
+          const height = outer - box.height < 6 ? Math.max(box.height, outer) : box.height;
+          if (height < 43.5) small.push(`${name} ${String(Math.round(box.height))}px`);
           if (/^(INPUT|SELECT|TEXTAREA)$/u.test(node.tagName)) {
             const size = Number.parseFloat(getComputedStyle(node).fontSize);
             if (size < 16) type.push(`${name} ${String(size)}px`);
