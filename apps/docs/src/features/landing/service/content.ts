@@ -241,7 +241,7 @@ export const BRANDING: BrandingItem = {
   id: 'branding',
   title: 'Branding and theming',
   claim:
-    "Every page the server shows can wear a tenant's theme: its colours and font, a logo and a background image, one stylesheet and one page template per page kind. A client can brand its own pages over the tenant's, piece by piece. A draft is previewed on the real page, published as a version and restorable. Colours are checked for contrast before a theme publishes, and a stylesheet may name only the pages' documented classes, so a theme cannot run script or load anything from elsewhere. The address-verification mail follows the tenant's theme.",
+    "Every page the server shows can wear a tenant's theme: its colours and font, a logo and a background image, one stylesheet and one page template per page kind. A client can brand its own pages over the tenant's, piece by piece. A draft is previewed on the real page, published as a version and restorable. Colours are checked for contrast before a theme publishes, and a stylesheet may name only the pages' documented classes, so a stylesheet cannot run script or load anything from outside the theme's own images. The address-verification mail follows the tenant's theme.",
   legend: 'The same sign-in page in two looks, both drawn by the server',
   caption: 'Same page and same markup. The second look is a tenant theme.',
   alt: {

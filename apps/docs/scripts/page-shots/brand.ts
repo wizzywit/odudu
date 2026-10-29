@@ -3,7 +3,7 @@
 // page renderers, so the picture shows what a published theme produces. The
 // images are drawn here, byte for byte the same on every run, because a
 // content hash names each of them in the page.
-import { crc32, deflateSync } from 'node:zlib';
+import { crc32 } from 'node:zlib';
 import {
   buildBranding,
   type BuildOutcome,
@@ -52,6 +52,7 @@ export const THEME_BODY: ThemeBody = {
     },
   },
   stylesheet:
+    // The cap matches Instrument's own mark height, so both looks share one frame.
     '.logo { max-block-size: 1.5625rem; }\nh1 { letter-spacing: 0.01em; }\nbutton { border-radius: var(--radius-m); }',
   templates: {},
   assets: {
@@ -63,7 +64,7 @@ export const THEME_BODY: ThemeBody = {
 
 type Rgb = [number, number, number];
 
-interface Raster {
+export interface Raster {
   id: string;
   width: number;
   height: number;
@@ -146,9 +147,39 @@ function chunk(type: string, data: Buffer): Buffer {
   return Buffer.concat([head, data, tail]);
 }
 
-// Level 0 stores the bytes unchanged, so the output does not depend on the
-// zlib build that wrote it.
-function png(raster: Raster): Buffer {
+function adler32(data: Buffer): number {
+  let a = 1;
+  let b = 0;
+  for (const byte of data) {
+    a = (a + byte) % 65521;
+    b = (b + a) % 65521;
+  }
+  return ((b << 16) | a) >>> 0;
+}
+
+const MAX_STORED = 65535;
+
+// A zlib stream of stored blocks written by hand: zlib's own level 0 splits
+// blocks at its output chunk size, which a Node release may change, and the
+// bytes are hashed into the asset URLs the page carries.
+export function storedZlib(data: Buffer): Buffer {
+  const parts: Buffer[] = [Buffer.from([0x78, 0x01])];
+  let offset = 0;
+  do {
+    const block = data.subarray(offset, offset + MAX_STORED);
+    offset += block.length;
+    const head = Buffer.alloc(5);
+    head[0] = offset >= data.length ? 1 : 0;
+    head.writeUInt16LE(block.length, 1);
+    head.writeUInt16LE(~block.length & 0xffff, 3);
+    parts.push(head, block);
+  } while (offset < data.length);
+  const tail = Buffer.alloc(4);
+  tail.writeUInt32BE(adler32(data), 0);
+  return Buffer.concat([...parts, tail]);
+}
+
+export function png(raster: Raster): Buffer {
   const { width, height } = raster;
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
@@ -164,7 +195,7 @@ function png(raster: Raster): Buffer {
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk('IHDR', header),
-    chunk('IDAT', deflateSync(rows, { level: 0 })),
+    chunk('IDAT', storedZlib(rows)),
     chunk('IEND', Buffer.alloc(0)),
   ]);
 }

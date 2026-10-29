@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { inflateSync } from 'node:zlib';
 import { DEFAULT_PAGE_LOCALE, withBranding } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import { sha256Hex } from '../../../../packages/domain-theme/src/service/branding-urls.ts';
 import { contrastFailures } from '../../../../packages/domain-theme/src/service/contrast.ts';
 import { renderLoginForm } from '../../../../packages/protocol-oidc/src/view/authorize-html.ts';
-import { THEME_BODY, brandFiles, brandOutcome } from './brand.ts';
+import { THEME_BODY, brandFiles, brandOutcome, png, storedZlib } from './brand.ts';
 
 const tokens = readFileSync(
   path.resolve(import.meta.dirname, '../../../admin-console/src/shared/view/tokens.css'),
@@ -90,5 +91,33 @@ describe('the tenant theme the landing page shows', () => {
     expect(html).toContain('class="logo logo-light"');
     expect(html).toContain('class="logo logo-dark"');
     expect(html).toContain(`href="${outcome.branding?.stylesheetUrl ?? ''}"`);
+  });
+});
+
+describe('the images are drawn the same on every Node', () => {
+  const small = {
+    id: 'x',
+    width: 3,
+    height: 2,
+    pixel: (x: number, y: number): [number, number, number, number] => [x * 80, y * 100, 7, 255],
+  };
+
+  it('writes a small image to a fixed, known byte sequence', () => {
+    expect(sha256Hex(png(small))).toBe(
+      'a8c886f0869e7f0f3759f1d1bfc2eca090b76bb45793f547eace959b6a5c2f45',
+    );
+  });
+
+  it('writes a zlib stream that inflates to the raw data, in one block or several', () => {
+    const raw = Buffer.from(Array.from({ length: 150_000 }, (_, i) => (i * 31) % 251));
+    expect(inflateSync(storedZlib(raw)).equals(raw)).toBe(true);
+    expect(inflateSync(storedZlib(Buffer.alloc(0))).length).toBe(0);
+    const rows = Buffer.concat(
+      [0, 1].map((y) =>
+        Buffer.concat([Buffer.from([0]), ...[0, 1, 2].map((x) => Buffer.from(small.pixel(x, y)))]),
+      ),
+    );
+    const idat = png(small).toString('latin1');
+    expect(idat).toContain(storedZlib(rows).toString('latin1'));
   });
 });
