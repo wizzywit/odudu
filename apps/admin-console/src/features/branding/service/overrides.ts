@@ -19,7 +19,7 @@ import type { GatewayFailure, GatewayResult, Problem } from '#/shared/service/re
 export const OVERRIDES_TITLE = 'Message overrides';
 
 export const OVERRIDES_DESCRIPTION =
-  'The tenant’s own wording for the messages its pages and its mail show, per language. A language with no override shows the catalogue’s text. Mail still follows the tenant’s theme only.';
+  'The tenant’s own wording for the messages its pages and its mail show, per language. A language with no override shows the catalogue’s text. Mail follows the tenant’s theme only. A client’s own theme never reaches it.';
 
 export const OVERRIDE_CAP = MESSAGE_OVERRIDE_LIMIT;
 

@@ -22,7 +22,7 @@ export const MAIL_LOCALE_LABEL = 'Language';
 export const MAIL_INHERITS_TITLE = 'What the mail inherits';
 
 export const MAIL_INHERITS_LEAD =
-  'Mail follows the tenant’s published theme and its message overrides, and nothing else: a client’s own theme never reaches it. Where the theme sets nothing, the mail keeps Odudu’s own colours and mark.';
+  'Mail follows the tenant’s published theme and its message overrides, and nothing else. A client’s own theme never reaches it. Where the theme sets nothing, the mail keeps Odudu’s own colours and mark.';
 
 export const MAIL_CLIENTS_NOTE =
   'A mail client chooses the light or the dark colours by its own setting, so each is listed here and the preview shows one at a time.';
