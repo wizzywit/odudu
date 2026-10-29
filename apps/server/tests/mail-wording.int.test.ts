@@ -194,7 +194,9 @@ describe('a mail queued for a tenant with its own wording', () => {
 describe('what the wording costs a mail request', () => {
   async function statementsOf(w: World, email: string): Promise<number> {
     const { statements } = await recorder.record(() => requestReset(w, email));
-    return statements.filter(isWork).length;
+    // Savepoints are statements the database runs too.
+    return statements.filter((s) => isWork(s) || /^(savepoint|release)\b/iu.test(s.query.trim()))
+      .length;
   }
 
   it('is the same for an address with an account and one without, with or without overrides', async () => {
