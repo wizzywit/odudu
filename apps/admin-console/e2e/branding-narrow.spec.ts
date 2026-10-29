@@ -1,11 +1,10 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, expectAccessible, expectFitsViewport, signIn, test } from './fixtures';
+import { FRAME, MAIL_FRAME } from './branding-frames';
 import { seeded } from './stack';
 
-const { branding } = seeded().config;
+const branding = seeded().config.branding;
 
-const FRAME = 'iframe[title="Preview of the page"]';
-const MAIL_FRAME = 'iframe[title="Preview of the verification mail"]';
 const TABS = ['Theme', 'Pages', 'Mail', 'Languages'] as const;
 
 const WIDTHS = [

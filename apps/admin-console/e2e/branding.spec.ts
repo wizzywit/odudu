@@ -9,6 +9,7 @@ import {
   LAPTOP,
   PHONE,
 } from './fixtures';
+import { FRAME, MAIL_FRAME } from './branding-frames';
 import { authorize } from './page-flows';
 import { seeded } from './stack';
 
@@ -34,7 +35,6 @@ async function tabTo(page: Page, target: Locator): Promise<void> {
   }
   await expect(target).toBeFocused();
 }
-const FRAME = 'iframe[title="Preview of the page"]';
 
 async function openBranding(page: Page, tenant: string): Promise<void> {
   await page.goto(`/console/${tenant}/branding`);
@@ -490,8 +490,6 @@ test('undo, redo and an indent bring the caret back into view in a long styleshe
   await page.keyboard.press('ControlOrMeta+Shift+z');
   await expect.poll(caretShows).toBe(true);
 });
-
-const MAIL_FRAME = 'iframe[title="Preview of the verification mail"]';
 
 test('frames the verification mail without a script, in either scheme', async ({ page }) => {
   test.slow();
