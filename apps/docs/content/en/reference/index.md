@@ -23,6 +23,8 @@ rather follow a journey than look something up, the [guides](../guides/index.md)
   a command stops with.
 - [Audit events](./generated/events.md): the event types, actions and reasons the audit trail
   records.
+- [Branding](./generated/branding.md): the page kinds and the parts a template places, and the CSS
+  hooks a theme stylesheet may name.
 
 ## What is not there yet
 
