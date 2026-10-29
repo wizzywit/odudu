@@ -12,11 +12,27 @@ function schemeView(scheme: SchemeColours, fromClient: boolean): MailBrandingVie
   return { source, colours: coloursView(scheme.colours) };
 }
 
-function sameColours(
+const ROLES = [
+  'page',
+  'panel',
+  'sunken',
+  'border',
+  'ink',
+  'muted',
+  'link',
+  'button',
+  'buttonInk',
+] as const;
+
+// Palette equality by role, so the order the keys were written in decides nothing.
+export function sameColours(
   a: MailColours | null | undefined,
   b: MailColours | null | undefined,
 ): boolean {
-  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  if (a === null || a === undefined || b === null || b === undefined) {
+    return (a ?? null) === (b ?? null);
+  }
+  return ROLES.every((role) => a[role] === b[role]);
 }
 
 // A logo with the address it is fetched from, or null where the mail has none.
