@@ -1,15 +1,13 @@
 import { DocsLink } from '@site/src/shared/view/DocsLink/DocsLink';
 import type { ReactElement } from 'react';
-import { BRANDING, PLANNED_LABEL, ROADMAP_NEXT } from '@site/src/features/landing/service/content';
+import { BRANDING } from '@site/src/features/landing/service/content';
 import { useBrandingPictures } from '@site/src/features/landing/usecase/useBrandingPictures';
-import { Chip } from '@site/src/features/landing/view/Chip/Chip';
 import { Frame } from '@site/src/features/landing/view/Frame/Frame';
 import { Section } from '@site/src/features/landing/view/Section/Section';
 import styles from '@site/src/features/landing/view/Branding/Branding.module.css';
 
 const LOOKS = { odudu: styles.odudu, other: styles.other };
 const SCHEMES = { light: styles.light, dark: styles.dark };
-const LEGEND = 'Illustration of a planned feature: the same sign-in page in two looks';
 
 export function Branding(): ReactElement {
   const pictures = useBrandingPictures();
@@ -40,19 +38,11 @@ export function Branding(): ReactElement {
       tone="sunken"
       aside={picture}
     >
-      <div data-planned={BRANDING.id}>
-        <p className={styles.status}>
-          <Chip>{PLANNED_LABEL}</Chip>
-        </p>
-        <p className={styles.body}>
-          {BRANDING.claim} <DocsLink to={ROADMAP_NEXT}>On the roadmap</DocsLink>
-        </p>
-        <p className={styles.body} data-today="">
-          {BRANDING.today}
-        </p>
-      </div>
+      <p className={styles.body}>
+        {BRANDING.claim} <DocsLink to={BRANDING.guide.path}>{BRANDING.guide.label}</DocsLink>
+      </p>
       <fieldset className={styles.looks}>
-        <legend className={styles.legend}>{LEGEND}</legend>
+        <legend className={styles.legend}>{BRANDING.legend}</legend>
         <label className={styles.look}>
           <input
             className={styles.pickOdudu}
@@ -65,7 +55,7 @@ export function Branding(): ReactElement {
         </label>
         <label className={styles.look}>
           <input className={styles.pickOther} type="radio" name="branding-look" value="other" />{' '}
-          Another brand&apos;s colours
+          A tenant&apos;s theme
         </label>
       </fieldset>
     </Section>

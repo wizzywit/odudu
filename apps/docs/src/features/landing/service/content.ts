@@ -227,29 +227,29 @@ export const MARKDOWN_LINE = {
   after: ' lists them.',
 };
 
-export interface BrandingItem extends Planned {
-  today: string;
+export interface BrandingItem {
+  id: string;
+  title: string;
+  claim: string;
+  legend: string;
   caption: string;
   alt: { odudu: string; other: string };
+  guide: { label: string; path: string };
 }
 
 export const BRANDING: BrandingItem = {
   id: 'branding',
   title: 'Branding and theming',
   claim:
-    "Every page the server shows will render in a tenant's theme and a client's branding. A tenant sets its colours, images, one stylesheet and one page template per page kind, and its mail follows the tenant's tokens, logo and wording.",
-  quotes: [
-    "render in a tenant's theme and a client's branding",
-    'A tenant sets its colours, images, one stylesheet and one page template per page kind',
-    "Its mail follows the tenant's tokens, logo and wording",
-  ],
-  today:
-    'Today every tenant shares one design. Pages are ready for translation, but none are translated yet.',
-  caption: 'Only the colours change.',
+    "Every page the server shows can wear a tenant's theme: its colours and font, a logo and a background image, one stylesheet and one page template per page kind. A client can brand its own pages over the tenant's, piece by piece. A draft is previewed on the real page, published as a version and restorable. Colours are checked for contrast before a theme publishes, and a stylesheet may name only the pages' documented classes, so a theme cannot run script or load anything from elsewhere. The address-verification mail follows the tenant's theme.",
+  legend: 'The same sign-in page in two looks, both drawn by the server',
+  caption: 'Same page and same markup. The second look is a tenant theme.',
   alt: {
-    odudu: "The sign-in page in Odudu's own colours.",
-    other: "The same sign-in page in another brand's purple colours.",
+    odudu: "The sign-in page in Odudu's own look: its mark and name above the form, on a plain grid.",
+    other:
+      "The same sign-in page in a tenant's theme: the tenant's purple colours, a monospaced font, a round logo and a soft purple background behind the form.",
   },
+  guide: { label: 'Branding in the console', path: '/admin-console/branding/' },
 };
 
 export const EXAMPLES_URL_PATH = '/tree/main/examples';
