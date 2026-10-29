@@ -225,6 +225,25 @@ describe('the publication bar and the revert', () => {
   });
 });
 
+describe('a refusal on a client’s page', () => {
+  it('names manage-clients, as the writes of a client’s theme need', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(
+      AT,
+      clientBrandingRoutes(themeAnswer(overriding(), '"cd1"'), {
+        [`PUT ${CTH}`]: problem(403, 'about:blank', 'Forbidden'),
+      }),
+    );
+    const section = await colours();
+    await user.click(within(section).getByRole('switch', { name: 'Use my own dark colours' }));
+    await user.click(within(section).getByRole('button', { name: /Save/u }));
+    expect(
+      await within(section).findByText(/it needs the manage-clients capability/u),
+    ).toBeVisible();
+    expect(section).not.toHaveTextContent('manage-tenant');
+  });
+});
+
 describe('the Pages tab', () => {
   it('edits the client’s page templates beside a preview of the page chosen', async () => {
     const user = userEvent.setup();

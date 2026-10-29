@@ -9,6 +9,7 @@ import {
   discardFailure,
   NOTHING_TO_PUBLISH,
   revertHold,
+  revertLead,
   revertProblem,
   revertRequest,
   tabsChanged,
@@ -115,6 +116,17 @@ describe('reverting a tab', () => {
     expect(tabUnsaved('theme', dirty)).toEqual(['Images']);
     expect(tabUnsaved('pages', dirty)).toEqual(['Page templates']);
     expect(tabUnsaved('pages', new Set())).toEqual([]);
+  });
+});
+
+describe('what a revert says it takes back', () => {
+  it('names the three parts of the Theme tab together, and the templates for Pages', () => {
+    const tenant = { kind: 'tenant' } as const;
+    expect(revertLead(tenant, 'theme')).toMatch(
+      /the colours and font, the images and the stylesheet as published, all together/u,
+    );
+    expect(revertLead(tenant, 'pages')).toMatch(/the page templates as published/u);
+    expect(revertLead({ kind: 'client', id: 'c' }, 'theme')).toMatch(/falls back to the tenant’s/u);
   });
 });
 

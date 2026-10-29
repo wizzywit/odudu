@@ -98,3 +98,11 @@ it('sets unselected tabs on the muted surface and merges the selected one into t
   expect(rule('.tab[data-selected]')).toMatch(/border-block-end-color:\s*var\(--surface-panel\)/u);
   expect(rule('.tab[data-selected]')).toMatch(/var\(--signal-active-ink\)/u);
 });
+
+it('draws the changed dot as a square outline and the unsaved dot as a round fill', () => {
+  expect(rule('.dirty')).toMatch(/border-radius:\s*50%/u);
+  expect(rule('.dirty')).toMatch(/background:\s*var\(--signal-warning-ink\)/u);
+  expect(rule('.changed')).toMatch(/border-radius:\s*0/u);
+  expect(rule('.changed')).toMatch(/border:\s*2px solid/u);
+  expect(rule('.changed')).toMatch(/background:\s*transparent/u);
+});

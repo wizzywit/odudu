@@ -7,6 +7,7 @@ import {
   RESTORED_TOAST,
   type ThemeScope,
   type VersionRow,
+  writeCapability,
 } from '#/features/branding/service';
 import { useToast } from '#/shared/repository/useToasts';
 import type { Read } from '#/shared/service/read';
@@ -24,7 +25,7 @@ export function useVersions(tenant: string, scope: ThemeScope, writes: ThemeWrit
   const read = useThemeVersions(tenant, scope, true);
   const restoring = useConfirmedChange<VersionRow, unknown>({
     refusal,
-    capability: 'manage-tenant',
+    capability: writeCapability(scope),
     change: { busy: writes.restore.busy, run: (row) => writes.restore.run(row.id) },
     failureText: restoreFailure,
     done: () => {

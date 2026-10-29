@@ -43,7 +43,7 @@ export function useThemeTab({
 }): ThemeTab {
   const colours = useColours({ tenant, scope, view, tag, gone });
   const images = useImages({ tenant, scope, view, tag, gone });
-  const deletion = useImageDeletion(tenant, images.forget);
+  const deletion = useImageDeletion(tenant, scope, images.forget);
   const writes = useThemeWrites(tenant, scope);
   const report = contrastReport(colours.save.values);
   return {
@@ -54,6 +54,6 @@ export function useThemeTab({
     report,
     revert: useRevert({ tenant, scope, view, tag, tab: 'theme' }),
     versions: useVersions(tenant, scope, writes),
-    reset: useThemeReset(tenant, writes),
+    reset: useThemeReset(tenant, scope, writes),
   };
 }

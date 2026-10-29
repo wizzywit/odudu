@@ -1,9 +1,10 @@
 import type { ThemeBodyRequest, ThemeBodyWire } from '@odudu/contracts';
 import type { ThemeView } from '@odudu/contracts/admin';
+import { writeRefusal } from '#/shared/service/capabilities';
 import { writeFailureText } from '#/shared/service/failure';
 import { andList } from '#/shared/service/format';
 import type { AdminCapability } from '#/shared/service/principal';
-import type { GatewayFailure, GatewayResult } from '#/shared/service/result';
+import type { GatewayFailure, GatewayResult, Problem } from '#/shared/service/result';
 import {
   COLOURS_TITLE,
   IMAGES_TITLE,
@@ -69,9 +70,14 @@ export const REVERTING = 'Reverting…';
 
 export const REVERT_DONE = 'Tab reverted to published';
 
-export function revertLead(scope: ThemeScope): string {
+const TAB_PARTS: Readonly<Record<ScopedTab, string>> = {
+  theme: 'the colours and font, the images and the stylesheet',
+  pages: 'the page templates',
+};
+
+export function revertLead(scope: ThemeScope, tab: ScopedTab): string {
   const under = scope.kind === 'tenant' ? 'is cleared' : 'falls back to the tenant’s theme';
-  return `Writes the draft again with this tab’s parts as published; a part with nothing published ${under}. The other tabs keep their changes, and nothing is published.`;
+  return `Writes the draft again with ${TAB_PARTS[tab]} as published, all together; a part with nothing published ${under}. The other tabs keep their changes, and nothing is published.`;
 }
 
 export const TAB_MATCHES = 'This tab already matches what is published.';
@@ -112,8 +118,10 @@ const PIECE_OF: Readonly<Record<ChangedPiece, (body: ThemeBodyWire) => Partial<T
 // theme has them, or empty where it has none; every other piece stays.
 export function revertRequest(view: ThemeView, tab: ScopedTab): ThemeBodyRequest {
   const published = view.published?.body ?? EMPTY_BODY;
-  const taken = TAB_PIECES[tab].map((piece) => PIECE_OF[piece](published));
-  return Object.assign({}, baseBody(view), ...taken) as ThemeBodyRequest;
+  return TAB_PIECES[tab].reduce<ThemeBodyRequest>(
+    (body, piece) => ({ ...body, ...PIECE_OF[piece](published) }),
+    baseBody(view),
+  );
 }
 
 export function revertFailure(failure: GatewayFailure): string {
@@ -169,4 +177,9 @@ export function discardFailure(failure: GatewayFailure): string {
 // What a scope's writes need: a client's theme is its own client's to change.
 export function writeCapability(scope: ThemeScope): AdminCapability {
   return scope.kind === 'tenant' ? 'manage-tenant' : 'manage-clients';
+}
+
+// What a refused section save says of a 403, naming the capability of the scope.
+export function themeRefusal(scope: ThemeScope): (problem: Problem) => string | null {
+  return (problem) => writeRefusal(problem, writeCapability(scope));
 }

@@ -19,6 +19,7 @@ import {
   VERSIONS_TITLE,
   versionRows,
   versionsLead,
+  type ScopedTab,
   type ThemeScope,
   type VersionRow,
 } from '#/features/branding/service';
@@ -36,10 +37,18 @@ import { FormSkeleton } from '#/shared/view/Skeleton';
 import { StatusTag } from '#/shared/view/StatusTag';
 import styles from '#/features/branding/view/PublicationPanels/PublicationPanels.module.css';
 
-export function RevertPanel({ scope, revert }: { scope: ThemeScope; revert: Revert }) {
+export function RevertPanel({
+  scope,
+  tab,
+  revert,
+}: {
+  scope: ThemeScope;
+  tab: ScopedTab;
+  revert: Revert;
+}) {
   return (
     <Panel title={REVERT_TITLE}>
-      <p className={recordTab.rule}>{revertLead(scope)}</p>
+      <p className={recordTab.rule}>{revertLead(scope, tab)}</p>
       {revert.hold === undefined ? null : <Note>{revert.hold}</Note>}
       <div className={recordTab.actions}>
         <Button isDisabled={revert.busy || revert.hold !== undefined} onPress={revert.revert}>
