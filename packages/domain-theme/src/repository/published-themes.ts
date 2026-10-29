@@ -60,14 +60,21 @@ export function publishedThemeRepository(tx: TenantScopedDatabase) {
     // `oauthClientId` is the OAuth client_id a page knows; an id that names
     // no client of the tenant selects no client row, exactly as a client
     // with no theme does.
-    forRender(tenantId: string, oauthClientId: string | null): Promise<PublishedLayers> {
+    // `enabledOnly` also leaves out the client of a disabled client, for a
+    // mail, which must not wear the look of a client that is switched off.
+    forRender(
+      tenantId: string,
+      oauthClientId: string | null,
+      options: { enabledOnly?: boolean } = {},
+    ): Promise<PublishedLayers> {
+      const gate = options.enabledOnly === true ? sql` and c.enabled` : sql``;
       return read(
         tenantId,
         oauthClientId === null
           ? undefined
           : eq(
               themeVersions.clientId,
-              sql`(select c.id from clients c where c.tenant_id = ${tenantId} and c.client_id = ${oauthClientId})`,
+              sql`(select c.id from clients c where c.tenant_id = ${tenantId} and c.client_id = ${oauthClientId}${gate})`,
             ),
       );
     },
