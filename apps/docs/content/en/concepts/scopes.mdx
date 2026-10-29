@@ -41,7 +41,7 @@ A client that asks for a scope it was not assigned is refused with `invalid_scop
 
 ## The built-in scopes
 
-Every tenant starts with eight scopes: `openid`, `profile`, `email`, `address`, `phone`, `roles`, `groups` and `offline_access`. You can edit them, for example to give `profile` a consent text. You can also delete them, except `openid`, which every client's sign-in depends on. Deleting one takes it off every client that carries it and unmaps every role mapped to it. The console counts both first and asks you to type the scope's name. The admin API refuses to delete a built-in scope until the request names it again.
+Every tenant starts with eight scopes: `openid`, `profile`, `email`, `address`, `phone`, `roles`, `groups` and `offline_access`. You can edit them, for example to give `profile` a consent text, which can be translated into the tenant's languages. You can also delete them, except `openid`, which every client's sign-in depends on. Deleting one takes it off every client that carries it and unmaps every role mapped to it. The console counts both first and asks you to type the scope's name. The admin API refuses to delete a built-in scope until the request names it again.
 
 Whether a scope is built in is decided by its name alone. A scope you create under one of those eight names counts as built in: deleting it needs the same confirmation, and a restore leaves it alone.
 
