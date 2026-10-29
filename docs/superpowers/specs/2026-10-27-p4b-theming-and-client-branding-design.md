@@ -176,7 +176,10 @@ naming a client changes nothing. It is the client of that session's request
 _at the moment the mail is queued_, so no flow gains a stored client id: the
 mail is queued in the request that holds the session. A client that is not
 registered in the tenant, is disabled or has been deleted gives the tenant's
-look. The residual: whoever starts an authorization request for any registered,
+look. Two limits follow from that condition: a reset asked for from a page reached
+through an emailed link has no held `return_to`, and two tabs sharing one
+cookie leave the earlier tab's `return_to` unlike the held request; both get
+the tenant's look. The residual: whoever starts an authorization request for any registered,
 enabled client of a tenant can have a reset or verification mail branded as
 that client. That is the exposure the client's own page already has, and the
 mail's content, links and sender are unchanged.

@@ -421,6 +421,31 @@ describe('a registration verification mail from a client sign-in', () => {
   });
 });
 
+describe('the notice an address already held is sent from a client sign-in', () => {
+  it("wears the client's colours, through the same mail context as the verification mail", async () => {
+    const w = await world();
+    await publish(w, null, theme({ tokens: { light: TENANT_LOOK } }));
+    await publish(w, w.portalRowId, theme({ tokens: { light: PORTAL_LOOK } }));
+    const parked = await park(w, 'Create an account');
+    const registered = await request(
+      'POST',
+      `/tenants/${w.name}/login-actions/registration`,
+      {
+        username: `d${newId().slice(-8)}`,
+        email: w.email,
+        password: PASSWORD,
+        password_confirm: PASSWORD,
+        return_to: parked.carried,
+      },
+      parked.cookie,
+    );
+    expect(registered.statusCode).toBe(201);
+    const html = await mailHtmlTo(w.email);
+    expect(html).toContain('#e0f0ff');
+    expect(html).not.toContain('#f1f2f3');
+  });
+});
+
 describe('what a client-bound reset request reveals', () => {
   async function ask(w: World, email: string, parked: Parked) {
     // The page's own theme cache is emptied, so only the mail's reads differ.

@@ -151,7 +151,7 @@ URL a page uses, not an inline (CID) attachment.
   savepoint (`withSavepoint`, two extra statements on a cache miss only), the
   failure is logged once, and the mail goes out unthemed.
 
-## Amendment: a mail wears the client whose sign-in began the flow
+## Amendment, 2026-10-29: a mail wears the client whose sign-in began the flow
 
 The first decision here kept mail to the tenant's layer, on the grounds that no
 flow stores a client id. Client branding is the phase's topic and nothing
@@ -174,6 +174,15 @@ the sign-in's page.
   The statement count is the same for a known and an unknown address, since
   the read is made before the address is looked up, and the response never
   mentions the client.
+- **Cost**: the client read is paid for each request that makes one, before
+  the mail gate and before the address lookup, so a known and an unknown
+  address cost the same. It is one statement in a savepoint, served by the
+  client's unique `(tenant_id, client_id)` index (an index scan at 10,000
+  clients in one tenant and 2,000 tenants), and constant whatever a theme names.
+- **Limits**: a reset asked for from a page reached through an emailed link
+  carries no held `return_to`, and two tabs sharing one cookie leave the
+  earlier tab's `return_to` different from the held request. Both get the
+  tenant's look, never another client's.
 - **Fallbacks**: a failed client read gives the tenant's look, then the
   shipped one, each logged. Colours, logo and the tenant's wording only: no
   stylesheet, template or client wording.
