@@ -18,7 +18,7 @@ export const SELECTORS_NOTE = `Puts the selector you choose where the caret is i
 export const VALUES_LABEL = 'Design values you can use';
 
 export const VALUES_NOTE =
-  'Puts a design value, as var(--name), where the caret is. It belongs in a declaration after a colon; in a selector the stylesheet check refuses it.';
+  'Puts a design value, written with var(), where the caret is. It belongs in a declaration after a colon; in a selector the stylesheet check refuses it.';
 
 export const VALUES_LOADING = 'Loading the list of design values.';
 

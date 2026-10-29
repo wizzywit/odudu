@@ -224,7 +224,7 @@ describe('POST /theme/assets', () => {
       expect(body.type, contentType).toBe('about:blank#asset-unsupported-type');
       expect(body.title, contentType).toBe('Unsupported Media Type');
       expect(body.detail, contentType).toContain(
-        `the declared type is ${contentType.split(';')[0]}`,
+        `the declared type is ${contentType.split(';').at(0) ?? ''}`,
       );
       expect(body.detail, contentType).not.toContain('the image is not');
     }
@@ -250,17 +250,9 @@ describe('POST /theme/assets', () => {
     expect(detail.length).toBeLessThan(200);
   });
 
-  it('refuses a content-type given twice', async () => {
+  it('refuses a content-type given twice, as a proxy joins the two', async () => {
     const ctx = await tenantCtx();
-    const res = await fixture.http.inject({
-      method: 'POST',
-      url: `/admin/tenants/${ctx.tenant.name}/theme/assets?kind=logo`,
-      headers: {
-        authorization: `Bearer ${ctx.token}`,
-        'content-type': ['image/png', 'text/plain'],
-      },
-      payload: makePng(),
-    });
+    const res = await upload(ctx, 'logo', makePng(), { contentType: 'image/png, image/png' });
     expect(res.statusCode, res.body).toBe(415);
     expect(res.json()).toMatchObject({ type: 'about:blank#asset-unsupported-type' });
   });

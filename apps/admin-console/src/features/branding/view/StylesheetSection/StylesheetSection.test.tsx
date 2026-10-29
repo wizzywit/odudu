@@ -341,7 +341,7 @@ describe('the selectors you can use', () => {
       within(editor).getByText('The list of design values could not be loaded.'),
     ).toBeVisible();
     expect(await picker(editor)).toBeDisabled();
-    await user.click(within(editor).getAllByRole('button', { name: 'Try again' })[0]!);
+    await user.click(within(editor).getAllByRole('button', { name: 'Try again' }).at(0) ?? editor);
     await waitFor(() => {
       expect(within(editor).queryByRole('alert')).toBeNull();
     });
