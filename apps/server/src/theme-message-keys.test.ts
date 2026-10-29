@@ -129,10 +129,16 @@ describe('overrideProblemFor', () => {
     expect(overrideProblemFor('login.title', '')).toContain('empty');
   });
 
+  it('does not offer the attribution a mail carries, as a page has none', () => {
+    for (const key of ['mail.brand', 'mail.copyright', 'mail.poweredBy']) {
+      expect(isOverridableMessageKey(key), key).toBe(false);
+    }
+  });
+
   it('holds a mail key to the arguments its English text reads', () => {
     expect(overrideProblemFor('reset.subject', 'For {tenant}')).toBeNull();
     expect(overrideProblemFor('reset.subject', 'For {nobody}')).toContain('{nobody}');
-    expect(overrideProblemFor('mail.copyright', '(c) {year}')).toBeNull();
+    expect(overrideProblemFor('reset.reason', 'Because of {tenant}')).toBeNull();
     expect(overrideProblemFor('reset.button', 'Go {tenant}')).toContain('{tenant}');
   });
 
