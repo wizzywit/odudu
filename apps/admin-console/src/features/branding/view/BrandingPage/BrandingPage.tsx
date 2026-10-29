@@ -12,6 +12,7 @@ import {
 import { useBrandingPage } from '#/features/branding/usecase/useBrandingPage';
 import { LanguagesTab } from '#/features/branding/view/LanguagesTab';
 import { MailInherits, MailPreview } from '#/features/branding/view/MailTab';
+import { PublicationBar } from '#/features/branding/view/PublicationBar';
 import { PagesPanel, ThemePanel } from '#/features/branding/view/ScopePanels';
 import { Workspace } from '#/features/branding/view/Workspace';
 import { RecordPage } from '#/shared/view/RecordPage';
@@ -39,12 +40,18 @@ function Branding({ tenant }: { tenant: string }) {
       description={BRANDING_DESCRIPTION}
       noun={BRANDING_NOUN}
       label={BRANDING_SECTIONS_LABEL}
+      banner={
+        view === undefined || tag === null ? null : (
+          <PublicationBar tenant={tenant} branding={branding} view={view} tag={tag} />
+        )
+      }
       tab={page.tab}
       onTabChange={page.selectTab}
       tabs={OFFERED_TABS.map((tab) => ({
         id: tab,
         label: BRANDING_TAB_LABELS[tab],
         dirty: page.dirty.has(tab),
+        changed: branding.changed.has(tab),
         panel: panels === null ? null : panels[tab],
       }))}
     />

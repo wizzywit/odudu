@@ -24,8 +24,10 @@ import {
   type ThemeScope,
 } from '#/features/branding/service';
 import { useMessageKeys } from '#/features/branding/usecase/useMessageKeys';
+import { useRevert } from '#/features/branding/usecase/useRevert';
 import { useTemplates } from '#/features/branding/usecase/useTemplates';
 import { InsertMessage } from '#/features/branding/view/MessageKeyField';
+import { RevertPanel } from '#/features/branding/view/PublicationPanels';
 import { CodeField } from '#/shared/view/CodeField';
 import { SelectField } from '#/shared/view/Field';
 import { Panel } from '#/shared/view/Panel';
@@ -87,6 +89,7 @@ export function PagesTab({
 }) {
   const templates = useTemplates({ tenant, scope, view, tag, gone, published });
   const { save } = templates;
+  const revert = useRevert({ tenant, scope, view, tag, tab: 'pages' });
   const keys = useMessageKeys(tenant, kind);
   const problems = templates.problems(kind);
   return (
@@ -117,6 +120,7 @@ export function PagesTab({
           }}
         />
       </SaveSection>
+      <RevertPanel scope={scope} tab="pages" revert={revert} />
       <Parts kind={kind} />
     </div>
   );

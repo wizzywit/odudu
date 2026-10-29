@@ -566,6 +566,15 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Publish: feature('branding/service/publish.ts', "PUBLISH_TITLE = 'Publish'"),
   Versions: feature('branding/service/versions.ts', "VERSIONS_TITLE = 'Versions'"),
   'Reset to default': feature('branding/service/versions.ts', "RESET_TITLE = 'Reset to default'"),
+  'Revert to published': feature(
+    'branding/service/publication.ts',
+    "REVERT_TITLE = 'Revert to published'",
+  ),
+  'Revert this tab to published': feature(
+    'branding/service/publication.ts',
+    "REVERT_LABEL = 'Revert this tab to published'",
+  ),
+  'Discard draft': feature('branding/service/publication.ts', "DISCARD_CONFIRM = 'Discard draft'"),
   'Delete image': feature('branding/service/copy.ts', "DELETE_LABEL = 'Delete image'"),
   Preview: feature('branding/service/preview.ts', "PREVIEW_TITLE = 'Preview'"),
   'Message key': feature('branding/service/overrides.ts', "KEY_LABEL = 'Message key'"),

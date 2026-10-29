@@ -5,6 +5,7 @@ import {
   NO_OUTCOME,
   placedOver,
   TENANT_SCOPE,
+  tabsChanged,
   tabsWithEdits,
   themeRecord,
   type OfferedTab,
@@ -21,6 +22,8 @@ export interface ScopeBranding {
   view: ThemeView | undefined;
   // The draft's tag, or the one that says there is none.
   tag: string | null;
+  // The tabs holding part of what a publish would change, for their dots.
+  changed: ReadonlySet<OfferedTab>;
   // The scope, with what the tenant supplies under it once the read says.
   scope: ThemeScope;
   preview: Preview;
@@ -43,6 +46,7 @@ export function useScopeBranding(
     record,
     view: record.data,
     tag: record.etag,
+    changed: tabsChanged(record.data?.changed ?? []),
     scope: placed,
     preview: usePreview(tenant, placed, record.data, record.etag, showsPreview),
     published,

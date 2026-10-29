@@ -7,8 +7,6 @@ export const BRANDING_SECTIONS_LABEL = 'Branding sections';
 
 export const BRANDING_NOUN = 'theme';
 
-export const STATUS_TITLE = 'Status';
-
 export const COLOURS_LEAD =
   'Light and dark are two palettes, each used whole: customise one and every colour in it is yours, so a colour can never be left to clash. A scheme you leave alone keeps Instrument’s own colours.';
 

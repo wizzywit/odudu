@@ -30,6 +30,7 @@ export function RecordPage({
   actions,
   noun,
   label,
+  banner,
   tabs,
   tab,
   onTabChange,
@@ -49,6 +50,8 @@ export function RecordPage({
   noun: string;
   // Names the tab list: "Client sections".
   label: string;
+  // Above the tabs, once the record is shown, for what belongs to every tab.
+  banner?: ReactNode;
   tabs: readonly TabItem[];
   tab: string;
   onTabChange: (id: string) => void;
@@ -129,6 +132,7 @@ export function RecordPage({
             ) : null}
           </div>
           {viewOnly}
+          {banner}
           <ReadOnlyFields when={readOnly}>
             <Tabs label={label} tabs={tabs} selectedKey={tab} onSelectionChange={onTabChange} />
           </ReadOnlyFields>

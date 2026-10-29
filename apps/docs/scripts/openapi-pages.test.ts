@@ -239,7 +239,8 @@ describe('the admin API reference pages', () => {
     const rows = (text: string): number =>
       text.split('\n').filter((l) => l.startsWith('| ')).length;
     const largest = Math.max(...[...pages.values()].map(rows));
-    expect(largest).toBeLessThanOrEqual(70);
+    // The largest is one operation's request and response together, here a client's theme save.
+    expect(largest).toBeLessThanOrEqual(75);
   });
 
   it('keeps every parameter, response status and nested body field of the OpenAPI document in the section of its operation, in order across the pages of a split body', () => {

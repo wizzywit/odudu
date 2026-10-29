@@ -158,6 +158,8 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
   'theme.asset_deleted': 'An image uploaded for a tenant’s themes was deleted.',
   'theme.asset_uploaded':
     'An image was uploaded for a tenant’s themes, including bytes the tenant already stored.',
+  'theme.draft_discarded':
+    'The draft of a tenant’s or a client’s theme was discarded; the published theme stayed.',
   'theme.draft_saved': 'The draft of a tenant’s or a client’s theme was saved.',
   'theme.published': 'The draft of a tenant’s or a client’s theme was published.',
   'theme.reset': 'A tenant’s theme was reset to the default, or a client’s to its tenant’s.',

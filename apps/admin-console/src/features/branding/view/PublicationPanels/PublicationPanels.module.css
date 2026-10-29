@@ -13,13 +13,3 @@
   color: var(--signal-danger-ink);
   overflow-wrap: anywhere;
 }
-
-.issues {
-  display: grid;
-  gap: var(--space-1);
-  margin: 0;
-  padding-inline-start: var(--space-6);
-  font-family: var(--font-mono);
-  font-size: var(--type-12);
-  overflow-wrap: anywhere;
-}

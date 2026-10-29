@@ -33,6 +33,7 @@ function withStylesheet(css: string) {
   return themeView({
     draft: { ...EMPTY, tokens: { light: OWN_LIGHT }, stylesheet: css },
     draft_sources: { stylesheet: 'tenant' },
+    changed: ['tokens', 'stylesheet'],
   });
 }
 
@@ -89,7 +90,10 @@ describe('the stylesheet editor', () => {
     const editor = await section();
     await user.click(box(editor));
     await user.paste('a {}');
-    expect(await screen.findByText(/Save your changes first, in “Stylesheet”:/u)).toBeVisible();
+    const publish = await screen.findByRole('region', { name: 'Publish' });
+    expect(
+      await within(publish).findByText(/Save your changes first, in “Stylesheet”:/u),
+    ).toBeVisible();
     expect(screen.getByRole('tab', { name: /Theme/u })).toHaveTextContent(/unsaved|●|•|changes/iu);
   });
 

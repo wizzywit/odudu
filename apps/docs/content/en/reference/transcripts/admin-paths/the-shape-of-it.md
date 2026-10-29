@@ -153,6 +153,7 @@ shown once — a registration token, a client secret, a one-time password.
 | `GET`    | `/admin/tenants/{tenant}/theme`                                         | Read a tenant's draft and published theme  |
 | `PUT`    | `/admin/tenants/{tenant}/theme`                                         | Save a tenant's draft theme                |
 | `DELETE` | `/admin/tenants/{tenant}/theme`                                         | Reset a tenant's theme to the default      |
+| `DELETE` | `/admin/tenants/{tenant}/theme/draft`                                   | Discard a tenant's draft theme             |
 | `POST`   | `/admin/tenants/{tenant}/theme/publish`                                 | Publish a tenant's draft theme             |
 | `POST`   | `/admin/tenants/{tenant}/theme/assets`                                  | Upload an image for a tenant's themes      |
 | `GET`    | `/admin/tenants/{tenant}/theme/assets/:assetId/content`                 | Read an uploaded image's bytes             |
@@ -167,6 +168,7 @@ shown once — a registration token, a client secret, a one-time password.
 | `GET`    | `/admin/tenants/{tenant}/clients/:id/theme`                             | Read a client's draft and published theme  |
 | `PUT`    | `/admin/tenants/{tenant}/clients/:id/theme`                             | Save a client's draft theme                |
 | `DELETE` | `/admin/tenants/{tenant}/clients/:id/theme`                             | Reset a client's theme to its tenant's     |
+| `DELETE` | `/admin/tenants/{tenant}/clients/:id/theme/draft`                       | Discard a client's draft theme             |
 | `POST`   | `/admin/tenants/{tenant}/clients/:id/theme/publish`                     | Publish a client's draft theme             |
 | `GET`    | `/admin/tenants/{tenant}/clients/:id/theme/preview`                     | Preview a page of a client's draft theme   |
 | `GET`    | `/admin/tenants/{tenant}/clients/:id/theme/preview/info`                | Say what a client's preview shows and why  |

@@ -40,6 +40,7 @@ export {
   type TokenGroups,
 } from '#/service/body';
 export { PIECE_NAMES, pieceSources, resolvePieces, type PieceName } from '#/service/resolve';
+export { DIFF_PIECES, changedPieces, type DiffPiece } from '#/service/changed-pieces';
 export {
   TEXT_CONTRAST,
   UI_CONTRAST,

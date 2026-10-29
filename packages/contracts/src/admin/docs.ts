@@ -1145,6 +1145,8 @@ describeFields(themeViewSchema, {
     'The same for the draft as it would be if published, or null when there is no draft.',
   tenant_sources:
     'On a client’s theme, the layer that supplies each piece of the tenant’s own published theme: `tenant` where the tenant sets it, `default` where it does not, so a piece the client sets can say which of the tenant’s it hides. Null on the tenant’s own theme. It needs no capability beyond the client’s own theme read.',
+  changed:
+    'The parts of the draft (`tokens`, `assets`, `stylesheet`, `templates`) that differ from this scope’s own published theme, compared by the server on their stored form, in that order. Empty when there is no draft or the draft matches what is published; nothing published compares as the empty theme. Publishing is refused with `about:blank#theme-nothing-to-publish` while it is empty.',
 });
 describeFields(publishedThemeSchema, {
   id: 'The version’s identifier, which `restore` names.',

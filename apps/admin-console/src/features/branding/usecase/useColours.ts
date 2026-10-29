@@ -16,9 +16,10 @@ import {
   type PaletteKey,
   type Scheme,
   type ThemeScope,
+  themeRefusal,
+  writeCapability,
 } from '#/features/branding/service';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { writeRefusal } from '#/shared/service/capabilities';
 
 export interface Colours {
   save: SectionSave<ColourValues>;
@@ -50,10 +51,10 @@ export function useColours({
     section: 'colours',
     label: COLOURS_TITLE,
     etag: tag,
-    capability: 'manage-tenant',
+    capability: writeCapability(scope),
     gone,
     refusal,
-    explain: writeRefusal,
+    explain: themeRefusal(scope),
     fields: colourFields(colourValues(view)),
     save: colourSave(tenant, scope, view),
   });

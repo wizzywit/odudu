@@ -200,6 +200,12 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
       'There is no draft to publish: none was saved, or another request has already published ' +
       'it. Save a draft again.',
   },
+  'theme-nothing-to-publish': {
+    status: 409,
+    summary:
+      'The draft has the content that is already published, so publishing it would only add ' +
+      'an identical version. Change the draft first, or discard it.',
+  },
   'tenant-enabled': {
     status: 409,
     summary:

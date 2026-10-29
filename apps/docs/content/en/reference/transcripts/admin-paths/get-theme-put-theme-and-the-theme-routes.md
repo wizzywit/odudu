@@ -5,7 +5,7 @@ description: 'A tenant’s branding, and a client’s over it, saved as a draft 
 
 # Theme: draft, publish, versions, restore, reset
 
-This page covers `GET /theme`, `PUT /theme`, `POST /theme/publish`, `GET /theme/versions`, `POST /theme/versions/{versionId}/restore`, `DELETE /theme`, `GET /theme/preview`, `GET /theme/preview/info`, `GET /clients/:id/theme`, `PUT /clients/:id/theme`, `POST /clients/:id/theme/publish`, `GET /clients/:id/theme/versions`, `POST /clients/:id/theme/versions/{versionId}/restore`, `DELETE /clients/:id/theme` `GET /clients/:id/theme/preview` and `GET /clients/:id/theme/preview/info`, and the tenant's image routes `POST /theme/assets`, `GET /theme/assets/{assetId}/content` `DELETE /theme/assets/{assetId}`, and `GET /theme/stylesheet-hooks`.
+This page covers `GET /theme`, `PUT /theme`, `POST /theme/publish`, `GET /theme/versions`, `POST /theme/versions/{versionId}/restore`, `DELETE /theme`, `DELETE /theme/draft`, `GET /theme/preview`, `GET /theme/preview/info`, `GET /clients/:id/theme`, `PUT /clients/:id/theme`, `POST /clients/:id/theme/publish`, `GET /clients/:id/theme/versions`, `POST /clients/:id/theme/versions/{versionId}/restore`, `DELETE /clients/:id/theme`, `DELETE /clients/:id/theme/draft` `GET /clients/:id/theme/preview` and `GET /clients/:id/theme/preview/info`, and the tenant's image routes `POST /theme/assets`, `GET /theme/assets/{assetId}/content` `DELETE /theme/assets/{assetId}`, and `GET /theme/stylesheet-hooks`.
 
 The tenant's own theme needs `manage-tenant` and a client's `manage-clients`,
 the capability every other client route needs. A client is named by its row `id`;
@@ -15,6 +15,10 @@ one of another tenant, or that does not exist, answers `404`.
   layer that supplies it: `sources` for what users see now, `draft_sources` for
   what publishing the draft would give. A layer is `client`, `tenant` or
   `default`. A client's pieces fall back to the tenant's, one piece at a time.
+  `changed` lists the parts of the draft (`tokens`, `assets`, `stylesheet`,
+  `templates`) that differ from the scope's own published theme, which the server
+  compares on their stored form; it is empty without a draft, and a scope with
+  nothing published compares as the empty theme.
 - `PUT /theme` saves the whole draft. The first draft of a scope needs no
   `If-Match`; once one exists the write must send the draft's `ETag`, refused with
   `428` when it is missing or `*` and with `412` when it is stale, leaving the
@@ -29,7 +33,8 @@ one of another tenant, or that does not exist, answers `404`.
   stylesheet or a template cannot be proven accessible, so each is a `warnings`
   entry, which does not block. `409` (`about:blank#theme-no-draft`) when there
   is no draft, which is also what the second of two simultaneous publishes of
-  one draft receives.
+  one draft receives, and `409` (`about:blank#theme-nothing-to-publish`) when the
+  draft has the published content, which would add a version identical to the last.
 - `GET /theme/versions` lists at most 20 versions, newest first, without bodies.
 - `POST /theme/versions/{versionId}/restore` publishes a copy of an earlier
   version, whole, and leaves the draft alone. Refused with `409`
@@ -63,6 +68,12 @@ one of another tenant, or that does not exist, answers `404`.
   statements whatever the theme names, and needs the preview's capability.
 - `DELETE /theme` deletes the draft and archives the published version, so the
   tenant shows the default and a client shows its tenant's theme. History is kept.
+- `DELETE /theme/draft` (`manage-tenant`; `DELETE /clients/:id/theme/draft` needs
+  `manage-clients`) deletes the draft and nothing else: the published theme, its
+  versions and what users see are untouched. It takes the draft's `ETag` as
+  `If-Match` like the other draft writes, `428` when it is missing or `*` and
+  `412` when stale; a scope with no draft answers its theme as it is. It is
+  audited as `theme.draft_discarded`.
 
 - `POST /theme/assets?kind=logo|darkLogo|favicon|background` uploads an image
   for the tenant's themes (`manage-tenant`, or `manage-clients`, since a client's
@@ -107,8 +118,8 @@ A publish, a restore and a reset take effect on the next page this process
 renders; another replica shows the previous theme for at most 30 seconds, the
 lifetime of its cache. Deleting a client or a tenant drops the cache the same
 way. A tenant has no rename, so nothing else changes what a cached theme names.
-Each write is audited as `theme.draft_saved`, `theme.published`, `theme.restored`
-or `theme.reset`, with ids and versions and never the theme itself.
+Each write is audited as `theme.draft_saved`, `theme.draft_discarded`,
+`theme.published`, `theme.restored` or `theme.reset`, with ids and versions and never the theme itself.
 
 ## A theme, end to end
 
