@@ -226,11 +226,12 @@ test.describe('on a phone', () => {
     await openTab(page, 'Pages');
     const field = page.getByRole('combobox', { name: 'Insert a message' });
     await field.focus();
-    const [fieldBox, stripBox] = await Promise.all([
-      field.boundingBox(),
-      strip(page).boundingBox(),
-    ]);
-    expect((fieldBox?.y ?? 0) + (fieldBox?.height ?? 0)).toBeLessThanOrEqual(stripBox?.y ?? 0);
+    const fieldBox = await field.boundingBox();
+    const bottom = (fieldBox?.y ?? 0) + (fieldBox?.height ?? 0);
+    // The strip lets go of the screen's edge while a field of the editor has focus.
+    await expect
+      .poll(async () => (await strip(page).boundingBox())?.y ?? 0)
+      .toBeGreaterThanOrEqual(bottom);
   });
 
   test('the Mail tab’s preview is a strip and a sheet too', async ({ page }) => {
