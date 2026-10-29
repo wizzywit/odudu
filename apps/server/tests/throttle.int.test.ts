@@ -361,6 +361,32 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
     }
   });
 
+  it('holds the SMTP test message to the same budget, one origin at a time', async () => {
+    const tenantName = `throttle-${newId()}`;
+    await seed({ tenant: tenantName, clientId: 'throttle-smtp', redirectUris: [REDIRECT_URI] });
+    const app = buildTestApp();
+    await app.ready();
+    try {
+      const send = (remoteAddress: string) =>
+        app.inject({
+          method: 'POST',
+          url: `/admin/tenants/${tenantName}/smtp/test`,
+          headers: { authorization: 'Bearer not-a-token' },
+          payload: { to: 'ops@example.test' },
+          remoteAddress,
+        });
+      const answered: number[] = [];
+      for (let attempt = 0; attempt < DEFAULT_THROTTLE.limit; attempt += 1) {
+        answered.push((await send(ORIGIN)).statusCode);
+      }
+      expect(answered).toEqual(Array.from({ length: DEFAULT_THROTTLE.limit }, () => 401));
+      expect((await send(ORIGIN)).statusCode).toBe(429);
+      expect((await send(OTHER_ORIGIN)).statusCode).toBe(401);
+    } finally {
+      await app.close();
+    }
+  });
+
   it('leaves the rendered forms alone, throttling only the submissions', async () => {
     const tenantName = `throttle-${newId()}`;
     const seeded = await seed({

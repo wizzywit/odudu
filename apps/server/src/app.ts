@@ -290,6 +290,7 @@ const THROTTLED_POSTS: ReadonlySet<string> = new Set([
   '/admin/tenants/:tenant/subjects/:id/password-reset',
   '/admin/tenants/:tenant/subjects/:id/verification',
   '/admin/tenants/:tenant/subjects/:id/actions-email',
+  '/admin/tenants/:tenant/smtp/test',
 ]);
 
 // The composition-root half of self-registration: @odudu/account never

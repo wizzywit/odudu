@@ -16,6 +16,12 @@
   gap: var(--space-3);
 }
 
+.client {
+  display: grid;
+  gap: var(--space-3);
+  max-inline-size: 40rem;
+}
+
 .outcome {
   margin: 0;
   max-inline-size: 72ch;

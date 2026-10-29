@@ -17,7 +17,14 @@ import {
 } from '#/usecase/smtp';
 import { fieldProblem, ifMatchStale, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
-import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
+import { recordCapabilityRefused } from '#/usecase/access-audit';
+import { recordRefusal, type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
+
+function tenantNameOf(request: AdminRequest): string {
+  const name = request.params.tenant;
+  if (name === undefined) throw new Error('protocol-admin: the SMTP test received no :tenant');
+  return name;
+}
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
   const value = request.headers['if-match'];
@@ -35,6 +42,8 @@ export interface SmtpRouteDeps {
   readonly now: () => Date;
   /** The tenant's wording, which the test mail is read through like any other. */
   readonly resolveMailLook?: MailLookResolver | undefined;
+  /** What the caller holds, for the capability a chosen client adds. */
+  callerCapabilities(issuerTenantId: string, subjectId: string): Promise<ReadonlySet<string>>;
 }
 
 export function readSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
@@ -176,9 +185,28 @@ export function testSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
     // Read inside the tenant transaction, then release it before sending —
     // an unreachable or slow SMTP host must never hold a pooled connection
     // for the length of the attempt.
+    // Choosing a client reads a client's theme, which is manage-clients
+    // wherever else it is read, on top of the route's own capability.
+    if (body.client_id !== undefined) {
+      const held = await deps.callerCapabilities(principal.issuerTenantId, principal.subjectId);
+      if (!held.has('manage-clients')) {
+        await recordRefusal(deps.database, request, targetTenantId, (tx) =>
+          recordCapabilityRefused(tx, principal, 'manage-clients'),
+        );
+        return sendProblem(reply, request, problem(403, 'about:blank', 'Forbidden'));
+      }
+    }
     const readOutcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
-      readSmtpForTest(tx, targetTenantId, deps.resolveMailLook),
+      readSmtpForTest(
+        tx,
+        { tenantId: targetTenantId, tenantName: tenantNameOf(request) },
+        deps.resolveMailLook,
+        body.client_id,
+      ),
     );
+    if (readOutcome.kind === 'client_not_found') {
+      return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+    }
     if (readOutcome.kind === 'not_configured') {
       await record('not_configured');
       return sendProblem(
@@ -204,6 +232,10 @@ export function testSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
         );
       case 'send_failed':
         await record('send_failed');
+        request.log.warn(
+          { tenantId: targetTenantId, failure: sendOutcome.failure, relay: sendOutcome.raw },
+          'the SMTP test message was not accepted',
+        );
         return sendProblem(
           reply,
           request,

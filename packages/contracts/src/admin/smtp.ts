@@ -34,8 +34,18 @@ export const putSmtpRequestSchema = z.object({
 });
 export type PutSmtpRequest = z.infer<typeof putSmtpRequestSchema>;
 
+// `client_id` is the client's own row id, as `.../clients/{id}/mail/preview`
+// names it; absent, the message wears the tenant's own look.
+// One mailbox: a list, a display name or a header smuggled after a line break
+// would reach several recipients, because the transport splits on commas.
+export const testRecipientSchema = z
+  .email()
+  .max(254)
+  .regex(/^[^\s,;<>\p{Cc}]+$/u);
+
 export const testSmtpRequestSchema = z.object({
-  to: z.string().min(1),
+  to: testRecipientSchema,
+  client_id: z.uuid().optional(),
 });
 export type TestSmtpRequest = z.infer<typeof testSmtpRequestSchema>;
 
