@@ -94,16 +94,26 @@ export const themePreviewInfoSchema = z.object({
 });
 export type ThemePreviewInfo = z.infer<typeof themePreviewInfoSchema>;
 
+// The most names one list of the stylesheet hooks holds and the longest a
+// name is: the lists are fixed for a build and far smaller, so these are
+// headroom that keeps the answer bounded.
+export const STYLESHEET_HOOKS_LIST_MAX = 256;
+export const STYLESHEET_HOOK_NAME_MAX = 128;
+
+const hookNamesSchema = z
+  .array(z.string().min(1).max(STYLESHEET_HOOK_NAME_MAX))
+  .max(STYLESHEET_HOOKS_LIST_MAX);
+
 // What a tenant stylesheet's selectors and values may name, as the checker
 // accepts them, with the version of the list.
 export const stylesheetHooksResponseSchema = z.object({
   version: z.number().int().positive(),
-  classes: z.array(z.string()),
-  page_kind_classes: z.array(z.string()),
-  elements: z.array(z.string()),
-  pseudo_classes: z.array(z.string()),
-  pseudo_elements: z.array(z.string()),
-  tokens: z.array(z.string()),
+  classes: hookNamesSchema,
+  page_kind_classes: hookNamesSchema,
+  elements: hookNamesSchema,
+  pseudo_classes: hookNamesSchema,
+  pseudo_elements: hookNamesSchema,
+  tokens: hookNamesSchema,
 });
 export type StylesheetHooksResponse = z.infer<typeof stylesheetHooksResponseSchema>;
 
