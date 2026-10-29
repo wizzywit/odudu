@@ -472,6 +472,14 @@ Client rules (spec 6): authorization-session pages use the pending request's `cl
 
 - [ ] **Steps 1–3:** finding table; tests first; commit per area; the transcript and screenshots stay owed to Task 26.
 
+### Task 25f: Publish and revert from every tab
+
+**Files:** `packages/protocol-admin` and `packages/domain-theme` (a list of the pieces where the draft differs from the published theme, and a discard-draft action), `apps/admin-console/src/features/branding/**` (a publication bar shared by the tabs, per-tab revert), `apps/docs/content/en/admin-console/branding.mdx`, `clients.mdx`.
+
+**Interfaces:** the theme read answers the pieces (`tokens`, `assets`, `stylesheet`, `templates`) whose saved draft value differs from the published one, for the tenant and for a client; the server compares the two bodies, never the console. `DELETE …/theme/draft` removes only the draft and leaves the published theme (manage-tenant, also admitting manage-clients for the client scope; foreign-tenant probe, statement count asserted, ETag precondition as the other draft writes, `test:plans`, OpenAPI and capability rows). The bar sits above every tab: it names what differs ("Changed: Colours, Page templates"), holds Publish with "Nothing to publish: the draft matches what people see" when nothing differs, and offers Discard draft behind a confirmation. Each tab offers Revert this tab to published, which writes the draft again with that tab's pieces taken from the published theme (cleared when nothing is published) and leaves every other piece alone. Publishing stays all-or-nothing over the whole draft. A tab shows a dot when part of the change is in it.
+
+- [ ] **Steps 1–4:** server tests first (differs for each piece, equal after a revert, discard leaves published, foreign-tenant probe, statement counts); console tests including axe, the hold message, a revert on one tab leaving another's change, discard after two tabs changed; implement; the transcript, OpenAPI figures and screenshots are owed to Task 26 (add the rows to `docs/phases/p4b.md`). Quote the layering, comment and Reuse-scan rules in the dispatch.
+
 ### Task 25e: Selectors you can use, beside the stylesheet editor
 
 **Files:** `packages/protocol-admin` (a static read beside the message catalogue, wired the same way), `packages/domain-theme/src/service/hooks.ts` (the one list the read answers from), `apps/admin-console/src/features/branding/**` (adapter, repository, service, view), `apps/docs/content/en/admin-console/branding.mdx`.
