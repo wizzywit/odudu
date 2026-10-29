@@ -27,6 +27,7 @@ import {
   TAB_THEN,
   tokensByLine,
   WRAP_LABEL,
+  WRAP_NOTE,
   type CodeLanguage,
   type CodeToken,
   type LineIssue,
@@ -179,6 +180,7 @@ export function CodeField({
   size,
   issues = [],
   tools,
+  wrap,
 }: Chrome & {
   language: CodeLanguage;
   value: string;
@@ -188,6 +190,9 @@ export function CodeField({
   // Controls drawn above the field that put text into it through
   // `CodeInsert`. Not drawn for a read-only field.
   tools?: ReactNode;
+  // Whether lines wrap, held by a page that remounts the field for another
+  // text so the choice is kept; on its own the field remembers it.
+  wrap?: { on: boolean; toggle: () => void };
 }) {
   const issuesId = useId();
   const readOnly = use(FieldsReadOnly);
@@ -200,7 +205,13 @@ export function CodeField({
     [],
   );
   const inert = readOnly || (isDisabled ?? false);
-  const [wrapped, setWrapped] = useState(false);
+  const [own, setOwn] = useState(false);
+  const wrapped = wrap?.on ?? own;
+  const toggleWrap =
+    wrap?.toggle ??
+    ((): void => {
+      setOwn((was) => !was);
+    });
   const [areaRef, history] = useCodeHistory({ value, onChange, readOnly, moved: reveal });
   const { tokens, plain } = highlight(language, value);
   const count = lineCount(normalisedBreaks(value));
@@ -264,12 +275,11 @@ export function CodeField({
             size="small"
             variant={wrapped ? 'primary' : 'secondary'}
             aria-pressed={wrapped}
-            onPress={() => {
-              setWrapped((was) => !was);
-            }}
+            onPress={toggleWrap}
           >
             {WRAP_LABEL}
           </Button>
+          {wrapped ? <span className={styles.wrapNote}>{WRAP_NOTE}</span> : null}
         </div>
         <div
           className={styles.frame}

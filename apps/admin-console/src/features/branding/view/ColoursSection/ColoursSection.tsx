@@ -1,4 +1,5 @@
 import type { ThemeView } from '@odudu/contracts/admin';
+import { useId } from 'react';
 import {
   CONTRAST_LEAD,
   CONTRAST_TITLE,
@@ -56,7 +57,7 @@ function SchemeGroup({
   const changed = colours.changedKeys(scheme);
   const legend = paletteLegend(SCHEME_LABELS[scheme]);
   const open = paletteFoldOpen(folds.isOpen(scheme), save.fieldErrors[field], problems);
-  const body = `${scheme}-colours`;
+  const body = useId();
   return (
     <div className={styles.scheme}>
       <div className={styles.fold}>

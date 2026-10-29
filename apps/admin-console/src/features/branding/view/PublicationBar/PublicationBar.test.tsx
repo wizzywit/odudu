@@ -451,6 +451,23 @@ describe('the folded bar', () => {
     expect(await screen.findByRole('alertdialog')).toHaveTextContent('Discard the draft?');
   });
 
+  it('asks before Discard from the menu, and Cancel gives focus back to the menu button', async () => {
+    const user = userEvent.setup();
+    const { sent } = renderConsoleAt(PAGES, brandingRoutes(themeAnswer(twoTabs(), '"d1"')));
+    const trigger = await more();
+    await user.click(trigger);
+    await user.click(await screen.findByRole('menuitem', { name: 'Discard draft…' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+    await waitFor(() => {
+      expect(trigger).toHaveFocus();
+    });
+    expect(sent.some((s) => s.method === 'DELETE')).toBe(false);
+  });
+
   it('reverts the Pages tab from the menu, as its own panel does', async () => {
     const user = userEvent.setup();
     const after = twoTabs({ draft: { ...DRAFT, templates: {} }, changed: ['tokens'] });

@@ -32,6 +32,18 @@ it('shows the required parts of the sign-in page, and what it may not hold', asy
   expect(within(parts).getByText(/Scripts, styles, forms/u)).toBeVisible();
 });
 
+it('keeps lines wrapped when another page is chosen', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
+  const section = await screen.findByRole('region', { name: 'Page templates' });
+  await user.click(within(section).getByRole('button', { name: 'Wrap lines' }));
+  await user.selectOptions(within(section).getByRole('combobox', { name: 'Page' }), 'Consent');
+  expect(within(section).getByRole('button', { name: 'Wrap lines' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+});
+
 it('folds the parts of a page under their heading, closed until it is pressed', async () => {
   const user = userEvent.setup();
   renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));

@@ -117,6 +117,7 @@ describe('CodeField', () => {
     expect(wrap).toHaveAttribute('aria-pressed', 'true');
     expect(box()).toHaveAttribute('wrap', 'soft');
     expect(container.querySelector('[data-wrap]')).not.toBeNull();
+    expect(screen.getByText('Line numbers are hidden while lines wrap.')).toBeVisible();
     await user.click(wrap);
     expect(box()).toHaveAttribute('wrap', 'off');
   });

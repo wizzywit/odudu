@@ -2,6 +2,8 @@ import type { ThemeView } from '@odudu/contracts/admin';
 import {
   barText,
   changeBrief,
+  discardNote,
+  foldedActions,
   DISCARD_CONFIRM,
   DISCARD_LABEL,
   DISCARD_TITLE,
@@ -13,8 +15,6 @@ import {
   PUBLISH_LABEL,
   PUBLISH_TITLE,
   PUBLISHING,
-  REVERT_LABEL,
-  REVERTING,
   publishedShort,
   publishedTag,
   PUBLISH_SHORT,
@@ -50,7 +50,7 @@ export function PublicationBar({
   tab: string;
 }) {
   const { scope } = branding;
-  const { publication, discard, revert, revertOffered, holds } = usePublicationBar({
+  const { publication, discard, revert, revertOffered, revertTab, holds } = usePublicationBar({
     tenant,
     scope,
     view,
@@ -62,6 +62,8 @@ export function PublicationBar({
   const { outcome } = publication;
   const state = publishedTag(view);
   const brief = changeBrief(view);
+  const note = discardNote(holds, view.draft !== null, publication.hold);
+  const handlers = { revert: revert.revert, discard: discard.ask };
   return (
     <div className={styles.bar}>
       <Panel title={PUBLISH_TITLE} headingClassName={styles.title ?? ''}>
@@ -86,11 +88,7 @@ export function PublicationBar({
           </div>
           <div className={styles.hold}>
             {publication.hold === undefined ? null : <Note tone="warning">{publication.hold}</Note>}
-            {view.draft === null ||
-            holds.discard === undefined ||
-            holds.discard === publication.hold ? null : (
-              <Note tone="warning">{holds.discard}</Note>
-            )}
+            {note === undefined ? null : <Note tone="warning">{note}</Note>}
           </div>
           <div className={`${recordTab.actions ?? ''} ${styles.actions ?? ''}`}>
             <Button
@@ -111,26 +109,12 @@ export function PublicationBar({
               <ActionMenu
                 label={MORE_LABEL}
                 trigger={MORE_TRIGGER}
-                actions={[
-                  ...(revertOffered
-                    ? [
-                        {
-                          id: 'revert',
-                          label: revert.busy ? REVERTING : REVERT_LABEL,
-                          isDisabled: revert.hold !== undefined,
-                          ...(revert.hold === undefined ? {} : { description: revert.hold }),
-                          onAction: revert.revert,
-                        },
-                      ]
-                    : []),
-                  {
-                    id: 'discard',
-                    label: DISCARD_LABEL,
-                    isDisabled: holds.discard !== undefined,
-                    ...(holds.discard === undefined ? {} : { description: holds.discard }),
-                    onAction: discard.ask,
-                  },
-                ]}
+                actions={foldedActions({
+                  holds,
+                  tab: revertTab,
+                  revertOffered,
+                  reverting: revert.busy,
+                }).map((action) => ({ ...action, onAction: handlers[action.id] }))}
               />
             </div>
           </div>

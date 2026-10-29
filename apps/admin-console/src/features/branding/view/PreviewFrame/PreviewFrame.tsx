@@ -28,6 +28,7 @@ export function PreviewFrame({
         key={frameKey}
         className={styles.iframe}
         title={title}
+        tabIndex={fill ? undefined : -1}
         src={src}
         sandbox=""
         referrerPolicy="no-referrer"

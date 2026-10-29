@@ -28,6 +28,7 @@ export {
   HIGHLIGHT_LIMIT,
   PLAIN_NOTE,
   WRAP_LABEL,
+  WRAP_NOTE,
   type CodeLanguage,
   type CodeToken,
   type Highlighted,

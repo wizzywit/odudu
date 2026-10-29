@@ -1,6 +1,8 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import {
+  discardNote,
+  foldedActions,
   publicationHolds,
   runningLine,
   type WritesRunning,
@@ -104,5 +106,49 @@ describe('what holds each action of the bar', () => {
     expect(holds(WAITING, { contrast: 'Text on page is too faint.' }).publish).toBe(
       'Text on page is too faint.',
     );
+  });
+});
+
+describe('what the narrow bar says and folds', () => {
+  it('says a held Discard under the bar only for a reason of its own', () => {
+    const unsaved = holds(WAITING, { unsaved: ['Stylesheet'] });
+    expect(discardNote(unsaved, true, unsaved.publish)).toMatch(/^Save or discard/u);
+    expect(discardNote(holds(NO_DRAFT), false, holds(NO_DRAFT).publish)).toBeUndefined();
+    const running = holds(WAITING, { busy: { publish: true } });
+    expect(discardNote(running, true, running.publish)).toBeUndefined();
+    expect(discardNote(holds(WAITING), true, undefined)).toBeUndefined();
+  });
+
+  it('offers Revert only where the tab has parts to take back, with its reason when held', () => {
+    const open = holds(WAITING);
+    const ids = (offered: boolean) =>
+      foldedActions({ holds: open, tab: 'pages', revertOffered: offered, reverting: false }).map(
+        (action) => action.id,
+      );
+    expect(ids(true)).toEqual(['revert', 'discard']);
+    expect(ids(false)).toEqual(['discard']);
+    const held = foldedActions({
+      holds: holds(viewOf(EMPTY, ['templates'])),
+      tab: 'theme',
+      revertOffered: true,
+      reverting: false,
+    });
+    expect(held[0]).toMatchObject({ id: 'revert', isDisabled: true });
+    expect(held[0]?.description).toMatch(/already matches/u);
+    expect(held[1]).toMatchObject({ id: 'discard', isDisabled: false, label: 'Discard draft…' });
+  });
+
+  it('holds both under one running line, and names a revert that is running', () => {
+    const busy = holds(WAITING, { busy: { revert: true } });
+    const actions = foldedActions({
+      holds: busy,
+      tab: 'pages',
+      revertOffered: true,
+      reverting: true,
+    });
+    expect(actions.map((action) => [action.label, action.isDisabled, action.description])).toEqual([
+      ['Reverting…', true, 'Reverting…'],
+      ['Discard draft…', true, 'Reverting…'],
+    ]);
   });
 });

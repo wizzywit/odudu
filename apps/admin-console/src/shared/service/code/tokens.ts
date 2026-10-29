@@ -30,6 +30,10 @@ export const PLAIN_NOTE = 'Colour and line numbers are off for text this long.';
 // Narrow, a long line can be wrapped to the screen instead of scrolled across.
 export const WRAP_LABEL = 'Wrap lines';
 
+// Said beside the switch while lines wrap, since the numbers count lines of
+// text and not the rows a wrapped one takes.
+export const WRAP_NOTE = 'Line numbers are hidden while lines wrap.';
+
 export interface Highlighted {
   tokens: readonly CodeToken[];
   // True when the text was too long to colour and is shown as typed.

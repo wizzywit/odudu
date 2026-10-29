@@ -35,6 +35,16 @@
   padding: 0;
 }
 
+/* A portal is outside the page's touch scope, so the sheet sets its own. */
+@media (pointer: coarse), (max-width: 48rem) {
+  .overlay[data-size='sheet'] {
+    --target-min: 44px;
+    --control-height: 44px;
+    --input-size: 16px;
+    --input-size-mono: 16px;
+  }
+}
+
 .modal[data-size='sheet'] {
   inline-size: 100%;
   block-size: min(92dvh, 56rem);

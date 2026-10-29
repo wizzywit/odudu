@@ -3,6 +3,7 @@ import {
   PREVIEW_CLOSE_LABEL,
   PREVIEW_OPEN_LABEL,
   PREVIEW_SHEET_TITLE,
+  sheetFrameTitle,
 } from '#/features/branding/service';
 import { usePreviewSheet } from '#/features/branding/usecase/usePreviewSheet';
 import { PreviewFrame, type PreviewFrameProps } from '#/features/branding/view/PreviewFrame';
@@ -48,9 +49,7 @@ export function PreviewShell({
       <p className={styles.lead}>{lead}</p>
       <div className={styles.notes}>{notes}</div>
       <div className={styles.live}>{live}</div>
-      <div className={styles.stage}>
-        <PreviewFrame {...frame} />
-      </div>
+      <div className={styles.stage}>{sheet.isOpen ? null : <PreviewFrame {...frame} />}</div>
       <p role="status" className={styles.summary}>
         {summary}
       </p>
@@ -70,7 +69,7 @@ export function PreviewShell({
         </div>
         <div className={styles.notes}>{notes}</div>
         <div className={styles.live}>{live}</div>
-        <PreviewFrame {...frame} fill />
+        <PreviewFrame {...frame} title={sheetFrameTitle(frame.title)} fill />
       </DialogFrame>
     </section>
   );

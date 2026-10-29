@@ -1,4 +1,5 @@
 import type { ThemeView } from '@odudu/contracts/admin';
+import { useId } from 'react';
 import {
   formNote,
   MANIFESTS,
@@ -40,6 +41,7 @@ import styles from '#/features/branding/view/PagesTab/PagesTab.module.css';
 function Parts({ kind, folds }: { kind: PageKind; folds: Folds }) {
   const manifest = MANIFESTS[kind];
   const inside = formNote(manifest);
+  const body = useId();
   const open = folds.isOpen('parts');
   const toggle = (): void => {
     folds.toggle('parts');
@@ -47,12 +49,12 @@ function Parts({ kind, folds }: { kind: PageKind; folds: Folds }) {
   return (
     <Panel title={PARTS_TITLE} headingClassName={styles.partsTitle ?? ''}>
       <div className={styles.fold}>
-        <Button aria-expanded={open} aria-controls="parts-of-this-page" onPress={toggle}>
+        <Button aria-expanded={open} aria-controls={body} onPress={toggle}>
           <span>{PARTS_TITLE}</span>
           <span aria-hidden="true">{open ? '▴' : '▾'}</span>
         </Button>
       </div>
-      <div id="parts-of-this-page" className={styles.partsBody} data-collapsed={!open || undefined}>
+      <div id={body} className={styles.partsBody} data-collapsed={!open || undefined}>
         <p className={recordTab.rule}>{TEMPLATES_INTRO}</p>
         <p className={recordTab.text}>{REQUIRED_NOTE}</p>
         <ul className={styles.parts}>
@@ -125,6 +127,12 @@ export function PagesTab({
         </NativeSelectFields>
         <CodeField
           key={kind}
+          wrap={{
+            on: folds.isOpen('wrap'),
+            toggle: () => {
+              folds.toggle('wrap');
+            },
+          }}
           label={`${PAGE_KIND_LABELS[kind]}: ${TEMPLATE_LABEL.toLowerCase()}`}
           description={`${sourceReading(scope, view, templateField(kind))}. ${templateDescription()}`}
           language="template"

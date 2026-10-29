@@ -16,7 +16,13 @@
   display: none;
 }
 
-@container (inline-size < 40rem) {
+.wrapNote {
+  margin-inline-start: var(--space-2);
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+@container (inline-size < 48rem) {
   .wrap {
     display: block;
   }

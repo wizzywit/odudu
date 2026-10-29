@@ -28,7 +28,10 @@
 
 /* Narrow, the bar is one row: what is waiting as a short line (its sentence is the
    count's title), Publish, and a menu for what else the bar does. */
-@container (inline-size < 40rem) {
+/* The bar is wider than the editor under it by the tab panel's padding and
+   borders, 3.2rem, so it folds exactly when the editor's own Revert panel is
+   put away: 48rem there, 51.2rem here. */
+@container (inline-size < 51.2rem) {
   .row {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
@@ -67,12 +70,21 @@
   }
 
   .title,
-  .published,
-  .explain,
-  .sentence,
   .full,
   .inline {
     display: none;
+  }
+
+  /* Said in full to a screen reader, which the bar has no room to show. */
+  .published,
+  .explain,
+  .sentence {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .count,

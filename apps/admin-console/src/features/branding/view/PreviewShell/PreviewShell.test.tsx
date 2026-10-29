@@ -51,11 +51,24 @@ it('opens a named sheet with the same sandboxed frame and the switches as native
   render(<Shell />);
   await user.click(screen.getByRole('button', { name: 'Open preview' }));
   const sheet = await screen.findByRole('dialog', { name: 'Page preview' });
-  const frame = within(sheet).getByTitle('Preview of the page');
+  const frame = within(sheet).getByTitle('Preview of the page, full size');
   expect(frame).toHaveAttribute('sandbox', '');
   expect(frame).toHaveAttribute('src', '/preview?scheme=light');
   await user.selectOptions(within(sheet).getByRole('combobox', { name: 'Colour scheme' }), 'dark');
   expect(screen.getAllByText('Sign in · dark').length).toBeGreaterThan(0);
+});
+
+it('keeps the strip’s frame out of the tab order and the sheet’s in it, named apart', async () => {
+  const user = userEvent.setup();
+  render(<Shell />);
+  expect(screen.getByTitle('Preview of the page')).toHaveAttribute('tabindex', '-1');
+  await user.click(screen.getByRole('button', { name: 'Open preview' }));
+  const sheet = await screen.findByRole('dialog', { name: 'Page preview' });
+  expect(within(sheet).getByTitle('Preview of the page, full size')).not.toHaveAttribute(
+    'tabindex',
+  );
+  // The strip's frame is not loaded a second time while the sheet shows the page.
+  expect(screen.queryByTitle('Preview of the page')).toBeNull();
 });
 
 it('moves focus into the sheet, keeps it there, and gives it back to Open on Escape', async () => {

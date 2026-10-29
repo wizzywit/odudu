@@ -4,6 +4,7 @@ import {
   revertTarget,
   type PublicationHolds,
   type PublishOutcome,
+  type ScopedTab,
   type ThemeScope,
 } from '#/features/branding/service';
 import { usePublication, type Publication } from '#/features/branding/usecase/usePublication';
@@ -20,6 +21,8 @@ export interface PublicationBar {
   // that has parts to take back.
   revert: Revert;
   revertOffered: boolean;
+  // The tab a revert from the bar takes back.
+  revertTab: ScopedTab;
   // Why each action is held, which a running write does to all of them.
   holds: PublicationHolds;
 }
@@ -50,6 +53,7 @@ export function usePublicationBar({
   return {
     revert: useRevert({ tenant, scope, view, tag, tab: target.tab }),
     revertOffered: target.offered,
+    revertTab: target.tab,
     holds,
     publication: usePublication({
       tenant,

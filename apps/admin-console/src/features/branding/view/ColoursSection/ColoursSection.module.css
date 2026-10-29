@@ -8,7 +8,7 @@
   display: none;
 }
 
-@container (inline-size < 40rem) {
+@container (inline-size < 48rem) {
   .fold {
     display: block;
   }
