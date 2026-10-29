@@ -27,6 +27,9 @@ export const HIGHLIGHT_LIMIT = 40_000;
 // Said beside a field whose text is past the limit.
 export const PLAIN_NOTE = 'Colour and line numbers are off for text this long.';
 
+// Narrow, a long line can be wrapped to the screen instead of scrolled across.
+export const WRAP_LABEL = 'Wrap lines';
+
 export interface Highlighted {
   tokens: readonly CodeToken[];
   // True when the text was too long to colour and is shown as typed.

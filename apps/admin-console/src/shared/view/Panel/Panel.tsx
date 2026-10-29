@@ -24,7 +24,9 @@ export function Panel({
         ref={headingRef}
         tabIndex={headingRef === undefined ? undefined : -1}
         className={
-          headingClassName === undefined ? styles.heading : `${styles.heading ?? ''} ${headingClassName}`
+          headingClassName === undefined
+            ? styles.heading
+            : `${styles.heading ?? ''} ${headingClassName}`
         }
       >
         {title}

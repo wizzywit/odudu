@@ -107,6 +107,20 @@ describe('CodeField', () => {
     expect(source).not.toMatch(/style=|unsafe-inline/u);
   });
 
+  it('wraps its lines to the screen on request, and says whether it does', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Editor start={'a { color: red }'} />);
+    const wrap = screen.getByRole('button', { name: 'Wrap lines' });
+    expect(wrap).toHaveAttribute('aria-pressed', 'false');
+    expect(box()).toHaveAttribute('wrap', 'off');
+    await user.click(wrap);
+    expect(wrap).toHaveAttribute('aria-pressed', 'true');
+    expect(box()).toHaveAttribute('wrap', 'soft');
+    expect(container.querySelector('[data-wrap]')).not.toBeNull();
+    await user.click(wrap);
+    expect(box()).toHaveAttribute('wrap', 'off');
+  });
+
   describe('Tab', () => {
     it('indents, and lets go after Escape', async () => {
       const user = userEvent.setup();

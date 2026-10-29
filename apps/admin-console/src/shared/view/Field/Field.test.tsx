@@ -159,7 +159,12 @@ describe('SelectField', () => {
       expect(
         await axeInBothThemes(() => (
           <NativeSelectFields>
-            <SelectField label="Requirement" options={OPTIONS} value="optional" onChange={vi.fn()} />
+            <SelectField
+              label="Requirement"
+              options={OPTIONS}
+              value="optional"
+              onChange={vi.fn()}
+            />
           </NativeSelectFields>
         )),
       ).toEqual({ light: [], dark: [] });

@@ -5,6 +5,7 @@ import {
   useEffect,
   useId,
   useRef,
+  useState,
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
@@ -25,6 +26,7 @@ import {
   TAB_LEAD,
   TAB_THEN,
   tokensByLine,
+  WRAP_LABEL,
   type CodeLanguage,
   type CodeToken,
   type LineIssue,
@@ -40,6 +42,7 @@ import {
   type Chrome,
 } from '#/shared/view/Field';
 import { useCodeHistory } from '#/shared/usecase/useCodeHistory';
+import { Button } from '#/shared/view/Button';
 import { KeyHint } from '#/shared/view/KeyHint';
 import type { SizeReading } from '#/shared/service/format';
 import styles from '#/shared/view/CodeField/CodeField.module.css';
@@ -122,6 +125,8 @@ function characterWidth(scroller: HTMLElement): number {
 // brings it into view in whatever scrolls, the layer's scroller or, beyond
 // the colouring limit, the textarea itself.
 function reveal(area: HTMLTextAreaElement): void {
+  // A wrapped line is more than one row, which the metrics below do not know.
+  if (area.closest('[data-wrap]') !== null) return;
   const plain = area.closest('[data-plain]') !== null;
   const scroller = plain ? area : area.closest('[data-code-scroller]');
   const style = getComputedStyle(area);
@@ -195,6 +200,7 @@ export function CodeField({
     [],
   );
   const inert = readOnly || (isDisabled ?? false);
+  const [wrapped, setWrapped] = useState(false);
   const [areaRef, history] = useCodeHistory({ value, onChange, readOnly, moved: reveal });
   const { tokens, plain } = highlight(language, value);
   const count = lineCount(normalisedBreaks(value));
@@ -253,7 +259,23 @@ export function CodeField({
         {...(issues.length === 0 ? {} : { 'aria-describedby': issuesId })}
       >
         <Header label={label} {...(changed === undefined ? {} : { changed })} />
-        <div className={styles.frame} data-plain={plain || undefined}>
+        <div className={styles.wrap}>
+          <Button
+            size="small"
+            variant={wrapped ? 'primary' : 'secondary'}
+            aria-pressed={wrapped}
+            onPress={() => {
+              setWrapped((was) => !was);
+            }}
+          >
+            {WRAP_LABEL}
+          </Button>
+        </div>
+        <div
+          className={styles.frame}
+          data-plain={plain || undefined}
+          data-wrap={wrapped || undefined}
+        >
           <div className={styles.scroller} data-code-scroller>
             {plain ? null : <Gutter count={count} marked={marks} />}
             <div className={styles.stage}>
@@ -262,7 +284,7 @@ export function CodeField({
                 ref={areaRef}
                 className={styles.area ?? ''}
                 data-control
-                wrap="off"
+                wrap={wrapped ? 'soft' : 'off'}
                 spellCheck={false}
                 autoCapitalize="off"
                 autoCorrect="off"

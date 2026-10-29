@@ -20,7 +20,12 @@ function Shell() {
       lead="The saved draft, drawn by the real page."
       controls={
         <InlineFields>
-          <SelectField label="Colour scheme" options={SCHEMES} value={scheme} onChange={setScheme} />
+          <SelectField
+            label="Colour scheme"
+            options={SCHEMES}
+            value={scheme}
+            onChange={setScheme}
+          />
         </InlineFields>
       }
       frame={{
@@ -88,7 +93,8 @@ it('closes from its Close button', async () => {
 });
 
 it('passes axe in both themes', async () => {
-  expect(
-    await axeInBothThemes(() => <Shell />, undefined, { frames: false }),
-  ).toEqual({ light: [], dark: [] });
+  expect(await axeInBothThemes(() => <Shell />, undefined, { frames: false })).toEqual({
+    light: [],
+    dark: [],
+  });
 });

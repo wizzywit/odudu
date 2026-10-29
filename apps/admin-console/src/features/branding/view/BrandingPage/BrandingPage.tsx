@@ -16,6 +16,7 @@ import { PublicationBar } from '#/features/branding/view/PublicationBar';
 import { PagesPanel, ThemePanel } from '#/features/branding/view/ScopePanels';
 import { Workspace } from '#/features/branding/view/Workspace';
 import { RecordPage } from '#/shared/view/RecordPage';
+import { TouchTargets } from '#/shared/view/TouchTargets';
 
 function Branding({ tenant }: { tenant: string }) {
   const page = useBrandingPage(tenant);
@@ -33,34 +34,36 @@ function Branding({ tenant }: { tenant: string }) {
           languages: <LanguagesTab tenant={tenant} />,
         };
   return (
-    <RecordPage
-      record={branding.record}
-      kicker={tenant}
-      title={BRANDING_TITLE}
-      description={BRANDING_DESCRIPTION}
-      noun={BRANDING_NOUN}
-      label={BRANDING_SECTIONS_LABEL}
-      banner={
-        view === undefined || tag === null ? null : (
-          <PublicationBar
-            tenant={tenant}
-            branding={branding}
-            view={view}
-            tag={tag}
-            tab={page.tab}
-          />
-        )
-      }
-      tab={page.tab}
-      onTabChange={page.selectTab}
-      tabs={OFFERED_TABS.map((tab) => ({
-        id: tab,
-        label: BRANDING_TAB_LABELS[tab],
-        dirty: page.dirty.has(tab),
-        changed: branding.changed.has(tab),
-        panel: panels === null ? null : panels[tab],
-      }))}
-    />
+    <TouchTargets>
+      <RecordPage
+        record={branding.record}
+        kicker={tenant}
+        title={BRANDING_TITLE}
+        description={BRANDING_DESCRIPTION}
+        noun={BRANDING_NOUN}
+        label={BRANDING_SECTIONS_LABEL}
+        banner={
+          view === undefined || tag === null ? null : (
+            <PublicationBar
+              tenant={tenant}
+              branding={branding}
+              view={view}
+              tag={tag}
+              tab={page.tab}
+            />
+          )
+        }
+        tab={page.tab}
+        onTabChange={page.selectTab}
+        tabs={OFFERED_TABS.map((tab) => ({
+          id: tab,
+          label: BRANDING_TAB_LABELS[tab],
+          dirty: page.dirty.has(tab),
+          changed: branding.changed.has(tab),
+          panel: panels === null ? null : panels[tab],
+        }))}
+      />
+    </TouchTargets>
   );
 }
 

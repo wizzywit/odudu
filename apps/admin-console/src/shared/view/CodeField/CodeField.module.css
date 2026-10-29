@@ -11,6 +11,17 @@
   min-inline-size: 0;
 }
 
+/* The wrap switch is for a narrow screen, where a line is longer than it. */
+.wrap {
+  display: none;
+}
+
+@container (inline-size < 40rem) {
+  .wrap {
+    display: block;
+  }
+}
+
 /* The control's box: the one border, focus ring and mark of state that
    every field has, drawn around the gutter and the text together. */
 .frame {
@@ -125,6 +136,23 @@
 .area::selection {
   background: color-mix(in srgb, var(--focus-ring) 30%, transparent);
   color: transparent;
+}
+
+/* Wrapped, the lines break at the edge: the numbers, which count lines of
+   text and not rows, are put away, and the layer and the textarea both break
+   where the box does. */
+.frame[data-wrap] .scroller {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.frame[data-wrap] .gutter {
+  display: none;
+}
+
+.frame[data-wrap] .layer,
+.frame[data-wrap] .area {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* Beyond the length that is coloured there is no layer and no gutter: the

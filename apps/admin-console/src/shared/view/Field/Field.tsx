@@ -363,7 +363,10 @@ function NativeSelect({
   const id = useId();
   const noteId = `${id}-note`;
   const errorId = `${id}-error`;
-  const described = [description === undefined ? null : noteId, error === undefined ? null : errorId]
+  const described = [
+    description === undefined ? null : noteId,
+    error === undefined ? null : errorId,
+  ]
     .filter((part) => part !== null)
     .join(' ');
   return (
