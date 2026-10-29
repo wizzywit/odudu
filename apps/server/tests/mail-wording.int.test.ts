@@ -1,3 +1,5 @@
+import { networkInterfaces } from 'node:os';
+import { createServer, type Server } from 'node:net';
 import { createDatabase, MIGRATIONS_DIR, runMigrations, tenants } from '@odudu/db';
 import { type DatabaseHandle } from '@odudu/db';
 import { capturingSender, sendPending, type EmailSender } from '@odudu/email';
@@ -43,6 +45,7 @@ beforeAll(async () => {
     tls: false,
     publicBaseUrl: BASE,
     deploymentSmtp: true,
+    allowPrivateSmtpHosts: true,
     throttle: { limit: 100_000, windowSeconds: 60 },
   });
   await app.ready();
@@ -221,4 +224,104 @@ describe('what the wording costs a mail request', () => {
     // An unknown address costs what a known one does apart from the token and the mail.
     expect(knownWorded - unknownWorded).toBe(knownPlain - unknownPlain);
   });
+});
+
+// A relay that takes one message and keeps what it was sent.
+function fakeRelay(): Promise<{ server: Server; port: number; received: Promise<string> }> {
+  return new Promise((resolve) => {
+    let done: (data: string) => void = () => undefined;
+    const received = new Promise<string>((r) => {
+      done = r;
+    });
+    const server = createServer((socket) => {
+      let data = '';
+      let inData = false;
+      socket.write('220 relay ready\r\n');
+      socket.on('data', (chunk) => {
+        const text = chunk.toString('utf8');
+        if (inData) {
+          data += text;
+          if (data.endsWith('\r\n.\r\n')) {
+            inData = false;
+            done(data);
+            socket.write('250 queued\r\n');
+          }
+          return;
+        }
+        for (const line of text.split('\r\n').filter((l) => l !== '')) {
+          const verb = line.slice(0, 4).toUpperCase();
+          if (verb === 'EHLO' || verb === 'HELO') socket.write('250 relay\r\n');
+          else if (verb === 'DATA') {
+            inData = true;
+            socket.write('354 go\r\n');
+          } else if (verb === 'QUIT') socket.end('221 bye\r\n');
+          else socket.write('250 ok\r\n');
+        }
+      });
+    });
+    server.listen(0, '0.0.0.0', () => {
+      const address = server.address();
+      resolve({
+        server,
+        port: typeof address === 'object' && address !== null ? address.port : 0,
+        received,
+      });
+    });
+  });
+}
+
+// The relay may not be loopback (the route refuses it), so it listens on the
+// host's own private address; a host with none cannot run the test.
+function privateAddress(): string | undefined {
+  return Object.values(networkInterfaces())
+    .flat()
+    .find(
+      (entry) =>
+        entry?.family === 'IPv4' &&
+        !entry.internal &&
+        /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/u.test(entry.address),
+    )?.address;
+}
+
+function unquote(raw: string): string {
+  return raw
+    .replaceAll('=\r\n', '')
+    .replace(/=([0-9A-F]{2})/gu, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
+}
+
+describe('the SMTP test mail', () => {
+  it.skipIf(privateAddress() === undefined)(
+    'carries a stored smtpTest override in the message the relay receives',
+    async () => {
+      const w = await world();
+      expect((await override(w, 'en', 'smtpTest.subject', 'Acme relay check')).statusCode).toBe(
+        200,
+      );
+      expect((await override(w, 'en', 'smtpTest.heading', 'The Acme relay works')).statusCode).toBe(
+        200,
+      );
+      const relay = await fakeRelay();
+      try {
+        const put = await admin(w, 'PUT', '/smtp', {
+          host: privateAddress(),
+          port: relay.port,
+          from_address: 'noreply@example.test',
+          starttls: false,
+        });
+        expect(put.statusCode, put.body).toBe(200);
+        const sent = await app.inject({
+          method: 'POST',
+          url: `/admin/tenants/${w.name}/smtp/test`,
+          headers: { authorization: `Bearer ${w.token}`, 'content-type': 'application/json' },
+          payload: { to: 'ops@example.test' },
+        });
+        expect(sent.statusCode, sent.body).toBe(200);
+        const message = unquote(await relay.received);
+        expect(message).toContain('Subject: Acme relay check');
+        expect(message).toContain('The Acme relay works');
+      } finally {
+        relay.server.close();
+      }
+    },
+  );
 });
