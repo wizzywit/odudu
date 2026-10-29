@@ -98,7 +98,7 @@ function disagreements(template: string): string[] {
   return found;
 }
 
-describe('the checker parses a template as the browser parses the filled page', () => {
+describe('[ODUDU-THEME-PARSE-01] the checker parses a template as the browser parses the filled page', () => {
   const WRAPPERS: [string, string][] = [
     ['<table>', '</table>'],
     ['<tr>', '</tr>'],

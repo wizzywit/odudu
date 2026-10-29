@@ -623,6 +623,8 @@ An admin reads an image back by its id before any public address serves it. The
 type is the one it was stored as, with `nosniff` and `no-store`. An id that does
 not exist in this tenant is `404`, and one that is not an id is `400`:
 
+The headers below were recorded before the route began to send `Content-Security-Policy: default-src 'none'; sandbox` and `Cross-Origin-Resource-Policy: same-origin`, and have not been run again since.
+
 ```bash
 curl -sS -D - -o stored-logo.png -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/assets/$ASSET/content
 file stored-logo.png

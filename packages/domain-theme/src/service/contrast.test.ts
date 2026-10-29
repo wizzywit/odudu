@@ -48,7 +48,7 @@ describe('contrastFailures', () => {
     expect(contrastFailures({ light: PASSING, dark: PASSING })).toEqual([]);
   });
 
-  it('flags a 4.4:1 text pair and passes 4.5:1', () => {
+  it('[ODUDU-THEME-CONTRAST-01] flags a 4.4:1 text pair and passes 4.5:1', () => {
     const failing = contrastFailures({ light: { ...PASSING, inkMuted: '#787878' } });
     expect(failing).toHaveLength(3);
     expect(failing.map((f) => f.pair)).toEqual([
@@ -61,7 +61,7 @@ describe('contrastFailures', () => {
     expect(contrastFailures({ light: PASSING })).toEqual([]);
   });
 
-  it('flags a 2.9:1 focus ring and passes 3:1', () => {
+  it('[ODUDU-THEME-CONTRAST-02] flags a 2.9:1 focus ring and passes 3:1', () => {
     const failing = contrastFailures({ dark: { ...PASSING, focusRing: '#979797' } });
     expect(failing.map((f) => f.pair)).toEqual([
       'focusRing/surfacePage',

@@ -7,7 +7,7 @@ const codes = (css: string): string[] => checkStylesheet(css).map((issue) => iss
 // and buttons, the rules and the alert.
 const NEEDED = ['button', 'label', '.page', '.choice', '.rules', '.alert', 'p', 'main'];
 
-describe('checkStylesheet: a needed part stays visible', () => {
+describe('[ODUDU-THEME-LEGIBLE-01] checkStylesheet: a needed part stays visible', () => {
   const hiding: [string, string][] = [
     ['font-size zero', 'font-size: 0'],
     ['font-size zero px', 'font-size: 0px'],
@@ -87,7 +87,7 @@ describe('checkStylesheet: a decorative part may collapse', () => {
   });
 });
 
-describe('checkStylesheet: the focus indicator stays', () => {
+describe('[ODUDU-THEME-FOCUS-01] checkStylesheet: the focus indicator stays', () => {
   const removing = [
     'button:focus { outline: none; }',
     'button:focus-visible { outline: 0; }',

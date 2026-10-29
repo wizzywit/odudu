@@ -193,7 +193,7 @@ content-security-policy: default-src 'none'; style-src http://localhost:3227/ins
 16:<h1>Sign in</h1>
 ```
 
-The page's policy was written for this theme. Its `style-src` and `img-src` name exactly the stylesheet and the logo by address, and no policy was widened for any other tenant. The names are hashes of the contents, so a changed theme is a new address. The server draws the logo itself, above the template. Fetch the stylesheet from the address in the page:
+The page's policy was written for this theme. Its `style-src` and `img-src` name exactly the stylesheet and the logo by address, and no policy was widened for any other tenant. The names are hashes of the contents, so a changed theme is a new address. The server draws the logo itself, above the template. Fetch the stylesheet from the address in the page. The headers below were recorded before the server began to send `Content-Security-Policy: default-src 'none'; sandbox` and `Cross-Origin-Resource-Policy: cross-origin` with it, and have not been run again since:
 
 ```text
 CSS_HREF=$(sed -n 's/.*<link rel="stylesheet" href="\(\/tenants[^"]*\)".*/\1/p' signin.html)

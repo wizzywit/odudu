@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { servedAssetHeaders } from '#/served-asset';
 
-describe('servedAssetHeaders', () => {
+describe('[ODUDU-THEME-ASSET-01] servedAssetHeaders', () => {
   it('stops an uploaded file acting as a page: no source, no script, a sandbox', () => {
     const headers = new Map(servedAssetHeaders('cross-origin'));
     expect(headers.get('content-security-policy')).toBe("default-src 'none'; sandbox");

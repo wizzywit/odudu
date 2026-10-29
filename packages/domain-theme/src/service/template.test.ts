@@ -447,7 +447,7 @@ const payloads: string[] = [
   '<p>&#60;script&#62;</p><script>x</script>',
 ];
 
-describe('hostile corpus', () => {
+describe('[ODUDU-THEME-XSS-01] hostile corpus', () => {
   it('has at least 25 payloads', () => {
     expect(payloads.length).toBeGreaterThanOrEqual(25);
   });

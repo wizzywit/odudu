@@ -277,7 +277,7 @@ describe('checkStylesheet: properties', () => {
     }
   });
 
-  it('refuses to hide what could be the consent page naming its client', () => {
+  it('[ODUDU-THEME-CLIENTNAME-01] refuses to hide what could be the consent page naming its client', () => {
     const refused = [
       'h1',
       'header',
@@ -558,7 +558,7 @@ describe('checkStylesheet: positions and caps', () => {
   });
 });
 
-describe('checkStylesheet: hostile corpus', () => {
+describe('[ODUDU-THEME-CSSINJECT-01] checkStylesheet: hostile corpus', () => {
   const payloads = [
     '@import url(//evil.example/x.css);',
     '@import "//evil.example/x.css" screen;',
