@@ -1,15 +1,26 @@
+import { act } from '@testing-library/react';
 import { afterEach, beforeEach, vi } from 'vitest';
+
+export interface ContainerWidth {
+  // Changes the width, and tells whatever watches it.
+  set: (width: number) => void;
+}
 
 // Stands in for the width of every element marked `data-narrow-container`,
 // which jsdom does not lay out, and for the observer that watches it.
-export function stubContainerWidth(width: number): void {
+export function stubContainerWidth(initial: number): ContainerWidth {
+  let width = initial;
+  const watchers: (() => void)[] = [];
   beforeEach(() => {
+    width = initial;
+    watchers.length = 0;
     class Watch {
       private readonly callback: () => void;
       constructor(callback: () => void) {
         this.callback = callback;
       }
       observe(): void {
+        watchers.push(this.callback);
         this.callback();
       }
       disconnect(): void {
@@ -37,4 +48,12 @@ export function stubContainerWidth(width: number): void {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
+  return {
+    set: (next) => {
+      width = next;
+      act(() => {
+        for (const watcher of watchers) watcher();
+      });
+    },
+  };
 }

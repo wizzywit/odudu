@@ -143,9 +143,11 @@ function wrappedRow(area: HTMLTextAreaElement, lineHeight: number): number {
 }
 
 // After the field set the caret from code, in a field whose lines wrap: brings
-// the row the caret is on into view in the scroller.
+// the row the caret is on into view, in the scroller or, beyond the colouring
+// limit, in the textarea, which scrolls itself there.
 function revealWrapped(area: HTMLTextAreaElement): void {
-  const scroller = area.closest('[data-code-scroller]');
+  const plain = area.closest('[data-plain]') !== null;
+  const scroller = plain ? area : area.closest('[data-code-scroller]');
   const style = getComputedStyle(area);
   const lineHeight = Number.parseFloat(style.lineHeight);
   if (!(scroller instanceof HTMLElement) || !Number.isFinite(lineHeight)) return;
@@ -157,7 +159,8 @@ function revealWrapped(area: HTMLTextAreaElement): void {
       lineHeight,
       charWidth: 1,
       originX: 0,
-      originY: box.top - frame.top + scroller.scrollTop + Number.parseFloat(style.paddingTop),
+      // The row's offset already counts the padding above the text.
+      originY: plain ? 0 : box.top - frame.top + scroller.scrollTop,
       inset: 0,
     },
     {

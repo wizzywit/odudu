@@ -9,7 +9,7 @@
   display: contents;
 }
 
-@container (inline-size < 48rem) {
+@container workspace (inline-size < 48rem) {
   .revert {
     display: none;
   }

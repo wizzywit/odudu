@@ -73,7 +73,24 @@ describe('where the panel has the width', () => {
 });
 
 describe('where the editor is stacked and the preview is a strip', () => {
-  stubContainerWidth(400);
+  const container = stubContainerWidth(400);
+
+  it('puts the sheet away when the screen is widened under it', async () => {
+    const user = userEvent.setup();
+    render(
+      <div data-narrow-container>
+        <Shell />
+      </div>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Open preview' }));
+    await screen.findByRole('dialog', { name: 'Page preview' });
+    container.set(1000);
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    container.set(400);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
 
   it('keeps the miniature out of the tab order, and the sheet’s frame in it, named apart', async () => {
     const user = userEvent.setup();

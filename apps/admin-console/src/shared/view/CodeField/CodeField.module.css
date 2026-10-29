@@ -22,7 +22,7 @@
   color: var(--ink-muted);
 }
 
-@container (inline-size < 48rem) {
+@container workspace (inline-size < 48rem) {
   .wrap {
     display: block;
   }

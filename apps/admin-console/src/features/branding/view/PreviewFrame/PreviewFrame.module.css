@@ -39,7 +39,7 @@
    phone's width and scaled to a fifth, in a clip that is a fifth as large.
    Nothing in it can be pressed. The frame in the sheet is not inside the
    container, so it keeps the full size. */
-@container (inline-size < 48rem) {
+@container workspace (inline-size < 48rem) {
   .frame:not([data-fill]) {
     inline-size: 4.5rem;
     block-size: 5.5rem;

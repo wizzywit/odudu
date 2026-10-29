@@ -588,7 +588,7 @@ describe('wrapping lines where the editor is stacked', () => {
     Object.defineProperty(Element.prototype, 'clientHeight', {
       configurable: true,
       get(this: Element) {
-        return this.hasAttribute('data-code-scroller') ? 100 : 0;
+        return this.hasAttribute('data-code-scroller') || this.tagName === 'TEXTAREA' ? 100 : 0;
       },
     });
     const real = window.getComputedStyle.bind(window);
@@ -611,12 +611,56 @@ describe('wrapping lines where the editor is stacked', () => {
       expect(scroller?.scrollTop).toBe(0);
       await user.click(box());
       await user.keyboard('{Control>}{End}{/Control}{Tab}');
-      expect(scroller?.scrollTop ?? 0).toBeGreaterThan(0);
+      // The row 25 lines down, a line and a margin of a line below the 100 shown.
+      expect(scroller?.scrollTop).toBe(600 + 24 + 24 - 100);
     } finally {
       if (offsetTop !== undefined)
         Object.defineProperty(HTMLElement.prototype, 'offsetTop', offsetTop);
       if (clientHeight !== undefined)
         Object.defineProperty(Element.prototype, 'clientHeight', clientHeight);
+    }
+  });
+});
+
+describe('wrapping lines in text past the colouring limit', () => {
+  stubContainerWidth(400);
+
+  it('scrolls the textarea itself to the caret, since it is what scrolls', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(HTMLElement.prototype, 'offsetTop', {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.hasAttribute('data-caret') ? 600 : 0;
+      },
+    });
+    Object.defineProperty(Element.prototype, 'clientHeight', {
+      configurable: true,
+      get(this: Element) {
+        return this.tagName === 'TEXTAREA' ? 100 : 0;
+      },
+    });
+    const real = window.getComputedStyle.bind(window);
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudo) =>
+      element.tagName === 'TEXTAREA'
+        ? ({
+            lineHeight: '24px',
+            paddingTop: '8px',
+            paddingLeft: '12px',
+            tabSize: '2',
+            getPropertyValue: () => '',
+          } as unknown as CSSStyleDeclaration)
+        : real(element, pseudo),
+    );
+    try {
+      const { container } = render(<Narrow start={'x '.repeat(HIGHLIGHT_LIMIT)} />);
+      expect(container.querySelector('[data-plain]')).not.toBeNull();
+      await user.click(screen.getByRole('button', { name: 'Wrap lines' }));
+      await user.click(box());
+      await user.keyboard('{Control>}{End}{/Control}{Tab}');
+      expect((box() as HTMLTextAreaElement).scrollTop).toBe(600 + 24 + 24 - 100);
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, 'offsetTop');
+      Reflect.deleteProperty(Element.prototype, 'clientHeight');
     }
   });
 });

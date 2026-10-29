@@ -48,7 +48,7 @@
 
 /* Stacked under the editor the pane is the strip: a miniature, a line, and
    the button, over whatever notice the preview has. */
-@container (inline-size < 48rem) {
+@container workspace (inline-size < 48rem) {
   .pane {
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:

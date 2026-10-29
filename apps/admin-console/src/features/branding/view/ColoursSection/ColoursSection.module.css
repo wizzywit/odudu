@@ -8,7 +8,7 @@
   display: none;
 }
 
-@container (inline-size < 48rem) {
+@container workspace (inline-size < 48rem) {
   .fold {
     display: block;
   }
