@@ -883,6 +883,8 @@ describe('the class of the main element', () => {
     for (const kind of Object.keys(PAGE_KINDS) as PageKind[]) {
       expect(mainClass(themed(branding()).locale, kind)).toBe(`page page-${kind}`);
     }
-    expect(mainClass(themed(branding()).locale, '"><script>' as PageKind)).toBe('page');
+    for (const hostile of ['"><script>', '__proto__', 'toString', 'constructor']) {
+      expect(mainClass(themed(branding()).locale, hostile as PageKind)).toBe('page');
+    }
   });
 });

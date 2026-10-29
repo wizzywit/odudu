@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PAGE_KINDS } from '@odudu/kernel';
+import { PAGE_KINDS, mainClass, type PageKind } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import {
   CSS_ELEMENTS,
@@ -102,21 +102,29 @@ describe('CSS hooks', () => {
 
   it('lists only classes some server view renders', () => {
     const text = sources().join('\n');
-    for (const name of RENDERED_HOOKS) {
+    // The shells write the main element's class through mainClass.
+    for (const name of RENDERED_HOOKS.filter((hook) => hook !== 'page')) {
       expect(new RegExp(`class="[^"]*\\b${name}\\b[^"]*"`).test(text), name).toBe(true);
     }
+    expect(mainClass({ tag: 'en', dir: 'ltr' })).toBe('page');
   });
 
-  // The page-<kind> hooks are the only listed hooks no renderer emits yet;
-  // once one does, it moves into RENDERED_HOOKS and this fails until it does.
-  it('lists only the page-<kind> hooks as not yet emitted', () => {
-    const text = sources().join('\n');
+  it('lists every other hook as one mainClass emits for a themed page', () => {
     const rest = CSS_HOOKS.filter((name) => !RENDERED_HOOKS.includes(name));
     expect(rest).toHaveLength(17);
-    for (const name of rest) {
-      expect(name.startsWith('page-'), name).toBe(true);
-      expect(text.includes(name), name).toBe(false);
-    }
+    const branding = {
+      origin: 'https://idp.example',
+      templates: {},
+      tokensCss: '',
+      stylesheetUrl: null,
+      faviconUrl: null,
+      logo: null,
+      assetUrls: [],
+    };
+    const emitted = (Object.keys(PAGE_KINDS) as PageKind[]).map(
+      (kind) => mainClass({ tag: 'en', dir: 'ltr', branding }, kind).split(' ')[1],
+    );
+    expect(emitted).toEqual(rest);
   });
 
   it('names every class the server pages render today', () => {

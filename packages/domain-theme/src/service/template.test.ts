@@ -22,6 +22,12 @@ describe('checkTemplate', () => {
     expect(checkTemplate('sign-in', SIGN_IN)).toEqual([]);
   });
 
+  it('accepts a template that writes its own page-<kind> class', () => {
+    const template = SIGN_IN.replace('class="card"', 'class="page-sign-in"');
+    expect(template).toContain('class="page-sign-in"');
+    expect(checkTemplate('sign-in', template)).toEqual([]);
+  });
+
   it('accepts optional parts once and the allowed attributes', () => {
     const template = withFragment(
       '<p lang="en" dir="ltr" role="note" aria-label="x" class="a">{{links}}</p>' +

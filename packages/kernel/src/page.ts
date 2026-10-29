@@ -302,9 +302,10 @@ export function brandingHead(locale: PageLocale): string {
 // page outside any tenant, which has no kind, carry `page` alone. Only a key
 // of PAGE_KINDS is ever written.
 export function mainClass(locale: PageLocale, kind?: PageKind): string {
-  if (locale.branding === undefined || kind === undefined || !Object.hasOwn(PAGE_KINDS, kind)) {
-    return 'page';
-  }
+  if (kind === undefined || !Object.hasOwn(PAGE_KINDS, kind)) return 'page';
+  // Validated on its own read, like the head and the brand line.
+  if (locale.branding === undefined) return 'page';
+  validBranding(locale.branding);
   return `page page-${kind}`;
 }
 
