@@ -350,7 +350,12 @@ test.describe('on a phone', () => {
           const outer = node.parentElement?.getBoundingClientRect().height ?? 0;
           const height = outer - box.height < 6 ? Math.max(box.height, outer) : box.height;
           if (height < 43.5) small.push(`${name} ${String(Math.round(box.height))}px`);
-          if (/^(INPUT|SELECT|TEXTAREA)$/u.test(node.tagName)) {
+          // What takes text, which a phone zooms to when it is under 16px; a
+          // checkbox or a file chooser takes none.
+          const takesText =
+            node.tagName !== 'INPUT' ||
+            /^(text|search|email|url|tel|number|password)?$/u.test(node.getAttribute('type') ?? '');
+          if (/^(INPUT|SELECT|TEXTAREA)$/u.test(node.tagName) && takesText) {
             const size = Number.parseFloat(getComputedStyle(node).fontSize);
             if (size < 16) type.push(`${name} ${String(size)}px`);
           }
