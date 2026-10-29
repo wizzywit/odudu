@@ -6,9 +6,14 @@ const APP = path.join(REPO_ROOT, 'apps/docs');
 
 // The paths, from the repository root, that the docs build writes and git
 // ignores: what the generator plans, taken without writing anything.
-export async function plannedGenerated(): Promise<ReadonlySet<string>> {
-  const files = await generatedFiles('planned');
-  return new Set([...files.keys()].map((name) => path.join(APP, name)));
+// Planning reads every source page, so one run of it serves every caller in the file.
+let planned: Promise<ReadonlySet<string>> | undefined;
+
+export function plannedGenerated(): Promise<ReadonlySet<string>> {
+  planned ??= generatedFiles('planned').then(
+    (files) => new Set([...files.keys()].map((name) => path.join(APP, name))),
+  );
+  return planned;
 }
 
 // Directories of generated files, as absolute paths. One source: the generator's own constant.

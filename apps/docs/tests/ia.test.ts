@@ -82,12 +82,12 @@ describe('the information architecture', () => {
     expect(links.slice(start + 1, start + 1 + journeys.length)).toEqual(journeys);
   });
 
-  it('opens the concepts to their seven pages, in order', () => {
+  it('opens the concepts to their eight pages, in order', () => {
     const links = sidebarLinks('concepts/index.html');
     const start = links.indexOf(`${PAGES_DOCS_BASE}concepts/`);
     expect(
       links
-        .slice(start + 1, start + 8)
+        .slice(start + 1, start + 9)
         .map((href) => href.slice(`${PAGES_DOCS_BASE}concepts/`.length)),
     ).toEqual([
       'tenants/',
@@ -97,6 +97,7 @@ describe('the information architecture', () => {
       'sessions/',
       'tokens/',
       'consent-and-audit/',
+      'branding/',
     ]);
   });
 

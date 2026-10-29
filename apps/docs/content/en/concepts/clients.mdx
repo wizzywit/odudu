@@ -22,7 +22,7 @@ _In words: A public client, such as a browser or mobile app that holds no secret
 
 A client is one app, registered with one tenant. It has a `client_id`, a name, and a list of **redirect addresses**: the only places Odudu will send a person after they sign in. An address that is not on the list is refused, which stops somebody else's page from catching the result of a sign-in meant for yours.
 
-Each client also has its own settings: how long its access and refresh tokens live, which scopes it may ask for, and whether people must approve it on a consent screen.
+Each client also has its own settings: how long its access and refresh tokens live, which scopes it may ask for, and whether people must approve it on a consent screen. It can also have its own branding and translated names ([Branding](./branding.mdx)).
 
 ## Public and confidential
 

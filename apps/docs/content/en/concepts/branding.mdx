@@ -1,0 +1,80 @@
+---
+title: Branding
+description: A theme gives a tenant's pages their colours, images, stylesheet, layouts and wording. A client can override any piece, and the server keeps the form.
+sidebar_position: 8
+---
+
+import { Diagram } from '@site/src/shared/view/Diagram';
+
+# Branding
+
+A company wants its sign-in page to look like the company, not like the software underneath. Branding lets a tenant change how everything looks and where things sit, without being able to touch the form that signs a person in.
+
+<Diagram
+  name="branding"
+  title="Where each piece of a page's look comes from"
+  desc="Three layers drawn as a stack: the client, then the tenant, then Instrument's own default. For each piece, the colours, the font, the images, the stylesheet and each page layout, the page uses the first layer in the stack that sets it, and a piece is chosen whole, never mixed."
+/>
+
+_In words: Three layers drawn as a stack: the client, then the tenant, then Instrument's own default. For each piece, the colours, the font, the images, the stylesheet and each page layout, the page uses the first layer in the stack that sets it, and a piece is chosen whole, never mixed._
+
+## Layers
+
+A page is drawn from three layers: the **client** the person came from, the **tenant**, and **Instrument**, Odudu's own design, for whatever neither set. The choice is made piece by piece. A client that sets only its logo has its logo and the tenant's colours, stylesheet and layouts. A palette is one piece, so a client that sets its light colours replaces the tenant's light colours entirely.
+
+## What a theme holds
+
+- **Colours**: a light and a dark palette of eleven colours each, and a **font** for both.
+- **Images**: a logo, a dark-scheme logo, a favicon and a **background** drawn behind the page, with the form still on its own panel.
+- **One stylesheet**, in plain CSS.
+- **Page templates**, one for each kind of page.
+
+Beside the theme, the tenant keeps message overrides, the wording of a page or a mail in each language. They are saved directly, with no draft.
+
+## Parts and slots
+
+A template is HTML with named **slots**. The server fills each one in, and the template decides where it sits. A template places `{{form.open}}`, `{{fields}}`, `{{submit}}` and `{{form.close}}`, and the server writes the form tags, every hidden field, the anti-forgery proof and the buttons. A template cannot add a form, an input or a button, so it cannot drop a field, add one or send the form elsewhere.
+
+<Diagram
+  name="branding-parts"
+  title="A template places parts the server fills in"
+  desc="A template written by the tenant holds a heading, then the slots for the error, the form's opening, the fields, the submit button and the form's closing. The server fills each slot in with its own markup, including the hidden fields and the anti-forgery proof, and returns the finished page."
+/>
+
+_In words: A template written by the tenant holds a heading, then the slots for the error, the form's opening, the fields, the submit button and the form's closing. The server fills each slot in with its own markup, including the hidden fields and the anti-forgery proof, and returns the finished page._
+
+Each page kind has **required** parts, which appear exactly once, and **optional** ones, at most once. A form's parts sit between its opening and closing slots. An unknown slot, a missing or repeated part and a part outside the form are all refused. The [branding reference](../reference/generated/branding.md#page-kinds-and-their-parts) lists each kind's parts, and [Brand a tenant](../guides/brand-a-tenant.md#change-a-pages-layout-by-hand) edits a template by hand. `{{t "login.title"}}` inserts a message in the person's language, and a key the catalogue lacks is refused.
+
+## The safety model
+
+An administrator writes a theme and everybody sees the page, so the server assumes nothing and fails closed.
+
+- **Templates** allow plain HTML elements and a few attributes: no script, style, form, input, button, frame, event attribute or comment. Links go to `https` with `rel="noopener noreferrer"`, and an image must be one the theme uploaded.
+- **Stylesheets** are read and checked. A rule may name only the documented hooks, `@import` is refused, `url()` may name only the theme's own images, and no custom property can be defined.
+- **Each theme gets its own policy.** The page's content security policy names that theme's stylesheet and images by address, and no policy is widened for another tenant.
+- **Contrast is checked.** Text must reach 4.5:1 against what it sits on, borders and the focus ring 3:1. A draft may hold a poor pair, and publishing refuses it.
+- **A broken theme falls back.** A layer that cannot be read, a missing image or a template that cannot be filled is left out, and the page uses the layer below it.
+
+## CSS hooks
+
+A stylesheet may name only a short, **versioned** list: the classes the pages render, one class for each page kind, plain elements, the states that may follow them, and the design values `var()` may read. A hook is renamed or removed only with a new version. The [branding reference](../reference/generated/branding.md#css-hooks) is generated from the list the checker uses, and the console's **Selectors you can use** and **Design values you can use** show the same one. A themed page's `<main>` carries the class `page-` and its kind, so `.page-sign-in` styles the sign-in page alone, with no template needed.
+
+## Draft, publish, versions
+
+A tenant, and each client, has **one draft**, saved whole and previewed by the code that draws the real page. A **publication bar** above every tab names what differs from what people see, and **Publish** is held when nothing does. **Publishing** checks everything again, makes the whole draft live or changes nothing, and consumes the draft; an identical publish is refused. The version it replaces is kept, up to twenty. **Discard draft** drops only the draft, and **Revert this tab to published** takes one tab back. **Restoring** a version publishes a copy and leaves the draft alone. **Reset** unpublishes the theme, and the versions remain.
+
+<Diagram
+  name="branding-publishing"
+  title="Draft, published version and versions"
+  desc="A single draft is published as a whole into the published version that people see, or not at all. The version it replaces is kept in a list of the twenty newest. Discarding the draft deletes only the draft, publishing uses the draft up, and restoring a version publishes a copy of it and leaves the draft alone."
+/>
+
+_In words: A single draft is published as a whole into the published version that people see, or not at all. The version it replaces is kept in a list of the twenty newest. Discarding the draft deletes only the draft, publishing uses the draft up, and restoring a version publishes a copy of it and leaves the draft alone._
+
+## Mail and languages
+
+Mail takes the **tenant's** published theme, its logo and colours, with a client's own over them when the flow began inside that client's sign-in. It never takes a stylesheet, a template or a draft. Its layout is Odudu's, and message overrides change its wording as they change a page's, except its attribution lines. It chooses its language among the tenant's supported ones. A tenant lists its `supported_locales` and may choose a `default_locale`. A page uses the language the app asks for with `ui_locales`, then the person's own once they have signed in, then the tenant's default, then the browser's. Arabic ships right-to-left, and a client's name and a scope's descriptions can be translated into the same languages.
+
+## What is not themed
+
+Templates have no logic, so no conditionals or loops. A theme cannot upload fonts or SVG images, or write mail templates, and the admin console is not themed by it. A tenant is reached at `/tenants/<name>` under the operator's one address; a public address of its own for each tenant is on the [roadmap](../roadmap.md).
