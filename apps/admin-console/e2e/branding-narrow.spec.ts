@@ -48,7 +48,10 @@ for (const [name, viewport] of WIDTHS) {
         await expect(page.getByRole('progressbar')).toHaveCount(0);
         await expectFitsViewport(page, tab);
       }
-      await page.context().clearCookies();
+    });
+
+    test('a client’s Branding tab fits the screen too', async ({ page }) => {
+      test.slow();
       await signIn(page, branding.client);
       await openClientBranding(page);
       await expectFitsViewport(page, 'a client’s Branding tab');
