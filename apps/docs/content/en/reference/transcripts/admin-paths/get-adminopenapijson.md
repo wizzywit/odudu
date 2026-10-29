@@ -22,15 +22,15 @@ HTTP/1.1 200 OK
 x-request-id: 01a18716-8991-774b-986d-cd758c42d9ea
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 649738
+content-length: 660113
 Date: Tue, 27 Oct 2026 11:58:39 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-101
+103
 ```
 
-635 KB and 101 paths, which is the whole route table. It is the one admin
+645 KB and 103 paths, which is the whole route table. It is the one admin
 response readable from any origin, so a viewer served from another port can load
 it — the local stack's optional Swagger UI does exactly that (see [Browsing the
 admin API](../../../contributing/run-from-a-checkout.md)). No admin route carries that header, so a page on

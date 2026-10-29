@@ -37,6 +37,7 @@ const NEVER: Readonly<Record<string, string>> = {
   'GET /admin/tenants/:tenant/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/clients/:id/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/mail/preview': FRAMED,
+  'GET /admin/tenants/:tenant/clients/:id/mail/preview': FRAMED,
 };
 
 function template(pattern: string): string {
