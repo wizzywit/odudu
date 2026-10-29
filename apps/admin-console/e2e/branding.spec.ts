@@ -614,6 +614,48 @@ test('inserts a message from the list into a template, and says the preview show
   await expect(preview(page).getByRole('heading', { level: 2, name: 'Sign in' })).toBeVisible();
 });
 
+test('inserts selectors from the list into the stylesheet, and the server accepts what it offered', async ({
+  page,
+  problems,
+}) => {
+  test.slow();
+  const { selectors } = branding;
+  await signIn(page, selectors);
+  await openBranding(page, selectors.tenant);
+  const section = page.getByRole('region', { name: 'Stylesheet', exact: true });
+  const editor = section.getByRole('textbox', { name: 'Stylesheet CSS' });
+  const picker = section.getByRole('combobox', { name: 'Selectors you can use' });
+  const choose = async (typed: string, name: RegExp): Promise<void> => {
+    await picker.fill(typed);
+    const options = page.getByRole('option');
+    expect(await options.count()).toBeLessThanOrEqual(50);
+    await options.filter({ hasText: name }).first().click();
+  };
+
+  await editor.fill('');
+  await choose('page-sign', /\.page-sign-in/u);
+  await expect(editor).toHaveValue('.page-sign-in');
+  await expect(editor).toBeFocused();
+  await page.keyboard.type(' button');
+  await choose('hover', /:hover/u);
+  await page.keyboard.type(' { opacity: 0.9; }');
+  await expect(editor).toHaveValue('.page-sign-in button:hover { opacity: 0.9; }');
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(editor).not.toHaveValue('.page-sign-in button:hover { opacity: 0.9; }');
+  await expectAccessible(page, { exclude: [FRAME] });
+
+  await editor.fill('.page-sign-in button:hover { opacity: 0.9; }');
+  await save(section);
+  await expect(section.getByText('The stylesheet was not saved.')).toBeHidden();
+  await expect(page.getByRole('region', { name: 'Status' })).toContainText('A saved draft');
+  await page.waitForLoadState('networkidle');
+
+  await editor.fill('.nonesuch { opacity: 0.9; }');
+  await section.getByRole('button', { name: /^Save/u }).click();
+  await expect(section.getByText(/“Selectors you can use” above the editor lists/u)).toBeVisible();
+  forgive(problems, '/theme');
+});
+
 test('a client has its own theme over the tenant’s, and a name in French', async ({
   page,
   browser,

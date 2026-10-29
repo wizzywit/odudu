@@ -40,7 +40,6 @@ export {
   withPageTheme,
 } from '#/page';
 export {
-  MAX_PREVIEW_BYTES,
   inlinePreview,
   previewHeaders,
   mailPreviewHeaders,

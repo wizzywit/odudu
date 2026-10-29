@@ -94,6 +94,19 @@ export const themePreviewInfoSchema = z.object({
 });
 export type ThemePreviewInfo = z.infer<typeof themePreviewInfoSchema>;
 
+// What a tenant stylesheet's selectors and values may name, as the checker
+// accepts them, with the version of the list.
+export const stylesheetHooksResponseSchema = z.object({
+  version: z.number().int().positive(),
+  classes: z.array(z.string()),
+  page_kind_classes: z.array(z.string()),
+  elements: z.array(z.string()),
+  pseudo_classes: z.array(z.string()),
+  pseudo_elements: z.array(z.string()),
+  tokens: z.array(z.string()),
+});
+export type StylesheetHooksResponse = z.infer<typeof stylesheetHooksResponseSchema>;
+
 // The slots an uploaded image may fill; the theme package keeps each one's
 // limits, and a test holds the two lists equal.
 export const THEME_ASSET_KINDS = ['logo', 'darkLogo', 'favicon', 'background'] as const;

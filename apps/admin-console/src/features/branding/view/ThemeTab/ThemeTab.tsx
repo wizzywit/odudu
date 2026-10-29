@@ -44,7 +44,7 @@ export function ThemeTab({
       <ColoursSection scope={scope} view={view} colours={theme.colours} />
       <ContrastPanel report={theme.report} />
       <ImagesSection scope={scope} view={view} images={theme.images} onDelete={deletion.ask} />
-      <StylesheetSection scope={scope} view={view} stylesheet={theme.stylesheet} />
+      <StylesheetSection tenant={tenant} scope={scope} view={view} stylesheet={theme.stylesheet} />
       <PublishPanel publication={theme.publication} />
       <VersionsPanel versions={theme.versions} />
       <ResetPanel scope={scope} reset={theme.reset} />

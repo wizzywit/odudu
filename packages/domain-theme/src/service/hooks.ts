@@ -32,10 +32,25 @@ export const RENDERED_HOOKS: readonly string[] = [
   'wordmark',
 ];
 
-export const CSS_HOOKS: readonly string[] = [
-  ...RENDERED_HOOKS,
-  ...Object.keys(PAGE_KINDS).map((kind) => `page-${kind}`),
+export const PAGE_KIND_HOOKS: readonly string[] = Object.keys(PAGE_KINDS).map(
+  (kind) => `page-${kind}`,
+);
+
+export const CSS_HOOKS: readonly string[] = [...RENDERED_HOOKS, ...PAGE_KIND_HOOKS];
+
+// The states and parts of an element a selector may name after one colon or two.
+export const CSS_PSEUDO_CLASSES: readonly string[] = [
+  'hover',
+  'focus',
+  'focus-visible',
+  'active',
+  'disabled',
+  'checked',
+  'first-child',
+  'last-child',
 ];
+
+export const CSS_PSEUDO_ELEMENTS: readonly string[] = ['before', 'after', 'placeholder'];
 
 export const CSS_ELEMENTS: readonly string[] = [
   'main',

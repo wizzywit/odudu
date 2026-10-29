@@ -106,6 +106,7 @@ export function brandingRoutes(
       [`GET ${TH}`]: theme,
       [`GET ${TH}/versions`]: versionsAnswer([VERSION_2, VERSION_1]),
       [`GET ${MC}`]: json(CATALOGUE),
+      [`GET ${SH}`]: json(STYLESHEET_HOOKS),
       [`GET ${PI}`]: json(previewInfo()),
       [assetContent(LOGO_ID)]: image(LOGO_BYTES),
     },
@@ -163,6 +164,23 @@ export const CATALOGUE = {
         { key: 'register.submit', en: 'Register' },
       ],
     },
+  ],
+};
+
+export const SH = `${ACME_ADMIN}/theme/stylesheet-hooks`;
+
+// What a stylesheet's rules may name: more entries in all than one list draws.
+export const STYLESHEET_HOOKS = {
+  version: 1,
+  classes: ['alert', 'brand', 'logo', 'logo-dark', 'logo-light', 'page', 'tenant', 'wordmark'],
+  page_kind_classes: ['page-sign-in', 'page-consent', 'page-registration', 'page-notice'],
+  elements: ['main', 'h1', 'p', 'a', 'button', 'input'],
+  pseudo_classes: ['hover', 'focus-visible', 'disabled'],
+  pseudo_elements: ['before', 'after'],
+  tokens: [
+    '--ink-primary',
+    '--surface-page',
+    ...Array.from({ length: 40 }, (_, n) => `--space-${String(n + 10)}`),
   ],
 };
 
@@ -227,6 +245,7 @@ export function clientBrandingRoutes(
     [`GET ${CTH}/versions`]: versionsAnswer([]),
     [`GET ${CTH}/preview/info`]: json(previewInfo()),
     [`GET ${MC}`]: json(CATALOGUE),
+    [`GET ${SH}`]: json(STYLESHEET_HOOKS),
     ...extra,
   });
 }

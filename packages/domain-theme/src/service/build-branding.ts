@@ -162,12 +162,12 @@ export function buildBranding(input: BuildInput): BuildOutcome {
   const sizes = new Map(kept.flatMap((layer) => [...layer.sizes]));
   const clientRowId = kept.find((layer) => layer.clientId !== null)?.clientId ?? null;
   const tokens = tokensCss(body.tokens);
-  const css = brandingCss(tokens, body.stylesheet);
   const favicon = body.assets.favicon;
   const logo = logoOf(body, urls);
   const background = body.assets.background;
   const urlOf = (id: string | undefined): string | null =>
     id === undefined ? null : (urls.get(id) ?? null);
+  const css = brandingCss(tokens, body.stylesheet, urlOf(background?.assetId));
   const assetUrls = [
     ...new Set(
       [logo?.url, logo?.darkUrl, urlOf(favicon?.assetId), urlOf(background?.assetId)].filter(

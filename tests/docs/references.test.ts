@@ -247,7 +247,9 @@ describe('every link in every document resolves', () => {
 
     expect(links, 'the link extractor has stopped recognising links').toBeGreaterThan(50);
     expect(broken, 'links to files that are not in this repository').toEqual([]);
-  });
+    // Reads every document and plans the generated reference, which a loaded
+    // runner does in more than the default five seconds.
+  }, 30_000);
 });
 
 describe('a link into the generated reference', () => {

@@ -557,6 +557,10 @@ function overrideCalls(T: string): [string, Call][] {
   const url = `${T}/message-overrides/en/login.title`;
   return [
     ['list the messages an override may name', { method: 'GET', url: `${T}/message-catalogue` }],
+    [
+      'list the selectors a stylesheet may use',
+      { method: 'GET', url: `${T}/theme/stylesheet-hooks` },
+    ],
     ['set a message override', { method: 'PUT', url, body: { message: 'Sign in to Acme' } }],
     ['set the message override again', { method: 'PUT', url, body: { message: 'Sign in' } }],
     ['remove the message override', { method: 'DELETE', url }],

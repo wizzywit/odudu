@@ -5,9 +5,6 @@ import { stylesheetLink, type PageLocale, type RenderedPage } from '#/page';
 // handed fixed sample values, so the page is the one a person would be sent.
 export type PreviewRender = (tenant: string, locale: PageLocale) => RenderedPage;
 
-// The most the inlined stylesheet and images may add to the page.
-export const MAX_PREVIEW_BYTES = 1024 * 1024;
-
 export interface PreviewInline {
   // The path the page links the tenant's stylesheet at, when it does.
   readonly stylesheetUrl: string | null;

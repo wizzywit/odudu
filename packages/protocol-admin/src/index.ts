@@ -172,6 +172,7 @@ import {
   putMessageOverrideHandler,
   type MessageOverridesRouteDeps,
 } from '#/view/routes/message-overrides';
+import { stylesheetHooksHandler } from '#/view/routes/stylesheet-hooks';
 import { themeAssetHandlers, type ThemeAssetRouteDeps } from '#/view/routes/theme-assets';
 import { themePreviewHandler, themePreviewInfoHandler } from '#/view/routes/theme-preview';
 import { mailBrandingHandler, mailPreviewHandler } from '#/view/routes/mail-preview';
@@ -735,6 +736,7 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/mail/branding': mailBrandingHandler(mailDeps),
       'GET /admin/tenants/:tenant/theme/versions': tenantTheme.versions,
       'POST /admin/tenants/:tenant/theme/versions/:versionId/restore': tenantTheme.restore,
+      'GET /admin/tenants/:tenant/theme/stylesheet-hooks': stylesheetHooksHandler,
       'GET /admin/tenants/:tenant/message-catalogue': messageCatalogueHandler(
         deps.messageCatalogue,
       ),

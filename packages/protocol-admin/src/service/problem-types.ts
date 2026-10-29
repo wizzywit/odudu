@@ -191,7 +191,7 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
     status: 422,
     summary:
       'The preview of a draft is not rendered because its stylesheet and the images the page ' +
-      'shows come to over 1 MiB once inlined. Use smaller images, or preview a page that ' +
+      'shows come to over about 2.2 MiB once inlined. Use smaller images, or preview a page that ' +
       'shows fewer of them.',
   },
   'theme-no-draft': {

@@ -2,6 +2,7 @@ import { type ThemePreviewInfo } from '@odudu/contracts/admin';
 import {
   assetIdsOf,
   assetPath,
+  MAX_STORED_ASSET_BYTES,
   type BuildOutcome,
   type PublishedLayer,
   type ThemeRecord,
@@ -42,6 +43,13 @@ export function layerOf(record: ThemeRecord, images: readonly WeighedImage[]): P
 export function base64Length(size: number): number {
   return 4 * Math.ceil(size / 3);
 }
+
+// The most a preview inlines. It follows from what an upload may be: the
+// largest stored image as a `data:` address, so a background at its limit
+// still previews, plus room for the other images the page shows, its own
+// markup and the stylesheet. Weighed from stored sizes before any bytes are
+// read, so a refused preview reads nothing.
+export const MAX_PREVIEW_BYTES = base64Length(MAX_STORED_ASSET_BYTES) + 512 * 1024;
 
 export interface UsedImage {
   readonly id: string;

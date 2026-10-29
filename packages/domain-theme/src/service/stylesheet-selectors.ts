@@ -1,14 +1,12 @@
-import { CSS_ELEMENTS, CSS_HOOKS } from '#/service/hooks';
+import { CSS_ELEMENTS, CSS_HOOKS, CSS_PSEUDO_CLASSES, CSS_PSEUDO_ELEMENTS } from '#/service/hooks';
 import type { Problem } from '#/service/stylesheet-types';
 
 const set = (words: string): ReadonlySet<string> => new Set(words.split(' '));
 
 const HOOKS: ReadonlySet<string> = new Set(CSS_HOOKS);
 const ELEMENTS: ReadonlySet<string> = new Set(CSS_ELEMENTS);
-const PSEUDO_CLASSES = set(
-  'hover focus focus-visible active disabled checked first-child last-child',
-);
-const PSEUDO_ELEMENTS = set('before after placeholder');
+const PSEUDO_CLASSES: ReadonlySet<string> = new Set(CSS_PSEUDO_CLASSES);
+const PSEUDO_ELEMENTS: ReadonlySet<string> = new Set(CSS_PSEUDO_ELEMENTS);
 
 // This reasons about the markup the renderers emit: a control sits in a form,
 // a label, main (.page), a p (the passkey button), or is a button itself, and

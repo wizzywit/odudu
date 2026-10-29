@@ -376,6 +376,31 @@ describe('what a themed page links', () => {
     expect((await app.inject({ url: logo ?? '' })).headers['content-type']).toBe('image/png');
   });
 
+  it('draws a published background in the stylesheet it links, and licenses the image', async () => {
+    const w = await world(['portal']);
+    const image = await storeImage(w.tenantId, PNG);
+    await save(w.tenantId, null, themed({ assets: { background: { assetId: image.id } } }));
+    const page = await authorize(w.name, 'portal');
+    const sheet = /<link rel="stylesheet" href="(\/tenants\/[^"]+\.css)">/u.exec(page.body)?.[1];
+    expect(sheet).toBeDefined();
+    const url = `/tenants/${w.name}/brand/${image.sha256}.png`;
+    const css = await app.inject({ url: sheet ?? '' });
+    expect(css.statusCode).toBe(200);
+    expect(css.headers['content-type']).toBe('text/css; charset=utf-8');
+    expect(css.body).toContain(`body{background-image:url('${url}');`);
+    const policy = String(page.headers['content-security-policy']);
+    const imgSrc = policy.split('; ').find((part) => part.startsWith('img-src ')) ?? '';
+    expect(imgSrc.split(' ').some((source) => source.endsWith(url))).toBe(true);
+    expect((await app.inject({ url })).statusCode).toBe(200);
+  });
+
+  it('adds no background rule for a tenant whose theme sets none', async () => {
+    const { w } = await brandedTenant();
+    const page = await authorize(w.name, 'portal');
+    const sheet = /<link rel="stylesheet" href="(\/tenants\/[^"]+\.css)">/u.exec(page.body)?.[1];
+    expect((await app.inject({ url: sheet ?? '' })).body).not.toContain('background');
+  });
+
   it('serves a client-over-tenant stylesheet under the client that makes it, to a second replica', async () => {
     const { w } = await brandedTenant();
     await save(

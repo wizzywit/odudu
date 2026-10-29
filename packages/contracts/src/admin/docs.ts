@@ -153,6 +153,7 @@ import {
   previewThemeQuerySchema,
   themePreviewFaultSchema,
   themePreviewInfoSchema,
+  stylesheetHooksResponseSchema,
   themePreviewRefusedSchema,
   uploadThemeAssetQuerySchema,
   themeVersionSchema,
@@ -1183,6 +1184,21 @@ describeFields(themePreviewInfoSchema, {
     'Templates of this page kind that failed the checks, by layer; the page then uses the template of the layer below or the default one.',
   unfilled:
     'True when a template passed the checks but could not be filled, so the default page is shown.',
+});
+describeFields(stylesheetHooksResponseSchema, {
+  version:
+    'The version of the lists. It is raised when a class is renamed or removed, never when one is added.',
+  classes:
+    'The classes the server pages render, which a rule may name with a dot, such as `.logo`.',
+  page_kind_classes:
+    'One class per page kind, `page-` and the kind, which a rule may name to style that page alone.',
+  elements: 'The element types a rule may name, such as `main` and `button`.',
+  pseudo_classes:
+    'The states a rule may name after a colon, such as `:hover`. A rule may chain them onto a class or an element.',
+  pseudo_elements:
+    'The parts of an element a rule may name after two colons, such as `::before`. Nothing may follow one in a selector.',
+  tokens:
+    'The design values a declaration may read with `var()`, such as `var(--ink-primary)`. A stylesheet cannot define a custom property of its own.',
 });
 describeFields(themePreviewFaultSchema, {
   layer: 'The layer that was not fully used.',

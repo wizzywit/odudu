@@ -47,7 +47,16 @@ export {
   contrastRatio,
   type ContrastFailure,
 } from '#/service/contrast';
-export { CSS_ELEMENTS, CSS_HOOKS, CSS_HOOKS_VERSION, CSS_TOKENS } from '#/service/hooks';
+export {
+  CSS_ELEMENTS,
+  CSS_HOOKS,
+  CSS_HOOKS_VERSION,
+  CSS_PSEUDO_CLASSES,
+  CSS_PSEUDO_ELEMENTS,
+  CSS_TOKENS,
+  PAGE_KIND_HOOKS,
+  RENDERED_HOOKS,
+} from '#/service/hooks';
 export {
   checkStylesheet,
   type StylesheetIssue,
@@ -76,7 +85,7 @@ export {
   stylesheetPath,
   type BrandFile,
 } from '#/service/branding-urls';
-export { brandingCss, tokensCss } from '#/service/branding-css';
+export { backgroundCss, brandingCss, tokensCss } from '#/service/branding-css';
 export {
   BRANDING_BACKOFF_MS,
   MAX_BRANDING_BACKOFFS,
@@ -91,6 +100,7 @@ export {
 } from '#/usecase/resolve-branding';
 export {
   ASSET_LIMITS,
+  MAX_STORED_ASSET_BYTES,
   OUTPUT_GROWTH,
   TENANT_ASSET_CAP_BYTES,
   inspectLimitsFor,

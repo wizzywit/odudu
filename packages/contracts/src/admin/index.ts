@@ -479,6 +479,8 @@ export {
   themePreviewFaultSchema,
   themePreviewInfoSchema,
   themePreviewRefusedSchema,
+  stylesheetHooksResponseSchema,
+  type StylesheetHooksResponse,
   type ThemePreviewInfo,
   uploadThemeAssetQuerySchema,
   type ListThemeVersionsResponse,

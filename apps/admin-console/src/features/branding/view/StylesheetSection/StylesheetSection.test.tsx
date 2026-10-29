@@ -8,6 +8,8 @@ import {
   draftedView,
   EMPTY,
   OWN_LIGHT,
+  SH,
+  STYLESHEET_HOOKS,
   TH,
   themeAnswer,
   themeView,
@@ -225,6 +227,152 @@ describe('the stylesheet editor', () => {
       () => element,
       () => screen.findByRole('region', { name: 'Stylesheet' }),
       { frames: false },
+    );
+    expect(found).toEqual({ light: [], dark: [] });
+  });
+});
+
+describe('the selectors you can use', () => {
+  const NAME = 'Selectors you can use';
+  const picker = (editor: HTMLElement) => within(editor).findByRole('combobox', { name: NAME });
+  const undo = '{Control>}z{/Control}';
+
+  it('is the server’s list, narrowed by a name or by what an entry is', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
+    const editor = await section();
+    const combo = await picker(editor);
+    await user.type(combo, 'hover');
+    expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual([
+      ':hoverState, after a class or an element',
+    ]);
+    await user.clear(combo);
+    await user.type(combo, 'page-kind');
+    const found = await screen.findAllByRole('option');
+    expect(found).toHaveLength(4);
+    expect(found[0]).toHaveTextContent('.page-sign-inPage-kind class: Sign in');
+  });
+
+  it('says what each group is beside its entries', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
+    const editor = await section();
+    await user.type(await picker(editor), 'logo');
+    const found = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(found).toContain('.logoPage class');
+    await user.clear(await picker(editor));
+    await user.type(await picker(editor), 'button');
+    expect((await screen.findAllByRole('option'))[0]).toHaveTextContent('buttonElement');
+  });
+
+  it('draws at most fifty entries of a longer list', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
+    const editor = await section();
+    await picker(editor);
+    await user.click(within(editor).getByRole('button', { name: /^Show Selectors you can use/u }));
+    expect(await screen.findAllByRole('option')).toHaveLength(50);
+  });
+
+  it('types the chosen selector at the caret and returns to the editor', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(AT, brandingRoutes(themeAnswer(withStylesheet('{ }'), '"d1"')));
+    const editor = await section();
+    const area = box(editor);
+    await user.click(area);
+    (area as HTMLTextAreaElement).setSelectionRange(0, 0);
+    await user.type(await picker(editor), '.logo-d');
+    await user.click(await screen.findByRole('option', { name: /\.logo-dark/u }));
+    expect(area).toHaveValue('.logo-dark{ }');
+    await waitFor(() => {
+      expect(area).toHaveFocus();
+    });
+  });
+
+  it('is one undo step', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(AT, brandingRoutes(themeAnswer(withStylesheet('a {}'), '"d1"')));
+    const editor = await section();
+    const area = box(editor);
+    await user.click(area);
+    (area as HTMLTextAreaElement).setSelectionRange(0, 0);
+    await user.type(await picker(editor), '::bef');
+    await user.click(await screen.findByRole('option', { name: /::before/u }));
+    expect(area).toHaveValue('::beforea {}');
+    await user.keyboard(undo);
+    expect(area).toHaveValue('a {}');
+  });
+
+  it('is unavailable until the list is read, then says it could not be and tries again', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(
+      AT,
+      brandingRoutes(themeAnswer(draftedView(), '"d1"'), {
+        [`GET ${SH}`]: inTurn(
+          problem(500, 'about:blank', 'Internal Server Error'),
+          json(STYLESHEET_HOOKS),
+        ),
+      }),
+    );
+    const editor = await section();
+    expect(await within(editor).findByRole('alert')).toHaveTextContent(
+      'The list of selectors could not be loaded.',
+    );
+    expect(await picker(editor)).toBeDisabled();
+    await user.click(within(editor).getByRole('button', { name: 'Try again' }));
+    await waitFor(() => {
+      expect(within(editor).queryByRole('alert')).toBeNull();
+    });
+    expect(await picker(editor)).toBeEnabled();
+  });
+
+  it('is asked of the tenant once, with the stylesheet’s own scope being edited', async () => {
+    const { sent } = renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
+    await picker(await section());
+    expect(sent.filter((s) => s.path === SH)).toHaveLength(1);
+  });
+
+  it('is what a refused selector points to', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(
+      AT,
+      brandingRoutes(themeAnswer(draftedView(), '"d1"'), {
+        [`PUT ${TH}`]: problem(400, 'about:blank', 'Bad Request', {
+          errors: [
+            {
+              path: 'stylesheet',
+              message: 'The class is unknown.',
+              code: 'unknown-class',
+              detail: 'nope',
+              line: 1,
+              column: 2,
+            },
+          ],
+        }),
+      }),
+    );
+    const editor = await section();
+    await user.click(box(editor));
+    await user.paste('.nope { color: red }');
+    await user.click(within(editor).getByRole('button', { name: /Save/u }));
+    expect(
+      await within(editor).findByText(/“Selectors you can use” above the editor lists/u),
+    ).toBeVisible();
+  });
+
+  it('has nothing axe can find, open or closed, in either theme', async () => {
+    const user = userEvent.setup();
+    const { element } = consoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
+    const found = await axeInBothThemes(
+      () => element,
+      async () => {
+        const editor = await section();
+        await user.click(
+          await within(editor).findByRole('button', { name: /^Show Selectors you can use/u }),
+        );
+        await screen.findByRole('listbox');
+      },
+      { frames: false, disable: ['aria-hidden-focus'] },
     );
     expect(found).toEqual({ light: [], dark: [] });
   });

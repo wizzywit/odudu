@@ -1,25 +1,37 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import {
+  SELECTOR_LIST_LIMIT,
+  SELECTORS_FAILED,
+  SELECTORS_LABEL,
+  SELECTORS_LOADING,
+  SELECTORS_NOTE,
   sourceReading,
   STYLESHEET_LABEL,
   STYLESHEET_LEAD,
   STYLESHEET_SECTION_TITLE,
   type ThemeScope,
 } from '#/features/branding/service';
+import { useSelectors } from '#/features/branding/usecase/useSelectors';
 import type { Stylesheet } from '#/features/branding/usecase/useStylesheet';
+import { InsertPicker } from '#/features/branding/view/OptionPicker';
 import { CodeField } from '#/shared/view/CodeField';
 import { SaveSection } from '#/shared/view/SaveSection';
 
+const WORDING = { loading: SELECTORS_LOADING, failed: SELECTORS_FAILED };
+
 export function StylesheetSection({
+  tenant,
   scope,
   view,
   stylesheet,
 }: {
+  tenant: string;
   scope: ThemeScope;
   view: ThemeView;
   stylesheet: Stylesheet;
 }) {
   const { save, problems } = stylesheet;
+  const selectors = useSelectors(tenant);
   return (
     <SaveSection
       title={STYLESHEET_SECTION_TITLE}
@@ -31,6 +43,15 @@ export function StylesheetSection({
         label={STYLESHEET_LABEL}
         description={`${sourceReading(scope, view, 'stylesheet')}.`}
         language="css"
+        tools={
+          <InsertPicker
+            options={selectors}
+            wording={WORDING}
+            limit={SELECTOR_LIST_LIMIT}
+            label={SELECTORS_LABEL}
+            description={SELECTORS_NOTE}
+          />
+        }
         value={stylesheet.text}
         size={stylesheet.size}
         issues={problems.lines}

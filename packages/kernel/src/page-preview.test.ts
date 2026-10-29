@@ -1,12 +1,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { brandingHead, pageHeaders, stylesheetLink, type RenderedPage } from '#/page';
-import {
-  MAX_PREVIEW_BYTES,
-  inlinePreview,
-  mailPreviewHeaders,
-  previewHeaders,
-} from '#/page-preview';
+import { inlinePreview, mailPreviewHeaders, previewHeaders } from '#/page-preview';
 
 const SHEET = '/tenants/acme/brand/' + 'a'.repeat(64) + '.css';
 const LOGO = '/tenants/acme/brand/' + 'b'.repeat(64) + '.png';
@@ -157,8 +152,4 @@ describe('mailPreviewHeaders', () => {
     expect(headers['referrer-policy']).toBe('no-referrer');
     expect(headers['x-frame-options']).toBeUndefined();
   });
-});
-
-it('bounds what is inlined at 1 MiB', () => {
-  expect(MAX_PREVIEW_BYTES).toBe(1024 * 1024);
 });

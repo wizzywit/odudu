@@ -46,8 +46,32 @@ export function tokensCss(tokens: ThemeBody['tokens']): string {
   ].join('');
 }
 
-// What the hashed stylesheet file holds: the tokens, then the theme's own
-// sanitised rules, so those win.
-export function brandingCss(tokens: string, stylesheet: string | null): string {
-  return stylesheet === null ? tokens : `${tokens}${stylesheet}\n`;
+// A path written into a quoted `url()`: the characters that could end the
+// string or the function are percent-encoded, which names the same resource.
+function cssUrl(path: string): string {
+  const safe = path.replace(
+    /['"()\\\s]/gu,
+    (char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`,
+  );
+  return `url('${safe}')`;
+}
+
+// The page's backdrop in place of Instrument's grid; the panel the form sits
+// on keeps its own surface, so the text stays legible over any image.
+export function backgroundCss(path: string | null): string {
+  return path === null
+    ? ''
+    : `body{background-image:${cssUrl(path)};background-size:cover;` +
+        'background-position:center;background-repeat:no-repeat;}\n';
+}
+
+// What the hashed stylesheet file holds: the tokens, the background, then the
+// theme's own sanitised rules, so those win.
+export function brandingCss(
+  tokens: string,
+  stylesheet: string | null,
+  backgroundPath: string | null = null,
+): string {
+  const head = `${tokens}${backgroundCss(backgroundPath)}`;
+  return stylesheet === null ? head : `${head}${stylesheet}\n`;
 }

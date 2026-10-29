@@ -3,14 +3,20 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { assetRepository, buildBranding, themeRepository } from '@odudu/domain-theme';
 import {
   inlinePreview,
-  MAX_PREVIEW_BYTES,
   withBranding,
   type InlinedPreview,
   type PageKind,
   type PreviewRender,
   type RenderedPage,
 } from '@odudu/kernel';
-import { imageIdsOf, dataUri, layerOf, previewInfoView, usedImages } from '#/service/theme-preview';
+import {
+  dataUri,
+  imageIdsOf,
+  layerOf,
+  MAX_PREVIEW_BYTES,
+  previewInfoView,
+  usedImages,
+} from '#/service/theme-preview';
 import { clientExists, type ThemeTarget } from '#/usecase/theme';
 
 // The page shown when none is asked for.
@@ -23,7 +29,7 @@ export interface ThemePreviewDeps {
 
 export type PreviewOutcome =
   | { kind: 'not_found' }
-  | { kind: 'too_large'; bytes: number }
+  | { kind: 'too_large'; bytes: number; limit: number }
   | { kind: 'rendered'; inlined: InlinedPreview; fallbacks: PageKind[] };
 
 interface Prepared {
@@ -126,7 +132,7 @@ export async function previewTheme(
   const { images, built, fallbacks, page } = prepared;
   const { used, weight } = usedImages(target.tenantName, images, [page.html, built.css]);
   const bytes = weight + built.css.length;
-  if (bytes > MAX_PREVIEW_BYTES) return { kind: 'too_large', bytes };
+  if (bytes > MAX_PREVIEW_BYTES) return { kind: 'too_large', bytes, limit: MAX_PREVIEW_BYTES };
 
   const held = await assetRepository(tx).bytesOf(
     target.tenantId,

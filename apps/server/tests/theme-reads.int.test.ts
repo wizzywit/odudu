@@ -162,6 +162,7 @@ async function get(w: World, path: string, bearer?: string) {
 // The caller's own checks and the reads the route makes. Neither route may
 // grow with what a theme names or what a tenant has written.
 const CATALOGUE_STATEMENTS = 6;
+const HOOKS_STATEMENTS = 6;
 const INFO_STATEMENTS = 9;
 const CLIENT_THEME_STATEMENTS = 10;
 const CLIENT_READ_STATEMENTS = 9;
@@ -199,6 +200,32 @@ describe('the message catalogue', () => {
     const count = sections.reduce((total, section) => total + section.messages.length, 0);
     expect(count).toBeGreaterThan(100);
     expect(count).toBeLessThan(1000);
+  });
+});
+
+describe('the stylesheet hooks', () => {
+  it('reads nothing a tenant holds: the same few statements with a theme as without', async () => {
+    const bare = await world();
+    const themed = await world();
+    await publish(themed, theme({ tokens: { light: LIGHT }, stylesheet: '.page { color: red; }' }));
+    const none = await statementsFor(bare, '/theme/stylesheet-hooks');
+    const some = await statementsFor(themed, '/theme/stylesheet-hooks');
+    expect(some).toBe(none);
+    expect(some).toBeLessThanOrEqual(HOOKS_STATEMENTS);
+  });
+
+  it('costs the same to a caller holding only manage-clients', async () => {
+    const w = await world();
+    const both = await statementsFor(w, '/theme/stylesheet-hooks');
+    const clientsOnly = await statementsFor(w, '/theme/stylesheet-hooks', ['manage-clients']);
+    expect(clientsOnly).toBe(both);
+  });
+
+  it('refuses another tenant’s token before answering', async () => {
+    const mine = await world();
+    const theirs = await world();
+    const res = await get(theirs, '/theme/stylesheet-hooks', await token(mine));
+    expect(res.statusCode).toBe(401);
   });
 });
 

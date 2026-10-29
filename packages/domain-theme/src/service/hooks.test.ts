@@ -6,9 +6,13 @@ import {
   CSS_ELEMENTS,
   CSS_HOOKS,
   CSS_HOOKS_VERSION,
+  CSS_PSEUDO_CLASSES,
+  CSS_PSEUDO_ELEMENTS,
   CSS_TOKENS,
+  PAGE_KIND_HOOKS,
   RENDERED_HOOKS,
 } from '#/service/hooks';
+import { checkStylesheet } from '#/service/stylesheet';
 
 const PACKAGES = join(import.meta.dirname, '..', '..', '..');
 
@@ -145,5 +149,48 @@ describe('CSS hooks', () => {
     const used = new Set([...css.matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1]));
     expect(used.size).toBeGreaterThan(10);
     for (const token of used) expect(CSS_TOKENS, token).toContain(token);
+  });
+});
+
+// What a tenant may write in a selector is what the checker accepts, so each
+// list is held to the checker itself and not to a copy of its source.
+describe('the lists the checker accepts', () => {
+  const accepted = (css: string): boolean => checkStylesheet(css).length === 0;
+
+  it('splits CSS_HOOKS into the rendered classes and the page-<kind> classes', () => {
+    expect([...RENDERED_HOOKS, ...PAGE_KIND_HOOKS]).toEqual(CSS_HOOKS);
+    expect(PAGE_KIND_HOOKS).toEqual(Object.keys(PAGE_KINDS).map((kind) => `page-${kind}`));
+  });
+
+  it('accepts a rule for each class, element, state and part it lists', () => {
+    for (const name of CSS_HOOKS) expect(accepted(`.${name} { color: inherit; }`), name).toBe(true);
+    for (const name of CSS_ELEMENTS)
+      expect(accepted(`${name} { color: inherit; }`), name).toBe(true);
+    for (const name of CSS_PSEUDO_CLASSES) {
+      expect(accepted(`a:${name} { color: inherit; }`), name).toBe(true);
+    }
+    for (const name of CSS_PSEUDO_ELEMENTS) {
+      expect(accepted(`input::${name} { color: inherit; }`), name).toBe(true);
+    }
+  });
+
+  it('accepts each token in var() and refuses one it does not list', () => {
+    for (const token of CSS_TOKENS) {
+      expect(accepted(`.page { color: var(${token}); }`), token).toBe(true);
+    }
+    expect(accepted('.page { color: var(--not-a-token); }')).toBe(false);
+    expect(accepted('.page { --mine: red; }')).toBe(false);
+  });
+
+  it('refuses a class, an element and a state that no list holds', () => {
+    expect(accepted('.nonesuch { color: inherit; }')).toBe(false);
+    expect(accepted('table { color: inherit; }')).toBe(false);
+    expect(accepted('a:visited { color: inherit; }')).toBe(false);
+    expect(accepted('a::marker { color: inherit; }')).toBe(false);
+  });
+
+  it('lists no state or part twice', () => {
+    expect(new Set(CSS_PSEUDO_CLASSES).size).toBe(CSS_PSEUDO_CLASSES.length);
+    expect(new Set(CSS_PSEUDO_ELEMENTS).size).toBe(CSS_PSEUDO_ELEMENTS.length);
   });
 });

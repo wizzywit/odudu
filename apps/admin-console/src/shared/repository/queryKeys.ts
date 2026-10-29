@@ -151,6 +151,12 @@ export function messageCatalogueKey(tenant: string) {
   return ['message-catalogue', tenant] as const;
 }
 
+// What a tenant's stylesheets may name: the same for every tenant and fixed
+// for a build, so it is read once.
+export function stylesheetHooksKey(tenant: string) {
+  return ['stylesheet-hooks', tenant] as const;
+}
+
 // An uploaded image's bytes as a data address. An image's content never
 // changes under its id, so it is read with `immutable` and kept.
 export function assetImageKey(tenant: string, assetId: string) {

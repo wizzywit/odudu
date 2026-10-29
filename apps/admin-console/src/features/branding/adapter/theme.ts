@@ -1,6 +1,8 @@
 import {
   listThemeVersionsResponseSchema,
   themePreviewInfoSchema,
+  stylesheetHooksResponseSchema,
+  type StylesheetHooksResponse,
   type ThemePreviewInfo,
   publishThemeResponseSchema,
   themeAssetSchema,
@@ -183,6 +185,17 @@ export function previewSource(
 ): string {
   const path = ['admin', 'tenants', tenant, ...themeParts(scope), 'preview'].map(segment).join('/');
   return `${GATEWAY_BASE}${path}?${new URLSearchParams(choice).toString()}`;
+}
+
+// What a stylesheet's rules may name, which is the tenant's one list whether
+// the stylesheet being edited is the tenant's or a client's.
+export function readStylesheetHooks(
+  gateway: Gateway,
+  tenant: string,
+): Promise<GatewayResult<StylesheetHooksResponse>> {
+  return adminCall(gateway, 'GET', tenant, ['theme', 'stylesheet-hooks'], {
+    schema: stylesheetHooksResponseSchema,
+  });
 }
 
 // What the preview of the same request shows and why, which a frame cannot

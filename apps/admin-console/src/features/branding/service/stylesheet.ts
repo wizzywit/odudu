@@ -2,6 +2,7 @@ import { MAX_STYLESHEET_BYTES, MAX_TEMPLATE_BYTES } from '@odudu/contracts';
 import type { FieldError } from '@odudu/contracts/admin';
 import { byteSizeReading, utf8Length, type SizeReading } from '#/shared/service/format';
 import type { PublishOutcome } from '#/features/branding/service/edits';
+import { SELECTORS_LABEL } from '#/features/branding/service/selectors';
 import {
   detailed,
   NO_PROBLEMS,
@@ -11,6 +12,8 @@ import {
 
 export const STYLESHEET_LEAD =
   'Plain CSS for what the page’s own styling cannot do. Rules may name only the page’s documented classes, such as .logo and .page-sign-in; @import, @font-face, scripts and addresses outside this theme’s images are refused. The preview shows the saved stylesheet, so save to see a change.';
+
+const LIST_POINTER = `“${SELECTORS_LABEL}” above the editor lists what a rule may name.`;
 
 export const STYLESHEET_LABEL = 'Stylesheet CSS';
 
@@ -49,8 +52,8 @@ export const STYLESHEET_REFUSALS: Readonly<Record<string, string>> = {
   'at-rule-not-allowed': 'This at-rule is not allowed. Only @media is.',
   'media-query-not-allowed':
     'This media query is not allowed. Colour scheme, width and reduced motion are.',
-  'selector-not-allowed': 'This selector is not allowed.',
-  'unknown-class': 'This class is not one of the page’s documented classes.',
+  'selector-not-allowed': `This selector is not allowed. ${LIST_POINTER}`,
+  'unknown-class': `This class is not one of the page’s documented classes. ${LIST_POINTER}`,
   'property-not-allowed': 'This property is not allowed.',
   'value-not-allowed': 'This value is not allowed.',
   'url-not-allowed': 'A url() may name only this theme’s uploaded images.',

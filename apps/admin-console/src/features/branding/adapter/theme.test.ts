@@ -6,6 +6,7 @@ import {
   putTheme,
   readAssetImage,
   readPreviewInfo,
+  readStylesheetHooks,
   readTheme,
   readVersions,
   resetTheme,
@@ -13,7 +14,16 @@ import {
   uploadAsset,
 } from '#/features/branding/adapter/theme';
 import { NO_DRAFT_TAG } from '#/features/branding/service';
-import { draftedView, EMPTY, PI, previewInfo, TH, themeView } from '#/testing/brandingFixtures';
+import {
+  draftedView,
+  EMPTY,
+  PI,
+  previewInfo,
+  SH,
+  STYLESHEET_HOOKS,
+  TH,
+  themeView,
+} from '#/testing/brandingFixtures';
 import { fakeTransport, image, json, problem } from '#/testing/fakeTransport';
 
 const CLIENT_TH = '/console/api/admin/tenants/acme/clients/c1/theme';
@@ -185,6 +195,23 @@ describe('the preview address', () => {
     expect(
       previewSource('a b', { kind: 'client', id: 'c1' }, { kind: 'sign-in', scheme: 'light' }),
     ).toBe('/console/api/admin/tenants/a%20b/clients/c1/theme/preview?kind=sign-in&scheme=light');
+  });
+});
+
+describe('reading the selectors a stylesheet may use', () => {
+  it('asks the tenant for the one list, whichever scope is being edited', async () => {
+    const fake = fakeTransport({ [`GET ${SH}`]: json(STYLESHEET_HOOKS) });
+    const result = await readStylesheetHooks(fake.transport.gateway, 'acme');
+    expect(result).toMatchObject({ ok: true, data: { version: 1 } });
+    expect(fake.sent.map((s) => s.path)).toEqual([SH]);
+  });
+
+  it('refuses an answer that is not one', async () => {
+    const fake = fakeTransport({ [`GET ${SH}`]: json({ classes: 'logo' }) });
+    expect(await readStylesheetHooks(fake.transport.gateway, 'acme')).toMatchObject({
+      ok: false,
+      kind: 'schema',
+    });
   });
 });
 

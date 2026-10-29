@@ -291,7 +291,7 @@ describe('the capability matrix', () => {
   describe('a route names a capability its own path and method already imply', () => {
     // Beside two reads, the image routes (upload, delete and the stored
     // bytes), which a client's theme needs and a `manage-clients` holder may
-    // therefore use.
+    // therefore use, and the read of the selectors a stylesheet may name.
     it('admits a further capability on a read, or on an image route', () => {
       const widened = tenantScopedRoutes.filter((route) => route.alsoAdmits !== undefined);
       expect(widened.map(routeKey).sort()).toEqual([
@@ -299,6 +299,7 @@ describe('the capability matrix', () => {
         'GET /admin/tenants/:tenant/groups',
         'GET /admin/tenants/:tenant/roles',
         'GET /admin/tenants/:tenant/theme/assets/:assetId/content',
+        'GET /admin/tenants/:tenant/theme/stylesheet-hooks',
         'POST /admin/tenants/:tenant/theme/assets',
       ]);
     });

@@ -54,7 +54,7 @@ export function themePreviewHandler(
           422,
           'about:blank#theme-preview-too-large',
           'Unprocessable Content',
-          `the draft's stylesheet and images come to ${String(outcome.bytes)} bytes once inlined, over the 1 MiB a preview carries`,
+          `the draft's stylesheet and images come to ${String(outcome.bytes)} bytes once inlined, over the ${String(outcome.limit)} bytes a preview carries`,
         ),
       );
     }
