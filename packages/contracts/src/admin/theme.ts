@@ -26,6 +26,10 @@ export const publishedThemeSchema = z.object({
   body: themeBodySchema,
 });
 
+// The parts of a theme a draft can differ in; the theme package keeps the same
+// list, and a test holds the two equal.
+export const THEME_DIFF_PIECES = ['tokens', 'assets', 'stylesheet', 'templates'] as const;
+
 export const themeViewSchema = z.object({
   scope: z.enum(['tenant', 'client']),
   draft: themeBodySchema.nullable(),
@@ -35,6 +39,10 @@ export const themeViewSchema = z.object({
   // A client's view only: what the tenant's published theme supplies, so each
   // piece the client sets can say which of the tenant's it hides.
   tenant_sources: themeSourcesSchema.nullable(),
+  // The parts of the draft that differ from this scope's own published theme,
+  // computed by the server; empty without a draft. Nothing published compares
+  // as the empty theme.
+  changed: z.array(z.enum(THEME_DIFF_PIECES)),
 });
 export type ThemeView = z.infer<typeof themeViewSchema>;
 

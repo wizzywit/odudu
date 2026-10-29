@@ -251,7 +251,7 @@ const THEME_DRAFT =
   '`*`, and with `412` when it no longer matches, leaving the draft as it was. The first draft ' +
   'of a scope needs none.';
 
-// The seven routes that make up a scope's theme, under the tenant or under one
+// The routes that make up a scope's theme, under the tenant or under one
 // client. The tenant's own theme needs `manage-tenant`, a client's
 // `manage-clients`, the capability every other client write needs.
 function themeRoutes(
@@ -267,7 +267,10 @@ function themeRoutes(
       responseSchema: themeViewSchema,
       description:
         `The ${noun}\u2019s draft and published theme, and for each piece the layer that ` +
-        `supplies it (\`client\`, \`tenant\` or \`default\`). ${THEME_DRAFT}`,
+        `supplies it (\`client\`, \`tenant\` or \`default\`). \`changed\` names the parts of the ` +
+        'draft (`tokens`, `assets`, `stylesheet`, `templates`) that differ from the ' +
+        `${noun}\u2019s own published theme, compared by the server on their stored form; it is ` +
+        `empty without a draft, and nothing published compares as the empty theme. ${THEME_DRAFT}`,
     },
     {
       method: 'PUT',
@@ -295,7 +298,9 @@ function themeRoutes(
         'contrast pair is refused as a `400` naming the colour. A stylesheet or a template ' +
         'cannot be proven accessible, so each earns an entry in `warnings`, which does not ' +
         'block. `409` (`about:blank#theme-no-draft`) when there is no draft, which is also ' +
-        'what the second of two simultaneous publishes of one draft receives. `If-Match` is ' +
+        'what the second of two simultaneous publishes of one draft receives, and ' +
+        '`409` (`about:blank#theme-nothing-to-publish`) when the draft has the published ' +
+        'content, which would only add a version identical to the last. `If-Match` is ' +
         `optional here and, when sent, must name the draft being published. ${THEME_CACHE}`,
     },
     {
@@ -352,6 +357,19 @@ function themeRoutes(
         'of this page kind that failed the checks, and whether the template could not be ' +
         'filled. Reads the draft and the published themes only, at most five statements ' +
         'whatever the theme names. `404` for a client that is not the tenant\u2019s.',
+    },
+    {
+      method: 'DELETE',
+      pattern: `${base}/theme/draft`,
+      capability,
+      responseSchema: themeViewSchema,
+      description:
+        `Discards the ${noun}\u2019s draft and nothing else: the published theme, its versions ` +
+        'and what users see are untouched, so, unlike the reset, it never unpublishes the ' +
+        'live theme. The draft\u2019s `ETag` is required as `If-Match`, refused with `428` when it is ' +
+        'missing or `*` and with `412` when it no longer matches. A scope with no draft ' +
+        'answers its theme as it is (`412` when an `ETag` names a draft that is gone). ' +
+        'Answers the theme as it now is.',
     },
     {
       method: 'DELETE',

@@ -571,7 +571,7 @@ const PUBLISHED_ID = (answer: unknown): string =>
   (answer as { published: { id: string } }).published.id;
 
 // A scope's theme through its life: a draft saved and saved again and previewed, published,
-// published again over it, the first restored, then reset and read.
+// discarded and saved again, published over it, the first restored, then reset and read.
 function themeCalls(T: string, base: string, what: string): [string, Call][] {
   const theme = `${base}/theme`;
   const key = base === T ? 'tenantTheme' : 'clientTheme';
@@ -590,6 +590,8 @@ function themeCalls(T: string, base: string, what: string): [string, Call][] {
       { method: 'POST', url: `${theme}/publish`, saveAs: key, saveWith: PUBLISHED_ID },
     ],
     [`save ${what} over it`, { method: 'PUT', url: theme, body }],
+    [`discard the draft of ${what}`, { method: 'DELETE', url: `${theme}/draft`, etagFrom: theme }],
+    [`save ${what} over it once more`, { method: 'PUT', url: theme, body }],
     [`publish ${what} again`, { method: 'POST', url: `${theme}/publish` }],
     [
       `restore the first version of ${what}`,

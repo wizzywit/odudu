@@ -283,6 +283,13 @@ export function themeRepository(tx: TenantScopedDatabase) {
       return restored;
     },
 
+    // Removes the draft alone: the published version and the archived ones
+    // stay, and so does what users see. The draft's image holds go with it.
+    async deleteDraft(scope: ThemeScope): Promise<void> {
+      await lockScope(scope);
+      await tx.delete(themeVersions).where(inState(scope, 'draft'));
+    },
+
     async reset(scope: ThemeScope): Promise<void> {
       await lockScope(scope);
       await archivePublished(scope);

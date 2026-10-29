@@ -408,6 +408,7 @@ const CLIENT_THEME_ROUTES: ReadonlySet<string> = new Set(
     'GET /theme',
     'PUT /theme',
     'DELETE /theme',
+    'DELETE /theme/draft',
     'POST /theme/publish',
     'GET /theme/preview',
     'GET /theme/preview/info',
@@ -893,7 +894,7 @@ describe('deleting a client is judged by what its roles reach', () => {
 });
 
 describe('the client theme exemption', () => {
-  it('names exactly the theme routes under a client, so an eighth is judged', () => {
+  it('names exactly the theme routes under a client, so a ninth is judged', () => {
     const found = ADMIN_ROUTES.filter((route) => route.pattern.includes('/clients/:id/theme')).map(
       (route) => `${route.method} ${route.pattern}`,
     );

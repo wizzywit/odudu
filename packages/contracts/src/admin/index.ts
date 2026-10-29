@@ -462,6 +462,7 @@ export {
   THEME_ASSET_BODY_LIMIT,
   THEME_ASSET_KINDS,
   THEME_BODY_LIMIT,
+  THEME_DIFF_PIECES,
   THEME_VERSIONS_LIMIT,
   listThemeVersionsResponseSchema,
   publishThemeResponseSchema,

@@ -669,8 +669,8 @@ describe('access', () => {
     (route) => /\/theme(\/|$)/u.test(route.pattern) && !route.pattern.includes('/theme/assets'),
   );
 
-  it('covers the sixteen routes of a tenant’s and a client’s theme', () => {
-    expect(themeRoutes).toHaveLength(16);
+  it('covers the routes of a tenant’s and a client’s theme and the selector read', () => {
+    expect(themeRoutes).toHaveLength(19);
   });
 
   it('every route needs its capability, and a read-only role is refused', async () => {
@@ -692,7 +692,8 @@ describe('access', () => {
     const clientA = await fixture.createConfidentialClient(tenantOnly.tenant.name, {});
     const clientB = await fixture.createConfidentialClient(clientsOnly.tenant.name, {});
 
-    for (const route of themeRoutes) {
+    // The selector read also admits manage-clients: a client's stylesheet needs it.
+    for (const route of themeRoutes.filter((candidate) => candidate.alsoAdmits === undefined)) {
       const forClient = route.pattern.includes('/clients/');
       const wrong = forClient ? tenantOnly : clientsOnly;
       const right = forClient ? clientsOnly : tenantOnly;
