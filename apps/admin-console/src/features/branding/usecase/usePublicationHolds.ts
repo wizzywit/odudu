@@ -24,7 +24,7 @@ export function usePublicationHolds(
   const running = useThemeRunning(tenant, scope);
   return publicationHolds({
     view,
-    busy: { ...running, sectionSave: running.other },
+    busy: running,
     unsaved: unsavedSections(dirty),
     unsavedByTab: { theme: tabUnsaved('theme', dirty), pages: tabUnsaved('pages', dirty) },
     contrast: contrastReport(colourValues(view)).hold,

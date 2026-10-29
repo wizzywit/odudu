@@ -31,3 +31,33 @@
     display: none;
   }
 }
+
+/* Wide, the parts of a page are always listed. Narrow they are a fold under
+   their own heading, which the button then says in its place. */
+.fold {
+  display: none;
+}
+
+.partsBody {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@container (inline-size < 40rem) {
+  .fold {
+    display: block;
+  }
+
+  .fold button {
+    inline-size: 100%;
+    justify-content: space-between;
+  }
+
+  .partsBody[data-collapsed] {
+    display: none;
+  }
+
+  .partsTitle {
+    display: none;
+  }
+}

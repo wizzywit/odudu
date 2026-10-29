@@ -40,7 +40,7 @@ export function PreviewShell({
   const heading = useId();
   const sheet = usePreviewSheet();
   return (
-    <section aria-labelledby={heading} className={styles.pane}>
+    <section aria-labelledby={heading} className={styles.pane} data-preview-strip>
       <h2 id={heading} className={styles.title}>
         {title}
       </h2>

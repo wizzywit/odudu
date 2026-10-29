@@ -20,8 +20,9 @@ export interface WritesRunning {
   publish: boolean;
   discard: boolean;
   revert: boolean;
-  // Any other write: a version restored, the theme reset, a section saved.
-  sectionSave: boolean;
+  // Any other write to the theme: an image, a message override, a version
+  // restored, the theme reset, or a section saving.
+  saving: boolean;
 }
 
 // The short line saying what is running, or undefined when nothing is.
@@ -29,7 +30,7 @@ export function runningLine(busy: WritesRunning): string | undefined {
   if (busy.publish) return PUBLISHING;
   if (busy.discard) return DISCARDING;
   if (busy.revert) return REVERTING;
-  return busy.sectionSave ? SAVING : undefined;
+  return busy.saving ? SAVING : undefined;
 }
 
 // The hold on the revert of a tab, from the holds of the whole bar.

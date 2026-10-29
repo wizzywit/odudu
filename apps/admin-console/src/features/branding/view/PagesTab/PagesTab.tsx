@@ -28,6 +28,8 @@ import { useRevert } from '#/features/branding/usecase/useRevert';
 import { useTemplates } from '#/features/branding/usecase/useTemplates';
 import { InsertMessage } from '#/features/branding/view/MessageKeyField';
 import { RevertPanel } from '#/features/branding/view/PublicationPanels';
+import { useFolds, type Folds } from '#/shared/usecase/useFolds';
+import { Button } from '#/shared/view/Button';
 import { CodeField } from '#/shared/view/CodeField';
 import { NativeSelectFields, SelectField } from '#/shared/view/Field';
 import { Panel } from '#/shared/view/Panel';
@@ -35,35 +37,47 @@ import { recordTab } from '#/shared/view/RecordTab';
 import { SaveSection } from '#/shared/view/SaveSection';
 import styles from '#/features/branding/view/PagesTab/PagesTab.module.css';
 
-function Parts({ kind }: { kind: PageKind }) {
+function Parts({ kind, folds }: { kind: PageKind; folds: Folds }) {
   const manifest = MANIFESTS[kind];
   const inside = formNote(manifest);
+  const open = folds.isOpen('parts');
+  const toggle = (): void => {
+    folds.toggle('parts');
+  };
   return (
-    <Panel title={PARTS_TITLE}>
-      <p className={recordTab.rule}>{TEMPLATES_INTRO}</p>
-      <p className={recordTab.text}>{REQUIRED_NOTE}</p>
-      <ul className={styles.parts}>
-        {manifest.required.map((part) => (
-          <li key={part}>
-            <code>{slot(part)}</code>
-          </li>
-        ))}
-      </ul>
-      {manifest.optional.length === 0 ? null : (
-        <>
-          <p className={recordTab.text}>{OPTIONAL_NOTE}</p>
-          <ul className={styles.parts}>
-            {manifest.optional.map((part) => (
-              <li key={part}>
-                <code>{slot(part)}</code>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      {inside === null ? null : <p className={recordTab.rule}>{inside}</p>}
-      <p className={recordTab.rule}>{MESSAGE_NOTE}</p>
-      <p className={recordTab.rule}>{TEMPLATE_RULES}</p>
+    <Panel title={PARTS_TITLE} headingClassName={styles.partsTitle ?? ''}>
+      <div className={styles.fold}>
+        <Button aria-expanded={open} aria-controls="parts-of-this-page" onPress={toggle}>
+          <span>{PARTS_TITLE}</span>
+          <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+        </Button>
+      </div>
+      <div id="parts-of-this-page" className={styles.partsBody} data-collapsed={!open || undefined}>
+        <p className={recordTab.rule}>{TEMPLATES_INTRO}</p>
+        <p className={recordTab.text}>{REQUIRED_NOTE}</p>
+        <ul className={styles.parts}>
+          {manifest.required.map((part) => (
+            <li key={part}>
+              <code>{slot(part)}</code>
+            </li>
+          ))}
+        </ul>
+        {manifest.optional.length === 0 ? null : (
+          <>
+            <p className={recordTab.text}>{OPTIONAL_NOTE}</p>
+            <ul className={styles.parts}>
+              {manifest.optional.map((part) => (
+                <li key={part}>
+                  <code>{slot(part)}</code>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {inside === null ? null : <p className={recordTab.rule}>{inside}</p>}
+        <p className={recordTab.rule}>{MESSAGE_NOTE}</p>
+        <p className={recordTab.rule}>{TEMPLATE_RULES}</p>
+      </div>
     </Panel>
   );
 }
@@ -91,6 +105,7 @@ export function PagesTab({
   const { save } = templates;
   const revert = useRevert({ tenant, scope, view, tag, tab: 'pages' });
   const keys = useMessageKeys(tenant, kind);
+  const folds = useFolds();
   const problems = templates.problems(kind);
   return (
     <div className={styles.tab}>
@@ -127,7 +142,7 @@ export function PagesTab({
       <div className={styles.revert}>
         <RevertPanel scope={scope} tab="pages" revert={revert} />
       </div>
-      <Parts kind={kind} />
+      <Parts kind={kind} folds={folds} />
     </div>
   );
 }

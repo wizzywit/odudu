@@ -32,6 +32,19 @@ it('shows the required parts of the sign-in page, and what it may not hold', asy
   expect(within(parts).getByText(/Scripts, styles, forms/u)).toBeVisible();
 });
 
+it('folds the parts of a page under their heading, closed until it is pressed', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
+  const parts = await screen.findByRole('region', { name: 'Parts of this page' });
+  const fold = within(parts).getByRole('button', { name: 'Parts of this page' });
+  expect(fold).toHaveAttribute('aria-expanded', 'false');
+  const body = document.getElementById(fold.getAttribute('aria-controls') ?? '');
+  expect(body).toHaveAttribute('data-collapsed');
+  await user.click(fold);
+  expect(fold).toHaveAttribute('aria-expanded', 'true');
+  expect(body).not.toHaveAttribute('data-collapsed');
+});
+
 it('edits the template in a code field, with its parts coloured and the lines numbered', async () => {
   const user = userEvent.setup();
   renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));

@@ -21,11 +21,12 @@
 }
 
 .count,
+.brief,
 .folded {
   display: none;
 }
 
-/* Narrow, the bar is one row: what is waiting as a count (its sentence is the
+/* Narrow, the bar is one row: what is waiting as a short line (its sentence is the
    count's title), Publish, and a menu for what else the bar does. */
 @container (inline-size < 40rem) {
   .row {
@@ -58,13 +59,18 @@
   }
 
   .folded button {
-    min-inline-size: 4.5rem;
+    min-inline-size: 3.5rem;
+  }
+
+  .actions button {
+    white-space: nowrap;
   }
 
   .title,
   .published,
   .explain,
-  .sentence[data-counted],
+  .sentence,
+  .full,
   .inline {
     display: none;
   }
@@ -72,6 +78,17 @@
   .count,
   .folded {
     display: block;
+  }
+
+  .brief {
+    display: inline;
+  }
+
+  .summary p {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
   }
 
   .count {

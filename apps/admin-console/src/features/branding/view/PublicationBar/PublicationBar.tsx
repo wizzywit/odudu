@@ -1,7 +1,7 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import {
   barText,
-  changeCount,
+  changeBrief,
   DISCARD_CONFIRM,
   DISCARD_LABEL,
   DISCARD_TITLE,
@@ -15,7 +15,9 @@ import {
   PUBLISHING,
   REVERT_LABEL,
   REVERTING,
+  publishedShort,
   publishedTag,
+  PUBLISH_SHORT,
   publishedText,
   WARNINGS_NOTE,
   WARNINGS_TITLE,
@@ -59,25 +61,26 @@ export function PublicationBar({
   });
   const { outcome } = publication;
   const state = publishedTag(view);
-  const count = changeCount(view);
+  const brief = changeBrief(view);
   return (
     <div className={styles.bar}>
       <Panel title={PUBLISH_TITLE} headingClassName={styles.title ?? ''}>
         <div className={styles.row}>
           <div className={styles.summary}>
             <p className={recordTab.text}>
-              <StatusTag tone={state.tone}>{state.text}</StatusTag>{' '}
+              <StatusTag tone={state.tone}>
+                <span className={styles.full}>{state.text}</span>
+                <span className={styles.brief} title={state.text}>
+                  {publishedShort(view)}
+                </span>
+              </StatusTag>{' '}
               <span className={styles.published}>{publishedText(view)}</span>
             </p>
             <p className={recordTab.rule}>
-              <span className={styles.sentence} data-counted={count !== null || undefined}>
-                {barText(view)}
+              <span className={styles.sentence}>{barText(view)}</span>
+              <span className={styles.count} title={barText(view)}>
+                {brief}
               </span>
-              {count === null ? null : (
-                <span className={styles.count} title={barText(view)}>
-                  {count}
-                </span>
-              )}
             </p>
             <p className={`${recordTab.rule ?? ''} ${styles.explain ?? ''}`}>{PUBLISH_BODY}</p>
           </div>
@@ -92,10 +95,12 @@ export function PublicationBar({
           <div className={`${recordTab.actions ?? ''} ${styles.actions ?? ''}`}>
             <Button
               variant="primary"
+              aria-label={publication.busy ? PUBLISHING : PUBLISH_LABEL}
               isDisabled={publication.hold !== undefined}
               onPress={publication.publish}
             >
-              {publication.busy ? PUBLISHING : PUBLISH_LABEL}
+              <span className={styles.full}>{publication.busy ? PUBLISHING : PUBLISH_LABEL}</span>
+              <span className={styles.brief}>{publication.busy ? PUBLISHING : PUBLISH_SHORT}</span>
             </Button>
             <div className={styles.inline}>
               <Button isDisabled={holds.discard !== undefined} onPress={discard.ask}>

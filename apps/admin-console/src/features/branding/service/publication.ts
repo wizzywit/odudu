@@ -64,6 +64,18 @@ export function changeCount(view: ThemeView): string | null {
     : counted(view.changed.length, 'change', 'changes');
 }
 
+// The line a bar with room for a few words says: how many changes wait, or
+// that there is no draft or nothing to publish.
+export function changeBrief(view: ThemeView): string {
+  if (view.draft === null) return 'No draft';
+  return changeCount(view) ?? 'Up to date';
+}
+
+// The tag's word where the bar has no room for the sentence.
+export function publishedShort(view: ThemeView): string {
+  return view.published === null ? 'Not live' : 'Live';
+}
+
 // The tabs holding part of what would change at a publish.
 export function tabsChanged(changed: ThemeView['changed']): ReadonlySet<OfferedTab> {
   return new Set(

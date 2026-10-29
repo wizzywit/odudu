@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   announceRevert,
   barText,
+  changeBrief,
   changeCount,
   changedText,
   DISCARD_BODY_TENANT,
@@ -58,6 +59,12 @@ describe('what differs', () => {
     expect(changeCount(viewOf(EMPTY, EMPTY, []))).toBeNull();
     expect(changeCount(viewOf(EMPTY, EMPTY, ['tokens']))).toBe('1 change');
     expect(changeCount(viewOf(EMPTY, EMPTY, ['tokens', 'assets', 'templates']))).toBe('3 changes');
+  });
+
+  it('is told in a few words where the bar has room for no more', () => {
+    expect(changeBrief(NO_DRAFT)).toBe('No draft');
+    expect(changeBrief(viewOf(EMPTY, EMPTY, []))).toBe('Up to date');
+    expect(changeBrief(viewOf(EMPTY, EMPTY, ['tokens', 'assets']))).toBe('2 changes');
   });
 
   it('gives each tab a dot for the pieces of the change it holds', () => {

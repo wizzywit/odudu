@@ -381,6 +381,32 @@ describe('while a write is running or edits are unsaved', () => {
     expect(within(region).getByText(/^Save or discard your changes first/u)).toBeVisible();
   });
 
+  it('holds Publish, Discard and Revert while an image upload is in flight, naming it Saving', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(
+      AT,
+      brandingRoutes(themeAnswer(twoTabs(), '"d1"'), { [`POST ${TH}/assets`]: pending() }),
+    );
+    const images = await screen.findByRole('region', { name: 'Images' });
+    const input = images.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error('no file input');
+    await user.upload(
+      input,
+      new File([new Uint8Array([137, 80, 78, 71])], 'logo.png', { type: 'image/png' }),
+    );
+    const region = await bar();
+    await waitFor(() => {
+      expect(within(region).getByRole('button', { name: 'Publish the draft' })).toBeDisabled();
+    });
+    expect(within(region).getAllByText('Saving…').length).toBeGreaterThan(0);
+    expect(within(region).getByRole('button', { name: 'Discard draft…' })).toBeDisabled();
+    expect(
+      within(screen.getByRole('region', { name: 'Revert to published' })).getByRole('button', {
+        name: 'Revert this tab to published',
+      }),
+    ).toBeDisabled();
+  });
+
   it('has nothing axe can find in either theme while a publish is in flight', async () => {
     const user = userEvent.setup();
     const { element } = consoleAt(

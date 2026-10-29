@@ -1,10 +1,12 @@
 import type { FieldError } from '@odudu/contracts/admin';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { recordKey } from '#/shared/repository/queryKeys';
 import { useSaveRun, type RefusalReporter, type SaveInput } from '#/shared/repository/useSaveRun';
+import { useSavingSections } from '#/shared/repository/useSavingSections';
 import { useSectionDraft } from '#/shared/repository/useSectionDraft';
 import type { Conflict } from '#/shared/service/conflict';
+import { savingKey } from '#/shared/service/savingSections';
 import type { Values } from '#/shared/service/dirty';
 import { draftFieldsOf } from '#/shared/service/drafts';
 import type { AdminCapability } from '#/shared/service/principal';
@@ -144,6 +146,16 @@ export function useSectionSave<T extends Values, R>({
     update,
     settle,
   });
+
+  const report = useSavingSections((state) => state.report);
+  const savingNow = isSaving(current);
+  useEffect(() => {
+    const key = savingKey(tenant, record, section);
+    report(key, savingNow);
+    return () => {
+      report(key, false);
+    };
+  }, [report, tenant, record, section, savingNow]);
 
   const changed = changedFields(current);
   const conflicts: Conflict[] = conflictsOf(current, fields);

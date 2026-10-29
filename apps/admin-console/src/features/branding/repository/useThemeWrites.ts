@@ -8,6 +8,7 @@ import {
   restoreVersion,
 } from '#/features/branding/adapter/theme';
 import { scopeKeyPart, themeRecord, type ThemeScope } from '#/features/branding/service';
+import { useRecordSaving } from '#/shared/repository/useSavingSections';
 import { recordKey, themeVersionsKey, themeWriteKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import type { RecordEntry } from '#/shared/repository/useRecord';
@@ -88,8 +89,9 @@ export interface ThemeRunning {
   publish: boolean;
   discard: boolean;
   revert: boolean;
-  // A version restored or the theme reset.
-  other: boolean;
+  // Any other write to the tenant's theme: an image uploaded or deleted, a
+  // message override, a version restored, the theme reset, or a section saving.
+  saving: boolean;
 }
 
 // Which writes to this scope's theme are running anywhere on the page, not
@@ -99,12 +101,12 @@ export function useThemeRunning(tenant: string, scope: ThemeScope): ThemeRunning
   const publish = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'publish') });
   const discard = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'discard') });
   const revert = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'revert') });
-  const restore = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'restore') });
-  const reset = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'reset') });
+  const every = useIsMutating({ mutationKey: ['theme-write', tenant] });
+  const sections = useRecordSaving(tenant, themeRecord(scope));
   return {
     publish: publish > 0,
     discard: discard > 0,
     revert: revert > 0,
-    other: restore + reset > 0,
+    saving: every - publish - discard - revert > 0 || sections,
   };
 }

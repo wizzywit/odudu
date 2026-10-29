@@ -7,7 +7,7 @@ import {
 } from '#/features/branding/service/holds';
 import { EMPTY, themeView } from '#/testing/brandingFixtures';
 
-const IDLE: WritesRunning = { publish: false, discard: false, revert: false, sectionSave: false };
+const IDLE: WritesRunning = { publish: false, discard: false, revert: false, saving: false };
 const NOTHING_UNSAVED = { theme: [], pages: [] } as const;
 
 function viewOf(draft: object | null, changed: string[]): ThemeView {
@@ -48,8 +48,8 @@ describe('what a running write says', () => {
     expect(runningLine({ ...IDLE, publish: true })).toBe('Publishing…');
     expect(runningLine({ ...IDLE, discard: true })).toBe('Discarding…');
     expect(runningLine({ ...IDLE, revert: true })).toBe('Reverting…');
-    expect(runningLine({ ...IDLE, sectionSave: true })).toBe('Saving…');
-    expect(runningLine({ ...IDLE, revert: true, sectionSave: true })).toBe('Reverting…');
+    expect(runningLine({ ...IDLE, saving: true })).toBe('Saving…');
+    expect(runningLine({ ...IDLE, revert: true, saving: true })).toBe('Reverting…');
   });
 });
 
@@ -67,7 +67,7 @@ describe('what holds each action of the bar', () => {
     ['publishing', { publish: true }, 'Publishing…'],
     ['discarding', { discard: true }, 'Discarding…'],
     ['reverting', { revert: true }, 'Reverting…'],
-    ['saving', { sectionSave: true }, 'Saving…'],
+    ['saving', { saving: true }, 'Saving…'],
   ] as const) {
     it(`holds every action with one line while ${what}, whatever else is wrong`, () => {
       const all = holds(NO_DRAFT, { busy, unsaved: ['Stylesheet'], contrast: 'c' });

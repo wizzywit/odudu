@@ -10,6 +10,7 @@ const TABS = ['Theme', 'Pages', 'Mail', 'Languages'] as const;
 const WIDTHS = [
   ['a small phone', { width: 320, height: 640 }],
   ['a phone', { width: 375, height: 812 }],
+  ['a large phone', { width: 390, height: 844 }],
   ['a tablet', { width: 768, height: 1024 }],
 ] as const;
 
@@ -47,6 +48,67 @@ for (const [name, viewport] of WIDTHS) {
         await openTab(page, tab);
         await expect(page.getByRole('progressbar')).toHaveCount(0);
         await expectFitsViewport(page, tab);
+      }
+    });
+
+    test('no two controls or lines of text overlap, and no text is cut off without a title', async ({
+      page,
+    }) => {
+      test.slow();
+      await signIn(page, branding.layout);
+      for (const tab of TABS) {
+        await openTab(page, tab);
+        await expect(page.getByRole('progressbar')).toHaveCount(0);
+        const found = await page.evaluate(() => {
+          const visible = (node: Element): boolean => {
+            const box = node.getBoundingClientRect();
+            return (
+              box.width > 0 && box.height > 0 && getComputedStyle(node).visibility !== 'hidden'
+            );
+          };
+          const inStrip = (node: Element): boolean => node.closest('[data-preview-strip]') !== null;
+          // Things that are read or pressed: leaves of text, and the controls.
+          const items = [
+            ...document.querySelectorAll(
+              'main button, main input, main select, main textarea, main [role=tab], main a, main :is(p, span, h1, h2, h3, li, label, legend, dt, dd, code):not(:has(*))',
+            ),
+          ].filter(
+            (node) =>
+              visible(node) &&
+              node.closest('[aria-hidden=true]') === null &&
+              (node.textContent.trim() !== '' ||
+                !/^(P|SPAN|H\d|LI|LABEL|LEGEND|DT|DD|CODE)$/u.test(node.tagName)),
+          );
+          const overlaps: string[] = [];
+          const name = (node: Element): string =>
+            `<${node.tagName.toLowerCase()}> "${(node.getAttribute('aria-label') ?? node.textContent).trim().slice(0, 28)}"`;
+          for (let a = 0; a < items.length; a += 1) {
+            for (let b = a + 1; b < items.length; b += 1) {
+              const [x, y] = [items[a], items[b]];
+              if (x === undefined || y === undefined) continue;
+              if (x.contains(y) || y.contains(x) || inStrip(x) !== inStrip(y)) continue;
+              const p = x.getBoundingClientRect();
+              const q = y.getBoundingClientRect();
+              const wide = Math.min(p.right, q.right) - Math.max(p.left, q.left);
+              const high = Math.min(p.bottom, q.bottom) - Math.max(p.top, q.top);
+              if (wide > 3 && high > 3) overlaps.push(`${name(x)} over ${name(y)}`);
+            }
+          }
+          const cut = items
+            .filter((node) => {
+              const style = getComputedStyle(node);
+              const clips = style.overflowX === 'hidden' || style.textOverflow === 'ellipsis';
+              return (
+                clips &&
+                node.scrollWidth > node.clientWidth + 1 &&
+                !node.hasAttribute('title') &&
+                node.closest('[title]') === null
+              );
+            })
+            .map(name);
+          return { overlaps, cut };
+        });
+        expect(found, tab).toEqual({ overlaps: [], cut: [] });
       }
     });
 
@@ -133,6 +195,47 @@ test.describe('on a phone', () => {
     await expect(open).toBeFocused();
     expect(await page.evaluate(() => window.scrollY)).toBe(before);
     await expect(strip(page).getByText('Registration · Dark')).toBeVisible();
+  });
+
+  test('the strip never hides content: the last of each tab rests above it, and a focused field is cleared of it', async ({
+    page,
+  }) => {
+    test.slow();
+    await signIn(page, branding.layout);
+    for (const tab of ['Theme', 'Pages', 'Mail'] as const) {
+      await openTab(page, tab);
+      await page.evaluate(() => {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+      });
+      const clearance = await page.evaluate(() => {
+        const pane = document.querySelector('[data-preview-strip]');
+        if (pane === null) return -1;
+        const top = pane.getBoundingClientRect().top;
+        const lowest = [...document.querySelectorAll('main *')]
+          .filter(
+            (node) => !pane.contains(node) && !node.contains(pane) && node.children.length === 0,
+          )
+          .map((node) => node.getBoundingClientRect())
+          .filter((box) => box.width > 0 && box.height > 0)
+          .reduce((most, box) => Math.max(most, box.bottom), 0);
+        return top - lowest;
+      });
+      expect(clearance, tab).toBeGreaterThanOrEqual(-1);
+    }
+
+    await openTab(page, 'Pages');
+    const field = page.getByRole('combobox', { name: 'Insert a message' });
+    const top = await field.evaluate((node) => node.getBoundingClientRect().top + window.scrollY);
+    // Scrolled so that the field sits just under where the strip is drawn.
+    await page.evaluate((y) => {
+      window.scrollTo(0, y);
+    }, top - 700);
+    await field.focus();
+    const [fieldBox, stripBox] = await Promise.all([
+      field.boundingBox(),
+      strip(page).boundingBox(),
+    ]);
+    expect((fieldBox?.y ?? 0) + (fieldBox?.height ?? 0)).toBeLessThanOrEqual(stripBox?.y ?? 0);
   });
 
   test('the Mail tab’s preview is a strip and a sheet too', async ({ page }) => {
