@@ -2,7 +2,7 @@ import { afterEach, beforeEach, vi } from 'vitest';
 
 // Stands in for the width of every element marked `data-narrow-container`,
 // which jsdom does not lay out, and for the observer that watches it.
-export function useContainerWidth(width: number): void {
+export function stubContainerWidth(width: number): void {
   beforeEach(() => {
     class Watch {
       private readonly callback: () => void;

@@ -7,7 +7,7 @@ import { CodeField, CodeInsert } from '#/shared/view/CodeField/CodeField';
 import css from '#/shared/view/CodeField/CodeField.module.css?raw';
 import { ReadOnlyFields } from '#/shared/view/Field';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
-import { useContainerWidth } from '#/testing/narrowContainer';
+import { stubContainerWidth } from '#/testing/narrowContainer';
 
 function Editor({
   start = '',
@@ -558,7 +558,7 @@ function Narrow(props: Parameters<typeof Editor>[0]) {
 }
 
 describe('wrapping lines where the editor is stacked', () => {
-  useContainerWidth(400);
+  stubContainerWidth(400);
 
   it('wraps its lines to the screen on request, and says whether it does', async () => {
     const user = userEvent.setup();
@@ -622,7 +622,7 @@ describe('wrapping lines where the editor is stacked', () => {
 });
 
 describe('wrapping lines where the panel is wide', () => {
-  useContainerWidth(1000);
+  stubContainerWidth(1000);
 
   it('never wraps, whatever the switch was left at, since there is no switch to undo it', async () => {
     const user = userEvent.setup();

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { PreviewShell } from '#/features/branding/view/PreviewShell';
 import { InlineFields, SelectField } from '#/shared/view/Field';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
-import { useContainerWidth } from '#/testing/narrowContainer';
+import { stubContainerWidth } from '#/testing/narrowContainer';
 
 const SCHEMES = [
   { id: 'light', label: 'Light' },
@@ -60,7 +60,7 @@ it('opens a named sheet with the same sandboxed frame and the switches as native
 });
 
 describe('where the panel has the width', () => {
-  useContainerWidth(1000);
+  stubContainerWidth(1000);
 
   it('leaves the preview frame in the tab order, so a keyboard can scroll it', () => {
     render(
@@ -73,7 +73,7 @@ describe('where the panel has the width', () => {
 });
 
 describe('where the editor is stacked and the preview is a strip', () => {
-  useContainerWidth(400);
+  stubContainerWidth(400);
 
   it('keeps the miniature out of the tab order, and the sheet’s frame in it, named apart', async () => {
     const user = userEvent.setup();
