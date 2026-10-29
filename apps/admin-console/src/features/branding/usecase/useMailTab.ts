@@ -1,14 +1,18 @@
-import type { MailBrandingView, ThemeView } from '@odudu/contracts/admin';
+import type { Client, MailBrandingView, ThemeView } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { mailPreviewSource } from '#/features/branding/repository/mailPreview';
 import { useMailBranding } from '#/features/branding/repository/useMailBranding';
 import {
   DEFAULT_MAIL_CHOICE,
   mailChoiceWith,
+  mailClientOf,
   mailFrameKey,
   type MailChoice,
+  type MailClient,
   type Scheme,
 } from '#/features/branding/service';
+import { useClientPicker } from '#/shared/repository/useClientPicker';
+import type { PickerState } from '#/shared/service/picker';
 import type { Read } from '#/shared/service/read';
 
 export interface MailTab {
@@ -19,15 +23,25 @@ export interface MailTab {
   onLoaded: () => void;
   setScheme: (scheme: Scheme) => void;
   setLocale: (locale: string) => void;
+  // The client whose mail is shown, or none for the tenant's own.
+  client: MailClient | null;
+  picker: PickerState<Client>;
+  chooseClient: (ids: readonly string[]) => void;
+  showTenantOwn: () => void;
   branding: Read<MailBrandingView>;
   // The address the console is served from.
   origin: string;
 }
 
-// The verification mail as the published theme dresses it, and what it inherits.
+// The verification mail as the published theme dresses it, the tenant's own or
+// that of a client's sign-in, and what it inherits.
 export function useMailTab(tenant: string, view: ThemeView | undefined, asked: boolean): MailTab {
-  const [choice, setChoice] = useState(DEFAULT_MAIL_CHOICE);
+  const [scheme, setScheme] = useState(DEFAULT_MAIL_CHOICE.scheme);
+  const [locale, setLocale] = useState(DEFAULT_MAIL_CHOICE.locale);
+  const [client, setClient] = useState<MailClient | null>(null);
   const [loaded, setLoaded] = useState('');
+  const picker = useClientPicker(tenant, asked);
+  const choice = mailChoiceWith(DEFAULT_MAIL_CHOICE, { scheme, locale, client: client?.id ?? '' });
   const version = view?.published?.version;
   const frameKey = mailFrameKey(version, choice);
   return {
@@ -38,13 +52,17 @@ export function useMailTab(tenant: string, view: ThemeView | undefined, asked: b
     onLoaded: () => {
       setLoaded(frameKey);
     },
-    setScheme: (scheme) => {
-      setChoice((was) => mailChoiceWith(was, { scheme }));
+    setScheme,
+    setLocale,
+    client,
+    picker,
+    chooseClient: (ids) => {
+      setClient(mailClientOf(picker.options, ids));
     },
-    setLocale: (locale) => {
-      setChoice((was) => mailChoiceWith(was, { locale }));
+    showTenantOwn: () => {
+      setClient(null);
     },
     origin: globalThis.location.origin,
-    branding: useMailBranding(tenant, version, asked),
+    branding: useMailBranding(tenant, version, choice.client, asked),
   };
 }

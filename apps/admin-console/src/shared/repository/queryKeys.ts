@@ -141,8 +141,9 @@ export function themeVersionsKey(tenant: string, scope: string) {
 
 // What a tenant's mail inherits from its published theme, read again once
 // a newer version is published.
-export function mailBrandingKey(tenant: string, publishedVersion: number) {
-  return ['mail-branding', tenant, publishedVersion] as const;
+// A client's own mail is a different read; an empty `client` is the tenant's.
+export function mailBrandingKey(tenant: string, publishedVersion: number, client = '') {
+  return ['mail-branding', tenant, publishedVersion, client] as const;
 }
 
 // The messages a tenant's pages are filled from: the same for every tenant and

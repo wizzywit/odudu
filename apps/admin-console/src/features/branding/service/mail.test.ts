@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MAIL_CHOICE,
   logoViews,
+  mailClientOf,
+  mailInheritsLead,
+  mailPreviewNote,
   LOGO_ELSEWHERE,
   mailChoiceWith,
   mailFrameKey,
@@ -23,6 +26,7 @@ describe('the mail palette', () => {
   it('names who supplies it', () => {
     expect(sourceText('tenant')).toMatch(/published theme/u);
     expect(sourceText('default')).toMatch(/default/u);
+    expect(sourceText('client')).toMatch(/client’s published theme/u);
   });
 });
 
@@ -71,5 +75,28 @@ describe('the preview', () => {
     expect(mailFrameKey(2, DEFAULT_MAIL_CHOICE)).not.toBe(base);
     expect(mailFrameKey(1, mailChoiceWith(DEFAULT_MAIL_CHOICE, { scheme: 'dark' }))).not.toBe(base);
     expect(mailFrameKey(1, mailChoiceWith(DEFAULT_MAIL_CHOICE, { locale: 'ar' }))).not.toBe(base);
+    expect(mailFrameKey(1, mailChoiceWith(DEFAULT_MAIL_CHOICE, { client: 'c1' }))).not.toBe(base);
+  });
+});
+
+describe('what the mail tab says about whose mail it shows', () => {
+  it('says the tenant’s own until a client is named, then names the client', () => {
+    expect(mailPreviewNote(null)).toMatch(/from the published theme and/u);
+    expect(mailPreviewNote('Billing')).toContain(
+      'the published theme of Billing over the tenant’s',
+    );
+    expect(mailInheritsLead(null)).toContain('This shows the tenant’s own');
+    expect(mailInheritsLead('Billing')).toContain('a sign-in of Billing sends');
+    expect(mailInheritsLead('Billing')).toContain('Never a stylesheet or a template');
+  });
+
+  it('takes the client a picker last chose from the options it holds', () => {
+    const options = [
+      { id: 'a', name: 'A', extra: 1 },
+      { id: 'b', name: 'B', extra: 2 },
+    ];
+    expect(mailClientOf(options, ['a', 'b'])).toEqual({ id: 'b', name: 'B' });
+    expect(mailClientOf(options, [])).toBeNull();
+    expect(mailClientOf(options, ['gone'])).toBeNull();
   });
 });
