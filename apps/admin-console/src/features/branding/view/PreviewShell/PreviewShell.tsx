@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import { useId, useRef, type ReactNode } from 'react';
 import {
   PREVIEW_CLOSE_LABEL,
   PREVIEW_OPEN_LABEL,
@@ -7,6 +7,7 @@ import {
 } from '#/features/branding/service';
 import { usePreviewSheet } from '#/features/branding/usecase/usePreviewSheet';
 import { PreviewFrame, type PreviewFrameProps } from '#/features/branding/view/PreviewFrame';
+import { useContainerNarrow } from '#/shared/usecase/useContainerNarrow';
 import { Button } from '#/shared/view/Button';
 import { DialogFrame } from '#/shared/view/DialogFrame';
 import { NativeSelectFields } from '#/shared/view/Field';
@@ -40,8 +41,12 @@ export function PreviewShell({
 }) {
   const heading = useId();
   const sheet = usePreviewSheet();
+  const pane = useRef<HTMLElement>(null);
+  // The strip is what is shown, a miniature that is not for the keyboard and
+  // is not loaded again while the sheet shows the page.
+  const strip = useContainerNarrow(pane);
   return (
-    <section aria-labelledby={heading} className={styles.pane} data-preview-strip>
+    <section ref={pane} aria-labelledby={heading} className={styles.pane} data-preview-strip>
       <h2 id={heading} className={styles.title}>
         {title}
       </h2>
@@ -50,7 +55,7 @@ export function PreviewShell({
       <div className={styles.notes}>{notes}</div>
       <div className={styles.live}>{live}</div>
       <div className={styles.stage}>
-        <PreviewFrame {...frame} />
+        {strip && sheet.isOpen ? null : <PreviewFrame {...frame} tabbable={!strip} />}
       </div>
       <p role="status" className={styles.summary} title={summary}>
         {summary}

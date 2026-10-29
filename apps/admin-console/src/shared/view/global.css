@@ -53,3 +53,14 @@ samp {
 [data-shell] {
   container: shell / inline-size;
 }
+
+/* While a page for touch is shown its sizes are the body's, which what it
+   opens in a portal (a sheet, a menu, a confirmation) inherits as well. */
+@media (pointer: coarse), (max-width: 48rem) {
+  body:has([data-touch-scope]) {
+    --target-min: 44px;
+    --control-height: 44px;
+    --input-size: 16px;
+    --input-size-mono: 16px;
+  }
+}

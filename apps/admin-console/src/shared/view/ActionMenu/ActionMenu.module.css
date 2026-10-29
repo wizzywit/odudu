@@ -6,12 +6,6 @@
   background: var(--surface-panel);
 }
 
-@media (pointer: coarse), (max-width: 48rem) {
-  .popover {
-    --control-height: 44px;
-  }
-}
-
 .menu {
   display: grid;
   padding: var(--space-1);

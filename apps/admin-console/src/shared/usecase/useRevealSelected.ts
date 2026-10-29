@@ -1,12 +1,13 @@
-import { useEffect, type RefObject } from 'react';
-import { revealOffset, scrollRowTo } from '#/shared/service/reveal';
+import { useEffect, useRef, type RefObject } from 'react';
+import { revealOffset } from '#/shared/service/reveal';
 
 // Keeps the selected item of a row that scrolls sideways in view, as when
 // the row is narrower than its items and the selection moves or is restored.
-export function useRevealSelected(
-  row: RefObject<HTMLElement | null>,
+// Returns the ref to put on the row.
+export function useRevealSelected<T extends HTMLElement>(
   selected: string | undefined,
-): void {
+): RefObject<T | null> {
+  const row = useRef<T>(null);
   useEffect(() => {
     const list = row.current;
     const item = list?.querySelector('[aria-selected="true"]');
@@ -17,6 +18,7 @@ export function useRevealSelected(
       { start: box.left, size: box.width },
       { start: view.left, size: view.width, scrolled: list.scrollLeft },
     );
-    if (to !== null) scrollRowTo(list, to);
-  }, [row, selected]);
+    if (to !== null) list.scrollLeft = to;
+  }, [selected]);
+  return row;
 }

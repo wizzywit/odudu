@@ -7,7 +7,13 @@ import {
   resetTheme,
   restoreVersion,
 } from '#/features/branding/adapter/theme';
-import { scopeKeyPart, themeRecord, type ThemeScope } from '#/features/branding/service';
+import {
+  scopeKeyPart,
+  themeRecord,
+  writesRunning,
+  type ThemeScope,
+  type WritesRunning,
+} from '#/features/branding/service';
 import { useRecordSaving } from '#/shared/repository/useSavingSections';
 import {
   recordKey,
@@ -90,28 +96,17 @@ export function useThemeWrites(tenant: string, scope: ThemeScope): ThemeWrites {
   };
 }
 
-export interface ThemeRunning {
-  publish: boolean;
-  discard: boolean;
-  revert: boolean;
-  // Any other write to the tenant's theme: an image uploaded or deleted, a
-  // message override, a version restored, the theme reset, or a section saving.
-  saving: boolean;
-}
-
 // Which writes to this scope's theme are running anywhere on the page, not
-// only the ones this part started.
-export function useThemeRunning(tenant: string, scope: ThemeScope): ThemeRunning {
+// only the ones this part started. `every` counts the tenant's theme writes of
+// every scope, so a write to a client's theme also holds a tenant's bar for
+// its duration: a short, harmless hold for two scopes that are never edited
+// at once, and cheaper than keying every write by its scope.
+export function useThemeRunning(tenant: string, scope: ThemeScope): WritesRunning {
   const part = scopeKeyPart(scope);
   const publish = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'publish') });
   const discard = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'discard') });
   const revert = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'revert') });
   const every = useIsMutating({ mutationKey: themeWritesKey(tenant) });
   const sections = useRecordSaving(tenant, themeRecord(scope));
-  return {
-    publish: publish > 0,
-    discard: discard > 0,
-    revert: revert > 0,
-    saving: every - publish - discard - revert > 0 || sections,
-  };
+  return writesRunning({ publish, discard, revert, every, sections });
 }

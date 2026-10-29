@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import {
   Tabs as AriaTabs,
   Tab,
@@ -30,9 +30,8 @@ export function Tabs({
   selectedKey?: string;
   onSelectionChange?: (id: string) => void;
 }) {
-  const list = useRef<HTMLDivElement>(null);
   // A list wider than its screen scrolls, and shows the tab that is open.
-  useRevealSelected(list, selectedKey);
+  const list = useRevealSelected<HTMLDivElement>(selectedKey);
   const report = (key: Key): void => {
     onSelectionChange?.(String(key));
   };

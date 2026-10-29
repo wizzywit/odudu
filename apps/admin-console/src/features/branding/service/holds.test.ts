@@ -5,6 +5,7 @@ import {
   foldedActions,
   publicationHolds,
   runningLine,
+  writesRunning,
   type WritesRunning,
 } from '#/features/branding/service/holds';
 import { EMPTY, themeView } from '#/testing/brandingFixtures';
@@ -150,5 +151,25 @@ describe('what the narrow bar says and folds', () => {
       ['Reverting…', true, 'Reverting…'],
       ['Discard draft…', true, 'Reverting…'],
     ]);
+  });
+});
+
+describe('the running writes read from counts', () => {
+  const none = { publish: 0, discard: 0, revert: 0, every: 0, sections: false };
+
+  it('names each write that is counted and nothing else', () => {
+    expect(writesRunning(none)).toEqual(IDLE);
+    expect(writesRunning({ ...none, publish: 1, every: 1 })).toEqual({ ...IDLE, publish: true });
+    expect(writesRunning({ ...none, revert: 2, every: 2 })).toEqual({ ...IDLE, revert: true });
+  });
+
+  it('calls it saving when the tenant has a write that is not a named one, or a section saves', () => {
+    expect(writesRunning({ ...none, every: 1 })).toEqual({ ...IDLE, saving: true });
+    expect(writesRunning({ ...none, discard: 1, every: 2 })).toEqual({
+      ...IDLE,
+      discard: true,
+      saving: true,
+    });
+    expect(writesRunning({ ...none, sections: true })).toEqual({ ...IDLE, saving: true });
   });
 });

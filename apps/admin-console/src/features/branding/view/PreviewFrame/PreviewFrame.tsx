@@ -21,14 +21,15 @@ export function PreviewFrame({
   loading,
   onLoaded,
   fill = false,
-}: PreviewFrameProps & { fill?: boolean }) {
+  tabbable = true,
+}: PreviewFrameProps & { fill?: boolean; tabbable?: boolean }) {
   return (
     <div className={styles.frame} data-loading={loading || undefined} data-fill={fill || undefined}>
       <iframe
         key={frameKey}
         className={styles.iframe}
         title={title}
-        tabIndex={fill ? undefined : -1}
+        tabIndex={tabbable ? undefined : -1}
         src={src}
         sandbox=""
         referrerPolicy="no-referrer"

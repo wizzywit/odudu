@@ -30,6 +30,25 @@ export interface WritesRunning {
   saving: boolean;
 }
 
+// The running writes from the counts a page reads: how many of each named
+// write, how many of every theme write, and whether a section is saving. A
+// write that is none of the named ones is what `every` has beyond them.
+export function writesRunning(counts: {
+  publish: number;
+  discard: number;
+  revert: number;
+  every: number;
+  sections: boolean;
+}): WritesRunning {
+  const named = counts.publish + counts.discard + counts.revert;
+  return {
+    publish: counts.publish > 0,
+    discard: counts.discard > 0,
+    revert: counts.revert > 0,
+    saving: counts.every > named || counts.sections,
+  };
+}
+
 // The short line saying what is running, or undefined when nothing is.
 export function runningLine(busy: WritesRunning): string | undefined {
   if (busy.publish) return PUBLISHING;

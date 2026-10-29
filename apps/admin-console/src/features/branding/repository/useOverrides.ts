@@ -5,10 +5,9 @@ import {
   readOverridePage,
 } from '#/features/branding/adapter/overrides';
 import { PAGE_SIZE } from '#/features/branding/service';
-import { listKey } from '#/shared/repository/queryKeys';
+import { listKey, themeWriteKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useListPages } from '#/shared/repository/useResourceList';
-import { themeWriteKey } from '#/shared/repository/queryKeys';
 import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
 import type { GatewayResult } from '#/shared/transport/gateway';
 
