@@ -651,7 +651,9 @@ test('inserts selectors from the list into the stylesheet, and the server accept
   await editor.fill('.page-sign-in button:hover { opacity: 0.9; }');
   await save(section);
   await expect(section.getByText('The stylesheet was not saved.')).toBeHidden();
-  await expect(page.getByRole('region', { name: 'Status' })).toContainText('A saved draft');
+  await expect(page.getByRole('region', { name: 'Publish', exact: true })).toContainText(
+    'Changed: Stylesheet',
+  );
   await page.waitForLoadState('networkidle');
 
   await editor.fill('.nonesuch { opacity: 0.9; }');
