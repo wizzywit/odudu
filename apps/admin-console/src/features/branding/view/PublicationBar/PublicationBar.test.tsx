@@ -361,8 +361,13 @@ describe('while a write is running or edits are unsaved', () => {
     );
     const region = await bar();
     await user.click(await within(region).findByRole('button', { name: 'Publish the draft' }));
-    expect(await within(region).findByText('There is no draft to discard.')).toBeVisible();
-    expect(within(region).getByRole('button', { name: 'Discard draft…' })).toBeDisabled();
+    await waitFor(() => {
+      expect(within(region).getByRole('button', { name: 'Discard draft…' })).toBeDisabled();
+    });
+    await user.click(within(region).getByRole('button', { name: 'More publishing actions' }));
+    const item = await screen.findByRole('menuitem', { name: /Discard draft/u });
+    expect(item).toHaveAttribute('aria-disabled', 'true');
+    expect(item).toHaveTextContent('There is no draft to discard.');
   });
 
   it('holds Discard while a section has unsaved edits, and says to save or discard them', async () => {

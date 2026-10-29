@@ -83,7 +83,9 @@ export function PublicationBar({
           </div>
           <div className={styles.hold}>
             {publication.hold === undefined ? null : <Note tone="warning">{publication.hold}</Note>}
-            {holds.discard === undefined || holds.discard === publication.hold ? null : (
+            {view.draft === null ||
+            holds.discard === undefined ||
+            holds.discard === publication.hold ? null : (
               <Note tone="warning">{holds.discard}</Note>
             )}
           </div>
