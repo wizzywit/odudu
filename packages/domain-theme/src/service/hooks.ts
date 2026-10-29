@@ -6,8 +6,9 @@ export const CSS_HOOKS_VERSION = 1;
 // The classes the server pages render, which a tenant stylesheet may target,
 // and `page-` plus the page kind for themed pages. `.logo { display: none }`
 // hides the logo in either scheme; `.logo-light` and `.logo-dark` hide one
-// variant. Only the decorative hooks may be hidden or collapsed; on any other
-// part the checker refuses zero or tiny text and boxes, transparent text and
+// variant. Only the decorative hooks may be hidden or collapsed, and the
+// heading only on a page kind other than consent, which names the client in
+// it; on any other part the checker refuses zero or tiny text and boxes, transparent text and
 // text the colour of its background set in the same rule. Not promised: a
 // tenant can still draw over the page with allowed means (a huge box-shadow)
 // or pair colours across two rules. None of it can run script, load an

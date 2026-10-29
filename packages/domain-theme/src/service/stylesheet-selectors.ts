@@ -1,4 +1,10 @@
-import { CSS_ELEMENTS, CSS_HOOKS, CSS_PSEUDO_CLASSES, CSS_PSEUDO_ELEMENTS } from '#/service/hooks';
+import {
+  CSS_ELEMENTS,
+  CSS_HOOKS,
+  CSS_PSEUDO_CLASSES,
+  CSS_PSEUDO_ELEMENTS,
+  PAGE_KIND_HOOKS,
+} from '#/service/hooks';
 import type { Problem } from '#/service/stylesheet-types';
 
 const set = (words: string): ReadonlySet<string> => new Set(words.split(' '));
@@ -110,10 +116,29 @@ export function readSelector(raw: string): Compound[] | Problem {
   }
 }
 
+// The consent page names the client in its heading, inside `header.intro`.
+// A rule reaches it when it targets that markup without naming a page kind
+// other than consent, because a person must be able to see whose access they
+// are granting.
+const CLIENT_NAME_PAGE = 'page-consent';
+
+function reachesClientName(compounds: Compound[]): boolean {
+  const subject = compounds[compounds.length - 1];
+  if (subject === undefined) return false;
+  const targetsHeading =
+    subject.classes.length > 0
+      ? subject.classes.includes('intro')
+      : subject.element === 'h1' || subject.element === 'header';
+  if (!targetsHeading) return false;
+  return !compounds.some((c) =>
+    c.classes.some((name) => PAGE_KIND_HOOKS.includes(name) && name !== CLIENT_NAME_PAGE),
+  );
+}
+
 export function mayBeHidden(selectors: Compound[][]): boolean {
   return selectors.every((compounds) => {
     const subject = compounds[compounds.length - 1];
-    if (subject === undefined) return false;
+    if (subject === undefined || reachesClientName(compounds)) return false;
     const named = subject.classes.length > 0;
     const subjectOk = named
       ? subject.classes.every((name) => HIDEABLE_HOOKS.has(name))

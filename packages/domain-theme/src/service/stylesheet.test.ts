@@ -270,11 +270,45 @@ describe('checkStylesheet: properties', () => {
     for (const selector of refused) {
       expect(codes(`${selector} { display: none; }`), selector).toContain('value-not-allowed');
     }
-    const allowed = ['small', '.brand', '.intro h1', '.links', 'p.context', '.wordmark', 'img'];
+    const allowed = ['small', '.brand', '.links', 'p.context', '.wordmark', 'img'];
     allowed.push('.logo', '.logo-light', '.logo-dark', '.brand .logo.logo-dark');
     for (const selector of allowed) {
       expect(checkStylesheet(`${selector} { display: none; }`), selector).toEqual([]);
     }
+  });
+
+  it('refuses to hide what could be the consent page naming its client', () => {
+    const refused = [
+      'h1',
+      'header',
+      '.intro',
+      '.intro h1',
+      'header.intro',
+      'h1:first-child',
+      '.page-consent h1',
+      '.page-consent .intro',
+      '.brand h1',
+      'h1, .page-sign-in h1',
+      '.page-sign-in h1, header',
+    ];
+    for (const selector of refused) {
+      for (const declaration of ['display: none', 'font-size: 0', 'height: 0']) {
+        expect(codes(`${selector} { ${declaration}; }`), `${selector} ${declaration}`).not.toEqual(
+          [],
+        );
+      }
+    }
+    const scoped = [
+      '.page-sign-in h1',
+      '.page-sign-in .intro',
+      '.page-reset header',
+      '.page-sign-in .intro h1',
+      '.page-sign-in h1, .page-reset h1',
+    ];
+    for (const selector of scoped) {
+      expect(checkStylesheet(`${selector} { display: none; }`), selector).toEqual([]);
+    }
+    expect(checkStylesheet('h1 { color: #333; font-size: 22px; }')).toEqual([]);
   });
 
   it('refuses a custom property and a var() outside the Instrument tokens', () => {
