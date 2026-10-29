@@ -195,6 +195,31 @@ describe('the numbers the concept pages state are the ones the code and schema h
   });
 });
 
+const BRANDING_FACTS: readonly Fact[] = [
+  {
+    page: 'branding',
+    says: 'up to twenty',
+    file: 'packages/domain-theme/src/service/record.ts',
+    holds: /export const THEME_VERSION_LIMIT = 20;/u,
+  },
+  {
+    page: 'branding',
+    says: '4.5:1',
+    file: 'packages/domain-theme/src/service/contrast.ts',
+    holds: /export const TEXT_CONTRAST = 4\.5;/u,
+  },
+];
+
+describe('the numbers the branding page states are the ones the code holds', () => {
+  it.each(BRANDING_FACTS)(
+    '$page says "$says", and $file holds it',
+    ({ page, says, file, holds }) => {
+      expect(prose(page)).toContain(says);
+      expect(repoText(file)).toMatch(holds);
+    },
+  );
+});
+
 const MORE_FACTS: readonly Fact[] = [
   {
     page: 'tenants',

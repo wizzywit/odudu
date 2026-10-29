@@ -4,7 +4,7 @@ import { codeCell, page, table } from './markdown.ts';
 
 // Keyed by PageKind so a page kind added to the server fails the build here
 // until it is described.
-const KIND_DESCRIPTIONS: Record<PageKind, string> = {
+export const KIND_DESCRIPTIONS: Record<PageKind, string> = {
   'sign-in': 'The sign-in page.',
   consent: 'The page that asks a person to approve what an app requests.',
   'select-account': 'The page that offers the accounts already signed in at this browser.',

@@ -1,7 +1,7 @@
 import { PAGE_KINDS, type PageKind } from '@odudu/kernel';
 import { stylesheetHooks } from '@odudu/protocol-admin/docs';
 import { describe, expect, it } from 'vitest';
-import { PART_DESCRIPTIONS, renderBrandingPage } from './branding-page.ts';
+import { KIND_DESCRIPTIONS, PART_DESCRIPTIONS, renderBrandingPage } from './branding-page.ts';
 
 const text = renderBrandingPage();
 const lines = text.split('\n');
@@ -35,6 +35,10 @@ describe('the branding reference', () => {
         manifest.optional.length,
       );
     }
+  });
+
+  it('describes every page kind', () => {
+    for (const kind of kinds) expect(KIND_DESCRIPTIONS[kind].length, kind).toBeGreaterThan(0);
   });
 
   it('describes every part a page kind names', () => {
