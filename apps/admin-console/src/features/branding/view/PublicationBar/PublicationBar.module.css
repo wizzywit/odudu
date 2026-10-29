@@ -1,7 +1,75 @@
 .bar {
+  container-type: inline-size;
   display: grid;
   gap: var(--space-3);
   margin-block-end: var(--space-6);
+}
+
+.row {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.summary {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.hold {
+  display: contents;
+}
+
+.count,
+.folded {
+  display: none;
+}
+
+/* Narrow, the bar is one row: what is waiting as a count (its sentence is the
+   count's title), Publish, and a menu for what else the bar does. */
+@container (inline-size < 40rem) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'summary actions'
+      'hold hold';
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .summary {
+    grid-area: summary;
+    gap: var(--space-1);
+  }
+
+  .hold {
+    display: block;
+    grid-area: hold;
+  }
+
+  .actions {
+    grid-area: actions;
+    flex-wrap: nowrap;
+  }
+
+  .title,
+  .published,
+  .explain,
+  .sentence[data-counted],
+  .inline {
+    display: none;
+  }
+
+  .count,
+  .folded {
+    display: block;
+  }
+
+  .count {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .outcome {

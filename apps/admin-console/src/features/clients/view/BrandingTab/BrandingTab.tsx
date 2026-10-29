@@ -38,7 +38,13 @@ function Editing({ tenant, id }: { tenant: string; id: string }) {
           };
           return (
             <>
-              <PublicationBar tenant={tenant} branding={branding} view={view} tag={tag} />
+              <PublicationBar
+                tenant={tenant}
+                branding={branding}
+                view={view}
+                tag={tag}
+                tab={page.tab}
+              />
               <Tabs
                 label={BRANDING_SECTIONS_LABEL}
                 selectedKey={page.tab}

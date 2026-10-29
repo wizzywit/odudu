@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   announceRevert,
   barText,
+  changeCount,
   changedText,
   DISCARD_BODY_TENANT,
   discardBody,
@@ -50,6 +51,13 @@ describe('what differs', () => {
     expect(barText(NO_DRAFT)).toBe('No draft.');
     expect(barText(viewOf(EMPTY, EMPTY, []))).toBe('The draft matches what people see.');
     expect(barText(viewOf(EMPTY, EMPTY, ['tokens']))).toBe('Changed: Colours and font');
+  });
+
+  it('is told in a count where the bar has one line, the sentence kept for a title', () => {
+    expect(changeCount(NO_DRAFT)).toBeNull();
+    expect(changeCount(viewOf(EMPTY, EMPTY, []))).toBeNull();
+    expect(changeCount(viewOf(EMPTY, EMPTY, ['tokens']))).toBe('1 change');
+    expect(changeCount(viewOf(EMPTY, EMPTY, ['tokens', 'assets', 'templates']))).toBe('3 changes');
   });
 
   it('gives each tab a dot for the pieces of the change it holds', () => {

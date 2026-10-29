@@ -120,7 +120,9 @@ export function PagesTab({
           }}
         />
       </SaveSection>
-      <RevertPanel scope={scope} tab="pages" revert={revert} />
+      <div className={styles.revert}>
+        <RevertPanel scope={scope} tab="pages" revert={revert} />
+      </div>
       <Parts kind={kind} />
     </div>
   );

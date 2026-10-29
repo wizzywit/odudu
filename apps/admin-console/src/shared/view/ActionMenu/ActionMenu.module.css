@@ -14,8 +14,9 @@
 }
 
 .item {
-  display: flex;
-  align-items: center;
+  display: grid;
+  align-content: center;
+  gap: var(--space-1);
   min-block-size: var(--control-height);
   padding: 0 var(--space-3);
   border-radius: var(--radius-s);
@@ -42,4 +43,9 @@
 .item[data-focus-visible] {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
+}
+
+.description {
+  font-size: var(--type-12);
+  color: var(--ink-muted);
 }

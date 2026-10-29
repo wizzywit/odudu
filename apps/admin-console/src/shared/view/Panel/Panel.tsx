@@ -6,10 +6,14 @@ import styles from '#/shared/view/Panel/Panel.module.css';
 export function Panel({
   title,
   headingRef,
+  headingClassName,
   children,
 }: {
   title: ReactNode;
   headingRef?: Ref<HTMLHeadingElement>;
+  // For a page that sets its own heading apart, as one that shows it only
+  // where there is room.
+  headingClassName?: string;
   children: ReactNode;
 }) {
   const heading = useId();
@@ -19,7 +23,9 @@ export function Panel({
         id={heading}
         ref={headingRef}
         tabIndex={headingRef === undefined ? undefined : -1}
-        className={styles.heading}
+        className={
+          headingClassName === undefined ? styles.heading : `${styles.heading ?? ''} ${headingClassName}`
+        }
       >
         {title}
       </h2>

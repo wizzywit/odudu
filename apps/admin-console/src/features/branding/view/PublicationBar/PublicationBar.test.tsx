@@ -297,6 +297,71 @@ describe('reverting a tab', () => {
   });
 });
 
+describe('the folded bar', () => {
+  const more = async () =>
+    within(await bar()).findByRole('button', { name: 'More publishing actions' });
+
+  it('says what is waiting as a count, and keeps the sentence for a title', async () => {
+    renderConsoleAt(AT, brandingRoutes(themeAnswer(twoTabs(), '"d1"')));
+    const count = await within(await bar()).findByText('2 changes');
+    expect(count).toHaveAttribute('title', 'Changed: Colours and font, Page templates');
+  });
+
+  it('offers Revert for the tab shown and Discard, by arrow keys', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(PAGES, brandingRoutes(themeAnswer(twoTabs(), '"d1"')));
+    await user.click(await more());
+    const menu = await screen.findByRole('menu', { name: 'More publishing actions' });
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Revert this tab to published', 'Discard draft…']);
+    await user.keyboard('{ArrowDown}{ArrowDown}');
+    expect(within(menu).getByRole('menuitem', { name: 'Discard draft…' })).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Discard the draft?');
+  });
+
+  it('reverts the Pages tab from the menu, as its own panel does', async () => {
+    const user = userEvent.setup();
+    const after = twoTabs({ draft: { ...DRAFT, templates: {} }, changed: ['tokens'] });
+    const { sent } = renderConsoleAt(
+      PAGES,
+      brandingRoutes(themeAnswer(twoTabs(), '"d1"'), {
+        [`PUT ${TH}`]: json(after, 200, { etag: '"d2"' }),
+      }),
+    );
+    await user.click(await more());
+    await user.click(await screen.findByRole('menuitem', { name: 'Revert this tab to published' }));
+    await waitFor(() => {
+      expect(sent.some((s) => s.method === 'PUT')).toBe(true);
+    });
+    expect(sent.find((s) => s.method === 'PUT')?.body).toEqual({ ...DRAFT, templates: {} });
+  });
+
+  it('says why Revert is held, under it', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(AT, brandingRoutes(themeAnswer(twoTabs({ changed: ['templates'] }), '"d1"')));
+    await user.click(await more());
+    const item = await screen.findByRole('menuitem', { name: /Revert this tab to published/u });
+    expect(item).toHaveAttribute('aria-disabled', 'true');
+    expect(item).toHaveTextContent('This tab already matches what is published.');
+  });
+
+  it('offers Revert on no tab that has nothing to take back', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(`${AT}?tab=mail`, brandingRoutes(themeAnswer(twoTabs(), '"d1"')));
+    await user.click(await more());
+    const menu = await screen.findByRole('menu', { name: 'More publishing actions' });
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Discard draft…']);
+  });
+});
+
 describe('states', () => {
   it('shows the bar nowhere while the theme loads or fails to load', async () => {
     renderConsoleAt(AT, brandingRoutes(problem(500)));

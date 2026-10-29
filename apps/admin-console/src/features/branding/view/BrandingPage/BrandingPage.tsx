@@ -42,7 +42,13 @@ function Branding({ tenant }: { tenant: string }) {
       label={BRANDING_SECTIONS_LABEL}
       banner={
         view === undefined || tag === null ? null : (
-          <PublicationBar tenant={tenant} branding={branding} view={view} tag={tag} />
+          <PublicationBar
+            tenant={tenant}
+            branding={branding}
+            view={view}
+            tag={tag}
+            tab={page.tab}
+          />
         )
       }
       tab={page.tab}

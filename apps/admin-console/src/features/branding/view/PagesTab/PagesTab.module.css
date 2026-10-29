@@ -20,3 +20,14 @@
   background: var(--surface-sunken);
   font-size: var(--type-12);
 }
+
+/* Narrow, the bar above the tabs offers this in its menu. */
+.revert {
+  display: contents;
+}
+
+@container (inline-size < 40rem) {
+  .revert {
+    display: none;
+  }
+}

@@ -1,10 +1,12 @@
-import { Menu, MenuItem, MenuTrigger, Popover } from 'react-aria-components';
+import { Menu, MenuItem, MenuTrigger, Popover, Text } from 'react-aria-components';
 import { Button } from '#/shared/view/Button';
 import styles from '#/shared/view/ActionMenu/ActionMenu.module.css';
 
 export interface MenuAction {
   id: string;
   label: string;
+  // Under the label, as why an action is held.
+  description?: string;
   isDisabled?: boolean;
   tone?: 'danger';
   onAction: () => void;
@@ -36,7 +38,12 @@ export function ActionMenu({
               isDisabled={action.isDisabled ?? false}
               onAction={action.onAction}
             >
-              {action.label}
+              <Text slot="label">{action.label}</Text>
+              {action.description === undefined ? null : (
+                <Text slot="description" className={styles.description ?? ''}>
+                  {action.description}
+                </Text>
+              )}
             </MenuItem>
           ))}
         </Menu>
