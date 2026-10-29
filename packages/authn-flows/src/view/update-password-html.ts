@@ -76,5 +76,5 @@ export function renderUpdatePasswordPage(
     },
     locale,
   );
-  return page(title, body, password.script, [], locale);
+  return page(title, body, password.script, [], locale, 'update-password');
 }

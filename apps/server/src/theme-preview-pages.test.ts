@@ -36,6 +36,27 @@ describe('the preview pages', () => {
     expect(page.title).not.toBe('');
   });
 
+  it.each(KINDS)('gives %s its page-<kind> hook when themed, and only then', (kind) => {
+    const render = THEME_PREVIEW_PAGES[kind];
+    const branding: ResolvedBranding = { ...brandingWith(kind, ''), templates: {} };
+    const themed = render('acme', withBranding({ tag: 'en', dir: 'ltr' }, branding));
+    expect(themed.html).toContain(`<main class="page page-${kind}">`);
+    expect(themed.html.match(/<main /gu)).toHaveLength(1);
+    const plain = render('acme', { tag: 'en', dir: 'ltr' });
+    expect(plain.html).toContain('<main class="page">');
+    expect(plain.html).not.toContain('page-');
+  });
+
+  it.each(KINDS)('gives a template-written %s the same main element', (kind) => {
+    const locale = withBranding(
+      { tag: 'en', dir: 'ltr' },
+      brandingWith(kind, smallestTemplate(kind)),
+    );
+    const page = THEME_PREVIEW_PAGES[kind]('acme', locale);
+    expect(page.html).toContain(`<div data-preview="${kind}">`);
+    expect(page.html).toContain(`<main class="page page-${kind}">`);
+  });
+
   it.each(KINDS)('supplies every required part of %s to a theme template', (kind) => {
     const fallbacks: string[] = [];
     const locale = withBranding(

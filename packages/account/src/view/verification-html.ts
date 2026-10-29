@@ -44,6 +44,7 @@ export function renderVerificationSucceededPage(
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -62,6 +63,7 @@ export function renderVerificationFailedPage(
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -96,5 +98,6 @@ export function renderEmailConfirmPage(
     null,
     [],
     locale,
+    'verification',
   );
 }

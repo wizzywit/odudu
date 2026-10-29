@@ -48,5 +48,5 @@ ${items}
   );
   // No script: nothing on this page talks to an authenticator or fetches
   // anything, so the base content-security policy describes it exactly.
-  return page(title, body, null, [], locale);
+  return page(title, body, null, [], locale, 'recovery-codes');
 }

@@ -47,5 +47,6 @@ export function renderSelectAccountPage(
     null,
     [],
     locale,
+    'select-account',
   );
 }
