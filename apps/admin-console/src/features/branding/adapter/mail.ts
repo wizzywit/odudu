@@ -9,8 +9,12 @@ export function readMailBranding(
   tenant: string,
   client: string,
 ): Promise<GatewayResult<MailBrandingView>> {
-  const path = client === '' ? ['mail', 'branding'] : ['clients', client, 'mail', 'branding'];
-  return adminCall(gateway, 'GET', tenant, path, {
+  if (client === '') {
+    return adminCall(gateway, 'GET', tenant, ['mail', 'branding'], {
+      schema: mailBrandingViewSchema,
+    });
+  }
+  return adminCall(gateway, 'GET', tenant, ['clients', client, 'mail', 'branding'], {
     schema: mailBrandingViewSchema,
   });
 }
