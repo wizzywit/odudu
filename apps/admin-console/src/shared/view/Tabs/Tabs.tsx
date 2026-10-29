@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import {
   Tabs as AriaTabs,
   Tab,
@@ -7,6 +7,7 @@ import {
   VisuallyHidden,
   type Key,
 } from 'react-aria-components';
+import { useRevealSelected } from '#/shared/usecase/useRevealSelected';
 import styles from '#/shared/view/Tabs/Tabs.module.css';
 
 export interface TabItem {
@@ -29,6 +30,9 @@ export function Tabs({
   selectedKey?: string;
   onSelectionChange?: (id: string) => void;
 }) {
+  const list = useRef<HTMLDivElement>(null);
+  // A list wider than its screen scrolls, and shows the tab that is open.
+  useRevealSelected(list, selectedKey);
   const report = (key: Key): void => {
     onSelectionChange?.(String(key));
   };
@@ -38,7 +42,7 @@ export function Tabs({
       onSelectionChange={report}
       {...(selectedKey === undefined ? {} : { selectedKey })}
     >
-      <TabList aria-label={label} className={styles.list ?? ''}>
+      <TabList ref={list} aria-label={label} className={styles.list ?? ''}>
         {tabs.map((tab) => (
           <Tab key={tab.id} id={tab.id} className={styles.tab ?? ''}>
             {tab.label}

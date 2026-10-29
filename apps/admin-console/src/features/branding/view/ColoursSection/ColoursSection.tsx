@@ -15,6 +15,7 @@ import {
   PALETTE_LABELS,
   PALETTE_ORDER,
   paletteField,
+  paletteFoldOpen,
   paletteLegend,
   SCHEME_LABELS,
   SCHEMES,
@@ -24,6 +25,8 @@ import {
 } from '#/features/branding/service';
 import type { Colours } from '#/features/branding/usecase/useColours';
 import { ColourField } from '#/features/branding/view/ColourField';
+import { useFolds, type Folds } from '#/shared/usecase/useFolds';
+import { Button } from '#/shared/view/Button';
 import { FieldGroup, SelectField, ToggleField } from '#/shared/view/Field';
 import { FieldGrid, GridCell } from '#/shared/view/FieldGrid';
 import { Panel } from '#/shared/view/Panel';
@@ -38,49 +41,70 @@ function SchemeGroup({
   scope,
   view,
   colours,
+  folds,
 }: {
   scheme: Scheme;
   scope: ThemeScope;
   view: ThemeView;
   colours: Colours;
+  folds: Folds;
 }) {
   const { save } = colours;
   const field = paletteField(scheme);
   const palette = save.values[field];
   const problems = colourProblems(palette);
   const changed = colours.changedKeys(scheme);
+  const legend = paletteLegend(SCHEME_LABELS[scheme]);
+  const open = paletteFoldOpen(folds.isOpen(scheme), save.fieldErrors[field], problems);
+  const body = `${scheme}-colours`;
   return (
-    <FieldGroup label={paletteLegend(SCHEME_LABELS[scheme])}>
-      <ToggleField
-        label={customLabel(SCHEME_LABELS[scheme].toLowerCase())}
-        description={sourceReading(scope, view, field)}
-        value={palette !== null}
-        error={save.fieldErrors[field]}
-        changed={save.changed.includes(field)}
-        onChange={(custom) => {
-          colours.customise(scheme, custom);
-        }}
-      />
-      {palette === null ? null : (
-        <div className={styles.colours}>
-          <FieldGrid>
-            {PALETTE_ORDER.map((key) => (
-              <GridCell key={key}>
-                <ColourField
-                  label={`${SCHEME_LABELS[scheme]} ${PALETTE_LABELS[key].label.toLowerCase()}`}
-                  value={palette[key]}
-                  error={problems[key]}
-                  changed={changed.includes(key)}
-                  onChange={(text) => {
-                    colours.setColour(scheme, key, text);
-                  }}
-                />
-              </GridCell>
-            ))}
-          </FieldGrid>
-        </div>
-      )}
-    </FieldGroup>
+    <div className={styles.scheme}>
+      <div className={styles.fold}>
+        <Button
+          aria-expanded={open}
+          aria-controls={body}
+          onPress={() => {
+            folds.toggle(scheme);
+          }}
+        >
+          <span>{legend}</span>
+          <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+        </Button>
+      </div>
+      <div id={body} className={styles.body} data-collapsed={!open || undefined}>
+        <FieldGroup label={legend}>
+          <ToggleField
+            label={customLabel(SCHEME_LABELS[scheme].toLowerCase())}
+            description={sourceReading(scope, view, field)}
+            value={palette !== null}
+            error={save.fieldErrors[field]}
+            changed={save.changed.includes(field)}
+            onChange={(custom) => {
+              colours.customise(scheme, custom);
+            }}
+          />
+          {palette === null ? null : (
+            <div className={styles.colours}>
+              <FieldGrid>
+                {PALETTE_ORDER.map((key) => (
+                  <GridCell key={key}>
+                    <ColourField
+                      label={`${SCHEME_LABELS[scheme]} ${PALETTE_LABELS[key].label.toLowerCase()}`}
+                      value={palette[key]}
+                      error={problems[key]}
+                      changed={changed.includes(key)}
+                      onChange={(text) => {
+                        colours.setColour(scheme, key, text);
+                      }}
+                    />
+                  </GridCell>
+                ))}
+              </FieldGrid>
+            </div>
+          )}
+        </FieldGroup>
+      </div>
+    </div>
   );
 }
 
@@ -94,6 +118,7 @@ export function ColoursSection({
   colours: Colours;
 }) {
   const { save } = colours;
+  const folds = useFolds();
   return (
     <SaveSection
       title={COLOURS_TITLE}
@@ -113,7 +138,14 @@ export function ColoursSection({
         }}
       />
       {SCHEMES.map((scheme) => (
-        <SchemeGroup key={scheme} scheme={scheme} scope={scope} view={view} colours={colours} />
+        <SchemeGroup
+          key={scheme}
+          scheme={scheme}
+          scope={scope}
+          view={view}
+          colours={colours}
+          folds={folds}
+        />
       ))}
     </SaveSection>
   );

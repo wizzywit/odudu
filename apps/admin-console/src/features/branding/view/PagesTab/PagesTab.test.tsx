@@ -159,8 +159,7 @@ it('does not carry one page’s undo history to another page with the same text'
   await user.keyboard('x');
   await user.keyboard('{Backspace}');
   expect(box).toHaveValue('');
-  await user.click(within(section).getByRole('button', { name: /Page/u }));
-  await user.click(await screen.findByRole('option', { name: 'Consent' }));
+  await user.selectOptions(within(section).getByRole('combobox', { name: 'Page' }), 'Consent');
   const other = within(section).getByRole('textbox', { name: 'Consent: template' });
   await user.click(other);
   await user.keyboard('{Control>}z{/Control}');
@@ -193,8 +192,7 @@ it('offers only the messages of the page kind being edited', async () => {
   expect(own.some((text) => text.startsWith('login.title'))).toBe(true);
   expect(own.some((text) => text.startsWith('register.title'))).toBe(false);
   await user.keyboard('{Escape}');
-  await user.click(within(section).getByRole('button', { name: /Page/u }));
-  await user.click(await screen.findByRole('option', { name: 'Registration' }));
+  await user.selectOptions(within(section).getByRole('combobox', { name: 'Page' }), 'Registration');
   await user.click(
     await within(section).findByRole('button', { name: /^Show Insert a message options/u }),
   );

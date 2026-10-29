@@ -1,3 +1,37 @@
+.scheme {
+  min-inline-size: 0;
+}
+
+/* Wide, the palettes are open and their folds are not there. Narrow, each is
+   a fold under its legend, which the button then says in its place. */
+.fold {
+  display: none;
+}
+
+@container (inline-size < 40rem) {
+  .fold {
+    display: block;
+  }
+
+  .fold button {
+    inline-size: 100%;
+    justify-content: space-between;
+  }
+
+  .body[data-collapsed] {
+    display: none;
+  }
+
+  .body legend {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 .colours {
   margin-block-start: var(--space-3);
 }

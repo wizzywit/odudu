@@ -16,6 +16,16 @@ export function customLabel(scheme: string): string {
   return `Use my own ${scheme} colours`;
 }
 
+// Narrow, each palette is a fold under its legend. One that holds a problem
+// stays open, so it is not hidden from the person who has to fix it.
+export function paletteFoldOpen(
+  opened: boolean,
+  fieldError: string | undefined,
+  colourProblems: Readonly<Record<string, string | undefined>>,
+): boolean {
+  return opened || fieldError !== undefined || Object.keys(colourProblems).length > 0;
+}
+
 export function paletteLegend(scheme: string): string {
   return `${scheme} colours`;
 }

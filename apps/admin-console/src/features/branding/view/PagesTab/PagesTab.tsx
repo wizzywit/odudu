@@ -29,7 +29,7 @@ import { useTemplates } from '#/features/branding/usecase/useTemplates';
 import { InsertMessage } from '#/features/branding/view/MessageKeyField';
 import { RevertPanel } from '#/features/branding/view/PublicationPanels';
 import { CodeField } from '#/shared/view/CodeField';
-import { SelectField } from '#/shared/view/Field';
+import { NativeSelectFields, SelectField } from '#/shared/view/Field';
 import { Panel } from '#/shared/view/Panel';
 import { recordTab } from '#/shared/view/RecordTab';
 import { SaveSection } from '#/shared/view/SaveSection';
@@ -95,15 +95,19 @@ export function PagesTab({
   return (
     <div className={styles.tab}>
       <SaveSection title={TEMPLATES_SECTION_TITLE} description={PAGES_LEAD} save={save}>
-        <SelectField
-          label={PAGE_PICKER_LABEL}
-          options={PAGE_KIND_OPTIONS}
-          value={kind}
-          onChange={(id) => {
-            const next = pageKindOf(id);
-            if (next !== undefined) onKind(next);
-          }}
-        />
+        {/* The browser's own select: a phone opens its picker, and a page of
+            six or so has no need of a search. */}
+        <NativeSelectFields>
+          <SelectField
+            label={PAGE_PICKER_LABEL}
+            options={PAGE_KIND_OPTIONS}
+            value={kind}
+            onChange={(id) => {
+              const next = pageKindOf(id);
+              if (next !== undefined) onKind(next);
+            }}
+          />
+        </NativeSelectFields>
         <CodeField
           key={kind}
           label={`${PAGE_KIND_LABELS[kind]}: ${TEMPLATE_LABEL.toLowerCase()}`}
