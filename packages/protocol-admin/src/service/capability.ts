@@ -1720,9 +1720,13 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: testSmtpResponseSchema,
     bodySchema: testSmtpRequestSchema,
     description:
-      'Sends one message synchronously and reports the transport’s own failure as a ' +
-      '502, rather than the tenant discovering a bad configuration only when a user’s ' +
-      'verification mail silently fails. 400 when the tenant has no SMTP configuration. ' +
+      'Sends one message to one address synchronously and reports a failure as a 502 ' +
+      'whose detail is one fixed sentence for what failed (the relay could not be ' +
+      'reached, refused the secure connection, refused the credentials or refused the ' +
+      'message), never the relay\u2019s own words, rather than the tenant discovering a ' +
+      'bad configuration only when a user\u2019s verification mail silently fails. ' +
+      'Limited per origin like the other routes that send mail: `429` beyond it. ' +
+      '400 when the tenant has no SMTP configuration or `to` is not exactly one address. ' +
       'The message wears the tenant\u2019s published theme and its wording; `client_id` ' +
       'dresses it as that client\u2019s mail instead (a disabled client shows the tenant\u2019s ' +
       'look), which also needs `manage-clients`: a caller without it is refused with ' +

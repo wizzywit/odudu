@@ -62,6 +62,29 @@ describe('sendTestMessage', () => {
     expect(outcome.kind).toBe('send_failed');
   });
 
+  it('answers a relay’s failure in a fixed sentence and hands its own text back for the log', async () => {
+    const outcome = await sendTestMessage(
+      RECORD,
+      KEK,
+      admitting('203.0.113.10'),
+      { to: 'ops@example.test', tenantDisplayName: 'Demo', now: new Date() },
+      () =>
+        Promise.resolve({
+          kind: 'ok',
+          sender: {
+            send: () =>
+              Promise.reject(
+                Object.assign(new Error('550 5.7.1 relay-banner-text'), { code: 'EENVELOPE' }),
+              ),
+          },
+        }),
+    );
+    expect(outcome).toMatchObject({ kind: 'send_failed', failure: 'rejected' });
+    if (outcome.kind !== 'send_failed') throw new Error('expected a failure');
+    expect(outcome.detail).not.toContain('relay-banner-text');
+    expect(outcome.raw).toContain('relay-banner-text');
+  });
+
   it('refuses a loopback host before any transport exists to report on', async () => {
     const outcome = await sendTestMessage({ ...RECORD, host: '127.0.0.1' }, KEK, admitting(), {
       to: 'ops@example.test',

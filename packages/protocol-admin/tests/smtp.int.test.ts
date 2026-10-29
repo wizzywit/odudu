@@ -328,6 +328,22 @@ describe('what the test mail is read with', () => {
   });
 });
 
+describe('POST /admin/tenants/{t}/smtp/test, the recipient', () => {
+  it.each([
+    ['a list', 'a@x.test, b@y.test'],
+    ['a semicolon list', 'a@x.test;b@y.test'],
+    ['a smuggled header', 'a@x.test\r\nBcc: b@y.test'],
+    ['a display name', 'Ada <a@x.test>'],
+    ['not an address', 'ada'],
+    ['too long', `${'a'.repeat(250)}@x.test`],
+  ])('refuses %s with 400, whatever the caller holds', async (_why, to) => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    expect((await testSmtp(token, t.name, to)).statusCode).toBe(400);
+    expect((await testSmtp('not-a-token', t.name, to)).statusCode).toBe(400);
+  });
+});
+
 describe('POST /admin/tenants/{t}/smtp/test', () => {
   it('will not connect to a loopback host, so it cannot probe this server', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);

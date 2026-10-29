@@ -13,6 +13,7 @@ import { type SmtpConfig } from '@odudu/contracts/admin';
 import { type MailBranding } from '@odudu/kernel';
 import { etagOf, matches } from '#/service/etag';
 import { clientMail, tenantMail } from '#/usecase/mail-preview';
+import { relayFailure, type RelayFailureKind } from '#/service/smtp-failure';
 import { checkSmtpDestination, type SmtpDestinationPolicy } from '#/service/smtp-destination';
 import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
 
@@ -293,7 +294,8 @@ export async function readSmtpForTest(
 export type SendTestMessageOutcome =
   | { kind: 'sent' }
   | { kind: 'refused_destination'; reason: string }
-  | { kind: 'send_failed'; detail: string };
+  // `detail` is what the caller is told; `raw` is the transport's own text, for the log alone.
+  | { kind: 'send_failed'; detail: string; failure: RelayFailureKind; raw: string };
 
 // Takes the record already read, never a transaction: the caller reads
 // inside withTenant (readSmtpForTest above) and calls this only after that
@@ -316,8 +318,9 @@ export async function sendTestMessage(
   try {
     await built.sender.send(renderSmtpTest(message));
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    return { kind: 'send_failed', detail };
+    const { kind, detail } = relayFailure(error);
+    const raw = (error instanceof Error ? error.message : String(error)).slice(0, 500);
+    return { kind: 'send_failed', detail, failure: kind, raw };
   }
   return { kind: 'sent' };
 }

@@ -375,6 +375,7 @@ export {
   smtpPortSchema,
   putSmtpRequestSchema,
   type PutSmtpRequest,
+  testRecipientSchema,
   testSmtpRequestSchema,
   type TestSmtpRequest,
   testSmtpResponseSchema,

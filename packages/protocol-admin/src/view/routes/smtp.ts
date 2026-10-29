@@ -232,6 +232,10 @@ export function testSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
         );
       case 'send_failed':
         await record('send_failed');
+        request.log.warn(
+          { tenantId: targetTenantId, failure: sendOutcome.failure, relay: sendOutcome.raw },
+          'the SMTP test message was not accepted',
+        );
         return sendProblem(
           reply,
           request,
