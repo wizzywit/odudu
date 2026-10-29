@@ -7,6 +7,11 @@ export interface MailTenantScope {
   readonly tenantName: string;
   // False for a caller that shows only the theme: the wording is then not read.
   readonly wording?: boolean;
+  // The OAuth client_id of the sign-in the flow began inside, taken from
+  // server-side state and never from a request parameter. Only the theme
+  // reads it, and only for a client that is registered and enabled; the
+  // wording stays the tenant's.
+  readonly clientId?: string | null | undefined;
 }
 
 // The tenant's own wording for mail messages, by the language it was written

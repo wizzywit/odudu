@@ -19,6 +19,7 @@ export function findHeldSignInIn(database: DatabaseHandle, tls: boolean): FindHe
         : {
             sessionId: held.sessionId,
             signInPath: restartAuthorizeLocation(tenant.name, held.pendingRequest),
+            clientId: held.pendingRequest.clientId,
           };
     });
   };

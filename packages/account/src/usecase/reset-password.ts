@@ -35,6 +35,9 @@ export interface RequestPasswordResetDeps {
   // The sign-in the person asked from, when this browser holds it
   // (referenceToResume): kept beside the token, never in the mailed link.
   readonly authenticationSessionId?: string | null;
+  // The client that sign-in was made for, so the mail wears its look; from the
+  // held sign-in only (clientOfHeldSignIn), never from the request.
+  readonly clientId?: string | null;
   // Injected for the reason completePasswordReset's setPassword is:
   // @odudu/account depends on neither @odudu/domain-identity nor
   // @odudu/domain-authz, so the composition root wires the actual lookup.

@@ -2,7 +2,7 @@ import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { type MailLookResolver } from '@odudu/email';
 import { type FastifyInstance } from 'fastify';
 import { signInPath } from '#/service/sign-in-path';
-import { referenceToResume, type FindHeldSignIn } from '#/service/sign-in-resume';
+import { clientOfHeldSignIn, referenceToResume, type FindHeldSignIn } from '#/service/sign-in-resume';
 import { type MailGate } from '#/service/mail-gate';
 import { requestPasswordReset } from '#/usecase/reset-password';
 import {
@@ -128,6 +128,7 @@ export function registerResetPasswordRoute(
         now: deps.now,
         resolveMailLook: deps.resolveMailLook,
         authenticationSessionId: referenceToResume(held, returnTo),
+        clientId: clientOfHeldSignIn(held, returnTo),
         findByEmail: deps.findByEmail,
         mailGate: deps.mailGate,
       },

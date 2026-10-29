@@ -14,7 +14,7 @@ import {
 } from '#/usecase/register';
 import { type MailGate } from '#/service/mail-gate';
 import { signInPath } from '#/service/sign-in-path';
-import { referenceToResume, type FindHeldSignIn } from '#/service/sign-in-resume';
+import { clientOfHeldSignIn, referenceToResume, type FindHeldSignIn } from '#/service/sign-in-resume';
 import {
   renderRegistrationFailedPage,
   renderRegistrationForm,
@@ -203,6 +203,7 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
         verifyEmailEnabled: tenant.verifyEmail,
         resetPasswordAllowed: tenant.resetPasswordAllowed,
         authenticationSessionId: referenceToResume(held, returnTo),
+        clientId: clientOfHeldSignIn(held, returnTo),
         now: deps.now,
         resolveMailLook: deps.resolveMailLook,
         createAccount: deps.createAccount,

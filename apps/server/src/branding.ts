@@ -18,8 +18,10 @@ import { type Logger as PinoLogger } from 'pino';
 
 export interface Branding {
   resolveBranding: BrandingResolver;
-  // The tenant's theme as its mail wears it, read in the transaction the mail
-  // is queued in; the page resolver's cache answers it when it can.
+  // The theme as a mail wears it, read in the transaction the mail is queued
+  // in: the tenant's, with a registered and enabled client's own pieces over
+  // it when the flow began inside that client. The page resolver's cache
+  // answers a tenant's when it can; a client's is read for each mail.
   resolveMailBranding: MailThemeResolver;
   // Whether a client_id is a registered client of the tenant, for the one
   // `return_to` an account page reads a client from.
@@ -63,8 +65,12 @@ export function createBranding(deps: {
   };
   return {
     resolveBranding: resolveBranding(themeDeps),
-    resolveMailBranding: resolveMailBranding(themeDeps, (tx: TenantScopedDatabase, tenantId) =>
-      withSavepoint(tx, (inner) => publishedThemeRepository(inner).forRender(tenantId, null)),
+    resolveMailBranding: resolveMailBranding(
+      themeDeps,
+      (tx: TenantScopedDatabase, tenantId, clientId) =>
+        withSavepoint(tx, (inner) =>
+          publishedThemeRepository(inner).forRender(tenantId, clientId, { enabledOnly: true }),
+        ),
     ),
     isClientOfTenant: (tenantId, clientId) =>
       withTenant(

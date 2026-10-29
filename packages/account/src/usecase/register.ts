@@ -58,6 +58,9 @@ export interface RegisterDeps {
   // (referenceToResume): kept beside the token so the page the link opens can
   // lead the same browser back to it, never put in the link.
   readonly authenticationSessionId?: string | null;
+  // The client that sign-in was made for, so the mail wears its look; from the
+  // held sign-in only (clientOfHeldSignIn), never from the request.
+  readonly clientId?: string | null;
   // The send time of the mail, from the caller's clock.
   readonly now: () => Date;
   // Themes the mail the way the tenant's pages are; absent, it is unthemed.
