@@ -52,7 +52,7 @@ export function PreviewShell({
       <div className={styles.stage}>
         <PreviewFrame {...frame} />
       </div>
-      <p role="status" className={styles.summary}>
+      <p role="status" className={styles.summary} title={summary}>
         {summary}
       </p>
       <div className={styles.open}>

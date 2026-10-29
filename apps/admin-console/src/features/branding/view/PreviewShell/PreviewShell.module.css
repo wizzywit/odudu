@@ -104,4 +104,8 @@
     display: block;
     grid-area: open;
   }
+
+  .open button {
+    white-space: nowrap;
+  }
 }
