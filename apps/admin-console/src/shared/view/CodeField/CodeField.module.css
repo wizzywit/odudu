@@ -101,6 +101,7 @@
 }
 
 .stage {
+  position: relative;
   display: grid;
   min-inline-size: 0;
 }
@@ -120,6 +121,24 @@
   overflow-wrap: normal;
   word-break: normal;
   tab-size: inherit;
+}
+
+/* The text up to the caret laid out again where the textarea's own is, to
+   find the row the caret is on when lines wrap. */
+.mirror {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  inline-size: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: inherit;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .layer {

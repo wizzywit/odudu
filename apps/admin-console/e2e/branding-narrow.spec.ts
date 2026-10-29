@@ -403,6 +403,37 @@ test.describe('on a phone', () => {
     for (const height of items) expect(height).toBeGreaterThanOrEqual(43.5);
   });
 
+  test('the miniature is not in the tab order, and the Pages parts list folds shut', async ({
+    page,
+  }) => {
+    test.slow();
+    await signIn(page, branding.layout);
+    await openTab(page, 'Pages');
+    await expect(strip(page).locator(FRAME)).toHaveAttribute('tabindex', '-1');
+    const fold = page.getByRole('button', { name: 'Parts of this page' });
+    const parts = page.getByText('Required, each exactly once:');
+    await expect(fold).toHaveAttribute('aria-expanded', 'false');
+    await expect(parts).toBeHidden();
+    await fold.click();
+    await expect(fold).toHaveAttribute('aria-expanded', 'true');
+    await expect(parts).toBeVisible();
+  });
+
+  test('a confirmation, which is a portal, keeps 44 pixel buttons', async ({ page }) => {
+    test.slow();
+    await signIn(page, branding.layout);
+    await openTab(page, 'Theme');
+    await page.getByRole('button', { name: 'Reset to default…' }).click();
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toBeVisible();
+    const heights = await dialog
+      .getByRole('button')
+      .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height));
+    expect(heights.length).toBeGreaterThan(1);
+    for (const height of heights) expect(height).toBeGreaterThanOrEqual(43.5);
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+  });
+
   test('has nothing axe can find, with the sheet open', async ({ page }) => {
     test.slow();
     await signIn(page, branding.layout);
@@ -436,3 +467,26 @@ for (const width of [1118, 1120, 1122, 1124, 1126, 639, 641, 767, 769]) {
     });
   });
 }
+
+test.describe('on a laptop', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
+  test('the preview frame can be reached and scrolled by the keyboard', async ({ page }) => {
+    test.slow();
+    await signIn(page, branding.layout);
+    await openTab(page, 'Theme');
+    const frame = page.locator(FRAME);
+    await expect(frame).not.toHaveAttribute('tabindex');
+    let reached = false;
+    for (let pressed = 0; pressed < 150 && !reached; pressed += 1) {
+      // A code field indents on Tab, and lets go with Escape.
+      const inCode = await page.evaluate(
+        () => document.activeElement?.getAttribute('wrap') === 'off',
+      );
+      if (inCode) await page.keyboard.press('Escape');
+      await page.keyboard.press('Tab');
+      reached = await frame.evaluate((node) => node === document.activeElement);
+    }
+    expect(reached).toBe(true);
+  });
+});

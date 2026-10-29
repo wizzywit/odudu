@@ -3,7 +3,6 @@ import { afterEach, beforeEach, vi } from 'vitest';
 // Stands in for the width of every element marked `data-narrow-container`,
 // which jsdom does not lay out, and for the observer that watches it.
 export function useContainerWidth(width: number): void {
-  const original = HTMLElement.prototype.getBoundingClientRect;
   beforeEach(() => {
     class Watch {
       private readonly callback: () => void;
@@ -18,7 +17,9 @@ export function useContainerWidth(width: number): void {
       }
     }
     vi.stubGlobal('ResizeObserver', Watch);
-    HTMLElement.prototype.getBoundingClientRect = function boxOf(this: HTMLElement): DOMRect {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function boxOf(
+      this: HTMLElement,
+    ): DOMRect {
       const size = this.hasAttribute('data-narrow-container') ? width : 0;
       return {
         x: 0,
@@ -30,10 +31,10 @@ export function useContainerWidth(width: number): void {
         width: size,
         height: 0,
       } as DOMRect;
-    };
+    });
   });
   afterEach(() => {
     vi.unstubAllGlobals();
-    HTMLElement.prototype.getBoundingClientRect = original;
+    vi.restoreAllMocks();
   });
 }
