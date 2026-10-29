@@ -1,5 +1,5 @@
 import type { PublishThemeResponse, PutThemeRequest, ThemeView } from '@odudu/contracts/admin';
-import { useQueryClient } from '@tanstack/react-query';
+import { useIsMutating, useQueryClient } from '@tanstack/react-query';
 import {
   discardThemeDraft,
   publishTheme,
@@ -8,7 +8,7 @@ import {
   restoreVersion,
 } from '#/features/branding/adapter/theme';
 import { scopeKeyPart, themeRecord, type ThemeScope } from '#/features/branding/service';
-import { recordKey, themeVersionsKey } from '#/shared/repository/queryKeys';
+import { recordKey, themeVersionsKey, themeWriteKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import type { RecordEntry } from '#/shared/repository/useRecord';
 import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
@@ -37,6 +37,7 @@ export function useThemeWrites(tenant: string, scope: ThemeScope): ThemeWrites {
   const { invalidate, invalidateExact } = useInvalidate();
   const key = recordKey(tenant, themeRecord(scope));
   const versions = themeVersionsKey(tenant, scopeKeyPart(scope));
+  const named = (write: string) => themeWriteKey(tenant, scopeKeyPart(scope), write);
   const keep = (result: GatewaySuccess<ThemeView>): void => {
     client.setQueryData<RecordEntry<ThemeView>>(key, { result, by: 'save' });
     invalidate(versions);
@@ -49,6 +50,7 @@ export function useThemeWrites(tenant: string, scope: ThemeScope): ThemeWrites {
   };
   return {
     publish: useGatewayWrite({
+      mutationKey: named('publish'),
       send: (gateway, tag: string) => publishTheme(gateway, tenant, scope, tag),
       onSuccess: (result) => {
         if (result.ok) keep(result);
@@ -56,24 +58,53 @@ export function useThemeWrites(tenant: string, scope: ThemeScope): ThemeWrites {
       },
     }),
     discard: useGatewayWrite({
+      mutationKey: named('discard'),
       send: (gateway, tag: string) => discardThemeDraft(gateway, tenant, scope, tag),
       onSuccess: replaceDraft,
     }),
     revert: useGatewayWrite({
+      mutationKey: named('revert'),
       send: (gateway, { body, tag }: Revert) => putTheme(gateway, tenant, scope, body, tag),
       onSuccess: replaceDraft,
     }),
     restore: useGatewayWrite({
+      mutationKey: named('restore'),
       send: (gateway, versionId: string) => restoreVersion(gateway, tenant, scope, versionId),
       onSuccess: (result) => {
         if (result.ok) keep(result);
       },
     }),
     reset: useGatewayWrite({
+      mutationKey: named('reset'),
       send: (gateway) => resetTheme(gateway, tenant, scope),
       onSuccess: (result) => {
         if (result.ok) keep(result);
       },
     }),
+  };
+}
+
+export interface ThemeRunning {
+  publish: boolean;
+  discard: boolean;
+  revert: boolean;
+  // A version restored or the theme reset.
+  other: boolean;
+}
+
+// Which writes to this scope's theme are running anywhere on the page, not
+// only the ones this part started.
+export function useThemeRunning(tenant: string, scope: ThemeScope): ThemeRunning {
+  const part = scopeKeyPart(scope);
+  const publish = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'publish') });
+  const discard = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'discard') });
+  const revert = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'revert') });
+  const restore = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'restore') });
+  const reset = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'reset') });
+  return {
+    publish: publish > 0,
+    discard: discard > 0,
+    revert: revert > 0,
+    other: restore + reset > 0,
   };
 }

@@ -3,7 +3,6 @@ import { useRefusal } from '#/features/session';
 import type { ThemeWrites } from '#/features/branding/repository/useThemeWrites';
 import {
   publishFailure,
-  publishHold,
   publishOutcomeOf,
   announcePublish,
   currentOutcome,
@@ -28,8 +27,7 @@ export function usePublication({
   scope,
   view,
   tag,
-  unsaved,
-  contrast,
+  hold,
   writes,
   outcome,
   onOutcome,
@@ -38,10 +36,8 @@ export function usePublication({
   scope: ThemeScope;
   view: ThemeView;
   tag: string;
-  // The sections holding unsaved edits.
-  unsaved: readonly string[];
-  // Why the colours would be refused, from the pairs on screen.
-  contrast: string | undefined;
+  // Why Publish is held, from everything that bears on it.
+  hold: string | undefined;
   writes: ThemeWrites;
   // The last answer, held by the page so every tab can mark what it refused.
   outcome: PublishOutcome;
@@ -55,7 +51,7 @@ export function usePublication({
   };
   return {
     busy: writes.publish.busy,
-    hold: publishHold({ view, unsaved, contrast }),
+    hold,
     outcome: currentOutcome(outcome, tag),
     publish: () => {
       onOutcome(NO_OUTCOME);

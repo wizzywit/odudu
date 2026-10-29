@@ -48,7 +48,7 @@ export function PublicationBar({
   tab: string;
 }) {
   const { scope } = branding;
-  const { publication, discard, revert, revertOffered } = usePublicationBar({
+  const { publication, discard, revert, revertOffered, holds } = usePublicationBar({
     tenant,
     scope,
     view,
@@ -83,17 +83,20 @@ export function PublicationBar({
           </div>
           <div className={styles.hold}>
             {publication.hold === undefined ? null : <Note tone="warning">{publication.hold}</Note>}
+            {holds.discard === undefined || holds.discard === publication.hold ? null : (
+              <Note tone="warning">{holds.discard}</Note>
+            )}
           </div>
           <div className={`${recordTab.actions ?? ''} ${styles.actions ?? ''}`}>
             <Button
               variant="primary"
-              isDisabled={publication.busy || publication.hold !== undefined}
+              isDisabled={publication.hold !== undefined}
               onPress={publication.publish}
             >
               {publication.busy ? PUBLISHING : PUBLISH_LABEL}
             </Button>
             <div className={styles.inline}>
-              <Button isDisabled={view.draft === null} onPress={discard.ask}>
+              <Button isDisabled={holds.discard !== undefined} onPress={discard.ask}>
                 {DISCARD_LABEL}
               </Button>
             </div>
@@ -107,7 +110,7 @@ export function PublicationBar({
                         {
                           id: 'revert',
                           label: revert.busy ? REVERTING : REVERT_LABEL,
-                          isDisabled: revert.busy || revert.hold !== undefined,
+                          isDisabled: revert.hold !== undefined,
                           ...(revert.hold === undefined ? {} : { description: revert.hold }),
                           onAction: revert.revert,
                         },
@@ -116,7 +119,8 @@ export function PublicationBar({
                   {
                     id: 'discard',
                     label: DISCARD_LABEL,
-                    isDisabled: view.draft === null,
+                    isDisabled: holds.discard !== undefined,
+                    ...(holds.discard === undefined ? {} : { description: holds.discard }),
                     onAction: discard.ask,
                   },
                 ]}

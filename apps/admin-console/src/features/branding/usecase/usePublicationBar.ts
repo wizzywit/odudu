@@ -1,18 +1,15 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useThemeWrites } from '#/features/branding/repository/useThemeWrites';
 import {
-  colourValues,
-  contrastReport,
   revertTarget,
-  themeRecord,
-  unsavedSections,
+  type PublicationHolds,
   type PublishOutcome,
   type ThemeScope,
 } from '#/features/branding/service';
 import { usePublication, type Publication } from '#/features/branding/usecase/usePublication';
+import { usePublicationHolds } from '#/features/branding/usecase/usePublicationHolds';
 import { useRevert, type Revert } from '#/features/branding/usecase/useRevert';
 import { useThemeDiscard } from '#/features/branding/usecase/useThemeDiscard';
-import { useDirtySections } from '#/shared/repository/useDirtySections';
 import type { Removal } from '#/shared/usecase/useConfirmedChange';
 
 export interface PublicationBar {
@@ -23,6 +20,8 @@ export interface PublicationBar {
   // that has parts to take back.
   revert: Revert;
   revertOffered: boolean;
+  // Why each action is held, which a running write does to all of them.
+  holds: PublicationHolds;
 }
 
 // What every tab shares: publishing the saved draft whole, and dropping it.
@@ -46,18 +45,18 @@ export function usePublicationBar({
   onPublished: (outcome: PublishOutcome) => void;
 }): PublicationBar {
   const writes = useThemeWrites(tenant, scope);
-  const dirty = useDirtySections(tenant, themeRecord(scope));
+  const holds = usePublicationHolds(tenant, scope, view);
   const target = revertTarget(tab);
   return {
     revert: useRevert({ tenant, scope, view, tag, tab: target.tab }),
     revertOffered: target.offered,
+    holds,
     publication: usePublication({
       tenant,
       scope,
       view,
       tag,
-      unsaved: unsavedSections(dirty),
-      contrast: contrastReport(colourValues(view)).hold,
+      hold: holds.publish,
       writes,
       outcome: published,
       onOutcome: onPublished,

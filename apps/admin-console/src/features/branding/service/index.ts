@@ -6,6 +6,7 @@ export * from '#/features/branding/service/edits';
 export * from '#/features/branding/service/fallback';
 export * from '#/features/branding/service/failures';
 export * from '#/features/branding/service/fields';
+export * from '#/features/branding/service/holds';
 export * from '#/features/branding/service/languages';
 export * from '#/features/branding/service/mail';
 export * from '#/features/branding/service/overrides';

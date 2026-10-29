@@ -158,7 +158,9 @@ test.describe('on a phone', () => {
 
     await bar.getByRole('button', { name: 'More publishing actions' }).click();
     const menu = page.getByRole('menu', { name: 'More publishing actions' });
-    await expect(menu.getByRole('menuitem', { name: /Revert this tab to published/u })).toBeVisible();
+    await expect(
+      menu.getByRole('menuitem', { name: /Revert this tab to published/u }),
+    ).toBeVisible();
     await expect(menu.getByRole('menuitem', { name: 'Discard draft…' })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(menu).toBeHidden();
