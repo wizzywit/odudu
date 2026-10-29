@@ -167,15 +167,17 @@ curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: applic
 {"configured":true,"host":"smtp.example.test","port":587,"from_address":"alerts@keep.example","username":null,"password_set":false,"starttls":false,"effective":"tenant"}
 ```
 
-`POST /smtp/test` sends one message to the given address synchronously and
-reports the transport's own failure as `502`, rather than an operator
-discovering a bad configuration only when a user's verification mail
-silently fails. That detail is still returned verbatim, now that the
-destination check above has taken away what it was an oracle for: with only
-public addresses reachable, the failure tells an operator about their own
-relay rather than about this server's neighbourhood. `400` for a tenant
-with no SMTP configuration at all, and `400` for a host this server will
-not connect to.
+`POST /smtp/test` sends one message to one address synchronously and
+reports a transport failure as `502`, rather than an operator discovering a
+bad configuration only when a user's verification mail silently fails. The
+`detail` is one fixed sentence for the kind of failure (the relay could not
+be reached, refused the secure connection, refused the credentials, refused
+the message, or another), chosen from the transport's error code; the
+relay's own words go to the server log and never to the caller. `to` must be
+exactly one address: a list, a display name or a line break is `400`, and the
+route is limited per origin like the other routes that send mail. `400` for
+a tenant with no SMTP configuration at all, and `400` for a host this server
+will not connect to.
 
 ```bash
 curl -sS -X POST \

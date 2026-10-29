@@ -492,6 +492,7 @@ function buildAdminRoutes(
       deploymentSmtp: deps.deploymentSmtp ?? false,
       now: () => clock.now(),
       resolveMailLook: deps.resolveMailLook,
+      callerCapabilities,
     };
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,

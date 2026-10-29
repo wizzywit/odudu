@@ -1078,7 +1078,11 @@ describeFields(setGroupDefaultRequestSchema, {
 describeFields(addRoleCompositeRequestSchema, {
   child_role_id: 'The role to nest in this one. Whoever holds this role then holds it too.',
 });
-describeFields(testSmtpRequestSchema, { to: 'The address to send the test message to.' });
+describeFields(testSmtpRequestSchema, {
+  to: 'The one address to send the test message to: a single mailbox, no list and no display name.',
+  client_id:
+    'The row id of a client of this tenant. The message is then dressed as a mail whose sign-in began in that client: its published logo and colours over the tenant’s. Absent, or a disabled client, it wears the tenant’s own look. Needs manage-clients as well.',
+});
 describeFields(testSmtpResponseSchema, {
   sent: 'True when the relay accepted the message. A relay that refuses it answers 502 instead.',
 });

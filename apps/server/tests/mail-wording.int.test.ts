@@ -1,15 +1,18 @@
 import { networkInterfaces } from 'node:os';
 import { createServer, type Server } from 'node:net';
-import { createDatabase, MIGRATIONS_DIR, runMigrations, tenants } from '@odudu/db';
+import { createDatabase, MIGRATIONS_DIR, runMigrations, tenants, withTenant } from '@odudu/db';
 import { type DatabaseHandle } from '@odudu/db';
 import { capturingSender, sendPending, type EmailSender } from '@odudu/email';
+import { clients } from '@odudu/domain-tenant';
+import { themeRepository, type ThemeBody } from '@odudu/domain-theme';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
 import { pino } from 'pino';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
+import { createBranding, type Branding } from '#/branding';
 import { mintAdminToken } from '#/testing/plan-admin-drives';
 import { seed } from '#/cli/seed';
 import { isWork, StatementRecorder } from '#/testing/plan-capture';
@@ -22,6 +25,7 @@ let container: TestDatabase;
 let owner: DatabaseHandle;
 let appDb: DatabaseHandle;
 let app: FastifyInstance;
+let branding: Branding;
 const recorder = new StatementRecorder();
 
 const KEK = Buffer.alloc(32, 7);
@@ -37,11 +41,14 @@ beforeAll(async () => {
   process.env.ODUDU_DATABASE_URL = container.adminUrl;
   process.env.ODUDU_APP_DATABASE_URL = appUrl;
   process.env.ODUDU_KEK = KEK.toString('base64');
+  const logger = pino({ level: 'silent' });
+  branding = createBranding({ database: appDb, logger, publicBaseUrl: BASE });
   app = buildApp({
+    branding,
     database: appDb,
     ownerDatabase: owner,
     kek: KEK,
-    logger: pino({ level: 'silent' }),
+    logger,
     tls: false,
     publicBaseUrl: BASE,
     deploymentSmtp: true,
@@ -283,6 +290,49 @@ function privateAddress(): string | undefined {
     )?.address;
 }
 
+async function publishTheme(
+  w: World,
+  tokens: ThemeBody['tokens'],
+  clientRowId: string | null = null,
+): Promise<void> {
+  await withTenant(appDb.db, w.tenantId, async (tx) => {
+    const themes = themeRepository(tx);
+    const scope = { tenantId: w.tenantId, clientId: clientRowId };
+    const body: ThemeBody = { tokens, stylesheet: null, templates: {}, assets: {} };
+    await themes.saveDraft(scope, body, (await themes.draft(scope))?.etag ?? null);
+    await themes.publish(scope);
+  });
+  branding.invalidateTenant(w.tenantId);
+}
+
+async function portalRowId(w: World): Promise<string> {
+  const [row] = await owner.db
+    .select({ id: clients.id })
+    .from(clients)
+    .where(and(eq(clients.tenantId, w.tenantId), eq(clients.clientId, 'portal')));
+  if (row === undefined) throw new Error('no portal client');
+  return row.id;
+}
+
+async function relayTo(w: World, relay: { port: number }) {
+  const put = await admin(w, 'PUT', '/smtp', {
+    host: privateAddress(),
+    port: relay.port,
+    from_address: 'noreply@example.test',
+    starttls: false,
+  });
+  expect(put.statusCode, put.body).toBe(200);
+}
+
+function sendTest(w: World, clientId?: string, token = w.token) {
+  return app.inject({
+    method: 'POST',
+    url: `/admin/tenants/${w.name}/smtp/test`,
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    payload: { to: 'ops@example.test', ...(clientId === undefined ? {} : { client_id: clientId }) },
+  });
+}
+
 function unquote(raw: string): string {
   return raw
     .replaceAll('=\r\n', '')
@@ -319,6 +369,88 @@ describe('the SMTP test mail', () => {
         const message = unquote(await relay.received);
         expect(message).toContain('Subject: Acme relay check');
         expect(message).toContain('The Acme relay works');
+      } finally {
+        relay.server.close();
+      }
+    },
+  );
+
+  it.skipIf(privateAddress() === undefined)(
+    'wears the tenant’s published theme, at the cost of the statements a themeless one takes',
+    async () => {
+      const themed = await world();
+      const plain = await world();
+      const light = {
+        surfacePage: '#ffffff',
+        surfacePanel: '#fff4e0',
+        surfaceSunken: '#f0f0f0',
+        inkPrimary: '#111111',
+        inkMuted: '#555555',
+        signalActive: '#ddeedd',
+        signalActiveInk: '#004400',
+        signalDanger: '#fde0d0',
+        signalDangerInk: '#802000',
+        borderStrong: '#777777',
+        focusRing: '#0044aa',
+      };
+      await publishTheme(themed, { light });
+      const counts: number[] = [];
+      const bodies: string[] = [];
+      for (const w of [themed, plain]) {
+        const relay = await fakeRelay();
+        try {
+          await relayTo(w, relay);
+          branding.invalidateTenant(w.tenantId);
+          const { result, statements } = await recorder.record(() => sendTest(w));
+          expect(result.statusCode, result.body).toBe(200);
+          counts.push(
+            statements.filter((s) => isWork(s) || /^(savepoint|release)\b/iu.test(s.query.trim()))
+              .length,
+          );
+          bodies.push(unquote(await relay.received));
+        } finally {
+          relay.server.close();
+        }
+      }
+      expect(bodies[0]).toContain('#fff4e0');
+      expect(bodies[1]).not.toContain('#fff4e0');
+      expect(bodies[1]).toContain('#e7eae9');
+      expect(counts[0]).toBe(counts[1]);
+    },
+  );
+
+  it.skipIf(privateAddress() === undefined)(
+    'wears the chosen client’s theme over the tenant’s, and the tenant’s without one',
+    async () => {
+      const w = await world();
+      const warm = {
+        surfacePage: '#ffffff',
+        surfacePanel: '#fff4e0',
+        surfaceSunken: '#f0f0f0',
+        inkPrimary: '#111111',
+        inkMuted: '#555555',
+        signalActive: '#ddeedd',
+        signalActiveInk: '#004400',
+        signalDanger: '#fde0d0',
+        signalDangerInk: '#802000',
+        borderStrong: '#777777',
+        focusRing: '#0044aa',
+      };
+      await publishTheme(w, { light: warm });
+      await publishTheme(w, { light: { ...warm, surfacePanel: '#e0f0ff' } }, await portalRowId(w));
+      const relay = await fakeRelay();
+      try {
+        await relayTo(w, relay);
+        const both = await mintAdminToken(
+          { http: app, app: appDb },
+          { id: w.tenantId, name: w.name },
+          ['manage-tenant', 'manage-clients'],
+        );
+        const res = await sendTest(w, await portalRowId(w), both);
+        expect(res.statusCode, res.body).toBe(200);
+        const message = unquote(await relay.received);
+        expect(message).toContain('#e0f0ff');
+        expect(message).not.toContain('#fff4e0');
       } finally {
         relay.server.close();
       }

@@ -1,3 +1,4 @@
+import { C, CLIENTS } from '#/testing/clientsFixtures';
 import { json, type Answer } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 import { graceRoutes } from '#/testing/renderConsole';
@@ -127,6 +128,7 @@ export function emailRoutes(
     {
       [`GET ${SM}`]: smtpAnswer(),
       [`GET ${MAIL}`]: json({ items: [] }),
+      [`GET ${C}`]: json({ items: CLIENTS }),
     },
     extra,
   );

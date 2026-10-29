@@ -512,6 +512,11 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Test message': feature(EMAIL_PAGE, 'title="Test message"'),
   'Send to': feature(EMAIL_PAGE, 'label="Send to"'),
   'Send test message': feature(EMAIL_PAGE, "'Send test message'"),
+  'Send as client': feature('email/service/testClient.ts', "TEST_AS_LABEL = 'Send as client'"),
+  'Use the tenant’s own look': feature(
+    'email/service/testClient.ts',
+    "TEST_TENANT_OWN = 'Use the tenant’s own look'",
+  ),
   'Remove the relay': several(
     feature(EMAIL_PAGE, 'title="Remove the relay"'),
     feature(EMAIL_PAGE, 'confirmLabel="Remove the relay"'),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { testBlocked, testOutcome } from '#/features/email/service/test';
+import { TEST_RECIPIENT_RULE, testBlocked, testOutcome } from '#/features/email/service/test';
 import type { GatewayResult } from '#/shared/service/result';
 
 function problem(status: number, detail: string): GatewayResult<{ sent: boolean }> {
@@ -15,6 +15,17 @@ describe('testBlocked', () => {
     expect(testBlocked('a@b.example', false)).toMatch(/Save a relay/u);
     expect(testBlocked('  ', true)).toMatch(/address/u);
     expect(testBlocked('a@b.example', true)).toBeUndefined();
+  });
+
+  it('wants exactly one address', () => {
+    for (const bad of [
+      'a@b.example, c@d.example',
+      'Ada <a@b.example>',
+      'ada',
+      'a@b.example;c@d.example',
+    ]) {
+      expect(testBlocked(bad, true), bad).toBe(TEST_RECIPIENT_RULE);
+    }
   });
 });
 

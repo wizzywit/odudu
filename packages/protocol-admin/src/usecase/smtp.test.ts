@@ -1,7 +1,30 @@
-import { type EmailMessage } from '@odudu/email';
-import { describe, expect, it } from 'vitest';
+import { type TenantScopedDatabase } from '@odudu/db';
+import { type EmailMessage, type MailLookResolver } from '@odudu/email';
+import { describe, expect, it, vi } from 'vitest';
 import { type SmtpDestinationPolicy } from '#/service/smtp-destination';
-import { sendTestMessage } from '#/usecase/smtp';
+import { readSmtpForTest, sendTestMessage } from '#/usecase/smtp';
+
+vi.mock('@odudu/domain-tenant', async (original) => ({
+  ...(await original<Record<string, unknown>>()),
+  clientRepository: () => ({
+    byId: (id: string) => Promise.resolve(id === 'held' ? { clientId: 'portal' } : null),
+  }),
+}));
+
+vi.mock('#/repository/tenant-smtp', () => ({
+  tenantSmtpRepository: () => ({
+    byTenantId: () =>
+      Promise.resolve({
+        tenantId: 'tenant-1',
+        host: 'relay.example.test',
+        port: 587,
+        fromAddress: 'noreply@example.test',
+        username: null,
+        passwordEncrypted: null,
+        starttls: false,
+      }),
+  }),
+}));
 
 const RECORD = {
   tenantId: 'tenant-1',
@@ -37,6 +60,29 @@ describe('sendTestMessage', () => {
     );
 
     expect(outcome.kind).toBe('send_failed');
+  });
+
+  it('answers a relay’s failure in a fixed sentence and hands its own text back for the log', async () => {
+    const outcome = await sendTestMessage(
+      RECORD,
+      KEK,
+      admitting('203.0.113.10'),
+      { to: 'ops@example.test', tenantDisplayName: 'Demo', now: new Date() },
+      () =>
+        Promise.resolve({
+          kind: 'ok',
+          sender: {
+            send: () =>
+              Promise.reject(
+                Object.assign(new Error('550 5.7.1 relay-banner-text'), { code: 'EENVELOPE' }),
+              ),
+          },
+        }),
+    );
+    expect(outcome).toMatchObject({ kind: 'send_failed', failure: 'rejected' });
+    if (outcome.kind !== 'send_failed') throw new Error('expected a failure');
+    expect(outcome.detail).not.toContain('relay-banner-text');
+    expect(outcome.raw).toContain('relay-banner-text');
   });
 
   it('refuses a loopback host before any transport exists to report on', async () => {
@@ -132,5 +178,115 @@ describe('sendTestMessage, the mail it sends', () => {
     );
     expect(sent[0]?.subject).toBe('Acme SMTP');
     expect(sent[0]?.html).toContain('Acme relay check');
+  });
+});
+
+describe('readSmtpForTest, the theme the test mail wears', () => {
+  const COLOURS = {
+    page: '#fff4e0',
+    panel: '#fffaf0',
+    sunken: '#f0f0f0',
+    border: '#777777',
+    ink: '#111111',
+    muted: '#555555',
+    link: '#0044aa',
+    button: '#004400',
+    buttonInk: '#ffffff',
+  };
+  const BRANDING = {
+    palette: COLOURS,
+    darkPalette: null,
+    logo: {
+      src: 'https://id.example.test/brand/acme.png',
+      alt: 'Acme logo',
+      width: 96,
+      height: 24,
+    },
+    darkLogo: null,
+  };
+
+  const tx = {
+    select: () => ({
+      from: () => ({
+        where: () => Promise.resolve([{ name: 'acme', displayName: 'Acme' }]),
+      }),
+    }),
+  } as unknown as TenantScopedDatabase;
+
+  const TENANT = { tenantId: 'tenant-1', tenantName: 'acme' };
+
+  async function mailFor(resolve?: MailLookResolver, client?: string): Promise<EmailMessage> {
+    const read = await readSmtpForTest(tx, TENANT, resolve, client);
+    if (read.kind !== 'ok') throw new Error('not configured');
+    const sent: EmailMessage[] = [];
+    await sendTestMessage(
+      read.record,
+      KEK,
+      admitting('203.0.113.10'),
+      {
+        to: 'ops@example.test',
+        tenantDisplayName: read.tenantDisplayName,
+        now: new Date('2026-10-29T00:00:00Z'),
+        ...read.wording,
+      },
+      () =>
+        Promise.resolve({
+          kind: 'ok',
+          sender: {
+            send: (message) => {
+              sent.push(message);
+              return Promise.resolve();
+            },
+          },
+        }),
+    );
+    const [message] = sent;
+    if (message === undefined) throw new Error('nothing was sent');
+    return message;
+  }
+
+  it('is drawn in the tenant’s colours and logo', async () => {
+    const resolve = vi.fn<MailLookResolver>(() =>
+      Promise.resolve({ branding: BRANDING, overrides: {} }),
+    );
+    const message = await mailFor(resolve);
+    expect(resolve).toHaveBeenCalledOnce();
+    expect(resolve.mock.calls[0]?.[1]).toMatchObject({ tenantId: 'tenant-1', tenantName: 'acme' });
+    expect(resolve.mock.calls[0]?.[1]).not.toHaveProperty('clientId', 'portal');
+    expect(message.html).toContain('#fffaf0');
+    expect(message.html).toContain('https://id.example.test/brand/acme.png');
+  });
+
+  it('asks for the client’s look, by its sign-in id, when one is chosen', async () => {
+    const resolve = vi.fn<MailLookResolver>((_tx, scope) =>
+      Promise.resolve({
+        branding: scope.clientId === 'portal' ? BRANDING : null,
+        overrides: {},
+      }),
+    );
+    const message = await mailFor(resolve, 'held');
+    expect(resolve).toHaveBeenCalledOnce();
+    expect(resolve.mock.calls[0]?.[1]).toMatchObject({ clientId: 'portal' });
+    expect(message.html).toContain('#fffaf0');
+  });
+
+  it('refuses a client the tenant does not hold, before it asks for any look', async () => {
+    const resolve = vi.fn<MailLookResolver>(() =>
+      Promise.resolve({ branding: BRANDING, overrides: {} }),
+    );
+    await expect(readSmtpForTest(tx, TENANT, resolve, 'foreign')).resolves.toEqual({
+      kind: 'client_not_found',
+    });
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['no resolver', undefined],
+    ['a resolver that rejects', () => Promise.reject(new Error('down'))],
+    ['a tenant with no theme', () => Promise.resolve({ branding: null, overrides: {} })],
+  ] as const)('keeps the shipped look with %s', async (_label, resolve) => {
+    const message = await mailFor(resolve);
+    expect(message.html).toContain('#e7eae9');
+    expect(message.html).not.toContain('#fffaf0');
   });
 });

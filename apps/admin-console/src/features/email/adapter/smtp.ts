@@ -30,9 +30,10 @@ export function testSmtp(
   gateway: Gateway,
   tenant: string,
   to: string,
+  clientId: string | null,
 ): Promise<GatewayResult<TestSmtpResponse>> {
   return adminCall(gateway, 'POST', tenant, ['smtp', 'test'], {
-    body: { to },
+    body: clientId === null ? { to } : { to, client_id: clientId },
     schema: testSmtpResponseSchema,
   });
 }
