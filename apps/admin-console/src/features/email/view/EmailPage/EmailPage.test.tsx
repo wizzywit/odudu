@@ -255,17 +255,22 @@ it('starts on the tenant’s own look when the list holds no console client', as
   expect(body).toEqual({ to: 'a@b.example' });
 });
 
-it('sends no client, and says why the choice is closed, without the capability to read clients', async () => {
-  const body = await sendTestMessage(
+it('asks for no clients, sends no client and says why the choice is closed, without manage-clients', async () => {
+  const user = userEvent.setup();
+  const { calls, sent } = renderConsoleAt(
+    AT,
     emailRoutes(['manage-tenant'], {
       ...SENT_OK,
       [`GET ${C}`]: problem(403, 'about:blank', 'Forbidden'),
     }),
-    async (test) => {
-      expect(await within(test).findByText(/manage-clients/u)).toBeVisible();
-    },
   );
-  expect(body).toEqual({ to: 'a@b.example' });
+  const test = await screen.findByRole('region', { name: 'Test message' });
+  expect(await within(test).findByText(/manage-clients/u)).toBeVisible();
+  await user.type(within(test).getByRole('textbox', { name: 'Send to' }), 'a@b.example');
+  await user.click(within(test).getByRole('button', { name: 'Send test message' }));
+  await within(test).findByText(/The relay accepted/u);
+  expect(calls.some((call) => call.path === C)).toBe(false);
+  expect(sent.find((call) => call.method === 'POST')?.body).toEqual({ to: 'a@b.example' });
 });
 
 it('shows the server’s reason when the test fails, and says unsaved edits are not used', async () => {
