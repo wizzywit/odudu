@@ -1,5 +1,5 @@
 import { unwrapSecret, wrapSecret } from '@odudu/crypto';
-import { tenants, type TenantScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import {
   renderSmtpTest,
   smtpSender,
@@ -10,8 +10,9 @@ import {
   type SmtpConfig as SmtpTransportConfig,
 } from '@odudu/email';
 import { type SmtpConfig } from '@odudu/contracts/admin';
-import { eq } from 'drizzle-orm';
+import { type MailBranding } from '@odudu/kernel';
 import { etagOf, matches } from '#/service/etag';
+import { clientMail, tenantMail } from '#/usecase/mail-preview';
 import { checkSmtpDestination, type SmtpDestinationPolicy } from '#/service/smtp-destination';
 import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
 
@@ -237,9 +238,11 @@ export function smtpConfigFromRecord(
   };
 }
 
-// What the test mail is worded with, beyond the tenant's name: its own wording
-// and the languages it offers, read as a queued mail reads them.
+// What the test mail is worded and dressed with, beyond the tenant's name: its
+// own wording, the languages it offers and its published theme, read as a
+// queued mail reads them. No client's theme: no sign-in is behind the mail.
 export interface SmtpTestWording {
+  readonly branding: MailBranding | null;
   readonly overrides: MailOverrides;
   readonly tenantDefaultLocale: string | null;
   readonly supportedLocales: readonly string[];
@@ -247,6 +250,7 @@ export interface SmtpTestWording {
 
 export type ReadSmtpForTestOutcome =
   | { kind: 'not_configured' }
+  | { kind: 'client_not_found' }
   | {
       kind: 'ok';
       record: TenantSmtpRecord;
@@ -254,34 +258,34 @@ export type ReadSmtpForTestOutcome =
       wording: SmtpTestWording;
     };
 
+const UNTHEMED: MailLookResolver = () => Promise.resolve({ branding: null, overrides: {} });
+
+// `clientRowId` dresses the mail as a client's, through the read the client's
+// mail preview makes; a client the tenant does not hold, another tenant's
+// included, is `client_not_found`.
 export async function readSmtpForTest(
   tx: TenantScopedDatabase,
-  tenantId: string,
+  tenant: { tenantId: string; tenantName: string },
   resolveLook?: MailLookResolver,
+  clientRowId?: string,
 ): Promise<ReadSmtpForTestOutcome> {
-  const record = await tenantSmtpRepository(tx).byTenantId(tenantId);
+  const record = await tenantSmtpRepository(tx).byTenantId(tenant.tenantId);
   if (record === null) return { kind: 'not_configured' };
-  const [tenant] = await tx
-    .select({
-      name: tenants.name,
-      displayName: tenants.displayName,
-      defaultLocale: tenants.defaultLocale,
-      supportedLocales: tenants.supportedLocales,
-    })
-    .from(tenants)
-    .where(eq(tenants.id, tenantId));
-  const name = tenant?.name ?? '';
-  // The resolver reads in a savepoint and does not reject; one that does
-  // leaves the test mail in the catalogue's words.
-  const look = await resolveLook?.(tx, { tenantId, tenantName: name }).catch(() => null);
+  const deps = { resolveMailLook: resolveLook ?? UNTHEMED };
+  const mail =
+    clientRowId === undefined
+      ? await tenantMail(tx, deps, tenant)
+      : await clientMail(tx, deps, tenant, clientRowId);
+  if (mail === null) return { kind: 'client_not_found' };
   return {
     kind: 'ok',
     record,
-    tenantDisplayName: tenant?.displayName ?? name,
+    tenantDisplayName: mail.displayName,
     wording: {
-      overrides: look?.overrides ?? {},
-      tenantDefaultLocale: tenant?.defaultLocale ?? null,
-      supportedLocales: tenant?.supportedLocales ?? [],
+      branding: mail.branding,
+      overrides: mail.overrides,
+      tenantDefaultLocale: mail.tenantDefaultLocale,
+      supportedLocales: mail.supportedLocales,
     },
   };
 }

@@ -19,6 +19,7 @@ export interface TenantMail {
   readonly branding: MailBranding | null;
   readonly overrides: MailOverrides;
   readonly tenantDefaultLocale: string | null;
+  readonly supportedLocales: readonly string[];
   readonly displayName: string;
 }
 

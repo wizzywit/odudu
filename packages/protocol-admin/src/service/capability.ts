@@ -1722,7 +1722,11 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Sends one message synchronously and reports the transport’s own failure as a ' +
       '502, rather than the tenant discovering a bad configuration only when a user’s ' +
-      'verification mail silently fails. 400 when the tenant has no SMTP configuration.',
+      'verification mail silently fails. 400 when the tenant has no SMTP configuration. ' +
+      'The message wears the tenant\u2019s published theme and its wording; `client_id` ' +
+      'dresses it as that client\u2019s mail instead (a disabled client shows the tenant\u2019s ' +
+      'look), which also needs `manage-clients`: a caller without it is refused with ' +
+      '`403`. `404` for a client the tenant does not hold.',
   },
   {
     method: 'GET',
