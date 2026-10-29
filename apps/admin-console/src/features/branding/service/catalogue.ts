@@ -6,7 +6,11 @@ export interface MessageEntry {
   key: string;
   // The English text, as the catalogue holds it.
   text: string;
+  // Where the message is shown when that is not a page: set for mail.
+  group?: string;
 }
+
+export const MAIL_GROUP_LABEL = 'Mail';
 
 // The most messages a list of them draws at once; typing narrows it.
 export const KEY_LIST_LIMIT = 50;
@@ -34,8 +38,10 @@ export function messagesForKind(
 export function allMessages(catalogue: MessageCatalogueResponse): MessageEntry[] {
   const byKey = new Map<string, MessageEntry>();
   for (const section of catalogue.sections) {
+    // A section filling no page kind is the mail messages.
+    const group = section.kinds.length === 0 ? { group: MAIL_GROUP_LABEL } : {};
     for (const { key, en } of section.messages) {
-      if (!byKey.has(key)) byKey.set(key, { key, text: en });
+      if (!byKey.has(key)) byKey.set(key, { key, text: en, ...group });
     }
   }
   return sortedIds([...byKey.keys()]).flatMap((key) => byKey.get(key) ?? []);
@@ -56,7 +62,8 @@ export function messageOptions(
   return entries.map((entry) => ({
     id: entry.key,
     label: entry.key,
-    detail: oneLine(entry.text),
+    detail:
+      entry.group === undefined ? oneLine(entry.text) : `${entry.group}: ${oneLine(entry.text)}`,
   }));
 }
 

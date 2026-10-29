@@ -17,6 +17,7 @@ import {
 } from '@odudu/account';
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { createBranding, type Branding } from '#/branding';
+import { createMailLook } from '#/mail-look';
 import { createDatabaseMessageOverrides, type MessageOverrides } from '#/message-overrides';
 import {
   isOverridableMessageKey,
@@ -505,6 +506,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       logger: deps.logger,
       publicBaseUrl: deps.publicBaseUrl,
     });
+  const mailLook = createMailLook(branding.resolveMailBranding);
   const messageOverrides =
     deps.messageOverrides ??
     createDatabaseMessageOverrides({ database: deps.database, logger: deps.logger });
@@ -533,14 +535,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       outboxMaxAttempts: deps.outboxMaxAttempts ?? DEFAULT_OUTBOX_MAX_ATTEMPTS,
       retireResetLinks: (tx, subjectId) =>
         actionTokenRepository(tx).invalidateOutstandingPasswordLinks(subjectId),
-      resolveMailBranding: branding.resolveMailBranding,
+      resolveMailBranding: mailLook,
       sendAccountLink: async (tx, request) => {
         if (deps.publicBaseUrl === undefined) return 'unavailable';
         const tenant = {
           ...request,
           issuerBase: deps.publicBaseUrl,
           now: () => systemClock.now(),
-          resolveMailBranding: branding.resolveMailBranding,
+          resolveMailBranding: mailLook,
         };
         if (request.kind === 'reset_password') await enqueueResetLink(tx, tenant, request);
         else if (request.kind === 'verify_email')
@@ -580,7 +582,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   const themed = {
     resolveBranding: branding.resolveBranding,
-    resolveMailBranding: branding.resolveMailBranding,
+    resolveMailBranding: mailLook,
     resolveOverrides: messageOverrides.resolveOverrides,
     isClientOfTenant: branding.isClientOfTenant,
   };

@@ -70,7 +70,7 @@ export const accountTestDeps = {
   hashPassword: hashUserPassword,
   isEmailAddress,
   mailGate: openMailGate,
-  resolveMailBranding: () => Promise.resolve(null),
+  resolveMailBranding: () => Promise.resolve({ branding: null, overrides: {} }),
   now: () => new Date(),
 };
 

@@ -50,12 +50,16 @@ describe('mailContext', () => {
     const asked: unknown[] = [];
     const resolve: MailBrandingResolver = (_tx, scope) => {
       asked.push(scope);
-      return Promise.resolve(BRANDING);
+      return Promise.resolve({ branding: BRANDING, overrides: { fr: { 'reset.button': 'Go' } } });
     };
     const context = await withTenant(app.db, t.id, (tx) =>
       mailContext(tx, resolve, { tenantId: t.id, tenantName: t.name }),
     );
-    expect(context).toEqual({ branding: BRANDING, tenantDefaultLocale: 'fr' });
+    expect(context).toEqual({
+      branding: BRANDING,
+      overrides: { fr: { 'reset.button': 'Go' } },
+      tenantDefaultLocale: 'fr',
+    });
     expect(asked).toEqual([{ tenantId: t.id, tenantName: t.name }]);
   });
 
@@ -64,7 +68,7 @@ describe('mailContext', () => {
     const context = await withTenant(app.db, t.id, (tx) =>
       mailContext(tx, undefined, { tenantId: t.id, tenantName: t.name }),
     );
-    expect(context).toEqual({ branding: null, tenantDefaultLocale: null });
+    expect(context).toEqual({ branding: null, overrides: {}, tenantDefaultLocale: null });
   });
 
   it("does not read another tenant's default language from this tenant's transaction", async () => {
@@ -82,7 +86,7 @@ describe('mailContext', () => {
     const context = await withTenant(app.db, t.id, (tx) =>
       mailContext(tx, resolve, { tenantId: t.id, tenantName: t.name }),
     );
-    expect(context).toEqual({ branding: null, tenantDefaultLocale: 'fr' });
+    expect(context).toEqual({ branding: null, overrides: {}, tenantDefaultLocale: 'fr' });
   });
 });
 
@@ -93,7 +97,12 @@ describe('tenantMailContext', () => {
     const context = await withTenant(app.db, t.id, (tx) =>
       tenantMailContext(tx, undefined, { tenantId: t.id, tenantName: t.name }),
     );
-    expect(context).toEqual({ branding: null, tenantDefaultLocale: 'fr', displayName: 'Acme Ltd' });
+    expect(context).toEqual({
+      branding: null,
+      overrides: {},
+      tenantDefaultLocale: 'fr',
+      displayName: 'Acme Ltd',
+    });
   });
 
   it('has no display name for a tenant that sets none', async () => {

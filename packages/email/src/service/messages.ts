@@ -87,6 +87,14 @@ export const en = {
   'action.generate-recovery-codes': 'Save a set of recovery codes',
 };
 
+// The English text of every mail message: the keys a tenant's override may
+// name and, for each, the arguments the mail supplies.
+export const MAIL_MESSAGES: Readonly<Record<string, string>> = en;
+
+export function isMailMessageKey(key: string): boolean {
+  return Object.hasOwn(en, key);
+}
+
 export { ar };
 export type MessageId = keyof typeof en;
 

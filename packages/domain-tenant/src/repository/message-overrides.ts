@@ -113,6 +113,26 @@ export function messageOverrideRepository(tx: TenantScopedDatabase, deps: Messag
       return Object.fromEntries(rows.map((row) => [row.key, row.message]));
     },
 
+    // Every override of the tenant as locale to key-to-message maps, which a
+    // mail reads because the language it is written in is only known once
+    // the recipient is: one statement, at most MAX_MESSAGE_OVERRIDES rows.
+    async forMail(tenantId: string): Promise<Record<string, Record<string, string>>> {
+      const rows = await tx
+        .select({
+          locale: messageOverrides.locale,
+          key: messageOverrides.key,
+          message: messageOverrides.message,
+        })
+        .from(messageOverrides)
+        .where(eq(messageOverrides.tenantId, tenantId))
+        .limit(MAX_MESSAGE_OVERRIDES);
+      const byLocale: Record<string, Record<string, string>> = {};
+      for (const { locale, key, message } of rows) {
+        (byLocale[locale] ??= {})[key] = message;
+      }
+      return byLocale;
+    },
+
     // Writers of one tenant are serialised, so the count read below is the
     // count the insert lands on. Changing an override that exists never
     // counts against the bound.

@@ -1285,13 +1285,13 @@ describeFields(listMessageOverridesResponseSchema, {
 });
 describeFields(messageCatalogueResponseSchema, {
   sections:
-    'One section per package that fills pages, each with the page kinds it fills. The list is the same for every tenant and holds a few hundred messages in all.',
+    'One section per package that fills pages, each with the page kinds it fills, and last the section of mail messages, which has no page kinds. The list is the same for every tenant and holds a few hundred messages in all.',
 });
 describeFields(messageCatalogueSectionSchema, {
   kinds:
-    'The page kinds filled from this section. A template of one of them may name, in `{{t "key"}}`, only a key of its own section.',
+    'The page kinds filled from this section; empty for the mail messages. A template of one of them may name, in `{{t "key"}}`, only a key of its own section.',
   messages:
-    'Every message of the section in key order. A message override may name the key of any section.',
+    'Every message of the section in key order. A message override may name the key of any section, mail included.',
 });
 describeFields(messageCatalogueEntrySchema, {
   key: 'The key a template names in `{{t "key"}}` and an override is set under.',

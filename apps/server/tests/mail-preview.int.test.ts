@@ -161,8 +161,9 @@ async function get(w: World, path: string, bearer?: string) {
 }
 
 // Measured with the theme's cache emptied: the caller's own checks, the
-// published theme's read and the tenant's row. It must not grow with a theme.
-const MAIL_STATEMENTS = 8;
+// published theme's read, the tenant's row and its overrides (one read in a
+// savepoint, for every language). It must not grow with a theme or wording.
+const MAIL_STATEMENTS = 10;
 
 const header = (res: { headers: Record<string, unknown> }, name: string): string =>
   String(res.headers[name]);

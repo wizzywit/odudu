@@ -569,7 +569,7 @@ describe('the notice mail takes the tenant theme and default language', () => {
         { kind: 'recovery_codes_revoked', newSet: false },
         (_tx, scope) => {
           asked.push(scope.tenantId);
-          return Promise.resolve(branding);
+          return Promise.resolve({ branding, overrides: {} });
         },
       );
     });

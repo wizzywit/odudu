@@ -6,6 +6,7 @@ import {
   tenantMailContext,
   renderVerifyEmail,
   type MailBrandingResolver,
+  type MailOverrides,
 } from '@odudu/email';
 import { type MailBranding } from '@odudu/kernel';
 
@@ -15,6 +16,7 @@ export interface MailPreviewDeps {
 
 export interface TenantMail {
   readonly branding: MailBranding | null;
+  readonly overrides: MailOverrides;
   readonly tenantDefaultLocale: string | null;
   readonly displayName: string;
 }
@@ -52,6 +54,7 @@ export function previewMail(
     now: input.now,
     locale: input.query.locale ?? null,
     tenantDefaultLocale: mail.tenantDefaultLocale,
+    overrides: mail.overrides,
     branding,
   });
   return { html: inlineMark(message.html), branding };
