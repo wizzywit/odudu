@@ -4,6 +4,15 @@
   box-sizing: border-box;
 }
 
+/* What an input's text is set in. A page for touch raises both to 16px, below
+   which a phone's browser zooms the page when the field is focused. They are
+   here and not in tokens.css, which the server pages' stylesheet is built from
+   and has no use for them. */
+:root {
+  --input-size: var(--type-15);
+  --input-size-mono: var(--type-13);
+}
+
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
