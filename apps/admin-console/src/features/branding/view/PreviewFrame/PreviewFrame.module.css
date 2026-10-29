@@ -8,6 +8,12 @@
   overflow: hidden;
 }
 
+.frame[data-fill] {
+  flex: 1 1 auto;
+  block-size: auto;
+  min-block-size: 20rem;
+}
+
 .iframe {
   display: block;
   inline-size: 100%;
@@ -27,4 +33,27 @@
   margin: 0;
   color: var(--ink-muted);
   font-size: var(--type-13);
+}
+
+/* Beside a stacked editor the frame is a miniature: the page laid out at a
+   phone's width and scaled to a fifth, in a clip that is a fifth as large.
+   Nothing in it can be pressed. The frame in the sheet is not inside the
+   container, so it keeps the full size. */
+@container (inline-size < 64rem) {
+  .frame:not([data-fill]) {
+    inline-size: 4.5rem;
+    block-size: 5.5rem;
+  }
+
+  .frame:not([data-fill]) .iframe {
+    inline-size: 22.5rem;
+    block-size: 27.5rem;
+    transform: scale(0.2);
+    transform-origin: top left;
+    pointer-events: none;
+  }
+
+  .frame:not([data-fill]) .loading {
+    display: none;
+  }
 }

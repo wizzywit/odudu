@@ -15,8 +15,12 @@ import {
   MAIL_SCHEME_LABEL,
   LOGO_ELSEWHERE,
   LOGO_TITLE,
+  mailLocaleLabel,
   mailLocaleOf,
+  MAIL_SUMMARY_NAME,
   paletteRows,
+  previewSummary,
+  SCHEME_LABELS,
   SCHEME_OPTIONS,
   schemeOf,
   schemeTitle,
@@ -24,7 +28,7 @@ import {
   type Scheme,
 } from '#/features/branding/service';
 import type { MailTab as Mail } from '#/features/branding/usecase/useMailTab';
-import { PreviewFrame } from '#/features/branding/view/PreviewFrame';
+import { PreviewShell } from '#/features/branding/view/PreviewShell';
 import { InlineFields, SelectField } from '#/shared/view/Field';
 import { LoadFailed } from '#/shared/view/LoadFailed';
 import { Panel } from '#/shared/view/Panel';
@@ -34,8 +38,15 @@ import styles from '#/features/branding/view/MailTab/MailTab.module.css';
 
 export function MailPreview({ mail }: { mail: Mail }) {
   return (
-    <Panel title={MAIL_PREVIEW_TITLE}>
-      <div className={styles.controls}>
+    <PreviewShell
+      title={MAIL_PREVIEW_TITLE}
+      summary={previewSummary(
+        MAIL_SUMMARY_NAME,
+        SCHEME_LABELS[mail.choice.scheme],
+        mailLocaleLabel(mail.choice.locale),
+      )}
+      lead={MAIL_PREVIEW_NOTE}
+      controls={
         <InlineFields>
           <SelectField
             label={MAIL_SCHEME_LABEL}
@@ -56,16 +67,15 @@ export function MailPreview({ mail }: { mail: Mail }) {
             }}
           />
         </InlineFields>
-      </div>
-      <p className={styles.note}>{MAIL_PREVIEW_NOTE}</p>
-      <PreviewFrame
-        title={MAIL_FRAME_TITLE}
-        src={mail.src}
-        frameKey={mail.frameKey}
-        loading={mail.loading}
-        onLoaded={mail.onLoaded}
-      />
-    </Panel>
+      }
+      frame={{
+        title: MAIL_FRAME_TITLE,
+        src: mail.src,
+        frameKey: mail.frameKey,
+        loading: mail.loading,
+        onLoaded: mail.onLoaded,
+      }}
+    />
   );
 }
 

@@ -1,1 +1,4 @@
-export { PreviewFrame } from '#/features/branding/view/PreviewFrame/PreviewFrame';
+export {
+  PreviewFrame,
+  type PreviewFrameProps,
+} from '#/features/branding/view/PreviewFrame/PreviewFrame';

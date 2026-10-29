@@ -450,12 +450,12 @@ export function SelectField({
     return (
       <NativeSelect
         label={label}
-        description={description}
+        {...(description === undefined ? {} : { description })}
         error={error}
-        changed={changed}
         options={options}
         value={value}
         onChange={onChange}
+        {...(changed === undefined ? {} : { changed })}
         {...(isDisabled === undefined ? {} : { isDisabled })}
       />
     );

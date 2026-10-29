@@ -1,28 +1,36 @@
 import {
   FALLBACK_TITLE,
+  PAGE_KIND_LABELS,
   PAGE_KIND_OPTIONS,
   PREVIEW_FRAME_TITLE,
   PREVIEW_KIND_LABEL,
   PREVIEW_NOTE,
   PREVIEW_SCHEME_LABEL,
   PREVIEW_TITLE,
+  previewSummary,
+  SCHEME_LABELS,
   SCHEME_OPTIONS,
   schemeOf,
   pageKindOf,
 } from '#/features/branding/service';
 import type { Preview } from '#/features/branding/usecase/usePreview';
-import { PreviewFrame } from '#/features/branding/view/PreviewFrame';
+import { PreviewShell } from '#/features/branding/view/PreviewShell';
 import { InlineFields, SelectField } from '#/shared/view/Field';
 import { Note } from '#/shared/view/Note';
-import { Panel } from '#/shared/view/Panel';
 import styles from '#/features/branding/view/PreviewPane/PreviewPane.module.css';
 
 // The real page for the saved draft, in a frame that may run nothing and
 // shares no origin with the console.
 export function PreviewPane({ preview, pickKind }: { preview: Preview; pickKind: boolean }) {
   return (
-    <Panel title={PREVIEW_TITLE}>
-      <div className={styles.controls}>
+    <PreviewShell
+      title={PREVIEW_TITLE}
+      summary={previewSummary(
+        PAGE_KIND_LABELS[preview.choice.kind],
+        SCHEME_LABELS[preview.choice.scheme],
+      )}
+      lead={PREVIEW_NOTE}
+      controls={
         <InlineFields>
           {pickKind ? (
             <SelectField
@@ -45,24 +53,25 @@ export function PreviewPane({ preview, pickKind }: { preview: Preview; pickKind:
             }}
           />
         </InlineFields>
-      </div>
-      <p className={styles.note}>{PREVIEW_NOTE}</p>
-      {preview.note === null ? null : <Note>{preview.note}</Note>}
-      {/* Always present so a notice arriving after the read, or changing with
-          the page, is announced politely; it changes on a save, a page or a
-          scheme, never per keystroke. */}
-      <div role="status" aria-label={FALLBACK_TITLE} className={styles.fallback}>
-        {preview.fallback.map((line) => (
-          <Note key={line}>{line}</Note>
-        ))}
-      </div>
-      <PreviewFrame
-        title={PREVIEW_FRAME_TITLE}
-        src={preview.src}
-        frameKey={preview.frameKey}
-        loading={preview.loading}
-        onLoaded={preview.onLoaded}
-      />
-    </Panel>
+      }
+      notes={preview.note === null ? null : <Note>{preview.note}</Note>}
+      live={
+        // Always present so a notice arriving after the read, or changing with
+        // the page, is announced politely; it changes on a save, a page or a
+        // scheme, never per keystroke.
+        <div role="status" aria-label={FALLBACK_TITLE} className={styles.fallback}>
+          {preview.fallback.map((line) => (
+            <Note key={line}>{line}</Note>
+          ))}
+        </div>
+      }
+      frame={{
+        title: PREVIEW_FRAME_TITLE,
+        src: preview.src,
+        frameKey: preview.frameKey,
+        loading: preview.loading,
+        onLoaded: preview.onLoaded,
+      }}
+    />
   );
 }

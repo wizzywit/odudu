@@ -67,6 +67,13 @@ export function mailLocaleOf(id: string): string | undefined {
   return MAIL_LOCALE_OPTIONS.find((option) => option.id === id)?.id;
 }
 
+// What the preview strip calls the mail it shows.
+export const MAIL_SUMMARY_NAME = 'Email';
+
+export function mailLocaleLabel(id: string): string {
+  return MAIL_LOCALE_OPTIONS.find((option) => option.id === id)?.label ?? id;
+}
+
 // A frame reloads when what it shows may have changed: the published version,
 // or what is asked of it.
 export function mailFrameKey(publishedVersion: number | undefined, choice: MailChoice): string {

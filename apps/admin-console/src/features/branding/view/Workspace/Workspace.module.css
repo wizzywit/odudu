@@ -18,13 +18,21 @@
   min-inline-size: 0;
 }
 
+/* Stacked, the preview is a strip that stays at the bottom edge of the screen
+   for as long as the editor above it is in view, and rests under it at the end. */
+.preview {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 5;
+}
+
 @container (inline-size >= 64rem) {
   .workspace {
     grid-template-columns: minmax(0, 1fr) minmax(24rem, 30rem);
   }
 
   .preview {
-    position: sticky;
-    inset-block-start: var(--space-4);
+    inset-block: var(--space-4) auto;
+    z-index: auto;
   }
 }

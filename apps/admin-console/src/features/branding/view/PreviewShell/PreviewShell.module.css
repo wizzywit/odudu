@@ -1,0 +1,104 @@
+.pane {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--hairline);
+  border-radius: var(--radius-m);
+  background: var(--surface-panel);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--type-15);
+  overflow-wrap: anywhere;
+}
+
+.controls,
+.switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.switches > * {
+  flex: 1 1 10rem;
+}
+
+.lead {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--type-13);
+}
+
+/* Wrappers that add no box of their own where the panel is wide. */
+.notes,
+.live {
+  display: contents;
+}
+
+.stage {
+  min-inline-size: 0;
+}
+
+.summary,
+.open {
+  display: none;
+}
+
+/* Stacked under the editor the pane is the strip: a miniature, a line, and
+   the button, over whatever notice the preview has. */
+@container (inline-size < 64rem) {
+  .pane {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'stage summary open'
+      'live live live';
+    align-items: center;
+    gap: 0 var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    padding-block-end: calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+    box-shadow: var(--shadow-overlay);
+  }
+
+  .title {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .controls,
+  .lead,
+  .notes {
+    display: none;
+  }
+
+  .live {
+    display: block;
+    grid-area: live;
+  }
+
+  .stage {
+    grid-area: stage;
+  }
+
+  .summary {
+    display: block;
+    grid-area: summary;
+    margin: 0;
+    font-size: var(--type-13);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .open {
+    display: block;
+    grid-area: open;
+  }
+}
