@@ -1,11 +1,11 @@
 ---
 title: 'GET /mail/preview and GET /mail/branding'
-description: 'The verification mail as a tenant’s published theme dresses it, and the logo and colours it inherits. manage-tenant.'
+description: 'The verification mail as a tenant’s or a client’s published theme dresses it, and the logo and colours it inherits.'
 ---
 
 # `GET /mail/preview` and `GET /mail/branding`
 
-Both need `manage-tenant` and answer for the tenant in the path only.
+Both need `manage-tenant` and answer for the tenant in the path. A client's own are `GET /clients/:id/mail/preview` and `GET /clients/:id/mail/branding`, which need `manage-clients`, the capability a client's theme needs.
 
 - `GET /mail/preview?kind=&scheme=&locale=` answers the address-verification
   mail as an HTML document, built by the code that builds the real one, with a
@@ -23,8 +23,15 @@ Both need `manage-tenant` and answer for the tenant in the path only.
   the nine colours (`page`, `panel`, `sunken`, `border`, `ink`, `muted`, `link`,
   `button`, `button_ink`) with a `source` of `tenant` when the published theme
   sets that scheme and `default` when Odudu's own colours are used, and the
-  `logo` and `dark_logo` as `src`, `alt`, `width` and `height`, or `null`. A mail
-  uses the tenant's theme only, never a client's.
+  `logo` and `dark_logo` as `src`, `alt`, `width` and `height`, or `null`. These show the tenant's own look.
+- `GET /clients/:id/mail/preview` and `GET /clients/:id/mail/branding` take the
+  same query and answer the same shapes for the mail a sign-in of that client
+  sends: its published logo and colours over the tenant's, piece by piece, and
+  the tenant's wording. In the branding answer a palette's `source` is `client`
+  where the client's theme sets it, else `tenant` or `default`. A client that is
+  disabled shows the tenant's look, as its mail would. A client the tenant does
+  not hold, another tenant's included, is the same `404`. No transcript of a
+  client's mail has been captured yet.
 
 ## The verification mail, before and after a theme
 

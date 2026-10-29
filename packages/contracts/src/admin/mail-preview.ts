@@ -29,7 +29,9 @@ export const mailColoursSchema = z.object({
 export type MailColoursView = z.infer<typeof mailColoursSchema>;
 
 export const mailSchemeSchema = z.object({
-  source: z.enum(['tenant', 'default']),
+  // `client` only on a client's own mail view: the client's published theme
+  // sets that scheme's palette.
+  source: z.enum(['client', 'tenant', 'default']),
   colours: mailColoursSchema,
 });
 

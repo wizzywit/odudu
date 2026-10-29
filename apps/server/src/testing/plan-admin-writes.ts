@@ -597,6 +597,15 @@ function themeCalls(T: string, base: string, what: string): [string, Call][] {
       `restore the first version of ${what}`,
       { method: 'POST', url: `${theme}/versions/{${key}}/restore` },
     ],
+    ...(base === T
+      ? []
+      : ([
+          [`preview the mail ${what} dresses`, { method: 'GET', url: `${base}/mail/preview` }],
+          [
+            `read the branding the mail of ${what} wears`,
+            { method: 'GET', url: `${base}/mail/branding` },
+          ],
+        ] satisfies [string, Call][])),
     [`read ${what}`, { method: 'GET', url: theme }],
     [`list the versions of ${what}`, { method: 'GET', url: `${theme}/versions` }],
     [`reset ${what}`, { method: 'DELETE', url: theme }],

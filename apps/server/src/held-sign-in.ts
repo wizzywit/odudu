@@ -8,7 +8,8 @@ import { restartAuthorizeLocation } from '@odudu/protocol-oidc';
 // sign-in-handle) resolved to its parked request, and that request rebuilt as
 // the authorize path that resumes it. The two packages cannot reach each
 // other, so the pair meets here. A request carrying no readable handle never
-// reaches the database.
+// reaches the database. The held request's own client_id rides with it, the
+// one client a mail queued out of that sign-in may wear.
 export function findHeldSignInIn(database: DatabaseHandle, tls: boolean): FindHeldSignIn {
   return async (tenant, header) => {
     if (readSignInHandle(header, tls) === null) return null;
@@ -19,6 +20,7 @@ export function findHeldSignInIn(database: DatabaseHandle, tls: boolean): FindHe
         : {
             sessionId: held.sessionId,
             signInPath: restartAuthorizeLocation(tenant.name, held.pendingRequest),
+            clientId: held.pendingRequest.clientId,
           };
     });
   };

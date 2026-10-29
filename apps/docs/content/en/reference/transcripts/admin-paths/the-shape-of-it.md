@@ -163,6 +163,8 @@ shown once — a registration token, a client secret, a one-time password.
 | `GET`    | `/admin/tenants/{tenant}/theme/preview/info`                            | Say what a tenant's preview shows and why  |
 | `GET`    | `/admin/tenants/{tenant}/mail/preview`                                  | Preview the verification mail              |
 | `GET`    | `/admin/tenants/{tenant}/mail/branding`                                 | Read the branding a mail inherits          |
+| `GET`    | `/admin/tenants/{tenant}/clients/:id/mail/preview`                      | Preview the mail a client's sign-in sends  |
+| `GET`    | `/admin/tenants/{tenant}/clients/:id/mail/branding`                     | Read the branding a client's mail wears    |
 | `GET`    | `/admin/tenants/{tenant}/theme/versions`                                | List a tenant's theme versions             |
 | `POST`   | `/admin/tenants/{tenant}/theme/versions/:versionId/restore`             | Restore a tenant's earlier theme           |
 | `GET`    | `/admin/tenants/{tenant}/clients/:id/theme`                             | Read a client's draft and published theme  |

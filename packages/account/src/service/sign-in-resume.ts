@@ -5,6 +5,9 @@
 export interface HeldSignIn {
   readonly sessionId: string;
   readonly signInPath: string | null;
+  // The OAuth client_id the parked request was made for: server-side state,
+  // set when the request was accepted.
+  readonly clientId: string;
 }
 
 // Resolved at the composition root, where the cookie's secret and the parked
@@ -22,6 +25,16 @@ export type FindHeldSignIn = (
 export function referenceToResume(held: HeldSignIn | null, returnTo: string | null): string | null {
   if (held === null || returnTo === null || held.signInPath !== returnTo) return null;
   return held.sessionId;
+}
+
+// The client a mail queued out of this sign-in may wear: the held sign-in's
+// own, under the same condition as the link back to it. It is never read from
+// what the page carried, which only has to equal the held request.
+export function clientOfHeldSignIn(
+  held: HeldSignIn | null,
+  returnTo: string | null,
+): string | null {
+  return referenceToResume(held, returnTo) === null ? null : (held?.clientId ?? null);
 }
 
 // Where a token's page may send the browser: the original request, only

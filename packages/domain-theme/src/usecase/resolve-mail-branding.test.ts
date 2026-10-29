@@ -70,8 +70,8 @@ function setup(layers: PublishedLayers, origin: string | null = ORIGIN) {
     log: () => undefined,
     reportFallback: () => undefined,
   };
-  const mail = resolveMailBranding(deps, (tx: string, tenantId) => {
-    reads.push(`${tx}:${tenantId}`);
+  const mail = resolveMailBranding(deps, (tx: string, tenantId, clientId) => {
+    reads.push(`${tx}:${tenantId}${clientId === null ? '' : `:${clientId}`}`);
     return Promise.resolve(layers);
   });
   return { mail, reads, cache, page: resolveBranding(deps) };
@@ -130,10 +130,98 @@ describe('resolveMailBranding', () => {
     expect(reads).toEqual([]);
   });
 
-  it('never uses the client layer, even when one was published', async () => {
-    const client = layer({ tokens: { light: DARK }, stylesheet: null, templates: {}, assets: {} });
-    const { mail } = setup({ tenant: themed, client: { ...client, clientId: 'c1' } });
-    expect((await mail('tx', SCOPE))?.palette?.page).toBe('#ffffff');
+  describe('for a flow that began inside a client', () => {
+    const CLIENT_SHA = 'ef'.repeat(32);
+    const CLIENT_ASSET = '00000000-0000-4000-8000-0000000000a3';
+    const clientLayer = (body: unknown, assets: PublishedLayer['assets'] = []) => ({
+      ...layer(body, assets),
+      clientId: 'c1',
+    });
+    const CLIENT_LIGHT: Palette = { ...LIGHT, surfacePage: '#eeffee' };
+
+    it('takes the client colours and keeps the tenant logo it does not override', async () => {
+      const { mail } = setup({
+        tenant: themed,
+        client: clientLayer({
+          tokens: { light: CLIENT_LIGHT },
+          stylesheet: null,
+          templates: {},
+          assets: {},
+        }),
+      });
+      const found = await mail('tx', { ...SCOPE, clientId: 'portal' });
+      expect(found?.palette?.page).toBe('#eeffee');
+      expect(found?.darkPalette?.page).toBe('#101010');
+      expect(found?.logo?.alt).toBe('Acme');
+    });
+
+    it('takes the client logo over the tenant one', async () => {
+      const { mail } = setup({
+        tenant: themed,
+        client: clientLayer(
+          {
+            tokens: {},
+            stylesheet: null,
+            templates: {},
+            assets: { logo: { assetId: CLIENT_ASSET, alt: 'Portal' } },
+          },
+          [{ id: CLIENT_ASSET, sha256: CLIENT_SHA, mime: 'image/png', width: 80, height: 80 }],
+        ),
+      });
+      const found = await mail('tx', { ...SCOPE, clientId: 'portal' });
+      expect(found?.logo).toMatchObject({ alt: 'Portal', width: 48, height: 48 });
+      expect(found?.logo?.src).toContain(CLIENT_SHA);
+      expect(found?.palette?.page).toBe('#ffffff');
+    });
+
+    it('is the tenant look when the client published nothing', async () => {
+      const { mail } = setup({ tenant: themed, client: null });
+      const found = await mail('tx', { ...SCOPE, clientId: 'portal' });
+      expect(found?.logo?.alt).toBe('Acme');
+      expect(found?.palette?.page).toBe('#ffffff');
+    });
+
+    it('reads for the client every time and never takes or fills the page cache', async () => {
+      const { mail, reads, page } = setup({ tenant: themed, client: null });
+      await page({ ...SCOPE, clientId: 'portal' });
+      await mail('tx1', { ...SCOPE, clientId: 'portal' });
+      await mail('tx2', { ...SCOPE, clientId: 'portal' });
+      expect(reads).toEqual(['tx1:t1:portal', 'tx2:t1:portal']);
+    });
+
+    it('is the tenant look, still one read of its own, when the client read fails', async () => {
+      const cache = createBrandingCache<PageBranding | null>({ now: () => 0 });
+      const reads: (string | null)[] = [];
+      const logged: string[] = [];
+      const mail = resolveMailBranding(
+        {
+          readPublished: () => Promise.resolve({ tenant: null, client: null }),
+          origin: ORIGIN,
+          now: () => 0,
+          cache,
+          log: ({ reason }) => logged.push(reason),
+          reportFallback: () => undefined,
+        },
+        (_tx: string, _tenantId, clientId) => {
+          reads.push(clientId);
+          return clientId === null
+            ? Promise.resolve({ tenant: themed, client: null })
+            : Promise.reject(new Error('statement failed'));
+        },
+      );
+      const found = await mail('tx', { ...SCOPE, clientId: 'portal' });
+      expect(found?.logo?.alt).toBe('Acme');
+      expect(reads).toEqual(['portal', null]);
+      expect(logged).toHaveLength(1);
+    });
+
+    it('treats an empty or oversized client id as no client', async () => {
+      const { mail, reads } = setup({ tenant: themed, client: null });
+      await mail('tx1', { ...SCOPE, clientId: '' });
+      await mail('tx2', { ...SCOPE, clientId: 'x'.repeat(1000) });
+      await mail('tx3', { ...SCOPE, clientId: null });
+      expect(reads).toEqual(['tx1:t1']);
+    });
   });
 
   it('keeps the mail default for a scheme that fails contrast', async () => {

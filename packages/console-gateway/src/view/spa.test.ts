@@ -263,7 +263,10 @@ describe('the console shell', () => {
     const dir = await tempConsoleDir();
     await writeFile(join(dir, 'index.html'), '<p>shell');
     await mkdir(join(dir, 'assets'));
-    for (let i = 0; i < 1_001; i++) await writeFile(join(dir, 'assets', `f${String(i)}.js`), 'x');
+    for (let batch = 0; batch < 1_001; batch += 100) {
+      const names = Array.from({ length: Math.min(100, 1_001 - batch) }, (_, i) => batch + i);
+      await Promise.all(names.map((n) => writeFile(join(dir, 'assets', `f${String(n)}.js`), 'x')));
+    }
     const logs: string[] = [];
     const server = await served(dir, logs);
 

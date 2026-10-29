@@ -149,6 +149,36 @@ describe('publishedThemeRepository.forRender', () => {
     expect(layers.tenant?.body).toEqual(body('a'));
   });
 
+  it('leaves out the client layer of a disabled client when asked for enabled ones only', async () => {
+    const tenantId = await freshTenant();
+    const client = await withTenant(app.db, tenantId, (tx) => seedClient(tx, tenantId));
+    await publish({ tenantId, clientId: null }, body('tenant'));
+    await publish({ tenantId, clientId: client.id }, body('client'));
+    const read = () =>
+      withTenant(app.db, tenantId, (tx) =>
+        publishedThemeRepository(tx).forRender(tenantId, client.oauthId, { enabledOnly: true }),
+      );
+    expect((await read()).client?.body).toEqual(body('client'));
+    await owner.db.update(clients).set({ enabled: false }).where(eq(clients.id, client.id));
+    const layers = await read();
+    expect(layers.client).toBeNull();
+    expect(layers.tenant?.body).toEqual(body('tenant'));
+    expect((await layersOf(tenantId, client.oauthId)).client?.body).toEqual(body('client'));
+  });
+
+  it("does not return another tenant's client theme for an enabled-only read", async () => {
+    const tenantA = await freshTenant();
+    const tenantB = await freshTenant();
+    const foreign = await withTenant(app.db, tenantB, (tx) => seedClient(tx, tenantB));
+    await publish({ tenantId: tenantA, clientId: null }, body('a'));
+    await publish({ tenantId: tenantB, clientId: foreign.id }, body('b-client'));
+    const layers = await withTenant(app.db, tenantA, (tx) =>
+      publishedThemeRepository(tx).forRender(tenantA, foreign.oauthId, { enabledOnly: true }),
+    );
+    expect(layers.client).toBeNull();
+    expect(layers.tenant?.body).toEqual(body('a'));
+  });
+
   it('reads published rows only, never a draft or an archived version', async () => {
     const tenantId = await freshTenant();
     await publish({ tenantId, clientId: null }, body('old'));

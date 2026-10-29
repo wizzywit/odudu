@@ -9,6 +9,7 @@ import {
   type MailOverrides,
 } from '@odudu/email';
 import { type MailBranding } from '@odudu/kernel';
+import { clientRepository } from '@odudu/domain-tenant';
 
 export interface MailPreviewDeps {
   readonly resolveMailLook: MailLookResolver;
@@ -37,6 +38,42 @@ export async function tenantMail(
     wording,
   });
   return { ...context, displayName: displayName ?? tenant.tenantName };
+}
+
+export interface ClientMail extends TenantMail {
+  // The tenant's own look, for saying which layer supplied a palette.
+  readonly tenantBranding: MailBranding | null;
+}
+
+// What a mail whose flow began inside this client's sign-in is dressed in, or
+// null when the tenant has no such client (a foreign client's id is the same
+// answer). The client's own theme is read by the same resolver a queued mail
+// uses, so a client that is disabled shows the tenant's look, as its mail
+// would. The client's row, the tenant's row, the client-bound theme read and,
+// for the branding view, one read of the tenant's: constant, whatever a theme
+// names.
+export async function clientMail(
+  tx: TenantScopedDatabase,
+  deps: MailPreviewDeps,
+  tenant: { tenantId: string; tenantName: string },
+  clientRowId: string,
+  wording = true,
+): Promise<ClientMail | null> {
+  const client = await clientRepository(tx).byId(clientRowId);
+  if (client === null) return null;
+  const { displayName, ...context } = await tenantMailContext(tx, deps.resolveMailLook, {
+    ...tenant,
+    wording,
+    clientId: client.clientId,
+  });
+  const own = wording
+    ? null
+    : (await deps.resolveMailLook(tx, { ...tenant, wording: false, clientId: null })).branding;
+  return {
+    ...context,
+    displayName: displayName ?? tenant.tenantName,
+    tenantBranding: own,
+  };
 }
 
 export interface MailPreviewInput {

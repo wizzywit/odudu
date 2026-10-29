@@ -5,12 +5,13 @@ import {
   MAIL_CLIENTS_NOTE,
   MAIL_FAILED,
   MAIL_FRAME_TITLE,
-  MAIL_INHERITS_LEAD,
+  mailClientName,
+  mailInheritsLead,
   MAIL_INHERITS_TITLE,
   MAIL_LOADING_BRANDING,
   MAIL_LOCALE_LABEL,
   MAIL_LOCALE_OPTIONS,
-  MAIL_PREVIEW_NOTE,
+  mailPreviewNote,
   MAIL_PREVIEW_TITLE,
   MAIL_SCHEME_LABEL,
   LOGO_ELSEWHERE,
@@ -28,6 +29,7 @@ import {
   type Scheme,
 } from '#/features/branding/service';
 import type { MailTab as Mail } from '#/features/branding/usecase/useMailTab';
+import { MailClientChoice } from '#/features/branding/view/MailClientChoice';
 import { PreviewShell } from '#/features/branding/view/PreviewShell';
 import { InlineFields, SelectField } from '#/shared/view/Field';
 import { LoadFailed } from '#/shared/view/LoadFailed';
@@ -44,29 +46,33 @@ export function MailPreview({ mail }: { mail: Mail }) {
         MAIL_SUMMARY_NAME,
         SCHEME_LABELS[mail.choice.scheme],
         mailLocaleLabel(mail.choice.locale),
+        mailClientName(mail.client) ?? '',
       )}
-      lead={MAIL_PREVIEW_NOTE}
+      lead={mailPreviewNote(mailClientName(mail.client))}
       controls={
-        <InlineFields>
-          <SelectField
-            label={MAIL_SCHEME_LABEL}
-            options={SCHEME_OPTIONS}
-            value={mail.choice.scheme}
-            onChange={(id) => {
-              const scheme = schemeOf(id);
-              if (scheme !== undefined) mail.setScheme(scheme);
-            }}
-          />
-          <SelectField
-            label={MAIL_LOCALE_LABEL}
-            options={MAIL_LOCALE_OPTIONS}
-            value={mail.choice.locale}
-            onChange={(id) => {
-              const locale = mailLocaleOf(id);
-              if (locale !== undefined) mail.setLocale(locale);
-            }}
-          />
-        </InlineFields>
+        <>
+          <InlineFields>
+            <SelectField
+              label={MAIL_SCHEME_LABEL}
+              options={SCHEME_OPTIONS}
+              value={mail.choice.scheme}
+              onChange={(id) => {
+                const scheme = schemeOf(id);
+                if (scheme !== undefined) mail.setScheme(scheme);
+              }}
+            />
+            <SelectField
+              label={MAIL_LOCALE_LABEL}
+              options={MAIL_LOCALE_OPTIONS}
+              value={mail.choice.locale}
+              onChange={(id) => {
+                const locale = mailLocaleOf(id);
+                if (locale !== undefined) mail.setLocale(locale);
+              }}
+            />
+          </InlineFields>
+          <MailClientChoice mail={mail} />
+        </>
       }
       frame={{
         title: MAIL_FRAME_TITLE,
@@ -160,7 +166,7 @@ export function MailInherits({ mail }: { mail: Mail }) {
         <h2 id={heading} className={styles.heading}>
           {MAIL_INHERITS_TITLE}
         </h2>
-        <p className={recordTab.rule}>{MAIL_INHERITS_LEAD}</p>
+        <p className={recordTab.rule}>{mailInheritsLead(mailClientName(mail.client))}</p>
         <p className={recordTab.rule}>{MAIL_CLIENTS_NOTE}</p>
       </section>
       <Logos branding={branding.data} origin={mail.origin} />
