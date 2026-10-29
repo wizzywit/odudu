@@ -354,4 +354,4 @@ The page has none of the tenant's branding, and the three versions can be restor
 
 ## Where to go next
 
-A client can override any piece for its own sign-in, and mail follows the tenant's theme only. [Branding](../concepts/branding.mdx) explains both, and the languages the pages are offered in. The calls this guide made are in the [theme area of the admin API](../reference/generated/admin-api/theme/index.md), with [recorded transcripts](../reference/transcripts/admin-paths/get-theme-put-theme-and-the-theme-routes.md).
+A client can override any piece for its own sign-in, and a mail takes the client's logo and colours when the flow began inside that sign-in. [Branding](../concepts/branding.mdx) explains both, and the languages the pages are offered in. The calls this guide made are in the [theme area of the admin API](../reference/generated/admin-api/theme/index.md), with [recorded transcripts](../reference/transcripts/admin-paths/get-theme-put-theme-and-the-theme-routes.md).

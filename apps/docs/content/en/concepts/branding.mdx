@@ -73,7 +73,7 @@ _In words: A single draft is published as a whole into the published version tha
 
 ## Mail and languages
 
-Mail follows the **tenant's** published theme only, its logo and colours, never a client's, and never a draft. The mail's layout is Odudu's, and message overrides change its wording as they change a page's, except its attribution lines. Mail chooses its language among the tenant's supported ones, as pages do. A tenant lists its `supported_locales` and may choose a `default_locale`. A page uses the language the app asks for with `ui_locales`, then the person's own once they have signed in, then the tenant's default, then the browser's. Arabic ships as a right-to-left language, and a client's name and a scope's descriptions can be translated into the same languages.
+Mail takes the **tenant's** published theme, its logo and colours, with a client's own over them when the flow began inside that client's sign-in. It never takes a stylesheet, a template or a draft. Its layout is Odudu's, and message overrides change its wording as they change a page's, except its attribution lines. It chooses its language among the tenant's supported ones. A tenant lists its `supported_locales` and may choose a `default_locale`. A page uses the language the app asks for with `ui_locales`, then the person's own once they have signed in, then the tenant's default, then the browser's. Arabic ships right-to-left, and a client's name and a scope's descriptions can be translated into the same languages.
 
 ## What is not themed
 
