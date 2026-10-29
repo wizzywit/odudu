@@ -120,5 +120,6 @@ export function renderConsentPage(input: ConsentPageInput, locale: PageLocale): 
     null,
     [],
     locale,
+    'consent',
   );
 }

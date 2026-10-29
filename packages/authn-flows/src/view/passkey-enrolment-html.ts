@@ -111,5 +111,5 @@ else start();
     },
     locale,
   );
-  return page(title, body, { nonce, fetchesSameOrigin: false }, [], locale);
+  return page(title, body, { nonce, fetchesSameOrigin: false }, [], locale, 'passkey-enrolment');
 }

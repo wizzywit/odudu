@@ -36,5 +36,6 @@ export function renderRequiredActionPage(
     null,
     [],
     locale,
+    'required-action',
   );
 }

@@ -5,6 +5,7 @@ import { issuerBaseFor, tenantIssuerFor } from '@odudu/protocol-oidc';
 import { Transform } from 'node:stream';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
+import { declaredEssence, declaredTypeDetail } from '#/service/declared-type';
 import { paramsSchemaFor } from '#/service/path-params';
 import { recordCapabilityRefused, recordForeignIssuer } from '#/usecase/access-audit';
 import {
@@ -198,12 +199,17 @@ async function beforeRawBody(
   // are replaced; the route's own refusal is given here instead.
   const unsupported = rawBody.unsupportedType;
   if (unsupported !== undefined) {
-    const essence = (request.headers['content-type'] ?? '').split(';')[0]?.trim().toLowerCase();
+    const essence = declaredEssence(request.headers['content-type']);
     if (essence === undefined || !rawBody.contentTypes.includes(essence)) {
       return sendProblem(
         reply,
         request,
-        problem(415, unsupported.type, unsupported.title, unsupported.detail),
+        problem(
+          415,
+          unsupported.type,
+          unsupported.title,
+          declaredTypeDetail(essence, rawBody.contentTypes),
+        ),
       );
     }
   }

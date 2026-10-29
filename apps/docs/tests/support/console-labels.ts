@@ -575,6 +575,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'branding/service/selectors.ts',
     "SELECTORS_LABEL = 'Selectors you can use'",
   ),
+  'Design values you can use': feature(
+    'branding/service/selectors.ts',
+    "VALUES_LABEL = 'Design values you can use'",
+  ),
   Translations: feature('clients/service/labels.ts', "translations: 'Translations'"),
   'Description by language': feature(
     'scopes/service/general.ts',

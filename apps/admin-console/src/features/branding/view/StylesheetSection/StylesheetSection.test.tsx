@@ -234,6 +234,7 @@ describe('the stylesheet editor', () => {
 
 describe('the selectors you can use', () => {
   const NAME = 'Selectors you can use';
+  const VALUES = 'Design values you can use';
   const picker = (editor: HTMLElement) => within(editor).findByRole('combobox', { name: NAME });
   const undo = '{Control>}z{/Control}';
 
@@ -269,9 +270,27 @@ describe('the selectors you can use', () => {
     const user = userEvent.setup();
     renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
     const editor = await section();
-    await picker(editor);
-    await user.click(within(editor).getByRole('button', { name: /^Show Selectors you can use/u }));
+    await within(editor).findByRole('combobox', { name: VALUES });
+    await user.click(
+      within(editor).getByRole('button', { name: /^Show Design values you can use/u }),
+    );
     expect(await screen.findAllByRole('option')).toHaveLength(50);
+  });
+
+  it('keeps design values out of the selectors and puts one in a declaration', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(AT, brandingRoutes(themeAnswer(withStylesheet('a { color: }'), '"d1"')));
+    const editor = await section();
+    await user.type(await picker(editor), 'ink');
+    expect(screen.queryAllByRole('option')).toHaveLength(0);
+    await user.keyboard('{Escape}');
+    await user.clear(await picker(editor));
+    const area = box(editor);
+    await user.click(area);
+    (area as HTMLTextAreaElement).setSelectionRange(10, 10);
+    await user.type(await within(editor).findByRole('combobox', { name: VALUES }), 'ink-p');
+    await user.click(await screen.findByRole('option', { name: /var\(--ink-primary\)/u }));
+    expect(area).toHaveValue('a { color:var(--ink-primary) }');
   });
 
   it('types the chosen selector at the caret and returns to the editor', async () => {
@@ -315,11 +334,14 @@ describe('the selectors you can use', () => {
       }),
     );
     const editor = await section();
-    expect(await within(editor).findByRole('alert')).toHaveTextContent(
-      'The list of selectors could not be loaded.',
-    );
+    expect(
+      await within(editor).findByText('The list of selectors could not be loaded.'),
+    ).toBeVisible();
+    expect(
+      within(editor).getByText('The list of design values could not be loaded.'),
+    ).toBeVisible();
     expect(await picker(editor)).toBeDisabled();
-    await user.click(within(editor).getByRole('button', { name: 'Try again' }));
+    await user.click(within(editor).getAllByRole('button', { name: 'Try again' }).at(0) ?? editor);
     await waitFor(() => {
       expect(within(editor).queryByRole('alert')).toBeNull();
     });
@@ -369,6 +391,11 @@ describe('the selectors you can use', () => {
         const editor = await section();
         await user.click(
           await within(editor).findByRole('button', { name: /^Show Selectors you can use/u }),
+        );
+        await screen.findByRole('listbox');
+        await user.keyboard('{Escape}');
+        await user.click(
+          await within(editor).findByRole('button', { name: /^Show Design values you can use/u }),
         );
         await screen.findByRole('listbox');
       },

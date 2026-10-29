@@ -33,6 +33,7 @@ export {
   brandingHead,
   brandingProblems,
   isSameOriginPath,
+  mainClass,
   pageHeaders,
   reloadOnRestore,
   stylesheetLink,
