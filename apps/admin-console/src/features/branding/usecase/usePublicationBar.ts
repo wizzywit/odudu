@@ -54,7 +54,6 @@ export function usePublicationBar({
     publication: usePublication({
       tenant,
       scope,
-      view,
       tag,
       hold: holds.publish,
       writes,

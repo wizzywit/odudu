@@ -1,4 +1,3 @@
-import type { ThemeView } from '@odudu/contracts/admin';
 import { useRefusal } from '#/features/session';
 import type { ThemeWrites } from '#/features/branding/repository/useThemeWrites';
 import {
@@ -25,7 +24,6 @@ export interface Publication {
 export function usePublication({
   tenant,
   scope,
-  view,
   tag,
   hold,
   writes,
@@ -34,7 +32,6 @@ export function usePublication({
 }: {
   tenant: string;
   scope: ThemeScope;
-  view: ThemeView;
   tag: string;
   // Why Publish is held, from everything that bears on it.
   hold: string | undefined;
