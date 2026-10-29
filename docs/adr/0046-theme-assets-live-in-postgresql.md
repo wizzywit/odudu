@@ -140,7 +140,8 @@ URL a page uses, not an inline (CID) attachment.
   text and the tenant name carry the brand without the image. The Odudu mark,
   which no tenant theme replaces, stays an inline attachment and is drawn
   when the theme sets no logo.
-- Mail is themed from the tenant's layer only: no flow gains a stored client.
+- Mail is themed from the tenant's layer, and a client's over it when the
+  flow began inside that client's sign-in (see the amendment below).
 - The markup is rendered when the mail is queued and stored as it is; the
   sender does not revalidate it. What reaches the row has already passed the
   shell's checks (address shape, whole-number sizes, `#rrggbb`, escaping), so
@@ -149,3 +150,43 @@ URL a page uses, not an inline (CID) attachment.
 - A theme that cannot be read or built never stops a mail: the read runs in a
   savepoint (`withSavepoint`, two extra statements on a cache miss only), the
   failure is logged once, and the mail goes out unthemed.
+
+## Amendment, 2026-10-29: a mail wears the client whose sign-in began the flow
+
+The first decision here kept mail to the tenant's layer, on the grounds that no
+flow stores a client id. Client branding is the phase's topic and nothing
+later takes the mail, so it is now in. A mail takes the client's published
+pieces over the tenant's when the flow began inside that client's
+authorization request: registration verification and a reset requested from
+the sign-in's page.
+
+- **The client comes from server-side state only**: the held sign-in the
+  browser's cookie names, accepted under the same condition as the link back
+  to it (the page carried that very request). A `client_id`, a `return_to`
+  naming another client, or a client of another tenant changes nothing.
+- **Nothing stores it.** The mail is queued in the request that holds the
+  sign-in, so the client is passed to the mail look and no token or pending
+  registration gains a column. A later mail out of a token (an administrator's
+  link) has no sign-in and uses the tenant's look.
+- **Never from the page cache.** The client's mail is read for each mail, in
+  the mail's transaction and a savepoint, with the client's row required to be
+  registered in the tenant and enabled; a cached page theme cannot know that.
+  The statement count is the same for a known and an unknown address, since
+  the read is made before the address is looked up, and the response never
+  mentions the client.
+- **Cost**: the client read is paid for each request that makes one, before
+  the mail gate and before the address lookup, so a known and an unknown
+  address cost the same. It is one statement in a savepoint, served by the
+  client's unique `(tenant_id, client_id)` index (an index scan at 10,000
+  clients in one tenant and 2,000 tenants), and constant whatever a theme names.
+- **Limits**: a reset asked for from a page reached through an emailed link
+  carries no held `return_to`, and two tabs sharing one cookie leave the
+  earlier tab's `return_to` different from the held request. Both get the
+  tenant's look, never another client's.
+- **Fallbacks**: a failed client read gives the tenant's look, then the
+  shipped one, each logged. Colours, logo and the tenant's wording only: no
+  stylesheet, template or client wording.
+- **Residual**: whoever starts an authorization request for a registered,
+  enabled client of the tenant can have a mail branded as that client. That is
+  the exposure of the client's own page, and the mail's content, links and
+  sender are unchanged.

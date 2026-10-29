@@ -536,6 +536,11 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     feature('branding/service/mail.ts', "MAIL_INHERITS_TITLE = 'What the mail inherits'"),
     feature('branding/view/MailTab/MailTab.tsx', '{MAIL_INHERITS_TITLE}'),
   ),
+  'Preview as client': feature('branding/service/mail.ts', "MAIL_AS_LABEL = 'Preview as client'"),
+  'Show the tenant’s own': feature(
+    'branding/service/mail.ts',
+    "MAIL_TENANT_OWN = 'Show the tenant’s own'",
+  ),
   'Message background': feature('branding/service/mail.ts', "label: 'Message background'"),
   'Link box background': feature('branding/service/mail.ts', "label: 'Link box background'"),
   'Quiet text': feature('branding/service/mail.ts', "label: 'Quiet text'"),

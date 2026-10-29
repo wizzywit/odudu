@@ -8,10 +8,11 @@ import { useTransport } from '#/shared/transport/useTransport';
 export function useMailBranding(
   tenant: string,
   publishedVersion: number | undefined,
+  client: string,
   asked: boolean,
 ): Read<MailBrandingView> {
   const { gateway } = useTransport();
-  return useRead(mailBrandingKey(tenant, publishedVersion ?? 0), asked, () =>
-    readMailBranding(gateway, tenant),
+  return useRead(mailBrandingKey(tenant, publishedVersion ?? 0, client), asked, () =>
+    readMailBranding(gateway, tenant, client),
   );
 }

@@ -37,8 +37,9 @@ export interface MailLookDeps {
   readOverrides?: (tx: TenantScopedDatabase, tenantId: string) => Promise<MailOverrides>;
 }
 
-// What a queued mail is dressed and worded with: the theme the pages use and
-// the tenant's message overrides. Each is read so that the other failing does
+// What a queued mail is dressed and worded with: the theme the pages use (the
+// client's over the tenant's when the flow began inside one) and the tenant's
+// message overrides. Each is read so that the other failing does
 // not take it down, and a failure is logged with the tenant and the kind of
 // error, never with text the tenant wrote.
 export function createMailLook(deps: MailLookDeps): MailLookResolver {
@@ -52,6 +53,13 @@ export function createMailLook(deps: MailLookDeps): MailLookResolver {
       branding = await deps.theme(tx, scope);
     } catch (error) {
       failed(scope.tenantId, 'theme', error);
+      if (scope.clientId !== undefined && scope.clientId !== null) {
+        try {
+          branding = await deps.theme(tx, { ...scope, clientId: null });
+        } catch (again) {
+          failed(scope.tenantId, 'theme', again);
+        }
+      }
     }
     if (scope.wording === false) return { branding, overrides: {} };
     try {

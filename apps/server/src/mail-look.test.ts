@@ -75,4 +75,36 @@ describe('createMailLook', () => {
     });
     expect(readOverrides).not.toHaveBeenCalled();
   });
+
+  it('hands the theme resolver the client the flow began inside', async () => {
+    const theme = vi.fn(() => Promise.resolve(BRANDING));
+    const look = createMailLook({ theme, readOverrides: () => Promise.resolve({}), log: vi.fn() });
+    await look(TX, { ...SCOPE, clientId: 'portal' });
+    expect(theme).toHaveBeenCalledWith(TX, { ...SCOPE, clientId: 'portal' });
+  });
+
+  it('falls back to the tenant look, and logs, when the client look cannot be had', async () => {
+    const log = vi.fn();
+    const theme = vi.fn(
+      (_tx: TenantScopedDatabase, scope: { clientId?: string | null | undefined }) =>
+        scope.clientId ? Promise.reject(new Error('down')) : Promise.resolve(BRANDING),
+    );
+    const look = createMailLook({ theme, readOverrides: () => Promise.resolve({}), log });
+    const { branding } = await look(TX, { ...SCOPE, clientId: 'portal' });
+    expect(branding).toBe(BRANDING);
+    expect(theme).toHaveBeenCalledTimes(2);
+    expect(theme.mock.calls[1]?.[1]).toEqual({ ...SCOPE, clientId: null });
+    expect(log).toHaveBeenCalledWith({ tenantId: 'tenant-1', what: 'theme', error: 'Error' });
+  });
+
+  it('falls to the shipped look when the tenant look cannot be had either', async () => {
+    const log = vi.fn();
+    const look = createMailLook({
+      theme: () => Promise.reject(new Error('down')),
+      readOverrides: () => Promise.resolve({}),
+      log,
+    });
+    expect((await look(TX, { ...SCOPE, clientId: 'portal' })).branding).toBeNull();
+    expect(log).toHaveBeenCalledTimes(2);
+  });
 });

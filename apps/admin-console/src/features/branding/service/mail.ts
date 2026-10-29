@@ -10,8 +10,18 @@ import { languageChoices } from '#/shared/service/locales';
 
 export const MAIL_PREVIEW_TITLE = 'Preview';
 
-export const MAIL_PREVIEW_NOTE =
-  'The verification mail, drawn by the code that sends it, from the published theme and the tenant’s message overrides. Changes to the draft appear once you publish.';
+export const MAIL_AS_LABEL = 'Preview as client';
+
+export const MAIL_TENANT_OWN = 'Show the tenant’s own';
+
+// What the preview shows: the tenant's look, or a client's over it.
+export function mailPreviewNote(clientName: string | null): string {
+  const whose =
+    clientName === null
+      ? 'the published theme'
+      : `the published theme of ${clientName} over the tenant’s`;
+  return `The verification mail, drawn by the code that sends it, from ${whose} and the tenant’s message overrides. Changes to the draft appear once you publish.`;
+}
 
 export const MAIL_FRAME_TITLE = 'Preview of the verification mail';
 
@@ -21,8 +31,15 @@ export const MAIL_LOCALE_LABEL = 'Language';
 
 export const MAIL_INHERITS_TITLE = 'What the mail inherits';
 
-export const MAIL_INHERITS_LEAD =
-  'Mail follows the tenant’s published theme and its message overrides, and nothing else. A client’s own theme never reaches it. Where the theme sets nothing, the mail keeps Odudu’s own colours and mark.';
+// A mail takes the tenant's logo and colours, or a client's over them when its
+// flow began inside that client's sign-in; this says which one is shown.
+export function mailInheritsLead(clientName: string | null): string {
+  const shown =
+    clientName === null
+      ? 'This shows the tenant’s own; choose a client to see the mail its sign-in sends.'
+      : `This shows the mail a sign-in of ${clientName} sends.`;
+  return `Mail takes the tenant’s published logo and colours, and its message overrides. A mail whose flow began inside a client’s sign-in takes that client’s logo and colours over these. ${shown} Never a stylesheet or a template. Where the theme sets nothing, the mail keeps Odudu’s own colours and mark.`;
+}
 
 export const MAIL_CLIENTS_NOTE =
   'A mail client chooses the light or the dark colours by its own setting, so each is listed here and the preview shows one at a time.';
@@ -48,12 +65,45 @@ export interface MailChoice {
   scheme: Scheme;
   // Empty is the tenant's default language.
   locale: string;
+  // The id of the client whose mail is shown; empty is the tenant's own.
+  client: string;
 }
 
-export const DEFAULT_MAIL_CHOICE: MailChoice = { scheme: 'light', locale: '' };
+export const DEFAULT_MAIL_CHOICE: MailChoice = { scheme: 'light', locale: '', client: '' };
 
 export function mailChoiceWith(was: MailChoice, change: Partial<MailChoice>): MailChoice {
   return { ...was, ...change };
+}
+
+export interface MailClient {
+  id: string;
+  name: string;
+}
+
+// The client a picker's selection names, among the options it holds; the one
+// chosen last, since a multiple-choice picker reports every id it holds.
+export function mailClientOf(
+  options: readonly MailClient[],
+  ids: readonly string[],
+): MailClient | null {
+  const id = ids.at(-1);
+  const found = options.find((option) => option.id === id);
+  return found === undefined ? null : { id: found.id, name: found.name };
+}
+
+// What the choice of client means to the rest of the tab: the id the routes
+// are asked with (empty is the tenant's own), the name the wording uses, and
+// the ids the picker shows as selected.
+export function mailClientId(client: MailClient | null): string {
+  return client === null ? '' : client.id;
+}
+
+export function mailClientName(client: MailClient | null): string | null {
+  return client === null ? null : client.name;
+}
+
+export function mailClientSelection(client: MailClient | null): string[] {
+  return client === null ? [] : [client.id];
 }
 
 export const TENANT_DEFAULT_LANGUAGE = 'The tenant’s default';
@@ -70,7 +120,7 @@ export function mailLocaleOf(id: string): string | undefined {
 // A frame reloads when what it shows may have changed: the published version,
 // or what is asked of it.
 export function mailFrameKey(publishedVersion: number | undefined, choice: MailChoice): string {
-  return `${String(publishedVersion ?? 0)}|${choice.scheme}|${choice.locale}`;
+  return `${String(publishedVersion ?? 0)}|${choice.scheme}|${choice.locale}|${choice.client}`;
 }
 
 type RoleKey = keyof MailColoursView;
@@ -98,7 +148,8 @@ export function paletteRows(colours: MailColoursView): readonly PaletteRow[] {
   return ROLES.map(({ key, label, used }) => ({ role: key, label, used, colour: colours[key] }));
 }
 
-export function sourceText(source: 'tenant' | 'default'): string {
+export function sourceText(source: 'client' | 'tenant' | 'default'): string {
+  if (source === 'client') return 'From the client’s published theme.';
   return source === 'tenant' ? 'From the tenant’s published theme.' : 'Odudu’s default.';
 }
 

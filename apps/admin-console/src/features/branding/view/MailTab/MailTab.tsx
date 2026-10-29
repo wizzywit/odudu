@@ -5,12 +5,13 @@ import {
   MAIL_CLIENTS_NOTE,
   MAIL_FAILED,
   MAIL_FRAME_TITLE,
-  MAIL_INHERITS_LEAD,
+  mailClientName,
+  mailInheritsLead,
   MAIL_INHERITS_TITLE,
   MAIL_LOADING_BRANDING,
   MAIL_LOCALE_LABEL,
   MAIL_LOCALE_OPTIONS,
-  MAIL_PREVIEW_NOTE,
+  mailPreviewNote,
   MAIL_PREVIEW_TITLE,
   MAIL_SCHEME_LABEL,
   LOGO_ELSEWHERE,
@@ -24,6 +25,7 @@ import {
   type Scheme,
 } from '#/features/branding/service';
 import type { MailTab as Mail } from '#/features/branding/usecase/useMailTab';
+import { MailClientChoice } from '#/features/branding/view/MailClientChoice';
 import { PreviewFrame } from '#/features/branding/view/PreviewFrame';
 import { InlineFields, SelectField } from '#/shared/view/Field';
 import { LoadFailed } from '#/shared/view/LoadFailed';
@@ -57,7 +59,8 @@ export function MailPreview({ mail }: { mail: Mail }) {
           />
         </InlineFields>
       </div>
-      <p className={styles.note}>{MAIL_PREVIEW_NOTE}</p>
+      <MailClientChoice mail={mail} />
+      <p className={styles.note}>{mailPreviewNote(mailClientName(mail.client))}</p>
       <PreviewFrame
         title={MAIL_FRAME_TITLE}
         src={mail.src}
@@ -150,7 +153,7 @@ export function MailInherits({ mail }: { mail: Mail }) {
         <h2 id={heading} className={styles.heading}>
           {MAIL_INHERITS_TITLE}
         </h2>
-        <p className={recordTab.rule}>{MAIL_INHERITS_LEAD}</p>
+        <p className={recordTab.rule}>{mailInheritsLead(mailClientName(mail.client))}</p>
         <p className={recordTab.rule}>{MAIL_CLIENTS_NOTE}</p>
       </section>
       <Logos branding={branding.data} origin={mail.origin} />

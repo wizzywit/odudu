@@ -69,10 +69,18 @@ export function resolveBranding(deps: ResolveBrandingDeps): BrandingResolver {
 export interface MailScope {
   tenantId: string;
   tenantName: string;
+  // The client the flow began inside, from server-side state only; the
+  // reader decides whether it is a client whose theme a mail may wear.
+  clientId?: string | null | undefined;
 }
 
-// How a tenant's published layer is read inside the caller's transaction.
-export type ReadTenantLayer<Tx> = (tx: Tx, tenantId: string) => Promise<PublishedLayers>;
+// How the published layers are read inside the caller's transaction: the
+// tenant's alone for a null client, else the client's own over them.
+export type ReadTenantLayer<Tx> = (
+  tx: Tx,
+  tenantId: string,
+  clientId: string | null,
+) => Promise<PublishedLayers>;
 
 // The tenant's theme as its mail wears it, read through the transaction the
 // mail is queued in rather than a second connection, so a burst of mail
@@ -86,13 +94,13 @@ export function resolveMailBranding<Tx>(
   read: ReadTenantLayer<Tx>,
 ): (tx: Tx, scope: MailScope) => Promise<MailBranding | null> {
   const { mail } = createResolvers(deps);
-  return (tx, scope) => mail((tenantId) => read(tx, tenantId), scope);
+  return (tx, scope) => mail((tenantId, clientId) => read(tx, tenantId, clientId), scope);
 }
 
 function createResolvers(deps: ResolveBrandingDeps): {
   page: BrandingResolver;
   mail: (
-    read: (tenantId: string) => Promise<PublishedLayers>,
+    read: (tenantId: string, clientId: string | null) => Promise<PublishedLayers>,
     scope: MailScope,
   ) => Promise<MailBranding | null>;
 } {
@@ -170,20 +178,55 @@ function createResolvers(deps: ResolveBrandingDeps): {
     }
   }
 
+  // A client's mail is built from a read of its own and never from the page
+  // cache: the reader answers for whether the client may brand a mail now
+  // (still registered and enabled), which a cached page theme does not know.
+  async function clientMail(
+    read: (tenantId: string, clientId: string | null) => Promise<PublishedLayers>,
+    scope: MailScope,
+    clientId: string,
+    origin: string,
+  ): Promise<MailBranding | null | undefined> {
+    const key = `${scope.tenantId}:${clientId}`;
+    try {
+      const layers = await read(scope.tenantId, clientId);
+      const built = buildBranding({
+        tenantName: scope.tenantName,
+        origin,
+        layers: [
+          ...(layers.client === null ? [] : [{ name: 'client' as const, layer: layers.client }]),
+          ...(layers.tenant === null ? [] : [{ name: 'tenant' as const, layer: layers.tenant }]),
+        ],
+      });
+      for (const reason of built.problems) note(`${key}:${built.version}`, reason);
+      return built.branding === null ? null : built.mail;
+    } catch (error) {
+      note(key, `the client theme could not be read for a mail: ${describe(error)}`);
+      return undefined;
+    }
+  }
+
   async function mail(
-    read: (tenantId: string) => Promise<PublishedLayers>,
+    read: (tenantId: string, clientId: string | null) => Promise<PublishedLayers>,
     scope: MailScope,
   ): Promise<MailBranding | null> {
     if (deps.origin === undefined) {
       note('config', 'ODUDU_PUBLIC_BASE_URL is not set, so pages are not themed');
       return null;
     }
+    const clientId = scope.clientId;
+    if (clientId !== null && clientId !== undefined && clientId !== '') {
+      if (clientId.length <= MAX_CLIENT_ID_LENGTH) {
+        const own = await clientMail(read, scope, clientId, deps.origin);
+        if (own !== undefined) return own;
+      }
+    }
     const key = `${scope.tenantId}:`;
     const held = deps.cache.get(key);
     if (held !== undefined) return held.value?.mail ?? null;
     const generation = deps.cache.generation(scope.tenantId);
     try {
-      const layers = await read(scope.tenantId);
+      const layers = await read(scope.tenantId, null);
       const built = buildBranding({
         tenantName: scope.tenantName,
         origin: deps.origin,
