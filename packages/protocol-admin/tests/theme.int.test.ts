@@ -665,8 +665,12 @@ describe('access', () => {
     };
   }
 
+  // The images and the stylesheet's hook list have their own files.
   const themeRoutes = ADMIN_ROUTES.filter(
-    (route) => /\/theme(\/|$)/u.test(route.pattern) && !route.pattern.includes('/theme/assets'),
+    (route) =>
+      /\/theme(\/|$)/u.test(route.pattern) &&
+      !route.pattern.includes('/theme/assets') &&
+      !route.pattern.includes('/theme/stylesheet-hooks'),
   );
 
   it('covers the sixteen routes of a tenant’s and a client’s theme', () => {
