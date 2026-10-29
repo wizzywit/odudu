@@ -665,12 +665,16 @@ describe('access', () => {
     };
   }
 
+  // The images and the stylesheet's hook list have their own files.
   const themeRoutes = ADMIN_ROUTES.filter(
-    (route) => /\/theme(\/|$)/u.test(route.pattern) && !route.pattern.includes('/theme/assets'),
+    (route) =>
+      /\/theme(\/|$)/u.test(route.pattern) &&
+      !route.pattern.includes('/theme/assets') &&
+      !route.pattern.includes('/theme/stylesheet-hooks'),
   );
 
-  it('covers the routes of a tenant’s and a client’s theme and the selector read', () => {
-    expect(themeRoutes).toHaveLength(19);
+  it('covers the eighteen routes of a tenant’s and a client’s theme', () => {
+    expect(themeRoutes).toHaveLength(18);
   });
 
   it('every route needs its capability, and a read-only role is refused', async () => {
@@ -692,8 +696,7 @@ describe('access', () => {
     const clientA = await fixture.createConfidentialClient(tenantOnly.tenant.name, {});
     const clientB = await fixture.createConfidentialClient(clientsOnly.tenant.name, {});
 
-    // The selector read also admits manage-clients: a client's stylesheet needs it.
-    for (const route of themeRoutes.filter((candidate) => candidate.alsoAdmits === undefined)) {
+    for (const route of themeRoutes) {
       const forClient = route.pattern.includes('/clients/');
       const wrong = forClient ? tenantOnly : clientsOnly;
       const right = forClient ? clientsOnly : tenantOnly;
