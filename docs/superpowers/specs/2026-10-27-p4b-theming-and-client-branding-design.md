@@ -167,7 +167,19 @@ the same tenant; otherwise, and for a hintless logout and every error page that 
 tenant in scope, it uses the tenant's theme. A logout takes a client only from an `id_token_hint`
 verified for a registered, enabled client of the tenant, carried to the
 confirmation POST by the form token; a `client_id` parameter alone never.
-Mail uses the tenant's theme only. No flow gains a stored client id.
+Mail takes the client's layer over the tenant's when the flow began inside that
+client's authorization request, and the tenant's theme otherwise. The client is
+read from the held sign-in (the stored authorization session the browser's
+cookie names), only when the page carried that same request as `return_to`,
+exactly as the link back to the sign-in is (`referenceToResume`); a parameter
+naming a client changes nothing. It is the client of that session's request
+_at the moment the mail is queued_, so no flow gains a stored client id: the
+mail is queued in the request that holds the session. A client that is not
+registered in the tenant, is disabled or has been deleted gives the tenant's
+look. The residual: whoever starts an authorization request for any registered,
+enabled client of a tenant can have a reset or verification mail branded as
+that client. That is the exposure the client's own page already has, and the
+mail's content, links and sender are unchanged.
 
 **A page that needs a script** (passkey enrolment) gets it as a required
 server-emitted slot, `{{script}}`, in that page kind's manifest, carrying the
@@ -269,7 +281,18 @@ theme, logging the reason (ADR 0030's amendment).
 ## 9. Mail
 
 Verification and reset mail take the tenant's tokens, logo and wording, inline
-in the existing mail shell in `packages/email`. Mail clients drop `<style>`
+in the existing mail shell in `packages/email`. A mail whose flow began inside a
+client's sign-in (registration verification, a reset requested from the
+sign-in's page) takes that client's logo and colours over the tenant's, per
+piece, from the client's own published layer; the client is derived from
+server-side state only (see "Which client a page has"), the wording stays the
+tenant's, and there is still no client stylesheet, template or override.
+An administrator's link, and any flow with no sign-in behind it, uses the
+tenant's theme. A client's mail is resolved by a read of its own in the mail's
+transaction, savepoint-guarded, and never from the page cache: the read
+answers for whether the client is still registered and enabled. A failed
+client read falls back to the tenant's look, then to the shipped one, and is
+logged. Mail clients drop `<style>`
 blocks and block remote images by default, so there are no tenant mail
 templates; the logo carries width, height and alt text; every element gets
 explicit colours and the dark-scheme logo is used under `prefers-color-scheme`.

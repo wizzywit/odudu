@@ -947,7 +947,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'whole HTML document under a policy of its own, for a frame whose parent is this ' +
       'origin: it licenses no script, and images only from the logo\u2019s origin. `scheme` ' +
       'fixes the light or the dark palette and logo, which a mail client otherwise chooses ' +
-      'by its own setting. A mail uses the tenant\u2019s theme, never a client\u2019s. Reads ' +
+      'by its own setting. The preview is the tenant\u2019s own look; a mail whose flow began in a client\u2019s sign-in takes that client\u2019s logo and colours. Reads ' +
       'the published theme only: nothing is queued, saved or sent.',
   },
   {

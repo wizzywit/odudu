@@ -23,8 +23,9 @@ Both need `manage-tenant` and answer for the tenant in the path only.
   the nine colours (`page`, `panel`, `sunken`, `border`, `ink`, `muted`, `link`,
   `button`, `button_ink`) with a `source` of `tenant` when the published theme
   sets that scheme and `default` when Odudu's own colours are used, and the
-  `logo` and `dark_logo` as `src`, `alt`, `width` and `height`, or `null`. A mail
-  uses the tenant's theme only, never a client's.
+  `logo` and `dark_logo` as `src`, `alt`, `width` and `height`, or `null`. These show the tenant's own look; a
+  mail whose flow began inside a client's sign-in takes that client's logo and
+  colours over it.
 
 ## The verification mail, before and after a theme
 

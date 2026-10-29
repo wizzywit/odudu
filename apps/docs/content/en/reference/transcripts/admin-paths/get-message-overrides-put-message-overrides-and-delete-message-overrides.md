@@ -55,8 +55,8 @@ A mail is in the language the pages would negotiate for its recipient: the
 recipient's own `locale`, else the tenant's `default_locale`, among the
 languages the tenant offers, else English. It is worded from the overrides of
 that language, read in the transaction the mail is queued in, so a write
-reaches mail queued after it and never one already queued. A client's own theme
-never reaches a mail.
+reaches mail queued after it and never one already queued. A client has no
+overrides of its own: a mail is worded by the tenant's.
 
 A write takes effect on the next page this process renders; another replica shows
 the previous text for at most 30 seconds, the lifetime of its cache. Each write
