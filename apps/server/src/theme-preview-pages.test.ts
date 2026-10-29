@@ -47,6 +47,16 @@ describe('the preview pages', () => {
     expect(plain.html).not.toContain('page-');
   });
 
+  it.each(KINDS)('gives a template-written %s the same main element', (kind) => {
+    const locale = withBranding(
+      { tag: 'en', dir: 'ltr' },
+      brandingWith(kind, smallestTemplate(kind)),
+    );
+    const page = THEME_PREVIEW_PAGES[kind]('acme', locale);
+    expect(page.html).toContain(`<div data-preview="${kind}">`);
+    expect(page.html).toContain(`<main class="page page-${kind}">`);
+  });
+
   it.each(KINDS)('supplies every required part of %s to a theme template', (kind) => {
     const fallbacks: string[] = [];
     const locale = withBranding(
