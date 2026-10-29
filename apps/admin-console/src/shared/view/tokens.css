@@ -74,6 +74,10 @@
   /* Every single-line control: inputs, selects, comboboxes, dates, buttons. */
   --control-height: 40px;
   --label-line: 20px;
+  /* What an input's text is set in. A page for touch raises both to 16px,
+     below which a phone's browser zooms the page when the field is focused. */
+  --input-size: var(--type-15);
+  --input-size-mono: var(--type-13);
 }
 
 :root[data-theme='light'] {
