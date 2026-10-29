@@ -1,33 +1,36 @@
 ---
 title: 'Message overrides: list, set, remove'
-description: 'A tenant’s own wording for the messages its pages show, per language. manage-tenant.'
+description: 'A tenant’s own wording for the messages its pages and its mail show, per language. manage-tenant.'
 ---
 
 # Message overrides: list, set, remove
 
 This page covers `GET /message-catalogue`, `GET /message-overrides`, `PUT /message-overrides/{locale}/{key}` and `DELETE /message-overrides/{locale}/{key}`.
 
-All four need `manage-tenant`. They change the words a page shows; which
+All four need `manage-tenant`. They change the words a page or a mail shows; which
 languages a tenant offers, and which one it prefers to the browser's, are the
 `supported_locales` and `default_locale` settings (see [GET /settings and PATCH
 /settings](./get-settings-and-patch-settings.md)).
 
-- `GET /message-catalogue` lists the messages the pages are filled from, so a
+- `GET /message-catalogue` lists the messages the pages and the mail are filled from, so a
   template's `{{t "key"}}` and an override's `key` can be chosen rather than
-  guessed. It answers `sections`, one per package that fills pages, each with the
-  `kinds` it fills and its `messages` as `key` and `en`, the English text, in key
+  guessed. It answers `sections`, one per package that fills pages and a last one for the
+  mail, each with the `kinds` it fills (none for the mail) and its `messages` as `key` and `en`, the English text, in key
   order. A template of a kind may name only a key of its own section; an override
-  may name the key of any. It is the same for every tenant, read from the build
+  may name the key of any, a mail's included. It is the same for every tenant, read from the build
   and not the database, a few hundred messages and well under 100 KB, and so
-  is never paged. Mail messages are not in it.
+  is never paged. The mail section leaves out the attribution a mail carries
+  (`mail.brand`, `mail.copyright`, `mail.poweredBy`), which a page has no
+  counterpart for.
 - `GET /message-overrides?locale=fr` lists one locale's overrides in key order,
   each with its `locale`, `key`, `message` and `updated_at`. `locale` is
   required and must be a language tag such as `fr` or `zh-Hant-TW`. It pages
   with `limit` (at most 200) and `cursor`, so a tenant's 500 overrides are never
   read at once; a cursor from another locale is refused with `400`.
 - `PUT /message-overrides/{locale}/{key}` with `{"message": "…"}` sets the text a
-  page shows for the message `key`, such as `login.title`, in `locale`, and
-  answers the override. `key` must name a message of a page, else `400` with the
+  page or mail shows for the message `key`, such as `login.title` or
+  `reset.subject`, in `locale`, and
+  answers the override. `key` must name a message of a page or of a mail, else `400` with the
   field `key`; the message is 1 to 2,000 characters, must be valid message
   syntax (an unbalanced brace is a `400` on `message`) and holds no
   bidirectional control characters. It may use the placeholders the English
@@ -47,6 +50,13 @@ languages a tenant offers, and which one it prefers to the browser's, are the
 A tenant may offer a language through overrides alone: its pages then render
 with `lang` set to that tag and English text for every key it has not
 overridden, since the catalogue holds no other text for it.
+
+A mail is in the language the pages would negotiate for its recipient: the
+recipient's own `locale`, else the tenant's `default_locale`, among the
+languages the tenant offers, else English. It is worded from the overrides of
+that language, read in the transaction the mail is queued in, so a write
+reaches mail queued after it and never one already queued. A client's own theme
+never reaches a mail.
 
 A write takes effect on the next page this process renders; another replica shows
 the previous text for at most 30 seconds, the lifetime of its cache. Each write

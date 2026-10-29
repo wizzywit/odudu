@@ -6,7 +6,7 @@ import { TENANT_CAPABILITIES } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
-import { putSmtp as putSmtpUsecase, type SmtpAuditEvent } from '#/usecase/smtp';
+import { putSmtp as putSmtpUsecase, readSmtpForTest, type SmtpAuditEvent } from '#/usecase/smtp';
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -278,6 +278,52 @@ describe('PUT /admin/tenants/{t}/smtp requires TLS wherever it authenticates', (
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ starttls: true, password_set: true });
+  });
+});
+
+describe('what the test mail is read with', () => {
+  it('asks the look resolver inside the tenant transaction and carries its wording and the tenant’s languages', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    await putSmtp(token, t.name, {
+      host: 'smtp.example.test',
+      port: 587,
+      from_address: 'noreply@example.test',
+    });
+    const asked: string[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      readSmtpForTest(tx, t.id, (_tx, scope) => {
+        asked.push(scope.tenantId);
+        return Promise.resolve({
+          branding: null,
+          overrides: { en: { 'smtpTest.heading': 'Ours' } },
+        });
+      }),
+    );
+    expect(asked).toEqual([t.id]);
+    if (outcome.kind !== 'ok') throw new Error('expected a configured relay');
+    expect(outcome.wording).toEqual({
+      overrides: { en: { 'smtpTest.heading': 'Ours' } },
+      tenantDefaultLocale: null,
+      supportedLocales: ['en'],
+    });
+  });
+
+  it('is the catalogue’s wording when the resolver rejects, and when there is none', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    await putSmtp(token, t.name, {
+      host: 'smtp.example.test',
+      port: 587,
+      from_address: 'noreply@example.test',
+    });
+    for (const resolve of [() => Promise.reject(new Error('down')), undefined]) {
+      const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+        readSmtpForTest(tx, t.id, resolve),
+      );
+      if (outcome.kind !== 'ok') throw new Error('expected a configured relay');
+      expect(outcome.wording.overrides).toEqual({});
+    }
   });
 });
 

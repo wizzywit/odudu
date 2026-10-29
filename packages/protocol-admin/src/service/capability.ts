@@ -979,13 +979,14 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-tenant',
     responseSchema: messageCatalogueResponseSchema,
     description:
-      'The messages a tenant\u2019s pages are filled from, as the keys a template may name in ' +
+      'The messages a tenant\u2019s pages and mail are filled from, as the keys a template may name in ' +
       '`{{t "key"}}` and a message override may be set under, each with its English text. ' +
       'The catalogue is part of the build and the same for every tenant, so the answer is ' +
       'built once and reads nothing from the database: three sections, one per package ' +
-      'that fills pages, a few hundred messages in all and well under 100 KB, never paged. ' +
-      'A template of a page kind may name only a key of the section that lists that kind; ' +
-      'an override may name the key of any section. Mail messages are not listed.',
+      'that fills pages, and a fourth of mail messages with no page kinds, a few hundred ' +
+      'messages in all and well under 100 KB, never paged. A template of a page kind may ' +
+      'name only a key of the section that lists that kind; an override may name the key ' +
+      'of any section, mail included.',
   },
   {
     method: 'GET',

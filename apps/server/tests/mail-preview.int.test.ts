@@ -160,9 +160,11 @@ async function get(w: World, path: string, bearer?: string) {
   });
 }
 
-// Measured with the theme's cache emptied: the caller's own checks, the
-// published theme's read and the tenant's row. It must not grow with a theme.
-const MAIL_STATEMENTS = 8;
+// Measured with the theme's cache emptied, savepoints counted: the caller's
+// own checks, the published theme's read, the tenant's row and, for the
+// preview alone, one read of the overrides in a savepoint, whatever languages
+// the tenant wrote. The branding view shows no wording and skips that read.
+const MAIL_STATEMENTS = { '/mail/preview': 11, '/mail/branding': 9 } as const;
 
 const header = (res: { headers: Record<string, unknown> }, name: string): string =>
   String(res.headers[name]);
@@ -302,7 +304,9 @@ describe('what a preview costs', () => {
     const bearer = await token(w);
     const { result, statements } = await recorder.record(() => get(w, path, bearer));
     expect(result.statusCode).toBe(200);
-    return statements.filter(isWork).length;
+    // Savepoints are statements the database runs too: counted with the work.
+    return statements.filter((s) => isWork(s) || /^(savepoint|release)\b/iu.test(s.query.trim()))
+      .length;
   }
 
   it('is the same few statements for a theme naming two logos as for no theme', async () => {
@@ -320,11 +324,11 @@ describe('what a preview costs', () => {
         },
       }),
     );
-    for (const path of ['/mail/preview', '/mail/branding']) {
+    for (const path of ['/mail/preview', '/mail/branding'] as const) {
       const none = await statementsFor(bare, path);
       const two = await statementsFor(named, path);
       expect(two, path).toBe(none);
-      expect(two, path).toBeLessThanOrEqual(MAIL_STATEMENTS);
+      expect(two, path).toBe(MAIL_STATEMENTS[path]);
     }
   });
 });

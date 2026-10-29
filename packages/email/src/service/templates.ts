@@ -15,6 +15,12 @@ interface MailContext {
   // The tenant's theme as resolved when the mail is queued; absent, the mail
   // is drawn in Odudu's own colours.
   readonly branding?: MailBranding | null | undefined;
+  // The tenant's own wording, by language; the mail reads the one of its own.
+  readonly overrides?: Readonly<Record<string, Readonly<Record<string, string>>>> | undefined;
+  // The languages the tenant offers, as its pages are negotiated against; a
+  // recipient's language outside them gets the tenant's default or English.
+  // Absent, the languages this build holds a catalogue for.
+  readonly supportedLocales?: readonly string[] | undefined;
 }
 
 interface MailInput extends MailContext {
@@ -41,15 +47,25 @@ const PDI = '\u2069';
 // paragraph separators.
 const LINE_CONTROLS = /[\u0000-\u001F\u007F-\u009F\u2028\u2029]+/gu;
 
-function mailLocale({ locale, tenantDefaultLocale }: MailContext): PageLocale {
-  return negotiateLocale({
+function mailLocale({
+  locale,
+  tenantDefaultLocale,
+  overrides,
+  supportedLocales,
+}: MailContext): PageLocale {
+  const negotiated = negotiateLocale({
     uiLocales: [],
     subjectLocale: locale ?? null,
     authenticated: true,
     tenantDefault: tenantDefaultLocale ?? null,
     acceptLanguage: null,
-    supported: catalogue.locales,
+    supported: supportedLocales ?? catalogue.locales,
   });
+  const own =
+    overrides !== undefined && Object.hasOwn(overrides, negotiated.tag)
+      ? overrides[negotiated.tag]
+      : undefined;
+  return own === undefined ? negotiated : { ...negotiated, overrides: own };
 }
 
 // A header cannot carry an isolate, so the subject loses the controls that
@@ -143,7 +159,7 @@ function renderLinked({ kind, input }: Linked): EmailMessage {
   const link = safeHref(input.link);
   return {
     to: input.to,
-    subject: t(locale, `${kind}.subject`, { tenant: inSubject(tenant) }),
+    subject: inSubject(t(locale, `${kind}.subject`, { tenant: inSubject(tenant) })),
     text: `${t(locale, `${kind}.text`, { tenant: inText(tenant) })}\n\n${link}\n\n${t(locale, 'mail.notRequested')}\n\n${textFooter(locale, `${kind}.reason`, tenant, input.now)}`,
     html: renderShell({
       ...page({
@@ -194,7 +210,7 @@ export function renderRegistrationDuplicate(input: RegistrationDuplicateInput): 
   const next: MessageId = link === null ? 'duplicate.nextSignIn' : 'duplicate.next';
   return {
     to: input.to,
-    subject: t(locale, 'duplicate.subject', { tenant: inSubject(tenant) }),
+    subject: inSubject(t(locale, 'duplicate.subject', { tenant: inSubject(tenant) })),
     text: [
       t(locale, 'duplicate.text', { tenant: inText(tenant) }),
       t(locale, next),
@@ -229,7 +245,7 @@ export function renderRequiredActions(input: RequiredActionsInput): EmailMessage
   const listed = input.actions.map((code) => `- ${actionText(locale, code)}`).join('\n');
   return {
     to: input.to,
-    subject: t(locale, 'actions.subject', { tenant: inSubject(tenant) }),
+    subject: inSubject(t(locale, 'actions.subject', { tenant: inSubject(tenant) })),
     text: `${t(locale, 'actions.text', { tenant: inText(tenant) })}\n\n${listed}\n\n${t(locale, 'actions.textLink')}\n\n${link}\n\n${t(locale, 'actions.ignore')}\n\n${textFooter(locale, 'actions.reason', tenant, input.now)}`,
     html: renderShell({
       ...page({
@@ -291,7 +307,7 @@ function renderNotice({ input, subject, heading, preheader, reason, lines }: Not
   }));
   return {
     to: input.to,
-    subject: t(locale, subject, { tenant: inSubject(tenant) }),
+    subject: inSubject(t(locale, subject, { tenant: inSubject(tenant) })),
     text: [
       ...sentences.map((line) => line.text),
       t(locale, 'notice.contact'),
@@ -350,7 +366,7 @@ export function renderSmtpTest(input: SmtpTestInput): EmailMessage {
   const tenant = clipName(input.tenantDisplayName);
   return {
     to: input.to,
-    subject: t(locale, 'smtpTest.subject'),
+    subject: inSubject(t(locale, 'smtpTest.subject')),
     text: `${t(locale, 'smtpTest.text')}\n\n${textFooter(locale, 'smtpTest.reason', tenant, input.now)}`,
     html: renderShell({
       ...page({

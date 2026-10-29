@@ -5,7 +5,7 @@ import {
   mailContext,
   outboxRepository,
   renderResetPassword,
-  type MailBrandingResolver,
+  type MailLookResolver,
   type MailContext,
 } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
@@ -31,7 +31,7 @@ export interface RequestPasswordResetDeps {
   // The send time of the mail, from the caller's clock.
   readonly now: () => Date;
   // Themes the mail the way the tenant's pages are; absent, it is unthemed.
-  readonly resolveMailBranding?: MailBrandingResolver | undefined;
+  readonly resolveMailLook?: MailLookResolver | undefined;
   // The sign-in the person asked from, when this browser holds it
   // (referenceToResume): kept beside the token, never in the mailed link.
   readonly authenticationSessionId?: string | null;
@@ -73,7 +73,7 @@ export async function requestPasswordReset(
   await withTenant(deps.database.db, deps.tenantId, async (tx) => {
     // Read before the address is looked up, so the theme costs the same
     // whether or not it names an account.
-    const mail = await mailContext(tx, deps.resolveMailBranding, deps);
+    const mail = await mailContext(tx, deps.resolveMailLook, deps);
     const user = await deps.findByEmail(tx, email);
     if (user === null || !deps.mailGate('reset', deps.tenantId, user.email)) return;
     await enqueueResetLink(tx, { ...deps, issuerBase }, user, mail);
@@ -93,7 +93,7 @@ export interface ActionLinkTenant {
   // The sign-in the link came out of, so its page can lead the same browser
   // back to it; an administrator's link has none.
   readonly authenticationSessionId?: string | null;
-  readonly resolveMailBranding?: MailBrandingResolver | undefined;
+  readonly resolveMailLook?: MailLookResolver | undefined;
 }
 
 /**
@@ -111,7 +111,7 @@ export async function enqueueResetLink(
   },
   context?: MailContext,
 ): Promise<void> {
-  const mail = context ?? (await mailContext(tx, tenant.resolveMailBranding, tenant));
+  const mail = context ?? (await mailContext(tx, tenant.resolveMailLook, tenant));
   const tokens = actionTokenRepository(tx);
   const { token } = await tokens.issue({
     tenantId: tenant.tenantId,

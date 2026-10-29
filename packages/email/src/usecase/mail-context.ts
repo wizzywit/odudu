@@ -5,33 +5,50 @@ import { eq } from 'drizzle-orm';
 export interface MailTenantScope {
   readonly tenantId: string;
   readonly tenantName: string;
+  // False for a caller that shows only the theme: the wording is then not read.
+  readonly wording?: boolean;
 }
 
-// Injected where mail is queued, because the theme belongs to
-// @odudu/domain-theme and this package does not depend on it. It reads
-// through the transaction the mail is written in. Absent, mail is unthemed.
-export type MailBrandingResolver = (
+// The tenant's own wording for mail messages, by the language it was written
+// for and then by message key.
+export type MailOverrides = Readonly<Record<string, Readonly<Record<string, string>>>>;
+
+// What a tenant's mail is dressed and worded with.
+export interface MailTenantLook {
+  readonly branding: MailBranding | null;
+  readonly overrides: MailOverrides;
+}
+
+// What a tenant's mail looks like and says: its theme and its own wording.
+// Injected where mail is queued, because both belong to packages this one
+// does not depend on. It reads through the transaction the mail is written
+// in. Absent, mail is unthemed and worded by the catalogue.
+export type MailLookResolver = (
   tx: TenantScopedDatabase,
   scope: MailTenantScope,
-) => Promise<MailBranding | null>;
+) => Promise<MailTenantLook>;
 
 export interface MailContext {
   readonly branding: MailBranding | null;
+  readonly overrides: MailOverrides;
   readonly tenantDefaultLocale: string | null;
+  readonly supportedLocales: readonly string[];
 }
 
-// A theme that cannot be had never stops the mail it would have dressed: the
-// resolver is told to read in a savepoint, and what it still throws leaves
-// the mail unthemed.
+const PLAIN: MailTenantLook = { branding: null, overrides: {} };
+
+// A theme or wording that cannot be had never stops the mail it would have
+// dressed: the resolver is told to read in a savepoint, and what it still
+// throws leaves the mail unthemed and in the catalogue's words.
 async function resolved(
-  resolve: MailBrandingResolver,
+  resolve: MailLookResolver,
   tx: TenantScopedDatabase,
   scope: MailTenantScope,
-): Promise<MailBranding | null> {
+): Promise<MailTenantLook> {
   try {
     return await resolve(tx, scope);
   } catch {
-    return null;
+    return PLAIN;
   }
 }
 
@@ -44,17 +61,24 @@ export interface TenantMailContext extends MailContext {
 // theme names.
 export async function tenantMailContext(
   tx: TenantScopedDatabase,
-  resolve: MailBrandingResolver | undefined,
+  resolve: MailLookResolver | undefined,
   scope: MailTenantScope,
 ): Promise<TenantMailContext> {
-  const branding = resolve === undefined ? null : await resolved(resolve, tx, scope);
+  const { branding, overrides } =
+    resolve === undefined ? PLAIN : await resolved(resolve, tx, scope);
   const [row] = await tx
-    .select({ defaultLocale: tenants.defaultLocale, displayName: tenants.displayName })
+    .select({
+      defaultLocale: tenants.defaultLocale,
+      supportedLocales: tenants.supportedLocales,
+      displayName: tenants.displayName,
+    })
     .from(tenants)
     .where(eq(tenants.id, scope.tenantId));
   return {
     branding,
+    overrides,
     tenantDefaultLocale: row?.defaultLocale ?? null,
+    supportedLocales: row?.supportedLocales ?? [],
     displayName: row?.displayName ?? null,
   };
 }
@@ -66,9 +90,13 @@ export async function tenantMailContext(
 // must answer in the same time either way can make them before it decides.
 export async function mailContext(
   tx: TenantScopedDatabase,
-  resolve: MailBrandingResolver | undefined,
+  resolve: MailLookResolver | undefined,
   scope: MailTenantScope,
 ): Promise<MailContext> {
-  const { branding, tenantDefaultLocale } = await tenantMailContext(tx, resolve, scope);
-  return { branding, tenantDefaultLocale };
+  const { branding, overrides, tenantDefaultLocale, supportedLocales } = await tenantMailContext(
+    tx,
+    resolve,
+    scope,
+  );
+  return { branding, overrides, tenantDefaultLocale, supportedLocales };
 }

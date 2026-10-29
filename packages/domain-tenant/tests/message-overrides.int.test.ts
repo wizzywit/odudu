@@ -182,6 +182,29 @@ describe('all', () => {
   });
 });
 
+describe('forMail', () => {
+  const KEYS = ['login.title', 'login.submit'];
+
+  it('reads the named keys in every language as maps, and shows another tenant’s transaction nothing', async () => {
+    const tenantId = await newTenant();
+    const other = await newTenant();
+    await put(tenantId, 'fr', 'login.title', 'Bonjour');
+    await put(tenantId, 'de', 'login.title', 'Hallo');
+    await put(tenantId, 'de', 'login.submit', 'Los');
+    await put(tenantId, 'de', 'consent.title', 'not asked for');
+    await put(other, 'de', 'login.title', 'Nein');
+    const read = (as: string, of: string, keys = KEYS) =>
+      withTenant(app.db, as, (tx) => repo(tx).forMail(of, keys));
+    expect(await read(tenantId, tenantId)).toEqual({
+      fr: { 'login.title': 'Bonjour' },
+      de: { 'login.title': 'Hallo', 'login.submit': 'Los' },
+    });
+    expect(await read(other, tenantId)).toEqual({});
+    expect(await read(tenantId, other)).toEqual({});
+    expect(await read(tenantId, tenantId, [])).toEqual({});
+  });
+});
+
 describe('list', () => {
   it('pages by key under MAX_LIMIT and never returns another locale', async () => {
     const tenantId = await newTenant();
