@@ -2,13 +2,15 @@
 // (pnpm page-shots). The markup is what the server's own renderers return, in
 // the stylesheet the server serves, so nothing here is drawn by hand. Writes
 // static/server-pages/<page>-<theme>.webp at twice the page's size, a
-// "branded" copy of the sign-in page with only colour tokens swapped, and
+// copy of the sign-in page in a tenant's published theme (built by the
+// server's own branding code, see brand.ts), and
 // manifest.json with each size and a hash of what produced it.
 // Each picture is the card and a margin of the page's grid around it.
 // Needs packages/instrument/dist (pnpm --filter @odudu/instrument build).
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { chromium, type BrowserContext } from '@playwright/test';
+import { brandFiles } from './brand.ts';
 import { staleParts } from './dist-fresh.ts';
 import {
   JOBS,
@@ -88,6 +90,15 @@ try {
       body: readFileSync(file),
       contentType: TYPES[path.extname(file)] ?? 'application/octet-stream',
     });
+  });
+  const brand = brandFiles();
+  await context.route(`${ORIGIN}/tenants/**`, async (route) => {
+    const served = brand.get(new URL(route.request().url()).pathname);
+    if (served === undefined) {
+      await route.fulfill({ status: 404 });
+      return;
+    }
+    await route.fulfill({ body: served.body, contentType: served.contentType });
   });
   if (files(INSTRUMENT).length === 0) throw new Error('packages/instrument/dist is empty');
   const stale = staleParts(readFileSync(path.join(INSTRUMENT, 'instrument.css'), 'utf8'), {
