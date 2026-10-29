@@ -9,7 +9,11 @@ const INVISIBLE_RATIO = 1.5;
 // The smallest text a tenant may set on a part the page needs, and the
 // smallest box: a part collapsed to a sliver is hidden with extra steps.
 const MIN_FONT_PX = 12;
-const MIN_BOX_PX = 8;
+const MIN_BOX_PX = 16;
+const MAX_SPACE_PX = 128;
+const MAX_SPACE_PERCENT = 50;
+// Text fainter than this is, for a person, not there.
+const MIN_ALPHA = 0.5;
 const EM_PX = 16;
 
 const NAMED: Readonly<Record<string, string>> = {
@@ -96,12 +100,12 @@ function fromFunction(node: Extract<ValueNode, { type: 'function' }>): Colour | 
       .slice(0, 3)
       .map((a) => Math.round(channelValue(a, 255)).toString(16).padStart(2, '0'))
       .join('');
-    return { key: hex, clear: alpha === 0 };
+    return { key: hex, clear: alpha < MIN_ALPHA };
   }
   if (name === 'hsl' || name === 'hsla') {
     const h = ((Number.parseFloat(args[0] ?? '0') % 360) + 360) % 360 || 0;
     const key = hsl(h, channelValue(args[1] ?? '0', 1), channelValue(args[2] ?? '0', 1));
-    return { key, clear: alpha === 0 };
+    return { key, clear: alpha < MIN_ALPHA };
   }
   return null;
 }
@@ -114,7 +118,8 @@ function fromWord(word: string): Colour | null {
   const hex = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/.exec(lower)?.[1];
   if (hex === undefined) return null;
   const full = hex.length <= 4 ? hex.replace(/./g, (c) => c + c) : hex;
-  return { key: full.slice(0, 6), clear: full.length === 8 && full.endsWith('00') };
+  const alpha = full.length === 8 ? Number.parseInt(full.slice(6), 16) / 255 : 1;
+  return { key: full.slice(0, 6), clear: alpha < MIN_ALPHA };
 }
 
 // The colour a value names, or null when it names none (a keyword such as
@@ -172,10 +177,19 @@ export function legibilityProblem(property: string, value: string): string | nul
     const percent = only.type === 'word' && only.value.endsWith('%');
     if (px !== null && px < (percent ? 5 : MIN_BOX_PX)) return 'a box too small to read';
   }
+  if (/^(?:margin|padding)/.test(property)) {
+    for (const node of nodes) {
+      const px = lengthPx(node);
+      const percent = node.type === 'word' && node.value.endsWith('%');
+      if (px !== null && px > (percent ? MAX_SPACE_PERCENT : MAX_SPACE_PX)) {
+        return 'space that pushes the part off the page';
+      }
+    }
+  }
   if (property === 'letter-spacing' && only !== undefined) {
     const raw = only.type === 'word' ? Number.parseFloat(only.value) : 0;
-    if (raw < 0 && /em$/i.test(only.value) && raw < -0.1) return 'letters drawn on one another';
-    if (raw < 0 && /px$/i.test(only.value) && raw < -2) return 'letters drawn on one another';
+    if (raw < 0 && /em$/i.test(only.value) && raw < -0.05) return 'letters drawn on one another';
+    if (raw < 0 && /px$/i.test(only.value) && raw < -1) return 'letters drawn on one another';
   }
   if (property === 'color' && isClear(value)) return 'text with no colour';
   return null;
@@ -200,6 +214,50 @@ export function outlineProblem(property: string, value: string): string | null {
   }
   if (property !== 'outline-width' && property !== 'outline-style' && isClear(value)) {
     return 'a clear focus outline';
+  }
+  return null;
+}
+
+export type Scheme = 'light' | 'dark';
+
+const SURFACES: Readonly<Record<Scheme, readonly string[]>> = {
+  light: ['e7eae9', 'ffffff', 'f3f5f4'],
+  dark: ['151a19', '1c2221', '121716'],
+};
+const SURFACE_TOKENS = new Set([
+  'var:--surface-page',
+  'var:--surface-panel',
+  'var:--surface-sunken',
+]);
+
+// Whether a colour is the page, panel or sunken surface a part sits on, as
+// the Instrument defaults draw it in this scheme or by token. A theme may
+// choose its own surfaces; those are caught by the contrast pairs it declares.
+export function isSurface(colour: Colour | null, scheme: Scheme): boolean {
+  if (colour?.key === null || colour === null) return false;
+  if (SURFACE_TOKENS.has(colour.key)) return true;
+  return SURFACES[scheme].some((surface) => sameColour(colour, { key: surface, clear: false }));
+}
+
+const CSS_WIDE = new Set(['initial', 'unset', 'inherit', 'revert', 'revert-layer']);
+const MAX_OFFSET_PX = 16;
+
+export function outlineValueProblem(
+  property: string,
+  value: string,
+  scheme: Scheme,
+): string | null {
+  if (property === 'outline' || property === 'outline-style' || property === 'outline-width') {
+    if (CSS_WIDE.has(value.trim().toLowerCase()))
+      return 'a focus outline given back to the browser';
+  }
+  if (property === 'outline-offset') {
+    const node = valueParser(value).nodes.find((n) => n.type === 'word');
+    const px = node === undefined ? null : lengthPx(node);
+    if (px !== null && px > MAX_OFFSET_PX) return 'an outline pushed away';
+  }
+  if (property === 'outline' || property === 'outline-color') {
+    if (isSurface(readColour(value), scheme)) return 'an outline the colour of the page';
   }
   return null;
 }

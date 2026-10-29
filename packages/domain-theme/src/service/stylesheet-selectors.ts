@@ -116,11 +116,14 @@ export function readSelector(raw: string): Compound[] | Problem {
   }
 }
 
-// The consent page names the client in its heading, inside `header.intro`.
-// A rule reaches it when it targets that markup without naming a page kind
+// The consent page names the client in its heading, inside `header.intro`,
+// and lists the scopes in a `ul`. A rule reaches them when it targets that markup without naming a page kind
 // other than consent, because a person must be able to see whose access they
 // are granting.
 const CLIENT_NAME_PAGE = 'page-consent';
+
+// The heading, and the scope list under it that says what is being granted.
+const CONSENT_ELEMENTS = new Set(['h1', 'header', 'ul', 'ol', 'li']);
 
 function reachesClientName(compounds: Compound[]): boolean {
   const subject = compounds[compounds.length - 1];
@@ -128,10 +131,24 @@ function reachesClientName(compounds: Compound[]): boolean {
   const targetsHeading =
     subject.classes.length > 0
       ? subject.classes.includes('intro')
-      : subject.element === 'h1' || subject.element === 'header';
+      : subject.element !== null && CONSENT_ELEMENTS.has(subject.element);
   if (!targetsHeading) return false;
   return !compounds.some((c) =>
     c.classes.some((name) => PAGE_KIND_HOOKS.includes(name) && name !== CLIENT_NAME_PAGE),
+  );
+}
+
+// Whether a rule may sit on a part a button replaces the background of, so a
+// text colour like the page's is its own default there.
+export function ownsBackground(selectors: Compound[][]): boolean {
+  return selectors.some((compounds) =>
+    compounds.some(
+      (c) =>
+        c.element === 'button' ||
+        c.classes.includes('secondary') ||
+        c.classes.includes('alert') ||
+        c.classes.includes('choice'),
+    ),
   );
 }
 

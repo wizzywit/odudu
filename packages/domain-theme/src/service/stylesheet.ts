@@ -12,13 +12,21 @@ import {
   type Rule,
 } from 'postcss';
 import {
+  isSurface,
   legibilityProblem,
   outlineProblem,
+  outlineValueProblem,
   readColour,
   sameColour,
+  type Scheme,
 } from '#/service/stylesheet-legibility';
 import { PROPERTIES } from '#/service/stylesheet-properties';
-import { mayBeHidden, readSelector, type Compound } from '#/service/stylesheet-selectors';
+import {
+  mayBeHidden,
+  ownsBackground,
+  readSelector,
+  type Compound,
+} from '#/service/stylesheet-selectors';
 import type {
   StylesheetIssue,
   StylesheetIssueCode,
@@ -119,7 +127,7 @@ export function checkStylesheet(css: string, options: StylesheetOptions = {}): S
   let rules = 0;
   let declarations = 0;
 
-  const checkDeclaration = (decl: Declaration, mayHide: boolean): void => {
+  const checkDeclaration = (decl: Declaration, mayHide: boolean, scheme: Scheme): void => {
     declarations += 1;
     if (declarations > MAX_DECLARATIONS) {
       add('too-many-declarations', `more than ${String(MAX_DECLARATIONS)}`);
@@ -145,7 +153,8 @@ export function checkStylesheet(css: string, options: StylesheetOptions = {}): S
       add('value-not-allowed', 'display: none could hide the form', decl);
       return;
     }
-    const outline = outlineProblem(property, decl.value);
+    const outline =
+      outlineProblem(property, decl.value) ?? outlineValueProblem(property, decl.value, scheme);
     const unreadable = mayHide ? null : legibilityProblem(property, decl.value);
     if (outline !== null || unreadable !== null) {
       add('value-not-allowed', `${property}: ${outline ?? unreadable ?? ''}`, decl);
@@ -156,24 +165,38 @@ export function checkStylesheet(css: string, options: StylesheetOptions = {}): S
     });
   };
 
-  // Text the colour of what is behind it, set in one rule.
-  const checkPairing = (rule: Rule): void => {
+  const BOX = /^(?:min-|max-)?(?:width|height|inline-size|block-size)$/;
+
+  // What one rule does to a needed part as a whole: text the colour of what
+  // is behind it, and a box clipped to nothing.
+  const checkWhole = (rule: Rule, scheme: Scheme, ownsGround: boolean): void => {
     let text: Declaration | undefined;
     let ground: Declaration | undefined;
+    let clipped = false;
+    let boxed = false;
     for (const child of rule.nodes) {
       if (child.type !== 'decl') continue;
       const property = child.prop.toLowerCase();
       if (property === 'color') text = child;
       else if (property === 'background-color' || property === 'background') ground = child;
+      else if (property === 'overflow') clipped = child.value.trim().toLowerCase() !== 'visible';
+      else if (BOX.test(property) && !property.startsWith('min-')) boxed = true;
     }
     const a = text === undefined ? null : readColour(text.value);
     const b = ground === undefined ? null : readColour(ground.value);
-    if (text !== undefined && a !== null && b !== null && sameColour(a, b)) {
-      add('value-not-allowed', 'color: the same as the background', text);
+    if (text !== undefined && a !== null) {
+      if (b !== null && sameColour(a, b)) {
+        add('value-not-allowed', 'color: the same as the background', text);
+      } else if (ground === undefined && !ownsGround && isSurface(a, scheme)) {
+        add('value-not-allowed', 'color: the same as the page behind it', text);
+      }
+    }
+    if (clipped && boxed) {
+      add('value-not-allowed', 'overflow: clips a box a person needs', rule);
     }
   };
 
-  const checkRule = (rule: Rule): void => {
+  const checkRule = (rule: Rule, scheme: Scheme): void => {
     rules += 1;
     if (rules > MAX_RULES) {
       add('too-many-rules', `more than ${String(MAX_RULES)}`);
@@ -197,10 +220,10 @@ export function checkStylesheet(css: string, options: StylesheetOptions = {}): S
       }
     }
     const mayHide = compounds.length > 0 && mayBeHidden(compounds);
-    if (!mayHide) checkPairing(rule);
+    if (!mayHide) checkWhole(rule, scheme, ownsBackground(compounds));
     for (const child of rule.nodes) {
       if (stopped) return;
-      if (child.type === 'decl') checkDeclaration(child, mayHide);
+      if (child.type === 'decl') checkDeclaration(child, mayHide, scheme);
       else if (child.type === 'rule') add('selector-not-allowed', 'a nested rule', child);
       else if (child.type === 'atrule') {
         add('at-rule-not-allowed', `@${child.name} inside a rule`, child);
@@ -220,14 +243,17 @@ export function checkStylesheet(css: string, options: StylesheetOptions = {}): S
     ) {
       add('media-query-not-allowed', rule.params, rule);
     } else {
-      for (const child of rule.nodes) visit(child, true);
+      const scheme = /prefers-color-scheme: ?dark/.test(rule.params.toLowerCase())
+        ? 'dark'
+        : 'light';
+      for (const child of rule.nodes) visit(child, true, scheme);
     }
   };
 
-  const visit = (node: ChildNode, inMedia: boolean): void => {
+  const visit = (node: ChildNode, inMedia: boolean, scheme: Scheme = 'light'): void => {
     if (stopped) return;
     if (node.type === 'decl') add('root-declaration', node.prop, node);
-    else if (node.type === 'rule') checkRule(node);
+    else if (node.type === 'rule') checkRule(node, scheme);
     else if (node.type === 'atrule') {
       if (inMedia) add('at-rule-not-allowed', `@${node.name} inside @media`, node);
       else checkAtRule(node);
