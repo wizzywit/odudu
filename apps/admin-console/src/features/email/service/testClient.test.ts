@@ -3,6 +3,8 @@ import {
   chosenTestClient,
   DEFAULT_TEST_CLIENT,
   testClientId,
+  testClientsClosed,
+  testClientsRead,
   testClientSelection,
   testClientSummary,
 } from '#/features/email/service/testClient';
@@ -52,5 +54,22 @@ describe('testClientSummary', () => {
       'Sent as Odudu admin, the client you signed in with.',
     );
     expect(testClientSummary('c-bill', [OWN, OTHER])).toBe('Sent as Billing.');
+  });
+});
+
+describe('the client choice follows whoami', () => {
+  const holder = { capabilities: ['manage-tenant', 'manage-clients'] as const, crossTenant: false };
+  const other = { capabilities: ['manage-tenant'] as const, crossTenant: false };
+
+  it('reads the list only for an operator who may', () => {
+    expect(testClientsRead(holder)).toBe(true);
+    expect(testClientsRead(other)).toBe(false);
+    expect(testClientsRead(undefined)).toBe(false);
+  });
+
+  it('closes the choice only once whoami says the capability is missing', () => {
+    expect(testClientsClosed(other)).toBe(true);
+    expect(testClientsClosed(holder)).toBe(false);
+    expect(testClientsClosed(undefined)).toBe(false);
   });
 });

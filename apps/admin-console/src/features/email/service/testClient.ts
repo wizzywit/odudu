@@ -1,4 +1,6 @@
 import type { Client } from '@odudu/contracts/admin';
+import { holds, lacking } from '#/shared/service/access';
+import type { Authority } from '#/shared/service/principal';
 import { ADMIN_CLIENT_KEY } from '#/shared/service/capabilities';
 import { lastChosen } from '#/shared/service/picker';
 import type { ListStatus } from '#/shared/service/resourceList';
@@ -48,4 +50,15 @@ export function testClientSummary(id: string | null, options: readonly TestClien
   return found.client_id === ADMIN_CLIENT_KEY
     ? `Sent as ${found.name}, the client you signed in with.`
     : `Sent as ${found.name}.`;
+}
+
+// The client list is read only by an operator whoami says may, so no refusal
+// is asked for; the choice is closed, with its reason, only once whoami has
+// answered that the capability is missing.
+export function testClientsRead(authority: Authority | undefined): boolean {
+  return holds(authority, 'manage-clients');
+}
+
+export function testClientsClosed(authority: Authority | undefined): boolean {
+  return lacking(authority, ['manage-clients']).length > 0;
 }

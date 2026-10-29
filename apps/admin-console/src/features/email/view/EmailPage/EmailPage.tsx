@@ -20,6 +20,7 @@ import {
 import { useRelayRemoval } from '#/features/email/usecase/useRelayRemoval';
 import { useTestSend } from '#/features/email/usecase/useTestSend';
 import { Button } from '#/shared/view/Button';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
 import { ClientPicker } from '#/shared/view/ClientPicker';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 import { TextField, ToggleField } from '#/shared/view/Field';
@@ -150,13 +151,17 @@ function TestMessage({
         </Button>
       </form>
       <div className={styles.client}>
-        <ClientPicker
-          label={TEST_AS_LABEL}
-          picker={test.picker}
-          selected={test.selected}
-          selectionMode="single"
-          onChange={test.choose}
-        />
+        {test.clientsClosed ? (
+          <CapabilityNote capability="manage-clients">Choosing clients</CapabilityNote>
+        ) : (
+          <ClientPicker
+            label={TEST_AS_LABEL}
+            picker={test.picker}
+            selected={test.selected}
+            selectionMode="single"
+            onChange={test.choose}
+          />
+        )}
         <p className={recordTab.rule}>{TEST_AS_RULE}</p>
         <p className={recordTab.rule}>{test.summary}</p>
         {test.selected.length === 0 ? null : (

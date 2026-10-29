@@ -40,6 +40,8 @@ export {
   TEST_AS_RULE,
   TEST_TENANT_OWN,
   testClientId,
+  testClientsClosed,
+  testClientsRead,
   testClientSelection,
   testClientSummary,
   type TestClientChoice,
