@@ -11,6 +11,12 @@ import {
   type Node,
   type Rule,
 } from 'postcss';
+import {
+  legibilityProblem,
+  outlineProblem,
+  readColour,
+  sameColour,
+} from '#/service/stylesheet-legibility';
 import { PROPERTIES } from '#/service/stylesheet-properties';
 import { mayBeHidden, readSelector, type Compound } from '#/service/stylesheet-selectors';
 import type {
@@ -139,9 +145,32 @@ export function checkStylesheet(css: string, options: StylesheetOptions = {}): S
       add('value-not-allowed', 'display: none could hide the form', decl);
       return;
     }
+    const outline = outlineProblem(property, decl.value);
+    const unreadable = mayHide ? null : legibilityProblem(property, decl.value);
+    if (outline !== null || unreadable !== null) {
+      add('value-not-allowed', `${property}: ${outline ?? unreadable ?? ''}`, decl);
+      return;
+    }
     checkValue(property, decl.value, options.isAssetUrl, (code, detail) => {
       add(code, `${property}: ${detail}`, decl);
     });
+  };
+
+  // Text the colour of what is behind it, set in one rule.
+  const checkPairing = (rule: Rule): void => {
+    let text: Declaration | undefined;
+    let ground: Declaration | undefined;
+    for (const child of rule.nodes) {
+      if (child.type !== 'decl') continue;
+      const property = child.prop.toLowerCase();
+      if (property === 'color') text = child;
+      else if (property === 'background-color' || property === 'background') ground = child;
+    }
+    const a = text === undefined ? null : readColour(text.value);
+    const b = ground === undefined ? null : readColour(ground.value);
+    if (text !== undefined && a !== null && b !== null && sameColour(a, b)) {
+      add('value-not-allowed', 'color: the same as the background', text);
+    }
   };
 
   const checkRule = (rule: Rule): void => {
@@ -168,6 +197,7 @@ export function checkStylesheet(css: string, options: StylesheetOptions = {}): S
       }
     }
     const mayHide = compounds.length > 0 && mayBeHidden(compounds);
+    if (!mayHide) checkPairing(rule);
     for (const child of rule.nodes) {
       if (stopped) return;
       if (child.type === 'decl') checkDeclaration(child, mayHide);
