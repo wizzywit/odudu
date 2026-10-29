@@ -223,7 +223,9 @@ test.describe('on a phone', () => {
       expect(clearance, tab).toBeGreaterThanOrEqual(-1);
     }
 
-    await openTab(page, 'Pages');
+    // Straight to the tab, so nothing moves focus after the field has it.
+    await page.goto(`/console/${branding.layout.tenant}/branding?tab=pages`);
+    await expect(page.getByRole('region', { name: 'Page templates' })).toBeVisible();
     const field = page.getByRole('combobox', { name: 'Insert a message' });
     await field.focus();
     const fieldBox = await field.boundingBox();
