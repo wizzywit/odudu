@@ -56,6 +56,7 @@ export function renderLogoutConfirmationPage(
     null,
     [],
     locale,
+    'logout-confirm',
   );
 }
 
@@ -74,6 +75,7 @@ export function renderNoActiveSessionPage(locale: PageLocale): RenderedPage {
     null,
     [],
     locale,
+    'logged-out',
   );
 }
 
@@ -106,6 +108,7 @@ export function renderLoggedOutPage(
     null,
     frontChannelLogoutUrls.map((url) => new URL(url).origin),
     locale,
+    'logged-out',
   );
 }
 
@@ -173,6 +176,7 @@ export function renderLoggedOutRedirectPage(
     { nonce, fetchesSameOrigin: false },
     frontChannelLogoutUrls.map((url) => new URL(url).origin),
     locale,
+    'logged-out',
   );
 }
 
@@ -203,6 +207,7 @@ export function renderLogoutRedirectRefusedPage(
     null,
     frontChannelLogoutUrls.map((url) => new URL(url).origin),
     locale,
+    'logged-out',
   );
 }
 
@@ -221,5 +226,6 @@ export function renderLogoutUnauthenticatedPage(locale: PageLocale): RenderedPag
     null,
     [],
     locale,
+    'logged-out',
   );
 }

@@ -213,7 +213,7 @@ export function slotAssetIds(values: ImageValues): Record<ImageSlot, SlotAsk> {
 export type Thumbnail = { status: 'none' } | Read<string>;
 
 export function slotThumbnail(asked: boolean, read: Read<string>): Thumbnail {
-  return !asked ? { status: 'none' } : read;
+  return asked ? read : { status: 'none' };
 }
 
 // A logo's thumbnail says what the logo is; an image with no alt text of its

@@ -63,6 +63,7 @@ ${listHtml(actions, locale)}`,
     field === null ? null : field.script,
     [],
     locale,
+    'required-actions',
   );
 }
 
@@ -113,5 +114,6 @@ ${listHtml(remaining, locale)}`;
     null,
     [],
     locale,
+    'notice',
   );
 }

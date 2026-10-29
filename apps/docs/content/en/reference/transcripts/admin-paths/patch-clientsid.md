@@ -41,8 +41,8 @@ named, in the same `errors` shape. Everything on this page ran in one session on
 freshly built stack with `odudu seed admin --username ada` run against it and
 `$ADMIN_TOKEN` got as in [Getting the token](./getting-the-token.md). In the tenant
 `client-limits-demo`, `$P` is its admin path, `$ID` the client `billing` and `$LID`
-the client `legacy`, made first: Each call sent the `ETag` the `GET`
-before it answered; `over-origins.json` held 201 origins `https://o0.example` to
+the client `legacy`; both clients were made first. Each call sent the `ETag`
+the `GET` before it answered. `over-origins.json` held 201 origins `https://o0.example` to
 `https://o200.example`, and `over-uris.json` 201 redirect URIs
 `https://billing.example/cb/0` to `…/cb/200`:
 

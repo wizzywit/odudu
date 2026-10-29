@@ -49,6 +49,7 @@ export function renderAuthorizeErrorPage(
     null,
     [],
     locale,
+    'authorize-error',
   );
 }
 
@@ -82,6 +83,7 @@ export function renderEmailUnverifiedPage(
     null,
     [],
     locale,
+    'email-unverified',
   );
 }
 
@@ -343,6 +345,7 @@ export function renderLoginForm(
       null,
       [],
       locale,
+      'sign-in',
     ),
     script: nonce === null ? null : { nonce, fetchesSameOrigin: true },
   };

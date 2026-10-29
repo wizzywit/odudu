@@ -152,6 +152,7 @@ export function renderRegistrationForm(
     password.script,
     [],
     locale,
+    'registration',
   );
 }
 
@@ -180,6 +181,7 @@ export function renderRegistrationFailedPage(
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -211,6 +213,7 @@ export function renderRegistrationSucceededPage(
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -234,6 +237,7 @@ export function renderRegistrationUsernameGonePage(
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -253,5 +257,6 @@ export function renderRegistrationReadyPage(
     null,
     [],
     locale,
+    'notice',
   );
 }

@@ -156,10 +156,26 @@ describe('a page asks for its theme', () => {
     expect(page.body).toContain('name="auth_session_id"');
   });
 
+  it('serves a stylesheet-only theme a page-<kind> hook to style the page by', async () => {
+    const w = await world(['portal']);
+    await publish(w.tenantId, null, {
+      ...body({}),
+      stylesheet: '.page-sign-in { letter-spacing: 0.02em; }',
+    });
+    const page = await authorize(w.name, 'portal');
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('<main class="page page-sign-in">');
+    const sheet = /<link rel="stylesheet" href="(\/tenants\/[^"]+\.css)">/u.exec(page.body)?.[1];
+    const css = await app.inject({ url: sheet ?? '/missing' });
+    expect(css.statusCode).toBe(200);
+    expect(css.body).toContain('.page-sign-in');
+  });
+
   it('leaves a tenant with no theme on the default page', async () => {
     const w = await world(['portal']);
     const page = await authorize(w.name, 'portal');
     expect(page.body).not.toContain('themed-');
+    expect(page.body).toContain('<main class="page">');
     expect(page.body).toContain('name="auth_session_id"');
   });
 
