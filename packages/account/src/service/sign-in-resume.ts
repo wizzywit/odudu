@@ -30,7 +30,10 @@ export function referenceToResume(held: HeldSignIn | null, returnTo: string | nu
 // The client a mail queued out of this sign-in may wear: the held sign-in's
 // own, under the same condition as the link back to it. It is never read from
 // what the page carried, which only has to equal the held request.
-export function clientOfHeldSignIn(held: HeldSignIn | null, returnTo: string | null): string | null {
+export function clientOfHeldSignIn(
+  held: HeldSignIn | null,
+  returnTo: string | null,
+): string | null {
   return referenceToResume(held, returnTo) === null ? null : (held?.clientId ?? null);
 }
 

@@ -85,8 +85,9 @@ describe('createMailLook', () => {
 
   it('falls back to the tenant look, and logs, when the client look cannot be had', async () => {
     const log = vi.fn();
-    const theme = vi.fn((_tx: TenantScopedDatabase, scope: { clientId?: string | null | undefined }) =>
-      scope.clientId ? Promise.reject(new Error('down')) : Promise.resolve(BRANDING),
+    const theme = vi.fn(
+      (_tx: TenantScopedDatabase, scope: { clientId?: string | null | undefined }) =>
+        scope.clientId ? Promise.reject(new Error('down')) : Promise.resolve(BRANDING),
     );
     const look = createMailLook({ theme, readOverrides: () => Promise.resolve({}), log });
     const { branding } = await look(TX, { ...SCOPE, clientId: 'portal' });

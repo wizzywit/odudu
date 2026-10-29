@@ -14,7 +14,11 @@ import {
 } from '#/usecase/register';
 import { type MailGate } from '#/service/mail-gate';
 import { signInPath } from '#/service/sign-in-path';
-import { clientOfHeldSignIn, referenceToResume, type FindHeldSignIn } from '#/service/sign-in-resume';
+import {
+  clientOfHeldSignIn,
+  referenceToResume,
+  type FindHeldSignIn,
+} from '#/service/sign-in-resume';
 import {
   renderRegistrationFailedPage,
   renderRegistrationForm,
