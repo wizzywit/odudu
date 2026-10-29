@@ -24,6 +24,8 @@ for (const [w, h] of SIZES) {
           fullPage: true,
         });
       }
+      await page.context().clearCookies();
+      await signIn(page, branding.client);
       await page.goto(`/console/${branding.client.tenant}/clients`);
       await page
         .getByRole('grid', { name: 'Clients' })

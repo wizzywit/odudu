@@ -51,7 +51,9 @@ export function PreviewShell({
       <div className={styles.stage}>
         <PreviewFrame {...frame} />
       </div>
-      <p className={styles.summary}>{summary}</p>
+      <p role="status" className={styles.summary}>
+        {summary}
+      </p>
       <div className={styles.open}>
         <Button onPress={sheet.open}>{PREVIEW_OPEN_LABEL}</Button>
       </div>
