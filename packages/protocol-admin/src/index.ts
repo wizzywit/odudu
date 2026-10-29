@@ -736,6 +736,11 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/theme/preview/info': tenantPreviewInfo,
       'GET /admin/tenants/:tenant/mail/preview': mailPreviewHandler(mailDeps),
       'GET /admin/tenants/:tenant/mail/branding': mailBrandingHandler(mailDeps),
+      'GET /admin/tenants/:tenant/clients/:id/mail/preview': mailPreviewHandler(mailDeps, 'client'),
+      'GET /admin/tenants/:tenant/clients/:id/mail/branding': mailBrandingHandler(
+        mailDeps,
+        'client',
+      ),
       'GET /admin/tenants/:tenant/theme/versions': tenantTheme.versions,
       'POST /admin/tenants/:tenant/theme/versions/:versionId/restore': tenantTheme.restore,
       'GET /admin/tenants/:tenant/theme/stylesheet-hooks': stylesheetHooksHandler,

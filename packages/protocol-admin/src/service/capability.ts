@@ -947,7 +947,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'whole HTML document under a policy of its own, for a frame whose parent is this ' +
       'origin: it licenses no script, and images only from the logo\u2019s origin. `scheme` ' +
       'fixes the light or the dark palette and logo, which a mail client otherwise chooses ' +
-      'by its own setting. The preview is the tenant\u2019s own look; a mail whose flow began in a client\u2019s sign-in takes that client\u2019s logo and colours. Reads ' +
+      'by its own setting. The preview is the tenant\u2019s own look; a client\u2019s is `GET /admin/tenants/{tenant}/clients/{id}/mail/preview`. Reads ' +
       'the published theme only: nothing is queued, saved or sent.',
   },
   {
@@ -958,7 +958,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'The colours and the logo the tenant\u2019s mail inherits from its published theme, ' +
       'for each scheme, and for each palette whether the theme or Odudu\u2019s default ' +
-      'supplies it. A scheme the theme does not set shows the default\u2019s colours.',
+      'supplies it. A scheme the theme does not set shows the default\u2019s colours. A ' +
+      'client\u2019s own is `GET /admin/tenants/{tenant}/clients/{id}/mail/branding`.',
   },
   // A tenant's own wording for the messages its pages show, per language. The
   // languages themselves are the `supported_locales` and `default_locale`
@@ -1158,6 +1159,30 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       `when it stops in \`previous_secret_expires_at\`. ${SERVICE_ACCOUNT_CEILING}`,
   },
   ...themeRoutes('/admin/tenants/:tenant/clients/:id', 'manage-clients', 'client'),
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/clients/:id/mail/preview',
+    capability: 'manage-clients',
+    responseSchema: z.string(),
+    successMediaType: 'text/html',
+    querystringSchema: previewMailQuerySchema,
+    description:
+      'The address-verification mail as a mail whose flow began inside this client\u2019s ' +
+      'sign-in is dressed: the client\u2019s published logo and colours over the tenant\u2019s, ' +
+      'piece by piece, and the tenant\u2019s wording. A client that is disabled shows the ' +
+      'tenant\u2019s look, as its mail would. Otherwise as the tenant\u2019s preview. ' +
+      '`404` for a client the tenant does not hold.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/clients/:id/mail/branding',
+    capability: 'manage-clients',
+    responseSchema: mailBrandingViewSchema,
+    description:
+      'The colours and the logo that client\u2019s mail wears, for each scheme, and for each ' +
+      'palette whether the client\u2019s theme (`client`), the tenant\u2019s (`tenant`) or ' +
+      'Odudu\u2019s default supplies it. `404` for a client the tenant does not hold.',
+  },
   {
     method: 'GET',
     pattern: '/admin/tenants/:tenant/clients/:id/logout-deliveries',
