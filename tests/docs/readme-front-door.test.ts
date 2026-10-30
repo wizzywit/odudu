@@ -13,7 +13,8 @@ const { OWNER_NOTICE, PAGES_BASE, PAGES_DOCS_BASE, REPOSITORY_URL, SITE_ORIGIN }
 // two to each other, so the front door cannot say something the site denies.
 const README = readFileSync(path.join(REPO_ROOT, 'README.md'), 'utf8');
 const LINES = README.split('\n');
-const TAGLINE = 'The sign-in you own: multi-tenant, brandable, and built for apps and AI agents.';
+const TAGLINE =
+  'The sign-in you own: multi-tenant, brandable, and built for apps, MCP servers and AI agents.';
 const STATUS_SENTENCE =
   'Some of what is described here is still being built. The roadmap shows what is ready.';
 const CONTENT = path.join(REPO_ROOT, 'apps/docs/content/en');
