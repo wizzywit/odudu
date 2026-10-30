@@ -1,6 +1,6 @@
 import { type FastifyReply, type FastifyRequest } from 'fastify';
 import { describe, expect, it } from 'vitest';
-import { frameworkError } from '#/brand-routes';
+import { frameworkError, sendBrandMiss } from '#/brand-routes';
 
 function answer(url: string, error: { code: string; message: string; statusCode?: number }) {
   const sent: { code?: number; body?: unknown } = {};
@@ -35,5 +35,31 @@ describe('frameworkError outside the brand routes', () => {
 
   it('defaults to 400 when the error names no status', () => {
     expect(answer('/x', { code: 'C', message: 'm' }).code).toBe(400);
+  });
+});
+
+describe('sendBrandMiss', () => {
+  it('answers a bare 404 under the same sandbox as a served file', () => {
+    const headers = new Map<string, string>();
+    let code = 0;
+    const reply = {
+      code(status: number) {
+        code = status;
+        return reply;
+      },
+      header(name: string, value: string) {
+        headers.set(name, value);
+        return reply;
+      },
+      send() {
+        return reply;
+      },
+    };
+    sendBrandMiss(reply as unknown as FastifyReply);
+    expect(code).toBe(404);
+    expect(headers.get('content-security-policy')).toBe("default-src 'none'; sandbox");
+    expect(headers.get('cross-origin-resource-policy')).toBe('cross-origin');
+    expect(headers.get('x-content-type-options')).toBe('nosniff');
+    expect(headers.get('cache-control')).toBe('no-store');
   });
 });

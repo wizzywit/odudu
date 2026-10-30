@@ -95,7 +95,8 @@ one of another tenant, or that does not exist, answers `404`.
   stored bytes of an uploaded image, whether or not a published theme names it:
   how an admin sees an image before any public address serves it. The type is the
   one it was stored as (`image/png`, `image/jpeg` or `image/webp`), with
-  `X-Content-Type-Options: nosniff` and `Cache-Control: private, no-store`. A
+  `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`,
+  `Cross-Origin-Resource-Policy: same-origin` and `Cache-Control: private, no-store`. A
   stored image is at most 1.25 MiB and the read is one statement. `404` for an
   image that does not exist or is another tenant's, `400` for an id that is not
   one. It changes nothing and writes no audit event. The console's Theme tab
@@ -621,6 +622,8 @@ ASSET=$(curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Typ
 An admin reads an image back by its id before any public address serves it. The
 type is the one it was stored as, with `nosniff` and `no-store`. An id that does
 not exist in this tenant is `404`, and one that is not an id is `400`:
+
+The headers below were recorded before the route began to send `Content-Security-Policy: default-src 'none'; sandbox` and `Cross-Origin-Resource-Policy: same-origin`, and have not been run again since.
 
 ```bash
 curl -sS -D - -o stored-logo.png -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/assets/$ASSET/content

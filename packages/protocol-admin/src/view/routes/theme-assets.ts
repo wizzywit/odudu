@@ -5,6 +5,7 @@ import {
 } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
 import { type AssetReference, type UploadRefusalCode } from '@odudu/domain-theme';
+import { servedAssetHeaders } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { BUSY_RETRY_SECONDS, uploadLimitsFor, type UploadLimits } from '#/service/theme-assets';
 import { type Actor } from '#/usecase/theme';
@@ -160,10 +161,10 @@ export function themeAssetHandlers(deps: ThemeAssetRouteDeps): ThemeAssetHandler
       if (outcome.kind === 'not_found') {
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       }
+      for (const [name, value] of servedAssetHeaders('same-origin')) reply.header(name, value);
       return reply
         .code(200)
         .header('content-type', outcome.mime)
-        .header('x-content-type-options', 'nosniff')
         .header('cache-control', 'private, no-store')
         .send(outcome.bytes);
     },

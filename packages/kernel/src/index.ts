@@ -40,6 +40,7 @@ export {
   withBranding,
   withPageTheme,
 } from '#/page';
+export { servedAssetHeaders, type AssetReach } from '#/served-asset';
 export {
   inlinePreview,
   previewHeaders,

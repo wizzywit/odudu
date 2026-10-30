@@ -160,7 +160,7 @@ describe('renderVerifyEmail', () => {
     expect(msg.html).not.toContain('\u202e');
   });
 
-  it('never lets a name put a line break into the subject or start a line in the text', () => {
+  it('[ODUDU-THEME-MAILHEADER-01] never lets a name put a line break into the subject or start a line in the text', () => {
     const hostile = 'Acme\r\nBcc: evil@example.test\u2028more\u0085x\u0000y';
     const msg = renderVerifyEmail({ ...input, tenantDisplayName: hostile });
     expect(msg.subject).not.toMatch(/[\r\n\u2028\u2029\u0085\u0000]/u);

@@ -1,4 +1,10 @@
-import { CSS_ELEMENTS, CSS_HOOKS, CSS_PSEUDO_CLASSES, CSS_PSEUDO_ELEMENTS } from '#/service/hooks';
+import {
+  CSS_ELEMENTS,
+  CSS_HOOKS,
+  CSS_PSEUDO_CLASSES,
+  CSS_PSEUDO_ELEMENTS,
+  PAGE_KIND_HOOKS,
+} from '#/service/hooks';
 import type { Problem } from '#/service/stylesheet-types';
 
 const set = (words: string): ReadonlySet<string> => new Set(words.split(' '));
@@ -110,10 +116,47 @@ export function readSelector(raw: string): Compound[] | Problem {
   }
 }
 
+// The consent page names the client in its heading, inside `header.intro`,
+// and lists the scopes in a `ul`. A rule reaches them when it targets that markup without naming a page kind
+// other than consent, because a person must be able to see whose access they
+// are granting.
+const CLIENT_NAME_PAGE = 'page-consent';
+
+// The heading, and the scope list under it that says what is being granted.
+const CONSENT_ELEMENTS = new Set(['h1', 'header', 'ul', 'ol', 'li']);
+
+function reachesClientName(compounds: Compound[]): boolean {
+  const subject = compounds[compounds.length - 1];
+  if (subject === undefined) return false;
+  const targetsHeading =
+    subject.classes.length > 0
+      ? subject.classes.includes('intro')
+      : subject.element !== null && CONSENT_ELEMENTS.has(subject.element);
+  if (!targetsHeading) return false;
+  return !compounds.some((c) =>
+    c.classes.some((name) => PAGE_KIND_HOOKS.includes(name) && name !== CLIENT_NAME_PAGE),
+  );
+}
+
+// Whether every selector's subject is a part that draws its own background,
+// where a text colour like the page's is its own default.
+export function ownsBackground(selectors: Compound[][]): boolean {
+  return selectors.every((compounds) => {
+    const subject = compounds[compounds.length - 1];
+    return (
+      subject !== undefined &&
+      (subject.element === 'button' ||
+        subject.classes.includes('secondary') ||
+        subject.classes.includes('alert') ||
+        subject.classes.includes('choice'))
+    );
+  });
+}
+
 export function mayBeHidden(selectors: Compound[][]): boolean {
   return selectors.every((compounds) => {
     const subject = compounds[compounds.length - 1];
-    if (subject === undefined) return false;
+    if (subject === undefined || reachesClientName(compounds)) return false;
     const named = subject.classes.length > 0;
     const subjectOk = named
       ? subject.classes.every((name) => HIDEABLE_HOOKS.has(name))

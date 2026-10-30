@@ -14,7 +14,7 @@ describe('page', () => {
     );
   });
 
-  it('takes the language and direction from the locale it is given', () => {
+  it('[ODUDU-THEME-LANG-01] takes the language and direction from the locale it is given', () => {
     const { html } = page('x', '<p>hello</p>', null, [], { tag: 'ar', dir: 'rtl' });
     expect(html).toContain('<html lang="ar" dir="rtl">');
   });
