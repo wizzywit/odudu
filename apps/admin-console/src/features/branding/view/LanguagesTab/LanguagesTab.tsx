@@ -334,7 +334,7 @@ function OverridesSection({ tenant, data }: { tenant: string; data: Settings }) 
 }
 
 export function LanguagesTab({ tenant }: { tenant: string }) {
-  const settings = useTenantSettingsRead(tenant);
+  const settings = useTenantSettingsRead(tenant, true);
   return (
     <ReadGate
       read={settings}

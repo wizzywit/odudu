@@ -5,7 +5,10 @@ import { useRead } from '#/shared/repository/useRead';
 import type { Read } from '#/shared/service/read';
 import { useTransport } from '#/shared/transport/useTransport';
 
-export function useMessageCatalogue(tenant: string): Read<MessageCatalogueResponse> {
+// Part of the build and the same for every call, so read once and kept.
+export function useMessageCatalogue(tenant: string, asked = true): Read<MessageCatalogueResponse> {
   const { gateway } = useTransport();
-  return useRead(messageCatalogueKey(tenant), true, () => readMessageCatalogue(gateway, tenant));
+  return useRead(messageCatalogueKey(tenant), asked, () => readMessageCatalogue(gateway, tenant), {
+    immutable: true,
+  });
 }

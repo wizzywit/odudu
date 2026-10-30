@@ -12,7 +12,10 @@ export function useThemeVersions(
   asked: boolean,
 ): Read<ListThemeVersionsResponse> {
   const { gateway } = useTransport();
-  return useRead(themeVersionsKey(tenant, scopeKeyPart(scope)), asked, () =>
-    readVersions(gateway, tenant, scope),
+  return useRead(
+    themeVersionsKey(tenant, scopeKeyPart(scope)),
+    asked,
+    () => readVersions(gateway, tenant, scope),
+    { recent: true },
   );
 }

@@ -44,12 +44,20 @@ export function mapRead<T, U>(read: Read<T>, map: (data: T) => U): Read<U> {
   return read.status === 'ready' ? { status: 'ready', data: map(read.data) } : read;
 }
 
+// How long a read just made stays fresh, so that what a page starts early is
+// not asked for again by the tab that shows it a moment later.
+export const RECENT_READ_MS = 10_000;
+
 // How long a read stays fresh. What never changes under its key is kept and not
-// asked for again on a window focus; anything else is read again as the client's
-// defaults say.
-export function freshness(immutable: boolean): {
+// asked for again on a window focus; a `recent` read is kept for the moment
+// above; anything else is read again as the client's defaults say.
+export function freshness(
+  immutable: boolean,
+  recent = false,
+): {
   staleTime?: number;
   refetchOnWindowFocus?: boolean;
 } {
-  return immutable ? { staleTime: Infinity, refetchOnWindowFocus: false } : {};
+  if (immutable) return { staleTime: Infinity, refetchOnWindowFocus: false };
+  return recent ? { staleTime: RECENT_READ_MS } : {};
 }

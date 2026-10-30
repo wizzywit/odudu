@@ -15,6 +15,7 @@ import {
   revertTarget,
   selectScopedTab,
   placedOver,
+  tabReads,
 } from '#/features/branding/service';
 
 describe('the tabs a revert applies to', () => {
@@ -106,5 +107,35 @@ describe('what lies under a client’s theme', () => {
     expect(placedOver({ kind: 'tenant' }, view({ stylesheet: 'tenant' }))).toEqual({
       kind: 'tenant',
     });
+  });
+});
+
+describe('the reads a tab shows', () => {
+  it('are the languages’ on the Languages tab and the catalogue’s on Pages, and no others', () => {
+    expect(tabReads('languages')).toEqual({
+      settings: true,
+      catalogue: true,
+      hooks: false,
+      versions: false,
+    });
+    expect(tabReads('pages')).toEqual({
+      settings: false,
+      catalogue: true,
+      hooks: false,
+      versions: false,
+    });
+  });
+
+  it('are the stylesheet’s hooks and the versions on Theme, and nothing of the languages', () => {
+    expect(tabReads('theme')).toEqual({
+      settings: false,
+      catalogue: false,
+      hooks: true,
+      versions: true,
+    });
+  });
+
+  it('are none that the theme record does not already carry on Mail', () => {
+    expect(Object.values(tabReads('mail'))).toEqual([false, false, false, false]);
   });
 });
