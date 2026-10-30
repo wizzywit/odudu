@@ -138,6 +138,11 @@ export interface StaleOutcome {
   message: string | null;
 }
 
+// The conflicts to hold once a 412's current text has been read: one, or none.
+export function conflictsOf(stale: StaleOutcome): OverrideConflict[] {
+  return stale.conflict === null ? [] : [stale.conflict];
+}
+
 // What a 412 comes to once the override's current text has been read: the
 // comparison to show, or why there is none.
 export function staleOutcome(

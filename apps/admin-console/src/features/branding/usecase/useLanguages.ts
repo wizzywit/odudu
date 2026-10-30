@@ -17,6 +17,8 @@ import {
   formAfterTakingTheirs,
   keepMine,
   staleOutcome,
+  conflictsOf,
+  settle,
   SAVE_INTERRUPTED,
   withConflict,
   withoutConflict,
@@ -171,16 +173,17 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
         setErrors(after.errors);
         setMessage(after.message);
         setValues((was) => formAfterSave(was, sent, result.ok));
-        if (after.toast !== null) toast.succeeded(after.toast);
-        if (after.reported !== null) refusal.report(after.reported, 'manage-tenant');
+        settle(after).forEach((step) => {
+          if (step.kind === 'toast') toast.succeeded(step.text);
+          else refusal.report(step.failure, 'manage-tenant');
+        });
         setConflicts((held) => conflictsAfterSave(held, sent, result.ok));
         if (!after.stale) return;
         const stale = staleOutcome(sent, await writes.current(sent));
         setMessage(stale.message);
-        if (stale.conflict !== null) {
-          const { conflict } = stale;
+        conflictsOf(stale).forEach((conflict) => {
           setConflicts((held) => withConflict(held, conflict));
-        }
+        });
       })
       .catch(() => {
         setMessage(SAVE_INTERRUPTED);

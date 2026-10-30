@@ -41,13 +41,16 @@ export function PreviewShell({
 }) {
   const heading = useId();
   const pane = useRef<HTMLElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   // The strip is what is shown, a miniature that is not for the keyboard and
   // is not loaded again while the sheet shows the page.
   const strip = useContainerNarrow(pane);
-  const sheet = usePreviewSheet(strip);
+  const sheet = usePreviewSheet(strip, () => {
+    titleRef.current?.focus();
+  });
   return (
     <section ref={pane} aria-labelledby={heading} className={styles.pane} data-preview-strip>
-      <h2 id={heading} className={styles.title}>
+      <h2 ref={titleRef} id={heading} tabIndex={-1} className={styles.title}>
         {title}
       </h2>
       <div className={styles.controls}>{controls}</div>

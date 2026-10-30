@@ -12,6 +12,7 @@ import {
   testClientsRead,
   testClientSummary,
   testOutcome,
+  testSendable,
   type TestClientChoice,
   type TestOutcome,
 } from '#/features/email/service';
@@ -62,7 +63,7 @@ export function useTestSend(tenant: string, configured: boolean): TestSend {
     },
     summary: testClientSummary(clientId, picker.options),
     send: () => {
-      if (test.busy || blocked !== undefined) return;
+      if (!testSendable(test.busy, blocked)) return;
       const target = to.trim();
       setOutcome(null);
       test

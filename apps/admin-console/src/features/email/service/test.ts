@@ -19,6 +19,11 @@ export function testBlocked(to: string, configured: boolean): string | undefined
   return undefined;
 }
 
+// Whether a press of Send does anything: not while one is out, not while held.
+export function testSendable(busy: boolean, blocked: string | undefined): boolean {
+  return !busy && blocked === undefined;
+}
+
 // The server's own words for why a send failed, in a sentence that says so.
 export function testOutcome(result: GatewayResult<{ sent: boolean }>, to: string): TestOutcome {
   if (result.ok) {

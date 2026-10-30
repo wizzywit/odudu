@@ -1,6 +1,6 @@
 import type { Client, MailBrandingView, ThemeView } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { mailPreviewSource } from '#/features/branding/repository/mailPreview';
+import { mailPreviewSource, pageOrigin } from '#/features/branding/repository/mailPreview';
 import { useMailBranding } from '#/features/branding/repository/useMailBranding';
 import {
   DEFAULT_MAIL_CHOICE,
@@ -67,7 +67,7 @@ export function useMailTab(tenant: string, view: ThemeView | undefined, asked: b
     showTenantOwn: () => {
       setClient(null);
     },
-    origin: globalThis.location.origin,
+    origin: pageOrigin(),
     branding: useMailBranding(tenant, version, choice.client, asked),
   };
 }

@@ -266,6 +266,17 @@ export interface AfterSave extends SaveOutcome {
   reported: GatewayFailure | null;
 }
 
+export type SaveStep =
+  { kind: 'toast'; text: string } | { kind: 'report'; failure: GatewayFailure };
+
+// The things an answer to a save asks to be done beyond the form, in order.
+export function settle(after: AfterSave): SaveStep[] {
+  const steps: SaveStep[] = [];
+  if (after.toast !== null) steps.push({ kind: 'toast', text: after.toast });
+  if (after.reported !== null) steps.push({ kind: 'report', failure: after.reported });
+  return steps;
+}
+
 // What to do with the answer to a save: the form, the toast and the refusal.
 export function afterSave(
   result: GatewayResult<unknown>,

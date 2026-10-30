@@ -19,7 +19,12 @@ export {
   relayValues,
   type RelayValues,
 } from '#/features/email/service/relay';
-export { testBlocked, testOutcome, type TestOutcome } from '#/features/email/service/test';
+export {
+  testBlocked,
+  testOutcome,
+  testSendable,
+  type TestOutcome,
+} from '#/features/email/service/test';
 export {
   anyMasked,
   mailOutcome,

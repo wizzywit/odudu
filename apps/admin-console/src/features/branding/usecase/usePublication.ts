@@ -2,6 +2,7 @@ import { useRefusal } from '#/features/session';
 import type { ThemeWrites } from '#/features/branding/repository/useThemeWrites';
 import {
   publishFailure,
+  publishDefected,
   publishOutcomeOf,
   announcePublish,
   currentOutcome,
@@ -61,7 +62,7 @@ export function usePublication({
           });
         })
         .catch(() => {
-          answered(publishOutcomeOf({ ok: false, kind: 'defect' }, publishFailure, tag));
+          answered(publishDefected(publishFailure, tag));
         });
     },
   };

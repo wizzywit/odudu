@@ -1,1 +1,1 @@
-export { mailPreviewSource } from '#/features/branding/adapter/mail';
+export { mailPreviewSource, pageOrigin } from '#/features/branding/adapter/mail';
