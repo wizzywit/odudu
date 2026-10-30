@@ -4,6 +4,7 @@ import {
   mailPreviewHeaders,
   pageHeaders,
   previewHeaders,
+  servedAssetHeaders,
   type RenderedPage,
   type ResolvedBranding,
 } from '../../packages/kernel/src/index.js';
@@ -119,9 +120,18 @@ function isPreview(line: Recorded): boolean {
   );
 }
 
+// A tenant's uploaded image or stylesheet, served as itself rather than as a
+// page, sends the one policy that leaves a browser nothing to run or load.
+function isServedAsset(line: Recorded): boolean {
+  return line.policy === "default-src 'none'; sandbox";
+}
+
 describe('the content-security-policy lines the guides record', () => {
   const everything = recorded();
-  const lines = everything.filter((line) => !isDocs(line) && !isPreview(line));
+  const lines = everything.filter(
+    (line) => !isDocs(line) && !isPreview(line) && !isServedAsset(line),
+  );
+  const assets = everything.filter(isServedAsset);
   const docs = everything.filter(isDocs);
   const previews = everything.filter(isPreview);
 
@@ -144,6 +154,20 @@ describe('the content-security-policy lines the guides record', () => {
           .filter((header) => !line.following.includes(header))
           .map((header) => `${line.where}: missing ${header}`),
       ];
+    });
+    expect(drift).toEqual([]);
+  });
+
+  it('shows a served image or stylesheet with the headers the kernel sends it', () => {
+    expect(assets.length).toBeGreaterThan(1);
+    const drift = assets.flatMap((line) => {
+      const reach = line.following.includes('cross-origin-resource-policy: same-origin')
+        ? 'same-origin'
+        : 'cross-origin';
+      return servedAssetHeaders(reach)
+        .map(([name, value]) => `${name}: ${value}`)
+        .filter((header) => !line.following.includes(header) && !header.startsWith('content-'))
+        .map((header) => `${line.where}: missing ${header}`);
     });
     expect(drift).toEqual([]);
   });
