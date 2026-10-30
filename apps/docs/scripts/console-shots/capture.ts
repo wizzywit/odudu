@@ -153,6 +153,8 @@ export async function present(page: Page, options: Options): Promise<void> {
           .replaceAll(admin, publishedAdmin)
           .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu, standIn)
           .replace(/[0-9a-f]{8}…/gu, '0199aa00…')
+          // An uploaded image is named by the first eight characters of its id.
+          .replace(/(An image is set \()[0-9a-f]{8}\)/gu, '$10199aa00)')
           // A published key's public point is new on every stack.
           .replace(/("(?:x|y|n)"\s*:\s*")[A-Za-z0-9_-]+"/gu, '$1…"')
           .replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/gu, momentOf);
@@ -174,6 +176,19 @@ export async function present(page: Page, options: Options): Promise<void> {
       publishedAdmin: PUBLISHED_ADMIN,
     },
   );
+  // A preview of a page or a mail is a frame of its own, and says the address it was drawn at.
+  for (const frame of page.frames()) {
+    if (frame === page.mainFrame()) continue;
+    await frame.evaluate(
+      ({ origin, published }) => {
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+          node.nodeValue = (node.nodeValue ?? '').replaceAll(origin, published);
+        }
+      },
+      { origin: options.base, published: PUBLISHED_ORIGIN },
+    );
+  }
 }
 
 async function visible(page: Page): Promise<Visible> {
@@ -185,8 +200,12 @@ async function visible(page: Page): Promise<Visible> {
     }
     return {
       text: text.join('\n'),
+      // An uploaded image is drawn from a data address, which is the picture's own bytes in
+      // base64 and the length of a token; the capture uploaded it and the page shows it.
       attributes: [...document.querySelectorAll('*')].flatMap((element) =>
-        [...element.attributes].map((attribute) => attribute.value),
+        [...element.attributes].map((attribute) =>
+          attribute.value.replace(/^data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+$/u, 'data:image'),
+        ),
       ),
       fieldValues: [...document.querySelectorAll('input:not([type=password]), textarea')].map(
         (element) => (element as HTMLInputElement).value,
@@ -258,6 +277,7 @@ export async function refuseSecrets(
   page: Page,
   label: string,
   known: readonly string[],
+  allowed: readonly string[] = [],
 ): Promise<Visible> {
   let seen: Visible | undefined;
   const refuse = (found: readonly string[]): never => {
@@ -266,11 +286,12 @@ export async function refuseSecrets(
   try {
     await untilSettled(
       async () => {
-        const messages = await page.evaluate(() =>
+        const shown = await page.evaluate(() =>
           [...document.querySelectorAll('[role=alert], [role=status]')]
-            .map((element) => (element as HTMLElement).innerText.trim())
+            .map((element) => (element as HTMLElement).innerText.replace(/\s+/gu, ' ').trim())
             .filter((text) => text !== ''),
         );
+        const messages = shown.filter((text) => !allowed.includes(text));
         seen = await visible(page);
         const secrets = findSecrets(seen, known);
         if (secrets.length > 0) refuse(secrets);
@@ -294,17 +315,19 @@ async function shoot(
   context: Context,
   options: Options,
 ): Promise<{ png: Buffer; record: string }> {
+  const own = { width: options.width ?? 1100, height: options.height ?? 900 };
+  await page.setViewportSize(screen.viewport ?? own);
   await screen.open(page, context);
   await expectShown(page, screen);
   // On the page as the console renders it, before anything is rewritten: the
   // administrator's name is allowed there, so only the password is refused.
-  await refuseSecrets(page, screen.name, [options.adminPassword]);
+  await refuseSecrets(page, screen.name, [options.adminPassword], screen.allowedStatus);
   await present(page, options);
   await page.evaluate(() => document.fonts.ready.then(() => true));
   await page.waitForTimeout(400);
   const png = await page.screenshot({ type: 'png', animations: 'disabled', caret: 'hide' });
   // And again after the shot, as published, so a late render is caught too.
-  const seen = await refuseSecrets(page, screen.name, refused(options));
+  const seen = await refuseSecrets(page, screen.name, refused(options), screen.allowedStatus);
   return {
     png,
     record: `${seen.text
@@ -357,8 +380,9 @@ export async function captureScreens(
           webp: await toWebp(browserContext, png),
           record,
         });
-        manifest[screen.name] = viewport;
+        manifest[screen.name] = screen.viewport ?? viewport;
         await screen.leave?.(page, context);
+        await page.setViewportSize(viewport);
         if (sent.length > 0) {
           throw new Error(
             `screen ${screen.name} sent a request that issues a secret: ${sent.join(', ')}`,

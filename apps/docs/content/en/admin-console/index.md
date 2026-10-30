@@ -28,6 +28,7 @@ Each page below does one job. It says what the area is for, walks through the co
 ### Applications
 
 5. [Clients](./clients.mdx): the applications that sign people in.
+   - [Client branding](./client-branding.mdx): a client's own colours, logo and layout over the tenant's.
 6. [Scopes](./scopes.mdx): what an application can ask to be let do.
 7. [Registration tokens](./registration-tokens.mdx): let an application register itself.
 

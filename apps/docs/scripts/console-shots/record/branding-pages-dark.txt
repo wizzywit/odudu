@@ -1,0 +1,168 @@
+@layer {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+Odudu console
+Skip to content
+odudu · acme
+Overview
+Identity
+Subjects
+Groups
+Roles
+Applications
+Clients
+Scopes
+Registration tokens
+Security
+Sign-in flow
+Signing keys
+Sessions
+Tenant
+Settings
+Branding
+Email
+Export
+Observe
+Audit trail
+Signed in as 
+admin@odudu.local
+ from 
+system
+Theme
+System
+Light
+Dark
+Switch tenant
+Sign out
+Collapse menu
+or press 
+[
+odudu · acme
+Menu
+System
+Acting in 
+acme
+ with system authority
+Back to system
+acme
+Branding
+How the sign-in and account pages look to this tenant’s users. Edits are saved as a draft; nobody sees them until you publish.
+Publish
+Not published
+Not live
+Nothing published yet: people see Instrument’s own pages.
+Changed: Colours and font, Images, Stylesheet, Page templates
+4 changes
+Publishing makes the saved draft what people see on the sign-in and account pages, and keeps the version it replaces. Nothing is published until you do.
+Publish the draft
+Publish
+Discard draft…
+More
+Theme
+, changes to publish
+Pages
+, changes to publish
+Mail
+Languages
+Page templates
+Choose a page, then change its layout. The preview shows the page as people see it.
+Page
+Sign in
+Consent
+Choose an account
+Confirm sign-out
+Authenticator app set-up
+Passkey set-up
+Recovery codes
+Change password
+Required action
+Registration
+Password reset
+Email verification
+Required actions
+Sign-in error
+Email not verified
+Signed out
+Notice
+▾
+Insert a message
+▾
+Puts a reference to the message you choose where the caret is. The list shows at most 50 messages: type part of a key or of its text to narrow it.
+Sign in: template
+Wrap lines
+1
+2
+3
+4
+5
+6
+7
+8
+<h1>
+{{t "login.title"}}
+</h1>
+{{error}}
+{{form.open}}
+{{fields}}
+{{submit}}
+{{form.close}}
+<p
+class
+=
+"help"
+><small>
+Need help? 
+<a
+href
+=
+"https://acme.example/help"
+rel
+=
+"noopener noreferrer"
+>
+Ask the help desk
+</a></small></p>
+<h1>{{t "login.title"}}</h1>
+{{error}}
+{{form.open}}
+  {{fields}}
+  {{submit}}
+{{form.close}}
+<p class="help"><small>Need help? <a href="https://acme.example/help" rel="noopener noreferrer">Ask the help desk</a></small></p>
+Draft: this tenant · Published: Instrument’s default. Up to 64 KiB. Empty uses the layer below.
+Tab indents. To move on, press 
+Escape
+then 
+Tab
+224 of 65,536 bytes.
+Revert to published
+Writes the draft again with the page templates as published, all together; a part with nothing published is cleared. The other tabs keep their changes, and nothing is published.
+Revert this tab to published
+Parts of this page
+Parts of this page
+▾
+A template is the HTML of one page. Leave it empty to use the layer below. The server fills in every part itself; a template only decides where each one sits.
+Required, each exactly once:
+{{form.open}}
+{{fields}}
+{{submit}}
+{{error}}
+{{form.close}}
+Optional, at most once:
+{{intro}}
+{{links}}
+{{passkey}}
+Between {{form.open}} and {{form.close}}: {{fields}}, {{submit}}.
+Wording comes from the catalogue: {{t "key"}} inserts the message with that key in the visitor’s language. A key the page’s catalogue does not have is refused when you save.
+Plain HTML only. Scripts, styles, forms, inputs, frames and event attributes are refused, and links must be https.
+Preview
+Colour scheme
+Light
+▾
+Light
+Dark
+The saved draft, drawn by the real page. Unsaved changes appear after you save them.
+Sign in · Light
+Open preview

@@ -1,0 +1,113 @@
+@layer {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+Odudu console
+Skip to content
+odudu · acme
+Overview
+Identity
+Subjects
+Groups
+Roles
+Applications
+Clients
+Scopes
+Registration tokens
+Security
+Sign-in flow
+Signing keys
+Sessions
+Tenant
+Settings
+Branding
+Email
+Export
+Observe
+Audit trail
+Signed in as 
+admin@odudu.local
+ from 
+system
+Theme
+System
+Light
+Dark
+Switch tenant
+Sign out
+Collapse menu
+or press 
+[
+odudu · acme
+Menu
+System
+Acting in 
+acme
+ with system authority
+Back to system
+acme
+Branding
+How the sign-in and account pages look to this tenant’s users. Edits are saved as a draft; nobody sees them until you publish.
+Publish
+Published
+Live
+Version 2 is published.
+No draft.
+No draft
+Publishing makes the saved draft what people see on the sign-in and account pages, and keeps the version it replaces. Nothing is published until you do.
+There is no draft to publish. Save a change first.
+Publish the draft
+Publish
+Discard draft…
+More
+Theme
+Pages
+Mail
+Languages
+Languages
+The languages the tenant’s pages and mail are offered in, and the one used when a visitor’s browser does not decide.
+Supported languages
+English (en)
+Arabic (ar)
+French (fr)
+A language the build ships with is complete. Any other the tenant already offers stays listed, and “Add a language” below adds one; its pages use the English text unless a message override says otherwise.
+Add a language
+▾
+Choose a language or type its tag, such as fr or pt-BR. Its pages use the English text unless a message override says otherwise.
+Add language
+Default language
+The browser decides
+▾
+Used ahead of the browser’s preference, when the request names no language.
+The browser decides
+English (en)
+French (fr)
+Message overrides
+The tenant’s own wording for the messages its pages and its mail show, per language. A language with no override shows the catalogue’s text. A client has no wording of its own.
+Language
+English (en)
+▾
+English (en)
+French (fr)
+Message key
+▾
+The key of the page or mail message to replace, such as login.title or reset.subject. Choose one from the list, with its English text beside it, or type it; a key the server does not know is refused.
+Text shown instead
+Keep placeholders such as {name} as the catalogue writes them. Markup is shown as text. Editing an override replaces its text.
+0 of 2,000 characters.
+Save override
+1 override in this language. The tenant may hold 500 across every language.
+Key
+Text
+Changed
+Actions
+Key
+verify.heading
+Text
+Confirm your Acme address
+Changed
+recently
+Actions
+Edit
+Remove

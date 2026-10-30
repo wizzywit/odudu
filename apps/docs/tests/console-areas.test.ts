@@ -105,11 +105,11 @@ function tabLabels(entry: TabSource | readonly string[]): string[] {
   return [...body.matchAll(/:\s*'([^']+)',/gu)].map((match) => match[1] ?? '');
 }
 
-const SLUGS = Object.values(PAGE_OF_FEATURE);
+// A page for a tab of a feature that is big enough to be a page of its own. It is
+// described with the feature it belongs to and checked as the other pages are.
+const PAGES_OF_TABS: readonly string[] = ['client-branding'];
 
-// Pages whose picture is not taken yet. Each leaves this list with its screen
-// in the console shots, and the closing pass greps for what is still here.
-const PICTURE_OWED: readonly string[] = ['branding'];
+const SLUGS = [...Object.values(PAGE_OF_FEATURE), ...PAGES_OF_TABS];
 
 describe('the admin console section', () => {
   it('has a page for every feature directory of the console', () => {
@@ -187,12 +187,7 @@ describe('the admin console section', () => {
   it('gives each page of an area a picture, in a story that says what cannot be undone', () => {
     for (const slug of SLUGS) {
       const source = page(slug);
-      if (PICTURE_OWED.includes(slug)) {
-        // Leaves the list with its picture: a listed page that has one fails.
-        expect(source, slug).not.toMatch(/<ConsoleShot\s/u);
-      } else {
-        expect(source, slug).toMatch(/<ConsoleShot\s/u);
-      }
+      expect(source, slug).toMatch(/<ConsoleShot\s/u);
       expect(source, slug).toMatch(/^## (Things|Nothing)/mu);
       expect(source, slug).toMatch(/^## \d\. /mu);
     }
