@@ -7,6 +7,7 @@ import {
   ADD_NOTE,
   capText,
   conflictFields,
+  conflictLead,
   conflictSection,
   defaultChoices,
   DEFAULT_LABEL,
@@ -267,6 +268,7 @@ function OverridesSection({ tenant, data }: { tenant: string; data: Settings }) 
             key={`${conflict.locale}/${conflict.key}`}
             section={conflictSection(conflict)}
             conflicts={conflictFields(conflict)}
+            lead={conflictLead(conflict)}
             busy={page.resolving}
             onKeepMine={() => {
               page.keepMine(conflict);

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CONFLICT_TEXT_LABEL,
   conflictFields,
+  conflictLead,
+  conflictsAfterSave,
+  OVERRIDE_CONFLICT_LEAD,
+  OVERRIDE_REMOVED_LEAD,
+  SAVE_INTERRUPTED,
   conflictSection,
   conflictsIn,
   editedOverride,
@@ -54,9 +60,15 @@ describe('two administrators and one override', () => {
 
   it('shows their text beside mine, and offers theirs version to keep mine on', () => {
     const conflict = overrideConflict(sent, { message: 'Theirs', etag: '"t"' });
-    expect(conflictFields(conflict)).toEqual([
-      { field: 'message', label: 'Text', theirs: 'Theirs', yours: 'Mine', secret: false },
-    ]);
+    const [field] = conflictFields(conflict);
+    expect(field).toMatchObject({
+      field: 'message',
+      label: CONFLICT_TEXT_LABEL,
+      theirs: 'Theirs',
+      yours: 'Mine',
+      secret: false,
+    });
+    expect(field?.describe?.('Theirs')).toBe('Theirs');
     expect(conflictSection(conflict)).toBe('the en text for login.title');
     expect(keepMine(conflict)).toEqual({ ...sent, etag: '"t"' });
   });
@@ -64,6 +76,7 @@ describe('two administrators and one override', () => {
   it('keeps mine as a create when theirs removed the override', () => {
     const conflict = overrideConflict(sent, null);
     expect(conflictFields(conflict)[0]?.theirs).toBeNull();
+    expect(conflictFields(conflict)[0]?.describe?.(null)).toBe('removed');
     expect(keepMine(conflict).etag).toBeNull();
   });
 
@@ -91,6 +104,7 @@ describe('two administrators and one override', () => {
   it('tells a stale removal to look again, and still counts a gone one as done', () => {
     expect(removeOutcome(refused(412, 'about:blank'))).toEqual({
       done: false,
+      closes: true,
       text: STALE_REMOVAL,
     });
     expect(removeOutcome(refused(404, 'about:blank')).done).toBe(true);
@@ -113,5 +127,23 @@ describe('two administrators and one override', () => {
     expect(formAfterSave(typed, { key: 'login.help' }, true)).toEqual(EMPTY_OVERRIDE);
     expect(formAfterSave(typed, { key: 'login.title' }, true)).toBe(typed);
     expect(formAfterSave(typed, { key: 'login.help' }, false)).toBe(typed);
+  });
+
+  it('leads the panel with what happened: newer text, or a removal', () => {
+    expect(conflictLead(overrideConflict(sent, { message: 'A', etag: '"a"' }))).toBe(
+      OVERRIDE_CONFLICT_LEAD,
+    );
+    expect(conflictLead(overrideConflict(sent, null))).toBe(OVERRIDE_REMOVED_LEAD);
+    expect(OVERRIDE_REMOVED_LEAD).toMatch(/removed/u);
+  });
+
+  it('drops the conflict of an override once it was saved, and keeps it otherwise', () => {
+    const held = [overrideConflict(sent, null)];
+    expect(conflictsAfterSave(held, sent, true)).toEqual([]);
+    expect(conflictsAfterSave(held, sent, false)).toBe(held);
+  });
+
+  it('says in words that a save was interrupted, not that nothing happened', () => {
+    expect(SAVE_INTERRUPTED).toMatch(/Could not confirm|could not finish/u);
   });
 });

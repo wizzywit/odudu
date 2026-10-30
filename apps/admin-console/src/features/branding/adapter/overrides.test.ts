@@ -69,4 +69,16 @@ describe('reading one override', () => {
     });
     expect(result).toMatchObject({ ok: true, data: null });
   });
+
+  it('gives up as a defect when the pages never end, instead of reading on', async () => {
+    const fake = fakeTransport({
+      [`GET ${MO}`]: json({ items: [override('a.one', 'x')], next: 'more' }),
+    });
+    const result = await readOverride(fake.transport.gateway, 'acme', {
+      locale: 'en',
+      key: 'login.title',
+    });
+    expect(result).toEqual({ ok: false, kind: 'defect' });
+    expect(fake.sent).toHaveLength(3);
+  });
 });

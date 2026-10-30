@@ -117,6 +117,9 @@ export interface RemovalSpec {
 export interface RemovalOutcome {
   // The thing is where the action meant it to be, whoever put it there.
   done: boolean;
+  // Not done, and what was asked is out of date: the dialog closes and the
+  // text is told over the page, which has been read again.
+  closes?: boolean;
   text: string;
 }
 

@@ -12,6 +12,9 @@ import {
   NOTHING_TO_PUBLISH,
   revertHold,
   revertLead,
+  REVERT_CONFLICT_LEAD,
+  REVERT_KEEP_HINT,
+  REVERT_TAKE_HINT,
   revertConflicts,
   revertProblem,
   revertSection,
@@ -214,10 +217,26 @@ describe('a revert that met a newer draft', () => {
     ]);
     const shown = conflicts.map((c) => [c.describe?.(c.theirs), c.describe?.(c.yours)]);
     expect(shown).toEqual([
-      ['2 groups of colours or fonts', '1 group of colours or fonts'],
-      ['1 image', 'nothing'],
-      ['3 characters', 'nothing'],
+      ['2 groups of colours or fonts (light, font)', '1 group of colours or fonts (light)'],
+      ['1 image (logo)', 'nothing'],
+      ['3 characters, starting “a{}”', 'nothing'],
     ]);
+  });
+
+  it('tells two pieces of the same size apart', () => {
+    const [one] = revertConflicts(
+      viewOf({ ...EMPTY, stylesheet: 'a{color:red}' }, { ...EMPTY, stylesheet: 'b{color:red}' }, [
+        'stylesheet',
+      ]),
+      'theme',
+    );
+    expect(one?.describe?.(one.theirs)).not.toBe(one?.describe?.(one.yours));
+  });
+
+  it('words its own lead, not the one for fields saved by somebody else', () => {
+    expect(REVERT_CONFLICT_LEAD).toMatch(/revert/iu);
+    expect(REVERT_KEEP_HINT).toMatch(/published/u);
+    expect(REVERT_TAKE_HINT).toMatch(/draft/u);
   });
 
   it('leaves out a piece that already matches, and the other tab’s pieces', () => {

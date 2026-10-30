@@ -5,7 +5,7 @@ import {
   readOverride,
   readOverridePage,
 } from '#/features/branding/adapter/overrides';
-import { PAGE_SIZE } from '#/features/branding/service';
+import { PAGE_SIZE, TENANT_WIDE_WRITES } from '#/features/branding/service';
 import { listKey, overrideReadKey, themeWriteKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useListPages } from '#/shared/repository/useResourceList';
@@ -50,18 +50,20 @@ export function useOverrideWrites(tenant: string): OverrideWrites {
   };
   return {
     put: useGatewayWrite({
-      mutationKey: themeWriteKey(tenant, 'tenant-wide', 'override'),
+      mutationKey: themeWriteKey(tenant, TENANT_WIDE_WRITES, 'override'),
       send: (gateway, input) => putOverride(gateway, tenant, input),
       onSettled: reread,
     }),
     remove: useGatewayWrite({
-      mutationKey: themeWriteKey(tenant, 'tenant-wide', 'override-remove'),
+      mutationKey: themeWriteKey(tenant, TENANT_WIDE_WRITES, 'override-remove'),
       send: (gateway, input) => deleteOverride(gateway, tenant, input),
       onSettled: reread,
     }),
     current: (input) =>
-      fresh.read(overrideReadKey(tenant, input.locale, input.key), () =>
-        readOverride(gateway, tenant, input),
-      ),
+      fresh
+        .read(overrideReadKey(tenant, input.locale, input.key), () =>
+          readOverride(gateway, tenant, input),
+        )
+        .catch((): GatewayResult<MessageOverride | null> => ({ ok: false, kind: 'defect' })),
   };
 }

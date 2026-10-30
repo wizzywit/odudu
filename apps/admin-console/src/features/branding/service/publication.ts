@@ -179,14 +179,32 @@ const PIECE_UNITS: Readonly<Record<ChangedPiece, readonly [string, string]>> = {
   templates: ['page template', 'page templates'],
 };
 
+const NAMED_AT_MOST = 3;
+const PREVIEW_LENGTH = 24;
+
+// What a piece holds, short enough for a table cell but enough to tell two
+// of the same size apart: the names it sets, or how a stylesheet begins.
 function describePiece(piece: ChangedPiece): (value: unknown) => string {
   const [one, other] = PIECE_UNITS[piece];
   return (value) => {
     if (value === null || value === undefined || value === '') return 'nothing';
-    const size = typeof value === 'string' ? value.length : Object.keys(value).length;
-    return size === 0 ? 'nothing' : counted(size, one, other);
+    if (typeof value === 'string') {
+      return `${counted(value.length, one, other)}, starting “${value.slice(0, PREVIEW_LENGTH).trim()}”`;
+    }
+    const names = Object.keys(value);
+    if (names.length === 0) return 'nothing';
+    const more =
+      names.length > NAMED_AT_MOST ? `, and ${String(names.length - NAMED_AT_MOST)} more` : '';
+    return `${counted(names.length, one, other)} (${names.slice(0, NAMED_AT_MOST).join(', ')}${more})`;
   };
 }
+
+export const REVERT_CONFLICT_LEAD =
+  'Somebody saved the draft after you opened this tab. Reverting writes what is published over these parts of it; nothing has been merged.';
+
+export const REVERT_KEEP_HINT = 'Reverts these parts to what is published, over their draft.';
+
+export const REVERT_TAKE_HINT = 'Keeps their draft and drops this revert.';
 
 // The pieces of a tab a revert would change that somebody else has since
 // changed in the draft: what the draft holds now beside what the revert writes.

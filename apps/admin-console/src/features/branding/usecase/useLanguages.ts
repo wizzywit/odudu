@@ -8,6 +8,7 @@ import {
   afterSave,
   askedRemoval,
   addLanguage,
+  conflictsAfterSave,
   conflictsIn,
   editedOverride,
   EMPTY_OVERRIDE,
@@ -16,6 +17,7 @@ import {
   formAfterTakingTheirs,
   keepMine,
   staleOutcome,
+  SAVE_INTERRUPTED,
   withConflict,
   withoutConflict,
   type OverrideConflict,
@@ -150,7 +152,10 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
   const [values, setValues] = useState(EMPTY_OVERRIDE);
   const [errors, setErrors] = useState<OverrideErrors>({});
   const [message, setMessage] = useState<string | null>(null);
-  const [conflicts, setConflicts] = useState<OverrideConflict[]>([]);
+  const [conflicts, setConflicts] = useState<readonly OverrideConflict[]>([]);
+  // A save is under way from its first request to the end of the read that
+  // follows a refusal, so a second press in between is not another save.
+  const [submitting, setSubmitting] = useState(false);
   const action = useAnnouncedAction<RemovedOverride>({
     refusal,
     capability: 'manage-tenant',
@@ -158,6 +163,7 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
     outcomeOf: (_asked, result) => removeOutcome(result),
   });
   const submit = (sent: SentOverride): void => {
+    setSubmitting(true);
     writes.put
       .run(sent)
       .then(async (result) => {
@@ -167,7 +173,7 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
         setValues((was) => formAfterSave(was, sent, result.ok));
         if (after.toast !== null) toast.succeeded(after.toast);
         if (after.reported !== null) refusal.report(after.reported, 'manage-tenant');
-        if (result.ok) setConflicts((held) => withoutConflict(held, sent));
+        setConflicts((held) => conflictsAfterSave(held, sent, result.ok));
         if (!after.stale) return;
         const stale = staleOutcome(sent, await writes.current(sent));
         setMessage(stale.message);
@@ -176,7 +182,12 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
           setConflicts((held) => withConflict(held, conflict));
         }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        setMessage(SAVE_INTERRUPTED);
+      })
+      .finally(() => {
+        setSubmitting(false);
+      });
   };
   return {
     locale,
@@ -195,7 +206,7 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
       setErrors({});
       setMessage(null);
     },
-    saving: writes.put.busy,
+    saving: writes.put.busy || submitting,
     save: () => {
       const attempt = overrideAttempt(locale, values);
       setErrors(attempt.errors);
@@ -203,7 +214,7 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
       if (attempt.sent !== null) submit(attempt.sent);
     },
     conflicts: conflictsIn(conflicts, locale),
-    resolving: writes.put.busy,
+    resolving: writes.put.busy || submitting,
     keepMine: (conflict) => {
       submit(keepMine(conflict));
     },

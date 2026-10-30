@@ -476,13 +476,105 @@ describe('two administrators and one override', () => {
     });
   });
 
-  it('says a stale removal changed, and reads the list again', async () => {
+  it('closes the dialog on a stale removal, says so over the refreshed list, and removes on the next try', async () => {
     const user = userEvent.setup();
-    renderConsoleAt(AT, languagesRoutes({ [`DELETE ${MO}/en/login.title`]: stale }));
+    const FRESH = { ...TITLE_OVERRIDE, message: 'Changed meanwhile', etag: '"fresh"' };
+    const { sent } = renderConsoleAt(
+      AT,
+      languagesRoutes({
+        [`DELETE ${MO}/en/login.title`]: (request) =>
+          request.ifMatch === '"fresh"' ? new Response(null, { status: 204 }) : stale(request),
+        [`GET ${MO}`]: inTurn(
+          json({ items: [TITLE_OVERRIDE, HELP_OVERRIDE] }),
+          json({ items: [FRESH, HELP_OVERRIDE] }),
+          json({ items: [HELP_OVERRIDE] }),
+        ),
+      }),
+    );
     await user.click(await screen.findByRole('button', { name: 'Remove login.title' }));
     const dialog = await screen.findByRole('alertdialog', { name: 'Remove this override?' });
     await user.click(within(dialog).getByRole('button', { name: 'Remove override' }));
-    expect(await within(dialog).findByText(/changed after you saw it/u)).toBeVisible();
+    expect(await screen.findByRole('status', { name: 'Last removal' })).toHaveTextContent(
+      /changed after you saw it/u,
+    );
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(await screen.findByRole('row', { name: /login\.title/u })).toHaveTextContent(
+      'Changed meanwhile',
+    );
+    await user.click(screen.getByRole('button', { name: 'Remove login.title' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog', { name: 'Remove this override?' })).getByRole(
+        'button',
+        { name: 'Remove override' },
+      ),
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole('row', { name: /login\.title/u })).toBeNull();
+    });
+    expect(sent.filter((request) => request.method === 'DELETE').map((r) => r.ifMatch)).toEqual([
+      TITLE_OVERRIDE.etag,
+      '"fresh"',
+    ]);
+  });
+
+  it('words a removal by the other administrator as that, not as newer text', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(
+      AT,
+      languagesRoutes({
+        [PUT_TITLE]: stale,
+        [`GET ${MO}`]: (request) =>
+          json({ items: request.search.get('limit') === '200' ? [] : [TITLE_OVERRIDE] })(request),
+      }),
+    );
+    await editTitle(user, 'Mine');
+    expect(await screen.findByText(/Somebody else removed this override/u)).toBeVisible();
+    const table = screen.getByRole('table', { name: /Changed in the en text for login\.title/u });
+    expect(within(table).getByText('removed')).toBeVisible();
+  });
+
+  it('says so when the newer text cannot be read after a refusal', async () => {
+    const user = userEvent.setup();
+    renderConsoleAt(
+      AT,
+      languagesRoutes({
+        [PUT_TITLE]: stale,
+        [`GET ${MO}`]: (request) =>
+          request.search.get('limit') === '200'
+            ? problem(500, 'about:blank', 'Server error')(request)
+            : json({ items: [TITLE_OVERRIDE] })(request),
+      }),
+    );
+    await editTitle(user, 'Mine');
+    expect(await screen.findByText(/newer text could not be loaded/u)).toBeVisible();
+    expect(screen.queryByText(/Changed in the en text/u)).toBeNull();
+  });
+
+  it('takes a second press of Save during the read after a refusal for no second save', async () => {
+    const user = userEvent.setup();
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { sent } = renderConsoleAt(
+      AT,
+      languagesRoutes({
+        [PUT_TITLE]: stale,
+        [`GET ${MO}`]: async (request) => {
+          if (request.search.get('limit') === '200') await held;
+          return json({ items: [TITLE_OVERRIDE] })(request);
+        },
+      }),
+    );
+    await editTitle(user, 'Mine');
+    const save = await screen.findByRole('button', { name: /Saving…|Save override/u });
+    await waitFor(() => {
+      expect(save).toBeDisabled();
+    });
+    await user.click(save);
+    release();
+    await screen.findByText(/Changed in the en text for login\.title/u);
+    expect(sent.filter((request) => request.method === 'PUT')).toHaveLength(1);
   });
 
   it('has nothing axe can find in either theme with a conflict showing', async () => {

@@ -7,6 +7,7 @@ import {
 } from '@odudu/contracts/admin';
 import { writeRefusal } from '#/shared/service/capabilities';
 import {
+  isStale,
   problemSubtype,
   removalOutcome,
   writeFailureText,
@@ -173,17 +174,21 @@ export function askedRemoval(asked: Pick<MessageOverride, 'locale' | 'key'> | nu
 }
 
 export function removeOutcome(result: GatewayResult<unknown>): RemovalOutcome {
-  return removalOutcome(
+  const outcome = removalOutcome(
     result,
     { doneText: REMOVED_TEXT, alreadyGoneText: ALREADY_REMOVED },
     {
       name: 'The override',
       verb: 'removed',
       lookAt: 'the list',
-      stale: STALE_REMOVAL,
       refused: (problem) => writeRefusal(problem, 'manage-tenant'),
     },
   );
+  // The version asked about is out of date, so asking again could only be
+  // refused again: the dialog closes and the list, read again, is looked at.
+  return !result.ok && isStale(result)
+    ? { done: false, closes: true, text: STALE_REMOVAL }
+    : outcome;
 }
 
 // How many are shown, said as a total only once no page is left to load.

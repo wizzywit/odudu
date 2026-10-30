@@ -1,8 +1,9 @@
 import type { MessageOverride } from '@odudu/contracts/admin';
-import type { Conflict } from '#/shared/service/conflict';
+import { describeValue, type Conflict } from '#/shared/service/conflict';
 import type { GatewayResult } from '#/shared/service/result';
 import {
   EMPTY_OVERRIDE,
+  overrideFailure,
   type OverrideValues,
   type SentOverride,
 } from '#/features/branding/service/overrides';
@@ -32,17 +33,47 @@ export function overrideConflict(
   };
 }
 
+export const CONFLICT_TEXT_LABEL = 'Text';
+
+export const OVERRIDE_CONFLICT_LEAD =
+  'Somebody else saved this override while you were editing it. Nothing has been merged.';
+
+export const OVERRIDE_REMOVED_LEAD =
+  'Somebody else removed this override while you were editing it. Keep mine creates it again with your text; Take theirs leaves it removed.';
+
+// What the server holds now, said as removed when it holds nothing.
+function describeTheirs(value: unknown): string {
+  return value === null ? 'removed' : describeValue(value);
+}
+
 export function conflictFields(conflict: OverrideConflict): Conflict[] {
   return [
     {
       field: 'message',
-      label: 'Text',
+      label: CONFLICT_TEXT_LABEL,
       theirs: conflict.theirs,
       yours: conflict.mine,
       secret: false,
+      describe: describeTheirs,
     },
   ];
 }
+
+export function conflictLead(conflict: OverrideConflict): string {
+  return conflict.theirs === null ? OVERRIDE_REMOVED_LEAD : OVERRIDE_CONFLICT_LEAD;
+}
+
+// What the save did to the conflicts held: an override that was saved has none.
+export function conflictsAfterSave(
+  held: readonly OverrideConflict[],
+  sent: Pick<OverrideConflict, 'locale' | 'key'>,
+  saved: boolean,
+): readonly OverrideConflict[] {
+  return saved ? withoutConflict(held, sent) : held;
+}
+
+// Said when a save, or the read after it, ended without an answer.
+export const SAVE_INTERRUPTED = overrideFailure({ ok: false, kind: 'defect' }).message ?? '';
 
 // Named as the panel's heading reads: "Changed in the en text for login.title".
 export function conflictSection(conflict: OverrideConflict): string {

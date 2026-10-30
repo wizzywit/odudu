@@ -292,7 +292,9 @@ describe('reverting a tab', () => {
     );
     const panel = await screen.findByRole('region', { name: 'Revert to published' });
     await user.click(within(panel).getByRole('button', { name: 'Revert this tab to published' }));
-    expect(await within(panel).findByText(/Somebody saved the draft/u)).toBeVisible();
+    expect(
+      await within(panel).findByText(/after you opened it\. The page now shows their version/u),
+    ).toBeVisible();
     expect(sent.filter((s) => s.method !== 'GET')).toHaveLength(1);
   });
 });
@@ -346,7 +348,7 @@ describe('a revert that met a newer draft', () => {
       expect(screen.queryByText(CONFLICT)).toBeNull();
     });
     expect(sent.filter((s) => s.method === 'PUT')).toHaveLength(1);
-    expect(within(panel).queryByText(/Somebody saved the draft/u)).toBeNull();
+    expect(within(panel).queryByText(/The page now shows their version/u)).toBeNull();
   });
 });
 
