@@ -139,6 +139,7 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
     'right-to-left locale',
   ],
   ['P4h', 'Lists sort by', '`intl.collator`', 'machine-readable `code`'],
+  ['P4h', "A client's base name", 'carry a language of their own'],
   ['P4h', 'It also sends the failure screen', "failure screen's error id sent to the server"],
   [
     'P4i',
@@ -315,6 +316,7 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     ['Localization has its catalogue', ['P4h'], ['catalogue']],
     ['The admin router validates a body', ['P11'], ['authenticates a request before it reads']],
     ["The console's failure ID", ['P4h'], ['failure screen']],
+    ['A passage in another language', ['P4h'], ['language of their own']],
     ['No scope means anything', ['P9'], ['resource server as a first-class thing']],
     [
       '`/introspect` answers every registered client',

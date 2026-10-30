@@ -13,7 +13,7 @@ The custom domain per tenant left P4b for a new phase, P4j, straight after it
 (design section 3). P4j's 20–35 h is an estimate to refine in P4j's own
 brainstorm. Liquid-style template logic went to the roadmap's "Decided against",
 to be revisited when a user asks for it. P4b's own hours (81–134 h) are
-unchanged and are set at the end of the phase from what the increments cost.
+unchanged; they were not tracked, so the range stays an estimate.
 
 ## The logout form's fields were outside its token
 
@@ -248,7 +248,7 @@ are tenant choices. Sign-out asks first. What the build found beyond the section
   one inside a link, a form opening and closing in different cells). All are refused and held
   in [`docs/protocols/web-security.md`](../protocols/web-security.md). Its accepted rows are
   decisions (a template may link anywhere; a theme is the administrators' own words; two
-  separate rules are not compared for contrast). Its one `gap` row is below.
+  separate rules are not compared for contrast). Its one open row, the language of a client's base name, is P4h's.
 - **Load order.** One Branding page load was six admin reads in a waterfall. `branding-load.spec.ts`
   records each tab's calls in the order they were sent and answered, and prints the waterfall.
 - **Mobile.** The tabs were squeezed on a phone. A narrow screen now gets a preview strip, a

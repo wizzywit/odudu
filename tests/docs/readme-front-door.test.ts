@@ -13,8 +13,7 @@ const { OWNER_NOTICE, PAGES_BASE, PAGES_DOCS_BASE, REPOSITORY_URL, SITE_ORIGIN }
 // two to each other, so the front door cannot say something the site denies.
 const README = readFileSync(path.join(REPO_ROOT, 'README.md'), 'utf8');
 const LINES = README.split('\n');
-const TAGLINE =
-  'The sign-in you own: multi-tenant, brandable, and built for apps, MCP servers and AI agents.';
+const TAGLINE = 'The sign-in you own: multi-tenant, brandable, and built for apps and AI agents.';
 const STATUS_SENTENCE =
   'Some of what is described here is still being built. The roadmap shows what is ready.';
 const CONTENT = path.join(REPO_ROOT, 'apps/docs/content/en');
@@ -165,7 +164,7 @@ describe('what it says about the product matches the roadmap', () => {
     [/passkeys/iu, /passkeys/u],
     [/recovery codes/iu, /Recovery codes: ten per person/u],
     [/theme and a client's branding/u, /renders in a tenant's theme and a client's branding/u],
-    [/MCP server/u, /The admin API as tools for an AI agent/u],
+    [/English and Arabic/u, /Arabic is the right-to-left language shipped/u],
     [/admin API/u, /An admin API of more than a hundred operations/u],
     [/console with a page for every area/u, /An admin console with a page for every area/u],
     [/audit/iu, /Every administrative change, sign-in, refusal/u],
