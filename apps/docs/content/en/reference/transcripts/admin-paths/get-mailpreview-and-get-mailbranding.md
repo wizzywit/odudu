@@ -354,7 +354,7 @@ background-color:#f4f8ff
 ### A mail queued out of a client's sign-in
 
 The mail a person is sent wears the same look. This part ran against a stack whose
-deployment sender is a [Mailpit](https://mailpit.axllent.org) (`ODUDU_SMTP_HOST` set to
+deployment sender is a Mailpit (`ODUDU_SMTP_HOST` set to
 it, its web port published on `8725`), emptied first. `grace` asks for a reset link from
 the sign-in page of `portal`: the authorization request, the link on its page, and the
 form that link opens, whose `return_to` names that request:

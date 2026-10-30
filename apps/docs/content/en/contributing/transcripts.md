@@ -365,7 +365,7 @@ The branding and mail transcripts were run again on one stack: [the theme routes
 [the themed sign-in](../reference/transcripts/request-paths/a-themed-sign-in-and-the-brand-route.md) and
 [the OpenAPI document](../reference/transcripts/admin-paths/get-adminopenapijson.md), which went last. The stack was the
 compose project `odudu-p4b-tx` on port `3000` (`ODUDU_THROTTLE_LIMIT` and `ODUDU_LOGIN_THROTTLE_LIMIT` at `10000`), built from
-commit `966da152`, a freshly created volume with `ada` made by `seed admin`, and a [Mailpit](https://mailpit.axllent.org) as the
+commit `966da152`, a freshly created volume with `ada` made by `seed admin`, and a Mailpit as the
 deployment's own sender (`ODUDU_SMTP_HOST`, its web port on `8725`, `ODUDU_ALLOW_PRIVATE_SMTP_HOSTS=true`). Each page ran in the
 order it is written, a tenant of its own made new each time, and every output in it is that run's. The 96 by 32 pixel logos, the
 640 by 360 pixel background and the 540 by 540 pixel image of random colour were made for the run. The `429` in the SMTP page ran

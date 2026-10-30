@@ -249,7 +249,7 @@ reads a client's theme. A client the tenant does not hold, another tenant's incl
 `404`, and a caller without `manage-clients` is `403`.
 
 The sections below ran on a stack where private relay hosts are admitted
-(`ODUDU_ALLOW_PRIVATE_SMTP_HOSTS=true`) and the relay is a [Mailpit](https://mailpit.axllent.org)
+(`ODUDU_ALLOW_PRIVATE_SMTP_HOSTS=true`) and the relay is a Mailpit
 named `mailpit`, listening on `1025`, with its web port published on `8725` and emptied
 first. The tenant `smtp-client-demo` holds a client `portal` whose published theme sets
 the light palette and a logo (`client-logo.png`, a 96 by 32 pixel PNG made for this
