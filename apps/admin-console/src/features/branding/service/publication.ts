@@ -1,6 +1,7 @@
 import type { ThemeBodyRequest, ThemeBodyWire } from '@odudu/contracts';
 import type { ThemeView } from '@odudu/contracts/admin';
 import { writeRefusal } from '#/shared/service/capabilities';
+import type { Conflict } from '#/shared/service/conflict';
 import { writeFailureText } from '#/shared/service/failure';
 import { andList, counted } from '#/shared/service/format';
 import type { AdminCapability } from '#/shared/service/principal';
@@ -164,6 +165,49 @@ export function revertFailure(failure: GatewayFailure): string {
 // What a revert's answer says under the button: nothing when it went through.
 export function revertProblem(result: GatewayResult<unknown>): string | null {
   return result.ok ? null : revertFailure(result);
+}
+
+// How a revert's panel names the tab it concerns, as its heading reads it.
+export function revertSection(tab: ScopedTab): string {
+  return tab === 'theme' ? 'the Theme tab' : 'the Pages tab';
+}
+
+const PIECE_UNITS: Readonly<Record<ChangedPiece, readonly [string, string]>> = {
+  tokens: ['group of colours or fonts', 'groups of colours or fonts'],
+  assets: ['image', 'images'],
+  stylesheet: ['character', 'characters'],
+  templates: ['page template', 'page templates'],
+};
+
+function describePiece(piece: ChangedPiece): (value: unknown) => string {
+  const [one, other] = PIECE_UNITS[piece];
+  return (value) => {
+    if (value === null || value === undefined || value === '') return 'nothing';
+    const size = typeof value === 'string' ? value.length : Object.keys(value).length;
+    return size === 0 ? 'nothing' : counted(size, one, other);
+  };
+}
+
+// The pieces of a tab a revert would change that somebody else has since
+// changed in the draft: what the draft holds now beside what the revert writes.
+export function revertConflicts(view: ThemeView, tab: ScopedTab): Conflict[] {
+  const now = baseBody(view);
+  const reverted = revertRequest(view, tab);
+  return TAB_PIECES[tab]
+    .filter((piece) => JSON.stringify(now[piece]) !== JSON.stringify(reverted[piece]))
+    .map((piece) => ({
+      field: piece,
+      label: PIECE_TITLES[piece],
+      theirs: now[piece],
+      yours: reverted[piece],
+      secret: false,
+      describe: describePiece(piece),
+    }));
+}
+
+// The comparison a stale revert shows, and nothing before one has been refused.
+export function shownRevertConflicts(stale: boolean, view: ThemeView, tab: ScopedTab): Conflict[] {
+  return stale ? revertConflicts(view, tab) : [];
 }
 
 export function announceRevert(

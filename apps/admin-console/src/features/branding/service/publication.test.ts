@@ -12,7 +12,10 @@ import {
   NOTHING_TO_PUBLISH,
   revertHold,
   revertLead,
+  revertConflicts,
   revertProblem,
+  revertSection,
+  shownRevertConflicts,
   revertRequest,
   tabsChanged,
   tabUnsaved,
@@ -190,5 +193,46 @@ describe('the capability a scope’s writes need', () => {
   it('is manage-tenant for the tenant and manage-clients for a client', () => {
     expect(writeCapability({ kind: 'tenant' })).toBe('manage-tenant');
     expect(writeCapability({ kind: 'client', id: 'c1' })).toBe('manage-clients');
+  });
+});
+
+describe('a revert that met a newer draft', () => {
+  const published = { ...EMPTY, tokens: { light: OWN_LIGHT } };
+  const draft = {
+    ...EMPTY,
+    tokens: { light: OWN_LIGHT, font: 'IBM Plex Mono' },
+    assets: { logo: { assetId: LOGO_ID, alt: 'Acme' } },
+    stylesheet: 'a{}',
+  };
+
+  it('names the pieces of the tab the revert would overwrite, theirs beside the published', () => {
+    const conflicts = revertConflicts(viewOf(draft, published, ['tokens']), 'theme');
+    expect(conflicts.map((c) => [c.field, c.label])).toEqual([
+      ['tokens', 'Colours and font'],
+      ['assets', 'Images'],
+      ['stylesheet', 'Stylesheet'],
+    ]);
+    const shown = conflicts.map((c) => [c.describe?.(c.theirs), c.describe?.(c.yours)]);
+    expect(shown).toEqual([
+      ['2 groups of colours or fonts', '1 group of colours or fonts'],
+      ['1 image', 'nothing'],
+      ['3 characters', 'nothing'],
+    ]);
+  });
+
+  it('leaves out a piece that already matches, and the other tab’s pieces', () => {
+    expect(revertConflicts(viewOf(published, published, []), 'theme')).toEqual([]);
+    expect(revertConflicts(viewOf(draft, published, ['tokens']), 'pages')).toEqual([]);
+  });
+
+  it('shows nothing until the revert was refused', () => {
+    const view = viewOf(draft, published, ['tokens']);
+    expect(shownRevertConflicts(false, view, 'theme')).toEqual([]);
+    expect(shownRevertConflicts(true, view, 'theme')).toHaveLength(3);
+  });
+
+  it('names the tab as the panel’s heading reads it', () => {
+    expect(revertSection('theme')).toBe('the Theme tab');
+    expect(revertSection('pages')).toBe('the Pages tab');
   });
 });

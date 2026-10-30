@@ -58,14 +58,34 @@ export const KEY_REQUIRED = 'Enter the key of the message to override.';
 
 export const MESSAGE_REQUIRED = 'Enter the text to show instead.';
 
+// What the form holds. `etag` is the version of the override the form was
+// filled from, or null for one typed from nothing, which is a create.
 export interface OverrideValues {
   key: string;
   message: string;
+  etag: string | null;
 }
 
-export type OverrideErrors = Partial<Record<keyof OverrideValues, string>>;
+export type OverrideField = 'key' | 'message';
 
-export const EMPTY_OVERRIDE: OverrideValues = { key: '', message: '' };
+export type OverrideErrors = Partial<Record<OverrideField, string>>;
+
+export const EMPTY_OVERRIDE: OverrideValues = { key: '', message: '', etag: null };
+
+// Typing another key leaves behind the version of the one first chosen.
+export function editedOverride(
+  values: OverrideValues,
+  field: OverrideField,
+  value: string,
+): OverrideValues {
+  return { ...values, [field]: value, etag: field === 'key' ? null : values.etag };
+}
+
+export function filledOverride(
+  row: Pick<MessageOverride, 'key' | 'message' | 'etag'>,
+): OverrideValues {
+  return { key: row.key, message: row.message, etag: row.etag };
+}
 
 export function overrideProblems(values: OverrideValues): OverrideErrors {
   const key = values.key.trim();
@@ -92,13 +112,17 @@ function unknownKey(errors: readonly FieldError[] | undefined): boolean {
 export interface OverrideOutcome {
   errors: OverrideErrors;
   message: string | null;
+  // Somebody else changed, created or removed the override since this form
+  // was filled: the server answered 412.
+  stale: boolean;
   // A refusal for lack of a capability: whoami may have changed.
   report: boolean;
 }
 
-const NO_OUTCOME: OverrideOutcome = { errors: {}, message: null, report: false };
+const NO_OUTCOME: OverrideOutcome = { errors: {}, message: null, stale: false, report: false };
 
 function problemOutcome(problem: Problem): OverrideOutcome {
+  if (problem.status === 412) return { ...NO_OUTCOME, stale: true };
   if (problem.status === 409 && problemSubtype(problem) === 'message-overrides-full') {
     return { ...NO_OUTCOME, message: OVER_BOUND };
   }
@@ -135,6 +159,9 @@ export function savedText(locale: string, key: string): string {
 export const REMOVED_TEXT =
   'The override was removed. The page or mail shows the catalogue’s text again.';
 
+export const STALE_REMOVAL =
+  'That override changed after you saw it, so it was not removed. The list is read again: look at its text now, then remove it if you still want to.';
+
 export const ALREADY_REMOVED = 'That override is already gone. The list is read again.';
 
 export function removeConsequence(override: Pick<MessageOverride, 'locale' | 'key'>): string {
@@ -153,6 +180,7 @@ export function removeOutcome(result: GatewayResult<unknown>): RemovalOutcome {
       name: 'The override',
       verb: 'removed',
       lookAt: 'the list',
+      stale: STALE_REMOVAL,
       refused: (problem) => writeRefusal(problem, 'manage-tenant'),
     },
   );
@@ -173,6 +201,7 @@ export const PAGE_SIZE = 50;
 export interface SaveOutcome {
   errors: OverrideErrors;
   message: string | null;
+  stale: boolean;
   report: boolean;
   // What the form holds afterwards: empty once saved, as it was otherwise.
   values: OverrideValues;
@@ -206,7 +235,14 @@ export function shownLocale(
 export interface OverrideAttempt {
   errors: OverrideErrors;
   // What is sent, or null while the form has problems.
-  sent: { locale: string; key: string; message: string } | null;
+  sent: SentOverride | null;
+}
+
+export interface SentOverride {
+  locale: string;
+  key: string;
+  message: string;
+  etag: string | null;
 }
 
 // The form as it is sent: the key trimmed, or the problems that hold it back.
@@ -214,7 +250,9 @@ export function overrideAttempt(locale: string, values: OverrideValues): Overrid
   const errors = overrideProblems(values);
   return {
     errors,
-    sent: hasProblems(errors) ? null : { locale, key: values.key.trim(), message: values.message },
+    sent: hasProblems(errors)
+      ? null
+      : { locale, key: values.key.trim(), message: values.message, etag: values.etag },
   };
 }
 

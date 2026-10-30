@@ -6,6 +6,8 @@ import {
   ADD_LABEL,
   ADD_NOTE,
   capText,
+  conflictFields,
+  conflictSection,
   defaultChoices,
   DEFAULT_LABEL,
   DEFAULT_NOTE,
@@ -38,6 +40,7 @@ import {
 import { useTenantSettingsRead } from '#/shared/usecase/useTenantSettingsRead';
 import { MessageKeyField } from '#/features/branding/view/MessageKeyField';
 import { Button } from '#/shared/view/Button';
+import { ConflictPanel } from '#/shared/view/ConflictPanel';
 import { ChecklistField } from '#/shared/view/ChecklistField';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 import { DataTable, type Column } from '#/shared/view/DataTable';
@@ -259,6 +262,20 @@ function OverridesSection({ tenant, data }: { tenant: string; data: Settings }) 
         <LastAction label="Last removal" count={page.removed}>
           {page.notice}
         </LastAction>
+        {page.conflicts.map((conflict) => (
+          <ConflictPanel
+            key={`${conflict.locale}/${conflict.key}`}
+            section={conflictSection(conflict)}
+            conflicts={conflictFields(conflict)}
+            busy={page.resolving}
+            onKeepMine={() => {
+              page.keepMine(conflict);
+            }}
+            onTakeTheirs={() => {
+              page.takeTheirs(conflict);
+            }}
+          />
+        ))}
         <ListGate
           list={list}
           loading={
@@ -278,7 +295,7 @@ function OverridesSection({ tenant, data }: { tenant: string; data: Settings }) 
                 <DataTable
                   label={OVERRIDES_TITLE}
                   columns={columns(page, (row) => {
-                    page.fill({ key: row.key, message: row.message });
+                    page.fill(row);
                     heading.current?.focus();
                   })}
                   rows={list.rows}

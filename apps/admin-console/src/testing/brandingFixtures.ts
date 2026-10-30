@@ -200,7 +200,13 @@ export function previewInfo(changes: Partial<ThemePreviewInfo> = {}): ThemePrevi
 }
 
 export function override(key: string, message: string, locale = 'en') {
-  return { locale, key, message, updated_at: '2026-10-20T09:00:00.000Z' };
+  return {
+    locale,
+    key,
+    message,
+    updated_at: '2026-10-20T09:00:00.000Z',
+    etag: `"v-${locale}-${key}-${message}"`,
+  };
 }
 
 export const TITLE_OVERRIDE = override('login.title', 'Welcome back');

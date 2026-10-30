@@ -1,4 +1,4 @@
-import type { Settings } from '@odudu/contracts/admin';
+import type { MessageOverride, Settings } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useRefusal } from '#/features/session';
 import { languagesSave } from '#/features/branding/repository/languagesSave';
@@ -7,8 +7,19 @@ import { useMessageKeys } from '#/features/branding/usecase/useMessageKeys';
 import {
   afterSave,
   askedRemoval,
-  EMPTY_OVERRIDE,
   addLanguage,
+  conflictsIn,
+  editedOverride,
+  EMPTY_OVERRIDE,
+  filledOverride,
+  formAfterSave,
+  formAfterTakingTheirs,
+  keepMine,
+  staleOutcome,
+  withConflict,
+  withoutConflict,
+  type OverrideConflict,
+  type SentOverride,
   languageFields,
   languageSettingsOf,
   languagesOf,
@@ -22,6 +33,7 @@ import {
   type LanguageValues,
   type MessageEntry,
   type OverrideErrors,
+  type OverrideField,
   type OverrideValues,
 } from '#/features/branding/service';
 import { withoutField } from '#/shared/service/fieldErrors';
@@ -93,6 +105,8 @@ export function useLanguagesSection({
   };
 }
 
+export type RemovedOverride = Pick<MessageOverride, 'locale' | 'key' | 'etag'>;
+
 export interface Overrides {
   locale: string;
   pick: (locale: string) => void;
@@ -102,17 +116,22 @@ export interface Overrides {
   values: OverrideValues;
   errors: OverrideErrors;
   message: string | null;
-  edit: (field: keyof OverrideValues, value: string) => void;
-  fill: (override: OverrideValues) => void;
+  edit: (field: OverrideField, value: string) => void;
+  fill: (override: Pick<MessageOverride, 'key' | 'message' | 'etag'>) => void;
+  // Overrides of the language shown whose save met a newer version.
+  conflicts: OverrideConflict[];
+  resolving: boolean;
+  keepMine: (conflict: OverrideConflict) => void;
+  takeTheirs: (conflict: OverrideConflict) => void;
   saving: boolean;
   save: () => void;
-  removing: { locale: string; key: string } | null;
+  removing: RemovedOverride | null;
   consequence: string;
   removeBusy: boolean;
   removeProblem: string | null;
   notice: string | null;
   removed: number;
-  ask: (override: { locale: string; key: string }) => void;
+  ask: (override: RemovedOverride) => void;
   cancel: () => void;
   confirm: () => Promise<boolean>;
 }
@@ -131,12 +150,34 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
   const [values, setValues] = useState(EMPTY_OVERRIDE);
   const [errors, setErrors] = useState<OverrideErrors>({});
   const [message, setMessage] = useState<string | null>(null);
-  const action = useAnnouncedAction<{ locale: string; key: string }>({
+  const [conflicts, setConflicts] = useState<OverrideConflict[]>([]);
+  const action = useAnnouncedAction<RemovedOverride>({
     refusal,
     capability: 'manage-tenant',
     send: (asked) => writes.remove.run(asked),
     outcomeOf: (_asked, result) => removeOutcome(result),
   });
+  const submit = (sent: SentOverride): void => {
+    writes.put
+      .run(sent)
+      .then(async (result) => {
+        const after = afterSave(result, sent, values);
+        setErrors(after.errors);
+        setMessage(after.message);
+        setValues((was) => formAfterSave(was, sent, result.ok));
+        if (after.toast !== null) toast.succeeded(after.toast);
+        if (after.reported !== null) refusal.report(after.reported, 'manage-tenant');
+        if (result.ok) setConflicts((held) => withoutConflict(held, sent));
+        if (!after.stale) return;
+        const stale = staleOutcome(sent, await writes.current(sent));
+        setMessage(stale.message);
+        if (stale.conflict !== null) {
+          const { conflict } = stale;
+          setConflicts((held) => withConflict(held, conflict));
+        }
+      })
+      .catch(() => undefined);
+  };
   return {
     locale,
     pick: setPicked,
@@ -146,11 +187,11 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
     errors,
     message,
     edit: (field, value) => {
-      setValues((was) => ({ ...was, [field]: value }));
+      setValues((was) => editedOverride(was, field, value));
       setErrors((was) => withoutField(was, field));
     },
     fill: (override) => {
-      setValues(override);
+      setValues(filledOverride(override));
       setErrors({});
       setMessage(null);
     },
@@ -159,19 +200,16 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
       const attempt = overrideAttempt(locale, values);
       setErrors(attempt.errors);
       setMessage(null);
-      const { sent } = attempt;
-      if (sent === null) return;
-      writes.put
-        .run(sent)
-        .then((result) => {
-          const after = afterSave(result, sent, values);
-          setErrors(after.errors);
-          setMessage(after.message);
-          setValues(after.values);
-          if (after.toast !== null) toast.succeeded(after.toast);
-          if (after.reported !== null) refusal.report(after.reported, 'manage-tenant');
-        })
-        .catch(() => undefined);
+      if (attempt.sent !== null) submit(attempt.sent);
+    },
+    conflicts: conflictsIn(conflicts, locale),
+    resolving: writes.put.busy,
+    keepMine: (conflict) => {
+      submit(keepMine(conflict));
+    },
+    takeTheirs: (conflict) => {
+      setConflicts((held) => withoutConflict(held, conflict));
+      setValues((was) => formAfterTakingTheirs(was, conflict));
     },
     removing: action.asked,
     consequence: askedRemoval(action.asked),

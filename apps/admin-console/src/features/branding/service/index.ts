@@ -9,6 +9,7 @@ export * from '#/features/branding/service/fields';
 export * from '#/features/branding/service/holds';
 export * from '#/features/branding/service/languages';
 export * from '#/features/branding/service/mail';
+export * from '#/features/branding/service/overrideConflicts';
 export * from '#/features/branding/service/overrides';
 export * from '#/features/branding/service/palette';
 export * from '#/features/branding/service/preview';

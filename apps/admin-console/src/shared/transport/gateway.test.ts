@@ -102,6 +102,22 @@ describe('gateway.request, what every request carries', () => {
     expect(calls[0]?.init.body).toBe('{"email":"hopper@example.com"}');
   });
 
+  it('sends If-None-Match on a create, and retries a PUT that carries it once', async () => {
+    const failed = new TypeError('Failed to fetch');
+    const { gateway, calls } = harness(failed, failed, json(SUBJECT));
+
+    const result = await gateway.request('PUT', SUBJECT_PATH, {
+      body: {},
+      ifNoneMatch: '*',
+      schema: subjectSchema,
+    });
+
+    expect(result).toEqual({ ok: false, kind: 'network' });
+    expect(calls).toHaveLength(2);
+    expect(headersOf(calls[0]).get('if-none-match')).toBe('*');
+    expect(headersOf(calls[0]).has('if-match')).toBe(false);
+  });
+
   it('sends neither a body nor a content-type when there is no body', async () => {
     const { gateway, calls } = harness(json({ redirect: 'http://localhost/logout' }));
 

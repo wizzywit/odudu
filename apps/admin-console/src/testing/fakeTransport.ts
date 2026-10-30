@@ -70,6 +70,7 @@ export interface Sent {
   path: string;
   search: URLSearchParams;
   ifMatch: string | null;
+  ifNoneMatch: string | null;
   body: unknown;
 }
 
@@ -95,6 +96,7 @@ export function fakeTransport(routes: Record<string, Answer>) {
       path,
       search: address.searchParams,
       ifMatch: headers.get('if-match'),
+      ifNoneMatch: headers.get('if-none-match'),
       body: bodyOf(init),
     };
     sent.push(request);
