@@ -19,15 +19,16 @@ wc -c < openapi.json | tr -d ' '
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18716-8991-774b-986d-cd758c42d9ea
+x-request-id: 01a18b6e-e6d0-7a8e-bd20-78760e614a93
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
 content-length: 662578
-Date: Tue, 27 Oct 2026 11:58:39 GMT
+Date: Fri, 30 Oct 2026 06:11:03 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 103
+662578
 ```
 
 647 KB and 103 paths, which is the whole route table. It is the one admin
@@ -55,7 +56,7 @@ grep -o '"securitySchemes":{"bearerAuth":{[^}]*}}' openapi.json
 ```
 
 `security` is declared once at the top level, so every path inherits it
-rather than repeating it. `/admin/openapi.json` is not among those 101
+rather than repeating it. `/admin/openapi.json` is not among those 103
 paths: the document does not describe itself, which is why serving it
 unauthenticated does not contradict the blanket `security` above.
 
