@@ -1,0 +1,94 @@
+@layer {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+Odudu console
+Skip to content
+odudu · acme
+Overview
+Identity
+Subjects
+Groups
+Roles
+Applications
+Clients
+Scopes
+Registration tokens
+Security
+Sign-in flow
+Signing keys
+Sessions
+Tenant
+Settings
+Branding
+Email
+Export
+Observe
+Audit trail
+Signed in as 
+admin@odudu.local
+ from 
+system
+Theme
+System
+Light
+Dark
+Switch tenant
+Sign out
+Collapse menu
+or press 
+[
+odudu · acme
+Menu
+System
+Acting in 
+acme
+ with system authority
+Back to system
+acme
+Email
+The relay this tenant's verification and reset mail goes through.
+not sent
+Nothing sends this tenant’s mail: verification and reset mail is only written to the server’s log.
+Mail relay
+The server this tenant's verification and reset mail is sent through. Saving replaces the whole relay.
+Host
+Port
+A whole number from 1 to 65535.
+Sender address
+What the From line of each message says.
+Username
+Leave it empty if the relay needs no login.
+New password
+Leave it empty if the relay needs none.
+Require TLS (STARTTLS)
+On
+Required while a username or password is set, so they are not sent in the clear.
+Test message
+Sends one message through the saved relay and tells what the server answered.
+Send to
+Send test message
+Send as client
+1 selected
+Search
+Odudu administration
+odudu-admin · confidential
+Storefront
+storefront · public
+The message wears the tenant’s published theme. Choose a client to send the mail its sign-in would send: its theme over the tenant’s.
+Sent as Storefront.
+Use the tenant’s own look
+Save a relay of this tenant’s own first: the test sends through the saved one.
+Delivery
+The latest mail this tenant has sent or tried to send, most recent first. A message is failed once every attempt is spent. Never its body, which carries a link that signs somebody in.
+Show
+Any status
+▾
+Any status
+Queued
+Retrying
+Failed
+Sent
+Refresh
+This tenant has no mail of that status.

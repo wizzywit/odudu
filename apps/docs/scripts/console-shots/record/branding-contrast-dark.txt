@@ -1,0 +1,272 @@
+@layer {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+Odudu console
+Skip to content
+odudu · acme
+Overview
+Identity
+Subjects
+Groups
+Roles
+Applications
+Clients
+Scopes
+Registration tokens
+Security
+Sign-in flow
+Signing keys
+Sessions
+Tenant
+Settings
+Branding
+Email
+Export
+Observe
+Audit trail
+Signed in as 
+admin@odudu.local
+ from 
+system
+Theme
+System
+Light
+Dark
+Switch tenant
+Sign out
+Collapse menu
+or press 
+[
+odudu · acme
+Menu
+System
+Acting in 
+acme
+ with system authority
+Back to system
+acme
+Branding
+How the sign-in and account pages look to this tenant’s users. Edits are saved as a draft; nobody sees them until you publish.
+Publish
+Not published
+Not live
+Nothing published yet: people see Instrument’s own pages.
+Changed: Colours and font
+1 change
+Publishing makes the saved draft what people see on the sign-in and account pages, and keeps the version it replaces. Nothing is published until you do.
+Fix the contrast before publishing: Light: Text on page, 1.3:1, needs 4.5:1, and 2 more pairs.
+Publish the draft
+Publish
+Discard draft…
+More
+Theme
+, changes to publish
+Pages
+Mail
+Languages
+Colours and font
+Light and dark are two palettes, each used whole: customise one and every colour in it is yours, so a colour can never be left to clash. A scheme you leave alone keeps Instrument’s own colours.
+Font
+Instrument’s own
+▾
+Draft: Instrument’s default · Published: Instrument’s default
+Instrument’s own
+IBM Plex Sans
+IBM Plex Mono
+Light colours
+▾
+Light colours
+Use my own light colours
+On
+Draft: this tenant · Published: Instrument’s default
+Light page background
+Light panel background
+Light field background
+Light text
+Light muted text
+Light accent background
+Light accent text
+Light error background
+Light error text
+Light border
+Light focus ring
+Dark colours
+▾
+Dark colours
+Use my own dark colours
+On
+Draft: this tenant · Published: Instrument’s default
+Dark page background
+Dark panel background
+Dark field background
+Dark text
+Dark muted text
+Dark accent background
+Dark accent text
+Dark error background
+Dark error text
+Dark border
+Dark focus ring
+Contrast
+Text must reach 4.5:1 against what it sits on, and borders and the focus ring 3:1. Publishing is refused while a pair falls short. This is checked as you type.
+3 pairs fail its requirement.
+Contrast fails: see the pairs listed.
+fails
+Light: Text on page, 1.3:1, needs 4.5:1
+fails
+Light: Text on panel, 1.4:1, needs 4.5:1
+passes
+Light: Muted text on page, 6.2:1, needs 4.5:1
+passes
+Light: Muted text on panel, 6.8:1, needs 4.5:1
+fails
+Light: Text on field background, 1.2:1, needs 4.5:1
+passes
+Light: Muted text on field background, 5.9:1, needs 4.5:1
+passes
+Light: Accent text on page, 8.3:1, needs 4.5:1
+passes
+Light: Accent text on panel, 9.2:1, needs 4.5:1
+passes
+Light: Accent text on accent background, 7.0:1, needs 4.5:1
+passes
+Light: Accent text on field background, 7.9:1, needs 4.5:1
+passes
+Light: Error text on error background, 7.9:1, needs 4.5:1
+passes
+Light: Border on panel, 4.3:1, needs 3.0:1
+passes
+Light: Border on field background, 3.7:1, needs 3.0:1
+passes
+Light: Error text on panel, 9.5:1, needs 3.0:1
+passes
+Light: Error text on field background, 8.2:1, needs 3.0:1
+passes
+Light: Focus ring on page, 7.5:1, needs 3.0:1
+passes
+Light: Focus ring on panel, 8.2:1, needs 3.0:1
+passes
+Light: Focus ring on field background, 7.1:1, needs 3.0:1
+passes
+Dark: Text on page, 15.2:1, needs 4.5:1
+passes
+Dark: Text on panel, 13.6:1, needs 4.5:1
+passes
+Dark: Muted text on page, 8.6:1, needs 4.5:1
+passes
+Dark: Muted text on panel, 7.7:1, needs 4.5:1
+passes
+Dark: Text on field background, 14.4:1, needs 4.5:1
+passes
+Dark: Muted text on field background, 8.1:1, needs 4.5:1
+passes
+Dark: Accent text on page, 13.8:1, needs 4.5:1
+passes
+Dark: Accent text on panel, 12.4:1, needs 4.5:1
+passes
+Dark: Accent text on accent background, 9.0:1, needs 4.5:1
+passes
+Dark: Accent text on field background, 13.1:1, needs 4.5:1
+passes
+Dark: Error text on error background, 9.5:1, needs 4.5:1
+passes
+Dark: Border on panel, 6.2:1, needs 3.0:1
+passes
+Dark: Border on field background, 6.6:1, needs 3.0:1
+passes
+Dark: Error text on panel, 11.8:1, needs 3.0:1
+passes
+Dark: Error text on field background, 12.6:1, needs 3.0:1
+passes
+Dark: Focus ring on page, 10.9:1, needs 3.0:1
+passes
+Dark: Focus ring on panel, 9.7:1, needs 3.0:1
+passes
+Dark: Focus ring on field background, 10.4:1, needs 3.0:1
+Images
+Images are stored as soon as they are uploaded, and used only once the draft that names them is published.
+Logo
+Shown above the form.
+Draft: Instrument’s default · Published: Instrument’s default
+PNG, JPEG or WebP, up to 256 KiB and 1024 pixels on the longer side. All the tenant’s images together may total 8 MiB.
+No image: the layer below supplies it.
+Upload
+Logo for the dark scheme
+Used instead of the logo when the page is dark, so a dark logo does not vanish.
+Draft: Instrument’s default · Published: Instrument’s default
+PNG, JPEG or WebP, up to 256 KiB and 1024 pixels on the longer side. All the tenant’s images together may total 8 MiB.
+No image: the layer below supplies it.
+Upload
+Favicon
+The icon in the browser tab.
+Draft: Instrument’s default · Published: Instrument’s default
+PNG, JPEG or WebP, up to 256 KiB and 1024 pixels on the longer side. All the tenant’s images together may total 8 MiB.
+No image: the layer below supplies it.
+Upload
+Background image
+Behind the page.
+Draft: Instrument’s default · Published: Instrument’s default
+PNG, JPEG or WebP, up to 1 MiB and 2560 pixels on the longer side. All the tenant’s images together may total 8 MiB.
+No image: the layer below supplies it.
+Upload
+Stylesheet
+Plain CSS for what the page’s own styling cannot do. Rules may name only the page’s documented classes, such as .logo and .page-sign-in; @import, @font-face, scripts and addresses outside this theme’s images are refused. The preview shows the saved stylesheet, so save to see a change.
+Selectors you can use
+▾
+Puts the selector you choose where the caret is in the stylesheet. The list shows at most 50 entries: type part of a name or of what it is to narrow it.
+Design values you can use
+▾
+Puts a design value, written with var(), where the caret is. It belongs in a declaration after a colon; in a selector the stylesheet check refuses it.
+Stylesheet CSS
+Wrap lines
+1
+Draft: Instrument’s default · Published: Instrument’s default.
+Tab indents. To move on, press 
+Escape
+then 
+Tab
+0 of 131,072 bytes.
+Revert to published
+Writes the draft again with the colours and font, the images and the stylesheet as published, all together; a part with nothing published is cleared. The other tabs keep their changes, and nothing is published.
+Revert this tab to published
+Versions
+The published version and the 19 before it, newest first. Restoring one publishes a copy of it as the next version and leaves your draft alone.
+Version
+State
+Published
+Action
+Nothing has been published yet.
+Reset to default
+Returns the tenant to Instrument’s own look.
+Reset to default…
+Preview
+Page
+Sign in
+▾
+Sign in
+Consent
+Choose an account
+Confirm sign-out
+Authenticator app set-up
+Passkey set-up
+Recovery codes
+Change password
+Required action
+Registration
+Password reset
+Email verification
+Required actions
+Sign-in error
+Email not verified
+Signed out
+Notice
+Colour scheme
+Light
+▾
+Light
+Dark
+The saved draft, drawn by the real page. Unsaved changes appear after you save them.
+Sign in · Light
+Open preview
