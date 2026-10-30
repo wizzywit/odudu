@@ -250,10 +250,9 @@ describe('a message override set through the admin API', () => {
     expect(fewer.statusCode, fewer.payload).toBe(200);
   });
 
-  // Overrides exist only in this unreleased phase, so a stored one that names
-  // an argument the page does not supply (written before the check) is a
-  // development leftover: its export is refused on import, naming key and
-  // argument, until the file is corrected.
+  // A stored override that names an argument its page does not supply
+  // exports, and the export is refused on import, naming key and argument,
+  // until the file is corrected.
   it('refuses on import an override its own export carries that names an argument the page lacks', async () => {
     const t = await tenant();
     await owner.sql`
