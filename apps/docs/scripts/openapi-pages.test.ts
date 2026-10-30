@@ -343,9 +343,12 @@ describe('the admin API reference pages', () => {
   });
 
   it('lists a response on pages of its own when the request and it would overfill one page', () => {
-    const fields = (count: number): Record<string, unknown> =>
+    const fields = (count: number): Record<string, { type: 'string' }> =>
       Object.fromEntries(
-        Array.from({ length: count }, (_, index) => [`f${String(index)}`, { type: 'string' }]),
+        Array.from({ length: count }, (_, index) => [
+          `f${String(index)}`,
+          { type: 'string' as const },
+        ]),
       );
     const doc = hostileWith({ type: 'object', properties: fields(40), required: [] });
     const path = '/admin/tenants/{tenant}/whoami';
@@ -358,6 +361,7 @@ describe('the admin API reference pages', () => {
           get: {
             ...operation,
             requestBody: {
+              required: true,
               content: {
                 'application/json': {
                   schema: { type: 'object', properties: fields(40), required: [] },

@@ -210,7 +210,7 @@ describe('the numbers the concept pages state are the ones the code and schema h
 const BRANDING_FACTS: readonly Fact[] = [
   {
     page: 'branding',
-    says: 'up to twenty',
+    says: 'twenty versions in all',
     file: 'packages/domain-theme/src/service/record.ts',
     holds: /export const THEME_VERSION_LIMIT = 20;/u,
   },

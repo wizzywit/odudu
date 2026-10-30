@@ -716,7 +716,7 @@ export const BRANDING_SCREENS: readonly Screen[] = [
   },
   {
     name: 'email-send-as-client',
-    alt: 'The Test message section of the Email page with Send as client open: the list of the tenant’s clients with storefront chosen, and the line under it saying the message will wear that client’s theme.',
+    alt: 'The Test message section of the Email page with a client chosen to send as: the line under it reads Sent as Storefront, and the text above it says the message wears the tenant’s published theme and asks you to choose a client to send the mail its sign-in would send.',
     caption: 'A test message can be sent as a client, to see its look in a real mailbox.',
     signedIn: true,
     viewport: WIDE,
