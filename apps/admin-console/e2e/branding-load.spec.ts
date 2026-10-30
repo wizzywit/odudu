@@ -11,6 +11,9 @@ interface Call {
   // The order requests were sent and answered in, whatever the clock says.
   sent: number;
   answered: number;
+  // Milliseconds from the first call, for the table a run prints.
+  start: number;
+  end: number;
 }
 
 // The console's own calls: the session and the admin API through its gateway.
@@ -18,6 +21,7 @@ function recordCalls(page: Page): Call[] {
   const calls: Call[] = [];
   const pending = new Map<Request, Call>();
   let tick = 0;
+  const origin = Date.now();
   page.on('request', (request) => {
     const path = new URL(request.url()).pathname;
     if (!path.startsWith('/console/api/') || path.includes('/preview')) return;
@@ -26,13 +30,17 @@ function recordCalls(page: Page): Call[] {
       path: path.replace(/^\/console\/api\/(?:admin\/tenants\/[^/]+\/)?/u, ''),
       sent: (tick += 1),
       answered: 0,
+      start: Date.now() - origin,
+      end: 0,
     };
     pending.set(request, call);
     calls.push(call);
   });
   page.on('requestfinished', (request) => {
     const call = pending.get(request);
-    if (call !== undefined) call.answered = tick += 1;
+    if (call === undefined) return;
+    call.answered = tick += 1;
+    call.end = Date.now() - origin;
   });
   return calls;
 }
@@ -46,6 +54,10 @@ async function openTab(page: Page, tab: string): Promise<Call[]> {
   await expect(page.getByRole('heading', { level: 1, name: 'Branding' })).toBeVisible();
   await expect(page.getByRole('progressbar')).toHaveCount(0);
   await page.waitForLoadState('networkidle');
+  const rows = calls.map((call) =>
+    [`${String(call.start)}-${String(call.end)}`, call.method, call.path].join(' '),
+  );
+  console.log(`WATERFALL ${tab} (${String(calls.length)} calls)\n${rows.join('\n')}`);
   return calls;
 }
 
