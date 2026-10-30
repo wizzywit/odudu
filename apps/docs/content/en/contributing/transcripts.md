@@ -357,6 +357,21 @@ seeded in the `system` tenant and signed in to the console, and the second now s
 once, with no confirmation page; the log filter on the first selects the request's own `reqId`, so the stack's health
 probes do not appear.
 
+The branding and mail transcripts were run again on one stack: [the theme routes](../reference/transcripts/admin-paths/get-theme-put-theme-and-the-theme-routes.md),
+[the mail preview and branding](../reference/transcripts/admin-paths/get-mailpreview-and-get-mailbranding.md),
+[the message overrides](../reference/transcripts/admin-paths/get-message-overrides-put-message-overrides-and-delete-message-overrides.md),
+[the SMTP test](../reference/transcripts/admin-paths/get-smtp-put-smtp-delete-smtp-and-post-smtptest.md) from its client section on,
+[the tenant import](../reference/transcripts/admin-paths/post-admintenant-imports.md),
+[the themed sign-in](../reference/transcripts/request-paths/a-themed-sign-in-and-the-brand-route.md) and
+[the OpenAPI document](../reference/transcripts/admin-paths/get-adminopenapijson.md), which went last. The stack was the
+compose project `odudu-p4b-tx` on port `3000` (`ODUDU_THROTTLE_LIMIT` and `ODUDU_LOGIN_THROTTLE_LIMIT` at `10000`), built from
+commit `966da152`, a freshly created volume with `ada` made by `seed admin`, and a [Mailpit](https://mailpit.axllent.org) as the
+deployment's own sender (`ODUDU_SMTP_HOST`, its web port on `8725`, `ODUDU_ALLOW_PRIVATE_SMTP_HOSTS=true`). Each page ran in the
+order it is written, a tenant of its own made new each time, and every output in it is that run's. The 96 by 32 pixel logos, the
+640 by 360 pixel background and the 540 by 540 pixel image of random colour were made for the run. The `429` in the SMTP page ran
+after the container was recreated with `ODUDU_THROTTLE_LIMIT=3`, and the stack was put back to `10000` afterwards. The brand
+guide's stylesheet response was taken from the guide's own steps run on that stack.
+
 ## Admin path transcripts
 
 The admin API: the endpoints under `/admin/tenants/{tenant}/` that let an
