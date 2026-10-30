@@ -250,7 +250,9 @@ describe('delete', () => {
     const tenantId = await newTenant();
     await put(tenantId, 'fr', 'login.title');
     const run = (locale: string) =>
-      withTenant(app.db, tenantId, (tx) => repo(tx).delete(tenantId, locale, 'login.title'));
+      withTenant(app.db, tenantId, (tx) =>
+        repo(tx).delete(tenantId, locale, 'login.title', () => true),
+      );
     expect(await run('de')).toBe('not_found');
     expect(await run('fr')).toBe('deleted');
     expect(await run('fr')).toBe('not_found');
@@ -318,6 +320,8 @@ describe('a precondition', () => {
     const theirs = await newTenant();
     await put(theirs, 'fr', 'login.title', 'theirs');
     const seen: (string | null)[] = [];
+    // The insert under another tenant's id is refused by row-level security, which
+    // is expected; what matters is that the precondition saw no row.
     await withTenant(app.db, mine, (tx) =>
       repo(tx).put({ tenantId: theirs, locale: 'fr', key: 'login.title', message: 'x' }, (row) => {
         seen.push(row?.message ?? null);

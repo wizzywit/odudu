@@ -114,7 +114,7 @@ GROUP=$(curl -sS -X POST -H "$A" -H "$J" -d '{"name":"finance"}' $T/groups | jq 
 curl -sS -X PUT -H "$A" -H "$J" -d "{\"role_ids\":[\"$ROLE\"]}" $T/groups/$GROUP/roles -o /dev/null
 GRACE=$(curl -sS -X POST -H "$A" -H "$J" -d '{"username":"grace","email":"grace@navy.example"}' $T/subjects | jq -r .id)
 curl -sS -X PUT -H "$A" -H "$J" -d "{\"group_ids\":[\"$GROUP\"]}" $T/subjects/$GRACE/groups -o /dev/null
-curl -sS -X PUT -H "$A" -H "$J" -d '{"message":"Welcome back"}' $T/message-overrides/en/login.title -o /dev/null
+curl -sS -X PUT -H "$A" -H "$J" -H 'If-None-Match: *' -d '{"message":"Welcome back"}' $T/message-overrides/en/login.title -o /dev/null
 ```
 
 The export, saved, then imported under a new name:

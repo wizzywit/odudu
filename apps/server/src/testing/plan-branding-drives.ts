@@ -80,21 +80,14 @@ export async function driveBranding(world: PlanWorld, capture: Capture): Promise
   const token = await mintAdminToken(world, { id: tenantId, name: TARGET_TENANT }, [
     'manage-tenant',
   ]);
-  const overridesUrl = `/admin/tenants/${TARGET_TENANT}/message-overrides`;
-  const held = await http.inject({
-    url: `${overridesUrl}?locale=en`,
-    headers: { authorization: `Bearer ${token}` },
-  });
-  const heldEtag = held
-    .json<{ items: { key: string; etag: string }[] }>()
-    .items.find((item) => item.key === 'login.title')?.etag;
+  const overrideUrl = `/admin/tenants/${TARGET_TENANT}/message-overrides/en/login.title`;
   const written = await http.inject({
     method: 'PUT',
-    url: `${overridesUrl}/en/login.title`,
+    url: overrideUrl,
     headers: {
       authorization: `Bearer ${token}`,
       'content-type': 'application/json',
-      ...(heldEtag === undefined ? { 'if-none-match': '*' } : { 'if-match': heldEtag }),
+      'if-none-match': '*',
     },
     payload: JSON.stringify({ message: 'Sign in to the plan tenant' }),
   });
@@ -106,6 +99,16 @@ export async function driveBranding(world: PlanWorld, capture: Capture): Promise
   );
   if (!overridden.body.includes('Sign in to the plan tenant')) {
     throw new Error('the sign-in page did not show the override');
+  }
+  // Removed on the version this drive wrote, so the write drive starts from a
+  // tenant holding 499 and creates the 500th itself.
+  const removed = await http.inject({
+    method: 'DELETE',
+    url: overrideUrl,
+    headers: { authorization: `Bearer ${token}`, 'if-match': String(written.headers.etag) },
+  });
+  if (removed.statusCode !== 204) {
+    throw new Error(`the plan override was not removed: ${String(removed.statusCode)}`);
   }
 
   const logo = await withTenant(world.app.db, tenantId, (tx) =>

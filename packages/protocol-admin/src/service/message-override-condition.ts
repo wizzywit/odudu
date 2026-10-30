@@ -8,8 +8,8 @@ export interface EtagSource {
 }
 
 // The validator of one override, quoted as it is sent in `ETag` and
-// `If-Match`. It includes the write time, so an override changed and changed
-// back is a new version.
+// `If-Match`. It includes the write time to the millisecond, so a change back
+// to earlier text is a new version unless it lands in the same millisecond.
 export function messageOverrideEtag(row: EtagSource): string {
   return etagOf({
     locale: row.locale,
@@ -32,6 +32,7 @@ export function overrideCondition(
 ): OverrideCondition {
   if (ifNoneMatch?.trim() === '*' && ifMatch === undefined) return { kind: 'create' };
   if (ifNoneMatch === undefined && hasPrecondition(ifMatch) && ifMatch !== undefined) {
+    // The second test only narrows the type; hasPrecondition already rules out undefined.
     return { kind: 'replace', ifMatch };
   }
   return { kind: 'required' };

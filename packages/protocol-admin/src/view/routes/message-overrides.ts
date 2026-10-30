@@ -12,7 +12,14 @@ import {
   type MessageOverrideDeps,
 } from '#/usecase/message-overrides';
 import { overrideCondition } from '#/service/message-override-condition';
-import { cursorProblem, fieldProblem, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import {
+  cursorProblem,
+  fieldProblem,
+  ifMatchRequired,
+  ifMatchStale,
+  problem,
+  sendProblem,
+} from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRouteHandler } from '#/view/routes/router';
 
@@ -41,13 +48,6 @@ function paramsOf(request: { params: { tenant?: string; locale?: string; key?: s
 function header(value: string | string[] | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
-
-const PRECONDITION_REQUIRED = problem(
-  428,
-  'about:blank',
-  'Precondition Required',
-  'If-Match naming the version you read is required to change or remove a message override, and If-None-Match: * to create one; * as If-Match is not accepted',
-);
 
 export function listMessageOverridesHandler(deps: MessageOverridesRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, tenantId) => {
@@ -81,7 +81,14 @@ export function putMessageOverrideHandler(deps: MessageOverridesRouteDeps): Admi
       header(request.headers['if-none-match']),
     );
     if (condition.kind === 'required') {
-      return sendProblem(reply, request, PRECONDITION_REQUIRED);
+      return sendProblem(
+        reply,
+        request,
+        ifMatchRequired(
+          'a message override (or send If-None-Match: * to create one)',
+          request.headers['if-match'],
+        ),
+      );
     }
     const outcome = await adminTx(deps.database, request, tenantId, (tx) =>
       putMessageOverride(deps, tx, {
@@ -97,7 +104,13 @@ export function putMessageOverrideHandler(deps: MessageOverridesRouteDeps): Admi
     );
     switch (outcome.kind) {
       case 'precondition_failed':
-        return sendProblem(reply, request, ifMatchStale());
+        return sendProblem(
+          reply,
+          request,
+          condition.kind === 'create'
+            ? ifMatchStale('If-None-Match: * was sent, but the message override already exists')
+            : ifMatchStale(),
+        );
       case 'unknown_key':
         return sendProblem(
           reply,
@@ -136,7 +149,11 @@ export function deleteMessageOverrideHandler(deps: MessageOverridesRouteDeps): A
       header(request.headers['if-none-match']),
     );
     if (condition.kind !== 'replace') {
-      return sendProblem(reply, request, PRECONDITION_REQUIRED);
+      return sendProblem(
+        reply,
+        request,
+        ifMatchRequired('or remove a message override', request.headers['if-match']),
+      );
     }
     const outcome = await adminTx(deps.database, request, tenantId, (tx) =>
       deleteMessageOverride(deps, tx, {

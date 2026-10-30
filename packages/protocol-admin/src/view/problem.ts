@@ -114,8 +114,8 @@ export function serviceAccountProblem(clientId: string): Problem {
   );
 }
 
-export function ifMatchStale(): Problem {
-  return problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches');
+export function ifMatchStale(detail = 'If-Match no longer matches'): Problem {
+  return problem(412, 'about:blank', 'Precondition Failed', detail);
 }
 
 export function sendProblem(

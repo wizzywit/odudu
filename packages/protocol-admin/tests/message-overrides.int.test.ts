@@ -224,6 +224,21 @@ describe('two administrators and one key', () => {
     expect((await list(ctx, 'locale=fr')).items).toHaveLength(1);
   });
 
+  it('says what a refused write must send', async () => {
+    const ctx = await tenantCtx();
+    const detail = async (res: Promise<LightMyRequestResponse>) =>
+      (await res).json<{ detail: string }>().detail;
+    expect(await detail(withHeaders(ctx, 'PUT', 'login.title', {}))).toContain(
+      'send If-None-Match: * to create one',
+    );
+    expect(await detail(withHeaders(ctx, 'PUT', 'login.title', { 'if-match': '*' }))).toContain(
+      '* is not accepted',
+    );
+    expect(await detail(withHeaders(ctx, 'DELETE', 'login.title', {}))).toContain(
+      'If-Match is required to replace or remove a message override',
+    );
+  });
+
   it('refuses a stale replace with 412 and leaves the other administrator’s text', async () => {
     const ctx = await tenantCtx();
     await put(ctx, 'fr', 'login.title', 'start');
@@ -242,6 +257,9 @@ describe('two administrators and one key', () => {
     await put(ctx, 'fr', 'login.title', 'there');
     const create = await withHeaders(ctx, 'PUT', 'login.title', { 'if-none-match': '*' }, 'late');
     expect(create.statusCode).toBe(412);
+    expect(create.json<{ detail: string }>().detail).toBe(
+      'If-None-Match: * was sent, but the message override already exists',
+    );
     expect((await list(ctx, 'locale=fr')).items[0]?.message).toBe('there');
     const read = (await currentEtag(ctx, 'fr', 'login.title')) ?? '';
     await remove(ctx, 'fr', 'login.title');

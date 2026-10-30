@@ -145,7 +145,8 @@ export function messageOverrideRepository(tx: TenantScopedDatabase, deps: Messag
       return byLocale;
     },
 
-    // Writers of one tenant are serialised, so the count read below is the
+    // `put` without a precondition is the tenant import's path; it takes the
+    // same lock. Writers of one tenant are serialised, so the count read below is the
     // count the insert lands on. Changing an override that exists never
     // counts against the bound.
     async put(
@@ -184,18 +185,16 @@ export function messageOverrideRepository(tx: TenantScopedDatabase, deps: Messag
       tenantId: string,
       locale: string,
       key: string,
-      precondition?: OverridePrecondition,
+      precondition: OverridePrecondition,
     ): Promise<'deleted' | 'not_found' | 'precondition_failed'> {
       const tag = canonicalLocale(locale);
       if (tag === null) return 'not_found';
-      if (precondition !== undefined) {
-        await tx.execute(
-          sql`select pg_advisory_xact_lock(hashtextextended(${`message_overrides:${tenantId}`}, 0))`,
-        );
-        const stored = await repository.get(tenantId, tag, key);
-        if (stored === null) return 'not_found';
-        if (!precondition(stored)) return 'precondition_failed';
-      }
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`message_overrides:${tenantId}`}, 0))`,
+      );
+      const stored = await repository.get(tenantId, tag, key);
+      if (stored === null) return 'not_found';
+      if (!precondition(stored)) return 'precondition_failed';
       const rows = await tx
         .delete(messageOverrides)
         .where(

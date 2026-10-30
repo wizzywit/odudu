@@ -13,12 +13,10 @@ interface Call {
   readonly image?: Buffer;
   // Fetched first, and sent as If-Match, for the routes that refuse without it.
   readonly etagFrom?: string;
-  // The version read from the body of another route, for a record whose route
-  // answers it as a field rather than a header; none sends If-None-Match: *.
-  readonly etagFromBody?: {
-    readonly url: string;
-    readonly pick: (answer: unknown) => string | undefined;
-  };
+  // Sent as If-None-Match: *, for the create of a record that has no version yet.
+  readonly createOnly?: true;
+  // Sent as If-Match with the ETag the previous call answered.
+  readonly etagFromPrevious?: true;
   readonly system?: boolean;
   readonly as?: 'usersOnly' | 'sessionsOnly';
   // The `id` of this call's answer, kept to fill `{name}` in a later call's url.
@@ -502,6 +500,7 @@ export async function driveAdminWrites(
   ];
 
   const saved = new Map<string, string>();
+  let previousEtag = '';
   for (const [label, call] of calls) {
     const token =
       call.as !== undefined
@@ -522,12 +521,8 @@ export async function driveAdminWrites(
       const current = await world.http.inject({ url: call.etagFrom, headers });
       headers['if-match'] = String(current.headers.etag);
     }
-    if (call.etagFromBody !== undefined) {
-      const current = await world.http.inject({ url: call.etagFromBody.url, headers });
-      const version = call.etagFromBody.pick(current.json());
-      if (version === undefined) headers['if-none-match'] = '*';
-      else headers['if-match'] = version;
-    }
+    if (call.createOnly === true) headers['if-none-match'] = '*';
+    if (call.etagFromPrevious === true) headers['if-match'] = previousEtag;
     const res: LightMyRequestResponse = await capture(
       `${call.method} ${url.replace(/[0-9a-f-]{36}/gu, '<id>')} (${label})`,
       'admin',
@@ -547,6 +542,8 @@ export async function driveAdminWrites(
               }),
         }),
     );
+    const answered = res.headers.etag;
+    previousEtag = typeof answered === 'string' ? answered : '';
     if (call.saveAs !== undefined) {
       saved.set(
         call.saveAs,
@@ -567,13 +564,6 @@ export async function driveAdminWrites(
 // tenant one place short of its 500.
 function overrideCalls(T: string): [string, Call][] {
   const url = `${T}/message-overrides/en/login.title`;
-  const version = {
-    url: `${T}/message-overrides?locale=en`,
-    pick: (answer: unknown): string | undefined =>
-      (answer as { items: { key: string; etag: string }[] }).items.find(
-        (item) => item.key === 'login.title',
-      )?.etag,
-  };
   return [
     ['list the messages an override may name', { method: 'GET', url: `${T}/message-catalogue` }],
     [
@@ -582,13 +572,13 @@ function overrideCalls(T: string): [string, Call][] {
     ],
     [
       'set a message override',
-      { method: 'PUT', url, body: { message: 'Sign in to Acme' }, etagFromBody: version },
+      { method: 'PUT', url, body: { message: 'Sign in to Acme' }, createOnly: true },
     ],
     [
       'set the message override again',
-      { method: 'PUT', url, body: { message: 'Sign in' }, etagFromBody: version },
+      { method: 'PUT', url, body: { message: 'Sign in' }, etagFromPrevious: true },
     ],
-    ['remove the message override', { method: 'DELETE', url, etagFromBody: version }],
+    ['remove the message override', { method: 'DELETE', url, etagFromPrevious: true }],
   ];
 }
 
