@@ -19,7 +19,12 @@ export {
   relayValues,
   type RelayValues,
 } from '#/features/email/service/relay';
-export { testBlocked, testOutcome, type TestOutcome } from '#/features/email/service/test';
+export {
+  testBlocked,
+  testOutcome,
+  testSendable,
+  type TestOutcome,
+} from '#/features/email/service/test';
 export {
   anyMasked,
   mailOutcome,
@@ -33,3 +38,16 @@ export {
   oldestWaiting,
   type MailOutcome,
 } from '#/features/email/service/mail';
+export {
+  chosenTestClient,
+  DEFAULT_TEST_CLIENT,
+  TEST_AS_LABEL,
+  TEST_AS_RULE,
+  TEST_TENANT_OWN,
+  testClientId,
+  testClientsClosed,
+  testClientsRead,
+  testClientSelection,
+  testClientSummary,
+  type TestClientChoice,
+} from '#/features/email/service/testClient';

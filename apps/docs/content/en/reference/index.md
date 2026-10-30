@@ -23,6 +23,8 @@ rather follow a journey than look something up, the [guides](../guides/index.md)
   a command stops with.
 - [Audit events](./generated/events.md): the event types, actions and reasons the audit trail
   records.
+- [Branding](./generated/branding.md): the page kinds and the parts a template places, and the CSS
+  hooks a theme stylesheet may name.
 
 ## What is not there yet
 
@@ -42,6 +44,8 @@ The operations of the admin API, grouped by area, with one page for each operati
 - [Keys](./generated/admin-api/keys/index.md)
 - [Lockouts](./generated/admin-api/lockouts/index.md)
 - [Mail](./generated/admin-api/mail/index.md)
+- [Message catalogue](./generated/admin-api/message-catalogue/index.md)
+- [Message overrides](./generated/admin-api/message-overrides/index.md)
 - [Registration tokens](./generated/admin-api/registration-tokens/index.md)
 - [Roles](./generated/admin-api/roles/index.md)
 - [Scopes](./generated/admin-api/scopes/index.md)
@@ -53,6 +57,7 @@ The operations of the admin API, grouped by area, with one page for each operati
 - [Subject sessions](./generated/admin-api/subject-sessions/index.md)
 - [Subject sign-in](./generated/admin-api/subject-sign-in/index.md)
 - [Tenants](./generated/admin-api/tenants/index.md)
+- [Theme](./generated/admin-api/theme/index.md)
 - [Whoami](./generated/admin-api/whoami/index.md)
 
 ## Transcripts

@@ -15,6 +15,7 @@ it('keeps the tabs in the order the record page shows them', () => {
     'tokens',
     'scopes',
     'logout',
+    'branding',
     'advanced',
     'roles',
     'service',
@@ -45,6 +46,10 @@ it("marks the service account's tab from the roles it saves on the account's own
   expect(tabsWithEdits(new Set(), new Set(['other']))).toEqual(new Set());
 });
 
+it('marks the logout tab when the sign-out confirmation holds edits', () => {
+  expect([...tabsWithEdits(new Set(['confirmation']))]).toEqual(['logout']);
+});
+
 it('names each section once', () => {
   const all = Object.values(TAB_SECTIONS).flat();
   expect(new Set(all).size).toBe(all.length);
@@ -53,4 +58,13 @@ it('names each section once', () => {
 it('narrows a tab name to a tab, and to none for one that is not', () => {
   expect(chosenTab('redirects')).toBe('redirects');
   expect(chosenTab('nonsense')).toBeUndefined();
+});
+
+it('marks the branding tab from the theme saved on the client’s own record', () => {
+  expect([...tabsWithEdits(new Set(), new Set(), new Set(['theme']))]).toEqual(['branding']);
+  expect([...tabsWithEdits(new Set(['details']), new Set(), new Set(['pages']))]).toEqual([
+    'general',
+    'branding',
+  ]);
+  expect(tabsWithEdits(new Set(), new Set(), new Set())).toEqual(new Set());
 });

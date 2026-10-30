@@ -28,6 +28,7 @@ Each page below does one job. It says what the area is for, walks through the co
 ### Applications
 
 5. [Clients](./clients.mdx): the applications that sign people in.
+   - [Client branding](./client-branding.mdx): a client's own colours, logo and layout over the tenant's.
 6. [Scopes](./scopes.mdx): what an application can ask to be let do.
 7. [Registration tokens](./registration-tokens.mdx): let an application register itself.
 
@@ -40,18 +41,19 @@ Each page below does one job. It says what the area is for, walks through the co
 ### Tenant
 
 11. [Settings](./settings.mdx): lifetimes, password rules, lockouts and retention.
-12. [Email](./email.mdx): the relay that sends verification and reset mail.
+12. [Branding](./branding.mdx): the colours, logo and layout of the sign-in and account pages.
+13. [Email](./email.mdx): the relay that sends verification and reset mail.
 
 ### Observe
 
-13. [Audit trail](./audit-trail.mdx): every change and every refusal.
+14. [Audit trail](./audit-trail.mdx): every change and every refusal.
 
 ### System
 
 For an administrator of the system tenant only.
 
-14. [Tenants](./tenants.mdx): create, export, import, disable and delete a tenant. The Export entry of the menu is on this page too.
-15. [System administrators](./system-administrators.mdx): who can reach every tenant.
+15. [Tenants](./tenants.mdx): create, export, import, disable and delete a tenant. The Export entry of the menu is on this page too.
+16. [System administrators](./system-administrators.mdx): who can reach every tenant.
 
 ## When you need the exact request
 

@@ -1,0 +1,46 @@
+.slot {
+  display: grid;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: var(--hairline);
+  border-radius: var(--radius-s);
+}
+
+.legend {
+  padding: 0 var(--space-1);
+  font-size: var(--type-13);
+  font-weight: 500;
+}
+
+.hint,
+.state {
+  margin: 0;
+  max-inline-size: 72ch;
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.state {
+  color: var(--ink-primary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Held in the accessibility tree while empty, out of the layout. */
+.error {
+  margin: 0;
+  color: var(--signal-danger-ink);
+  font-size: var(--type-13);
+  overflow-wrap: anywhere;
+}
+
+.error:empty {
+  position: absolute;
+}

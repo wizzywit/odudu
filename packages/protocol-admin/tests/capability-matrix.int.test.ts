@@ -75,6 +75,7 @@ const SAMPLE_BODIES: Readonly<Partial<Record<string, unknown>>> = {
   },
   'POST /admin/tenants/:tenant/smtp/test': { to: 'someone@example.com' },
   'PUT /admin/tenants/:tenant/flow/executions': [],
+  'PUT /admin/tenants/:tenant/message-overrides/:locale/:key': { message: 'sample' },
 };
 
 // A route whose querystring names a required parameter is refused by ajv
@@ -82,6 +83,7 @@ const SAMPLE_BODIES: Readonly<Partial<Record<string, unknown>>> = {
 const SAMPLE_QUERIES: Readonly<Partial<Record<string, string>>> = {
   'GET /admin/tenants/:tenant/clients/:id/evaluate': 'subject=0199aa00-0000-7000-8000-0000000000fd',
   'DELETE /admin/tenants/:tenant': 'confirm=not-its-name',
+  'GET /admin/tenants/:tenant/message-overrides': 'locale=fr',
 };
 
 function routeKey(route: AdminRoute): string {
@@ -178,8 +180,13 @@ function bodyFor(route: AdminRoute): unknown {
 // is the one thing this matrix exists to observe.
 const ABSENT_ID = '0199aa00-0000-7000-8000-0000000000ff';
 
+// The two parameters that name a message rather than a row, each well-formed.
+const NAMED_STAND_INS: Readonly<Record<string, string>> = { locale: 'fr', key: 'login.title' };
+
 function urlFor(route: AdminRoute, tenantName: string): string {
-  const path = route.pattern.replace(':tenant', tenantName).replace(/:(\w+)/gu, ABSENT_ID);
+  const path = route.pattern
+    .replace(':tenant', tenantName)
+    .replace(/:(\w+)/gu, (_, name: string) => NAMED_STAND_INS[name] ?? ABSENT_ID);
   const query = SAMPLE_QUERIES[routeKey(route)];
   return query === undefined ? path : `${path}?${query}`;
 }
@@ -282,11 +289,18 @@ describe('the capability matrix', () => {
   // its path and method already say, independent of what any route
   // actually declares.
   describe('a route names a capability its own path and method already imply', () => {
-    it('admits a further capability on a read alone', () => {
+    // Beside two reads, the image routes (upload, delete and the stored
+    // bytes), which a client's theme needs and a `manage-clients` holder may
+    // therefore use, and the read of the selectors a stylesheet may name.
+    it('admits a further capability on a read, or on an image route', () => {
       const widened = tenantScopedRoutes.filter((route) => route.alsoAdmits !== undefined);
       expect(widened.map(routeKey).sort()).toEqual([
+        'DELETE /admin/tenants/:tenant/theme/assets/:assetId',
         'GET /admin/tenants/:tenant/groups',
         'GET /admin/tenants/:tenant/roles',
+        'GET /admin/tenants/:tenant/theme/assets/:assetId/content',
+        'GET /admin/tenants/:tenant/theme/stylesheet-hooks',
+        'POST /admin/tenants/:tenant/theme/assets',
       ]);
     });
 

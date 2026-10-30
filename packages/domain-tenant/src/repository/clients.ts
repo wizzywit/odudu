@@ -20,6 +20,8 @@ function toRecord(row: typeof clients.$inferSelect): ClientRecord {
     clientId: row.clientId,
     name: row.name,
     description: row.description,
+    nameI18n: row.nameI18n,
+    descriptionI18n: row.descriptionI18n,
     enabled: row.enabled,
     type: row.type as ClientRecord['type'],
     secretHash: row.secretHash,
@@ -30,6 +32,7 @@ function toRecord(row: typeof clients.$inferSelect): ClientRecord {
     fullScopeAllowed: row.fullScopeAllowed,
     registrationOrigin: row.registrationOrigin as ClientRecord['registrationOrigin'],
     builtinAdmin: row.builtinAdmin,
+    skipLogoutConfirmation: row.skipLogoutConfirmation,
   };
 }
 
@@ -38,12 +41,15 @@ export interface NewClient {
   clientId: string;
   name: string;
   description?: string | null;
+  nameI18n?: Record<string, string>;
+  descriptionI18n?: Record<string, string>;
   type: 'public' | 'confidential';
   secretHash: string | null;
   enabled?: boolean;
   serviceSubjectId?: string | null;
   fullScopeAllowed?: boolean;
   builtinAdmin?: boolean;
+  skipLogoutConfirmation?: boolean;
   // Defaults to the column's own default ('seeded'): every caller that
   // predates dynamic registration creates a client that way, and only
   // the registration endpoint has reason to name 'anonymous' or 'token'.
@@ -103,12 +109,15 @@ export function clientRepository(tx: TenantScopedDatabase) {
             clientId: input.clientId,
             name: input.name,
             description: input.description ?? null,
+            nameI18n: input.nameI18n ?? {},
+            descriptionI18n: input.descriptionI18n ?? {},
             type: input.type,
             secretHash: input.secretHash,
             enabled: input.enabled ?? true,
             serviceSubjectId: input.serviceSubjectId ?? null,
             fullScopeAllowed: input.fullScopeAllowed ?? false,
             builtinAdmin: input.builtinAdmin ?? false,
+            skipLogoutConfirmation: input.skipLogoutConfirmation ?? false,
             ...(input.registrationOrigin === undefined
               ? {}
               : { registrationOrigin: input.registrationOrigin }),
@@ -133,7 +142,14 @@ export function clientRepository(tx: TenantScopedDatabase) {
       patch: Partial<
         Pick<
           typeof clients.$inferInsert,
-          'name' | 'description' | 'enabled' | 'fullScopeAllowed' | 'type'
+          | 'name'
+          | 'description'
+          | 'nameI18n'
+          | 'descriptionI18n'
+          | 'enabled'
+          | 'fullScopeAllowed'
+          | 'skipLogoutConfirmation'
+          | 'type'
         >
       >,
     ): Promise<ClientRecord> {

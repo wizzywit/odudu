@@ -1,0 +1,1324 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the account chooser under the default template > renders byte-identically (arabic dark) 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>اختر حسابًا</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>اختر حسابًا</h1>
+<p class="tenant"><bdi>t1</bdi></p>
+</header>
+<form method="post" action="/tenants/t1/login-actions/select-account">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <button type="submit" name="session_id" value="s1" class="secondary choice"><bdi>alice@example.test</bdi></button>
+  <button type="submit" name="session_id" value="s&quot;2" class="secondary choice"><bdi>&lt;b&gt;&quot;o&#39;brien&quot;&lt;/b&gt; &amp; co</bdi></button>
+  <button type="submit" name="use_other" value="1" class="quiet">استخدام حساب آخر</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the account chooser under the default template > renders byte-identically (dark) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Choose an account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Choose an account</h1>
+<p class="tenant"><bdi>t1</bdi></p>
+</header>
+<form method="post" action="/tenants/t1/login-actions/select-account">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <button type="submit" name="session_id" value="s1" class="secondary choice"><bdi>alice@example.test</bdi></button>
+  <button type="submit" name="session_id" value="s&quot;2" class="secondary choice"><bdi>&lt;b&gt;&quot;o&#39;brien&quot;&lt;/b&gt; &amp; co</bdi></button>
+  <button type="submit" name="use_other" value="1" class="quiet">Use another account</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the account chooser under the default template > renders byte-identically (default) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Choose an account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Choose an account</h1>
+<p class="tenant"><bdi>t1</bdi></p>
+</header>
+<form method="post" action="/tenants/t1/login-actions/select-account">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <button type="submit" name="session_id" value="s1" class="secondary choice"><bdi>alice@example.test</bdi></button>
+  <button type="submit" name="session_id" value="s&quot;2" class="secondary choice"><bdi>&lt;b&gt;&quot;o&#39;brien&quot;&lt;/b&gt; &amp; co</bdi></button>
+  <button type="submit" name="use_other" value="1" class="quiet">Use another account</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the account chooser under the default template > renders no accounts byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Choose an account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Choose an account</h1>
+<p class="tenant"><bdi>&lt;b&gt;&quot;o&#39;brien&quot;&lt;/b&gt; &amp; co</bdi></p>
+</header>
+<form method="post" action="/tenants/%3Cb%3E%22o&#39;brien%22%3C%2Fb%3E%20%26%20co/login-actions/select-account">
+  <input type="hidden" name="auth_session_id" value="sess-&lt;1&gt;">
+  
+  <button type="submit" name="use_other" value="1" class="quiet">Use another account</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the authorize error and unverified-email pages under the default template > renders the error with a way on byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Sign-in error</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Can&#39;t continue</h1>
+<p><bdi>No.</bdi></p>
+<p><a href="/authorize?a=1&amp;b=2">Start sign-in again</a></p>
+<p><small>access_denied</small></p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the authorize error and unverified-email pages under the default template > renders the error with a way on byte-identically 2`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>خطأ في تسجيل الدخول</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>تعذّرت المتابعة</h1>
+<p><bdi>y</bdi></p>
+<p><a href="https://rp.test/cb">العودة إلى التطبيق</a></p>
+<p><small>x</small></p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the authorize error and unverified-email pages under the default template > renders the error without a way on byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Sign-in error</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Can&#39;t continue</h1>
+<p><bdi>&lt;b&gt;&quot;o&#39;brien&quot;&lt;/b&gt; &amp; co</bdi></p>
+<p><small>invalid_request</small></p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the authorize error and unverified-email pages under the default template > renders unverified email (mail false, path /authorize?a=1&b=2) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Verify your email</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Can&#39;t sign in yet</h1>
+<p>You must verify your email to sign in, but this account has none. Ask an administrator.</p>
+<p class="links">
+<a href="/authorize?a=1&amp;b=2">Back to sign in</a>
+</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the authorize error and unverified-email pages under the default template > renders unverified email (mail false, path null) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Verify your email</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Can&#39;t sign in yet</h1>
+<p>You must verify your email to sign in, but this account has none. Ask an administrator.</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the authorize error and unverified-email pages under the default template > renders unverified email (mail true, path /authorize?a=1&b=2) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Verify your email</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Can&#39;t sign in yet</h1>
+<p>We sent you a link to verify your email address. Open it, then sign in again.</p>
+<p class="links">
+<a href="/authorize?a=1&amp;b=2">Back to sign in</a>
+</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the authorize error and unverified-email pages under the default template > renders unverified email (mail true, path null) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Verify your email</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Can&#39;t sign in yet</h1>
+<p>We sent you a link to verify your email address. Open it, then sign in again.</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the consent page under the default template > renders every option byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Allow access?</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1><bdi>&lt;b&gt;&quot;o&#39;brien&quot;&lt;/b&gt; &amp; co</bdi> is asking for access</h1>
+<p class="tenant"><bdi>&lt;b&gt;&quot;o&#39;brien&quot;&lt;/b&gt; &amp; co</bdi></p>
+</header>
+<p><a href="https://rp.test/?a=1&amp;b=2">About <bdi>&lt;b&gt;&quot;o&#39;brien&quot;&lt;/b&gt; &amp; co</bdi></a> · <a href="https://rp.test/privacy">Privacy policy</a> · <a href="https://rp.test/terms">Terms of service</a></p>
+<form method="post" action="/tenants/%3Cb%3E%22o&#39;brien%22%3C%2Fb%3E%20%26%20co/login-actions/consent">
+  <input type="hidden" name="auth_session_id" value="sess-&lt;1&gt;">
+  <ul>
+  <li><bdi>openid</bdi></li>
+  <li><bdi>Your name</bdi></li>
+  <li><bdi>&lt;x&gt;</bdi></li>
+  </ul>
+  <label><input type="checkbox" name="scope" value="email" checked> <bdi>&lt;b&gt;&quot;o&#39;brien&quot;&lt;/b&gt; &amp; co</bdi></label>
+  <label><input type="checkbox" name="scope" value="offline_access"> <bdi>Stay signed in</bdi> — grants ongoing access, even while you are not present</label>
+  <label><input type="checkbox" name="scope" value="a&quot;b"> <bdi>a&quot;b</bdi></label>
+  <button type="submit" name="decision" value="allow">Allow</button>
+  <button type="submit" name="decision" value="deny" class="secondary">Deny</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the consent page under the default template > renders only the pages the client registered byte-identically 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>السماح بالوصول؟</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>يطلب <bdi>App</bdi> الوصول</h1>
+<p class="tenant"><bdi>t1</bdi></p>
+</header>
+<p><a href="https://rp.test/privacy">سياسة الخصوصية</a></p>
+<form method="post" action="/tenants/t1/login-actions/consent">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <ul>
+  <li><bdi>openid</bdi></li>
+  </ul>
+  
+  <button type="submit" name="decision" value="allow">سماح</button>
+  <button type="submit" name="decision" value="deny" class="secondary">رفض</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the consent page under the default template > renders the plainest page byte-identically (arabic dark) 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>السماح بالوصول؟</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>يطلب <bdi>App</bdi> الوصول</h1>
+<p class="tenant"><bdi>t1</bdi></p>
+</header>
+<form method="post" action="/tenants/t1/login-actions/consent">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <ul>
+  <li><bdi>openid</bdi></li>
+  </ul>
+  
+  <button type="submit" name="decision" value="allow">سماح</button>
+  <button type="submit" name="decision" value="deny" class="secondary">رفض</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the consent page under the default template > renders the plainest page byte-identically (dark) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Allow access?</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1><bdi>App</bdi> is asking for access</h1>
+<p class="tenant"><bdi>t1</bdi></p>
+</header>
+<form method="post" action="/tenants/t1/login-actions/consent">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <ul>
+  <li><bdi>openid</bdi></li>
+  </ul>
+  
+  <button type="submit" name="decision" value="allow">Allow</button>
+  <button type="submit" name="decision" value="deny" class="secondary">Deny</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the consent page under the default template > renders the plainest page byte-identically (default) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Allow access?</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1><bdi>App</bdi> is asking for access</h1>
+<p class="tenant"><bdi>t1</bdi></p>
+</header>
+<form method="post" action="/tenants/t1/login-actions/consent">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <ul>
+  <li><bdi>openid</bdi></li>
+  </ul>
+  
+  <button type="submit" name="decision" value="allow">Allow</button>
+  <button type="submit" name="decision" value="deny" class="secondary">Deny</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the confirmation byte-identically (arabic dark) 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>تسجيل الخروج؟</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>تسجيل الخروج؟</h1>
+<p>يؤدي تسجيل الخروج إلى إنهاء هذه الجلسة في كل تطبيق يستخدمها.</p>
+<form method="post" action="/tenants/t1/protocol/openid-connect/logout">
+  <input type="hidden" name="session_id" value="sid">
+  <input type="hidden" name="csrf" value="csrf">
+  <button type="submit">تسجيل الخروج</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the confirmation byte-identically (dark) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Sign out?</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Sign out?</h1>
+<p>Signing out ends this session for every application that uses it.</p>
+<form method="post" action="/tenants/t1/protocol/openid-connect/logout">
+  <input type="hidden" name="session_id" value="sid">
+  <input type="hidden" name="csrf" value="csrf">
+  <button type="submit">Sign out</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the confirmation byte-identically (default) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Sign out?</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Sign out?</h1>
+<p>Signing out ends this session for every application that uses it.</p>
+<form method="post" action="/tenants/t1/protocol/openid-connect/logout">
+  <input type="hidden" name="session_id" value="sid">
+  <input type="hidden" name="csrf" value="csrf">
+  <button type="submit">Sign out</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the confirmation with every hidden field byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Sign out?</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Sign out?</h1>
+<p>Signing out ends this session for every application that uses it.</p>
+<form method="post" action="/tenants/%3Cb%3E%22o&#39;brien%22%3C%2Fb%3E%20%26%20co/protocol/openid-connect/logout">
+  <input type="hidden" name="session_id" value="sid&lt;1&gt;">
+  <input type="hidden" name="csrf" value="csrf&quot;">
+  <input type="hidden" name="client_id" value="c&quot;1">
+  <input type="hidden" name="post_logout_redirect_uri" value="https://rp.test/?a=1&amp;b=2">
+  <input type="hidden" name="state" value="&lt;s&gt;">
+  <button type="submit">Sign out</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the confirmation with one hidden field byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Sign out?</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Sign out?</h1>
+<p>Signing out ends this session for every application that uses it.</p>
+<form method="post" action="/tenants/t1/protocol/openid-connect/logout">
+  <input type="hidden" name="session_id" value="sid">
+  <input type="hidden" name="csrf" value="csrf">
+  <input type="hidden" name="state" value="abc">
+  <button type="submit">Sign out</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the pages that frame relying parties byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Signed out</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Signed out</h1>
+<p>You have been signed out.</p>
+<iframe src="https://rp-a.test/fc?x=1&amp;y=2"></iframe>
+<iframe src="https://rp-b.test/logout"></iframe>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the pages that frame relying parties byte-identically 2`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Signed out</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Signed out</h1>
+<p>You have been signed out, but the address given to return to afterward is not one this client has registered, so it has not been used.</p>
+<iframe src="https://rp-a.test/fc?x=1&amp;y=2"></iframe>
+<iframe src="https://rp-b.test/logout"></iframe>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the pages with nothing to confirm byte-identically (arabic dark) 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>تم تسجيل الخروج بالفعل</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>تم تسجيل الخروج بالفعل</h1>
+<p>لا توجد جلسة نشطة لإنهائها.</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the pages with nothing to confirm byte-identically (arabic dark) 2`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>تعذّر تسجيل الخروج</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>تعذّر تسجيل الخروج</h1>
+<p>محاولة تسجيل الخروج هذه لم تعد صالحة. ارجع وحاول مرة أخرى.</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the pages with nothing to confirm byte-identically (arabic dark) 3`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>تم تسجيل الخروج</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>تم تسجيل الخروج</h1>
+<p>تم تسجيل خروجك.</p>
+
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the pages with nothing to confirm byte-identically (arabic dark) 4`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>تم تسجيل الخروج</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>تم تسجيل الخروج</h1>
+<p>تم تسجيل خروجك، لكن العنوان المحدد للعودة إليه بعد ذلك ليس من العناوين التي سجّلها هذا العميل، لذلك لم يُستخدم.</p>
+
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the pages with nothing to confirm byte-identically (dark) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Already signed out</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Already signed out</h1>
+<p>There is no active session to end.</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the pages with nothing to confirm byte-identically (dark) 2`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Can&#39;t sign out</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Can&#39;t sign out</h1>
+<p>This sign-out attempt is no longer valid. Go back and try again.</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the pages with nothing to confirm byte-identically (dark) 3`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Signed out</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Signed out</h1>
+<p>You have been signed out.</p>
+
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the pages with nothing to confirm byte-identically (dark) 4`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Signed out</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Signed out</h1>
+<p>You have been signed out, but the address given to return to afterward is not one this client has registered, so it has not been used.</p>
+
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the pages with nothing to confirm byte-identically (default) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Already signed out</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Already signed out</h1>
+<p>There is no active session to end.</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the pages with nothing to confirm byte-identically (default) 2`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Can&#39;t sign out</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Can&#39;t sign out</h1>
+<p>This sign-out attempt is no longer valid. Go back and try again.</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the pages with nothing to confirm byte-identically (default) 3`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Signed out</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Signed out</h1>
+<p>You have been signed out.</p>
+
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the pages with nothing to confirm byte-identically (default) 4`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Signed out</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Signed out</h1>
+<p>You have been signed out, but the address given to return to afterward is not one this client has registered, so it has not been used.</p>
+
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the redirecting page byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Signed out</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<meta http-equiv="refresh" content="5;url=https://rp.test/after?a=1&amp;b=2">
+<h1>Signed out</h1>
+<p>You have been signed out. Taking you back to the app.</p>
+<p><a id="continue" href="https://rp.test/after?a=1&amp;b=2">Continue</a></p>
+<iframe src="https://rp-a.test/fc?x=1&amp;y=2"></iframe>
+<iframe src="https://rp-b.test/logout"></iframe>
+<script nonce="NONCE">
+(function () {
+  function start() {
+    var next = document.getElementById('continue').href;
+    var frames = document.querySelectorAll('iframe');
+    var pending = frames.length;
+    var left = false;
+    function leave() { if (!left) { left = true; location.replace(next); } }
+    frames.forEach(function (frame) {
+      frame.addEventListener('load', function () {
+        if (frame.dataset.seen) return;
+        frame.dataset.seen = '1';
+        pending -= 1;
+        if (pending === 0) leave();
+      });
+    });
+    setTimeout(leave, 2000);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+})();
+</script>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the logout pages under the default template > renders the redirecting page byte-identically 2`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>تم تسجيل الخروج</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<meta http-equiv="refresh" content="5;url=https://rp.test/after?a=1&amp;b=2">
+<h1>تم تسجيل الخروج</h1>
+<p>تم تسجيل خروجك. جارٍ إعادتك إلى التطبيق.</p>
+<p><a id="continue" href="https://rp.test/after?a=1&amp;b=2">متابعة</a></p>
+
+<script nonce="NONCE">
+(function () {
+  function start() {
+    var next = document.getElementById('continue').href;
+    var frames = document.querySelectorAll('iframe');
+    var pending = frames.length;
+    var left = false;
+    function leave() { if (!left) { left = true; location.replace(next); } }
+    frames.forEach(function (frame) {
+      frame.addEventListener('load', function () {
+        if (frame.dataset.seen) return;
+        frame.dataset.seen = '1';
+        pending -= 1;
+        if (pending === 0) leave();
+      });
+    });
+    setTimeout(leave, 2000);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+})();
+</script>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the sign-in page under the default template > renders a refusal that gives back no username byte-identically 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>تسجيل الدخول</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>تسجيل الدخول</h1>
+<p class="tenant"><bdi>t1</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">تعذّر تسجيل الدخول. تحقق من بياناتك وحاول مرة أخرى.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/t1/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <label>اسم المستخدم <input type="text" name="username" autocomplete="username" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label>كلمة المرور <input type="password" name="password" autocomplete="current-password" aria-invalid="true" aria-describedby="form-error-0"></label>
+  <button type="submit">تسجيل الدخول</button>
+</form>
+<p class="links">
+<a href="/reset?x=1&amp;y=2">نسيت كلمة المرور؟</a>
+<a href="/register">إنشاء حساب</a>
+</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the sign-in page under the default template > renders every option of the password step byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Sign in</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Sign in</h1>
+<p class="context">to continue to <bdi>&lt;b&gt;&quot;o&#39;brien&quot;&lt;/b&gt; &amp; co</bdi></p>
+<p class="tenant"><bdi>&lt;b&gt;&quot;o&#39;brien&quot;&lt;/b&gt; &amp; co</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">Sign-in failed. Check your details and try again.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/%3Cb%3E%22o&#39;brien%22%3C%2Fb%3E%20%26%20co/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="sess-&lt;1&gt;">
+  <label>Username or email <input type="text" name="username" autocomplete="username" value="&lt;b&gt;&quot;o&#39;brien&quot;&lt;/b&gt; &amp; co" aria-invalid="true" aria-describedby="form-error-0"></label>
+  <label>Password <input type="password" name="password" autocomplete="current-password" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label><input type="checkbox" name="remember_me" id="remember-me" value="true"> Remember me</label>
+  <button type="submit">Sign in</button>
+</form>
+<form method="post" action="/tenants/%3Cb%3E%22o&#39;brien%22%3C%2Fb%3E%20%26%20co/login-actions/authenticate" id="passkey-form" data-failed="Your device did not finish signing in — {reason}. You can try again." data-cancelled="the request was cancelled" data-not-offered="this server is not offering passkeys">
+  <input type="hidden" name="auth_session_id" value="sess-&lt;1&gt;">
+  <input type="hidden" name="assertion" id="passkey-assertion">
+  <p><button type="submit" id="passkey-submit" class="secondary">Sign in with a passkey</button></p>
+</form>
+<p id="passkey-error" class="alert" role="alert" hidden></p>
+<noscript><p>Signing in with a passkey needs JavaScript, because only the browser can talk to your authenticator. Use your username and password above.</p></noscript>
+<script nonce="NONCE">
+const form = document.getElementById('passkey-form');
+const field = document.getElementById('passkey-assertion');
+const failure = document.getElementById('passkey-error');
+const fromBase64Url = (value) =>
+  Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+form.addEventListener('submit', async (event) => {
+  if (field.value !== '') return;
+  event.preventDefault();
+  failure.hidden = true;
+  try {
+    const offered = await fetch('/tenants/%3Cb%3E%22o&#39;brien%22%3C%2Fb%3E%20%26%20co/login-actions/passkey-challenge', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ auth_session_id: form.auth_session_id.value }),
+    });
+    if (!offered.ok) throw new Error(form.dataset.notOffered);
+    const options = await offered.json();
+    const assertion = await navigator.credentials.get({
+      publicKey: { ...options, challenge: fromBase64Url(options.challenge) },
+    });
+    field.value = JSON.stringify(assertion.toJSON());
+    form.submit();
+  } catch (caught) {
+    const reason = caught && caught.message ? caught.message : form.dataset.cancelled;
+    failure.textContent = form.dataset.failed.replace('{reason}', () => reason);
+    failure.hidden = false;
+  }
+});
+</script>
+<p class="links">
+<a href="/reset?x=1&amp;y=2">Forgot password?</a>
+<a href="/register">Create an account</a>
+</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the sign-in page under the default template > renders the mystery step byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Sign in</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Sign in</h1>
+<p class="context">to continue to <bdi>App</bdi></p>
+<p class="tenant"><bdi>t1</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">That code did not work. Check it and try again.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/t1/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <p>Unsupported sign-in step: mystery</p>
+  <label><input type="checkbox" name="remember_me" id="remember-me" value="true"> Remember me</label>
+  <button type="submit">Sign in</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the sign-in page under the default template > renders the otp step byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Enter your authentication code</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Enter your authentication code</h1>
+<p class="context">to continue to <bdi>App</bdi></p>
+<p class="tenant"><bdi>t1</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">That code did not work. Check it and try again.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/t1/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
+  <label><input type="checkbox" name="remember_me" id="remember-me" value="true"> Remember me</label>
+  <button type="submit">Verify</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the sign-in page under the default template > renders the password step byte-identically (arabic dark) 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>تسجيل الدخول</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>تسجيل الدخول</h1>
+<p class="tenant"><bdi>t1</bdi></p>
+</header>
+<form method="post" action="/tenants/t1/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <label>اسم المستخدم <input type="text" name="username" autocomplete="username"></label>
+  <label>كلمة المرور <input type="password" name="password" autocomplete="current-password"></label>
+  <button type="submit">تسجيل الدخول</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the sign-in page under the default template > renders the password step byte-identically (dark) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Sign in</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Sign in</h1>
+<p class="tenant"><bdi>t1</bdi></p>
+</header>
+<form method="post" action="/tenants/t1/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <label>Username <input type="text" name="username" autocomplete="username"></label>
+  <label>Password <input type="password" name="password" autocomplete="current-password"></label>
+  <button type="submit">Sign in</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the sign-in page under the default template > renders the password step byte-identically (default) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Sign in</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Sign in</h1>
+<p class="tenant"><bdi>t1</bdi></p>
+</header>
+<form method="post" action="/tenants/t1/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <label>Username <input type="text" name="username" autocomplete="username"></label>
+  <label>Password <input type="password" name="password" autocomplete="current-password"></label>
+  <button type="submit">Sign in</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the sign-in page under the default template > renders the recovery-code step byte-identically 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Enter a recovery code</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Enter a recovery code</h1>
+<p class="context">to continue to <bdi>App</bdi></p>
+<p class="tenant"><bdi>t1</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">That code did not work. Check it and try again.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/t1/login-actions/authenticate">
+  <input type="hidden" name="auth_session_id" value="sess-1">
+  <label>Or a recovery code <input type="text" name="recovery_code" autocomplete="off"></label>
+  <label><input type="checkbox" name="remember_me" id="remember-me" value="true"> Remember me</label>
+  <button type="submit">Verify</button>
+</form>
+</main>
+</body>
+</html>"
+`;

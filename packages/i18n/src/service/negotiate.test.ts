@@ -17,7 +17,7 @@ function input(overrides: Partial<NegotiationInput> = {}): NegotiationInput {
 }
 
 describe('negotiateLocale', () => {
-  it('prefers the first supported ui_locales tag', () => {
+  it('[ODUDU-THEME-LOCALE-01] prefers the first supported ui_locales tag', () => {
     const page = negotiateLocale(
       input({ uiLocales: ['sw', 'fr', 'de'], subjectLocale: 'de', authenticated: true }),
     );

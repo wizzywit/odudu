@@ -111,7 +111,7 @@ describe('forwardedRequestHeaders', () => {
 });
 
 describe('passedResponseHeaders', () => {
-  it('keeps only the five named headers, rewriting location and link', () => {
+  it('keeps only the named headers, rewriting location and link', () => {
     expect(
       passedResponseHeaders({
         'content-type': 'application/problem+json',
@@ -130,6 +130,17 @@ describe('passedResponseHeaders', () => {
       link: '</console/api/admin/tenants/system/scopes?cursor=a>; rel="next"',
       'cache-control': 'no-store',
     });
+  });
+
+  it('passes the preview’s policy and type headers through unchanged', () => {
+    const preview = {
+      'content-security-policy': "default-src 'none'; frame-ancestors 'self'",
+      'referrer-policy': 'no-referrer',
+      'x-content-type-options': 'nosniff',
+      'x-odudu-preview-script': 'omitted',
+      'x-odudu-preview-fallback': 'sign-in',
+    };
+    expect(passedResponseHeaders({ ...preview, 'x-frame-options': 'DENY' })).toEqual(preview);
   });
 
   it('rewrites every Link header of several', () => {

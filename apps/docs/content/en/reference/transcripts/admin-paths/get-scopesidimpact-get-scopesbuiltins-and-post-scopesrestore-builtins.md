@@ -17,11 +17,25 @@ as `DELETE /admin/tenants/{tenant}` does for a tenant, so a script cannot take
 one by accident. Built-in status is decided by the name alone, so a scope created under one of those names is built in too, and a restore will not create a name that exists. An ordinary scope needs no `confirm`, and one sent with it is
 ignored.
 
-Every block below ran on a stack built from this branch and driven only as far
-as this page needs: `odudu seed admin`, `$ADMIN_TOKEN` got as in [Getting the
-token](./getting-the-token.md), then the tenant `builtins-demo`, a public client
-`portal`, and the role `auditor` mapped to the `roles` scope with `odudu seed`.
-The stack published port `3192`.
+Every block below ran on a freshly built stack (`docker compose up`, then `odudu seed
+admin --username ada`), with `$ADMIN_TOKEN` got as in [Getting the
+token](./getting-the-token.md), and nothing else in it but what the next block
+makes: the tenant `builtins-demo`, a public client `portal`, and a role `auditor`
+mapped to the `roles` scope. The ids are that run's and refer to each other.
+
+```bash
+A="Authorization: Bearer $ADMIN_TOKEN"; J='Content-Type: application/json'
+P=http://localhost:3000/admin/tenants/builtins-demo
+curl -sS -X POST -H "$A" -H "$J" -d '{"name":"builtins-demo"}' http://localhost:3000/admin/tenants -o /dev/null
+curl -sS -X POST -H "$A" -H "$J" \
+  -d '{"client_id":"portal","redirect_uris":["https://app.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none"}' \
+  $P/clients -o /dev/null
+AUDITOR=$(curl -sS -X POST -H "$A" -H "$J" -d '{"name":"auditor"}' $P/roles | jq -r .id)
+ROLES=$(curl -sS -H "$A" "$P/scopes?name=roles" | jq -r '.items[0].id')
+OPENID=$(curl -sS -H "$A" "$P/scopes?name=openid" | jq -r '.items[0].id')
+ETAG=$(curl -sS -D - -o /dev/null -H "$A" $P/scopes/$ROLES/roles | tr -d '\r' | sed -n 's/^etag: //p')
+curl -sS -X PUT -H "$A" -H "$J" -H "If-Match: $ETAG" -d "{\"role_ids\":[\"$AUDITOR\"]}" $P/scopes/$ROLES/roles -o /dev/null
+```
 
 ## What a delete would take
 
@@ -32,7 +46,7 @@ however large the tenant is. `roles` is carried by `portal` and by the tenant's
 own admin client, and `auditor` is mapped to it:
 
 ```bash
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3192/admin/tenants/builtins-demo/scopes/01a163f6-3841-7c44-8665-e0d89bc86380/impact; echo
+curl -sS -H "$A" $P/scopes/$ROLES/impact; echo
 ```
 
 ```
@@ -47,53 +61,53 @@ what to send. Nothing is deleted, and the refusal is audited. A `confirm` that i
 not the scope's own name is refused the same way:
 
 ```bash
-curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3192/admin/tenants/builtins-demo/scopes/01a163f6-3841-7c44-8665-e0d89bc86380
+curl -sS -D - -X DELETE -H "$A" $P/scopes/$ROLES
 ```
 
 ```
 HTTP/1.1 422 Unprocessable Entity
-x-request-id: 01a163f6-3df4-75db-b8a5-674c38bdece3
+x-request-id: 01a18729-511f-7598-ad4a-3e50054ca7a1
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 313
-Date: Thu, 22 Oct 2026 14:14:04 GMT
+Date: Thu, 29 Oct 2026 10:16:34 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank#builtin-scope-confirmation","title":"Unprocessable Content","status":422,"detail":"roles is a built-in scope. Deleting it removes it from 2 clients and unmaps 1 role, and cannot be undone. Repeat the request with confirm=roles to delete it.","instance":"01a163f6-3df4-75db-b8a5-674c38bdece3"}
+{"type":"about:blank#builtin-scope-confirmation","title":"Unprocessable Content","status":422,"detail":"roles is a built-in scope. Deleting it removes it from 2 clients and unmaps 1 role, and cannot be undone. Repeat the request with confirm=roles to delete it.","instance":"01a18729-511f-7598-ad4a-3e50054ca7a1"}
 ```
 
 ```bash
-curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "http://localhost:3192/admin/tenants/builtins-demo/scopes/01a163f6-3841-7c44-8665-e0d89bc86380?confirm=role"; echo
+curl -sS -X DELETE -H "$A" "$P/scopes/$ROLES?confirm=role"; echo
 ```
 
 ```
-{"type":"about:blank#builtin-scope-confirmation","title":"Unprocessable Content","status":422,"detail":"roles is a built-in scope. Deleting it removes it from 2 clients and unmaps 1 role, and cannot be undone. Repeat the request with confirm=roles to delete it.","instance":"01a163f6-3e15-7488-8e9a-5ba79eb450ab"}
+{"type":"about:blank#builtin-scope-confirmation","title":"Unprocessable Content","status":422,"detail":"roles is a built-in scope. Deleting it removes it from 2 clients and unmaps 1 role, and cannot be undone. Repeat the request with confirm=roles to delete it.","instance":"01a18729-5141-7a81-afd9-0c89faaf1e0a"}
 ```
 
 `openid` stays refused with `409` whatever `confirm` says, since taking it off
 every client would lock every administrator of the tenant out:
 
 ```bash
-curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "http://localhost:3192/admin/tenants/builtins-demo/scopes/01a163f6-3833-718e-8f5e-7f326dd666c0?confirm=openid"; echo
+curl -sS -X DELETE -H "$A" "$P/scopes/$OPENID?confirm=openid"; echo
 ```
 
 ```
-{"type":"about:blank","title":"Conflict","status":409,"detail":"openid is deleted along with every client’s assignment of it, this tenant’s built-in admin client’s included, and could lock out every administrator of this tenant","instance":"01a163f6-3e34-7b93-9a52-b13d2b4b8785"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"openid is deleted along with every client’s assignment of it, this tenant’s built-in admin client’s included, and could lock out every administrator of this tenant","instance":"01a18729-5170-7f8c-811e-7a709b142e36"}
 ```
 
 Naming the scope deletes it, with the assignments and role mappings that
 referred to it:
 
 ```bash
-curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "http://localhost:3192/admin/tenants/builtins-demo/scopes/01a163f6-3841-7c44-8665-e0d89bc86380?confirm=roles"
+curl -sS -D - -X DELETE -H "$A" "$P/scopes/$ROLES?confirm=roles"
 ```
 
 ```
 HTTP/1.1 204 No Content
-x-request-id: 01a163f6-3e4e-7736-95c7-de6acff5ad27
+x-request-id: 01a18729-518a-702a-af4d-3b7578192cbb
 cache-control: no-store
-Date: Thu, 22 Oct 2026 14:14:04 GMT
+Date: Thu, 29 Oct 2026 10:16:34 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -105,7 +119,7 @@ Keep-Alive: timeout=72
 them, with whether this tenant has it; narrowed with `jq` to the missing ones:
 
 ```bash
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3192/admin/tenants/builtins-demo/scopes/builtins | jq -c ".items[] | select(.present | not)"
+curl -sS -H "$A" $P/scopes/builtins | jq -c ".items[] | select(.present | not)"
 ```
 
 ```
@@ -118,8 +132,8 @@ neither read nor changed, edited or not, so a second call creates none. It takes
 no body:
 
 ```bash
-curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3192/admin/tenants/builtins-demo/scopes/restore-builtins; echo
-curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3192/admin/tenants/builtins-demo/scopes/restore-builtins; echo
+curl -sS -X POST -H "$A" $P/scopes/restore-builtins; echo
+curl -sS -X POST -H "$A" $P/scopes/restore-builtins; echo
 ```
 
 ```
@@ -131,15 +145,17 @@ The restored scope has its shipped settings, marked `default` for clients made
 from now on, but not what the deletion took: no client carries it and no role is
 mapped to it, so each is assigned and mapped again. It is refused with `409`,
 creating nothing, when the missing scopes would pass the tenant's limit of 1,000
-scopes or of 200 scopes marked for every new client.
+scopes or of 200 scopes marked for every new client. The restored scope has a new
+id, which `$ROLES` is set to first:
 
 ```bash
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3192/admin/tenants/builtins-demo/scopes/01a163f6-3e95-77a2-8c20-0621710b44f2; echo
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3192/admin/tenants/builtins-demo/scopes/01a163f6-3e95-77a2-8c20-0621710b44f2/impact; echo
+ROLES=$(curl -sS -H "$A" "$P/scopes?name=roles" | jq -r '.items[0].id')
+curl -sS -H "$A" $P/scopes/$ROLES; echo
+curl -sS -H "$A" $P/scopes/$ROLES/impact; echo
 ```
 
 ```
-{"id":"01a163f6-3e95-77a2-8c20-0621710b44f2","name":"roles","description":null,"include_in_id_token":false,"include_in_access_token":true,"default_client_assignment":"default","consent_text":null,"display_order":0,"created_at":"2026-10-22T14:14:04.689Z"}
+{"id":"01a18729-51d8-77dd-805d-9637168ce505","name":"roles","description":null,"include_in_id_token":false,"include_in_access_token":true,"default_client_assignment":"default","consent_text":null,"description_i18n":{},"consent_text_i18n":{},"display_order":0,"created_at":"2026-10-29T10:16:34.517Z"}
 {"builtin":true,"client_assignments":{"count":0,"capped":false},"role_mappings":{"count":0,"capped":false}}
 ```
 
@@ -153,8 +169,8 @@ nothing writes none. The two refusals and the delete of `roles` above, narrowed
 with `jq` to the counts, and the restore:
 
 ```bash
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "http://localhost:3192/admin/tenants/builtins-demo/audit?resource_type=scope&action=scope.delete&resource_id=01a163f6-3841-7c44-8665-e0d89bc86380" | jq -c ".items[] | {outcome, builtin: .detail.builtin, clients: .detail.client_assignments, roles: .detail.role_mappings}"
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "http://localhost:3192/admin/tenants/builtins-demo/audit?action=scope.restore_builtins" | jq -c ".items[] | {action, outcome, detail}"
+curl -sS -H "$A" "$P/audit?resource_type=scope&action=scope.delete" | jq -c ".items[] | select(.detail.builtin) | {outcome, builtin: .detail.builtin, clients: .detail.client_assignments, roles: .detail.role_mappings}"
+curl -sS -H "$A" "$P/audit?action=scope.restore_builtins" | jq -c ".items[] | {action, outcome, detail}"
 ```
 
 ```
@@ -168,16 +184,19 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "http://localhost:3192/admin/te
 
 `odudu seed restore-scopes --tenant <name>` does the same through the same
 function, for an installation with no admin token to hand. It prints the names
-it created and is just as harmless to repeat. Here `groups` was deleted first
+it created and is just as harmless to repeat. Here `groups` is deleted first
 with `?confirm=groups`; the command's own warnings on standard error are
 discarded:
 
 ```bash
+GROUPS_SCOPE=$(curl -sS -H "$A" "$P/scopes?name=groups" | jq -r '.items[0].id')
+curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE -H "$A" "$P/scopes/$GROUPS_SCOPE?confirm=groups"
 docker compose exec -T odudu node dist/main.js seed restore-scopes --tenant builtins-demo 2>/dev/null
 docker compose exec -T odudu node dist/main.js seed restore-scopes --tenant builtins-demo 2>/dev/null
 ```
 
 ```
-{"command":"restore-scopes","tenant":"builtins-demo","tenantId":"01a163f6-381e-7464-8b39-7093a24cdfc9","created":["groups"]}
-{"command":"restore-scopes","tenant":"builtins-demo","tenantId":"01a163f6-381e-7464-8b39-7093a24cdfc9","created":[]}
+204
+{"command":"restore-scopes","tenant":"builtins-demo","tenantId":"01a18729-4fd5-7e49-b839-2254f628e506","created":["groups"]}
+{"command":"restore-scopes","tenant":"builtins-demo","tenantId":"01a18729-4fd5-7e49-b839-2254f628e506","created":[]}
 ```

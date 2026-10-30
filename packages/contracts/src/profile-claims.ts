@@ -16,6 +16,9 @@ const ZONEINFO = /^[A-Za-z][A-Za-z0-9_+-]*(\/[A-Za-z0-9_+-]+)*$/u;
 // an optional 2-letter region or 3-digit region subtag.
 const LOCALE = /^[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3}))?$/u;
 
+// The same shape as a pattern a published schema can carry.
+export const LOCALE_PATTERN = LOCALE.source;
+
 // profile, picture and website are rendered as links by consumers, so they
 // are constrained to the schemes a link can safely use.
 const HTTP_URL = /^https?:\/\//u;
@@ -36,6 +39,20 @@ export function isValidZoneinfo(value: string): boolean {
 
 export function isValidLocale(value: string): boolean {
   return LOCALE.test(value);
+}
+
+// The spelling RFC 5646 §2.1.1 recommends: the language in lower case, a
+// script in title case, a region in upper case. Null when `isValidLocale`
+// refuses the tag, so a stored tag has one spelling whatever was typed.
+export function canonicalLocale(value: string): string | null {
+  if (!LOCALE.test(value)) return null;
+  const [language = '', ...rest] = value.split('-');
+  const subtags = rest.map((subtag) => {
+    if (subtag.length === 4)
+      return subtag.slice(0, 1).toUpperCase() + subtag.slice(1).toLowerCase();
+    return subtag.toUpperCase();
+  });
+  return [language.toLowerCase(), ...subtags].join('-');
 }
 
 export function isValidProfileUrl(value: string): boolean {

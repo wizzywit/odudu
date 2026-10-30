@@ -1,5 +1,6 @@
 import { clearedSessionCookies } from '@odudu/authn-flows';
 import { requestContextFrom } from '@odudu/domain-audit';
+import { type BrandingResolver, type OverridesResolver, type PageLocale } from '@odudu/kernel';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import {
   handleLogoutConfirmation,
@@ -17,14 +18,19 @@ import {
   renderNoActiveSessionPage,
 } from '#/view/logout-html';
 import { sendHtml } from '#/view/html-response';
-import { requestLocale } from '#/view/routes/continuation';
+import {
+  brandedRequestLocale,
+  lookingUpTenantOnce,
+  type ContinuationDeps,
+} from '#/view/routes/continuation';
 import { tenantIssuerFor } from '#/view/issuer';
 
 const PATH = '/tenants/:tenant/protocol/openid-connect/logout';
 
 export interface LogoutRouteDeps extends LogoutUsecaseDeps {
   tls: boolean;
-  pageLocales?: readonly string[];
+  resolveBranding?: BrandingResolver;
+  resolveOverrides?: OverridesResolver;
 }
 
 // A parameter sent twice arrives as an array, and is dropped rather than
@@ -42,20 +48,23 @@ async function respondToOutcome(
   tenant: string,
   tls: boolean,
   reply: FastifyReply,
-  pageLocales?: readonly string[],
+  deps: Pick<ContinuationDeps, 'findTenant' | 'resolveBranding' | 'resolveOverrides'>,
 ): Promise<FastifyReply> {
-  const locale = requestLocale(reply, { pageLocales });
+  // Asked for only by a branch that renders a page: a redirect has none. A
+  // client's theme is worn only where the outcome says a hint verified it.
+  const locale = (clientId: string | null = null): Promise<PageLocale> =>
+    brandedRequestLocale(deps, reply, tenant, clientId);
   if (outcome.kind === 'not_found') {
     return reply.code(404).send();
   }
 
   if (outcome.kind === 'unauthenticated') {
-    return sendHtml(reply, 400, renderLogoutUnauthenticatedPage(locale));
+    return sendHtml(reply, 400, renderLogoutUnauthenticatedPage(await locale()));
   }
 
   if (outcome.kind === 'confirm') {
     if (outcome.sessionId === null || outcome.csrf === null) {
-      return sendHtml(reply, 200, renderNoActiveSessionPage(locale));
+      return sendHtml(reply, 200, renderNoActiveSessionPage(await locale(outcome.brandClientId)));
     }
     const page = renderLogoutConfirmationPage(
       tenant,
@@ -66,7 +75,7 @@ async function respondToOutcome(
         postLogoutRedirectUri: outcome.postLogoutRedirectUri,
         state: outcome.state,
       },
-      locale,
+      await locale(outcome.brandClientId),
     );
     return sendHtml(
       reply,
@@ -78,10 +87,10 @@ async function respondToOutcome(
   }
 
   // Both remaining outcomes end here having already ended a session — the
-  // `render` outcome always does (decideLogout only refuses a redirect on
-  // the branch that first confirmed a session), and `end` only when its own
-  // `sessionEnded` says so (decideLogout can also honour a matched redirect
-  // with no session to end at all).
+  // `render` outcome always does (a redirect is refused only after the
+  // session ended), and `end` only when its own `sessionEnded` says so
+  // (decideLogout can also honour a matched redirect with no session to end
+  // at all).
   const sessionEnded = outcome.kind === 'render' || outcome.sessionEnded;
   if (sessionEnded) {
     for (const cookie of clearedSessionCookies(tenant, tls)) {
@@ -93,7 +102,10 @@ async function respondToOutcome(
     return sendHtml(
       reply,
       400,
-      renderLogoutRedirectRefusedPage(outcome.frontChannelLogoutUrls, locale),
+      renderLogoutRedirectRefusedPage(
+        outcome.frontChannelLogoutUrls,
+        await locale(outcome.brandClientId),
+      ),
     );
   }
 
@@ -101,7 +113,11 @@ async function respondToOutcome(
   // 9207 has /authorize carry iss on every response — this is not an
   // authorization response, so no `iss` parameter of its own applies here.
   if (outcome.redirectTo === null) {
-    return sendHtml(reply, 200, renderLoggedOutPage(outcome.frontChannelLogoutUrls, locale));
+    return sendHtml(
+      reply,
+      200,
+      renderLoggedOutPage(outcome.frontChannelLogoutUrls, await locale(outcome.brandClientId)),
+    );
   }
   const target = new URL(outcome.redirectTo);
   if (outcome.state !== null) target.searchParams.set('state', outcome.state);
@@ -109,7 +125,11 @@ async function respondToOutcome(
     return sendHtml(
       reply,
       200,
-      renderLoggedOutRedirectPage(outcome.frontChannelLogoutUrls, target.toString(), locale),
+      renderLoggedOutRedirectPage(
+        outcome.frontChannelLogoutUrls,
+        target.toString(),
+        await locale(outcome.brandClientId),
+      ),
     );
   }
   reply.header('cache-control', 'no-store');
@@ -132,12 +152,13 @@ function logoutRequestParams(
 }
 
 async function respondToLogoutRequest(
-  deps: LogoutRouteDeps,
+  routeDeps: LogoutRouteDeps,
   request: FastifyRequest<{ Params: { tenant: string } }>,
   reply: FastifyReply,
   params: LogoutRequestParams,
 ): Promise<FastifyReply> {
   const tenant = request.params.tenant;
+  const deps = lookingUpTenantOnce(routeDeps);
   const outcome = await handleLogoutRequest(
     deps,
     tenant,
@@ -146,15 +167,15 @@ async function respondToLogoutRequest(
     params,
     requestContextFrom(request),
   );
-  return respondToOutcome(outcome, tenant, deps.tls, reply, deps.pageLocales);
+  return respondToOutcome(outcome, tenant, deps.tls, reply, deps);
 }
 
-export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps): void {
+export function registerLogoutRoute(app: FastifyInstance, routeDeps: LogoutRouteDeps): void {
   app.get<{
     Params: { tenant: string };
     Querystring: Record<string, string | undefined>;
   }>(PATH, async (request, reply) =>
-    respondToLogoutRequest(deps, request, reply, logoutRequestParams(request.query)),
+    respondToLogoutRequest(routeDeps, request, reply, logoutRequestParams(request.query)),
   );
 
   app.post<{
@@ -168,9 +189,10 @@ export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps)
     // which §2 requires the endpoint to answer exactly as it answers `GET`.
     // The field is the confirmation form's own, and only the form sends it.
     if (confirmedSessionId === undefined) {
-      return respondToLogoutRequest(deps, request, reply, logoutRequestParams(body));
+      return respondToLogoutRequest(routeDeps, request, reply, logoutRequestParams(body));
     }
 
+    const deps = lookingUpTenantOnce(routeDeps);
     const outcome = await handleLogoutConfirmation(
       deps,
       request.params.tenant,
@@ -185,6 +207,6 @@ export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps)
       },
       requestContextFrom(request),
     );
-    return respondToOutcome(outcome, request.params.tenant, deps.tls, reply, deps.pageLocales);
+    return respondToOutcome(outcome, request.params.tenant, deps.tls, reply, deps);
   });
 }

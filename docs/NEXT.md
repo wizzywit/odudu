@@ -2,7 +2,7 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b, P3a, P3b, P4a, P4c, P4d and P4e are complete, and the
+**P0, P1, P2a, P2b, P3a, P3b, P4a, P4b, P4c, P4d and P4e are complete, and the
 tenant rename is done. P4g has closed as release candidates, and only its
 stable tag is left.** Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
@@ -16,10 +16,16 @@ more phase work. What it built, and what the whole-phase review found, is in
 What it placed on later phases is on
 [the roadmap page](../apps/docs/content/en/roadmap.md).
 
-**What is next, in this order: P4b, P5a, P4f, P4h, P4i, P5, P5b**, then the
+**P4b, theming and client branding, is built.** Every server page and mail
+wears a tenant's theme and a client's over it; the tenant chooses its languages
+and wording, Arabic ships as the right-to-left language, and sign-out asks
+first. What it found is in [`docs/phases/p4b.md`](phases/p4b.md). Its one owner
+step is a reader of Arabic, in `RELEASING.md` before the stable tag.
+
+**What is next, in this order: P4j, P5a, P4f, P4h, P4i, P5, P5b**, then the
 phases the roadmap page lists as "Later", P6 to P14. The letters do not read
-in execution order, because `P4b` was spent on theming before P4 split and an
-accepted ADR cites it. P4b is theming and client branding; P5a the MCP server;
+in execution order. P4j is a custom domain for each tenant, which left P4b
+for its own phase; P5a the MCP server;
 P4f self-service through a "me" API and application-initiated actions; P4h
 console localization ([ADR 0043](adr/0043-localization-is-a-catalogue-a-negotiation-and-a-set-of-owners.md));
 P4i the SDKs.
@@ -48,6 +54,7 @@ open.
 The running records, split out of this file on 2026-09-17: P2b reached
 1,873 lines here, of which the part describing where the project stood was 58.
 
+- [P4b — theming and client branding](phases/p4b.md)
 - [P4g — the public release](phases/p4g.md)
 - [P4d — the admin console and the admin API it needs](phases/p4d.md)
 - [P4e — authentication and token audit events](phases/p4e.md)
@@ -72,7 +79,7 @@ another paragraph. `tests/docs/next-budget.test.ts` holds the file to 400
 lines and any one section to 130, so an entry that has somewhere better to
 live is pushed there rather than accumulating here.
 
-## What P4b, P4f and P4h inherit
+## What P4j, P4f and P4h inherit
 
 **A console to build on, and the ways in.** The SPA talks to nothing but
 `/console/api/session`, `/console/api/admin/*`, `/console/auth/login` and
@@ -90,14 +97,19 @@ ask for a fresh set before running out, and nothing warns as the list gets
 short. Both are named in P4f's exit criterion; `beginRecoveryCodes` already
 replaces a set wholesale, so what is owed is a surface, not a mechanism.
 
-**Theming is P4b's, and the contract it needs already exists.** Every
-renderer returns `RenderedPage`, and `pageHeaders` in `@odudu/kernel` is the
-single authority for a page's headers (ADR 0029). A theme replaces a body
-fragment and a token set, never the document, because the document carries
-the CSP nonce, the framing defence and the `auth_session_id` — ADR 0030 has
-the reasoning, and the `frames` member ADR 0034 added is part of the same
-contract. Every server page already renders under Instrument with its text in
-a catalogue, so a theme overrides what is there.
+**A new page or mail is themed by being written the way the others are.** A
+renderer is a `*-html.ts` in a `view` layer with its kind in `page-kinds.ts`, and
+`theme-reach.test.ts` fails until a theme reaches it; its text is a catalogue
+entry, and `arabic-catalogues.test.ts` fails until Arabic has the same key. A mail
+takes its look through `resolveMailBranding` in the transaction that queues it.
+P4f's self-service pages and P4h's console strings follow these two rules; what a
+theme may do and why is in [web-security.md](protocols/web-security.md).
+
+**A custom domain is P4j's.** A tenant is resolved from the path today
+(`/tenants/<name>`) and its issuer is `ODUDU_PUBLIC_BASE_URL` plus its name.
+P4j resolves it from `Host` instead, which moves the issuer, cookie scope and
+the WebAuthn RP ID. The design is in the P4b spec, section 3. Brand asset addresses are
+content-hashed under the tenant's path, so they move with the issuer.
 
 ## What P11 and P12 inherit
 
@@ -176,7 +188,10 @@ that should hold it, which is usually false.
 | Migrations are hard cutovers: Drizzle runs every pending migration in one transaction, so no index is built `CONCURRENTLY`, `0073`–`0075` add stored generated columns that rewrite their tables under lock, `0076` rebuilds an `audit_events` index without `CONCURRENTLY`, `0079` adds three more such columns to `users`, `0080`, `0081` and `0097` build indexes plain, and `0095` builds twenty-odd, four of them on `audit_events`, as `0099` builds a fifth, and `0100` three on `email_outbox`, whose `failed` mail read still sorts a tenant's unsent rows (about 100 ms at 1,000,000 unsent, an incident-sized backlog) | the umbrella spec's §5, "Migrations", and §11's P11 row                                           | **P11**, with rolling upgrades across replicas                                                                 |
 | `audit_events` at 100,000,000 rows is one table with seven secondary indexes and per-tenant unbatched retention deletes; the query-plan check ran at a fifth of the subjects and a hundredth of the events, on one node                                                                                                                                                                                                                                                                                                                                                                                                           | `docs/phases/p4d.md`, "Server query plans", and §11's P11 row                                     | **P11**, partitioning by month and batched deletes                                                             |
 | Tenant delete is one transaction cascading through every tenant table, `audit_events` included, so it holds locks as long as the tenant's audit trail is deep; no bound or timeout (`apps/docs/content/en/reference/transcripts/admin-paths/`, "Delete a tenant")                                                                                                                                                                                                                                                                                                                                                                 | the umbrella spec's §11, P11 row                                                                  | **P11**, a chunked, resumable delete                                                                           |
-| Localization has its catalogue mechanism and the server pages' and mail's English catalogues; the tenant default locale and per-tenant mail theming (**P4b**) and the console's extraction (**P4h**) remain, and the new-code rule is unenforced in the console until its lint lands                                                                                                                                                                                                                                                                                                                                              | [ADR 0043](adr/0043-localization-is-a-catalogue-a-negotiation-and-a-set-of-owners.md)             | **P4b** and **P4h**                                                                                            |
+| Localization has its catalogue mechanism and the server pages' and mail's catalogues, English and Arabic, with a tenant's languages and wording; the console's extraction (**P4h**) remains, and the new-code rule is unenforced in the console until its lint lands                                                                                                                                                                                                                                                                                                                                                              | [ADR 0043](adr/0043-localization-is-a-catalogue-a-negotiation-and-a-set-of-owners.md)             | **P4b** and **P4h**                                                                                            |
+| Logout's per-client opt-out of the confirmation is decided and built (P4b): off by default, only for a valid hint of that client matching the live session, never through Dynamic Registration                                                                                                                                                                                                                                                                                                                                                                                                                                    | ADR 0047                                                                                          | a client operator asks to skip it for a hint of another client or session                                      |
+| Tenant export and import carry no theme: the published tenant theme, each client's published theme and the uploaded images are left out of the document, and `omitted` does not name them                                                                                                                                                                                                                                                                                                                                                                                                                                         | [p4b.md](phases/p4b.md), "Owed at phase close"                                                    | **P7**, with the document's move between installations                                                         |
+| A passage in another language than a page's is not marked with its own `lang`; a client's base name has no language of its own to mark (**P4h**)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | [web-security.md](protocols/web-security.md), the WCAG 3.1.2 row                                  | a tenant states the language of a client's base name                                                           |
 | No composite index serves the two-filter audit reads (actor and type, type and action); a 5 s timeout bounds them                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | [p4d.md](phases/p4d.md), "Server query plans"                                                     | **P11**, whose plan check at scale is the evidence                                                             |
 | The console's failure ID is made in the browser and never sent, so an operator cannot search the server's logs for it; sending it with the route to a gateway endpoint that logs it would make it findable                                                                                                                                                                                                                                                                                                                                                                                                                        | [`docs/phases/p4g.md`](phases/p4g.md)                                                             | **P4h**, which reworks the failure screen's text and reports for the catalogue                                 |
 | Two console dom tests (`gateway.test.ts`, `useWrite.test.tsx`) once failed alone under the root project; not reproduced on 2026-10-19 under `--project dom`, with and without the other file, or with every project                                                                                                                                                                                                                                                                                                                                                                                                               | [p4g.md](phases/p4g.md), "The console's theme choice reaches the server pages"                    | if it recurs: [p4g.md](phases/p4g.md), "CI runs what a change can affect"                                      |
@@ -261,21 +276,13 @@ a phase note.
 - **Twelve administrative capabilities a gap audit against mature identity
   providers found the server lacking** (2026-09-29): more required actions,
   several sign-in flows, per-step authenticator settings and a
-  breached-password check (**P4f**); translated pages and mail (the catalogue mechanism exists; **P4b** owns the tenant default locale and per-tenant mail theming, **P4h** the console's extraction); custom subject
+  breached-password check (**P4f**); translated pages and mail (shipped, with the console's extraction left to **P4h**); custom subject
   attributes (**P7**); fine-grained admin permissions (**P9**); per-client
   mappers (**P10**); a metrics endpoint (**P11**); key import and scheduled
   rotation (**P12**); client policies and admin impersonation (**P13**).
   Each phase's §11 criterion names its items, and
   [the roadmap page](../apps/docs/content/en/roadmap.md) lists
   them under a test that holds the two together.
-- `/logout` has two hardening gaps that predate P4g's change to it. The
-  confirmation form's `client_id` and `post_logout_redirect_uri` fields are
-  not covered by the anti-forgery HMAC (reaching nothing new today, since only a
-  registered address is ever honoured). And a verified hint whose `sid` is the
-  cookie's own session ends it by `GET` with no confirmation and no bound on
-  the hint's age, so a leaked ID token forces that sign-out, limited by the
-  session's lifetime and the victim's cookie. **P4b**, whose criterion names
-  both: it rewrites that page and the branch that serves it.
 - `tests/lint/production-guard-order.test.ts` compares source offsets and
   breaks on a rename or a helper extraction. A reasonable stopgap for the
   still-positional server-boot path, but its narrowness should be visible to

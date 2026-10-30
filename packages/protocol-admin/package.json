@@ -26,6 +26,7 @@
     "@odudu/domain-authz": "workspace:*",
     "@odudu/domain-identity": "workspace:*",
     "@odudu/domain-tenant": "workspace:*",
+    "@odudu/domain-theme": "workspace:*",
     "@odudu/email": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "@odudu/protocol-oidc": "workspace:*",

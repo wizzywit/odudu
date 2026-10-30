@@ -180,9 +180,12 @@ function collect(
   rows: Row[],
   root: OpenApiDocument,
   unknown: string[],
+  seen: Map<string, string>,
 ): void {
-  const resolved = resolveRef(schema, root);
-  const { schema: inner, nullable } = unwrapNullable(resolved);
+  const ref = refOf(schema);
+  const unwrapped = unwrapNullable(resolveRef(schema, root));
+  const inner = resolveRef(unwrapped.schema, root);
+  const nullable = unwrapped.nullable;
   const properties = record(inner.properties);
   const items = record(inner.items);
   const isObject = properties !== undefined;
@@ -202,6 +205,19 @@ function collect(
     });
     unknown.push(...own);
   }
+  // A shape named by a component is listed where it first occurs.
+  if (ref !== undefined && path !== '') {
+    const first = seen.get(ref);
+    if (first !== undefined) {
+      const last = rows.at(-1);
+      if (last !== undefined) {
+        const details = `${last.details} The same fields as ${code(first)}, not listed again.`;
+        rows[rows.length - 1] = { ...last, details: details.trim() };
+      }
+      return;
+    }
+    seen.set(ref, path);
+  }
   if (depth >= MAX_DEPTH) return;
   if (isObject) {
     const requiredNames = new Set(list(inner.required).map(scalar));
@@ -215,10 +231,11 @@ function collect(
         rows,
         root,
         unknown,
+        seen,
       );
     }
   } else if (items !== undefined && record(resolveRef(items, root).properties) !== undefined) {
-    collect(items, `${path === '' ? '' : path}[]`, true, depth + 1, rows, root, unknown);
+    collect(items, `${path === '' ? '' : path}[]`, true, depth + 1, rows, root, unknown, seen);
   }
 }
 
@@ -227,12 +244,23 @@ function resolveRef(schema: Json, root: OpenApiDocument): Json {
   const prefix = '#/components/schemas/';
   if (ref?.startsWith(prefix) !== true) return schema;
   const target = record((root.components.schemas as Json)[ref.slice(prefix.length)]);
-  return target ?? schema;
+  if (target === undefined) return schema;
+  const description = str(schema.description);
+  return description === undefined ? target : { ...target, description };
+}
+
+// The name of the component a field refers to, however it is wrapped in a
+// nullable `anyOf`.
+function refOf(schema: Json): string | undefined {
+  const direct = str(schema.$ref);
+  if (direct !== undefined) return direct;
+  const named = variantsOf(schema).map((variant) => str(variant.$ref));
+  return named.find((name) => name !== undefined);
 }
 
 export function fieldRows(schema: Json, root: OpenApiDocument, unknown: string[]): Row[] {
   const rows: Row[] = [];
-  collect(schema, '', true, 0, rows, root, unknown);
+  collect(schema, '', true, 0, rows, root, unknown, new Map());
   return rows;
 }
 
@@ -318,8 +346,9 @@ function examplesOf(media: Json): string[] {
   return values.map((value) => `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``);
 }
 
-// A body with more fields than this is listed on pages of its own, so that no
-// page carries a table a browser has to lay out in one piece.
+// A body with more fields than this, or one that would take the operation's
+// page past it, is listed on pages of its own, so that no page carries more
+// table than a browser lays out in one piece.
 const MAX_TABLE_ROWS = 60;
 
 interface Part {
@@ -337,6 +366,8 @@ interface Context {
   readonly slug: string;
   readonly parts: Part[];
   readonly level: number;
+  // Rows already listed inline on this operation's page.
+  readonly inline: { rows: number };
 }
 
 function topLevel(row: Row): string {
@@ -374,7 +405,10 @@ function partLines(
     const slug = `${ctx.slug}-${section}-part-${String(index + 1)}`;
     ctx.parts.push({
       slug,
-      heading: `${heading}, part ${String(index + 1)} of ${String(chunks.length)}`,
+      heading:
+        chunks.length === 1
+          ? heading
+          : `${heading}, part ${String(index + 1)} of ${String(chunks.length)}`,
       rows: chunk,
       mediaType,
       patterns: chunk.flatMap((row) => row.patterns),
@@ -383,7 +417,9 @@ function partLines(
     links.push(`- [${names}](./${slug}.md)`);
   }
   return [
-    `The body has ${String(rows.length)} fields, listed on ${String(chunks.length)} pages, grouped by the top-level field they belong to:`,
+    chunks.length === 1
+      ? `The body has ${String(rows.length)} fields, listed on a page of its own:`
+      : `The body has ${String(rows.length)} fields, listed on ${String(chunks.length)} pages, grouped by the top-level field they belong to:`,
     '',
     ...links,
   ];
@@ -403,7 +439,8 @@ function mediaBlock(
   }
   const schema = record(media.schema);
   const rows = schema === undefined ? [] : fieldRows(schema, ctx.root, []);
-  const split = rows.length > MAX_TABLE_ROWS;
+  const split = ctx.inline.rows + rows.length > MAX_TABLE_ROWS;
+  if (!split) ctx.inline.rows += rows.length;
   const listing = split ? partLines(ctx, section, heading, mediaType, rows) : [rowsTable(rows)];
   if (!split) ctx.unknown.push(...rows.flatMap((row) => row.patterns));
   return [
@@ -431,11 +468,12 @@ function responseBlocks(operation: Json, ctx: Context): string[] {
 
 // A pattern the generator cannot put in words is shown as the contract states it.
 function patternBlock(patterns: readonly string[]): string {
-  const items = [...new Set(patterns)].map((pattern) => `<li>${codeHtml(pattern)}</li>`);
+  // No list tags: the agent copies strip block tags, and a copy that differs
+  // from its source in what it says is refused.
   return [
     '<details>',
     '<summary>Patterns this operation applies</summary>',
-    `<ul>${items.join('')}</ul>`,
+    ...[...new Set(patterns)].map((pattern) => codeHtml(pattern)),
     '</details>',
     '',
   ].join('\n');
@@ -658,6 +696,7 @@ function sectionOf(operation: Operation, doc: OpenApiDocument): Section {
     slug: operationSlug(method, path),
     parts: [],
     level: 3,
+    inline: { rows: 0 },
   };
   const text = `## ${method.toUpperCase()} ${path}\n\n${operationBody(operation.operation, ctx)}`;
   const rows = text.split('\n').filter((line) => line.startsWith('| ')).length;

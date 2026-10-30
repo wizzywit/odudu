@@ -1,4 +1,5 @@
 import { TENANT_IMPORT_BODY_LIMIT } from '@odudu/contracts/admin';
+import { bytesText } from '#/shared/service/format';
 import { isRecord, parseJson } from '#/shared/service/json';
 
 // What an export says it left out, by JSON path; read only to show it, since
@@ -12,15 +13,9 @@ export function omittedOf(text: string): readonly string[] {
     : [];
 }
 
-export function fileSize(bytes: number): string {
-  if (bytes < 1024) return `${String(bytes)} bytes`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
-}
-
 export function importFileProblem(bytes: number): string | null {
   if (bytes <= TENANT_IMPORT_BODY_LIMIT) return null;
-  return `The file is larger than ${fileSize(TENANT_IMPORT_BODY_LIMIT)}, the most an import accepts.`;
+  return `The file is larger than ${bytesText(TENANT_IMPORT_BODY_LIMIT)}, the most an import accepts.`;
 }
 
 export type ParsedDocument = { ok: true; document: unknown } | { ok: false; message: string };
@@ -38,7 +33,7 @@ export interface ChosenFile {
 }
 
 export function chosenFileOf(file: { name: string; size: number } | null): ChosenFile | null {
-  return file === null ? null : { name: file.name, size: fileSize(file.size) };
+  return file === null ? null : { name: file.name, size: bytesText(file.size) };
 }
 
 // Chosen from the picker: nothing chosen is nothing wrong yet.

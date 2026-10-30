@@ -37,6 +37,9 @@ export interface TenantSettings {
   verifyEmailTtlSeconds: number;
   registrationAllowed: boolean;
   resetPasswordAllowed: boolean;
+  // What a page of this tenant is offered in and shown in by default.
+  supportedLocales: string[];
+  defaultLocale: string | null;
   passwordPolicy: PasswordPolicy;
 }
 
@@ -62,6 +65,8 @@ export function tenantSettingsRepository(db: Database) {
             verifyEmailTtlSeconds: row.verifyEmailTtlSeconds,
             registrationAllowed: row.registrationAllowed,
             resetPasswordAllowed: row.resetPasswordAllowed,
+            supportedLocales: row.supportedLocales,
+            defaultLocale: row.defaultLocale,
             passwordPolicy: {
               tenantName: row.name,
               minLength: row.passwordMinLength,

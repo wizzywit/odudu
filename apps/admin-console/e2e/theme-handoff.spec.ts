@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { chooseTheme, expect, expectAccessible, signIn, test } from './fixtures';
+import { chooseTheme, expectSignedOut, expect, expectAccessible, signIn, test } from './fixtures';
 import { seeded } from './stack';
 
 const { admin } = seeded();
@@ -8,7 +8,7 @@ const { admin } = seeded();
 // one its markup names, which is the one the odudu-theme cookie held.
 async function signOutToServerPage(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Sign out' }).first().click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Sign in' })).toBeVisible();
+  await expectSignedOut(page);
 }
 
 const colorScheme = (page: Page): Promise<string> =>

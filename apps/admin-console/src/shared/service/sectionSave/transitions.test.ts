@@ -7,8 +7,8 @@ import {
   changedFields,
   conflictsOf,
   currentSection,
-  discardedSection,
   editedSection,
+  discardedSection,
   hasEdits,
   initialSection,
   isSaving,
@@ -44,6 +44,7 @@ function state(extra: Partial<SectionState<V>> = {}): SectionState<V> {
     source: 'kept',
     phase: 'idle',
     fieldErrors: {},
+    refusals: {},
     message: null,
     ...extra,
   };
@@ -103,6 +104,13 @@ describe('the edit transitions', () => {
       message: null,
       phase: 'idle',
     });
+  });
+  it('editing a field drops its refusals, positions included, and keeps the others', () => {
+    const at = { path: 'name', message: 'bad', line: 2 };
+    const other = { path: 'tags', message: 'worse', line: 4 };
+    const next = editedSection(state({ refusals: { name: [at], tags: [other] } }), 'name', 'b');
+    expect(next.refusals).toEqual({ tags: [other] });
+    expect(discardedSection(state({ refusals: { name: [at] } })).refusals).toEqual({});
   });
   it('a save in flight stays saving while it is edited', () => {
     expect(editedSection(state({ phase: 'saving' }), 'name', 'b').phase).toBe('saving');

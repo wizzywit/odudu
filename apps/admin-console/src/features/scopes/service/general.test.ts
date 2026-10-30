@@ -31,6 +31,14 @@ it('sends an emptied description or consent text as null, a number as a number',
   });
 });
 
+it('sends a translation map whole, and only when it was edited', () => {
+  expect(generalPatch({ description_i18n: { fr: 'Factures' } })).toEqual({
+    description_i18n: { fr: 'Factures' },
+  });
+  expect(generalPatch({ consent_text_i18n: {} })).toEqual({ consent_text_i18n: {} });
+  expect(generalPatch({ description: 'x' })).toEqual({ description: 'x' });
+});
+
 it('states the consent limit', () => {
   expect(CONSENT_RULE).toMatch(/500/u);
 });
@@ -44,6 +52,8 @@ it('places a refusal under the fields the form has', () => {
     'default_client_assignment',
     'consent_text',
     'display_order',
+    'description_i18n',
+    'consent_text_i18n',
   ]);
 });
 

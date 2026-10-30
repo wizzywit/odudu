@@ -3,6 +3,7 @@ import { type RequiredAction } from '#/schema/required-action';
 import { page } from '#/view/document';
 import { links } from '#/view/links';
 import { t, tHtml } from '#/view/messages';
+import { fillPage } from '#/view/template';
 
 // Every action has a page of its own — #/view/totp-enrolment-html.ts,
 // #/view/update-password-html.ts and their two neighbours — reached before
@@ -19,15 +20,22 @@ export function renderRequiredActionPage(
 ): RenderedPage {
   return page(
     t(locale, 'requiredAction.title'),
-    `<h1>${tHtml(locale, 'requiredAction.title')}</h1>
+    fillPage(
+      'required-action',
+      {
+        message: `<h1>${tHtml(locale, 'requiredAction.title')}</h1>
 <p>${tHtml(locale, 'requiredAction.pending', {}, { action })}</p>
 <p>${tHtml(locale, 'requiredAction.askAdmin')}</p>${
-      signInPath === null
-        ? ''
-        : links([{ href: signInPath, text: tHtml(locale, 'link.backToSignIn') }])
-    }`,
+          signInPath === null
+            ? ''
+            : links([{ href: signInPath, text: tHtml(locale, 'link.backToSignIn') }])
+        }`,
+      },
+      locale,
+    ),
     null,
     [],
     locale,
+    'required-action',
   );
 }

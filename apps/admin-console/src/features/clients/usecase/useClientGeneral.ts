@@ -10,14 +10,18 @@ import {
   type DetailValues,
   type EnabledValues,
   type PageValues,
+  type TranslationSectionValues,
 } from '#/features/clients/repository/useClientRecord';
 import {
   clientRefusal,
   clientsHref,
   deleteConsequence,
   deleteFixed,
+  DESCRIPTION_TRANSLATIONS_FIELD,
   enabledFixed,
   FIELD,
+  NAME_TRANSLATIONS_FIELD,
+  offeredBy,
   SECTION,
 } from '#/features/clients/service';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
@@ -26,6 +30,8 @@ import { useConfirmedRemoval, type Removal } from '#/shared/usecase/useConfirmed
 import { deletedText, writeFailureText } from '#/shared/service/failure';
 import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/service/labels';
 import { orBlank } from '#/shared/service/format';
+import { describeTranslations } from '#/shared/service/localised';
+import type { Read } from '#/shared/service/read';
 
 export type { SectionSave };
 
@@ -35,6 +41,9 @@ export interface Deletion extends Removal {
 
 export interface ClientGeneral {
   details: SectionSave<DetailValues>;
+  translations: SectionSave<TranslationSectionValues>;
+  // The languages the tenant offers, which the translations are written in.
+  languages: Read<string[]>;
   descriptionRule: string;
   descriptionLimit: number;
   pages: SectionSave<PageValues>;
@@ -81,6 +90,26 @@ export function useClientGeneral({ tenant, client, etag, gone }: ClientRecordRea
     },
     save: saves.details,
   });
+  const translations = useSectionSave({
+    ...shared,
+    section: 'translations',
+    label: SECTION.translations,
+    fields: {
+      name_i18n: {
+        value: client.name_i18n,
+        label: NAME_TRANSLATIONS_FIELD,
+        kind: 'plain',
+        describe: describeTranslations,
+      },
+      description_i18n: {
+        value: client.description_i18n,
+        label: DESCRIPTION_TRANSLATIONS_FIELD,
+        kind: 'plain',
+        describe: describeTranslations,
+      },
+    },
+    save: saves.translations,
+  });
   const pages = useSectionSave({
     ...shared,
     section: 'pages',
@@ -121,6 +150,8 @@ export function useClientGeneral({ tenant, client, etag, gone }: ClientRecordRea
 
   return {
     details,
+    translations,
+    languages: offeredBy(client),
     descriptionRule: DESCRIPTION_RULE,
     descriptionLimit: DESCRIPTION_MAX,
     pages,

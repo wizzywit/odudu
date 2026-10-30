@@ -40,6 +40,7 @@ export const TYPE_TEXT: Readonly<Record<string, string>> = {
 
 export const SECTION = {
   details: 'Details',
+  translations: 'Translations',
   pages: 'Consent screen links',
   availability: 'Availability',
   consent: 'Consent',

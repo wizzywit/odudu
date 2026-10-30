@@ -33,12 +33,17 @@ it('heads the page with the breadcrumb, the name, its status and the tabs', asyn
     '/console/acme/clients',
   );
   expect(screen.getAllByText('enabled').length).toBeGreaterThan(0);
-  expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+  expect(
+    within(screen.getByRole('tablist', { name: 'Client sections' }))
+      .getAllByRole('tab')
+      .map((tab) => tab.textContent),
+  ).toEqual([
     'General',
     'Redirects & origins',
     'Tokens',
     'Scopes',
     'Logout',
+    'Branding',
     'Advanced',
     'Roles',
     'Service account',

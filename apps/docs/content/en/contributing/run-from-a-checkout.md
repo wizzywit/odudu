@@ -189,7 +189,7 @@ beside the stack at the end of this page and its teardown never reaches that one
 **What the console covers.** A tenant's rail groups its areas by task:
 Overview; Identity (Subjects, Groups, Roles); Applications (Clients, Scopes,
 Registration tokens); Security (Sign-in flow, Signing keys, Sessions); Tenant
-(Settings, Email, Export); Observe (the Audit trail). A system administrator
+(Settings, Branding, Email, Export); Observe (the Audit trail). A system administrator
 signed in to `system` also has System, with Tenants and System
 administrators; a tenant's record ends in a danger zone that deletes it,
 once it is disabled and its name is typed. What the rail lists, and what a

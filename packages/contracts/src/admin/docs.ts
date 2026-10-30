@@ -29,6 +29,7 @@ import {
   listClientsQuerySchema,
   logoutDeliverySchema,
   rotateClientSecretResponseSchema,
+  clientRecordSchema,
 } from '#/admin/clients';
 import { consentSchema } from '#/admin/consents';
 import { countResponseSchema } from '#/admin/counts';
@@ -130,12 +131,52 @@ import {
   tenantSettingsDocumentSchema,
 } from '#/admin/tenant-document';
 import {
+  exportedMessageOverrideSchema,
+  listMessageOverridesQuerySchema,
+  listMessageOverridesResponseSchema,
+  messageCatalogueEntrySchema,
+  messageCatalogueResponseSchema,
+  messageCatalogueSectionSchema,
+  messageOverrideSchema,
+  putMessageOverrideRequestSchema,
+} from '#/admin/message-overrides';
+import {
   countTenantsQuerySchema,
   createTenantRequestSchema,
   listTenantsQuerySchema,
   tenantSchema,
 } from '#/admin/tenants';
+import {
+  listThemeVersionsResponseSchema,
+  publishedThemeSchema,
+  themeAssetSchema,
+  previewThemeQuerySchema,
+  themePreviewFaultSchema,
+  themePreviewInfoSchema,
+  stylesheetHooksResponseSchema,
+  themePreviewRefusedSchema,
+  uploadThemeAssetQuerySchema,
+  themeVersionSchema,
+  themeViewSchema,
+  themeWarningSchema,
+  publishThemeResponseSchema,
+} from '#/admin/theme';
+import {
+  mailBrandingViewSchema,
+  mailColoursSchema,
+  mailLogoSchema,
+  mailSchemeSchema,
+  previewMailQuerySchema,
+} from '#/admin/mail-preview';
 import { whoamiResponseSchema } from '#/admin/whoami';
+import {
+  paletteSchema,
+  themeAssetsSchema,
+  themeBodyRequestSchema,
+  themeImageSchema,
+  themeLogoSchema,
+  themeTokensSchema,
+} from '#/theme-body';
 
 function fingerprint(names: readonly string[]): string {
   return [...names].sort().join(',');
@@ -235,11 +276,17 @@ describeFields(clientFieldsSchema, {
     'The `client_id` the application sends to the authorization and token endpoints. Chosen when the client is created and unique within the tenant.',
   name: 'A display name for people, shown for example on the consent screen.',
   description: 'Free text for administrators, or null when none was set.',
+  name_i18n:
+    'The name in other languages, by language tag, such as `fr` or `pt-BR`: at most 32, each of the tenant’s `supported_locales`, each at most 256 characters. A language with no entry shows `name`. A PATCH replaces the whole map.',
+  description_i18n:
+    'The description in other languages, by language tag, under the same rules as `name_i18n`, each at most 1000 characters.',
   type: '`public` for an application that cannot keep a secret (a single-page or native app), which must use PKCE; `confidential` for one that authenticates at the token endpoint.',
   enabled:
     'A disabled client cannot start a sign-in or obtain tokens, and tokens already issued to it stop being accepted.',
   full_scope_allowed:
     "When true the client's tokens carry every role the user holds. When false, a role reaches a token only through a scope the client is assigned.",
+  skip_logout_confirmation:
+    "When true, `/logout` signs a user out of this client without the confirmation page, but only for a request carrying an ID token this client was issued, for the session that is current, even an expired one. Anyone holding such a token can then sign that user out by opening a link. Off for every client but the console's own, and never settable through dynamic registration.",
   registration_origin:
     'How the client came to exist: `seeded` by `odudu seed` or `odudu init`, `anonymous` or `token` through dynamic registration, or `operator` through the admin API.',
   created_at: 'When the client was created, as an ISO 8601 date and time.',
@@ -509,6 +556,10 @@ describeFields(clientScopeSchema, {
   default_client_assignment:
     'How every new client gets this scope: `default`, `optional`, or null for neither.',
   consent_text: 'The sentence the consent screen shows for this scope, or null to use its name.',
+  description_i18n:
+    'The description in other languages, by language tag: at most 32, each of the tenant’s `supported_locales`, each at most 1000 characters. A language with no entry shows `description`. A PATCH replaces the whole map.',
+  consent_text_i18n:
+    'The consent sentence in other languages, by language tag, under the same rules, each at most 500 characters. The consent screen takes the page’s language by RFC 4647 lookup (`fr-CA` finds `fr`), then `consent_text`, then the scope’s name.',
   display_order: 'Where the scope sorts on the consent screen; lowest first.',
   created_at: 'When the scope was created.',
 });
@@ -519,6 +570,10 @@ describeFields(createScopeRequestSchema, {
   include_in_access_token: 'Whether its claims appear in the access token.',
   default_client_assignment: 'Assign it to every new client as `default` or `optional`.',
   consent_text: 'The sentence the consent screen shows for it.',
+  description_i18n:
+    'The description in other languages, by language tag: at most 32, each of the tenant’s `supported_locales`, each at most 1000 characters. A language with no entry shows `description`. A PATCH replaces the whole map.',
+  consent_text_i18n:
+    'The consent sentence in other languages, by language tag, under the same rules, each at most 500 characters. The consent screen takes the page’s language by RFC 4647 lookup (`fr-CA` finds `fr`), then `consent_text`, then the scope’s name.',
   display_order: 'Where it sorts on the consent screen; lowest first.',
 });
 describeFields(scopeClientSchema, {
@@ -697,16 +752,26 @@ describeFields(subjectSchema, {
 describeFields(usernamePolicySchema, {
   username_editable: 'Whether the tenant lets a username be changed.',
 });
+describeFields(clientRecordSchema, {
+  supported_locales:
+    'The languages the tenant offers (its `supported_locales` setting), at most 32: the languages `name_i18n` and `description_i18n` may be written in. Only the client’s own read and amendment carry it, so a caller who may manage clients can see them without reading the tenant’s settings.',
+});
 describeFields(exportedClientSchema, {
   client_id:
     'The `client_id` the application sends to the authorization and token endpoints. Chosen when the client is created and unique within the tenant.',
   name: 'A display name for people, shown for example on the consent screen.',
   description: 'Free text for administrators, or null when none was set.',
+  name_i18n:
+    'The name in other languages, by language tag, such as `fr` or `pt-BR`: at most 32, each of the tenant’s `supported_locales`, each at most 256 characters. A language with no entry shows `name`. A PATCH replaces the whole map.',
+  description_i18n:
+    'The description in other languages, by language tag, under the same rules as `name_i18n`, each at most 1000 characters.',
   type: '`public` for an application that cannot keep a secret (a single-page or native app), which must use PKCE; `confidential` for one that authenticates at the token endpoint.',
   enabled:
     'A disabled client cannot start a sign-in or obtain tokens, and tokens already issued to it stop being accepted.',
   full_scope_allowed:
     "When true the client's tokens carry every role the user holds. When false, a role reaches a token only through a scope the client is assigned.",
+  skip_logout_confirmation:
+    'When true, `/logout` signs a user out of this client without the confirmation page, for a request carrying an ID token this client was issued for the session that is current, even an expired one. Absent in a document exported before the setting existed, which imports with it off.',
   registration_origin:
     'How the client came to exist: `seeded` by `odudu seed` or `odudu init`, `anonymous` or `token` through dynamic registration, or `operator` through the admin API.',
   redirect_uris:
@@ -786,6 +851,10 @@ describeFields(exportedScopeSchema, {
   include_in_access_token: 'Whether its claims appear in the access token.',
   default_client_assignment: 'How every new client gets the scope, or null for neither.',
   consent_text: 'The sentence the consent screen shows for it, or null.',
+  description_i18n:
+    'The description in other languages, by language tag: at most 32, each of the tenant’s `supported_locales`, each at most 1000 characters. A language with no entry shows `description`. A PATCH replaces the whole map.',
+  consent_text_i18n:
+    'The consent sentence in other languages, by language tag, under the same rules, each at most 500 characters. The consent screen takes the page’s language by RFC 4647 lookup (`fr-CA` finds `fr`), then `consent_text`, then the scope’s name.',
   display_order: 'Where it sorts on the consent screen; lowest first.',
   builtin: 'True for a scope every tenant has.',
   roles: 'The roles the scope carries into tokens.',
@@ -836,6 +905,8 @@ describeFields(tenantDocumentSchema, {
   scopes: 'The tenant’s client scopes.',
   registration_policy: 'Who may register themselves and register clients.',
   smtp: 'The tenant’s mail relay, or null when it has none.',
+  message_overrides:
+    'The tenant’s own wording for page messages, at most 500, in locale and key order. Absent from a document exported before overrides existed, which imports with none.',
   subjects: 'The tenant’s users, only when requested with `include=subjects`.',
   omitted: 'What the document leaves out on purpose, such as secrets and credentials.',
 });
@@ -877,6 +948,10 @@ describeFields(tenantSettingsDocumentSchema, {
   reset_password_ttl_seconds: 'How long a mailed password-reset link works.',
   login_with_email: 'Whether a user may sign in with the email address instead of the username.',
   audit_event_types: 'The audit event types the tenant stores.',
+  supported_locales:
+    'The language tags the tenant’s pages are offered in, 1 to 32, each such as `fr` or `zh-Hant-TW`; discovery advertises them as `ui_locales_supported`.',
+  default_locale:
+    'The language a page is shown in ahead of the browser’s preference, when the request names none; one of `supported_locales`. Null when the browser decides; send an empty string to clear it.',
 });
 describeFields(createTenantRequestSchema, {
   name: 'The tenant name, used in every address of the tenant (`/tenants/{name}/...`). 1 to 63 lowercase letters, digits or hyphens, not starting or ending with a hyphen.',
@@ -1003,7 +1078,11 @@ describeFields(setGroupDefaultRequestSchema, {
 describeFields(addRoleCompositeRequestSchema, {
   child_role_id: 'The role to nest in this one. Whoever holds this role then holds it too.',
 });
-describeFields(testSmtpRequestSchema, { to: 'The address to send the test message to.' });
+describeFields(testSmtpRequestSchema, {
+  to: 'The one address to send the test message to: a single mailbox, no list and no display name.',
+  client_id:
+    'The row id of a client of this tenant. The message is then dressed as a mail whose sign-in began in that client: its published logo and colours over the tenant’s. Absent, or a disabled client, it wears the tenant’s own look. Needs manage-clients as well.',
+});
 describeFields(testSmtpResponseSchema, {
   sent: 'True when the relay accepted the message. A relay that refuses it answers 502 instead.',
 });
@@ -1015,6 +1094,215 @@ describeFields(whoamiResponseSchema, {
     'The admin capabilities the caller holds in its own tenant, directly, through a group or nested in a role. A composite such as `tenant-admin` is reported as the capabilities it carries.',
   crossTenant:
     'True when the caller’s tenant is not the tenant in the path, which only a holder of `manage-tenants` may be.',
+});
+
+describeFields(themeBodyRequestSchema, {
+  tokens:
+    'The colours and font, as groups that each replace the layer below whole: `light`, `dark` and `font`.',
+  stylesheet:
+    'One stylesheet of at most 128 KiB, checked against an allowlist of properties, values and the page class hooks, or null for none.',
+  templates:
+    'A template per page kind, by kind name, each at most 64 KiB: HTML with the server’s own slots such as `{{form.open}}` and `{{t "login.title"}}`. A kind left out uses the layer below.',
+  assets:
+    'The images: `logo` and `darkLogo` with alt text, `favicon` and `background`, each naming an uploaded image of this tenant by its id.',
+});
+describeFields(themeTokensSchema, {
+  light: 'The colours of the light scheme, all eleven or none.',
+  dark: 'The colours of the dark scheme, all eleven or none.',
+  font: 'The font family, one of the two Instrument serves itself.',
+});
+describeFields(paletteSchema, {
+  surfacePage: 'The page background, as `#rrggbb`.',
+  surfacePanel: 'The card or panel background.',
+  surfaceSunken: 'The background of an input or a recessed area.',
+  inkPrimary: 'The body text colour.',
+  inkMuted: 'The secondary text colour.',
+  signalActive: 'The primary button background.',
+  signalActiveInk: 'The text on the primary button, and on the page and panel.',
+  signalDanger: 'The destructive button background.',
+  signalDangerInk: 'The text on the destructive button, and the error text.',
+  borderStrong: 'The border of an input and a panel.',
+  focusRing: 'The focus outline.',
+});
+describeFields(themeAssetsSchema, {
+  logo: 'The logo and its alt text, which is required.',
+  darkLogo: 'The logo shown under the dark scheme, with its own alt text.',
+  favicon: 'The icon the browser tab shows.',
+  background: 'The page background image.',
+});
+describeFields(themeLogoSchema, {
+  assetId: 'The image, as the id an upload answered. It must belong to this tenant.',
+  alt: 'The text a screen reader says for the logo, at most 200 characters and not blank.',
+});
+describeFields(themeImageSchema, {
+  assetId: 'The image, as the id an upload answered. It must belong to this tenant.',
+});
+describeFields(themeViewSchema, {
+  scope: '`tenant` for the tenant’s own theme, `client` for one client’s.',
+  draft:
+    'The saved draft, or null when there is none. Users never see a draft. Its `ETag` is the response’s, and the next write must send it as `If-Match`.',
+  published:
+    'The version users see, or null when the scope has none and its pieces come from below.',
+  sources:
+    'For each piece of the published theme, the layer that supplies it: `client`, `tenant` or `default` (Instrument). A client with no theme of its own shows `tenant` for every piece the tenant sets.',
+  draft_sources:
+    'The same for the draft as it would be if published, or null when there is no draft.',
+  tenant_sources:
+    'On a client’s theme, the layer that supplies each piece of the tenant’s own published theme: `tenant` where the tenant sets it, `default` where it does not, so a piece the client sets can say which of the tenant’s it hides. Null on the tenant’s own theme. It needs no capability beyond the client’s own theme read.',
+  changed:
+    'The parts of the draft (`tokens`, `assets`, `stylesheet`, `templates`) that differ from this scope’s own published theme, compared by the server on their stored form, in that order. Empty when there is no draft or the draft matches what is published; nothing published compares as the empty theme. Publishing is refused with `about:blank#theme-nothing-to-publish` while it is empty.',
+});
+describeFields(publishedThemeSchema, {
+  id: 'The version’s identifier, which `restore` names.',
+  version: 'The version number, which grows with each publish or restore.',
+  published_at: 'When it was published.',
+  body: 'The theme as it was published.',
+});
+describeFields(publishThemeResponseSchema, {
+  warnings:
+    'What publishing cannot prove: a stylesheet or a template may break the contrast or the layout the checked pieces guarantee. A warning does not block.',
+});
+describeFields(themeWarningSchema, {
+  piece: 'The piece the warning is about: `stylesheet` or `templates.<kind>`.',
+  code: '`stylesheet-unverified` or `template-unverified`.',
+  message: 'What cannot be checked and who is responsible for it.',
+});
+describeFields(themeVersionSchema, {
+  id: 'The version’s identifier, which `restore` names.',
+  version: 'The version number.',
+  state: '`published` for the one users see, `archived` for an earlier one.',
+  created_at: 'When the version was first saved as a draft.',
+  published_at: 'When it was published.',
+});
+describeFields(previewThemeQuerySchema, {
+  kind: 'The page to render, one of the kinds a theme has a template for; `sign-in` when left out.',
+  scheme:
+    'Render in the `light` or the `dark` palette; the viewer\u2019s own colour scheme when left out.',
+});
+describeFields(themePreviewInfoSchema, {
+  kind: 'The page kind the preview shows.',
+  from: 'Where the scope\u2019s own layer comes from: its `draft`, its `published` version when it has no draft, or `none` when it has neither.',
+  shown:
+    'The most specific layer the page is drawn from: the `client`\u2019s, the `tenant`\u2019s, or the `default` look when no layer could be used.',
+  faults:
+    'Layers, or a layer\u2019s stylesheet, that were not used, each with the reason; empty when everything was used.',
+  refused:
+    'Templates of this page kind that failed the checks, by layer; the page then uses the template of the layer below or the default one.',
+  unfilled:
+    'True when a template passed the checks but could not be filled, so the default page is shown.',
+});
+describeFields(stylesheetHooksResponseSchema, {
+  version:
+    'The version of the lists. It is raised when a class is renamed or removed, never when one is added.',
+  classes:
+    'The classes the server pages render, which a rule may name with a dot, such as `.logo`.',
+  page_kind_classes:
+    'One class per page kind, `page-` and the kind, which a rule may name to style that page alone.',
+  elements: 'The element types a rule may name, such as `main` and `button`.',
+  pseudo_classes:
+    'The states a rule may name after a colon, such as `:hover`. A rule may chain them onto a class or an element.',
+  pseudo_elements:
+    'The parts of an element a rule may name after two colons, such as `::before`. Nothing may follow one in a selector.',
+  tokens:
+    'The design values a declaration may read with `var()`, such as `var(--ink-primary)`. A stylesheet cannot define a custom property of its own.',
+});
+describeFields(themePreviewFaultSchema, {
+  layer: 'The layer that was not fully used.',
+  code: '`invalid_body`: the stored theme could not be read; `image_gone`: it names an image that no longer exists; `stylesheet_refused`: its stylesheet fails today\u2019s checks and was left out.',
+});
+describeFields(themePreviewRefusedSchema, {
+  layer: 'The layer whose template was refused.',
+  codes: 'The codes of the checks it failed.',
+});
+describeFields(previewMailQuerySchema, {
+  kind: 'The mail to render; `verify-email`, the address-verification mail, when left out.',
+  scheme:
+    'Render in the `light` or the `dark` palette and logo. A mail client chooses by its own setting, so the preview fixes one; `light` when left out.',
+  locale:
+    'The language of the mail, one of the languages a mail catalogue exists for; the tenant\u2019s `default_locale`, then English, when left out.',
+});
+describeFields(mailBrandingViewSchema, {
+  light:
+    'The nine colours a mail is drawn in under a light scheme, and whether the tenant\u2019s published theme or Odudu\u2019s own supplies them.',
+  dark: 'The same under a dark scheme.',
+  logo: 'The logo in the mail\u2019s header, or null when the mail carries Odudu\u2019s own mark.',
+  dark_logo:
+    'The logo a dark scheme swaps in, or null when the light one is shown in both schemes.',
+});
+describeFields(mailSchemeSchema, {
+  source: '`tenant` when the published theme sets this scheme\u2019s palette, else `default`.',
+  colours: 'The colours as `#rrggbb`, which is how a mail client takes them.',
+});
+describeFields(mailColoursSchema, {
+  page: 'The background around the message.',
+  panel: 'The background of the message itself.',
+  sunken: 'The background of a code or an address shown inside it.',
+  border: 'The outline of the message and of what is shown inside it.',
+  ink: 'The text.',
+  muted: 'The quieter text of the footer and the notes.',
+  link: 'A link.',
+  button: 'The background of the button.',
+  button_ink: 'The text on the button.',
+});
+describeFields(mailLogoSchema, {
+  src: 'The absolute address a mail client fetches the image from, on this server\u2019s public origin.',
+  alt: 'The text a mail client shows where it does not load the image.',
+  width: 'The width in pixels the mail draws it at.',
+  height: 'The height in pixels the mail draws it at.',
+});
+describeFields(uploadThemeAssetQuerySchema, {
+  kind: 'The slot the image is for, which sets its limits: `logo`, `darkLogo` and `favicon` at most 256 KiB and 1024 pixels on the longer side, `background` at most 1 MiB and 2560 pixels.',
+});
+describeFields(themeAssetSchema, {
+  id: 'The image\u2019s identifier, which a theme names as `assetId`.',
+  sha256: 'The SHA-256 of the stored image, the hash its public address carries.',
+  mime: 'The stored type: `image/png`, `image/jpeg` or `image/webp`, as the bytes are and never as the request declared.',
+  width: 'The width in pixels.',
+  height: 'The height in pixels.',
+  bytes:
+    'The stored size in bytes, after the image was re-encoded; this is what counts against the tenant\u2019s 8 MiB.',
+  kind: 'The slot this upload was checked as, echoing the request; the same image may be uploaded as another kind, so it is not a stored fact.',
+});
+describeFields(listThemeVersionsResponseSchema, {
+  items: 'At most 20 versions, newest first, without their bodies.',
+});
+
+describeFields(messageOverrideSchema, {
+  locale: 'The language tag the text is for, spelled `fr`, `fr-CA` or `zh-Hant-TW`.',
+  key: 'The key of the page message it replaces, such as `login.title`.',
+  message:
+    'The text shown in place of the catalogue’s. Placeholders such as `{name}` and plural arms are kept; markup is shown as text, never rendered.',
+  updated_at: 'When the override was last written.',
+  etag: 'The version of this override, quoted as it is sent: the `ETag` header of a `PUT` answers the same value. Send it as `If-Match` to change or remove the override; one that names an older version is refused with `412`.',
+});
+describeFields(exportedMessageOverrideSchema, {
+  locale: 'The language tag the text is for.',
+  key: 'The key of the page message it replaces.',
+  message: 'The text shown in place of the catalogue’s.',
+});
+describeFields(putMessageOverrideRequestSchema, {
+  message:
+    'The replacement text, 1 to 2,000 characters. It may use the placeholders the catalogue message uses; a placeholder a page does not supply makes the page show the catalogue’s text instead.',
+});
+describeFields(listMessageOverridesQuerySchema, {
+  locale: 'The language tag whose overrides to list.',
+});
+describeFields(listMessageOverridesResponseSchema, {
+  items: 'The overrides of the locale in key order.',
+});
+describeFields(messageCatalogueResponseSchema, {
+  sections:
+    'One section per package that fills pages, each with the page kinds it fills, and last the section of mail messages, which has no page kinds. The list is the same for every tenant and holds a few hundred messages in all.',
+});
+describeFields(messageCatalogueSectionSchema, {
+  kinds:
+    'The page kinds filled from this section; empty for the mail messages. A template of one of them may name, in `{{t "key"}}`, only a key of its own section.',
+  messages:
+    'Every message of the section in key order. A message override may name the key of any section, mail included.',
+});
+describeFields(messageCatalogueEntrySchema, {
+  key: 'The key a template names in `{{t "key"}}` and an override is set under.',
+  en: 'The English text of the message, as the catalogue holds it, placeholders included.',
 });
 
 // Words for a field of this name wherever it appears and nothing says otherwise.

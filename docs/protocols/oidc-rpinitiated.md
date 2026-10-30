@@ -35,7 +35,7 @@ the mechanism it points at is Back-Channel Logout 1.0, whose own table
 | 2      | SHOULD | the OP accepts an ID Token whose `exp` has passed, where the RP identified by its `aud` and/or `sid` has a current or recent session                     | `OIDC-RPINITIATED-2-05`   | covered                                                                                                                                                                                           |
 | 2      | SHOULD | a logout request whose `sid` does not correspond to a current or recent session is treated as suspect                                                    | `OIDC-RPINITIATED-2-01`   | covered                                                                                                                                                                                           |
 | 2      | MAY    | the OP declines to act on a logout request whose `sid` does not correspond to a current or recent session                                                | —                         | accepted: "An expired hint is accepted, bound to the live session" — such a request asks the End-User rather than being declined                                                                  |
-| 2      | SHOULD | at the Logout Endpoint, the OP asks the End-User whether to log out of the OP as well                                                                    | `OIDC-RPINITIATED-2-01`   | covered                                                                                                                                                                                           |
+| 2      | SHOULD | at the Logout Endpoint, the OP asks the End-User whether to log out of the OP as well                                                                    | `OIDC-RPINITIATED-2-01`   | accepted: "A client may opt out" — a client with `skip_logout_confirmation` on is not asked, for a valid hint of its own that belongs to the current session                                      |
 | 2      | MUST   | the OP asks the End-User to confirm logout if an `id_token_hint` was not provided, or if the supplied ID Token does not belong to the current OP session | `OIDC-RPINITIATED-2-01`   | covered                                                                                                                                                                                           |
 | 2      | MUST   | if the End-User says "yes", the OP logs the End-User out                                                                                                 | `OIDC-RPINITIATED-2-01`   | covered                                                                                                                                                                                           |
 | 2.1    | MUST   | `end_session_endpoint` is included in the OP's discovery response, RP-Initiated Logout and Discovery both being supported                                | `OIDC-RPINITIATED-2.1-01` | covered                                                                                                                                                                                           |
@@ -56,36 +56,34 @@ the mechanism it points at is Back-Channel Logout 1.0, whose own table
 
 ## Reading note
 
-§2's confirmation MUST reads, at a glance, like it fires only when a hint
-is missing. It does not: "the OP MUST ask the End-User this question if an
-`id_token_hint` was not provided **or if the supplied ID Token does not
-belong to the current OP session**." A hint naming somebody else's session
-is not a weaker form of consent than no hint at all — it is a client (or an
-attacker holding a stale token) asserting an identity this request cannot
-verify without asking. `decideLogout`
-(`packages/protocol-oidc/src/usecase/logout.ts`) treats the two triggers as
-one condition — `input.session === null`, or the hint fails to match it.
+§2 says the OP "SHOULD ask the End-User whether to log out of the OP as
+well", and makes the question a MUST when the hint is missing or "does not
+belong to the current OP session". Odudu asks whenever a session is present,
+whatever the hint is, except for a client whose operator turned the question
+off (below). Skipping it on a hint that matched would otherwise let anyone
+holding a leaked ID Token force a sign-out by a `GET`, which a cross-site
+image or link can send. `decideLogout`
+(`packages/protocol-oidc/src/usecase/logout.ts`) therefore returns `confirm`
+for every request that finds a session, and ends only when there is no
+session and the requested redirect is registered, or for the opt-out below.
+The form's `POST` ends a session too (`handleLogoutConfirmation`); both paths
+apply §3's redirect rule through the same `endAndAnswer`.
 
-**"Belong to" is compared on the session, not the subject.** A hint's `sid`
-claim (Back-Channel Logout §2.1) is compared against the current session's
-own id, and a hint with no `sid` is treated as a mismatch rather than
-falling back to comparing subjects. `decideLogout` never had a legitimate
-case to fall back for: every ID Token a session-backed login mints carries
-`sid`, and the one current token that does not is an `offline_access`
-grant's — which has no session to name, precisely the case a fallback must
-not wave through. (An earlier version of this comparison did fall back to
-subjects, reasoning that no current token would ever lack a `sid`; adding
-`offline_access` falsified that the moment it shipped, since a grant with
-no session mints an ID Token with no `sid` too — see
-`docs/protocols/oidc-backchannel.md` §2.7.) The distinction matters for the
-same End-User signing in twice in one browser: a stale hint from their
-first, already-ended session names the right subject but the wrong
-session, and a subject-only comparison would have skipped confirmation for
-it.
+**The hint identifies the session; by default it never licenses ending it.** A
+hint's `sid` claim (Back-Channel Logout §2.1) is looked up among the sessions
+the browser's cookies resolve to, so the page asks about the session the
+End-User's RP meant when a browser holds several, and `mostRecentlyActive`
+is the fallback for a hint that names nothing usable. A hint with no `sid`
+falls to that fallback and is never compared by subject: the one current token
+without `sid` is an `offline_access` grant's, which has no session to name.
+For a client with `skip_logout_confirmation` off, the default, a valid hint,
+an expired one, one whose `sid` matches the cookie's session and one whose
+`sid` names another all produce the same page; a client that has opted out
+(below) is the one case where a valid hint changes the outcome.
 
 §3's "exactly match" is deliberately not URL-normalized. A trailing slash,
 a query string, or a case difference in the host all fail the match —
-`decideLogout`'s test cases (`logout.test.ts`) enumerate exactly those,
+`decideRedirect`'s test cases (`logout.test.ts`) enumerate exactly those,
 because each is a plausible "surely this still counts" mistake to make
 implementing this clause. The consequence spelled out in the design spec
 and worth repeating here: **a refused redirect still ends the session.**
@@ -100,6 +98,21 @@ to logout after their session has already idled out would otherwise strand
 them on an OP page with no way back — so `decideLogout` still redirects
 when `post_logout_redirect_uri` exactly matches the client's own
 registration, even with no live session, which is what Keycloak does too.
+
+### A client may opt out
+
+A client with `skip_logout_confirmation` on is
+signed out without the page when the request carries an `id_token_hint` that
+verifies, whose single audience is that client and whose `sid` is the session
+the browser holds; no hint, a hint that does not verify, one for another
+client or session, and every client with the setting off still ask, so a valid hint of its own is the only request that is not asked about. This
+deviates from the SHOULD at the operator's request and for the client's own
+hint only, because the setting exists for a relying party whose ID token never
+reaches a browser, such as the console's. An expired hint still counts, as it
+does for every logout hint, so the residual risk is that anyone holding any
+ID Token ever issued to such a client for a live session can force that
+sign-out. Dynamic registration refuses the field, and only the admin API sets
+it (ADR 0047).
 
 ### A matched redirect waits for the front-channel frames
 
@@ -117,7 +130,7 @@ so nothing is spliced into it. The policy takes its `script-src` from the nonce
 the renderer returns (ADR 0018's amendment). A browser that does not run
 script is moved on by a `<meta http-equiv="refresh">` after five seconds; a
 meta refresh is not a script or a form, so the policy that blocks everything
-inline does not stop it. The target is the one `decideLogout` already matched,
+inline does not stop it. The target is the one `decideRedirect` already matched,
 with `state` added, so no unregistered address is reachable this way.
 
 Two limits. The two seconds are a ceiling: leaving cancels a frame still in
@@ -202,40 +215,33 @@ constrains the login) name it; the token-exchange subject check and every
 other `verifyJwt` caller omit it and still refuse a lapsed token
 (`token-exchange.int.test.ts` pins token exchange doing so).
 
-**No age cap, because the session is the bound.** A lapsed hint ends
-something only when its `sid` equals a session in this browser's own
-cookies that is still live, which `decideLogout` already required of an
-unexpired hint. A session is bounded by the tenant's idle and maximum
-lifetimes, so the hint is usable for exactly as long as the session it
-names and no longer: once that session ends, the same hint falls to the
-confirmation page, however recently it expired. A cap would shorten a
-session's own life for one door only, and every number it could take is
-arbitrary against tenants that configure those lifetimes themselves.
-What it does widen is the exposure window of a leaked ID token. The hint
-travels in a query string, so it can reach logs and history; before, a copy
-was good for a logout for the token's lifetime (five minutes by default),
-and now it is good for as long as the session it names is live. That is
-acceptable because the only effect is ending that one session: a request
-whose `sid` matches no live session of the presenting browser still gets
-the confirmation page, a redirect still needs an exact registered match, and
-the same token cannot be exchanged, introspected or used as a bearer
-credential.
+**No age cap, because the session is the bound.** A lapsed hint only
+identifies a session: it selects the live session its `sid` equals among this
+browser's own cookies, and the End-User is asked about that session exactly as
+for an unexpired hint. A session is bounded by the tenant's idle and maximum
+lifetimes, so the hint identifies for exactly as long as the session it names
+and no longer. A cap would shorten a session's own life for one door only, and
+every number it could take is arbitrary against tenants that configure those
+lifetimes themselves. A leaked ID Token, lapsed or not, cannot end a session
+by itself, because the page asks and the form's anti-forgery token is derived
+from the cookie's own secret; the hint travels in a query string, so it can
+still reach logs and history, and the same token cannot be exchanged,
+introspected or used as a bearer credential.
 
 What a lapsed hint still cannot do, each case a test: carry a forged
 signature, another issuer or another tenant's key, a `typ` header, an
 `aud` that disagrees with `client_id`, no `sub`, no `exp`, or `alg: none`;
 name a session the browser does not hold or that already ended; or arrive
-with no session cookie. Each is treated as no hint and asks. A hint signed
+with no session cookie. Each is treated as no hint: the page asks, about the
+most recently active session where there is one. A hint signed
 by a **retired** key is among them: `listPublishableKeys` omits retired keys,
 so the `kid` resolves to nothing and the request falls to the confirmation
 page. Rotation alone does not do this: `promote` leaves the previous key
 `rotating`, which is still published and still verifies. Only an operator's
 explicit `key.retire` (`packages/protocol-admin/src/usecase/keys.ts`) makes
 a key unpublished, and nothing retires one automatically (`not_after` is not
-consulted). So the page reappears only for a session whose sign-in was signed
-by a key retired since, which for the console means one long console session
-spanning an operator's retirement; its sign-out then asks once, and the
-console's next sign-in carries a hint from the active key.
+consulted). Such a hint then identifies no session by `sid`, so the page asks
+about the most recently active one.
 
 A request whose `sid` names no live session of the browser is answered
 with the confirmation page rather than declined outright: §2's "MAY

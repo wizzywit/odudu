@@ -36,7 +36,10 @@ function unavailable(dir: string, err: unknown): string {
 }
 
 // The stylesheet's name is fixed (the pages link it), so it revalidates
-// by etag; a font's name carries its content, so it never does.
+// by etag; a font's name carries its content, so it never does. A font is
+// public and fetched without credentials, and any origin may read it: the
+// theme preview is framed without an origin of its own, and a font is
+// fetched with CORS.
 // `/favicon.ico` is the one request a browser makes without being told,
 // so it answers with the same icon the pages link.
 export function instrumentRoutes(dir: string): FastifyPluginAsync {
@@ -59,6 +62,7 @@ export function instrumentRoutes(dir: string): FastifyPluginAsync {
         return reply.code(404).header('x-content-type-options', 'nosniff').send();
       }
       const immutable = CONTENT_HASHED_FONT.test(path);
+      if (path.endsWith('.woff2')) reply.header('access-control-allow-origin', '*');
       reply
         .header('etag', etag)
         .header('x-content-type-options', 'nosniff')

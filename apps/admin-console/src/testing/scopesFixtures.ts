@@ -5,6 +5,7 @@ import { ACME_ADMIN } from '#/testing/tenantPaths';
 import { graceRoutes } from '#/testing/renderConsole';
 import { ROLES } from '#/testing/rolesFixtures';
 import { EVERY_TENANT_CAPABILITY } from '#/testing/roleAnswers';
+import { settingsAnswer, ST } from '#/testing/settingsFixtures';
 export const SC = `${ACME_ADMIN}/scopes`;
 
 export interface ScopeAnswer {
@@ -15,6 +16,8 @@ export interface ScopeAnswer {
   include_in_access_token: boolean;
   default_client_assignment: 'default' | 'optional' | null;
   consent_text: string | null;
+  description_i18n: Record<string, string>;
+  consent_text_i18n: Record<string, string>;
   display_order: number;
   created_at: string;
 }
@@ -28,6 +31,8 @@ export function scope(id: string, name: string, extra: Partial<ScopeAnswer> = {}
     include_in_access_token: true,
     default_client_assignment: null,
     consent_text: null,
+    description_i18n: {},
+    consent_text_i18n: {},
     display_order: 0,
     created_at: '2026-09-28T08:41:53.858Z',
     ...extra,
@@ -138,6 +143,7 @@ export function scopeRoutes(
       ),
       [`GET ${SC}/s-bill/impact`]: json(impact(1, 1)),
       [`GET ${SC}/builtins`]: json(builtinsPresent()),
+      [`GET ${ST}`]: settingsAnswer({ supported_locales: ['en', 'fr', 'de'] }),
       [`GET ${SC}/s-bill/roles`]: json({ items: [MAPPED] }, 200, { etag: '"s-bill-r1"' }),
       [`GET ${SC}/s-bill/clients`]: json({ items: [BILLING_CARRIES] }),
       [`GET ${ACME_ADMIN}/roles`]: (request) =>

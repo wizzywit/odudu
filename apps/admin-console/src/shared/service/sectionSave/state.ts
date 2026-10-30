@@ -1,3 +1,4 @@
+import type { FieldError } from '@odudu/contracts/admin';
 import { sameValue, type Values } from '#/shared/service/dirty';
 
 // `conflict`, `stale` and `unread` all follow a 412: `conflict` while a
@@ -31,6 +32,8 @@ export interface SectionState<T extends Values> {
   source: ConflictSource;
   phase: SavePhase;
   fieldErrors: Readonly<Record<string, string>>;
+  // The refusals behind `fieldErrors`, with their lines and codes.
+  refusals: Readonly<Record<string, readonly FieldError[]>>;
   message: string | null;
 }
 

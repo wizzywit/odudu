@@ -27,6 +27,8 @@ const TOO_LONG = 'a'.repeat(MAX_PASSWORD_LENGTH + 1);
 const SESSION = '01a0a998-8326-7900-8fa6-dd06b842b269';
 const tenant = {
   id: 't1',
+  supportedLocales: ['en', 'fr'],
+  defaultLocale: null,
   passwordRules: {
     minLength: 15,
     requireDigit: false,
@@ -41,7 +43,6 @@ const continuationDeps = {
   loadPendingRequest: vi.fn().mockResolvedValue(null),
   recoverPendingRequest: vi.fn().mockResolvedValue(null),
   redirectStillRegistered: vi.fn().mockResolvedValue(true),
-  pageLocales: ['en', 'fr'],
 };
 
 async function post(

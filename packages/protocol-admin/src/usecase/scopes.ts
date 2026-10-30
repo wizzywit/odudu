@@ -6,6 +6,7 @@ import {
   type ListBuiltinScopesResponse,
   type ScopeClient,
   type ScopeImpact,
+  DESCRIPTION_MAX,
   SCOPE_LIMIT,
   scopeLimitMessage,
 } from '@odudu/contracts/admin';
@@ -38,7 +39,8 @@ import { readKeyedPage } from '#/service/in-order';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { builtinScopeConfirmationDetail } from '#/service/scope-delete';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor } from '#/service/scope-patch';
-import { checkConsentText, checkDisplayOrder } from '#/service/scope-consent';
+import { tenantLanguages } from '#/usecase/tenant-languages';
+import { checkConsentText, checkDisplayOrder, checkScopeLocalised } from '#/service/scope-consent';
 import {
   prefixRangeConditions,
   requireSearchKey,
@@ -87,6 +89,8 @@ export function scopeWireShape(scope: {
   includeInAccessToken: boolean;
   defaultClientAssignment: ClientScopeAssignment | null;
   consentText: string | null;
+  descriptionI18n: Record<string, string>;
+  consentTextI18n: Record<string, string>;
   displayOrder: number;
   createdAt: Date;
 }): ClientScope {
@@ -98,6 +102,8 @@ export function scopeWireShape(scope: {
     include_in_access_token: scope.includeInAccessToken,
     default_client_assignment: scope.defaultClientAssignment,
     consent_text: scope.consentText,
+    description_i18n: scope.descriptionI18n,
+    consent_text_i18n: scope.consentTextI18n,
     display_order: scope.displayOrder,
     created_at: scope.createdAt.toISOString(),
   };
@@ -229,6 +235,8 @@ export async function listScopes(
         includeInAccessToken: row.includeInAccessToken,
         defaultClientAssignment: row.defaultClientAssignment,
         consentText: row.consentText,
+        descriptionI18n: row.descriptionI18n,
+        consentTextI18n: row.consentTextI18n,
         displayOrder: row.displayOrder,
         createdAt: row.createdAt,
       }),
@@ -255,6 +263,8 @@ export interface CreateScopeInput {
   readonly includeInAccessToken: boolean | undefined;
   readonly defaultClientAssignment: ClientScopeAssignment | null;
   readonly consentText: string | null;
+  readonly descriptionI18n?: Record<string, string>;
+  readonly consentTextI18n?: Record<string, string>;
   readonly displayOrder: number;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
@@ -273,6 +283,17 @@ export class ScopeLimitError extends Error {
   }
 }
 
+/** Thrown by `createScope` when a per-language map is refused; the write has not happened. */
+export class ScopeLocalisedTextError extends Error {
+  readonly field: string;
+
+  constructor(field: string, message: string) {
+    super(message);
+    this.name = 'ScopeLocalisedTextError';
+    this.field = field;
+  }
+}
+
 // `client_scopes_name_unique` (0016_client_scopes.sql) is what actually
 // refuses a duplicate. It is left to propagate out of this function rather
 // than caught here: by the time the unique-index violation fires, the
@@ -286,6 +307,22 @@ export async function createScope(
   deps: CreateScopeDeps,
   input: CreateScopeInput,
 ): Promise<ClientScope> {
+  const localised: Record<string, Record<string, string>> = {};
+  const supplied = [
+    ['description_i18n', input.descriptionI18n ?? {}],
+    ['consent_text_i18n', input.consentTextI18n ?? {}],
+  ] as const;
+  const needed = supplied.filter(([, value]) => Object.keys(value).length > 0);
+  const supported = needed.length === 0 ? undefined : await tenantLanguages(tx, input.tenantId);
+  for (const [field, value] of supplied) {
+    const checked = checkScopeLocalised(field, value, {
+      ...(supported === undefined ? {} : { supported }),
+    });
+    if (checked.kind === 'invalid') {
+      throw new ScopeLocalisedTextError(field, checked.message);
+    }
+    localised[field] = checked.value;
+  }
   await clientScopeRepository(tx).lockCreation(input.tenantId);
   if ((await clientScopeRepository(tx).countUpTo(SCOPE_LIMIT)) >= SCOPE_LIMIT) {
     throw new ScopeLimitError();
@@ -300,6 +337,8 @@ export async function createScope(
       : {}),
     defaultClientAssignment: input.defaultClientAssignment,
     consentText: input.consentText,
+    descriptionI18n: localised.description_i18n ?? {},
+    consentTextI18n: localised.consent_text_i18n ?? {},
     displayOrder: input.displayOrder,
   });
 
@@ -346,6 +385,8 @@ interface ScopePatchInput {
   includeInAccessToken?: { value: boolean };
   defaultClientAssignment?: { value: ClientScopeAssignment | null };
   consentText?: { value: string | null };
+  descriptionI18n?: { value: Record<string, string> };
+  consentTextI18n?: { value: Record<string, string> };
   displayOrder?: { value: number };
 }
 
@@ -393,6 +434,7 @@ export async function amendScope(
   // never leave a partial write behind, and why phase two reads only
   // `patch`, never `input.values` again.
   const patch: ScopePatchInput = {};
+  let supportedLanguages: readonly string[] | undefined;
   if ('description' in input.values) {
     const value = input.values.description;
     if (value !== null && typeof value !== 'string') {
@@ -400,6 +442,17 @@ export async function amendScope(
         kind: 'invalid_value',
         field: 'description',
         description: 'description must be a string or null',
+      };
+    }
+    if (
+      typeof value === 'string' &&
+      value.length > DESCRIPTION_MAX &&
+      value !== locked.description
+    ) {
+      return {
+        kind: 'invalid_value',
+        field: 'description',
+        description: `description must be at most ${String(DESCRIPTION_MAX)} characters`,
       };
     }
     if (refusesBidi(value, locked.description)) {
@@ -449,6 +502,21 @@ export async function amendScope(
     }
     patch.consentText = { value: checked.value };
   }
+  for (const [field, key, current] of [
+    ['description_i18n', 'descriptionI18n', locked.descriptionI18n],
+    ['consent_text_i18n', 'consentTextI18n', locked.consentTextI18n],
+  ] as const) {
+    if (!(field in input.values)) continue;
+    supportedLanguages ??= await tenantLanguages(tx, locked.tenantId);
+    const checked = checkScopeLocalised(field, input.values[field], {
+      supported: supportedLanguages,
+      current,
+    });
+    if (checked.kind === 'invalid') {
+      return { kind: 'invalid_value', field, description: checked.message };
+    }
+    patch[key] = { value: checked.value };
+  }
   if ('display_order' in input.values) {
     const checked = checkDisplayOrder(input.values.display_order);
     if (checked.kind === 'invalid') {
@@ -469,6 +537,12 @@ export async function amendScope(
       ? { defaultClientAssignment: patch.defaultClientAssignment.value }
       : {}),
     ...(patch.consentText !== undefined ? { consentText: patch.consentText.value } : {}),
+    ...(patch.descriptionI18n !== undefined
+      ? { descriptionI18n: patch.descriptionI18n.value }
+      : {}),
+    ...(patch.consentTextI18n !== undefined
+      ? { consentTextI18n: patch.consentTextI18n.value }
+      : {}),
     ...(patch.displayOrder !== undefined ? { displayOrder: patch.displayOrder.value } : {}),
   };
   if (Object.keys(columns).length > 0) {

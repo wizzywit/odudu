@@ -55,6 +55,16 @@ async function rowVersion(tenantId: string): Promise<string> {
 }
 
 describe('provisionAdminClient', () => {
+  it('creates the client with the logout confirmation skipped, as the console needs, and leaves it so on a re-run', async () => {
+    const tenantId = await freshTenant();
+    await withTenant(app.db, tenantId, (tx) => provisionAdminClient(tx, tenantId));
+    await withTenant(app.db, tenantId, (tx) => provisionAdminClient(tx, tenantId));
+    await withTenant(app.db, tenantId, async (tx) => {
+      const client = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      expect(client?.skipLogoutConfirmation).toBe(true);
+    });
+  });
+
   it('creates the client and the seven capability roles', async () => {
     const tenantId = await freshTenant();
     const { clientDbId } = await withTenant(app.db, tenantId, (tx) =>

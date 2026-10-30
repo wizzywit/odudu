@@ -27,7 +27,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  min-block-size: 40px;
+  min-block-size: var(--control-height);
   padding: 0 var(--space-4);
   border-block-start: 2px solid transparent;
   border-block-end: 1px solid var(--border);
@@ -42,6 +42,14 @@
   transition:
     color var(--motion-fast) var(--ease),
     background-color var(--motion-fast) var(--ease);
+}
+
+/* Narrow, the tabs sit closer so the four of a record fit side by side. */
+@media (max-width: 48rem) {
+  .tab {
+    gap: var(--space-1);
+    padding: 0 var(--space-3);
+  }
 }
 
 .tab[data-hovered] {
@@ -66,6 +74,17 @@
   block-size: 6px;
   border-radius: 50%;
   background: var(--signal-warning-ink);
+}
+
+/* A square outline against the unsaved dot's round fill, so the two differ by
+   shape and not by colour alone. */
+.changed {
+  box-sizing: border-box;
+  inline-size: 8px;
+  block-size: 8px;
+  border: 2px solid var(--signal-active-ink);
+  border-radius: 0;
+  background: transparent;
 }
 
 .panel {

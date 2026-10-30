@@ -44,10 +44,12 @@ import {
   renderRegistrationReadyPage,
   renderRegistrationUsernameGonePage,
 } from '#/view/registration-html';
-import { requestLocale } from '#/view/request-locale';
+import { brandedLocale, type BrandedLocaleDeps } from '#/view/request-locale';
 
 export interface ActionTokenTenantLookup {
   readonly id: string;
+  readonly supportedLocales: readonly string[];
+  readonly defaultLocale: string | null;
   readonly enabled: boolean;
   // The kill switch: an operator who turns this off during an incident
   // means every outstanding reset-password link to stop working too, not
@@ -66,9 +68,7 @@ export type IssuerSource = Pick<FastifyRequest, 'protocol' | 'host'> & {
   readonly configuredIssuerBase?: string | undefined;
 };
 
-export interface ActionTokenRouteDeps {
-  // The tags a page can be shown in; defaults to what the server ships.
-  pageLocales?: readonly string[];
+export interface ActionTokenRouteDeps extends BrandedLocaleDeps {
   readonly database: DatabaseHandle;
   readonly findTenant: (name: string) => Promise<ActionTokenTenantLookup | null>;
   readonly getCurrentEmail: (tx: TenantScopedDatabase, subjectId: string) => Promise<string | null>;
@@ -186,8 +186,8 @@ async function completeActionsLink(
     setsPassword: boolean;
     authenticationSessionId: string | null;
   },
+  locale: PageLocale,
 ): Promise<FastifyReply> {
-  const locale = requestLocale(request, deps);
   const { setsPassword } = peeked;
   const returnTo = (): Promise<string | null> =>
     resumeAt(deps, request, tenant, peeked.authenticationSessionId);
@@ -313,9 +313,21 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
     Params: { tenant: string };
     Querystring: Record<string, string | string[] | undefined>;
   }>('/tenants/:tenant/login-actions/action-token', async (request, reply) => {
-    const locale = requestLocale(request, deps);
     const key = firstString(request.query.key);
     const tenant = key === undefined ? null : await deps.findTenant(request.params.tenant);
+    // A mailed link names no client, so the page wears the tenant's theme.
+    const locale = await brandedLocale(
+      request,
+      deps,
+      tenant === null
+        ? null
+        : {
+            id: tenant.id,
+            name: request.params.tenant,
+            supportedLocales: tenant.supportedLocales,
+            defaultLocale: tenant.defaultLocale,
+          },
+    );
 
     // A disabled tenant refuses here the same way it refuses at /token,
     // /userinfo, discovery and login: consuming a token is a write against
@@ -422,11 +434,22 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
     Params: { tenant: string };
     Body: Record<string, string | string[] | undefined>;
   }>('/tenants/:tenant/login-actions/action-token', async (request, reply) => {
-    const locale = requestLocale(request, deps);
     const body = request.body;
     const key = firstNonEmptyString(body.key);
     const candidate = readPasswordField(body.password);
     const tenant = key === undefined ? null : await deps.findTenant(request.params.tenant);
+    const locale = await brandedLocale(
+      request,
+      deps,
+      tenant === null
+        ? null
+        : {
+            id: tenant.id,
+            name: request.params.tenant,
+            supportedLocales: tenant.supportedLocales,
+            defaultLocale: tenant.defaultLocale,
+          },
+    );
 
     if (key === undefined || !tenant?.enabled) {
       return sendVerificationHtml(reply, 400, renderResetLinkFailedPage(null, null, locale));
@@ -457,7 +480,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
       return sendVerificationHtml(reply, 400, renderVerificationFailedPage(await resume(), locale));
     }
     if (peeked.kind === 'usable' && peeked.type === 'execute_actions') {
-      return completeActionsLink(request, reply, deps, tenant, key, peeked);
+      return completeActionsLink(request, reply, deps, tenant, key, peeked, locale);
     }
     if (!tenant.resetPasswordAllowed) {
       return sendVerificationHtml(

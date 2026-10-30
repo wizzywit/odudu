@@ -13,6 +13,17 @@ function hasStatus(result: GatewayResult<unknown>, status: number): boolean {
   return !result.ok && result.kind === 'problem' && result.problem.status === status;
 }
 
+// A write sent with no If-Match on purpose that the server refuses as
+// required has met a resource that gained an ETag meanwhile: that is a stale
+// read like any other, so it is answered the way a 412 is.
+export function staleWhenTagMissing<T>(result: GatewayResult<T>): GatewayResult<T> {
+  if (result.ok || result.kind !== 'problem' || result.problem.status !== 428) return result;
+  return {
+    ...result,
+    problem: { ...result.problem, status: 412, title: 'Precondition Failed' },
+  };
+}
+
 export function isRefused(result: GatewayResult<unknown>): boolean {
   return hasStatus(result, 403);
 }
@@ -43,6 +54,12 @@ export function isStaleCursor(failure: GatewayFailure | null): boolean {
     failure.problem.status === 400 &&
     failure.problem.errors?.some((error) => error.path === 'cursor') === true
   );
+}
+
+// The part of a problem's type after `#`, the name an endpoint gives its own
+// refusals, or empty for a plain status.
+export function problemSubtype(problem: Problem): string {
+  return problem.type.split('#')[1] ?? '';
 }
 
 export function isMissing(result: GatewayResult<unknown>): boolean {
@@ -100,6 +117,9 @@ export interface RemovalSpec {
 export interface RemovalOutcome {
   // The thing is where the action meant it to be, whoever put it there.
   done: boolean;
+  // Not done, and what was asked is out of date: the dialog closes and the
+  // text is told over the page, which has been read again.
+  closes?: boolean;
   text: string;
 }
 

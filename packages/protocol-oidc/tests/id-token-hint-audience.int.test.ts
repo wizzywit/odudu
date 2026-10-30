@@ -22,6 +22,7 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
+import { confirmLogoutPage } from '#/testing/logout-confirmation';
 
 // A hint's `aud` is the client it was issued to, not this server, so an
 // audience check on it is an additional guard this server chooses to make
@@ -313,7 +314,7 @@ describe('/logout leaves its own id_token_hint audience handling unchanged', () 
   // Passing CLIENT_A_ID instead of AUDIENCE_UNCHECKED at the /logout call
   // site would make this hint fail verification outright and this
   // assertion would fail.
-  it('still ends a session on a hint whose aud names an unrelated client', async () => {
+  it('still identifies the session by a hint whose aud names an unrelated client, and asks', async () => {
     const tenantName = `hint-aud-logout-unchanged-${newId()}`;
     const { tenantId } = await setupTenant(tenantName);
     const subjectId = await subjectIdOf(tenantId, USERNAME);
@@ -335,11 +336,18 @@ describe('/logout leaves its own id_token_hint audience handling unchanged', () 
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).not.toContain('<title>Sign out?</title>');
+    expect(res.body).toContain('<title>Sign out?</title>');
+    expect(res.body).toContain(sessionId);
 
-    const stillLive = await withTenant(app.db, tenantId, (tx) =>
-      sessionRepository(tx).liveById(sessionId, GENEROUS_LIFESPANS, new Date()),
-    );
-    expect(stillLive).toBeNull();
+    const live = () =>
+      withTenant(app.db, tenantId, (tx) =>
+        sessionRepository(tx).liveById(sessionId, GENEROUS_LIFESPANS, new Date()),
+      );
+    expect(await live()).not.toBeNull();
+
+    const ended = await confirmLogoutPage(http, tenantName, cookie, res);
+    expect(ended.statusCode).toBe(200);
+    expect(ended.body).toContain('<title>Signed out</title>');
+    expect(await live()).toBeNull();
   });
 });

@@ -25,6 +25,9 @@ function toResponseBody(client: RegisteredClient): Record<string, unknown> {
     grant_types: metadata.grantTypes,
     token_endpoint_auth_method: metadata.tokenEndpointAuthMethod,
     ...(metadata.clientName === null ? {} : { client_name: metadata.clientName }),
+    ...Object.fromEntries(
+      Object.entries(client.nameI18n).map(([tag, name]) => [`client_name#${tag}`, name]),
+    ),
     ...(metadata.jwks === null ? {} : { jwks: metadata.jwks }),
     ...(metadata.jwksUri === null ? {} : { jwks_uri: metadata.jwksUri }),
     ...(metadata.frontchannelLogoutUri === null

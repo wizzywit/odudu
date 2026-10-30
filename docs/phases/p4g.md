@@ -1515,23 +1515,26 @@ error and config tables from `@odudu/kernel`, the audit vocabulary from
 | Area                  | Described | Fields |
 | --------------------- | --------- | ------ |
 | `audit`               | 60        | 60     |
-| `clients`             | 277       | 288    |
+| `clients`             | 524       | 535    |
 | `flow`                | 12        | 12     |
-| `groups`              | 61        | 67     |
-| `keys`                | 30        | 31     |
+| `groups`              | 62        | 67     |
+| `keys`                | 31        | 31     |
 | `lockouts`            | 3         | 3      |
-| `mail`                | 12        | 15     |
+| `mail`                | 49        | 52     |
+| `message-catalogue`   | 5         | 5      |
+| `message-overrides`   | 14        | 14     |
 | `registration-tokens` | 14        | 14     |
 | `roles`               | 65        | 65     |
-| `scopes`              | 78        | 85     |
-| `sessions`            | 17        | 18     |
+| `scopes`              | 102       | 107    |
+| `sessions`            | 18        | 18     |
 | `settings`            | 0         | 0      |
 | `smtp`                | 22        | 24     |
 | `subjects`            | 139       | 139    |
 | `subject-access`      | 43        | 44     |
 | `subject-sessions`    | 31        | 31     |
 | `subject-sign-in`     | 12        | 17     |
-| `tenants`             | 175       | 202    |
+| `tenants`             | 186       | 213    |
+| `theme`               | 238       | 238    |
 | `whoami`              | 4         | 4      |
 
 - The `generate.test.ts` comparison of the files on disk with a fresh generation guards a stale local tree; in CI

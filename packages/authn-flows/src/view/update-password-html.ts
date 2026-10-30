@@ -9,6 +9,7 @@ import { escapeHtml, intro, page } from '#/view/document';
 import { problemSummary } from '#/view/form-error';
 import { passwordField } from '#/view/password-field';
 import { bdi, t, tHtml, type MessageId } from '#/view/messages';
+import { fillPage } from '#/view/template';
 
 // Every rule a violation can name, by the code the domain reports it under.
 const RULE_MESSAGE: Readonly<Record<string, MessageId>> = {
@@ -62,12 +63,18 @@ export function renderUpdatePasswordPage(
     locale,
   );
   const title = t(locale, 'updatePassword.title');
-  const body = `${intro(tHtml(locale, 'updatePassword.title'), tenant)}
-<p>${tHtml(locale, 'updatePassword.intro')}</p>
-${problemSummary(problems)}<form method="post" action="${target}">
-  <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
-  ${password.html}
-  <button type="submit">${tHtml(locale, 'updatePassword.submit')}</button>
-</form>`;
-  return page(title, body, password.script, [], locale);
+  const body = fillPage(
+    'update-password',
+    {
+      intro: intro(tHtml(locale, 'updatePassword.title'), tenant),
+      error: problemSummary(problems),
+      'form.open': `<form method="post" action="${target}">
+  <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">`,
+      fields: password.html,
+      submit: `<button type="submit">${tHtml(locale, 'updatePassword.submit')}</button>`,
+      'form.close': '</form>',
+    },
+    locale,
+  );
+  return page(title, body, password.script, [], locale, 'update-password');
 }

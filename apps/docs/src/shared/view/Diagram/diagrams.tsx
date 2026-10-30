@@ -423,6 +423,141 @@ function consentAndAudit(): Drawing {
   };
 }
 
+function branding(): Drawing {
+  const layers: { y: number; title: string; line: string; tone: 'panel' | 'accent' }[] = [
+    { y: 8, title: 'The client', line: 'only the pieces it sets', tone: 'accent' },
+    { y: 104, title: 'The tenant', line: 'the pieces the client left alone', tone: 'accent' },
+    { y: 200, title: 'Instrument', line: 'what neither one set', tone: 'panel' },
+  ];
+  return {
+    height: 380,
+    draw: (head) => (
+      <>
+        {layers.map(({ y, title, line, tone }) => (
+          <g key={title}>
+            <DiagramBox x={10} y={y} w={320} h={72} tone={tone} />
+            <DiagramText x={MID} y={y + 30} bold size={15}>
+              {title}
+            </DiagramText>
+            <DiagramText x={MID} y={y + 52} ink="muted">
+              {line}
+            </DiagramText>
+          </g>
+        ))}
+        <DiagramArrow head={head} d={vertical(MID, 80, 102)} />
+        <DiagramArrow head={head} d={vertical(MID, 176, 198)} />
+        <DiagramArrow head={head} d={vertical(MID, 272, 304)} />
+        <DiagramText x={MID} y={326} bold>
+          Each piece comes from the first layer that has it
+        </DiagramText>
+        <DiagramText x={MID} y={348} ink="muted">
+          colours, font, images, stylesheet, page layouts
+        </DiagramText>
+        <DiagramText x={MID} y={368} ink="muted">
+          a piece is never mixed, only chosen
+        </DiagramText>
+      </>
+    ),
+  };
+}
+
+function brandingPublishing(): Drawing {
+  const boxes: { y: number; title: string; line: string; tone: 'panel' | 'accent' }[] = [
+    { y: 8, title: 'Draft', line: 'one only, saved whole, seen by no one', tone: 'panel' },
+    { y: 120, title: 'Published version', line: 'what people see now', tone: 'accent' },
+    { y: 232, title: 'Versions', line: 'the twenty newest, kept', tone: 'panel' },
+  ];
+  return {
+    height: 430,
+    draw: (head) => (
+      <>
+        {boxes.map(({ y, title, line, tone }) => (
+          <g key={title}>
+            <DiagramBox x={10} y={y} w={320} h={72} tone={tone} />
+            <DiagramText x={MID} y={y + 30} bold size={15}>
+              {title}
+            </DiagramText>
+            <DiagramText x={MID} y={y + 52} ink="muted">
+              {line}
+            </DiagramText>
+          </g>
+        ))}
+        <DiagramArrow head={head} d={vertical(MID, 82, 118)} />
+        <DiagramText x={MID + 14} y={106} anchor="start" ink="accent" bold>
+          Publish: all or nothing
+        </DiagramText>
+        <DiagramArrow head={head} d={vertical(MID, 194, 230)} />
+        <DiagramText x={MID + 14} y={218} anchor="start" ink="accent" bold>
+          the version it replaces
+        </DiagramText>
+        <DiagramText x={MID} y={330}>
+          Discard draft deletes only the draft.
+        </DiagramText>
+        <DiagramText x={MID} y={352}>
+          Restore publishes a copy of a version.
+        </DiagramText>
+        <DiagramText x={MID} y={374} ink="muted">
+          Reset unpublishes; the versions remain.
+        </DiagramText>
+        <DiagramText x={MID} y={394} ink="muted">
+          Publishing uses the draft up.
+        </DiagramText>
+        <DiagramText x={MID} y={414} ink="muted">
+          Restore leaves the draft alone.
+        </DiagramText>
+      </>
+    ),
+  };
+}
+
+function brandingParts(): Drawing {
+  const slots = ['{{error}}', '{{form.open}}', '{{fields}} {{submit}}', '{{form.close}}'];
+  const filled = [
+    'the form tags',
+    'every hidden field',
+    'the anti-forgery proof',
+    'inputs and buttons',
+  ];
+  return {
+    height: 420,
+    draw: (head) => (
+      <>
+        <DiagramBox x={10} y={8} w={320} h={160} />
+        <DiagramText x={MID} y={32} bold size={15}>
+          The tenant’s template
+        </DiagramText>
+        <DiagramText x={MID} y={56} mono>
+          {'{{t "login.title"}}'}
+        </DiagramText>
+        {slots.map((slot, index) => (
+          <DiagramText key={slot} x={MID} y={80 + index * 22} mono ink="accent">
+            {slot}
+          </DiagramText>
+        ))}
+        <DiagramArrow head={head} d={vertical(MID, 170, 212)} />
+        <DiagramText x={MID + 14} y={196} anchor="start" ink="accent" bold>
+          the server fills each slot
+        </DiagramText>
+        <DiagramBox x={10} y={214} w={320} h={162} tone="accent" />
+        <DiagramText x={MID} y={240} bold size={15}>
+          The page people get
+        </DiagramText>
+        {filled.map((line, index) => (
+          <DiagramText key={line} x={MID} y={266 + index * 22}>
+            {line}
+          </DiagramText>
+        ))}
+        <DiagramText x={MID} y={366} ink="muted">
+          all written by the server
+        </DiagramText>
+        <DiagramText x={MID} y={402} ink="muted">
+          a template cannot drop or forge any of it
+        </DiagramText>
+      </>
+    ),
+  };
+}
+
 export const DRAWINGS = {
   tenants: tenants(),
   clients: clients(),
@@ -431,6 +566,9 @@ export const DRAWINGS = {
   sessions: sessions(),
   tokens: tokens(),
   'consent-and-audit': consentAndAudit(),
+  branding: branding(),
+  'branding-publishing': brandingPublishing(),
+  'branding-parts': brandingParts(),
 } satisfies Record<string, Drawing>;
 
 export type DiagramName = keyof typeof DRAWINGS;

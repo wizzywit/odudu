@@ -1,19 +1,34 @@
 import { stripBidiControls } from '@odudu/contracts';
 import { negotiateLocale, type PageLocale } from '@odudu/i18n';
+import { type MailBranding } from '@odudu/kernel';
 import { bdi, catalogue, en, t, tHtml, type MessageId } from '#/service/messages';
 import { renderShell, safeHref, sendYear, type Block } from '#/service/shell';
 import { type EmailMessage } from '#/service/sender';
 
-interface MailInput {
+// What every mail takes beyond its own content.
+interface MailContext {
+  // The recipient's own `locale` where the sender knows it, else the tenant's
+  // default, else none: the mail is then English. A tag this build holds no
+  // catalogue for is reduced to the nearest one it does, as a page's is.
+  readonly locale?: string | null | undefined;
+  readonly tenantDefaultLocale?: string | null | undefined;
+  // The tenant's theme as resolved when the mail is queued; absent, the mail
+  // is drawn in Odudu's own colours.
+  readonly branding?: MailBranding | null | undefined;
+  // The tenant's own wording, by language; the mail reads the one of its own.
+  readonly overrides?: Readonly<Record<string, Readonly<Record<string, string>>>> | undefined;
+  // The languages the tenant offers, as its pages are negotiated against; a
+  // recipient's language outside them gets the tenant's default or English.
+  // Absent, the languages this build holds a catalogue for.
+  readonly supportedLocales?: readonly string[] | undefined;
+}
+
+interface MailInput extends MailContext {
   readonly to: string;
   readonly link: string;
   readonly tenantDisplayName: string;
   // The send time, from the caller's clock: the footer's year is its UTC year.
   readonly now: Date;
-  // The recipient's own `locale` where the sender knows it, else the tenant's
-  // default, else none: the mail is then English. A tag this build holds no
-  // catalogue for is reduced to the nearest one it does, as a page's is.
-  readonly locale?: string | null | undefined;
 }
 
 export type VerifyEmailInput = MailInput;
@@ -32,15 +47,25 @@ const PDI = '\u2069';
 // paragraph separators.
 const LINE_CONTROLS = /[\u0000-\u001F\u007F-\u009F\u2028\u2029]+/gu;
 
-function mailLocale(requested: string | null | undefined): PageLocale {
-  return negotiateLocale({
+function mailLocale({
+  locale,
+  tenantDefaultLocale,
+  overrides,
+  supportedLocales,
+}: MailContext): PageLocale {
+  const negotiated = negotiateLocale({
     uiLocales: [],
-    subjectLocale: requested ?? null,
+    subjectLocale: locale ?? null,
     authenticated: true,
-    tenantDefault: null,
+    tenantDefault: tenantDefaultLocale ?? null,
     acceptLanguage: null,
-    supported: catalogue.locales,
+    supported: supportedLocales ?? catalogue.locales,
   });
+  const own =
+    overrides !== undefined && Object.hasOwn(overrides, negotiated.tag)
+      ? overrides[negotiated.tag]
+      : undefined;
+  return own === undefined ? negotiated : { ...negotiated, overrides: own };
 }
 
 // A header cannot carry an isolate, so the subject loses the controls that
@@ -103,13 +128,14 @@ interface Page {
   readonly heading: MessageId;
   readonly preheader: MessageId;
   readonly reason: MessageId;
+  readonly branding: MailBranding | null | undefined;
 }
 
 function page(
   spec: Page,
 ): Pick<
   Parameters<typeof renderShell>[0],
-  'locale' | 'tenant' | 'now' | 'heading' | 'preheader' | 'reason'
+  'locale' | 'tenant' | 'now' | 'heading' | 'preheader' | 'reason' | 'branding'
 > {
   return {
     locale: spec.locale,
@@ -118,6 +144,7 @@ function page(
     heading: t(spec.locale, spec.heading),
     preheader: t(spec.locale, spec.preheader),
     reason: tHtml(spec.locale, spec.reason, {}, { tenant: stripBidiControls(spec.tenant) }),
+    branding: spec.branding,
   };
 }
 
@@ -127,12 +154,12 @@ interface Linked {
 }
 
 function renderLinked({ kind, input }: Linked): EmailMessage {
-  const locale = mailLocale(input.locale);
+  const locale = mailLocale(input);
   const tenant = clipName(input.tenantDisplayName);
   const link = safeHref(input.link);
   return {
     to: input.to,
-    subject: t(locale, `${kind}.subject`, { tenant: inSubject(tenant) }),
+    subject: inSubject(t(locale, `${kind}.subject`, { tenant: inSubject(tenant) })),
     text: `${t(locale, `${kind}.text`, { tenant: inText(tenant) })}\n\n${link}\n\n${t(locale, 'mail.notRequested')}\n\n${textFooter(locale, `${kind}.reason`, tenant, input.now)}`,
     html: renderShell({
       ...page({
@@ -142,6 +169,7 @@ function renderLinked({ kind, input }: Linked): EmailMessage {
         heading: `${kind}.heading`,
         preheader: `${kind}.preheader`,
         reason: `${kind}.reason`,
+        branding: input.branding,
       }),
       blocks: [paragraph(tHtml(locale, `${kind}.body`, {}, { tenant: stripBidiControls(tenant) }))],
       action: { label: t(locale, `${kind}.button`), href: link },
@@ -164,7 +192,7 @@ export function renderResetPassword(input: ResetPasswordInput): EmailMessage {
   return renderLinked({ kind: 'reset', input });
 }
 
-export interface RegistrationDuplicateInput {
+export interface RegistrationDuplicateInput extends MailContext {
   readonly to: string;
   /** Where a forgotten password is reset; null where the tenant has no reset. */
   readonly resetLink: string | null;
@@ -176,13 +204,13 @@ export interface RegistrationDuplicateInput {
 // Said to an address somebody tried to register again. It tells the holder
 // what happened and names nothing about the attempt: no username, no token.
 export function renderRegistrationDuplicate(input: RegistrationDuplicateInput): EmailMessage {
-  const locale = mailLocale(input.locale);
+  const locale = mailLocale(input);
   const tenant = clipName(input.tenantDisplayName);
   const link = input.resetLink === null ? null : safeHref(input.resetLink);
   const next: MessageId = link === null ? 'duplicate.nextSignIn' : 'duplicate.next';
   return {
     to: input.to,
-    subject: t(locale, 'duplicate.subject', { tenant: inSubject(tenant) }),
+    subject: inSubject(t(locale, 'duplicate.subject', { tenant: inSubject(tenant) })),
     text: [
       t(locale, 'duplicate.text', { tenant: inText(tenant) }),
       t(locale, next),
@@ -198,6 +226,7 @@ export function renderRegistrationDuplicate(input: RegistrationDuplicateInput): 
         heading: 'duplicate.heading',
         preheader: 'duplicate.preheader',
         reason: 'duplicate.reason',
+        branding: input.branding,
       }),
       blocks: [
         paragraph(tHtml(locale, 'duplicate.text', {}, { tenant: stripBidiControls(tenant) })),
@@ -210,13 +239,13 @@ export function renderRegistrationDuplicate(input: RegistrationDuplicateInput): 
 }
 
 export function renderRequiredActions(input: RequiredActionsInput): EmailMessage {
-  const locale = mailLocale(input.locale);
+  const locale = mailLocale(input);
   const tenant = clipName(input.tenantDisplayName);
   const link = safeHref(input.link);
   const listed = input.actions.map((code) => `- ${actionText(locale, code)}`).join('\n');
   return {
     to: input.to,
-    subject: t(locale, 'actions.subject', { tenant: inSubject(tenant) }),
+    subject: inSubject(t(locale, 'actions.subject', { tenant: inSubject(tenant) })),
     text: `${t(locale, 'actions.text', { tenant: inText(tenant) })}\n\n${listed}\n\n${t(locale, 'actions.textLink')}\n\n${link}\n\n${t(locale, 'actions.ignore')}\n\n${textFooter(locale, 'actions.reason', tenant, input.now)}`,
     html: renderShell({
       ...page({
@@ -226,6 +255,7 @@ export function renderRequiredActions(input: RequiredActionsInput): EmailMessage
         heading: 'actions.heading',
         preheader: 'actions.preheader',
         reason: 'actions.reason',
+        branding: input.branding,
       }),
       blocks: [
         paragraph(tHtml(locale, 'actions.text', {}, { tenant: stripBidiControls(tenant) })),
@@ -237,7 +267,7 @@ export function renderRequiredActions(input: RequiredActionsInput): EmailMessage
   };
 }
 
-interface NoticeInput {
+interface NoticeInput extends MailContext {
   readonly to: string;
   readonly tenantDisplayName: string;
   readonly now: Date;
@@ -269,7 +299,7 @@ interface Notice {
 // subject recovers or proves who they are. Never a link, a code or a secret:
 // whoever reads it may not be the subject, and nothing in it helps them.
 function renderNotice({ input, subject, heading, preheader, reason, lines }: Notice): EmailMessage {
-  const locale = mailLocale(input.locale);
+  const locale = mailLocale(input);
   const tenant = clipName(input.tenantDisplayName);
   const sentences = lines.map((id) => ({
     text: t(locale, id, { tenant: inText(tenant) }),
@@ -277,14 +307,22 @@ function renderNotice({ input, subject, heading, preheader, reason, lines }: Not
   }));
   return {
     to: input.to,
-    subject: t(locale, subject, { tenant: inSubject(tenant) }),
+    subject: inSubject(t(locale, subject, { tenant: inSubject(tenant) })),
     text: [
       ...sentences.map((line) => line.text),
       t(locale, 'notice.contact'),
       textFooter(locale, reason, tenant, input.now),
     ].join('\n\n'),
     html: renderShell({
-      ...page({ locale, tenant, now: input.now, heading, preheader, reason }),
+      ...page({
+        locale,
+        tenant,
+        now: input.now,
+        heading,
+        preheader,
+        reason,
+        branding: input.branding,
+      }),
       blocks: sentences.map((line) => paragraph(line.html)),
       closing: [tHtml(locale, 'notice.contact')],
     }),
@@ -316,7 +354,7 @@ export function renderRecoveryCodesRevoked(input: RecoveryCodesRevokedInput): Em
   });
 }
 
-export interface SmtpTestInput {
+export interface SmtpTestInput extends MailContext {
   readonly to: string;
   readonly tenantDisplayName: string;
   readonly now: Date;
@@ -324,11 +362,11 @@ export interface SmtpTestInput {
 }
 
 export function renderSmtpTest(input: SmtpTestInput): EmailMessage {
-  const locale = mailLocale(input.locale);
+  const locale = mailLocale(input);
   const tenant = clipName(input.tenantDisplayName);
   return {
     to: input.to,
-    subject: t(locale, 'smtpTest.subject'),
+    subject: inSubject(t(locale, 'smtpTest.subject')),
     text: `${t(locale, 'smtpTest.text')}\n\n${textFooter(locale, 'smtpTest.reason', tenant, input.now)}`,
     html: renderShell({
       ...page({
@@ -338,6 +376,7 @@ export function renderSmtpTest(input: SmtpTestInput): EmailMessage {
         heading: 'smtpTest.heading',
         preheader: 'smtpTest.preheader',
         reason: 'smtpTest.reason',
+        branding: input.branding,
       }),
       blocks: [paragraph(tHtml(locale, 'smtpTest.text'))],
     }),

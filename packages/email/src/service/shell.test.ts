@@ -238,7 +238,7 @@ describe.each(each)('the %s mail, given a hostile or unusual tenant name', (_nam
     expect(kind.render('شركة المثال').html).toContain('<bdi>شركة المثال</bdi>');
   });
 
-  it('keeps line breaks out of the subject', () => {
+  it('[ODUDU-THEME-MAILHEADER-01] keeps line breaks out of the subject', () => {
     const { subject } = kind.render('Acme\r\nBcc: x@example.test');
     expect(subject).not.toMatch(/[\r\n]/u);
   });

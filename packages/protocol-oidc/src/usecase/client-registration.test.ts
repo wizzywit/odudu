@@ -24,6 +24,8 @@ const TENANT: TenantLookup = {
   resetPasswordAllowed: false,
   maxSessionsPerBrowser: 25,
   clientRegistrationPolicy: 'open',
+  supportedLocales: ['en'],
+  defaultLocale: null,
   passwordRules: PASSWORD_RULES,
 };
 

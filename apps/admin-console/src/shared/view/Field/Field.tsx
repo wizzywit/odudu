@@ -338,6 +338,82 @@ export function InlineFields({ children }: { children: ReactNode }) {
   return <Inline value>{children}</Inline>;
 }
 
+// Inside it a select is the browser's own, which a phone opens as its picker
+// and a keyboard types into, and which needs no popover of ours.
+const NativeSelects = createContext(false);
+
+export function NativeSelectFields({ children }: { children: ReactNode }) {
+  return <NativeSelects value>{children}</NativeSelects>;
+}
+
+function NativeSelect({
+  label,
+  description,
+  error,
+  changed,
+  isDisabled,
+  options,
+  value,
+  onChange,
+}: Chrome & {
+  options: readonly Choice[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const id = useId();
+  const noteId = `${id}-note`;
+  const errorId = `${id}-error`;
+  const described = [
+    description === undefined ? null : noteId,
+    error === undefined ? null : errorId,
+  ]
+    .filter((part) => part !== null)
+    .join(' ');
+  return (
+    <div className={styles.field} data-changed={changed === true || undefined}>
+      <div className={styles.header}>
+        <label htmlFor={id} className={styles.label}>
+          {label}
+        </label>
+        {changed === true ? <Changed /> : null}
+      </div>
+      <div className={styles.nativeWrap}>
+        <select
+          id={id}
+          className={styles.native}
+          data-control
+          disabled={isDisabled ?? false}
+          value={value}
+          aria-invalid={error === undefined ? undefined : true}
+          aria-describedby={described === '' ? undefined : described}
+          onChange={(event) => {
+            onChange(event.target.value);
+          }}
+        >
+          {options.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <span className={styles.chevron} aria-hidden="true">
+          ▾
+        </span>
+      </div>
+      {description === undefined || description === null ? null : (
+        <p id={noteId} className={styles.description}>
+          {description}
+        </p>
+      )}
+      {error === undefined ? null : (
+        <p id={errorId} className={styles.error}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function SelectField({
   label,
   description,
@@ -363,12 +439,27 @@ export function SelectField({
   const readOnly = use(FieldsReadOnly);
   const group = use(FieldGroupIds);
   const own = use(OwnData);
+  const native = use(NativeSelects);
   if (readOnly && !inline) {
     return (
       <ReadOnlyValue
         label={label}
         value={options.find((o) => o.id === value)?.label ?? value}
         changed={changed}
+      />
+    );
+  }
+  if (native) {
+    return (
+      <NativeSelect
+        label={label}
+        {...(description === undefined ? {} : { description })}
+        error={error}
+        options={options}
+        value={value}
+        onChange={onChange}
+        {...(changed === undefined ? {} : { changed })}
+        {...(isDisabled === undefined ? {} : { isDisabled })}
       />
     );
   }
@@ -416,9 +507,15 @@ export function ToggleField({
   error,
   changed,
   isDisabled,
+  describedBy,
   value,
   onChange,
-}: Chrome & { value: boolean; onChange: (value: boolean) => void }) {
+}: Chrome & {
+  value: boolean;
+  // The id of further text the switch is read with, beyond its description.
+  describedBy?: string;
+  onChange: (value: boolean) => void;
+}) {
   if (use(FieldsReadOnly)) {
     return (
       <ReadOnlyValue
@@ -438,6 +535,7 @@ export function ToggleField({
       onChange={onChange}
       className={styles.field ?? ''}
       data-changed={changed === true || undefined}
+      {...(describedBy === undefined ? {} : { 'aria-describedby': describedBy })}
     >
       <div className={styles.toggleRow}>
         <SwitchButton className={styles.switch ?? ''}>

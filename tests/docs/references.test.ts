@@ -1,9 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, globSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { plannedGenerated, underGenerated } from './generated-links.js';
 import { type Document, loadSource, PROTOCOL_PAGES, REPO_ROOT, scanFences } from './markdown.js';
+
+// Planning the generated reference reads every source page; a loaded runner needs more than five seconds.
+vi.setConfig({ testTimeout: 30_000 });
 
 // How many of each kind of reference each document carried when these checks
 // were written — a floor, not a count to keep current. The protocol pages
@@ -247,6 +250,8 @@ describe('every link in every document resolves', () => {
 
     expect(links, 'the link extractor has stopped recognising links').toBeGreaterThan(50);
     expect(broken, 'links to files that are not in this repository').toEqual([]);
+    // Reads every document and plans the generated reference, which a loaded
+    // runner does in more than the default five seconds.
   });
 });
 

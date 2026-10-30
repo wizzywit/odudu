@@ -22,6 +22,7 @@ const PAGE_OF_FEATURE: Readonly<Record<string, string>> = {
   'signing-keys': 'signing-keys',
   'tenant-sessions': 'sessions',
   settings: 'settings',
+  branding: 'branding',
   email: 'email',
   audit: 'audit-trail',
   tenants: 'tenants',
@@ -46,6 +47,7 @@ const PAGE_OF_AREA: Readonly<Record<string, string>> = {
   keys: 'signing-keys',
   sessions: 'sessions',
   settings: 'settings',
+  branding: 'branding',
   email: 'email',
   export: 'tenants',
   audit: 'audit-trail',
@@ -103,7 +105,11 @@ function tabLabels(entry: TabSource | readonly string[]): string[] {
   return [...body.matchAll(/:\s*'([^']+)',/gu)].map((match) => match[1] ?? '');
 }
 
-const SLUGS = Object.values(PAGE_OF_FEATURE);
+// A page for a tab of a feature that is big enough to be a page of its own. It is
+// described with the feature it belongs to and checked as the other pages are.
+const PAGES_OF_TABS: readonly string[] = ['client-branding'];
+
+const SLUGS = [...Object.values(PAGE_OF_FEATURE), ...PAGES_OF_TABS];
 
 describe('the admin console section', () => {
   it('has a page for every feature directory of the console', () => {

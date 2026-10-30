@@ -9,6 +9,8 @@ describe('the client scope amendment allowlist', () => {
       'include_in_access_token',
       'default_client_assignment',
       'consent_text',
+      'description_i18n',
+      'consent_text_i18n',
       'display_order',
     ]);
   });

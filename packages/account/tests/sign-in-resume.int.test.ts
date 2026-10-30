@@ -74,7 +74,9 @@ const findHeldSignIn: FindHeldSignIn = (tenant, header) => {
   lookups += 1;
   const session = /(?:^|; )held=([^;]+)/u.exec(header ?? '')?.[1];
   return Promise.resolve(
-    session === undefined ? null : { sessionId: session, signInPath: authorizePath(tenant.name) },
+    session === undefined
+      ? null
+      : { sessionId: session, signInPath: authorizePath(tenant.name), clientId: 'console' },
   );
 };
 

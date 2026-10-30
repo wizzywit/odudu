@@ -491,6 +491,20 @@ const email = createRoute({
   },
 });
 
+const Branding = lazyFeatureRoute(
+  () => import('#/features/branding').then((feature) => feature.BrandingPage),
+  'Loading branding',
+);
+
+const branding = createRoute({
+  getParentRoute: () => tenant,
+  path: 'branding',
+  component: function TenantBranding() {
+    const { tenant: name } = tenant.useParams();
+    return <Branding key={name} tenant={name} />;
+  },
+});
+
 const Audit = lazyFeatureRoute(
   () => import('#/features/audit').then((feature) => feature.AuditPage),
   'Loading the audit trail',
@@ -537,6 +551,7 @@ export function preloadFeatures(): Promise<void> {
     SigningKeys,
     TenantSessions,
     Settings,
+    Branding,
     Email,
     Audit,
   ];
@@ -560,6 +575,7 @@ const routeTree = root.addChildren([
     signingKeys,
     tenantSessions,
     settings,
+    branding,
     email,
     audit,
   ]),

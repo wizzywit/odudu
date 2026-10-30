@@ -1,9 +1,11 @@
-import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import { type AddressInfo } from 'node:net';
 import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
+import { totp } from './page-flows';
 import { psql, seed, sqlText } from './stack';
+import { randomPassword } from './password';
 
 // A relying party on an origin of its own, which the console never is.
 // Chromium holds the redirect a form submission follows to the page's
@@ -17,27 +19,6 @@ const CHALLENGE = createHash('sha256').update(VERIFIER).digest('base64url');
 
 let server: Server;
 let redirectUri: string;
-
-function base32(secret: string): Buffer {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  let bits = '';
-  for (const char of secret.replace(/=+$/u, '')) {
-    bits += alphabet.indexOf(char).toString(2).padStart(5, '0');
-  }
-  const bytes: number[] = [];
-  for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2));
-  return Buffer.from(bytes);
-}
-
-// RFC 6238 with the server's parameters: SHA-1, 30-second steps, 6 digits.
-function totp(secret: string): string {
-  const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
-  const mac = createHmac('sha1', base32(secret)).update(counter).digest();
-  const offset = (mac.at(-1) ?? 0) & 0xf;
-  const binary = mac.readUInt32BE(offset) & 0x7fffffff;
-  return String(binary % 1_000_000).padStart(6, '0');
-}
 
 function user(username: string, password: string): void {
   seed(['user', '--tenant', TENANT, '--username', username, `--password=${password}`]);
@@ -100,7 +81,7 @@ test.afterAll(async () => {
 });
 
 test('a sign-in lands on a client served from another origin', async ({ page }) => {
-  const password = randomBytes(18).toString('base64url');
+  const password = randomPassword();
   user('ada', password);
   await startAt(page);
   await signInWith(page, 'ada', password);
@@ -110,7 +91,7 @@ test('a sign-in lands on a client served from another origin', async ({ page }) 
 test('enrolling an authenticator takes one password and one code, then lands on the client', async ({
   page,
 }) => {
-  const password = randomBytes(18).toString('base64url');
+  const password = randomPassword();
   user('grace', password);
   psql(
     `insert into user_required_actions (tenant_id, subject_id, action) ` +

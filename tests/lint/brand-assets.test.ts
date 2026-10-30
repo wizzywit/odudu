@@ -678,14 +678,16 @@ describe('the copies every page and the console link', () => {
     expect(html).not.toContain('rel="icon" href="/instrument/mark.svg"');
   });
 
-  it('is linked from every server page shell as the same favicon', () => {
+  it('is linked from every server page shell, through the kernel, as the same favicon', () => {
+    const kernel = readFileSync(path.join(REPO_ROOT, 'packages/kernel/src/page.ts'), 'utf8');
+    for (const link of FAVICON_LINKS) expect(kernel).toContain(`${link}>`);
+    expect(kernel).not.toContain('rel="icon" href="/instrument/mark.svg"');
     for (const pkg of ['account', 'authn-flows', 'console-gateway', 'protocol-oidc']) {
       const renderer = readFileSync(
         path.join(REPO_ROOT, `packages/${pkg}/src/view/document.ts`),
         'utf8',
       );
-      for (const link of FAVICON_LINKS) expect(renderer, pkg).toContain(`${link}>`);
-      expect(renderer, pkg).not.toContain('rel="icon" href="/instrument/mark.svg"');
+      expect(renderer, pkg).toContain('${brandingHead(locale)}');
     }
   });
 

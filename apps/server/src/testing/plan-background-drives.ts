@@ -1,5 +1,6 @@
 import { type Database, withTenant } from '@odudu/db';
 import { credentialRepository } from '@odudu/domain-identity';
+import { assetRepository, themeRepository } from '@odudu/domain-theme';
 import { capturingSender, sendPending } from '@odudu/email';
 import { loadConfig } from '@odudu/kernel';
 import { PgDialect } from 'drizzle-orm/pg-core';
@@ -139,6 +140,22 @@ export async function driveRepositories(
       await credentials.countUnspentRecoveryCodes(subjectId);
       await credentials.deleteRecoveryCodes(subjectId);
       await credentials.rotatePassword(subjectId, { from: 'x', to: 'y' }, 3);
+    }),
+  );
+  await capture('themes: what a sign-in render and an asset route read', 'authn', () =>
+    withTenant(database, world.tenantId, async (tx) => {
+      const themes = themeRepository(tx);
+      const tenantScope = { tenantId: world.tenantId, clientId: null };
+      const clientScope = { tenantId: world.tenantId, clientId: world.clientDbId };
+      for (const scope of [clientScope, tenantScope]) {
+        await themes.published(scope);
+        await themes.draft(scope);
+        await themes.versions(scope, 20);
+      }
+      const assets = assetRepository(tx);
+      await assets.get(world.tenantId, 'f'.repeat(64));
+      await assets.bytesUsed(world.tenantId);
+      await assets.referencedBy(world.tenantId, world.clientDbId);
     }),
   );
 }

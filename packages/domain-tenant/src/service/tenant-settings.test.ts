@@ -175,3 +175,72 @@ describe('the audit_event_types list setting', () => {
     ]);
   });
 });
+
+describe('the locale settings', () => {
+  const settings = (supported: string[], defaultLocale: string) => ({
+    supported_locales: supported,
+    default_locale: defaultLocale,
+  });
+  const names = (values: Parameters<typeof tenantSettingProblems>[0]): string[] =>
+    tenantSettingProblems(values).map(({ name }) => name);
+
+  it('spells every tag the one canonical way, from an array or a comma list', () => {
+    expect(coerceTenantSetting('supported_locales', ['EN', 'zh-hant-tw'])).toEqual({
+      kind: 'coerced',
+      column: 'supportedLocales',
+      value: ['en', 'zh-Hant-TW'],
+    });
+    expect(coerceTenantSetting('supported_locales', 'en, fr-ca')).toEqual({
+      kind: 'coerced',
+      column: 'supportedLocales',
+      value: ['en', 'fr-CA'],
+    });
+    expect(coerceTenantSetting('default_locale', 'FR-ca')).toEqual({
+      kind: 'coerced',
+      column: 'defaultLocale',
+      value: 'fr-CA',
+    });
+  });
+
+  it('clears the default with an empty value, and accepts none in the record', () => {
+    expect(coerceTenantSetting('default_locale', '')).toEqual({
+      kind: 'coerced',
+      column: 'defaultLocale',
+      value: null,
+    });
+    expect(names({ supported_locales: ['en'], default_locale: null })).toEqual([]);
+  });
+
+  it('accepts a list with a default drawn from it', () => {
+    expect(names(settings(['en', 'fr', 'ar'], 'fr'))).toEqual([]);
+  });
+
+  it('refuses an empty list', () => {
+    expect(names(settings([], 'en'))).toContain('supported_locales');
+  });
+
+  it('refuses more than 32 locales and accepts exactly 32', () => {
+    const tags = (count: number): string[] =>
+      Array.from(
+        { length: count },
+        (_, i) => String.fromCharCode(97 + Math.floor(i / 26)) + String.fromCharCode(97 + (i % 26)),
+      );
+    expect(names(settings(tags(32), 'aa'))).toEqual([]);
+    expect(names(settings(tags(33), 'aa'))).toEqual(['supported_locales']);
+  });
+
+  it('refuses a tag that fails the locale shape, in either setting', () => {
+    expect(names(settings(['en', 'en_US'], 'en'))).toEqual(['supported_locales']);
+    expect(names(settings(['en'], '../etc'))).toContain('default_locale');
+  });
+
+  it('refuses a duplicate however it was cased', () => {
+    const coerced = coerceTenantSetting('supported_locales', ['fr', 'FR']);
+    if (coerced.kind !== 'coerced') throw new Error('expected a coerced list');
+    expect(names(settings([...(coerced.value as string[])], 'fr'))).toEqual(['supported_locales']);
+  });
+
+  it('refuses a default that the list does not hold', () => {
+    expect(names(settings(['en', 'fr'], 'de'))).toEqual(['default_locale']);
+  });
+});

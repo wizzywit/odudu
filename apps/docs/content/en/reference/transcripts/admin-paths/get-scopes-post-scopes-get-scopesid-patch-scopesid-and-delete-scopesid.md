@@ -36,8 +36,74 @@ it still carries no script. The text is one string for now; a text per
 locale comes with the translated pages ([the roadmap](../../../roadmap.md#next)). Both travel in the
 tenant document and are amended by `PATCH`.
 
-In `demo` (with `$ADMIN_TOKEN` got as above for its own system administrator),
-with `billing` created and marked as below: a public client `consent-portal`,
+`DELETE` cascades:
+`client_scope_assignments_scope_fk` and `client_scope_roles_scope_fk` both name
+`ON DELETE CASCADE`, not `RESTRICT`, so deleting an assigned, role-mapped
+scope removes it and both dependent rows together rather than refusing —
+**except the scope named `openid`**, refused with `409`: the same cascade
+would strip it from every client's assignment in the tenant in one stroke,
+the built-in admin client's included, which
+`DELETE /scopes/:id/clients/:clientId` below refuses for that one client
+alone. Every other scope stays deletable whatever it is assigned to,
+unless the roles it maps reach an admin capability the caller does not hold
+([a removal is judged by what it removes](./get-groupsidroles-and-put-groupsidroles.md#a-removal-is-judged-by-what-it-removes))
+— a tenant-wide decision, not a per-client one. A **built-in** scope, one every
+tenant is given, is deleted only when `?confirm=` names it again, so a script
+cannot take one by accident, and an ordinary scope needs no confirmation; the
+[built-in scopes page](./get-scopesidimpact-get-scopesbuiltins-and-post-scopesrestore-builtins.md)
+shows the refusal, the confirmation and how to get one back. Every delete's
+audit row carries `builtin` and how many client assignments and role mappings
+it took.
+
+Everything on this page ran in one session on a freshly built stack with `odudu
+seed admin --username ada` run against it and `$ADMIN_TOKEN` got as in [Getting
+the token](./getting-the-token.md). The tenant is `demo`, created first:
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"demo"}' http://localhost:3000/admin/tenants -o /dev/null
+```
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "billing", "include_in_id_token": false}' \
+  http://localhost:3000/admin/tenants/demo/scopes
+```
+
+```
+{"id":"01a1872c-0f50-76e2-826f-b46896955125","name":"billing","description":null,"include_in_id_token":false,"include_in_access_token":true,"default_client_assignment":null,"consent_text":null,"description_i18n":{},"consent_text_i18n":{},"display_order":0,"created_at":"2026-10-29T10:19:34.093Z"}
+```
+
+In `demo`: `billing` given a consent text, a place on the consent screen and a
+client default, then a default that is none of the three values refused by name,
+then a client created afterwards — its `scopes`, narrowed with `jq`, carry
+`billing` as `optional` beside the vocabulary a new tenant marks:
+
+```bash
+BILLING=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "http://localhost:3000/admin/tenants/demo/scopes?name=billing" | jq -r '.items[0].id')
+```
+
+```bash
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"consent_text": "See and pay your invoices", "display_order": 10, "default_client_assignment": "optional"}' \
+  http://localhost:3000/admin/tenants/demo/scopes/$BILLING; echo
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"default_client_assignment": "always"}' \
+  http://localhost:3000/admin/tenants/demo/scopes/$BILLING; echo
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"client_id": "billing-portal", "redirect_uris": ["https://billing.demo.example/callback"]}' \
+  http://localhost:3000/admin/tenants/demo/clients | jq -c '[.scopes[] | {name, assignment}]'
+```
+
+```
+{"id":"01a1872c-0f50-76e2-826f-b46896955125","name":"billing","description":null,"include_in_id_token":false,"include_in_access_token":true,"default_client_assignment":"optional","consent_text":"See and pay your invoices","description_i18n":{},"consent_text_i18n":{},"display_order":10,"created_at":"2026-10-29T10:19:34.093Z"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"default_client_assignment: default_client_assignment must be default, optional or null","errors":[{"path":"default_client_assignment","message":"default_client_assignment must be default, optional or null"}],"instance":"01a1872c-0f84-7232-a72b-d18f75379d8b"}
+[{"name":"openid","assignment":"default"},{"name":"profile","assignment":"default"},{"name":"email","assignment":"default"},{"name":"address","assignment":"default"},{"name":"phone","assignment":"default"},{"name":"roles","assignment":"default"},{"name":"groups","assignment":"default"},{"name":"offline_access","assignment":"optional"},{"name":"billing","assignment":"optional"}]
+```
+
+In `demo`, with `billing` created and marked as above: a public client `consent-portal`,
 named `Consent <Portal>`, made with `consent_required` and given the vocabulary
 — `billing` among it — by `POST /clients`; `profile` given a text and an order;
 `grace` seeded with `odudu seed user`; then a sign-in asking for the four scopes
@@ -48,24 +114,28 @@ their `display_order` of `0` and `5`, the optional pair `offline_access` then
 ```bash
 curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
   -d '{"client_id":"consent-portal","name":"Consent <Portal>","redirect_uris":["https://portal.demo.example/callback"],"token_endpoint_auth_method":"none","consent_required":true}' \
-  http://localhost:3094/admin/tenants/demo/clients > /dev/null
+  http://localhost:3000/admin/tenants/demo/clients > /dev/null
+PROFILE=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "http://localhost:3000/admin/tenants/demo/scopes?name=profile" | jq -r '.items[0].id')
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
   -d '{"consent_text":"Your name & <picture>","display_order":5}' \
-  http://localhost:3094/admin/tenants/demo/scopes/01a137d6-beba-78b4-a54d-34603e6f37fa > /dev/null
+  http://localhost:3000/admin/tenants/demo/scopes/$PROFILE > /dev/null
 docker compose exec -T odudu node dist/main.js seed user --tenant demo \
   --username grace --password 'correct-horse-battery-8c2' > /dev/null
-AUTH_SESSION_ID=$(curl -sS -c jar -b jar \
-  'http://localhost:3094/tenants/demo/protocol/openid-connect/auth?response_type=code&client_id=consent-portal&redirect_uri=https%3A%2F%2Fportal.demo.example%2Fcallback&scope=openid%20billing%20profile%20offline_access&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256' \
+```
+
+```bash
+AUTH_SESSION_ID=$(curl -sS -c consent.jar -b consent.jar \
+  'http://localhost:3000/tenants/demo/protocol/openid-connect/auth?response_type=code&client_id=consent-portal&redirect_uri=https%3A%2F%2Fportal.demo.example%2Fcallback&scope=openid%20billing%20profile%20offline_access&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256' \
   | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p' | head -1)
-curl -sS -D - -c jar -b jar \
+curl -sS -D - -c consent.jar -b consent.jar \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=grace' --data-urlencode 'password=correct-horse-battery-8c2' \
-  http://localhost:3094/tenants/demo/login-actions/authenticate
+  http://localhost:3000/tenants/demo/login-actions/authenticate
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a137da-fe58-7897-8b4c-bcd168243669
+x-request-id: 01a1872c-1278-7130-8b7e-42001f96dec7
 content-type: text/html
 content-security-policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self' https://portal.demo.example; base-uri 'none'
 x-frame-options: DENY
@@ -74,7 +144,7 @@ cache-control: no-store
 x-content-type-options: nosniff
 content-language: en
 content-length: 1596
-Date: Wed, 14 Oct 2026 00:41:01 GMT
+Date: Thu, 29 Oct 2026 10:19:34 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -97,7 +167,7 @@ Keep-Alive: timeout=72
 <p class="tenant"><bdi>demo</bdi></p>
 </header>
 <form method="post" action="/tenants/demo/login-actions/consent">
-  <input type="hidden" name="auth_session_id" value="01a137da-fe1b-73d0-adb7-877a0657f131">
+  <input type="hidden" name="auth_session_id" value="01a1872c-125d-73ac-a52c-a254e4260d7e">
   <ul>
   <li><bdi>openid</bdi></li>
   <li><bdi>Your name &amp; &lt;picture&gt;</bdi></li>
@@ -112,79 +182,31 @@ Keep-Alive: timeout=72
 </html>
 ```
 
-`DELETE` cascades:
-`client_scope_assignments_scope_fk` and `client_scope_roles_scope_fk` both name
-`ON DELETE CASCADE`, not `RESTRICT`, so deleting an assigned, role-mapped
-scope removes it and both dependent rows together rather than refusing —
-**except the scope named `openid`**, refused with `409`: the same cascade
-would strip it from every client's assignment in the tenant in one stroke,
-the built-in admin client's included, which
-`DELETE /scopes/:id/clients/:clientId` below refuses for that one client
-alone. Every other scope stays deletable whatever it is assigned to,
-unless the roles it maps reach an admin capability the caller does not hold
-([a removal is judged by what it removes](./get-groupsidroles-and-put-groupsidroles.md#a-removal-is-judged-by-what-it-removes))
-— a tenant-wide decision, not a per-client one. A **built-in** scope, one every
-tenant is given, is deleted only when `?confirm=` names it again, so a script
-cannot take one by accident, and an ordinary scope needs no confirmation; the
-[built-in scopes page](./get-scopesidimpact-get-scopesbuiltins-and-post-scopesrestore-builtins.md)
-shows the refusal, the confirmation and how to get one back. Every delete's
-audit row carries `builtin` and how many client assignments and role mappings
-it took.
-
-```bash
-curl -sS -X POST \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "billing", "include_in_id_token": false}' \
-  http://localhost:3082/admin/tenants/demo/scopes
-```
-
-In `demo`: `billing` given a consent text, a place on the consent screen and a
-client default, then a default that is none of the three values refused by name,
-then a client created afterwards — its `scopes`, narrowed with `jq`, carry
-`billing` as `optional` beside the vocabulary a new tenant marks:
-
-```
-{"id":"01a109bb-41fa-7343-8d50-a86f9070aefc","name":"billing","description":null,"include_in_id_token":false,"include_in_access_token":true,"default_client_assignment":null,"consent_text":null,"display_order":0,"created_at":"2026-10-05T01:43:49.498Z"}
-```
-
-```bash
-curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-  -d '{"consent_text": "See and pay your invoices", "display_order": 10, "default_client_assignment": "optional"}' \
-  http://localhost:3082/admin/tenants/demo/scopes/01a109bb-41fa-7343-8d50-a86f9070aefc; echo
-curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-  -d '{"default_client_assignment": "always"}' \
-  http://localhost:3082/admin/tenants/demo/scopes/01a109bb-41fa-7343-8d50-a86f9070aefc; echo
-curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-  -d '{"client_id": "billing-portal", "redirect_uris": ["https://billing.demo.example/callback"]}' \
-  http://localhost:3082/admin/tenants/demo/clients | jq -c '[.scopes[] | {name, assignment}]'
-```
-
-```
-{"id":"01a109bb-41fa-7343-8d50-a86f9070aefc","name":"billing","description":null,"include_in_id_token":false,"include_in_access_token":true,"default_client_assignment":"optional","consent_text":"See and pay your invoices","display_order":10,"created_at":"2026-10-05T01:43:49.498Z"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"default_client_assignment: default_client_assignment must be default, optional or null","errors":[{"path":"default_client_assignment","message":"default_client_assignment must be default, optional or null"}],"instance":"01a109bb-4228-7553-8179-293e52c0675f"}
-[{"name":"openid","assignment":"default"},{"name":"profile","assignment":"default"},{"name":"email","assignment":"default"},{"name":"address","assignment":"default"},{"name":"phone","assignment":"default"},{"name":"roles","assignment":"default"},{"name":"groups","assignment":"default"},{"name":"offline_access","assignment":"optional"},{"name":"billing","assignment":"optional"}]
-```
-
 The `openid` guard, against `scope-guard-demo` made for it, on the same
 `openid` scope the built-in admin client section above names:
 
 ```bash
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"scope-guard-demo"}' http://localhost:3000/admin/tenants -o /dev/null
+OPENID=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "http://localhost:3000/admin/tenants/scope-guard-demo/scopes?name=openid" | jq -r '.items[0].id')
+```
+
+```bash
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/scope-guard-demo/scopes/01a0e236-f087-7c6a-946d-7aa6aea279bc
+  http://localhost:3000/admin/tenants/scope-guard-demo/scopes/$OPENID
 ```
 
 ```
 HTTP/1.1 409 Conflict
-x-request-id: 01a0e54e-01a4-7cc2-8360-43e58099b468
+x-request-id: 01a1872c-1318-7bad-ba39-118acd503a78
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 285
-Date: Sun, 27 Sep 2026 23:58:09 GMT
+Date: Thu, 29 Oct 2026 10:19:35 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"openid is deleted along with every client’s assignment of it, this tenant’s built-in admin client’s included, and could lock out every administrator of this tenant","instance":"01a0e54e-01a4-7cc2-8360-43e58099b468"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"openid is deleted along with every client’s assignment of it, this tenant’s built-in admin client’s included, and could lock out every administrator of this tenant","instance":"01a1872c-1318-7bad-ba39-118acd503a78"}
 ```
 
 **Search** is `?name=`, the same prefix match `GET /roles` describes, over
@@ -195,33 +217,34 @@ then a cursor minted under `?name=p` replayed under `?name=o`:
 ```bash
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/demo/scopes?name=O" \
+  "http://localhost:3000/admin/tenants/demo/scopes?name=O" \
   | jq -c '{items: [.items[] | {name}]}'
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/demo/scopes?name=p&limit=1" \
+  "http://localhost:3000/admin/tenants/demo/scopes?name=p&limit=1" \
   | jq -c '{items: [.items[] | {name}], next}'
 ```
 
 ```
 {"items":[{"name":"offline_access"},{"name":"openid"}]}
-{"items":[{"name":"phone"}],"next":"eyJhZnRlciI6IjAxYTBlYTRjLTA4ODgtNzc1MC04MmIxLWQ2YmE1ZGYyMzY2ZCIsInNvcnQiOiJwaG9uZSIsImNvbGxlY3Rpb24iOiJzY29wZXMiLCJ0ZW5hbnRJZCI6IjAxYTBlYTRjLTA4ODQtNzRmYS04MjVjLTA1ZjZlZjU2OGRkMCIsImZpbHRlcnMiOiJBbkY0THhTZFRNWjMxMEJpUjZFN3pGYWFCQ1hDcnZIMGFDVjZ2ZzJRUmg4In0.M9-fRVaU-b71dsUwQwGjmYChfaDZHaQ9OzpoT7XVrFw"}
+{"items":[{"name":"phone"}],"next":"eyJhZnRlciI6IjAxYTE4NzJjLTBmMGItN2NlNC1iOTBhLWI1ZDNlZmM1NjVlMiIsInNvcnQiOiJwaG9uZSIsImNvbGxlY3Rpb24iOiJzY29wZXMiLCJ0ZW5hbnRJZCI6IjAxYTE4NzJjLTBmMDEtN2ZkYS1iZDE4LTM1ZTQxNWE3YzhiMyIsImZpbHRlcnMiOiJBbkY0THhTZFRNWjMxMEJpUjZFN3pGYWFCQ1hDcnZIMGFDVjZ2ZzJRUmg4In0.jXwBP0Ubo9WIakOq3puylBmh8BBRMx-EQY9IHwFU9ss"}
 ```
 
 ```bash
-CURSOR='eyJhZnRlciI6IjAxYTBlYTRjLTA4ODgtNzc1MC04MmIxLWQ2YmE1ZGYyMzY2ZCIsInNvcnQiOiJwaG9uZSIsImNvbGxlY3Rpb24iOiJzY29wZXMiLCJ0ZW5hbnRJZCI6IjAxYTBlYTRjLTA4ODQtNzRmYS04MjVjLTA1ZjZlZjU2OGRkMCIsImZpbHRlcnMiOiJBbkY0THhTZFRNWjMxMEJpUjZFN3pGYWFCQ1hDcnZIMGFDVjZ2ZzJRUmg4In0.M9-fRVaU-b71dsUwQwGjmYChfaDZHaQ9OzpoT7XVrFw'
+CURSOR=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/scopes?name=p&limit=1" | jq -r .next)
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/demo/scopes?limit=1&name=p&cursor=$CURSOR" \
+  "http://localhost:3000/admin/tenants/demo/scopes?limit=1&name=p&cursor=$CURSOR" \
   | jq -c '{items: [.items[] | {name}], next}'
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/demo/scopes?limit=1&name=o&cursor=$CURSOR"
+  "http://localhost:3000/admin/tenants/demo/scopes?limit=1&name=o&cursor=$CURSOR"
 ```
 
 ```
 {"items":[{"name":"profile"}],"next":null}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","errors":[{"path":"cursor","message":"is invalid or expired"}],"instance":"01a0ea5d-4b5b-7152-932f-b01589f6914d"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","errors":[{"path":"cursor","message":"is invalid or expired"}],"instance":"01a1872c-1384-7172-83de-d8fe26e704bc"}
 ```
 
 ## How many a tenant defines
@@ -231,21 +254,32 @@ so it is bounded by the model rather than paged. On `perf-demo`, after `scope-1`
 to `scope-992` (the tenant provisions eight of its own), the next create:
 
 ```bash
+P=http://localhost:3000/admin/tenants/perf-demo
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"perf-demo"}' http://localhost:3000/admin/tenants -o /dev/null
+for i in $(seq 1 992); do
+  curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+    -d "{\"name\":\"scope-$i\"}" "$P/scopes" -o /dev/null
+done
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/scopes?limit=1" -o /dev/null -w '%{http_code}\n'
+```
+
+```bash
 curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H 'content-type: application/json' -d '{"name":"scope-extra"}' "$P/scopes"
 ```
 
 ```
 HTTP/1.1 409 Conflict
-x-request-id: 01a10f80-e222-7bae-bfa8-615be1af2feb
+x-request-id: 01a1872c-873d-7229-862a-8b6d8636b835
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 152
-Date: Tue, 27 Oct 2026 01:39:26 GMT
+Date: Thu, 29 Oct 2026 10:20:04 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"a tenant defines at most 1000 scopes","instance":"01a10f80-e222-7bae-bfa8-615be1af2feb"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"a tenant defines at most 1000 scopes","instance":"01a1872c-873d-7229-862a-8b6d8636b835"}
 ```
 
 ## The most scopes marked for every new client
@@ -258,8 +292,21 @@ between `default` and `optional`, or unmarking one, is not. The count is taken
 under a lock on the tenant's row, as the 1,000-scope limit's is. A tenant import
 that marks more is refused with `400` at `document.scopes`.
 
-Against `scope-limit-docs`, with 192 more marked scopes written by `psql` beside the
-8 the tenant is provisioned with, and `$SID` (`reports:read`) still unmarked:
+Against `scope-limit-docs`, with 192 more marked scopes created through `POST
+/scopes` beside the 8 the tenant is provisioned with, and `$SID` (`reports:read`)
+still unmarked:
+
+```bash
+P=http://localhost:3000/admin/tenants/scope-limit-docs
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"scope-limit-docs"}' http://localhost:3000/admin/tenants -o /dev/null
+for i in $(seq 1 192); do
+  curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+    -d "{\"name\":\"marked-$i\",\"default_client_assignment\":\"optional\"}" "$P/scopes" -o /dev/null
+done
+SID=$(curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"reports:read"}' "$P/scopes" | jq -r .id)
+```
 
 ```bash
 docker compose exec -T postgres psql -U odudu -d odudu -tA -c "select count(*) from client_scopes s join tenants t on t.id = s.tenant_id where t.name = 'scope-limit-docs' and s.default_client_assignment is not null"
@@ -274,23 +321,22 @@ curl -sS -D - -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type:
 200
 t
 HTTP/1.1 409 Conflict
-x-request-id: 01a11266-7e50-7aa7-b1c0-b61c81b5ffaa
+x-request-id: 01a1872c-ba90-7a34-b8e0-40f8ccc705b6
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 167
-Date: Tue, 27 Oct 2026 01:39:33 GMT
+Date: Thu, 29 Oct 2026 10:20:17 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"at most 200 scopes are assigned to every new client","instance":"01a11266-7e50-7aa7-b1c0-b61c81b5ffaa"}
-HTTP/1.1 409 Conflict
-x-request-id: 01a11266-7e68-7325-9085-2fbd3433ea6d
+{"type":"about:blank","title":"Conflict","status":409,"detail":"at most 200 scopes are assigned to every new client","instance":"01a1872c-ba90-7a34-b8e0-40f8ccc705b6"}HTTP/1.1 409 Conflict
+x-request-id: 01a1872c-bae3-78a2-955c-9bc78dcc4732
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 167
-Date: Tue, 27 Oct 2026 01:39:33 GMT
+Date: Thu, 29 Oct 2026 10:20:18 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"at most 200 scopes are assigned to every new client","instance":"01a11266-7e68-7325-9085-2fbd3433ea6d"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"at most 200 scopes are assigned to every new client","instance":"01a1872c-bae3-78a2-955c-9bc78dcc4732"}
 ```

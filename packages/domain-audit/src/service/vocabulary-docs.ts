@@ -110,6 +110,8 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
   'key.delete': 'A retired signing key was deleted.',
   'key.promote': 'A signing key was made the active one.',
   'key.retire': 'A signing key was retired.',
+  'message_override.delete': 'A tenant’s own text for a page message was removed.',
+  'message_override.set': 'A tenant’s own text for a page message was set or changed.',
   'registration_token.mint': 'An initial access token for dynamic client registration was minted.',
   'registration_token.revoke': 'A registration token was revoked.',
   'role.amend': 'A role was amended.',
@@ -153,4 +155,13 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
   'tenant.smtp_delete': 'A tenant’s SMTP relay was removed.',
   'tenant.smtp_set': 'A tenant’s SMTP relay was set.',
   'tenant.smtp_test': 'A test message was sent through a tenant’s SMTP relay.',
+  'theme.asset_deleted': 'An image uploaded for a tenant’s themes was deleted.',
+  'theme.asset_uploaded':
+    'An image was uploaded for a tenant’s themes, including bytes the tenant already stored.',
+  'theme.draft_discarded':
+    'The draft of a tenant’s or a client’s theme was discarded; the published theme stayed.',
+  'theme.draft_saved': 'The draft of a tenant’s or a client’s theme was saved.',
+  'theme.published': 'The draft of a tenant’s or a client’s theme was published.',
+  'theme.reset': 'A tenant’s theme was reset to the default, or a client’s to its tenant’s.',
+  'theme.restored': 'An earlier version of a theme was published again.',
 };

@@ -11,7 +11,14 @@ export type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
 export interface RequestOptions<T> {
   body?: unknown;
+  // A file sent as the body in place of JSON, under its own media type.
+  file?: Blob;
+  // The write carries no If-Match on purpose, as a first write to a resource
+  // that has no ETag yet, so a 428 is the server's answer and not a console defect.
+  withoutTag?: boolean;
   ifMatch?: string;
+  // `*` on a create: the write is refused with 412 if the resource now exists.
+  ifNoneMatch?: string;
   schema: ZodType<T>;
 }
 
@@ -24,9 +31,17 @@ export interface RawBody {
   contentType: string | null;
 }
 
+// A body answered as bytes, for a file the console shows rather than saves,
+// such as an image: reading it as text would damage it.
+export interface RawBytes {
+  bytes: Uint8Array;
+  contentType: string | null;
+}
+
 export interface Gateway {
   request<T>(method: Method, path: string, options: RequestOptions<T>): Promise<GatewayResult<T>>;
   download(method: 'GET', path: string): Promise<GatewayResult<RawBody>>;
+  bytes(method: 'GET', path: string): Promise<GatewayResult<RawBytes>>;
   // The subject this tab shows as signed in, named on every admin request so
   // the gateway refuses one a sign-in in another tab has made somebody else's.
   believe(subjectId: string | null): void;
@@ -40,7 +55,10 @@ export interface GatewayDependencies {
   timeoutMs?: number;
 }
 
-const BASE = '/console/api/';
+// Where the console's own origin answers for the gateway: what a page links
+// to or frames, such as the theme preview, begins here.
+export const GATEWAY_BASE = '/console/api/';
+const BASE = GATEWAY_BASE;
 const ADMIN = 'admin/';
 const SUBJECT_HEADER = 'x-odudu-console-subject';
 const BACKOFF_MS = 250;
@@ -65,6 +83,8 @@ function retriesFor(method: Method, conditional: boolean): { attempts: number; o
 interface Answer {
   response: Response;
   text: string;
+  // Only for a call that asked for bytes.
+  bytes?: Uint8Array;
 }
 
 // Resolved the way the browser will resolve it, so that dot segments in any
@@ -120,14 +140,17 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
 
   // The timeout covers the body as well as the headers, so a response that
   // stalls halfway is a network failure rather than a request that never ends.
-  async function attempt(url: string, init: RequestInit): Promise<Answer | null> {
+  async function attempt(url: string, init: RequestInit, binary: boolean): Promise<Answer | null> {
     const controller = new AbortController();
     const timer = setTimeout(() => {
       controller.abort();
     }, timeoutMs);
     try {
       const response = await fetchResponse(url, { ...init, signal: controller.signal });
-      return { response, text: await response.text() };
+      if (!binary) return { response, text: await response.text() };
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      // A refusal is a problem document and is read as text; a success is not.
+      return { response, text: response.ok ? '' : new TextDecoder().decode(bytes), bytes };
     } catch {
       return null;
     } finally {
@@ -140,10 +163,11 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
     conditional: boolean,
     url: string,
     init: RequestInit,
+    binary: boolean,
   ): Promise<Answer | null> {
     const policy = retriesFor(method, conditional);
     for (let tried = 1; ; tried += 1) {
-      const answer = await attempt(url, init);
+      const answer = await attempt(url, init, binary);
       const retryable =
         answer === null || (policy.onStatus && RETRYABLE_STATUSES.has(answer.response.status));
       if (!retryable || tried >= policy.attempts) return answer;
@@ -156,31 +180,44 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
   async function exchange(
     method: Method,
     path: string,
-    options: { body?: unknown; ifMatch?: string },
+    options: {
+      body?: unknown;
+      file?: Blob;
+      ifMatch?: string;
+      ifNoneMatch?: string;
+      withoutTag?: boolean;
+      binary?: boolean;
+    },
   ): Promise<{ ok: true; answer: Answer; where: string } | GatewayFailure> {
     const url = resolve(path);
     const where = `${method} ${url.pathname.slice(BASE.length)}`;
     const headers = new Headers({ accept: 'application/json' });
     if (method !== 'GET') headers.set('x-odudu-console', '1');
     if (options.ifMatch !== undefined) headers.set('if-match', options.ifMatch);
+    if (options.ifNoneMatch !== undefined) headers.set('if-none-match', options.ifNoneMatch);
     if (believed !== null && path.startsWith(ADMIN)) headers.set(SUBJECT_HEADER, believed);
     const init: RequestInit = { method, headers, credentials: 'same-origin' };
     if (options.body !== undefined) {
       headers.set('content-type', 'application/json');
       init.body = JSON.stringify(options.body);
     }
+    if (options.file !== undefined) {
+      headers.set('content-type', options.file.type);
+      init.body = options.file;
+    }
 
     const answer = await send(
       method,
-      options.ifMatch !== undefined,
+      options.ifMatch !== undefined || options.ifNoneMatch !== undefined,
       `${url.pathname}${url.search}`,
       init,
+      options.binary === true,
     );
     if (answer === null) return { ok: false, kind: 'network' };
     const { response, text } = answer;
 
     if (!response.ok) {
-      if (response.status === 428) {
+      if (response.status === 428 && options.withoutTag !== true) {
         log(`console defect: ${where} answered 428: the server required If-Match`);
         return { ok: false, kind: 'defect' };
       }
@@ -229,6 +266,21 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
         status: response.status,
         data: { text, contentType: response.headers.get('content-type') },
         etag: readEtag(response.headers),
+        next: null,
+      };
+    },
+    async bytes(method, path) {
+      const exchanged = await exchange(method, path, { binary: true });
+      if (!exchanged.ok) return exchanged;
+      const { response, bytes } = exchanged.answer;
+      return {
+        ok: true,
+        status: response.status,
+        data: {
+          bytes: bytes ?? new Uint8Array(),
+          contentType: response.headers.get('content-type'),
+        },
+        etag: null,
         next: null,
       };
     },

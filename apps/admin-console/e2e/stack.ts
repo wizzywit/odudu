@@ -231,6 +231,34 @@ const seededSchema = z.object({
       fixed: account,
       fixedTenantOnly: account,
     }),
+    // One tenant per test that changes its theme, each with its administrator
+    // and an application whose sign-in page it themes.
+    branding: z.object({
+      publish: account,
+      upload: account,
+      contrast: account,
+      reset: account,
+      keyed: account,
+      // Read only: the editors' layout at each width.
+      layout: account,
+      // The Mail tab's frame and the Languages tab's overrides.
+      mail: account,
+      languages: account,
+      // The stylesheet editor: a refusal marked on its line, then a published one.
+      styled: account,
+      // The Pages tab's message picker and the preview's notice.
+      catalogue: account,
+      // A client's own theme over the tenant's, and its name in French.
+      client: account,
+      // The publication bar shared by the tabs: published from Pages, reverted, discarded.
+      publication: account,
+      // The selectors list: a stylesheet saved with what it offered.
+      selectors: account,
+      // Two administrators' sessions editing one message override.
+      conflict: account,
+      // The first-paint call lists of branding-load.spec.ts, which no other spec touches.
+      load: account,
+    }),
     // One tenant per test that reads its mail, each with its outbox seeded.
     mail: z.object({
       main: account,
@@ -299,6 +327,7 @@ const THROTTLED_NAME = `${PROJECT}-throttled`;
 // request, because every other test shares the origin budget of the stack
 // and a throttled page cannot be reached there without starving them.
 export function startThrottledServer(port: number): void {
+  stopThrottledServer();
   compose([
     'run',
     '-d',

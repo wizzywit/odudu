@@ -1,5 +1,6 @@
 import { type PageLocale, type RenderedPage } from '@odudu/kernel';
 import { escapeHtml, intro, page } from '#/view/document';
+import { fillPage } from '#/view/template';
 import { bdi, t, tHtml } from '#/view/messages';
 
 export interface SelectAccountEntry {
@@ -31,14 +32,21 @@ export function renderSelectAccountPage(
   const accountList = input.accounts.map(renderAccount).join('\n  ');
   return page(
     t(locale, 'selectAccount.title'),
-    `${intro(tHtml(locale, 'selectAccount.title'), input.tenant)}
-<form method="post" action="${action}">
-  <input type="hidden" name="auth_session_id" value="${escapeHtml(input.authSessionId)}">
-  ${accountList}
-  <button type="submit" name="use_other" value="1" class="quiet">${tHtml(locale, 'selectAccount.useOther')}</button>
-</form>`,
+    fillPage(
+      'select-account',
+      {
+        intro: intro(tHtml(locale, 'selectAccount.title'), input.tenant),
+        'form.open': `<form method="post" action="${action}">
+  <input type="hidden" name="auth_session_id" value="${escapeHtml(input.authSessionId)}">`,
+        accounts: accountList,
+        'submit.other': `<button type="submit" name="use_other" value="1" class="quiet">${tHtml(locale, 'selectAccount.useOther')}</button>`,
+        'form.close': '</form>',
+      },
+      locale,
+    ),
     null,
     [],
     locale,
+    'select-account',
   );
 }

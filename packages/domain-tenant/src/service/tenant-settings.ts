@@ -1,3 +1,4 @@
+import { canonicalLocale, isValidLocale } from '@odudu/contracts';
 import { TENANT_SETTING_ORDERINGS, TENANT_SETTING_RANGES } from '@odudu/contracts/admin';
 import { type tenants } from '@odudu/db';
 
@@ -60,6 +61,11 @@ const SETTINGS = {
     values: ['admin_mutation', 'admin_access', 'authentication', 'session', 'token', 'credential'],
     required: ['admin_mutation', 'admin_access'],
   },
+  // The tags a tenant's pages are offered in and the one used when a request
+  // names none. Free-form tags rather than a closed set: a tenant may offer a
+  // language through its own message overrides alone.
+  supported_locales: { column: 'supportedLocales', type: 'list', locales: true },
+  default_locale: { column: 'defaultLocale', type: 'text', locales: true },
 } as const satisfies Record<string, TenantSetting>;
 
 interface TenantSetting {
@@ -68,7 +74,12 @@ interface TenantSetting {
   readonly values?: readonly string[];
   /** A list setting's members no value may leave out. */
   readonly required?: readonly string[];
+  /** Language tags: spelled canonically on the way in, judged by `tenantSettingProblems`. */
+  readonly locales?: true;
 }
+
+/** The most languages a tenant's pages are offered in. */
+export const MAX_SUPPORTED_LOCALES = 32;
 
 /** What a setting holds: a list setting is a set of its `values`, in their order. */
 export type TenantSettingValue = boolean | number | string | readonly string[];
@@ -91,7 +102,7 @@ export const TENANT_SETTING_COLUMNS: readonly TenantSettingColumn[] = Object.ent
 );
 
 export type CoerceOutcome =
-  | { kind: 'coerced'; column: TenantColumn; value: TenantSettingValue }
+  | { kind: 'coerced'; column: TenantColumn; value: TenantSettingValue | null }
   | { kind: 'unknown_setting'; known: readonly string[] }
   | {
       kind: 'invalid_value';
@@ -128,6 +139,16 @@ function coerceList(raw: string | readonly string[], values: readonly string[]):
   return values.filter((value) => named.includes(value));
 }
 
+// Every member is spelled canonically when it can be; one that cannot is kept
+// as written, for `tenantSettingProblems` to name.
+function coerceLocaleList(raw: string | readonly string[]): string[] {
+  const members = typeof raw === 'string' ? raw.split(',') : raw;
+  return members
+    .map((member) => member.trim())
+    .filter((member) => member !== '')
+    .map((member) => canonicalLocale(member) ?? member);
+}
+
 /** A list setting's possible members, or null for a setting that is not a list. */
 export function listSettingValues(name: string): readonly string[] | null {
   if (!isSettingName(name)) return null;
@@ -140,6 +161,9 @@ export function coerceTenantSetting(name: string, raw: string | readonly string[
     return { kind: 'unknown_setting', known: TENANT_SETTING_NAMES };
   }
   const setting: TenantSetting = SETTINGS[name];
+  if (setting.type === 'list' && setting.locales === true) {
+    return { kind: 'coerced', column: setting.column, value: coerceLocaleList(raw) };
+  }
   if (setting.type === 'list') {
     const values = setting.values ?? [];
     const list = coerceList(raw, values);
@@ -155,6 +179,14 @@ export function coerceTenantSetting(name: string, raw: string | readonly string[
     if (values !== undefined && !values.includes(raw)) {
       return { kind: 'invalid_value', expected: 'text', values };
     }
+    if (setting.locales === true) {
+      // Empty clears the setting, so the browser's preference decides again.
+      return {
+        kind: 'coerced',
+        column: setting.column,
+        value: raw.trim() === '' ? null : (canonicalLocale(raw.trim()) ?? raw),
+      };
+    }
     return { kind: 'coerced', column: setting.column, value: raw };
   }
   const value = setting.type === 'boolean' ? coerceBoolean(raw) : coerceInteger(raw);
@@ -169,6 +201,43 @@ const INTEGER_CEILING = 2_147_483_647;
 export interface TenantSettingProblem {
   readonly name: TenantSettingName;
   readonly message: string;
+}
+
+function localeProblems(
+  values: Readonly<Partial<Record<string, unknown>>>,
+): TenantSettingProblem[] {
+  const problems: TenantSettingProblem[] = [];
+  const supported = values.supported_locales;
+  const fallback = values.default_locale;
+  if (Array.isArray(supported)) {
+    const tags = supported.filter((tag): tag is string => typeof tag === 'string');
+    if (tags.length === 0 || tags.length > MAX_SUPPORTED_LOCALES) {
+      problems.push({
+        name: 'supported_locales',
+        message: `must hold between 1 and ${String(MAX_SUPPORTED_LOCALES)} language tags`,
+      });
+    }
+    const bad = tags.find((tag) => !isValidLocale(tag));
+    if (bad !== undefined) {
+      problems.push({
+        name: 'supported_locales',
+        message: `${JSON.stringify(bad.slice(0, 40))} is not a language tag such as fr or zh-Hant-TW`,
+      });
+    } else if (new Set(tags.map((tag) => tag.toLowerCase())).size !== tags.length) {
+      problems.push({ name: 'supported_locales', message: 'names a language tag twice' });
+    }
+  }
+  if (typeof fallback === 'string') {
+    if (!isValidLocale(fallback)) {
+      problems.push({
+        name: 'default_locale',
+        message: 'must be a language tag such as fr or zh-Hant-TW',
+      });
+    } else if (Array.isArray(supported) && !supported.includes(fallback)) {
+      problems.push({ name: 'default_locale', message: 'must be one of supported_locales' });
+    }
+  }
+  return problems;
 }
 
 /**
@@ -203,6 +272,7 @@ export function tenantSettingProblems(
       });
     }
   }
+  problems.push(...localeProblems(values));
   for (const [lower, upper] of TENANT_SETTING_ORDERINGS) {
     if (!isSettingName(lower)) continue;
     const low = values[lower];

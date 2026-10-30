@@ -21,6 +21,7 @@ Signing keys
 Sessions
 Tenant
 Settings
+Branding
 Email
 Export
 Observe
@@ -68,6 +69,16 @@ Test message
 Sends one message through the saved relay and tells what the server answered.
 Send to
 Send test message
+Send as client
+1 selected
+Search
+Odudu administration
+odudu-admin · confidential
+my-app
+my-app · public
+The message wears the tenant’s published theme. Choose a client to send the mail its sign-in would send: its theme over the tenant’s.
+Sent as Odudu administration, the client you signed in with.
+Use the tenant’s own look
 Save a relay of this tenant’s own first: the test sends through the saved one.
 Delivery
 The latest mail this tenant has sent or tried to send, most recent first. A message is failed once every attempt is spent. Never its body, which carries a link that signs somebody in.

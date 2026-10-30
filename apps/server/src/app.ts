@@ -16,6 +16,17 @@ import {
   type MailGate,
 } from '@odudu/account';
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import { createBranding, type Branding } from '#/branding';
+import { createMailLook } from '#/mail-look';
+import { createDatabaseMessageOverrides, type MessageOverrides } from '#/message-overrides';
+import {
+  isOverridableMessageKey,
+  isThemeMessageKey,
+  overrideProblemFor,
+  pageMessageCatalogue,
+} from '#/theme-message-keys';
+import { THEME_PREVIEW_PAGES } from '#/theme-preview-pages';
+import { brandRoutes, frameworkError } from '#/brand-routes';
 import { requiredActionRepository } from '@odudu/authn-flows';
 import { consoleGateway } from '@odudu/console-gateway';
 import { instrumentRoutes } from '@odudu/instrument';
@@ -90,6 +101,10 @@ export interface AppDeps {
    */
   readonly kek: Uint8Array;
   readonly logger: PinoLogger;
+  // How pages get their theme; a test passes its own. Defaults to the
+  // process's resolver over `database`.
+  readonly branding?: Branding;
+  readonly messageOverrides?: MessageOverrides;
   /**
    * The base a mailed verification link is built from, and the only source
    * of the WebAuthn relying party id — never derived from a request, since
@@ -275,6 +290,7 @@ const THROTTLED_POSTS: ReadonlySet<string> = new Set([
   '/admin/tenants/:tenant/subjects/:id/password-reset',
   '/admin/tenants/:tenant/subjects/:id/verification',
   '/admin/tenants/:tenant/subjects/:id/actions-email',
+  '/admin/tenants/:tenant/smtp/test',
 ]);
 
 // The composition-root half of self-registration: @odudu/account never
@@ -348,6 +364,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     loggerInstance: deps.logger,
     genReqId: () => newId(),
     requestIdHeader: 'x-request-id',
+    frameworkErrors: frameworkError,
     trustProxy: deps.trustProxy ?? false,
   });
 
@@ -375,7 +392,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   };
   app.setNotFoundHandler((request, reply) => answerNotFound(request, reply, unrouted));
   app.setErrorHandler<FastifyError>((error, request, reply) =>
-    answerServerError(error, request, reply, unrouted),
+    answerServerError(error, request, reply),
   );
 
   const throttle: RateLimiter = slidingWindow({
@@ -458,6 +475,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   registerHealth(app, deps);
   app.register(instrumentRoutes(deps.instrumentDir ?? DEFAULT_INSTRUMENT_DIR));
+  app.register(
+    brandRoutes({
+      database: deps.database,
+      ownerDatabase: deps.ownerDatabase,
+      publicBaseUrl: deps.publicBaseUrl,
+    }),
+  );
   if (deps.docsDir !== undefined) app.register(docsRoutes(deps.docsDir));
   if (deps.consoleBaseUrl !== undefined) {
     if (deps.consoleKeys === undefined) throw missingConsoleKey();
@@ -474,8 +498,38 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       }),
     );
   }
+  // One cache for the process, shared by the pages that read a theme and the
+  // admin routes that change one, so a publish reaches the next render here.
+  const branding =
+    deps.branding ??
+    createBranding({
+      database: deps.database,
+      logger: deps.logger,
+      publicBaseUrl: deps.publicBaseUrl,
+    });
+  const mailLook = createMailLook({
+    theme: branding.resolveMailBranding,
+    log: ({ tenantId, what, error }) => {
+      deps.logger.warn(
+        { tenantId, what, error },
+        'mail was queued without the tenant’s theme or wording, the defaults are used',
+      );
+    },
+  });
+  const messageOverrides =
+    deps.messageOverrides ??
+    createDatabaseMessageOverrides({ database: deps.database, logger: deps.logger });
   app.register(
     adminRoutes({
+      invalidateTheme: branding.invalidateTenant,
+      isThemeMessageKey,
+      messageCatalogue: pageMessageCatalogue,
+      messageOverrides: {
+        isKnownKey: isOverridableMessageKey,
+        messageProblem: overrideProblemFor,
+        invalidate: messageOverrides.invalidateTenant,
+      },
+      themePreviewPages: THEME_PREVIEW_PAGES,
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
       logger: deps.logger,
@@ -490,12 +544,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       outboxMaxAttempts: deps.outboxMaxAttempts ?? DEFAULT_OUTBOX_MAX_ATTEMPTS,
       retireResetLinks: (tx, subjectId) =>
         actionTokenRepository(tx).invalidateOutstandingPasswordLinks(subjectId),
+      resolveMailLook: mailLook,
       sendAccountLink: async (tx, request) => {
         if (deps.publicBaseUrl === undefined) return 'unavailable';
         const tenant = {
           ...request,
           issuerBase: deps.publicBaseUrl,
           now: () => systemClock.now(),
+          resolveMailLook: mailLook,
         };
         if (request.kind === 'reset_password') await enqueueResetLink(tx, tenant, request);
         else if (request.kind === 'verify_email')
@@ -507,6 +563,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   );
   app.register(
     oidcRoutes({
+      resolveBranding: branding.resolveBranding,
+      resolveOverrides: messageOverrides.resolveOverrides,
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,
@@ -531,7 +589,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const findHeldSignIn = findHeldSignInIn(deps.database, tls);
   const mailGate = deps.mailGate ?? createMailGate(() => systemClock.now());
 
+  const themed = {
+    resolveBranding: branding.resolveBranding,
+    resolveMailLook: mailLook,
+    resolveOverrides: messageOverrides.resolveOverrides,
+    isClientOfTenant: branding.isClientOfTenant,
+  };
+
   registerActionTokenRoute(app, {
+    ...themed,
     database: deps.database,
     findHeldSignIn,
     now: () => systemClock.now(),
@@ -601,6 +667,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   registerRegistrationRoute(app, {
+    ...themed,
     database: deps.database,
     findHeldSignIn,
     findTenant: (name) => tenantSettingsRepository(deps.ownerDatabase.db).byName(name),
@@ -616,6 +683,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   registerResetPasswordRoute(app, {
+    ...themed,
     database: deps.database,
     findHeldSignIn,
     findTenant: (name) => tenantSettingsRepository(deps.ownerDatabase.db).byName(name),

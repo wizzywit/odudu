@@ -9,8 +9,18 @@ import { traceFixture, tracing } from './trace';
 // 401 anywhere else is a failure unless its test calls `forgive`.
 function expectedRefusal(text: string, url: string): boolean {
   return (
-    text.startsWith('Failed to load resource: the server responded with a status of 401') &&
-    new URL(url).pathname === '/console/api/session'
+    (text.startsWith('Failed to load resource: the server responded with a status of 401') &&
+      new URL(url).pathname === '/console/api/session') ||
+    isSandboxedPreview(text)
+  );
+}
+
+// The theme and mail previews are framed with no script allowed, so the browser refuses
+// the script this harness puts in every frame it finds, and says so. That is
+// the harness's own script, and the frame is meant to refuse scripts.
+function isSandboxedPreview(text: string): boolean {
+  return /^Blocked script execution in '[^']*\/(?:theme|mail)\/preview\?[^']*' because the document's frame is sandboxed/u.test(
+    text,
   );
 }
 
@@ -61,7 +71,13 @@ export function forgive(problems: Problem[], path: string): void {
 
 export { expect };
 
+// What a page waits for an answer the server works out (a subject's claims, a
+// list read under load), where the default 5 s of an expectation is what a
+// loaded runner can overrun while the server is well.
+export const SERVER_COMPUTED = 15_000;
+
 export const PHONE = { width: 390, height: 844 };
+export const LAPTOP = { width: 1440, height: 900 };
 
 // Presses Tab until `target` has focus; fails once `limit` presses have not
 // reached it, which is how a page that makes its controls hard to reach is caught.
@@ -163,7 +179,15 @@ const ALWAYS_OFF = ['label-content-name-mismatch'];
 // it is passed; everything else still runs.
 export async function expectAccessible(
   page: Page,
-  { disable = [] }: { readonly disable?: readonly string[] } = {},
+  {
+    disable = [],
+    exclude = [],
+  }: {
+    readonly disable?: readonly string[];
+    // Selectors left out of the scan: a frame's own document is another page's,
+    // and one with no script allowed cannot be scanned.
+    readonly exclude?: readonly string[];
+  } = {},
 ): Promise<void> {
   const chosen = await page.evaluate(() => document.documentElement.dataset.theme ?? null);
   const found: string[] = [];
@@ -173,10 +197,11 @@ export async function expectAccessible(
       if (theme === null) delete document.documentElement.dataset.theme;
       else document.documentElement.dataset.theme = theme;
     }, override);
-    const result = await new AxeBuilder({ page })
+    const builder = new AxeBuilder({ page })
       .withTags(WCAG_22_AA)
-      .disableRules([...ALWAYS_OFF, ...disable])
-      .analyze();
+      .disableRules([...ALWAYS_OFF, ...disable]);
+    for (const selector of exclude) builder.exclude(selector);
+    const result = await builder.analyze();
     const ran = [...result.passes, ...result.violations, ...result.incomplete];
     if (!ran.some((rule) => rule.id === 'color-contrast')) {
       found.push(`${scheme}/${override ?? 'system'} color-contrast did not run`);
@@ -205,6 +230,12 @@ export async function signIn(page: Page, account: Account): Promise<void> {
   await page.goto(`/console/${account.tenant}`);
   await signInAtTenant(page, account);
   await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
+}
+
+// The console's own client skips the confirmation, so signing out ends the
+// session at once and the person lands on the sign-in page.
+export async function expectSignedOut(page: Page): Promise<void> {
+  await expect(page.getByRole('heading', { level: 1, name: 'Sign in' })).toBeVisible();
 }
 
 export async function sessionTenant(page: Page): Promise<string | null> {

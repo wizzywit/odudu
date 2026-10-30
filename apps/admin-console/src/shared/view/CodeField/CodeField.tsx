@@ -1,0 +1,399 @@
+import {
+  createContext,
+  Fragment,
+  use,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
+import { TextArea, TextField as AriaTextField } from 'react-aria-components';
+import {
+  caretAt,
+  gutterParts,
+  highlight,
+  indentEdit,
+  insertEdit,
+  keyStep,
+  lineCount,
+  lineLabel,
+  markedLines,
+  normalisedBreaks,
+  PLAIN_NOTE,
+  scrollTarget,
+  TAB_LEAD,
+  TAB_THEN,
+  tokensByLine,
+  WRAP_LABEL,
+  WRAP_NOTE,
+  type CodeLanguage,
+  type CodeToken,
+  type LineIssue,
+  type TokenKind,
+} from '#/shared/service/code';
+import {
+  Description,
+  FieldsReadOnly,
+  Header,
+  invalid,
+  Message,
+  VALIDATION,
+  type Chrome,
+} from '#/shared/view/Field';
+import { useCodeHistory } from '#/shared/usecase/useCodeHistory';
+import { useContainerNarrow } from '#/shared/usecase/useContainerNarrow';
+import { Button } from '#/shared/view/Button';
+import { KeyHint } from '#/shared/view/KeyHint';
+import type { SizeReading } from '#/shared/service/format';
+import styles from '#/shared/view/CodeField/CodeField.module.css';
+
+const TOKEN_CLASS: Readonly<Record<TokenKind, string | undefined>> = {
+  plain: undefined,
+  value: undefined,
+  comment: styles.comment,
+  keyword: styles.keyword,
+  function: styles.keyword,
+  selector: styles.selector,
+  property: styles.property,
+  tag: styles.property,
+  string: styles.string,
+  number: styles.number,
+  attribute: styles.number,
+  part: styles.part,
+};
+
+function Token({ token }: { token: CodeToken }) {
+  const className = TOKEN_CLASS[token.kind];
+  return className === undefined ? token.text : <span className={className}>{token.text}</span>;
+}
+
+// The colour drawn behind the text of the field, line by line. Every line
+// ends in a break, so the last one holds its height as the field's does.
+function Layer({ tokens, marked }: { tokens: readonly CodeToken[]; marked: ReadonlySet<number> }) {
+  return (
+    <pre className={styles.layer} aria-hidden="true">
+      {tokensByLine(tokens).map((line, index) => (
+        <Fragment key={index}>
+          <span className={styles.line} data-marked={marked.has(index + 1) || undefined}>
+            {line.map((token, at) => (
+              <Token key={`${String(at)}:${token.kind}`} token={token} />
+            ))}
+          </span>
+          {'\n'}
+        </Fragment>
+      ))}
+    </pre>
+  );
+}
+
+function Gutter({ count, marked }: { count: number; marked: readonly number[] }) {
+  return (
+    <div className={styles.gutter} aria-hidden="true">
+      {gutterParts(count, marked).map((part, index) =>
+        part.marked ? (
+          <span key={`m${String(index)}`} className={styles.marked}>
+            {part.text}
+          </span>
+        ) : (
+          part.text
+        ),
+      )}
+    </div>
+  );
+}
+
+// What `tools` call to type at the caret of the field they sit in: one step
+// of its history, with focus returned to it.
+export const CodeInsert = createContext<(text: string) => void>(() => undefined);
+
+const FALLBACK_TAB_WIDTH = 8;
+const PROBE_LENGTH = 20;
+
+// How wide one character is where the text is drawn, measured with a hidden
+// run of them set in the same face.
+function characterWidth(scroller: HTMLElement): number {
+  const probe = document.createElement('span');
+  probe.className = styles.probe ?? '';
+  probe.textContent = '0'.repeat(PROBE_LENGTH);
+  scroller.append(probe);
+  const width = probe.getBoundingClientRect().width / PROBE_LENGTH;
+  probe.remove();
+  return width;
+}
+
+// The row the caret is on once lines wrap, which a count of lines of text
+// cannot say: the text up to the caret is laid out again, hidden, in a box of
+// the textarea's width and face, and the row is where its end falls.
+function wrappedRow(area: HTMLTextAreaElement, lineHeight: number): number {
+  const stage = area.parentElement;
+  if (stage === null) return 0;
+  const mirror = document.createElement('div');
+  mirror.className = styles.mirror ?? '';
+  mirror.append(area.value.slice(0, area.selectionEnd));
+  const mark = document.createElement('span');
+  mark.dataset.caret = '';
+  mark.textContent = '\u200b';
+  mirror.append(mark);
+  stage.append(mirror);
+  const top = mark.offsetTop;
+  mirror.remove();
+  return top / lineHeight;
+}
+
+// After the field set the caret from code, in a field whose lines wrap: brings
+// the row the caret is on into view, in the scroller or, beyond the colouring
+// limit, in the textarea, which scrolls itself there.
+function revealWrapped(area: HTMLTextAreaElement): void {
+  const plain = area.closest('[data-plain]') !== null;
+  const scroller = plain ? area : area.closest('[data-code-scroller]');
+  const style = getComputedStyle(area);
+  const lineHeight = Number.parseFloat(style.lineHeight);
+  if (!(scroller instanceof HTMLElement) || !Number.isFinite(lineHeight)) return;
+  const frame = scroller.getBoundingClientRect();
+  const box = area.getBoundingClientRect();
+  const target = scrollTarget(
+    { line: wrappedRow(area, lineHeight), column: 0 },
+    {
+      lineHeight,
+      charWidth: 1,
+      originX: 0,
+      // The row's offset already counts the padding above the text.
+      originY: plain ? 0 : box.top - frame.top + scroller.scrollTop,
+      inset: 0,
+    },
+    {
+      scrollTop: scroller.scrollTop,
+      scrollLeft: scroller.scrollLeft,
+      clientHeight: scroller.clientHeight,
+      clientWidth: scroller.clientWidth,
+    },
+  );
+  if (target.top !== null) scroller.scrollTop = target.top;
+}
+
+// After the field set the caret from code, which does not scroll to it:
+// brings it into view in whatever scrolls, the layer's scroller or, beyond
+// the colouring limit, the textarea itself.
+function reveal(area: HTMLTextAreaElement): void {
+  if (area.closest('[data-wrap]') !== null) {
+    revealWrapped(area);
+    return;
+  }
+  const plain = area.closest('[data-plain]') !== null;
+  const scroller = plain ? area : area.closest('[data-code-scroller]');
+  const style = getComputedStyle(area);
+  const lineHeight = Number.parseFloat(style.lineHeight);
+  if (!(scroller instanceof HTMLElement) || !Number.isFinite(lineHeight)) return;
+  const charWidth = characterWidth(plain ? (area.parentElement ?? area) : scroller);
+  if (!(charWidth > 0)) return;
+  const frame = scroller.getBoundingClientRect();
+  const box = area.getBoundingClientRect();
+  const offsetX = plain ? 0 : box.left - frame.left + scroller.scrollLeft;
+  const offsetY = plain ? 0 : box.top - frame.top + scroller.scrollTop;
+  const tabWidth = Number.parseInt(style.tabSize, 10);
+  const target = scrollTarget(
+    caretAt(
+      area.value,
+      area.selectionEnd,
+      Number.isFinite(tabWidth) ? tabWidth : FALLBACK_TAB_WIDTH,
+    ),
+    {
+      lineHeight,
+      charWidth,
+      originX: offsetX + Number.parseFloat(style.paddingLeft),
+      originY: offsetY + Number.parseFloat(style.paddingTop),
+      inset: offsetX,
+    },
+    {
+      scrollTop: scroller.scrollTop,
+      scrollLeft: scroller.scrollLeft,
+      clientHeight: scroller.clientHeight,
+      clientWidth: scroller.clientWidth,
+    },
+  );
+  if (target.top !== null) scroller.scrollTop = target.top;
+  if (target.left !== null) scroller.scrollLeft = target.left;
+}
+
+// A text field for code: the textarea is the control, with a coloured copy
+// of its text behind it and line numbers beside it. Tab indents; Escape then
+// Tab leaves. Where the server refused a line, that line carries a mark and
+// the reason is listed under the field.
+export function CodeField({
+  label,
+  description,
+  error,
+  changed,
+  isDisabled,
+  language,
+  value,
+  onChange,
+  size,
+  issues = [],
+  tools,
+  wrap,
+}: Chrome & {
+  language: CodeLanguage;
+  value: string;
+  onChange: (value: string) => void;
+  size?: SizeReading;
+  issues?: readonly LineIssue[];
+  // Controls drawn above the field that put text into it through
+  // `CodeInsert`. Not drawn for a read-only field.
+  tools?: ReactNode;
+  // Whether lines wrap, held by a page that remounts the field for another
+  // text so the choice is kept; on its own the field remembers it.
+  wrap?: { on: boolean; toggle: () => void };
+}) {
+  const issuesId = useId();
+  const readOnly = use(FieldsReadOnly);
+  const escaped = useRef(false);
+  const refocus = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(
+    () => () => {
+      clearTimeout(refocus.current);
+    },
+    [],
+  );
+  const inert = readOnly || (isDisabled ?? false);
+  const [own, setOwn] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  // Wide, there is no switch and lines never wrap, whatever it was left at.
+  const narrow = useContainerNarrow(root);
+  const pressed = wrap?.on ?? own;
+  const wrapped = narrow && pressed;
+  const toggleWrap =
+    wrap?.toggle ??
+    ((): void => {
+      setOwn((was) => !was);
+    });
+  const [areaRef, history] = useCodeHistory({ value, onChange, readOnly, moved: reveal });
+  const { tokens, plain } = highlight(language, value);
+  const count = lineCount(normalisedBreaks(value));
+  const marks = markedLines(issues, count);
+
+  const insert = (text: string): void => {
+    const area = areaRef.current;
+    if (area === null || inert) return;
+    history.replace(insertEdit(area.value, area.selectionStart, area.selectionEnd, text));
+    // After the control that chose the text has put its own focus back.
+    clearTimeout(refocus.current);
+    refocus.current = setTimeout(() => {
+      area.focus();
+    }, 0);
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (readOnly) return;
+    const press = {
+      key: event.key,
+      code: event.code,
+      shiftKey: event.shiftKey,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+      altKey: event.altKey,
+      composing: event.nativeEvent.isComposing || history.composing(),
+    };
+    if (history.keyed(press, event)) return;
+    const step = keyStep(press, escaped.current);
+    escaped.current = step.escaped;
+    if (step.action === 'none') return;
+    event.preventDefault();
+    const area = event.currentTarget;
+    const edit = indentEdit(
+      area.value,
+      area.selectionStart,
+      area.selectionEnd,
+      step.action === 'outdent',
+    );
+    if (edit !== null) history.replace(edit);
+  };
+
+  return (
+    <div ref={root} className={styles.root}>
+      {tools === undefined || inert ? null : <CodeInsert value={insert}>{tools}</CodeInsert>}
+      <AriaTextField
+        {...VALIDATION}
+        {...invalid(error)}
+        isDisabled={isDisabled ?? false}
+        isReadOnly={readOnly}
+        value={value}
+        onChange={history.change}
+        autoComplete="off"
+        className={styles.field ?? ''}
+        data-changed={changed === true || undefined}
+        {...(issues.length === 0 ? {} : { 'aria-describedby': issuesId })}
+      >
+        <Header label={label} {...(changed === undefined ? {} : { changed })} />
+        <div className={styles.wrap}>
+          <Button
+            size="small"
+            variant={pressed ? 'primary' : 'secondary'}
+            aria-pressed={pressed}
+            onPress={toggleWrap}
+          >
+            {WRAP_LABEL}
+          </Button>
+          {wrapped ? <span className={styles.wrapNote}>{WRAP_NOTE}</span> : null}
+        </div>
+        <div
+          className={styles.frame}
+          data-plain={plain || undefined}
+          data-wrap={wrapped || undefined}
+        >
+          <div className={styles.scroller} data-code-scroller>
+            {plain ? null : <Gutter count={count} marked={marks} />}
+            <div className={styles.stage}>
+              {plain ? null : <Layer tokens={tokens} marked={new Set(marks)} />}
+              <TextArea
+                ref={areaRef}
+                className={styles.area ?? ''}
+                data-control
+                wrap={wrapped ? 'soft' : 'off'}
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                onKeyDown={onKeyDown}
+                onPointerDown={() => {
+                  escaped.current = false;
+                }}
+                onCompositionStart={history.compositionStart}
+                onCompositionEnd={history.compositionEnd}
+                onBlur={() => {
+                  escaped.current = false;
+                }}
+              />
+            </div>
+          </div>
+        </div>
+        <Description>
+          {description === undefined ? null : <>{description} </>}
+          <span className={styles.hint}>
+            <KeyHint lead={TAB_LEAD} keys={['Escape']} /> <KeyHint lead={TAB_THEN} keys={['Tab']} />
+          </span>
+          {plain ? <span>{PLAIN_NOTE}</span> : null}
+          {size === undefined ? null : (
+            <span className={styles.size} data-over={size.over || undefined}>
+              {size.text}
+            </span>
+          )}
+        </Description>
+        {issues.length === 0 ? null : (
+          <ul id={issuesId} className={styles.issues}>
+            {issues.map((issue, index) => (
+              <li key={`${String(issue.line)}:${String(index)}`}>
+                <span aria-hidden="true" className={styles.bang}>
+                  !{' '}
+                </span>
+                {lineLabel(issue)}
+              </li>
+            ))}
+          </ul>
+        )}
+        <Message error={error} />
+      </AriaTextField>
+    </div>
+  );
+}

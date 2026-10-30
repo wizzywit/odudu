@@ -1,3 +1,4 @@
+import { C, CLIENTS } from '#/testing/clientsFixtures';
 import { json, type Answer } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 import { graceRoutes } from '#/testing/renderConsole';
@@ -53,6 +54,8 @@ export const SETTINGS = {
     'token',
     'credential',
   ],
+  supported_locales: ['en'],
+  default_locale: null,
 };
 
 export function settingsAnswer(changes: Record<string, unknown> = {}, etag = '"s1"'): Answer {
@@ -125,6 +128,7 @@ export function emailRoutes(
     {
       [`GET ${SM}`]: smtpAnswer(),
       [`GET ${MAIL}`]: json({ items: [] }),
+      [`GET ${C}`]: json({ items: CLIENTS }),
     },
     extra,
   );

@@ -82,12 +82,12 @@ describe('the information architecture', () => {
     expect(links.slice(start + 1, start + 1 + journeys.length)).toEqual(journeys);
   });
 
-  it('opens the concepts to their seven pages, in order', () => {
+  it('opens the concepts to their eight pages, in order', () => {
     const links = sidebarLinks('concepts/index.html');
     const start = links.indexOf(`${PAGES_DOCS_BASE}concepts/`);
     expect(
       links
-        .slice(start + 1, start + 8)
+        .slice(start + 1, start + 9)
         .map((href) => href.slice(`${PAGES_DOCS_BASE}concepts/`.length)),
     ).toEqual([
       'tenants/',
@@ -97,15 +97,16 @@ describe('the information architecture', () => {
       'sessions/',
       'tokens/',
       'consent-and-audit/',
+      'branding/',
     ]);
   });
 
-  it('opens the admin console to the tour and its fifteen areas, in order', () => {
+  it('opens the admin console to the tour and its seventeen pages, in order', () => {
     const links = sidebarLinks('admin-console/index.html');
     const start = links.indexOf(`${PAGES_DOCS_BASE}admin-console/`);
     expect(
       links
-        .slice(start + 1, start + 17)
+        .slice(start + 1, start + 19)
         .map((href) => href.slice(`${PAGES_DOCS_BASE}admin-console/`.length)),
     ).toEqual([
       'tour/',
@@ -114,12 +115,14 @@ describe('the information architecture', () => {
       'groups/',
       'roles/',
       'clients/',
+      'client-branding/',
       'scopes/',
       'registration-tokens/',
       'sign-in-flow/',
       'signing-keys/',
       'sessions/',
       'settings/',
+      'branding/',
       'email/',
       'audit-trail/',
       'tenants/',

@@ -6,7 +6,7 @@ import { TENANT_CAPABILITIES } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
-import { putSmtp as putSmtpUsecase, type SmtpAuditEvent } from '#/usecase/smtp';
+import { putSmtp as putSmtpUsecase, readSmtpForTest, type SmtpAuditEvent } from '#/usecase/smtp';
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -281,6 +281,74 @@ describe('PUT /admin/tenants/{t}/smtp requires TLS wherever it authenticates', (
   });
 });
 
+describe('what the test mail is read with', () => {
+  it('asks the look resolver inside the tenant transaction and carries its wording and the tenant’s languages', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    await putSmtp(token, t.name, {
+      host: 'smtp.example.test',
+      port: 587,
+      from_address: 'noreply@example.test',
+    });
+    const asked: string[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      readSmtpForTest(tx, { tenantId: t.id, tenantName: t.name }, (_tx, scope) => {
+        asked.push(scope.tenantId);
+        return Promise.resolve({
+          branding: null,
+          overrides: { en: { 'smtpTest.heading': 'Ours' } },
+        });
+      }),
+    );
+    expect(asked).toEqual([t.id]);
+    if (outcome.kind !== 'ok') throw new Error('expected a configured relay');
+    expect(outcome.wording).toEqual({
+      branding: null,
+      overrides: { en: { 'smtpTest.heading': 'Ours' } },
+      tenantDefaultLocale: null,
+      supportedLocales: ['en'],
+    });
+  });
+
+  it('is the catalogue’s wording when the resolver rejects, and when there is none', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    await putSmtp(token, t.name, {
+      host: 'smtp.example.test',
+      port: 587,
+      from_address: 'noreply@example.test',
+    });
+    for (const resolve of [() => Promise.reject(new Error('down')), undefined]) {
+      const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+        readSmtpForTest(tx, { tenantId: t.id, tenantName: t.name }, resolve),
+      );
+      if (outcome.kind !== 'ok') throw new Error('expected a configured relay');
+      expect(outcome.wording.overrides).toEqual({});
+    }
+  });
+});
+
+describe('POST /admin/tenants/{t}/smtp/test, the recipient', () => {
+  it.each([
+    ['a list', 'a@x.test, b@y.test'],
+    ['a semicolon list', 'a@x.test;b@y.test'],
+    ['a smuggled header', 'a@x.test\r\nBcc: b@y.test'],
+    ['a display name', 'Ada <a@x.test>'],
+    ['not an address', 'ada'],
+    ['too long', `${'a'.repeat(250)}@x.test`],
+  ])(
+    'refuses %s with 400 for a caller who may send it, and 401 for one who is not known',
+    async (_why, to) => {
+      const t = await fixture.createTenant(`acme-${newId()}`);
+      const token = await fixture.adminToken(t.name, ['manage-tenant']);
+      expect((await testSmtp(token, t.name, to)).statusCode).toBe(400);
+      // A body is checked only for a caller already authenticated for the route,
+      // so a stranger learns nothing about what a recipient may look like.
+      expect((await testSmtp('not-a-token', t.name, to)).statusCode).toBe(401);
+    },
+  );
+});
+
 describe('POST /admin/tenants/{t}/smtp/test', () => {
   it('will not connect to a loopback host, so it cannot probe this server', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
@@ -334,6 +402,80 @@ describe('POST /admin/tenants/{t}/smtp/test', () => {
     const res = await testSmtp(token, t.name, 'ops@example.test');
 
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('POST /admin/tenants/{t}/smtp/test, with a client chosen', () => {
+  async function relayed(tenantToken: string, name: string) {
+    // A loopback relay is refused only after the look has been read, so a
+    // 400 here means the client was accepted and the mail reached the send.
+    await putSmtp(tenantToken, name, {
+      host: '127.0.0.1',
+      port: 5432,
+      from_address: 'noreply@example.test',
+    });
+  }
+
+  async function clientOf(name: string): Promise<string> {
+    const token = await fixture.adminToken(name, ['manage-clients']);
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${name}/clients`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { client_id: `app-${newId()}`, redirect_uris: ['https://app.example/cb'] },
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    return res.json<{ id: string }>().id;
+  }
+
+  function withClient(token: string, name: string, client: string) {
+    return fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${name}/smtp/test`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { to: 'ops@example.test', client_id: client },
+    });
+  }
+
+  it('is accepted for a client the tenant holds, by a caller who also manages clients', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const both = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+    await relayed(both, t.name);
+    const res = await withClient(both, t.name, await clientOf(t.name));
+    expect(res.statusCode, res.body).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toMatch(/loopback/u);
+  });
+
+  it('answers a missing client and another tenant’s client with the same 404, bar the request’s own instance', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const other = await fixture.createTenant(`other-${newId()}`);
+    const both = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+    await relayed(both, t.name);
+    const foreign = await withClient(both, t.name, await clientOf(other.name));
+    const missing = await withClient(both, t.name, newId());
+    expect(foreign.statusCode).toBe(404);
+    expect(missing.statusCode).toBe(404);
+    const bare = (body: string): string => body.replace(/"instance":"[^"]*"/u, '');
+    expect(bare(foreign.body)).toBe(bare(missing.body));
+  });
+
+  it('refuses an id that is not a row id with 400 before the database, whoever asks', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const both = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+    await relayed(both, t.name);
+    const res = await withClient(both, t.name, 'odudu-admin');
+    expect(res.statusCode, res.body).toBe(400);
+    expect(res.body).toContain('client_id');
+  });
+
+  it('needs manage-clients as well: manage-tenant alone is refused with 403', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const tenantOnly = await fixture.adminToken(t.name, ['manage-tenant']);
+    await relayed(tenantOnly, t.name);
+    const client = await clientOf(t.name);
+    expect((await withClient(tenantOnly, t.name, client)).statusCode).toBe(403);
+    expect((await withClient(tenantOnly, t.name, newId())).statusCode).toBe(403);
+    expect((await testSmtp(tenantOnly, t.name, 'ops@example.test')).statusCode).toBe(400);
   });
 });
 

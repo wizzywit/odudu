@@ -24,6 +24,7 @@ Signing keys
 Sessions
 Tenant
 Settings
+Branding
 Email
 Export
 Observe

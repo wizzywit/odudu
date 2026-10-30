@@ -88,6 +88,9 @@ export async function provisionAdminClient(
       type: options.confidential === true ? 'confidential' : 'public',
       secretHash: null,
       builtinAdmin: true,
+      // The console's ID token is held server side and its sign-out is a
+      // click in an authenticated page (ADR 0047).
+      skipLogoutConfirmation: true,
     });
     // Without the tenant's standard vocabulary /authorize refuses `openid`,
     // which it defaults the requested scope to, on this client's very first

@@ -63,9 +63,9 @@ The Overview answers two questions, whether anything needs your attention and ho
 The menu on the left is the whole console. It groups the areas by what you are trying to do.
 
 - **IDENTITY** holds the people: [Subjects](./subjects.mdx), [Groups](./groups.mdx) and [Roles](./roles.mdx).
-- **APPLICATIONS** holds what signs them in: [Clients](./clients.mdx), [Scopes](./scopes.mdx) and [Registration tokens](./registration-tokens.mdx).
+- **APPLICATIONS** holds what signs them in: [Clients](./clients.mdx) (whose **Branding** tab is [Client branding](./client-branding.mdx)), [Scopes](./scopes.mdx) and [Registration tokens](./registration-tokens.mdx).
 - **SECURITY** holds how they are checked: [Sign-in flow](./sign-in-flow.mdx), [Signing keys](./signing-keys.mdx) and [Sessions](./sessions.mdx).
-- **TENANT** holds the tenant itself: [Settings](./settings.mdx), [Email](./email.mdx) and Export, which is on the [Tenants](./tenants.mdx) page.
+- **TENANT** holds the tenant itself: [Settings](./settings.mdx), [Branding](./branding.mdx), [Email](./email.mdx) and Export, which is on the [Tenants](./tenants.mdx) page.
 - **OBSERVE** holds the record: [Audit trail](./audit-trail.mdx).
 
 The menu lists only the areas you may read, so an administrator with fewer capabilities sees a shorter menu. An address to an area you may not read still opens, and says which capability it needs. Each page of this section names that capability.
@@ -96,7 +96,7 @@ The [Audit trail](./audit-trail.mdx) page shows how to filter it and export it.
 
 ## 8. Sign out
 
-Choose **Sign out** at the bottom of the menu, beside the name you are signed in as. The console revokes the refresh token it held for you, clears its cookie and sends you to the tenant's own sign-out page.
+Choose **Sign out** at the bottom of the menu, beside the name you are signed in as. The console revokes the refresh token it held for you, clears its cookie and ends your sign-in with the tenant too, and you arrive at the sign-in page. The console's own client skips the sign-out confirmation, so nothing asks first.
 
 ## If a page stops working
 

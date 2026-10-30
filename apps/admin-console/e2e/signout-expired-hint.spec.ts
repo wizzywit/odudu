@@ -1,14 +1,13 @@
 import { randomBytes } from 'node:crypto';
-import { expect, signInAtTenant, test } from './fixtures';
+import { expectSignedOut, expect, signInAtTenant, test } from './fixtures';
 import { psql, seed } from './stack';
+import { randomPassword } from './password';
 
 const LIFETIME_SECONDS = 3;
 
-test('signing out after the ID token has expired is immediate, with no confirmation page', async ({
-  page,
-}) => {
+test('signing out after the ID token has expired still signs out at once', async ({ page }) => {
   const tenant = `lapsed-${randomBytes(4).toString('hex')}`;
-  const password = randomBytes(18).toString('base64url');
+  const password = randomPassword();
   seed(['tenant', '--name', tenant]);
   seed(['user', '--tenant', tenant, '--username', 'ada', `--password=${password}`]);
   seed([
@@ -33,6 +32,5 @@ test('signing out after the ID token has expired is immediate, with no confirmat
   await expect.poll(() => Date.now() - signedInAt).toBeGreaterThan(LIFETIME_SECONDS * 1000 + 500);
 
   await page.getByRole('button', { name: 'Sign out' }).first().click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Sign in' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Sign out?' })).toBeHidden();
+  await expectSignedOut(page);
 });

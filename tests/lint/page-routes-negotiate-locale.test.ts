@@ -83,7 +83,11 @@ describe('every route that renders a page passes the negotiated locale', () => {
         calls += 1;
         const open = match.index + match[0].length - 1;
         const args = text.slice(open + 1, closing(text, open));
-        if (!/\blocale\b|requestLocale\(|negotiatePageLocale\(/u.test(lastArgument(args))) {
+        if (
+          !/\blocale\b|brandedRequestLocale\(|requestLocale\(|negotiatePageLocale\(/u.test(
+            lastArgument(args),
+          )
+        ) {
           const line = text.slice(0, match.index).split('\n').length.toString();
           offences.push(`${file}:${line} ${name}`);
         }
@@ -131,5 +135,82 @@ describe('every negotiation of a page locale carries the theme', () => {
     }
     expect(negotiating).toBeGreaterThanOrEqual(4);
     expect(offences).toEqual([]);
+  });
+});
+
+// A themeable page asks for its theme through the one branding step. The
+// unbranded builders are named at every call site: only the pages with no
+// tenant in scope and the three helpers that wrap them may call one.
+const NO_TENANT_ROUTES = new Set([
+  'packages/protocol-oidc/src/view/routes/throttled.ts',
+  'packages/protocol-oidc/src/view/routes/unrouted.ts',
+]);
+const LOCALE_BUILDERS = new Set([
+  'packages/protocol-oidc/src/view/routes/continuation.ts',
+  'packages/protocol-oidc/src/view/routes/expired-sign-in.ts',
+  'packages/account/src/view/request-locale.ts',
+]);
+const UNBRANDED_LOCALE = /(?<![\w.])(?:requestLocale|negotiatePageLocale)\(/gu;
+
+// Each call site of an unbranded builder outside the exempt files, and, for
+// a helper that builds one, whether it also asks for a theme.
+export function unbrandedSites(file: string, text: string): string[] {
+  const code = text.replace(/\/\/.*$/gmu, '');
+  if (NO_TENANT_ROUTES.has(file)) return [];
+  if (LOCALE_BUILDERS.has(file)) {
+    return /(?<![\w.])brandLocale\(/u.test(code)
+      ? []
+      : [`${file} builds a page locale but never calls brandLocale`];
+  }
+  return [...code.matchAll(UNBRANDED_LOCALE)].map(
+    (match) =>
+      `${file}:${String(code.slice(0, match.index).split('\n').length)} ${match[0]} is an unbranded page locale`,
+  );
+}
+
+describe('every page locale a route builds can carry a theme', () => {
+  it('names each call site of an unbranded builder', () => {
+    const route = 'packages/protocol-oidc/src/view/routes/authorize.ts';
+    const mixed =
+      'const a = await brandedRequestLocale(deps, reply, t);\nconst b = requestLocale(reply, deps);';
+    expect(unbrandedSites(route, mixed)).toEqual([
+      `${route}:2 requestLocale( is an unbranded page locale`,
+    ]);
+    expect(unbrandedSites(route, 'const l = negotiatePageLocale({});')).toHaveLength(1);
+    expect(unbrandedSites(route, 'const l = await brandedLocale(request, deps, tenant);')).toEqual(
+      [],
+    );
+    expect(
+      unbrandedSites(
+        'packages/protocol-oidc/src/view/routes/throttled.ts',
+        'render(requestLocale(reply))',
+      ),
+    ).toEqual([]);
+    expect(
+      unbrandedSites('packages/account/src/view/request-locale.ts', 'negotiatePageLocale({})'),
+    ).toHaveLength(1);
+  });
+
+  it('holds for every route of the packages that render tenant pages', async () => {
+    const routes = [
+      ...(await files('packages/protocol-oidc/src/view/routes/*.ts')),
+      ...(await files('packages/account/src/view/routes/*.ts')),
+      ...(await files('packages/account/src/view/*.ts')),
+    ];
+    expect(routes.length).toBeGreaterThan(15);
+    const offences: string[] = [];
+    for (const file of routes) {
+      offences.push(...unbrandedSites(file, await readFile(path.join(REPO_ROOT, file), 'utf8')));
+    }
+    expect(offences).toEqual([]);
+  });
+
+  it('keeps no unbranded locale helper in the account package', async () => {
+    const text = await readFile(
+      path.join(REPO_ROOT, 'packages/account/src/view/request-locale.ts'),
+      'utf8',
+    );
+    expect(text).not.toMatch(/export function requestLocale\(/u);
+    expect(text).toMatch(/export async function brandedLocale\(/u);
   });
 });

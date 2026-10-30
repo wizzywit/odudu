@@ -1,0 +1,16 @@
+.tab {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+/* Narrow, the bar above the tabs offers this in its menu. */
+.revert {
+  display: contents;
+}
+
+@container workspace (inline-size < 48rem) {
+  .revert {
+    display: none;
+  }
+}

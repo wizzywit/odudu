@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { Browser, Page } from '@playwright/test';
+import type { Browser, BrowserContext, Page } from '@playwright/test';
 import {
   expect,
   expectAccessible,
@@ -14,6 +14,7 @@ import {
   takeSecret,
   PHONE,
   expectNowhere,
+  SERVER_COMPUTED,
 } from './fixtures';
 import {
   psql,
@@ -606,7 +607,9 @@ test("a client's installation is shown, and its claims are worked out for a subj
   await evaluate.getByRole('button', { name: 'Search' }).click();
   await evaluate.getByRole('option', { name: new RegExp(admin.username, 'u') }).click();
   await evaluate.getByRole('button', { name: 'Evaluate claims' }).click();
-  await expect(evaluate.getByText(/^Claims for openid/u)).toBeVisible();
+  await expect(evaluate.getByText(/^Claims for openid/u)).toBeVisible({
+    timeout: SERVER_COMPUTED,
+  });
   await expect(
     evaluate.getByRole('region', { name: 'What the app gets in the ID token' }),
   ).toContainText('"sub"');
@@ -621,6 +624,7 @@ test("a client's installation is shown, and its claims are worked out for a subj
 
 interface Application {
   readonly callback: string;
+  readonly bye: string;
   close(): Promise<void>;
 }
 
@@ -633,7 +637,9 @@ async function application(clientKey: string): Promise<Application> {
     response.end('<!doctype html><title>Callback</title><h1>Callback</h1>');
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const callback = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}/callback`;
+  const origin = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
+  const callback = `${origin}/callback`;
+  const bye = `${origin}/bye`;
   seed([
     'client',
     '--tenant',
@@ -643,9 +649,12 @@ async function application(clientKey: string): Promise<Application> {
     '--public',
     '--redirect-uri',
     callback,
+    '--post-logout-redirect-uri',
+    bye,
   ]);
   return {
     callback,
+    bye,
     close: () =>
       new Promise<void>((resolve) => {
         server.close(() => {
@@ -657,45 +666,56 @@ async function application(clientKey: string): Promise<Application> {
 
 // A person signing in through a public client, as its application would send
 // them: a code, redeemed for the grant and the session the client's tabs list.
+// The browser context keeps the session; the caller closes it.
+async function signedInThrough(
+  browser: Browser,
+  account: Account,
+  clientKey: string,
+  callback: string,
+): Promise<{ context: BrowserContext; page: Page; idToken: string }> {
+  const verifier = randomBytes(32).toString('base64url');
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const query = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientKey,
+    redirect_uri: callback,
+    scope: 'openid',
+    state: 'kept',
+    code_challenge: createHash('sha256').update(verifier).digest('base64url'),
+    code_challenge_method: 'S256',
+  });
+  await page.goto(`/tenants/${account.tenant}/protocol/openid-connect/auth?${query.toString()}`);
+  await signInAtTenant(page, account);
+  await page.waitForURL((url) => url.href.startsWith(callback));
+  const code = new URL(page.url()).searchParams.get('code') ?? '';
+  const redeemed = await page.request.post(
+    `/tenants/${account.tenant}/protocol/openid-connect/token`,
+    {
+      form: {
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: callback,
+        client_id: clientKey,
+        code_verifier: verifier,
+      },
+    },
+  );
+  expect(redeemed.status()).toBe(200);
+  const body: unknown = await redeemed.json();
+  const idToken =
+    typeof body === 'object' && body !== null && 'id_token' in body ? String(body.id_token) : '';
+  return { context, page, idToken };
+}
+
 async function signInThrough(
   browser: Browser,
   account: Account,
   clientKey: string,
   callback: string,
 ): Promise<void> {
-  const verifier = randomBytes(32).toString('base64url');
-  const context = await browser.newContext();
-  try {
-    const page = await context.newPage();
-    const query = new URLSearchParams({
-      response_type: 'code',
-      client_id: clientKey,
-      redirect_uri: callback,
-      scope: 'openid',
-      state: 'kept',
-      code_challenge: createHash('sha256').update(verifier).digest('base64url'),
-      code_challenge_method: 'S256',
-    });
-    await page.goto(`/tenants/${account.tenant}/protocol/openid-connect/auth?${query.toString()}`);
-    await signInAtTenant(page, account);
-    await page.waitForURL((url) => url.href.startsWith(callback));
-    const code = new URL(page.url()).searchParams.get('code') ?? '';
-    const redeemed = await page.request.post(
-      `/tenants/${account.tenant}/protocol/openid-connect/token`,
-      {
-        form: {
-          grant_type: 'authorization_code',
-          code,
-          redirect_uri: callback,
-          client_id: clientKey,
-          code_verifier: verifier,
-        },
-      },
-    );
-    expect(redeemed.status()).toBe(200);
-  } finally {
-    await context.close();
-  }
+  const { context } = await signedInThrough(browser, account, clientKey, callback);
+  await context.close();
 }
 
 function liveGrants(clientKey: string): string {
@@ -990,3 +1010,69 @@ for (const { tab, ready } of PHONE_TABS) {
     }
   });
 }
+
+test("a client's sign-out confirmation is skipped once the toggle is on, and asked again once it is off", async ({
+  page,
+  browser,
+}) => {
+  const app = await application('skipper');
+  try {
+    await signIn(page, admin);
+    await openClient(page, 'skipper', 'logout');
+    const section = page.getByRole('region', { name: 'Sign-out confirmation' });
+    const toggle = section.getByRole('switch', { name: 'Skip the sign-out confirmation' });
+    await expect(toggle).not.toBeChecked();
+    await expect(section.getByText(/^Off: the person is always asked/u)).toBeVisible();
+    await expect(section.getByText(/even an expired one, can sign its users out/u)).toBeVisible();
+    await expectAccessible(page);
+
+    await toggle.focus();
+    await page.keyboard.press('Space');
+    await expect(toggle).toBeChecked();
+    await expect(section.getByText(/^On: signing out with this/u)).toBeVisible();
+    await section.getByRole('button', { name: 'Save Sign-out confirmation' }).click();
+    await expect.poll(() => clientColumn('skipper', 'skip_logout_confirmation')).toBe('true');
+
+    const signOutUrl = (idToken: string): string =>
+      `/tenants/${TENANT}/protocol/openid-connect/logout?${new URLSearchParams({
+        id_token_hint: idToken,
+        client_id: 'skipper',
+        post_logout_redirect_uri: app.bye,
+        state: 'bye',
+      }).toString()}`;
+
+    const skipping = await signedInThrough(browser, admin, 'skipper', app.callback);
+    try {
+      await skipping.page.goto(signOutUrl(skipping.idToken));
+      expect(skipping.page.url()).toBe(`${app.bye}?state=bye`);
+    } finally {
+      await skipping.context.close();
+    }
+
+    await toggle.focus();
+    await page.keyboard.press('Space');
+    await expect(toggle).not.toBeChecked();
+    await section.getByRole('button', { name: 'Save Sign-out confirmation' }).click();
+    await expect.poll(() => clientColumn('skipper', 'skip_logout_confirmation')).toBe('false');
+
+    const asking = await signedInThrough(browser, admin, 'skipper', app.callback);
+    try {
+      await asking.page.goto(signOutUrl(asking.idToken));
+      await expect(asking.page.getByRole('heading', { level: 1, name: 'Sign out?' })).toBeVisible();
+    } finally {
+      await asking.context.close();
+    }
+  } finally {
+    await app.close();
+  }
+});
+
+test("the built-in admin client's toggle is on and not editable", async ({ page }) => {
+  await signIn(page, admin);
+  await openClient(page, 'odudu-admin', 'logout');
+  const section = page.getByRole('region', { name: 'Sign-out confirmation' });
+  await expect(section.getByText(/odudu-admin always signs out at once/u)).toBeVisible();
+  await expect(section.getByRole('switch')).toHaveCount(0);
+  await expect(section.getByText('On', { exact: true })).toBeVisible();
+  await expectAccessible(page);
+});

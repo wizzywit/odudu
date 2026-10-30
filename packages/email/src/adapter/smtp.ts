@@ -75,11 +75,13 @@ export interface MailOptions {
   readonly subject: string;
   readonly text: string;
   readonly html: string;
+  readonly headers: Readonly<Record<string, string>>;
   readonly attachments: NonNullable<ReturnType<typeof markAttachment>>[];
 }
 
-// The sending address is the one configured, as it always was; the only thing
-// added to a message is the mark its markup refers to.
+// The sending address is the one configured, as it always was; a message
+// gains the mark its markup refers to and RFC 3834's Auto-Submitted, so an
+// autoresponder never answers a verification, reset, notice or test mail.
 export function mailOptions(config: SmtpConfig, message: EmailMessage): MailOptions {
   const mark = markAttachment(message.html);
   return {
@@ -88,6 +90,7 @@ export function mailOptions(config: SmtpConfig, message: EmailMessage): MailOpti
     subject: message.subject,
     text: message.text,
     html: message.html,
+    headers: { 'Auto-Submitted': 'auto-generated' },
     attachments: mark === null ? [] : [mark],
   };
 }

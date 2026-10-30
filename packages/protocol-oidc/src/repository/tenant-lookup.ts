@@ -42,6 +42,11 @@ export interface TenantLookup {
   // and 'token' both advertise the endpoint and differ only in whether an
   // initial access token is required (ADR 0026).
   clientRegistrationPolicy: 'disabled' | 'open' | 'token';
+  // The languages the tenant's pages are offered in and, when it has set one,
+  // the one used ahead of the browser's preference; discovery advertises the
+  // list as `ui_locales_supported`.
+  supportedLocales: string[];
+  defaultLocale: string | null;
   // What the new-password pages tell a person about the password they
   // choose; the same row the lookup already reads.
   passwordRules: PasswordRules;
@@ -67,6 +72,8 @@ const LOOKUP_COLUMNS = {
   resetPasswordAllowed: tenants.resetPasswordAllowed,
   maxSessionsPerBrowser: tenants.maxSessionsPerBrowser,
   clientRegistrationPolicy: tenants.clientRegistrationPolicy,
+  supportedLocales: tenants.supportedLocales,
+  defaultLocale: tenants.defaultLocale,
   passwordMinLength: tenants.passwordMinLength,
   passwordRequireDigit: tenants.passwordRequireDigit,
   passwordRequireUppercase: tenants.passwordRequireUppercase,
@@ -75,7 +82,9 @@ const LOOKUP_COLUMNS = {
 };
 
 type LookupRow = {
-  [K in keyof typeof LOOKUP_COLUMNS]: (typeof LOOKUP_COLUMNS)[K]['_']['data'];
+  [K in keyof typeof LOOKUP_COLUMNS]: (typeof LOOKUP_COLUMNS)[K]['_']['notNull'] extends true
+    ? (typeof LOOKUP_COLUMNS)[K]['_']['data']
+    : (typeof LOOKUP_COLUMNS)[K]['_']['data'] | null;
 };
 
 function lookupOf(row: LookupRow): TenantLookup {

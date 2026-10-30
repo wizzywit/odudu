@@ -38,6 +38,64 @@ it('shows the name and creation as fixed, and saves a description on the ETag', 
   });
 });
 
+it('translates the description into the languages the tenant offers, and sends the map whole', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    scopeRoutes(undefined, {
+      [`GET ${SC}/s-bill`]: json(
+        { ...BILLING_SCOPE, description_i18n: { de: 'Rechnungen' } },
+        200,
+        {
+          etag: '"s-bill-1"',
+        },
+      ),
+      [`PATCH ${SC}/s-bill`]: json(BILLING_SCOPE, 200, { etag: '"s-bill-2"' }),
+    }),
+  );
+  const section = await screen.findByRole('region', { name: 'Description' });
+  const group = within(section).getByRole('group', { name: 'Description by language' });
+  await user.click(await within(group).findByRole('tab', { name: 'French (fr)' }));
+  expect(
+    within(group)
+      .getAllByRole('tab')
+      .map((tab) => tab.textContent),
+  ).toEqual(['English (en)', 'French (fr)', 'German (de)']);
+  await user.type(
+    within(group).getByRole('textbox', { name: 'Translation into French (fr)' }),
+    'Factures',
+  );
+  await user.click(within(section).getByRole('button', { name: 'Save Description' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({
+      description_i18n: { de: 'Rechnungen', fr: 'Factures' },
+    });
+  });
+});
+
+it('translates the consent text on its own, in the consent section', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    scopeRoutes(undefined, {
+      [`PATCH ${SC}/s-bill`]: json(BILLING_SCOPE, 200, { etag: '"s-bill-2"' }),
+    }),
+  );
+  const section = await screen.findByRole('region', { name: 'Consent' });
+  const group = within(section).getByRole('group', { name: 'Consent text by language' });
+  await user.click(await within(group).findByRole('tab', { name: 'German (de)' }));
+  await user.type(
+    within(group).getByRole('textbox', { name: 'Translation into German (de)' }),
+    'Rechnungen lesen',
+  );
+  await user.click(within(section).getByRole('button', { name: 'Save Consent' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({
+      consent_text_i18n: { de: 'Rechnungen lesen' },
+    });
+  });
+});
+
 it('saves a second time on the ETag the first save answered', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(

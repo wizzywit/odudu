@@ -4,6 +4,8 @@ import { loadDocument, loadSource, tableWithHeadings } from './markdown.js';
 const PAGE = 'apps/docs/content/en/roadmap.md';
 const SPEC = 'docs/superpowers/specs/2026-09-10-odudu-design.md';
 const RELEASE = 'P4g';
+// Closed after the release row in the table, which is in execution order.
+const SHIPPED_AFTER_RELEASE = ['P4b'];
 
 // What the roadmap table orders: every phase before the release is closed, the
 // release is this one, and the rest are ahead.
@@ -12,7 +14,14 @@ function phases(): { closed: string[]; ahead: string[] } {
   const all = table.rows.map((row) => row[0] ?? '').filter((cell) => /^P\d+[a-z]?$/u.test(cell));
   const at = all.indexOf(RELEASE);
   if (at === -1) throw new Error(`${SPEC} has no ${RELEASE} row`);
-  return { closed: all.slice(0, at), ahead: all.slice(at + 1) };
+  const after = all.slice(at + 1);
+  return {
+    closed: [
+      ...all.slice(0, at),
+      ...after.filter((phase) => SHIPPED_AFTER_RELEASE.includes(phase)),
+    ],
+    ahead: after.filter((phase) => !SHIPPED_AFTER_RELEASE.includes(phase)),
+  };
 }
 
 function items(heading: string): string[] {
@@ -69,9 +78,7 @@ describe('the roadmap page', () => {
     expect(logout).not.toMatch(
       /decision\.redirectTo === null\s*\?\s*await frontChannelLogoutUrls/u,
     );
-    expect(logout).toMatch(
-      /await frontChannelLogoutUrls\(deps, tenant\.id, issuer, session\.id\)/u,
-    );
+    expect(logout).toMatch(/await frontChannelLogoutUrls\(deps, tenantId, issuer, session\.id\)/u);
     const roadmap = prose();
     expect(roadmap).toMatch(/frames are shown on every logout/u);
     expect(roadmap).toMatch(/sent there once the frames have loaded/u);
@@ -123,7 +130,6 @@ describe('the roadmap page', () => {
     ['`resource`', 'decision'],
     ['recovery codes', 'P4f'],
     ['other sessions', 'P4f'],
-    ['plain built-in HTML', 'P4b'],
     ['CIBA', 'P5'],
     ['device authorization grant', 'P13'],
     ['password credentials grant', 'decision'],
@@ -156,7 +162,7 @@ describe('the roadmap page', () => {
     ['several sign-in flows', 'P4f'],
     ['per-step authenticator configuration', 'P4f'],
     ['a breached-password check', 'P4f'],
-    ['translated pages and mail', 'P4b'],
+    ['a public address of its own', 'P4j'],
     ['custom subject attributes', 'P7'],
     ['fine-grained admin permissions', 'P9'],
     ['per-client dedicated mappers', 'P10'],
@@ -165,6 +171,7 @@ describe('the roadmap page', () => {
     ['client registration policies', 'P13'],
     ['admin impersonation', 'P13'],
     ['hosted layer', 'ADR 0042'],
+    ['Liquid-style template logic', 'a user asks'],
   ];
 
   it.each(PLACED)(

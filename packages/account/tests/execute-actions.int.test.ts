@@ -84,7 +84,6 @@ beforeAll(async () => {
       owed.push({ subjectId, actions });
       return Promise.resolve();
     },
-    pageLocales: ['en', 'fr'],
   });
   await http.ready();
 }, 120_000);
@@ -105,7 +104,12 @@ interface Seeded {
 async function seed(resetPasswordAllowed: boolean): Promise<Seeded> {
   const tenantId = newId();
   const tenantName = `actions-${tenantId.slice(-12)}`;
-  await owner.db.insert(tenants).values({ id: tenantId, name: tenantName, resetPasswordAllowed });
+  await owner.db.insert(tenants).values({
+    id: tenantId,
+    name: tenantName,
+    resetPasswordAllowed,
+    supportedLocales: ['en', 'fr'],
+  });
   const subjectId = await withTenant(app.db, tenantId, async (tx) => {
     const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
     await userRepository(tx).create({

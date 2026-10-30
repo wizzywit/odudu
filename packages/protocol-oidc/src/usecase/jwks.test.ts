@@ -39,6 +39,8 @@ describe('resolveJwks', () => {
             resetPasswordAllowed: false,
             maxSessionsPerBrowser: 25,
             clientRegistrationPolicy: 'disabled',
+            supportedLocales: ['en'],
+            defaultLocale: null,
             passwordRules: PASSWORD_RULES,
           }),
         listPublishableKeys: () => {
@@ -70,6 +72,8 @@ describe('resolveJwks', () => {
             resetPasswordAllowed: false,
             maxSessionsPerBrowser: 25,
             clientRegistrationPolicy: 'disabled',
+            supportedLocales: ['en'],
+            defaultLocale: null,
             passwordRules: PASSWORD_RULES,
           }),
         listPublishableKeys: () => Promise.resolve([{ kid: 'a', alg: 'RS256', publicJwk }]),

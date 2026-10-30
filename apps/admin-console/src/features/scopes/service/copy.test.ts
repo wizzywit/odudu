@@ -28,6 +28,8 @@ const SCOPE = {
   include_in_access_token: false,
   default_client_assignment: 'optional' as const,
   consent_text: 'Read invoices',
+  description_i18n: {},
+  consent_text_i18n: {},
   display_order: 4,
   created_at: '2026-09-28T08:41:53.858Z',
 };
@@ -67,6 +69,24 @@ describe('copying a scope', () => {
       default_client_assignment: 'optional',
       display_order: 4,
     });
+  });
+
+  it('carries the translations of the description and the consent text', () => {
+    const translated = {
+      ...SCOPE,
+      description_i18n: { fr: 'Factures' },
+      consent_text_i18n: { fr: 'Lire les factures', de: 'Rechnungen lesen' },
+    };
+    expect(copyBody(translated, 'Edited')).toMatchObject({
+      description: 'Edited',
+      description_i18n: { fr: 'Factures' },
+      consent_text_i18n: { fr: 'Lire les factures', de: 'Rechnungen lesen' },
+    });
+  });
+
+  it('leaves a map nobody filled out of the copy', () => {
+    expect(copyBody(SCOPE, 'd')).not.toHaveProperty('description_i18n');
+    expect(copyBody(SCOPE, 'd')).not.toHaveProperty('consent_text_i18n');
   });
 
   it('sends a plain scope as its name and description, a copy as the source with them', () => {

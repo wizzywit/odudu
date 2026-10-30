@@ -9,6 +9,7 @@ import {
   users,
   type LoginFailureRecord,
 } from '@odudu/domain-identity';
+import { type MailLookResolver } from '@odudu/email';
 import { eq } from 'drizzle-orm';
 import { enqueueCredentialNotice } from '#/usecase/credential-notice';
 import {
@@ -43,6 +44,12 @@ export interface AccountRecoveryInput {
 
 export interface AccountRecoveryDeps {
   readonly audit: Audit;
+  /**
+   * Themes the notice mail the way the tenant's pages are. Optional here so the
+   * usecase runs without a theme store; its route deps require it, so no route
+   * queues a notice without one.
+   */
+  readonly resolveMailLook?: MailLookResolver | undefined;
 }
 
 export interface IssuePasswordDeps extends AccountRecoveryDeps {
@@ -217,7 +224,12 @@ export async function revokeRecoveryCodes(
     detail: { revoked, new_set_required: newSet },
   });
   if (revoked > 0) {
-    await enqueueCredentialNotice(tx, input, { kind: 'recovery_codes_revoked', newSet });
+    await enqueueCredentialNotice(
+      tx,
+      input,
+      { kind: 'recovery_codes_revoked', newSet },
+      deps.resolveMailLook,
+    );
   }
 
   return { kind: 'revoked' };

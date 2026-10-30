@@ -1,5 +1,6 @@
 import { isAuditInstant, listAuditQuerySchema } from '@odudu/contracts/admin';
 import type { Choice } from '#/shared/service/choice';
+import { shortened } from '#/shared/service/format';
 
 export const FILTER_NAMES = [
   'event_type',
@@ -47,7 +48,7 @@ const SHAPE = listAuditQuerySchema.shape;
 const SHOWN_LENGTH = 40;
 
 function shown(value: string): string {
-  return value.length > SHOWN_LENGTH ? `${value.slice(0, SHOWN_LENGTH)}…` : value;
+  return shortened(value, SHOWN_LENGTH);
 }
 
 function ignoredText(name: FilterName, value: string): string {

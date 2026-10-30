@@ -17,7 +17,6 @@ export {
 } from '#/features/tenants/service/export';
 export {
   omittedOf,
-  fileSize,
   importFileProblem,
   type ParsedDocument,
   parseDocument,

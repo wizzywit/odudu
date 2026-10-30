@@ -1,5 +1,5 @@
-import { BIDI_REFUSED_MESSAGE, refusesBidi } from '@odudu/contracts';
-import { CONSENT_TEXT_MAX } from '@odudu/contracts/admin';
+import { BIDI_REFUSED_MESSAGE, checkLocalisedText, refusesBidi } from '@odudu/contracts';
+import { CONSENT_TEXT_MAX, DESCRIPTION_MAX } from '@odudu/contracts/admin';
 
 export type Checked<T> = { kind: 'ok'; value: T } | { kind: 'invalid'; message: string };
 
@@ -28,4 +28,25 @@ export function checkDisplayOrder(value: unknown): Checked<number> {
     value <= INTEGER_CEILING
     ? { kind: 'ok', value }
     : { kind: 'invalid', message: 'display_order must be an integer of at least 0' };
+}
+
+export type ScopeLocalisedField = 'description_i18n' | 'consent_text_i18n';
+
+/**
+ * A scope's per-language text, each value held to its base column's limit
+ * (the consent text's CHECK; the description's own bound) and, when the
+ * tenant's languages are known, each language to one of them.
+ */
+export function checkScopeLocalised(
+  field: ScopeLocalisedField,
+  value: unknown,
+  options: { supported?: readonly string[]; current?: Readonly<Record<string, string>> },
+): Checked<Record<string, string>> {
+  const checked = checkLocalisedText(field, value, {
+    max: field === 'consent_text_i18n' ? CONSENT_TEXT_MAX : DESCRIPTION_MAX,
+    ...options,
+  });
+  return checked.kind === 'ok'
+    ? { kind: 'ok', value: checked.value }
+    : { kind: 'invalid', message: checked.message };
 }

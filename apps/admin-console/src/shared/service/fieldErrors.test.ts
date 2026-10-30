@@ -24,6 +24,25 @@ it('places each structured error under the field its path names', () => {
   ).toEqual({
     fields: { name: 'must not be empty', access_token_ttl: 'must be at least 60' },
     other: [],
+    refusals: {
+      name: [{ path: 'name', message: 'must not be empty' }],
+      access_token_ttl: [{ path: 'access_token_ttl', message: 'must be at least 60' }],
+    },
+  });
+});
+
+it('keeps the line, column and code of a refusal, under the field it belongs to', () => {
+  const error = {
+    path: 'stylesheet',
+    message: 'The property is not allowed.',
+    code: 'property-not-allowed',
+    detail: 'behavior',
+    line: 2,
+    column: 3,
+  };
+  const other = { path: 'elsewhere', message: 'x', line: 1 };
+  expect(fieldErrorsOf({ errors: [error, other] }, ['stylesheet']).refusals).toEqual({
+    stylesheet: [error],
   });
 });
 
@@ -56,7 +75,7 @@ it('trusts `errors` over `detail` when both are present', () => {
       { detail: 'name: is taken', errors: [{ path: 'enabled', message: 'is fixed' }] },
       FIELDS,
     ),
-  ).toEqual({ fields: {}, other: ['enabled: is fixed'] });
+  ).toEqual({ fields: {}, other: ['enabled: is fixed'], refusals: {} });
 });
 
 it('reads `field: reason` from `detail` only when no `errors` came', () => {
@@ -65,6 +84,10 @@ it('reads `field: reason` from `detail` only when no `errors` came', () => {
   ).toEqual({
     fields: { name: 'must not be empty', redirect_uris: 'is required' },
     other: [],
+    refusals: {
+      name: [{ path: 'name', message: 'must not be empty' }],
+      redirect_uris: [{ path: 'redirect_uris', message: 'is required' }],
+    },
   });
 });
 
@@ -72,10 +95,12 @@ it('keeps a detail that names no field of the section as a whole-section message
   expect(fieldErrorsOf({ detail: 'the tenant is disabled' }, FIELDS)).toEqual({
     fields: {},
     other: ['the tenant is disabled'],
+    refusals: {},
   });
   expect(fieldErrorsOf({ detail: 'cursor: is invalid or expired' }, FIELDS)).toEqual({
     fields: {},
     other: ['cursor: is invalid or expired'],
+    refusals: {},
   });
 });
 
@@ -83,12 +108,14 @@ it('falls back to the detail, then the title, when nothing names a field', () =>
   expect(fieldErrorsOf({ detail: 'the body is not JSON', errors: [] }, FIELDS)).toEqual({
     fields: {},
     other: ['the body is not JSON'],
+    refusals: {},
   });
   expect(fieldErrorsOf({ title: 'Bad Request', errors: [] }, FIELDS)).toEqual({
     fields: {},
     other: ['Bad Request'],
+    refusals: {},
   });
-  expect(fieldErrorsOf({}, FIELDS)).toEqual({ fields: {}, other: [] });
+  expect(fieldErrorsOf({}, FIELDS)).toEqual({ fields: {}, other: [], refusals: {} });
 });
 
 it('drops one field from the errors and leaves the rest', () => {

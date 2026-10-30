@@ -34,6 +34,22 @@
       "outputs": ["trace-report.json"],
       "env": ["ODUDU_TEST_SHARD"]
     },
+    "@odudu/domain-theme#test": {
+      "dependsOn": ["^typecheck"],
+      "inputs": [
+        "src/**",
+        "tests/**",
+        "drizzle/**",
+        "package.json",
+        "tsconfig.json",
+        "$TURBO_ROOT$/packages/*/src/view/*.ts",
+        "$TURBO_ROOT$/packages/kernel/src/password-hints.ts",
+        "$TURBO_ROOT$/packages/kernel/src/page.ts",
+        "$TURBO_ROOT$/packages/instrument/src/pages.css"
+      ],
+      "outputs": ["trace-report.json"],
+      "env": ["ODUDU_TEST_SHARD"]
+    },
     "@odudu/protocol-oidc#test": {
       "dependsOn": ["^typecheck"],
       "inputs": [
@@ -44,7 +60,8 @@
         "tsconfig.json",
         "$TURBO_ROOT$/packages/*/src/view/**",
         "$TURBO_ROOT$/apps/*/src/**",
-        "$TURBO_ROOT$/tests/lint/fixtures/renderer-without-shell/**"
+        "$TURBO_ROOT$/tests/lint/fixtures/renderer-without-shell/**",
+        "$TURBO_ROOT$/tests/lint/fixtures/renderer-without-theme/**"
       ],
       "outputs": ["trace-report.json"],
       "env": ["ODUDU_TEST_SHARD"]

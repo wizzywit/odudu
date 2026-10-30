@@ -38,7 +38,7 @@ const SHELL_CSP =
   "style-src 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o=' " +
   "'sha256-gYiS/BvZvRcK27JIXTuwhZ3hs2+VJ1X+2gUlE+farlg='; " +
   "img-src 'self' data:; font-src 'self'; connect-src 'self'; " +
-  "frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+  "frame-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 
 beforeAll(async () => {
   containerHandle = await startTestDatabase();

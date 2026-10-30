@@ -13,6 +13,15 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
   { file: 'apps/server/tests/seed-bidi.int.test.ts', targets: ['apps/server/src/**'] },
   { file: 'packages/db/tests/schema-drift.int.test.ts', targets: ['packages/*/src/schema/**'] },
   {
+    file: 'packages/domain-theme/src/service/hooks.test.ts',
+    targets: [
+      'packages/*/src/view/*.ts',
+      'packages/kernel/src/password-hints.ts',
+      'packages/kernel/src/page.ts',
+      'packages/instrument/src/pages.css',
+    ],
+  },
+  {
     file: 'packages/protocol-oidc/src/view/html-response.test.ts',
     targets: ['packages/*/src/view/**', 'apps/*/src/**'],
   },
@@ -22,6 +31,14 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
       'packages/*/src/view/**',
       'apps/*/src/**',
       'tests/lint/fixtures/renderer-without-shell/**',
+    ],
+  },
+  {
+    file: 'packages/protocol-oidc/src/view/theme-reach.test.ts',
+    targets: [
+      'packages/*/src/view/**',
+      'apps/*/src/**',
+      'tests/lint/fixtures/renderer-without-theme/**',
     ],
   },
   {
@@ -49,6 +66,10 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
   {
     file: 'packages/protocol-oidc/src/service/oauth-errors.test.ts',
     targets: ['packages/protocol-oidc/src/**'],
+  },
+  {
+    file: 'apps/docs/tests/logo-swap.browser.test.ts',
+    targets: ['apps/admin-console/src/shared/view/tokens.css', 'packages/instrument/src/pages.css'],
   },
   {
     file: 'apps/docs/scripts/workspace-sources.test.ts',

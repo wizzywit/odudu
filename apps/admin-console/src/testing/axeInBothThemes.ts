@@ -18,7 +18,15 @@ const PAGE_RULES = {
 export async function axeInBothThemes(
   ui: () => ReactElement,
   ready: () => Promise<unknown> = () => Promise.resolve(),
-  { disable = [] }: { disable?: readonly string[] } = {},
+  {
+    disable = [],
+    frames = true,
+  }: {
+    disable?: readonly string[];
+    // False leaves the contents of frames unchecked, as for one the test
+    // environment cannot load: the frame's own document is another page's.
+    frames?: boolean;
+  } = {},
 ): Promise<Record<Theme, string[]>> {
   const found: Record<Theme, string[]> = { light: [], dark: [] };
   const root = document.documentElement;
@@ -30,7 +38,7 @@ export async function axeInBothThemes(
       ...PAGE_RULES,
       ...Object.fromEntries(disable.map((id) => [id, { enabled: false }])),
     };
-    const result = await axe.run(document.body, { rules });
+    const result = await axe.run(document.body, { rules, iframes: frames });
     found[theme] = result.violations.map((v) => `${v.id}: ${v.help}`);
     unmount();
   }

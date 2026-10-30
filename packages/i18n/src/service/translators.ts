@@ -4,6 +4,7 @@ import {
   type Messages,
   type MessageValues,
 } from '#/service/catalogue';
+import { formatOverride } from '#/service/override';
 import { type PageLocale } from '#/service/negotiate';
 
 // A user's own text goes into a message as a marker the escaped result is
@@ -48,7 +49,11 @@ export function createTranslators<T extends Record<string, string>>(
 ): Translators<T> {
   const catalogue = createCatalogue<T>(byLocale);
   const bdi = (value: string): string => `<bdi>${escape(value)}</bdi>`;
-  const t: Translators<T>['t'] = (locale, id, values) => catalogue.format(locale.tag, id, values);
+  const t: Translators<T>['t'] = (locale, id, values) =>
+    (locale.overrides === undefined
+      ? null
+      : formatOverride(locale.overrides, locale.tag, id, values)) ??
+    catalogue.format(locale.tag, id, values);
   const tHtml: Translators<T>['tHtml'] = (locale, id, values = {}, isolated = {}) => {
     const markers = Object.fromEntries(
       Object.keys(isolated).map((name) => [name, `${OPEN}${name}${CLOSE}`]),

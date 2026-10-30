@@ -1,0 +1,84 @@
+.inherits {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.lead {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--type-15);
+}
+
+.facts {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.fact dt {
+  font-weight: 600;
+}
+
+.fact dd {
+  margin: 0;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.size {
+  color: var(--ink-muted);
+}
+
+.picture {
+  display: block;
+  max-inline-size: 100%;
+  max-block-size: calc(var(--space-8) * 2);
+  margin-block: var(--space-1);
+  background: var(--surface-sunken);
+}
+
+.address {
+  display: block;
+  font-size: var(--type-13);
+}
+
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-13);
+}
+
+.caption {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  border-block-end: var(--hairline);
+  text-align: start;
+  vertical-align: middle;
+}
+
+.table td:nth-child(3) {
+  color: var(--ink-muted);
+}
+
+.swatch {
+  display: inline-block;
+  inline-size: 1rem;
+  block-size: 1rem;
+  margin-inline-end: var(--space-2);
+  border: var(--hairline);
+  border-radius: var(--radius-s);
+  vertical-align: middle;
+}

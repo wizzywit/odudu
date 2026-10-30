@@ -14,7 +14,7 @@
   --surface-rail: light-dark(#111514, #0b0e0d);
   --surface-rail-raised: light-dark(#1f2624, #1a201f);
   --border: light-dark(#d4d9d7, #2a3230);
-  --border-strong: light-dark(#b3bab7, #3a4441);
+  --border-strong: light-dark(#898f8d, #656c6a);
   --border-rail: light-dark(#262e2c, #1d2322);
 
   --ink-primary: light-dark(#161b1a, #e4e9e7);
@@ -31,6 +31,15 @@
   /* Amber means system authority and nothing else. */
   --signal-system: light-dark(#f6d88a, #4d3706);
   --signal-system-ink: light-dark(#573a00, #f7c95a);
+
+  /* Syntax colours of a code field, each held to 4.5:1 on the panel, the
+     sunken surface and the danger signal a refused line is tinted with. */
+  --code-comment: light-dark(#56605d, #9ba6a2);
+  --code-keyword: light-dark(#7a3a9c, #c9a0ee);
+  --code-selector: light-dark(#0a6344, #6fd8a8);
+  --code-property: light-dark(#1f4f9c, #8fb8f5);
+  --code-string: light-dark(#8a3d0b, #f0a877);
+  --code-number: light-dark(#0b6672, #6fd0dc);
 
   --focus-ring: light-dark(#0a7c55, #4fc894);
   --rail-accent: light-dark(#4fc894, #4fc894);

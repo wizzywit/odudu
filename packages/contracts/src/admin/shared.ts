@@ -88,6 +88,12 @@ export const fieldErrorSchema = z.strictObject({
   // Present where the refusal has a stable name a client can act on without
   // reading the message: `bidi_control_refused` today.
   code: z.string().optional(),
+  // What a template or stylesheet refusal quotes of the text, bounded and
+  // free of control characters, and where it is, 1-based, when it has one
+  // place; absent for every other refusal.
+  detail: z.string().optional(),
+  line: z.number().int().nullable().optional(),
+  column: z.number().int().nullable().optional(),
 });
 export type FieldError = z.infer<typeof fieldErrorSchema>;
 
@@ -115,5 +121,17 @@ export const etagSchema = z.string();
 
 /** The longest description a group, role or client holds, by its CHECK. */
 export const DESCRIPTION_MAX = 1000;
+
+/**
+ * The longest name a client holds in one language. The name column itself
+ * has no CHECK; this is the bound each language's text is given.
+ */
+export const CLIENT_NAME_MAX = 256;
+
+/**
+ * Text by language tag, as a read returns it. A write is checked by
+ * `checkLocalisedText` against the tenant's languages, which a shape cannot know.
+ */
+export const localisedTextSchema = z.record(z.string(), z.string());
 
 export const descriptionSchema = noBidiControls(z.string().min(1).max(DESCRIPTION_MAX));

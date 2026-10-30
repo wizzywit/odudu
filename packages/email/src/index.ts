@@ -30,3 +30,20 @@ export {
   type SendPendingOptions,
   type SendPendingOutcome,
 } from '#/usecase/send-pending';
+export {
+  mailContext,
+  tenantMailContext,
+  type TenantMailContext,
+  type MailLookResolver,
+  type MailContext,
+  type MailOverrides,
+  type MailTenantLook,
+  type MailTenantScope,
+} from '#/usecase/mail-context';
+export {
+  brandingInScheme,
+  inlineMark,
+  mailSchemeColours,
+  type SchemeColours,
+} from '#/service/preview';
+export { MAIL_MESSAGES, isMailMessageKey } from '#/service/messages';

@@ -130,6 +130,7 @@ async function seedTenant(
     id: tenantId,
     name,
     registrationAllowed: settings.registrationAllowed,
+    supportedLocales: ['en', 'fr'],
     verifyEmail: settings.verifyEmail ?? false,
     resetPasswordAllowed: settings.resetPasswordAllowed ?? false,
     displayName: settings.displayName ?? null,
@@ -204,7 +205,6 @@ function buildHttpApp(): FastifyInstance {
     now: () => mailNow ?? new Date(),
     createAccount,
     evaluatePassword,
-    pageLocales: ['en', 'fr'],
   });
   registerActionTokenRoute(instance, {
     ...accountTestDeps,
@@ -212,7 +212,6 @@ function buildHttpApp(): FastifyInstance {
     database: app,
     findTenant: (name) => tenantSettingsRepository(owner.db).byName(name),
     findHeldSignIn: () => Promise.resolve(null),
-    pageLocales: ['en', 'fr'],
   });
   return instance;
 }

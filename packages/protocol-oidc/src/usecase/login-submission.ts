@@ -17,6 +17,7 @@ import { type TenantLookup } from '#/repository/tenant-lookup';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
 import { EMPTY_CLAIMS_REQUEST, type ClaimsRequest } from '#/service/claims-request';
 import { decideConsent } from '#/service/consent';
+import { type ConsentI18n } from '#/service/consent-i18n';
 import { tenantIssuer } from '#/service/issuer';
 import { type PromptValue } from '#/service/prompt';
 import { OAUTH_ERROR_DESCRIPTIONS, type AuthorizationErrorCode } from '#/service/oauth-errors';
@@ -130,6 +131,7 @@ export type LoginSubmissionOutcome =
       clientName: string;
       clientPages: ClientPages;
       scopeLabels: ScopeLabels;
+      i18n: ConsentI18n;
       defaultScopes: string[];
       optionalScopes: string[];
       alreadyGranted: string[];
@@ -251,6 +253,7 @@ export interface ConsentContext {
   clientName: string;
   clientPages: ClientPages;
   scopeLabels: ScopeLabels;
+  i18n: ConsentI18n;
   consentRequired: boolean;
   defaultScopes: string[];
   optionalScopes: string[];
@@ -273,6 +276,7 @@ export type ConsentGateOutcome =
       clientName: string;
       clientPages: ClientPages;
       scopeLabels: ScopeLabels;
+      i18n: ConsentI18n;
       defaultScopes: string[];
       optionalScopes: string[];
       alreadyGranted: string[];
@@ -318,6 +322,7 @@ export async function decideConsentGate(
     clientName: context.clientName,
     clientPages: context.clientPages,
     scopeLabels: context.scopeLabels,
+    i18n: context.i18n,
     defaultScopes: decision.defaultScopes,
     optionalScopes: decision.optionalScopes,
     alreadyGranted: decision.alreadyGranted,
@@ -722,6 +727,7 @@ export async function handleLoginSubmission(
       clientName: gate.clientName,
       clientPages: gate.clientPages,
       scopeLabels: gate.scopeLabels,
+      i18n: gate.i18n,
       defaultScopes: gate.defaultScopes,
       optionalScopes: gate.optionalScopes,
       alreadyGranted: gate.alreadyGranted,

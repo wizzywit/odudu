@@ -1,7 +1,17 @@
 import { CONSENT_TEXT_MAX } from '@odudu/contracts/admin';
+import { nullWhenBlank } from '#/shared/service/format';
+import { DESCRIPTION_MAX } from '#/shared/service/labels';
 import type { Choice } from '#/shared/service/choice';
+import type { Translations } from '#/shared/service/localised';
 
 export const CONSENT_RULE = `What the consent screen says in place of the scope's name. At most ${String(CONSENT_TEXT_MAX)} characters; leave it empty for none.`;
+
+export const DESCRIPTION_LANGUAGES_LABEL = 'Description by language';
+export const DESCRIPTION_LANGUAGES_NOTE = `What the scope is for in another language, shown wherever it is chosen in that language. At most ${String(DESCRIPTION_MAX)} characters in each; a language left empty shows the description above.`;
+
+export const CONSENT_LANGUAGES_LABEL = 'Consent text by language';
+export const CONSENT_LANGUAGES_NOTE = `What the consent screen says in another language. At most ${String(CONSENT_TEXT_MAX)} characters in each; a language left empty shows the consent text above, or the scope's name.`;
+export const CONSENT_LIMIT = CONSENT_TEXT_MAX;
 
 export const NAME_FIXED =
   "A scope's name is the token a client asks for and a token carries, so it is fixed once the scope is made. Make a new scope and assign it instead.";
@@ -75,6 +85,8 @@ export interface GeneralValues {
   default_client_assignment?: string;
   consent_text?: string;
   display_order?: string;
+  description_i18n?: Translations;
+  consent_text_i18n?: Translations;
 }
 
 interface Patch {
@@ -84,15 +96,16 @@ interface Patch {
   include_in_access_token?: boolean;
   default_client_assignment?: string | null;
   display_order?: number;
+  description_i18n?: Translations;
+  consent_text_i18n?: Translations;
 }
 
 // The body of an amendment: an emptied text field clears the value, and a
 // number is sent as one.
 export function generalPatch(changes: GeneralValues): Patch {
   const body: Patch = {};
-  const emptied = (text: string): string | null => (text.trim() === '' ? null : text);
-  if (changes.description !== undefined) body.description = emptied(changes.description);
-  if (changes.consent_text !== undefined) body.consent_text = emptied(changes.consent_text);
+  if (changes.description !== undefined) body.description = nullWhenBlank(changes.description);
+  if (changes.consent_text !== undefined) body.consent_text = nullWhenBlank(changes.consent_text);
   if (changes.include_in_id_token !== undefined) {
     body.include_in_id_token = changes.include_in_id_token;
   }
@@ -104,6 +117,8 @@ export function generalPatch(changes: GeneralValues): Patch {
       changes.default_client_assignment === 'none' ? null : changes.default_client_assignment;
   }
   if (changes.display_order !== undefined) body.display_order = Number(changes.display_order);
+  if (changes.description_i18n !== undefined) body.description_i18n = changes.description_i18n;
+  if (changes.consent_text_i18n !== undefined) body.consent_text_i18n = changes.consent_text_i18n;
   return body;
 }
 
@@ -115,4 +130,6 @@ export const scopeFailureFields: readonly string[] = [
   'default_client_assignment',
   'consent_text',
   'display_order',
+  'description_i18n',
+  'consent_text_i18n',
 ];

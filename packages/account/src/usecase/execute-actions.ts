@@ -1,7 +1,7 @@
 import { actionLink } from '#/service/action-link';
 import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository, type RequestContext } from '@odudu/domain-audit';
-import { outboxRepository, renderRequiredActions } from '@odudu/email';
+import { mailContext, outboxRepository, renderRequiredActions } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
 import { withMinimum } from '#/service/password-violations';
@@ -33,6 +33,7 @@ export async function enqueueActionsLink(
 ): Promise<void> {
   const actions = orderedActions(link.actions);
   if (actions.length === 0) throw new Error('an actions link names no action this server takes');
+  const mail = await mailContext(tx, tenant.resolveMailLook, tenant);
   const tokens = actionTokenRepository(tx);
   const { token } = await tokens.issue({
     tenantId: tenant.tenantId,
@@ -52,6 +53,7 @@ export async function enqueueActionsLink(
       now: tenant.now(),
       actions,
       locale: user.locale,
+      ...mail,
     }),
   });
 }

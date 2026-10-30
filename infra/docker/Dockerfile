@@ -114,6 +114,10 @@ COPY --from=docs --chown=odudu:odudu /app/apps/docs/dist/image ./docs
 # devDependencies (tsup, vitest, eslint, typescript, turbo,
 # dependency-cruiser, stryker, ...).
 COPY --from=prod-deps --chown=odudu:odudu /app/node_modules ./node_modules
+# The licence texts and notices for what the image carries, among them the
+# LGPL libvips under node_modules/@img.
+COPY --chown=odudu:odudu LICENSE THIRD-PARTY-NOTICES.md /usr/share/licenses/odudu/
+COPY --chown=odudu:odudu LICENSES /usr/share/licenses/odudu/LICENSES
 # Declared after the last COPY: a build argument that differs between builds
 # invalidates the layers that follow it, and these two change on every release.
 ARG ODUDU_VERSION=dev

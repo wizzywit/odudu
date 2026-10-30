@@ -151,6 +151,12 @@ These are settings only the owner can change. They are done:
    branch, and that your own pull request and Dependabot's pass without
    signing. Write down the status name the pull request shows. Only then add
    `cla` to the required checks.
+3. **Have a reader of Arabic review the catalogue.** Arabic is shipped and its
+   text was drafted without one. Every `messages.ar.ts` (account, authn-flows,
+   console-gateway, protocol-oidc and the email one) is read in a rendered
+   page and mail of each kind, and the owner records who read it and when in
+   `docs/phases/p4b.md`. This gates a stable release only; a release
+   candidate may go ahead without it.
 
 ## Moving the site to a domain
 

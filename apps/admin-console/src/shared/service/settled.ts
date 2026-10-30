@@ -20,3 +20,12 @@ export function dataOf<T>(result: GatewayResult<T> | undefined): T | undefined {
 export function failureOf(result: GatewayResult<unknown> | undefined): GatewayFailure | null {
   return result === undefined || result.ok ? null : result;
 }
+
+// Hands a write's refusal to `report`; a write that went through reports nothing.
+export function reportFailure(
+  result: GatewayResult<unknown>,
+  report: (failure: GatewayFailure) => void,
+): void {
+  const failure = failureOf(result);
+  if (failure !== null) report(failure);
+}

@@ -39,7 +39,7 @@ describe('the import page', () => {
     expect(chosenFileOf(null)).toBeNull();
     expect(chosenFileOf({ name: 'a.json', size: 2048 })).toEqual({
       name: 'a.json',
-      size: '2.0 KiB',
+      size: '2 KiB',
     });
   });
 

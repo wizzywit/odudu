@@ -150,7 +150,7 @@ it('refuses a file too large, or not JSON, before sending anything', async () =>
   const big = document_();
   Object.defineProperty(big, 'size', { value: TENANT_IMPORT_BODY_LIMIT + 1 });
   await fill(user, big);
-  expect(screen.getByText(/larger than 16\.0 MiB/u)).toBeVisible();
+  expect(screen.getByText(/larger than 16 MiB/u)).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Import' }));
   await user.upload(fileInput(), document_('{'));
   await user.click(screen.getByRole('button', { name: 'Import' }));

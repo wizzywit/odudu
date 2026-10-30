@@ -281,21 +281,25 @@ public key, the only half of it the server ever stores, and `kid` is its RFC
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3082/admin/tenants/system/clients?client_id_exact=odudu-admin'
+  'http://localhost:3000/admin/tenants/system/clients?client_id_exact=odudu-admin'
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1203b-91c4-7e74-a7d0-584be72f60ab
+x-request-id: 01a18711-d218-77c4-b1d8-6360bd647bd2
 cache-control: no-store
 content-type: application/json; charset=utf-8
-content-length: 2268
-Date: Fri, 09 Oct 2026 10:35:37 GMT
+content-length: 2337
+Date: Thu, 29 Oct 2026 09:50:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a1203a-f7c6-76b2-89fa-7c51f3507f28","client_id":"odudu-admin","name":"Odudu administration","description":null,"type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"seeded","created_at":"2026-10-09T10:34:57.804Z","redirect_uris":["http://127.0.0.1:8080/callback","http://localhost:3082/console/auth/callback"],"grant_types":["authorization_code","refresh_token"],"token_endpoint_auth_method":"private_key_jwt","audiences":["urn:odudu:params:admin-api"],"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":["http://localhost:3082/console/"],"jwks":{"keys":[{"x":"0rPh2LxiAGLDJJfUmRLeDHFouVIve4UMZMeevgmEPAs","y":"-FhY34hz3MqGcS1si6XH8_zsA-2XxTo0oOqwrGmQKJo","alg":"ES256","crv":"P-256","kid":"lYibdzdNfYB4SVGy-ZQYkvsm0bDUZp6lFv0ZePKgWkM","kty":"EC","use":"sig"}]},"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"previous_secret_expires_at":null,"builtin_admin":true,"service_subject_id":null,"scopes":[{"id":"01a1203a-f7a8-7333-a8a1-4c45bc9245b8","name":"openid","assignment":"default"},{"id":"01a1203a-f7ad-7699-a0b6-1b54c9b2c1ee","name":"profile","assignment":"default"},{"id":"01a1203a-f7af-7043-8b86-dd4d47617544","name":"email","assignment":"default"},{"id":"01a1203a-f7b2-7fd8-8df3-0890a2d95a3f","name":"address","assignment":"default"},{"id":"01a1203a-f7b4-759f-8950-3602ef44a0c0","name":"phone","assignment":"default"},{"id":"01a1203a-f7b6-7bb5-bb4e-2a007b7516df","name":"roles","assignment":"default"},{"id":"01a1203a-f7b9-7553-9c33-3fcb27cbbff1","name":"groups","assignment":"default"},{"id":"01a1203a-f7bb-7b17-8ca1-2b62e40c0303","name":"offline_access","assignment":"optional"}],"service_account_admin_reach":[]}]}
+{"items":[{"id":"01a18700-83c9-7a02-9b62-8d1956b09dae","client_id":"odudu-admin","name":"Odudu administration","description":null,"name_i18n":{},"description_i18n":{},"type":"confidential","enabled":true,"full_scope_allowed":false,"skip_logout_confirmation":true,"registration_origin":"seeded","created_at":"2026-10-29T09:32:00.298Z","redirect_uris":["http://127.0.0.1:8080/callback","http://localhost:3000/console/auth/callback"],"grant_types":["authorization_code","refresh_token"],"token_endpoint_auth_method":"private_key_jwt","audiences":["urn:odudu:params:admin-api"],"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":["http://localhost:3000/console/"],"jwks":{"keys":[{"x":"aGq8ehE1zvB68TgqZayK_lkYRNm0vA6h952baJXQc8U","y":"oQ9TfiTytJOTeGH_4qdFyVQuZmlfg5GW_7ZokhBYvWg","alg":"ES256","crv":"P-256","kid":"ryDJgLR1j3NaIONgY2PD1W3iDMdkhNlsu0lel927CAs","kty":"EC","use":"sig"}]},"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"previous_secret_expires_at":null,"builtin_admin":true,"service_subject_id":null,"scopes":[{"id":"01a18700-83bd-76f6-a2a7-70ced4e4abf2","name":"address","assignment":"default"},{"id":"01a18700-83bb-7112-9735-909d94d1e229","name":"email","assignment":"default"},{"id":"01a18700-83c2-7e44-8e66-1ec4637698d6","name":"groups","assignment":"default"},{"id":"01a18700-83c4-7e0a-98dc-3b43107bec46","name":"offline_access","assignment":"optional"},{"id":"01a18700-83b6-71ce-a672-044f5dafa16b","name":"openid","assignment":"default"},{"id":"01a18700-83bf-7e2f-9497-b80e83196a40","name":"phone","assignment":"default"},{"id":"01a18700-83b9-7763-81a3-1b3b2b7f13e1","name":"profile","assignment":"default"},{"id":"01a18700-83c1-71e5-8f1a-d3d9d8b75354","name":"roles","assignment":"default"}],"service_account_admin_reach":[]}]}
 ```
+
+The command above names port `3000`, not `3082` like the rest of this page. This one block was run again on a
+throwaway stack on that port (see [how the transcripts were made](../../../contributing/transcripts.md)), so the
+`redirect_uris` and `post_logout_redirect_uris` in its output name that port and its ids are that run's.
 
 The tenant cannot change how it authenticates. Neither the method nor the
 keys are among the fields the built-in client may be amended in, so an

@@ -85,7 +85,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     // verification is: this is the one password route that verifies rather
     // than evaluates, so nothing downstream would bound the length.
     if (candidate.kind === 'too_long') {
-      return sendRequestError(reply, deps, 400, 'error.passwordTooLong', {
+      return sendRequestError(reply, deps, request.params.tenant, 400, 'error.passwordTooLong', {
         max: MAX_PASSWORD_LENGTH,
       });
     }

@@ -1,9 +1,16 @@
 import type { Locator, Page } from '@playwright/test';
-import { expect, expectAccessible, expectFitsViewport, signIn, test, PHONE } from './fixtures';
+import {
+  expect,
+  expectAccessible,
+  expectFitsViewport,
+  signIn,
+  test,
+  LAPTOP,
+  PHONE,
+} from './fixtures';
 import { seeded, subjectIdOf } from './stack';
 
 const { admin, subjects, system, tenants } = seeded();
-const LAPTOP = { width: 1440, height: 900 };
 const WIDE = { width: 2560, height: 1440 };
 
 async function box(locator: Locator): Promise<{ x: number; y: number; w: number; h: number }> {

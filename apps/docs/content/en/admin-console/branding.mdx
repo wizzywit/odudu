@@ -1,0 +1,269 @@
+---
+title: Branding in the console
+description: Give a tenant's sign-in and account pages its own colours, logo and layout, preview them, and publish them.
+sidebar_position: 13
+---
+
+import { ConsoleShot } from '@site/src/shared/view/ConsoleShot';
+
+# Branding in the console
+
+A tenant's users meet Odudu's pages when they sign in, consent, reset a password or set up a second factor. **Branding** is where the tenant makes those pages its own, and the mail Odudu sends with them. It needs the `manage-tenant` capability; the menu entry is **Branding** under **TENANT**.
+
+Nothing you change is seen until you publish it. Edits are saved as a draft, the preview shows the draft drawn by the real page, and **Publish** makes it what people see. A client can set a look of its own over the tenant's; that is the [client's Branding tab](./client-branding.mdx), which works the same way. [How branding works](../concepts/branding.mdx) explains the layers, the parts of a page and what a theme can never change.
+
+<ConsoleShot
+  name="branding-theme"
+  alt="The Branding page of the acme tenant on its Theme tab, before anything is saved: the Publish bar says nothing is published and there is no draft, and under the tabs Colours and font holds both palettes switched off, beside a Preview of Instrument’s default sign-in page with a notice that no draft exists yet."
+  caption="A tenant that has never been branded: no draft, nothing published."
+/>
+
+## 1. Find your way around the page
+
+The **Publish** bar is at the top, and says which version people see and what the draft would change. Under it are four tabs: **Theme** holds the colours, the font, the images and the stylesheet, **Pages** the templates, **Mail** the verification mail, and **Languages** the languages and the tenant's own wording. While a publish, a discard, a revert, an image upload or another section's save is running, each **Save** waits, so two writes never meet on one version of the draft. On a wide screen the **Preview** sits beside the editor and stays in view as you scroll; on a narrow one it becomes a strip, as [section 10](#10-use-it-on-a-phone) shows.
+
+The **Preview** frames the real page for the saved draft, in the light or the dark scheme, for the page you choose. When it shows something other than the draft, a notice under **Preview** says what and why: there is no saved draft yet, a layer could not be read or names an image that is gone, a stylesheet was left out, or a template was refused or could not be filled and the page uses the one below it or the default. The notice is the server's own account of the same page, and is not shown when the frame is simply the draft. If the preview itself could not be read, a line says so in place of the frame, with a **Try again** button. The picture above shows the first of these: a tenant with no draft sees Instrument's own page. The sign-in sample always shows every optional part, the passkey button, the remember-me box and the links to create an account and reset a password, whatever the tenant's settings, so a rule or a template can be written against the fullest page.
+
+## 2. Set the colours and the font
+
+On the **Theme** tab, **Colours and font** holds a light palette and a dark palette. Each is used whole: turn on **Use my own light colours** and every colour in that scheme is yours, starting from Instrument's own. A scheme you leave alone keeps Instrument's colours. Each palette has eleven colours: Page background, Panel background, Field background, Text, Muted text, Accent background, Accent text, Error background, Error text, Border and Focus ring. Type each as `#rrggbb` or pick it. The Font is Instrument's own, IBM Plex Sans or IBM Plex Mono, and is set for both schemes at once.
+
+<ConsoleShot
+  name="branding-colours"
+  alt="The Colours and font section with Use my own light colours switched on and its colours filled in as hex values with a swatch beside each, warm paper and brown ink, beside the Preview that already draws the sign-in page in them."
+  caption="Switching a palette on makes all eleven of its colours yours; the preview follows each save."
+/>
+
+The **Contrast** panel checks every pair of colours as you type, and lists each pair with the ratio it reaches. Text must reach 4.5:1 against what it sits on, and borders and the focus ring 3:1. It checks colours against the page colour, not against the background image, so pick an image whose look suits the colours you chose.
+
+<ConsoleShot
+  name="branding-contrast"
+  alt="The Contrast panel after the light text colour was changed to a pale brown: it reads 3 pairs fail its requirement, and lists every pair with a fails or passes mark, the ratio it reaches and the ratio it needs; the three failing pairs are light text on the page, on the panel and on the field background. The Preview beside it draws the sign-in page with its text washed out."
+  caption="A pair of colours that falls short of the contrast rule is named, with the ratio it needs."
+/>
+
+**Publish** is held while a pair falls short, and the bar names the first pair that does.
+
+<ConsoleShot
+  name="branding-publish-held"
+  alt="The Publish bar while a contrast pair fails: Publish the draft is dimmed, Changed: Colours and font is listed, and a note says Fix the contrast before publishing and names the first failing pair, Light: Text on page."
+  caption="Publish is held while a pair falls short, and the bar says which."
+/>
+
+## 3. Add the images
+
+Under **Images**, upload a logo (with the alt text it needs), a logo for the dark scheme, a favicon and a background image. PNG, JPEG and WebP are accepted, and each slot states its size limit beside it. A slot that holds an image shows it, whole and small, under its description, whether or not any published theme uses it and after a reload; if the image cannot be read the slot says so and offers to try again.
+
+The background image is drawn behind every themed page, covering it and centred, in place of Instrument's grid; the form stays on its own panel, so the image shows around it and never behind the text, and the theme's stylesheet can still restyle the backdrop. A client's own background replaces the tenant's, and with none set the grid stays. The logo sits above the form, and a dark logo is used in place of it when the page is dark, so a dark mark does not vanish.
+
+<ConsoleShot
+  name="branding-images"
+  alt="The Images section with a logo uploaded: the logo is drawn as a small thumbnail under its description, with its alt text filled in, a Replace button, Remove from theme and Delete image. The preview beside it shows the logo above the sign-in form and the background image around the panel."
+  caption="An uploaded image is shown as a thumbnail, whether or not any published theme uses it."
+/>
+
+Each save changes the draft, not the published theme. The **Publish** bar then names what the draft would change, such as "Changed: Colours and font, Images", and a dot on a tab says that part of that change is in it. The page's top shows both.
+
+<ConsoleShot
+  name="branding-bar"
+  alt="The top of the Branding page after colours and images are saved: the Publish bar reads Nothing published yet and Changed: Colours and font, Images, and the Theme tab carries a dot. Beside the tabs the Preview shows the branded sign-in page with the logo and the background image around its panel."
+  caption="The Publish bar says what the draft would change; a dot marks the tab that holds a change."
+/>
+
+## 4. Write the stylesheet
+
+Under **Stylesheet**, write plain CSS for what the colours cannot do, such as hiding the logo or adjusting spacing. Rules may name only the pages' documented classes, and `@import`, `@font-face`, scripts and addresses outside the theme's own images are refused. The editor numbers the lines and colours the CSS; a refusal is marked on the line it names and listed under the editor, and the size left is shown beside it. Press Escape and then Tab to leave the editor with the keyboard, since Tab indents.
+
+<ConsoleShot
+  name="branding-stylesheet-refused"
+  alt="The Stylesheet section with a rule typed in the editor whose third line, behavior: none, is marked, and under the editor the message Line 3: This property is not allowed, and The stylesheet was not saved."
+  caption="A refused rule is marked on the line it names and listed under the editor."
+/>
+
+**Selectors you can use** sits above the editor and lists everything a rule may name: the page classes, one class for each kind of page (`.page-sign-in` styles the sign-in page alone), the plain elements, and the states and parts that may follow them (`:hover`, `::before`). **Design values you can use** is the second list beside it: the values a declaration may read with `var()`, which go after a colon and are refused where a selector belongs. Each entry says what it is beside its name. Type part of a name or of what it is to narrow the list, which draws at most fifty at a time, and choose one to type it where the caret is; that is one step of the editor's undo. A refused selector says to look at this list. A stylesheet cannot define a custom property of its own, and the list is the one the server checks against, so it is also the list for a client's stylesheet.
+
+<ConsoleShot
+  name="branding-selectors"
+  alt="The Stylesheet section with the Selectors you can use list open after page- was typed: each entry that contains it is shown with a note of what it is, the first being .page-sign-in, the class of the sign-in page. Under it sit Design values you can use and the editor that holds the saved rule."
+  caption="The selectors list is the one the server checks against; typing narrows it."
+/>
+
+Every themed page carries the class of its own kind on its main part, so a rule such as `.page-sign-in h1` restyles one page and leaves the rest alone. Saved, it shows in the preview at once:
+
+<ConsoleShot
+  name="branding-page-kind"
+  alt="The Preview of the sign-in page after the rule .page-sign-in h1 is saved: the heading Sign in has a rust line above it and wider letter spacing, while the Stylesheet editor beside it holds the rule, with the border and padding values written as var() design values."
+  caption="One class per page kind lets a rule restyle the sign-in page alone."
+/>
+
+Odudu holds a stylesheet to what a page can safely carry and does not judge what it means. A stylesheet may hide or collapse only the decorative parts. On every other part it may not set text under 12px, a box under 16px, margins or padding past 128px, lines closer than 0.8, tight letter-spacing, faint or transparent text, or text the colour of its own background or of the page, unless the same rule gives it an opaque background of its own. It may not hide the consent page's heading or scope list, which name the client and what it asks for. `outline: none`, a zero, thin or faint outline, one the colour of the page and `initial` or `unset` are refused on every rule, so a reset followed by a restyle is not possible: write the visible outline directly. Not caught: text and background chosen in two separate rules, a theme's own surfaces, `currentcolor` on a heading, relative sizes such as `smaller`, clipping above the size floor, and an outline in `currentcolor` or dimmed by opacity; check those in the preview. A theme's images and stylesheet are served with `default-src 'none'; sandbox`, so opening their address runs nothing.
+
+## 5. Change a page's layout
+
+On the **Pages** tab, choose a page and edit its template. The parts the server fills in, such as the form and its fields, are listed beside the editor; a template places them and may not add scripts, styles or forms. The template editor works as the stylesheet editor does.
+
+<ConsoleShot
+  name="branding-pages"
+  alt="The Pages tab with the Sign in template written in the editor, a heading, the error, the form parts and a help link, and the list of parts the page may use beside it. The Preview shows the page with the help line under the form."
+  caption="A template places the parts the server fills in and may add plain HTML."
+/>
+
+**Insert a message** lists the messages the page can show, with their English text beside each key, and types the reference to the one you choose at the caret; type part of a key or of its text to narrow the list, which draws at most fifty at a time.
+
+<ConsoleShot
+  name="branding-message-picker"
+  alt="The Pages tab with the Insert a message list open and narrowed to messages that contain login, each key with its English text beside it, above the template editor."
+  caption="The message picker lists the keys a page can show, with their English text."
+/>
+
+A refused template says what is wrong and marks where. A template link may go to any `https` address, with `rel="noopener noreferrer"`, because where a tenant sends its people is the tenant's decision. A template is also read the way a browser reads the finished page, so a part inside a link or between table parts, and a form opened in one cell and closed in another, are refused: a browser would move them and leave the form's controls outside it.
+
+<ConsoleShot
+  name="branding-template-refused"
+  alt="The Pages tab after a template with an unknown part and no form was saved: the editor marks lines 3 and 4, and under it the messages say that the slot on line 4 is not a part of this page kind, that the fields sit outside the form, and that the template was not saved because required parts are missing."
+  caption="A refused template says what is wrong and marks where."
+/>
+
+## 6. Publish, revert and restore
+
+**Publish** makes the saved draft the published theme and keeps the version it replaces, so that twenty versions are held in all, the published one included. Publishing is always the whole draft, from whichever tab you are on: a template may name an image that only the draft has, the contrast pairs span the colours and the stylesheet, and a version is a whole snapshot. When a stylesheet or a template is published, the bar adds a warning that Odudu cannot prove it accessible, and says which.
+
+<ConsoleShot
+  name="branding-published"
+  alt="The Publish bar just after Publish the draft: it reads Published, Version 1 is published, and No draft, with Publish the draft dimmed, and under it a notice, Published, with a warning, says a stylesheet or a template cannot be proven accessible and lists which."
+  caption="Publishing makes the whole saved draft what people see; the bar then has nothing to publish."
+/>
+
+When nothing differs, **Publish** is held with "Nothing to publish: the draft matches what people see", and the server refuses the same publish if it is sent anyway.
+
+<ConsoleShot
+  name="branding-nothing-to-publish"
+  alt="The Publish bar when the saved draft is the published theme again: it names Version 1, says the draft matches what people see, and a note reads Nothing to publish: the draft matches what people see, with Publish the draft dimmed and Discard draft ready."
+  caption="A draft that changes nothing is not published."
+/>
+
+**Revert this tab to published**, under **Revert to published** on **Theme** and **Pages**, writes the draft again with that tab's parts as they are published, and leaves the other tab's changes alone: **Theme** takes back the colours and font, the images and the stylesheet, and **Pages** the templates. A part with nothing published is cleared. It is held while the tab holds edits you have not saved.
+
+<ConsoleShot
+  name="branding-revert"
+  alt="The Revert to published section of the Theme tab, with a draft that differs from what is published: it says that Revert this tab to published writes the colours and font, the images and the stylesheet back as published and leaves the other tabs alone, and the button is ready. The Versions list begins below it."
+  caption="Revert this tab to published takes one tab’s parts back and leaves the other tab alone."
+/>
+
+**Discard draft** deletes the saved draft after a confirmation and nothing else: what is published stays, and people keep seeing it.
+
+<ConsoleShot
+  name="branding-discard"
+  alt="The confirmation that opens from Discard draft: a dialog saying the saved draft is deleted and what is published stays, with a Cancel button and a Discard draft button."
+  caption="Discarding deletes only the saved draft; what people see does not change."
+/>
+
+**Versions** lists the published version and the ones it replaced. **Restore** publishes a copy of an earlier one as the next version and leaves the draft alone.
+
+<ConsoleShot
+  name="branding-versions"
+  alt="The Versions list after a second publish: Version 2 is the published one and Version 1 is listed beneath it with a Restore button."
+  caption="Each publish keeps the version it replaces; Restore publishes a copy of an earlier one."
+/>
+
+## 7. When two administrators edit at once
+
+Every save is checked against the version of the draft you opened, so nobody's work is overwritten unseen. When a save meets a newer draft, the section shows the pieces as the other administrator saved them beside yours, and asks. **Keep mine** saves yours over theirs and **Take theirs** drops your edit.
+
+A **Revert this tab to published** that meets a newer draft works the same way: the panel shows the pieces of the tab as the draft holds them now beside what you held, **Keep mine** reverts again over their draft, and **Take theirs** leaves it as it is.
+
+<ConsoleShot
+  name="branding-revert-conflict"
+  alt="The Revert to published section after another administrator saved the draft first: a message says somebody saved the draft after the page was opened, and a panel lists Colours and font with what theirs holds now, one group of colours (light), beside what yours held, two (light, dark), with Keep mine and Take theirs under it."
+  caption="A revert that meets a newer draft shows both and asks which to keep."
+/>
+
+Message overrides are checked one by one, as [section 9](#9-choose-the-languages) shows.
+
+## 8. See the mail
+
+The **Mail** tab shows the address-verification mail as the published theme dresses it and the tenant's message overrides word it, in the light or the dark scheme and in a language you choose, drawn by the code that sends it. Beside it, **What the mail inherits** lists the logo (drawn when it is served from the console's own address, and otherwise pointed to in the preview) and the nine colours of each scheme (Page background, **Message background**, **Link box background**, Border, Text, **Quiet text**, Link, Button and **Button text**) and says whether the tenant's published theme or Odudu's default supplies each palette. A draft does not show here until it is published.
+
+<ConsoleShot
+  name="branding-mail"
+  alt="The Mail tab: What the mail inherits lists the logo and the logo for the dark scheme with their sizes and addresses, and under them the light colours, each with its value and what it is used for. Beside it the Preview shows the verification mail as the published theme dresses it, with the tenant’s own wording of its heading, Confirm your Acme address, and its Verify email button."
+  caption="The verification mail wears the published theme."
+/>
+
+A mail client chooses the light or the dark colours by its own setting, so the **Colour scheme** under **Preview** shows each. The mail never takes a stylesheet or a template, and it takes the tenant's message overrides for its own wording, in the language it is sent in.
+
+<ConsoleShot
+  name="branding-mail-dark"
+  alt="The Mail tab with the Colour scheme of the Preview set to Dark: the verification mail is drawn in the tenant’s dark palette, the dark logo above its card, with the Language and Preview as client choices above it."
+  caption="A mail client chooses light or dark by its own setting, so the preview shows each."
+/>
+
+The preview and this list show the tenant's own look until you choose a client under **Preview as client**: then the frame and the colours are those of the mail a sign-in of that client sends, and **Show the tenant’s own** goes back. A mail takes a client's logo and colours, over the tenant's piece by piece, only when the flow began inside that client's sign-in (a registration or a password reset asked for from it); otherwise it takes the tenant's. [Client branding](./client-branding.mdx) shows that preview, and the [Email](./email.mdx) page sends a test message dressed the same way.
+
+## 9. Choose the languages
+
+On the **Languages** tab, **Supported languages** is the list of languages the tenant's pages and mail are offered in, and **Default language** is the one used when a visitor's browser does not decide. Choose "The browser decides" to clear the default. To offer another language, type its tag or pick it under Add a language, then press Enter or choose **Add language**, and save; its pages use the English text unless a message override says otherwise.
+
+<ConsoleShot
+  name="branding-languages"
+  alt="The Languages section of the Languages tab: Supported languages lists English and French ticked and Arabic not, with Add a language beneath, and Default language is left on The browser decides."
+  caption="The languages a tenant offers, and its own wording for single messages."
+/>
+
+Under **Message overrides**, pick a language and set the text a page or a mail shows for a message key such as `login.title` or `reset.subject`. **Message key** lists the keys the pages and the mail hold with their English text, the mail's marked "Mail", and a key you type that the catalogue does not hold is refused; a tenant holds at most 500 overrides across every language. Edit an override by choosing **Edit** on its row, and remove it with **Remove**. Overrides change pages and mail, in the language each is shown in; they are the tenant's alone, and a client has none of its own.
+
+<ConsoleShot
+  name="branding-overrides"
+  alt="The Message overrides section for English: the language and message key pickers, the text shown instead, a Save override button, and under them the one override held so far, verify.heading with its text, when it changed, and Edit and Remove buttons."
+  caption="An override replaces one message in one language, for pages and mail alike."
+/>
+
+Two administrators editing the same key cannot overwrite each other unseen: a save that meets a newer version of that override shows what the other administrator saved beside your text, with **Keep mine**, which saves yours over theirs, and **Take theirs**, which drops your edit. An override they removed can be created again with **Keep mine**. Other rows stay editable meanwhile, overrides of different keys never conflict, and a **Remove** of an override that changed since you saw it is refused until you have looked at its new text.
+
+<ConsoleShot
+  name="branding-override-conflict"
+  alt="Message overrides after two administrators changed verify.heading: the text being edited reads Confirm your address with Acme, and under Save override a panel titled Changed in the en text for verify.heading since you opened it shows what theirs holds now, Please confirm your Acme address, beside yours, with Keep mine and Take theirs. The row below already shows their text."
+  caption="Two administrators cannot overwrite each other unseen: the save shows both texts and asks."
+/>
+
+## 10. Use it on a phone
+
+On a narrow screen, a phone or a tablet held upright, the editor takes the whole width and the rest folds. The preview becomes a strip pinned to the bottom edge, for as long as the editor above it is on screen: a miniature of the page, what it shows ("Sign in · Light") and **Open preview**. The miniature is the same sandboxed frame drawn small and cannot be pressed. The **Publish** bar becomes one row: **Publish** stays, and what is waiting is shown as a count, with the sentence kept for a screen reader.
+
+<ConsoleShot
+  name="branding-narrow-theme"
+  alt="The Theme tab on a phone: the editor takes the whole width, the Publish bar is one row with Publish and More, the tabs scroll sideways, and a strip pinned to the bottom shows a miniature of the sign-in page with the words Sign in, Light and an Open preview button."
+  caption="On a phone the editor takes the width and the preview is a strip at the bottom."
+/>
+
+**Open preview** raises the same preview as a sheet, **Page preview**, across the full width and at the page's real proportions, with the page and the colour scheme to choose between. **Close preview** or Escape puts it away, and the editor is where it was.
+
+<ConsoleShot
+  name="branding-narrow-sheet"
+  alt="The sheet Page preview raised by Open preview on a phone: the sign-in page across the full width at its real proportions, with the Page and Colour scheme menus above it and a Close preview button."
+  caption="Open preview raises the same page full width; Escape or Close preview puts it away."
+/>
+
+What else the bar does is under **More**: reverting the tab you are on, and discarding the draft.
+
+<ConsoleShot
+  name="branding-narrow-bar"
+  alt="The folded Publish bar on a phone with its More menu open: the menu lists Revert this tab to published and Discard draft, and Publish stays beside it."
+  caption="The bar folds to one row; what else it does is under More."
+/>
+
+The palettes under **Colours and font** and the list of the parts a page may use fold under their headings, the page picker on **Pages** is the device's own select, and **Wrap lines** above a code editor breaks a long line at the edge of the screen in place of scrolling across it. Controls on these tabs are at least 44 pixels high and inputs are set at 16 pixels, so a phone does not zoom the page when one takes focus.
+
+## Things that cannot be undone
+
+**Reset to default** deletes the draft and unpublishes the theme, so people see Instrument's own pages again; to drop only the draft, use **Discard draft**. The version that was published stays under **Versions**. **Delete image** removes a stored image, and is refused while any theme still names it.
+
+<ConsoleShot
+  name="branding-reset"
+  alt="The confirmation that opens from Reset to default: a dialog saying it deletes the draft and unpublishes the theme, so people see Instrument’s own pages again, with Cancel and Reset to default buttons."
+  caption="Reset to default is the one step that changes what people see at once."
+/>
+
+## Do the same through the API
+
+The calls are in the [theme](../reference/generated/admin-api/theme/index.md) area of the admin API: reading and saving the draft (the read says which parts of the draft differ from the published theme), publishing, discarding the draft with `DELETE /theme/draft`, versions and restore, reset, image upload, read and delete (`GET /theme/assets/{assetId}/content` answers the stored bytes the thumbnails show), and the preview, with `GET /theme/preview/info` saying what that preview shows and why. `GET /theme/stylesheet-hooks` lists what a stylesheet may name, which the stylesheet editor shows as its selectors. The mail preview and what the mail inherits are `GET /mail/preview` and `GET /mail/branding`; the overrides are the `/message-overrides` routes, and the keys offered are `GET /message-catalogue`.

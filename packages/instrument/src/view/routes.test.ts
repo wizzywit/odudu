@@ -84,6 +84,23 @@ describe('instrumentRoutes', () => {
     expect(response.headers['cache-control']).toBe('public, max-age=31536000, immutable');
   });
 
+  it('lets any origin read a font, since the theme preview frame has none of its own, and nothing else', async () => {
+    const server = await served(await builtDir());
+    const font = await server.inject(`/instrument/fonts/${FONT}`);
+    expect(font.headers['access-control-allow-origin']).toBe('*');
+    expect(font.headers['access-control-allow-credentials']).toBeUndefined();
+    const notModified = await server.inject({
+      url: `/instrument/fonts/${FONT}`,
+      headers: { 'if-none-match': String(font.headers.etag) },
+    });
+    expect(notModified.statusCode).toBe(304);
+    expect(notModified.headers['access-control-allow-origin']).toBe('*');
+    for (const url of ['/instrument/instrument.css', '/instrument/mark.svg', '/favicon.ico']) {
+      const other = await server.inject(url);
+      expect(other.headers['access-control-allow-origin'], url).toBeUndefined();
+    }
+  });
+
   it('serves the mark as an svg image that cannot be sniffed as anything else', async () => {
     const server = await served(await builtDir());
     const response = await server.inject('/instrument/mark.svg');

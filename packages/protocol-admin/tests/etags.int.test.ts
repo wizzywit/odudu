@@ -113,7 +113,11 @@ describe('a create answers the ETag its record reads back with', () => {
 
   const SYSTEM_CREATES = ['POST /admin/tenants', 'POST /admin/tenant-imports'];
   // Issues a one-time password and creates no record to read back.
-  const EXEMPT = ['POST /admin/tenants/:tenant/subjects/:id/password'];
+  // The image upload answers the stored image, which has no ETag or read.
+  const EXEMPT = [
+    'POST /admin/tenants/:tenant/subjects/:id/password',
+    'POST /admin/tenants/:tenant/theme/assets',
+  ];
 
   it('covers every route that creates something', () => {
     const creates = ADMIN_ROUTES.filter((route) => route.successStatus === 201)

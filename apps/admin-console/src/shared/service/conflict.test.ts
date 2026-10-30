@@ -34,6 +34,7 @@ const FLAGS = [
     'enabled',
     'consent_required',
     'full_scope_allowed',
+    'skip_logout_confirmation',
     'require_auth_time',
     'frontchannel_logout_session_required',
     'backchannel_logout_session_required',

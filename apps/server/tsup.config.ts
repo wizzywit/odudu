@@ -14,7 +14,7 @@ import { defineConfig } from 'tsup';
 // dependency (e.g. a future `@node-rs/bcrypt`) means appending its
 // specifier here ONCE, and both `noExternal` and `external` below pick it
 // up automatically.
-const nativeExternals = ['@node-rs/argon2'];
+const nativeExternals = ['@node-rs/argon2', 'sharp'];
 
 function escapeRegExp(specifier: string): string {
   return specifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

@@ -1,7 +1,9 @@
-import { BIDI_REFUSED_MESSAGE, refusesBidi } from '@odudu/contracts';
+import { BIDI_REFUSED_MESSAGE, checkLocalisedText, refusesBidi } from '@odudu/contracts';
 import {
   type ADMIN_CAPABILITIES,
   CLIENT_LIST_LIMIT,
+  CLIENT_NAME_MAX,
+  DESCRIPTION_MAX,
   listLimitMessage,
   type Client,
   type ClientFields,
@@ -47,6 +49,7 @@ import {
 } from '#/service/client-patch';
 import { etagOf, hasPrecondition, matches } from '#/service/etag';
 import { publicJwks } from '#/service/public-jwks';
+import { tenantLanguages } from '#/usecase/tenant-languages';
 import {
   guardLastAdministrator,
   type LastAdministratorRefusal,
@@ -70,10 +73,13 @@ const CLIENT_VIEW_COLUMNS = {
   clientId: clients.clientId,
   name: clients.name,
   description: clients.description,
+  nameI18n: clients.nameI18n,
+  descriptionI18n: clients.descriptionI18n,
   enabled: clients.enabled,
   type: clients.type,
   createdAt: clients.createdAt,
   fullScopeAllowed: clients.fullScopeAllowed,
+  skipLogoutConfirmation: clients.skipLogoutConfirmation,
   registrationOrigin: clients.registrationOrigin,
   builtinAdmin: clients.builtinAdmin,
   serviceSubjectId: clients.serviceSubjectId,
@@ -116,10 +122,13 @@ export interface ClientView {
   readonly clientId: string;
   readonly name: string;
   readonly description: string | null;
+  readonly nameI18n: Record<string, string>;
+  readonly descriptionI18n: Record<string, string>;
   readonly enabled: boolean;
   readonly type: ClientRecord['type'];
   readonly createdAt: Date;
   readonly fullScopeAllowed: boolean;
+  readonly skipLogoutConfirmation: boolean;
   readonly registrationOrigin: ClientRecord['registrationOrigin'];
   readonly builtinAdmin: boolean;
   readonly serviceSubjectId: string | null;
@@ -500,10 +509,13 @@ function toClientView(client: ClientRecord, config: ClientOidcConfig): StoredVie
     clientId: client.clientId,
     name: client.name,
     description: client.description,
+    nameI18n: client.nameI18n,
+    descriptionI18n: client.descriptionI18n,
     enabled: client.enabled,
     type: client.type,
     createdAt: client.createdAt,
     fullScopeAllowed: client.fullScopeAllowed,
+    skipLogoutConfirmation: client.skipLogoutConfirmation,
     registrationOrigin: client.registrationOrigin,
     builtinAdmin: client.builtinAdmin,
     serviceSubjectId: client.serviceSubjectId,
@@ -619,7 +631,11 @@ export async function createClient(
     await auditRefusal();
     return { kind: 'refused_field', ...refusal };
   }
-  const admin = checkedAdminFields(input.metadata);
+  const admin = checkedAdminFields(
+    input.metadata,
+    undefined,
+    await languagesFor(tx, input.tenantId, input.metadata),
+  );
   if (isFieldError(admin)) {
     await auditRefusal();
     return { kind: 'invalid_value', ...admin };
@@ -671,10 +687,17 @@ export async function createClient(
     secretHash,
     serviceSubjectId,
     ...(admin.client.description === undefined ? {} : { description: admin.client.description }),
+    ...(admin.client.nameI18n === undefined ? {} : { nameI18n: admin.client.nameI18n }),
+    ...(admin.client.descriptionI18n === undefined
+      ? {}
+      : { descriptionI18n: admin.client.descriptionI18n }),
     ...(admin.client.enabled === undefined ? {} : { enabled: admin.client.enabled }),
     ...(admin.client.fullScopeAllowed === undefined
       ? {}
       : { fullScopeAllowed: admin.client.fullScopeAllowed }),
+    ...(admin.client.skipLogoutConfirmation === undefined
+      ? {}
+      : { skipLogoutConfirmation: admin.client.skipLogoutConfirmation }),
     // Distinct from the CLI's 'seeded' and dynamic registration's
     // 'anonymous'/'token': an operator naming a client_id through this
     // door is a provenance this record can state honestly, rather than
@@ -739,9 +762,12 @@ export function clientWireShape(view: ClientView): ClientFields {
     client_id: view.clientId,
     name: view.name,
     description: view.description,
+    name_i18n: view.nameI18n,
+    description_i18n: view.descriptionI18n,
     type: view.type,
     enabled: view.enabled,
     full_scope_allowed: view.fullScopeAllowed,
+    skip_logout_confirmation: view.skipLogoutConfirmation,
     registration_origin: view.registrationOrigin,
     created_at: view.createdAt.toISOString(),
     redirect_uris: view.redirectUris,
@@ -820,11 +846,14 @@ export type AmendClientOutcome =
   | { kind: 'ok'; client: ClientView; etag: string };
 
 // The six list fields the schema stores whole (the same six
-// `clientOidcConfigRepository.update`'s own comment names): last-write-wins
+// `clientOidcConfigRepository.update`'s own comment names) and the two
+// per-language maps, replaced whole the same way: last-write-wins
 // on one silently reinstates exactly what another admin just removed, so a
 // `PATCH` naming any of them must carry `If-Match` — checked by name below,
 // never through one representative.
 const WHOLESALE_LIST_FIELDS = [
+  'name_i18n',
+  'description_i18n',
   'redirect_uris',
   'post_logout_redirect_uris',
   'web_origins',
@@ -900,6 +929,48 @@ function checkedDescription(value: unknown, current?: string | null): string | n
     : { field: 'description', description: checked.message };
 }
 
+// Replaces the whole map, as the list fields are replaced. A language outside
+// the tenant's list is refused here; a language dropped from the list later
+// leaves its stored text alone, and no page asks for it.
+function checkedLocalisedFields(
+  values: Readonly<Record<string, unknown>>,
+  stored:
+    | {
+        readonly nameI18n: Record<string, string>;
+        readonly descriptionI18n: Record<string, string>;
+      }
+    | undefined,
+  locales: readonly string[] | undefined,
+): { nameI18n?: Record<string, string>; descriptionI18n?: Record<string, string> } | FieldError {
+  const out: { nameI18n?: Record<string, string>; descriptionI18n?: Record<string, string> } = {};
+  const fields = [
+    ['name_i18n', 'nameI18n', CLIENT_NAME_MAX],
+    ['description_i18n', 'descriptionI18n', DESCRIPTION_MAX],
+  ] as const;
+  for (const [field, key, max] of fields) {
+    if (!(field in values)) continue;
+    const checked = checkLocalisedText(field, values[field], {
+      max,
+      ...(locales === undefined ? {} : { supported: locales }),
+      ...(stored === undefined ? {} : { current: stored[key] }),
+    });
+    if (checked.kind === 'invalid') return { field, description: checked.message };
+    out[key] = checked.value;
+  }
+  return out;
+}
+
+/** The tenant's languages, read only for a write that names a per-language map. */
+async function languagesFor(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  values: Readonly<Record<string, unknown>>,
+): Promise<readonly string[] | undefined> {
+  return 'name_i18n' in values || 'description_i18n' in values
+    ? tenantLanguages(tx, tenantId)
+    : undefined;
+}
+
 function checkedWebOrigins(origins: readonly string[]): string[] | FieldError {
   const bad = origins.find((origin) => !isWellFormedWebOrigin(origin));
   return bad === undefined
@@ -916,8 +987,11 @@ function checkedWebOrigins(origins: readonly string[]): string[] | FieldError {
 const ADMIN_FIELDS = new Set<string>([
   'name',
   'description',
+  'name_i18n',
+  'description_i18n',
   'enabled',
   'full_scope_allowed',
+  'skip_logout_confirmation',
   'audiences',
   'web_origins',
   'post_logout_redirect_uris',
@@ -933,8 +1007,11 @@ interface AdminFieldPatches {
   readonly client: {
     name?: string;
     description?: string | null;
+    nameI18n?: Record<string, string>;
+    descriptionI18n?: Record<string, string>;
     enabled?: boolean;
     fullScopeAllowed?: boolean;
+    skipLogoutConfirmation?: boolean;
   };
   readonly config: {
     audiences?: string[];
@@ -957,7 +1034,13 @@ const TOKEN_TTL_FIELDS = [
 
 function checkedAdminFields(
   values: Readonly<Record<string, unknown>>,
-  stored?: { readonly name: string; readonly description: string | null },
+  stored?: {
+    readonly name: string;
+    readonly description: string | null;
+    readonly nameI18n: Record<string, string>;
+    readonly descriptionI18n: Record<string, string>;
+  },
+  locales?: readonly string[],
 ): AdminFieldPatches | FieldError {
   const client: AdminFieldPatches['client'] = {};
   const config: AdminFieldPatches['config'] = {};
@@ -968,6 +1051,12 @@ function checkedAdminFields(
     if (refusesBidi(checked, stored?.name)) {
       return { field: 'name', description: BIDI_REFUSED_MESSAGE };
     }
+    if (checked.length > CLIENT_NAME_MAX && checked !== stored?.name) {
+      return {
+        field: 'name',
+        description: `name must be at most ${String(CLIENT_NAME_MAX)} characters`,
+      };
+    }
     client.name = checked;
   }
   if ('description' in values) {
@@ -975,6 +1064,9 @@ function checkedAdminFields(
     if (isFieldError(checked)) return checked;
     client.description = checked;
   }
+  const localised = checkedLocalisedFields(values, stored, locales);
+  if (isFieldError(localised)) return localised;
+  Object.assign(client, localised);
   if ('enabled' in values) {
     const checked = checkedBoolean('enabled', values.enabled);
     if (isFieldError(checked)) return checked;
@@ -984,6 +1076,11 @@ function checkedAdminFields(
     const checked = checkedBoolean('full_scope_allowed', values.full_scope_allowed);
     if (isFieldError(checked)) return checked;
     client.fullScopeAllowed = checked;
+  }
+  if ('skip_logout_confirmation' in values) {
+    const checked = checkedBoolean('skip_logout_confirmation', values.skip_logout_confirmation);
+    if (isFieldError(checked)) return checked;
+    client.skipLogoutConfirmation = checked;
   }
 
   for (const field of [
@@ -1132,7 +1229,11 @@ export async function amendClient(
     throw new Error(`client ${input.clientDbId} has no client_oidc_config row`);
   }
 
-  const admin = checkedAdminFields(input.values, clientRow);
+  const admin = checkedAdminFields(
+    input.values,
+    clientRow,
+    await languagesFor(tx, clientRow.tenantId, input.values),
+  );
   if (isFieldError(admin)) return { kind: 'invalid_value', ...admin };
   const clientPatch = admin.client;
   const configPatch: Partial<Omit<typeof clientOidcConfig.$inferInsert, 'clientId' | 'tenantId'>> =

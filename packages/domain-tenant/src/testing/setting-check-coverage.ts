@@ -9,6 +9,9 @@ const ORDERING = /\(([a-z_]+) (<=|>=) ([a-z_]+)\)/gu;
 const BOUND = /\(([a-z_]+) (?:<=|>=|<|>|=|<>) -?\d+\)/gu;
 const ENUMERATION = /\(([a-z_]+) = ANY \(ARRAY\[[^\]]*\]\)\)/gu;
 const CONTAINMENT = /\(([a-z_]+) (?:@>|<@) ARRAY\[[^\]]*\]\)/gu;
+const CARDINALITY = /\(cardinality\(([a-z_]+)\) (?:<=|>=|<|>|=) \d+\)/gu;
+const NULLABLE = /\(([a-z_]+) IS NULL\)/gu;
+const MEMBERSHIP = /\(([a-z_]+) = ANY \(([a-z_]+)\)\)/gu;
 const WORD = /\b[a-z_]+\b/gu;
 // A quoted literal, such as a pattern or an enumeration member, names no column.
 const LITERAL = /'(?:[^']|'')*'/gu;
@@ -16,8 +19,8 @@ const LITERAL = /'(?:[^']|'')*'/gu;
 /**
  * A CHECK definition as `pg_get_constraintdef` prints it, read for the
  * shapes the settings predicate restates: a column against a number, a
- * column against an enumeration or a list's members, and one column ordered
- * under another.
+ * column against an enumeration or a list's members, a list's length, a column
+ * held to the members of a list column, and one column ordered under another.
  * Anything else naming a setting column is left over, so a shape nobody
  * taught this to read fails a caller rather than passing unseen.
  */
@@ -33,7 +36,10 @@ export function readSettingCheck(
       orderings.push(operator === '<=' ? `${left}<=${right}` : `${right}<=${left}`);
       return 'TRUE';
     });
-  for (const shape of [BOUND, ENUMERATION, CONTAINMENT]) {
+  rest = rest.replace(MEMBERSHIP, (whole, left: string, right: string) =>
+    settingColumns.has(left) && settingColumns.has(right) ? 'TRUE' : whole,
+  );
+  for (const shape of [NULLABLE, CARDINALITY, BOUND, ENUMERATION, CONTAINMENT]) {
     rest = rest.replace(shape, (whole, column: string) =>
       settingColumns.has(column) ? 'TRUE' : whole,
     );

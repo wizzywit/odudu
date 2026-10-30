@@ -7,11 +7,13 @@ import {
   ACTIVITY_NOTE,
   clientsTrail,
   type ClientTab,
+  type BrandingOffer,
   type Reach,
 } from '#/features/clients/service';
 import { useClientRecordPage } from '#/features/clients/usecase/useClientRecordPage';
 import type { ClientTabProps } from '#/features/clients/view/ClientTabProps';
 import { AdvancedTab } from '#/features/clients/view/AdvancedTab';
+import { BrandingTab } from '#/features/clients/view/BrandingTab';
 import { GeneralTab } from '#/features/clients/view/GeneralTab';
 import { LogoutTab } from '#/features/clients/view/LogoutTab';
 import { RedirectsTab } from '#/features/clients/view/RedirectsTab';
@@ -20,6 +22,7 @@ import { ScopesTab } from '#/features/clients/view/ScopesTab';
 import { SessionsTab } from '#/features/clients/view/SessionsTab';
 import { ServiceAccountTab } from '#/features/clients/view/ServiceAccountTab';
 import { TokensTab } from '#/features/clients/view/TokensTab';
+import type { AdminCapability } from '#/shared/service/principal';
 import { Note } from '#/shared/view/Note';
 import { RecordActivity } from '#/shared/view/RecordActivity';
 import { RecordPage } from '#/shared/view/RecordPage';
@@ -28,6 +31,8 @@ import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
 
 interface PanelProps extends ClientTabProps {
   reach: Reach;
+  branding: BrandingOffer;
+  needs: readonly AdminCapability[];
 }
 
 function Activity({ tenant, id }: { tenant: string; id: string }) {
@@ -63,6 +68,14 @@ const PANELS: Readonly<Record<ClientTab, (props: PanelProps) => ReactNode>> = {
   tokens: (props) => <TokensTab {...writes(props)} />,
   scopes: (props) => <ScopesTab tenant={props.tenant} client={props.client} reach={props.reach} />,
   logout: (props) => <LogoutTab {...writes(props)} />,
+  branding: (props) => (
+    <BrandingTab
+      tenant={props.tenant}
+      client={props.client}
+      offer={props.branding}
+      needs={props.needs}
+    />
+  ),
   advanced: (props) => <AdvancedTab {...writes(props)} />,
   roles: (props) => <RolesTab tenant={props.tenant} client={props.client} />,
   service: (props) => (
@@ -93,6 +106,8 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
           gone: page.record.gone,
           writable: page.writable,
           reach: page.reach,
+          branding: page.branding,
+          needs: page.changeNeeds,
         };
   return (
     <RecordPage

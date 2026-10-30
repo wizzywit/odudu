@@ -5,6 +5,7 @@ import { problemSummary } from '#/view/form-error';
 import { links } from '#/view/links';
 import { bdi, t, tHtml, type MessageId } from '#/view/messages';
 import { passwordField } from '#/view/password-field';
+import { fillNotice, fillPage } from '#/view/template';
 import { passwordProblems, type PasswordFailure } from '#/view/password-rules';
 
 const ACTION_MESSAGE: Readonly<Record<LinkedRequiredAction, MessageId>> = {
@@ -44,16 +45,25 @@ export function renderRequiredActionsForm(
     : null;
   return page(
     t(locale, 'requiredActions.title'),
-    `${intro(tHtml(locale, 'requiredActions.title'), tenant)}
-<p>${tHtml(locale, 'requiredActions.intro')}</p>
-${listHtml(actions, locale)}
-${problemSummary(problems)}<form method="post" action="${action}">
-  <input type="hidden" name="key" value="${escapeHtml(key)}">${field === null ? '' : `\n  ${field.html}`}
-  <button type="submit">${tHtml(locale, 'requiredActions.continue')}</button>
-</form>`,
+    fillPage(
+      'required-actions',
+      {
+        intro: intro(tHtml(locale, 'requiredActions.title'), tenant),
+        actions: `<p>${tHtml(locale, 'requiredActions.intro')}</p>
+${listHtml(actions, locale)}`,
+        error: problemSummary(problems),
+        'form.open': `<form method="post" action="${action}">
+  <input type="hidden" name="key" value="${escapeHtml(key)}">`,
+        fields: field === null ? '' : `\n  ${field.html}`,
+        submit: `<button type="submit">${tHtml(locale, 'requiredActions.continue')}</button>`,
+        'form.close': '</form>',
+      },
+      locale,
+    ),
     field === null ? null : field.script,
     [],
     locale,
+    'required-actions',
   );
 }
 
@@ -92,13 +102,18 @@ function requiredActionsSucceeded(
 ${listHtml(remaining, locale)}`;
   return page(
     t(locale, 'requiredActions.succeeded.title'),
-    `<h1>${tHtml(locale, 'requiredActions.succeeded.heading')}</h1>${removed}${rest}${
-      signInPath === null
-        ? ''
-        : links([{ href: signInPath, text: tHtml(locale, 'link.continueToSignIn') }])
-    }`,
+    fillNotice(
+      `<h1>${tHtml(locale, 'requiredActions.succeeded.heading')}</h1>${removed}${rest}${
+        signInPath === null
+          ? ''
+          : links([{ href: signInPath, text: tHtml(locale, 'link.continueToSignIn') }])
+      }`,
+      '',
+      locale,
+    ),
     null,
     [],
     locale,
+    'notice',
   );
 }

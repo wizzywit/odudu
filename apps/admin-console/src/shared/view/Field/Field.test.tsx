@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   FieldGroup,
   KeyValueField,
+  NativeSelectFields,
   OwnDataFields,
   ReadOnlyFields,
   SelectField,
@@ -127,6 +128,47 @@ describe('SelectField', () => {
         <SelectField label="Requirement" options={OPTIONS} value="optional" onChange={vi.fn()} />
       )),
     ).toEqual({ light: [], dark: [] });
+  });
+
+  describe('where the browser’s own select is asked for', () => {
+    it('is a labelled combobox that reports the choice', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      render(
+        <NativeSelectFields>
+          <SelectField
+            label="Requirement"
+            description="Per page."
+            error="Not that one."
+            options={OPTIONS}
+            value="required"
+            onChange={onChange}
+          />
+        </NativeSelectFields>,
+      );
+      const select = screen.getByRole('combobox', { name: 'Requirement' });
+      expect(select).toHaveValue('required');
+      expect(select).toHaveAttribute('aria-invalid', 'true');
+      expect(describedBy(select)).toContain('Per page.');
+      expect(describedBy(select)).toContain('Not that one.');
+      await user.selectOptions(select, 'Optional');
+      expect(onChange).toHaveBeenCalledWith('optional');
+    });
+
+    it('passes axe in both themes', async () => {
+      expect(
+        await axeInBothThemes(() => (
+          <NativeSelectFields>
+            <SelectField
+              label="Requirement"
+              options={OPTIONS}
+              value="optional"
+              onChange={vi.fn()}
+            />
+          </NativeSelectFields>
+        )),
+      ).toEqual({ light: [], dark: [] });
+    });
   });
 });
 

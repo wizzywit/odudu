@@ -1,0 +1,63 @@
+.tab {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+.parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.parts li {
+  padding: var(--space-1) var(--space-2);
+  border: var(--hairline);
+  border-radius: var(--radius-s);
+  background: var(--surface-sunken);
+  font-size: var(--type-12);
+}
+
+/* Narrow, the bar above the tabs offers this in its menu. */
+.revert {
+  display: contents;
+}
+
+@container workspace (inline-size < 48rem) {
+  .revert {
+    display: none;
+  }
+}
+
+/* Wide, the parts of a page are always listed. Narrow they are a fold under
+   their own heading, which the button then says in its place. */
+.fold {
+  display: none;
+}
+
+.partsBody {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@container workspace (inline-size < 48rem) {
+  .fold {
+    display: block;
+  }
+
+  .fold button {
+    inline-size: 100%;
+    justify-content: space-between;
+  }
+
+  .partsBody[data-collapsed] {
+    display: none;
+  }
+
+  .partsTitle {
+    display: none;
+  }
+}

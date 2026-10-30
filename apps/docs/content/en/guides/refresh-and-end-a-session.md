@@ -52,25 +52,51 @@ Full transcript: [Replaying a refresh token](../reference/transcripts/request-pa
 Send the browser to the tenant's `end_session_endpoint` with the ID token you got at sign-in, and the address to return to. Register that return address on the client first.
 
 ```bash
-curl -sS -b cookies.txt -D - -o /dev/null \
-  --get \
+curl -sS -b cookies.txt -D - --get \
   --data-urlencode "id_token_hint=$ID_TOKEN" \
   --data-urlencode 'client_id=demo-spa' \
   --data-urlencode 'post_logout_redirect_uri=http://localhost:8080/logged-out' \
   --data-urlencode 'state=xyz-bye' \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout" | tee page.txt \
+  | grep -iE '^HTTP|^location|^set-cookie|<title>|name="(session_id|client_id|post_logout_redirect_uri|state)"|^content-security-policy'
+```
+
+```
+HTTP/1.1 200 OK
+content-security-policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self' http://localhost:8080; base-uri 'none'
+<title>Sign out?</title>
+  <input type="hidden" name="session_id" value="01a17ced-34cf-7caa-8eb4-1546abc5d157">
+  <input type="hidden" name="client_id" value="demo-spa">
+  <input type="hidden" name="post_logout_redirect_uri" value="http://localhost:8080/logged-out">
+  <input type="hidden" name="state" value="xyz-bye">
+```
+
+Odudu answers with a page that asks, and ends nothing, however valid the ID token is. A link or an image anyone can send must not be able to sign a person out, and a leaked ID token proves only that someone holds it. The page is a form: the browser posts it back with the hidden fields it carries, and that request ends the session.
+
+```bash
+field() { sed -n "s/.*name=.$1. value=.\([^>]*\).>.*/\1/p" page.txt; }
+curl -sS -b cookies.txt -D - -o /dev/null -X POST \
+  --data-urlencode "session_id=$(field session_id)" --data-urlencode "csrf=$(field csrf)" \
+  --data-urlencode "client_id=$(field client_id)" \
+  --data-urlencode "post_logout_redirect_uri=$(field post_logout_redirect_uri)" \
+  --data-urlencode "state=$(field state)" \
   "http://localhost:3000/tenants/demo/protocol/openid-connect/logout"
 ```
 
 ```
 HTTP/1.1 302 Found
+x-request-id: 01a17ced-3557-71f7-bd45-47d940774759
 set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 cache-control: no-store
 location: http://localhost:8080/logged-out?state=xyz-bye
 content-length: 0
+Date: Tue, 27 Oct 2026 10:34:42 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 ```
 
-Odudu clears both session cookies, ends the session and every grant that belongs to it, and sends the browser to your address with your `state`.
+Odudu clears both session cookies, ends the session and every grant that belongs to it, and sends the browser to your address with your `state`. The `csrf` field is derived from a secret only that browser's cookie holds, so the form cannot be posted from anywhere else.
 
 Full transcript: [RP-initiated logout](../reference/transcripts/request-paths/rp-initiated-logout.md).
 

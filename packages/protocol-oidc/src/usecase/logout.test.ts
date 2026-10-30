@@ -1,177 +1,132 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_FRONT_CHANNEL_FRAMES } from '#/service/frontchannel-logout';
-import { decideLogout, frontChannelLogoutUrls, type LogoutSession } from '#/usecase/logout';
+import {
+  decideLogout,
+  decideRedirect,
+  frontChannelLogoutUrls,
+  registeredRedirectOf,
+  toValidHint,
+} from '#/usecase/logout';
 
 const registered = ['https://app.example/after-logout'];
-const session: LogoutSession = { id: 's1', subjectId: 'u1' };
+const live = { id: 's1' };
+const ownHint = { clientId: 'rp', sid: 's1' };
+const skipping = { id: 'rp', skipsConfirmation: true };
+const asking = { id: 'rp', skipsConfirmation: false };
+const redirect = { uri: 'https://app.example/after-logout' };
 
 describe('decideLogout', () => {
-  it('confirms when there is no id_token_hint', () => {
-    expect(
-      decideLogout({
-        hintSubject: null,
-        hintSid: null,
-        session,
-        requested: null,
-        registered,
-      }),
-    ).toEqual({ kind: 'confirm' });
-  });
-
-  it('confirms when the hint names somebody other than the current session', () => {
-    expect(
-      decideLogout({
-        hintSubject: 'u2',
-        hintSid: null,
-        session,
-        requested: null,
-        registered,
-      }),
-    ).toEqual({ kind: 'confirm' });
-  });
-
-  it('confirms a sid-less hint even when its subject matches the session', () => {
-    // A `sid` is what every current token carries (Back-Channel Logout
-    // §2.1) — an `offline_access` grant's ID token is the one current
-    // exception, since it has no session to name. Treating a missing `sid`
-    // as a match-by-subject would let a stale-but-valid offline ID token
-    // for this same user skip the confirmation §2 makes mandatory.
-    expect(
-      decideLogout({
-        hintSubject: 'u1',
-        hintSid: null,
-        session,
-        requested: null,
-        registered,
-      }),
-    ).toEqual({ kind: 'confirm' });
-  });
-
-  it('ends without confirmation when the hint carries a sid matching this session', () => {
-    expect(
-      decideLogout({
-        hintSubject: 'u1',
-        hintSid: 's1',
-        session,
-        requested: null,
-        registered,
-      }),
-    ).toEqual({ kind: 'end', redirectTo: null });
-  });
-
-  it('confirms when the hint carries a sid for a different session, even with the same subject', () => {
-    // The same End-User signed in twice in one browser: this hint is a
-    // stale artifact of their first, already-ended session, and "same
-    // subject" must not be enough to skip confirmation for it.
-    expect(
-      decideLogout({
-        hintSubject: 'u1',
-        hintSid: 'some-other-session',
-        session,
-        requested: null,
-        registered,
-      }),
-    ).toEqual({ kind: 'confirm' });
-  });
-
-  it('ends without confirmation on a sid match even if the subject in the hint disagrees', () => {
-    // Should not arise from a genuine token (a sid belongs to one
-    // subject), but decideLogout's contract is "sid governs when present" —
-    // exercised directly so the precedence is pinned rather than assumed.
-    expect(
-      decideLogout({
-        hintSubject: 'somebody-else',
-        hintSid: 's1',
-        session,
-        requested: null,
-        registered,
-      }),
-    ).toEqual({ kind: 'end', redirectTo: null });
-  });
-
-  it('redirects to an exactly matching registered uri', () => {
-    expect(
-      decideLogout({
-        hintSubject: 'u1',
-        hintSid: 's1',
-        session,
-        requested: 'https://app.example/after-logout',
-        registered,
-      }),
-    ).toEqual({ kind: 'end', redirectTo: 'https://app.example/after-logout' });
-  });
-
-  it.each([
-    ['https://app.example/after-logout/'],
-    ['https://app.example/after-logout?x=1'],
-    ['https://APP.example/after-logout'],
-    ['https://evil.example/after-logout'],
-  ])('renders rather than redirecting to %s', (requested) => {
-    expect(
-      decideLogout({
-        hintSubject: 'u1',
-        hintSid: 's1',
-        session,
-        requested,
-        registered,
-      }),
-    ).toEqual({ kind: 'render', error: 'invalid_request' });
-  });
-
-  it('still ends the session when the requested uri is unusable', () => {
-    // The session ends either way; only the redirect is refused. A logout
-    // that silently kept the session alive because the return URL was wrong
-    // would be the worse failure.
-    const decision = decideLogout({
-      hintSubject: 'u1',
-      hintSid: 's1',
-      session,
-      requested: 'https://evil.example/x',
-      registered,
+  it('a client with the setting on signs out at once for its own valid hint', () => {
+    expect(decideLogout({ session: live, hint: ownHint, client: skipping, redirect })).toEqual({
+      kind: 'end',
+      sessionEnds: true,
     });
-    expect(decision.kind).toBe('render');
+  });
+
+  it('asks with no hint, even with client_id', () => {
+    expect(decideLogout({ session: live, hint: null, client: skipping, redirect })).toEqual({
+      kind: 'confirm',
+    });
+  });
+
+  it('asks for an invalid hint', () => {
+    // A hint that did not verify, was another issuer's, or named several
+    // audiences reaches the decision as no hint at all.
+    expect(decideLogout({ session: live, hint: null, client: skipping, redirect: null })).toEqual({
+      kind: 'confirm',
+    });
+  });
+
+  it('asks for a hint minted for another client, even when this client skips', () => {
+    expect(
+      decideLogout({
+        session: live,
+        hint: { clientId: 'other', sid: 's1' },
+        client: skipping,
+        redirect,
+      }),
+    ).toEqual({ kind: 'confirm' });
+  });
+
+  it("asks when the hint's sid is not the live session", () => {
+    expect(
+      decideLogout({
+        session: live,
+        hint: { clientId: 'rp', sid: 'another-session' },
+        client: skipping,
+        redirect,
+      }),
+    ).toEqual({ kind: 'confirm' });
+  });
+
+  it('asks for every client with the setting off', () => {
+    expect(decideLogout({ session: live, hint: ownHint, client: asking, redirect })).toEqual({
+      kind: 'confirm',
+    });
+  });
+
+  it('asks when the request names no client the server knows', () => {
+    expect(decideLogout({ session: live, hint: ownHint, client: null, redirect })).toEqual({
+      kind: 'confirm',
+    });
   });
 
   describe('with no live session', () => {
     it('confirms (nothing to end, no redirect requested)', () => {
-      expect(
-        decideLogout({
-          hintSubject: null,
-          hintSid: null,
-          session: null,
-          requested: null,
-          registered,
-        }),
-      ).toEqual({ kind: 'confirm' });
+      expect(decideLogout({ session: null, hint: null, client: asking, redirect: null })).toEqual({
+        kind: 'confirm',
+      });
     });
 
-    it('confirms rather than redirecting to an unregistered uri', () => {
-      expect(
-        decideLogout({
-          hintSubject: null,
-          hintSid: null,
-          session: null,
-          requested: 'https://evil.example/after-logout',
-          registered,
-        }),
-      ).toEqual({ kind: 'confirm' });
-    });
-
-    it('still redirects to an exactly matching registered uri, per §3', () => {
+    it('no session with a registered redirect still ends', () => {
       // §3 forbids redirecting to an *unmatched* URI; it says nothing
       // against honouring a matched one when there is nothing to end — an
       // RP sending a user to logout after their session already idled out
       // must not be stranded with no way back.
-      expect(
-        decideLogout({
-          hintSubject: null,
-          hintSid: null,
-          session: null,
-          requested: 'https://app.example/after-logout',
-          registered,
-        }),
-      ).toEqual({ kind: 'end', redirectTo: 'https://app.example/after-logout' });
+      expect(decideLogout({ session: null, hint: null, client: asking, redirect })).toEqual({
+        kind: 'end',
+        sessionEnds: false,
+        redirectTo: 'https://app.example/after-logout',
+      });
     });
+
+    it('does not end for a skipping client either: there is no session to match the hint to', () => {
+      expect(
+        decideLogout({ session: null, hint: ownHint, client: skipping, redirect: null }),
+      ).toEqual({ kind: 'confirm' });
+    });
+  });
+});
+
+describe('toValidHint', () => {
+  it('names the one audience and the sid of a hint that verified', () => {
+    expect(toValidHint({ audiences: ['rp'], sid: 's1' })).toEqual({ clientId: 'rp', sid: 's1' });
+  });
+
+  it('is no hint when it names several audiences', () => {
+    expect(toValidHint({ audiences: ['rp', 'other'], sid: 's1' })).toBeNull();
+  });
+
+  it('is no hint when it names no audience', () => {
+    expect(toValidHint({ audiences: [], sid: 's1' })).toBeNull();
+  });
+
+  it('is no hint when it carries no sid', () => {
+    expect(toValidHint({ audiences: ['rp'], sid: null })).toBeNull();
+  });
+
+  it('is no hint when the reader rejected it, another issuer’s or one with a bad signature', () => {
+    expect(toValidHint(null)).toBeNull();
+  });
+});
+
+describe('registeredRedirectOf', () => {
+  it('matches a registered address exactly and nothing else', () => {
+    expect(registeredRedirectOf('https://app.example/after-logout', registered)).toEqual({
+      uri: 'https://app.example/after-logout',
+    });
+    expect(registeredRedirectOf('https://app.example/after-logout/', registered)).toBeNull();
+    expect(registeredRedirectOf(null, registered)).toBeNull();
   });
 });
 
@@ -196,5 +151,30 @@ describe('frontChannelLogoutUrls', () => {
     );
     expect(asked).toEqual([MAX_FRONT_CHANNEL_FRAMES]);
     expect(urls).toHaveLength(1);
+  });
+});
+
+describe('decideRedirect', () => {
+  it('ends at an exactly matching registered uri', () => {
+    expect(decideRedirect('https://app.example/after-logout', registered)).toEqual({
+      kind: 'end',
+      redirectTo: 'https://app.example/after-logout',
+    });
+  });
+
+  it('ends with no redirect when none was requested', () => {
+    expect(decideRedirect(null, registered)).toEqual({ kind: 'end', redirectTo: null });
+  });
+
+  it.each([
+    ['https://app.example/after-logout/'],
+    ['https://app.example/after-logout?x=1'],
+    ['https://APP.example/after-logout'],
+    ['https://evil.example/after-logout'],
+  ])('renders rather than redirecting to %s', (requested) => {
+    expect(decideRedirect(requested, registered)).toEqual({
+      kind: 'render',
+      error: 'invalid_request',
+    });
   });
 });

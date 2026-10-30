@@ -13,7 +13,7 @@ function build(deps: UnroutedDeps = DEPS): FastifyInstance {
   const built = Fastify({ genReqId: () => 'req-1', requestIdHeader: 'x-request-id' });
   built.setNotFoundHandler((request, reply) => answerNotFound(request, reply, deps));
   built.setErrorHandler<FastifyError>((error, request, reply) =>
-    answerServerError(error, request, reply, deps),
+    answerServerError(error, request, reply),
   );
   built.get('/boom', () => {
     throw new Error('select * from secrets where token = $1');
@@ -191,7 +191,7 @@ describe('an unhandled error', () => {
   it('shows no id it cannot show safely', async () => {
     const hostile = Fastify({ genReqId: () => '<i>' });
     hostile.setErrorHandler<FastifyError>((error, request, reply) =>
-      answerServerError(error, request, reply, DEPS),
+      answerServerError(error, request, reply),
     );
     hostile.get('/boom', () => {
       throw new Error('x');
@@ -215,7 +215,7 @@ describe('an unhandled error, as the operator reads it', () => {
       logger: { level: 'error', stream: { write: (line: string) => lines.push(line) } },
     });
     logged.setErrorHandler<FastifyError>((error, request, reply) =>
-      answerServerError(error, request, reply, DEPS),
+      answerServerError(error, request, reply),
     );
     logged.get('/boom', failure);
     await logged.inject({ url: '/boom' });

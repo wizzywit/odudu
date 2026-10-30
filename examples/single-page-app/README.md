@@ -8,7 +8,7 @@ This is a single-page app that signs a person in with Odudu from the browser. Ev
 2. The app makes a one-time proof (PKCE), a `state` and a `nonce`, keeps the three in the tab's session storage, and sends the browser to Odudu.
 3. The person signs in on Odudu's page. The app never sees the password.
 4. Odudu sends the browser back to `/callback` with a code. The app takes the three values out of session storage and deletes them, checks that `state` is the one it sent, and swaps the code for tokens by calling Odudu's token address from the browser. It sends the proof, and no secret, because it has none. It checks the ID token's signature and `nonce`.
-5. The app shows who signed in and when the access token expires. **Sign out** forgets the tokens and sends the browser to Odudu's end-session address with the ID token as a hint, so the person is signed out there too, and back to the app. The app sends its `client_id` beside the hint, which every OpenID provider accepts; Odudu would find the client from the hint alone.
+5. The app shows who signed in and when the access token expires. **Sign out** forgets the tokens and sends the browser to Odudu's end-session address with the ID token as a hint. Odudu asks the person to confirm on its own page, whatever the hint, and then signs them out there too and sends the browser back to the app. The app sends its `client_id` beside the hint, which every OpenID provider accepts; Odudu would find the client from the hint alone.
 
 The redirect address the app sends is built from its own address, so it equals the registered one exactly.
 

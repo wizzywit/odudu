@@ -25,6 +25,7 @@ describe('the rail', () => {
       'Signing keys',
       'Sessions',
       'Settings',
+      'Branding',
       'Email',
       'Export',
       'Audit trail',
@@ -49,7 +50,7 @@ describe('the rail', () => {
   });
 
   it('lists every area when whoami could not answer, since the server decides regardless', () => {
-    expect(railGroups('acme', false, undefined, false).flatMap((g) => g.items)).toHaveLength(14);
+    expect(railGroups('acme', false, undefined, false).flatMap((g) => g.items)).toHaveLength(15);
   });
 
   it('puts the System area first when it is shown', () => {

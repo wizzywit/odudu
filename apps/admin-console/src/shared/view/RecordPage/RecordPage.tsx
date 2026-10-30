@@ -23,12 +23,14 @@ export type RecordPanelProps<Key extends string, R> = {
 export function RecordPage({
   record,
   breadcrumb,
+  kicker,
   title,
   status,
   description,
   actions,
   noun,
   label,
+  banner,
   tabs,
   tab,
   onTabChange,
@@ -37,7 +39,9 @@ export function RecordPage({
 }: {
   record: RecordView;
   // Up to the list the record sits in, ending with the record itself.
-  breadcrumb: readonly Crumb[];
+  breadcrumb?: readonly Crumb[];
+  // In place of a breadcrumb, for a page that is an area of its own.
+  kicker?: ReactNode;
   title: ReactNode;
   status?: ReactNode;
   description?: ReactNode;
@@ -46,6 +50,8 @@ export function RecordPage({
   noun: string;
   // Names the tab list: "Client sections".
   label: string;
+  // Above the tabs, once the record is shown, for what belongs to every tab.
+  banner?: ReactNode;
   tabs: readonly TabItem[];
   tab: string;
   onTabChange: (id: string) => void;
@@ -57,7 +63,8 @@ export function RecordPage({
   const readOnly = readOnlyChoice ?? viewOnly !== undefined;
   const head = (ready: boolean) => (
     <PageHeader
-      breadcrumb={breadcrumb}
+      {...(breadcrumb === undefined ? {} : { breadcrumb })}
+      {...(kicker === undefined ? {} : { kicker })}
       title={title}
       {...(ready && status !== undefined ? { status } : {})}
       {...(description === undefined ? {} : { description })}
@@ -125,6 +132,7 @@ export function RecordPage({
             ) : null}
           </div>
           {viewOnly}
+          {banner}
           <ReadOnlyFields when={readOnly}>
             <Tabs label={label} tabs={tabs} selectedKey={tab} onSelectionChange={onTabChange} />
           </ReadOnlyFields>

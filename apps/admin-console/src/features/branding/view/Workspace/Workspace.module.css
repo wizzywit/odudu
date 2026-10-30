@@ -1,0 +1,46 @@
+/* The columns follow the width the page was given, not the window's: the rail
+   takes some of it. */
+.frame {
+  container: workspace / inline-size;
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.editor,
+.preview {
+  min-inline-size: 0;
+}
+
+/* Narrow, the preview is a strip that stays at the bottom edge of the screen
+   for as long as the editor above it is in view, and rests under it at the end. */
+@container workspace (inline-size < 48rem) {
+  .preview {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: 5;
+  }
+
+  /* A field being edited is never under the strip: while one has focus the
+     strip stays where the editor ends. */
+  .workspace:has(.editor :focus-within) .preview {
+    position: static;
+  }
+}
+
+@container workspace (inline-size >= 64rem) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(24rem, 30rem);
+  }
+
+  .preview {
+    position: sticky;
+    inset-block-start: var(--space-4);
+  }
+}

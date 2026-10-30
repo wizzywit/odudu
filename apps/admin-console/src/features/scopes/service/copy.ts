@@ -106,7 +106,12 @@ export function sourceDescription(source: CopyRead): string | null {
   return source.status === 'ready' ? source.scope.description : null;
 }
 
-// The fields a copy is made with, the name aside: a null text is left out.
+function translated(map: Readonly<Record<string, string>>): boolean {
+  return Object.keys(map).length > 0;
+}
+
+// The fields a copy is made with, the name aside: a null text is left out, and
+// so is a translation map nobody filled.
 export function copyBody(scope: ClientScope, description: string) {
   return {
     description,
@@ -116,6 +121,8 @@ export function copyBody(scope: ClientScope, description: string) {
       ? {}
       : { default_client_assignment: scope.default_client_assignment }),
     ...(scope.consent_text === null ? {} : { consent_text: scope.consent_text }),
+    ...(translated(scope.description_i18n) ? { description_i18n: scope.description_i18n } : {}),
+    ...(translated(scope.consent_text_i18n) ? { consent_text_i18n: scope.consent_text_i18n } : {}),
     display_order: scope.display_order,
   };
 }

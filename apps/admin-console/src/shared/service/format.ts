@@ -83,6 +83,16 @@ export function attemptsText(attempts: number): string {
   return counted(attempts, 'attempt', 'attempts');
 }
 
+// How many bytes a text takes in UTF-8, which is what the server bounds.
+export function utf8Length(text: string): number {
+  return new TextEncoder().encode(text).length;
+}
+
+// A text field emptied clears the value: blank is null.
+export function nullWhenBlank(text: string): string | null {
+  return text.trim() === '' ? null : text;
+}
+
 // A text a record may not hold, as a field's value.
 export function orBlank(value: string | null | undefined): string {
   return value ?? '';
@@ -101,4 +111,40 @@ export function describeId(value: unknown, nameOf: (id: string) => string): stri
 export function describeIds(value: unknown, nameOf: (id: string) => string): string {
   const ids = Array.isArray(value) ? value.map(String) : [];
   return ids.length === 0 ? 'none' : ids.map(nameOf).join(', ');
+}
+
+export interface SizeReading {
+  text: string;
+  over: boolean;
+}
+
+// How much of a limit in bytes is used, or by how much it is passed.
+export function byteSizeReading(used: number, limit: number): SizeReading {
+  return used > limit
+    ? {
+        text: `${groupedNumber(used - limit)} bytes over the limit of ${groupedNumber(limit)}.`,
+        over: true,
+      }
+    : { text: `${groupedNumber(used)} of ${groupedNumber(limit)} bytes.`, over: false };
+}
+
+// The first `limit` characters of `text` and an ellipsis when it is longer.
+export function shortened(text: string, limit: number): string {
+  return text.length > limit ? `${text.slice(0, limit)}…` : text;
+}
+
+const KIB = 1024;
+const MIB = KIB * KIB;
+// Below this a KiB value would print as 1024.0 KiB, so it reads in MiB.
+const MIB_ROUNDS_UP_FROM = MIB - KIB / 20;
+
+function unitsOf(bytes: number, unit: number, name: string): string {
+  const value = bytes / unit;
+  return `${Number.isInteger(value) ? String(value) : value.toFixed(1)} ${name}`;
+}
+
+// A size as a person reads it: whole when it is whole, else one decimal.
+export function bytesText(bytes: number): string {
+  if (bytes < KIB) return `${String(bytes)} bytes`;
+  return bytes < MIB_ROUNDS_UP_FROM ? unitsOf(bytes, KIB, 'KiB') : unitsOf(bytes, MIB, 'MiB');
 }

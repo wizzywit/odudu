@@ -23,6 +23,8 @@ export const ADMIN_MUTATION_ACTIONS = [
   'key.delete',
   'key.promote',
   'key.retire',
+  'message_override.delete',
+  'message_override.set',
   'registration_token.mint',
   'registration_token.revoke',
   'role.amend',
@@ -65,6 +67,13 @@ export const ADMIN_MUTATION_ACTIONS = [
   'tenant.smtp_delete',
   'tenant.smtp_set',
   'tenant.smtp_test',
+  'theme.asset_deleted',
+  'theme.asset_uploaded',
+  'theme.draft_discarded',
+  'theme.draft_saved',
+  'theme.published',
+  'theme.reset',
+  'theme.restored',
 ] as const;
 
 export type AdminMutationAction = (typeof ADMIN_MUTATION_ACTIONS)[number];

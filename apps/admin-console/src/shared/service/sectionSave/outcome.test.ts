@@ -21,6 +21,7 @@ function state(extra: Partial<SectionState<V>> = {}): SectionState<V> {
     source: 'kept',
     phase: 'idle',
     fieldErrors: {},
+    refusals: {},
     message: null,
     ...extra,
   };
@@ -28,7 +29,10 @@ function state(extra: Partial<SectionState<V>> = {}): SectionState<V> {
 
 function problem(
   status: number,
-  extra: { detail?: string; errors?: { path: string; message: string }[] } = {},
+  extra: {
+    detail?: string;
+    errors?: { path: string; message: string; line?: number; column?: number }[];
+  } = {},
 ): GatewayFailure {
   return {
     ok: false,
@@ -62,6 +66,7 @@ describe('saveOutcome', () => {
     expect(saveOutcome(ok, ctx)).toEqual({
       phase: 'saved',
       fieldErrors: {},
+      refusals: {},
       toast: { tone: 'success', message: 'Settings saved' },
       refetch: false,
       refused: false,
@@ -88,6 +93,14 @@ describe('saveOutcome', () => {
     });
     const bare = saveOutcome(problem(400, { errors: [{ path: 'name', message: 'long' }] }), ctx);
     expect(bare.toast).toBeUndefined();
+  });
+  it('keeps a 400’s refusals with their lines, and a save clears them', () => {
+    const error = { path: 'name', message: 'long', line: 3, column: 1 };
+    const rejected = saveOutcome(problem(400, { errors: [error] }), ctx);
+    expect(rejected.refusals).toEqual({ name: [error] });
+    expect(afterSave(state(), rejected, {}).refusals).toEqual({ name: [error] });
+    const saved = saveOutcome({ ok: true, status: 200, data: {}, etag: null, next: null }, ctx);
+    expect(afterSave(state({ refusals: { name: [error] } }), saved, {}).refusals).toEqual({});
   });
   it('words a 409 and a 403, the explanation first', () => {
     expect(saveOutcome(problem(409, { detail: 'guard' }), ctx)).toMatchObject({

@@ -1,3 +1,4 @@
+import { type MailLookResolver } from '@odudu/email';
 import { revokeRecoveryCodesQuerySchema } from '@odudu/contracts/admin';
 import { type Database, type TenantScopedDatabase } from '@odudu/db';
 import {
@@ -23,6 +24,8 @@ export interface AccountRecoveryRouteDeps {
   /** See `IssuePasswordDeps.retireResetLinks`. */
   readonly retireResetLinks: (tx: TenantScopedDatabase, subjectId: string) => Promise<void>;
   readonly now: () => Date;
+  /** Themes the mail a credential notice queues; see `AdminRouteDeps.resolveMailLook`. */
+  readonly resolveMailLook: MailLookResolver;
 }
 
 export function issuePasswordHandler(deps: AccountRecoveryRouteDeps): AdminRouteHandler {
@@ -152,7 +155,7 @@ export function revokeRecoveryCodesHandler(deps: AccountRecoveryRouteDeps): Admi
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       revokeRecoveryCodes(
         tx,
-        { audit: deps.audit },
+        { audit: deps.audit, resolveMailLook: deps.resolveMailLook },
         {
           tenantId: targetTenantId,
           subjectId: id,

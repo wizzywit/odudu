@@ -140,6 +140,8 @@ test('signs out of the app and of Odudu, so the next sign-in asks again', async 
   await browse(async (page) => {
     await signInAndWaitForApp(page, APP, 'ada', PASSWORD);
     await page.getByRole('button', { name: /sign out/i }).click();
+    await page.getByRole('heading', { name: /^sign out\?$/iu }).waitFor();
+    await page.getByRole('button', { name: /^sign out$/iu }).click();
     await page.waitForURL(`${APP}/`, { timeout: 15_000 });
     assert.match(await page.innerText('body'), /signed out/iu);
     await page.getByRole('link', { name: /sign in/i }).click();

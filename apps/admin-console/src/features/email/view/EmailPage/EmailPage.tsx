@@ -8,6 +8,9 @@ import {
   PORT_RULE,
   RELAY_LABELS,
   removeConsequence,
+  TEST_AS_LABEL,
+  TEST_AS_RULE,
+  TEST_TENANT_OWN,
 } from '#/features/email/service';
 import {
   RELAY_TITLE,
@@ -17,6 +20,8 @@ import {
 import { useRelayRemoval } from '#/features/email/usecase/useRelayRemoval';
 import { useTestSend } from '#/features/email/usecase/useTestSend';
 import { Button } from '#/shared/view/Button';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { ClientPicker } from '#/shared/view/ClientPicker';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 import { TextField, ToggleField } from '#/shared/view/Field';
 import { FieldGrid, GridCell } from '#/shared/view/FieldGrid';
@@ -145,6 +150,26 @@ function TestMessage({
           {test.busy ? 'Sending…' : 'Send test message'}
         </Button>
       </form>
+      <div className={styles.client}>
+        {test.clientsClosed ? (
+          <CapabilityNote capability="manage-clients">Choosing clients</CapabilityNote>
+        ) : (
+          <ClientPicker
+            label={TEST_AS_LABEL}
+            picker={test.picker}
+            selected={test.selected}
+            selectionMode="single"
+            onChange={test.choose}
+          />
+        )}
+        <p className={recordTab.rule}>{TEST_AS_RULE}</p>
+        <p className={recordTab.rule}>{test.summary}</p>
+        {test.selected.length === 0 ? null : (
+          <Button size="small" onPress={test.useTenantOwn}>
+            {TEST_TENANT_OWN}
+          </Button>
+        )}
+      </div>
       {test.blocked === undefined ? null : <p className={recordTab.rule}>{test.blocked}</p>}
       <p role="status" className={styles.outcome} data-tone={test.outcome?.tone}>
         {test.outcome?.text}

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { exportedMessageOverrideSchema, MESSAGE_OVERRIDE_LIMIT } from '#/admin/message-overrides';
 import { noBidiControls } from '#/bidi';
 import { clientTypeSchema, registrationOriginSchema } from '#/admin/clients';
 import { executionRequirementSchema } from '#/admin/flow';
@@ -9,6 +10,7 @@ import {
   CLIENT_LIST_LIMIT,
   fieldErrorSchema,
   listLimitMessage,
+  localisedTextSchema,
   type FieldError,
 } from '#/admin/shared';
 import { requiredActionSchema } from '#/admin/subjects';
@@ -84,6 +86,10 @@ export const tenantSettingsDocumentSchema = z.strictObject({
   reset_password_ttl_seconds: count,
   login_with_email: z.boolean(),
   audit_event_types: z.array(z.string()),
+  // Absent from a document exported before tenants had languages, which
+  // imports as English only with no default.
+  supported_locales: z.array(z.string()).default(['en']),
+  default_locale: z.string().nullable().default(null),
 });
 export type TenantSettingsDocument = z.infer<typeof tenantSettingsDocumentSchema>;
 
@@ -125,9 +131,15 @@ export const exportedClientSchema = z.strictObject({
   client_id: noBidiControls(z.string()),
   name: noBidiControls(z.string()),
   description: noBidiControls(z.string()).nullable(),
+  // Absent from a document exported before per-language text existed.
+  name_i18n: localisedTextSchema.default({}),
+  description_i18n: localisedTextSchema.default({}),
   type: clientTypeSchema,
   enabled: z.boolean(),
   full_scope_allowed: z.boolean(),
+  // Absent from a document exported before the setting existed, which
+  // imports with it off.
+  skip_logout_confirmation: z.boolean().default(false),
   registration_origin: registrationOriginSchema,
   redirect_uris: clientList(),
   grant_types: z.array(z.string()),
@@ -191,6 +203,8 @@ export const exportedScopeSchema = z.strictObject({
   include_in_access_token: z.boolean(),
   default_client_assignment: clientScopeAssignmentSchema.nullable(),
   consent_text: noBidiControls(z.string()).nullable(),
+  description_i18n: localisedTextSchema.default({}),
+  consent_text_i18n: localisedTextSchema.default({}),
   display_order: z.number().int(),
   builtin: z.boolean(),
   roles: assignmentSet(roleReferenceSchema),
@@ -234,6 +248,14 @@ export const tenantDocumentSchema = z.strictObject({
   scopes: z.array(exportedScopeSchema),
   registration_policy: registrationPolicySchema,
   smtp: exportedSmtpSchema.nullable(),
+  // Absent from a document exported before overrides existed: none.
+  message_overrides: z
+    .array(exportedMessageOverrideSchema)
+    .max(MESSAGE_OVERRIDE_LIMIT, {
+      error: (issue) =>
+        `${Array.isArray(issue.input) ? String(issue.input.length) : 'too many'} entries, at most ${String(MESSAGE_OVERRIDE_LIMIT)}`,
+    })
+    .default([]),
   subjects: z.array(exportedSubjectSchema).optional(),
   // The JSON path of each secret a consumer would expect and the document
   // deliberately leaves out, such as `clients[2].secret`, or of a key it

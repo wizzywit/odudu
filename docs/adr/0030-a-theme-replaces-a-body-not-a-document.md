@@ -77,6 +77,17 @@ Every package's `page()` has this shape, and
 `packages/protocol-oidc/src/view/instrument-reach.test.ts` fails the build
 on a `*-html.ts` that builds a document of its own.
 
+## Amendment — 2026-10-27 — a branded page's policy
+
+A page whose locale carries a `ResolvedBranding` lists the theme's own
+stylesheet and image URLs in `style-src` and `img-src` as `origin + path`,
+in place of `'self'`. `origin` must equal the origin the page is served from
+(the configured public base URL); a mismatch fails closed, the page loading
+unstyled while its forms still work. A URL ending in `/` is refused, because
+a trailing slash is a prefix match in a CSP. A URL with `//` or a dot segment is refused too, as it never matches a request path. An origin over 300 characters is refused. `pageHeaders` throws on an
+invalid branding, so a resolver calls `brandingProblems` first and, on any
+reason, logs it and falls back to the default theme.
+
 ## Alternatives rejected
 
 - **A theme replaces the whole document.** Rejected: P4b's criterion is

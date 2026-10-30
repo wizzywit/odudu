@@ -8,15 +8,23 @@ export interface Write<A, R> {
 }
 
 export interface WriteOptions<A, R> {
+  // Names the write while it runs, for a page to ask whether it does.
+  mutationKey?: readonly string[];
   send: (gateway: Gateway, arg: A) => Promise<R>;
   onSuccess?: (result: R, arg: A) => void;
   // The result is undefined when the send itself rejected.
   onSettled?: (result: R | undefined, arg: A) => void;
 }
 
-export function useWrite<A, R>({ send, onSuccess, onSettled }: WriteOptions<A, R>): Write<A, R> {
+export function useWrite<A, R>({
+  send,
+  onSuccess,
+  onSettled,
+  mutationKey,
+}: WriteOptions<A, R>): Write<A, R> {
   const { gateway } = useTransport();
   const mutation = useMutation({
+    ...(mutationKey === undefined ? {} : { mutationKey }),
     mutationFn: (arg: A) => send(gateway, arg),
     onSuccess: (result, arg) => {
       onSuccess?.(result, arg);

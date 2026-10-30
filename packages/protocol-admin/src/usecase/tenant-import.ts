@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { canonicalLocale } from '@odudu/contracts';
 import {
   executionRepository,
   registeredAuthenticatorNames,
@@ -30,6 +31,7 @@ import {
   coerceTenantSetting,
   type TenantSettingValue,
   tenantSettingsRepository,
+  messageOverrideRepository,
   normalizeDisplayName,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
@@ -71,6 +73,10 @@ export interface ImportTenantDeps {
   readonly consoleClientJwks?: ClientJwks | undefined;
   readonly hashClientSecret: (secret: string) => Promise<string>;
   readonly tlsClientAuthEnabled: boolean;
+  readonly messageOverrides: {
+    readonly isKnownKey: (key: string) => boolean;
+    readonly messageProblem: (key: string, message: string) => string | null;
+  };
   readonly claimMappers: MapperCatalogue;
   /** Through the owner connection: under row-level security no tenant sees another's name. */
   readonly tenantNameTaken: (name: string) => Promise<boolean>;
@@ -105,6 +111,14 @@ function generateClientSecret(): string {
   return randomBytes(32).toString('base64url');
 }
 
+// A validated map with its tags in the canonical spelling; validation has
+// already refused a tag written twice.
+function canonicalTexts(map: Readonly<Record<string, string>>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(map).map(([tag, text]) => [canonicalLocale(tag) ?? tag, text]),
+  );
+}
+
 function required<T>(map: ReadonlyMap<string, T>, key: string, what: string): T {
   const value = map.get(key);
   if (value === undefined) throw new Error(`tenant import: no ${what} for ${JSON.stringify(key)}`);
@@ -127,7 +141,7 @@ async function writeSettings(
     ...document.settings,
     ...document.registration_policy,
   };
-  const columns: Record<string, TenantSettingValue> = {};
+  const columns: Record<string, TenantSettingValue | null> = {};
   for (const { name, column } of TENANT_SETTING_COLUMNS) {
     const value = values[name];
     if (typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string') {
@@ -157,11 +171,14 @@ async function writeClient(
     clientId: client.client_id,
     name: client.name,
     description: client.description,
+    nameI18n: canonicalTexts(client.name_i18n),
+    descriptionI18n: canonicalTexts(client.description_i18n),
     type: client.type,
     secretHash: secret === null ? null : await deps.hashClientSecret(secret),
     enabled: client.enabled,
     serviceSubjectId,
     fullScopeAllowed: client.full_scope_allowed,
+    skipLogoutConfirmation: client.skip_logout_confirmation,
     registrationOrigin: client.registration_origin,
   });
   await clientOidcConfigRepository(tx).create({
@@ -295,6 +312,8 @@ async function writeScopes(
       includeInAccessToken: scope.include_in_access_token,
       defaultClientAssignment: scope.default_client_assignment,
       consentText: scope.consent_text,
+      descriptionI18n: canonicalTexts(scope.description_i18n),
+      consentTextI18n: canonicalTexts(scope.consent_text_i18n),
       displayOrder: scope.display_order,
     };
     let scopeId: string;
@@ -412,6 +431,15 @@ async function writeDocument(
       starttls: document.smtp.starttls,
     });
   }
+  const overrides = messageOverrideRepository(tx, {
+    isKnownKey: deps.messageOverrides.isKnownKey,
+  });
+  for (const override of document.message_overrides) {
+    const outcome = await overrides.put({ tenantId, ...override });
+    if (outcome !== 'ok') {
+      throw new Error(`tenant import: a validated message override was refused: ${outcome}`);
+    }
+  }
   await writeSubjects(tx, tenantId, document, roleIds, groupIds);
   return secrets;
 }
@@ -433,6 +461,8 @@ export async function importTenant(
     knownAuthenticators: registeredAuthenticatorNames(),
     tlsClientAuthEnabled: deps.tlsClientAuthEnabled,
     callerCapabilities: input.callerCapabilities,
+    isKnownMessageKey: deps.messageOverrides.isKnownKey,
+    messageProblem: deps.messageOverrides.messageProblem,
   });
   if (validated.kind === 'invalid') return validated;
   if (await deps.tenantNameTaken(input.name)) return { kind: 'name_taken' };
@@ -472,6 +502,7 @@ export async function importTenant(
               groups: document.groups.length,
               scopes: document.scopes.length,
               subjects: document.subjects?.length ?? 0,
+              message_overrides: document.message_overrides.length,
             },
           },
         });

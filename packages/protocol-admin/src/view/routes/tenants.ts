@@ -40,6 +40,8 @@ export interface TenantsRouteDeps {
   ) => Promise<ReadonlySet<string>>;
   readonly now: () => Date;
   readonly sessionsAudit: EndDisabledTenantSessionsDeps['audit'];
+  // Drops the deleted tenant's cached themes in this process.
+  readonly invalidateTheme: (tenantId: string) => void;
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -248,6 +250,7 @@ export function deleteTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
     );
     switch (outcome.kind) {
       case 'deleted':
+        deps.invalidateTheme(targetTenantId);
         return reply.code(204).send();
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));

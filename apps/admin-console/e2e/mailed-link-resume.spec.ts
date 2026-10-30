@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 import { expect, signInAtTenant, test } from './fixtures';
 import { BASE } from './page-inspection';
 import { inTenant, psql, seed, sqlText } from './stack';
+import { randomPassword } from './password';
 
 // A link mailed out of the console's own sign-in (a password reset, an email
 // verification) brings the person back to that sign-in, in the browser that
@@ -22,7 +23,7 @@ function newTenant(verifyEmail = false): {
   const tag = randomBytes(4).toString('hex');
   const tenant = `resume-${tag}`;
   const username = 'ada';
-  const password = randomBytes(18).toString('base64url');
+  const password = randomPassword();
   seed(['tenant', '--name', tenant]);
   seed([
     'tenant',
@@ -96,7 +97,7 @@ test('a reset mailed from the console sign-in, opened in the same browser, signs
   const { tenant, username, email } = newTenant();
   const key = await askForReset(page, tenant, email);
 
-  const reset = randomBytes(18).toString('base64url');
+  const reset = randomPassword();
   await resetThrough(page, tenant, key, reset);
   await page.getByRole('link', { name: 'Continue to sign in' }).click();
 
@@ -110,7 +111,7 @@ test('a verification mailed from the console registration, opened in the same br
   const { tenant } = newTenant(true);
   const username = 'grace';
   const email = `grace-${tenant}@example.test`;
-  const password = randomBytes(18).toString('base64url');
+  const password = randomPassword();
 
   await page.goto(`/console/${tenant}`);
   await page.getByRole('link', { name: 'Create an account' }).click();
@@ -151,7 +152,7 @@ test('the same link opened in a different browser offers no way to sign in, and 
   const elsewhere = await browser.newContext({ baseURL: BASE });
   try {
     const other = await elsewhere.newPage();
-    await resetThrough(other, tenant, key, randomBytes(18).toString('base64url'));
+    await resetThrough(other, tenant, key, randomPassword());
     await expect(other.getByRole('link', { name: 'Continue to sign in' })).toBeHidden();
     await expect(other.getByRole('link')).toHaveCount(0);
     await expect(other.getByText(NO_LINK)).toBeVisible();
@@ -174,7 +175,7 @@ test('once the sign-in it came from has lapsed, the link offers no way to sign i
   psql(
     `update authentication_sessions set expires_at = now() - interval '1 second' where id = ${sqlText(parked)}`,
   );
-  await resetThrough(page, tenant, mailedKey(tenant, email), randomBytes(18).toString('base64url'));
+  await resetThrough(page, tenant, mailedKey(tenant, email), randomPassword());
   await expect(page.getByRole('link', { name: 'Continue to sign in' })).toBeHidden();
   await expect(page.getByText(NO_LINK)).toBeVisible();
 });

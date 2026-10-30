@@ -158,6 +158,16 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
     auth: 'None',
     purpose: 'The stylesheet, mark, icons and fonts every server-rendered page links.',
   },
+  'GET /tenants/:tenant/brand/:file': {
+    auth: 'None',
+    purpose:
+      'An image a tenant’s published theme names, or its hashed stylesheet, at a URL made of the file’s SHA-256 and type; cached for a year.',
+  },
+  'GET /tenants/:tenant/brand/c/:client/:file': {
+    auth: 'None',
+    purpose:
+      'The hashed stylesheet a client’s published theme makes over the tenant’s, at a URL naming the client by its row id.',
+  },
   'GET /favicon.ico': {
     auth: 'None',
     purpose: 'The favicon, for browsers that ask for it without a page linking one.',

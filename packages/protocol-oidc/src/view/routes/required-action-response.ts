@@ -14,7 +14,11 @@ import { type PasswordRules, type RenderedPage } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { sendHtml } from '#/view/html-response';
 import { sendSignInExpired } from '#/view/routes/expired-sign-in';
-import { continuation, type ContinuationDeps } from '#/view/routes/continuation';
+import {
+  continuation,
+  type ContinuationDeps,
+  type TenantLocales,
+} from '#/view/routes/continuation';
 
 // What every route that can produce a 'required_action' outcome needs to
 // render the page for it — login.ts's own form submission and
@@ -24,7 +28,9 @@ import { continuation, type ContinuationDeps } from '#/view/routes/continuation'
 // (CLAUDE.md's layering table), and only `id` is read here.
 export interface RequiredActionResponseDeps extends ContinuationDeps {
   // Also what the change-password page tells a person about the password.
-  findTenant(name: string): Promise<{ id: string; passwordRules: PasswordRules } | null>;
+  findTenant(
+    name: string,
+  ): Promise<({ id: string; passwordRules: PasswordRules } & TenantLocales) | null>;
   authenticatedSubject(tenantId: string, authSessionId: string): Promise<string | null>;
   beginTotpEnrolment(
     tenantName: string,

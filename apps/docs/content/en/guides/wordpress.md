@@ -199,9 +199,9 @@ At the next sign-in `wendy` is an editor, and a person who signs in for the firs
 
 ## 8. Sign out
 
-Choosing **Log Out** in WordPress ends the WordPress session and sends the browser to Odudu's sign-out address, which ends the Odudu session too. Odudu then returns the person to `wp-login.php`, because you registered that address in step 2.
+Choosing **Log Out** in WordPress ends the WordPress session and sends the browser to Odudu's sign-out address, which asks the person to confirm. Confirming ends the Odudu session too, and Odudu then returns the person to `wp-login.php`, because you registered that address in step 2.
 
-If the post-logout address is not registered exactly, the person is still signed out of both. Odudu says _the address given to return to afterward is not one this client has registered_ and stays on its own page.
+If the post-logout address is not registered exactly, the person is still signed out of both once they confirm. Odudu says _the address given to return to afterward is not one this client has registered_ and stays on its own page.
 
 ## What this does not do
 

@@ -540,3 +540,55 @@ describe('the notice mail carries the year of the clock it was sent by', () => {
     for (const row of queued) expect(row.bodyHtml).toContain(`\u00a9 ${year} Odudu`);
   });
 });
+
+describe('the notice mail takes the tenant theme and default language', () => {
+  const branding = {
+    palette: {
+      page: '#fdf6e3',
+      panel: '#fffdf5',
+      sunken: '#f5ecd0',
+      border: '#8a7a4a',
+      ink: '#1a1405',
+      muted: '#5a4e2a',
+      link: '#7a3b00',
+      button: '#b45309',
+      buttonInk: '#000000',
+    },
+    darkPalette: null,
+    logo: { src: 'https://id.example/tenants/t/brand/aa.png', alt: 'T', width: 80, height: 20 },
+    darkLogo: null,
+  };
+
+  it('asks for the theme of the tenant it queues for, and draws the mail in it', async () => {
+    const s = await seed({ totp: false, passkey: false, codes: 0, email: 'ada@example.test' });
+    const asked: string[] = [];
+    await withTenant(fixture.app.db, s.tenant.id, async (tx) => {
+      await enqueueCredentialNotice(
+        tx,
+        { tenantId: s.tenant.id, subjectId: s.subjectId, now: new Date('2026-10-19T09:00:00Z') },
+        { kind: 'recovery_codes_revoked', newSet: false },
+        (_tx, scope) => {
+          asked.push(scope.tenantId);
+          return Promise.resolve({ branding, overrides: {} });
+        },
+      );
+    });
+    expect(asked).toEqual([s.tenant.id]);
+    const [queued] = await mail(s);
+    expect(queued?.bodyHtml).toContain('#fffdf5');
+    expect(queued?.bodyHtml).toContain('width="80" height="20" alt="T"');
+  });
+
+  it('is unthemed without a resolver', async () => {
+    const s = await seed({ totp: false, passkey: false, codes: 0, email: 'ada@example.test' });
+    await withTenant(fixture.app.db, s.tenant.id, (tx) =>
+      enqueueCredentialNotice(
+        tx,
+        { tenantId: s.tenant.id, subjectId: s.subjectId, now: new Date() },
+        { kind: 'recovery_codes_revoked', newSet: false },
+      ),
+    );
+    const [queued] = await mail(s);
+    expect(queued?.bodyHtml).toContain('cid:odudu-mark');
+  });
+});

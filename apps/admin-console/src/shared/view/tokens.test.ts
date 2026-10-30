@@ -8,7 +8,7 @@ type Theme = 'light' | 'dark';
 type Palette = Map<string, Record<Theme, string>>;
 
 const THEMES: readonly Theme[] = ['light', 'dark'];
-const COLOUR_TOKEN = /^--(?:surface|ink|signal|border|focus|rail)(?:-|$)/u;
+const COLOUR_TOKEN = /^--(?:surface|ink|signal|border|focus|rail|code)(?:-|$)/u;
 const LIGHT_DARK = /^light-dark\(\s*(#[0-9a-f]{6})\s*,\s*(#[0-9a-f]{6})\s*\)$/iu;
 
 // Every colour token is declared once, as light-dark(#hex, #hex), wherever it
@@ -78,12 +78,19 @@ function deltaE(a: string, b: string): number {
 
 const PANELS = ['--surface-panel', '--surface-page', '--surface-sunken'] as const;
 
+function codeInks(palette: Palette): string[] {
+  return [...palette.keys()].filter((name) => name.startsWith('--code-'));
+}
+
 function textPairs(palette: Palette): (readonly [ink: string, surface: string])[] {
   return [
     ...PANELS.flatMap((surface) => [
       ['--ink-primary', surface] as const,
       ['--ink-muted', surface] as const,
     ]),
+    ...codeInks(palette).flatMap((ink) =>
+      [...PANELS, '--signal-danger'].map((surface) => [ink, surface] as const),
+    ),
     ['--ink-rail', '--surface-rail'],
     ['--ink-rail', '--surface-rail-raised'],
     ['--ink-rail-muted', '--surface-rail'],
@@ -148,6 +155,17 @@ describe("Instrument's tokens", () => {
   it('declares every colour token once, as light-dark(#hex, #hex)', () => {
     expect(problems).toEqual([]);
     expect(signals(palette).sort()).toEqual(['active', 'danger', 'system', 'warning']);
+  });
+
+  it('names the six syntax colours of a code field', () => {
+    expect(codeInks(palette).sort()).toEqual([
+      '--code-comment',
+      '--code-keyword',
+      '--code-number',
+      '--code-property',
+      '--code-selector',
+      '--code-string',
+    ]);
   });
 
   it.each(THEMES)('reaches 4.5:1 for every ink on its surface in the %s theme', (theme) => {

@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import {
   psql,
   publish,
@@ -10,11 +9,13 @@ import {
   sqlText,
   UNBROKEN,
 } from './stack';
+import { client } from './page-flows';
+import { randomPassword } from './password';
 
 const TENANT_ADMIN = 'odudu-admin:tenant-admin';
 
 function password(): string {
-  return randomBytes(18).toString('base64url');
+  return randomPassword();
 }
 
 function subject(account: Account, ...extra: string[]): void {
@@ -344,6 +345,21 @@ function seedConfig(config: Seeded['config']): void {
   grant(email.fixedClientsOnly, 'odudu-admin:manage-clients');
   seedLockouts(config.lockouts);
   seedMail(config.mail);
+  seedBranding(config.branding);
+}
+
+// Each branding tenant has an administrator and a public application, so a
+// test can publish a theme and meet it on the application's sign-in page.
+function seedBranding(branding: Seeded['config']['branding']): void {
+  for (const account of Object.values(branding)) {
+    seed(['tenant', '--name', account.tenant]);
+    administrator(account);
+    client(account.tenant, 'brand-app', 'Brand App');
+  }
+  // The client's name can be written in a language the tenant offers.
+  psql(
+    `update tenants set supported_locales = array['en', 'fr'] where id = ${inTenant(branding.client.tenant)}`,
+  );
 }
 
 const LOCKED_SUBJECTS = 3;
@@ -512,6 +528,23 @@ export default function globalSetup(): void {
       refused: { tenant: `${run}-m4`, username: 'baird', password: password() },
       fixed: { tenant: `${run}-m5`, username: 'hertz', password: password() },
       fixedClientsOnly: { tenant: `${run}-m5`, username: 'edison', password: password() },
+    },
+    branding: {
+      publish: { tenant: `${run}-b1`, username: 'wren', password: password() },
+      upload: { tenant: `${run}-b2`, username: 'swift', password: password() },
+      contrast: { tenant: `${run}-b3`, username: 'heron', password: password() },
+      reset: { tenant: `${run}-b4`, username: 'finch', password: password() },
+      keyed: { tenant: `${run}-b5`, username: 'robin', password: password() },
+      layout: { tenant: `${run}-b6`, username: 'plover', password: password() },
+      mail: { tenant: `${run}-b7`, username: 'lark', password: password() },
+      languages: { tenant: `${run}-b8`, username: 'tern', password: password() },
+      styled: { tenant: `${run}-b9`, username: 'kite', password: password() },
+      catalogue: { tenant: `${run}-b10`, username: 'piper', password: password() },
+      client: { tenant: `${run}-b11`, username: 'swallow', password: password() },
+      publication: { tenant: `${run}-b13`, username: 'ibis', password: password() },
+      selectors: { tenant: `${run}-b12`, username: 'avocet', password: password() },
+      conflict: { tenant: `${run}-b14`, username: 'dipper', password: password() },
+      load: { tenant: `${run}-b15`, username: 'osprey', password: password() },
     },
     lockouts: {
       main: { tenant: `${run}-l1`, username: 'curie', password: password() },

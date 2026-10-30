@@ -22,6 +22,7 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
+import { confirmLogoutPage } from '#/testing/logout-confirmation';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -357,7 +358,7 @@ describe('session.ended', () => {
     );
   });
 
-  it('is written with via logout when a matching id_token_hint ends the session at once', async () => {
+  it('is written with via logout when a matching id_token_hint is confirmed', async () => {
     const tenant = await seedTenant();
     const jar = new Map<string, string>();
     const res = await login(tenant, jar);
@@ -366,12 +367,21 @@ describe('session.ended', () => {
 
     const requestId = `audit-sessions-logout-hint-${newId()}`;
     const params = new URLSearchParams({ id_token_hint: idToken, client_id: CLIENT_ID });
-    const ended = await http.inject({
+    const asked = await http.inject({
       url: `/tenants/${tenant.name}/protocol/openid-connect/logout?${params.toString()}`,
-      headers: { 'x-request-id': requestId, ...cookieHeader(jar) },
+      headers: cookieHeader(jar),
     });
+    expect(await sessionRows(tenant, 'session.ended')).toHaveLength(0);
+    const ended = await confirmLogoutPage(
+      http,
+      tenant.name,
+      cookieHeader(jar).cookie ?? '',
+      asked,
+      {
+        'x-request-id': requestId,
+      },
+    );
     expect(ended.statusCode).toBe(200);
-    expect(ended.body).not.toContain('name="session_id"');
 
     const row = onlyRow(await sessionRows(tenant, 'session.ended'));
     expect(row).toMatchObject({

@@ -20,6 +20,8 @@ const FOREIGN: TenantLookup = {
   resetPasswordAllowed: false,
   maxSessionsPerBrowser: 5,
   clientRegistrationPolicy: 'disabled',
+  supportedLocales: ['en'],
+  defaultLocale: null,
   passwordRules: {
     minLength: 15,
     requireDigit: false,
@@ -106,5 +108,105 @@ describe('a foreign issuer whose resolution fails', () => {
       reason: 'issuer_mismatch',
       foreignIssuer: { issuerTenantId: FOREIGN.id, subjectId: 'subject-id', clientDbId: null },
     });
+  });
+});
+
+describe('the tenant named in the path, already looked up by the caller', () => {
+  const TARGET: TenantLookup = { ...FOREIGN, id: 'target-tenant-id' };
+
+  async function targetToken(key: SigningKeyRecord): Promise<string> {
+    const iat = Math.floor(Date.now() / 1000);
+    return signJwt(
+      {
+        iss: `${BASE}/tenants/target`,
+        sub: 'subject-id',
+        aud: [ADMIN_API_AUDIENCE],
+        iat,
+        exp: iat + 300,
+        grant_id: 'grant-id',
+        sid: 'session-id',
+      },
+      { key, kek: KEK, typ: 'at+jwt' },
+    );
+  }
+
+  async function run(known: boolean) {
+    const key = { ...(await foreignKey()), tenantId: TARGET.id };
+    const lookups: string[] = [];
+    const d = deps(key, {
+      findTenant: (name) => {
+        lookups.push(name);
+        return Promise.resolve(name === 'target' ? TARGET : null);
+      },
+      loadGrant: () =>
+        Promise.resolve({
+          clientId: 'client-id',
+          sessionId: 'session-id',
+          revokedAt: null,
+        } as never),
+      isSessionLive: () => Promise.resolve(true),
+      isClientEnabled: () => Promise.resolve(true),
+      isSubjectEnabled: () => Promise.resolve(true),
+    });
+    const outcome = await authenticateAdmin(d, {
+      authorizationHeader: `Bearer ${await targetToken(key)}`,
+      targetTenantName: 'target',
+      ...(known ? { targetTenant: TARGET } : {}),
+      targetTenantIssuer: `${BASE}/tenants/target`,
+      systemTenantIssuer: `${BASE}/tenants/system`,
+      issuerBase: BASE,
+      now: new Date(),
+    });
+    return { outcome, lookups };
+  }
+
+  it('is not looked up a second time to authenticate', async () => {
+    const { outcome, lookups } = await run(true);
+    expect(outcome.kind).toBe('authenticated');
+    expect(lookups).toEqual([]);
+  });
+
+  it('is looked up once when the caller has not done so', async () => {
+    const { outcome, lookups } = await run(false);
+    expect(outcome.kind).toBe('authenticated');
+    expect(lookups).toEqual(['target']);
+  });
+
+  it('does not make a foreign issuer’s token any less foreign', async () => {
+    const key = await foreignKey();
+    const lookups: string[] = [];
+    const outcome = await authenticateAdmin(
+      deps(key, {
+        findTenant: (name) => {
+          lookups.push(name);
+          return Promise.resolve(name === 'foreign' ? FOREIGN : null);
+        },
+      }),
+      {
+        authorizationHeader: `Bearer ${await foreignToken(key)}`,
+        targetTenantName: 'target',
+        targetTenant: TARGET,
+        targetTenantIssuer: `${BASE}/tenants/target`,
+        systemTenantIssuer: `${BASE}/tenants/system`,
+        issuerBase: BASE,
+        now: new Date(),
+      },
+    );
+    expect(lookups).toEqual(['foreign']);
+    expect(outcome).toMatchObject({ kind: 'unauthenticated', reason: 'issuer_mismatch' });
+  });
+
+  it('is still refused when the tenant it was looked up as is disabled', async () => {
+    const key = { ...(await foreignKey()), tenantId: TARGET.id };
+    const outcome = await authenticateAdmin(deps(key, {}), {
+      authorizationHeader: `Bearer ${await targetToken(key)}`,
+      targetTenantName: 'target',
+      targetTenant: { ...TARGET, enabled: false },
+      targetTenantIssuer: `${BASE}/tenants/target`,
+      systemTenantIssuer: `${BASE}/tenants/system`,
+      issuerBase: BASE,
+      now: new Date(),
+    });
+    expect(outcome).toMatchObject({ kind: 'unauthenticated', reason: 'issuer_mismatch' });
   });
 });

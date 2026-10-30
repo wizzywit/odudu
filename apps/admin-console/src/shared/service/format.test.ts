@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  byteSizeReading,
+  nullWhenBlank,
+  utf8Length,
+  bytesText,
+  shortened,
   groupedNumber,
   andList,
   attemptsText,
@@ -156,5 +161,58 @@ describe('attemptsText', () => {
     expect(attemptsText(1)).toBe('1 attempt');
     expect(attemptsText(0)).toBe('0 attempts');
     expect(attemptsText(5)).toBe('5 attempts');
+  });
+});
+
+describe('byteSizeReading', () => {
+  it('says how much of the limit is used, and by how much it is passed', () => {
+    expect(byteSizeReading(1500, 2000)).toEqual({ text: '1,500 of 2,000 bytes.', over: false });
+    expect(byteSizeReading(2000, 2000).over).toBe(false);
+    expect(byteSizeReading(2001, 2000)).toEqual({
+      text: '1 bytes over the limit of 2,000.',
+      over: true,
+    });
+  });
+});
+
+describe('shortened', () => {
+  it('keeps a text that fits and cuts a longer one to the limit with an ellipsis', () => {
+    expect(shortened('abc', 3)).toBe('abc');
+    expect(shortened('abcd', 3)).toBe('abc…');
+    expect(shortened('', 3)).toBe('');
+  });
+});
+
+describe('a size in bytes', () => {
+  it('is read as a person would', () => {
+    expect(bytesText(512)).toBe('512 bytes');
+    expect(bytesText(256 * 1024)).toBe('256 KiB');
+    expect(bytesText(16 * 1024 * 1024)).toBe('16 MiB');
+  });
+
+  it('keeps one decimal only when the size is not whole', () => {
+    expect(bytesText(1536)).toBe('1.5 KiB');
+    expect(bytesText(5 * 1024 * 1024 + 1)).toBe('5.0 MiB');
+  });
+
+  it('reads the unit edges without a 1024.0 KiB', () => {
+    expect(bytesText(0)).toBe('0 bytes');
+    expect(bytesText(1023)).toBe('1023 bytes');
+    expect(bytesText(1024)).toBe('1 KiB');
+    expect(bytesText(1024 * 1024 - 1)).toBe('1.0 MiB');
+  });
+});
+
+describe('texts as the server reads them', () => {
+  it('counts bytes, not characters', () => {
+    expect(utf8Length('abc')).toBe(3);
+    expect(utf8Length('é')).toBe(2);
+    expect(utf8Length('')).toBe(0);
+    expect(utf8Length('😀')).toBe(4);
+  });
+
+  it('takes blank for null and leaves other text as typed', () => {
+    expect(nullWhenBlank('  ')).toBeNull();
+    expect(nullWhenBlank(' a ')).toBe(' a ');
   });
 });

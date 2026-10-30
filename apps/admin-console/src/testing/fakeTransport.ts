@@ -15,6 +15,12 @@ export function json(body: unknown, status = 200, headers: Record<string, string
     });
 }
 
+// A file answered as the bytes it is, as the server answers an image.
+export function image(bytes: Uint8Array, type = 'image/png'): Answer {
+  return () =>
+    new Response(new Uint8Array(bytes), { status: 200, headers: { 'content-type': type } });
+}
+
 export function problem(
   status: number,
   type = 'about:blank',
@@ -64,6 +70,7 @@ export interface Sent {
   path: string;
   search: URLSearchParams;
   ifMatch: string | null;
+  ifNoneMatch: string | null;
   body: unknown;
 }
 
@@ -89,6 +96,7 @@ export function fakeTransport(routes: Record<string, Answer>) {
       path,
       search: address.searchParams,
       ifMatch: headers.get('if-match'),
+      ifNoneMatch: headers.get('if-none-match'),
       body: bodyOf(init),
     };
     sent.push(request);

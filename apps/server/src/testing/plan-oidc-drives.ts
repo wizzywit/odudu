@@ -282,14 +282,17 @@ export async function driveOidc(world: PlanWorld, capture: Capture): Promise<voi
     }),
   );
   expectStatus(confirm, 200, 'logout');
-  const sessionId = /name="session_id" value="([^"]*)"/u.exec(confirm.body)?.[1];
-  const csrf = /name="csrf" value="([^"]*)"/u.exec(confirm.body)?.[1];
-  if (sessionId !== undefined && csrf !== undefined) {
+  const fields: Record<string, string> = {};
+  for (const match of confirm.body.matchAll(/name="([^"]*)" value="([^"]*)"/gu)) {
+    const [, name, value] = match;
+    if (name !== undefined && value !== undefined) fields[name] = value;
+  }
+  if (fields.session_id !== undefined && fields.csrf !== undefined) {
     await capture('end-session: confirmed', 'oidc', () =>
       http.inject({
         method: 'POST',
         url: `${OIDC}/logout`,
-        payload: formOf({ session_id: sessionId, csrf }),
+        payload: formOf(fields),
         headers: { ...FORM, cookie },
       }),
     );

@@ -1,9 +1,10 @@
 import {
-  clientSchema,
+  clientRecordSchema,
   createClientResponseSchema,
   rotateClientSecretResponseSchema,
   roleSchema,
   type Client,
+  type ClientRecord,
   type CreateClientResponse,
   type Role,
   type RotateClientSecretResponse,
@@ -66,15 +67,17 @@ export function readClient(
   gateway: Gateway,
   tenant: string,
   id: string,
-): Promise<GatewayResult<Client>> {
+): Promise<GatewayResult<ClientRecord>> {
   return adminCall(gateway, 'GET', tenant, ['clients', id], {
-    schema: clientSchema,
+    schema: clientRecordSchema,
   });
 }
 
 export interface ClientChanges {
   name?: string;
   description?: string;
+  name_i18n?: Readonly<Record<string, string>>;
+  description_i18n?: Readonly<Record<string, string>>;
   client_uri?: string;
   policy_uri?: string;
   tos_uri?: string;
@@ -97,6 +100,7 @@ export interface ClientChanges {
   backchannel_logout_uri?: string;
   frontchannel_logout_session_required?: boolean;
   backchannel_logout_session_required?: boolean;
+  skip_logout_confirmation?: boolean;
   token_endpoint_auth_method?: string;
   tls_client_auth_subject_dn?: string;
   jwks?: unknown;
@@ -146,11 +150,11 @@ export function amendClient(
   id: string,
   changes: ClientChanges,
   ifMatch: string,
-): Promise<GatewayResult<Client>> {
+): Promise<GatewayResult<ClientRecord>> {
   return adminCall(gateway, 'PATCH', tenant, ['clients', id], {
     body: wireChanges(changes),
     ifMatch,
-    schema: clientSchema,
+    schema: clientRecordSchema,
   });
 }
 

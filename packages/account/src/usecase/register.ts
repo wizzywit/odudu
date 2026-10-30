@@ -4,8 +4,10 @@ import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odu
 import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import {
   outboxRepository,
+  mailContext,
   renderFinishRegistration,
   renderRegistrationDuplicate,
+  type MailLookResolver,
 } from '@odudu/email';
 import { BidiControlError, containsBidiControl, OduduError } from '@odudu/kernel';
 import { pendingRegistrationRepository } from '#/repository/pending-registrations';
@@ -56,8 +58,13 @@ export interface RegisterDeps {
   // (referenceToResume): kept beside the token so the page the link opens can
   // lead the same browser back to it, never put in the link.
   readonly authenticationSessionId?: string | null;
+  // The client that sign-in was made for, so the mail wears its look; from the
+  // held sign-in only (clientOfHeldSignIn), never from the request.
+  readonly clientId?: string | null;
   // The send time of the mail, from the caller's clock.
   readonly now: () => Date;
+  // Themes the mail the way the tenant's pages are; absent, it is unthemed.
+  readonly resolveMailLook?: MailLookResolver | undefined;
 
   // Injected for the same reason verify-email.ts's getCurrentEmail and
   // markVerified are: @odudu/account depends on neither
@@ -207,8 +214,8 @@ export async function register(
   }
 }
 
-// Two reads and two writes on both paths: who holds the username and the
-// address; then, for a free address, the pending row and the mail with its
+// Three reads and two writes on both paths: the tenant's theme and default
+// language, who holds the username and the address; then, for a free address, the pending row and the mail with its
 // link, and for a held one, the audit row and the mail to the holder. The
 // username is answered first and in the open, so a held address never changes
 // what a held username is told. The password is hashed first on both. A mail
@@ -225,6 +232,7 @@ async function requestVerification(
     deps.database.db,
     deps.tenantId,
     async (tx): Promise<RegisterOutcome> => {
+      const mail = await mailContext(tx, deps.resolveMailLook, deps);
       const taken = await deps.findTaken(tx, deps.tenantId, input);
       if (taken.username) return { kind: 'username_taken' };
       if (taken.emailOwner !== null) {
@@ -246,6 +254,7 @@ async function requestVerification(
                 : null,
               tenantDisplayName: deps.tenantDisplayName,
               now: deps.now(),
+              ...mail,
             }),
           });
         }
@@ -270,6 +279,7 @@ async function requestVerification(
           link: actionLink(issuerBase, deps.tenantName, key),
           tenantDisplayName: deps.tenantDisplayName,
           now: deps.now(),
+          ...mail,
         }),
       });
       return { kind: 'verification_sent' };

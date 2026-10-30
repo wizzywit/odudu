@@ -6,10 +6,10 @@ import {
   exportFailureText,
   exportNeeds,
   exportsSubjects,
-  fileSize,
   savedText,
   type Exported,
 } from '#/features/tenants/service';
+import { bytesText } from '#/shared/service/format';
 import { useToast } from '#/shared/repository/useToasts';
 import type { AdminCapability } from '#/shared/service/principal';
 
@@ -43,7 +43,7 @@ export function useTenantExport(target: string, authority: string): TenantExport
       .start(withSubjects)
       .then((result) => {
         if (result.ok) {
-          setSaved({ ...result.data, size: fileSize(result.data.bytes) });
+          setSaved({ ...result.data, size: bytesText(result.data.bytes) });
           toast.succeeded(savedText(result.data.fileName));
           return;
         }

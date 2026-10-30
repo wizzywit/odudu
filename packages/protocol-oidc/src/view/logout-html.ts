@@ -1,11 +1,23 @@
 import { scriptNonce, type PageLocale, type RenderedPage } from '@odudu/kernel';
 import { escapeHtml, page } from '#/view/document';
+import { fillPage } from '#/view/template';
 import { t, tHtml } from '#/view/messages';
 
 function hiddenField(name: string, value: string | null): string {
   return value === null
     ? ''
-    : `<input type="hidden" name="${name}" value="${escapeHtml(value)}">\n  `;
+    : `\n  <input type="hidden" name="${name}" value="${escapeHtml(value)}">`;
+}
+
+// What the pages that end a session fill `logged-out` with: `message` is the
+// whole of their text, `frames` and `script` are empty unless the page has
+// any, and `links` is unused because no page of this kind has a way on.
+function textOnly(message: string): Record<string, string> {
+  return { message, links: '', frames: '', script: '' };
+}
+
+function framed(message: string, iframes: string): Record<string, string> {
+  return { ...textOnly(message), frames: `\n${iframes}` };
 }
 
 export interface LogoutConfirmationFields {
@@ -30,16 +42,21 @@ export function renderLogoutConfirmationPage(
   const action = `/tenants/${escapeHtml(encodeURIComponent(tenant))}/protocol/openid-connect/logout`;
   return page(
     t(locale, 'logout.confirm.title'),
-    `<h1>${tHtml(locale, 'logout.confirm.title')}</h1>
-<p>${tHtml(locale, 'logout.confirm.body')}</p>
-<form method="post" action="${action}">
+    fillPage(
+      'logout-confirm',
+      {
+        'form.open': `<form method="post" action="${action}">
   <input type="hidden" name="session_id" value="${escapeHtml(sessionId)}">
-  <input type="hidden" name="csrf" value="${escapeHtml(csrf)}">
-  ${hiddenField('client_id', fields.clientId)}${hiddenField('post_logout_redirect_uri', fields.postLogoutRedirectUri)}${hiddenField('state', fields.state)}<button type="submit">${tHtml(locale, 'logout.confirm.submit')}</button>
-</form>`,
+  <input type="hidden" name="csrf" value="${escapeHtml(csrf)}">${hiddenField('client_id', fields.clientId)}${hiddenField('post_logout_redirect_uri', fields.postLogoutRedirectUri)}${hiddenField('state', fields.state)}`,
+        submit: `<button type="submit">${tHtml(locale, 'logout.confirm.submit')}</button>`,
+        'form.close': '</form>',
+      },
+      locale,
+    ),
     null,
     [],
     locale,
+    'logout-confirm',
   );
 }
 
@@ -49,11 +66,16 @@ export function renderLogoutConfirmationPage(
 export function renderNoActiveSessionPage(locale: PageLocale): RenderedPage {
   return page(
     t(locale, 'logout.noSession.title'),
-    `<h1>${tHtml(locale, 'logout.noSession.title')}</h1>
-<p>${tHtml(locale, 'logout.noSession.body')}</p>`,
+    fillPage(
+      'logged-out',
+      textOnly(`<h1>${tHtml(locale, 'logout.noSession.title')}</h1>
+<p>${tHtml(locale, 'logout.noSession.body')}</p>`),
+      locale,
+    ),
     null,
     [],
     locale,
+    'logged-out',
   );
 }
 
@@ -74,12 +96,19 @@ export function renderLoggedOutPage(
     .join('\n');
   return page(
     t(locale, 'logout.done.title'),
-    `<h1>${tHtml(locale, 'logout.done.title')}</h1>
-<p>${tHtml(locale, 'logout.done.body')}</p>
-${iframes}`,
+    fillPage(
+      'logged-out',
+      framed(
+        `<h1>${tHtml(locale, 'logout.done.title')}</h1>
+<p>${tHtml(locale, 'logout.done.body')}</p>`,
+        iframes,
+      ),
+      locale,
+    ),
     null,
     frontChannelLogoutUrls.map((url) => new URL(url).origin),
     locale,
+    'logged-out',
   );
 }
 
@@ -95,7 +124,8 @@ const NO_SCRIPT_WAIT_SECONDS = 5;
 // (Front-Channel Logout 1.0 §3). `redirectTo` is the address the route
 // already matched. The script reads it from the page's own link, so nothing
 // is spliced into script; it leaves when every frame has loaded or the wait
-// is up.
+// is up. It starts at DOMContentLoaded, so where a theme places it is
+// immaterial.
 export function renderLoggedOutRedirectPage(
   frontChannelLogoutUrls: readonly string[],
   redirectTo: string,
@@ -108,32 +138,45 @@ export function renderLoggedOutRedirectPage(
   const nonce = scriptNonce();
   return page(
     t(locale, 'logout.done.title'),
-    `<meta http-equiv="refresh" content="${String(NO_SCRIPT_WAIT_SECONDS)};url=${target}">
+    fillPage(
+      'logged-out',
+      {
+        ...framed(
+          `<meta http-equiv="refresh" content="${String(NO_SCRIPT_WAIT_SECONDS)};url=${target}">
 <h1>${tHtml(locale, 'logout.done.title')}</h1>
 <p>${tHtml(locale, 'logout.redirecting.body')}</p>
-<p><a id="continue" href="${target}">${tHtml(locale, 'logout.redirecting.continue')}</a></p>
-${iframes}
-<script nonce="${nonce}">
+<p><a id="continue" href="${target}">${tHtml(locale, 'logout.redirecting.continue')}</a></p>`,
+          iframes,
+        ),
+        script: `\n<script nonce="${nonce}">
 (function () {
-  var next = document.getElementById('continue').href;
-  var frames = document.querySelectorAll('iframe');
-  var pending = frames.length;
-  var left = false;
-  function leave() { if (!left) { left = true; location.replace(next); } }
-  frames.forEach(function (frame) {
-    frame.addEventListener('load', function () {
-      if (frame.dataset.seen) return;
-      frame.dataset.seen = '1';
-      pending -= 1;
-      if (pending === 0) leave();
+  function start() {
+    var next = document.getElementById('continue').href;
+    var frames = document.querySelectorAll('iframe');
+    var pending = frames.length;
+    var left = false;
+    function leave() { if (!left) { left = true; location.replace(next); } }
+    frames.forEach(function (frame) {
+      frame.addEventListener('load', function () {
+        if (frame.dataset.seen) return;
+        frame.dataset.seen = '1';
+        pending -= 1;
+        if (pending === 0) leave();
+      });
     });
-  });
-  setTimeout(leave, ${String(FRAME_WAIT_MS)});
+    setTimeout(leave, ${String(FRAME_WAIT_MS)});
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
 })();
 </script>`,
+      },
+      locale,
+    ),
     { nonce, fetchesSameOrigin: false },
     frontChannelLogoutUrls.map((url) => new URL(url).origin),
     locale,
+    'logged-out',
   );
 }
 
@@ -152,12 +195,19 @@ export function renderLogoutRedirectRefusedPage(
     .join('\n');
   return page(
     t(locale, 'logout.done.title'),
-    `<h1>${tHtml(locale, 'logout.done.title')}</h1>
-<p>${tHtml(locale, 'logout.redirectRefused.body')}</p>
-${iframes}`,
+    fillPage(
+      'logged-out',
+      framed(
+        `<h1>${tHtml(locale, 'logout.done.title')}</h1>
+<p>${tHtml(locale, 'logout.redirectRefused.body')}</p>`,
+        iframes,
+      ),
+      locale,
+    ),
     null,
     frontChannelLogoutUrls.map((url) => new URL(url).origin),
     locale,
+    'logged-out',
   );
 }
 
@@ -167,10 +217,15 @@ ${iframes}`,
 export function renderLogoutUnauthenticatedPage(locale: PageLocale): RenderedPage {
   return page(
     t(locale, 'logout.unauthenticated.title'),
-    `<h1>${tHtml(locale, 'logout.unauthenticated.title')}</h1>
-<p>${tHtml(locale, 'logout.unauthenticated.body')}</p>`,
+    fillPage(
+      'logged-out',
+      textOnly(`<h1>${tHtml(locale, 'logout.unauthenticated.title')}</h1>
+<p>${tHtml(locale, 'logout.unauthenticated.body')}</p>`),
+      locale,
+    ),
     null,
     [],
     locale,
+    'logged-out',
   );
 }

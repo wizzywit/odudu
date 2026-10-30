@@ -118,7 +118,12 @@ function lineIn(text: string, index: number, start: number): number {
   return line;
 }
 
-function inspect(text: string, start: number): Finding[] {
+// A page template's two slot shapes (@odudu/kernel's slots.ts) name a part or
+// a catalogue key and carry no text of their own.
+const SLOT = /\{\{(?:[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*|t "[A-Za-z][\w.]*")\}\}/gu;
+
+function inspect(source: string, start: number): Finding[] {
+  const text = source.replace(SLOT, BLANK);
   const found: Finding[] = [];
   const quoted = /(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/gu;
   const scripts = /<script\b[^>]*>([\s\S]*?)<\/script>/giu;
@@ -246,6 +251,17 @@ describe('findLiterals', () => {
   it('passes a renderer whose every sentence comes from the catalogue', async () => {
     const source = await readFile(path.join(FIXTURES, 'good-html.ts'), 'utf8');
     expect(findLiterals(source)).toEqual([]);
+  });
+
+  it('reads a template of slots as text-free, and a sentence beside them as text', async () => {
+    const source = await readFile(path.join(FIXTURES, 'template-html.ts'), 'utf8');
+    expect(findLiterals(source).map((finding) => finding.text)).toEqual(['Welcome back']);
+  });
+
+  it('does not take a malformed slot for a slot', () => {
+    expect(findLiterals('export const x = `<p>{{ Sign in }}</p>`;').map((f) => f.text)).toEqual([
+      '{{ Sign in }}',
+    ]);
   });
 
   it('reports a sentence inside a script body', async () => {

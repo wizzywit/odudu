@@ -3,6 +3,7 @@ import { type FastifyReply } from 'fastify';
 import { escapeHtml, page } from '#/view/document';
 import { links } from '#/view/links';
 import { t, tHtml } from '#/view/messages';
+import { fillNotice, fillPage } from '#/view/template';
 
 export function sendVerificationHtml(
   reply: FastifyReply,
@@ -30,16 +31,20 @@ export function renderVerificationSucceededPage(
   signInPath: string | null,
   locale: PageLocale,
 ): RenderedPage {
-  const next =
-    signInPath === null
-      ? `\n<p>${tHtml(locale, 'verification.succeeded.next')}</p>`
-      : links([{ href: signInPath, text: tHtml(locale, 'link.continueToSignIn') }]);
+  const heading = `<h1>${tHtml(locale, 'verification.succeeded.heading')}</h1>`;
   return page(
     t(locale, 'verification.succeeded.title'),
-    `<h1>${tHtml(locale, 'verification.succeeded.heading')}</h1>${next}`,
+    fillNotice(
+      signInPath === null
+        ? `${heading}\n<p>${tHtml(locale, 'verification.succeeded.next')}</p>`
+        : `${heading}${links([{ href: signInPath, text: tHtml(locale, 'link.continueToSignIn') }])}`,
+      '',
+      locale,
+    ),
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -49,11 +54,16 @@ export function renderVerificationFailedPage(
 ): RenderedPage {
   return page(
     t(locale, 'verification.failed.title'),
-    `<h1>${tHtml(locale, 'verification.failed.heading')}</h1>
-<p>${tHtml(locale, 'verification.failed.reason')}</p>${backToSignIn(signInPath, locale)}`,
+    fillNotice(
+      `<h1>${tHtml(locale, 'verification.failed.heading')}</h1>
+<p>${tHtml(locale, 'verification.failed.reason')}</p>`,
+      backToSignIn(signInPath, locale),
+      locale,
+    ),
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -73,14 +83,21 @@ export function renderEmailConfirmPage(
     username === null ? '' : `\n<p>${tHtml(locale, 'confirm.account', {}, { username })}</p>`;
   return page(
     t(locale, 'confirm.title'),
-    `<h1>${tHtml(locale, 'confirm.title')}</h1>${account}
-<p>${tHtml(locale, 'confirm.next')}</p>
-<form method="post" action="${action}">
-  <input type="hidden" name="key" value="${escapeHtml(key)}">
-  <button type="submit">${tHtml(locale, 'confirm.button')}</button>
-</form>`,
+    fillPage(
+      'verification',
+      {
+        message: `<h1>${tHtml(locale, 'confirm.title')}</h1>${account}
+<p>${tHtml(locale, 'confirm.next')}</p>`,
+        'form.open': `\n<form method="post" action="${action}">
+  <input type="hidden" name="key" value="${escapeHtml(key)}">`,
+        submit: `\n  <button type="submit">${tHtml(locale, 'confirm.button')}</button>\n`,
+        'form.close': '</form>',
+      },
+      locale,
+    ),
     null,
     [],
     locale,
+    'verification',
   );
 }
