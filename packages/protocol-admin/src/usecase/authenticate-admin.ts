@@ -47,6 +47,9 @@ export interface AuthenticateAdminDeps {
 export interface AuthenticateAdminInput {
   authorizationHeader: string | undefined;
   targetTenantName: string;
+  // The path's tenant as the caller has already read it, so it is not read a
+  // second time here.
+  targetTenant?: TenantLookup;
   // The two whole strings this door accepts as `iss`, resolved by the
   // caller the same way /userinfo resolves the one it checks against
   // (`tenantIssuerFor`, `@odudu/protocol-oidc`) — kept out of this usecase
@@ -122,7 +125,10 @@ async function matchIssuer(
         : undefined;
   if (name === undefined) return undefined;
 
-  const tenant = await deps.findTenant(name);
+  const tenant =
+    name === input.targetTenantName && input.targetTenant !== undefined
+      ? input.targetTenant
+      : await deps.findTenant(name);
   if (!tenant?.enabled) return undefined;
   return { id: tenant.id, lifespans: lifespansOf(tenant) };
 }
