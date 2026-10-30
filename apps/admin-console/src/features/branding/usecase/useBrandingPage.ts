@@ -2,11 +2,10 @@ import {
   OFFERED_TABS,
   selectOffered,
   showsPreview,
-  tabReads,
   TENANT_SCOPE,
   type OfferedTab,
 } from '#/features/branding/service';
-import { useTabReads } from '#/features/branding/repository/useTabReads';
+import { useScopeTabReads } from '#/features/branding/usecase/useScopeTabReads';
 import { useMailTab, type MailTab } from '#/features/branding/usecase/useMailTab';
 import {
   useScopeBranding,
@@ -26,7 +25,7 @@ export interface BrandingPage {
 
 export function useBrandingPage(tenant: string): BrandingPage {
   const { tab, selectTab } = useRecordTab(OFFERED_TABS);
-  useTabReads(tenant, TENANT_SCOPE, tabReads(tab));
+  useScopeTabReads(tenant, TENANT_SCOPE, tab);
   const branding = useScopeBranding(tenant, TENANT_SCOPE, showsPreview(tab));
   return {
     branding,
