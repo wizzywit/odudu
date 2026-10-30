@@ -346,8 +346,9 @@ function examplesOf(media: Json): string[] {
   return values.map((value) => `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``);
 }
 
-// A body with more fields than this is listed on pages of its own, so that no
-// page carries a table a browser has to lay out in one piece.
+// A body with more fields than this, or one that would take the operation's
+// page past it, is listed on pages of its own, so that no page carries more
+// table than a browser lays out in one piece.
 const MAX_TABLE_ROWS = 60;
 
 interface Part {
@@ -365,6 +366,8 @@ interface Context {
   readonly slug: string;
   readonly parts: Part[];
   readonly level: number;
+  // Rows already listed inline on this operation's page.
+  readonly inline: { rows: number };
 }
 
 function topLevel(row: Row): string {
@@ -402,7 +405,10 @@ function partLines(
     const slug = `${ctx.slug}-${section}-part-${String(index + 1)}`;
     ctx.parts.push({
       slug,
-      heading: `${heading}, part ${String(index + 1)} of ${String(chunks.length)}`,
+      heading:
+        chunks.length === 1
+          ? heading
+          : `${heading}, part ${String(index + 1)} of ${String(chunks.length)}`,
       rows: chunk,
       mediaType,
       patterns: chunk.flatMap((row) => row.patterns),
@@ -411,7 +417,9 @@ function partLines(
     links.push(`- [${names}](./${slug}.md)`);
   }
   return [
-    `The body has ${String(rows.length)} fields, listed on ${String(chunks.length)} pages, grouped by the top-level field they belong to:`,
+    chunks.length === 1
+      ? `The body has ${String(rows.length)} fields, listed on a page of its own:`
+      : `The body has ${String(rows.length)} fields, listed on ${String(chunks.length)} pages, grouped by the top-level field they belong to:`,
     '',
     ...links,
   ];
@@ -431,7 +439,8 @@ function mediaBlock(
   }
   const schema = record(media.schema);
   const rows = schema === undefined ? [] : fieldRows(schema, ctx.root, []);
-  const split = rows.length > MAX_TABLE_ROWS;
+  const split = ctx.inline.rows + rows.length > MAX_TABLE_ROWS;
+  if (!split) ctx.inline.rows += rows.length;
   const listing = split ? partLines(ctx, section, heading, mediaType, rows) : [rowsTable(rows)];
   if (!split) ctx.unknown.push(...rows.flatMap((row) => row.patterns));
   return [
@@ -687,6 +696,7 @@ function sectionOf(operation: Operation, doc: OpenApiDocument): Section {
     slug: operationSlug(method, path),
     parts: [],
     level: 3,
+    inline: { rows: 0 },
   };
   const text = `## ${method.toUpperCase()} ${path}\n\n${operationBody(operation.operation, ctx)}`;
   const rows = text.split('\n').filter((line) => line.startsWith('| ')).length;
