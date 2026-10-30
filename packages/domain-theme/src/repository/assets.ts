@@ -1,5 +1,5 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { isUuid, newId } from '@odudu/kernel';
+import { newId } from '@odudu/kernel';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { themeAssets } from '#/schema/theme-assets';
 import { themeVersionAssets } from '#/schema/theme-version-assets';
@@ -111,7 +111,6 @@ export function assetRepository(tx: TenantScopedDatabase) {
       tenantId: string,
       assetId: string,
     ): Promise<{ mime: string; bytes: Buffer } | null> {
-      if (!isUuid(assetId)) return null;
       const [row] = await tx
         .select({ mime: themeAssets.mime, bytes: themeAssets.bytes })
         .from(themeAssets)
