@@ -1609,7 +1609,7 @@ the roadmap, the row and `docs/NEXT.md` all name it.
 
 ### P4b closed against its own exit criterion, 2026-10-30
 
-`docs/superpowers/specs/2026-10-27-p4b-theming-and-client-branding-design.md` is the
+`docs/archive/specs/2026-10-27-p4b-theming-and-client-branding-design.md` is the
 phase spec and `docs/phases/p4b.md` is what building it found. Each clause of the
 row, and what establishes it.
 

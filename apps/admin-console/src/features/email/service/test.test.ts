@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { TEST_RECIPIENT_RULE, testBlocked, testOutcome } from '#/features/email/service/test';
+import {
+  TEST_RECIPIENT_RULE,
+  testBlocked,
+  testOutcome,
+  testSendable,
+} from '#/features/email/service/test';
 import type { GatewayResult } from '#/shared/service/result';
 
 function problem(status: number, detail: string): GatewayResult<{ sent: boolean }> {
@@ -9,6 +14,14 @@ function problem(status: number, detail: string): GatewayResult<{ sent: boolean 
     problem: { type: 'about:blank', title: 'x', status, detail },
   };
 }
+
+describe('testSendable', () => {
+  it('sends only when idle and not held', () => {
+    expect(testSendable(false, undefined)).toBe(true);
+    expect(testSendable(true, undefined)).toBe(false);
+    expect(testSendable(false, 'Enter the address to send to.')).toBe(false);
+  });
+});
 
 describe('testBlocked', () => {
   it('needs a relay of the tenant’s own and an address', () => {

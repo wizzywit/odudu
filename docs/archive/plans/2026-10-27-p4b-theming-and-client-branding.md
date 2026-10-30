@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Fastify, Drizzle and hand-written SQL migrations, Testcontainers, React console, Docusaurus docs. New dependencies are chosen by Spike S1.
 
-**Spec:** [`docs/superpowers/specs/2026-10-27-p4b-theming-and-client-branding-design.md`](../specs/2026-10-27-p4b-theming-and-client-branding-design.md). Read it first; section numbers below refer to it.
+**Spec:** [`docs/archive/specs/2026-10-27-p4b-theming-and-client-branding-design.md`](../specs/2026-10-27-p4b-theming-and-client-branding-design.md). Read it first; section numbers below refer to it.
 
 ## Global Constraints
 

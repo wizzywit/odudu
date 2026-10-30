@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ALREADY_REMOVED,
   afterSave,
+  settle,
   capText,
   EMPTY_OVERRIDE,
   OVERRIDE_KEY_LENGTH,
@@ -121,6 +122,24 @@ describe('the form as it is sent', () => {
     const held = overrideAttempt('en', EMPTY_OVERRIDE);
     expect(held.sent).toBeNull();
     expect(Object.keys(held.errors)).toEqual(['key', 'message']);
+  });
+
+  it('settles into a toast for a save and a report for a refusal, in that order', () => {
+    const values = { key: 'k', message: 'm', etag: null };
+    const sent = { locale: 'en', key: 'k' };
+    const saved = settle(
+      afterSave({ ok: true, status: 200, data: {}, etag: null, next: null }, sent, values),
+    );
+    expect(saved.map((step) => step.kind)).toEqual(['toast']);
+    const denied = settle(
+      afterSave(
+        refused(403, 'about:blank', { detail: 'the caller does not hold: manage-tenant' }),
+        sent,
+        values,
+      ),
+    );
+    expect(denied.map((step) => step.kind)).toEqual(['report']);
+    expect(settle(afterSave({ ok: false, kind: 'network' }, sent, values))).toEqual([]);
   });
 
   it('reports a refusal and nothing else', () => {

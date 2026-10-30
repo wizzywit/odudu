@@ -184,6 +184,14 @@ export function publishOutcomeOf(
   };
 }
 
+// A publish whose send threw: told as a defect, held at the draft it was for.
+export function publishDefected(
+  failureText: (failure: GatewayFailure) => string,
+  tag: string,
+): PublishOutcome {
+  return publishOutcomeOf({ ok: false, kind: 'defect' }, failureText, tag);
+}
+
 // Says what a publish answer asks to be said, when it asks anything.
 export function announcePublish(outcome: PublishOutcome, toast: (text: string) => void): void {
   if (outcome.toast !== null) toast(outcome.toast);

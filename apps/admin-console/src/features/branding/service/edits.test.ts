@@ -9,6 +9,7 @@ import {
   IDLE_SLOTS,
   NO_OUTCOME,
   publishOutcomeOf,
+  publishDefected,
   currentOutcome,
   selectOffered,
   slotAfterUpload,
@@ -193,6 +194,13 @@ describe('the tabs', () => {
 });
 
 describe('a publish', () => {
+  it('tells a send that threw as a defect, held at its draft', () => {
+    const told = publishDefected((failure) => failure.kind, '"d1"');
+    expect(told.message).toBe('defect');
+    expect(told.atTag).toBe('"d1"');
+    expect(told.toast).toBeNull();
+  });
+
   it('toasts only when it went through', () => {
     const ok = publishOutcomeOf(
       {

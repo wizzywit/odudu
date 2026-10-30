@@ -1,5 +1,5 @@
 import type { MessageOverride, Settings } from '@odudu/contracts/admin';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRefusal } from '#/features/session';
 import { languagesSave } from '#/features/branding/repository/languagesSave';
 import { useOverrideList, useOverrideWrites } from '#/features/branding/repository/useOverrides';
@@ -17,6 +17,8 @@ import {
   formAfterTakingTheirs,
   keepMine,
   staleOutcome,
+  conflictsOf,
+  settle,
   SAVE_INTERRUPTED,
   withConflict,
   withoutConflict,
@@ -162,7 +164,13 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
     send: (asked) => writes.remove.run(asked),
     outcomeOf: (_asked, result) => removeOutcome(result),
   });
+  // Set at once, where `submitting` is read only after a render, so a submit
+  // that arrives before the next render (the form's Enter, a second press) is
+  // still known to be a second one.
+  const underway = useRef(false);
   const submit = (sent: SentOverride): void => {
+    if (underway.current) return;
+    underway.current = true;
     setSubmitting(true);
     writes.put
       .run(sent)
@@ -171,21 +179,23 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
         setErrors(after.errors);
         setMessage(after.message);
         setValues((was) => formAfterSave(was, sent, result.ok));
-        if (after.toast !== null) toast.succeeded(after.toast);
-        if (after.reported !== null) refusal.report(after.reported, 'manage-tenant');
+        settle(after).forEach((step) => {
+          if (step.kind === 'toast') toast.succeeded(step.text);
+          else refusal.report(step.failure, 'manage-tenant');
+        });
         setConflicts((held) => conflictsAfterSave(held, sent, result.ok));
         if (!after.stale) return;
         const stale = staleOutcome(sent, await writes.current(sent));
         setMessage(stale.message);
-        if (stale.conflict !== null) {
-          const { conflict } = stale;
+        conflictsOf(stale).forEach((conflict) => {
           setConflicts((held) => withConflict(held, conflict));
-        }
+        });
       })
       .catch(() => {
         setMessage(SAVE_INTERRUPTED);
       })
       .finally(() => {
+        underway.current = false;
         setSubmitting(false);
       });
   };

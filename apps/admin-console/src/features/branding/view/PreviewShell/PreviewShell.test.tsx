@@ -92,6 +92,21 @@ describe('where the editor is stacked and the preview is a strip', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  it('moves focus to the preview heading when the widened screen hides the button it came from', async () => {
+    const user = userEvent.setup();
+    render(
+      <div data-narrow-container>
+        <Shell />
+      </div>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Open preview' }));
+    await screen.findByRole('dialog', { name: 'Page preview' });
+    container.set(1000);
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Preview' })).toHaveFocus();
+    });
+  });
+
   it('keeps the miniature out of the tab order, and the sheet’s frame in it, named apart', async () => {
     const user = userEvent.setup();
     render(

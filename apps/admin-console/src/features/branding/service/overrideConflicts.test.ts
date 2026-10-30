@@ -20,6 +20,7 @@ import {
   afterSave,
   removeOutcome,
   staleOutcome,
+  conflictsOf,
   STALE_REMOVAL,
   UNREAD_NEWER,
   withConflict,
@@ -120,6 +121,18 @@ describe('two administrators and one override', () => {
       conflict: null,
       message: UNREAD_NEWER,
     });
+  });
+
+  it('holds the conflict a stale outcome found, and none when it found none', () => {
+    const found = staleOutcome(sent, {
+      ok: true as const,
+      status: 200,
+      data: null,
+      etag: null,
+      next: null,
+    });
+    expect(conflictsOf(found)).toEqual([overrideConflict(sent, null)]);
+    expect(conflictsOf(staleOutcome(sent, { ok: false, kind: 'network' }))).toEqual([]);
   });
 
   it('empties the form that carried a saved edit and leaves one that did not', () => {

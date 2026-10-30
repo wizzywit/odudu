@@ -2,7 +2,7 @@
 
 **Status:** draft for owner approval · 2026-10-27
 **Phase row:** section 11 of
-[the umbrella spec](2026-09-10-odudu-design.md), "P4b". This spec narrows
+[the umbrella spec](../../superpowers/specs/2026-09-10-odudu-design.md), "P4b". This spec narrows
 that row; where it differs, it says so in "What leaves P4b".
 
 ## 1. Intent

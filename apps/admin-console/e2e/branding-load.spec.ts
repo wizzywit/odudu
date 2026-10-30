@@ -49,13 +49,21 @@ function recordCalls(page: Page): Call[] {
 
 const paths = (calls: readonly Call[]): string[] => calls.map((call) => call.path).sort();
 
+// The page has stopped asking: nothing shows as loading, the preview frame has
+// loaded, and every call sent has been answered. 'networkidle' is not used,
+// because a frame attached once the network is quiet restarts its clock.
+async function settled(page: Page, calls: readonly Call[]): Promise<void> {
+  await expect(page.getByRole('progressbar')).toHaveCount(0);
+  await expect(page.getByText('Loading the preview')).toBeHidden();
+  await expect.poll(() => calls.every((call) => call.answered > 0)).toBe(true);
+}
+
 async function openTab(page: Page, tab: string): Promise<Call[]> {
   await signIn(page, load);
   const calls = recordCalls(page);
   await page.goto(`/console/${load.tenant}/branding?tab=${tab}`);
   await expect(page.getByRole('heading', { level: 1, name: 'Branding' })).toBeVisible();
-  await expect(page.getByRole('progressbar')).toHaveCount(0);
-  await page.waitForLoadState('networkidle');
+  await settled(page, calls);
   const rows = calls.map((call) =>
     [`${String(call.start)}-${String(call.end)}`, call.method, call.path].join(' '),
   );
@@ -111,9 +119,8 @@ test('moving between tabs reads the catalogue once and the languages’ nothing 
   const calls = await openTab(page, 'theme');
   for (const name of ['Pages', 'Theme', 'Pages']) {
     await page.getByRole('tab', { name, exact: true }).click();
-    await expect(page.getByRole('progressbar')).toHaveCount(0);
+    await settled(page, calls);
   }
-  await page.waitForLoadState('networkidle');
   expect(calls.filter((call) => call.path === 'message-catalogue')).toHaveLength(1);
   expect(calls.filter((call) => call.path === 'settings')).toHaveLength(0);
   expect(calls.filter((call) => call.path === 'message-overrides')).toHaveLength(0);
@@ -130,7 +137,7 @@ test('a client’s Branding reads its theme, the hooks and the versions together
     .click();
   const tab = page.getByRole('tab', { name: 'Branding' });
   await expect(tab).toBeVisible();
-  await page.waitForLoadState('networkidle');
+  await expect(page.getByRole('progressbar')).toHaveCount(0);
   const calls = recordCalls(page);
   await tab.click();
   await expect(page.getByRole('region', { name: 'Publish', exact: true })).toBeVisible();

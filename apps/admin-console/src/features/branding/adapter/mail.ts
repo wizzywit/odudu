@@ -19,6 +19,12 @@ export function readMailBranding(
   });
 }
 
+// The address the console is served from, which a stored logo path is shown
+// under.
+export function pageOrigin(): string {
+  return globalThis.location.origin;
+}
+
 // The mail the frame shows, fetched by the frame itself under the session
 // cookie; no language asks for the tenant's default.
 export function mailPreviewSource(tenant: string, choice: MailChoice): string {
