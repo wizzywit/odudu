@@ -154,15 +154,15 @@ curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18731-8ab0-7460-8532-9e08baf2e99a
+x-request-id: 01a18b55-ac86-71d9-b652-e38018e636e0
 cache-control: no-store
 content-type: application/json; charset=utf-8
-content-length: 908
-Date: Thu, 29 Oct 2026 10:25:33 GMT
+content-length: 921
+Date: Fri, 30 Oct 2026 05:43:30 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"scope":"tenant","draft":null,"published":null,"sources":{"tokens.light":"default","tokens.dark":"default","tokens.font":"default","stylesheet":"default","templates.sign-in":"default","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"draft_sources":null,"tenant_sources":null}
+{"scope":"tenant","draft":null,"published":null,"sources":{"tokens.light":"default","tokens.dark":"default","tokens.font":"default","stylesheet":"default","templates.sign-in":"default","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"draft_sources":null,"tenant_sources":null,"changed":[]}
 ```
 
 ### A theme that is refused is not saved
@@ -192,10 +192,39 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme | jq -c '{draft, publi
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"the theme was not saved: 1 problem(s), listed under errors","errors":[{"path":"templates.sign-in","message":"The element is not allowed in a template.","code":"element-not-allowed","detail":"main","line":1,"column":1}],"instance":"01a18731-8ac7-70d3-beca-975e2bcfc2a3"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"the theme was not saved: 1 problem(s), listed under errors","errors":[{"path":"templates.sign-in","message":"The message key is not in the catalogue this page is filled from.","code":"unknown-message-key","detail":"login.nope","line":1,"column":10}],"instance":"01a18731-8aea-7eaf-b1f5-7d7a421e8829"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"the theme was not saved: 1 problem(s), listed under errors","errors":[{"path":"stylesheet","message":"The class is not one of the page’s documented hooks.","code":"unknown-class","detail":"warm","line":1,"column":1}],"instance":"01a18731-8b04-791d-848e-a7dce9762373"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the theme was not saved: 1 problem(s), listed under errors","errors":[{"path":"templates.sign-in","message":"The element is not allowed in a template.","code":"element-not-allowed","detail":"main","line":1,"column":1}],"instance":"01a18b55-acab-7d87-a43e-d959d4e1b523"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the theme was not saved: 1 problem(s), listed under errors","errors":[{"path":"templates.sign-in","message":"The message key is not in the catalogue this page is filled from.","code":"unknown-message-key","detail":"login.nope","line":1,"column":10}],"instance":"01a18b55-acf0-78a6-8b4e-ea6edaa4f5da"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the theme was not saved: 1 problem(s), listed under errors","errors":[{"path":"stylesheet","message":"The class is not one of the page’s documented hooks.","code":"unknown-class","detail":"warm","line":1,"column":1}],"instance":"01a18b55-ad64-770f-93cd-d462896a798b"}
 {"draft":null,"published":null}
+```
+
+### What a stylesheet may name
+
+The refusal above names a class that is not a documented hook. The list of what a
+stylesheet may name is a route of its own, the same for every tenant. Its headers
+and size, then the count under each key, the pseudo-classes and pseudo-elements,
+and the first few names of three of the lists:
+
+```bash
+curl -sS -D - -o hooks.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/stylesheet-hooks
+wc -c < hooks.json | tr -d ' '
+jq -c '{version, classes: (.classes | length), page_kind_classes: (.page_kind_classes | length), elements: (.elements | length), tokens: (.tokens | length), pseudo_classes, pseudo_elements}' hooks.json
+jq -c '{classes: .classes[:4], page_kind_classes: .page_kind_classes[:3], tokens: .tokens[:3]}' hooks.json
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a18b55-adbe-70aa-bc5a-8436e17e2bc0
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 1373
+Date: Fri, 30 Oct 2026 05:43:30 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+1373
+{"version":1,"classes":18,"page_kind_classes":17,"elements":21,"tokens":33,"pseudo_classes":["hover","focus","focus-visible","active","disabled","checked","first-child","last-child"],"pseudo_elements":["before","after","placeholder"]}
+{"classes":["alert","brand","choice","context"],"page_kind_classes":["page-sign-in","page-consent","page-select-account"],"tokens":["--border-strong","--control-height","--ease"]}
 ```
 
 ### Saving a draft, and previewing it
@@ -233,16 +262,16 @@ curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: a
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18731-8b3a-7960-9c86-0f94beba82c1
+x-request-id: 01a18b55-ade5-734b-9311-e1ae3f186eb8
 cache-control: no-store
 etag: "ac0e6a06fac52ca3153ec081fe9c8d49cd108fa7389ce95e6005fc1043c22d90"
 content-type: application/json; charset=utf-8
-content-length: 2223
-Date: Thu, 29 Oct 2026 10:25:33 GMT
+content-length: 2269
+Date: Fri, 30 Oct 2026 05:43:30 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"scope":"tenant","draft":{"assets":{},"tokens":{"light":{"inkMuted":"#555555","focusRing":"#0044aa","inkPrimary":"#111111","surfacePage":"#fff4e0","borderStrong":"#777777","signalActive":"#ddeedd","signalDanger":"#fde0d0","surfacePanel":"#fffaf0","surfaceSunken":"#f0e6d0","signalActiveInk":"#004400","signalDangerInk":"#802000"}},"templates":{"sign-in":"<div class=\"page-sign-in\"><h1>{{t \"login.title\"}}</h1>{{error}}{{form.open}}{{fields}}{{submit}}{{form.close}}</div>"},"stylesheet":".page-sign-in h1 { border-top: 4px solid #0044aa; }"},"published":null,"sources":{"tokens.light":"default","tokens.dark":"default","tokens.font":"default","stylesheet":"default","templates.sign-in":"default","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"draft_sources":{"tokens.light":"tenant","tokens.dark":"default","tokens.font":"default","stylesheet":"tenant","templates.sign-in":"tenant","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"tenant_sources":null}
+{"scope":"tenant","draft":{"assets":{},"tokens":{"light":{"inkMuted":"#555555","focusRing":"#0044aa","inkPrimary":"#111111","surfacePage":"#fff4e0","borderStrong":"#777777","signalActive":"#ddeedd","signalDanger":"#fde0d0","surfacePanel":"#fffaf0","surfaceSunken":"#f0e6d0","signalActiveInk":"#004400","signalDangerInk":"#802000"}},"templates":{"sign-in":"<div class=\"page-sign-in\"><h1>{{t \"login.title\"}}</h1>{{error}}{{form.open}}{{fields}}{{submit}}{{form.close}}</div>"},"stylesheet":".page-sign-in h1 { border-top: 4px solid #0044aa; }"},"published":null,"sources":{"tokens.light":"default","tokens.dark":"default","tokens.font":"default","stylesheet":"default","templates.sign-in":"default","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"draft_sources":{"tokens.light":"tenant","tokens.dark":"default","tokens.font":"default","stylesheet":"tenant","templates.sign-in":"tenant","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"tenant_sources":null,"changed":["tokens","stylesheet","templates"]}
 ```
 
 `draft_sources` says what publishing the draft would give, where `sources` says
@@ -259,11 +288,11 @@ curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" "$P/theme/preview/info?kin
 ```
 {"published":null,"draft_sources":{"tokens.light":"tenant","stylesheet":"tenant","templates.sign-in":"tenant"}}
 HTTP/1.1 200 OK
-x-request-id: 01a18731-8b70-713f-9f67-b7613271b4e5
+x-request-id: 01a18b55-ae3f-7985-981f-cdcdc1043c57
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 92
-Date: Thu, 29 Oct 2026 10:25:33 GMT
+Date: Fri, 30 Oct 2026 05:43:30 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -282,19 +311,20 @@ grep -n -E 'stylesheet|page-sign-in|<h1>' preview.html | cut -c1-200
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18731-8b8e-7c65-8e94-a159d7c3d2b3
+x-request-id: 01a18b55-ae92-7685-b710-d8f9fb1e977d
 cache-control: no-store
 content-type: text/html; charset=utf-8
 content-security-policy: default-src 'none'; style-src 'self' 'sha256-1DktTfInWBxB93XYhl/aJU27QE6CYWoUiHFWUlRP63Y='; font-src 'self'; img-src data:; form-action 'none'; base-uri 'none'; frame-ancestors 'self'
 referrer-policy: no-referrer
 x-content-type-options: nosniff
-content-length: 1864
-Date: Thu, 29 Oct 2026 10:25:33 GMT
+content-length: 1877
+Date: Fri, 30 Oct 2026 05:43:30 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 8:<link rel="stylesheet" href="/instrument/instrument.css">
 11:.page-sign-in h1 { border-top: 4px solid #0044aa; }
+15:<main class="page page-sign-in">
 17:<div class="page-sign-in"><h1>Sign in</h1><form method="post" action="/tenants/theme-demo/login-actions/authenticate">
 ```
 
@@ -313,25 +343,25 @@ curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: a
 
 ```
 HTTP/1.1 428 Precondition Required
-x-request-id: 01a18731-8baf-7d9a-94aa-0434099a8be2
+x-request-id: 01a18b55-aef9-7c31-9fdc-aa08fa005269
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 176
-Date: Thu, 29 Oct 2026 10:25:33 GMT
+Date: Fri, 30 Oct 2026 05:43:30 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace the draft theme","instance":"01a18731-8baf-7d9a-94aa-0434099a8be2"}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace the draft theme","instance":"01a18b55-aef9-7c31-9fdc-aa08fa005269"}
 HTTP/1.1 412 Precondition Failed
-x-request-id: 01a18731-8bc6-71cc-ae6d-f0e952818a19
+x-request-id: 01a18b55-af41-710e-9091-ea1f7888734f
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 153
-Date: Thu, 29 Oct 2026 10:25:33 GMT
+Date: Fri, 30 Oct 2026 05:43:30 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a18731-8bc6-71cc-ae6d-f0e952818a19"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a18b55-af41-710e-9091-ea1f7888734f"}
 ```
 
 ### Publishing
@@ -347,15 +377,15 @@ curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/publish
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18731-8bde-7063-a634-1ca47423265d
+x-request-id: 01a18b55-af95-7554-872a-031cb8cb9da1
 cache-control: no-store
 content-type: application/json; charset=utf-8
-content-length: 2001
-Date: Thu, 29 Oct 2026 10:25:33 GMT
+content-length: 2014
+Date: Fri, 30 Oct 2026 05:43:31 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"scope":"tenant","draft":null,"published":{"id":"01a18731-8b4a-726d-87b2-97523153118e","version":1,"published_at":"2026-10-29T10:25:33.673Z","body":{"assets":{},"tokens":{"light":{"inkMuted":"#555555","focusRing":"#0044aa","inkPrimary":"#111111","surfacePage":"#fff4e0","borderStrong":"#777777","signalActive":"#ddeedd","signalDanger":"#fde0d0","surfacePanel":"#fffaf0","surfaceSunken":"#f0e6d0","signalActiveInk":"#004400","signalDangerInk":"#802000"}},"templates":{"sign-in":"<div class=\"page-sign-in\"><h1>{{t \"login.title\"}}</h1>{{error}}{{form.open}}{{fields}}{{submit}}{{form.close}}</div>"},"stylesheet":".page-sign-in h1 { border-top: 4px solid #0044aa; }"}},"sources":{"tokens.light":"tenant","tokens.dark":"default","tokens.font":"default","stylesheet":"tenant","templates.sign-in":"tenant","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"draft_sources":null,"tenant_sources":null,"warnings":[{"piece":"stylesheet","code":"stylesheet-unverified","message":"A stylesheet can change any colour or hide any element, so its contrast and legibility are not checked; keeping it accessible is the tenant’s responsibility."},{"piece":"templates.sign-in","code":"template-unverified","message":"A template places the page’s parts as its author chose, so its reading order and layout are not checked; keeping it accessible is the tenant’s responsibility."}]}
+{"scope":"tenant","draft":null,"published":{"id":"01a18b55-adf8-7cad-b164-a3f0f04d5e25","version":1,"published_at":"2026-10-30T05:43:31.024Z","body":{"assets":{},"tokens":{"light":{"inkMuted":"#555555","focusRing":"#0044aa","inkPrimary":"#111111","surfacePage":"#fff4e0","borderStrong":"#777777","signalActive":"#ddeedd","signalDanger":"#fde0d0","surfacePanel":"#fffaf0","surfaceSunken":"#f0e6d0","signalActiveInk":"#004400","signalDangerInk":"#802000"}},"templates":{"sign-in":"<div class=\"page-sign-in\"><h1>{{t \"login.title\"}}</h1>{{error}}{{form.open}}{{fields}}{{submit}}{{form.close}}</div>"},"stylesheet":".page-sign-in h1 { border-top: 4px solid #0044aa; }"}},"sources":{"tokens.light":"tenant","tokens.dark":"default","tokens.font":"default","stylesheet":"tenant","templates.sign-in":"tenant","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"draft_sources":null,"tenant_sources":null,"changed":[],"warnings":[{"piece":"stylesheet","code":"stylesheet-unverified","message":"A stylesheet can change any colour or hide any element, so its contrast and legibility are not checked; keeping it accessible is the tenant’s responsibility."},{"piece":"templates.sign-in","code":"template-unverified","message":"A template places the page’s parts as its author chose, so its reading order and layout are not checked; keeping it accessible is the tenant’s responsibility."}]}
 ```
 
 ```bash
@@ -364,15 +394,15 @@ curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/versions
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18731-8bfc-7b68-9bce-e510565a9a0d
+x-request-id: 01a18b55-b030-7604-b709-c00d0b97f39e
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 171
-Date: Thu, 29 Oct 2026 10:25:33 GMT
+Date: Fri, 30 Oct 2026 05:43:31 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a18731-8b4a-726d-87b2-97523153118e","version":1,"state":"published","created_at":"2026-10-29T10:25:33.509Z","published_at":"2026-10-29T10:25:33.673Z"}]}
+{"items":[{"id":"01a18b55-adf8-7cad-b164-a3f0f04d5e25","version":1,"state":"published","created_at":"2026-10-30T05:43:30.548Z","published_at":"2026-10-30T05:43:31.024Z"}]}
 ```
 
 ### A palette that fails contrast saves, and does not publish
@@ -391,7 +421,7 @@ curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/publish
 
 ```
 200
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"the theme was not published: 3 problem(s), listed under errors","errors":[{"path":"tokens.light.inkMuted","message":"Contrast against surfacePage is 1.06:1; 4.5:1 is required.","code":"contrast","detail":"inkMuted/surfacePage"},{"path":"tokens.light.inkMuted","message":"Contrast against surfacePanel is 1.12:1; 4.5:1 is required.","code":"contrast","detail":"inkMuted/surfacePanel"},{"path":"tokens.light.inkMuted","message":"Contrast against surfaceSunken is 1.07:1; 4.5:1 is required.","code":"contrast","detail":"inkMuted/surfaceSunken"}],"instance":"01a18731-8c37-7344-b22f-b727d955cd07"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the theme was not published: 3 problem(s), listed under errors","errors":[{"path":"tokens.light.inkMuted","message":"Contrast against surfacePage is 1.06:1; 4.5:1 is required.","code":"contrast","detail":"inkMuted/surfacePage"},{"path":"tokens.light.inkMuted","message":"Contrast against surfacePanel is 1.12:1; 4.5:1 is required.","code":"contrast","detail":"inkMuted/surfacePanel"},{"path":"tokens.light.inkMuted","message":"Contrast against surfaceSunken is 1.07:1; 4.5:1 is required.","code":"contrast","detail":"inkMuted/surfaceSunken"}],"instance":"01a18b55-b0f1-71a3-98eb-cdb5c0229de0"}
 ```
 
 ### A second version, and restoring the first
@@ -425,18 +455,112 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/versions | jq -c '.ite
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18731-8cd4-7d8c-8eb0-32477344c0ea
+x-request-id: 01a18b55-b330-7113-b120-8dc812a5faea
 cache-control: no-store
 content-type: application/json; charset=utf-8
-content-length: 1528
-Date: Thu, 29 Oct 2026 10:25:33 GMT
+content-length: 1541
+Date: Fri, 30 Oct 2026 05:43:32 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"scope":"tenant","draft":null,"published":{"id":"01a18731-8ce2-7950-84f7-71531caf9651","version":3,"published_at":"2026-10-29T10:25:33.918Z","body":{"assets":{},"tokens":{"light":{"inkMuted":"#555555","focusRing":"#0044aa","inkPrimary":"#111111","surfacePage":"#fff4e0","borderStrong":"#777777","signalActive":"#ddeedd","signalDanger":"#fde0d0","surfacePanel":"#fffaf0","surfaceSunken":"#f0e6d0","signalActiveInk":"#004400","signalDangerInk":"#802000"}},"templates":{"sign-in":"<div class=\"page-sign-in\"><h1>{{t \"login.title\"}}</h1>{{error}}{{form.open}}{{fields}}{{submit}}{{form.close}}</div>"},"stylesheet":".page-sign-in h1 { border-top: 4px solid #0044aa; }"}},"sources":{"tokens.light":"tenant","tokens.dark":"default","tokens.font":"default","stylesheet":"tenant","templates.sign-in":"tenant","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"draft_sources":null,"tenant_sources":null}
+{"scope":"tenant","draft":null,"published":{"id":"01a18b55-b3b0-71f0-b39b-3c9ad884fc67","version":3,"published_at":"2026-10-30T05:43:31.997Z","body":{"assets":{},"tokens":{"light":{"inkMuted":"#555555","focusRing":"#0044aa","inkPrimary":"#111111","surfacePage":"#fff4e0","borderStrong":"#777777","signalActive":"#ddeedd","signalDanger":"#fde0d0","surfacePanel":"#fffaf0","surfaceSunken":"#f0e6d0","signalActiveInk":"#004400","signalDangerInk":"#802000"}},"templates":{"sign-in":"<div class=\"page-sign-in\"><h1>{{t \"login.title\"}}</h1>{{error}}{{form.open}}{{fields}}{{submit}}{{form.close}}</div>"},"stylesheet":".page-sign-in h1 { border-top: 4px solid #0044aa; }"}},"sources":{"tokens.light":"tenant","tokens.dark":"default","tokens.font":"default","stylesheet":"tenant","templates.sign-in":"tenant","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"draft_sources":null,"tenant_sources":null,"changed":[]}
 {"version":3,"state":"published"}
 {"version":2,"state":"archived"}
 {"version":1,"state":"archived"}
+```
+
+### The pieces a draft changes, and discarding it
+
+The tenant now publishes version 3. A new draft that sets a different muted ink and a
+different stylesheet differs from it in two pieces, and the theme read lists them in
+`changed`; the version users see is untouched. Reading the theme with no draft, and
+before this one, lists none:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme | jq -c '{draft: (.draft != null), changed}'
+jq '.tokens.light.inkMuted = "#444444" | .stylesheet = ".page-sign-in h1 { border-top: 4px solid #aa4400; }"' draft.json > changed.json
+curl -sS -o /dev/null -w '%{http_code}\n' -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  --data-binary @changed.json $P/theme
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme | jq -c '{draft: (.draft != null), changed, published: .published.version}'
+```
+
+```
+{"draft":false,"changed":[]}
+200
+{"draft":true,"changed":["tokens","stylesheet"],"published":3}
+```
+
+Discarding the draft is `DELETE /theme/draft`, which takes the draft's `ETag` as
+`If-Match` like the other writes to it: `428` without one, `412` with a stale one,
+`200` with the right one, and the answer is the theme read, now with no draft. The
+published version and the versions are what they were:
+
+```bash
+ETAG=$(curl -sS -D - -o /dev/null -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme | tr -d '\r' | sed -n 's/^etag: //p')
+curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/draft
+curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" -H 'If-Match: "0000"' $P/theme/draft
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" -H "If-Match: $ETAG" $P/theme/draft | head -c 700; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme | jq -c '{draft, changed, published: .published.version}'
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/versions | jq -c '.items[] | {version, state}'
+```
+
+```
+428
+412
+HTTP/1.1 200 OK
+x-request-id: 01a18b55-b4a0-716b-aa70-a432f757ae73
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 1541
+Date: Fri, 30 Oct 2026 05:43:32 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"scope":"tenant","draft":null,"published":{"id":"01a18b55-b3b0-71f0-b39b-3c9ad884fc67","version":3,"published_at":"2026-10-30T05:43:31.997Z","body":{"assets":{},"tokens":{"light":{"inkMuted":"#555555","focusRing":"#0044aa","inkPrimary":"#111111","surfacePage":"#fff4e0","borderStrong":"#777777","signalActive":"#ddeedd","signalDanger":"#fde0d0","surfacePanel":"#fffaf0","surfaceSunken":"#f0e6d0","signalActiveInk":"#004400","signalDangerInk":"#80200
+{"draft":null,"changed":[],"published":3}
+{"version":3,"state":"published"}
+{"version":2,"state":"archived"}
+{"version":1,"state":"archived"}
+```
+
+A scope with no draft answers `DELETE /theme/draft` with its theme as it is, and
+publishing then is the `409` `about:blank#theme-no-draft`. A draft that equals the
+published theme (`changed` is empty) is refused with `409`
+`about:blank#theme-nothing-to-publish`, since publishing it would add a version
+identical to the last. Here the draft is version 3's own content, saved again:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/draft
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/publish
+echo
+curl -sS -o /dev/null -w '%{http_code}\n' -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  --data-binary @draft.json $P/theme
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme | jq -c '{draft: (.draft != null), changed}'
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/publish
+echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/versions | jq -c '[.items[].version]'
+```
+
+```
+200
+{"type":"about:blank#theme-no-draft","title":"Conflict","status":409,"detail":"there is no draft to publish","instance":"01a18b55-b50d-7867-a050-10a70d90c6b1"}
+200
+{"draft":true,"changed":[]}
+{"type":"about:blank#theme-nothing-to-publish","title":"Conflict","status":409,"detail":"the draft matches the published theme, so there is nothing to publish","instance":"01a18b55-b557-754b-8b82-27a846be7c22"}
+[3,2,1]
+```
+
+The draft is still there after that refusal, and is discarded the same way:
+
+```bash
+ETAG=$(curl -sS -D - -o /dev/null -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme | tr -d '\r' | sed -n 's/^etag: //p')
+curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" -H "If-Match: $ETAG" $P/theme/draft
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme | jq -c '{draft, changed}'
+```
+
+```
+200
+{"draft":null,"changed":[]}
 ```
 
 ### A client's theme, over its tenant's
@@ -453,7 +577,7 @@ curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: appli
 ```
 
 ```
-{"id":"01a18731-8d10-7aa9-a9f2-382c900f8755","client_id":"portal","type":"public"}
+{"id":"01a18b55-b5d4-7012-b576-d475b463e7ec","client_id":"portal","type":"public"}
 ```
 
 ```bash
@@ -466,15 +590,15 @@ curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$CID/theme
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18731-8d45-70b2-afc3-91a9bec28162
+x-request-id: 01a18b55-b607-7468-a274-a20c899050eb
 cache-control: no-store
 content-type: application/json; charset=utf-8
-content-length: 1704
-Date: Thu, 29 Oct 2026 10:25:34 GMT
+content-length: 1717
+Date: Fri, 30 Oct 2026 05:43:32 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"scope":"client","draft":null,"published":null,"sources":{"tokens.light":"tenant","tokens.dark":"default","tokens.font":"default","stylesheet":"tenant","templates.sign-in":"tenant","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"draft_sources":null,"tenant_sources":{"tokens.light":"tenant","tokens.dark":"default","tokens.font":"default","stylesheet":"tenant","templates.sign-in":"tenant","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"}}
+{"scope":"client","draft":null,"published":null,"sources":{"tokens.light":"tenant","tokens.dark":"default","tokens.font":"default","stylesheet":"tenant","templates.sign-in":"tenant","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"draft_sources":null,"tenant_sources":{"tokens.light":"tenant","tokens.dark":"default","tokens.font":"default","stylesheet":"tenant","templates.sign-in":"tenant","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"changed":[]}
 ```
 
 The client's draft overrides one piece, the light palette, and nothing else. The
@@ -493,23 +617,23 @@ curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" "$P/clients/$CID/theme/pre
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18731-8d65-724d-9c5a-a123e5f021f5
+x-request-id: 01a18b55-b61e-7d06-af2d-296701a464d1
 cache-control: no-store
 etag: "8fc14f34b3d7337fb14e4637584f9c6750ccd05745daadcff0210c32bb1eb6cc"
 content-type: application/json; charset=utf-8
-content-length: 2838
-Date: Thu, 29 Oct 2026 10:25:34 GMT
+content-length: 2859
+Date: Fri, 30 Oct 2026 05:43:32 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"scope":"client","draft":{"assets":{},"tokens":{"light":{"inkMuted":"#555555","focusRing":"#0044aa","inkPrimary":"#111111","surfacePage":"#e8f0ff","borderStrong":"#777777","signalActive":"#ddeedd","signalDanger":"#fde0d0","surfacePanel":"#f4f8ff","surfaceSunken":"#d8e4f8","signalActiveInk":"#004400","signalDangerInk":"#802000"}},"templates":{},"stylesheet":null},"published":null,"sources":{"tokens.light":"tenant","tokens.dark":"default","tokens.font":"default","stylesheet":"tenant","templates.sign-in":"tenant","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","t
 {"draft_sources":{"tokens.light":"client","stylesheet":"tenant","templates.sign-in":"tenant"},"tenant_sources":{"tokens.light":"tenant","stylesheet":"tenant","templates.sign-in":"tenant"}}
 HTTP/1.1 200 OK
-x-request-id: 01a18731-8d9e-7323-90e8-d6550fe51edc
+x-request-id: 01a18b55-b654-7788-8fae-a9f57dd6ffba
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 92
-Date: Thu, 29 Oct 2026 10:25:34 GMT
+Date: Fri, 30 Oct 2026 05:43:32 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -525,20 +649,21 @@ grep -n -E 'page-sign-in|--surface-page' client-preview.html | cut -c1-160
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18731-8db8-74c3-90a7-0a04618f2059
+x-request-id: 01a18b55-b66f-7353-9703-4953c04142c5
 cache-control: no-store
 content-type: text/html; charset=utf-8
 content-security-policy: default-src 'none'; style-src 'self' 'sha256-iutXvhUioEQ5vx0C4gW4CxH0k1cr7GVXWvGWRCjwFyw='; font-src 'self'; img-src data:; form-action 'none'; base-uri 'none'; frame-ancestors 'self'
 referrer-policy: no-referrer
 x-content-type-options: nosniff
-content-length: 1845
-Date: Thu, 29 Oct 2026 10:25:34 GMT
+content-length: 1858
+Date: Fri, 30 Oct 2026 05:43:32 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 9:<style>@media (prefers-color-scheme:light){:root:not([data-theme]){--surface-page:#e8f0ff;--surface-panel:#f4f8ff;--surface-sunken:#d8e4f8;--ink-primary:#1111
 10::root[data-theme='light']{--surface-page:#e8f0ff;--surface-panel:#f4f8ff;--surface-sunken:#d8e4f8;--ink-primary:#111111;--ink-muted:#555555;--signal-active:#
 11:.page-sign-in h1 { border-top: 4px solid #0044aa; }
+15:<main class="page page-sign-in">
 17:<div class="page-sign-in"><h1>Sign in</h1><form method="post" action="/tenants/theme-demo/login-actions/authenticate">
 ```
 
@@ -555,15 +680,15 @@ curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$CID/theme/vers
 ```
 {"version":1,"sources":{"tokens.light":"client","stylesheet":"tenant","templates.sign-in":"tenant"},"warnings":[]}
 HTTP/1.1 200 OK
-x-request-id: 01a18731-8df8-79b2-88cc-e464b483076c
+x-request-id: 01a18b55-b6a1-7b71-969e-457c2504d949
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 171
-Date: Thu, 29 Oct 2026 10:25:34 GMT
+Date: Fri, 30 Oct 2026 05:43:32 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a18731-8d74-73d5-8c50-2e0dc960947e","version":1,"state":"published","created_at":"2026-10-29T10:25:34.065Z","published_at":"2026-10-29T10:25:34.182Z"}]}
+{"items":[{"id":"01a18b55-b62a-7cef-b941-e0bcca0c8b8a","version":1,"state":"published","created_at":"2026-10-30T05:43:32.648Z","published_at":"2026-10-30T05:43:32.754Z"}]}
 ```
 
 ```bash
@@ -576,15 +701,15 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$CID/theme | jq -c '
 ```
 {"version":2,"draft":null}
 HTTP/1.1 200 OK
-x-request-id: 01a18731-8e41-716e-8cfb-5d8c6156638e
+x-request-id: 01a18b55-b6e4-7ee3-a491-0a920718b7c6
 cache-control: no-store
 content-type: application/json; charset=utf-8
-content-length: 1704
-Date: Thu, 29 Oct 2026 10:25:34 GMT
+content-length: 1717
+Date: Fri, 30 Oct 2026 05:43:32 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"scope":"client","draft":null,"published":null,"sources":{"tokens.light":"tenant","tokens.dark":"default","tokens.font":"default","stylesheet":"tenant","templates.sign-in":"tenant","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"draft_sources":null,"tenant_sources":{"tokens.light":"tenant","tokens.dark":"default","tokens.font":"default","stylesheet":"tenant","templates.sign-in":"tenant","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"}}{"draft":null,"published":null,"sources":{"tokens.light":"tenant","stylesheet":"tenant","templates.sign-in":"tenant"}}
+{"scope":"client","draft":null,"published":null,"sources":{"tokens.light":"tenant","tokens.dark":"default","tokens.font":"default","stylesheet":"tenant","templates.sign-in":"tenant","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"draft_sources":null,"tenant_sources":{"tokens.light":"tenant","tokens.dark":"default","tokens.font":"default","stylesheet":"tenant","templates.sign-in":"tenant","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"changed":[]}{"draft":null,"published":null,"sources":{"tokens.light":"tenant","stylesheet":"tenant","templates.sign-in":"tenant"}}
 ```
 
 ### Images
@@ -604,15 +729,15 @@ echo
 ```
 logo.png: PNG image data, 96 x 32, 8-bit/color RGB, non-interlaced
 HTTP/1.1 201 Created
-x-request-id: 01a18731-8e79-73e5-abb0-945691385cd1
+x-request-id: 01a18b55-b70f-7dba-bbe5-5eddfa18423c
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 189
-Date: Thu, 29 Oct 2026 10:25:34 GMT
+Date: Fri, 30 Oct 2026 05:43:32 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a18731-8e94-7f79-b66c-a51d1608eb8d","sha256":"f49c86eb1cd9ab9d6d375c9eca74c13a8dc49208de6ccddefcc1e76be257caba","mime":"image/png","width":96,"height":32,"bytes":144,"kind":"logo"}
+{"id":"01a18b55-b71f-74f3-a0d3-91c5f90374a8","sha256":"f49c86eb1cd9ab9d6d375c9eca74c13a8dc49208de6ccddefcc1e76be257caba","mime":"image/png","width":96,"height":32,"bytes":144,"kind":"logo"}
 ```
 
 ```bash
@@ -623,8 +748,6 @@ An admin reads an image back by its id before any public address serves it. The
 type is the one it was stored as, with `nosniff` and `no-store`. An id that does
 not exist in this tenant is `404`, and one that is not an id is `400`:
 
-The headers below were recorded before the route began to send `Content-Security-Policy: default-src 'none'; sandbox` and `Cross-Origin-Resource-Policy: same-origin`, and have not been run again since.
-
 ```bash
 curl -sS -D - -o stored-logo.png -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/assets/$ASSET/content
 file stored-logo.png
@@ -634,12 +757,14 @@ curl -sS -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $ADMIN_TOKEN
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18731-8ebe-7ee4-b9c3-aeba57214bc7
+x-request-id: 01a18b55-b743-7c0a-aba6-9c82a4b6d9ae
 cache-control: private, no-store
-content-type: image/png
+content-security-policy: default-src 'none'; sandbox
+cross-origin-resource-policy: same-origin
 x-content-type-options: nosniff
+content-type: image/png
 content-length: 144
-Date: Thu, 29 Oct 2026 10:25:34 GMT
+Date: Fri, 30 Oct 2026 05:43:32 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -682,21 +807,25 @@ echo
 curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type:" \
   --data-binary @logo.png "$P/theme/assets?kind=logo"
 echo
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: text/plain" \
+  --data-binary @logo.png "$P/theme/assets?kind=logo"
+echo
 curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: image/png" \
   --data-binary @big.png "$P/theme/assets?kind=logo" | grep -v -E '^(Date|Connection|Keep-Alive)'
 ```
 
 ```
-{"type":"about:blank#asset-unsupported-type","title":"Unsupported Media Type","status":415,"detail":"the image is not a PNG, a JPEG or a WebP","instance":"01a18731-8f09-7fc1-b619-fa97402c34c6"}
-{"type":"about:blank#asset-unsupported-type","title":"Unsupported Media Type","status":415,"detail":"the declared type is not image/png, image/jpeg, image/webp or application/octet-stream","instance":"01a18731-8f1f-7eec-8bb5-9595a638e316"}
-{"type":"about:blank#asset-unsupported-type","title":"Unsupported Media Type","status":415,"detail":"the declared type is not image/png, image/jpeg, image/webp or application/octet-stream","instance":"01a18731-8f34-7d5e-b2ee-0e9d318d99a0"}
+{"type":"about:blank#asset-unsupported-type","title":"Unsupported Media Type","status":415,"detail":"the image is not a PNG, a JPEG or a WebP","instance":"01a18b55-b77f-7f3b-adfd-123926297c7a"}
+{"type":"about:blank#asset-unsupported-type","title":"Unsupported Media Type","status":415,"detail":"the declared type is image/svg+xml, not image/png, image/jpeg, image/webp or application/octet-stream","instance":"01a18b55-b78f-7bb6-b6d7-438e6ffa5f12"}
+{"type":"about:blank#asset-unsupported-type","title":"Unsupported Media Type","status":415,"detail":"no type was declared, not image/png, image/jpeg, image/webp or application/octet-stream","instance":"01a18b55-b79f-76cd-b436-b50047a292c9"}
+{"type":"about:blank#asset-unsupported-type","title":"Unsupported Media Type","status":415,"detail":"the declared type is text/plain, not image/png, image/jpeg, image/webp or application/octet-stream","instance":"01a18b55-b7af-7318-91ef-b9048e693ae0"}
 HTTP/1.1 413 Payload Too Large
-x-request-id: 01a18731-8f48-7d7b-8db4-978dd0301eb9
+x-request-id: 01a18b55-b7c0-7e93-a3b0-098eccc31f70
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 150
 
-{"type":"about:blank","title":"Content Too Large","status":413,"detail":"Request body is too large","instance":"01a18731-8f48-7d7b-8db4-978dd0301eb9"}
+{"type":"about:blank","title":"Content Too Large","status":413,"detail":"Request body is too large","instance":"01a18b55-b7c0-7e93-a3b0-098eccc31f70"}
 ```
 
 An image a draft names cannot be deleted: `409` with the first drafts and
@@ -710,17 +839,17 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/assets/
 ```
 
 ```
-{"draft":{"logo":{"alt":"Theme Demo","assetId":"01a18731-8e94-7f79-b66c-a51d1608eb8d"}},"draft_sources":{"assets.logo":"tenant"}}
+{"draft":{"logo":{"alt":"Theme Demo","assetId":"01a18b55-b71f-74f3-a0d3-91c5f90374a8"}},"draft_sources":{"assets.logo":"tenant"}}
 HTTP/1.1 409 Conflict
-x-request-id: 01a18731-8f7a-78b6-bcc1-03113f9d2d73
+x-request-id: 01a18b55-b7ee-7c11-b1b4-801a3534f304
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 254
-Date: Thu, 29 Oct 2026 10:25:34 GMT
+Date: Fri, 30 Oct 2026 05:43:33 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank#asset-in-use","title":"Conflict","status":409,"detail":"a theme still names the image","errors":[{"path":"theme","message":"named by the draft 01a18731-8f6c-7412-9916-a5f193b2702d"}],"instance":"01a18731-8f7a-78b6-bcc1-03113f9d2d73"}
+{"type":"about:blank#asset-in-use","title":"Conflict","status":409,"detail":"a theme still names the image","errors":[{"path":"theme","message":"named by the draft 01a18b55-b7e0-7998-af3d-c3e7e1a76cde"}],"instance":"01a18b55-b7ee-7c11-b1b4-801a3534f304"}
 ```
 
 ```bash
@@ -732,21 +861,88 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/assets/
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18731-8f91-7bf1-84e0-00941aaf0e0f
+x-request-id: 01a18b55-b806-7392-8eaa-cddd88c5bae1
 cache-control: no-store
 content-type: application/json; charset=utf-8
-content-length: 908
-Date: Thu, 29 Oct 2026 10:25:34 GMT
+content-length: 921
+Date: Fri, 30 Oct 2026 05:43:33 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"scope":"tenant","draft":null,"published":null,"sources":{"tokens.light":"default","tokens.dark":"default","tokens.font":"default","stylesheet":"default","templates.sign-in":"default","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"draft_sources":null,"tenant_sources":null}
+{"scope":"tenant","draft":null,"published":null,"sources":{"tokens.light":"default","tokens.dark":"default","tokens.font":"default","stylesheet":"default","templates.sign-in":"default","templates.consent":"default","templates.select-account":"default","templates.logout-confirm":"default","templates.totp-enrolment":"default","templates.passkey-enrolment":"default","templates.recovery-codes":"default","templates.update-password":"default","templates.required-action":"default","templates.registration":"default","templates.reset":"default","templates.verification":"default","templates.required-actions":"default","templates.authorize-error":"default","templates.email-unverified":"default","templates.logged-out":"default","templates.notice":"default","assets.logo":"default","assets.darkLogo":"default","assets.favicon":"default","assets.background":"default"},"draft_sources":null,"tenant_sources":null,"changed":[]}
 {"draft":null,"published":null,"sources":{}}
 HTTP/1.1 204 No Content
-x-request-id: 01a18731-8fc2-70c5-ae6b-31668dc59523
+x-request-id: 01a18b55-b82c-7e19-b693-30be42cc97ff
 cache-control: no-store
-Date: Thu, 29 Oct 2026 10:25:34 GMT
+Date: Fri, 30 Oct 2026 05:43:33 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
+```
+
+### A background, and the preview's bound
+
+`background.png` is a 640 by 360 pixel PNG made for this page, and a background may
+be 1 MiB and 2560 pixels. The upload answers `201` as a logo's does, with `kind`
+`background`:
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: image/png" \
+  --data-binary @background.png "$P/theme/assets?kind=background" | jq -c .
+```
+
+```
+{"id":"01a18b55-b84d-76b4-bd26-bbeff380c7dc","sha256":"c9d7688a6cf8827b7666eb243d6f3abfdfb8a6abc2de5060e485d4159ce134e4","mime":"image/png","width":640,"height":360,"bytes":1233,"kind":"background"}
+```
+
+The preview carries the stylesheet and every image the page shows inline, so it has
+a bound: past about 2.2 MiB, counting an image once for each place the draft names
+it, the answer is `422` `about:blank#theme-preview-too-large` and says by how much.
+`noise.png` is 540 by 540 pixels of random colour, which does not compress, and is
+under the 1 MiB a background may be; the draft below names it as the background and
+as both logos, three places:
+
+```bash
+python3 -c '
+import os, struct, zlib
+w = h = 540
+raw = b"".join(b"\x00" + os.urandom(w * 3) for _ in range(h))
+def chunk(t, d):
+    return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
+open("noise.png", "wb").write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw, 1)) + chunk(b"IEND", b""))
+'
+wc -c < noise.png | tr -d ' '
+NOISE=$(curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: image/png" --data-binary @noise.png "$P/theme/assets?kind=background" | tee noise.json | jq -r .id)
+jq -c '{mime, width, height, bytes, kind}' noise.json
+curl -sS -o /dev/null -w '%{http_code}\n' -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d "{\"assets\":{\"background\":{\"assetId\":\"$NOISE\"},\"logo\":{\"assetId\":\"$NOISE\",\"alt\":\"Theme Demo\"},\"darkLogo\":{\"assetId\":\"$NOISE\",\"alt\":\"Theme Demo\"}}}" $P/theme
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" "$P/theme/preview?kind=sign-in" | grep -v -E '^(Date|Connection|Keep-Alive)'
+echo
+```
+
+```
+875673
+{"mime":"image/png","width":540,"height":540,"bytes":876966,"kind":"background"}
+200
+HTTP/1.1 422 Unprocessable Entity
+x-request-id: 01a18b55-b92f-745c-a4f1-9601bc88fd85
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 263
+
+{"type":"about:blank#theme-preview-too-large","title":"Unprocessable Content","status":422,"detail":"the draft's stylesheet and images come to 3508067 bytes once inlined, over the 2271916 bytes a preview carries","instance":"01a18b55-b92f-745c-a4f1-9601bc88fd85"}
+
+```
+
+The draft is discarded, which frees the image, and the image is deleted:
+
+```bash
+ETAG=$(curl -sS -D - -o /dev/null -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme | tr -d '\r' | sed -n 's/^etag: //p')
+curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" -H "If-Match: $ETAG" $P/theme/draft
+curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/assets/$NOISE
+```
+
+```
+200
+204
 ```
