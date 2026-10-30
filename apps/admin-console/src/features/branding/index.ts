@@ -1,6 +1,7 @@
 export { BrandingPage } from '#/features/branding/view/BrandingPage';
 export { PublicationBar } from '#/features/branding/view/PublicationBar';
 export { PagesPanel, ThemePanel } from '#/features/branding/view/ScopePanels';
+export { useScopeTabReads } from '#/features/branding/usecase/useScopeTabReads';
 export {
   useScopeBranding,
   useScopeEdits,

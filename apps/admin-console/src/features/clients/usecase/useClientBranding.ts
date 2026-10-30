@@ -5,6 +5,7 @@ import {
   showsPreview,
   useScopeBranding,
   useScopeEdits,
+  useScopeTabReads,
   type ScopeBranding,
   type ScopedTab,
 } from '#/features/branding';
@@ -21,6 +22,7 @@ export interface ClientBranding {
 export function useClientBranding(tenant: string, id: string): ClientBranding {
   const [tab, setTab] = useState<ScopedTab>('theme');
   const scope = clientScope(id);
+  useScopeTabReads(tenant, scope, tab);
   const branding = useScopeBranding(tenant, scope, showsPreview(tab));
   return {
     branding,

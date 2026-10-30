@@ -5,9 +5,9 @@ import { useRead } from '#/shared/repository/useRead';
 import type { Read } from '#/shared/service/read';
 import { useTransport } from '#/shared/transport/useTransport';
 
-export function useStylesheetHooks(tenant: string): Read<StylesheetHooksResponse> {
+export function useStylesheetHooks(tenant: string, asked = true): Read<StylesheetHooksResponse> {
   const { gateway } = useTransport();
-  return useRead(stylesheetHooksKey(tenant), true, () => readStylesheetHooks(gateway, tenant), {
+  return useRead(stylesheetHooksKey(tenant), asked, () => readStylesheetHooks(gateway, tenant), {
     immutable: true,
   });
 }

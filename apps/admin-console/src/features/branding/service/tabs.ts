@@ -55,3 +55,25 @@ export function selectScopedTab(name: string, select: (tab: ScopedTab) => void):
   const tab = tabNamed(SCOPED_TABS, name);
   if (tab !== undefined) select(tab);
 }
+
+// The reads a tab shows that do not wait for the theme: started with the
+// page's own, so that each is under way while the theme is still arriving.
+export interface TabReads {
+  settings: boolean;
+  catalogue: boolean;
+  hooks: boolean;
+  versions: boolean;
+}
+
+const NO_READS: TabReads = { settings: false, catalogue: false, hooks: false, versions: false };
+
+const TAB_READS: Readonly<Record<BrandingTab, TabReads>> = {
+  theme: { ...NO_READS, hooks: true, versions: true },
+  pages: { ...NO_READS, catalogue: true },
+  mail: NO_READS,
+  languages: { ...NO_READS, settings: true, catalogue: true },
+};
+
+export function tabReads(tab: BrandingTab): TabReads {
+  return TAB_READS[tab];
+}

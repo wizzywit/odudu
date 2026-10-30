@@ -117,6 +117,7 @@ async function authorizeRoute(
   const outcome = await authenticateAdmin(deps.auth, {
     authorizationHeader: request.headers.authorization,
     targetTenantName,
+    targetTenant,
     targetTenantIssuer: tenantIssuerFor(request, targetTenantName),
     systemTenantIssuer: tenantIssuerFor(request, SYSTEM_TENANT_NAME),
     issuerBase: issuerBaseFor(request),

@@ -8,6 +8,8 @@ import {
   clientView,
   CTH,
   EMPTY,
+  MC,
+  SH,
   OWN_LIGHT,
   previewInfo,
   themeAnswer,
@@ -403,4 +405,41 @@ it('keeps its tab in the keyboard order, and moves between its own with the arro
   await user.keyboard('{ArrowRight}');
   expect(screen.getByRole('tab', { name: /^Pages/u })).toHaveAttribute('aria-selected', 'true');
   expect(await screen.findByRole('region', { name: 'Page templates' })).toBeVisible();
+});
+
+describe('what the client’s Branding reads', () => {
+  const count = (sent: readonly { path: string }[], path: string): number =>
+    sent.filter((request) => request.path === path).length;
+
+  it('asks for the hooks and the versions while the client’s theme is still arriving', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { sent } = renderConsoleAt(
+      AT,
+      clientBrandingRoutes(async (request) => {
+        await gate;
+        return themeAnswer(clientView())(request);
+      }),
+    );
+    await waitFor(() => {
+      expect(count(sent, SH)).toBe(1);
+      expect(count(sent, `${CTH}/versions`)).toBe(1);
+    });
+    release();
+    await colours();
+  });
+
+  it('reads each once, and the catalogue only once Pages is shown', async () => {
+    const user = userEvent.setup();
+    const { sent } = renderConsoleAt(AT, clientBrandingRoutes());
+    await colours();
+    expect(count(sent, SH)).toBe(1);
+    expect(count(sent, `${CTH}/versions`)).toBe(1);
+    expect(count(sent, MC)).toBe(0);
+    await user.click(screen.getByRole('tab', { name: 'Pages' }));
+    await screen.findByRole('combobox', { name: 'Page' });
+    expect(count(sent, MC)).toBe(1);
+  });
 });

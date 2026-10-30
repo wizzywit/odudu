@@ -5,6 +5,7 @@ import {
   TENANT_SCOPE,
   type OfferedTab,
 } from '#/features/branding/service';
+import { useScopeTabReads } from '#/features/branding/usecase/useScopeTabReads';
 import { useMailTab, type MailTab } from '#/features/branding/usecase/useMailTab';
 import {
   useScopeBranding,
@@ -24,6 +25,7 @@ export interface BrandingPage {
 
 export function useBrandingPage(tenant: string): BrandingPage {
   const { tab, selectTab } = useRecordTab(OFFERED_TABS);
+  useScopeTabReads(tenant, TENANT_SCOPE, tab);
   const branding = useScopeBranding(tenant, TENANT_SCOPE, showsPreview(tab));
   return {
     branding,

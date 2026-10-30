@@ -7,9 +7,13 @@ import {
   brandingRoutes,
   draftedView,
   EMPTY,
+  languagesRoutes,
   LOGO_ID,
+  MC,
+  MO,
   OWN_LIGHT,
   PI,
+  SH,
   previewInfo,
   TH,
   themeAnswer,
@@ -19,6 +23,7 @@ import {
 } from '#/testing/brandingFixtures';
 import { inTurn, json, problem } from '#/testing/fakeTransport';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
+import { ST } from '#/testing/settingsFixtures';
 import { resetConsole } from '#/testing/resetConsole';
 
 afterEach(() => {
@@ -694,4 +699,93 @@ it('has nothing axe can find in either theme', async () => {
     { frames: false },
   );
   expect(found).toEqual({ light: [], dark: [] });
+});
+
+describe('what each tab reads', () => {
+  const count = (sent: readonly { path: string }[], path: string): number =>
+    sent.filter((request) => request.path === path).length;
+
+  // An answer held back until `release`, for a read that is in flight.
+  function held() {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return { gate, release };
+  }
+
+  it('reads nothing of the languages on Theme, and the hooks and versions once each', async () => {
+    const { sent } = renderConsoleAt(AT, languagesRoutes());
+    await colours();
+    expect(count(sent, SH)).toBe(1);
+    expect(count(sent, `${TH}/versions`)).toBe(1);
+    expect(count(sent, ST)).toBe(0);
+    expect(count(sent, MC)).toBe(0);
+    expect(count(sent, MO)).toBe(0);
+  });
+
+  it('reads the catalogue once on Pages and nothing else of the languages', async () => {
+    const { sent } = renderConsoleAt(`${AT}?tab=pages`, languagesRoutes());
+    await screen.findByRole('combobox', { name: 'Page' });
+    expect(count(sent, MC)).toBe(1);
+    expect(count(sent, ST)).toBe(0);
+    expect(count(sent, MO)).toBe(0);
+  });
+
+  it('reads the settings, the catalogue and the overrides once each on Languages', async () => {
+    const { sent } = renderConsoleAt(`${AT}?tab=languages`, languagesRoutes());
+    await screen.findByRole('grid', { name: 'Message overrides' });
+    expect(count(sent, ST)).toBe(1);
+    expect(count(sent, MC)).toBe(1);
+    expect(count(sent, MO)).toBe(1);
+  });
+
+  it('asks for the languages’ reads while the theme is still arriving', async () => {
+    const theme = held();
+    const { sent } = renderConsoleAt(
+      `${AT}?tab=languages`,
+      languagesRoutes({
+        [`GET ${TH}`]: async (request) => {
+          await theme.gate;
+          return themeAnswer(draftedView(), '"d1"')(request);
+        },
+      }),
+    );
+    await waitFor(() => {
+      expect(count(sent, ST)).toBe(1);
+      expect(count(sent, MC)).toBe(1);
+    });
+    theme.release();
+    await screen.findByRole('grid', { name: 'Message overrides' });
+  });
+
+  it('asks for the hooks and the versions while the theme is still arriving', async () => {
+    const theme = held();
+    const { sent } = renderConsoleAt(
+      AT,
+      languagesRoutes({
+        [`GET ${TH}`]: async (request) => {
+          await theme.gate;
+          return themeAnswer(draftedView(), '"d1"')(request);
+        },
+      }),
+    );
+    await waitFor(() => {
+      expect(count(sent, SH)).toBe(1);
+      expect(count(sent, `${TH}/versions`)).toBe(1);
+    });
+    theme.release();
+    await colours();
+  });
+
+  it('reads the catalogue once across Pages and Languages, and not again on return', async () => {
+    const user = userEvent.setup();
+    const { sent } = renderConsoleAt(`${AT}?tab=pages`, languagesRoutes());
+    await screen.findByRole('combobox', { name: 'Page' });
+    await user.click(screen.getByRole('tab', { name: /^Languages/u }));
+    await screen.findByRole('grid', { name: 'Message overrides' });
+    await user.click(screen.getByRole('tab', { name: /^Pages/u }));
+    await screen.findByRole('combobox', { name: 'Page' });
+    expect(count(sent, MC)).toBe(1);
+  });
 });
