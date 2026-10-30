@@ -5,7 +5,7 @@
   <img src="brand/lockup.svg" alt="Odudu: a staff with a ring and a collar, beside the word odudu" width="220">
 </picture>
 
-**The sign-in you own: multi-tenant, brandable, and built for apps and AI agents.**
+**The sign-in you own: multi-tenant, brandable, and built for apps, MCP servers and AI agents.**
 OpenID Connect and OAuth 2.0, many tenants, one container and PostgreSQL.
 
 [![verify](https://github.com/wizzywit/odudu/actions/workflows/verify.yml/badge.svg)](https://github.com/wizzywit/odudu/actions/workflows/verify.yml)
@@ -29,7 +29,7 @@ data on their own servers.
 
 - Many tenants in one container, each kept apart by the database itself.
 - Passkeys, recovery codes and single sign-on, built in.
-- An admin API and console that cover everything, and access for agents: token exchange and client credentials.
+- An admin API and console that cover everything, and access for agents: token exchange, client credentials and an MCP server.
 
 <p align="center">
   <img src="docs/media/console.gif" alt="The admin console, in dark mode: an administrator signs in, opens Clients, creates a client named my-app and sees it listed." width="800">
@@ -44,6 +44,7 @@ data on their own servers.
 - Many tenants on one server, kept apart by the database itself.
 - Passwords with a policy and lockouts, passkeys, authenticator codes and recovery codes.
 - Every page the server shows, and its mail, in a tenant's theme and a client's branding: colours, font, images, a stylesheet and page templates, previewed and published as versions.
+- An MCP server that hands an AI agent the admin API as tools, held to the same capabilities as everyone else.
 - Pages and mail in English and Arabic, chosen per tenant, with the tenant's own wording.
 - An admin API with more than a hundred operations, and a console with a page for every area.
 - An audit trail of every change, sign-in and refusal, filterable and exportable.
