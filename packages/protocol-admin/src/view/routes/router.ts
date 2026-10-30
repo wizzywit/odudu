@@ -159,8 +159,8 @@ async function authorizeRoute(
   return { principal: outcome.principal, tenantId: targetTenant.id };
 }
 
-// What a raw-body route's `onRequest` decided, for its handler to reuse
-// instead of deciding twice.
+// What a body route's `onRequest` decided, for its handler to reuse instead
+// of deciding twice.
 const GRANTED = new WeakMap<FastifyRequest, Granted>();
 
 async function handleRoute(
@@ -173,6 +173,22 @@ async function handleRoute(
   const granted = GRANTED.get(request) ?? (await authorizeRoute(route, deps, request, reply));
   if (granted === null) return reply;
   return handler(request, reply, granted.principal, granted.tenantId);
+}
+
+// Before the body of a JSON route is read or checked: who is asking, and
+// whether they may. Only the route's capability and the path's tenant are
+// needed, and both are known from the request line. A refusal answers
+// without the body ever being buffered or validated.
+async function beforeJsonBody(
+  route: AdminRoute,
+  deps: AdminRouterDeps,
+  request: AdminRequest,
+  reply: FastifyReply,
+): Promise<FastifyReply | undefined> {
+  const granted = await authorizeRoute(route, deps, request, reply);
+  if (granted === null) return reply;
+  GRANTED.set(request, granted);
+  return undefined;
 }
 
 // Before any of the body is read: who is asking, which kind and how large.
@@ -289,7 +305,13 @@ export function registerAdminRoutes(
     };
 
     if (rawBody === undefined) {
-      app.route<{ Params: AdminRouteParams }>({ ...options, onRequest: noStore });
+      const hasBody = route.bodySchema !== undefined || route.bodyLimit !== undefined;
+      app.route<{ Params: AdminRouteParams }>({
+        ...options,
+        onRequest: hasBody
+          ? [noStore, async (request, reply) => beforeJsonBody(route, deps, request, reply)]
+          : noStore,
+      });
       continue;
     }
     // The parsers for a raw body live in a scope of their own, so no other
