@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { png, type Raster } from '../page-shots/brand.ts';
+import { png, type Raster } from '../page-shots/png.ts';
 
 // The tenant and the client the Branding pictures are taken of. The tenant is
 // deleted and made again for every pass, so each pass publishes its first
@@ -40,7 +40,7 @@ export async function adminApi(
         ...(init.headers ?? {}),
       };
       if (method !== 'GET') headers['x-odudu-console'] = '1';
-      let body: BodyInit | undefined;
+      let body: BodyInit | null = null;
       if (init.json !== undefined) {
         headers['content-type'] = 'application/json';
         body = JSON.stringify(init.json);
