@@ -256,6 +256,8 @@ const seededSchema = z.object({
       selectors: account,
       // Two administrators' sessions editing one message override.
       conflict: account,
+      // The first-paint call lists of branding-load.spec.ts, which no other spec touches.
+      load: account,
     }),
     // One tenant per test that reads its mail, each with its outbox seeded.
     mail: z.object({
