@@ -100,17 +100,6 @@ export async function driveBranding(world: PlanWorld, capture: Capture): Promise
   if (!overridden.body.includes('Sign in to the plan tenant')) {
     throw new Error('the sign-in page did not show the override');
   }
-  // Removed on the version this drive wrote, so the write drive starts from a
-  // tenant holding 499 and creates the 500th itself.
-  const removed = await http.inject({
-    method: 'DELETE',
-    url: overrideUrl,
-    headers: { authorization: `Bearer ${token}`, 'if-match': String(written.headers.etag) },
-  });
-  if (removed.statusCode !== 204) {
-    throw new Error(`the plan override was not removed: ${String(removed.statusCode)}`);
-  }
-
   const logo = await withTenant(world.app.db, tenantId, (tx) =>
     assetRepository(tx).put({
       tenantId,
@@ -151,6 +140,17 @@ export async function driveBranding(world: PlanWorld, capture: Capture): Promise
   if (sheet === undefined) throw new Error('the themed sign-in links no brand stylesheet');
   await driveBrandFiles(http, sheet, capture);
   await driveOtherPages(world, capture);
+  // Removed on the version this drive wrote, after every render that reads the
+  // cached overrides, so the write drive starts from a tenant holding 499 and
+  // creates the 500th itself.
+  const removed = await http.inject({
+    method: 'DELETE',
+    url: overrideUrl,
+    headers: { authorization: `Bearer ${token}`, 'if-match': String(written.headers.etag) },
+  });
+  if (removed.statusCode !== 204) {
+    throw new Error(`the plan override was not removed: ${String(removed.statusCode)}`);
+  }
 }
 
 // What a themed page links, fetched the way a browser does: an image read by
