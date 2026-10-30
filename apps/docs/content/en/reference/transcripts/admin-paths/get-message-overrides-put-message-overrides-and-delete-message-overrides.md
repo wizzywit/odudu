@@ -115,27 +115,24 @@ jq -c '.sections[].messages[] | select(.key | startswith("login.")) | select(.ke
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18731-e620-70ec-8403-94f9038c6bc4
+x-request-id: 01a18b59-9b0e-74e9-abc5-a5c39b2946eb
 cache-control: no-store
 content-type: application/json; charset=utf-8
-content-length: 16478
-Date: Thu, 29 Oct 2026 10:25:56 GMT
+content-length: 21830
+Date: Fri, 30 Oct 2026 05:47:47 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"kinds":["sign-in","consent","select-account","logout-confirm","authorize-error","email-unverified","logged-out"],"messages":70}
 {"kinds":["registration","reset","verification","required-actions","notice"],"messages":92}
 {"kinds":["totp-enrolment","passkey-enrolment","recovery-codes","update-password","required-action"],"messages":50}
+{"kinds":[],"messages":62}
 {"key":"login.otp.title","en":"Enter your authentication code"}
 {"key":"login.recoveryCode.title","en":"Enter a recovery code"}
 {"key":"login.title","en":"Sign in"}
 ```
 
 ### Listing, setting and reading back
-
-The commands below were captured before the preconditions above existed: a `PUT`
-without `If-Match` or `If-None-Match: *`, and a `DELETE` without `If-Match`, are
-now refused with `428`. This section is not yet run again on a live stack.
 
 `locale` is required. A tenant with no override lists none:
 
@@ -148,22 +145,28 @@ echo
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18731-e643-7fd3-9a88-8e0a0fd8064e
+x-request-id: 01a18b59-9b45-7d46-b714-0462efe9969c
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 12
-Date: Thu, 29 Oct 2026 10:25:56 GMT
+Date: Fri, 30 Oct 2026 05:47:48 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"items":[]}
-{"type":"about:blank","title":"Error","status":400,"detail":"querystring must have required property 'locale'","errors":[{"path":"locale","message":"must have required property 'locale'"}],"instance":"01a18731-e669-7ec3-be11-75cc58d861a1"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring must have required property 'locale'","errors":[{"path":"locale","message":"must have required property 'locale'"}],"instance":"01a18b59-9bd1-751d-b7df-aba262c42e30"}
 ```
 
-Setting one answers the override, and the locale is stored spelled `fr`:
+Creating an override takes `If-None-Match: *`, and a `PUT` that sends neither
+precondition is refused with `428` before anything is written. With it the answer is
+the override, with its `ETag` as a header and as `etag` in the body, and the locale is
+stored spelled `fr`:
 
 ```bash
 curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"message":"Connexion"}' $P/message-overrides/FR/login.title
+echo
+curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -H 'If-None-Match: *' \
   -d '{"message":"Connexion"}' $P/message-overrides/FR/login.title
 echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/message-overrides?locale=fr"
@@ -171,17 +174,67 @@ echo
 ```
 
 ```
-HTTP/1.1 200 OK
-x-request-id: 01a18731-e675-756f-a77c-5ebdd5aab0ce
+HTTP/1.1 428 Precondition Required
+x-request-id: 01a18b59-9be3-745e-93b6-9a83df9db221
 cache-control: no-store
-content-type: application/json; charset=utf-8
-content-length: 97
-Date: Thu, 29 Oct 2026 10:25:56 GMT
+content-type: application/problem+json; charset=utf-8
+content-length: 220
+Date: Fri, 30 Oct 2026 05:47:48 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"locale":"fr","key":"login.title","message":"Connexion","updated_at":"2026-10-29T10:25:56.869Z"}
-{"items":[{"locale":"fr","key":"login.title","message":"Connexion","updated_at":"2026-10-29T10:25:56.869Z"}]}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a message override (or send If-None-Match: * to create one)","instance":"01a18b59-9be3-745e-93b6-9a83df9db221"}
+HTTP/1.1 200 OK
+x-request-id: 01a18b59-9c45-751f-8b7c-bcdcab318d7c
+cache-control: no-store
+etag: "4cd2aae063c6903268ffbe05e2274ffa87204bd66dd2bc575c725b258b28b8d9"
+content-type: application/json; charset=utf-8
+content-length: 175
+Date: Fri, 30 Oct 2026 05:47:48 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"locale":"fr","key":"login.title","message":"Connexion","updated_at":"2026-10-30T05:47:48.182Z","etag":"\"4cd2aae063c6903268ffbe05e2274ffa87204bd66dd2bc575c725b258b28b8d9\""}
+{"items":[{"locale":"fr","key":"login.title","message":"Connexion","updated_at":"2026-10-30T05:47:48.182Z","etag":"\"4cd2aae063c6903268ffbe05e2274ffa87204bd66dd2bc575c725b258b28b8d9\""}]}
+```
+
+Changing it takes the `etag` read from the list, as `If-Match`. A stale one is `412`, a
+create of a key that now exists is `412`, and `*` as `If-Match` is `428`; none of them
+changes the override, and the right one does, with a new `ETag`:
+
+```bash
+ETAG=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/message-overrides?locale=fr" | jq -r '.items[0].etag')
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -H 'If-Match: "0000"' \
+  -d '{"message":"Connexion au portail"}' $P/message-overrides/fr/login.title
+echo
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -H 'If-None-Match: *' \
+  -d '{"message":"Connexion au portail"}' $P/message-overrides/fr/login.title
+echo
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -H 'If-Match: *' \
+  -d '{"message":"Connexion au portail"}' $P/message-overrides/fr/login.title
+echo
+curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -H "If-Match: $ETAG" \
+  -d '{"message":"Connexion au portail"}' $P/message-overrides/fr/login.title
+echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/message-overrides?locale=fr" | jq -c '.items[] | {key, message}'
+```
+
+```
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a18b59-9d4e-7add-9b5b-173787dd47e0"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-None-Match: * was sent, but the message override already exists","instance":"01a18b59-9e00-7b63-8304-d2597a653d9d"}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match must name a version you read; * is not accepted when replacing a message override (or send If-None-Match: * to create one)","instance":"01a18b59-9e38-71f0-8b6c-f8f2112535a0"}
+HTTP/1.1 200 OK
+x-request-id: 01a18b59-9ea4-7085-92e7-362eebd30370
+cache-control: no-store
+etag: "84f6a6608eaf9c1837a8fe6928deca609fc7909c23b77010d3faf4ac1f31520b"
+content-type: application/json; charset=utf-8
+content-length: 186
+Date: Fri, 30 Oct 2026 05:47:48 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"locale":"fr","key":"login.title","message":"Connexion au portail","updated_at":"2026-10-30T05:47:48.816Z","etag":"\"84f6a6608eaf9c1837a8fe6928deca609fc7909c23b77010d3faf4ac1f31520b\""}
+{"key":"login.title","message":"Connexion au portail"}
 ```
 
 The language is then offered through the tenant's settings, and the page it
@@ -200,8 +253,8 @@ curl -sS 'http://localhost:3000/tenants/override-demo/protocol/openid-connect/au
 ```
 {"supported_locales":["fr"],"default_locale":"fr"}
 2:<html lang="fr" dir="ltr">
-7:<title>Connexion</title>
-16:<h1>Connexion</h1>
+7:<title>Connexion au portail</title>
+16:<h1>Connexion au portail</h1>
 22:  <label>Username <input type="text" name="username" autocomplete="username"></label>
 23:  <label>Password <input type="password" name="password" autocomplete="current-password"></label>
 24:  <button type="submit">Sign in</button>
@@ -215,27 +268,29 @@ placeholder the page does not supply (`consent.heading` is filled with `{client}
 and nothing else) are each `400`, with the field that is wrong:
 
 ```bash
-curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+ETAG=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/message-overrides?locale=fr" | jq -r '.items[] | select(.key == "login.title") | .etag')
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -H 'If-None-Match: *' \
   -d '{"message":"Bonjour"}' $P/message-overrides/fr/login.nonesuch
 echo
-curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -H "If-Match: $ETAG" \
   -d '{"message":"Bonjour {"}' $P/message-overrides/fr/login.title
 echo
-curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -H 'If-None-Match: *' \
   -d '{"message":"{nope} demande un accès"}' $P/message-overrides/fr/consent.heading
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"key: is not the key of any page message","errors":[{"path":"key","message":"is not the key of any page message"}],"instance":"01a18731-e6e5-7cc1-957d-720c85a4cecd"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"message: is not a valid message: check its braces and plural arms","errors":[{"path":"message","message":"is not a valid message: check its braces and plural arms"}],"instance":"01a18731-e6fe-7be5-bfba-f9ac36c429d4"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"message: uses {nope}, which the page does not supply; the page supplies {client}","errors":[{"path":"message","message":"uses {nope}, which the page does not supply; the page supplies {client}"}],"instance":"01a18731-e716-7b88-9539-3624363ddc2d"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"key: is not the key of any page or mail message","errors":[{"path":"key","message":"is not the key of any page or mail message"}],"instance":"01a18b59-a05f-7e2a-867c-24f54dcd5948"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"message: is not a valid message: check its braces and plural arms","errors":[{"path":"message","message":"is not a valid message: check its braces and plural arms"}],"instance":"01a18b59-a0b1-770b-b81c-2b46b0a517c6"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"message: uses {nope}, which the page does not supply; the page supplies {client}","errors":[{"path":"message","message":"uses {nope}, which the page does not supply; the page supplies {client}"}],"instance":"01a18b59-a131-77f1-ba97-5a6ff01e32d7"}
 ```
 
 Markup in a message is not refused. It is stored as written and the page shows it
 as text, with the tags escaped:
 
 ```bash
-curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+ETAG=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/message-overrides?locale=fr" | jq -r '.items[] | select(.key == "login.title") | .etag')
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -H "If-Match: $ETAG" \
   -d '{"message":"<b>Connexion</b>"}' $P/message-overrides/fr/login.title | jq -c '{key, message}'
 curl -sS 'http://localhost:3000/tenants/override-demo/protocol/openid-connect/auth?response_type=code&client_id=portal&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid&state=s&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256' \
   | grep -n -E '<title>|<h1>'
@@ -249,20 +304,37 @@ curl -sS 'http://localhost:3000/tenants/override-demo/protocol/openid-connect/au
 
 ### Removing one
 
-Removing an override is `204`, and the message is the catalogue's again. Removing
-one that is not there is `404`:
+Removing an override takes `If-Match` with its `etag` too: without one it is `428`, with
+a stale one `412`, and with the right one `204`, after which the message is the
+catalogue's again. Removing one that is not there is `404`:
 
 ```bash
+ETAG=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/message-overrides?locale=fr" | jq -r '.items[] | select(.key == "login.title") | .etag')
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" $P/message-overrides/fr/login.title
-curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" $P/message-overrides/fr/login.title
+echo
+curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" -H 'If-Match: "0000"' $P/message-overrides/fr/login.title
+echo
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" -H "If-Match: $ETAG" $P/message-overrides/fr/login.title
+curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" -H "If-Match: $ETAG" $P/message-overrides/fr/login.title
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/message-overrides?locale=fr" | jq -c '.items[] | {key, message}'
 ```
 
 ```
-HTTP/1.1 204 No Content
-x-request-id: 01a18731-e774-7d9c-a852-e15921dfc98d
+HTTP/1.1 428 Precondition Required
+x-request-id: 01a18b59-a396-7e26-b928-190fd31fc5a5
 cache-control: no-store
-Date: Thu, 29 Oct 2026 10:25:57 GMT
+content-type: application/problem+json; charset=utf-8
+content-length: 189
+Date: Fri, 30 Oct 2026 05:47:50 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace or remove a message override","instance":"01a18b59-a396-7e26-b928-190fd31fc5a5"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a18b59-a3b5-7c58-917a-a48a6b6bbbc1"}
+HTTP/1.1 204 No Content
+x-request-id: 01a18b59-a3d5-7f94-bf8a-385efeb4e67c
+cache-control: no-store
+Date: Fri, 30 Oct 2026 05:47:50 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 

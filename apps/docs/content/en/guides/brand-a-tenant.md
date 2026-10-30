@@ -6,7 +6,7 @@ sidebar_position: 11
 
 # Brand a tenant
 
-A tenant's people meet Odudu's pages when they sign in, consent or reset a password. This guide gives one tenant, `brand-guide`, its own look through the admin API: colours, a logo, a stylesheet and a layout for the sign-in page. You will save a draft, preview it, publish it, see the page people get, try some refusals, and go back. [Branding](../concepts/branding.mdx) explains the model, and [Branding in the console](../admin-console/branding.mdx) does the same work with screens.
+A tenant's people meet Odudu's pages when they sign in, consent or reset a password. This guide gives one tenant, `brand-guide`, its own look through the admin API: colours, a logo, a stylesheet and a layout for the sign-in page. You will save a draft, preview it, publish it, see the page people get, try some refusals, and go back. [Branding](../concepts/branding.mdx) explains the model, and [Branding in the console](../admin-console/branding.mdx) does the same work with screens, and [Client branding in the console](../admin-console/client-branding.mdx) does a client's own look over the tenant's.
 
 The commands below are illustrative, not part of the docs commands job: they need an administrator's token: [Getting the token](../reference/transcripts/admin-paths/getting-the-token.md) shows how to get one that holds `manage-tenants`, `manage-tenant` and `manage-clients`. They were run by hand, in order, in one run against a stack, and each output is what came back, trimmed where it is long. Run them in bash or zsh with `curl`, `jq` and `base64` installed, and keep to one terminal, since each step uses the variables of the one before. A token lasts five minutes, so fetch it again when a command answers `401`. The stack they were run against was on port 3227, so the addresses in the output that name a port say 3227 where yours says 3000.
 
@@ -193,7 +193,7 @@ content-security-policy: default-src 'none'; style-src http://localhost:3227/ins
 16:<h1>Sign in</h1>
 ```
 
-The page's policy was written for this theme. Its `style-src` and `img-src` name exactly the stylesheet and the logo by address, and no policy was widened for any other tenant. The names are hashes of the contents, so a changed theme is a new address. The server draws the logo itself, above the template. Fetch the stylesheet from the address in the page. The headers below were recorded before the server began to send `Content-Security-Policy: default-src 'none'; sandbox` and `Cross-Origin-Resource-Policy: cross-origin` with it, and have not been run again since:
+The page's policy was written for this theme. Its `style-src` and `img-src` name exactly the stylesheet and the logo by address, and no policy was widened for any other tenant. The names are hashes of the contents, so a changed theme is a new address. The server draws the logo itself, above the template. Fetch the stylesheet from the address in the page. The server sends it with `Content-Security-Policy: default-src 'none'; sandbox` and `Cross-Origin-Resource-Policy: cross-origin`, as it sends every file of the brand route:
 
 ```text
 CSS_HREF=$(sed -n 's/.*<link rel="stylesheet" href="\(\/tenants[^"]*\)".*/\1/p' signin.html)
@@ -202,6 +202,8 @@ curl -sS -D - $ODUDU_BASE$CSS_HREF | tr -d '\r' | grep -v -E "^(Date|Connection|
 
 ```
 HTTP/1.1 200 OK
+content-security-policy: default-src 'none'; sandbox
+cross-origin-resource-policy: cross-origin
 x-content-type-options: nosniff
 etag: "e5c1f0b59d1ee47789b8e5cea965b573995e05914e97a286b0452a6f14c040bc"
 cache-control: public, max-age=31536000, immutable
@@ -213,6 +215,7 @@ content-length: 838
 .page-sign-in .logo { height: 3rem; width: auto; }
 .page-sign-in h1 { letter-spacing: 0.04em; border-top: 4px solid var(--focus-ring); padding-top: var(--space-3); }
 .page-sign-in small a { text-decoration: underline; }
+
 ```
 
 It is the palette as custom properties, then your rules. It is served as a file of its own and never inside a page, with a lifetime of a year, because its address changes when it does.

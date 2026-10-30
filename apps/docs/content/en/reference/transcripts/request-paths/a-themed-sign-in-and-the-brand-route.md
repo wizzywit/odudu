@@ -59,11 +59,13 @@ curl -sS -D - -o /dev/null "$B/brand/$(printf '0%.0s' $(seq 1 64)).css"
 10:<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
 16:<h1>Sign in</h1>
 HTTP/1.1 404 Not Found
-x-request-id: 01a18732-264c-7088-9e29-ef7ac3d6f0ad
+x-request-id: 01a18b61-8b69-7d3c-aeea-3cf89186d4a0
+content-security-policy: default-src 'none'; sandbox
+cross-origin-resource-policy: cross-origin
 x-content-type-options: nosniff
 cache-control: no-store
 content-length: 0
-Date: Thu, 29 Oct 2026 10:26:13 GMT
+Date: Fri, 30 Oct 2026 05:56:28 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -111,7 +113,8 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST -H "Authorization: Bearer $ADM
 ## The sign-in page
 
 The same request now answers a page that links the tenant's stylesheet from the brand
-route and shows its logo from there. The page's policy no longer says `'self'` for
+route and shows its logo from there. A themed page names its kind on its `<main>`, as
+`page page-sign-in`, which is the class the stylesheet's rule targets. The page's policy no longer says `'self'` for
 styles and images: `style-src` names the two stylesheet addresses and `img-src` the
 logo and the two icons, each in full, so the page can load those files and no other
 from this origin. The policy, and the `<link>` and `<img>` lines:
@@ -119,18 +122,19 @@ from this origin. The policy, and the `<link>` and `<img>` lines:
 ```bash
 curl -sS -D headers.txt -o signin.html "$AUTHORIZE"
 grep -i -E '^(HTTP|content-type|content-security-policy|content-language)' headers.txt
-grep -n -E '<link|<style|<img|<h1>' signin.html
+grep -n -E '<link|<style|<main|<img|<h1>' signin.html
 ```
 
 ```
 HTTP/1.1 200 OK
 content-type: text/html
-content-security-policy: default-src 'none'; style-src http://localhost:3000/instrument/instrument.css http://localhost:3000/tenants/brand-demo/brand/d4392d4df227581c41f775d8865fda254dbb404e82616a1488715652544feb76.css; font-src 'self'; img-src http://localhost:3000/tenants/brand-demo/brand/f49c86eb1cd9ab9d6d375c9eca74c13a8dc49208de6ccddefcc1e76be257caba.png http://localhost:3000/instrument/favicon.svg http://localhost:3000/instrument/favicon.ico; frame-ancestors 'none'; form-action 'self' https://app.example; base-uri 'none'; script-src 'nonce-bQ/yZPDHSre0GvcGRzCa/w=='; connect-src 'self'
+content-security-policy: default-src 'none'; style-src http://localhost:3000/instrument/instrument.css http://localhost:3000/tenants/brand-demo/brand/d4392d4df227581c41f775d8865fda254dbb404e82616a1488715652544feb76.css; font-src 'self'; img-src http://localhost:3000/tenants/brand-demo/brand/f49c86eb1cd9ab9d6d375c9eca74c13a8dc49208de6ccddefcc1e76be257caba.png http://localhost:3000/instrument/favicon.svg http://localhost:3000/instrument/favicon.ico; frame-ancestors 'none'; form-action 'self' https://app.example; base-uri 'none'; script-src 'nonce-8ZhMEM+zkBn8PCwi6bvDUw=='; connect-src 'self'
 content-language: en
 8:<link rel="stylesheet" href="/instrument/instrument.css">
 9:<link rel="stylesheet" href="/tenants/brand-demo/brand/d4392d4df227581c41f775d8865fda254dbb404e82616a1488715652544feb76.css">
 10:<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
 11:<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+14:<main class="page page-sign-in">
 15:<p class="brand"><img class="logo" src="/tenants/brand-demo/brand/f49c86eb1cd9ab9d6d375c9eca74c13a8dc49208de6ccddefcc1e76be257caba.png" alt="Brand Demo"></p>
 17:<h1>Sign in</h1>
 ```
@@ -148,13 +152,15 @@ curl -sS -D - "http://localhost:3000$CSS"
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18732-26cf-7efe-bda2-be7ac1d08cde
+x-request-id: 01a18b61-8c10-7e7f-b842-63ea399e980a
+content-security-policy: default-src 'none'; sandbox
+cross-origin-resource-policy: cross-origin
 x-content-type-options: nosniff
 etag: "d4392d4df227581c41f775d8865fda254dbb404e82616a1488715652544feb76"
 cache-control: public, max-age=31536000, immutable
 content-type: text/css; charset=utf-8
 content-length: 669
-Date: Thu, 29 Oct 2026 10:26:13 GMT
+Date: Fri, 30 Oct 2026 05:56:28 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -171,13 +177,15 @@ file brand-logo.png
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a18732-26de-7236-b0a0-64d6d231a1d3
+x-request-id: 01a18b61-8c22-747d-b8e1-4e94056baae0
+content-security-policy: default-src 'none'; sandbox
+cross-origin-resource-policy: cross-origin
 x-content-type-options: nosniff
 etag: "f49c86eb1cd9ab9d6d375c9eca74c13a8dc49208de6ccddefcc1e76be257caba"
 cache-control: public, max-age=31536000, immutable
 content-type: image/png
 content-length: 144
-Date: Thu, 29 Oct 2026 10:26:13 GMT
+Date: Fri, 30 Oct 2026 05:56:28 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -203,11 +211,13 @@ curl -sS -o /dev/null -w '%{http_code}\n' "http://localhost:3000/tenants/system/
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a18732-26f1-7c98-bf32-373c00b18b9c
+x-request-id: 01a18b61-8c38-70ac-95f7-728129345f56
+content-security-policy: default-src 'none'; sandbox
+cross-origin-resource-policy: cross-origin
 x-content-type-options: nosniff
 cache-control: no-store
 content-length: 0
-Date: Thu, 29 Oct 2026 10:26:13 GMT
+Date: Fri, 30 Oct 2026 05:56:28 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -215,6 +225,73 @@ Keep-Alive: timeout=72
 404
 404
 404
+```
+
+## A background image
+
+A theme may also name a background, which the page draws behind the form, which stays
+on its own panel. `background.png` is a 640 by 360 pixel PNG made for this page. It is
+uploaded for the `background` slot and the same theme is saved again with it and
+published. The page's policy then licenses the image for `img-src` by its address, and
+the stylesheet, not the page, draws it: the tenant's file now holds a `body` rule with
+`background-image:url(...)`, after the palette and before the tenant's own rules:
+
+```bash
+BG=$(curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: image/png" --data-binary @background.png "$P/theme/assets?kind=background" | jq -r .id)
+jq --arg id "$BG" '.assets.background = {assetId: $id}' brand-theme.json > brand-theme-bg.json
+curl -sS -o /dev/null -w '%{http_code}\n' -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  --data-binary @brand-theme-bg.json $P/theme
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST -H "Authorization: Bearer $ADMIN_TOKEN" $P/theme/publish
+```
+
+```
+200
+200
+```
+
+```bash
+curl -sS -D headers.txt -o signin-bg.html "$AUTHORIZE"
+grep -i '^content-security-policy' headers.txt | tr -d '\r' | tr ';' '\n' | grep -E 'style-src|img-src'
+grep -n -E '<link rel="stylesheet"|<main|<img' signin-bg.html
+```
+
+```
+ style-src http://localhost:3000/instrument/instrument.css http://localhost:3000/tenants/brand-demo/brand/4bff0170ea31327fa357d39efaa564175856abc1f054975e1a969c76ce64ae87.css
+ img-src http://localhost:3000/tenants/brand-demo/brand/f49c86eb1cd9ab9d6d375c9eca74c13a8dc49208de6ccddefcc1e76be257caba.png http://localhost:3000/tenants/brand-demo/brand/c9d7688a6cf8827b7666eb243d6f3abfdfb8a6abc2de5060e485d4159ce134e4.png http://localhost:3000/instrument/favicon.svg http://localhost:3000/instrument/favicon.ico
+8:<link rel="stylesheet" href="/instrument/instrument.css">
+9:<link rel="stylesheet" href="/tenants/brand-demo/brand/4bff0170ea31327fa357d39efaa564175856abc1f054975e1a969c76ce64ae87.css">
+14:<main class="page page-sign-in">
+15:<p class="brand"><img class="logo" src="/tenants/brand-demo/brand/f49c86eb1cd9ab9d6d375c9eca74c13a8dc49208de6ccddefcc1e76be257caba.png" alt="Brand Demo"></p>
+```
+
+The stylesheet is a new file under a new hash, since the theme changed. The line with the
+background's rule is shown, and the image it names is served from the same route as the
+logo, as a file that never changes under its hash:
+
+```bash
+CSS=$(grep -o '/tenants/brand-demo/brand/[0-9a-f]*\.css' signin-bg.html | head -1)
+curl -sS "http://localhost:3000$CSS" | grep -n 'background-image'
+BGPATH=$(curl -sS "http://localhost:3000$CSS" | grep -o '/tenants/brand-demo/brand/[0-9a-f]*\.png')
+curl -sS -D - -o brand-background.png "http://localhost:3000$BGPATH"
+file brand-background.png
+```
+
+```
+3:body{background-image:url('/tenants/brand-demo/brand/c9d7688a6cf8827b7666eb243d6f3abfdfb8a6abc2de5060e485d4159ce134e4.png');background-size:cover;background-position:center;background-repeat:no-repeat;}
+HTTP/1.1 200 OK
+x-request-id: 01a18b61-8d07-74bd-9f17-fbed59aaba4c
+content-security-policy: default-src 'none'; sandbox
+cross-origin-resource-policy: cross-origin
+x-content-type-options: nosniff
+etag: "c9d7688a6cf8827b7666eb243d6f3abfdfb8a6abc2de5060e485d4159ce134e4"
+cache-control: public, max-age=31536000, immutable
+content-type: image/png
+content-length: 1233
+Date: Fri, 30 Oct 2026 05:56:28 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+brand-background.png: PNG image data, 640 x 360, 8-bit/color RGB, non-interlaced
 ```
 
 ## A reset takes the files away
@@ -270,8 +347,8 @@ content-type: text/html
 10:<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
 11:<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
 16:<h1>Sign out?</h1>
-19:  <input type="hidden" name="session_id" value="01a18732-2817-7063-b3bd-80baf0db9d0b">
-20:  <input type="hidden" name="csrf" value="rvhNJSSH3jff2duU78CLy2hUm6WOs7k2-dhiTPOvzb8">
+19:  <input type="hidden" name="session_id" value="01a18b61-8df3-7634-830c-d54498a5d0fd">
+20:  <input type="hidden" name="csrf" value="wSrhz9XMFxKhbkW60XcK5M7BfkzOoSxOuAQ0zZVSdi0">
 21:  <button type="submit">Sign out</button>
 ```
 
