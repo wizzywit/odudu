@@ -332,6 +332,8 @@ test.describe('on a phone', () => {
     for (const tab of TABS) {
       await openTab(page, tab);
       await expect(page.getByRole('progressbar')).toHaveCount(0);
+      // The languages are read after the tab opens; its checkboxes are what is measured.
+      if (tab === 'Languages') await expect(page.getByRole('checkbox').first()).toBeVisible();
       const found = await page.evaluate(() => {
         const controls = [
           ...document.querySelectorAll(
@@ -345,11 +347,23 @@ test.describe('on a phone', () => {
           if (box.width === 0 || box.height === 0) continue;
           // The select a custom one keeps for forms, which is not what is pressed.
           if (node.closest('[aria-hidden=true]') !== null) continue;
-          const name = `${node.tagName.toLowerCase()} "${(node.getAttribute('aria-label') ?? node.textContent).trim().slice(0, 30)}"`;
+          // A checkbox or a radio is pressed through its label, which is the
+          // hit area and what names it.
+          const choice =
+            node.tagName === 'INPUT' && /^(checkbox|radio)$/u.test(node.getAttribute('type') ?? '');
+          const label = choice ? (node.closest('label') ?? node.parentElement) : null;
+          const text = label?.textContent ?? node.textContent;
+          const said = (node.getAttribute('aria-label') ?? text).trim();
+          const name = `${node.tagName.toLowerCase()} "${said.slice(0, 30)}"`;
           // A control inside a bordered group is as large as the group.
-          const outer = node.parentElement?.getBoundingClientRect().height ?? 0;
-          const height = outer - box.height < 6 ? Math.max(box.height, outer) : box.height;
-          if (height < 43.5) small.push(`${name} ${String(Math.round(box.height))}px`);
+          const outer = (label ?? node.parentElement)?.getBoundingClientRect().height ?? 0;
+          const height = choice
+            ? outer
+            : outer - box.height < 6
+              ? Math.max(box.height, outer)
+              : box.height;
+          if (choice && said === '') small.push(`${name} has no label`);
+          if (height < 43.5) small.push(`${name} ${String(Math.round(height))}px`);
           // What takes text, which a phone zooms to when it is under 16px; a
           // checkbox or a file chooser takes none.
           const takesText =
