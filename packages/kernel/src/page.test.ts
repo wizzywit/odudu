@@ -32,7 +32,7 @@ describe('the headers every rendered page carries', () => {
     expect(csp).not.toContain('script-src');
   });
 
-  it('licenses a same-origin stylesheet, font and image on every page', () => {
+  it('[ODUDU-THEME-CSP-01] licenses a same-origin stylesheet, font and image on every page', () => {
     const csp = headerMap(MARKUP_ONLY_PAGE)['content-security-policy'] ?? '';
     const directives = csp.split('; ');
     expect(directives).toContain("style-src 'self'");
@@ -81,7 +81,7 @@ describe('the headers every rendered page carries', () => {
     ).toBe('ar-EG');
   });
 
-  it('carries the framing defence and the referrer policy on every page', () => {
+  it('[ODUDU-THEME-FRAME-01] carries the framing defence and the referrer policy on every page', () => {
     const headers = headerMap(MARKUP_ONLY_PAGE);
     expect(headers['x-frame-options']).toBe('DENY');
     expect(headers['referrer-policy']).toBe('no-referrer');
@@ -99,7 +99,7 @@ describe('the headers every rendered page carries', () => {
   // The nonce comes from the markup that used it, never from the caller:
   // a policy naming a nonce the page does not carry fails exactly as
   // silently as no policy at all (ADR 0018's amendment).
-  it('derives script-src from the nonce the page reports', () => {
+  it('[ODUDU-THEME-CSP-01] derives script-src from the nonce the page reports', () => {
     const csp = headerMap({
       html: '<script nonce="abc">',
       body: '<script nonce="abc">',

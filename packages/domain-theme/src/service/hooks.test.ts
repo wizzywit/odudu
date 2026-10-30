@@ -184,7 +184,7 @@ describe('the lists the checker accepts', () => {
 
   it('accepts each token in var() and refuses one it does not list', () => {
     for (const token of CSS_TOKENS) {
-      expect(accepted(`.page { color: var(${token}); }`), token).toBe(true);
+      expect(accepted(`.page { background-color: var(${token}); }`), token).toBe(true);
     }
     expect(accepted('.page { color: var(--not-a-token); }')).toBe(false);
     expect(accepted('.page { --mine: red; }')).toBe(false);

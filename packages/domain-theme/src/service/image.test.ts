@@ -50,7 +50,7 @@ function refusedWith(result: InspectedImage | ImageRefusal): string {
   return isImageRefusal(result) ? result.code : 'accepted';
 }
 
-describe('inspectImage', () => {
+describe('[ODUDU-THEME-UPLOAD-01] inspectImage', () => {
   it('accepts a polyglot PNG with HTML appended only after re-encoding, and the output has no trailer', async () => {
     const png = await solid(8, 8).png().toBuffer();
     const polyglot = Buffer.concat([png, Buffer.from('<html><script>alert(1)</script></html>')]);
