@@ -10,7 +10,7 @@ import {
 } from '@odudu/authn-flows';
 import { type MessageCatalogueResponse } from '@odudu/contracts/admin';
 import { isMailMessageKey, MAIL_MESSAGES } from '@odudu/email';
-import { overrideProblem, placeholderProblem } from '@odudu/i18n';
+import { overrideProblem, placeholderProblem, requiredArgumentsProblem } from '@odudu/i18n';
 import { type PageKind } from '@odudu/kernel';
 import {
   DEFAULT_TEMPLATES as OIDC_KINDS,
@@ -81,7 +81,8 @@ export function overrideProblemFor(key: string, message: string): string | null 
   const own = overrideProblem(message);
   if (own !== null) return own;
   const english = Object.hasOwn(ENGLISH, key) ? ENGLISH[key] : undefined;
-  return english === undefined ? null : placeholderProblem(message, english);
+  const unsupplied = english === undefined ? null : placeholderProblem(message, english);
+  return unsupplied ?? requiredArgumentsProblem(key, message);
 }
 
 export function pageMessageCatalogue(): MessageCatalogueResponse {

@@ -1019,7 +1019,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       '`If-None-Match: *` to create one. Neither header, or `*` as `If-Match`, is refused with `428`; a ' +
       '`If-Match` that is stale, or that names a key now gone, and `If-None-Match: *` for a key that now exists, with `412`. ' +
       'The answer carries the new `ETag`. `key` must be the key of a page message, such as `login.title`, else `400`; the ' +
-      'text is checked as a message, so an unbalanced brace is refused with `400`, and so is an argument such as `{name}` that the page\u2019s English text of the same key does not read, because the page would not supply it. Markup in ' +
+      'text is checked as a message, so an unbalanced brace is refused with `400`, and so is an argument such as `{name}` that the page\u2019s English text of the same key does not read, because the page would not supply it. The text for `consent.heading` must use `{client}`, since the consent page has to tell the person which application is asking. Markup in ' +
       'it is shown as text, never rendered. `409` (`about:blank#message-overrides-full`) when ' +
       'the tenant already holds 500, though changing one that exists is always allowed. ' +
       'Pages in this process show the change at once; another replica shows the previous text ' +

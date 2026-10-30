@@ -38,7 +38,7 @@ languages a tenant offers, and which one it prefers to the browser's, are the
   catalogue message of the same key uses, and no others: one the page does not
   supply is a `400` on `message` naming it and what the page does supply, since
   the page would otherwise show the catalogue's text with nothing to say why. A
-  tenant import is held to the same rule. Markup in it is shown as text, never
+  tenant import is held to the same rule. The text for `consent.heading` must also use `{client}`, so a consent page always names the application asking; a text without it is a `400` on `message`. Markup in it is shown as text, never
   rendered. The
   locale is stored spelled `fr-CA`, whatever was typed.
 - Two administrators editing the same key cannot overwrite one another unseen.
