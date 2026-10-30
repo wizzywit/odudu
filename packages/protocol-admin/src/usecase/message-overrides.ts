@@ -3,6 +3,11 @@ import { canonicalLocale } from '@odudu/contracts';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { messageOverrideRepository, type MessageOverrideRecord } from '@odudu/domain-tenant';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
+import {
+  messageOverrideEtag,
+  overrideConditionHolds,
+  type OverrideCondition,
+} from '#/service/message-override-condition';
 
 const COLLECTION = 'message-overrides';
 
@@ -41,6 +46,7 @@ export function messageOverrideWireShape(row: MessageOverrideRecord): MessageOve
     key: row.key,
     message: row.message,
     updated_at: row.updatedAt.toISOString(),
+    etag: messageOverrideEtag(row),
   };
 }
 
@@ -99,10 +105,12 @@ export interface PutMessageOverrideInput extends Actor {
   readonly locale: string;
   readonly key: string;
   readonly message: string;
+  readonly condition: Exclude<OverrideCondition, { kind: 'required' }>;
 }
 
 export type PutMessageOverrideOutcome =
   | { kind: 'put'; override: MessageOverride }
+  | { kind: 'precondition_failed' }
   | { kind: 'unknown_key' }
   | { kind: 'invalid_message'; problem: string }
   | { kind: 'over_bound' };
@@ -115,12 +123,16 @@ export async function putMessageOverride(
   const problem = deps.messageProblem(input.key, input.message);
   if (problem !== null) return { kind: 'invalid_message', problem };
   const repository = messageOverrideRepository(tx, { isKnownKey: deps.isKnownKey });
-  const outcome = await repository.put({
-    tenantId: input.tenantId,
-    locale: input.locale,
-    key: input.key,
-    message: input.message,
-  });
+  const outcome = await repository.put(
+    {
+      tenantId: input.tenantId,
+      locale: input.locale,
+      key: input.key,
+      message: input.message,
+    },
+    (stored) => overrideConditionHolds(input.condition, stored),
+  );
+  if (outcome === 'precondition_failed') return { kind: 'precondition_failed' };
   if (outcome === 'unknown_key') return { kind: 'unknown_key' };
   if (outcome === 'over_bound') return { kind: 'over_bound' };
   // The path's locale passed the shape check, so the repository cannot refuse it.
@@ -144,9 +156,11 @@ export interface DeleteMessageOverrideInput extends Actor {
   readonly tenantId: string;
   readonly locale: string;
   readonly key: string;
+  readonly ifMatch: string;
 }
 
-export type DeleteMessageOverrideOutcome = { kind: 'not_found' } | { kind: 'deleted' };
+export type DeleteMessageOverrideOutcome =
+  { kind: 'not_found' } | { kind: 'precondition_failed' } | { kind: 'deleted' };
 
 export async function deleteMessageOverride(
   deps: Pick<MessageOverrideDeps, 'audit' | 'isKnownKey'>,
@@ -158,8 +172,9 @@ export async function deleteMessageOverride(
     input.tenantId,
     locale,
     input.key,
+    (stored) => overrideConditionHolds({ kind: 'replace', ifMatch: input.ifMatch }, stored),
   );
-  if (!removed) return { kind: 'not_found' };
+  if (removed !== 'deleted') return { kind: removed };
   await deps.audit(tx, {
     action: 'message_override.delete',
     resourceType: 'message_override',

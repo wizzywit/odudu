@@ -11,7 +11,15 @@ import {
   putMessageOverride,
   type MessageOverrideDeps,
 } from '#/usecase/message-overrides';
-import { cursorProblem, fieldProblem, problem, sendProblem } from '#/view/problem';
+import { overrideCondition } from '#/service/message-override-condition';
+import {
+  cursorProblem,
+  fieldProblem,
+  ifMatchRequired,
+  ifMatchStale,
+  problem,
+  sendProblem,
+} from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRouteHandler } from '#/view/routes/router';
 
@@ -35,6 +43,10 @@ function paramsOf(request: { params: { tenant?: string; locale?: string; key?: s
     );
   }
   return { tenant, locale, key };
+}
+
+function header(value: string | string[] | undefined): string | undefined {
+  return typeof value === 'string' ? value : undefined;
 }
 
 export function listMessageOverridesHandler(deps: MessageOverridesRouteDeps): AdminRouteHandler {
@@ -64,18 +76,41 @@ export function putMessageOverrideHandler(deps: MessageOverridesRouteDeps): Admi
   return async (request, reply, principal, tenantId) => {
     const { locale, key } = paramsOf(request);
     const body = putMessageOverrideRequestSchema.parse(request.body);
+    const condition = overrideCondition(
+      header(request.headers['if-match']),
+      header(request.headers['if-none-match']),
+    );
+    if (condition.kind === 'required') {
+      return sendProblem(
+        reply,
+        request,
+        ifMatchRequired(
+          'a message override (or send If-None-Match: * to create one)',
+          request.headers['if-match'],
+        ),
+      );
+    }
     const outcome = await adminTx(deps.database, request, tenantId, (tx) =>
       putMessageOverride(deps, tx, {
         tenantId,
         locale,
         key,
         message: body.message,
+        condition,
         actorSubjectId: principal.subjectId,
         actorTenantId: principal.issuerTenantId,
         actorClientId: principal.clientDbId,
       }),
     );
     switch (outcome.kind) {
+      case 'precondition_failed':
+        return sendProblem(
+          reply,
+          request,
+          condition.kind === 'create'
+            ? ifMatchStale('If-None-Match: * was sent, but the message override already exists')
+            : ifMatchStale(),
+        );
       case 'unknown_key':
         return sendProblem(
           reply,
@@ -101,7 +136,7 @@ export function putMessageOverrideHandler(deps: MessageOverridesRouteDeps): Admi
         );
       case 'put':
         deps.invalidate(tenantId);
-        return reply.code(200).send(outcome.override);
+        return reply.header('etag', outcome.override.etag).code(200).send(outcome.override);
     }
   };
 }
@@ -109,11 +144,23 @@ export function putMessageOverrideHandler(deps: MessageOverridesRouteDeps): Admi
 export function deleteMessageOverrideHandler(deps: MessageOverridesRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, tenantId) => {
     const { locale, key } = paramsOf(request);
+    const condition = overrideCondition(
+      header(request.headers['if-match']),
+      header(request.headers['if-none-match']),
+    );
+    if (condition.kind !== 'replace') {
+      return sendProblem(
+        reply,
+        request,
+        ifMatchRequired('or remove a message override', request.headers['if-match']),
+      );
+    }
     const outcome = await adminTx(deps.database, request, tenantId, (tx) =>
       deleteMessageOverride(deps, tx, {
         tenantId,
         locale,
         key,
+        ifMatch: condition.ifMatch,
         actorSubjectId: principal.subjectId,
         actorTenantId: principal.issuerTenantId,
         actorClientId: principal.clientDbId,
@@ -121,6 +168,9 @@ export function deleteMessageOverrideHandler(deps: MessageOverridesRouteDeps): A
     );
     if (outcome.kind === 'not_found') {
       return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+    }
+    if (outcome.kind === 'precondition_failed') {
+      return sendProblem(reply, request, ifMatchStale());
     }
     deps.invalidate(tenantId);
     return reply.code(204).send();

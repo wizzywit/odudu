@@ -69,16 +69,18 @@ describe('the form', () => {
       key: expect.stringContaining('key') as string,
       message: expect.stringContaining('text') as string,
     });
-    expect(overrideProblems({ key: 'login.title', message: 'x' })).toEqual({});
+    expect(overrideProblems({ key: 'login.title', message: 'x', etag: null })).toEqual({});
     expect(OVERRIDE_KEY_LENGTH).toBe(MESSAGE_OVERRIDE_KEY_MAX_LENGTH);
     expect(
-      overrideProblems({ key: 'k'.repeat(OVERRIDE_KEY_LENGTH + 1), message: 'x' }).key,
+      overrideProblems({ key: 'k'.repeat(OVERRIDE_KEY_LENGTH + 1), message: 'x', etag: null }).key,
     ).toContain(String(OVERRIDE_KEY_LENGTH));
-    expect(overrideProblems({ key: 'k', message: 'x'.repeat(2001) }).message).toMatch(/2000/u);
+    expect(overrideProblems({ key: 'k', message: 'x'.repeat(2001), etag: null }).message).toMatch(
+      /2000/u,
+    );
   });
 
   it('empties once saved, and is as it was when refused', () => {
-    const values = { key: 'login.title', message: 'Hello' };
+    const values = { key: 'login.title', message: 'Hello', etag: null };
     const saved = saveOutcome(
       { ok: true, status: 200, data: {}, etag: null, next: null },
       { locale: 'en', key: 'login.title' },
@@ -113,18 +115,16 @@ describe('the count above the table', () => {
 
 describe('the form as it is sent', () => {
   it('trims the key, and is not sent while it has problems', () => {
-    expect(overrideAttempt('en', { key: ' login.title ', message: 'Hi' }).sent).toEqual({
-      locale: 'en',
-      key: 'login.title',
-      message: 'Hi',
-    });
+    expect(
+      overrideAttempt('en', { key: ' login.title ', message: 'Hi', etag: '"v1"' }).sent,
+    ).toEqual({ locale: 'en', key: 'login.title', message: 'Hi', etag: '"v1"' });
     const held = overrideAttempt('en', EMPTY_OVERRIDE);
     expect(held.sent).toBeNull();
     expect(Object.keys(held.errors)).toEqual(['key', 'message']);
   });
 
   it('reports a refusal and nothing else', () => {
-    const values = { key: 'k', message: 'm' };
+    const values = { key: 'k', message: 'm', etag: null };
     const sent = { locale: 'en', key: 'k' };
     const denied = afterSave(
       refused(403, 'about:blank', { detail: 'the caller does not hold: manage-tenant' }),

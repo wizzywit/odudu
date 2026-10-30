@@ -145,6 +145,12 @@ export function themeWriteKey(tenant: string, scope: string, write: string) {
   return ['theme-write', tenant, scope, write] as const;
 }
 
+// One message override read fresh, to show the side of a conflict that is not
+// the person's own.
+export function overrideReadKey(tenant: string, locale: string, key: string) {
+  return ['message-override', tenant, locale, key] as const;
+}
+
 // Every write to a tenant's theme while it runs, whichever scope or part.
 export function themeWritesKey(tenant: string) {
   return ['theme-write', tenant] as const;

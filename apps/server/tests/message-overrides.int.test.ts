@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
 import { seed, seedAdmin } from '#/cli/seed';
 import { mintAdminToken } from '#/testing/plan-admin-drives';
+import { isWork, StatementRecorder } from '#/testing/plan-capture';
 
 // The admin API and the pages in one process: what an override changes is what
 // the next page shows, with no wait for a cache to age.
@@ -20,6 +21,7 @@ let container: TestDatabase;
 let owner: DatabaseHandle;
 let appDb: DatabaseHandle;
 let app: FastifyInstance;
+const recorder = new StatementRecorder();
 
 const KEK = Buffer.alloc(32, 7);
 const REDIRECT_URI = 'https://app.example/callback';
@@ -30,7 +32,7 @@ beforeAll(async () => {
   owner = createDatabase(container.adminUrl);
   await runMigrations(owner.db, MIGRATIONS_DIR);
   const appUrl = await createAppRole(container.adminUrl);
-  appDb = createDatabase(appUrl, { max: 5 });
+  appDb = createDatabase(appUrl, { max: 5, onQueryForTests: recorder.hook('app') });
   process.env.ODUDU_DATABASE_URL = container.adminUrl;
   process.env.ODUDU_APP_DATABASE_URL = appUrl;
   process.env.ODUDU_KEK = KEK.toString('base64');
@@ -92,35 +94,106 @@ function admin(
   method: 'GET' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown,
+  headers: Record<string, string> = {},
 ) {
   return app.inject({
     method,
     url: `/admin/tenants/${t.name}${path}`,
     headers: {
       authorization: `Bearer ${t.token}`,
+      ...headers,
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     ...(body === undefined ? {} : { payload: body as object }),
   });
 }
 
+interface Tenant {
+  id: string;
+  name: string;
+  token: string;
+}
+
+// The write the console makes: the version it read, or the expectation of none.
+async function etagOf(t: Tenant, locale: string, key: string): Promise<string | undefined> {
+  const items = (await admin(t, 'GET', `/message-overrides?locale=${locale}`)).json<{
+    items: { key: string; etag: string }[];
+  }>().items;
+  return items.find((item) => item.key === key)?.etag;
+}
+
+async function setOverride(t: Tenant, locale: string, key: string, message: string) {
+  const etag = await etagOf(t, locale, key);
+  return admin(
+    t,
+    'PUT',
+    `/message-overrides/${locale}/${key}`,
+    { message },
+    etag === undefined ? { 'if-none-match': '*' } : { 'if-match': etag },
+  );
+}
+
+async function removeOverride(t: Tenant, locale: string, key: string) {
+  return admin(t, 'DELETE', `/message-overrides/${locale}/${key}`, undefined, {
+    'if-match': (await etagOf(t, locale, key)) ?? '"none"',
+  });
+}
+
+// The token check, the tenant binding's lookups, the write with its lock,
+// precondition read and bound check, the read-back and the audit row.
+const PUT_STATEMENTS = 12;
+
+describe('the statements a write costs', () => {
+  const costOf = async (t: Tenant, key: string, message: string): Promise<number> => {
+    const etag = await etagOf(t, 'en', key);
+    const { result, statements } = await recorder.record(() =>
+      admin(
+        t,
+        'PUT',
+        `/message-overrides/en/${key}`,
+        { message },
+        etag === undefined ? { 'if-none-match': '*' } : { 'if-match': etag },
+      ),
+    );
+    expect(result.statusCode, result.body).toBe(200);
+    return statements.filter(isWork).length;
+  };
+
+  it('does not grow with the overrides the tenant already holds', async () => {
+    const few = await tenant();
+    const many = await tenant();
+    await owner.sql`
+      insert into message_overrides (tenant_id, locale, key, message)
+      select ${many.id}::uuid, 'de', 'bulk.' || g, 'x' from generate_series(1, 400) g
+    `;
+    await setOverride(few, 'en', 'login.title', 'a');
+    await setOverride(many, 'en', 'login.title', 'a');
+    const created = [
+      await costOf(few, 'login.submit', 'b'),
+      await costOf(many, 'login.submit', 'b'),
+    ];
+    const changed = [await costOf(few, 'login.title', 'c'), await costOf(many, 'login.title', 'c')];
+    expect(created[1]).toBe(created[0]);
+    expect(changed[1]).toBe(changed[0]);
+    expect(changed[0]).toBe(PUT_STATEMENTS);
+  }, 60_000);
+});
+
 describe('a message override set through the admin API', () => {
   it('shows on the next page of this process, and goes when it is removed', async () => {
     const t = await tenant();
     expect((await signIn(t.name)).body).not.toContain('Welcome to the Acme door');
 
-    const set = await admin(t, 'PUT', '/message-overrides/en/login.title', {
-      message: 'Welcome to the Acme door',
-    });
+    const set = await setOverride(t, 'en', 'login.title', 'Welcome to the Acme door');
     expect(set.statusCode, set.body).toBe(200);
     expect((await signIn(t.name)).body).toContain('Welcome to the Acme door');
 
-    await admin(t, 'PUT', '/message-overrides/en/login.title', { message: 'Second wording' });
+    await setOverride(t, 'en', 'login.title', 'Second wording');
     const second = (await signIn(t.name)).body;
     expect(second).toContain('Second wording');
     expect(second).not.toContain('Welcome to the Acme door');
 
-    expect((await admin(t, 'DELETE', '/message-overrides/en/login.title')).statusCode).toBe(204);
+    expect((await removeOverride(t, 'en', 'login.title')).statusCode).toBe(204);
     expect((await signIn(t.name)).body).not.toContain('Second wording');
   });
 
@@ -129,7 +202,7 @@ describe('a message override set through the admin API', () => {
     expect(
       (await admin(t, 'PATCH', '/settings', { supported_locales: ['en', 'fr'] })).statusCode,
     ).toBe(200);
-    await admin(t, 'PUT', '/message-overrides/fr/login.title', { message: 'Entrez chez Acme' });
+    await setOverride(t, 'fr', 'login.title', 'Entrez chez Acme');
 
     const fr = await signIn(t.name, { 'accept-language': 'fr' });
     expect(fr.body).toContain('Entrez chez Acme');
@@ -141,9 +214,7 @@ describe('a message override set through the admin API', () => {
 
   it('shows markup as text', async () => {
     const t = await tenant();
-    await admin(t, 'PUT', '/message-overrides/en/login.title', {
-      message: '<img src=x onerror=alert(1)> & co',
-    });
+    await setOverride(t, 'en', 'login.title', '<img src=x onerror=alert(1)> & co');
     const body = (await signIn(t.name)).body;
     expect(body).not.toContain('<img src=x');
     expect(body).toContain('&lt;img src=x onerror=alert(1)&gt; &amp; co');
@@ -151,21 +222,15 @@ describe('a message override set through the admin API', () => {
 
   it('is checked as a message and against the catalogue before it is stored', async () => {
     const t = await tenant();
-    const unbalanced = await admin(t, 'PUT', '/message-overrides/en/login.title', {
-      message: 'Welcome {name',
-    });
+    const unbalanced = await setOverride(t, 'en', 'login.title', 'Welcome {name');
     expect(unbalanced.statusCode).toBe(400);
     expect(unbalanced.json<Problem>().errors[0]?.path).toBe('message');
-    const plural = await admin(t, 'PUT', '/message-overrides/en/login.title', {
-      message: '{n, plural, one {a}}',
-    });
+    const plural = await setOverride(t, 'en', 'login.title', '{n, plural, one {a}}');
     expect(plural.statusCode).toBe(400);
-    const unknown = await admin(t, 'PUT', '/message-overrides/en/login.nonesuch', { message: 'x' });
+    const unknown = await setOverride(t, 'en', 'login.nonesuch', 'x');
     expect(unknown.statusCode).toBe(400);
     expect(unknown.json<Problem>().errors[0]?.path).toBe('key');
-    const account = await admin(t, 'PUT', '/message-overrides/en/link.backToSignIn', {
-      message: 'Back',
-    });
+    const account = await setOverride(t, 'en', 'link.backToSignIn', 'Back');
     expect(account.statusCode, 'a key of another package’s catalogue is a page message').toBe(200);
     expect(
       (await admin(t, 'GET', '/message-overrides?locale=en')).json<{ items: unknown[] }>().items,
@@ -174,20 +239,14 @@ describe('a message override set through the admin API', () => {
 
   it('may read only the arguments the page it replaces supplies', async () => {
     const t = await tenant();
-    const extra = await admin(t, 'PUT', '/message-overrides/en/login.context', {
-      message: 'to reach {app} for {client}',
-    });
+    const extra = await setOverride(t, 'en', 'login.context', 'to reach {app} for {client}');
     expect(extra.statusCode).toBe(400);
     expect(extra.payload).toContain('{app}');
     expect(extra.payload).toContain('{client}');
-    const none = await admin(t, 'PUT', '/message-overrides/en/login.title', {
-      message: 'Welcome, {name}',
-    });
+    const none = await setOverride(t, 'en', 'login.title', 'Welcome, {name}');
     expect(none.statusCode).toBe(400);
     expect(none.payload).toContain('supplies no value');
-    const fewer = await admin(t, 'PUT', '/message-overrides/en/login.context', {
-      message: 'to reach {client}',
-    });
+    const fewer = await setOverride(t, 'en', 'login.context', 'to reach {client}');
     expect(fewer.statusCode, fewer.payload).toBe(200);
   });
 
@@ -226,9 +285,7 @@ describe('a message override set through the admin API', () => {
     expect(refused?.path).toMatch(/^document\.message_overrides\[\d+\]\.message$/u);
     expect(refused?.message).toContain('{app}');
     expect(refused?.message).toContain('login.context');
-    const put = await admin(t, 'PUT', '/message-overrides/en/login.context', {
-      message: 'to reach {app}',
-    });
+    const put = await setOverride(t, 'en', 'login.context', 'to reach {app}');
     expect(put.statusCode).toBe(400);
     expect(put.payload).toContain('{app}');
   });
@@ -236,7 +293,7 @@ describe('a message override set through the admin API', () => {
   it('is not shown to another tenant', async () => {
     const mine = await tenant();
     const theirs = await tenant();
-    await admin(theirs, 'PUT', '/message-overrides/en/login.title', { message: 'Private wording' });
+    await setOverride(theirs, 'en', 'login.title', 'Private wording');
     expect((await signIn(mine.name)).body).not.toContain('Private wording');
     expect((await signIn(theirs.name)).body).toContain('Private wording');
   });

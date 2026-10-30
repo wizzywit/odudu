@@ -17,6 +17,8 @@ export interface RequestOptions<T> {
   // that has no ETag yet, so a 428 is the server's answer and not a console defect.
   withoutTag?: boolean;
   ifMatch?: string;
+  // `*` on a create: the write is refused with 412 if the resource now exists.
+  ifNoneMatch?: string;
   schema: ZodType<T>;
 }
 
@@ -182,6 +184,7 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
       body?: unknown;
       file?: Blob;
       ifMatch?: string;
+      ifNoneMatch?: string;
       withoutTag?: boolean;
       binary?: boolean;
     },
@@ -191,6 +194,7 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
     const headers = new Headers({ accept: 'application/json' });
     if (method !== 'GET') headers.set('x-odudu-console', '1');
     if (options.ifMatch !== undefined) headers.set('if-match', options.ifMatch);
+    if (options.ifNoneMatch !== undefined) headers.set('if-none-match', options.ifNoneMatch);
     if (believed !== null && path.startsWith(ADMIN)) headers.set(SUBJECT_HEADER, believed);
     const init: RequestInit = { method, headers, credentials: 'same-origin' };
     if (options.body !== undefined) {
@@ -204,7 +208,7 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
 
     const answer = await send(
       method,
-      options.ifMatch !== undefined,
+      options.ifMatch !== undefined || options.ifNoneMatch !== undefined,
       `${url.pathname}${url.search}`,
       init,
       options.binary === true,

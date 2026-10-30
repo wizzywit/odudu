@@ -12,7 +12,13 @@ import {
   NOTHING_TO_PUBLISH,
   revertHold,
   revertLead,
+  REVERT_CONFLICT_LEAD,
+  REVERT_KEEP_HINT,
+  REVERT_TAKE_HINT,
+  revertConflicts,
   revertProblem,
+  revertSection,
+  shownRevertConflicts,
   revertRequest,
   tabsChanged,
   tabUnsaved,
@@ -190,5 +196,62 @@ describe('the capability a scope’s writes need', () => {
   it('is manage-tenant for the tenant and manage-clients for a client', () => {
     expect(writeCapability({ kind: 'tenant' })).toBe('manage-tenant');
     expect(writeCapability({ kind: 'client', id: 'c1' })).toBe('manage-clients');
+  });
+});
+
+describe('a revert that met a newer draft', () => {
+  const published = { ...EMPTY, tokens: { light: OWN_LIGHT } };
+  const draft = {
+    ...EMPTY,
+    tokens: { light: OWN_LIGHT, font: 'IBM Plex Mono' },
+    assets: { logo: { assetId: LOGO_ID, alt: 'Acme' } },
+    stylesheet: 'a{}',
+  };
+
+  it('names the pieces of the tab the revert would overwrite, theirs beside the published', () => {
+    const conflicts = revertConflicts(viewOf(draft, published, ['tokens']), 'theme');
+    expect(conflicts.map((c) => [c.field, c.label])).toEqual([
+      ['tokens', 'Colours and font'],
+      ['assets', 'Images'],
+      ['stylesheet', 'Stylesheet'],
+    ]);
+    const shown = conflicts.map((c) => [c.describe?.(c.theirs), c.describe?.(c.yours)]);
+    expect(shown).toEqual([
+      ['2 groups of colours or fonts (light, font)', '1 group of colours or fonts (light)'],
+      ['1 image (logo)', 'nothing'],
+      ['3 characters, starting “a{}”', 'nothing'],
+    ]);
+  });
+
+  it('tells two pieces of the same size apart', () => {
+    const [one] = revertConflicts(
+      viewOf({ ...EMPTY, stylesheet: 'a{color:red}' }, { ...EMPTY, stylesheet: 'b{color:red}' }, [
+        'stylesheet',
+      ]),
+      'theme',
+    );
+    expect(one?.describe?.(one.theirs)).not.toBe(one?.describe?.(one.yours));
+  });
+
+  it('words its own lead, not the one for fields saved by somebody else', () => {
+    expect(REVERT_CONFLICT_LEAD).toMatch(/revert/iu);
+    expect(REVERT_KEEP_HINT).toMatch(/published/u);
+    expect(REVERT_TAKE_HINT).toMatch(/draft/u);
+  });
+
+  it('leaves out a piece that already matches, and the other tab’s pieces', () => {
+    expect(revertConflicts(viewOf(published, published, []), 'theme')).toEqual([]);
+    expect(revertConflicts(viewOf(draft, published, ['tokens']), 'pages')).toEqual([]);
+  });
+
+  it('shows nothing until the revert was refused', () => {
+    const view = viewOf(draft, published, ['tokens']);
+    expect(shownRevertConflicts(false, view, 'theme')).toEqual([]);
+    expect(shownRevertConflicts(true, view, 'theme')).toHaveLength(3);
+  });
+
+  it('names the tab as the panel’s heading reads it', () => {
+    expect(revertSection('theme')).toBe('the Theme tab');
+    expect(revertSection('pages')).toBe('the Pages tab');
   });
 });

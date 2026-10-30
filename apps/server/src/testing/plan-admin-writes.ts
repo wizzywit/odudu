@@ -13,6 +13,10 @@ interface Call {
   readonly image?: Buffer;
   // Fetched first, and sent as If-Match, for the routes that refuse without it.
   readonly etagFrom?: string;
+  // Sent as If-None-Match: *, for the create of a record that has no version yet.
+  readonly createOnly?: true;
+  // Sent as If-Match with the ETag the previous call answered.
+  readonly etagFromPrevious?: true;
   readonly system?: boolean;
   readonly as?: 'usersOnly' | 'sessionsOnly';
   // The `id` of this call's answer, kept to fill `{name}` in a later call's url.
@@ -496,6 +500,7 @@ export async function driveAdminWrites(
   ];
 
   const saved = new Map<string, string>();
+  let previousEtag = '';
   for (const [label, call] of calls) {
     const token =
       call.as !== undefined
@@ -516,6 +521,8 @@ export async function driveAdminWrites(
       const current = await world.http.inject({ url: call.etagFrom, headers });
       headers['if-match'] = String(current.headers.etag);
     }
+    if (call.createOnly === true) headers['if-none-match'] = '*';
+    if (call.etagFromPrevious === true) headers['if-match'] = previousEtag;
     const res: LightMyRequestResponse = await capture(
       `${call.method} ${url.replace(/[0-9a-f-]{36}/gu, '<id>')} (${label})`,
       'admin',
@@ -535,6 +542,8 @@ export async function driveAdminWrites(
               }),
         }),
     );
+    const answered = res.headers.etag;
+    previousEtag = typeof answered === 'string' ? answered : '';
     if (call.saveAs !== undefined) {
       saved.set(
         call.saveAs,
@@ -561,9 +570,15 @@ function overrideCalls(T: string): [string, Call][] {
       'list the selectors a stylesheet may use',
       { method: 'GET', url: `${T}/theme/stylesheet-hooks` },
     ],
-    ['set a message override', { method: 'PUT', url, body: { message: 'Sign in to Acme' } }],
-    ['set the message override again', { method: 'PUT', url, body: { message: 'Sign in' } }],
-    ['remove the message override', { method: 'DELETE', url }],
+    [
+      'set a message override',
+      { method: 'PUT', url, body: { message: 'Sign in to Acme' }, createOnly: true },
+    ],
+    [
+      'set the message override again',
+      { method: 'PUT', url, body: { message: 'Sign in' }, etagFromPrevious: true },
+    ],
+    ['remove the message override', { method: 'DELETE', url, etagFromPrevious: true }],
   ];
 }
 

@@ -2,13 +2,16 @@ import type { MessageOverride } from '@odudu/contracts/admin';
 import {
   deleteOverride,
   putOverride,
+  readOverride,
   readOverridePage,
 } from '#/features/branding/adapter/overrides';
-import { PAGE_SIZE } from '#/features/branding/service';
-import { listKey, themeWriteKey } from '#/shared/repository/queryKeys';
+import { PAGE_SIZE, TENANT_WIDE_WRITES } from '#/features/branding/service';
+import { listKey, overrideReadKey, themeWriteKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useListPages } from '#/shared/repository/useResourceList';
+import { useFreshRead } from '#/shared/repository/useFreshRead';
 import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
+import { useTransport } from '#/shared/transport/useTransport';
 import type { GatewayResult } from '#/shared/transport/gateway';
 
 const RESOURCE = 'message-overrides';
@@ -24,26 +27,43 @@ export function useOverrideList(tenant: string, locale: string) {
 }
 
 export interface OverrideWrites {
-  put: Write<{ locale: string; key: string; message: string }, GatewayResult<MessageOverride>>;
-  remove: Write<{ locale: string; key: string }, GatewayResult<undefined>>;
+  put: Write<
+    { locale: string; key: string; message: string; etag: string | null },
+    GatewayResult<MessageOverride>
+  >;
+  remove: Write<{ locale: string; key: string; etag: string }, GatewayResult<undefined>>;
+  // One override as the server holds it now, for the side of a conflict that
+  // is not the person's own; null when it holds none.
+  current: (input: {
+    locale: string;
+    key: string;
+  }) => Promise<GatewayResult<MessageOverride | null>>;
 }
 
 // Whatever the answer, the list is read again: it may be stale.
 export function useOverrideWrites(tenant: string): OverrideWrites {
   const { invalidate } = useInvalidate();
+  const { gateway } = useTransport();
+  const fresh = useFreshRead();
   const reread = (): void => {
     invalidate(listKey(tenant, RESOURCE));
   };
   return {
     put: useGatewayWrite({
-      mutationKey: themeWriteKey(tenant, 'tenant-wide', 'override'),
+      mutationKey: themeWriteKey(tenant, TENANT_WIDE_WRITES, 'override'),
       send: (gateway, input) => putOverride(gateway, tenant, input),
       onSettled: reread,
     }),
     remove: useGatewayWrite({
-      mutationKey: themeWriteKey(tenant, 'tenant-wide', 'override-remove'),
+      mutationKey: themeWriteKey(tenant, TENANT_WIDE_WRITES, 'override-remove'),
       send: (gateway, input) => deleteOverride(gateway, tenant, input),
       onSettled: reread,
     }),
+    current: (input) =>
+      fresh
+        .read(overrideReadKey(tenant, input.locale, input.key), () =>
+          readOverride(gateway, tenant, input),
+        )
+        .catch((): GatewayResult<MessageOverride | null> => ({ ok: false, kind: 'defect' })),
   };
 }

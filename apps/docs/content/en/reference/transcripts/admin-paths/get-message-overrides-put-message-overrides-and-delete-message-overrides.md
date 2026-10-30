@@ -26,7 +26,8 @@ languages a tenant offers, and which one it prefers to the browser's, are the
   each with its `locale`, `key`, `message` and `updated_at`. `locale` is
   required and must be a language tag such as `fr` or `zh-Hant-TW`. It pages
   with `limit` (at most 200) and `cursor`, so a tenant's 500 overrides are never
-  read at once; a cursor from another locale is refused with `400`.
+  read at once; a cursor from another locale is refused with `400`. Each item
+  also carries its `etag`, the version of that override.
 - `PUT /message-overrides/{locale}/{key}` with `{"message": "…"}` sets the text a
   page or mail shows for the message `key`, such as `login.title` or
   `reset.subject`, in `locale`, and
@@ -40,6 +41,13 @@ languages a tenant offers, and which one it prefers to the browser's, are the
   tenant import is held to the same rule. Markup in it is shown as text, never
   rendered. The
   locale is stored spelled `fr-CA`, whatever was typed.
+- Two administrators editing the same key cannot overwrite one another unseen.
+  Changing an override takes `If-Match` with the `etag` read from the list (or
+  from the answer to the last `PUT`, which carries it as its `ETag` header);
+  creating one takes `If-None-Match: *`; removing one takes `If-Match`. A request
+  with neither header, or with `*` as `If-Match`, is refused with `428`; a stale
+  `If-Match`, a replace of a key that has since been removed, and a create of a
+  key that now exists, with `412`. Overrides of different keys never conflict.
 - A tenant holds at most 500 overrides across every locale. The 501st is
   refused with `409` (`about:blank#message-overrides-full`); changing one that
   exists is always allowed, and two simultaneous writes cannot both take the last
@@ -124,6 +132,10 @@ Keep-Alive: timeout=72
 ```
 
 ### Listing, setting and reading back
+
+The commands below were captured before the preconditions above existed: a `PUT`
+without `If-Match` or `If-None-Match: *`, and a `DELETE` without `If-Match`, are
+now refused with `428`. This section is not yet run again on a live stack.
 
 `locale` is required. A tenant with no override lists none:
 

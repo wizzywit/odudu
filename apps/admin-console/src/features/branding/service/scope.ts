@@ -22,6 +22,9 @@ export function themeRecord(scope: ThemeScope): string {
   return themeParts(scope).join('/');
 }
 
+// The part of a theme write's key for writes that belong to no one scope.
+export const TENANT_WIDE_WRITES = 'tenant-wide';
+
 export function scopeKeyPart(scope: ThemeScope): string {
   return scope.kind === 'tenant' ? 'tenant' : `client:${scope.id}`;
 }

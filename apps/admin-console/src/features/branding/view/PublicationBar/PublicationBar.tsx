@@ -24,6 +24,7 @@ import {
 } from '#/features/branding/service';
 import type { ScopeBranding } from '#/features/branding/usecase/useScopeBranding';
 import { usePublicationBar } from '#/features/branding/usecase/usePublicationBar';
+import { RevertConflict } from '#/features/branding/view/RevertConflict';
 import { ActionMenu } from '#/shared/view/ActionMenu';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
@@ -149,6 +150,7 @@ export function PublicationBar({
             </>
           )}
         </div>
+        <RevertConflict revert={revert} />
         <ConfirmDialog
           isOpen={discard.confirming}
           title={DISCARD_TITLE}

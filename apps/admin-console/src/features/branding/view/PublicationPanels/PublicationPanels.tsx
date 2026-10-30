@@ -26,6 +26,7 @@ import {
 import type { Revert } from '#/features/branding/usecase/useRevert';
 import type { Versions } from '#/features/branding/usecase/useVersions';
 import type { Removal } from '#/shared/usecase/useConfirmedChange';
+import { RevertConflict } from '#/features/branding/view/RevertConflict';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 import { DataTable, type Column } from '#/shared/view/DataTable';
@@ -58,6 +59,7 @@ export function RevertPanel({
       <div role="status" className={styles.outcome}>
         {revert.problem === null ? null : <p className={styles.refused}>{revert.problem}</p>}
       </div>
+      <RevertConflict revert={revert} />
     </Panel>
   );
 }

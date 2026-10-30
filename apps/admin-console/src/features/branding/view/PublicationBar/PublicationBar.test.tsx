@@ -10,7 +10,7 @@ import {
   themeAnswer,
   themeView,
 } from '#/testing/brandingFixtures';
-import { json, pending, problem } from '#/testing/fakeTransport';
+import { inTurn, json, pending, problem } from '#/testing/fakeTransport';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
 import { resetConsole } from '#/testing/resetConsole';
 
@@ -292,8 +292,63 @@ describe('reverting a tab', () => {
     );
     const panel = await screen.findByRole('region', { name: 'Revert to published' });
     await user.click(within(panel).getByRole('button', { name: 'Revert this tab to published' }));
-    expect(await within(panel).findByText(/Somebody saved the draft/u)).toBeVisible();
+    expect(
+      await within(panel).findByText(/after you opened it\. The page now shows their version/u),
+    ).toBeVisible();
     expect(sent.filter((s) => s.method !== 'GET')).toHaveLength(1);
+  });
+});
+
+describe('a revert that met a newer draft', () => {
+  const REVERT_BUTTON = 'Revert this tab to published';
+  const CONFLICT = /Changed in the Pages tab since you opened it/u;
+
+  async function refused() {
+    const user = userEvent.setup();
+    const put = inTurn(problem(412, 'about:blank', 'Precondition Failed'), json(twoTabs()));
+    const rendered = renderConsoleAt(
+      PAGES,
+      brandingRoutes(inTurn(themeAnswer(twoTabs(), '"d1"'), themeAnswer(twoTabs(), '"d2"')), {
+        [`PUT ${TH}`]: put,
+      }),
+    );
+    const panel = await screen.findByRole('region', { name: 'Revert to published' });
+    await user.click(within(panel).getByRole('button', { name: REVERT_BUTTON }));
+    return { user, sent: rendered.sent, panel };
+  }
+
+  it('shows the draft beside what the revert writes, on the shared panel', async () => {
+    const { panel } = await refused();
+    expect(await within(panel).findByText(CONFLICT)).toBeVisible();
+    const table = within(panel).getByRole('table', { name: CONFLICT });
+    expect(within(table).getByText('Page templates')).toBeVisible();
+    expect(within(panel).getByRole('button', { name: 'Keep mine in the Pages tab' })).toBeEnabled();
+  });
+
+  it('writes the revert again on the newer tag when I keep mine', async () => {
+    const { user, sent, panel } = await refused();
+    await user.click(
+      await within(panel).findByRole('button', { name: 'Keep mine in the Pages tab' }),
+    );
+    await waitFor(() => {
+      expect(sent.filter((s) => s.method === 'PUT')).toHaveLength(2);
+    });
+    expect(sent.filter((s) => s.method === 'PUT')[1]?.ifMatch).toBe('"d2"');
+    await waitFor(() => {
+      expect(screen.queryByText(CONFLICT)).toBeNull();
+    });
+  });
+
+  it('leaves the draft as it is when I take theirs', async () => {
+    const { user, sent, panel } = await refused();
+    await user.click(
+      await within(panel).findByRole('button', { name: 'Take theirs in the Pages tab' }),
+    );
+    await waitFor(() => {
+      expect(screen.queryByText(CONFLICT)).toBeNull();
+    });
+    expect(sent.filter((s) => s.method === 'PUT')).toHaveLength(1);
+    expect(within(panel).queryByText(/The page now shows their version/u)).toBeNull();
   });
 });
 
