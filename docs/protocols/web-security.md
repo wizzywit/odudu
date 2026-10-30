@@ -36,15 +36,26 @@ same link in a text no check can read.
 
 ### What a stylesheet cannot do
 
-The checker refuses, on every part but the decorative ones, tiny text and
-boxes that clip, large margins and padding, faint text and text the colour of
-its background or of the Instrument page surfaces, and refuses everywhere an
-outline that is removed, reset, faint, pushed away or the colour of the page.
-It also refuses to hide or collapse the consent page's heading and scope
-list, unless the rule is scoped to another page kind. Two parts are not
-promised: colours paired across two rules are not compared, so a contrast
-failure built from two rules is caught only by the colour pairs the theme
-declares, and a box-shadow can still draw over the page.
+On every part but the decorative ones the checker refuses text under 12px,
+boxes under 16px (or 10% of their container) and margins or padding past
+128px (50%), `line-height` under 0.8, letter-spacing below -0.05em, faint
+text (alpha under 0.5), and text the colour of its own background or of the
+Instrument page, panel or sunken surface, unless the rule sets an opaque
+ground of its own. Parts that draw their own background (buttons, `.secondary`,
+`.alert`, `.choice`) are exempt from the surface comparison. Everywhere it
+refuses an outline that is removed, reset, thinner than 1px, faint, pushed
+more than 16px away or the colour of the page. It also refuses to hide or
+collapse the consent page's heading and scope list unless the rule is scoped
+to another page kind.
+
+What it does not catch, and accepts: text and background chosen in two
+separate rules, or against a surface the theme chose itself rather than the
+Instrument default (the contrast pairs a theme declares are checked at
+publish); `currentcolor` or `inherit` as a ground on a heading; relative
+sizes such as `font-size: smaller`; an element clipped by `max-height` or
+`overflow` at a size above the floor; an outline drawn in `currentcolor` or
+dimmed by `opacity`; and a box exactly at the floor. A reader who needs more
+than this has the theme's preview.
 
 ### What the template checker is held to
 
@@ -80,6 +91,7 @@ and display names are stripped of line breaks before they reach a header.
 | OIDC Core 3.1.2.1 | MAY    | `ui_locales` orders the languages a page is shown in                                                                     | `ODUDU-THEME-LOCALE-01`     | covered                                      |
 | WCAG 2.2 1.4.3    | SHOULD | text reaches 4.5:1 against what it sits on; a theme is refused at publish otherwise                                      | `ODUDU-THEME-CONTRAST-01`   | covered                                      |
 | WCAG 2.2 1.4.11   | SHOULD | borders and the focus ring reach 3:1                                                                                     | `ODUDU-THEME-CONTRAST-02`   | covered                                      |
+| WCAG 2.2 1.4.3    | SHOULD | text and background set in two separate rules, or against a theme's own surfaces, are compared                           | —                           | accepted: "What a stylesheet cannot do"      |
 | WCAG 2.2 1.4.4    | SHOULD | text a stylesheet sets is never smaller than 12px on a needed part, and never collapsed to nothing                       | `ODUDU-THEME-LEGIBLE-01`    | covered                                      |
 | WCAG 2.2 2.4.7    | SHOULD | no stylesheet removes the focus outline                                                                                  | `ODUDU-THEME-FOCUS-01`      | covered                                      |
 | WCAG 2.2 3.1.1    | SHOULD | the page declares its language and direction                                                                             | `ODUDU-THEME-LANG-01`       | covered                                      |

@@ -138,18 +138,19 @@ function reachesClientName(compounds: Compound[]): boolean {
   );
 }
 
-// Whether a rule may sit on a part a button replaces the background of, so a
-// text colour like the page's is its own default there.
+// Whether every selector's subject is a part that draws its own background,
+// where a text colour like the page's is its own default.
 export function ownsBackground(selectors: Compound[][]): boolean {
-  return selectors.some((compounds) =>
-    compounds.some(
-      (c) =>
-        c.element === 'button' ||
-        c.classes.includes('secondary') ||
-        c.classes.includes('alert') ||
-        c.classes.includes('choice'),
-    ),
-  );
+  return selectors.every((compounds) => {
+    const subject = compounds[compounds.length - 1];
+    return (
+      subject !== undefined &&
+      (subject.element === 'button' ||
+        subject.classes.includes('secondary') ||
+        subject.classes.includes('alert') ||
+        subject.classes.includes('choice'))
+    );
+  });
 }
 
 export function mayBeHidden(selectors: Compound[][]): boolean {

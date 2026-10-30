@@ -129,14 +129,18 @@ describe('[ODUDU-THEME-LEGIBLE-01] a needed part is not pushed, shrunk or washed
     'height: 8px; overflow: hidden',
     'max-width: 8px; overflow: hidden',
     'max-height: 8px; overflow: hidden',
-    'height: 40px; overflow: hidden',
-    'max-height: 2rem; overflow: auto',
     'color: rgba(0, 0, 0, 0.01)',
     'color: rgb(0 0 0 / 1%)',
     'color: rgba(0, 0, 0, 0.4)',
     'color: #0000007f',
     'letter-spacing: -2px',
     'letter-spacing: -0.06em',
+    'letter-spacing: -1ch',
+    'line-height: 0',
+    'line-height: 0.2',
+    'line-height: 0px',
+    'width: 9%',
+    'max-width: 9%; overflow: hidden',
   ];
   for (const declarations of refused) {
     it(`refuses ${declarations}`, () => {
@@ -167,8 +171,7 @@ describe('[ODUDU-THEME-LEGIBLE-01] a needed part is not pushed, shrunk or washed
     }
   });
 
-  it('knows the dark surfaces only inside the dark scheme', () => {
-    expect(codes('label { color: #151a19; }')).toEqual([]);
+  it('refuses the dark surfaces inside the dark scheme, and light text on them', () => {
     expect(codes('@media (prefers-color-scheme: dark) { label { color: #151a19; } }')).not.toEqual(
       [],
     );
@@ -185,6 +188,13 @@ describe('[ODUDU-THEME-LEGIBLE-01] a needed part is not pushed, shrunk or washed
       '.alert { color: var(--signal-danger-ink); }',
       'main { max-width: 32rem; margin: 0 auto; padding: 2rem 1rem; overflow: visible; }',
       'label { color: rgba(0, 0, 0, 0.7); }',
+      'button { width: 160px; height: 40px; overflow: hidden; }',
+      'button { width: 100%; overflow: hidden; }',
+      'label { overflow: hidden; width: 12rem; }',
+      'label { max-height: 3rem; overflow: auto; }',
+      'label { line-height: 1.4; }',
+      'button { width: 10%; }',
+      'label { letter-spacing: -0.04em; }',
     ];
     for (const css of fine) expect(codes(css), css).toEqual([]);
   });
@@ -251,5 +261,61 @@ describe('[ODUDU-THEME-FOCUS-01] the focus indicator cannot be reset, hidden or 
       'a:focus-visible { outline: 2px dashed #b00020; }',
     ];
     for (const css of fine) expect(codes(css), css).toEqual([]);
+  });
+});
+
+describe('[ODUDU-THEME-LEGIBLE-01] a rule cannot lend text the page it sits on', () => {
+  const refused = [
+    'label { color: #fff; background-color: transparent; }',
+    'label { color: #fff; background-color: inherit; }',
+    'label { color: #fff; background-color: currentcolor; }',
+    'label { color: var(--surface-panel); background: var(--surface-panel); }',
+    '.page-consent h1 { color: var(--surface-panel); background-color: var(--surface-sunken); }',
+    '.page-consent li { color: #fff; background-color: #fafafa; }',
+    '.page-consent h1 { color: #fafafa; background-color: rgba(0, 0, 0, 0.01); }',
+    'button, label { color: var(--surface-panel); }',
+    'button, h1 { color: var(--surface-panel); }',
+    'button + label { color: var(--surface-panel); }',
+    '.alert ~ label { color: var(--surface-panel); }',
+    '.choice label { color: var(--surface-panel); }',
+    'label { color: #151a19; }',
+    '@media (min-width: 1px) { label { color: #151a19; } }',
+    '@media (prefers-color-scheme: dark) { label { color: #151a19; } }',
+  ];
+  for (const css of refused) {
+    it(`refuses ${css}`, () => {
+      expect(codes(css)).not.toEqual([]);
+    });
+  }
+
+  it('accepts text on a ground of its own, and a part that owns its background', () => {
+    const fine = [
+      'label { color: #fff; background-color: #06c; }',
+      'label { color: var(--surface-panel); background-color: var(--ink-primary); }',
+      'button { color: var(--surface-panel); }',
+      'button, .secondary { color: var(--surface-panel); }',
+      '.alert { color: var(--surface-panel); }',
+      'label { color: #111; }',
+      '@media (prefers-color-scheme: dark) { label { color: #eee; } }',
+    ];
+    for (const css of fine) expect(codes(css), css).toEqual([]);
+  });
+});
+
+describe('[ODUDU-THEME-FOCUS-01] a thin outline is not an outline', () => {
+  it('refuses a width under one pixel, and takes a keyword width', () => {
+    for (const css of [
+      'a:focus { outline-width: 0.0001px; }',
+      'a:focus { outline-width: 0.5px; }',
+      'a:focus { outline: 0.5px solid #06c; }',
+    ]) {
+      expect(codes(css), css).not.toEqual([]);
+    }
+    for (const css of [
+      'a:focus { outline-width: thin; }',
+      'a:focus { outline: 1px solid #06c; }',
+    ]) {
+      expect(codes(css), css).toEqual([]);
+    }
   });
 });

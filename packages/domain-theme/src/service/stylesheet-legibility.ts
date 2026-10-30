@@ -10,10 +10,12 @@ const INVISIBLE_RATIO = 1.5;
 // smallest box: a part collapsed to a sliver is hidden with extra steps.
 const MIN_FONT_PX = 12;
 const MIN_BOX_PX = 16;
+const MIN_BOX_PERCENT = 10;
 const MAX_SPACE_PX = 128;
 const MAX_SPACE_PERCENT = 50;
 // Text fainter than this is, for a person, not there.
 const MIN_ALPHA = 0.5;
+const MIN_LINE_HEIGHT = 0.8;
 const EM_PX = 16;
 
 const NAMED: Readonly<Record<string, string>> = {
@@ -175,7 +177,8 @@ export function legibilityProblem(property: string, value: string): string | nul
   if (BOX_PROPERTIES.has(property) && only !== undefined) {
     const px = lengthPx(only);
     const percent = only.type === 'word' && only.value.endsWith('%');
-    if (px !== null && px < (percent ? 5 : MIN_BOX_PX)) return 'a box too small to read';
+    if (px !== null && px < (percent ? MIN_BOX_PERCENT : MIN_BOX_PX))
+      return 'a box too small to read';
   }
   if (/^(?:margin|padding)/.test(property)) {
     for (const node of nodes) {
@@ -188,8 +191,16 @@ export function legibilityProblem(property: string, value: string): string | nul
   }
   if (property === 'letter-spacing' && only !== undefined) {
     const raw = only.type === 'word' ? Number.parseFloat(only.value) : 0;
-    if (raw < 0 && /em$/i.test(only.value) && raw < -0.05) return 'letters drawn on one another';
+    if (raw < 0 && /(?:em|ch)$/i.test(only.value) && raw < -0.05)
+      return 'letters drawn on one another';
     if (raw < 0 && /px$/i.test(only.value) && raw < -1) return 'letters drawn on one another';
+  }
+  if (property === 'line-height' && only?.type === 'word') {
+    const n = Number.parseFloat(only.value);
+    const unit = /[a-z%]+$/i.exec(only.value)?.[0];
+    if (unit === undefined ? n < MIN_LINE_HEIGHT : (lengthPx(only) ?? EM_PX) < MIN_BOX_PX / 2) {
+      return 'lines drawn on one another';
+    }
   }
   if (property === 'color' && isClear(value)) return 'text with no colour';
   return null;
@@ -209,7 +220,7 @@ export function outlineProblem(property: string, value: string): string | null {
         if (OUTLINE_STYLES.has(word)) return 'no focus outline';
       }
       const px = lengthPx(node);
-      if (px !== null && px <= 0 && property !== 'outline-color') return 'no focus outline';
+      if (px !== null && px < 1 && property !== 'outline-color') return 'no focus outline';
     }
   }
   if (property !== 'outline-width' && property !== 'outline-style' && isClear(value)) {
@@ -218,9 +229,10 @@ export function outlineProblem(property: string, value: string): string | null {
   return null;
 }
 
-export type Scheme = 'light' | 'dark';
+// `any` is a rule outside a dark media query: it may be drawn in either scheme.
+export type Scheme = 'light' | 'dark' | 'any';
 
-const SURFACES: Readonly<Record<Scheme, readonly string[]>> = {
+const SURFACES: Readonly<Record<'light' | 'dark', readonly string[]>> = {
   light: ['e7eae9', 'ffffff', 'f3f5f4'],
   dark: ['151a19', '1c2221', '121716'],
 };
@@ -236,7 +248,13 @@ const SURFACE_TOKENS = new Set([
 export function isSurface(colour: Colour | null, scheme: Scheme): boolean {
   if (colour?.key === null || colour === null) return false;
   if (SURFACE_TOKENS.has(colour.key)) return true;
-  return SURFACES[scheme].some((surface) => sameColour(colour, { key: surface, clear: false }));
+  const near = (list: readonly string[]): boolean =>
+    list.some((surface) => sameColour(colour, { key: surface, clear: false }));
+  if (scheme === 'dark') return near(SURFACES.dark);
+  if (scheme === 'light') return near(SURFACES.light);
+  // Near-black text is common in the light scheme, so the dark surfaces are
+  // matched exactly there; the light ones, which text is rarely near, by sight.
+  return near(SURFACES.light) || SURFACES.dark.includes(colour.key);
 }
 
 const CSS_WIDE = new Set(['initial', 'unset', 'inherit', 'revert', 'revert-layer']);

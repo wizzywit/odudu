@@ -165,34 +165,28 @@ export function checkStylesheet(css: string, options: StylesheetOptions = {}): S
     });
   };
 
-  const BOX = /^(?:min-|max-)?(?:width|height|inline-size|block-size)$/;
-
   // What one rule does to a needed part as a whole: text the colour of what
-  // is behind it, and a box clipped to nothing.
+  // is behind it. A ground of its own is an opaque colour that is neither the
+  // text's nor one of the page's surfaces; anything else lends the page.
   const checkWhole = (rule: Rule, scheme: Scheme, ownsGround: boolean): void => {
     let text: Declaration | undefined;
     let ground: Declaration | undefined;
-    let clipped = false;
-    let boxed = false;
     for (const child of rule.nodes) {
       if (child.type !== 'decl') continue;
       const property = child.prop.toLowerCase();
       if (property === 'color') text = child;
       else if (property === 'background-color' || property === 'background') ground = child;
-      else if (property === 'overflow') clipped = child.value.trim().toLowerCase() !== 'visible';
-      else if (BOX.test(property) && !property.startsWith('min-')) boxed = true;
     }
     const a = text === undefined ? null : readColour(text.value);
+    if (text === undefined || a === null) return;
     const b = ground === undefined ? null : readColour(ground.value);
-    if (text !== undefined && a !== null) {
-      if (b !== null && sameColour(a, b)) {
-        add('value-not-allowed', 'color: the same as the background', text);
-      } else if (ground === undefined && !ownsGround && isSurface(a, scheme)) {
-        add('value-not-allowed', 'color: the same as the page behind it', text);
-      }
+    if (b !== null && sameColour(a, b)) {
+      add('value-not-allowed', 'color: the same as the background', text);
+      return;
     }
-    if (clipped && boxed) {
-      add('value-not-allowed', 'overflow: clips a box a person needs', rule);
+    const own = b?.key != null && !b.clear && !isSurface(b, scheme);
+    if (!own && !ownsGround && isSurface(a, scheme)) {
+      add('value-not-allowed', 'color: the same as the page behind it', text);
     }
   };
 
@@ -243,14 +237,12 @@ export function checkStylesheet(css: string, options: StylesheetOptions = {}): S
     ) {
       add('media-query-not-allowed', rule.params, rule);
     } else {
-      const scheme = /prefers-color-scheme: ?dark/.test(rule.params.toLowerCase())
-        ? 'dark'
-        : 'light';
+      const scheme = /prefers-color-scheme: ?dark/.test(rule.params.toLowerCase()) ? 'dark' : 'any';
       for (const child of rule.nodes) visit(child, true, scheme);
     }
   };
 
-  const visit = (node: ChildNode, inMedia: boolean, scheme: Scheme = 'light'): void => {
+  const visit = (node: ChildNode, inMedia: boolean, scheme: Scheme = 'any'): void => {
     if (stopped) return;
     if (node.type === 'decl') add('root-declaration', node.prop, node);
     else if (node.type === 'rule') checkRule(node, scheme);
