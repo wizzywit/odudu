@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { OVER_BOUND, UNKNOWN_KEY } from '#/features/branding/service';
@@ -550,31 +550,57 @@ describe('two administrators and one override', () => {
     expect(screen.queryByText(/Changed in the en text/u)).toBeNull();
   });
 
-  it('takes a second press of Save during the read after a refusal for no second save', async () => {
+  it('sends no second save while the first is out or its read after a refusal is held', async () => {
     const user = userEvent.setup();
-    let release: () => void = () => undefined;
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
+    const gate = (): { wait: Promise<void>; open: () => void } => {
+      let open: () => void = () => undefined;
+      const wait = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+      return { wait, open };
+    };
+    const answer = gate();
+    const read = gate();
     const { sent } = renderConsoleAt(
       AT,
       languagesRoutes({
-        [PUT_TITLE]: stale,
+        [PUT_TITLE]: async (request) => {
+          await answer.wait;
+          return stale(request);
+        },
         [`GET ${MO}`]: async (request) => {
-          if (request.search.get('limit') === '200') await held;
+          if (request.search.get('limit') === '200') await read.wait;
           return json({ items: [TITLE_OVERRIDE] })(request);
         },
       }),
     );
+    const puts = () => sent.filter((request) => request.method === 'PUT');
+    const pressAgain = (button: HTMLElement) => {
+      // A press of a disabled button is not sent at all, and user-event lets
+      // its click arrive after the button is enabled again, so the second
+      // press is the form's own submit, which Enter in a field also makes.
+      expect(button).toBeDisabled();
+      const form = button.closest('form');
+      if (form === null) throw new Error('the button is not in a form');
+      fireEvent.submit(form);
+    };
     await editTitle(user, 'Mine');
-    const save = await screen.findByRole('button', { name: /Saving…|Save override/u });
+    const save = await screen.findByRole('button', { name: 'Saving…' });
+    expect(save).toBeDisabled();
+    pressAgain(save);
+    answer.open();
     await waitFor(() => {
-      expect(save).toBeDisabled();
+      expect(puts()).toHaveLength(1);
+      expect(
+        sent.filter((request) => request.method === 'GET' && request.search.get('limit') === '200')
+          .length,
+      ).toBe(1);
     });
-    await user.click(save);
-    release();
+    expect(save).toBeDisabled();
+    pressAgain(save);
+    read.open();
     await screen.findByText(/Changed in the en text for login\.title/u);
-    expect(sent.filter((request) => request.method === 'PUT')).toHaveLength(1);
+    expect(puts()).toHaveLength(1);
   });
 
   it('has nothing axe can find in either theme with a conflict showing', async () => {

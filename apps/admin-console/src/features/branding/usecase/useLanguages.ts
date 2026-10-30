@@ -1,5 +1,5 @@
 import type { MessageOverride, Settings } from '@odudu/contracts/admin';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRefusal } from '#/features/session';
 import { languagesSave } from '#/features/branding/repository/languagesSave';
 import { useOverrideList, useOverrideWrites } from '#/features/branding/repository/useOverrides';
@@ -164,7 +164,13 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
     send: (asked) => writes.remove.run(asked),
     outcomeOf: (_asked, result) => removeOutcome(result),
   });
+  // Set at once, where `submitting` is read only after a render, so a submit
+  // that arrives before the next render (the form's Enter, a second press) is
+  // still known to be a second one.
+  const underway = useRef(false);
   const submit = (sent: SentOverride): void => {
+    if (underway.current) return;
+    underway.current = true;
     setSubmitting(true);
     writes.put
       .run(sent)
@@ -189,6 +195,7 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
         setMessage(SAVE_INTERRUPTED);
       })
       .finally(() => {
+        underway.current = false;
         setSubmitting(false);
       });
   };
