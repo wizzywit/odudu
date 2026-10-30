@@ -57,6 +57,18 @@ export function runningLine(busy: WritesRunning): string | undefined {
   return busy.saving ? SAVING : undefined;
 }
 
+// Why a section's Save is held: its own reason first, then whatever else is
+// writing to the theme, so two Saves, or a Save and a bar action, never send
+// on one tag. A section already saving is not told so: its button says it.
+export function sectionHold(
+  own: string | undefined,
+  running: string | undefined,
+  saving: boolean,
+): string | undefined {
+  if (own !== undefined) return own;
+  return saving && running === SAVING ? undefined : running;
+}
+
 // The hold on the revert of a tab, from the holds of the whole bar.
 export function revertHoldOf(holds: PublicationHolds, tab: ScopedTab): string | undefined {
   return tab === 'theme' ? holds.revertTheme : holds.revertPages;

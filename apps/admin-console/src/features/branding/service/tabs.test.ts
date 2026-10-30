@@ -35,18 +35,25 @@ describe('the tabs', () => {
   });
 
   it('carry a dot when a section they hold has unsaved edits', () => {
-    expect([...tabsWithEdits(new Set(['images']))]).toEqual(['theme']);
-    expect([...tabsWithEdits(new Set(['stylesheet']))]).toEqual(['theme']);
-    expect([...tabsWithEdits(new Set(['templates']))]).toEqual(['pages']);
-    expect([...tabsWithEdits(new Set())]).toEqual([]);
+    const theme = (...names: string[]) => ({ theme: new Set(names) });
+    expect([...tabsWithEdits(theme('images'))]).toEqual(['theme']);
+    expect([...tabsWithEdits(theme('stylesheet'))]).toEqual(['theme']);
+    expect([...tabsWithEdits(theme('templates'))]).toEqual(['pages']);
+    expect([...tabsWithEdits(theme())]).toEqual([]);
   });
 
   it('count the sections of every record they save to, the languages among them', () => {
-    expect([...tabsWithEdits(new Set(['images']), new Set(['languages']))]).toEqual([
-      'theme',
+    expect([
+      ...tabsWithEdits({ theme: new Set(['images']), settings: new Set(['languages']) }),
+    ]).toEqual(['theme', 'languages']);
+    expect([...tabsWithEdits({ theme: new Set(), settings: new Set(['languages']) })]).toEqual([
       'languages',
     ]);
-    expect([...tabsWithEdits(new Set(), new Set(['languages']))]).toEqual(['languages']);
+  });
+
+  it('read each record’s sections under that record only', () => {
+    expect([...tabsWithEdits({ settings: new Set(['images', 'templates']) })]).toEqual([]);
+    expect([...tabsWithEdits({ theme: new Set(['languages']) })]).toEqual([]);
   });
 });
 

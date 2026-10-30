@@ -2,12 +2,17 @@ import type { ThemeView } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import {
   discardNote,
+  DISCARDING,
   foldedActions,
   publicationHolds,
   runningLine,
+  SAVING,
+  sectionHold,
   writesRunning,
   type WritesRunning,
 } from '#/features/branding/service/holds';
+import { PUBLISHING } from '#/features/branding/service/copy';
+import { REVERTING } from '#/features/branding/service/publication';
 import { EMPTY, themeView } from '#/testing/brandingFixtures';
 
 const IDLE: WritesRunning = { publish: false, discard: false, revert: false, saving: false };
@@ -171,5 +176,37 @@ describe('the running writes read from counts', () => {
       saving: true,
     });
     expect(writesRunning({ ...none, sections: true })).toEqual({ ...IDLE, saving: true });
+  });
+});
+
+describe('the hold on a theme section’s Save from what else is writing', () => {
+  const running = (busy: Partial<WritesRunning>) => runningLine({ ...IDLE, ...busy });
+
+  it('holds Save while the bar publishes, discards or reverts', () => {
+    expect(sectionHold(undefined, running({ publish: true }), false)).toBe(PUBLISHING);
+    expect(sectionHold(undefined, running({ discard: true }), false)).toBe(DISCARDING);
+    expect(sectionHold(undefined, running({ revert: true }), false)).toBe(REVERTING);
+  });
+
+  it('holds Save while another write runs: an image, a restore, a reset, a section', () => {
+    expect(sectionHold(undefined, running({ saving: true }), false)).toBe(SAVING);
+  });
+
+  it('says nothing while nothing runs', () => {
+    expect(sectionHold(undefined, running({}), false)).toBeUndefined();
+  });
+
+  it('keeps the section’s own reason ahead of what is running', () => {
+    expect(sectionHold('Fix the colours first.', running({ publish: true }), false)).toBe(
+      'Fix the colours first.',
+    );
+  });
+
+  it('does not tell a section that is saving itself that something is saving', () => {
+    expect(sectionHold(undefined, running({ saving: true }), true)).toBeUndefined();
+  });
+
+  it('still holds a section that is saving while the bar runs a write of its own', () => {
+    expect(sectionHold(undefined, running({ publish: true }), true)).toBe(PUBLISHING);
   });
 });

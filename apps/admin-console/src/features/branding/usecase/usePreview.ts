@@ -8,6 +8,7 @@ import {
   omissionNote,
   previewAsked,
   previewKey,
+  previewRetry,
   previewWith,
   type PageKind,
   type PreviewChoice,
@@ -26,6 +27,8 @@ export interface Preview {
   fallback: string[];
   // The frame has not finished loading what it was asked for.
   loading: boolean;
+  // Asks again, once the preview could not be read.
+  retry?: (() => void) | undefined;
   onLoaded: () => void;
   setKind: (kind: PageKind) => void;
   setScheme: (scheme: Scheme) => void;
@@ -50,6 +53,7 @@ export function usePreview(
     note: omissionNote(choice.kind),
     fallback: noticeLines(info, scope),
     loading: loaded !== frameKey,
+    retry: previewRetry(info),
     onLoaded: () => {
       setLoaded(frameKey);
     },

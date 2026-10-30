@@ -16,6 +16,9 @@ import {
   REVERT_KEEP_HINT,
   REVERT_TAKE_HINT,
   revertConflicts,
+  revertAnswered,
+  revertDefected,
+  revertAnswerOf,
   revertProblem,
   revertSection,
   shownRevertConflicts,
@@ -253,5 +256,38 @@ describe('a revert that met a newer draft', () => {
   it('names the tab as the panel’s heading reads it', () => {
     expect(revertSection('theme')).toBe('the Theme tab');
     expect(revertSection('pages')).toBe('the Pages tab');
+  });
+});
+
+describe('a revert’s answer belongs to the tab it reverted', () => {
+  const stale = {
+    ok: false as const,
+    kind: 'problem' as const,
+    problem: { type: 'about:blank', title: 'Precondition Failed', status: 412 },
+  };
+
+  it('shows the problem and the stale comparison on the tab that was reverted', () => {
+    const answer = revertAnswered('pages', stale);
+    expect(revertAnswerOf(answer, 'pages')).toEqual({
+      problem: expect.stringMatching(/Somebody saved the draft/u) as string,
+      stale: true,
+    });
+  });
+
+  it('shows nothing on the other tab, so Keep mine cannot revert its parts', () => {
+    expect(revertAnswerOf(revertAnswered('pages', stale), 'theme')).toEqual({
+      problem: null,
+      stale: false,
+    });
+  });
+
+  it('tells a send that threw as a defect on its own tab', () => {
+    expect(revertAnswerOf(revertDefected('theme'), 'theme').stale).toBe(false);
+    expect(revertAnswerOf(revertDefected('theme'), 'theme').problem).not.toBeNull();
+    expect(revertAnswerOf(revertDefected('theme'), 'pages').problem).toBeNull();
+  });
+
+  it('shows nothing before any revert was answered', () => {
+    expect(revertAnswerOf(null, 'theme')).toEqual({ problem: null, stale: false });
   });
 });

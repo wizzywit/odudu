@@ -2,7 +2,7 @@ import type { ThemeBodyRequest, ThemeBodyWire } from '@odudu/contracts';
 import type { ThemeView } from '@odudu/contracts/admin';
 import { writeRefusal } from '#/shared/service/capabilities';
 import type { Conflict } from '#/shared/service/conflict';
-import { writeFailureText } from '#/shared/service/failure';
+import { isStale, writeFailureText } from '#/shared/service/failure';
 import { andList, counted } from '#/shared/service/format';
 import type { AdminCapability } from '#/shared/service/principal';
 import type { GatewayFailure, GatewayResult, Problem } from '#/shared/service/result';
@@ -165,6 +165,32 @@ export function revertFailure(failure: GatewayFailure): string {
 // What a revert's answer says under the button: nothing when it went through.
 export function revertProblem(result: GatewayResult<unknown>): string | null {
   return result.ok ? null : revertFailure(result);
+}
+
+// What a revert answered, kept with the tab it reverted: the answer is shown
+// on that tab only, since the bar's panel is one and the tab under it changes.
+export interface RevertAnswer {
+  tab: ScopedTab;
+  problem: string | null;
+  stale: boolean;
+}
+
+export function revertAnswered(tab: ScopedTab, result: GatewayResult<unknown>): RevertAnswer {
+  return { tab, problem: revertProblem(result), stale: isStale(result) };
+}
+
+// A revert whose send threw: told as a defect, with nothing to compare.
+export function revertDefected(tab: ScopedTab): RevertAnswer {
+  return { tab, problem: revertFailure({ ok: false, kind: 'defect' }), stale: false };
+}
+
+export function revertAnswerOf(
+  answer: RevertAnswer | null,
+  tab: ScopedTab,
+): { problem: string | null; stale: boolean } {
+  return answer?.tab === tab
+    ? { problem: answer.problem, stale: answer.stale }
+    : { problem: null, stale: false };
 }
 
 // How a revert's panel names the tab it concerns, as its heading reads it.

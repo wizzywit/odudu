@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { PreviewFrame } from '#/features/branding/view/PreviewFrame/PreviewFrame';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
@@ -29,9 +30,39 @@ it('tells when the frame has loaded', () => {
   expect(onLoaded).toHaveBeenCalledOnce();
 });
 
-it('has nothing axe can find in either theme', async () => {
+it('says the preview could not be shown, with a way to ask again, and hides the frame', async () => {
+  const retry = vi.fn();
+  render(
+    <PreviewFrame
+      title="A preview"
+      src="/x"
+      frameKey="k"
+      loading={false}
+      retry={retry}
+      onLoaded={() => undefined}
+    />,
+  );
+  expect(screen.getByRole('alert')).toHaveTextContent('The preview could not be shown.');
+  expect(screen.queryByRole('status')).toBeNull();
+  await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+  expect(retry).toHaveBeenCalledOnce();
+});
+
+it('has nothing axe can find in either theme, framed or failed', async () => {
   const found = await axeInBothThemes(
-    () => frame(false),
+    () => (
+      <>
+        {frame(false)}
+        <PreviewFrame
+          title="Another preview"
+          src="/y"
+          frameKey="j"
+          loading={false}
+          retry={() => undefined}
+          onLoaded={() => undefined}
+        />
+      </>
+    ),
     () => Promise.resolve(),
     {
       frames: false,

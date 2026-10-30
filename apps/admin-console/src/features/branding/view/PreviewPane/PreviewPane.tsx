@@ -72,6 +72,7 @@ export function PreviewPane({ preview, pickKind }: { preview: Preview; pickKind:
         src: preview.src,
         frameKey: preview.frameKey,
         loading: preview.loading,
+        retry: preview.retry,
         onLoaded: preview.onLoaded,
       }}
     />

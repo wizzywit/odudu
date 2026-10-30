@@ -1,4 +1,5 @@
 import type { Scheme } from '#/features/branding/service/palette';
+import type { Read } from '#/shared/service/read';
 import type { PageKind } from '#/features/branding/service/values';
 export interface PreviewChoice {
   kind: PageKind;
@@ -24,6 +25,8 @@ export const PREVIEW_NOTE =
 export const PREVIEW_FRAME_TITLE = 'Preview of the page';
 
 export const PREVIEW_LOADING = 'Loading the preview';
+
+export const PREVIEW_FAILED = 'The preview could not be shown.';
 
 // On a narrow screen the preview is a strip beside the editor; this opens it
 // to a page of its own.
@@ -52,4 +55,9 @@ export function previewSummary(...parts: readonly string[]): string {
 // theme to frame it over.
 export function previewAsked(framed: boolean, view: unknown): boolean {
   return framed && view !== undefined;
+}
+
+// How to ask for the preview again, when what it shows could not be read.
+export function previewRetry(read: Read<unknown>): (() => void) | undefined {
+  return read.status === 'failed' ? read.retry : undefined;
 }

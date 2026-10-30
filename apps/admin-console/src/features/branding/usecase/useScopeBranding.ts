@@ -56,14 +56,14 @@ export function useScopeBranding(
 
 // The tabs of a scope's theme holding unsaved edits, for their dots.
 export function useScopeEdits(tenant: string, scope: ThemeScope): ReadonlySet<OfferedTab> {
-  return tabsWithEdits(useDirtySections(tenant, themeRecord(scope)));
+  return tabsWithEdits({ theme: useDirtySections(tenant, themeRecord(scope)) });
 }
 
 // The tabs of the tenant's Branding holding unsaved edits: the theme's, and
 // the languages, which save to the tenant's settings.
 export function useTenantEdits(tenant: string): ReadonlySet<OfferedTab> {
-  return tabsWithEdits(
-    useDirtySections(tenant, themeRecord(TENANT_SCOPE)),
-    useDirtySections(tenant, TENANT_SETTINGS_RECORD),
-  );
+  return tabsWithEdits({
+    theme: useDirtySections(tenant, themeRecord(TENANT_SCOPE)),
+    settings: useDirtySections(tenant, TENANT_SETTINGS_RECORD),
+  });
 }

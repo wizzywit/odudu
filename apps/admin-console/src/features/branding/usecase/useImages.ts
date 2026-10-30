@@ -27,6 +27,7 @@ import {
   themeRefusal,
   writeCapability,
 } from '#/features/branding/service';
+import { useSectionHold } from '#/features/branding/usecase/useSectionHold';
 import { useLatest } from '#/shared/repository/useLatest';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 
@@ -77,10 +78,11 @@ export function useImages({
   });
   const latestValues = useLatest(save.values);
   const thumbnails = useSlotImages(tenant, slotAssetIds(save.values));
+  const blocked = useSectionHold(tenant, scope, imagesHold(save.values), save.saving);
   return {
     save,
     thumbnails,
-    blocked: imagesHold(save.values),
+    blocked,
     slots,
     upload: (slot, file) => {
       startUpload(slot, file, {
