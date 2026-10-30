@@ -560,6 +560,73 @@ test('sets a message override, refuses a key that is not a message, and removes 
   await expect(page.getByText('No overrides yet')).toBeVisible();
 });
 
+test('two administrators editing one override: the second save meets the first, and chooses', async ({
+  page,
+  browser,
+}) => {
+  test.slow();
+  const { conflict } = branding;
+  await signIn(page, conflict);
+  const context = await browser.newContext({ colorScheme: 'light' });
+  const other = await context.newPage();
+  await signIn(other, conflict);
+  const table = (on: Page) => on.getByRole('grid', { name: 'Message overrides' });
+  const open = async (on: Page): Promise<void> => {
+    await on.goto(`/console/${conflict.tenant}/branding?tab=languages`);
+    await expect(on.getByRole('heading', { name: 'Message overrides' })).toBeVisible();
+  };
+  const set = async (on: Page, message: string): Promise<void> => {
+    await on.getByRole('textbox', { name: /Text shown instead/u }).fill(message);
+    await on.getByRole('button', { name: 'Save override' }).click();
+  };
+  const edit = async (on: Page): Promise<void> => {
+    await on.getByRole('button', { name: 'Edit login.title' }).click();
+  };
+  const section = 'the en text for login.title';
+
+  await open(page);
+  await page.getByRole('combobox', { name: /Message key/u }).fill('login.title');
+  await set(page, 'First text');
+  await expect(table(page).getByRole('row', { name: /login\.title/u })).toContainText('First text');
+
+  await open(other);
+  await edit(other);
+  await edit(page);
+  await set(page, 'Text from the first administrator');
+  await expect(table(page).getByRole('row', { name: /login\.title/u })).toContainText(
+    'from the first administrator',
+  );
+
+  await set(other, 'Text from the second administrator');
+  await expect(other.getByText(`Changed in ${section} since you opened it`)).toBeVisible();
+  const comparison = other.getByRole('table', { name: new RegExp(`Changed in ${section}`, 'u') });
+  await expect(comparison).toContainText('Text from the first administrator');
+  await expect(comparison).toContainText('Text from the second administrator');
+  await expectAccessible(other);
+
+  await other.getByRole('button', { name: `Take theirs in ${section}` }).click();
+  await expect(other.getByText(`Changed in ${section} since you opened it`)).toBeHidden();
+  await expect(table(other).getByRole('row', { name: /login\.title/u })).toContainText(
+    'from the first administrator',
+  );
+
+  await edit(other);
+  await edit(page);
+  await set(page, 'A third text');
+  await expect(table(page).getByRole('row', { name: /login\.title/u })).toContainText('A third');
+  await set(other, 'Second administrator keeps this');
+  await other.getByRole('button', { name: `Keep mine in ${section}` }).click();
+  await expect(table(other).getByRole('row', { name: /login\.title/u })).toContainText(
+    'Second administrator keeps this',
+  );
+  await expect(other.getByText(`Changed in ${section} since you opened it`)).toBeHidden();
+
+  await other.getByRole('button', { name: 'Remove login.title' }).click();
+  await other.getByRole('button', { name: 'Remove override' }).click();
+  await expect(other.getByText('No overrides yet')).toBeVisible();
+  await context.close();
+});
+
 test('adds a language by its tag with Enter, marks the tab, saves it and keeps it', async ({
   page,
 }) => {

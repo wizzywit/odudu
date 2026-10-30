@@ -254,6 +254,8 @@ const seededSchema = z.object({
       publication: account,
       // The selectors list: a stylesheet saved with what it offered.
       selectors: account,
+      // Two administrators' sessions editing one message override.
+      conflict: account,
     }),
     // One tenant per test that reads its mail, each with its outbox seeded.
     mail: z.object({
