@@ -21,7 +21,8 @@
   border: 0;
 }
 
-.frame[data-loading] .iframe {
+.frame[data-loading] .iframe,
+.frame[data-failed] .iframe {
   visibility: hidden;
 }
 
@@ -33,6 +34,23 @@
   margin: 0;
   color: var(--ink-muted);
   font-size: var(--type-13);
+}
+
+.failed {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  color: var(--ink-muted);
+  font-size: var(--type-13);
+  text-align: center;
+}
+
+.failed p {
+  margin: 0;
 }
 
 /* Beside a stacked editor the frame is a miniature: the page laid out at a
@@ -53,7 +71,8 @@
     pointer-events: none;
   }
 
-  .frame:not([data-fill]) .loading {
+  .frame:not([data-fill]) .loading,
+  .frame:not([data-fill]) .failed {
     display: none;
   }
 }

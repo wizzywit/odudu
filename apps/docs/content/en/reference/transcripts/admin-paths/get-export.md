@@ -26,6 +26,8 @@ travel under `registration_policy`; every other tenant setting is under
 (a tenant's own wording, at most 500, each `locale`, `key` and `message`) travel
 with it.
 
+The tenant's theme is not in it either: neither the published theme, nor a client's, nor the uploaded images, and `omitted` does not name them, since they are not secrets. An import therefore creates a tenant with Odudu's look (P7 plans to carry them).
+
 No secret is in it: no client secret, SMTP password, password hash, TOTP seed,
 passkey, recovery code or private signing key, and no session, consent, grant,
 registration token or audit row. Each secret a reader would expect is named

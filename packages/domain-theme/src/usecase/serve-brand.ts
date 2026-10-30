@@ -132,8 +132,9 @@ async function stylesheetFor(
 // What a brand URL answers, or null for every reason it answers nothing, so
 // a missing hash, another tenant's and an unpublished one look alike. A
 // stylesheet is compared to the hash of what the published versions its URL
-// names build to, remembered by those versions, so a hash that is not theirs
-// costs one small read and no parse (ADR 0046). The build checks it again.
+// names build to, remembered by those versions: a hash that is not theirs
+// costs one small read when the build is remembered and the build itself
+// when it is not (ADR 0046). The build checks it again.
 export async function serveBrand(
   deps: ServeBrandDeps,
   request: BrandRequest,

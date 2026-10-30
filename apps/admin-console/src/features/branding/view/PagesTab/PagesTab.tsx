@@ -111,7 +111,12 @@ export function PagesTab({
   const problems = templates.problems(kind);
   return (
     <div className={styles.tab}>
-      <SaveSection title={TEMPLATES_SECTION_TITLE} description={PAGES_LEAD} save={save}>
+      <SaveSection
+        title={TEMPLATES_SECTION_TITLE}
+        description={PAGES_LEAD}
+        save={save}
+        blocked={templates.blocked}
+      >
         {/* The browser's own select: a phone opens its picker, and a page of
             six or so has no need of a search. */}
         <NativeSelectFields>

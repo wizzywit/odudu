@@ -336,12 +336,17 @@ describe('POST /admin/tenants/{t}/smtp/test, the recipient', () => {
     ['a display name', 'Ada <a@x.test>'],
     ['not an address', 'ada'],
     ['too long', `${'a'.repeat(250)}@x.test`],
-  ])('refuses %s with 400, whatever the caller holds', async (_why, to) => {
-    const t = await fixture.createTenant(`acme-${newId()}`);
-    const token = await fixture.adminToken(t.name, ['manage-tenant']);
-    expect((await testSmtp(token, t.name, to)).statusCode).toBe(400);
-    expect((await testSmtp('not-a-token', t.name, to)).statusCode).toBe(400);
-  });
+  ])(
+    'refuses %s with 400 for a caller who may send it, and 401 for one who is not known',
+    async (_why, to) => {
+      const t = await fixture.createTenant(`acme-${newId()}`);
+      const token = await fixture.adminToken(t.name, ['manage-tenant']);
+      expect((await testSmtp(token, t.name, to)).statusCode).toBe(400);
+      // A body is checked only for a caller already authenticated for the route,
+      // so a stranger learns nothing about what a recipient may look like.
+      expect((await testSmtp('not-a-token', t.name, to)).statusCode).toBe(401);
+    },
+  );
 });
 
 describe('POST /admin/tenants/{t}/smtp/test', () => {

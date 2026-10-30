@@ -19,6 +19,7 @@ import {
   themeRefusal,
   writeCapability,
 } from '#/features/branding/service';
+import { useSectionHold } from '#/features/branding/usecase/useSectionHold';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import type { SizeReading } from '#/shared/service/format';
 
@@ -65,11 +66,12 @@ export function useStylesheet({
   });
   const text = save.values.stylesheet;
   const changed = save.changed.includes('stylesheet');
+  const blocked = useSectionHold(tenant, scope, stylesheetHold(text), save.saving);
   return {
     save,
     text,
     size: stylesheetSize(text),
-    blocked: stylesheetHold(text),
+    blocked,
     problems: firstProblems(
       stylesheetProblems(save.refusals.stylesheet ?? [], save.fieldErrors[STYLESHEET_PATH]),
       publishedStylesheetProblems(published, tag, changed),

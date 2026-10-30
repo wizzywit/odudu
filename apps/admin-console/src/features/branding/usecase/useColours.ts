@@ -19,6 +19,7 @@ import {
   themeRefusal,
   writeCapability,
 } from '#/features/branding/service';
+import { useSectionHold } from '#/features/branding/usecase/useSectionHold';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 
 export interface Colours {
@@ -58,9 +59,10 @@ export function useColours({
     fields: colourFields(colourValues(view)),
     save: colourSave(tenant, scope, view),
   });
+  const blocked = useSectionHold(tenant, scope, coloursHold(save.values), save.saving);
   return {
     save,
-    blocked: coloursHold(save.values),
+    blocked,
     customise: (scheme, custom) => {
       save.edit(paletteField(scheme), customisedPalette(scheme, custom));
     },

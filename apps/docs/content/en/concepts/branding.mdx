@@ -61,15 +61,15 @@ A stylesheet may name only a short, **versioned** list: the classes the pages re
 
 ## Draft, publish, versions
 
-A tenant, and each client, has **one draft**, saved whole and previewed by the code that draws the real page, in the console's [Branding](../admin-console/branding.mdx) and [Client branding](../admin-console/client-branding.mdx) screens. A **publication bar** above every tab names what differs from what people see, and **Publish** is held when nothing does. **Publishing** checks everything again, makes the whole draft live or changes nothing, and consumes the draft; an identical publish is refused. The version it replaces is kept, up to twenty. **Discard draft** drops only the draft, and **Revert this tab to published** takes one tab back. **Restoring** a version publishes a copy and leaves the draft alone. **Reset** unpublishes the theme, and the versions remain.
+A tenant, and each client, has **one draft**, saved whole and previewed by the code that draws the real page, in the console's [Branding](../admin-console/branding.mdx) and [Client branding](../admin-console/client-branding.mdx) screens. A **publication bar** above every tab names what differs from what people see, and **Publish** is held when nothing does. **Publishing** checks everything again, makes the whole draft live or changes nothing, consuming the draft; an identical publish is refused. The version it replaces is kept, twenty versions in all, the published one included. **Discard draft** drops only the draft, and **Revert this tab to published** takes one tab back. **Restoring** a version publishes a copy and leaves the draft alone. **Reset** unpublishes the theme; versions remain.
 
 <Diagram
   name="branding-publishing"
   title="Draft, published version and versions"
-  desc="A single draft is published as a whole into the published version that people see, or not at all. The version it replaces is kept in a list of the twenty newest. Discarding the draft deletes only the draft, publishing uses the draft up, and restoring a version publishes a copy of it and leaves the draft alone."
+  desc="A single draft is published as a whole into the published version that people see, or not at all. The version it replaces is kept, twenty versions in all, the published one included. Discarding the draft deletes only the draft, publishing uses the draft up, and restoring a version publishes a copy of it and leaves the draft alone."
 />
 
-_In words: A single draft is published as a whole into the published version that people see, or not at all. The version it replaces is kept in a list of the twenty newest. Discarding the draft deletes only the draft, publishing uses the draft up, and restoring a version publishes a copy of it and leaves the draft alone._
+_In words: A single draft is published as a whole into the published version that people see, or not at all. The version it replaces is kept, twenty versions in all, the published one included. Discarding the draft deletes only the draft, publishing uses the draft up, and restoring a version publishes a copy of it and leaves the draft alone._
 
 ## Mail and languages
 

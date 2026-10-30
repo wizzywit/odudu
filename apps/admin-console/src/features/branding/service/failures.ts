@@ -1,5 +1,5 @@
-import { writeFailureText } from '#/shared/service/failure';
-import type { GatewayFailure } from '#/shared/service/result';
+import { isMissing, isStale, problemSubtype, writeFailureText } from '#/shared/service/failure';
+import type { GatewayFailure, GatewayResult } from '#/shared/service/result';
 import { inUse, inUseTitle } from '#/features/branding/service/assets';
 import { publishConflict, refusalText } from '#/features/branding/service/publish';
 
@@ -40,4 +40,15 @@ export function deleteImageFailure(failure: GatewayFailure): string {
     verb: 'deleted',
     lookAt: 'the images above',
   });
+}
+
+// The refusal says the draft the page shows is not the draft there is: its
+// tag no longer matches, or it is gone. The page reads it again.
+export function draftMoved(result: GatewayResult<unknown>): boolean {
+  if (result.ok) return false;
+  return (
+    isStale(result) ||
+    isMissing(result) ||
+    (result.kind === 'problem' && problemSubtype(result.problem) === 'theme-no-draft')
+  );
 }

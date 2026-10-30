@@ -20,11 +20,13 @@ import {
   themeRefusal,
   writeCapability,
 } from '#/features/branding/service';
+import { useSectionHold } from '#/features/branding/usecase/useSectionHold';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import type { SizeReading } from '#/shared/service/format';
 
 export interface Templates {
   save: SectionSave<TemplateValues>;
+  blocked: string | undefined;
   text: (kind: PageKind) => string;
   // What the server refused in this kind's template, with the lines to mark.
   problems: (kind: PageKind) => PlacedProblems;
@@ -63,8 +65,10 @@ export function useTemplates({
     fields: templateFields(templateValues(view)),
     save: templateSave(tenant, scope, view),
   });
+  const blocked = useSectionHold(tenant, scope, undefined, save.saving);
   return {
     save,
+    blocked,
     text: (kind) => save.values[templateField(kind)],
     problems: (kind) =>
       firstProblems(

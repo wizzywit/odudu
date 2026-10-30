@@ -1,4 +1,5 @@
-import { PREVIEW_LOADING } from '#/features/branding/service';
+import { PREVIEW_FAILED, PREVIEW_LOADING } from '#/features/branding/service';
+import { InlineFailed } from '#/shared/view/InlineFailed';
 import styles from '#/features/branding/view/PreviewFrame/PreviewFrame.module.css';
 
 export interface PreviewFrameProps {
@@ -7,6 +8,8 @@ export interface PreviewFrameProps {
   // Reloads the frame when what it shows has changed.
   frameKey: string;
   loading: boolean;
+  // Set when the preview could not be read: asks again.
+  retry?: (() => void) | undefined;
   onLoaded: () => void;
 }
 
@@ -19,12 +22,18 @@ export function PreviewFrame({
   src,
   frameKey,
   loading,
+  retry,
   onLoaded,
   fill = false,
   tabbable = true,
 }: PreviewFrameProps & { fill?: boolean; tabbable?: boolean }) {
   return (
-    <div className={styles.frame} data-loading={loading || undefined} data-fill={fill || undefined}>
+    <div
+      className={styles.frame}
+      data-loading={loading || undefined}
+      data-failed={retry !== undefined || undefined}
+      data-fill={fill || undefined}
+    >
       <iframe
         key={frameKey}
         className={styles.iframe}
@@ -35,7 +44,10 @@ export function PreviewFrame({
         referrerPolicy="no-referrer"
         onLoad={onLoaded}
       />
-      {loading ? (
+      {retry === undefined ? null : (
+        <InlineFailed message={PREVIEW_FAILED} retry={retry} className={styles.failed} />
+      )}
+      {loading && retry === undefined ? (
         <p role="status" className={styles.loading}>
           {PREVIEW_LOADING}
         </p>

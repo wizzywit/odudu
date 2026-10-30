@@ -134,12 +134,14 @@ test('a client’s Branding reads its theme, the hooks and the versions together
   const calls = recordCalls(page);
   await tab.click();
   await expect(page.getByRole('region', { name: 'Publish', exact: true })).toBeVisible();
-  await page.waitForLoadState('networkidle');
-  expect(paths(calls)).toEqual([
-    'clients/:id/theme',
-    'clients/:id/theme/versions',
-    'theme/stylesheet-hooks',
-  ]);
+  // The preview frame is attached after the tab's reads, and Playwright takes
+  // a frame attached once the network is quiet as a navigation that never
+  // goes idle again, so 'networkidle' can wait out the whole test. The frame
+  // having loaded is the end of what the tab asks for.
+  await expect(page.getByText('Loading the preview')).toBeHidden();
+  await expect
+    .poll(() => paths(calls))
+    .toEqual(['clients/:id/theme', 'clients/:id/theme/versions', 'theme/stylesheet-hooks']);
   const theme = calls.find((call) => call.path === 'clients/:id/theme');
   const hooks = calls.find((call) => call.path === 'theme/stylesheet-hooks');
   expect(hooks?.sent).toBeLessThan(theme?.answered ?? 0);

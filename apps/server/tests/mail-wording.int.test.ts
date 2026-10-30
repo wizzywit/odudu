@@ -295,7 +295,9 @@ function fakeRelay(): Promise<{ server: Server; port: number; received: Promise<
 }
 
 // The relay may not be loopback (the route refuses it), so it listens on the
-// host's own private address; a host with none cannot run the test.
+// host's own private address. A hosted runner has one on its network
+// interface, and a host without one fails the first test below by name
+// instead of skipping the rest.
 function privateAddress(): string | undefined {
   return Object.values(networkInterfaces())
     .flat()
@@ -357,120 +359,113 @@ function unquote(raw: string): string {
 }
 
 describe('the SMTP test mail', () => {
-  it.skipIf(privateAddress() === undefined)(
-    'carries a stored smtpTest override in the message the relay receives',
-    async () => {
-      const w = await world();
-      expect((await override(w, 'en', 'smtpTest.subject', 'Acme relay check')).statusCode).toBe(
-        200,
-      );
-      expect((await override(w, 'en', 'smtpTest.heading', 'The Acme relay works')).statusCode).toBe(
-        200,
-      );
-      const relay = await fakeRelay();
-      try {
-        const put = await admin(w, 'PUT', '/smtp', {
-          host: privateAddress(),
-          port: relay.port,
-          from_address: 'noreply@example.test',
-          starttls: false,
-        });
-        expect(put.statusCode, put.body).toBe(200);
-        const sent = await app.inject({
-          method: 'POST',
-          url: `/admin/tenants/${w.name}/smtp/test`,
-          headers: { authorization: `Bearer ${w.token}`, 'content-type': 'application/json' },
-          payload: { to: 'ops@example.test' },
-        });
-        expect(sent.statusCode, sent.body).toBe(200);
-        const message = unquote(await relay.received);
-        expect(message).toContain('Subject: Acme relay check');
-        expect(message).toContain('The Acme relay works');
-      } finally {
-        relay.server.close();
-      }
-    },
-  );
+  it('has a private IPv4 address to run a relay on', () => {
+    expect(privateAddress(), 'no non-loopback private IPv4 address on this host').toBeDefined();
+  });
 
-  it.skipIf(privateAddress() === undefined)(
-    'wears the tenant’s published theme, at the cost of the statements a themeless one takes',
-    async () => {
-      const themed = await world();
-      const plain = await world();
-      const light = {
-        surfacePage: '#ffffff',
-        surfacePanel: '#fff4e0',
-        surfaceSunken: '#f0f0f0',
-        inkPrimary: '#111111',
-        inkMuted: '#555555',
-        signalActive: '#ddeedd',
-        signalActiveInk: '#004400',
-        signalDanger: '#fde0d0',
-        signalDangerInk: '#802000',
-        borderStrong: '#777777',
-        focusRing: '#0044aa',
-      };
-      await publishTheme(themed, { light });
-      const counts: number[] = [];
-      const bodies: string[] = [];
-      for (const w of [themed, plain]) {
-        const relay = await fakeRelay();
-        try {
-          await relayTo(w, relay);
-          branding.invalidateTenant(w.tenantId);
-          const { result, statements } = await recorder.record(() => sendTest(w));
-          expect(result.statusCode, result.body).toBe(200);
-          counts.push(
-            statements.filter((s) => isWork(s) || /^(savepoint|release)\b/iu.test(s.query.trim()))
-              .length,
-          );
-          bodies.push(unquote(await relay.received));
-        } finally {
-          relay.server.close();
-        }
-      }
-      expect(bodies[0]).toContain('#fff4e0');
-      expect(bodies[1]).not.toContain('#fff4e0');
-      expect(bodies[1]).toContain('#e7eae9');
-      expect(counts[0]).toBe(counts[1]);
-    },
-  );
+  it('carries a stored smtpTest override in the message the relay receives', async () => {
+    const w = await world();
+    expect((await override(w, 'en', 'smtpTest.subject', 'Acme relay check')).statusCode).toBe(200);
+    expect((await override(w, 'en', 'smtpTest.heading', 'The Acme relay works')).statusCode).toBe(
+      200,
+    );
+    const relay = await fakeRelay();
+    try {
+      const put = await admin(w, 'PUT', '/smtp', {
+        host: privateAddress(),
+        port: relay.port,
+        from_address: 'noreply@example.test',
+        starttls: false,
+      });
+      expect(put.statusCode, put.body).toBe(200);
+      const sent = await app.inject({
+        method: 'POST',
+        url: `/admin/tenants/${w.name}/smtp/test`,
+        headers: { authorization: `Bearer ${w.token}`, 'content-type': 'application/json' },
+        payload: { to: 'ops@example.test' },
+      });
+      expect(sent.statusCode, sent.body).toBe(200);
+      const message = unquote(await relay.received);
+      expect(message).toContain('Subject: Acme relay check');
+      expect(message).toContain('The Acme relay works');
+    } finally {
+      relay.server.close();
+    }
+  });
 
-  it.skipIf(privateAddress() === undefined)(
-    'wears the chosen client’s theme over the tenant’s, and the tenant’s without one',
-    async () => {
-      const w = await world();
-      const warm = {
-        surfacePage: '#ffffff',
-        surfacePanel: '#fff4e0',
-        surfaceSunken: '#f0f0f0',
-        inkPrimary: '#111111',
-        inkMuted: '#555555',
-        signalActive: '#ddeedd',
-        signalActiveInk: '#004400',
-        signalDanger: '#fde0d0',
-        signalDangerInk: '#802000',
-        borderStrong: '#777777',
-        focusRing: '#0044aa',
-      };
-      await publishTheme(w, { light: warm });
-      await publishTheme(w, { light: { ...warm, surfacePanel: '#e0f0ff' } }, await portalRowId(w));
+  it('wears the tenant’s published theme, at the cost of the statements a themeless one takes', async () => {
+    const themed = await world();
+    const plain = await world();
+    const light = {
+      surfacePage: '#ffffff',
+      surfacePanel: '#fff4e0',
+      surfaceSunken: '#f0f0f0',
+      inkPrimary: '#111111',
+      inkMuted: '#555555',
+      signalActive: '#ddeedd',
+      signalActiveInk: '#004400',
+      signalDanger: '#fde0d0',
+      signalDangerInk: '#802000',
+      borderStrong: '#777777',
+      focusRing: '#0044aa',
+    };
+    await publishTheme(themed, { light });
+    const counts: number[] = [];
+    const bodies: string[] = [];
+    for (const w of [themed, plain]) {
       const relay = await fakeRelay();
       try {
         await relayTo(w, relay);
-        const both = await mintAdminToken(
-          { http: app, app: appDb },
-          { id: w.tenantId, name: w.name },
-          ['manage-tenant', 'manage-clients'],
+        branding.invalidateTenant(w.tenantId);
+        const { result, statements } = await recorder.record(() => sendTest(w));
+        expect(result.statusCode, result.body).toBe(200);
+        counts.push(
+          statements.filter((s) => isWork(s) || /^(savepoint|release)\b/iu.test(s.query.trim()))
+            .length,
         );
-        const res = await sendTest(w, await portalRowId(w), both);
-        expect(res.statusCode, res.body).toBe(200);
-        const message = unquote(await relay.received);
-        expect(message).toContain('#e0f0ff');
-        expect(message).not.toContain('#fff4e0');
+        bodies.push(unquote(await relay.received));
       } finally {
         relay.server.close();
       }
-    },
-  );
+    }
+    expect(bodies[0]).toContain('#fff4e0');
+    expect(bodies[1]).not.toContain('#fff4e0');
+    expect(bodies[1]).toContain('#e7eae9');
+    expect(counts[0]).toBe(counts[1]);
+  });
+
+  it('wears the chosen client’s theme over the tenant’s, and the tenant’s without one', async () => {
+    const w = await world();
+    const warm = {
+      surfacePage: '#ffffff',
+      surfacePanel: '#fff4e0',
+      surfaceSunken: '#f0f0f0',
+      inkPrimary: '#111111',
+      inkMuted: '#555555',
+      signalActive: '#ddeedd',
+      signalActiveInk: '#004400',
+      signalDanger: '#fde0d0',
+      signalDangerInk: '#802000',
+      borderStrong: '#777777',
+      focusRing: '#0044aa',
+    };
+    await publishTheme(w, { light: warm });
+    await publishTheme(w, { light: { ...warm, surfacePanel: '#e0f0ff' } }, await portalRowId(w));
+    const relay = await fakeRelay();
+    try {
+      await relayTo(w, relay);
+      const both = await mintAdminToken(
+        { http: app, app: appDb },
+        { id: w.tenantId, name: w.name },
+        ['manage-tenant', 'manage-clients'],
+      );
+      const res = await sendTest(w, await portalRowId(w), both);
+      expect(res.statusCode, res.body).toBe(200);
+      const message = unquote(await relay.received);
+      expect(message).toContain('#e0f0ff');
+      expect(message).not.toContain('#fff4e0');
+    } finally {
+      relay.server.close();
+    }
+  });
 });

@@ -361,16 +361,20 @@ The branding and mail transcripts were run again on one stack: [the theme routes
 [the mail preview and branding](../reference/transcripts/admin-paths/get-mailpreview-and-get-mailbranding.md),
 [the message overrides](../reference/transcripts/admin-paths/get-message-overrides-put-message-overrides-and-delete-message-overrides.md),
 [the SMTP test](../reference/transcripts/admin-paths/get-smtp-put-smtp-delete-smtp-and-post-smtptest.md) from its client section on,
-[the tenant import](../reference/transcripts/admin-paths/post-admintenant-imports.md),
-[the themed sign-in](../reference/transcripts/request-paths/a-themed-sign-in-and-the-brand-route.md) and
-[the OpenAPI document](../reference/transcripts/admin-paths/get-adminopenapijson.md), which went last. The stack was the
+[the tenant import](../reference/transcripts/admin-paths/post-admintenant-imports.md) and
+[the themed sign-in](../reference/transcripts/request-paths/a-themed-sign-in-and-the-brand-route.md). The stack was the
 compose project `odudu-p4b-tx` on port `3000` (`ODUDU_THROTTLE_LIMIT` and `ODUDU_LOGIN_THROTTLE_LIMIT` at `10000`), built from
 commit `966da152`, a freshly created volume with `ada` made by `seed admin`, and a Mailpit as the
 deployment's own sender (`ODUDU_SMTP_HOST`, its web port on `8725`, `ODUDU_ALLOW_PRIVATE_SMTP_HOSTS=true`). Each page ran in the
 order it is written, a tenant of its own made new each time, and every output in it is that run's. The 96 by 32 pixel logos, the
 640 by 360 pixel background and the 540 by 540 pixel image of random colour were made for the run. The `429` in the SMTP page ran
-after the container was recreated with `ODUDU_THROTTLE_LIMIT=3`, and the stack was put back to `10000` afterwards. The brand
-guide's stylesheet response was taken from the guide's own steps run on that stack.
+after the container was recreated with `ODUDU_THROTTLE_LIMIT=3`, and the stack was put back to `10000` afterwards. [The OpenAPI
+document](../reference/transcripts/admin-paths/get-adminopenapijson.md) is not from this stack: its block was run again
+after the last route description changed, on the compose project `odudu-p4b-fixwave` on port `3000` (throttles at `10000`),
+a freshly built stack at commit `4bc3ccab` on an empty volume, and printed 103 paths and 662737 bytes, the figures the test
+derives; the stack was taken down afterwards. The brand guide's stylesheet response is not from
+this stack: the guide's own steps were run by hand against a separate stack on port `3227`, which is why its addresses name that
+port.
 
 ## Admin path transcripts
 
@@ -736,14 +740,11 @@ token, got the way "Getting the token" shows, is `$ADMIN_TOKEN`, and a tenant
 `smtp-audit-demo` made through `POST /admin/tenants`. It was torn down with
 `docker compose down -v` when the capture finished.
 
-**The branding captures.** The theme, message-override, mail-preview and brand-route
-pages, the registration page for names in other languages, and the pages that show a
-client, a scope, a tenant's settings or an export once they carried languages (settings,
-export, import, clients, `PATCH /clients`, scopes, built-in scopes, the scope-client
-delete, the secret rotation, the OpenAPI page and the audit page up to its load test),
-were run on one stack: compose project `odudu-26a` on port 3000, its Postgres on 5442,
-built from the branch (the stack was rebuilt once, for the fix that made an undeclared
-upload type answer the asset problem) on an empty volume, with
+**The language captures.** The registration page for names in other languages, and the pages that
+show a client, a scope, a tenant's settings or an export once they carried languages (settings,
+export, clients, `PATCH /clients`, scopes, built-in scopes, the scope-client delete, the secret
+rotation and the audit page up to its load test), were run on one stack: compose project
+`odudu-26a` on port 3000, its Postgres on 5442, built from the branch on an empty volume, with
 `ODUDU_THROTTLE_LIMIT=10000` and `ODUDU_LOGIN_THROTTLE_LIMIT=10000` and a console key made
 for it. `seed admin --username ada` made the administrator, whose token, got the way
 "Getting the token" shows, is `$ADMIN_TOKEN`. A script ran each command and wrote the block
@@ -751,8 +752,7 @@ that followed it, so no output was typed. Each page creates the tenants it names
 commands shown on the page; between runs of a page the script deleted those tenants, so
 a page is what it printed against tenants that did not yet exist. The tokens of a
 tenant's own subject (`$OPERATOR_TOKEN`, `$IVY_TOKEN`) were got by the sign-in "Getting the
-token" shows, which is not repeated on the page. The OpenAPI page's block printed 98 paths
-and 627891 bytes, the figures the test derives. The PNGs the pages upload are
+token" shows, which is not repeated on the page. The PNGs the pages upload are
 solid-colour images made for them and were not kept.
 
 **Pages that name more than one run.** [Getting the

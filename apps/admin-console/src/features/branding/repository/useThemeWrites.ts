@@ -8,6 +8,7 @@ import {
   restoreVersion,
 } from '#/features/branding/adapter/theme';
 import {
+  draftMoved,
   scopeKeyPart,
   themeRecord,
   writesRunning,
@@ -24,7 +25,6 @@ import {
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import type { RecordEntry } from '#/shared/repository/useRecord';
 import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
-import { isStale } from '#/shared/service/failure';
 import type { GatewayResult, GatewaySuccess } from '#/shared/transport/gateway';
 
 // The draft written again whole, on the tag it was read with.
@@ -55,10 +55,10 @@ export function useThemeWrites(tenant: string, scope: ThemeScope): ThemeWrites {
     invalidate(versions);
   };
   // A write of the draft alone leaves the versions as they are; a draft it
-  // found moved on is read again.
+  // found moved on or gone is read again.
   const replaceDraft = (result: GatewayResult<ThemeView>): void => {
     if (result.ok) client.setQueryData<RecordEntry<ThemeView>>(key, { result, by: 'save' });
-    else if (isStale(result)) invalidateExact(key);
+    else if (draftMoved(result)) invalidateExact(key);
   };
   return {
     publish: useGatewayWrite({
@@ -66,7 +66,7 @@ export function useThemeWrites(tenant: string, scope: ThemeScope): ThemeWrites {
       send: (gateway, tag: string) => publishTheme(gateway, tenant, scope, tag),
       onSuccess: (result) => {
         if (result.ok) keep(result);
-        else if (isStale(result)) invalidateExact(key);
+        else if (draftMoved(result)) invalidateExact(key);
       },
     }),
     discard: useGatewayWrite({

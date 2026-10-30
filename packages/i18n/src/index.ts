@@ -8,4 +8,9 @@ export { negotiatePageLocale } from '#/service/page-locale';
 export type { PageLocaleInput } from '#/service/page-locale';
 export { createTranslators } from '#/service/translators';
 export type { Translators } from '#/service/translators';
-export { MAX_OVERRIDE_LENGTH, overrideProblem, placeholderProblem } from '#/service/override';
+export {
+  MAX_OVERRIDE_LENGTH,
+  overrideProblem,
+  placeholderProblem,
+  requiredArgumentsProblem,
+} from '#/service/override';

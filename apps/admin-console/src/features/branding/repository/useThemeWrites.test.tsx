@@ -101,3 +101,34 @@ it('writes a revert’s answer over the record, and reads again when the draft h
     exact: true,
   });
 });
+
+it('reads the theme again when a discard finds the draft gone, or a publish finds none', async () => {
+  const gone = harness({
+    [`DELETE ${TH}/draft`]: problem(404, 'about:blank', 'Not Found'),
+    [`POST ${TH}/publish`]: problem(409, 'about:blank#theme-no-draft', 'Conflict'),
+  });
+  const { result } = renderHook(() => useThemeWrites('acme', TENANT), { wrapper: gone.wrapper });
+  await act(async () => {
+    await result.current.discard.run('"d1"');
+  });
+  expect(gone.invalidated).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    await result.current.publish.run('"d1"');
+  });
+  expect(gone.invalidated).toHaveBeenCalledTimes(2);
+  expect(gone.invalidated).toHaveBeenCalledWith({
+    queryKey: ['record', 'acme', 'theme'],
+    exact: true,
+  });
+});
+
+it('does not read the theme again for a publish refused over its content', async () => {
+  const refused = harness({
+    [`POST ${TH}/publish`]: problem(409, 'about:blank#theme-nothing-to-publish', 'Conflict'),
+  });
+  const { result } = renderHook(() => useThemeWrites('acme', TENANT), { wrapper: refused.wrapper });
+  await act(async () => {
+    await result.current.publish.run('"d1"');
+  });
+  expect(refused.invalidated).not.toHaveBeenCalled();
+});

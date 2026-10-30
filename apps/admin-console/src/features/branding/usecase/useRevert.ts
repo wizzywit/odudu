@@ -4,9 +4,11 @@ import { useRefusal } from '#/features/session';
 import { useThemeWrites } from '#/features/branding/repository/useThemeWrites';
 import {
   announceRevert,
-  revertFailure,
+  revertAnswered,
+  revertAnswerOf,
+  revertDefected,
+  type RevertAnswer,
   revertHoldOf,
-  revertProblem,
   revertRequest,
   revertSection,
   shownRevertConflicts,
@@ -17,7 +19,6 @@ import {
 import { usePublicationHolds } from '#/features/branding/usecase/usePublicationHolds';
 import { useToast } from '#/shared/repository/useToasts';
 import type { Conflict } from '#/shared/service/conflict';
-import { isStale } from '#/shared/service/failure';
 import { reportFailure } from '#/shared/service/settled';
 
 export interface Revert {
@@ -52,8 +53,8 @@ export function useRevert({
   const refusal = useRefusal(tenant);
   const toast = useToast();
   const holds = usePublicationHolds(tenant, scope, view);
-  const [problem, setProblem] = useState<string | null>(null);
-  const [stale, setStale] = useState(false);
+  const [answer, setAnswer] = useState<RevertAnswer | null>(null);
+  const { problem, stale } = revertAnswerOf(answer, tab);
   return {
     busy: writes.revert.busy,
     hold: revertHoldOf(holds, tab),
@@ -61,24 +62,21 @@ export function useRevert({
     conflicts: shownRevertConflicts(stale, view, tab),
     section: revertSection(tab),
     takeTheirs: () => {
-      setStale(false);
-      setProblem(null);
+      setAnswer(null);
     },
     revert: () => {
-      setProblem(null);
-      setStale(false);
+      setAnswer(null);
       writes.revert
         .run({ body: revertRequest(view, tab), tag })
         .then((result) => {
           announceRevert(result, toast.succeeded);
-          setProblem(revertProblem(result));
-          setStale(isStale(result));
+          setAnswer(revertAnswered(tab, result));
           reportFailure(result, (failure) => {
             refusal.report(failure, writeCapability(scope));
           });
         })
         .catch(() => {
-          setProblem(revertFailure({ ok: false, kind: 'defect' }));
+          setAnswer(revertDefected(tab));
         });
     },
   };

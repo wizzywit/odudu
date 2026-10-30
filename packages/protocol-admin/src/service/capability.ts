@@ -1019,7 +1019,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       '`If-None-Match: *` to create one. Neither header, or `*` as `If-Match`, is refused with `428`; a ' +
       '`If-Match` that is stale, or that names a key now gone, and `If-None-Match: *` for a key that now exists, with `412`. ' +
       'The answer carries the new `ETag`. `key` must be the key of a page message, such as `login.title`, else `400`; the ' +
-      'text is checked as a message, so an unbalanced brace is refused with `400`, and so is an argument such as `{name}` that the page\u2019s English text of the same key does not read, because the page would not supply it. Markup in ' +
+      'text is checked as a message, so an unbalanced brace is refused with `400`, and so is an argument such as `{name}` that the page\u2019s English text of the same key does not read, because the page would not supply it. The text for `consent.heading` must use `{client}`, since the consent page has to tell the person which application is asking. Markup in ' +
       'it is shown as text, never rendered. `409` (`about:blank#message-overrides-full`) when ' +
       'the tenant already holds 500, though changing one that exists is always allowed. ' +
       'Pages in this process show the change at once; another replica shows the previous text ' +
@@ -1096,8 +1096,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'they would be served, under the type they were stored as (`image/png`, `image/jpeg` ' +
       'or `image/webp`), whether or not a published theme names it: this is how an admin sees ' +
       'an image before any public address serves it. `X-Content-Type-Options: nosniff` and ' +
-      '`Cache-Control: private, no-store`. At most 1.25 MiB, one statement. `404` for an image ' +
-      'that does not exist, is another tenant\u2019s or is not an id.',
+      '`Cache-Control: private, no-store`. At most 1.25 MiB, one statement. `400` for an ' +
+      '`assetId` that is not an id, and `404` for an image that does not exist or is another ' +
+      'tenant\u2019s.',
   },
   // No `view-clients`: client metadata is configuration rather than a
   // population to browse, so every route below requires `manage-clients`.

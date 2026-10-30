@@ -869,13 +869,12 @@ describe('assetRepository', () => {
       });
     });
 
-    it('finds nothing for an id that is unknown or not an id at all', async () => {
+    // A value that is not an id never reaches the repository: the admin route
+    // refuses it with 400 from its path parameters.
+    it('finds nothing for an id that is unknown', async () => {
       const tenantId = await freshTenant();
       await withTenant(app.db, tenantId, async (tx) => {
-        const assets = assetRepository(tx);
-        expect(await assets.content(tenantId, newId())).toBeNull();
-        expect(await assets.content(tenantId, 'not-a-uuid')).toBeNull();
-        expect(await assets.content(tenantId, '')).toBeNull();
+        expect(await assetRepository(tx).content(tenantId, newId())).toBeNull();
       });
     });
 

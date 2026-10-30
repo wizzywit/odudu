@@ -239,8 +239,7 @@ describe('the admin API reference pages', () => {
     const rows = (text: string): number =>
       text.split('\n').filter((l) => l.startsWith('| ')).length;
     const largest = Math.max(...[...pages.values()].map(rows));
-    // The largest is one operation's request and response together, here a client's theme save.
-    expect(largest).toBeLessThanOrEqual(75);
+    expect(largest).toBeLessThanOrEqual(70);
   });
 
   it('keeps every parameter, response status and nested body field of the OpenAPI document in the section of its operation, in order across the pages of a split body', () => {
@@ -341,6 +340,41 @@ describe('the admin API reference pages', () => {
     expect(text).toContain('matching a pattern, listed below');
     expect(text).toContain('<details>');
     expect(text).toContain('<code>^[a-z]{3}-\\d+$</code>');
+  });
+
+  it('lists a response on pages of its own when the request and it would overfill one page', () => {
+    const fields = (count: number): Record<string, { type: 'string' }> =>
+      Object.fromEntries(
+        Array.from({ length: count }, (_, index) => [
+          `f${String(index)}`,
+          { type: 'string' as const },
+        ]),
+      );
+    const doc = hostileWith({ type: 'object', properties: fields(40), required: [] });
+    const path = '/admin/tenants/{tenant}/whoami';
+    const operation = doc.paths[path]?.get;
+    if (operation === undefined) throw new Error('whoami is gone');
+    const withRequest: OpenApiDocument = {
+      ...doc,
+      paths: {
+        [path]: {
+          get: {
+            ...operation,
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: { type: 'object', properties: fields(40), required: [] },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+    const rendered = renderOpenApiPages(withRequest);
+    expect(rendered.has('admin-api/whoami/get-whoami-200-part-1.md')).toBe(true);
+    expect(rendered.has('admin-api/whoami/get-whoami-request-part-1.md')).toBe(false);
   });
 
   it('puts the pattern a long body field uses on the page that lists the field', () => {

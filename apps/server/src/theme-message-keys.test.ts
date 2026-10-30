@@ -129,6 +129,18 @@ describe('overrideProblemFor', () => {
     expect(overrideProblemFor('login.title', '')).toContain('empty');
   });
 
+  it('[ODUDU-THEME-CLIENTNAME-01] keeps the client’s name in the consent heading', () => {
+    expect(overrideProblemFor('consent.heading', '{client} wants in')).toBeNull();
+    expect(
+      overrideProblemFor('consent.heading', '{client, select, other {Access for {client}}}'),
+    ).toBeNull();
+    expect(overrideProblemFor('consent.heading', 'Continue')).toBe(
+      'must use {client}, which names the application asking for access',
+    );
+    expect(overrideProblemFor('consent.heading', 'Continue {')).toContain('not a valid message');
+    expect(overrideProblemFor('login.title', 'No client here')).toBeNull();
+  });
+
   it('does not offer the attribution a mail carries, as a page has none', () => {
     for (const key of ['mail.brand', 'mail.copyright', 'mail.poweredBy']) {
       expect(isOverridableMessageKey(key), key).toBe(false);

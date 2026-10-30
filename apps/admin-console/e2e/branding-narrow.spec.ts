@@ -204,23 +204,30 @@ test.describe('on a phone', () => {
     await signIn(page, branding.layout);
     for (const tab of ['Theme', 'Pages', 'Mail'] as const) {
       await openTab(page, tab);
-      await page.evaluate(() => {
-        window.scrollTo(0, document.documentElement.scrollHeight);
-      });
-      const clearance = await page.evaluate(() => {
-        const pane = document.querySelector('[data-preview-strip]');
-        if (pane === null) return -1;
-        const top = pane.getBoundingClientRect().top;
-        const lowest = [...document.querySelectorAll('main *')]
-          .filter(
-            (node) => !pane.contains(node) && !node.contains(pane) && node.children.length === 0,
-          )
-          .map((node) => node.getBoundingClientRect())
-          .filter((box) => box.width > 0 && box.height > 0)
-          .reduce((most, box) => Math.max(most, box.bottom), 0);
-        return top - lowest;
-      });
-      expect(clearance, tab).toBeGreaterThanOrEqual(-1);
+      await expect(page.getByRole('progressbar')).toHaveCount(0);
+      // A tab keeps reading and growing for a moment after it is open, so
+      // each attempt scrolls to the end it has now and measures from there.
+      await expect
+        .poll(
+          () =>
+            page.evaluate(() => {
+              window.scrollTo(0, document.documentElement.scrollHeight);
+              const pane = document.querySelector('[data-preview-strip]');
+              if (pane === null) return -1;
+              const top = pane.getBoundingClientRect().top;
+              const lowest = [...document.querySelectorAll('main *')]
+                .filter(
+                  (node) =>
+                    !pane.contains(node) && !node.contains(pane) && node.children.length === 0,
+                )
+                .map((node) => node.getBoundingClientRect())
+                .filter((box) => box.width > 0 && box.height > 0)
+                .reduce((most, box) => Math.max(most, box.bottom), 0);
+              return top - lowest;
+            }),
+          { message: tab },
+        )
+        .toBeGreaterThanOrEqual(-1);
     }
 
     // Straight to the tab, so nothing moves focus after the field has it.

@@ -1,4 +1,4 @@
-import { dirtyTabs, tabNamed } from '#/shared/service/record';
+import { tabNamed } from '#/shared/service/record';
 
 // Every tab of the Branding area, in the order they join it.
 export const BRANDING_TABS = ['theme', 'pages', 'mail', 'languages'] as const;
@@ -25,10 +25,27 @@ export const BRANDING_TAB_SECTIONS: Readonly<Record<BrandingTab, readonly string
   languages: ['languages'],
 };
 
-// Takes the dirty sections of each record the tabs save to.
-export function tabsWithEdits(...dirty: readonly ReadonlySet<string>[]): ReadonlySet<OfferedTab> {
-  const names = new Set(dirty.flatMap((records) => [...records]));
-  return dirtyTabs(OFFERED_TABS, (tab) => BRANDING_TAB_SECTIONS[tab], names);
+// The record each tab's sections are saved to: the theme's, or the tenant's
+// settings, which the languages go to.
+export type TabRecord = 'theme' | 'settings';
+
+const TAB_RECORD: Readonly<Record<BrandingTab, TabRecord>> = {
+  theme: 'theme',
+  pages: 'theme',
+  mail: 'theme',
+  languages: 'settings',
+};
+
+// Takes the dirty sections of each record the tabs save to, kept apart: a
+// section of one record is not a section of another that happens to share its name.
+export function tabsWithEdits(
+  dirty: Readonly<Partial<Record<TabRecord, ReadonlySet<string>>>>,
+): ReadonlySet<OfferedTab> {
+  return new Set(
+    OFFERED_TABS.filter((tab) =>
+      BRANDING_TAB_SECTIONS[tab].some((section) => dirty[TAB_RECORD[tab]]?.has(section) === true),
+    ),
+  );
 }
 
 // The tabs that frame a preview of a page.

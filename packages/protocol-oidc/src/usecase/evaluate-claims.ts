@@ -10,7 +10,7 @@ import { type ClaimMapperRegistry } from '@odudu/kernel';
 import { accessTokenEligibleScope, reachableRoleIds } from '#/repository/scope-role-reach';
 import { type ClaimContext, type LoadedClaimContext } from '#/service/claims';
 import { idTokenScopeOf, mappedClaims } from '#/service/issued-claims';
-import { resolveScope } from '#/service/scope';
+import { defaultScopeNames, resolveScope } from '#/service/scope';
 
 // Roles need a recursive CTE (effectiveRoles), which a claim mapper must
 // never run itself — resolved here, once per issuance, alongside the user
@@ -71,10 +71,7 @@ export async function evaluateClaims(
   const assigned = await clientScopeRepository(tx).forClient(client.id);
   const requested =
     input.scope ??
-    (await clientScopeRepository(tx).forClientByAssignment(client.id))
-      .filter((entry) => entry.assignment === 'default')
-      .map((entry) => entry.scope.name)
-      .join(' ');
+    defaultScopeNames(await clientScopeRepository(tx).forClientByAssignment(client.id)).join(' ');
   const scope = resolveScope(
     requested,
     assigned.map((clientScope) => clientScope.name),

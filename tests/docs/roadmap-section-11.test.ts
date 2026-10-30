@@ -97,32 +97,6 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
     'example applications',
   ],
   ['P4g', 'The stable `0.1.0` follows'],
-  ['P4b', 'Every page the server shows', "tenant's supplied theme"],
-  [
-    'P4b',
-    'A tenant sets its colours',
-    'one stylesheet and one template per page kind',
-    'client override',
-    'piece by piece',
-  ],
-  ['P4b', 'A theme is drafted', 'draft, preview, publish, restore'],
-  ['P4b', 'Its mail follows', 'themed per tenant'],
-  [
-    'P4b',
-    'Translated pages and mail',
-    'translated pages and mail',
-    'default locale',
-    'message overrides',
-    'arabic',
-  ],
-  ['P4b', 'Logos, favicons and background images', 'logo, favicon and background image'],
-  [
-    'P4b',
-    'Sign-out asks for confirmation by default',
-    'shows its confirmation page by default',
-    'anti-forgery token',
-  ],
-  ['P4b', 'A client can opt out of the confirmation', 'a client may opt out for its own hint'],
   ['P4j', 'A tenant is reached at', 'custom domain', 'public address of its own'],
   ['P4j', 'Odudu keeps a table of verified domains', 'table of verified domains', 'on-demand tls'],
   ['P4j', 'The issuer, the cookies', 'issuer', 'cookie scope', 'webauthn rp id'],
@@ -165,6 +139,7 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
     'right-to-left locale',
   ],
   ['P4h', 'Lists sort by', '`intl.collator`', 'machine-readable `code`'],
+  ['P4h', "A client's base name", 'carry a language of their own'],
   ['P4h', 'It also sends the failure screen', "failure screen's error id sent to the server"],
   [
     'P4i',
@@ -207,6 +182,7 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
   ],
   ['P8', 'Odudu as a SAML identity provider', 'saml 2.0 idp'],
   ['P7', 'Usernames that look alike', 'confusable-character policy'],
+  ['P7', 'A tenant moved by export and import', 'uploaded images they use'],
   ['P9', 'Policy evaluation and UMA 2.0', 'uma 2.0', 'resource server as a first-class thing'],
   ['P10', 'Third-party providers loaded', 'third-party provider loads without a rebuild'],
   [
@@ -292,6 +268,8 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     }));
     const missing: string[] = [];
     let seen = 0;
+    // A phase that has shipped leaves "Next" and "Later" for "Shipped".
+    const shipped = new Set(['P4b']);
     for (const [phase, row] of criteria()) {
       const at = row.indexOf(MARKER);
       if (at === -1) continue;
@@ -304,6 +282,7 @@ describe('the roadmap and section 11 of the design spec agree', () => {
             ?.split(', with ')[0]
             ?.replace(/ \(.*$/u, '') ?? '';
         seen += 1;
+        if (shipped.has(phase)) continue;
         if (!placed.some((item) => item.phase === phase && item.capability === capability)) {
           missing.push(`${phase}: ${capability}`);
         }
@@ -326,17 +305,14 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       'carried by the gap-audit capability check above',
     ],
     [
-      '`/logout` has two hardening gaps',
-      ['P4b'],
-      ['anti-forgery token', 'asks for confirmation by default'],
-    ],
-    [
       '`tests/lint/production-guard-order.test.ts`',
       ['P12'],
       'a test maintenance note for the boot rework',
     ],
-    ['Localization has its catalogue', ['P4b', 'P4h'], ['translated pages and mail', 'catalogue']],
+    ['Localization has its catalogue', ['P4h'], ['catalogue']],
+    ['Tenant export and import carry no theme', ['P7'], ['published theme']],
     ["The console's failure ID", ['P4h'], ['failure screen']],
+    ['A passage in another language', ['P4h'], ['language of their own']],
     ['No scope means anything', ['P9'], ['resource server as a first-class thing']],
     [
       '`/introspect` answers every registered client',

@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
-import { expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { expect, it, vi } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { DEFAULT_PREVIEW } from '#/features/branding/service';
 import type { Preview } from '#/features/branding/usecase/usePreview';
@@ -30,6 +31,14 @@ it('frames the address it is given, allowing nothing', () => {
 it('says the preview is loading, and hides the frame meanwhile', () => {
   render(<PreviewPane preview={preview({ loading: true })} pickKind />);
   expect(screen.getByText('Loading the preview')).toBeVisible();
+});
+
+it('says the preview could not be shown, and asks again when told to', async () => {
+  const retry = vi.fn();
+  render(<PreviewPane preview={preview({ retry })} pickKind />);
+  expect(screen.getByRole('alert')).toHaveTextContent('The preview could not be shown.');
+  await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+  expect(retry).toHaveBeenCalledOnce();
 });
 
 it('offers the page picker only where the editor does not', () => {

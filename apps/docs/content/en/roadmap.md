@@ -11,9 +11,9 @@ A paid, hosted service beside the open-source server is planned and has no date
 ([ADR 0042](https://github.com/wizzywit/odudu/blob/main/docs/adr/0042-distribution-licensing-and-the-paid-boundary.md));
 nothing on this page depends on it.
 
-| Today                                                                                                              | Next, in this order                                                                         | Later                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Sign-in and tokens, many tenants, passwords, passkeys and recovery codes, an admin API and console, an audit trail | The stable release, theming, an MCP server, self-service, a localized console, agent access | Brokering, LDAP and SCIM, SAML, authorization services, extensibility, many instances, FAPI |
+| Today                                                                                                                                    | Next, in this order                                                                                 | Later                                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Sign-in and tokens, many tenants, passwords, passkeys and recovery codes, theming and branding, an admin API and console, an audit trail | The stable release, a custom domain, an MCP server, self-service, a localized console, agent access | Brokering, LDAP and SCIM, SAML, authorization services, extensibility, many instances, FAPI |
 
 ## Shipped
 
@@ -46,6 +46,14 @@ Everything here works in the latest release candidate, which the quick start ins
 - An admin API of more than a hundred operations, each checked against the capability it needs on every request.
 - An admin console with a page for every area ([the tour](admin-console/tour.mdx)).
 
+### Theming, branding and languages
+
+- Every page the server shows renders in a tenant's theme and a client's branding. A tenant sets its colours and font, a logo, favicon and background image, one stylesheet and one page template per page kind, and a client overrides any of them piece by piece over the tenant's. A theme is drafted, previewed on the real page, published as a version, and restored or reset, in the Branding area of the console and through the admin API.
+- Mail wears the tenant's published logo and colours, and the client's over them when the sign-in began in that client. Mail never takes a stylesheet or a template, and a test message shows the result.
+- Logos, favicons and background images are uploaded to Odudu and served from its own address, as PNG, JPEG or WebP only.
+- A tenant chooses its languages, a default and its own wording for any page or mail, and a client's name and a scope's text can be given in each language. Arabic is the right-to-left language shipped; its wording is a draft that a reader of Arabic has yet to review.
+- Sign-out asks for confirmation by default, and its form's fields are bound into the anti-forgery token. A client can opt out of the confirmation, and the console's own client has.
+
 ### Audit
 
 - Every administrative change, sign-in, refusal, token and credential change is recorded, filterable, exportable as one JSON object per line, and kept for a window you set.
@@ -60,23 +68,22 @@ Everything here works in the latest release candidate, which the quick start ins
 These are the phases being built, in the order the design spec gives. Each one says what it brings you.
 
 - **P4g, the stable release.** Release candidates are out: a signed container image with its contents listed and its base images pinned, the one-file Docker Compose quick start that pulls it, a written release process, this documentation site, a landing page and worked examples. The stable `0.1.0` follows once the candidates have had a real run.
-- **P4b, theming and client branding.** Every page the server shows, today plain built-in HTML, will render in a tenant's theme and a client's branding. A tenant sets its colours, images, one stylesheet and one page template per page kind, and a client overrides any of them piece by piece over the tenant's theme. A theme is drafted, previewed, published and can be restored or reset, in a Branding area of the console and through the admin API. Its mail follows the tenant's tokens, logo and wording. Translated pages and mail arrive with it: a tenant's languages, default language and wording overrides, with Arabic shipped as the right-to-left language. Logos, favicons and background images are uploaded and served by Odudu itself. Sign-out asks for confirmation by default, and its form's fields are bound into the anti-forgery token. A client can opt out of the confirmation, and the console's own client has.
 - **P4j, a custom domain for each tenant.** A tenant is reached at a public address of its own, not as `/tenants/<name>` under the operator's one base address. Odudu keeps a table of verified domains, resolves the tenant from the host, and answers your reverse proxy's question whether a domain is registered, so the proxy can obtain its certificate on demand. The issuer, the cookies and passkeys move with the domain.
 - **P5a, an MCP server.** The admin API as tools for an AI agent, read-only by default and held to the same capabilities as everyone else, and a guide to protecting an MCP server with Odudu. It passes the MCP authorization profile against a real client, with Claude and Cursor setup examples. The server does not yet publish the metadata an MCP client looks for. The admin API has no `Idempotency-Key` header today, and P5a adds one so a retried request does not act twice.
 - **P4f, self-service.** A "me" API through which an application lets a person read and change their own profile, credentials, sessions and consents, and application-initiated actions such as changing a password or enrolling an authenticator. It also brings fresh recovery codes before the old set runs out, a notice mail when someone enrols a factor, and the offer to end other sessions after a password change. It also reconciles accounts whose addresses differ only by case, so none can share an address, and makes confirming a registration take more than one click. A person can ask for a new verification email, see each session against its device, and a tenant sets its own authenticator rules. A link an administrator mailed gets somewhere to return to.
-- **P4h, a localized console.** Every string in the admin console read from a catalogue, a language switch, and right-to-left layouts. Lists sort by the person's language, and error messages are translated. It also sends the failure screen's Error ID to the server, so an operator can find it in the logs.
+- **P4h, a localized console.** Every string in the admin console read from a catalogue, a language switch, and right-to-left layouts. Lists sort by the person's language, and error messages are translated. It also sends the failure screen's Error ID to the server, so an operator can find it in the logs. A client's base name and a scope's base text get a language of their own, so a page can mark them.
 - **P4i, SDKs for signing in and for the admin API.** Official libraries, so an app does not hand-roll the protocol: a framework-neutral JavaScript core, a React package with a provider and hooks, a Next.js package for server-side sessions, and Node middleware that verifies Odudu's access tokens. A single-page app can run through a backend-for-frontend, the pattern RFC 10017 recommends for browser apps. A typed admin API client is generated from the published OpenAPI document, in TypeScript and Python. Each ships with a guide and a runnable example in CI, and is versioned apart from the server. They wrap what exists: discovery, authorization code with PKCE, refresh, `prompt=create`, logout and the "me" API.
 - **P5, agent identity.** Budgets, attenuation and approval for AI agents acting for a person, including CIBA, which Odudu does not have today. Delegation depth becomes a setting. A restriction on a grant holds when its refresh token is used, and revoking a grant revokes every grant exchanged from it.
 - **P5b, destructive MCP tools.** The irreversible tools P5a withholds, each needing the owner's separate approval.
 
-After P4f an application can adopt Odudu with every page branded and every session endable. What an operator still needs before running it in production is P11 and P12 below.
+After P4f an application can adopt Odudu with every session endable and the account lifecycle in the person's own hands. What an operator still needs before running it in production is P11 and P12 below.
 
 ## Later
 
 Placed on a phase, in order, and not started. Each line names the phase that will do it.
 
 - **P6, identity brokering.** Sign in with Google or another upstream OpenID Connect provider. A person is created on first sign-in, with a decision on linking accounts.
-- **P7, user federation and inbound provisioning.** LDAP-backed sign-in, SCIM 2.0 inbound provisioning, and moving more than the 10,000 subjects a tenant export carries; an export refuses a tenant above that size and names this as the way. Usernames that look alike are refused.
+- **P7, user federation and inbound provisioning.** LDAP-backed sign-in, SCIM 2.0 inbound provisioning, and moving more than the 10,000 subjects a tenant export carries; an export refuses a tenant above that size and names this as the way. A tenant moved by export and import also takes its published theme, its clients' themes and the images they use, which the file leaves out today. Usernames that look alike are refused.
 - **P8, SAML 2.0.** Odudu as a SAML identity provider.
 - **P9, authorization services.** Policy evaluation and UMA 2.0, and a resource server as a first-class thing, including who may introspect a token.
 - **P10, extensibility.** Third-party providers loaded without a rebuild. A tenant can choose which claim mappers a scope carries but cannot add a new mapper, and an `EventListener` delivering audit events to a SIEM or a webhook belongs here: today only the admin API and the console read the trail.
@@ -92,8 +99,7 @@ Placed on a phase, in order, and not started. Each line names the phase that wil
 - **several sign-in flows with a per-client override**: P4f.
 - **per-step authenticator configuration**: P4f.
 - **a breached-password check**: P4f.
-- **translated pages and mail**: P4b, which ships the locales on the catalogue mechanism the server already has; the console's catalogue is P4h's (ADR 0043).
-- **a public address of its own for each tenant (a custom domain)**: P4j, after P4b, because it changes how a tenant is found rather than how a page looks. Today one `ODUDU_PUBLIC_BASE_URL` serves every tenant as `/tenants/<name>`, and a tenant's issuer is that base plus its name.
+- **a public address of its own for each tenant (a custom domain)**: P4j, because it changes how a tenant is found rather than how a page looks. Today one `ODUDU_PUBLIC_BASE_URL` serves every tenant as `/tenants/<name>`, and a tenant's issuer is that base plus its name.
 - **custom subject attributes and a declarative user profile**: P7.
 - **fine-grained admin permissions**: P9.
 - **per-client dedicated mappers**: P10.

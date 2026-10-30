@@ -20,9 +20,9 @@ Nothing you change is seen until you publish it. Edits are saved as a draft, the
 
 ## 1. Find your way around the page
 
-The **Publish** bar is at the top, and says which version people see and what the draft would change. Under it are four tabs: **Theme** holds the colours, the font, the images and the stylesheet, **Pages** the templates, **Mail** the verification mail, and **Languages** the languages and the tenant's own wording. On a wide screen the **Preview** sits beside the editor and stays in view as you scroll; on a narrow one it becomes a strip, as [section 10](#10-use-it-on-a-phone) shows.
+The **Publish** bar is at the top, and says which version people see and what the draft would change. Under it are four tabs: **Theme** holds the colours, the font, the images and the stylesheet, **Pages** the templates, **Mail** the verification mail, and **Languages** the languages and the tenant's own wording. While a publish, a discard, a revert, an image upload or another section's save is running, each **Save** waits, so two writes never meet on one version of the draft. On a wide screen the **Preview** sits beside the editor and stays in view as you scroll; on a narrow one it becomes a strip, as [section 10](#10-use-it-on-a-phone) shows.
 
-The **Preview** frames the real page for the saved draft, in the light or the dark scheme, for the page you choose. When it shows something other than the draft, a notice under **Preview** says what and why: there is no saved draft yet, a layer could not be read or names an image that is gone, a stylesheet was left out, or a template was refused or could not be filled and the page uses the one below it or the default. The notice is the server's own account of the same page, and is not shown when the frame is simply the draft. The picture above shows the first of these: a tenant with no draft sees Instrument's own page.
+The **Preview** frames the real page for the saved draft, in the light or the dark scheme, for the page you choose. When it shows something other than the draft, a notice under **Preview** says what and why: there is no saved draft yet, a layer could not be read or names an image that is gone, a stylesheet was left out, or a template was refused or could not be filled and the page uses the one below it or the default. The notice is the server's own account of the same page, and is not shown when the frame is simply the draft. If the preview itself could not be read, a line says so in place of the frame, with a **Try again** button. The picture above shows the first of these: a tenant with no draft sees Instrument's own page. The sign-in sample always shows every optional part, the passkey button, the remember-me box and the links to create an account and reset a password, whatever the tenant's settings, so a rule or a template can be written against the fullest page.
 
 ## 2. Set the colours and the font
 
@@ -126,7 +126,7 @@ A refused template says what is wrong and marks where. A template link may go to
 
 ## 6. Publish, revert and restore
 
-**Publish** makes the saved draft the published theme and keeps the version it replaces, up to twenty. Publishing is always the whole draft, from whichever tab you are on: a template may name an image that only the draft has, the contrast pairs span the colours and the stylesheet, and a version is a whole snapshot. When a stylesheet or a template is published, the bar adds a warning that Odudu cannot prove it accessible, and says which.
+**Publish** makes the saved draft the published theme and keeps the version it replaces, so that twenty versions are held in all, the published one included. Publishing is always the whole draft, from whichever tab you are on: a template may name an image that only the draft has, the contrast pairs span the colours and the stylesheet, and a version is a whole snapshot. When a stylesheet or a template is published, the bar adds a warning that Odudu cannot prove it accessible, and says which.
 
 <ConsoleShot
   name="branding-published"

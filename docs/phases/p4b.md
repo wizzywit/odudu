@@ -13,7 +13,7 @@ The custom domain per tenant left P4b for a new phase, P4j, straight after it
 (design section 3). P4j's 20–35 h is an estimate to refine in P4j's own
 brainstorm. Liquid-style template logic went to the roadmap's "Decided against",
 to be revisited when a user asks for it. P4b's own hours (81–134 h) are
-unchanged and are set at the end of the phase from what the increments cost.
+unchanged; they were not tracked, so the range stays an estimate.
 
 ## The logout form's fields were outside its token
 
@@ -58,9 +58,8 @@ That client is guarded on the admin API like every field outside
   accepts an expired hint to identify a session), and the skip reuses that reading, so
   a lapsed ID token for a live session of a skipping client still signs it out. The
   console's own ID tokens last five minutes and its sign-out can come later, which is
-  why `exp` is not required. The spec's warning beside the setting names expired
-  tokens, so the text and the behaviour agree; whether to require `exp` for the skip
-  and exempt the console stays open for the owner.
+  why `exp` is not required. ADR 0047 records this, and the warning beside the setting
+  names expired tokens.
 - **Dynamic Client Registration** refuses the member by name
   (`invalid_client_metadata`) rather than dropping it. There is no registration
   update path, so registration is the only door.
@@ -220,13 +219,56 @@ with names in other languages](../../apps/docs/content/en/reference/transcripts/
 because the bootstrap page it was owed on is a record of several earlier runs and a
 section run later would have made it a claim about one more.
 
+## What P4b shipped and what it found
+
+Shipped by what a person can do: an administrator themes every page the server shows and the
+mail it sends, a client overrides the tenant piece by piece, and a draft is previewed on the
+real page, published as a version, restored or reset. Languages, wording overrides and Arabic
+are tenant choices. Sign-out asks first. What the build found beyond the sections above:
+
+- **The page-kind class was specified and never drawn.** `hooks.ts` said a themed page carries
+  `page-<kind>` on its main part, and no renderer wrote it until the selectors list needed it.
+  It is rendered now, and `page(...)` kinds are held to the kind beside them in `fillPage`.
+- **The background image was a slot nobody drew.** `brandingCss` named it and emitted nothing;
+  the page now draws it behind the panel.
+- **The publication bar.** Section saves and image uploads did not hold the bar. Every theme
+  write now does, Publish is always the whole draft from any tab, a tab can be reverted and
+  the draft discarded, and publishing nothing is a 409.
+- **Message overrides had no preconditions.** Two administrators on one key lost an edit
+  silently. Each override now has an entity tag, `If-Match` on edit and delete and
+  `If-None-Match: *` on create, answered `412` and `428`; the console shows its conflict panel.
+- **The SMTP test mail was plain.** It took the tenant's wording and dropped the look. It now
+  wears the tenant's theme, or a chosen client's, and is throttled, takes one address and
+  never repeats relay text in its `502`.
+- **A standards review found what the hardening fixed.** A stylesheet could hide the consent
+  page's client name or remove the focus outline, and could shrink text to nothing; the brand
+  route lacked a content-security policy and a resource policy; automatic mail lacked
+  `Auto-Submitted`. A differential test of the template checker against a browser's parse
+  found three ways a template could change what its slots build (a part between table parts,
+  one inside a link, a form opening and closing in different cells). All are refused and held
+  in [`docs/protocols/web-security.md`](../protocols/web-security.md). Its accepted rows are
+  decisions (a template may link anywhere; a theme is the administrators' own words; two
+  separate rules are not compared for contrast). Its one open row, the language of a client's base name, is P4h's.
+- **Load order.** One Branding page load was six admin reads in a waterfall. `branding-load.spec.ts`
+  records each tab's calls in the order they were sent and answered, and prints the waterfall.
+- **Mobile.** The tabs were squeezed on a phone. A narrow screen now gets a preview strip, a
+  full-width sheet that opens from it, and a publication bar folded to one row
+  (`branding-narrow.spec.ts`).
+- **The generated admin reference overran its table cap.** A section holding a request and a
+  response together reached 71 rows, and the cap had been raised to 75 to fit. The generator
+  now lists a body on pages of its own when the page would pass 60 rows, and the cap is 70 again.
+- **The sign-in preview is the fullest sign-in.** Its sample shows the passkey button,
+  the remember-me box and the links to create an account and reset a password whatever the tenant's
+  settings, so a rule or template can be written against every part. The Branding page says so.
+- **The undeclared upload type** and **the logout form's fields** are in their own sections above.
+
 ## Owed at phase close
 
-| Owed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Owner         | Why not yet                                                                                                                                                                                                |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The console frame of the draft preview must be proven in a real browser: the shell's policy needs `frame-src 'self'`, and a frame sandboxed without `allow-same-origin` has an opaque origin, so whether `style-src 'self'` and `font-src 'self'` still load the Instrument stylesheet and fonts there is unproven; they may need CORS headers on `/instrument`. The preview is reached at `/console/api/admin/tenants/{tenant}/theme/preview`.                                                                                                                                                                                               | Task 23       | The Branding area does not exist yet; the route answers a frame today (`apps/server/tests/theme-preview.int.test.ts`), but no browser has framed it.                                                       |
-| The preview's sign-in sample ignores the tenant's settings (remember me, passkey, registration and reset links), so it shows a fixed arrangement.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Task 23       | The preview route takes no tenant settings; the console decides whether to pass them.                                                                                                                      |
-| The admin router validates a body before it authenticates (the image upload is the exception: it authenticates and checks its size in `onRequest`, before the body is read), so an unauthenticated caller makes the server buffer and validate up to 4 MiB on a theme `PUT` (16 MiB on a tenant import) and reads schema details in a `400` where a `401` belongs (`packages/protocol-admin/src/view/routes/router.ts`). Proposed owner: P11, with the other load bounds.                                                                                                                                                                     | P11           | Not placed in `docs/NEXT.md`: a placement there must have its roadmap line and section 11 criterion, and `tests/docs/roadmap-section-11.test.ts` fails without them; adding P11 scope is the owner's call. |
-| The console names `Branding, Languages` as the home of `supported_locales` and `default_locale` (`PLACED_ELSEWHERE`), and `tests/lint/console-covers-admin-routes.test.ts` lists the three message override routes as pending; both entries go with the Languages tab, which fails the lint the moment a screen calls them.                                                                                                                                                                                                                                                                                                                   | Task 24       | The Languages tab is Task 24's.                                                                                                                                                                            |
-| A reader of Arabic reviews every `messages.ar.ts` and a rendered page and mail of each kind, and fixes what they find, before any release. The text is a draft: nothing here says it is correct, only that it is complete. No Arabic font is in the Instrument font stack (`IBM Plex Sans`, then `system-ui`), so rendering relies on the system's fallback, which axe does not cover. Wording nits for the reader: `reset.reason` and the other mail `.reason` lines are awkward constructions; `error.unknownTenant` says `مستأجر` (a literal rendering of tenant); `consent.allow` is the noun `سماح` where an imperative may read better. | Project owner | No reader of Arabic took part in the draft; `RELEASING.md` makes the review a step before every stable release.                                                                                            |
-| `apps/docs/scripts/openapi-pages.test.ts` caps a generated admin API page at 75 table rows, raised from 70 when the client theme save (request and response in one section) reached 71 with the `changed` field. A generator that splits a section over 70 rows into request and response pages is the clean fix, and the closing task or Task 26 decides it; until then the cap is a figure raised to fit.                                                                                                                                                                                                                                   |
+Each belongs to the topic of another phase.
+
+| Owed                                                                                                                                                                                                                                                                                                                                                                                                                                  | Owner | Why that phase                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------------------------------------------------------- |
+| A reader of Arabic reviews every `messages.ar.ts` and a rendered page and mail of each kind, and fixes what they find. The text is a draft that is complete and unreviewed. No Arabic font is in the Instrument font stack, so rendering relies on the system fallback, which axe does not cover. Nits: `reset.reason` and the other mail `.reason` lines, `error.unknownTenant` saying `مستأجر`, `consent.allow` as the noun `سماح`. | P4g   | Its stable release: `RELEASING.md` makes the review step 3 before the stable tag. |
+
+**Arabic review record** (`RELEASING.md`, step 3): nobody has read it yet.
+| Tenant export and import carry no theme: the published tenant theme, each client's published theme and the uploaded images are not in the document, so a tenant imported under a new name starts with Odudu's look. Carrying them means a theme and an asset section in the document, base64 images within the 8 MiB cap, and an import that re-checks the bodies and writes a published version with new asset ids. | P7 | Its criterion already owns a tenant moved between installations; the roadmap, section 11 and `docs/NEXT.md` carry the line. |
