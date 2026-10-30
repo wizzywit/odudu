@@ -83,7 +83,7 @@ After P4f an application can adopt Odudu with every session endable and the acco
 Placed on a phase, in order, and not started. Each line names the phase that will do it.
 
 - **P6, identity brokering.** Sign in with Google or another upstream OpenID Connect provider. A person is created on first sign-in, with a decision on linking accounts.
-- **P7, user federation and inbound provisioning.** LDAP-backed sign-in, SCIM 2.0 inbound provisioning, and moving more than the 10,000 subjects a tenant export carries; an export refuses a tenant above that size and names this as the way. Usernames that look alike are refused.
+- **P7, user federation and inbound provisioning.** LDAP-backed sign-in, SCIM 2.0 inbound provisioning, and moving more than the 10,000 subjects a tenant export carries; an export refuses a tenant above that size and names this as the way. A tenant moved by export and import also takes its published theme, its clients' themes and the images they use, which the file leaves out today. Usernames that look alike are refused.
 - **P8, SAML 2.0.** Odudu as a SAML identity provider.
 - **P9, authorization services.** Policy evaluation and UMA 2.0, and a resource server as a first-class thing, including who may introspect a token.
 - **P10, extensibility.** Third-party providers loaded without a rebuild. A tenant can choose which claim mappers a scope carries but cannot add a new mapper, and an `EventListener` delivering audit events to a SIEM or a webhook belongs here: today only the admin API and the console read the trail.
