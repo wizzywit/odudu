@@ -589,6 +589,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Discard draft': feature('branding/service/publication.ts', "DISCARD_CONFIRM = 'Discard draft'"),
   'Delete image': feature('branding/service/copy.ts', "DELETE_LABEL = 'Delete image'"),
   Preview: feature('branding/service/preview.ts', "PREVIEW_TITLE = 'Preview'"),
+  'Colour scheme': several(
+    feature('branding/service/preview.ts', "PREVIEW_SCHEME_LABEL = 'Colour scheme'"),
+    feature('branding/service/mail.ts', "MAIL_SCHEME_LABEL = 'Colour scheme'"),
+  ),
   'Open preview': feature('branding/service/preview.ts', "PREVIEW_OPEN_LABEL = 'Open preview'"),
   'Page preview': feature('branding/service/preview.ts', "PREVIEW_SHEET_TITLE = 'Page preview'"),
   'Close preview': feature('branding/service/preview.ts', "PREVIEW_CLOSE_LABEL = 'Close preview'"),
