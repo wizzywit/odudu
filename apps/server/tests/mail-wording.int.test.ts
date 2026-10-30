@@ -97,12 +97,19 @@ async function world(locale?: string): Promise<World> {
   return { name, tenantId: seeded.tenantId, token };
 }
 
-function admin(w: World, method: 'GET' | 'PUT', path: string, body?: unknown) {
+function admin(
+  w: World,
+  method: 'GET' | 'PUT',
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = {},
+) {
   return app.inject({
     method,
     url: `/admin/tenants/${w.name}${path}`,
     headers: {
       authorization: `Bearer ${w.token}`,
+      ...headers,
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     ...(body === undefined ? {} : { payload: body as object }),
@@ -110,7 +117,17 @@ function admin(w: World, method: 'GET' | 'PUT', path: string, body?: unknown) {
 }
 
 async function override(w: World, locale: string, key: string, message: string) {
-  return admin(w, 'PUT', `/message-overrides/${locale}/${key}`, { message });
+  const held = (await admin(w, 'GET', `/message-overrides?locale=${locale}`)).json<{
+    items: { key: string; etag: string }[];
+  }>().items;
+  const etag = held.find((item) => item.key === key)?.etag;
+  return admin(
+    w,
+    'PUT',
+    `/message-overrides/${locale}/${key}`,
+    { message },
+    etag === undefined ? { 'if-none-match': '*' } : { 'if-match': etag },
+  );
 }
 
 async function requestReset(w: World, email: string): Promise<void> {

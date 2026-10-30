@@ -971,7 +971,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: listMessageOverridesResponseSchema,
     querystringSchema: listMessageOverridesQuerySchema,
     description:
-      'The overrides of one `locale`, in key order. A tenant holds at most 500 across every ' +
+      'The overrides of one `locale`, in key order, each with its `etag`, the version to send ' +
+      'back as `If-Match`. A tenant holds at most 500 across every ' +
       'locale, so a locale is listed in at most three pages of 200.',
   },
   {
@@ -1013,7 +1014,11 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: putMessageOverrideRequestSchema,
     description:
       'Sets the text a page shows in `locale` for the message `key`, replacing any earlier ' +
-      'one. `key` must be the key of a page message, such as `login.title`, else `400`; the ' +
+      'one. Two administrators editing the same key cannot overwrite one another unseen: ' +
+      '`If-Match` naming the override\u2019s `etag` is required to replace one, and ' +
+      '`If-None-Match: *` to create one. Neither header, or `*` as `If-Match`, is refused with `428`; a ' +
+      '`If-Match` that is stale, or that names a key now gone, and `If-None-Match: *` for a key that now exists, with `412`. ' +
+      'The answer carries the new `ETag`. `key` must be the key of a page message, such as `login.title`, else `400`; the ' +
       'text is checked as a message, so an unbalanced brace is refused with `400`, and so is an argument such as `{name}` that the page\u2019s English text of the same key does not read, because the page would not supply it. Markup in ' +
       'it is shown as text, never rendered. `409` (`about:blank#message-overrides-full`) when ' +
       'the tenant already holds 500, though changing one that exists is always allowed. ' +
@@ -1026,7 +1031,10 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-tenant',
     responseSchema: z.void(),
     successStatus: 204,
-    description: 'Removes the override, so the page shows the catalogue\u2019s text again.',
+    description:
+      'Removes the override, so the page shows the catalogue\u2019s text again. `If-Match` naming ' +
+      'the override\u2019s `etag` is required: an absent header, or `*`, is refused with `428`, and a ' +
+      'stale one with `412`; `404` when there is no override.',
   },
   {
     method: 'POST',

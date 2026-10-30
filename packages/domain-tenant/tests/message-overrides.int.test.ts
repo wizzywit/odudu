@@ -11,7 +11,11 @@ import { expectCrossTenantMethodProbe, expectTenantIsolation } from '@odudu/db/t
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { MAX_MESSAGE_OVERRIDES, messageOverrideRepository } from '#/repository/message-overrides';
+import {
+  MAX_MESSAGE_OVERRIDES,
+  messageOverrideRepository,
+  type OverridePrecondition,
+} from '#/repository/message-overrides';
 
 let container: TestDatabase;
 let owner: DatabaseHandle;
@@ -247,9 +251,82 @@ describe('delete', () => {
     await put(tenantId, 'fr', 'login.title');
     const run = (locale: string) =>
       withTenant(app.db, tenantId, (tx) => repo(tx).delete(tenantId, locale, 'login.title'));
-    expect(await run('de')).toBe(false);
-    expect(await run('fr')).toBe(true);
-    expect(await run('fr')).toBe(false);
+    expect(await run('de')).toBe('not_found');
+    expect(await run('fr')).toBe('deleted');
+    expect(await run('fr')).toBe('not_found');
+  });
+});
+
+describe('a precondition', () => {
+  const putIf = (tenantId: string, precondition: OverridePrecondition, message = 'next') =>
+    withTenant(app.db, tenantId, (tx) =>
+      repo(tx).put({ tenantId, locale: 'fr', key: 'login.title', message }, precondition),
+    );
+  const deleteIf = (tenantId: string, precondition: OverridePrecondition) =>
+    withTenant(app.db, tenantId, (tx) =>
+      repo(tx).delete(tenantId, 'fr', 'login.title', precondition),
+    );
+
+  it('is handed null for a key nothing is stored under, and the row for one that is', async () => {
+    const tenantId = await newTenant();
+    const seen: (string | null)[] = [];
+    const record: OverridePrecondition = (stored) => {
+      seen.push(stored?.message ?? null);
+      return true;
+    };
+    expect(await putIf(tenantId, record, 'first')).toBe('ok');
+    expect(await putIf(tenantId, record, 'second')).toBe('ok');
+    expect(seen).toEqual([null, 'first']);
+  });
+
+  it('stops a put it refuses, before the bound and before anything is written', async () => {
+    const tenantId = await newTenant();
+    await put(tenantId, 'fr', 'login.title', 'kept');
+    expect(await putIf(tenantId, () => false)).toBe('precondition_failed');
+    const held = await withTenant(app.db, tenantId, (tx) => repo(tx).forRender(tenantId, 'fr'));
+    expect(held).toEqual({ 'login.title': 'kept' });
+  });
+
+  it('stops a delete it refuses, and answers not_found before asking', async () => {
+    const tenantId = await newTenant();
+    let asked = 0;
+    const refuse: OverridePrecondition = () => {
+      asked += 1;
+      return false;
+    };
+    expect(await deleteIf(tenantId, refuse)).toBe('not_found');
+    expect(asked).toBe(0);
+    await put(tenantId, 'fr', 'login.title', 'kept');
+    expect(await deleteIf(tenantId, refuse)).toBe('precondition_failed');
+    expect(await deleteIf(tenantId, () => true)).toBe('deleted');
+  });
+
+  it('is judged with the tenant’s writers serialised: only one of two creates wins', async () => {
+    const tenantId = await newTenant();
+    const create: OverridePrecondition = (stored) => stored === null;
+    const outcomes = await Promise.all([
+      putIf(tenantId, create, 'a'),
+      putIf(tenantId, create, 'b'),
+      putIf(tenantId, create, 'c'),
+    ]);
+    expect(outcomes.filter((outcome) => outcome === 'ok')).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome === 'precondition_failed')).toHaveLength(2);
+  });
+
+  it('cannot see another tenant’s row, so a replace there finds nothing', async () => {
+    const mine = await newTenant();
+    const theirs = await newTenant();
+    await put(theirs, 'fr', 'login.title', 'theirs');
+    const seen: (string | null)[] = [];
+    await withTenant(app.db, mine, (tx) =>
+      repo(tx).put({ tenantId: theirs, locale: 'fr', key: 'login.title', message: 'x' }, (row) => {
+        seen.push(row?.message ?? null);
+        return true;
+      }),
+    ).catch(() => undefined);
+    expect(seen).toEqual([null]);
+    const held = await withTenant(app.db, theirs, (tx) => repo(tx).forRender(theirs, 'fr'));
+    expect(held).toEqual({ 'login.title': 'theirs' });
   });
 });
 
@@ -292,9 +369,9 @@ describe('another tenant', () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: seedOne,
       verifySeeded: stillThere,
-      attempt: (tx, tenantId) => repo(tx).delete(tenantId, 'fr', 'login.title'),
+      attempt: (tx, tenantId) => repo(tx).delete(tenantId, 'fr', 'login.title', () => true),
       expectBlocked: (result) => {
-        expect(result).toBe(false);
+        expect(result).toBe('not_found');
       },
       verifyTenantAUnaffected: stillThere,
     });

@@ -45,28 +45,51 @@ function call(
   ctx: Ctx,
   method: 'GET' | 'PUT' | 'DELETE',
   path: string,
-  options: { body?: unknown; token?: string } = {},
+  options: { body?: unknown; token?: string; headers?: Record<string, string> } = {},
 ): Promise<LightMyRequestResponse> {
   return fixture.http.inject({
     method,
     url: `/admin/tenants/${ctx.tenant.name}/message-overrides${path}`,
     headers: {
       authorization: `Bearer ${options.token ?? ctx.token}`,
+      ...options.headers,
       ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     ...(options.body === undefined ? {} : { payload: JSON.stringify(options.body) }),
   });
 }
 
-const put = (ctx: Ctx, locale: string, key: string, message: string) =>
-  call(ctx, 'PUT', `/${locale}/${key}`, { body: { message } });
-
 interface Page {
-  items: { locale: string; key: string; message: string; updated_at: string }[];
+  items: { locale: string; key: string; message: string; updated_at: string; etag: string }[];
   next?: string;
 }
 const list = async (ctx: Ctx, query: string): Promise<Page> =>
   (await call(ctx, 'GET', `?${query}`)).json<Page>();
+
+// The write a console makes: names the version it read, or expects none.
+async function currentEtag(ctx: Ctx, locale: string, key: string): Promise<string | undefined> {
+  const res = await call(ctx, 'GET', `?locale=${locale}`);
+  if (res.statusCode !== 200) return undefined;
+  return res.json<Page>().items.find((item) => item.key === key)?.etag;
+}
+
+async function put(
+  ctx: Ctx,
+  locale: string,
+  key: string,
+  message: string,
+): Promise<LightMyRequestResponse> {
+  const etag = await currentEtag(ctx, locale, key);
+  return call(ctx, 'PUT', `/${locale}/${key}`, {
+    body: { message },
+    headers: etag === undefined ? { 'if-none-match': '*' } : { 'if-match': etag },
+  });
+}
+
+async function remove(ctx: Ctx, locale: string, key: string): Promise<LightMyRequestResponse> {
+  const etag = (await currentEtag(ctx, locale, key)) ?? '"none"';
+  return call(ctx, 'DELETE', `/${locale}/${key}`, { headers: { 'if-match': etag } });
+}
 
 describe('PUT and DELETE /message-overrides/{locale}/{key}', () => {
   it('sets an override, replaces it, and lists it back', async () => {
@@ -138,8 +161,8 @@ describe('PUT and DELETE /message-overrides/{locale}/{key}', () => {
   it('deletes an override, then answers 404 for it', async () => {
     const ctx = await tenantCtx();
     await put(ctx, 'fr', 'login.title', 'Connexion');
-    expect((await call(ctx, 'DELETE', '/fr/login.title')).statusCode).toBe(204);
-    expect((await call(ctx, 'DELETE', '/fr/login.title')).statusCode).toBe(404);
+    expect((await remove(ctx, 'fr', 'login.title')).statusCode).toBe(204);
+    expect((await remove(ctx, 'fr', 'login.title')).statusCode).toBe(404);
     expect((await list(ctx, 'locale=fr')).items).toEqual([]);
   });
 
@@ -147,12 +170,171 @@ describe('PUT and DELETE /message-overrides/{locale}/{key}', () => {
     const ctx = await tenantCtx();
     const before = fixture.invalidatedOverrides.filter((id) => id === ctx.tenant.id).length;
     await put(ctx, 'fr', 'login.title', 'Connexion');
-    await call(ctx, 'DELETE', '/fr/login.title');
-    await call(ctx, 'DELETE', '/fr/login.title');
+    await remove(ctx, 'fr', 'login.title');
+    await remove(ctx, 'fr', 'login.title');
     await put(ctx, 'fr', 'login.nonesuch', 'x');
     expect(fixture.invalidatedOverrides.filter((id) => id === ctx.tenant.id).length).toBe(
       before + 2,
     );
+  });
+});
+
+describe('two administrators and one key', () => {
+  const at = (locale: string, key: string) => `/${locale}/${key}`;
+  const withHeaders = (
+    ctx: Ctx,
+    method: 'PUT' | 'DELETE',
+    key: string,
+    headers: Record<string, string>,
+    message = 'x',
+  ) =>
+    call(ctx, method, at('fr', key), {
+      headers,
+      ...(method === 'PUT' ? { body: { message } } : {}),
+    });
+
+  it('answers the version of a created and of a changed override, as header and as field', async () => {
+    const ctx = await tenantCtx();
+    const created = await withHeaders(ctx, 'PUT', 'login.title', { 'if-none-match': '*' }, 'a');
+    expect(created.statusCode).toBe(200);
+    const first = created.json<{ etag: string }>().etag;
+    expect(created.headers.etag).toBe(first);
+    expect((await list(ctx, 'locale=fr')).items[0]?.etag).toBe(first);
+    const changed = await withHeaders(ctx, 'PUT', 'login.title', { 'if-match': first }, 'b');
+    expect(changed.statusCode).toBe(200);
+    expect(changed.headers.etag).not.toBe(first);
+    expect((await list(ctx, 'locale=fr')).items[0]?.etag).toBe(changed.headers.etag);
+  });
+
+  it('refuses a write that names no version with 428, and stores nothing', async () => {
+    const ctx = await tenantCtx();
+    for (const headers of [{}, { 'if-match': '*' }, { 'if-none-match': '"x"' }]) {
+      const res = await withHeaders(ctx, 'PUT', 'login.title', headers);
+      expect(res.statusCode).toBe(428);
+      expect(res.headers['content-type']).toContain('application/problem+json');
+    }
+    expect((await list(ctx, 'locale=fr')).items).toEqual([]);
+    await put(ctx, 'fr', 'login.title', 'kept');
+    expect((await withHeaders(ctx, 'PUT', 'login.title', {}, 'lost')).statusCode).toBe(428);
+    expect((await list(ctx, 'locale=fr')).items[0]?.message).toBe('kept');
+    expect((await withHeaders(ctx, 'DELETE', 'login.title', {})).statusCode).toBe(428);
+    expect((await withHeaders(ctx, 'DELETE', 'login.title', { 'if-match': '*' })).statusCode).toBe(
+      428,
+    );
+    expect((await list(ctx, 'locale=fr')).items).toHaveLength(1);
+  });
+
+  it('refuses a stale replace with 412 and leaves the other administrator’s text', async () => {
+    const ctx = await tenantCtx();
+    await put(ctx, 'fr', 'login.title', 'start');
+    const read = (await currentEtag(ctx, 'fr', 'login.title')) ?? '';
+    // Administrator B saves first, then administrator A saves from the older read.
+    expect(
+      (await withHeaders(ctx, 'PUT', 'login.title', { 'if-match': read }, 'from B')).statusCode,
+    ).toBe(200);
+    const stale = await withHeaders(ctx, 'PUT', 'login.title', { 'if-match': read }, 'from A');
+    expect(stale.statusCode).toBe(412);
+    expect((await list(ctx, 'locale=fr')).items[0]?.message).toBe('from B');
+  });
+
+  it('refuses a create for a key that now exists, and a replace of one that is gone, with 412', async () => {
+    const ctx = await tenantCtx();
+    await put(ctx, 'fr', 'login.title', 'there');
+    const create = await withHeaders(ctx, 'PUT', 'login.title', { 'if-none-match': '*' }, 'late');
+    expect(create.statusCode).toBe(412);
+    expect((await list(ctx, 'locale=fr')).items[0]?.message).toBe('there');
+    const read = (await currentEtag(ctx, 'fr', 'login.title')) ?? '';
+    await remove(ctx, 'fr', 'login.title');
+    const replace = await withHeaders(ctx, 'PUT', 'login.title', { 'if-match': read }, 'ghost');
+    expect(replace.statusCode).toBe(412);
+    expect((await list(ctx, 'locale=fr')).items).toEqual([]);
+  });
+
+  it('refuses a stale delete with 412 and removes only the version it read', async () => {
+    const ctx = await tenantCtx();
+    await put(ctx, 'fr', 'login.title', 'start');
+    const read = (await currentEtag(ctx, 'fr', 'login.title')) ?? '';
+    await put(ctx, 'fr', 'login.title', 'changed meanwhile');
+    expect((await withHeaders(ctx, 'DELETE', 'login.title', { 'if-match': read })).statusCode).toBe(
+      412,
+    );
+    expect((await list(ctx, 'locale=fr')).items[0]?.message).toBe('changed meanwhile');
+    const fresh = (await currentEtag(ctx, 'fr', 'login.title')) ?? '';
+    expect(
+      (await withHeaders(ctx, 'DELETE', 'login.title', { 'if-match': fresh })).statusCode,
+    ).toBe(204);
+  });
+
+  it('answers 404 for a delete of a key that was never set, whatever version it names', async () => {
+    const ctx = await tenantCtx();
+    expect(
+      (await withHeaders(ctx, 'DELETE', 'login.title', { 'if-match': '"v"' })).statusCode,
+    ).toBe(404);
+  });
+
+  it('lets exactly one of two simultaneous edits from the same read win', async () => {
+    const ctx = await tenantCtx();
+    await put(ctx, 'fr', 'login.title', 'start');
+    const read = (await currentEtag(ctx, 'fr', 'login.title')) ?? '';
+    const results = await Promise.all(
+      ['from A', 'from B', 'from C'].map((message) =>
+        withHeaders(ctx, 'PUT', 'login.title', { 'if-match': read }, message),
+      ),
+    );
+    expect(results.map((res) => res.statusCode).sort()).toEqual([200, 412, 412]);
+    const winner = results.findIndex((res) => res.statusCode === 200);
+    expect((await list(ctx, 'locale=fr')).items[0]?.message).toBe(
+      ['from A', 'from B', 'from C'][winner],
+    );
+  });
+
+  it('lets exactly one of two simultaneous creates win', async () => {
+    const ctx = await tenantCtx();
+    const results = await Promise.all(
+      ['from A', 'from B'].map((message) =>
+        withHeaders(ctx, 'PUT', 'login.title', { 'if-none-match': '*' }, message),
+      ),
+    );
+    expect(results.map((res) => res.statusCode).sort()).toEqual([200, 412]);
+  });
+
+  it('does not make administrators of different keys conflict', async () => {
+    const ctx = await tenantCtx();
+    await put(ctx, 'fr', 'login.title', 'one');
+    await put(ctx, 'fr', 'login.submit', 'two');
+    const titleRead = (await currentEtag(ctx, 'fr', 'login.title')) ?? '';
+    const submitRead = (await currentEtag(ctx, 'fr', 'login.submit')) ?? '';
+    expect(
+      (await withHeaders(ctx, 'PUT', 'login.title', { 'if-match': titleRead }, 'A')).statusCode,
+    ).toBe(200);
+    expect(
+      (await withHeaders(ctx, 'PUT', 'login.submit', { 'if-match': submitRead }, 'B')).statusCode,
+    ).toBe(200);
+  });
+
+  it('keeps a stale write out of the page cache and the audit trail', async () => {
+    const ctx = await tenantCtx();
+    await put(ctx, 'fr', 'login.title', 'start');
+    const read = (await currentEtag(ctx, 'fr', 'login.title')) ?? '';
+    await put(ctx, 'fr', 'login.title', 'newer');
+    const before = fixture.invalidatedOverrides.filter((id) => id === ctx.tenant.id).length;
+    await withHeaders(ctx, 'PUT', 'login.title', { 'if-match': read });
+    await withHeaders(ctx, 'DELETE', 'login.title', { 'if-match': read });
+    expect(fixture.invalidatedOverrides.filter((id) => id === ctx.tenant.id).length).toBe(before);
+    const rows = await withTenant(fixture.app.db, ctx.tenant.id, (tx) =>
+      tx.select().from(auditEvents),
+    );
+    expect(rows.filter((row) => row.action.startsWith('message_override.'))).toHaveLength(2);
+  });
+
+  it('does not accept another tenant’s version of the same key', async () => {
+    const mine = await tenantCtx();
+    const theirs = await tenantCtx();
+    await put(mine, 'fr', 'login.title', 'same');
+    await put(theirs, 'fr', 'login.title', 'same');
+    const theirEtag = (await currentEtag(theirs, 'fr', 'login.title')) ?? '';
+    const res = await withHeaders(mine, 'PUT', 'login.title', { 'if-match': theirEtag });
+    expect(res.statusCode).toBe(412);
   });
 });
 
@@ -248,7 +430,7 @@ describe('who may use them, and whose they are', () => {
     const token = ctx.token;
     expect((await call(ctx, 'GET', '?locale=fr', { token })).statusCode).toBe(403);
     expect((await put(ctx, 'fr', 'login.title', 'x')).statusCode).toBe(403);
-    expect((await call(ctx, 'DELETE', '/fr/login.title')).statusCode).toBe(403);
+    expect((await remove(ctx, 'fr', 'login.title')).statusCode).toBe(403);
   });
 
   it('answers no one without a token', async () => {
@@ -269,7 +451,7 @@ describe('who may use them, and whose they are', () => {
     const reaching = { ...mine, tenant: theirs.tenant };
     expect((await call(reaching, 'GET', '?locale=fr')).statusCode).toBe(401);
     expect((await put(reaching, 'fr', 'login.title', 'taken over')).statusCode).toBe(401);
-    expect((await call(reaching, 'DELETE', '/fr/login.title')).statusCode).toBe(401);
+    expect((await remove(reaching, 'fr', 'login.title')).statusCode).toBe(401);
     expect((await list(theirs, 'locale=fr')).items[0]?.message).toBe('secret wording');
     expect(await put(mine, 'fr', 'login.title', 'mine').then((res) => res.statusCode)).toBe(200);
     expect((await list(theirs, 'locale=fr')).items[0]?.message).toBe('secret wording');
@@ -280,7 +462,7 @@ describe('audit of a delete', () => {
   it('names the locale in its canonical spelling, as a set does', async () => {
     const ctx = await tenantCtx();
     await put(ctx, 'fr-CA', 'login.title', 'a');
-    expect((await call(ctx, 'DELETE', '/FR-ca/login.title')).statusCode).toBe(204);
+    expect((await remove(ctx, 'FR-ca', 'login.title')).statusCode).toBe(204);
     const rows = await withTenant(fixture.app.db, ctx.tenant.id, (tx) =>
       tx.select().from(auditEvents),
     );
@@ -294,7 +476,7 @@ describe('audit', () => {
   it('records a set and a delete by locale and key, with no text', async () => {
     const ctx = await tenantCtx();
     await put(ctx, 'fr', 'login.title', 'a private sentence');
-    await call(ctx, 'DELETE', '/fr/login.title');
+    await remove(ctx, 'fr', 'login.title');
     await put(ctx, 'fr', 'login.nonesuch', 'x');
 
     const rows = await withTenant(fixture.app.db, ctx.tenant.id, (tx) =>

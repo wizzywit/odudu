@@ -22,6 +22,7 @@ export {
   messageOverrideRepository,
   type MessageOverrideDeps,
   type MessageOverrideRecord,
+  type OverridePrecondition,
   type NewMessageOverride,
   type PutMessageOverrideOutcome,
 } from '#/repository/message-overrides';

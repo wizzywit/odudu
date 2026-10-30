@@ -80,10 +80,22 @@ export async function driveBranding(world: PlanWorld, capture: Capture): Promise
   const token = await mintAdminToken(world, { id: tenantId, name: TARGET_TENANT }, [
     'manage-tenant',
   ]);
+  const overridesUrl = `/admin/tenants/${TARGET_TENANT}/message-overrides`;
+  const held = await http.inject({
+    url: `${overridesUrl}?locale=en`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const heldEtag = held
+    .json<{ items: { key: string; etag: string }[] }>()
+    .items.find((item) => item.key === 'login.title')?.etag;
   const written = await http.inject({
     method: 'PUT',
-    url: `/admin/tenants/${TARGET_TENANT}/message-overrides/en/login.title`,
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    url: `${overridesUrl}/en/login.title`,
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+      ...(heldEtag === undefined ? { 'if-none-match': '*' } : { 'if-match': heldEtag }),
+    },
     payload: JSON.stringify({ message: 'Sign in to the plan tenant' }),
   });
   if (written.statusCode !== 200) {

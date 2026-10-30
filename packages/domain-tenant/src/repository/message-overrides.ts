@@ -21,7 +21,12 @@ export interface NewMessageOverride {
   message: string;
 }
 
-export type PutMessageOverrideOutcome = 'ok' | 'over_bound' | 'unknown_key' | 'invalid_locale';
+export type PutMessageOverrideOutcome =
+  'ok' | 'over_bound' | 'unknown_key' | 'invalid_locale' | 'precondition_failed';
+
+// Answers, with the tenant's writers serialised, whether a write may go
+// ahead given the row stored under its key (null when there is none).
+export type OverridePrecondition = (stored: MessageOverrideRecord | null) => boolean;
 
 export interface MessageOverrideDeps {
   // Whether a key is an entry of the English catalogue of some page; the
@@ -30,7 +35,7 @@ export interface MessageOverrideDeps {
 }
 
 export function messageOverrideRepository(tx: TenantScopedDatabase, deps: MessageOverrideDeps) {
-  return {
+  const repository = {
     // One page of a locale's overrides in key order, starting after `after`;
     // never more than a page over MAX_LIMIT whatever `limit` asks for.
     async list(
@@ -143,13 +148,20 @@ export function messageOverrideRepository(tx: TenantScopedDatabase, deps: Messag
     // Writers of one tenant are serialised, so the count read below is the
     // count the insert lands on. Changing an override that exists never
     // counts against the bound.
-    async put(override: NewMessageOverride): Promise<PutMessageOverrideOutcome> {
+    async put(
+      override: NewMessageOverride,
+      precondition?: OverridePrecondition,
+    ): Promise<PutMessageOverrideOutcome> {
       const locale = canonicalLocale(override.locale);
       if (locale === null) return 'invalid_locale';
       if (!deps.isKnownKey(override.key)) return 'unknown_key';
       await tx.execute(
         sql`select pg_advisory_xact_lock(hashtextextended(${`message_overrides:${override.tenantId}`}, 0))`,
       );
+      if (precondition !== undefined) {
+        const stored = await repository.get(override.tenantId, locale, override.key);
+        if (!precondition(stored)) return 'precondition_failed';
+      }
       const [held] = await tx
         .select({
           n: sql<number>`count(*)::int`,
@@ -168,9 +180,22 @@ export function messageOverrideRepository(tx: TenantScopedDatabase, deps: Messag
       return 'ok';
     },
 
-    async delete(tenantId: string, locale: string, key: string): Promise<boolean> {
+    async delete(
+      tenantId: string,
+      locale: string,
+      key: string,
+      precondition?: OverridePrecondition,
+    ): Promise<'deleted' | 'not_found' | 'precondition_failed'> {
       const tag = canonicalLocale(locale);
-      if (tag === null) return false;
+      if (tag === null) return 'not_found';
+      if (precondition !== undefined) {
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${`message_overrides:${tenantId}`}, 0))`,
+        );
+        const stored = await repository.get(tenantId, tag, key);
+        if (stored === null) return 'not_found';
+        if (!precondition(stored)) return 'precondition_failed';
+      }
       const rows = await tx
         .delete(messageOverrides)
         .where(
@@ -181,7 +206,8 @@ export function messageOverrideRepository(tx: TenantScopedDatabase, deps: Messag
           ),
         )
         .returning({ key: messageOverrides.key });
-      return rows.length > 0;
+      return rows.length > 0 ? 'deleted' : 'not_found';
     },
   };
+  return repository;
 }

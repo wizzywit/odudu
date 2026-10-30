@@ -1273,6 +1273,7 @@ describeFields(messageOverrideSchema, {
   message:
     'The text shown in place of the catalogue’s. Placeholders such as `{name}` and plural arms are kept; markup is shown as text, never rendered.',
   updated_at: 'When the override was last written.',
+  etag: 'The version of this override, quoted as it is sent: the `ETag` header of a `PUT` answers the same value. Send it as `If-Match` to change or remove the override; one that names an older version is refused with `412`.',
 });
 describeFields(exportedMessageOverrideSchema, {
   locale: 'The language tag the text is for.',

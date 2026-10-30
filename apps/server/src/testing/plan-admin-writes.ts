@@ -13,6 +13,12 @@ interface Call {
   readonly image?: Buffer;
   // Fetched first, and sent as If-Match, for the routes that refuse without it.
   readonly etagFrom?: string;
+  // The version read from the body of another route, for a record whose route
+  // answers it as a field rather than a header; none sends If-None-Match: *.
+  readonly etagFromBody?: {
+    readonly url: string;
+    readonly pick: (answer: unknown) => string | undefined;
+  };
   readonly system?: boolean;
   readonly as?: 'usersOnly' | 'sessionsOnly';
   // The `id` of this call's answer, kept to fill `{name}` in a later call's url.
@@ -516,6 +522,12 @@ export async function driveAdminWrites(
       const current = await world.http.inject({ url: call.etagFrom, headers });
       headers['if-match'] = String(current.headers.etag);
     }
+    if (call.etagFromBody !== undefined) {
+      const current = await world.http.inject({ url: call.etagFromBody.url, headers });
+      const version = call.etagFromBody.pick(current.json());
+      if (version === undefined) headers['if-none-match'] = '*';
+      else headers['if-match'] = version;
+    }
     const res: LightMyRequestResponse = await capture(
       `${call.method} ${url.replace(/[0-9a-f-]{36}/gu, '<id>')} (${label})`,
       'admin',
@@ -555,15 +567,28 @@ export async function driveAdminWrites(
 // tenant one place short of its 500.
 function overrideCalls(T: string): [string, Call][] {
   const url = `${T}/message-overrides/en/login.title`;
+  const version = {
+    url: `${T}/message-overrides?locale=en`,
+    pick: (answer: unknown): string | undefined =>
+      (answer as { items: { key: string; etag: string }[] }).items.find(
+        (item) => item.key === 'login.title',
+      )?.etag,
+  };
   return [
     ['list the messages an override may name', { method: 'GET', url: `${T}/message-catalogue` }],
     [
       'list the selectors a stylesheet may use',
       { method: 'GET', url: `${T}/theme/stylesheet-hooks` },
     ],
-    ['set a message override', { method: 'PUT', url, body: { message: 'Sign in to Acme' } }],
-    ['set the message override again', { method: 'PUT', url, body: { message: 'Sign in' } }],
-    ['remove the message override', { method: 'DELETE', url }],
+    [
+      'set a message override',
+      { method: 'PUT', url, body: { message: 'Sign in to Acme' }, etagFromBody: version },
+    ],
+    [
+      'set the message override again',
+      { method: 'PUT', url, body: { message: 'Sign in' }, etagFromBody: version },
+    ],
+    ['remove the message override', { method: 'DELETE', url, etagFromBody: version }],
   ];
 }
 

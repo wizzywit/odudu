@@ -20,6 +20,7 @@ export const messageOverrideSchema = z.object({
   key: messageOverrideKeySchema,
   message: z.string(),
   updated_at: createdAtSchema,
+  etag: z.string(),
 });
 export type MessageOverride = z.infer<typeof messageOverrideSchema>;
 
