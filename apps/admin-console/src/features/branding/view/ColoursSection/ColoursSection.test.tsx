@@ -25,6 +25,39 @@ it('keeps a scheme Instrument’s own until it is customised, then starts from I
   expect(within(section).getAllByRole('textbox')).toHaveLength(11);
 });
 
+it('folds each palette under its legend, closed until it is pressed', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(AT, brandingRoutes(themeAnswer(themeView())));
+  const section = await screen.findByRole('region', { name: 'Colours and font' });
+  const fold = within(section).getByRole('button', { name: 'Light colours' });
+  expect(fold).toHaveAttribute('aria-expanded', 'false');
+  const body = document.getElementById(fold.getAttribute('aria-controls') ?? '');
+  expect(body).toHaveAttribute('data-collapsed');
+  await user.click(fold);
+  expect(within(section).getByRole('button', { name: 'Light colours' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
+  expect(body).not.toHaveAttribute('data-collapsed');
+  expect(within(section).getByRole('button', { name: 'Dark colours' })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+});
+
+it('keeps a palette open that holds a colour to fix', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
+  const section = await screen.findByRole('region', { name: 'Colours and font' });
+  const text = within(section).getByRole('textbox', { name: 'Light text' });
+  await user.clear(text);
+  await user.type(text, '#00');
+  const fold = within(section).getByRole('button', { name: 'Light colours' });
+  expect(fold).toHaveAttribute('aria-expanded', 'true');
+  await user.click(fold);
+  expect(fold).toHaveAttribute('aria-expanded', 'true');
+});
+
 it('marks a colour changed once it differs from the saved one', async () => {
   const user = userEvent.setup();
   renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));

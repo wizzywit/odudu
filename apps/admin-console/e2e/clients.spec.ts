@@ -14,6 +14,7 @@ import {
   takeSecret,
   PHONE,
   expectNowhere,
+  SERVER_COMPUTED,
 } from './fixtures';
 import {
   psql,
@@ -606,7 +607,9 @@ test("a client's installation is shown, and its claims are worked out for a subj
   await evaluate.getByRole('button', { name: 'Search' }).click();
   await evaluate.getByRole('option', { name: new RegExp(admin.username, 'u') }).click();
   await evaluate.getByRole('button', { name: 'Evaluate claims' }).click();
-  await expect(evaluate.getByText(/^Claims for openid/u)).toBeVisible();
+  await expect(evaluate.getByText(/^Claims for openid/u)).toBeVisible({
+    timeout: SERVER_COMPUTED,
+  });
   await expect(
     evaluate.getByRole('region', { name: 'What the app gets in the ID token' }),
   ).toContainText('"sub"');

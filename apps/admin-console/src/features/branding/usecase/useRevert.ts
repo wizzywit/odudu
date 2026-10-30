@@ -5,16 +5,14 @@ import { useThemeWrites } from '#/features/branding/repository/useThemeWrites';
 import {
   announceRevert,
   revertFailure,
-  revertHold,
+  revertHoldOf,
   revertProblem,
   revertRequest,
-  tabUnsaved,
-  themeRecord,
   writeCapability,
   type ScopedTab,
   type ThemeScope,
 } from '#/features/branding/service';
-import { useDirtySections } from '#/shared/repository/useDirtySections';
+import { usePublicationHolds } from '#/features/branding/usecase/usePublicationHolds';
 import { useToast } from '#/shared/repository/useToasts';
 import { reportFailure } from '#/shared/service/settled';
 
@@ -44,11 +42,11 @@ export function useRevert({
   const writes = useThemeWrites(tenant, scope);
   const refusal = useRefusal(tenant);
   const toast = useToast();
-  const dirty = useDirtySections(tenant, themeRecord(scope));
+  const holds = usePublicationHolds(tenant, scope, view);
   const [problem, setProblem] = useState<string | null>(null);
   return {
     busy: writes.revert.busy,
-    hold: revertHold({ view, tab, unsaved: tabUnsaved(tab, dirty) }),
+    hold: revertHoldOf(holds, tab),
     problem,
     revert: () => {
       setProblem(null);

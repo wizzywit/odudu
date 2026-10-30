@@ -1,5 +1,5 @@
 import type { PublishThemeResponse, PutThemeRequest, ThemeView } from '@odudu/contracts/admin';
-import { useQueryClient } from '@tanstack/react-query';
+import { useIsMutating, useQueryClient } from '@tanstack/react-query';
 import {
   discardThemeDraft,
   publishTheme,
@@ -7,8 +7,20 @@ import {
   resetTheme,
   restoreVersion,
 } from '#/features/branding/adapter/theme';
-import { scopeKeyPart, themeRecord, type ThemeScope } from '#/features/branding/service';
-import { recordKey, themeVersionsKey } from '#/shared/repository/queryKeys';
+import {
+  scopeKeyPart,
+  themeRecord,
+  writesRunning,
+  type ThemeScope,
+  type WritesRunning,
+} from '#/features/branding/service';
+import { useRecordSaving } from '#/shared/repository/useSavingSections';
+import {
+  recordKey,
+  themeVersionsKey,
+  themeWriteKey,
+  themeWritesKey,
+} from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import type { RecordEntry } from '#/shared/repository/useRecord';
 import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
@@ -37,6 +49,7 @@ export function useThemeWrites(tenant: string, scope: ThemeScope): ThemeWrites {
   const { invalidate, invalidateExact } = useInvalidate();
   const key = recordKey(tenant, themeRecord(scope));
   const versions = themeVersionsKey(tenant, scopeKeyPart(scope));
+  const named = (write: string) => themeWriteKey(tenant, scopeKeyPart(scope), write);
   const keep = (result: GatewaySuccess<ThemeView>): void => {
     client.setQueryData<RecordEntry<ThemeView>>(key, { result, by: 'save' });
     invalidate(versions);
@@ -49,6 +62,7 @@ export function useThemeWrites(tenant: string, scope: ThemeScope): ThemeWrites {
   };
   return {
     publish: useGatewayWrite({
+      mutationKey: named('publish'),
       send: (gateway, tag: string) => publishTheme(gateway, tenant, scope, tag),
       onSuccess: (result) => {
         if (result.ok) keep(result);
@@ -56,24 +70,43 @@ export function useThemeWrites(tenant: string, scope: ThemeScope): ThemeWrites {
       },
     }),
     discard: useGatewayWrite({
+      mutationKey: named('discard'),
       send: (gateway, tag: string) => discardThemeDraft(gateway, tenant, scope, tag),
       onSuccess: replaceDraft,
     }),
     revert: useGatewayWrite({
+      mutationKey: named('revert'),
       send: (gateway, { body, tag }: Revert) => putTheme(gateway, tenant, scope, body, tag),
       onSuccess: replaceDraft,
     }),
     restore: useGatewayWrite({
+      mutationKey: named('restore'),
       send: (gateway, versionId: string) => restoreVersion(gateway, tenant, scope, versionId),
       onSuccess: (result) => {
         if (result.ok) keep(result);
       },
     }),
     reset: useGatewayWrite({
+      mutationKey: named('reset'),
       send: (gateway) => resetTheme(gateway, tenant, scope),
       onSuccess: (result) => {
         if (result.ok) keep(result);
       },
     }),
   };
+}
+
+// Which writes to this scope's theme are running anywhere on the page, not
+// only the ones this part started. `every` counts the tenant's theme writes of
+// every scope, so a write to a client's theme also holds a tenant's bar for
+// its duration: a short, harmless hold for two scopes that are never edited
+// at once, and cheaper than keying every write by its scope.
+export function useThemeRunning(tenant: string, scope: ThemeScope): WritesRunning {
+  const part = scopeKeyPart(scope);
+  const publish = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'publish') });
+  const discard = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'discard') });
+  const revert = useIsMutating({ mutationKey: themeWriteKey(tenant, part, 'revert') });
+  const every = useIsMutating({ mutationKey: themeWritesKey(tenant) });
+  const sections = useRecordSaving(tenant, themeRecord(scope));
+  return writesRunning({ publish, discard, revert, every, sections });
 }

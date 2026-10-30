@@ -32,6 +32,31 @@ it('shows the required parts of the sign-in page, and what it may not hold', asy
   expect(within(parts).getByText(/Scripts, styles, forms/u)).toBeVisible();
 });
 
+it('keeps lines wrapped when another page is chosen', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
+  const section = await screen.findByRole('region', { name: 'Page templates' });
+  await user.click(within(section).getByRole('button', { name: 'Wrap lines' }));
+  await user.selectOptions(within(section).getByRole('combobox', { name: 'Page' }), 'Consent');
+  expect(within(section).getByRole('button', { name: 'Wrap lines' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+});
+
+it('folds the parts of a page under their heading, closed until it is pressed', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
+  const parts = await screen.findByRole('region', { name: 'Parts of this page' });
+  const fold = within(parts).getByRole('button', { name: 'Parts of this page' });
+  expect(fold).toHaveAttribute('aria-expanded', 'false');
+  const body = document.getElementById(fold.getAttribute('aria-controls') ?? '');
+  expect(body).toHaveAttribute('data-collapsed');
+  await user.click(fold);
+  expect(fold).toHaveAttribute('aria-expanded', 'true');
+  expect(body).not.toHaveAttribute('data-collapsed');
+});
+
 it('edits the template in a code field, with its parts coloured and the lines numbered', async () => {
   const user = userEvent.setup();
   renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
@@ -159,8 +184,7 @@ it('does not carry one page’s undo history to another page with the same text'
   await user.keyboard('x');
   await user.keyboard('{Backspace}');
   expect(box).toHaveValue('');
-  await user.click(within(section).getByRole('button', { name: /Page/u }));
-  await user.click(await screen.findByRole('option', { name: 'Consent' }));
+  await user.selectOptions(within(section).getByRole('combobox', { name: 'Page' }), 'Consent');
   const other = within(section).getByRole('textbox', { name: 'Consent: template' });
   await user.click(other);
   await user.keyboard('{Control>}z{/Control}');
@@ -193,8 +217,7 @@ it('offers only the messages of the page kind being edited', async () => {
   expect(own.some((text) => text.startsWith('login.title'))).toBe(true);
   expect(own.some((text) => text.startsWith('register.title'))).toBe(false);
   await user.keyboard('{Escape}');
-  await user.click(within(section).getByRole('button', { name: /Page/u }));
-  await user.click(await screen.findByRole('option', { name: 'Registration' }));
+  await user.selectOptions(within(section).getByRole('combobox', { name: 'Page' }), 'Registration');
   await user.click(
     await within(section).findByRole('button', { name: /^Show Insert a message options/u }),
   );

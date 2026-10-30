@@ -4,6 +4,15 @@
   box-sizing: border-box;
 }
 
+/* What an input's text is set in. A page for touch raises both to 16px, below
+   which a phone's browser zooms the page when the field is focused. They are
+   here and not in tokens.css, which the server pages' stylesheet is built from
+   and has no use for them. */
+:root {
+  --input-size: var(--type-15);
+  --input-size-mono: var(--type-13);
+}
+
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -52,4 +61,15 @@ samp {
    CSS module, so the name `shell` is never scoped. */
 [data-shell] {
   container: shell / inline-size;
+}
+
+/* While a page for touch is shown its sizes are the body's, which what it
+   opens in a portal (a sheet, a menu, a confirmation) inherits as well. */
+@media (pointer: coarse), (max-width: 48rem) {
+  body:has([data-touch-scope]) {
+    --target-min: 44px;
+    --control-height: 44px;
+    --input-size: 16px;
+    --input-size-mono: 16px;
+  }
 }

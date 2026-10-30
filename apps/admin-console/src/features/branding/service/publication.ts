@@ -2,7 +2,7 @@ import type { ThemeBodyRequest, ThemeBodyWire } from '@odudu/contracts';
 import type { ThemeView } from '@odudu/contracts/admin';
 import { writeRefusal } from '#/shared/service/capabilities';
 import { writeFailureText } from '#/shared/service/failure';
-import { andList } from '#/shared/service/format';
+import { andList, counted } from '#/shared/service/format';
 import type { AdminCapability } from '#/shared/service/principal';
 import type { GatewayFailure, GatewayResult, Problem } from '#/shared/service/result';
 import {
@@ -55,12 +55,39 @@ export function barText(view: ThemeView): string {
   return changedText(view) ?? 'The draft matches what people see.';
 }
 
+// What is waiting as a count, for a bar with room for one line only; the
+// sentence is what a title carries. Null when nothing is, and the sentence
+// ("No draft.") is short enough as it is.
+export function changeCount(view: ThemeView): string | null {
+  return view.draft === null || view.changed.length === 0
+    ? null
+    : counted(view.changed.length, 'change', 'changes');
+}
+
+// The line a bar with room for a few words says: how many changes wait, or
+// that there is no draft or nothing to publish.
+export function changeBrief(view: ThemeView): string {
+  if (view.draft === null) return 'No draft';
+  return changeCount(view) ?? 'Up to date';
+}
+
+// The tag's word where the bar has no room for the sentence.
+export function publishedShort(view: ThemeView): string {
+  return view.published === null ? 'Not live' : 'Live';
+}
+
 // The tabs holding part of what would change at a publish.
 export function tabsChanged(changed: ThemeView['changed']): ReadonlySet<OfferedTab> {
   return new Set(
     OFFERED_TABS.filter((tab) => TAB_PIECES[tab].some((piece) => changed.includes(piece))),
   );
 }
+
+// On a narrow screen the bar keeps Publish and folds what else it does into
+// a menu of this name.
+export const MORE_TRIGGER = 'More';
+
+export const MORE_LABEL = 'More publishing actions';
 
 export const REVERT_TITLE = 'Revert to published';
 

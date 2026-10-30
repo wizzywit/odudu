@@ -139,6 +139,17 @@ export function themeVersionsKey(tenant: string, scope: string) {
   return ['theme-versions', tenant, scope] as const;
 }
 
+// A write to one scope's theme while it runs, so a page can tell which one
+// is in flight whichever of its parts started it.
+export function themeWriteKey(tenant: string, scope: string, write: string) {
+  return ['theme-write', tenant, scope, write] as const;
+}
+
+// Every write to a tenant's theme while it runs, whichever scope or part.
+export function themeWritesKey(tenant: string) {
+  return ['theme-write', tenant] as const;
+}
+
 // What a tenant's mail inherits from its published theme, read again once
 // a newer version is published.
 // A client's own mail is a different read; an empty `client` is the tenant's.

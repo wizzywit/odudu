@@ -1,7 +1,113 @@
 .bar {
+  container-type: inline-size;
   display: grid;
   gap: var(--space-3);
   margin-block-end: var(--space-6);
+}
+
+.row {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.summary {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.hold {
+  display: contents;
+}
+
+.count,
+.brief,
+.folded {
+  display: none;
+}
+
+/* Narrow, the bar is one row: what is waiting as a short line (its sentence is the
+   count's title), Publish, and a menu for what else the bar does. */
+/* The bar is wider than the editor under it by the tab panel's padding and
+   borders, 50px, so it folds exactly when the editor's own Revert panel is
+   put away: 48rem there, 48rem and 50px (51.125rem) here. */
+@container (inline-size < 51.125rem) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'summary actions'
+      'hold hold';
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .summary {
+    grid-area: summary;
+    gap: var(--space-1);
+  }
+
+  .hold {
+    display: block;
+    grid-area: hold;
+  }
+
+  .actions {
+    grid-area: actions;
+    flex-wrap: nowrap;
+    max-inline-size: 14rem;
+  }
+
+  .folded {
+    flex: none;
+  }
+
+  .folded button {
+    min-inline-size: 3.5rem;
+  }
+
+  .actions button {
+    white-space: nowrap;
+  }
+
+  .title,
+  .full,
+  .inline {
+    display: none;
+  }
+
+  /* Said in full to a screen reader, which the bar has no room to show. */
+  .published,
+  .explain,
+  .sentence {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .count,
+  .folded {
+    display: block;
+  }
+
+  .brief {
+    display: inline;
+  }
+
+  .summary p {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .count {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .outcome {

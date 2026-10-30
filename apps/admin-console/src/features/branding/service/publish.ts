@@ -6,6 +6,9 @@ import type { Problem } from '#/shared/service/result';
 
 export const PUBLISH_TITLE = 'Publish';
 
+// What the button says where the bar has no room for the longer label.
+export const PUBLISH_SHORT = 'Publish';
+
 export const PUBLISH_BODY =
   'Publishing makes the saved draft what people see on the sign-in and account pages, and keeps the version it replaces. Nothing is published until you do.';
 

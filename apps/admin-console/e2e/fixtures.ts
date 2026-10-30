@@ -71,6 +71,11 @@ export function forgive(problems: Problem[], path: string): void {
 
 export { expect };
 
+// What a page waits for an answer the server works out (a subject's claims, a
+// list read under load), where the default 5 s of an expectation is what a
+// loaded runner can overrun while the server is well.
+export const SERVER_COMPUTED = 15_000;
+
 export const PHONE = { width: 390, height: 844 };
 export const LAPTOP = { width: 1440, height: 900 };
 
