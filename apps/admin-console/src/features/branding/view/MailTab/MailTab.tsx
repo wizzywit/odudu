@@ -16,8 +16,12 @@ import {
   MAIL_SCHEME_LABEL,
   LOGO_ELSEWHERE,
   LOGO_TITLE,
+  mailLocaleLabel,
   mailLocaleOf,
+  MAIL_SUMMARY_NAME,
   paletteRows,
+  previewSummary,
+  SCHEME_LABELS,
   SCHEME_OPTIONS,
   schemeOf,
   schemeTitle,
@@ -26,7 +30,7 @@ import {
 } from '#/features/branding/service';
 import type { MailTab as Mail } from '#/features/branding/usecase/useMailTab';
 import { MailClientChoice } from '#/features/branding/view/MailClientChoice';
-import { PreviewFrame } from '#/features/branding/view/PreviewFrame';
+import { PreviewShell } from '#/features/branding/view/PreviewShell';
 import { InlineFields, SelectField } from '#/shared/view/Field';
 import { LoadFailed } from '#/shared/view/LoadFailed';
 import { Panel } from '#/shared/view/Panel';
@@ -36,39 +40,48 @@ import styles from '#/features/branding/view/MailTab/MailTab.module.css';
 
 export function MailPreview({ mail }: { mail: Mail }) {
   return (
-    <Panel title={MAIL_PREVIEW_TITLE}>
-      <div className={styles.controls}>
-        <InlineFields>
-          <SelectField
-            label={MAIL_SCHEME_LABEL}
-            options={SCHEME_OPTIONS}
-            value={mail.choice.scheme}
-            onChange={(id) => {
-              const scheme = schemeOf(id);
-              if (scheme !== undefined) mail.setScheme(scheme);
-            }}
-          />
-          <SelectField
-            label={MAIL_LOCALE_LABEL}
-            options={MAIL_LOCALE_OPTIONS}
-            value={mail.choice.locale}
-            onChange={(id) => {
-              const locale = mailLocaleOf(id);
-              if (locale !== undefined) mail.setLocale(locale);
-            }}
-          />
-        </InlineFields>
-      </div>
-      <MailClientChoice mail={mail} />
-      <p className={styles.note}>{mailPreviewNote(mailClientName(mail.client))}</p>
-      <PreviewFrame
-        title={MAIL_FRAME_TITLE}
-        src={mail.src}
-        frameKey={mail.frameKey}
-        loading={mail.loading}
-        onLoaded={mail.onLoaded}
-      />
-    </Panel>
+    <PreviewShell
+      title={MAIL_PREVIEW_TITLE}
+      summary={previewSummary(
+        MAIL_SUMMARY_NAME,
+        SCHEME_LABELS[mail.choice.scheme],
+        mailLocaleLabel(mail.choice.locale),
+        mailClientName(mail.client) ?? '',
+      )}
+      lead={mailPreviewNote(mailClientName(mail.client))}
+      controls={
+        <>
+          <InlineFields>
+            <SelectField
+              label={MAIL_SCHEME_LABEL}
+              options={SCHEME_OPTIONS}
+              value={mail.choice.scheme}
+              onChange={(id) => {
+                const scheme = schemeOf(id);
+                if (scheme !== undefined) mail.setScheme(scheme);
+              }}
+            />
+            <SelectField
+              label={MAIL_LOCALE_LABEL}
+              options={MAIL_LOCALE_OPTIONS}
+              value={mail.choice.locale}
+              onChange={(id) => {
+                const locale = mailLocaleOf(id);
+                if (locale !== undefined) mail.setLocale(locale);
+              }}
+            />
+          </InlineFields>
+          <MailClientChoice mail={mail} />
+        </>
+      }
+      frame={{
+        title: MAIL_FRAME_TITLE,
+        src: mail.src,
+        frameKey: mail.frameKey,
+        loading: mail.loading,
+        onLoaded: mail.onLoaded,
+      }}
+    />
   );
 }
 

@@ -12,6 +12,7 @@ import { ChecklistField } from '#/shared/view/ChecklistField';
 import { CodeField } from '#/shared/view/CodeField';
 import { LocalisedTextField } from '#/shared/view/LocalisedTextField';
 import { AuditActor } from '#/shared/view/AuditActor';
+import { ActionMenu } from '#/shared/view/ActionMenu';
 import { AuditDetail } from '#/shared/view/AuditDetail';
 import { AuditTable } from '#/shared/view/AuditTable';
 import { AppShell } from '#/shared/view/AppShell';
@@ -94,6 +95,7 @@ import {
 } from '#/shared/view/Skeleton';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { Tabs } from '#/shared/view/Tabs';
+import { TouchTargets } from '#/shared/view/TouchTargets';
 import { Timestamp } from '#/shared/view/Timestamp';
 import { Toasts } from '#/shared/view/Toasts';
 import { UnsavedChangesDialog } from '#/shared/view/UnsavedChangesDialog';
@@ -864,6 +866,21 @@ function RecordPieces() {
             <p className={recordTab.text}>A deleted client is gone with the roles scoped to it.</p>
           }
         />
+      </Specimen>
+      <Specimen label="ActionMenu: what a narrow bar folds under one button">
+        <ActionMenu
+          label="More actions"
+          trigger="More"
+          actions={[
+            { id: 'revert', label: 'Revert this tab', onAction: NOTHING },
+            { id: 'discard', label: 'Discard draft…', tone: 'danger', onAction: NOTHING },
+          ]}
+        />
+      </Specimen>
+      <Specimen label="TouchTargets: controls at 44px on a touch or narrow screen">
+        <TouchTargets>
+          <Button>A control that grows</Button>
+        </TouchTargets>
       </Specimen>
       <Specimen label="MappedRoles: what a group or a scope hands on">
         <MappedRoles name="billing" mapped={ROLES} />

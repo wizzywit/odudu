@@ -5,6 +5,7 @@ import {
   useEffect,
   useId,
   useRef,
+  useState,
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
@@ -25,6 +26,8 @@ import {
   TAB_LEAD,
   TAB_THEN,
   tokensByLine,
+  WRAP_LABEL,
+  WRAP_NOTE,
   type CodeLanguage,
   type CodeToken,
   type LineIssue,
@@ -40,6 +43,8 @@ import {
   type Chrome,
 } from '#/shared/view/Field';
 import { useCodeHistory } from '#/shared/usecase/useCodeHistory';
+import { useContainerNarrow } from '#/shared/usecase/useContainerNarrow';
+import { Button } from '#/shared/view/Button';
 import { KeyHint } from '#/shared/view/KeyHint';
 import type { SizeReading } from '#/shared/service/format';
 import styles from '#/shared/view/CodeField/CodeField.module.css';
@@ -118,10 +123,64 @@ function characterWidth(scroller: HTMLElement): number {
   return width;
 }
 
+// The row the caret is on once lines wrap, which a count of lines of text
+// cannot say: the text up to the caret is laid out again, hidden, in a box of
+// the textarea's width and face, and the row is where its end falls.
+function wrappedRow(area: HTMLTextAreaElement, lineHeight: number): number {
+  const stage = area.parentElement;
+  if (stage === null) return 0;
+  const mirror = document.createElement('div');
+  mirror.className = styles.mirror ?? '';
+  mirror.append(area.value.slice(0, area.selectionEnd));
+  const mark = document.createElement('span');
+  mark.dataset.caret = '';
+  mark.textContent = '\u200b';
+  mirror.append(mark);
+  stage.append(mirror);
+  const top = mark.offsetTop;
+  mirror.remove();
+  return top / lineHeight;
+}
+
+// After the field set the caret from code, in a field whose lines wrap: brings
+// the row the caret is on into view, in the scroller or, beyond the colouring
+// limit, in the textarea, which scrolls itself there.
+function revealWrapped(area: HTMLTextAreaElement): void {
+  const plain = area.closest('[data-plain]') !== null;
+  const scroller = plain ? area : area.closest('[data-code-scroller]');
+  const style = getComputedStyle(area);
+  const lineHeight = Number.parseFloat(style.lineHeight);
+  if (!(scroller instanceof HTMLElement) || !Number.isFinite(lineHeight)) return;
+  const frame = scroller.getBoundingClientRect();
+  const box = area.getBoundingClientRect();
+  const target = scrollTarget(
+    { line: wrappedRow(area, lineHeight), column: 0 },
+    {
+      lineHeight,
+      charWidth: 1,
+      originX: 0,
+      // The row's offset already counts the padding above the text.
+      originY: plain ? 0 : box.top - frame.top + scroller.scrollTop,
+      inset: 0,
+    },
+    {
+      scrollTop: scroller.scrollTop,
+      scrollLeft: scroller.scrollLeft,
+      clientHeight: scroller.clientHeight,
+      clientWidth: scroller.clientWidth,
+    },
+  );
+  if (target.top !== null) scroller.scrollTop = target.top;
+}
+
 // After the field set the caret from code, which does not scroll to it:
 // brings it into view in whatever scrolls, the layer's scroller or, beyond
 // the colouring limit, the textarea itself.
 function reveal(area: HTMLTextAreaElement): void {
+  if (area.closest('[data-wrap]') !== null) {
+    revealWrapped(area);
+    return;
+  }
   const plain = area.closest('[data-plain]') !== null;
   const scroller = plain ? area : area.closest('[data-code-scroller]');
   const style = getComputedStyle(area);
@@ -174,6 +233,7 @@ export function CodeField({
   size,
   issues = [],
   tools,
+  wrap,
 }: Chrome & {
   language: CodeLanguage;
   value: string;
@@ -183,6 +243,9 @@ export function CodeField({
   // Controls drawn above the field that put text into it through
   // `CodeInsert`. Not drawn for a read-only field.
   tools?: ReactNode;
+  // Whether lines wrap, held by a page that remounts the field for another
+  // text so the choice is kept; on its own the field remembers it.
+  wrap?: { on: boolean; toggle: () => void };
 }) {
   const issuesId = useId();
   const readOnly = use(FieldsReadOnly);
@@ -195,6 +258,17 @@ export function CodeField({
     [],
   );
   const inert = readOnly || (isDisabled ?? false);
+  const [own, setOwn] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  // Wide, there is no switch and lines never wrap, whatever it was left at.
+  const narrow = useContainerNarrow(root);
+  const pressed = wrap?.on ?? own;
+  const wrapped = narrow && pressed;
+  const toggleWrap =
+    wrap?.toggle ??
+    ((): void => {
+      setOwn((was) => !was);
+    });
   const [areaRef, history] = useCodeHistory({ value, onChange, readOnly, moved: reveal });
   const { tokens, plain } = highlight(language, value);
   const count = lineCount(normalisedBreaks(value));
@@ -238,7 +312,7 @@ export function CodeField({
   };
 
   return (
-    <div className={styles.root}>
+    <div ref={root} className={styles.root}>
       {tools === undefined || inert ? null : <CodeInsert value={insert}>{tools}</CodeInsert>}
       <AriaTextField
         {...VALIDATION}
@@ -253,7 +327,22 @@ export function CodeField({
         {...(issues.length === 0 ? {} : { 'aria-describedby': issuesId })}
       >
         <Header label={label} {...(changed === undefined ? {} : { changed })} />
-        <div className={styles.frame} data-plain={plain || undefined}>
+        <div className={styles.wrap}>
+          <Button
+            size="small"
+            variant={pressed ? 'primary' : 'secondary'}
+            aria-pressed={pressed}
+            onPress={toggleWrap}
+          >
+            {WRAP_LABEL}
+          </Button>
+          {wrapped ? <span className={styles.wrapNote}>{WRAP_NOTE}</span> : null}
+        </div>
+        <div
+          className={styles.frame}
+          data-plain={plain || undefined}
+          data-wrap={wrapped || undefined}
+        >
           <div className={styles.scroller} data-code-scroller>
             {plain ? null : <Gutter count={count} marked={marks} />}
             <div className={styles.stage}>
@@ -262,7 +351,7 @@ export function CodeField({
                 ref={areaRef}
                 className={styles.area ?? ''}
                 data-control
-                wrap="off"
+                wrap={wrapped ? 'soft' : 'off'}
                 spellCheck={false}
                 autoCapitalize="off"
                 autoCorrect="off"

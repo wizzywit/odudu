@@ -5,7 +5,7 @@ import {
   readOverridePage,
 } from '#/features/branding/adapter/overrides';
 import { PAGE_SIZE } from '#/features/branding/service';
-import { listKey } from '#/shared/repository/queryKeys';
+import { listKey, themeWriteKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useListPages } from '#/shared/repository/useResourceList';
 import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
@@ -36,10 +36,12 @@ export function useOverrideWrites(tenant: string): OverrideWrites {
   };
   return {
     put: useGatewayWrite({
+      mutationKey: themeWriteKey(tenant, 'tenant-wide', 'override'),
       send: (gateway, input) => putOverride(gateway, tenant, input),
       onSettled: reread,
     }),
     remove: useGatewayWrite({
+      mutationKey: themeWriteKey(tenant, 'tenant-wide', 'override-remove'),
       send: (gateway, input) => deleteOverride(gateway, tenant, input),
       onSettled: reread,
     }),

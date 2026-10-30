@@ -12,9 +12,19 @@ import {
   NO_DRAFT_TAG,
   clientScope,
   SCOPED_TABS,
+  revertTarget,
   selectScopedTab,
   placedOver,
 } from '#/features/branding/service';
+
+describe('the tabs a revert applies to', () => {
+  it('are the scoped ones, and no other', () => {
+    expect(revertTarget('theme')).toEqual({ tab: 'theme', offered: true });
+    expect(revertTarget('pages')).toEqual({ tab: 'pages', offered: true });
+    expect(revertTarget('mail').offered).toBe(false);
+    expect(revertTarget('languages').offered).toBe(false);
+  });
+});
 
 describe('the tabs', () => {
   it('keep the order Theme, Pages, Mail, Languages, each with a view', () => {

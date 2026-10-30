@@ -23,6 +23,7 @@ import { Note, NoteCode } from '#/shared/view/Note';
 import { ReadGate } from '#/shared/view/ReadGate';
 import { recordTab } from '#/shared/view/RecordTab';
 import { Tabs } from '#/shared/view/Tabs';
+import { TouchTargets } from '#/shared/view/TouchTargets';
 
 function Editing({ tenant, id }: { tenant: string; id: string }) {
   const page = useClientBranding(tenant, id);
@@ -38,7 +39,13 @@ function Editing({ tenant, id }: { tenant: string; id: string }) {
           };
           return (
             <>
-              <PublicationBar tenant={tenant} branding={branding} view={view} tag={tag} />
+              <PublicationBar
+                tenant={tenant}
+                branding={branding}
+                view={view}
+                tag={tag}
+                tab={page.tab}
+              />
               <Tabs
                 label={BRANDING_SECTIONS_LABEL}
                 selectedKey={page.tab}
@@ -84,5 +91,9 @@ export function BrandingTab({
       </div>
     );
   }
-  return <Editing tenant={tenant} id={client.id} />;
+  return (
+    <TouchTargets>
+      <Editing tenant={tenant} id={client.id} />
+    </TouchTargets>
+  );
 }

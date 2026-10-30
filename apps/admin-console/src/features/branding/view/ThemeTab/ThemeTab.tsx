@@ -37,7 +37,9 @@ export function ThemeTab({
       <ContrastPanel report={theme.report} />
       <ImagesSection scope={scope} view={view} images={theme.images} onDelete={deletion.ask} />
       <StylesheetSection tenant={tenant} scope={scope} view={view} stylesheet={theme.stylesheet} />
-      <RevertPanel scope={scope} tab="theme" revert={theme.revert} />
+      <div className={styles.revert}>
+        <RevertPanel scope={scope} tab="theme" revert={theme.revert} />
+      </div>
       <VersionsPanel versions={theme.versions} />
       <ResetPanel scope={scope} reset={theme.reset} />
       <ConfirmDialog

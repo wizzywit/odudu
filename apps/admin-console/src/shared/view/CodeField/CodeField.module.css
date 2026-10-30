@@ -11,6 +11,23 @@
   min-inline-size: 0;
 }
 
+/* The wrap switch is for a narrow screen, where a line is longer than it. */
+.wrap {
+  display: none;
+}
+
+.wrapNote {
+  margin-inline-start: var(--space-2);
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+@container workspace (inline-size < 48rem) {
+  .wrap {
+    display: block;
+  }
+}
+
 /* The control's box: the one border, focus ring and mark of state that
    every field has, drawn around the gutter and the text together. */
 .frame {
@@ -52,10 +69,10 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   max-block-size: 28rem;
-  min-block-size: calc(10 * 1.5 * var(--type-13) + 2 * var(--space-2));
+  min-block-size: calc(10 * 1.5 * var(--input-size-mono) + 2 * var(--space-2));
   overflow: auto;
   font-family: var(--font-mono);
-  font-size: var(--type-13);
+  font-size: var(--input-size-mono);
   line-height: 1.5;
   tab-size: 2;
   font-variant-ligatures: none;
@@ -84,6 +101,7 @@
 }
 
 .stage {
+  position: relative;
   display: grid;
   min-inline-size: 0;
 }
@@ -103,6 +121,24 @@
   overflow-wrap: normal;
   word-break: normal;
   tab-size: inherit;
+}
+
+/* The text up to the caret laid out again where the textarea's own is, to
+   find the row the caret is on when lines wrap. */
+.mirror {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  inline-size: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: inherit;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .layer {
@@ -125,6 +161,23 @@
 .area::selection {
   background: color-mix(in srgb, var(--focus-ring) 30%, transparent);
   color: transparent;
+}
+
+/* Wrapped, the lines break at the edge: the numbers, which count lines of
+   text and not rows, are put away, and the layer and the textarea both break
+   where the box does. */
+.frame[data-wrap] .scroller {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.frame[data-wrap] .gutter {
+  display: none;
+}
+
+.frame[data-wrap] .layer,
+.frame[data-wrap] .area {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* Beyond the length that is coloured there is no layer and no gutter: the

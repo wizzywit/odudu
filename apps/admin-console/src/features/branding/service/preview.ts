@@ -25,6 +25,29 @@ export const PREVIEW_FRAME_TITLE = 'Preview of the page';
 
 export const PREVIEW_LOADING = 'Loading the preview';
 
+// On a narrow screen the preview is a strip beside the editor; this opens it
+// to a page of its own.
+export const PREVIEW_OPEN_LABEL = 'Open preview';
+
+export const PREVIEW_SHEET_TITLE = 'Page preview';
+
+export const PREVIEW_CLOSE_LABEL = 'Close preview';
+
+// Said in the strip when the preview shows something other than the saved draft.
+export const PREVIEW_DIFFERS = 'not the saved draft';
+
+// The sheet's frame is the same page drawn large, so it is named apart from
+// the strip's, and is not announced as a second preview of the same thing.
+export function sheetFrameTitle(title: string): string {
+  return `${title}, full size`;
+}
+
+// The strip's line of what it shows: the page, its scheme, and what else the
+// preview was asked for.
+export function previewSummary(...parts: readonly string[]): string {
+  return parts.filter((part) => part !== '').join(' · ');
+}
+
 // Whether the preview's account is wanted: a preview is framed and there is a
 // theme to frame it over.
 export function previewAsked(framed: boolean, view: unknown): boolean {

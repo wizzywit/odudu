@@ -42,6 +42,14 @@ export const SCOPED_TABS = ['theme', 'pages'] as const;
 
 export type ScopedTab = (typeof SCOPED_TABS)[number];
 
+// What a revert from the bar takes back on the tab being shown: that tab's
+// parts where it has any. On a tab with none the theme's stand in, because a
+// revert is a hook that runs on every tab, and the bar does not offer it.
+export function revertTarget(name: string): { tab: ScopedTab; offered: boolean } {
+  const tab = tabNamed(SCOPED_TABS, name);
+  return { tab: tab ?? 'theme', offered: tab !== undefined };
+}
+
 // Runs `select` for a tab a scope has, and for no other name.
 export function selectScopedTab(name: string, select: (tab: ScopedTab) => void): void {
   const tab = tabNamed(SCOPED_TABS, name);

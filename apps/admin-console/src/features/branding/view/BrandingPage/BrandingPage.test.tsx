@@ -372,8 +372,7 @@ describe('the preview', () => {
     const user = userEvent.setup();
     renderConsoleAt(`${AT}?tab=pages`, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
     await screen.findByRole('region', { name: 'Page templates' });
-    await user.click(screen.getByRole('button', { name: /Page/u }));
-    await user.click(await screen.findByRole('option', { name: 'Passkey set-up' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Page' }), 'Passkey set-up');
     expect(screen.getByTitle('Preview of the page').getAttribute('src')).toContain(
       'kind=passkey-enrolment',
     );

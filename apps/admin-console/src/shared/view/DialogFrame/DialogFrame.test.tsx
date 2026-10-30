@@ -28,6 +28,25 @@ it('ignores Escape when it has no safe answer', async () => {
   expect(screen.getByRole('dialog', { name: 'Stored?' })).toBeInTheDocument();
 });
 
+it('draws a sheet as a named dialog that Escape closes', async () => {
+  const user = userEvent.setup();
+  const onEscape = vi.fn();
+  render(
+    <DialogFrame
+      isOpen
+      size="sheet"
+      title="Page preview"
+      description="The saved draft."
+      onEscape={onEscape}
+      actions={<button type="button">Close</button>}
+    />,
+  );
+  const dialog = screen.getByRole('dialog', { name: 'Page preview' });
+  expect(dialog.closest('[data-size]')).toHaveAttribute('data-size', 'sheet');
+  await user.keyboard('{Escape}');
+  expect(onEscape).toHaveBeenCalledOnce();
+});
+
 it('passes axe in both themes', async () => {
   expect(
     await axeInBothThemes(() => (

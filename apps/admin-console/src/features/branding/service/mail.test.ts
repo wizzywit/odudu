@@ -11,6 +11,7 @@ import {
   LOGO_ELSEWHERE,
   mailChoiceWith,
   mailFrameKey,
+  mailLocaleLabel,
   mailLocaleOf,
   MAIL_LOCALE_OPTIONS,
   paletteRows,
@@ -71,6 +72,7 @@ describe('the preview', () => {
     expect(MAIL_LOCALE_OPTIONS.map((option) => option.id)).toEqual(['', 'en', 'ar']);
     expect(mailLocaleOf('ar')).toBe('ar');
     expect(mailLocaleOf('fr')).toBeUndefined();
+    expect(mailLocaleLabel('')).toBe('The tenant’s default');
   });
 
   it('reloads the frame when the theme is published or the choice changes', () => {
