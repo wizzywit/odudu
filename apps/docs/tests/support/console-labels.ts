@@ -122,6 +122,8 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   'Error ID': feature('failure/service/report.ts', '`Error ID: ${report.id}`'),
   Copy: shared('view/CopyValue/CopyValue.tsx', 'Copy'),
+  'Keep mine': shared('view/ConflictPanel/ConflictPanel.tsx', 'Keep mine'),
+  'Take theirs': shared('view/ConflictPanel/ConflictPanel.tsx', 'Take theirs'),
   'Back to system': shared('view/ContextBar/ContextBar.tsx', 'Back to system'),
 
   // The menu: its headings and its entries.
