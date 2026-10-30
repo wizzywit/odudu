@@ -47,8 +47,8 @@ export interface AuthenticateAdminDeps {
 export interface AuthenticateAdminInput {
   authorizationHeader: string | undefined;
   targetTenantName: string;
-  // The path's tenant as the caller has already read it, so it is not read a
-  // second time here.
+  // The row `targetTenantName` resolves to, as the caller has already read it,
+  // so it is not read a second time here.
   targetTenant?: TenantLookup;
   // The two whole strings this door accepts as `iss`, resolved by the
   // caller the same way /userinfo resolves the one it checks against

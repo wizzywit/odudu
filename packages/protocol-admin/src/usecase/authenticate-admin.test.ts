@@ -172,6 +172,30 @@ describe('the tenant named in the path, already looked up by the caller', () => 
     expect(lookups).toEqual(['target']);
   });
 
+  it('does not make a foreign issuer’s token any less foreign', async () => {
+    const key = await foreignKey();
+    const lookups: string[] = [];
+    const outcome = await authenticateAdmin(
+      deps(key, {
+        findTenant: (name) => {
+          lookups.push(name);
+          return Promise.resolve(name === 'foreign' ? FOREIGN : null);
+        },
+      }),
+      {
+        authorizationHeader: `Bearer ${await foreignToken(key)}`,
+        targetTenantName: 'target',
+        targetTenant: TARGET,
+        targetTenantIssuer: `${BASE}/tenants/target`,
+        systemTenantIssuer: `${BASE}/tenants/system`,
+        issuerBase: BASE,
+        now: new Date(),
+      },
+    );
+    expect(lookups).toEqual(['foreign']);
+    expect(outcome).toMatchObject({ kind: 'unauthenticated', reason: 'issuer_mismatch' });
+  });
+
   it('is still refused when the tenant it was looked up as is disabled', async () => {
     const key = { ...(await foreignKey()), tenantId: TARGET.id };
     const outcome = await authenticateAdmin(deps(key, {}), {
