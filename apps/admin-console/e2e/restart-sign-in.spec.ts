@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, forgive, signInAtTenant, test } from './fixtures';
+import { expectSignedOut, expect, forgive, signInAtTenant, test } from './fixtures';
 import { psql, seeded } from './stack';
 
 const account = seeded().other;
@@ -101,7 +101,7 @@ test('Back after signing out shows no signed-in page', async ({ page }) => {
   await signInAtTenant(page, account);
   await expectSignedIn(page);
   await page.getByRole('button', { name: 'Sign out' }).first().click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Sign in' })).toBeVisible();
+  await expectSignedOut(page);
 
   await page.goBack();
   await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeHidden();

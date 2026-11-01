@@ -1,11 +1,3 @@
-.status {
-  margin: 0 0 var(--space-3);
-}
-
-.status [data-chip] {
-  margin-inline-start: 0;
-}
-
 .body {
   composes: cardBody from '@site/src/features/landing/view/Section/Section.module.css';
   max-inline-size: 40rem;

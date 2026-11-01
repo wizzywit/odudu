@@ -7,13 +7,16 @@ import {
   useScopeSaves,
   type AssignmentValues,
   type ConsentValues,
+  type DescriptionSectionValues,
   type TokenValues,
 } from '#/features/scopes/repository/useScopeRecord';
 import {
   ACCESS_TOKEN_LABEL,
   assignmentName,
   claimMappersOf,
+  CONSENT_LANGUAGES_LABEL,
   CONSENT_RULE,
+  DESCRIPTION_LANGUAGES_LABEL,
   guardedConsent,
   guardedText,
   ID_TOKEN_LABEL,
@@ -36,7 +39,9 @@ import { useConfirmedRemoval, type Removal } from '#/shared/usecase/useConfirmed
 import { writeRefusal } from '#/shared/service/capabilities';
 import { deletedText } from '#/shared/service/failure';
 import { DESCRIPTION_RULE } from '#/shared/service/labels';
-import type { DescriptionValues } from '#/shared/service/sectionValues';
+import { describeTranslations } from '#/shared/service/localised';
+import type { Read } from '#/shared/service/read';
+import { useOfferedLocales } from '#/shared/usecase/useOfferedLocales';
 import type { Choice } from '#/shared/service/choice';
 import type { AdminCapability } from '#/shared/service/principal';
 import { orBlank } from '#/shared/service/format';
@@ -55,7 +60,9 @@ export interface Deletion extends Removal {
 }
 
 export interface ScopeGeneral {
-  description: SectionSave<DescriptionValues>;
+  description: SectionSave<DescriptionSectionValues>;
+  // The languages the tenant offers, which the translations are written in.
+  languages: Read<string[]>;
   descriptionRule: string;
   tokens: SectionSave<TokenValues>;
   assignment: SectionSave<AssignmentValues>;
@@ -108,6 +115,12 @@ export function useScopeGeneral({
     label: 'Description',
     fields: {
       description: { value: orBlank(scope.description), label: 'Description', kind: 'plain' },
+      description_i18n: {
+        value: scope.description_i18n,
+        label: DESCRIPTION_LANGUAGES_LABEL,
+        kind: 'plain',
+        describe: describeTranslations,
+      },
     },
     save: saves.general,
   });
@@ -154,11 +167,18 @@ export function useScopeGeneral({
         label: 'Display order',
         kind: 'plain',
       },
+      consent_text_i18n: {
+        value: scope.consent_text_i18n,
+        label: CONSENT_LANGUAGES_LABEL,
+        kind: 'plain',
+        describe: describeTranslations,
+      },
     },
     save: saves.general,
   });
   return {
     description,
+    languages: useOfferedLocales(tenant),
     descriptionRule: DESCRIPTION_RULE,
     tokens,
     assignment,

@@ -4,6 +4,7 @@ import { expect, test } from './fixtures';
 import { BASE, COMMON_PASSWORD, forgiveRefusals } from './page-inspection';
 import { inTenant, psql, seed, sqlText } from './stack';
 import type { Page } from '@playwright/test';
+import { randomPassword } from './password';
 
 // An application starts /authorize with a state of its own; the person goes
 // to create an account or reset a password and comes back through the page's
@@ -12,7 +13,7 @@ import type { Page } from '@playwright/test';
 
 const tag = randomBytes(4).toString('hex');
 const REDIRECT = `${BASE}/health/ready`;
-const PASSWORD = `Return-${randomBytes(9).toString('base64url')}`;
+const PASSWORD = randomPassword('Return-');
 const VERIFIER = Buffer.concat([randomBytes(32), Buffer.from(tag)]).toString('base64url');
 const pkceChallenge = (verifier: string): string =>
   createHash('sha256').update(verifier).digest('base64url');

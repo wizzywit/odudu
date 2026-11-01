@@ -21,6 +21,7 @@ Signing keys
 Sessions
 Tenant
 Settings
+Branding
 Email
 Export
 Observe
@@ -60,6 +61,7 @@ Redirects & origins
 Tokens
 Scopes
 Logout
+Branding
 Advanced
 Roles
 Service account

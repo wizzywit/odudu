@@ -2,6 +2,7 @@ import {
   CLIENT_AUTH_METHODS,
   CLIENT_GRANT_TYPES,
   CLIENT_LIST_LIMIT,
+  CLIENT_NAME_MAX,
   DEFAULT_MAX_AGE_MAX,
   ID_TOKEN_SIGNING_ALGS,
   listLimitProblem,
@@ -117,6 +118,10 @@ const SERVER_ASSIGNED_FIELDS = [
   'registration_client_uri',
 ] as const;
 
+// Settings only an administrator may choose. A registration naming one is
+// refused rather than dropped, so a registrant cannot believe it set it.
+const OPERATOR_ONLY_FIELDS = ['skip_logout_confirmation'] as const;
+
 function isLoopbackHost(hostname: string): boolean {
   // RFC 8252 §8.3 prefers the literal forms over `localhost`, whose
   // resolution is under the resolver's control — accepted here all the
@@ -225,7 +230,7 @@ const metadataShape = z.object({
   redirect_uris: z.array(z.string()).optional(),
   grant_types: z.array(z.string()).optional(),
   token_endpoint_auth_method: z.string().optional(),
-  client_name: noBidiControls(z.string()).optional(),
+  client_name: noBidiControls(z.string().max(CLIENT_NAME_MAX)).optional(),
   jwks: jwkSetShape.optional(),
   jwks_uri: z.string().optional(),
   frontchannel_logout_uri: z.string().optional(),
@@ -249,7 +254,13 @@ const metadataShape = z.object({
 // jwks exclusivity, URI shape) run after the shape is known to be sound.
 export function parseClientMetadata(
   body: unknown,
-  options: { tlsClientAuthEnabled: boolean; boundRedirectUris?: boolean },
+  options: {
+    tlsClientAuthEnabled: boolean;
+    boundRedirectUris?: boolean;
+    // Set by Dynamic Client Registration, whose registrant is not an
+    // administrator.
+    refuseOperatorFields?: boolean;
+  },
 ): ClientMetadataOutcome {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     return invalid('invalid_client_metadata', 'registration body must be a JSON object');
@@ -259,6 +270,18 @@ export function parseClientMetadata(
   const assigned = SERVER_ASSIGNED_FIELDS.find((field) => field in raw);
   if (assigned !== undefined) {
     return invalid('invalid_client_metadata', `${assigned} is assigned by the server`, assigned);
+  }
+
+  const operatorOnly =
+    options.refuseOperatorFields === true
+      ? OPERATOR_ONLY_FIELDS.find((field) => field in raw)
+      : undefined;
+  if (operatorOnly !== undefined) {
+    return invalid(
+      'invalid_client_metadata',
+      `${operatorOnly} is not accepted at registration: an administrator sets it`,
+      operatorOnly,
+    );
   }
 
   const shape = metadataShape.safeParse(raw);

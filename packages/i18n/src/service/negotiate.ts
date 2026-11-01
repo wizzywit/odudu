@@ -4,6 +4,9 @@ import { directionOf } from '#/service/direction';
 export interface PageLocale {
   readonly tag: string;
   readonly dir: 'ltr' | 'rtl';
+  // The tenant's own text for catalogue keys in `tag`, read before the
+  // catalogue.
+  readonly overrides?: Readonly<Record<string, string>>;
 }
 
 export interface NegotiationInput {

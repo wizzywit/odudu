@@ -21,6 +21,7 @@ import {
   type Database,
   type TenantScopedDatabase,
 } from '@odudu/db';
+import { type MailLookResolver } from '@odudu/email';
 import { OduduError } from '@odudu/kernel';
 import { tenantIssuerFor, type TenantLookup } from '@odudu/protocol-oidc';
 import { type FastifyReply } from 'fastify';
@@ -75,6 +76,8 @@ export interface SubjectsRouteDeps {
   readonly cursorKey: Uint8Array;
   readonly audit: Audit;
   readonly now: () => Date;
+  /** Themes the mail a credential notice queues; see `AdminRouteDeps.resolveMailLook`. */
+  readonly resolveMailLook: MailLookResolver;
   /**
    * The caller's own admin-client capability names, resolved against its
    * own issuer tenant and expanded through `role_composites` — what
@@ -627,7 +630,7 @@ export function deleteCredentialHandler(
       outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
         deleteCredential(
           tx,
-          { audit: deps.audit, ...endSessions },
+          { audit: deps.audit, resolveMailLook: deps.resolveMailLook, ...endSessions },
           {
             tenantId: targetTenantId,
             subjectId: id,

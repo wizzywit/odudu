@@ -36,7 +36,28 @@ export {
   listsReadOnly,
   deleteFixed,
   scopesFixed,
+  skipLogoutFixed,
 } from '#/features/clients/service/blocks';
+export {
+  type TranslationValues,
+  DESCRIPTION_TRANSLATIONS_FIELD,
+  NAME_TRANSLATIONS_FIELD,
+  DESCRIPTION_TRANSLATIONS_LABEL,
+  DESCRIPTION_TRANSLATIONS_NOTE,
+  NAME_TRANSLATIONS_LABEL,
+  NAME_TRANSLATIONS_NOTE,
+  TRANSLATIONS_LEAD,
+  offeredBy,
+  translationsPatch,
+} from '#/features/clients/service/translations';
+export {
+  type BrandingOffer,
+  brandingOffer,
+  BRANDING_FAILED,
+  BRANDING_HELD,
+  BRANDING_LEAD,
+  BRANDING_LOADING,
+} from '#/features/clients/service/branding';
 export { deleteConsequence } from '#/features/clients/service/confirm';
 export {
   type NewClientKind,
@@ -140,6 +161,12 @@ export {
   LOGOUT_FIELD,
   POST_LOGOUT_NOUN,
   SECTIONS_LOGOUT,
+  SKIP_LOGOUT_HINT,
+  SKIP_LOGOUT_HINT_ON,
+  skipLogoutHint,
+  SKIP_LOGOUT_LABEL,
+  SKIP_LOGOUT_WARNING,
+  SKIP_LOGOUT_WARNING_ID,
 } from '#/features/clients/service/logout';
 export {
   GRACE_LABEL,

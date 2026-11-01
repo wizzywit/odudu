@@ -46,7 +46,42 @@ function Controlled({
   );
 }
 
+function ClearedOnEnter() {
+  const [value, setValue] = useState('');
+  return (
+    <div
+      role="group"
+      aria-label="Adds"
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') setValue('');
+      }}
+    >
+      <ComboBoxField
+        label="Time zone"
+        options={ZONES}
+        value={value}
+        onChange={setValue}
+        allowsCustomValue
+        autoComplete="off"
+      />
+    </div>
+  );
+}
+
 describe('ComboBoxField', () => {
+  it('closes its list when the value is cleared from outside while it has focus', async () => {
+    const user = userEvent.setup();
+    render(<ClearedOnEnter />);
+    const box = screen.getByRole('combobox', { name: 'Time zone' });
+    await user.type(box, 'Asia');
+    expect(await screen.findAllByRole('option')).toHaveLength(1);
+    await user.keyboard('{Enter}');
+    await waitFor(() => {
+      expect(screen.queryAllByRole('option')).toHaveLength(0);
+    });
+    expect(box).toHaveValue('');
+  });
+
   it('narrows the list as you type, and stores the chosen option', async () => {
     const user = userEvent.setup();
     render(<Controlled />);
@@ -183,6 +218,55 @@ describe('ComboBoxField', () => {
         { disable: ['aria-hidden-focus'] },
       ),
     ).toEqual({ light: [], dark: [] });
+  });
+
+  it('draws at most `limit` options, however many there are, and narrows within them', async () => {
+    const user = userEvent.setup();
+    const many: readonly ComboOption[] = Array.from({ length: 400 }, (_, n) => ({
+      id: `key.${String(n)}`,
+      label: `key.${String(n)}`,
+      detail: n === 399 ? 'the last one' : 'text',
+    }));
+    render(<ComboBoxField label="Key" options={many} value="" onChange={vi.fn()} limit={25} />);
+    await user.click(screen.getByRole('button', { name: /^Show Key options/u }));
+    expect(await screen.findAllByRole('option')).toHaveLength(25);
+    await user.type(screen.getByRole('combobox', { name: 'Key' }), 'last one');
+    const found = await screen.findAllByRole('option');
+    expect(found.map((o) => o.textContent)).toEqual(['key.399the last one']);
+  });
+
+  it('finds a word past what is drawn of a long detail, and draws only the start of it', async () => {
+    const user = userEvent.setup();
+    const long: readonly ComboOption[] = [
+      { id: 'a', label: 'a', detail: `${'words '.repeat(30)}needle` },
+      { id: 'b', label: 'b', detail: 'short' },
+    ];
+    render(<ComboBoxField label="Key" options={long} value="" onChange={vi.fn()} limit={10} />);
+    await user.type(screen.getByRole('combobox', { name: 'Key' }), 'needle');
+    const found = await screen.findAllByRole('option');
+    expect(found).toHaveLength(1);
+    expect(found[0]?.textContent).toMatch(/^a.*…$/u);
+    expect(found[0]?.textContent).not.toContain('needle');
+  });
+
+  it('offers the whole bounded list again after a choice', async () => {
+    const user = userEvent.setup();
+    const many: readonly ComboOption[] = Array.from({ length: 60 }, (_, n) => ({
+      id: `k${String(n)}`,
+      label: `k${String(n)}`,
+    }));
+    function Holder() {
+      const [value, setValue] = useState('');
+      return (
+        <ComboBoxField label="Key" options={many} value={value} onChange={setValue} limit={10} />
+      );
+    }
+    render(<Holder />);
+    const input = screen.getByRole('combobox', { name: 'Key' });
+    await user.type(input, 'k5');
+    await user.click(await screen.findByRole('option', { name: 'k5' }));
+    await user.click(screen.getByRole('button', { name: /^Show Key options/u }));
+    expect(await screen.findAllByRole('option')).toHaveLength(10);
   });
 
   it('passes axe in both themes', async () => {

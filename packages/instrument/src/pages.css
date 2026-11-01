@@ -318,6 +318,38 @@ input[aria-invalid='true'] {
   letter-spacing: 0.04em;
 }
 
+.logo {
+  display: block;
+  max-block-size: 2.5rem;
+  max-inline-size: 12rem;
+  block-size: auto;
+  inline-size: auto;
+  object-fit: contain;
+}
+
+/* Only the variant not in use is hidden, by two classes and a scheme, so
+   the visible image never gets a display from here and a tenant's
+   `.logo { display }` still decides it. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .logo.logo-dark {
+    display: none;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .logo.logo-light {
+    display: none;
+  }
+}
+
+:root[data-theme='light'] .logo.logo-dark {
+  display: none;
+}
+
+:root[data-theme='dark'] .logo.logo-light {
+  display: none;
+}
+
 .intro {
   margin-block-end: var(--space-6);
 }

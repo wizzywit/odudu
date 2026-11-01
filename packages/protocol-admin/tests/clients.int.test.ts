@@ -181,11 +181,13 @@ describe('POST /admin/tenants/{t}/clients', () => {
     // ETag that stopped tracking the response (stale, or hashing a
     // different shape) would still satisfy `toBeDefined()`.
     // The ETag is taken over the stored fields; what the service account
-    // holds is derived, and outside it.
-    const { service_account_admin_reach: reach, ...stored } = read.json<{
-      service_account_admin_reach: string[];
-    }>();
-    expect(reach).toEqual([]);
+    // holds is derived, and outside it, as are the tenant's languages.
+    const body = read.json<Record<string, unknown>>();
+    const derived = ['service_account_admin_reach', 'supported_locales'];
+    const stored = Object.fromEntries(
+      Object.entries(body).filter(([key]) => !derived.includes(key)),
+    );
+    expect(body.service_account_admin_reach).toEqual([]);
     expect(read.headers.etag).toBe(etagOf(stored));
   });
 

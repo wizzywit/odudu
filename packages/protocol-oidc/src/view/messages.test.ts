@@ -3,14 +3,30 @@ import { describe, expect, it } from 'vitest';
 import { catalogue, en, t, tHtml, translators } from '#/view/messages';
 
 describe('the page catalogue', () => {
-  it('holds en and nothing else until another language ships', () => {
-    expect(catalogue.locales).toEqual(['en']);
+  it('holds en and ar, the two languages that ship', () => {
+    expect(catalogue.locales).toEqual(['en', 'ar']);
   });
 
   it('carries no markup in any message', () => {
     for (const [id, message] of Object.entries(en)) {
       expect(message, id).not.toMatch(/<\/?[A-Za-z]/u);
     }
+  });
+});
+
+describe('the Arabic wait', () => {
+  const arabic = { tag: 'ar', dir: 'rtl' } as const;
+  it.each([
+    [0, '0 ثانية'],
+    [1, 'ثانية واحدة'],
+    [2, 'ثانيتين'],
+    [3, '3 ثوانٍ'],
+    [10, '10 ثوانٍ'],
+    [11, '11 ثانية'],
+    [99, '99 ثانية'],
+    [100, '100 ثانية'],
+  ])('says %i in the form its count takes', (seconds, said) => {
+    expect(t(arabic, 'throttled.retryAfter', { seconds })).toBe(`حاول مرة أخرى بعد ${said}.`);
   });
 });
 

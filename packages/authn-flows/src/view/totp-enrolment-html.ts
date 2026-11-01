@@ -5,6 +5,7 @@ import { escapeHtml, intro, page } from '#/view/document';
 import { t, tHtml, token } from '#/view/messages';
 import { firstInvalidField, invalidAttributes, problemSummary } from '#/view/form-error';
 import { refusalProblems } from '#/view/refusal';
+import { fillPage } from '#/view/template';
 
 // What an enrolment page has to show: the secret in the form the user's
 // authenticator app scans, and the same secret as text for an app that
@@ -42,19 +43,27 @@ export function renderTotpEnrolmentPage(
   const code = `${invalidAttributes(problems, 'code')}${firstInvalidField(problems, ['code']) === null ? '' : ' autofocus'}`;
   return page(
     t(locale, 'totp.title'),
-    `${intro(tHtml(locale, 'totp.title'), tenant)}
-${problemSummary(problems)}<p>${tHtml(locale, 'totp.scan')}</p>
+    fillPage(
+      'totp-enrolment',
+      {
+        intro: intro(tHtml(locale, 'totp.title'), tenant),
+        error: problemSummary(problems),
+        offer: `<p>${tHtml(locale, 'totp.scan')}</p>
 ${qrSvg(offer.uri)}
 <p>${token(offer.uri)}</p>
-<p>${tHtml(locale, 'totp.key')} ${token(offer.secret)}</p>
-<form method="post" action="${target}">
+<p>${tHtml(locale, 'totp.key')} ${token(offer.secret)}</p>`,
+        'form.open': `<form method="post" action="${target}">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
-  <input type="hidden" name="secret" value="${escapeHtml(offer.secret)}">
-  <label>${tHtml(locale, 'totp.codeLabel')} <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"${code}></label>
-  <button type="submit">${tHtml(locale, 'totp.confirm')}</button>
-</form>`,
+  <input type="hidden" name="secret" value="${escapeHtml(offer.secret)}">`,
+        fields: `<label>${tHtml(locale, 'totp.codeLabel')} <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"${code}></label>`,
+        submit: `<button type="submit">${tHtml(locale, 'totp.confirm')}</button>`,
+        'form.close': '</form>',
+      },
+      locale,
+    ),
     null,
     [],
     locale,
+    'totp-enrolment',
   );
 }

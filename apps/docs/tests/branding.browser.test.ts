@@ -97,7 +97,7 @@ describe.each(['light', 'dark'] as const)('the branding swap in %s', (theme) => 
   it('loads the picture it shows, at its own size', async () => {
     const { page, close } = await open();
     try {
-      await page.getByRole('radio', { name: "Another brand's colours" }).check({ force: true });
+      await page.getByRole('radio', { name: "A tenant's theme" }).check({ force: true });
       const image = page.locator('[data-section="branding"] figure img:visible');
       await image.scrollIntoViewIfNeeded();
       await expect

@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import {
   chooseTheme,
+  expectSignedOut,
   expect,
   expectAccessible,
   forgive,
@@ -88,7 +89,7 @@ test.describe('on a phone', () => {
       .getByRole('button', { name: 'Sign out' })
       .click();
 
-    await expect(page.getByRole('heading', { level: 1, name: 'Sign in' })).toBeVisible();
+    await expectSignedOut(page);
     expect(await sessionTenant(page)).toBeNull();
   });
 

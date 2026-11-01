@@ -4,6 +4,9 @@ export interface FieldErrors {
   fields: Readonly<Record<string, string>>;
   // Refusals that name no field of this section, shown for the section as a whole.
   other: readonly string[];
+  // The refusals themselves, positions and codes kept, by the field each
+  // belongs to.
+  refusals: Readonly<Record<string, readonly FieldError[]>>;
 }
 
 // `redirect_uris[1]` and `document.name` belong to the field they start with.
@@ -36,16 +39,24 @@ export function fieldErrorsOf(
   known: readonly string[],
 ): FieldErrors {
   const named = problem.errors ?? (problem.detail === undefined ? [] : fromDetail(problem.detail));
-  if (named === null)
-    return { fields: {}, other: problem.detail === undefined ? [] : [problem.detail] };
+  if (named === null) {
+    return {
+      fields: {},
+      other: problem.detail === undefined ? [] : [problem.detail],
+      refusals: {},
+    };
+  }
   const fields: Record<string, string> = {};
+  const refusals: Record<string, FieldError[]> = {};
   const other: string[] = [];
-  for (const { path, message } of named) {
+  for (const error of named) {
+    const { path, message } = error;
     const field = owner(path, known);
     if (field === undefined) {
       other.push(`${path}: ${message}`);
       continue;
     }
+    refusals[field] = [...(refusals[field] ?? []), error];
     const text = path === field ? message : `${path}: ${message}`;
     const was = fields[field];
     fields[field] = was === undefined ? text : `${was}; ${text}`;
@@ -54,9 +65,9 @@ export function fieldErrorsOf(
   // says something, in its detail or at least its title.
   if (Object.keys(fields).length === 0 && (problem.errors === undefined || other.length === 0)) {
     const said = problem.detail ?? problem.title;
-    return { fields, other: said === undefined ? [] : [said] };
+    return { fields, other: said === undefined ? [] : [said], refusals };
   }
-  return { fields, other };
+  return { fields, other, refusals };
 }
 
 export function withoutField<F extends string, V = string>(

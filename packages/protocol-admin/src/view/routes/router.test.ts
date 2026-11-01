@@ -28,7 +28,7 @@ function handlersFor(routes: readonly { method: string; pattern: string }[]): Ad
 }
 
 describe('registerAdminRoutes', () => {
-  it('registers exactly the routes ADMIN_ROUTES declares, and only those', () => {
+  it('registers exactly the routes ADMIN_ROUTES declares, and only those', async () => {
     // No `app.ready()`: booting would compile the query/body schemas
     // `ADMIN_ROUTES` attaches, which needs the ajv dialect
     // `#/adapter/validation` installs — a `view` module this test lives
@@ -36,6 +36,8 @@ describe('registerAdminRoutes', () => {
     // `registerAdminRoutes` builds directly, without booting.
     const app = Fastify();
     registerAdminRoutes(app, handlersFor(ADMIN_ROUTES), deps);
+    // A raw-body route is registered in a scope of its own, which loads here.
+    await app.after();
 
     for (const route of ADMIN_ROUTES) {
       expect(

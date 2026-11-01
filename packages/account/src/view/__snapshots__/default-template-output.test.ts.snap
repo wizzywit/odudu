@@ -1,0 +1,2857 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the registration pages under the default template > renders the form byte-identically (arabic dark) 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>إنشاء حساب</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>إنشاء حساب</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<form method="post" action="/tenants/acme/login-actions/registration">
+  <label>اسم المستخدم <input type="text" name="username" autocomplete="username"></label>
+  <label>البريد الإلكتروني <input type="email" name="email" autocomplete="email"></label>
+  <label>كلمة المرور <input type="password" name="password" autocomplete="new-password" id="password" minlength="12" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="12" data-summary="استُوفي {met} من أصل {total} من القواعد">
+    <p class="rules-head"><span>تتطلب كلمة المرور:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">إظهار كلمة المرور</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">12 من الأحرف على الأقل</li>
+      <li>ألا تكون كلمة مرور شائعة</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <label>تأكيد كلمة المرور <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <script nonce="NONCE">(function () {
+  var first = document.getElementById('password');
+  var again = document.getElementById('password-confirm');
+  var toggle = document.querySelector('#password-rules button');
+  if (!first || !again || !toggle) return;
+  toggle.addEventListener('click', function () { again.type = first.type; });
+})();</script>
+  <button type="submit">إنشاء حساب</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the registration pages under the default template > renders the form byte-identically (dark) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Create account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Create account</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<form method="post" action="/tenants/acme/login-actions/registration">
+  <label>Username <input type="text" name="username" autocomplete="username"></label>
+  <label>Email <input type="email" name="email" autocomplete="email"></label>
+  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="12" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="12" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 12 characters</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <script nonce="NONCE">(function () {
+  var first = document.getElementById('password');
+  var again = document.getElementById('password-confirm');
+  var toggle = document.querySelector('#password-rules button');
+  if (!first || !again || !toggle) return;
+  toggle.addEventListener('click', function () { again.type = first.type; });
+})();</script>
+  <button type="submit">Create account</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the registration pages under the default template > renders the form byte-identically (default) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Create account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Create account</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<form method="post" action="/tenants/acme/login-actions/registration">
+  <label>Username <input type="text" name="username" autocomplete="username"></label>
+  <label>Email <input type="email" name="email" autocomplete="email"></label>
+  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="12" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="12" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 12 characters</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <script nonce="NONCE">(function () {
+  var first = document.getElementById('password');
+  var again = document.getElementById('password-confirm');
+  var toggle = document.querySelector('#password-rules button');
+  if (!first || !again || !toggle) return;
+  toggle.addEventListener('click', function () { again.type = first.type; });
+})();</script>
+  <button type="submit">Create account</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the registration pages under the default template > renders the form refused for a mismatch 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Create account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Create account</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">The passwords don&#39;t match.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/registration">
+  <label>Username <input type="text" name="username" autocomplete="username" value="ann"></label>
+  <label>Email <input type="email" name="email" autocomplete="email" value="ann@example.com"></label>
+  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 15 characters</li>
+      <li data-rule="digit">A digit</li>
+      <li data-rule="uppercase">An uppercase letter</li>
+      <li data-rule="lowercase">A lowercase letter</li>
+      <li data-rule="special">A special character</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <script nonce="NONCE">(function () {
+  var first = document.getElementById('password');
+  var again = document.getElementById('password-confirm');
+  var toggle = document.querySelector('#password-rules button');
+  if (!first || !again || !toggle) return;
+  toggle.addEventListener('click', function () { again.type = first.type; });
+})();</script>
+  <button type="submit">Create account</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the registration pages under the default template > renders the form refused for email taken 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Create account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Create account</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">That email address is already registered.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/registration">
+  <label>Username <input type="text" name="username" autocomplete="username" value="ann"></label>
+  <label>Email <input type="email" name="email" autocomplete="email" value="ann@example.com" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 15 characters</li>
+      <li data-rule="digit">A digit</li>
+      <li data-rule="uppercase">An uppercase letter</li>
+      <li data-rule="lowercase">A lowercase letter</li>
+      <li data-rule="special">A special character</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <script nonce="NONCE">(function () {
+  var first = document.getElementById('password');
+  var again = document.getElementById('password-confirm');
+  var toggle = document.querySelector('#password-rules button');
+  if (!first || !again || !toggle) return;
+  toggle.addEventListener('click', function () { again.type = first.type; });
+})();</script>
+  <button type="submit">Create account</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the registration pages under the default template > renders the form refused for every field missing 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Create account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Create account</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">Enter a username.</li>
+<li id="form-error-1">Enter an email address.</li>
+<li id="form-error-2">Enter a password.</li>
+<li id="form-error-3">Enter the password again.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/registration">
+  <label>Username <input type="text" name="username" autocomplete="username" value="ann" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label>Email <input type="email" name="email" autocomplete="email" value="ann@example.com" aria-invalid="true" aria-describedby="form-error-1"></label>
+  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-2 password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 15 characters</li>
+      <li data-rule="digit">A digit</li>
+      <li data-rule="uppercase">An uppercase letter</li>
+      <li data-rule="lowercase">A lowercase letter</li>
+      <li data-rule="special">A special character</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-3"></label>
+  <script nonce="NONCE">(function () {
+  var first = document.getElementById('password');
+  var again = document.getElementById('password-confirm');
+  var toggle = document.querySelector('#password-rules button');
+  if (!first || !again || !toggle) return;
+  toggle.addEventListener('click', function () { again.type = first.type; });
+})();</script>
+  <button type="submit">Create account</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the registration pages under the default template > renders the form refused for invalid email 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Create account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Create account</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">That is not an address the email claim may carry.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/registration">
+  <label>Username <input type="text" name="username" autocomplete="username" value="ann"></label>
+  <label>Email <input type="email" name="email" autocomplete="email" value="ann@example.com" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 15 characters</li>
+      <li data-rule="digit">A digit</li>
+      <li data-rule="uppercase">An uppercase letter</li>
+      <li data-rule="lowercase">A lowercase letter</li>
+      <li data-rule="special">A special character</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <script nonce="NONCE">(function () {
+  var first = document.getElementById('password');
+  var again = document.getElementById('password-confirm');
+  var toggle = document.querySelector('#password-rules button');
+  if (!first || !again || !toggle) return;
+  toggle.addEventListener('click', function () { again.type = first.type; });
+})();</script>
+  <button type="submit">Create account</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the registration pages under the default template > renders the form refused for invalid username 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Create account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Create account</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">That username contains a character that changes the direction of text, which is not allowed.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/registration">
+  <label>Username <input type="text" name="username" autocomplete="username" value="ann" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label>Email <input type="email" name="email" autocomplete="email" value="ann@example.com"></label>
+  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 15 characters</li>
+      <li data-rule="digit">A digit</li>
+      <li data-rule="uppercase">An uppercase letter</li>
+      <li data-rule="lowercase">A lowercase letter</li>
+      <li data-rule="special">A special character</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <script nonce="NONCE">(function () {
+  var first = document.getElementById('password');
+  var again = document.getElementById('password-confirm');
+  var toggle = document.querySelector('#password-rules button');
+  if (!first || !again || !toggle) return;
+  toggle.addEventListener('click', function () { again.type = first.type; });
+})();</script>
+  <button type="submit">Create account</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the registration pages under the default template > renders the form refused for one field missing 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Create account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Create account</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">Enter an email address.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/registration">
+  <label>Username <input type="text" name="username" autocomplete="username" value="ann"></label>
+  <label>Email <input type="email" name="email" autocomplete="email" value="ann@example.com" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 15 characters</li>
+      <li data-rule="digit">A digit</li>
+      <li data-rule="uppercase">An uppercase letter</li>
+      <li data-rule="lowercase">A lowercase letter</li>
+      <li data-rule="special">A special character</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <script nonce="NONCE">(function () {
+  var first = document.getElementById('password');
+  var again = document.getElementById('password-confirm');
+  var toggle = document.querySelector('#password-rules button');
+  if (!first || !again || !toggle) return;
+  toggle.addEventListener('click', function () { again.type = first.type; });
+})();</script>
+  <button type="submit">Create account</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the registration pages under the default template > renders the form refused for password violations 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Create account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Create account</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">Password must be at least 12 characters long.</li>
+<li id="form-error-1">Password must contain a digit.</li>
+<li id="form-error-2"><bdi>&lt;b&gt;hostile&lt;/b&gt; &amp; &quot;rule&quot;</bdi></li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/registration">
+  <label>Username <input type="text" name="username" autocomplete="username" value="ann"></label>
+  <label>Email <input type="email" name="email" autocomplete="email" value="ann@example.com"></label>
+  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 form-error-1 form-error-2 password-rules-list" autofocus></label>
+  <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 15 characters</li>
+      <li data-rule="digit">A digit</li>
+      <li data-rule="uppercase">An uppercase letter</li>
+      <li data-rule="lowercase">A lowercase letter</li>
+      <li data-rule="special">A special character</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <script nonce="NONCE">(function () {
+  var first = document.getElementById('password');
+  var again = document.getElementById('password-confirm');
+  var toggle = document.querySelector('#password-rules button');
+  if (!first || !again || !toggle) return;
+  toggle.addEventListener('click', function () { again.type = first.type; });
+})();</script>
+  <button type="submit">Create account</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the registration pages under the default template > renders the form refused for username taken 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Create account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Create account</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">That username is already taken.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/registration">
+  <label>Username <input type="text" name="username" autocomplete="username" value="ann" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <label>Email <input type="email" name="email" autocomplete="email" value="ann@example.com"></label>
+  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 15 characters</li>
+      <li data-rule="digit">A digit</li>
+      <li data-rule="uppercase">An uppercase letter</li>
+      <li data-rule="lowercase">A lowercase letter</li>
+      <li data-rule="special">A special character</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <script nonce="NONCE">(function () {
+  var first = document.getElementById('password');
+  var again = document.getElementById('password-confirm');
+  var toggle = document.querySelector('#password-rules button');
+  if (!first || !again || !toggle) return;
+  toggle.addEventListener('click', function () { again.type = first.type; });
+})();</script>
+  <button type="submit">Create account</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the registration pages under the default template > renders the form with every option and hostile text 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Create account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Create account</h1>
+<p class="tenant"><bdi>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co</bdi></p>
+</header>
+<form method="post" action="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/registration">
+  <input type="hidden" name="return_to" value="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">
+  <label>Username <input type="text" name="username" autocomplete="username" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co"></label>
+  <label>Email <input type="email" name="email" autocomplete="email" value="&quot;&gt;&lt;x@y.z"></label>
+  <label>Password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 15 characters</li>
+      <li data-rule="digit">A digit</li>
+      <li data-rule="uppercase">An uppercase letter</li>
+      <li data-rule="lowercase">A lowercase letter</li>
+      <li data-rule="special">A special character</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <label>Confirm password <input type="password" name="password_confirm" id="password-confirm" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></label>
+  <script nonce="NONCE">(function () {
+  var first = document.getElementById('password');
+  var again = document.getElementById('password-confirm');
+  var toggle = document.querySelector('#password-rules button');
+  if (!first || !again || !toggle) return;
+  toggle.addEventListener('click', function () { again.type = first.type; });
+})();</script>
+  <button type="submit">Create account</button>
+</form>
+<p class="links">
+<a href="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">Back to sign in</a>
+</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the registration pages under the default template > renders the outcome pages 1`] = `
+[
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Can&#39;t create this account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Can&#39;t create this account</h1>
+<p>Registration is temporarily unavailable. Try again later.</p>
+<p class="links">
+<a href="/tenants/acme/login-actions/registration">Try again</a>
+</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Can&#39;t create this account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Can&#39;t create this account</h1>
+<p>Registration is temporarily unavailable. Try again later.</p>
+<p class="links">
+<a href="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/registration?return_to=%2Ftenants%2Facme%2Fprotocol%2Fopenid-connect%2Fauth%3Fresponse_type%3Dcode%26client_id%3Da%26state%3D1">Try again</a>
+<a href="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">Back to sign in</a>
+</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Check your email</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Check your email</h1>
+<p>If this address can be registered, we sent a link to finish.</p>
+<p class="links">
+<a href="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">Back to sign in</a>
+</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Account created</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Account created</h1>
+<p>You can now sign in.</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Can&#39;t finish registering</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Can&#39;t finish registering</h1>
+<p>That username is no longer available. Register again with another one.</p>
+<p class="links">
+<a href="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/registration">Register again</a>
+</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Your account is ready</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Your account is ready</h1>
+<p>Return to the application you were signing in to and sign in.</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>حسابك جاهز</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>حسابك جاهز</h1>
+<p class="links">
+<a href="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">المتابعة إلى تسجيل الدخول</a>
+</p>
+</main>
+</body>
+</html>",
+]
+`;
+
+exports[`the required-actions pages under the default template > renders the form asking for a password, refused and not 1`] = `
+[
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Update your account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Update your account</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>Your administrator asks you to:</p>
+<ul>
+<li>Choose a new password</li>
+<li>Set up an authenticator app</li>
+<li>Register a passkey</li>
+<li>Save a set of recovery codes</li>
+</ul>
+<form method="post" action="/tenants/acme/login-actions/action-token">
+  <input type="hidden" name="key" value="key-1">
+  <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 15 characters</li>
+      <li data-rule="digit">A digit</li>
+      <li data-rule="uppercase">An uppercase letter</li>
+      <li data-rule="lowercase">A lowercase letter</li>
+      <li data-rule="special">A special character</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <button type="submit">Continue</button>
+</form>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Update your account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Update your account</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>Your administrator asks you to:</p>
+<ul>
+<li>Choose a new password</li>
+</ul>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">A new password is required.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/action-token">
+  <input type="hidden" name="key" value="key-1">
+  <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="12" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 password-rules-list" autofocus></label>
+  <div class="rules hint" id="password-rules" data-min="12" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 12 characters</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <button type="submit">Continue</button>
+</form>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Update your account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Update your account</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>Your administrator asks you to:</p>
+<ul>
+<li>Choose a new password</li>
+</ul>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">Password must be at least 12 characters long.</li>
+<li id="form-error-1">Password must contain a digit.</li>
+<li id="form-error-2"><bdi>&lt;b&gt;hostile&lt;/b&gt; &amp; &quot;rule&quot;</bdi></li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/action-token">
+  <input type="hidden" name="key" value="key-1">
+  <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 form-error-1 form-error-2 password-rules-list" autofocus></label>
+  <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 15 characters</li>
+      <li data-rule="digit">A digit</li>
+      <li data-rule="uppercase">An uppercase letter</li>
+      <li data-rule="lowercase">A lowercase letter</li>
+      <li data-rule="special">A special character</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <button type="submit">Continue</button>
+</form>
+</main>
+</body>
+</html>",
+]
+`;
+
+exports[`the required-actions pages under the default template > renders the form byte-identically (arabic dark) 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>حدّث حسابك</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>حدّث حسابك</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>يطلب منك المسؤول ما يلي:</p>
+<ul>
+<li>إعداد تطبيق مصادقة</li>
+</ul>
+<form method="post" action="/tenants/acme/login-actions/action-token">
+  <input type="hidden" name="key" value="key-1">
+  <button type="submit">متابعة</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the required-actions pages under the default template > renders the form byte-identically (dark) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Update your account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Update your account</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>Your administrator asks you to:</p>
+<ul>
+<li>Set up an authenticator app</li>
+</ul>
+<form method="post" action="/tenants/acme/login-actions/action-token">
+  <input type="hidden" name="key" value="key-1">
+  <button type="submit">Continue</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the required-actions pages under the default template > renders the form byte-identically (default) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Update your account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Update your account</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<p>Your administrator asks you to:</p>
+<ul>
+<li>Set up an authenticator app</li>
+</ul>
+<form method="post" action="/tenants/acme/login-actions/action-token">
+  <input type="hidden" name="key" value="key-1">
+  <button type="submit">Continue</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the required-actions pages under the default template > renders the form with hostile text and an action it has no wording for 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Update your account</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Update your account</h1>
+<p class="tenant"><bdi>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co</bdi></p>
+</header>
+<p>Your administrator asks you to:</p>
+<ul>
+<li><bdi>&lt;i&gt;rotate&lt;/i&gt;</bdi></li>
+<li>Register a passkey</li>
+</ul>
+<form method="post" action="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/action-token">
+  <input type="hidden" name="key" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co">
+  <button type="submit">Continue</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the required-actions pages under the default template > renders the outcome pages 1`] = `
+[
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Account updated</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Your account is updated</h1>
+<p>Return to the application you were signing in to and sign in again.</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Account updated</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Your account is updated</h1>
+<p class="links">
+<a href="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">Continue to sign in</a>
+</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Account updated</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Your account is updated</h1>
+<p>Sign in to the application to finish:</p>
+<ul>
+<li>Choose a new password</li>
+<li>Set up an authenticator app</li>
+<li>Register a passkey</li>
+<li>Save a set of recovery codes</li>
+</ul>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>تم تحديث الحساب</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>تم تحديث حسابك</h1>
+<p>سجّل الدخول إلى التطبيق لإكمال العملية:</p>
+<ul>
+<li><bdi>&lt;i&gt;rotate&lt;/i&gt;</bdi></li>
+</ul>
+<p class="links">
+<a href="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">المتابعة إلى تسجيل الدخول</a>
+</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Account updated</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Your account is updated</h1>
+<p>We removed the authenticator app, passkeys and recovery codes on this account. Set them up again after you sign in.</p>
+<p>Return to the application you were signing in to and sign in again.</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Account updated</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Your account is updated</h1>
+<p>We removed the authenticator app, passkeys and recovery codes on this account. Set them up again after you sign in.</p>
+<p>Sign in to the application to finish:</p>
+<ul>
+<li>Set up an authenticator app</li>
+</ul>
+<p class="links">
+<a href="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">Continue to sign in</a>
+</p>
+</main>
+</body>
+</html>",
+]
+`;
+
+exports[`the reset pages under the default template > renders the outcome pages 1`] = `
+[
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Check your email</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Check your email</h1>
+<p>If that address has an account, we&#39;ve sent a link to reset its password.</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Check your email</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Check your email</h1>
+<p>If that address has an account, we&#39;ve sent a link to reset its password.</p>
+<p class="links">
+<a href="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">Back to sign in</a>
+</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Can&#39;t send a reset link</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Can&#39;t send a reset link</h1>
+<p>Password reset is temporarily unavailable. Try again later.</p>
+<p class="links">
+<a href="/tenants/acme/login-actions/reset-password">Try again</a>
+</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Can&#39;t send a reset link</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Can&#39;t send a reset link</h1>
+<p>Password reset is temporarily unavailable. Try again later.</p>
+<p class="links">
+<a href="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/reset-password?return_to=%2Ftenants%2Facme%2Fprotocol%2Fopenid-connect%2Fauth%3Fresponse_type%3Dcode%26client_id%3Da%26state%3D1">Try again</a>
+<a href="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">Back to sign in</a>
+</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Password reset</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Your password has been reset</h1>
+<p>Return to the application you were signing in to and sign in with your new password.</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>تمت إعادة تعيين كلمة المرور</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>تمت إعادة تعيين كلمة مرورك</h1>
+<p>سجّل الدخول بكلمة مرورك الجديدة.</p>
+<p class="links">
+<a href="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">المتابعة إلى تسجيل الدخول</a>
+</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Password reset</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Your password has been reset</h1>
+<p>Return to the application you were signing in to and sign in with your new password.</p>
+<p>We removed the authenticator app, passkeys and recovery codes on this account. Set them up again after you sign in.</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Password reset</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Your password has been reset</h1>
+<p>Sign in with your new password.</p>
+<p>We removed the authenticator app, passkeys and recovery codes on this account. Set them up again after you sign in.</p>
+<p class="links">
+<a href="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">Continue to sign in</a>
+</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Can&#39;t use this link</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>This link can&#39;t be used</h1>
+<p>It may have already been used or expired. Request a new one and try again.</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Can&#39;t use this link</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>This link can&#39;t be used</h1>
+<p>It may have already been used or expired. Request a new one and try again.</p>
+<p class="links">
+<a href="/tenants/acme/login-actions/reset-password">Request a new link</a>
+<a href="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">Back to sign in</a>
+</p>
+</main>
+</body>
+</html>",
+]
+`;
+
+exports[`the reset pages under the default template > renders the password form byte-identically (arabic dark) 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>اختر كلمة مرور جديدة</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>اختر كلمة مرور جديدة</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<form method="post" action="/tenants/acme/login-actions/action-token">
+  <input type="hidden" name="key" value="key-1">
+  <label>كلمة المرور الجديدة <input type="password" name="password" autocomplete="new-password" id="password" minlength="12" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="12" data-summary="استُوفي {met} من أصل {total} من القواعد">
+    <p class="rules-head"><span>تتطلب كلمة المرور:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">إظهار كلمة المرور</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">12 من الأحرف على الأقل</li>
+      <li>ألا تكون كلمة مرور شائعة</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <button type="submit">إعادة تعيين كلمة المرور</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the reset pages under the default template > renders the password form byte-identically (dark) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Choose a new password</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Choose a new password</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<form method="post" action="/tenants/acme/login-actions/action-token">
+  <input type="hidden" name="key" value="key-1">
+  <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="12" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="12" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 12 characters</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <button type="submit">Reset password</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the reset pages under the default template > renders the password form byte-identically (default) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Choose a new password</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Choose a new password</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<form method="post" action="/tenants/acme/login-actions/action-token">
+  <input type="hidden" name="key" value="key-1">
+  <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="12" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="12" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 12 characters</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <button type="submit">Reset password</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the reset pages under the default template > renders the password form with hostile text and each failure 1`] = `
+[
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Choose a new password</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Choose a new password</h1>
+<p class="tenant"><bdi>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co</bdi></p>
+</header>
+<form method="post" action="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/action-token">
+  <input type="hidden" name="key" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co">
+  <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="password-rules-list"></label>
+  <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 15 characters</li>
+      <li data-rule="digit">A digit</li>
+      <li data-rule="uppercase">An uppercase letter</li>
+      <li data-rule="lowercase">A lowercase letter</li>
+      <li data-rule="special">A special character</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <button type="submit">Reset password</button>
+</form>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Choose a new password</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Choose a new password</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">A new password is required.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/action-token">
+  <input type="hidden" name="key" value="key-1">
+  <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 password-rules-list" autofocus></label>
+  <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 15 characters</li>
+      <li data-rule="digit">A digit</li>
+      <li data-rule="uppercase">An uppercase letter</li>
+      <li data-rule="lowercase">A lowercase letter</li>
+      <li data-rule="special">A special character</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <button type="submit">Reset password</button>
+</form>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Choose a new password</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Choose a new password</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">Password must be at least 12 characters long.</li>
+<li id="form-error-1">Password must contain a digit.</li>
+<li id="form-error-2"><bdi>&lt;b&gt;hostile&lt;/b&gt; &amp; &quot;rule&quot;</bdi></li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/action-token">
+  <input type="hidden" name="key" value="key-1">
+  <label>New password <input type="password" name="password" autocomplete="new-password" id="password" minlength="15" spellcheck="false" autocapitalize="off" autocorrect="off" aria-invalid="true" aria-describedby="form-error-0 form-error-1 form-error-2 password-rules-list" autofocus></label>
+  <div class="rules hint" id="password-rules" data-min="15" data-summary="{met} of {total} rules met">
+    <p class="rules-head"><span>Your password needs:</span> <button type="button" class="quiet" hidden aria-controls="password" aria-pressed="false">Show password</button> <span role="status"></span></p>
+    <ul id="password-rules-list">
+      <li data-rule="length">At least 15 characters</li>
+      <li data-rule="digit">A digit</li>
+      <li data-rule="uppercase">An uppercase letter</li>
+      <li data-rule="lowercase">A lowercase letter</li>
+      <li data-rule="special">A special character</li>
+      <li>Not a common password</li>
+    </ul>
+  </div>
+  <script nonce="NONCE">(function () {
+  var box = document.getElementById('password-rules');
+  var field = document.getElementById('password');
+  if (!box || !field) return;
+  var rows = Array.from(box.querySelectorAll('li[data-rule]'));
+  var min = Number(box.getAttribute('data-min'));
+  var tests = {
+    length: function (v) { return Array.from(v.normalize('NFC')).length >= min; },
+    digit: function (v) { return /\\d/u.test(v); },
+    uppercase: function (v) { return /[A-Z]/u.test(v); },
+    lowercase: function (v) { return /[a-z]/u.test(v); },
+    special: function (v) { return /[^A-Za-z0-9]/u.test(v); }
+  };
+  var status = box.querySelector('[role=status]');
+  var timer;
+  function check() {
+    return rows.filter(function (row) {
+      var ok = tests[row.getAttribute('data-rule')](field.value);
+      row.setAttribute('data-met', String(ok));
+      return ok;
+    }).length;
+  }
+  field.addEventListener('input', function () {
+    var met = check();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      status.textContent = box.getAttribute('data-summary').replace('{met}', met).replace('{total}', rows.length);
+    }, 800);
+  });
+  check();
+  var toggle = box.querySelector('button');
+  toggle.hidden = false;
+  toggle.addEventListener('click', function () {
+    var show = field.type === 'password';
+    field.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(show));
+  });
+})();</script>
+  <button type="submit">Reset password</button>
+</form>
+</main>
+</body>
+</html>",
+]
+`;
+
+exports[`the reset pages under the default template > renders the request form byte-identically (arabic dark) 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>هل نسيت كلمة المرور؟</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>هل نسيت كلمة المرور؟</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<form method="post" action="/tenants/acme/login-actions/reset-password">
+  <label>البريد الإلكتروني <input type="email" name="email" autocomplete="email"></label>
+  <button type="submit">إرسال رابط إعادة التعيين</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the reset pages under the default template > renders the request form byte-identically (dark) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Forgot your password?</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Forgot your password?</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<form method="post" action="/tenants/acme/login-actions/reset-password">
+  <label>Email <input type="email" name="email" autocomplete="email"></label>
+  <button type="submit">Send reset link</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the reset pages under the default template > renders the request form byte-identically (default) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Forgot your password?</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Forgot your password?</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<form method="post" action="/tenants/acme/login-actions/reset-password">
+  <label>Email <input type="email" name="email" autocomplete="email"></label>
+  <button type="submit">Send reset link</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the reset pages under the default template > renders the request form refused with nothing typed 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Forgot your password?</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Forgot your password?</h1>
+<p class="tenant"><bdi>acme</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">Email is required.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/acme/login-actions/reset-password">
+  <label>Email <input type="email" name="email" autocomplete="email" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <button type="submit">Send reset link</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the reset pages under the default template > renders the request form with every option and hostile text 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Forgot your password?</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<header class="intro">
+<h1>Forgot your password?</h1>
+<p class="tenant"><bdi>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co</bdi></p>
+</header>
+<div class="alert" role="alert" id="form-error">
+<ul>
+<li id="form-error-0">Email is required.</li>
+</ul>
+</div>
+<form method="post" action="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/reset-password">
+  <input type="hidden" name="return_to" value="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">
+  <label>Email <input type="email" name="email" autocomplete="email" value="&quot;&gt;&lt;x@y.z" aria-invalid="true" aria-describedby="form-error-0" autofocus></label>
+  <button type="submit">Send reset link</button>
+</form>
+<p class="links">
+<a href="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">Back to sign in</a>
+</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the verification pages under the default template > renders the confirmation page byte-identically (arabic dark) 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>أكّد عنوان بريدك الإلكتروني</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>أكّد عنوان بريدك الإلكتروني</h1>
+<p>اضغط على الزر لتأكيد هذا العنوان.</p>
+<form method="post" action="/tenants/acme/login-actions/action-token">
+  <input type="hidden" name="key" value="key-1">
+  <button type="submit">تأكيد بريدي الإلكتروني</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the verification pages under the default template > renders the confirmation page byte-identically (dark) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Confirm your email address</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Confirm your email address</h1>
+<p>Press the button to confirm this address.</p>
+<form method="post" action="/tenants/acme/login-actions/action-token">
+  <input type="hidden" name="key" value="key-1">
+  <button type="submit">Confirm my email</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the verification pages under the default template > renders the confirmation page byte-identically (default) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Confirm your email address</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Confirm your email address</h1>
+<p>Press the button to confirm this address.</p>
+<form method="post" action="/tenants/acme/login-actions/action-token">
+  <input type="hidden" name="key" value="key-1">
+  <button type="submit">Confirm my email</button>
+</form>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the verification pages under the default template > renders the confirmation page naming an account, with hostile text 1`] = `
+[
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Confirm your email address</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Confirm your email address</h1>
+<p>Account name: <bdi>ann</bdi></p>
+<p>Press the button to confirm this address.</p>
+<form method="post" action="/tenants/acme/login-actions/action-token">
+  <input type="hidden" name="key" value="key-1">
+  <button type="submit">Confirm my email</button>
+</form>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Confirm your email address</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Confirm your email address</h1>
+<p>Account name: <bdi>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co</bdi></p>
+<p>Press the button to confirm this address.</p>
+<form method="post" action="/tenants/%3Cscript%3Ealert(%22x%22)%3C%2Fscript%3E&#39;o&#39;%20%26%20co/login-actions/action-token">
+  <input type="hidden" name="key" value="&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&#39;o&#39; &amp; co">
+  <button type="submit">Confirm my email</button>
+</form>
+</main>
+</body>
+</html>",
+]
+`;
+
+exports[`the verification pages under the default template > renders the succeeded and failed pages with and without a way back 1`] = `
+[
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Email confirmed</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Your email address is confirmed</h1>
+<p class="links">
+<a href="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">Continue to sign in</a>
+</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Can&#39;t verify this link</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>This link can&#39;t be used</h1>
+<p>It may have already been used, expired, or no longer matches your email address. Request a new verification email and try again.</p>
+</main>
+</body>
+</html>",
+  "<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>تعذّر التحقق من هذا الرابط</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>لا يمكن استخدام هذا الرابط</h1>
+<p>قد يكون استُخدم من قبل، أو انتهت صلاحيته، أو لم يعد يطابق عنوان بريدك الإلكتروني. اطلب رسالة تحقق جديدة وحاول مرة أخرى.</p>
+<p class="links">
+<a href="/tenants/acme/protocol/openid-connect/auth?response_type=code&amp;client_id=a&amp;state=1">العودة إلى تسجيل الدخول</a>
+</p>
+</main>
+</body>
+</html>",
+]
+`;
+
+exports[`the verification pages under the default template > renders the succeeded page byte-identically (arabic dark) 1`] = `
+"<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>تم تأكيد البريد الإلكتروني</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>تم تأكيد عنوان بريدك الإلكتروني</h1>
+<p>عد إلى التطبيق الذي كنت تسجّل الدخول إليه وسجّل الدخول مرة أخرى.</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the verification pages under the default template > renders the succeeded page byte-identically (dark) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Email confirmed</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Your email address is confirmed</h1>
+<p>Return to the application you were signing in to and sign in again.</p>
+</main>
+</body>
+</html>"
+`;
+
+exports[`the verification pages under the default template > renders the succeeded page byte-identically (default) 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Email confirmed</title>
+<link rel="stylesheet" href="/instrument/instrument.css">
+<link rel="icon" href="/instrument/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/instrument/favicon.ico" sizes="48x48">
+</head>
+<body>
+<main class="page">
+<p class="brand"><svg class="mark" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="16" cy="6" r="4"/><path d="M16 10V30"/><path d="M12 14H20"/></svg><span class="wordmark">odudu</span></p>
+<h1>Your email address is confirmed</h1>
+<p>Return to the application you were signing in to and sign in again.</p>
+</main>
+</body>
+</html>"
+`;

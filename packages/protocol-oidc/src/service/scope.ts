@@ -28,3 +28,24 @@ export function resolveScope(
 
   return scope;
 }
+
+// The scopes a client asks for when a request names none: its default
+// assignments in one fixed order, since the database returns them in no order
+// of its own and a scope string is read by people.
+export function defaultScopeNames(
+  rows: readonly {
+    scope: { name: string; displayOrder: number };
+    assignment: 'default' | 'optional';
+  }[],
+): string[] {
+  return rows
+    .filter((row) => row.assignment === 'default')
+    .map((row) => row.scope)
+    .sort(
+      (a, b) =>
+        Number(b.name === 'openid') - Number(a.name === 'openid') ||
+        a.displayOrder - b.displayOrder ||
+        a.name.localeCompare(b.name, 'en'),
+    )
+    .map((scope) => scope.name);
+}

@@ -1,8 +1,15 @@
 import { startsALogin } from '@odudu/authn-flows';
-import { BIDI_REFUSED, BIDI_REFUSED_MESSAGE } from '@odudu/contracts';
+import {
+  BIDI_REFUSED,
+  BIDI_REFUSED_MESSAGE,
+  canonicalLocale,
+  checkLocalisedText,
+} from '@odudu/contracts';
 import {
   ASSIGNMENT_LIMIT,
+  CLIENT_NAME_MAX,
   CLIENT_SCOPE_LIMIT,
+  DESCRIPTION_MAX,
   EXPORT_SUBJECT_CAP,
   SCOPE_LIMIT,
   smtpPortSchema,
@@ -31,7 +38,7 @@ import {
 } from '@odudu/protocol-oidc';
 import { checkDescription } from '#/service/description';
 import { fieldPath } from '#/service/field-path';
-import { checkConsentText, checkDisplayOrder } from '#/service/scope-consent';
+import { checkConsentText, checkDisplayOrder, checkScopeLocalised } from '#/service/scope-consent';
 import { validateFlowSteps } from '#/service/flow-validation';
 import { CLAIM_KEY, PHONE_E164_MESSAGE, shapeInvalidityFor } from '#/usecase/profile';
 import { tooManySubjectsDetail } from '#/usecase/tenant-export';
@@ -43,6 +50,9 @@ export interface ImportEnvironment {
   readonly tlsClientAuthEnabled: boolean;
   /** The caller's own admin-client role names, the ceiling on what an import may grant. */
   readonly callerCapabilities: ReadonlySet<string>;
+  /** Whether a key is a page message, and what is wrong with a text as one. */
+  readonly isKnownMessageKey: (key: string) => boolean;
+  readonly messageProblem: (key: string, message: string) => string | null;
 }
 
 export type ValidateImportOutcome =
@@ -337,6 +347,12 @@ function scopeProblems(
     }
     const consentText = checkConsentText(scope.consent_text);
     if (consentText.kind === 'invalid') problems.add(`${path}.consent_text`, consentText.message);
+    for (const field of ['description_i18n', 'consent_text_i18n'] as const) {
+      const checked = checkScopeLocalised(field, scope[field], {
+        supported: document.settings.supported_locales,
+      });
+      if (checked.kind === 'invalid') problems.add(`${path}.${field}`, checked.message);
+    }
     const displayOrder = checkDisplayOrder(scope.display_order);
     if (displayOrder.kind === 'invalid') {
       problems.add(`${path}.display_order`, displayOrder.message);
@@ -409,6 +425,27 @@ function subjectProblems(document: TenantDocument, graph: RoleGraph, problems: P
   });
 }
 
+// The checks a single override passes through the admin API, applied to each
+// entry, and a pair named twice however its locale was spelled.
+function messageOverrideProblems(
+  document: TenantDocument,
+  environment: ImportEnvironment,
+  problems: Problems,
+): void {
+  const seen = new Set<string>();
+  document.message_overrides.forEach((override, index) => {
+    const at = `document.message_overrides[${String(index)}]`;
+    if (!environment.isKnownMessageKey(override.key)) {
+      problems.add(`${at}.key`, 'is not the key of any page or mail message');
+    }
+    const problem = environment.messageProblem(override.key, override.message);
+    if (problem !== null) problems.add(`${at}.message`, `${problem} (override of ${override.key})`);
+    const pair = `${canonicalLocale(override.locale) ?? override.locale}\u0000${override.key}`;
+    if (seen.has(pair)) problems.add(at, 'repeats an earlier override of the same locale and key');
+    seen.add(pair);
+  });
+}
+
 function flowAndSmtpProblems(
   document: TenantDocument,
   environment: ImportEnvironment,
@@ -471,6 +508,16 @@ function clientProblems(
       problems.add(`${path}.client_id`, `${ADMIN_CLIENT_ID} is provisioned by every new tenant`);
     }
     if (client.client_id === '') problems.add(`${path}.client_id`, 'is empty');
+    for (const [field, max] of [
+      ['name_i18n', CLIENT_NAME_MAX],
+      ['description_i18n', DESCRIPTION_MAX],
+    ] as const) {
+      const checked = checkLocalisedText(field, client[field], {
+        max,
+        supported: document.settings.supported_locales,
+      });
+      if (checked.kind === 'invalid') problems.add(`${path}.${field}`, checked.message);
+    }
     const parsed = parseClientMetadata(metadataInput(client), {
       tlsClientAuthEnabled: environment.tlsClientAuthEnabled,
     });
@@ -674,6 +721,7 @@ export function validateTenantImport(
     );
   }
   flowAndSmtpProblems(document, environment, problems);
+  messageOverrideProblems(document, environment, problems);
   const metadata = clientProblems(document, graph, environment, problems);
   invariantProblems(document, graph, environment, problems);
 

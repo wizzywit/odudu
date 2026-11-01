@@ -17,6 +17,7 @@ import {
 import { returnToField } from '#/view/return-to';
 import { t, tHtml, type MessageId } from '#/view/messages';
 import { passwordField } from '#/view/password-field';
+import { fillNotice, fillPage } from '#/view/template';
 import { ruleHtml, type PasswordViolation } from '#/view/password-rules';
 
 export type RegistrationField = 'username' | 'email' | 'password' | 'passwordConfirm';
@@ -132,17 +133,26 @@ export function renderRegistrationForm(
   };
   return page(
     t(locale, 'registration.title'),
-    `${intro(tHtml(locale, 'registration.title'), tenant)}
-${problemSummary(problems)}<form method="post" action="${action}">${returnToField(form.signInPath)}
-  <label>${tHtml(locale, 'registration.username')} <input type="text" name="username" autocomplete="username"${value(form.username)}${attributes('username')}></label>
+    fillPage(
+      'registration',
+      {
+        intro: intro(tHtml(locale, 'registration.title'), tenant),
+        error: problemSummary(problems),
+        'form.open': `<form method="post" action="${action}">${returnToField(form.signInPath)}`,
+        fields: `<label>${tHtml(locale, 'registration.username')} <input type="text" name="username" autocomplete="username"${value(form.username)}${attributes('username')}></label>
   <label>${tHtml(locale, 'registration.email')} <input type="email" name="email" autocomplete="email"${value(form.email)}${attributes('email')}></label>
   ${password.html}
-  <label>${tHtml(locale, 'registration.passwordConfirm')} <input type="password" name="password_confirm" id="${PASSWORD_CONFIRM_FIELD_ID}" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"${attributes('passwordConfirm')}></label>\n  ${passwordConfirmToggle(password.script)}
-  <button type="submit">${tHtml(locale, 'registration.submit')}</button>
-</form>${links([backToSignIn(form.signInPath, locale)])}`,
+  <label>${tHtml(locale, 'registration.passwordConfirm')} <input type="password" name="password_confirm" id="${PASSWORD_CONFIRM_FIELD_ID}" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"${attributes('passwordConfirm')}></label>\n  ${passwordConfirmToggle(password.script)}`,
+        submit: `<button type="submit">${tHtml(locale, 'registration.submit')}</button>`,
+        'form.close': '</form>',
+        links: links([backToSignIn(form.signInPath, locale)]),
+      },
+      locale,
+    ),
     password.script,
     [],
     locale,
+    'registration',
   );
 }
 
@@ -156,17 +166,22 @@ export function renderRegistrationFailedPage(
   const retry = `/tenants/${encodeURIComponent(tenant)}/login-actions/registration`;
   return page(
     t(locale, 'registration.failed.title'),
-    `<h1>${tHtml(locale, 'registration.failed.title')}</h1>
+    fillNotice(
+      `<h1>${tHtml(locale, 'registration.failed.title')}</h1>
 <p>${tHtml(locale, 'registration.refusal.unavailable')}</p>${links([
-      {
-        href: signInPath === null ? retry : retryWith(retry, signInPath),
-        text: tHtml(locale, 'link.tryAgain'),
-      },
-      backToSignIn(signInPath, locale),
-    ])}`,
+        {
+          href: signInPath === null ? retry : retryWith(retry, signInPath),
+          text: tHtml(locale, 'link.tryAgain'),
+        },
+        backToSignIn(signInPath, locale),
+      ])}`,
+      '',
+      locale,
+    ),
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -189,11 +204,16 @@ export function renderRegistrationSucceededPage(
   );
   return page(
     t(locale, `${prefix}.title`),
-    `<h1>${tHtml(locale, `${prefix}.title`)}</h1>
-<p>${next}</p>${links([backToSignIn(signInPath, locale)])}`,
+    fillNotice(
+      `<h1>${tHtml(locale, `${prefix}.title`)}</h1>
+<p>${next}</p>`,
+      links([backToSignIn(signInPath, locale)]),
+      locale,
+    ),
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -206,13 +226,18 @@ export function renderRegistrationUsernameGonePage(
   const form = `/tenants/${encodeURIComponent(tenant)}/login-actions/registration`;
   return page(
     t(locale, 'registration.usernameGone.title'),
-    `<h1>${tHtml(locale, 'registration.usernameGone.title')}</h1>
+    fillNotice(
+      `<h1>${tHtml(locale, 'registration.usernameGone.title')}</h1>
 <p>${tHtml(locale, 'registration.usernameGone.next')}</p>${links([
-      { href: form, text: tHtml(locale, 'link.registerAgain') },
-    ])}`,
+        { href: form, text: tHtml(locale, 'link.registerAgain') },
+      ])}`,
+      '',
+      locale,
+    ),
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -228,9 +253,10 @@ export function renderRegistrationReadyPage(
       : links([{ href: signInPath, text: tHtml(locale, 'link.continueToSignIn') }]);
   return page(
     t(locale, 'registration.ready.title'),
-    `<h1>${tHtml(locale, 'registration.ready.title')}</h1>${next}`,
+    fillNotice(`<h1>${tHtml(locale, 'registration.ready.title')}</h1>${next}`, '', locale),
     null,
     [],
     locale,
+    'notice',
   );
 }

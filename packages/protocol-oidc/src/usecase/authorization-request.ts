@@ -1,3 +1,4 @@
+import { type ConsentI18n } from '#/service/consent-i18n';
 import {
   nextRequiredAction,
   type AuthenticatorResult,
@@ -87,6 +88,7 @@ export type AuthorizationRequestOutcome =
       clientName: string;
       clientPages: ClientPages;
       scopeLabels: ScopeLabels;
+      i18n: ConsentI18n;
       defaultScopes: string[];
       optionalScopes: string[];
       alreadyGranted: string[];
@@ -610,6 +612,7 @@ export async function handleAuthorizationRequest(
         clientName: gate.clientName,
         clientPages: gate.clientPages,
         scopeLabels: gate.scopeLabels,
+        i18n: gate.i18n,
         defaultScopes: gate.defaultScopes,
         optionalScopes: gate.optionalScopes,
         alreadyGranted: gate.alreadyGranted,
@@ -848,6 +851,7 @@ export async function handleSelectAccountSubmission(
       clientName: gate.clientName,
       clientPages: gate.clientPages,
       scopeLabels: gate.scopeLabels,
+      i18n: gate.i18n,
       defaultScopes: gate.defaultScopes,
       optionalScopes: gate.optionalScopes,
       alreadyGranted: gate.alreadyGranted,

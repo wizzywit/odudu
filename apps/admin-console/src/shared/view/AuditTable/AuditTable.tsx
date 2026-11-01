@@ -7,7 +7,7 @@ import {
   requestLabel,
   requestRowCounts,
 } from '#/shared/service/auditEvents';
-import { counted } from '#/shared/service/format';
+import { counted, shortened } from '#/shared/service/format';
 import { AuditActor } from '#/shared/view/AuditActor';
 import { AuditDetail } from '#/shared/view/AuditDetail';
 import { Button } from '#/shared/view/Button';
@@ -44,7 +44,7 @@ function Resource({ event, href }: { event: AuditEvent; href: string | null }) {
       ) : (
         <>
           <Link href={href} className={styles.link ?? ''}>
-            <code>{id.length > 8 ? `${id.slice(0, 8)}…` : id}</code>
+            <code>{shortened(id, 8)}</code>
             <VisuallyHidden elementType="span">{` ${event.resource_type} ${id}`}</VisuallyHidden>
           </Link>
           <CopyValue label="resource id" value={id} short />

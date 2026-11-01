@@ -17,7 +17,7 @@ import { sendSignInExpired } from '#/view/routes/expired-sign-in';
 import { sendHtml } from '#/view/html-response';
 import { sendRequestError } from '#/view/routes/request-error';
 import { issuerBaseFor } from '#/view/issuer';
-import { continuation } from '#/view/routes/continuation';
+import { continuation, lookingUpTenantOnce } from '#/view/routes/continuation';
 import { sendLoginOutcome, type LoginResponseDeps } from '#/view/routes/login-response';
 
 // A finished action resumes the login it was parked on through the same
@@ -37,13 +37,14 @@ function firstString(value: string | string[] | undefined): string | undefined {
 // login.ts gives: this is Odudu's own UI, not the OIDC wire protocol.
 export function registerRequiredActionRoute(
   app: FastifyInstance,
-  deps: RequiredActionRouteDeps,
+  routeDeps: RequiredActionRouteDeps,
 ): void {
   app.post<{
     Params: { tenant: string };
     Querystring: { action?: string };
     Body: Record<string, string | string[] | undefined>;
   }>('/tenants/:tenant/login-actions/required-action', async (request, reply) => {
+    const deps = lookingUpTenantOnce(routeDeps);
     const body = request.body;
     const tenantName = request.params.tenant;
     const authSessionId = firstString(body.auth_session_id);
@@ -60,7 +61,8 @@ export function registerRequiredActionRoute(
       authSessionId !== undefined
     ) {
       const found = await deps.findTenant(tenantName);
-      if (found === null) return sendRequestError(reply, deps, 400, 'error.unknownTenant');
+      if (found === null)
+        return sendRequestError(reply, deps, tenantName, 400, 'error.unknownTenant');
       const { locale, continuing } = await continuation(
         deps,
         tenantName,
@@ -104,16 +106,16 @@ export function registerRequiredActionRoute(
     }
 
     if (outcome.kind === 'not_owed') {
-      return sendRequestError(reply, deps, 400, 'error.noPendingAction');
+      return sendRequestError(reply, deps, tenantName, 400, 'error.noPendingAction');
     }
 
     if (outcome.kind === 'unsupported') {
-      return sendRequestError(reply, deps, 400, 'error.pendingActionNotReady');
+      return sendRequestError(reply, deps, tenantName, 400, 'error.pendingActionNotReady');
     }
 
     const tenant = await deps.findTenant(tenantName);
     if (tenant === null) {
-      return sendRequestError(reply, deps, 400, 'error.unknownTenant');
+      return sendRequestError(reply, deps, tenantName, 400, 'error.unknownTenant');
     }
 
     // Back to the same form with every rule it broke, and 400 for the same

@@ -50,7 +50,9 @@ async function seed(options: { locale: string | null; owes?: 'update-password' }
   const tenantName = `locale-${newId()}`;
   const tenantId = newId();
   const subjectId = await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
-    await tx.insert(tenants).values({ id: tenantId, name: tenantName });
+    await tx
+      .insert(tenants)
+      .values({ id: tenantId, name: tenantName, supportedLocales: ['en', 'fr'] });
     await provisionTenant(tx, tenantId);
     const clientDbId = newId();
     await tx.insert(clients).values({
@@ -148,7 +150,6 @@ beforeAll(async () => {
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
       auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
-      pageLocales: ['en', 'fr'],
     }),
   );
   await http.ready();

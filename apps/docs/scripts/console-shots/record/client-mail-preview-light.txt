@@ -1,0 +1,166 @@
+@layer {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+Odudu console
+Skip to content
+odudu · acme
+Overview
+Identity
+Subjects
+Groups
+Roles
+Applications
+Clients
+Scopes
+Registration tokens
+Security
+Sign-in flow
+Signing keys
+Sessions
+Tenant
+Settings
+Branding
+Email
+Export
+Observe
+Audit trail
+Signed in as 
+admin@odudu.local
+ from 
+system
+Theme
+System
+Light
+Dark
+Switch tenant
+Sign out
+Collapse menu
+or press 
+[
+odudu · acme
+Menu
+System
+Acting in 
+acme
+ with system authority
+Back to system
+acme
+Branding
+How the sign-in and account pages look to this tenant’s users. Edits are saved as a draft; nobody sees them until you publish.
+Publish
+Published
+Live
+Version 2 is published.
+Changed: Colours and font
+1 change
+Publishing makes the saved draft what people see on the sign-in and account pages, and keeps the version it replaces. Nothing is published until you do.
+Publish the draft
+Publish
+Discard draft…
+More
+Theme
+, changes to publish
+Pages
+Mail
+Languages
+What the mail inherits
+Mail takes the tenant’s published logo and colours, and its message overrides. A mail whose flow began inside a client’s sign-in takes that client’s logo and colours over these. This shows the mail a sign-in of Storefront sends. Never a stylesheet or a template. Where the theme sets nothing, the mail keeps Odudu’s own colours and mark.
+A mail client chooses the light or the dark colours by its own setting, so each is listed here and the preview shows one at a time.
+Logo
+Logo
+48 by 48 pixels
+http://localhost:3000/tenants/acme/brand/e3673972d62825782690e43dd745fcb5a3eaf65edcc983fd8a0da2235557016e.png
+Logo for the dark scheme
+48 by 48 pixels
+http://localhost:3000/tenants/acme/brand/b362e1ed97851e1b0fdfeade57c44eb73dfdd46448cf453df002ce5c0d54e4fd.png
+Light colours
+From the client’s published theme.
+Light colours
+Colour
+Value
+Used for
+Page background
+#e6eefb
+Around the message.
+Message background
+#ffffff
+The card the text sits on.
+Link box background
+#eef3fb
+Behind the address to copy.
+Border
+#5a6b91
+Around the card and the link box.
+Text
+#0f2147
+The heading and the message.
+Quiet text
+#46557a
+The notes and the footer.
+Link
+#0b2f78
+The address, and a link in the text.
+Button
+#d6e4ff
+The button’s fill.
+Button text
+#0b2f78
+The words on the button.
+Dark colours
+From the tenant’s published theme.
+Dark colours
+Colour
+Value
+Used for
+Page background
+#1d130e
+Around the message.
+Message background
+#2b1d15
+The card the text sits on.
+Link box background
+#241810
+Behind the address to copy.
+Border
+#b79a85
+Around the card and the link box.
+Text
+#f6e8db
+The heading and the message.
+Quiet text
+#c7ad9a
+The notes and the footer.
+Link
+#ffd9bf
+The address, and a link in the text.
+Button
+#5a2a12
+The button’s fill.
+Button text
+#ffd9bf
+The words on the button.
+Preview
+Colour scheme
+Light
+▾
+Light
+Dark
+Language
+The tenant’s default
+▾
+The tenant’s default
+English (en)
+Arabic (ar)
+Preview as client
+1 selected
+Search
+Odudu administration
+odudu-admin · confidential
+Storefront
+storefront · public
+Show the tenant’s own
+The verification mail, drawn by the code that sends it, from the published theme of Storefront over the tenant’s and the tenant’s message overrides. Changes to the draft appear once you publish.
+Email · Light · The tenant’s default · Storefront
+Open preview

@@ -127,6 +127,7 @@ test('an operator without view-audit sees neither the audit rows nor the areas i
     'Scopes',
     'Sign-in flow',
     'Settings',
+    'Branding',
     'Email',
     'Export',
     'Switch tenant',

@@ -1,3 +1,4 @@
+import { utf8Length } from '#/shared/service/format';
 import { lacking } from '#/shared/service/access';
 import { type AdminCapability, type Authority } from '#/shared/service/principal';
 import type { GatewayFailure } from '#/shared/service/result';
@@ -16,7 +17,7 @@ export interface Exported {
 }
 
 export function exportedOf(fileName: string, text: string): Exported {
-  return { fileName, bytes: new TextEncoder().encode(text).length, omitted: omittedOf(text) };
+  return { fileName, bytes: utf8Length(text), omitted: omittedOf(text) };
 }
 
 const EXPORT_NEEDS: readonly AdminCapability[] = ['manage-tenant', 'manage-clients'];

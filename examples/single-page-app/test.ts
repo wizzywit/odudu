@@ -203,6 +203,8 @@ test('signs out of the app and of Odudu, so the next sign-in asks again', async 
     await signInAndWaitForApp(page, APP, 'ada', PASSWORD, 'button');
     await page.locator('text=Signed in as ada').waitFor();
     await page.getByRole('button', { name: /sign out/i }).click();
+    await page.getByRole('heading', { name: /^sign out\?$/iu }).waitFor();
+    await page.getByRole('button', { name: /^sign out$/iu }).click();
     await page.locator('text=You are signed out').waitFor();
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.locator('input[name=username]').fill('ada');

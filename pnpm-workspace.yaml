@@ -25,13 +25,17 @@ minimumReleaseAgeExclude:
 # Node's module resolution looks from a file under an image's /app — so a
 # bare `import '@node-rs/argon2'` couldn't resolve there without a
 # hand-written symlink. Hoisting it (and its per-platform sibling package)
-# to the root node_modules is what lets it resolve on its own.
+# to the root node_modules is what lets it resolve on its own. sharp (image
+# decoding in packages/domain-theme) and its @img binaries are hoisted for the
+# same reason.
 # verified: on this repo's pinned pnpm (12.3.4), this setting is read from
 # pnpm-workspace.yaml, not .npmrc — a plain .npmrc `public-hoist-pattern`
 # was silently ignored for workspace installs (confirmed empty
 # `publicHoistPattern` in the resulting node_modules/.modules.yaml).
 publicHoistPattern:
   - '@node-rs/argon2*'
+  - sharp
+  - '@img/*'
 
 # @lhci/cli's puppeteer-core pulls chromium-bidi, which declares zod 3. The
 # console holds the lockfile to the one zod it validates with (the contracts'

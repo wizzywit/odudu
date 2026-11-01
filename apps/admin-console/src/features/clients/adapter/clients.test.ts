@@ -11,6 +11,11 @@ import {
 import { fakeTransport, json } from '#/testing/fakeTransport';
 import { BILLING, C } from '#/testing/clientsFixtures';
 
+// A list carries no languages: the client's own read does.
+const LISTED = Object.fromEntries(
+  Object.entries(BILLING).filter(([key]) => key !== 'supported_locales'),
+);
+
 it('pages the clients, searched and filtered by the server, and counts them', async () => {
   const fake = fakeTransport({
     [`GET ${C}`]: json({ items: [BILLING], next: 'n1' }),
@@ -20,7 +25,7 @@ it('pages the clients, searched and filtered by the server, and counts them', as
   const query = new URLSearchParams({ name: 'bil', type: 'confidential' });
   expect(await readClientPage(gateway, 'acme', query)).toMatchObject({
     ok: true,
-    data: { items: [BILLING], next: 'n1' },
+    data: { items: [LISTED], next: 'n1' },
   });
   expect(fake.sent.at(-1)?.search.get('name')).toBe('bil');
   await readClientCount(gateway, 'acme', query);

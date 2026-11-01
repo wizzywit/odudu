@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PAGES_DOCS_BASE } from '#docs/site.config.ts';
-import { AGENT_ITEMS, BRANDING, type Planned } from '#docs/src/features/landing/service/content.ts';
+import { AGENT_ITEMS, type Planned } from '#docs/src/features/landing/service/content.ts';
 import { DOCS_ROOT, distDir, load } from '#docs/tests/support/dist.ts';
 
 // A "Planned" claim on the landing page is held to the roadmap's words: each
@@ -19,7 +19,7 @@ const ahead = normal(
 const $ = load(path.join(distDir('pages'), 'index.html'));
 const landing = $('[data-page="landing"]');
 
-const PLANNED: Planned[] = [...AGENT_ITEMS, BRANDING];
+const PLANNED: Planned[] = [...AGENT_ITEMS];
 
 describe('every Planned claim on the landing page', () => {
   it('is on the page once, with the chip "Planned", and every item on the page is known', () => {
@@ -67,13 +67,12 @@ describe('every Planned claim on the landing page', () => {
   });
 });
 
-describe('what ships today beside the branding claim', () => {
-  it('is said once, and says nothing that the roadmap still lists as ahead', () => {
-    expect(landing.find('[data-today]').text()).toBe(BRANDING.today);
-    expect(ahead).toContain("a tenant's theme");
-    expect(ahead).toContain('translated pages and mail');
-    expect(BRANDING.today).toContain('none are translated yet');
-    expect(BRANDING.today).not.toMatch(/catalogue|localized/iu);
+describe('the branding band, which shipped', () => {
+  it('is on the landing page and carries no Planned marker', () => {
+    const band = landing.find('[data-section="branding"]');
+    expect(band).toHaveLength(1);
+    expect(band.find('[data-planned], [data-chip], [data-today]')).toHaveLength(0);
+    expect(band.text()).not.toMatch(/planned/iu);
   });
 });
 

@@ -34,8 +34,8 @@ let tenantId: string;
 const TENANT = 'acme';
 const CLIENT_ID = 'ui-locales-client';
 const REDIRECT_URI = 'https://app.example/callback';
-// What the deployment ships; the server's own list is the only thing a
-// request's preference is ever matched against.
+// What the tenant lists; its own list is the only thing a request's
+// preference is ever matched against.
 const SHIPPED = ['en', 'fr'];
 
 function authorize(
@@ -88,7 +88,6 @@ beforeAll(async () => {
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
       auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
-      pageLocales: SHIPPED,
     }),
   );
   await http.ready();
@@ -96,7 +95,11 @@ beforeAll(async () => {
   tenantId = newId();
   const clientId = newId();
   await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
-    await tx.insert(tenants).values({ id: tenantId, name: TENANT });
+    await tx.insert(tenants).values({
+      id: tenantId,
+      name: TENANT,
+      supportedLocales: SHIPPED,
+    });
     await provisionTenant(tx, tenantId);
     await tx.insert(clients).values({
       id: clientId,

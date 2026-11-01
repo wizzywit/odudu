@@ -457,16 +457,16 @@ Real questions a newcomer asks, each answered strictly from the built documentat
 - Role: Administrator
 - Before: answered
 - Status: answered
-- Pages: roadmap
-- Note: Planned (P4b): theming and client branding.
+- Pages: admin-console/branding, admin-console/clients, roadmap
+- Note: Branding in the console: a tenant's colours, font, images, stylesheet and page templates, a client's own over them, preview and publish with versions; a custom domain per tenant follows in P4j.
 
 ## A30. Which languages do the pages and mail support?
 
 - Role: Administrator
 - Before: partly
 - Status: answered
-- Pages: introduction/index, roadmap
-- Note: Fixed: English today; translations are planned (P4b, P4h).
+- Pages: introduction/index, admin-console/branding, roadmap
+- Note: English and Arabic (right to left), chosen per tenant, with the tenant's own message overrides; other translations are not shipped (P4h for the console).
 
 ## O01. How do I deploy with Docker Compose?
 

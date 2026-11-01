@@ -133,3 +133,56 @@ export function sessionKey() {
 export function overviewKey(tenant: string, ...read: readonly string[]) {
   return ['overview', tenant, ...read] as const;
 }
+
+// The published and archived versions of one scope's theme.
+export function themeVersionsKey(tenant: string, scope: string) {
+  return ['theme-versions', tenant, scope] as const;
+}
+
+// A write to one scope's theme while it runs, so a page can tell which one
+// is in flight whichever of its parts started it.
+export function themeWriteKey(tenant: string, scope: string, write: string) {
+  return ['theme-write', tenant, scope, write] as const;
+}
+
+// One message override read fresh, to show the side of a conflict that is not
+// the person's own.
+export function overrideReadKey(tenant: string, locale: string, key: string) {
+  return ['message-override', tenant, locale, key] as const;
+}
+
+// Every write to a tenant's theme while it runs, whichever scope or part.
+export function themeWritesKey(tenant: string) {
+  return ['theme-write', tenant] as const;
+}
+
+// What a tenant's mail inherits from its published theme, read again once
+// a newer version is published.
+// A client's own mail is a different read; an empty `client` is the tenant's.
+export function mailBrandingKey(tenant: string, publishedVersion: number, client = '') {
+  return ['mail-branding', tenant, publishedVersion, client] as const;
+}
+
+// The messages a tenant's pages are filled from: the same for every tenant and
+// fixed for a build, so it is read once.
+export function messageCatalogueKey(tenant: string) {
+  return ['message-catalogue', tenant] as const;
+}
+
+// What a tenant's stylesheets may name: the same for every tenant and fixed
+// for a build, so it is read once.
+export function stylesheetHooksKey(tenant: string) {
+  return ['stylesheet-hooks', tenant] as const;
+}
+
+// An uploaded image's bytes as a data address. An image's content never
+// changes under its id, so a read of it is kept (`freshness(true)`).
+export function assetImageKey(tenant: string, assetId: string) {
+  return ['asset-image', tenant, assetId] as const;
+}
+
+// What the preview of one page of a scope shows and why, read again whenever
+// the frame is reloaded (`frame` is the frame's own key).
+export function previewInfoKey(tenant: string, scope: string, frame: string) {
+  return ['preview-info', tenant, scope, frame] as const;
+}

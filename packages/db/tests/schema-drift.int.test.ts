@@ -159,6 +159,26 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'client_oidc_config.client_oidc_config_default_max_age_range': 'CHECK ((default_max_age >= 0))',
   'clients.clients_previous_secret_pair':
     'CHECK (((previous_secret_hash IS NULL) = (previous_secret_expires_at IS NULL)))',
+  'clients.clients_name_i18n_shape':
+    "CHECK (((jsonb_typeof(name_i18n) = 'object'::text) AND (octet_length((name_i18n)::text) <= 131072)))",
+  'clients.clients_description_i18n_shape':
+    "CHECK (((jsonb_typeof(description_i18n) = 'object'::text) AND (octet_length((description_i18n)::text) <= 131072)))",
+  'client_scopes.client_scopes_description_i18n_shape':
+    "CHECK (((jsonb_typeof(description_i18n) = 'object'::text) AND (octet_length((description_i18n)::text) <= 131072)))",
+  'client_scopes.client_scopes_consent_text_i18n_shape':
+    "CHECK (((jsonb_typeof(consent_text_i18n) = 'object'::text) AND (octet_length((consent_text_i18n)::text) <= 131072)))",
+  'tenants.tenants_default_locale_supported':
+    'CHECK (((default_locale IS NULL) OR (default_locale = ANY (supported_locales))))',
+  'tenants.tenants_supported_locales_bounds':
+    'CHECK (((cardinality(supported_locales) >= 1) AND (cardinality(supported_locales) <= 32)))',
+  'message_overrides.message_overrides_key_length':
+    'CHECK (((char_length(key) >= 1) AND (char_length(key) <= 128)))',
+  'message_overrides.message_overrides_message_length':
+    'CHECK (((char_length(message) >= 1) AND (char_length(message) <= 2000)))',
+  'message_overrides.message_overrides_locale_shape':
+    "CHECK ((locale ~ '^[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3}))?$'::text))",
+  'theme_versions.theme_versions_state_check':
+    "CHECK ((state = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])))",
   'clients.clients_previous_secret_confidential':
     "CHECK (((previous_secret_hash IS NULL) OR (type = 'confidential'::text)))",
 };

@@ -31,14 +31,27 @@ those stay until `audit_retention_days` takes them. `admin_mutation` and
 it again underneath. A security trail an attacker holding an administrator's
 token could switch off is no trail.
 
-In a tenant `audit-types-demo` made for it with `ivy` seeded there by `odudu
-seed user`, so its trail holds nothing else: `ivy` signs in once through the
-tenant's `odudu-admin` client (the sign-in "Getting the token" shows), the
-counts of three types are read, `authentication` and `session` are left out —
-named in another order, and answered in the listed one — a value leaving out
-`admin_mutation` is refused, `ivy` signs in again, and the counts are read
-again. The new sign-in wrote its `token` row and nothing of the two types left
-out, and the rows already stored are still there:
+Everything on this page above the last section ran in one session on a freshly built
+stack with `odudu seed admin --username ada` run against it and `$ADMIN_TOKEN` got as
+in [Getting the token](./getting-the-token.md). In a tenant `audit-types-demo`
+made for it with `ivy` seeded there by `odudu seed user`, so its trail holds
+nothing else: `ivy` signs in once through the tenant's `odudu-admin` client (the
+sign-in "Getting the token" shows), the counts of three types are read,
+`authentication` and `session` are left out — named in another order, and
+answered in the listed one — a value leaving out `admin_mutation` is refused,
+`ivy` signs in again, and the counts are read again. The new sign-in wrote its
+`token` row and nothing of the two types left out, and the rows already stored
+are still there. `$P` is the tenant's admin path:
+
+```bash
+A="Authorization: Bearer $ADMIN_TOKEN"; J='Content-Type: application/json'
+curl -sS -X POST -H "$A" -H "$J" -d '{"name":"audit-types-demo"}' http://localhost:3000/admin/tenants -o /dev/null
+P=http://localhost:3000/admin/tenants/audit-types-demo
+docker compose exec -T odudu node dist/main.js seed user --tenant audit-types-demo \
+  --username ivy --password 'correct-horse-battery-8c2' > /dev/null
+```
+
+The `for` loop, then the two `PATCH`es and their answers:
 
 ```bash
 for t in authentication session token; do
@@ -51,15 +64,12 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: appl
   -d '{"audit_event_types":["admin_access","token"]}' "$P/settings"; echo
 ```
 
-`$P` is `http://localhost:3082/admin/tenants/audit-types-demo`. The `for` loop, then the
-two `PATCH`es and their answers:
-
 ```
 authentication {"count":1,"capped":false}
 session {"count":1,"capped":false}
 token {"count":1,"capped":false}
 {"audit_event_types":["admin_mutation","admin_access","token","credential"]}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"1 tenant setting(s) refused, listed under errors","errors":[{"path":"audit_event_types","message":"must include admin_mutation and admin_access, which can never be turned off; admin_mutation is missing"}],"instance":"01a109f6-7586-7863-93ba-e73e8b24afc1"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"1 tenant setting(s) refused, listed under errors","errors":[{"path":"audit_event_types","message":"must include admin_mutation and admin_access, which can never be turned off; admin_mutation is missing"}],"instance":"01a1873a-13d0-7ee0-b408-9ddb39dd0775"}
 ```
 
 `ivy` signs in again, then the same loop:
@@ -96,8 +106,21 @@ paths](../request-paths/index.md) show both fields; those in [the console
 paths](../console-paths/index.md) say at the block that they predate them.
 
 `ivy`, seeded in `ops-demo` with `odudu seed user` and granted
-`odudu-admin:view-audit` alone (`$IVY_TOKEN`), reads the row `DELETE /sessions`
-above left, then `$ADMIN_TOKEN` reads the same row:
+`odudu-admin:view-audit` alone (`$IVY_TOKEN`, got the way "Getting the token" shows
+through the tenant's own `odudu-admin` client), reads the row `DELETE /sessions`
+left, then `$ADMIN_TOKEN` reads the same row:
+
+```bash
+curl -sS -X POST -H "$A" -H "$J" -d '{"name":"ops-demo"}' http://localhost:3000/admin/tenants -o /dev/null
+P=http://localhost:3000/admin/tenants/ops-demo
+docker compose exec -T odudu node dist/main.js seed user --tenant ops-demo \
+  --username ivy --password 'correct-horse-battery-8c2' > /dev/null
+IVY=$(curl -sS -H "$A" "$P/subjects?username=ivy" | jq -r '.items[0].id')
+VIEW_AUDIT=$(curl -sS -H "$A" "$P/roles?name=view-audit" | jq -r '.items[] | select(.name == "view-audit") | .id')
+ETAG=$(curl -sS -D - -o /dev/null -H "$A" $P/subjects/$IVY/roles | tr -d '\r' | sed -n 's/^etag: //p')
+curl -sS -X PUT -H "$A" -H "$J" -H "If-Match: $ETAG" -d "{\"role_ids\":[\"$VIEW_AUDIT\"]}" $P/subjects/$IVY/roles -o /dev/null
+curl -sS -X DELETE -H "$A" $P/sessions -o /dev/null
+```
 
 ```bash
 curl -sS -H "Authorization: Bearer $IVY_TOKEN" "$P/whoami"; echo
@@ -106,9 +129,9 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit?action=session.end_al
 ```
 
 ```
-{"subjectId":"01a0eea2-0572-77d8-b198-1cd4eae2caff","issuerTenantId":"01a0ee8a-c394-7b49-942b-3dea70a962e7","capabilities":["view-audit"],"crossTenant":false}
-{"items":[{"id":"01a0ee8c-5548-7fd9-8179-8d3d1320b981","occurred_at":"2026-09-29T19:02:49.371Z","event_type":"admin_mutation","action":"session.end_all","outcome":"allowed","actor_tenant_id":"01a0ee8a-c394-7b49-942b-3dea70a962e7","actor_subject_id":"01a0ee8a-ca97-7a85-b36d-e23f6a8ae2d3","actor_client_id":"01a0ee8a-c3a0-7429-ab4a-4ecef6baf694","actor_name":null,"actor_origin":"tenant","resource_type":"tenant","resource_id":"01a0ee8a-c394-7b49-942b-3dea70a962e7","request_id":"01a0ee8c-550b-776a-8847-5fcfd763a5d1","ip":"172.22.0.1","detail":{"ended":4,"remaining":0,"beyond_ceiling":1}}]}
-{"items":[{"id":"01a0ee8c-5548-7fd9-8179-8d3d1320b981","occurred_at":"2026-09-29T19:02:49.371Z","event_type":"admin_mutation","action":"session.end_all","outcome":"allowed","actor_tenant_id":"01a0ee8a-c394-7b49-942b-3dea70a962e7","actor_subject_id":"01a0ee8a-ca97-7a85-b36d-e23f6a8ae2d3","actor_client_id":"01a0ee8a-c3a0-7429-ab4a-4ecef6baf694","actor_name":"sam","actor_origin":"tenant","resource_type":"tenant","resource_id":"01a0ee8a-c394-7b49-942b-3dea70a962e7","request_id":"01a0ee8c-550b-776a-8847-5fcfd763a5d1","ip":"172.22.0.1","detail":{"ended":4,"remaining":0,"beyond_ceiling":1}}]}
+{"subjectId":"01a1873a-19be-711a-b3ae-a6408cfe7e79","issuerTenantId":"01a1873a-178d-7da0-912a-e976785881ac","capabilities":["view-audit"],"crossTenant":false}
+{"items":[{"id":"01a1873a-1b1d-74a0-b9d5-a48ae2bd2294","occurred_at":"2026-10-29T10:34:54.617Z","event_type":"admin_mutation","action":"session.end_all","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a18727-6b60-76f6-9299-36e7692328a0","actor_client_id":"01a18727-6b13-713f-8865-d215040c7828","actor_name":null,"actor_origin":"system","resource_type":"tenant","resource_id":"01a1873a-178d-7da0-912a-e976785881ac","request_id":"01a1873a-1b08-75cf-8194-c970aef1a0fa","ip":"172.20.0.1","detail":{"ended":0,"remaining":0,"beyond_ceiling":0}}]}
+{"items":[{"id":"01a1873a-1b1d-74a0-b9d5-a48ae2bd2294","occurred_at":"2026-10-29T10:34:54.617Z","event_type":"admin_mutation","action":"session.end_all","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a18727-6b60-76f6-9299-36e7692328a0","actor_client_id":"01a18727-6b13-713f-8865-d215040c7828","actor_name":null,"actor_origin":"system","resource_type":"tenant","resource_id":"01a1873a-178d-7da0-912a-e976785881ac","request_id":"01a1873a-1b08-75cf-8194-c970aef1a0fa","ip":"172.20.0.1","detail":{"ended":0,"remaining":0,"beyond_ceiling":0}}]}
 ```
 
 `outcome` is `allowed`, `refused` or `failed`. Three kinds of mutation
@@ -177,20 +200,34 @@ and shows only what the caller claimed for anyone else's (ADR 0037's third
 amendment).
 
 The examples below — this section only — show `request_id`/`ip` filled in and
-the `event_type` filter working; their ids refer only to each other and to
-nothing in the sections above or below. Here `demo` is
-`01a0daef-a94a-7ff3-a8d5-e78a1d2764f8`, `ada` in the `system` tenant is subject
-`01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8`, and the `odudu-admin` client she
-authenticated as is `01a0daee-7bb4-7abb-99dd-12bbd701c5d4`. Requests below went
-from the host into the container over the compose network, so `ip` is that
-network's own gateway address rather than `127.0.0.1`.
+the `event_type` filter working. Requests below went from the host into the
+container over the compose network, so `ip` is that network's own gateway address
+rather than `127.0.0.1`.
 
 The same writes in a tenant `audit-demo` created for them, so a client's diff
 carries every field it now records — `demo-backend` with a `jwks`, `demo-app`,
 the reserved `client_id` refused, then a key staged, promoted and the old one
-retired — with ids of a fresh run, and the actor `ada-t8c2`. `actor_origin` is
+retired — with ids of a fresh run, and the actor `ada`. `actor_origin` is
 `system` on every row, and `actor_name` `null`, a system administrator being
 named only in `system`'s own trail:
+
+```bash
+curl -sS -X POST -H "$A" -H "$J" -d '{"name":"audit-demo"}' http://localhost:3000/admin/tenants -o /dev/null
+T=http://localhost:3000/admin/tenants/audit-demo
+JWK=$(node -e "
+const jwk = require('node:crypto').generateKeyPairSync('ec', { namedCurve: 'P-256' }).publicKey.export({ format: 'jwk' });
+console.log(JSON.stringify({ ...jwk, use: 'sig', alg: 'ES256', kid: 'demo-backend-key' }));")
+curl -sS -X POST -H "$A" -H "$J" \
+  -d "{\"client_id\":\"demo-backend\",\"grant_types\":[\"client_credentials\"],\"token_endpoint_auth_method\":\"private_key_jwt\",\"jwks\":{\"keys\":[$JWK]}}" $T/clients -o /dev/null
+curl -sS -X POST -H "$A" -H "$J" \
+  -d '{"client_id":"demo-app","redirect_uris":["https://app.demo.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none"}' $T/clients -o /dev/null
+curl -sS -X POST -H "$A" -H "$J" \
+  -d '{"client_id":"odudu-admin","grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic"}' $T/clients -o /dev/null
+OLD=$(curl -sS -H "$A" $T/keys | jq -r '.items[] | select(.status == "active") | .id')
+NEW=$(curl -sS -X POST -H "$A" -H "$J" -d '{"alg":"ES256"}' $T/keys | jq -r .id)
+curl -sS -X POST -H "$A" $T/keys/$NEW/promote -o /dev/null
+curl -sS -X POST -H "$A" $T/keys/$OLD/retire -o /dev/null
+```
 
 ```bash
 curl -sS -G \
@@ -198,16 +235,16 @@ curl -sS -G \
   --data-urlencode "resource_type=client" \
   --data-urlencode "action=client.create" \
   --data-urlencode "limit=20" \
-  http://localhost:3082/admin/tenants/audit-demo/audit; echo
+  http://localhost:3000/admin/tenants/audit-demo/audit; echo
 ```
 
-All three `client.create` rows, newest first: the reserved-`client_id` refusal,
-attempted last, then `demo-app` and `demo-backend` below it — both created
-directly through `POST /clients`, oldest last:
+```
+{"items":[{"id":"01a1873a-1ea0-7127-9069-d2e8a3a58b56","occurred_at":"2026-10-29T10:34:55.520Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a18727-6b60-76f6-9299-36e7692328a0","actor_client_id":"01a18727-6b13-713f-8865-d215040c7828","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a1873a-1e99-74e2-8069-7e38e6227914","ip":"172.20.0.1","detail":{}},{"id":"01a1873a-1e8f-7e36-a9ef-2c800677cd6a","occurred_at":"2026-10-29T10:34:55.490Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a18727-6b60-76f6-9299-36e7692328a0","actor_client_id":"01a18727-6b13-713f-8865-d215040c7828","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a1873a-1e83-759b-b4b2-30d82ab74fb5","request_id":"01a1873a-1e7a-763b-b9c0-73f19b91666b","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"public"},"enabled":{"after":true},"tos_uri":{"after":null},"jwks_uri":{"after":null},"audiences":{"after":[]},"name_i18n":{"after":{}},"client_uri":{"after":null},"policy_uri":{"after":null},"description":{"after":null},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.demo.example/callback"]},"default_max_age":{"after":null},"description_i18n":{"after":{}},"require_auth_time":{"after":false},"full_scope_allowed":{"after":false},"id_token_ttl_seconds":{"after":null},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":null},"skip_logout_confirmation":{"after":false},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":null},"token_endpoint_auth_method":{"after":"none"},"id_token_signed_response_alg":{"after":null}}},{"id":"01a1873a-1e6f-72b9-afdc-731e38bfde18","occurred_at":"2026-10-29T10:34:55.411Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a18727-6b60-76f6-9299-36e7692328a0","actor_client_id":"01a18727-6b13-713f-8865-d215040c7828","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a1873a-1e53-7e37-ad66-edc32cb587f6","request_id":"01a1873a-1e2b-7c2c-abef-0d465c1ea844","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"tos_uri":{"after":null},"jwks_uri":{"after":null},"audiences":{"after":[]},"name_i18n":{"after":{}},"client_uri":{"after":null},"policy_uri":{"after":null},"description":{"after":null},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"default_max_age":{"after":null},"description_i18n":{"after":{}},"require_auth_time":{"after":false},"full_scope_allowed":{"after":false},"id_token_ttl_seconds":{"after":null},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":null},"skip_logout_confirmation":{"after":false},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":null},"token_endpoint_auth_method":{"after":"private_key_jwt"},"id_token_signed_response_alg":{"after":null}}}]}
+```
 
-```
-{"items":[{"id":"01a109b8-77c8-7c97-8aa7-deac1a7668cf","occurred_at":"2026-10-05T01:40:46.664Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a109b8-77be-7a55-a1e9-0d79829206cc","ip":"172.22.0.1","detail":{}},{"id":"01a109b8-77af-76a9-af36-20575e2d2b9c","occurred_at":"2026-10-05T01:40:46.628Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a109b8-77a5-71da-a011-fbe99903f2b4","request_id":"01a109b8-7799-7eb6-920d-379e0a60f39b","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"public"},"enabled":{"after":true},"tos_uri":{"after":null},"jwks_uri":{"after":null},"audiences":{"after":[]},"client_uri":{"after":null},"policy_uri":{"after":null},"description":{"after":null},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.example/callback"]},"default_max_age":{"after":null},"require_auth_time":{"after":false},"full_scope_allowed":{"after":false},"id_token_ttl_seconds":{"after":null},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":null},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":null},"token_endpoint_auth_method":{"after":"none"},"id_token_signed_response_alg":{"after":null}}},{"id":"01a109b8-7782-77bc-9ca1-9d946717fefc","occurred_at":"2026-10-05T01:40:46.472Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a109b8-7778-7d05-a7d7-4bc8c614b862","request_id":"01a109b8-76fd-7d6d-a3a0-2473f5d37820","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"tos_uri":{"after":null},"jwks_uri":{"after":null},"audiences":{"after":[]},"client_uri":{"after":null},"policy_uri":{"after":null},"description":{"after":null},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"default_max_age":{"after":null},"require_auth_time":{"after":false},"full_scope_allowed":{"after":false},"id_token_ttl_seconds":{"after":null},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":null},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":null},"token_endpoint_auth_method":{"after":"private_key_jwt"},"id_token_signed_response_alg":{"after":null}}}]}
-```
+That is all three `client.create` rows, newest first: the reserved-`client_id`
+refusal, attempted last, then `demo-app` and `demo-backend` below it — both
+created directly through `POST /clients`, oldest last.
 
 `actor_tenant_id` is `system` on all three, and `tenant_id` is absent from
 the row's own representation — the tenant a row belongs to is the one in
@@ -225,11 +262,11 @@ having no allowlisted field to diff:
 ```bash
 curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "resource_type=signing_key" \
-  http://localhost:3082/admin/tenants/audit-demo/audit; echo
+  http://localhost:3000/admin/tenants/audit-demo/audit; echo
 ```
 
 ```
-{"items":[{"id":"01a109b8-785d-7bf7-bcdf-19fb0836e064","occurred_at":"2026-10-05T01:40:46.807Z","event_type":"admin_mutation","action":"key.retire","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"signing_key","resource_id":"01a109b8-76ec-74e6-a029-ecff623b8d80","request_id":"01a109b8-784f-7cab-88a6-10b1d5eb21c1","ip":"172.22.0.1","detail":{}},{"id":"01a109b8-7845-7d5b-bf6f-c7d2895629e6","occurred_at":"2026-10-05T01:40:46.786Z","event_type":"admin_mutation","action":"key.promote","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"signing_key","resource_id":"01a109b8-7825-7a6a-a1c9-43a7595d4817","request_id":"01a109b8-7839-7840-bd5d-b935524f7cea","ip":"172.22.0.1","detail":{}},{"id":"01a109b8-7827-7d57-9cfe-16ca0fb3b8c7","occurred_at":"2026-10-05T01:40:46.710Z","event_type":"admin_mutation","action":"key.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"signing_key","resource_id":"01a109b8-7825-7a6a-a1c9-43a7595d4817","request_id":"01a109b8-77eb-7a5d-86bd-2648f8c75b2a","ip":"172.22.0.1","detail":{}}]}
+{"items":[{"id":"01a1873a-1efa-74b3-a9e7-f51509a8470d","occurred_at":"2026-10-29T10:34:55.605Z","event_type":"admin_mutation","action":"key.retire","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a18727-6b60-76f6-9299-36e7692328a0","actor_client_id":"01a18727-6b13-713f-8865-d215040c7828","actor_name":null,"actor_origin":"system","resource_type":"signing_key","resource_id":"01a1873a-1df8-725a-9104-a37002f9fac6","request_id":"01a1873a-1eed-75e9-9f6c-cac7e0cc0fe1","ip":"172.20.0.1","detail":{}},{"id":"01a1873a-1ee2-785a-8d7f-b4735ab81fcb","occurred_at":"2026-10-29T10:34:55.583Z","event_type":"admin_mutation","action":"key.promote","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a18727-6b60-76f6-9299-36e7692328a0","actor_client_id":"01a18727-6b13-713f-8865-d215040c7828","actor_name":null,"actor_origin":"system","resource_type":"signing_key","resource_id":"01a1873a-1ec9-7a82-b261-795837633dd3","request_id":"01a1873a-1ed6-75bc-87a3-b5130f0b0e9f","ip":"172.20.0.1","detail":{}},{"id":"01a1873a-1eca-7841-83be-74eccbf23de2","occurred_at":"2026-10-29T10:34:55.560Z","event_type":"admin_mutation","action":"key.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a18727-6b60-76f6-9299-36e7692328a0","actor_client_id":"01a18727-6b13-713f-8865-d215040c7828","actor_name":null,"actor_origin":"system","resource_type":"signing_key","resource_id":"01a1873a-1ec9-7a82-b261-795837633dd3","request_id":"01a1873a-1ebf-7ac9-ad4c-9c7f7a3b8e47","ip":"172.20.0.1","detail":{}}]}
 ```
 
 And `?outcome=refused`, non-empty for `POST /clients`: the same
@@ -240,11 +277,11 @@ reserved-`client_id` row shown above, on its own —
 curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "resource_type=client" \
   --data-urlencode "outcome=refused" \
-  http://localhost:3082/admin/tenants/audit-demo/audit; echo
+  http://localhost:3000/admin/tenants/audit-demo/audit; echo
 ```
 
 ```
-{"items":[{"id":"01a109b8-77c8-7c97-8aa7-deac1a7668cf","occurred_at":"2026-10-05T01:40:46.664Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a109b8-77be-7a55-a1e9-0d79829206cc","ip":"172.22.0.1","detail":{}}]}
+{"items":[{"id":"01a1873a-1ea0-7127-9069-d2e8a3a58b56","occurred_at":"2026-10-29T10:34:55.520Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a18727-6b60-76f6-9299-36e7692328a0","actor_client_id":"01a18727-6b13-713f-8865-d215040c7828","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a1873a-1e99-74e2-8069-7e38e6227914","ip":"172.20.0.1","detail":{}}]}
 ```
 
 Adding `event_type=admin_mutation` to the first query —
@@ -258,11 +295,11 @@ curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "event_type=admin_mutation" \
   --data-urlencode "resource_type=client" \
   --data-urlencode "action=client.create" \
-  http://localhost:3082/admin/tenants/audit-demo/audit; echo
+  http://localhost:3000/admin/tenants/audit-demo/audit; echo
 ```
 
 ```
-{"items":[{"id":"01a109b8-77c8-7c97-8aa7-deac1a7668cf","occurred_at":"2026-10-05T01:40:46.664Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a109b8-77be-7a55-a1e9-0d79829206cc","ip":"172.22.0.1","detail":{}},{"id":"01a109b8-77af-76a9-af36-20575e2d2b9c","occurred_at":"2026-10-05T01:40:46.628Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a109b8-77a5-71da-a011-fbe99903f2b4","request_id":"01a109b8-7799-7eb6-920d-379e0a60f39b","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"public"},"enabled":{"after":true},"tos_uri":{"after":null},"jwks_uri":{"after":null},"audiences":{"after":[]},"client_uri":{"after":null},"policy_uri":{"after":null},"description":{"after":null},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.example/callback"]},"default_max_age":{"after":null},"require_auth_time":{"after":false},"full_scope_allowed":{"after":false},"id_token_ttl_seconds":{"after":null},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":null},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":null},"token_endpoint_auth_method":{"after":"none"},"id_token_signed_response_alg":{"after":null}}},{"id":"01a109b8-7782-77bc-9ca1-9d946717fefc","occurred_at":"2026-10-05T01:40:46.472Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a109b8-7778-7d05-a7d7-4bc8c614b862","request_id":"01a109b8-76fd-7d6d-a3a0-2473f5d37820","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"tos_uri":{"after":null},"jwks_uri":{"after":null},"audiences":{"after":[]},"client_uri":{"after":null},"policy_uri":{"after":null},"description":{"after":null},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"default_max_age":{"after":null},"require_auth_time":{"after":false},"full_scope_allowed":{"after":false},"id_token_ttl_seconds":{"after":null},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":null},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":null},"token_endpoint_auth_method":{"after":"private_key_jwt"},"id_token_signed_response_alg":{"after":null}}}]}
+{"items":[{"id":"01a1873a-1ea0-7127-9069-d2e8a3a58b56","occurred_at":"2026-10-29T10:34:55.520Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a18727-6b60-76f6-9299-36e7692328a0","actor_client_id":"01a18727-6b13-713f-8865-d215040c7828","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a1873a-1e99-74e2-8069-7e38e6227914","ip":"172.20.0.1","detail":{}},{"id":"01a1873a-1e8f-7e36-a9ef-2c800677cd6a","occurred_at":"2026-10-29T10:34:55.490Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a18727-6b60-76f6-9299-36e7692328a0","actor_client_id":"01a18727-6b13-713f-8865-d215040c7828","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a1873a-1e83-759b-b4b2-30d82ab74fb5","request_id":"01a1873a-1e7a-763b-b9c0-73f19b91666b","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"public"},"enabled":{"after":true},"tos_uri":{"after":null},"jwks_uri":{"after":null},"audiences":{"after":[]},"name_i18n":{"after":{}},"client_uri":{"after":null},"policy_uri":{"after":null},"description":{"after":null},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.demo.example/callback"]},"default_max_age":{"after":null},"description_i18n":{"after":{}},"require_auth_time":{"after":false},"full_scope_allowed":{"after":false},"id_token_ttl_seconds":{"after":null},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":null},"skip_logout_confirmation":{"after":false},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":null},"token_endpoint_auth_method":{"after":"none"},"id_token_signed_response_alg":{"after":null}}},{"id":"01a1873a-1e6f-72b9-afdc-731e38bfde18","occurred_at":"2026-10-29T10:34:55.411Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a18727-6b60-76f6-9299-36e7692328a0","actor_client_id":"01a18727-6b13-713f-8865-d215040c7828","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a1873a-1e53-7e37-ad66-edc32cb587f6","request_id":"01a1873a-1e2b-7c2c-abef-0d465c1ea844","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"tos_uri":{"after":null},"jwks_uri":{"after":null},"audiences":{"after":[]},"name_i18n":{"after":{}},"client_uri":{"after":null},"policy_uri":{"after":null},"description":{"after":null},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"default_max_age":{"after":null},"description_i18n":{"after":{}},"require_auth_time":{"after":false},"full_scope_allowed":{"after":false},"id_token_ttl_seconds":{"after":null},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":null},"skip_logout_confirmation":{"after":false},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":null},"token_endpoint_auth_method":{"after":"private_key_jwt"},"id_token_signed_response_alg":{"after":null}}}]}
 ```
 
 `?event_type=token`, a vocabulary event type no admin route writes,
@@ -281,71 +318,81 @@ curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
 A value the vocabulary does not name answers `400`, the same shape `querystring`
 validation already answers elsewhere in the admin paths:
 
-In `demo`:
+In `audit-demo`:
 
 ```bash
 curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "event_type=bogus" \
-  http://localhost:3080/admin/tenants/demo/audit
+  http://localhost:3000/admin/tenants/audit-demo/audit
 ```
 
 ```
-{"type":"about:blank","title":"Error","status":400,"detail":"querystring/event_type must be equal to one of the allowed values","errors":[{"path":"event_type","message":"must be equal to one of the allowed values"}],"instance":"01a0ea61-337e-7cec-8b3c-06ea3a078323"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/event_type must be equal to one of the allowed values","errors":[{"path":"event_type","message":"must be equal to one of the allowed values"}],"instance":"01a1873a-1f6e-7e8b-951e-3539dd228676"}
 ```
 
 `resource_id` narrows further, and requires `resource_type` alongside it — with
-a fresh system-tenant admin (`resource-doc`) and a tenant created only for this
-subsection, `resource-audit-1790486559`, so its trail holds nothing but what it
-did: two clients, `resource-doc-a` and `resource-doc-b`.
+a tenant created only for this subsection, `resource-audit`, so its trail holds
+nothing but what it did: two clients, `resource-doc-a` and `resource-doc-b`,
+created by `ada`:
 
-In a tenant `resource-audit`, created there with the same two clients by
-`ada-t8c2`, so the id is that run's:
+```bash
+curl -sS -X POST -H "$A" -H "$J" -d '{"name":"resource-audit"}' http://localhost:3000/admin/tenants -o /dev/null
+R=http://localhost:3000/admin/tenants/resource-audit
+for c in resource-doc-a resource-doc-b; do
+  curl -sS -X POST -H "$A" -H "$J" \
+    -d "{\"client_id\":\"$c\",\"grant_types\":[\"client_credentials\"],\"token_endpoint_auth_method\":\"client_secret_basic\"}" $R/clients -o /dev/null
+done
+RDA=$(curl -sS -H "$A" "$R/clients?client_id_exact=resource-doc-a" | jq -r '.items[0].id')
+```
 
 ```bash
 curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "resource_type=client" \
-  --data-urlencode "resource_id=01a109b8-7923-7e91-a66b-30136311418b" \
-  http://localhost:3082/admin/tenants/resource-audit/audit; echo
+  --data-urlencode "resource_id=$RDA" \
+  http://localhost:3000/admin/tenants/resource-audit/audit; echo
 ```
 
-Only `resource-doc-a`'s own row, not `resource-doc-b`'s:
+```
+{"items":[{"id":"01a1873a-2032-757b-8c5a-e78663ddf030","occurred_at":"2026-10-29T10:34:55.809Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a18727-6b60-76f6-9299-36e7692328a0","actor_client_id":"01a18727-6b13-713f-8865-d215040c7828","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a1873a-2011-76a6-97f7-ff5d38f7992e","request_id":"01a1873a-1fb9-7e83-8df4-46de21244111","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"resource-doc-a"},"type":{"after":"confidential"},"enabled":{"after":true},"tos_uri":{"after":null},"jwks_uri":{"after":null},"audiences":{"after":[]},"name_i18n":{"after":{}},"client_uri":{"after":null},"policy_uri":{"after":null},"description":{"after":null},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"default_max_age":{"after":null},"description_i18n":{"after":{}},"require_auth_time":{"after":false},"full_scope_allowed":{"after":false},"id_token_ttl_seconds":{"after":null},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":null},"skip_logout_confirmation":{"after":false},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":null},"token_endpoint_auth_method":{"after":"client_secret_basic"},"id_token_signed_response_alg":{"after":null}}}]}
+```
 
-```
-{"items":[{"id":"01a109b8-792c-70bc-a0df-1cb04897ed0a","occurred_at":"2026-10-05T01:40:46.984Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a109b8-7923-7e91-a66b-30136311418b","request_id":"01a109b8-78ff-7c5c-89ef-851e27a0902e","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"resource-doc-a"},"type":{"after":"confidential"},"enabled":{"after":true},"tos_uri":{"after":null},"jwks_uri":{"after":null},"audiences":{"after":[]},"client_uri":{"after":null},"policy_uri":{"after":null},"description":{"after":null},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"default_max_age":{"after":null},"require_auth_time":{"after":false},"full_scope_allowed":{"after":false},"id_token_ttl_seconds":{"after":null},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":null},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":null},"token_endpoint_auth_method":{"after":"client_secret_basic"},"id_token_signed_response_alg":{"after":null}}}]}
-```
+That is `resource-doc-a`'s own row, not `resource-doc-b`'s.
 
 `resource_id` alone, with no `resource_type`, is refused — a client, a
 role and a group could all happen to share this id, so which table it
 names is not optional:
 
-In `demo`, the id no row there names — the refusal is of the query's shape,
-before any row is read:
+In `audit-demo`, with an id no row there names — the refusal is of the query's
+shape, before any row is read:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/demo/audit?resource_id=01a0e150-b9ec-70a9-8e34-663280fa0514"
+  "http://localhost:3000/admin/tenants/audit-demo/audit?resource_id=01a0e150-b9ec-70a9-8e34-663280fa0514"
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"resource_id requires resource_type","errors":[{"path":"resource_id","message":"resource_id requires resource_type"}],"instance":"01a0ea61-338a-77a5-9e7b-5e0b1470f049"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"resource_id requires resource_type","errors":[{"path":"resource_id","message":"resource_id requires resource_type"}],"instance":"01a1873a-2104-7826-8d6a-6a57b23683da"}
 ```
 
 No page above needed a `next`: no scope held more than twenty rows.
 
 ## A token from another tenant, and a caller missing a capability
 
-This subsection runs on the stack [the request
-paths](../request-paths/path-a-authorization-code-with-pkce.md#what-a-refused-login-leaves-behind)'s
-audit transcripts use, whose `demo` is `01a0db22-1c32-7d17-b351-697d7911033c`.
-It had no `system` tenant until `seed admin --username ada` was run for this
-section, printing subject `01a0dc0c-0167-709b-af07-e6eb529e8139`; `ada` then
-signed in the way [Getting the token](./getting-the-token.md) shows, created a
-tenant `acme` through `POST /admin/tenants`, and created a client
-`demo-operator` in `demo` through `POST /clients` — `client_credentials`,
-`client_secret_basic` — then gave it the admin audience through `PATCH
-/clients/{id}` with `{"audiences": ["urn:odudu:params:admin-api"]}`.
-`demo-operator` is `01a0dc0c-ec33-7e6a-bd79-339e8682bd86`, and holds no
-capability in `demo`. Its ids refer only to each other.
+This subsection runs on the same stack, with `ada` in the `system` tenant as before.
+She creates the tenants `demo` and `acme` through `POST /admin/tenants`, and a
+client `demo-operator` in `demo` through `POST /clients` — `client_credentials`,
+`client_secret_basic`, with the admin audience in `audiences`. `demo-operator` holds no
+capability in `demo`. `$DEMO_TOKEN` is its `client_credentials` token:
+
+```bash
+curl -sS -X POST -H "$A" -H "$J" -d '{"name":"demo"}' http://localhost:3000/admin/tenants -o /dev/null
+curl -sS -X POST -H "$A" -H "$J" -d '{"name":"acme"}' http://localhost:3000/admin/tenants -o /dev/null
+OPSECRET=$(curl -sS -X POST -H "$A" -H "$J" \
+  -d '{"client_id":"demo-operator","grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["urn:odudu:params:admin-api"]}' \
+  http://localhost:3000/admin/tenants/demo/clients | jq -r .client_secret)
+DEMO_TOKEN=$(curl -sS -u "demo-operator:$OPSECRET" -d grant_type=client_credentials \
+  http://localhost:3000/tenants/demo/protocol/openid-connect/token | jq -r .access_token)
+```
 
 `demo-operator`'s `client_credentials` token is a genuine `demo` token for
 the admin API. Its payload, decoded as in
@@ -361,27 +408,28 @@ print(json.dumps(json.loads(base64.urlsafe_b64decode(s + '=' * (-len(s) % 4))), 
 ```
 {
   "iss": "http://localhost:3000/tenants/demo",
-  "sub": "01a0dc0c-ec16-7566-adfb-a8bf7681149c",
+  "sub": "01a1873a-21da-720b-898d-6a669f47ae9e",
   "aud": [
     "urn:odudu:params:admin-api",
     "http://localhost:3000/tenants/demo"
   ],
   "client_id": "demo-operator",
   "scope": "",
-  "iat": 1790398252,
-  "exp": 1790398552,
-  "jti": "01a0dc0d-4611-7720-b3fc-d5a5e84ba945",
-  "grant_id": "01a0dc0d-4611-7720-b3fc-d5a43620011b"
+  "iat": 1793270096,
+  "exp": 1793270396,
+  "jti": "01a1873a-2244-7077-9f3a-2600b3dc3eec",
+  "grant_id": "01a1873a-2244-7077-9f3a-25ffc46090e2"
 }
 ```
 
 ```bash
 curl -sS -H "Authorization: Bearer $DEMO_TOKEN" \
   http://localhost:3000/admin/tenants/demo/whoami
+echo
 ```
 
 ```
-{"subjectId":"01a17ae4-19b4-7fde-aca3-15bba4e88ff5","issuerTenantId":"01a17add-fa11-73de-add5-820806cedd78","capabilities":[],"crossTenant":false}
+{"subjectId":"01a1873a-21da-720b-898d-6a669f47ae9e","issuerTenantId":"01a1873a-2122-72e5-b8e7-53dac5b262d5","capabilities":[],"crossTenant":false}
 ```
 
 Presented at `acme` instead, it is refused with the `401` a string that is
@@ -403,29 +451,21 @@ x-request-id: foreign-issuer-doc
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 90
-Date: Sat, 26 Sep 2026 04:50:58 GMT
+Date: Thu, 29 Oct 2026 10:34:56 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Unauthorized","status":401,"instance":"foreign-issuer-doc"}
-HTTP/1.1 401 Unauthorized
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"foreign-issuer-doc"}HTTP/1.1 401 Unauthorized
 x-request-id: foreign-issuer-doc
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 90
-Date: Sat, 26 Sep 2026 04:51:03 GMT
+Date: Thu, 29 Oct 2026 10:34:56 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"type":"about:blank","title":"Unauthorized","status":401,"instance":"foreign-issuer-doc"}
 ```
-
-_(These two blocks share one continuous audit-trail narrative: `acme`'s and
-`demo`'s `admin_access` rows accumulate on every replay, since both requests
-deliberately reuse the literal `x-request-id` values above rather than minting
-fresh ones, and there is no way to clear an append-only audit trail from the
-admin API. They were run where neither tenant's trail held anything yet, which
-is the one way to reproduce the state the prose describes.)_
 
 What tells them apart is behind the response. The first names an issuer
 this deployment serves, and its signature verifies against `demo`'s own
@@ -438,28 +478,23 @@ docker compose logs --no-log-prefix odudu | grep foreign-issuer-doc | grep malfo
 ```
 
 ```
-{"level":40,"time":1790398263230,"pid":1,"hostname":"bd66202e30bc","reqId":"foreign-issuer-doc","reason":"malformed_token","msg":"admin request unauthenticated"}
+{"level":40,"time":1793270096555,"pid":1,"hostname":"d6283b5bbb7b","reqId":"foreign-issuer-doc","reason":"malformed_token","msg":"admin request unauthenticated"}
 ```
 
-`acme` was created moments before, so its `admin_access` trail holds only
-what this subsection did; `demo`'s holds nothing yet:
-
-With `actor_name` and `actor_origin` on each row, after the same requests —
-`acme` created, `demo-operator` created in its `demo` with the admin audience
-and no capability, and its token presented at `acme` once — the ids are a fresh
-run's:
+`acme` was created moments before, so its `admin_access` trail holds only what
+this subsection did; `demo`'s holds nothing yet:
 
 ```bash
 curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "event_type=admin_access" \
-  http://localhost:3082/admin/tenants/acme/audit; echo
+  http://localhost:3000/admin/tenants/acme/audit; echo
 curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "event_type=admin_access" \
-  http://localhost:3082/admin/tenants/demo/audit; echo
+  http://localhost:3000/admin/tenants/demo/audit; echo
 ```
 
 ```
-{"items":[{"id":"01a0ee96-113f-7bf0-a878-7fbd1bb8cb47","occurred_at":"2026-09-29T19:13:27.357Z","event_type":"admin_access","action":"token.foreign_issuer","outcome":"refused","actor_tenant_id":"01a0ee8f-032e-718b-b030-be2b154a9e99","actor_subject_id":"01a0ee96-104f-7c7f-b3da-d7049248b038","actor_client_id":"01a0ee96-1084-772b-b51a-848699f7a2e1","actor_name":null,"actor_origin":"other-tenant","resource_type":null,"resource_id":null,"request_id":"foreign-issuer-doc","ip":"172.22.0.1","detail":{"reason":"foreign_issuer"}}]}
+{"items":[{"id":"01a1873a-22a0-7756-8957-54c1c5aaca55","occurred_at":"2026-10-29T10:34:56.543Z","event_type":"admin_access","action":"token.foreign_issuer","outcome":"refused","actor_tenant_id":"01a1873a-2122-72e5-b8e7-53dac5b262d5","actor_subject_id":"01a1873a-21da-720b-898d-6a669f47ae9e","actor_client_id":"01a1873a-21f6-73ce-b689-e09db53a2937","actor_name":null,"actor_origin":"other-tenant","resource_type":null,"resource_id":null,"request_id":"foreign-issuer-doc","ip":"172.20.0.1","detail":{"reason":"foreign_issuer"}}]}
 {"items":[]}
 ```
 
@@ -467,15 +502,13 @@ The same token at `demo`, where it authenticates but holds no capability,
 is a `403`, and `demo`'s trail now has the `capability.refused` row naming
 what `GET /subjects` needed:
 
-The same again, straight after the block above:
-
 ```bash
 curl -sS -D - -H "Authorization: Bearer $DEMO_TOKEN" \
   -H 'x-request-id: capability-refused-doc' \
-  http://localhost:3082/admin/tenants/demo/subjects; echo
+  http://localhost:3000/admin/tenants/demo/subjects; echo
 curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "event_type=admin_access" \
-  http://localhost:3082/admin/tenants/demo/audit; echo
+  http://localhost:3000/admin/tenants/demo/audit; echo
 ```
 
 ```
@@ -484,12 +517,12 @@ x-request-id: capability-refused-doc
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 91
-Date: Tue, 29 Sep 2026 19:13:28 GMT
+Date: Thu, 29 Oct 2026 10:34:56 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"type":"about:blank","title":"Forbidden","status":403,"instance":"capability-refused-doc"}
-{"items":[{"id":"01a0ee96-1551-7830-a44f-fd26a2050e16","occurred_at":"2026-09-29T19:13:28.400Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0ee8f-032e-718b-b030-be2b154a9e99","actor_subject_id":"01a0ee96-104f-7c7f-b3da-d7049248b038","actor_client_id":"01a0ee96-1084-772b-b51a-848699f7a2e1","actor_name":"demo-operator","actor_origin":"tenant","resource_type":null,"resource_id":null,"request_id":"capability-refused-doc","ip":"172.22.0.1","detail":{"reason":"missing_capability","capability":"view-users"}}]}
+{"items":[{"id":"01a1873a-2365-7d0d-b1b5-d7c493a7470c","occurred_at":"2026-10-29T10:34:56.740Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a1873a-2122-72e5-b8e7-53dac5b262d5","actor_subject_id":"01a1873a-21da-720b-898d-6a669f47ae9e","actor_client_id":"01a1873a-21f6-73ce-b689-e09db53a2937","actor_name":"demo-operator","actor_origin":"tenant","resource_type":null,"resource_id":null,"request_id":"capability-refused-doc","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"view-users"}}]}
 ```
 
 ## Reads that are too broad, and instants that cannot be held
@@ -505,7 +538,9 @@ transaction and gone with it, and past it the answer is a `400` of type
 `from` and `to` are instants from 1970 to 9999; the year 0 that used to reach Postgres
 as a `500` is refused at the door.
 
-From an empty volume, with `seed admin --username ada` and the token got the way
+This section is a load test and ran on a stack of its own, on port `3082`, which
+is why its addresses, dates and ids are not the ones above; its timings are that
+machine's. From an empty volume, with `seed admin --username ada` and the token got the way
 "Getting the token" shows. Twelve million rows were then inserted into
 `system`'s trail as the database owner, half under the action `bulk.a` and an
 actor, half under `bulk.b` and another, the last eight million fifty days older
@@ -615,7 +650,7 @@ Keep-Alive: timeout=72
 0.011033 s
 ```
 
-A year after 9999 is refused earlier, by the route's own date pattern rather
+The last block ran on a further stack, on port `3187`. A year after 9999 is refused earlier, by the route's own date pattern rather
 than the contract, so its `400` is titled `Error` and its `detail` is the
 pattern itself, which accepts four-digit years only; `from`, the count and the
 export answer the same.

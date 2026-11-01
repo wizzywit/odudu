@@ -86,7 +86,7 @@ reason looks like when it is written up rather than admitted.
 ### The pass that closes a phase, before the branch is finished
 
 An increment keeps the documents current for what it changed. A phase is the
-only point where anything reads them **as a whole**, and four things go wrong
+only point where anything reads them **as a whole**, and five things go wrong
 only at that scale. Run these after the whole-branch review and before
 `finishing-a-development-branch`, because each one has already happened:
 
@@ -113,6 +113,16 @@ only at that scale. Run these after the whole-branch review and before
    `tests/docs/roadmap-section-11.test.ts` checks both directions, and a new
    roadmap sentence or `docs/NEXT.md` placement fails it until it is mapped;
    the reading that remains is whether each mapping is still _true_.
+5. **Grep the shipped capability's own words across the public surface.**
+   Search the landing page, `README.md`, the docs site and the screenshots for
+   the capability's name, its phase number and "Planned"
+   (`git grep -n -i -E 'planned|\bP4b\b|theming' -- apps/docs README.md`), and
+   confirm each hit now describes what exists: the landing page's "Planned"
+   bands, the feature list, the concept and guide pages, the console tour, and
+   the transcripts of every route the phase added or changed, re-run on a live
+   stack. P4b nearly closed with the landing page's "Branding and theming" band
+   still labelled "Planned", because nothing listed it as a document a phase
+   owns.
 
 Two habits that keep this pass short. When a document admits a gap, say where
 it gets fixed in the same sentence: six passages once said "there is no seed
@@ -264,6 +274,17 @@ where to read the page again rather than trust a green build.
   - Checked by: `tests/lint/brand-assets.test.ts` (the geometry, the
     derivatives, every copy against `mark.svg`); the `console-shots` CI job
     for the header a screenshot shows.
+- **A capability the landing page or `README.md` shows as planned**
+  - Update: when a phase ships what the landing page marks "Planned"
+    (`apps/docs/src/features/landing/service/content.ts`: `AGENT_ITEMS`,
+    `BRANDING` and any later item), turn the item into a shipped one with a
+    real picture, its claim, alt text and tests, or remove it; correct the
+    feature list in `README.md` and any "Planned (P…)" line in
+    `tests/docs/questions.md`.
+  - Checked by: the landing feature's tests, which pin the planned items
+    (`apps/docs/src/features/landing/view/Agents/Agents.test.tsx`). That a
+    planned item is removed when its phase ships: no check, so the closing pass
+    greps for it.
 - **A roadmap placement** (a deferral, a gap, a phase's scope)
   - Update: `apps/docs/content/en/roadmap.md`, the phase's row in section 11,
     a `docs/NEXT.md` entry under its argument's address, an ADR when it is a
@@ -562,8 +583,14 @@ wording constant to a console feature, search `shared/` and the sibling
 features for an equivalent by behaviour, not only by name. If one exists,
 import it; a feature reaches another only through its `index.ts`. If two
 features need the same thing, move it to `shared/` (any layer) in its own
-commit and repoint both. A task's report says what was searched and what was
-reused or moved. Do not merge things that merely look alike and change for
+commit and repoint both. A task's report carries a "Reuse scan" that lists
+the searches run, the candidates each one turned up and what became of
+each. The searches go by behaviour words and synonyms across `shared/` and
+every sibling feature (for a byte formatter: `KiB`, `MiB`, `toFixed`,
+`formatBytes`), and cover what the lints below cannot see: a copy under
+another name, a nested declaration, the same behaviour written differently.
+A report that names only what was reused is returned, and a reviewer re-runs
+a sample of the searches rather than trusting the list. Do not merge things that merely look alike and change for
 different reasons: feature-specific wording stays in its feature. Each
 of these is a lint with no allowlist, so resolving a finding means changing the
 code, and each header lists the forms it cannot see, so a green

@@ -96,6 +96,7 @@ describe('a refusal of the request shape names the field', () => {
   const REQUIRED_QUERY: Readonly<Record<string, string>> = {
     '/admin/tenants/:tenant/clients/:id/evaluate': `subject=${ABSENT_ID}&`,
     '/admin/tenants/:tenant': 'confirm=unused&',
+    '/admin/tenants/:tenant/message-overrides': 'locale=fr&',
   };
 
   it.each(queried)('$method $pattern names an unknown query parameter', async (route) => {
@@ -149,7 +150,7 @@ describe('a refusal of the request shape names the field', () => {
     }
     const res = await fixture.http.inject({
       method: 'GET',
-      url: `${url}?cursor=not-a-cursor`,
+      url: `${url}?${REQUIRED_QUERY[route.pattern] ?? ''}cursor=not-a-cursor`,
       headers: {
         authorization: `Bearer ${route.pattern.includes(':tenant') ? caller.token : system}`,
       },

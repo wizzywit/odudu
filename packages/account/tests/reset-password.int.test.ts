@@ -147,6 +147,7 @@ async function seedTenant(
     id: tenantId,
     name,
     resetPasswordAllowed: settings.resetPasswordAllowed,
+    supportedLocales: ['en', 'fr'],
   });
   return { tenantId, tenantName: name };
 }
@@ -338,7 +339,6 @@ describe('password reset', () => {
       publicBaseUrl: 'https://idp.example.test',
       now: () => mailNow ?? new Date(),
       findByEmail,
-      pageLocales: ['en', 'fr'],
     });
     await instance.ready();
 

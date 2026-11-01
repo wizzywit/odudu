@@ -1,9 +1,12 @@
+import type { FieldError } from '@odudu/contracts/admin';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { recordKey } from '#/shared/repository/queryKeys';
 import { useSaveRun, type RefusalReporter, type SaveInput } from '#/shared/repository/useSaveRun';
+import { useSavingSections } from '#/shared/repository/useSavingSections';
 import { useSectionDraft } from '#/shared/repository/useSectionDraft';
 import type { Conflict } from '#/shared/service/conflict';
+import { savingKey } from '#/shared/service/savingSections';
 import type { Values } from '#/shared/service/dirty';
 import { draftFieldsOf } from '#/shared/service/drafts';
 import type { AdminCapability } from '#/shared/service/principal';
@@ -45,6 +48,9 @@ export type { ConflictSource, SaveStatus };
 export interface SectionSave<T extends Values> {
   status: SaveStatus;
   fieldErrors: Readonly<Partial<Record<keyof T & string, string>>>;
+  // What the server refused in each field, with the line and column it
+  // named, until the field is edited or the section saved.
+  refusals: Readonly<Partial<Record<keyof T & string, readonly FieldError[]>>>;
   conflicts: readonly Conflict[];
   conflictSource: ConflictSource;
   // Why Save is held, for Section's `blocked`.
@@ -141,12 +147,23 @@ export function useSectionSave<T extends Values, R>({
     settle,
   });
 
+  const report = useSavingSections((state) => state.report);
+  const savingNow = isSaving(current);
+  useEffect(() => {
+    const key = savingKey(tenant, record, section);
+    report(key, savingNow);
+    return () => {
+      report(key, false);
+    };
+  }, [report, tenant, record, section, savingNow]);
+
   const changed = changedFields(current);
   const conflicts: Conflict[] = conflictsOf(current, fields);
 
   return {
     status: statusOf(current),
     fieldErrors: current.fieldErrors as SectionSave<T>['fieldErrors'],
+    refusals: current.refusals as SectionSave<T>['refusals'],
     conflicts,
     conflictSource: current.source,
     blocked: sectionBlocked(gone, conflicts.length, current.phase),

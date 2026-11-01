@@ -70,6 +70,7 @@ export const TENANT_AREAS: readonly AreaGroup[] = [
     heading: 'Tenant',
     areas: [
       area('settings', 'Settings', 'manage-tenant'),
+      area('branding', 'Branding', 'manage-tenant'),
       area('email', 'Email', 'manage-tenant'),
       area('export', 'Export', 'manage-tenant'),
     ],

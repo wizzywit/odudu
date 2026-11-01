@@ -15,6 +15,8 @@ const FEATURE_ONLY = [
   { what: "react-aria's ComboBox", marker: 'react-aria-ComboBox' },
   { what: "react-aria's DateInput", marker: 'react-aria-DateInput' },
   { what: "react-aria's NumberField", marker: 'react-aria-NumberField' },
+  // The Branding editors and their preview, reached by the one route.
+  { what: 'the Branding feature', marker: 'Describe each logo before saving' },
 ] as const;
 
 // The entry chunk's gzip size, in bytes (ADR 0041). Set at 145,018 B, the

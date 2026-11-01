@@ -1,7 +1,7 @@
 ---
 title: Email in the console
 description: Give a tenant a mail relay of its own, send a test message, and see which mail went out and which failed.
-sidebar_position: 13
+sidebar_position: 14
 ---
 
 import { ConsoleShot } from '@site/src/shared/view/ConsoleShot';
@@ -34,11 +34,27 @@ The password is stored, never shown again. To remove it, turn on **Remove the st
 
 ## 3. Send a test message
 
-Under **Test message**, enter an address in **Send to** and choose **Send test message**. The console sends one message through the saved relay and tells you what the server answered. It uses the saved relay, so save first.
+Under **Test message**, enter an address in **Send to** and choose **Send test message**. The console sends one message through the saved relay and tells you what the server answered. It uses the saved relay, so save first. **Send to** takes exactly one address, and the test is limited like the other mail-sending routes, so a burst of sends from one place is refused for a minute. A refused test says what failed in one fixed sentence; the relay's own reply is in the server log.
+
+The message wears the tenant’s published theme (its logo and colours) and its own wording, as a verification mail does.
+
+<ConsoleShot
+  name="email-send-as-client"
+  alt="The Test message section of the Email page with a client chosen to send as: the line under it reads Sent as Storefront, and the text above it says the message wears the tenant’s published theme and asks you to choose a client to send the mail its sign-in would send."
+  caption="A test message can be sent as a client, to see its look in a real mailbox."
+/>
+
+Under **Send as client** the console starts on the client you signed in with, `odudu-admin`, when you may read the tenant’s clients and the list holds it, and the message then wears that client’s theme over the tenant’s, as [Client branding](./client-branding.mdx) describes; a client with no theme of its own, or a disabled one, shows the tenant’s look. The list is searched a page at a time, so `odudu-admin` is preselected only when it is on the page already loaded; otherwise the tenant’s own look is sent, the line under the picker says so, and you can search for the client. Pick another client of the tenant to send as it, or choose **Use the tenant’s own look** to send no client. Without the manage-clients capability the choice is closed and the tenant’s own look is sent. Choosing a client needs manage-clients as well as manage-tenant. Every message the server sends, this test message included, carries `Auto-Submitted: auto-generated` (RFC 3834), so an autoresponder does not answer it.
 
 ## 4. Watch the delivery
 
 The **Delivery** list shows the latest mail the tenant sent or tried to send, newest first. Use **Show** to look at only **Queued**, **Retrying**, **Failed** or **Sent** messages, and **Refresh** to read it again. A message is failed once every attempt is spent. The list never shows a message's body, because it carries a link that signs somebody in.
+
+## 5. Know how the mail looks
+
+Mail wears the tenant's published theme, as the tenant's pages do: its light and dark colours, and its logo and dark logo. The tenant's theme is the default: a mail takes a client's logo and colours, piece by piece over the tenant's, only when the flow began inside that client's sign-in (a registration or a reset asked for from it). It never takes a client's stylesheet or templates, and wording is always the tenant's. A tenant with no published theme, or with neither a palette nor a logo in it, sends Odudu's own look. A palette without a logo is dressed in its colours alone; a logo that fails to load shows its alt text, and the tenant's name is always written beside it. Many mail apps hold back remote images until the reader allows them, so the name and the alt text carry the brand on their own.
+
+The look is fixed when the mail is queued. A theme published afterwards shows in the next mail and not in one already waiting, and a mail opened after the tenant replaces its logo shows the old one as alt text, because the server serves a logo only while a published version names it. The language of a mail is the recipient's own language if the tenant offers it, else the tenant's default language, else English; the preview here still lets you choose any language Odudu ships. A tenant's message overrides change pages and mail alike: every mail message can be overridden except the attribution lines.
 
 ## Things that cannot be undone
 

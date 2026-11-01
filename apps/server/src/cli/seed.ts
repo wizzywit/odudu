@@ -1204,7 +1204,7 @@ interface ParsedSetting {
   // what the operator typed, which is what the result echoes back.
   name: string;
   column: string;
-  value: TenantSettingValue;
+  value: TenantSettingValue | null;
 }
 
 // `--set name=value`, repeatable. The name is a column name, which is what a

@@ -424,3 +424,87 @@ describe('lockCapacity under concurrent transactions', () => {
     }
   });
 });
+
+describe('per-language text', () => {
+  it('defaults both maps to empty and stores what create is given', async () => {
+    const tenantId = newId();
+    const [plain, localised] = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const base = { tenantId, type: 'public', secretHash: null } as const;
+      return [
+        await clientRepository(tx).create({ ...base, clientId: 'plain', name: 'Plain' }),
+        await clientRepository(tx).create({
+          ...base,
+          clientId: 'localised',
+          name: 'Localised',
+          nameI18n: { fr: 'Localisée' },
+          descriptionI18n: { fr: 'Une application' },
+        }),
+      ] as const;
+    });
+    expect(plain.nameI18n).toEqual({});
+    expect(plain.descriptionI18n).toEqual({});
+    expect(localised.nameI18n).toEqual({ fr: 'Localisée' });
+    const read = await withTenant(app.db, tenantId, (tx) =>
+      clientRepository(tx).byClientId('localised'),
+    );
+    expect(read?.descriptionI18n).toEqual({ fr: 'Une application' });
+  });
+
+  it('replaces a map whole on update', async () => {
+    const tenantId = newId();
+    const updated = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const made = await clientRepository(tx).create({
+        tenantId,
+        clientId: 'c',
+        name: 'C',
+        type: 'public',
+        secretHash: null,
+        nameI18n: { fr: 'a', de: 'b' },
+      });
+      return clientRepository(tx).update(made.id, { nameI18n: { es: 'c' } });
+    });
+    expect(updated.nameI18n).toEqual({ es: 'c' });
+  });
+
+  it('refuses a column that is not an object', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await expect(
+      withTenant(app.db, tenantId, (tx) =>
+        insertClient(tx, tenantId, { nameI18n: [] as unknown as Record<string, string> }),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('does not show or change another tenant’s maps', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const made = await clientRepository(tx).create({
+          tenantId,
+          clientId: 'c',
+          name: 'C',
+          type: 'public',
+          secretHash: null,
+          nameI18n: { fr: 'Cé' },
+        });
+        return made.id;
+      },
+      verifySeeded: async (tx, id) => {
+        expect((await clientRepository(tx).byId(id))?.nameI18n).toEqual({ fr: 'Cé' });
+      },
+      attempt: async (tx, id) => {
+        const read = await clientRepository(tx).byId(id);
+        const updated = await clientRepository(tx)
+          .update(id, { nameI18n: { fr: 'Pirate' } })
+          .catch(() => null);
+        return { read, updated };
+      },
+      expectBlocked: (result) => {
+        expect(result).toEqual({ read: null, updated: null });
+      },
+    });
+  });
+});

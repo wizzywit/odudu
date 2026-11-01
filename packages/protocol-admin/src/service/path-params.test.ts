@@ -19,6 +19,14 @@ describe('paramsSchemaFor', () => {
     expect(paramsSchemaFor('/admin/tenants/:tenant/settings')).toBeUndefined();
   });
 
+  it('narrows a locale and a key to a tag and a short name, not a row id', () => {
+    const schema = paramsSchemaFor('/admin/tenants/:tenant/message-overrides/:locale/:key');
+    expect(schema?.safeParse({ locale: 'zh-Hant-TW', key: 'login.title' }).success).toBe(true);
+    expect(schema?.safeParse({ locale: 'en_US', key: 'login.title' }).success).toBe(false);
+    expect(schema?.safeParse({ locale: 'fr', key: 'k'.repeat(129) }).success).toBe(false);
+    expect(schema?.safeParse({ locale: 'fr', key: '' }).success).toBe(false);
+  });
+
   it('attaches nothing to a pattern with no parameters', () => {
     expect(paramsSchemaFor('/admin/tenants')).toBeUndefined();
   });
@@ -33,12 +41,16 @@ describe('paramsSchemaFor', () => {
     );
 
     expect([...names].sort()).toEqual([
+      'assetId',
       'childId',
       'clientId',
       'credentialId',
       'id',
+      'key',
+      'locale',
       'sid',
       'tenant',
+      'versionId',
     ]);
   });
 });

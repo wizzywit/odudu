@@ -55,8 +55,8 @@ export async function logout(deps: LogoutDeps, input: Logout): Promise<LoggedOut
   if (issuer === null) return TO_CONSOLE;
 
   try {
-    // OIDC RP-Initiated Logout 1.0 §2; the hint lets the server end the
-    // session without asking the End-User to confirm.
+    // OIDC RP-Initiated Logout 1.0 §2; the hint identifies the session
+    // and the client the server confirms the sign-out for.
     const target = new URL(`${issuer}/protocol/openid-connect/logout`);
     target.search = new URLSearchParams({
       id_token_hint: taken.idToken,

@@ -13,6 +13,7 @@ import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import { extractBearerToken } from '#/service/bearer-token';
 import { parseClientMetadata, type ClientMetadata } from '#/service/client-metadata';
+import { parseLocalisedClientNames } from '#/service/localised-client-names';
 import { idTokenAlgUnavailable } from '#/usecase/id-token-alg';
 
 export interface ClientRegistrationDeps {
@@ -34,6 +35,8 @@ export interface RegisteredClient {
   clientIdIssuedAt: number;
   clientSecret: string | null;
   metadata: ClientMetadata;
+  // `client_name#<tag>` members the tenant offers, by canonical tag.
+  nameI18n: Record<string, string>;
 }
 
 export type ClientRegistrationOutcome =
@@ -68,6 +71,7 @@ async function performRegistration(
   tx: TenantScopedDatabase,
   tenantId: string,
   metadata: ClientMetadata,
+  nameI18n: Record<string, string>,
   origin: ClientRecord['registrationOrigin'],
   now: Date,
 ): Promise<ClientRegistrationOutcome> {
@@ -124,6 +128,7 @@ async function performRegistration(
     tenantId,
     clientId: oauthClientId,
     name: metadata.clientName ?? oauthClientId,
+    nameI18n,
     type,
     secretHash,
     serviceSubjectId,
@@ -171,6 +176,7 @@ async function performRegistration(
       clientIdIssuedAt: Math.floor(now.getTime() / 1000),
       clientSecret,
       metadata,
+      nameI18n,
     },
   };
 }
@@ -191,9 +197,22 @@ export async function registerClient(
     return { kind: 'unauthorized' };
   }
 
-  const parsed = parseClientMetadata(body, { tlsClientAuthEnabled: deps.tlsClientAuthEnabled });
+  const parsed = parseClientMetadata(body, {
+    tlsClientAuthEnabled: deps.tlsClientAuthEnabled,
+    refuseOperatorFields: true,
+  });
   if (parsed.kind === 'invalid') {
     return { kind: 'invalid_metadata', error: parsed.error, description: parsed.description };
+  }
+
+  // parseClientMetadata has shown the body is an object.
+  const names = parseLocalisedClientNames(body as Record<string, unknown>, tenant.supportedLocales);
+  if (names.kind === 'invalid') {
+    return {
+      kind: 'invalid_metadata',
+      error: 'invalid_client_metadata',
+      description: names.description,
+    };
   }
 
   return deps.withinTenant(tenant.id, async (tx) => {
@@ -208,6 +227,14 @@ export async function registerClient(
       origin = 'token';
     }
 
-    return performRegistration(deps, tx, tenant.id, parsed.metadata, origin, deps.now());
+    return performRegistration(
+      deps,
+      tx,
+      tenant.id,
+      parsed.metadata,
+      names.names,
+      origin,
+      deps.now(),
+    );
   });
 }

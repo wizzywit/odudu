@@ -11,9 +11,12 @@ const CLIENT: ExportedClient = {
   client_id: 'billing-app',
   name: 'Billing',
   description: null,
+  name_i18n: {},
+  description_i18n: {},
   type: 'confidential',
   enabled: true,
   full_scope_allowed: false,
+  skip_logout_confirmation: false,
   registration_origin: 'operator',
   redirect_uris: ['https://billing.example/callback'],
   grant_types: ['authorization_code'],
@@ -84,6 +87,8 @@ const DOCUMENT: TenantDocument = {
     reset_password_ttl_seconds: 300,
     login_with_email: false,
     audit_event_types: ['admin_mutation', 'admin_access'],
+    supported_locales: ['en'],
+    default_locale: null,
   },
   flow: [{ authenticator: 'password', requirement: 'required' }],
   clients: [CLIENT],
@@ -113,6 +118,8 @@ const DOCUMENT: TenantDocument = {
       include_in_access_token: false,
       default_client_assignment: 'default',
       consent_text: null,
+      description_i18n: {},
+      consent_text_i18n: {},
       display_order: 0,
       builtin: true,
       roles: [],
@@ -126,6 +133,7 @@ const DOCUMENT: TenantDocument = {
     client_registration_policy: 'token',
   },
   smtp: null,
+  message_overrides: [],
   omitted: ['clients[0].secret'],
 };
 
@@ -158,6 +166,57 @@ describe('the lists a client of a document may hold', () => {
 describe('tenantDocumentSchema', () => {
   it('accepts a document with no subjects', () => {
     expect(tenantDocumentSchema.safeParse(DOCUMENT).success).toBe(true);
+  });
+
+  it('imports a client of an older document, which has no skip_logout_confirmation, with it off', () => {
+    const older: Record<string, unknown> = { ...CLIENT };
+    delete older.skip_logout_confirmation;
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, clients: [older] });
+    expect(result.success).toBe(true);
+    expect(result.data?.clients[0]?.skip_logout_confirmation).toBe(false);
+  });
+
+  it('imports a document from before languages and overrides: English only, no default, none', () => {
+    const without = (record: object, ...names: string[]): Record<string, unknown> =>
+      Object.fromEntries(Object.entries(record).filter(([name]) => !names.includes(name)));
+    const result = tenantDocumentSchema.safeParse({
+      ...without(DOCUMENT, 'message_overrides'),
+      settings: without(DOCUMENT.settings, 'supported_locales', 'default_locale'),
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.settings.supported_locales).toEqual(['en']);
+    expect(result.data?.settings.default_locale).toBeNull();
+    expect(result.data?.message_overrides).toEqual([]);
+  });
+
+  it('imports a client and a scope from before per-language text with every map empty', () => {
+    const olderClient: Record<string, unknown> = { ...CLIENT };
+    delete olderClient.name_i18n;
+    delete olderClient.description_i18n;
+    const [scope] = DOCUMENT.scopes;
+    const olderScope: Record<string, unknown> = { ...scope };
+    delete olderScope.description_i18n;
+    delete olderScope.consent_text_i18n;
+    const result = tenantDocumentSchema.safeParse({
+      ...DOCUMENT,
+      clients: [olderClient],
+      scopes: [olderScope],
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.clients[0]).toMatchObject({ name_i18n: {}, description_i18n: {} });
+    expect(result.data?.scopes[0]).toMatchObject({ description_i18n: {}, consent_text_i18n: {} });
+  });
+
+  it('holds overrides to 500, and each to the locale, key and message shapes', () => {
+    const one = { locale: 'fr', key: 'login.title', message: 'Connexion' };
+    const parse = (message_overrides: unknown[]) =>
+      tenantDocumentSchema.safeParse({ ...DOCUMENT, message_overrides });
+    expect(parse(Array.from({ length: 500 }, () => one)).success).toBe(true);
+    expect(parse(Array.from({ length: 501 }, () => one)).success).toBe(false);
+    expect(parse([{ ...one, locale: 'en_US' }]).success).toBe(false);
+    expect(parse([{ ...one, message: '' }]).success).toBe(false);
+    expect(parse([{ ...one, message: 'a\u202Eb' }]).success).toBe(false);
+    expect(parse([{ ...one, extra: 1 }]).success).toBe(false);
   });
 
   it('accepts only version 1', () => {

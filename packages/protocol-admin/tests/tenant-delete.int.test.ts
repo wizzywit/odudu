@@ -9,6 +9,7 @@ import { newId } from '@odudu/kernel';
 import { isNull, sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { themeRepository } from '@odudu/domain-theme';
 import { z } from 'zod';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import {
@@ -457,6 +458,28 @@ describe('DELETE /admin/tenants/:tenant', () => {
 
     await call(token, 'PATCH', `/admin/tenants/${t.name}`, { enabled: false });
     expect((await call(token, 'DELETE', url)).statusCode).toBe(204);
+  });
+
+  it('drops the cached themes of the tenant it deletes', async () => {
+    const t = await fixture.createTenant(`themed-${newId()}`);
+    await withTenant(fixture.app.db, t.id, async (tx) => {
+      const themes = themeRepository(tx);
+      const scope = { tenantId: t.id, clientId: null };
+      await themes.saveDraft(
+        scope,
+        { tokens: {}, stylesheet: '.page { color: #111111; }', templates: {}, assets: {} },
+        null,
+      );
+      await themes.publish(scope);
+    });
+    const token = await fixture.systemAdminToken(['tenant-admin']);
+    await call(token, 'PATCH', `/admin/tenants/${t.name}`, { enabled: false });
+    const before = fixture.invalidatedThemes.length;
+
+    const res = await call(token, 'DELETE', `/admin/tenants/${t.name}?confirm=${t.name}`);
+
+    expect(res.statusCode).toBe(204);
+    expect(fixture.invalidatedThemes.slice(before)).toEqual([t.id]);
   });
 
   it.each([

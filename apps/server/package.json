@@ -27,7 +27,9 @@
     "@odudu/domain-authz": "workspace:*",
     "@odudu/domain-identity": "workspace:*",
     "@odudu/domain-tenant": "workspace:*",
+    "@odudu/domain-theme": "workspace:*",
     "@odudu/email": "workspace:*",
+    "@odudu/i18n": "workspace:*",
     "@odudu/instrument": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "@odudu/protocol-admin": "workspace:*",
@@ -40,6 +42,7 @@
   "devDependencies": {
     "@odudu/testkit": "workspace:*",
     "drizzle-orm": "0.45.4",
+    "parse5": "8.0.1",
     "tsup": "9.0.0",
     "vitest": "5.0.5"
   }

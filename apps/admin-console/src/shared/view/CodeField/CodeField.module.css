@@ -1,0 +1,280 @@
+.root {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.field {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+/* The wrap switch is for a narrow screen, where a line is longer than it. */
+.wrap {
+  display: none;
+}
+
+.wrapNote {
+  margin-inline-start: var(--space-2);
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+@container workspace (inline-size < 48rem) {
+  .wrap {
+    display: block;
+  }
+}
+
+/* The control's box: the one border, focus ring and mark of state that
+   every field has, drawn around the gutter and the text together. */
+.frame {
+  min-inline-size: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-panel);
+  overflow: hidden;
+  transition: border-color var(--motion-fast) var(--ease);
+}
+
+.frame:hover {
+  border-color: var(--ink-muted);
+}
+
+.frame:focus-within {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+  border-color: var(--focus-ring);
+}
+
+.field[data-invalid] .frame {
+  border-color: var(--signal-danger-ink);
+}
+
+.field[data-changed] .frame {
+  border-inline-start: 3px solid var(--signal-warning-ink);
+}
+
+.field[data-disabled] .frame {
+  border-style: dashed;
+  background: var(--surface-sunken);
+}
+
+/* One scroller holds the numbers and the text, so they scroll as one and
+   nothing has to be kept in step. The text is its own height, so the
+   textarea never scrolls itself. */
+.scroller {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  max-block-size: 28rem;
+  min-block-size: calc(10 * 1.5 * var(--input-size-mono) + 2 * var(--space-2));
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--input-size-mono);
+  line-height: 1.5;
+  tab-size: 2;
+  font-variant-ligatures: none;
+  scroll-padding-inline-start: 5rem;
+}
+
+.gutter {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  min-inline-size: calc(3ch + 2 * var(--space-2));
+  padding: var(--space-2);
+  border-inline-end: var(--hairline);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+  text-align: end;
+  white-space: pre;
+  user-select: none;
+}
+
+.marked {
+  background: var(--signal-danger);
+  color: var(--signal-danger-ink);
+  text-decoration: underline;
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  min-inline-size: 0;
+}
+
+/* The layer and the textarea share one grid cell and one set of metrics:
+   the same font, padding, line height and tab size, and no wrapping. */
+.layer,
+.area {
+  grid-area: 1 / 1;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  font: inherit;
+  letter-spacing: normal;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+  tab-size: inherit;
+}
+
+/* The text up to the caret laid out again where the textarea's own is, to
+   find the row the caret is on when lines wrap. */
+.mirror {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  inline-size: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: inherit;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.layer {
+  color: var(--ink-primary);
+  pointer-events: none;
+}
+
+.area {
+  inline-size: 100%;
+  block-size: 100%;
+  min-inline-size: 0;
+  resize: none;
+  overflow: hidden;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--ink-primary);
+}
+
+.area::selection {
+  background: color-mix(in srgb, var(--focus-ring) 30%, transparent);
+  color: transparent;
+}
+
+/* Wrapped, the lines break at the edge: the numbers, which count lines of
+   text and not rows, are put away, and the layer and the textarea both break
+   where the box does. */
+.frame[data-wrap] .scroller {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.frame[data-wrap] .gutter {
+  display: none;
+}
+
+.frame[data-wrap] .layer,
+.frame[data-wrap] .area {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Beyond the length that is coloured there is no layer and no gutter: the
+   textarea shows its own text and scrolls itself. */
+.frame[data-plain] .scroller {
+  display: block;
+  block-size: 28rem;
+  overflow: hidden;
+}
+
+.frame[data-plain] .stage {
+  display: block;
+  block-size: 100%;
+}
+
+.frame[data-plain] .area {
+  overflow: auto;
+  color: var(--ink-primary);
+}
+
+.frame[data-plain] .area::selection {
+  color: inherit;
+}
+
+.line[data-marked] {
+  background: color-mix(in srgb, var(--signal-danger) 70%, transparent);
+}
+
+.comment {
+  color: var(--code-comment);
+}
+
+.keyword {
+  color: var(--code-keyword);
+}
+
+.selector {
+  color: var(--code-selector);
+}
+
+.property {
+  color: var(--code-property);
+}
+
+.string {
+  color: var(--code-string);
+}
+
+.number {
+  color: var(--code-number);
+}
+
+.part {
+  border-radius: var(--radius-s);
+  background: var(--signal-active);
+  color: var(--signal-active-ink);
+}
+
+.hint {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-1);
+}
+
+.size[data-over] {
+  color: var(--signal-danger-ink);
+}
+
+.issues {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--type-13);
+  font-weight: 500;
+  color: var(--signal-danger-ink);
+}
+
+.probe {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
+}
+
+.bang {
+  font-family: var(--font-mono);
+}
+
+@media (forced-colors: active) {
+  .layer {
+    display: none;
+  }
+
+  .area,
+  .frame[data-plain] .area {
+    color: CanvasText;
+  }
+}

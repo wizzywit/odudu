@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from '@odudu/db';
 
 // Policies are written as hand-authored SQL in packages/db/drizzle/, never
@@ -15,6 +15,10 @@ export const clients = pgTable('clients', {
   // An administrator's note on what the client is for
   // (packages/db/drizzle/0084_client_display_metadata.sql).
   description: text('description'),
+  // Text per language tag, the base column being what a language with no
+  // entry falls back to (packages/db/drizzle/0109_i18n_metadata.sql).
+  nameI18n: jsonb('name_i18n').$type<Record<string, string>>().notNull().default({}),
+  descriptionI18n: jsonb('description_i18n').$type<Record<string, string>>().notNull().default({}),
   enabled: boolean('enabled').notNull().default(true),
   type: text('type').notNull(),
   secretHash: text('secret_hash'),
@@ -48,6 +52,11 @@ export const clients = pgTable('clients', {
   // authorization here too — `authorizeAdmin` matches a role's client
   // against `ADMIN_CLIENT_ID` by that same string.
   builtinAdmin: boolean('builtin_admin').notNull().default(false),
+  // Lets /logout end this client's session without the confirmation page
+  // when the request carries its own valid hint for that session (ADR 0047).
+  // Off for every client but the console's own; set only through the admin
+  // API (packages/db/drizzle/0106_clients_skip_logout_confirmation.sql).
+  skipLogoutConfirmation: boolean('skip_logout_confirmation').notNull().default(false),
   // Search keys, in the C collation, filled by the database
   // (packages/db/drizzle/0074_list_indexes_tenants_clients.sql).
   clientIdSearch: text('client_id_search').generatedAlwaysAs(sql`lower(client_id)`),
@@ -65,6 +74,8 @@ export interface ClientRecord {
   clientId: string;
   name: string;
   description: string | null;
+  nameI18n: Record<string, string>;
+  descriptionI18n: Record<string, string>;
   enabled: boolean;
   type: 'public' | 'confidential';
   secretHash: string | null;
@@ -75,4 +86,5 @@ export interface ClientRecord {
   fullScopeAllowed: boolean;
   registrationOrigin: 'seeded' | 'anonymous' | 'token' | 'operator';
   builtinAdmin: boolean;
+  skipLogoutConfirmation: boolean;
 }

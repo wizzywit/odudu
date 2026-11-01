@@ -17,7 +17,7 @@ Odudu speaks OpenID Connect and OAuth 2.0. Every tenant has its own issuer, `htt
 - **Revocation endpoint**: `/protocol/openid-connect/revoke`. It ends a refresh token or an access token.
 - **Introspection endpoint**: `/protocol/openid-connect/token/introspect`. It says whether a token is active and what it carries.
 - **End session endpoint**: `/protocol/openid-connect/logout`. It signs the person out.
-- **Registration endpoint**: `/clients-registrations/openid-connect`. An application registers itself here when the tenant allows it. The discovery document names it only then.
+- **Registration endpoint**: `/clients-registrations/openid-connect`. An application registers itself here when the tenant allows it. The discovery document names it only then. A `client_name#fr` member (RFC 7591 §2.2) gives the name in a language: it is kept when the tenant offers that language and left out, and not echoed, when it does not, and a tag that is not a language tag, one written twice, or a value that fails the checks `client_name` has is refused with `invalid_client_metadata`. `client_name` itself is held to 256 characters. Other language-tagged members (`client_uri#fr`, `logo_uri#fr`, `policy_uri#fr`, `tos_uri#fr`) are ignored and not echoed.
 
 ## The authorization request
 
@@ -31,7 +31,7 @@ Send these on the query string, or as a form.
 - `prompt` takes `none`, `login`, `consent`, `select_account` or `create`. With `none`, no page is shown, and a person who is not signed in gets `login_required`. With `create`, the person is shown the registration page instead of the sign-in; a tenant without self-registration refuses it. `create` goes alone. See [a sign-up button](../guides/sign-a-user-in.md#a-sign-up-button).
 - `max_age` is the longest age, in whole seconds, a sign-in may have. An older one asks the person to sign in again. The client's default maximum age applies when the request has none.
 - `id_token_hint` is an ID token this server issued. It says which person the request is for.
-- `ui_locales` picks the language of the pages.
+- `ui_locales` picks the language of the pages, from the tenant's `supported_locales`. Without it a page is shown in the signed-in person's `locale` once the first factor is verified, then the tenant's `default_locale` when it has one, then the browser's `Accept-Language`, then English. Discovery lists the tenant's languages as `ui_locales_supported`.
 - `claims` asks for individual claims by name.
 - `response_mode` may only be `query`. A `request` or `request_uri` is refused. `display`, `claims_locales` and `login_hint` are accepted and ignored.
 
@@ -55,7 +55,7 @@ A confidential client proves itself in one of the ways its record names: a secre
 ## Revoke, introspect and sign out
 
 - Revoke and introspect take `token` and the same client authentication as the token endpoint. `token_type_hint` is not read: both kinds of token are tried.
-- Sign out takes `id_token_hint`, `post_logout_redirect_uri`, `state` and `client_id`. The address must be registered for the client. When the session ends, each client that asked for it is told through its back-channel or front-channel logout address.
+- Sign out takes `id_token_hint`, `post_logout_redirect_uri`, `state` and `client_id`. The address must be registered for the client. A browser that holds a session is asked to confirm, whatever the hint, and the confirmation ends it. The one exception is a client whose `skip_logout_confirmation` setting is on: for a valid `id_token_hint` of its own that belongs to the session the browser holds, it is signed out at once. No hint, a hint for another client or session, and every client with the setting off still ask. When the session ends, each client that asked for it is told through its back-channel or front-channel logout address.
 
 ## What is not served
 

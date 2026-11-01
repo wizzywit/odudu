@@ -1,0 +1,50 @@
+.popover {
+  min-inline-size: 12rem;
+  max-inline-size: calc(100vw - 2 * var(--space-4));
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-panel);
+}
+
+.menu {
+  display: grid;
+  padding: var(--space-1);
+  outline: none;
+}
+
+.item {
+  display: grid;
+  align-content: center;
+  gap: var(--space-1);
+  min-block-size: var(--control-height);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-s);
+  font-size: var(--type-15);
+  color: var(--ink-primary);
+  cursor: pointer;
+  outline: none;
+}
+
+.item[data-focused],
+.item[data-hovered] {
+  background: var(--surface-sunken);
+}
+
+.item[data-tone='danger'] {
+  color: var(--signal-danger-ink);
+}
+
+.item[data-disabled] {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.item[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.description {
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}

@@ -4,11 +4,16 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { DEFAULT_PAGE_LOCALE, type PageLocale, type RenderedPage } from '@odudu/kernel';
+import {
+  DEFAULT_PAGE_LOCALE,
+  withBranding,
+  type PageLocale,
+  type RenderedPage,
+} from '@odudu/kernel';
 import { renderRegistrationForm } from '../../../../packages/account/src/view/registration-html.ts';
 import { renderResetRequestForm } from '../../../../packages/account/src/view/reset-html.ts';
 import { renderLoginForm } from '../../../../packages/protocol-oidc/src/view/authorize-html.ts';
-import { brandStyle } from './brand.ts';
+import { brandOutcome } from './brand.ts';
 
 export const THEMES = ['light', 'dark'] as const;
 export type Theme = (typeof THEMES)[number];
@@ -94,9 +99,9 @@ export const JOBS: Job[] = [
 ];
 
 export function markupFor(job: Job, theme: Theme): string {
-  const locale: PageLocale = { ...DEFAULT_PAGE_LOCALE, theme };
-  const html = job.render(locale).html;
-  return job.brand ? html.replace('</head>', `${brandStyle()}\n</head>`) : html;
+  const plain: PageLocale = { ...DEFAULT_PAGE_LOCALE, theme };
+  const locale = job.brand ? withBranding(plain, brandOutcome().branding) : plain;
+  return job.render(locale).html;
 }
 
 // The stylesheet is built from these three sources, so hashing them stands in

@@ -28,6 +28,8 @@ const CATALOGUE = [
   include_in_access_token: true,
   default_client_assignment: null,
   consent_text: null,
+  description_i18n: {},
+  consent_text_i18n: {},
   display_order: 0,
   created_at: '2026-09-28T08:41:53.858Z',
 }));

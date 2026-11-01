@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { advance, type CursorTrail } from '#/shared/service/cursorTrail';
+import type { Read } from '#/shared/service/read';
+import type { Translations } from '#/shared/service/localised';
 import type { PickerState } from '#/shared/service/picker';
 import type { ListSearch, ResourceListState } from '#/shared/service/resourceList';
 import { current, dirtyFields, discard, edit, startDraft } from '#/shared/service/dirty';
@@ -7,7 +9,10 @@ import type { Toast } from '#/shared/service/toast';
 import { AccessGate } from '#/shared/view/AccessGate';
 import { ActivityTab } from '#/shared/view/ActivityTab';
 import { ChecklistField } from '#/shared/view/ChecklistField';
+import { CodeField } from '#/shared/view/CodeField';
+import { LocalisedTextField } from '#/shared/view/LocalisedTextField';
 import { AuditActor } from '#/shared/view/AuditActor';
+import { ActionMenu } from '#/shared/view/ActionMenu';
 import { AuditDetail } from '#/shared/view/AuditDetail';
 import { AuditTable } from '#/shared/view/AuditTable';
 import { AppShell } from '#/shared/view/AppShell';
@@ -90,6 +95,7 @@ import {
 } from '#/shared/view/Skeleton';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { Tabs } from '#/shared/view/Tabs';
+import { TouchTargets } from '#/shared/view/TouchTargets';
 import { Timestamp } from '#/shared/view/Timestamp';
 import { Toasts } from '#/shared/view/Toasts';
 import { UnsavedChangesDialog } from '#/shared/view/UnsavedChangesDialog';
@@ -536,6 +542,65 @@ function TypedFields() {
   );
 }
 
+const STYLESHEET = `/* The sign-in page's accent */
+:root {
+  --accent: #0a7c55;
+  --radius: 4px;
+}
+.button { color: var(--accent); }
+`;
+
+const TRANSLATED: Translations = { fr: 'Bienvenue' };
+
+function CodeAndTranslations() {
+  const [css, setCss] = useState(STYLESHEET);
+  const [name, setName] = useState(TRANSLATED);
+  const languages: Read<string[]> = { status: 'ready', data: ['en', 'fr', 'de'] };
+  return (
+    <div className={styles.typed}>
+      <CodeField
+        label="Stylesheet"
+        description="Applied to the sign-in pages."
+        language="css"
+        value={css}
+        onChange={setCss}
+        size={{ text: '84 of 16,384 bytes used.', over: false }}
+      />
+      <CodeField
+        label="Stylesheet, a line refused"
+        language="css"
+        value={STYLESHEET}
+        onChange={NOTHING}
+        issues={[{ line: 3, text: 'a colour must be a hex value' }]}
+        error="The stylesheet was refused."
+        changed
+      />
+      <CodeField
+        label="Stylesheet, read only"
+        language="css"
+        value="a { }"
+        isDisabled
+        onChange={NOTHING}
+      />
+      <LocalisedTextField
+        label="Welcome heading"
+        description="Shown above the sign-in form."
+        languages={languages}
+        value={name}
+        onChange={setName}
+      />
+      <LocalisedTextField
+        label="Welcome text"
+        languages={languages}
+        value={{}}
+        onChange={NOTHING}
+        multiline
+        limit={200}
+      />
+    </div>
+  );
+}
+
 const PROFILE = {
   name: 'Ada Lovelace',
   given: 'Ada',
@@ -801,6 +866,21 @@ function RecordPieces() {
             <p className={recordTab.text}>A deleted client is gone with the roles scoped to it.</p>
           }
         />
+      </Specimen>
+      <Specimen label="ActionMenu: what a narrow bar folds under one button">
+        <ActionMenu
+          label="More actions"
+          trigger="More"
+          actions={[
+            { id: 'revert', label: 'Revert this tab', onAction: NOTHING },
+            { id: 'discard', label: 'Discard draft…', tone: 'danger', onAction: NOTHING },
+          ]}
+        />
+      </Specimen>
+      <Specimen label="TouchTargets: controls at 44px on a touch or narrow screen">
+        <TouchTargets>
+          <Button>A control that grows</Button>
+        </TouchTargets>
       </Specimen>
       <Specimen label="MappedRoles: what a group or a scope hands on">
         <MappedRoles name="billing" mapped={ROLES} />
@@ -1225,6 +1305,9 @@ export function Gallery({
           </Specimen>
           <Specimen label="Profile: a record's claims in columns, one control height">
             <ProfileCloseUp />
+          </Specimen>
+          <Specimen label="Code and translations: a coloured stylesheet field, and a text in each language">
+            <CodeAndTranslations />
           </Specimen>
           <Specimen label="View only: one line, and every field as text">
             <ViewOnly />

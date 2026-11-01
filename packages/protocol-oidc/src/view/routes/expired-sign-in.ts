@@ -1,13 +1,13 @@
 import { type PendingRequest } from '@odudu/authn-flows';
 import { negotiatePageLocale } from '@odudu/i18n';
-import { withPageTheme } from '@odudu/kernel';
+import { brandLocale, withPageTheme } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { restartAuthorizeLocation } from '#/service/restart-request';
 import { errorRedirect } from '#/usecase/login-submission';
 import { renderAuthorizeErrorPage, type WayOn } from '#/view/authorize-html';
 import { sendHtml } from '#/view/html-response';
 import { t } from '#/view/messages';
-import { type ContinuationDeps } from '#/view/routes/continuation';
+import { tenantNegotiation, type ContinuationDeps } from '#/view/routes/continuation';
 import { issuerBaseFor } from '#/view/issuer';
 import { type AuthorizationErrorCode } from '#/service/oauth-errors';
 
@@ -47,7 +47,7 @@ export async function sendSignInExpired(
   tenantName: string,
   authSessionId: string | undefined,
 ): Promise<FastifyReply> {
-  const tenant = authSessionId === undefined ? null : await deps.findTenant(tenantName);
+  const tenant = await deps.findTenant(tenantName);
   const pending =
     tenant === null || authSessionId === undefined
       ? null
@@ -63,13 +63,20 @@ export async function sendSignInExpired(
   // The row may be gone, and an expired attempt authenticated nobody, so
   // the page is in the language its parked request asked for when there is
   // one, and the browser's otherwise.
-  const locale = withPageTheme(
-    negotiatePageLocale({
-      uiLocales: pending?.uiLocales ?? [],
-      acceptLanguage: reply.request.headers['accept-language'],
-      ...(deps.pageLocales === undefined ? {} : { supported: deps.pageLocales }),
-    }),
-    reply.request.headers.cookie,
+  const locale = await brandLocale(
+    withPageTheme(
+      negotiatePageLocale({
+        uiLocales: pending?.uiLocales ?? [],
+        acceptLanguage: reply.request.headers['accept-language'],
+        ...tenantNegotiation(tenant),
+      }),
+      reply.request.headers.cookie,
+    ),
+    deps.resolveBranding,
+    tenant === null
+      ? null
+      : { tenantId: tenant.id, tenantName, clientId: pending?.clientId ?? null },
+    deps.resolveOverrides,
   );
   return sendHtml(
     reply,

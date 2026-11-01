@@ -1,14 +1,19 @@
 import { unwrapSecret, wrapSecret } from '@odudu/crypto';
-import { tenants, type TenantScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
 import {
   renderSmtpTest,
   smtpSender,
   type EmailSender,
+  type MailLookResolver,
+  type MailOverrides,
+  type SmtpTestInput,
   type SmtpConfig as SmtpTransportConfig,
 } from '@odudu/email';
 import { type SmtpConfig } from '@odudu/contracts/admin';
-import { eq } from 'drizzle-orm';
+import { type MailBranding } from '@odudu/kernel';
 import { etagOf, matches } from '#/service/etag';
+import { clientMail, tenantMail } from '#/usecase/mail-preview';
+import { relayFailure, type RelayFailureKind } from '#/service/smtp-failure';
 import { checkSmtpDestination, type SmtpDestinationPolicy } from '#/service/smtp-destination';
 import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
 
@@ -234,26 +239,63 @@ export function smtpConfigFromRecord(
   };
 }
 
-export type ReadSmtpForTestOutcome =
-  { kind: 'not_configured' } | { kind: 'ok'; record: TenantSmtpRecord; tenantDisplayName: string };
+// What the test mail is worded and dressed with, beyond the tenant's name: its
+// own wording, the languages it offers and its published theme, read as a
+// queued mail reads them. No client's theme: no sign-in is behind the mail.
+export interface SmtpTestWording {
+  readonly branding: MailBranding | null;
+  readonly overrides: MailOverrides;
+  readonly tenantDefaultLocale: string | null;
+  readonly supportedLocales: readonly string[];
+}
 
+export type ReadSmtpForTestOutcome =
+  | { kind: 'not_configured' }
+  | { kind: 'client_not_found' }
+  | {
+      kind: 'ok';
+      record: TenantSmtpRecord;
+      tenantDisplayName: string;
+      wording: SmtpTestWording;
+    };
+
+const UNTHEMED: MailLookResolver = () => Promise.resolve({ branding: null, overrides: {} });
+
+// `clientRowId` dresses the mail as a client's, through the read the client's
+// mail preview makes; a client the tenant does not hold, another tenant's
+// included, is `client_not_found`.
 export async function readSmtpForTest(
   tx: TenantScopedDatabase,
-  tenantId: string,
+  tenant: { tenantId: string; tenantName: string },
+  resolveLook?: MailLookResolver,
+  clientRowId?: string,
 ): Promise<ReadSmtpForTestOutcome> {
-  const record = await tenantSmtpRepository(tx).byTenantId(tenantId);
+  const record = await tenantSmtpRepository(tx).byTenantId(tenant.tenantId);
   if (record === null) return { kind: 'not_configured' };
-  const [tenant] = await tx
-    .select({ name: tenants.name, displayName: tenants.displayName })
-    .from(tenants)
-    .where(eq(tenants.id, tenantId));
-  return { kind: 'ok', record, tenantDisplayName: tenant?.displayName ?? tenant?.name ?? '' };
+  const deps = { resolveMailLook: resolveLook ?? UNTHEMED };
+  const mail =
+    clientRowId === undefined
+      ? await tenantMail(tx, deps, tenant)
+      : await clientMail(tx, deps, tenant, clientRowId);
+  if (mail === null) return { kind: 'client_not_found' };
+  return {
+    kind: 'ok',
+    record,
+    tenantDisplayName: mail.displayName,
+    wording: {
+      branding: mail.branding,
+      overrides: mail.overrides,
+      tenantDefaultLocale: mail.tenantDefaultLocale,
+      supportedLocales: mail.supportedLocales,
+    },
+  };
 }
 
 export type SendTestMessageOutcome =
   | { kind: 'sent' }
   | { kind: 'refused_destination'; reason: string }
-  | { kind: 'send_failed'; detail: string };
+  // `detail` is what the caller is told; `raw` is the transport's own text, for the log alone.
+  | { kind: 'send_failed'; detail: string; failure: RelayFailureKind; raw: string };
 
 // Takes the record already read, never a transaction: the caller reads
 // inside withTenant (readSmtpForTest above) and calls this only after that
@@ -267,7 +309,7 @@ export async function sendTestMessage(
   record: TenantSmtpRecord,
   kek: Uint8Array,
   policy: SmtpDestinationPolicy,
-  message: { readonly to: string; readonly tenantDisplayName: string; readonly now: Date },
+  message: SmtpTestInput,
   buildSender: typeof smtpSenderFromRecord = smtpSenderFromRecord,
 ): Promise<SendTestMessageOutcome> {
   const built = await buildSender(record, kek, policy);
@@ -276,8 +318,9 @@ export async function sendTestMessage(
   try {
     await built.sender.send(renderSmtpTest(message));
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    return { kind: 'send_failed', detail };
+    const { kind, detail } = relayFailure(error);
+    const raw = (error instanceof Error ? error.message : String(error)).slice(0, 500);
+    return { kind: 'send_failed', detail, failure: kind, raw };
   }
   return { kind: 'sent' };
 }

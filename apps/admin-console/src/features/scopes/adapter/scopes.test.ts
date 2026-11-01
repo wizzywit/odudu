@@ -19,6 +19,8 @@ function scope(id: string, name: string) {
     include_in_access_token: true,
     default_client_assignment: 'optional',
     consent_text: null,
+    description_i18n: {},
+    consent_text_i18n: {},
     display_order: 0,
     builtin: false,
     created_at: '2026-09-28T08:41:53.858Z',

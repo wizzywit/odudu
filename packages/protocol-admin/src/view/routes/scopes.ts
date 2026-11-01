@@ -27,6 +27,7 @@ import {
   scopeImpact,
   readScopeRoles,
   ScopeLimitError,
+  ScopeLocalisedTextError,
   setScopeRoles,
   unassignScopeFromClient,
   type AmendScopeOutcome,
@@ -139,6 +140,8 @@ export function createScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
             includeInAccessToken: body.include_in_access_token,
             defaultClientAssignment: body.default_client_assignment ?? null,
             consentText: body.consent_text ?? null,
+            descriptionI18n: body.description_i18n ?? {},
+            consentTextI18n: body.consent_text_i18n ?? {},
             displayOrder: body.display_order ?? 0,
             actorSubjectId: principal.subjectId,
             actorTenantId: principal.issuerTenantId,
@@ -150,6 +153,13 @@ export function createScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
       // The transaction has already rolled back by the time this is
       // caught — see the comment beside `createScope`'s own call
       // (#/usecase/scopes.ts).
+      if (error instanceof ScopeLocalisedTextError) {
+        return sendProblem(
+          reply,
+          request,
+          fieldProblem([{ path: error.field, message: error.message }]),
+        );
+      }
       if (error instanceof ScopeLimitError || error instanceof DefaultScopeLimitError) {
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', error.message));
       }

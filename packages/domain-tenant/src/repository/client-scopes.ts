@@ -26,6 +26,8 @@ function toRecord(row: typeof clientScopes.$inferSelect): ClientScopeRecord {
     includeInAccessToken: row.includeInAccessToken,
     defaultClientAssignment: row.defaultClientAssignment,
     consentText: row.consentText,
+    descriptionI18n: row.descriptionI18n,
+    consentTextI18n: row.consentTextI18n,
     displayOrder: row.displayOrder,
     createdAt: row.createdAt,
   };
@@ -39,6 +41,8 @@ export interface NewClientScope {
   includeInAccessToken?: boolean;
   defaultClientAssignment?: ClientScopeAssignment | null;
   consentText?: string | null;
+  descriptionI18n?: Record<string, string>;
+  consentTextI18n?: Record<string, string>;
   displayOrder?: number;
 }
 
@@ -48,6 +52,8 @@ export interface ClientScopePatch {
   includeInAccessToken?: boolean;
   defaultClientAssignment?: ClientScopeAssignment | null;
   consentText?: string | null;
+  descriptionI18n?: Record<string, string>;
+  consentTextI18n?: Record<string, string>;
   displayOrder?: number;
 }
 
@@ -254,6 +260,8 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
           includeInAccessToken: input.includeInAccessToken ?? true,
           defaultClientAssignment: input.defaultClientAssignment ?? null,
           consentText: input.consentText ?? null,
+          descriptionI18n: input.descriptionI18n ?? {},
+          consentTextI18n: input.consentTextI18n ?? {},
           displayOrder: input.displayOrder ?? 0,
         })
         .returning();

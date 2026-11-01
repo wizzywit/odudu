@@ -1,6 +1,7 @@
 import type { Conflict } from '#/shared/service/conflict';
 import { edit as editDraft, rebase, sameValue, type Values } from '#/shared/service/dirty';
 import type { KeptDraft } from '#/shared/service/drafts';
+import { uniqueIds } from '#/shared/service/ids';
 import {
   BLOCKED_BY_CONFLICT,
   BLOCKED_GONE,
@@ -32,6 +33,7 @@ export function initialSection<T extends Values>(
     source: 'kept',
     phase: 'idle',
     fieldErrors: {},
+    refusals: {},
     message: null,
   };
 }
@@ -66,7 +68,7 @@ export function rebasedSection<T extends Values>(
     base: fresh,
     etag,
     edits: rebased.draft.edits,
-    conflicts: [...new Set([...still, ...rebased.conflicts])],
+    conflicts: uniqueIds([...still, ...rebased.conflicts]),
     source: rebased.conflicts.length > 0 ? 'changed' : state.source,
     phase: state.phase === 'unread' && etag !== state.etag ? 'stale' : state.phase,
   };
@@ -83,6 +85,7 @@ export function editedSection<T extends Values, K extends keyof T & string>(
     fieldErrors: Object.fromEntries(
       Object.entries(state.fieldErrors).filter(([name]) => name !== field),
     ),
+    refusals: Object.fromEntries(Object.entries(state.refusals).filter(([name]) => name !== field)),
     phase: state.phase === 'saving' ? 'saving' : 'idle',
     message: null,
   };
@@ -107,7 +110,15 @@ export function theirsTaken<T extends Values>(state: SectionState<T>): SectionSt
 }
 
 export function discardedSection<T extends Values>(state: SectionState<T>): SectionState<T> {
-  return { ...state, edits: {}, conflicts: [], phase: 'idle', fieldErrors: {}, message: null };
+  return {
+    ...state,
+    edits: {},
+    conflicts: [],
+    phase: 'idle',
+    fieldErrors: {},
+    refusals: {},
+    message: null,
+  };
 }
 
 // Edits made while the save was in flight are still unsaved.

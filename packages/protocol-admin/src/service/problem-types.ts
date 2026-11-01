@@ -119,6 +119,93 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
       'The tenant was disabled, but ending its sessions did not finish. Repeat the request to ' +
       'finish it.',
   },
+  'message-overrides-full': {
+    status: 409,
+    summary:
+      'The tenant already holds 500 message overrides, across every locale, and this one would ' +
+      'be the 501st. Delete one first; changing an override that exists is always allowed.',
+  },
+  'asset-in-use': {
+    status: 409,
+    summary:
+      'An uploaded image is not deleted while a draft or a published theme of the tenant or ' +
+      'of one of its clients names it. `errors` lists the first 20, each by the theme\u2019s ' +
+      'path (`clients/<uuid>/theme` is the client\u2019s row `id`) and the version that names it; save or publish a theme without the image first.',
+  },
+  'asset-cap': {
+    status: 409,
+    summary:
+      'The tenant\u2019s stored images, the new one included, would pass 8 MiB. Delete an ' +
+      'image that no theme names.',
+  },
+  'asset-unsupported-type': {
+    status: 415,
+    summary:
+      'The upload is not a PNG, a JPEG or a WebP, whatever its `Content-Type` said. An ' +
+      'SVG, a GIF, an AVIF and a document are refused.',
+  },
+  'asset-animated': {
+    status: 422,
+    summary: 'The upload is animated (an APNG, an animated WebP), which no slot accepts.',
+  },
+  'asset-corrupt': {
+    status: 422,
+    summary: 'The upload could not be decoded as the image its bytes claim to be, or is empty.',
+  },
+  'asset-dimensions': {
+    status: 422,
+    summary:
+      'The image is wider or taller than its kind allows, or holds too many pixels to decode. ' +
+      '`detail` gives the limit.',
+  },
+  'asset-timeout': {
+    status: 422,
+    summary: 'Decoding the image ran past the time the server allows, so it was abandoned.',
+  },
+  'asset-too-large': {
+    status: 413,
+    summary:
+      'The image is over its kind\u2019s size, as uploaded or once the server re-encoded it. ' +
+      'A body over the limit is refused with a plain `413` before it is read.',
+  },
+  'asset-busy': {
+    status: 503,
+    summary:
+      'The server is decoding as many images as it will at once, and others are waiting. ' +
+      'Repeat the upload after the `Retry-After` interval.',
+  },
+  'theme-assets-missing': {
+    status: 409,
+    summary:
+      'An earlier version of a theme names an image that has since been deleted, so it cannot ' +
+      'be restored whole. `errors` names each image by the slot that holds it.',
+  },
+  'theme-version-fails-checks': {
+    status: 409,
+    summary:
+      'An earlier version of a theme has a template or stylesheet that fails the checks as ' +
+      'they are now, so restoring it would show the default for that piece. `errors` lists ' +
+      'them. Save a corrected draft and publish it instead.',
+  },
+  'theme-preview-too-large': {
+    status: 422,
+    summary:
+      'The preview of a draft is not rendered because its stylesheet and the images the page ' +
+      'shows come to over about 2.2 MiB once inlined. Use smaller images, or preview a page that ' +
+      'shows fewer of them.',
+  },
+  'theme-no-draft': {
+    status: 409,
+    summary:
+      'There is no draft to publish: none was saved, or another request has already published ' +
+      'it. Save a draft again.',
+  },
+  'theme-nothing-to-publish': {
+    status: 409,
+    summary:
+      'The draft has the content that is already published, so publishing it would only add ' +
+      'an identical version. Change the draft first, or discard it.',
+  },
   'tenant-enabled': {
     status: 409,
     summary:

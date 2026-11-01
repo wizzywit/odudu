@@ -1,5 +1,6 @@
 import { createTranslators, type Messages, type Translators } from '@odudu/i18n';
 import { escapeHtml } from '#/view/document';
+import { ar } from '#/view/messages.ar';
 
 // Every sentence an authn-flows page shows, keyed by what it is for. `en` is
 // the source and complete; another locale may omit a key and shows English
@@ -72,13 +73,14 @@ export function token(value: string): string {
   return `<bdi dir="ltr"><code>${escapeHtml(value)}</code></bdi>`;
 }
 
+export { ar };
 export type MessageId = keyof typeof en;
 
 export function translators(byLocale: Messages<typeof en>): Translators<typeof en> {
   return createTranslators(byLocale, escapeHtml);
 }
 
-const shipped = translators({ en });
+const shipped = translators({ en, ar });
 
 export const catalogue = shipped.catalogue;
 export const t = shipped.t;

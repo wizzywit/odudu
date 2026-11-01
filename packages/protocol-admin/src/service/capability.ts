@@ -19,7 +19,7 @@ import {
   amendSubjectRequestSchema,
   assignScopeToClientRequestSchema,
   assignScopeToClientResponseSchema,
-  clientSchema,
+  clientRecordSchema,
   createClientRequestSchema,
   createClientResponseSchema,
   createGroupRequestSchema,
@@ -127,9 +127,28 @@ import {
   importTenantRequestSchema,
   importTenantResponseSchema,
   TENANT_IMPORT_BODY_LIMIT,
+  THEME_ASSET_BODY_LIMIT,
+  previewThemeQuerySchema,
+  themePreviewInfoSchema,
+  previewMailQuerySchema,
+  mailBrandingViewSchema,
+  THEME_BODY_LIMIT,
+  listMessageOverridesQuerySchema,
+  listMessageOverridesResponseSchema,
+  messageCatalogueResponseSchema,
+  stylesheetHooksResponseSchema,
+  messageOverrideSchema,
+  putMessageOverrideRequestSchema,
+  listThemeVersionsResponseSchema,
+  themeAssetSchema,
+  uploadThemeAssetQuerySchema,
+  publishThemeResponseSchema,
+  putThemeRequestSchema,
+  themeViewSchema,
 } from '@odudu/contracts/admin';
 import { MANAGE_TENANTS, type TenantCapability } from '@odudu/domain-tenant';
 import { z } from 'zod';
+import { uploadLimitFor } from '#/service/theme-assets';
 
 // `manage-tenants` reaches every tenant and is provisioned only in the
 // system tenant (@odudu/domain-tenant's admin-capabilities.ts), so it is
@@ -142,8 +161,8 @@ export interface AdminRoute {
   readonly pattern: string;
   readonly capability: AdminCapability | null;
   // Further capabilities that admit this route besides `capability`, each
-  // with whatever composes it. Only a read carries any: a list another
-  // capability's writes pick from.
+  // with whatever composes it. A read carries one for a list another
+  // capability's writes pick from; the image routes admit `manage-clients`.
   readonly alsoAdmits?: readonly AdminCapability[];
   // The shape of a successful response, published at /admin/openapi.json.
   // Required, not optional: a route with no schema is a type error, not a
@@ -165,6 +184,18 @@ export interface AdminRoute {
   readonly bodySchema?: z.ZodType;
   // Fastify's per-route body limit, in bytes — omitted, the server's own.
   readonly bodyLimit?: number;
+  // A body that is raw bytes, not JSON, read only by this route: the router
+  // authenticates the caller and checks the limit `limitFor` names for this
+  // query before it reads any of it, and a declared type outside
+  // `contentTypes` is refused. Replaces `bodySchema`.
+  readonly rawBody?: {
+    readonly contentTypes: readonly string[];
+    readonly limitFor: (query: unknown) => number | null;
+    // What a refused declared type answers (status 415), before the body is
+    // read, its detail naming the type declared; without it Fastify's own
+    // generic refusal would.
+    readonly unsupportedType?: { type: string; title: string };
+  };
   // Extra prose `/admin/openapi.json` carries beside the generated
   // capability summary — for a caveat a generated client's user needs
   // without reading this repository's own docs.
@@ -209,6 +240,150 @@ const CLIENT_LIST_BOUND =
 const SERVICE_ACCOUNT_CEILING =
   'Refused with `403` when the client\u2019s service account holds an admin capability ' +
   'the caller does not (the target ceiling).';
+
+// What every theme route says about the cache and the draft, once.
+const THEME_CACHE =
+  'The pages of this process show a publish, a restore or a reset at once; another replica ' +
+  'shows the previous theme for at most 30 seconds, the lifetime of its cache.';
+
+const THEME_DRAFT =
+  'Users never see a draft. `GET` answers the draft\u2019s `ETag` when there is one, and a write ' +
+  'to an existing draft must send it as `If-Match`: refused with `428` when it is missing or ' +
+  '`*`, and with `412` when it no longer matches, leaving the draft as it was. The first draft ' +
+  'of a scope needs none.';
+
+// The routes that make up a scope's theme, under the tenant or under one
+// client. The tenant's own theme needs `manage-tenant`, a client's
+// `manage-clients`, the capability every other client write needs.
+function themeRoutes(
+  base: string,
+  capability: 'manage-tenant' | 'manage-clients',
+  noun: string,
+): readonly AdminRoute[] {
+  return [
+    {
+      method: 'GET',
+      pattern: `${base}/theme`,
+      capability,
+      responseSchema: themeViewSchema,
+      description:
+        `The ${noun}\u2019s draft and published theme, and for each piece the layer that ` +
+        `supplies it (\`client\`, \`tenant\` or \`default\`). \`changed\` names the parts of the ` +
+        'draft (`tokens`, `assets`, `stylesheet`, `templates`) that differ from the ' +
+        `${noun}\u2019s own published theme, compared by the server on their stored form; it is ` +
+        `empty without a draft, and nothing published compares as the empty theme. ${THEME_DRAFT}`,
+    },
+    {
+      method: 'PUT',
+      pattern: `${base}/theme`,
+      capability,
+      responseSchema: themeViewSchema,
+      bodySchema: putThemeRequestSchema,
+      bodyLimit: THEME_BODY_LIMIT,
+      description:
+        `Saves the whole draft of the ${noun}\u2019s theme: a part left out is absent, not kept. ` +
+        'The templates, the stylesheet and the images are checked as they are on publish, ' +
+        'except contrast, which only publishing checks; a refusal is `400` with `errors`, ' +
+        'each naming its piece and, for a template or stylesheet, the line and column. A ' +
+        'template may use only `{{t "key"}}` keys of the catalogue its page is filled from. ' +
+        `A body over 4 MiB is refused with \`413\` before it is read. ${THEME_DRAFT}`,
+    },
+    {
+      method: 'POST',
+      pattern: `${base}/theme/publish`,
+      capability,
+      responseSchema: publishThemeResponseSchema,
+      description:
+        'Publishes the draft as the next version, which users see, and keeps the previous ' +
+        'ones (at most 20 versions). Every check runs again, and a failing text or UI ' +
+        'contrast pair is refused as a `400` naming the colour. A stylesheet or a template ' +
+        'cannot be proven accessible, so each earns an entry in `warnings`, which does not ' +
+        'block. `409` (`about:blank#theme-no-draft`) when there is no draft, which is also ' +
+        'what the second of two simultaneous publishes of one draft receives, and ' +
+        '`409` (`about:blank#theme-nothing-to-publish`) when the draft has the published ' +
+        'content, which would only add a version identical to the last. `If-Match` is ' +
+        `optional here and, when sent, must name the draft being published. ${THEME_CACHE}`,
+    },
+    {
+      method: 'GET',
+      pattern: `${base}/theme/versions`,
+      capability,
+      responseSchema: listThemeVersionsResponseSchema,
+      description:
+        'The published version and the archived ones, newest first, at most 20, without ' +
+        'their bodies.',
+    },
+    {
+      method: 'POST',
+      pattern: `${base}/theme/versions/:versionId/restore`,
+      capability,
+      responseSchema: themeViewSchema,
+      description:
+        'Publishes a copy of an earlier version, whole, as the next version; the draft is ' +
+        'left as it is. Refused with `409` (`about:blank#theme-assets-missing`) when an image ' +
+        `the version names has been deleted, \`errors\` naming each. ${THEME_CACHE}`,
+    },
+    {
+      method: 'GET',
+      pattern: `${base}/theme/preview`,
+      capability,
+      responseSchema: z.string(),
+      successMediaType: 'text/html',
+      querystringSchema: previewThemeQuerySchema,
+      description:
+        `A page of the ${noun}\u2019s draft theme, rendered by the same code users are sent, ` +
+        `with sample values${noun === 'client' ? ', over its tenant\u2019s published theme' : ''}. ` +
+        'The answer is a whole HTML document under a policy of its own, for a frame whose ' +
+        'parent is this origin: the stylesheet and images are carried inside it, so a draft ' +
+        'image that no address serves still shows, and nothing in it needs a script. A page ' +
+        'whose kind needs one (`passkey-enrolment`) is rendered without it, which the ' +
+        '`X-Odudu-Preview-Script: omitted` header says. A scope with no draft shows its own ' +
+        'published theme, then what is below it. A template that cannot be filled shows the default ' +
+        'page, and `X-Odudu-Preview-Fallback` lists the kinds. Refused with `422` (`about:blank#theme-preview-too-large`) when the ' +
+        'stylesheet and the images the page shows come to over about 2.2 MiB once inlined. Reads ' +
+        'the draft only: nothing is saved and nothing is published.',
+    },
+    {
+      method: 'GET',
+      pattern: `${base}/theme/preview/info`,
+      capability,
+      responseSchema: themePreviewInfoSchema,
+      querystringSchema: previewThemeQuerySchema,
+      description:
+        `What the preview of the same request shows and why, since a frame cannot read the ` +
+        `headers of the page it loads. Takes the preview\u2019s own query and is computed by ` +
+        `the code that renders it, so the two cannot disagree: whether the ${noun}\u2019s ` +
+        '`draft`, its `published` theme or neither is the scope\u2019s own layer, the layer ' +
+        'the page is `shown` from, the layers or stylesheets left out and why, the templates ' +
+        'of this page kind that failed the checks, and whether the template could not be ' +
+        'filled. Reads the draft and the published themes only, at most five statements ' +
+        'whatever the theme names. `404` for a client that is not the tenant\u2019s.',
+    },
+    {
+      method: 'DELETE',
+      pattern: `${base}/theme/draft`,
+      capability,
+      responseSchema: themeViewSchema,
+      description:
+        `Discards the ${noun}\u2019s draft and nothing else: the published theme, its versions ` +
+        'and what users see are untouched, so, unlike the reset, it never unpublishes the ' +
+        'live theme. The draft\u2019s `ETag` is required as `If-Match`, refused with `428` when it is ' +
+        'missing or `*` and with `412` when it no longer matches. A scope with no draft ' +
+        'answers its theme as it is (`412` when an `ETag` names a draft that is gone). ' +
+        'Answers the theme as it now is.',
+    },
+    {
+      method: 'DELETE',
+      pattern: `${base}/theme`,
+      capability,
+      responseSchema: themeViewSchema,
+      description:
+        `Resets the ${noun} to ${noun === 'client' ? 'its tenant\u2019s theme' : 'the default'}: ` +
+        'the draft is deleted and the published version archived, where restore can bring ' +
+        `it back. Answers the theme as it now is. ${THEME_CACHE}`,
+    },
+  ];
+}
 
 // The single list the router registers from (view/routes/router.ts): a
 // route with no entry here fails at startup rather than shipping
@@ -758,6 +933,173 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       '`enabled: false` ends every live session in the tenant, after the change has ' +
       'committed and in batches, as `PATCH /admin/tenants/{tenant}` does.',
   },
+  ...themeRoutes('/admin/tenants/:tenant', 'manage-tenant', 'tenant'),
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/mail/preview',
+    capability: 'manage-tenant',
+    responseSchema: z.string(),
+    successMediaType: 'text/html',
+    querystringSchema: previewMailQuerySchema,
+    description:
+      'The address-verification mail as the tenant\u2019s published theme dresses it, built by ' +
+      'the code that builds the real one, with a sample address and link. The answer is a ' +
+      'whole HTML document under a policy of its own, for a frame whose parent is this ' +
+      'origin: it licenses no script, and images only from the logo\u2019s origin. `scheme` ' +
+      'fixes the light or the dark palette and logo, which a mail client otherwise chooses ' +
+      'by its own setting. The preview is the tenant\u2019s own look; a client\u2019s is `GET /admin/tenants/{tenant}/clients/{id}/mail/preview`. Reads ' +
+      'the published theme only: nothing is queued, saved or sent.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/mail/branding',
+    capability: 'manage-tenant',
+    responseSchema: mailBrandingViewSchema,
+    description:
+      'The colours and the logo the tenant\u2019s mail inherits from its published theme, ' +
+      'for each scheme, and for each palette whether the theme or Odudu\u2019s default ' +
+      'supplies it. A scheme the theme does not set shows the default\u2019s colours. A ' +
+      'client\u2019s own is `GET /admin/tenants/{tenant}/clients/{id}/mail/branding`.',
+  },
+  // A tenant's own wording for the messages its pages show, per language. The
+  // languages themselves are the `supported_locales` and `default_locale`
+  // settings above.
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/message-overrides',
+    capability: 'manage-tenant',
+    responseSchema: listMessageOverridesResponseSchema,
+    querystringSchema: listMessageOverridesQuerySchema,
+    description:
+      'The overrides of one `locale`, in key order, each with its `etag`, the version to send ' +
+      'back as `If-Match`. A tenant holds at most 500 across every ' +
+      'locale, so a locale is listed in at most three pages of 200.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/message-catalogue',
+    capability: 'manage-tenant',
+    responseSchema: messageCatalogueResponseSchema,
+    description:
+      'The messages a tenant\u2019s pages and mail are filled from, as the keys a template may name in ' +
+      '`{{t "key"}}` and a message override may be set under, each with its English text. ' +
+      'The catalogue is part of the build and the same for every tenant, so the answer is ' +
+      'built once and reads nothing from the database: three sections, one per package ' +
+      'that fills pages, and a fourth of mail messages with no page kinds, a few hundred ' +
+      'messages in all and well under 100 KB, never paged. A template of a page kind may ' +
+      'name only a key of the section that lists that kind; an override may name the key ' +
+      'of any section, mail included.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/theme/stylesheet-hooks',
+    capability: 'manage-tenant',
+    alsoAdmits: ['manage-clients'],
+    responseSchema: stylesheetHooksResponseSchema,
+    description:
+      'Needs `manage-tenant`, or `manage-clients` since a client’s theme has a stylesheet ' +
+      'too. What a stylesheet’s rules may name, as the stylesheet check accepts it and ' +
+      'with the `version` of the list: the `classes` the pages render, one `page_kind_classes` ' +
+      'entry per page kind, the `elements`, the `pseudo_classes` and `pseudo_elements` that may ' +
+      'follow either, and the design `tokens` a declaration may read with `var()`. A ' +
+      'stylesheet cannot define a custom property of its own. The lists are part of the build ' +
+      'and the same for every tenant, so the answer is built once and reads nothing from the ' +
+      'database: under 4 KB, never paged.',
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/message-overrides/:locale/:key',
+    capability: 'manage-tenant',
+    responseSchema: messageOverrideSchema,
+    bodySchema: putMessageOverrideRequestSchema,
+    description:
+      'Sets the text a page shows in `locale` for the message `key`, replacing any earlier ' +
+      'one. Two administrators editing the same key cannot overwrite one another unseen: ' +
+      '`If-Match` naming the override\u2019s `etag` is required to replace one, and ' +
+      '`If-None-Match: *` to create one. Neither header, or `*` as `If-Match`, is refused with `428`; a ' +
+      '`If-Match` that is stale, or that names a key now gone, and `If-None-Match: *` for a key that now exists, with `412`. ' +
+      'The answer carries the new `ETag`. `key` must be the key of a page message, such as `login.title`, else `400`; the ' +
+      'text is checked as a message, so an unbalanced brace is refused with `400`, and so is an argument such as `{name}` that the page\u2019s English text of the same key does not read, because the page would not supply it. The text for `consent.heading` must use `{client}`, since the consent page has to tell the person which application is asking. Markup in ' +
+      'it is shown as text, never rendered. `409` (`about:blank#message-overrides-full`) when ' +
+      'the tenant already holds 500, though changing one that exists is always allowed. ' +
+      'Pages in this process show the change at once; another replica shows the previous text ' +
+      'for at most 30 seconds, the lifetime of its cache.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/message-overrides/:locale/:key',
+    capability: 'manage-tenant',
+    responseSchema: z.void(),
+    successStatus: 204,
+    description:
+      'Removes the override, so the page shows the catalogue\u2019s text again. `If-Match` naming ' +
+      'the override\u2019s `etag` is required: an absent header, or `*`, is refused with `428`, and a ' +
+      'stale one with `412`; `404` when there is no override.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/theme/assets',
+    capability: 'manage-tenant',
+    alsoAdmits: ['manage-clients'],
+    responseSchema: themeAssetSchema,
+    successStatus: 201,
+    querystringSchema: uploadThemeAssetQuerySchema,
+    bodyLimit: THEME_ASSET_BODY_LIMIT,
+    rawBody: {
+      contentTypes: ['image/png', 'image/jpeg', 'image/webp', 'application/octet-stream'],
+      limitFor: uploadLimitFor,
+      unsupportedType: {
+        type: 'about:blank#asset-unsupported-type',
+        title: 'Unsupported Media Type',
+      },
+    },
+    description:
+      'Needs `manage-tenant`, or `manage-clients` since a client\u2019s theme names tenant images. Uploads an image for the tenant\u2019s themes: the request body is the image itself, ' +
+      'not JSON, and `kind` says which slot it is for. A declared `Content-Type` other than ' +
+      '`image/png`, `image/jpeg`, `image/webp` or `application/octet-stream` is refused with ' +
+      '`415`, and none of them is trusted: PNG, JPEG and WebP are told by the bytes. The ' +
+      'image is decoded and stored re-encoded, which drops its metadata and anything ' +
+      'appended, so `bytes` and `sha256` are the stored ones; the same picture uploaded ' +
+      'twice is one image. An uploaded image is not served until a published theme names ' +
+      'it. The caller is authenticated and the size checked before the body is read: `413` ' +
+      'for a body over the kind\u2019s limit, `400` for a `kind` that is missing or unknown. ' +
+      'Refused with `415` (`about:blank#asset-unsupported-type`) for bytes that are not one ' +
+      'of the three, `422` (`about:blank#asset-animated`, `asset-corrupt`, ' +
+      '`asset-dimensions`, `asset-timeout`), `413` (`about:blank#asset-too-large`) for an ' +
+      'image whose stored size is over the limit, `409` (`about:blank#asset-cap`) when the ' +
+      'tenant\u2019s stored images would pass 8 MiB, and `503` (`about:blank#asset-busy`) ' +
+      'with `Retry-After` when the server is decoding as many images as it will at once.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/theme/assets/:assetId',
+    capability: 'manage-tenant',
+    alsoAdmits: ['manage-clients'],
+    responseSchema: z.void(),
+    successStatus: 204,
+    description:
+      'Needs `manage-tenant`, or `manage-clients`. Deletes an uploaded image. Refused with `409` (`about:blank#asset-in-use`) while a ' +
+      'draft or a published theme of the tenant or of any of its clients names it, `errors` ' +
+      'listing the first 20 by the theme\u2019s path and version; an archived version does ' +
+      'not hold it, so restoring one that names a deleted image is refused. `404` for an ' +
+      'image that does not exist or is another tenant\u2019s.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/theme/assets/:assetId/content',
+    capability: 'manage-tenant',
+    alsoAdmits: ['manage-clients'],
+    responseSchema: z.string(),
+    successMediaType: 'image/*',
+    description:
+      'Needs `manage-tenant`, or `manage-clients`. The stored bytes of an uploaded image, as ' +
+      'they would be served, under the type they were stored as (`image/png`, `image/jpeg` ' +
+      'or `image/webp`), whether or not a published theme names it: this is how an admin sees ' +
+      'an image before any public address serves it. `X-Content-Type-Options: nosniff` and ' +
+      '`Cache-Control: private, no-store`. At most 1.25 MiB, one statement. `400` for an ' +
+      '`assetId` that is not an id, and `404` for an image that does not exist or is another ' +
+      'tenant\u2019s.',
+  },
   // No `view-clients`: client metadata is configuration rather than a
   // population to browse, so every route below requires `manage-clients`.
   {
@@ -790,14 +1132,14 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     method: 'GET',
     pattern: '/admin/tenants/:tenant/clients/:id',
     capability: 'manage-clients',
-    responseSchema: clientSchema,
+    responseSchema: clientRecordSchema,
     description: CLIENT_REACH,
   },
   {
     method: 'PATCH',
     pattern: '/admin/tenants/:tenant/clients/:id',
     capability: 'manage-clients',
-    responseSchema: clientSchema,
+    responseSchema: clientRecordSchema,
     bodySchema: amendClientRequestSchema,
     description:
       `${SERVICE_ACCOUNT_CEILING} ${CLIENT_LIST_BOUND}` +
@@ -824,6 +1166,31 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Answers the new secret once. `grace_seconds` (0 to 604800, default 0) keeps the ' +
       'secret it replaces authenticating that long beside it, and the response states ' +
       `when it stops in \`previous_secret_expires_at\`. ${SERVICE_ACCOUNT_CEILING}`,
+  },
+  ...themeRoutes('/admin/tenants/:tenant/clients/:id', 'manage-clients', 'client'),
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/clients/:id/mail/preview',
+    capability: 'manage-clients',
+    responseSchema: z.string(),
+    successMediaType: 'text/html',
+    querystringSchema: previewMailQuerySchema,
+    description:
+      'The address-verification mail as a mail whose flow began inside this client\u2019s ' +
+      'sign-in is dressed: the client\u2019s published logo and colours over the tenant\u2019s, ' +
+      'piece by piece, and the tenant\u2019s wording. A client that is disabled shows the ' +
+      'tenant\u2019s look, as its mail would. Otherwise as the tenant\u2019s preview. ' +
+      '`404` for a client the tenant does not hold.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/clients/:id/mail/branding',
+    capability: 'manage-clients',
+    responseSchema: mailBrandingViewSchema,
+    description:
+      'The colours and the logo that client\u2019s mail wears, for each scheme, and for each ' +
+      'palette whether the client\u2019s theme (`client`), the tenant\u2019s (`tenant`) or ' +
+      'Odudu\u2019s default supplies it. `404` for a client the tenant does not hold.',
   },
   {
     method: 'GET',
@@ -1362,9 +1729,17 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: testSmtpResponseSchema,
     bodySchema: testSmtpRequestSchema,
     description:
-      'Sends one message synchronously and reports the transport’s own failure as a ' +
-      '502, rather than the tenant discovering a bad configuration only when a user’s ' +
-      'verification mail silently fails. 400 when the tenant has no SMTP configuration.',
+      'Sends one message to one address synchronously and reports a failure as a 502 ' +
+      'whose detail is one fixed sentence for what failed (the relay could not be ' +
+      'reached, refused the secure connection, refused the credentials or refused the ' +
+      'message), never the relay\u2019s own words, rather than the tenant discovering a ' +
+      'bad configuration only when a user\u2019s verification mail silently fails. ' +
+      'Limited per origin like the other routes that send mail: `429` beyond it. ' +
+      '400 when the tenant has no SMTP configuration or `to` is not exactly one address. ' +
+      'The message wears the tenant\u2019s published theme and its wording; `client_id` ' +
+      'dresses it as that client\u2019s mail instead (a disabled client shows the tenant\u2019s ' +
+      'look), which also needs `manage-clients`: a caller without it is refused with ' +
+      '`403`. `404` for a client the tenant does not hold.',
   },
   {
     method: 'GET',

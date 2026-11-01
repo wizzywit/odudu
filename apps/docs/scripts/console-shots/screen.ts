@@ -24,6 +24,11 @@ export interface Screen {
   readonly alt: string;
   readonly caption: string;
   readonly signedIn: boolean;
+  // The window the screen is photographed in, when it is not the capture's own (a phone's, a wide editor's).
+  readonly viewport?: { readonly width: number; readonly height: number };
+  // The only alert and status lines that may stay on the page at shot time, each matched as a whole
+  // line of text. Anything else is a message the console is telling, and the capture is refused.
+  readonly allowedStatus?: readonly string[];
   readonly expect: readonly Expectation[];
   readonly open: (page: Page, context: Context) => Promise<void>;
   // Runs after the shot, for a screen that has to be left (a dialog closed, a form submitted).

@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import {
   expect,
   expectAccessible,
@@ -9,6 +8,7 @@ import {
   test,
 } from './fixtures';
 import { psql, seeded, type Account, inSubject } from './stack';
+import { randomPassword } from './password';
 
 const { admin, expiring, forced, other, system } = seeded();
 
@@ -31,7 +31,7 @@ test('a tenant administrator signs in from the console and changes a forced pass
 
   await signInAtTenant(page, forced);
   await expect(page.getByRole('heading', { level: 1, name: 'Change your password' })).toBeVisible();
-  await page.getByLabel('New password').fill(randomBytes(18).toString('base64url'));
+  await page.getByLabel('New password').fill(randomPassword());
   await page.getByRole('button', { name: 'Update password' }).click();
   // The login resumes where the action parked it: no second sign-in.
 

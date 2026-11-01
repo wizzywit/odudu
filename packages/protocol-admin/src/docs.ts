@@ -7,3 +7,4 @@ export {
   problemTypeUri,
   type AdminProblemType,
 } from '#/service/problem-types';
+export { stylesheetHooks } from '#/service/stylesheet-hooks';

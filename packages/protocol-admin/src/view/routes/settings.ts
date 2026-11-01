@@ -30,7 +30,7 @@ function settingValueProblem(
   outcome: Extract<AmendSettingsOutcome, { kind: 'invalid_value' }>,
 ): Problem {
   const expects =
-    outcome.values === undefined
+    outcome.values === undefined || outcome.values.length === 0
       ? `expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`
       : outcome.expected === 'list'
         ? `expects a list drawn from ${outcome.values.join(', ')}`

@@ -24,7 +24,7 @@ function build(): FastifyInstance {
   const built = Fastify({ genReqId: () => 'req-1' });
   built.setNotFoundHandler((request, reply) => answerNotFound(request, reply, { links: {} }));
   built.setErrorHandler<FastifyError>((error, request, reply) =>
-    answerServerError(error, request, reply, { links: {} }),
+    answerServerError(error, request, reply),
   );
   built.get('/boom', () => {
     throw new Error('driver secret');

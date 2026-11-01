@@ -8,7 +8,7 @@ import { Diagram } from '@site/src/shared/view/Diagram';
 
 # Clients
 
-Your tenant knows its people. Your app wants to know who they are. Between the two sits a rule: Odudu only talks to apps it has been told about. Telling it is called registering a client, and the registration is what lets a person trust the page that asked them to sign in.
+Your tenant knows its people. Your app wants to know who they are. Between the two sits a rule: Odudu only talks to apps it has been told about. Telling it is called registering a client.
 
 <Diagram
   name="clients"
@@ -22,7 +22,7 @@ _In words: A public client, such as a browser or mobile app that holds no secret
 
 A client is one app, registered with one tenant. It has a `client_id`, a name, and a list of **redirect addresses**: the only places Odudu will send a person after they sign in. An address that is not on the list is refused, which stops somebody else's page from catching the result of a sign-in meant for yours.
 
-Each client also has its own settings: how long its access and refresh tokens live, which scopes it may ask for, and whether people must approve it on a consent screen.
+Each client also has its own settings: how long its access and refresh tokens live, which scopes it may ask for, and whether people must approve it on a consent screen. It can also have its own branding and translated names ([Branding](./branding.mdx)).
 
 ## Public and confidential
 
@@ -63,6 +63,10 @@ A confidential client gets a **service account**, however it was created, includ
 
 **Include all roles in tokens** is off by default: a token carries only the roles mapped to the granted scopes. Switched on, the client still has to ask for the `roles` scope. [Scopes](./scopes.mdx) has the rule.
 
+## Signing out without a question
+
+Odudu asks a person to confirm before signing them out at the end-session address, because anyone holding an app's ID token could otherwise end their session with a link. `skip_logout_confirmation` drops the question for one app, and only for a request carrying that app's own valid ID token for the browser's session. It is off by default, set by an administrator with `manage-clients` and never at registration. The console has it on.
+
 ## Who may register a client
 
 An administrator registers clients from the console or the admin API, or seeds them from the command line. A tenant can also let apps register themselves. A client that registered itself with no token starts out with the consent screen switched on, because nobody vouched for it. A client an administrator registered does not ask for consent unless you turn it on. [Consent and audit](./consent-and-audit.mdx) explains the screen.
@@ -75,7 +79,7 @@ An administrator registers clients from the console or the admin API, or seeds t
 4. Choose the scopes it may ask for. [Scopes](./scopes.mdx) explains how.
 5. Send people to the tenant's authorization address, then trade the code for tokens at the token endpoint, `POST /tenants/{tenant}/protocol/openid-connect/token`.
 
-If a client's secret leaks, issue a new one. Nothing else about the client has to change.
+If a client's secret leaks, issue a new one.
 
 ## Where to go next
 

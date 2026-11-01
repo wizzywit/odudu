@@ -44,9 +44,15 @@ function withCode(error: FieldError): FieldError {
 /** A query a Zod schema refused, its first message as the detail. */
 export function queryProblem(error: z.ZodError): Problem {
   const detail = error.issues[0]?.message ?? 'invalid query';
-  const errors = error.issues
-    .filter((issue) => issue.path.length > 0)
-    .map((issue) => ({ path: fieldPath(issue.path), message: issue.message }));
+  // A parameter the route does not take is named by itself, as the body's
+  // unknown fields are.
+  const errors = error.issues.flatMap((issue) =>
+    issue.code === 'unrecognized_keys'
+      ? issue.keys.map((key) => ({ path: key, message: 'is not a parameter of this route' }))
+      : issue.path.length > 0
+        ? [{ path: fieldPath(issue.path), message: issue.message }]
+        : [],
+  );
   return errors.length === 0
     ? problem(400, 'about:blank', 'Bad Request', detail)
     : fieldProblem(errors, detail);
@@ -108,8 +114,8 @@ export function serviceAccountProblem(clientId: string): Problem {
   );
 }
 
-export function ifMatchStale(): Problem {
-  return problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches');
+export function ifMatchStale(detail = 'If-Match no longer matches'): Problem {
+  return problem(412, 'about:blank', 'Precondition Failed', detail);
 }
 
 export function sendProblem(

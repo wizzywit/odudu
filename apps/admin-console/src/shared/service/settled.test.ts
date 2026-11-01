@@ -1,9 +1,10 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import type { GatewayFailure, GatewayResult } from '#/shared/service/result';
 import {
   dataOf,
   failureOf,
   failureOfSettled,
+  reportFailure,
   restOf,
   type Settled,
 } from '#/shared/service/settled';
@@ -48,4 +49,12 @@ it('keeps what a read answered, and nothing before it answers or when it was ref
   expect(dataOf(answered)).toBe('x');
   expect(dataOf<string>(refused)).toBeUndefined();
   expect(dataOf<string>(undefined)).toBeUndefined();
+});
+
+it('reports a refusal once, and nothing for an answer that went through', () => {
+  const report = vi.fn();
+  reportFailure({ ok: true, status: 200, data: 'x', etag: null, next: null }, report);
+  expect(report).not.toHaveBeenCalled();
+  reportFailure(refused, report);
+  expect(report).toHaveBeenCalledExactlyOnceWith(refused);
 });

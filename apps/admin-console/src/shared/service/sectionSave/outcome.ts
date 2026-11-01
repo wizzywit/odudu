@@ -1,3 +1,4 @@
+import type { FieldError } from '@odudu/contracts/admin';
 import { type Values } from '#/shared/service/dirty';
 import { fieldErrorsOf } from '#/shared/service/fieldErrors';
 import { CONSOLE_FAULT, writeFailureText } from '#/shared/service/failure';
@@ -26,6 +27,7 @@ export function saveFailureText(label: string, failure: GatewayFailure): string 
 export interface SaveOutcome {
   phase: SavePhase;
   fieldErrors?: Readonly<Record<string, string>>;
+  refusals?: Readonly<Record<string, readonly FieldError[]>>;
   message?: string;
   toast?: { tone: 'success' | 'error'; message: string };
   // The record is read again before anything else, after a 412.
@@ -56,6 +58,7 @@ export function saveOutcome(
       ...base,
       phase: 'saved',
       fieldErrors: {},
+      refusals: {},
       toast: { tone: 'success', message: `${label} saved` },
     };
   }
@@ -78,6 +81,7 @@ export function saveOutcome(
         ...base,
         phase: 'invalid',
         fieldErrors: placed.fields,
+        refusals: placed.refusals,
         ...(placed.other.length > 0
           ? {
               toast: {
@@ -124,6 +128,7 @@ export function afterSave<T extends Values>(
     phase: outcome.phase,
     ...(outcome.phase === 'saved' ? { edits: unsavedAfter(state.edits, sent) } : {}),
     ...(outcome.fieldErrors === undefined ? {} : { fieldErrors: outcome.fieldErrors }),
+    ...(outcome.refusals === undefined ? {} : { refusals: outcome.refusals }),
     ...(outcome.message === undefined ? {} : { message: outcome.message }),
   };
 }

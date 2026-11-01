@@ -1,3 +1,4 @@
+import { type MailLookResolver } from '@odudu/email';
 import { BIDI_REFUSED_MESSAGE, refusesBidi } from '@odudu/contracts';
 import {
   onSecondFactorRemoved,
@@ -958,6 +959,12 @@ export interface DeleteCredentialInput {
 export interface DeleteCredentialDeps {
   readonly audit: Audit;
   /**
+   * Themes the notice mail the way the tenant's pages are. Optional here so the
+   * usecase runs without a theme store; its route deps require it, so no route
+   * queues a notice without one.
+   */
+  readonly resolveMailLook?: MailLookResolver | undefined;
+  /**
    * Ends the subject's sessions in this transaction and says how many ended;
    * given only when the request asked for it. Injected because the sessions
    * usecase imports this module.
@@ -1030,11 +1037,16 @@ export async function deleteCredential(
           detail: { ...detail },
         }),
     );
-    await enqueueCredentialNotice(tx, input, {
-      kind: 'second_factor_removed',
-      factor: row.type,
-      codes: recoveryCodesRevoked > 0,
-    });
+    await enqueueCredentialNotice(
+      tx,
+      input,
+      {
+        kind: 'second_factor_removed',
+        factor: row.type,
+        codes: recoveryCodesRevoked > 0,
+      },
+      deps.resolveMailLook,
+    );
   }
   return { kind: 'deleted' };
 }

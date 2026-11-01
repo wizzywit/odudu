@@ -1,4 +1,5 @@
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import { type MailLookResolver } from '@odudu/email';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
 import { type FastifyInstance, type FastifyReply } from 'fastify';
@@ -13,7 +14,11 @@ import {
 } from '#/usecase/register';
 import { type MailGate } from '#/service/mail-gate';
 import { signInPath } from '#/service/sign-in-path';
-import { referenceToResume, type FindHeldSignIn } from '#/service/sign-in-resume';
+import {
+  clientOfHeldSignIn,
+  referenceToResume,
+  type FindHeldSignIn,
+} from '#/service/sign-in-resume';
 import {
   renderRegistrationFailedPage,
   renderRegistrationForm,
@@ -22,10 +27,12 @@ import {
   type RegistrationFailure,
 } from '#/view/registration-html';
 import { sendVerificationHtml } from '#/view/verification-html';
-import { requestLocale } from '#/view/request-locale';
+import { brandedLocale, type BrandedLocaleDeps } from '#/view/request-locale';
 
 export interface RegistrationTenantLookup {
   readonly id: string;
+  readonly supportedLocales: readonly string[];
+  readonly defaultLocale: string | null;
   readonly name: string;
   readonly displayName: string | null;
   readonly enabled: boolean;
@@ -36,9 +43,7 @@ export interface RegistrationTenantLookup {
   readonly passwordPolicy: PasswordPolicy;
 }
 
-export interface RegistrationRouteDeps {
-  // The tags a page can be shown in; defaults to what the server ships.
-  pageLocales?: readonly string[];
+export interface RegistrationRouteDeps extends BrandedLocaleDeps {
   readonly database: DatabaseHandle;
   readonly findTenant: (name: string) => Promise<RegistrationTenantLookup | null>;
   // Operator configuration (ODUDU_PUBLIC_BASE_URL), never anything read off
@@ -54,6 +59,9 @@ export interface RegistrationRouteDeps {
   readonly findHeldSignIn: FindHeldSignIn;
   // The clock a mail's send time comes from.
   readonly now: () => Date;
+  // Reads the tenant's theme for the mail this route queues, as it does for
+  // the page: a route cannot queue a mail without being handed it.
+  readonly resolveMailLook: MailLookResolver;
   readonly createAccount: (
     tx: TenantScopedDatabase,
     tenantId: string,
@@ -103,20 +111,18 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
     Params: { tenant: string };
     Querystring: Record<string, string | string[] | undefined>;
   }>('/tenants/:tenant/login-actions/registration', async (request, reply) => {
-    const locale = requestLocale(request, deps);
     const tenant = await deps.findTenant(request.params.tenant);
     if (!tenantIsOpenForRegistration(tenant)) {
       return reply.code(404).send();
     }
+    const returnTo = signInPath(request.params.tenant, request.query.return_to);
+    const locale = await brandedLocale(request, deps, tenant, returnTo);
     return sendVerificationHtml(
       reply,
       200,
       renderRegistrationForm(
         request.params.tenant,
-        {
-          rules: tenant.passwordPolicy,
-          signInPath: signInPath(request.params.tenant, request.query.return_to),
-        },
+        { rules: tenant.passwordPolicy, signInPath: returnTo },
         locale,
       ),
     );
@@ -126,7 +132,6 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
     Params: { tenant: string };
     Body: Record<string, string | string[] | undefined>;
   }>('/tenants/:tenant/login-actions/registration', async (request, reply) => {
-    const locale = requestLocale(request, deps);
     const tenant = await deps.findTenant(request.params.tenant);
     if (!tenantIsOpenForRegistration(tenant)) {
       return reply.code(404).send();
@@ -138,6 +143,7 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
     const candidate = readPasswordField(body.password);
     const again = readPasswordField(body.password_confirm);
     const returnTo = signInPath(request.params.tenant, body.return_to);
+    const locale = await brandedLocale(request, deps, tenant, returnTo);
     // The form comes back in place, keeping the two values that are safe to
     // keep; a password is never put into a field again.
     const refuse = (status: number, failure: RegistrationFailure): FastifyReply =>
@@ -201,7 +207,9 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
         verifyEmailEnabled: tenant.verifyEmail,
         resetPasswordAllowed: tenant.resetPasswordAllowed,
         authenticationSessionId: referenceToResume(held, returnTo),
+        clientId: clientOfHeldSignIn(held, returnTo),
         now: deps.now,
+        resolveMailLook: deps.resolveMailLook,
         createAccount: deps.createAccount,
         lockAddress: deps.lockAddress,
         findTaken: deps.findTaken,

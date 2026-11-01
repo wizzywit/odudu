@@ -1,0 +1,31 @@
+.tab {
+  display: grid;
+  gap: var(--space-6);
+  min-inline-size: 0;
+}
+
+.form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.submit {
+  display: flex;
+}
+
+.key {
+  overflow-wrap: anywhere;
+}
+
+.text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: inline-flex;
+  gap: var(--space-2);
+}

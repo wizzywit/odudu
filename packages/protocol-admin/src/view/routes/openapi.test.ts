@@ -57,4 +57,21 @@ describe('buildAdminOpenApiDocument', () => {
       documentedJsonSchema(assignScopeToClientResponseSchema),
     );
   });
+
+  it('writes the theme body once and names it, with the palette, wherever a theme answers', () => {
+    const document = buildAdminOpenApiDocument();
+    const schemas = document.components.schemas;
+    expect(Object.keys(schemas)).toEqual(
+      expect.arrayContaining(['ThemeBody', 'Palette', 'Logo', 'ProblemDetails']),
+    );
+    const view =
+      document.paths['/admin/tenants/{tenant}/theme']?.get?.responses['200']?.content?.[
+        'application/json'
+      ]?.schema;
+    const text = JSON.stringify(view);
+    expect(text).toContain('#/components/schemas/ThemeBody');
+    expect(text).not.toContain('surfacePage');
+    expect(JSON.stringify(schemas.ThemeBody)).toContain('#/components/schemas/Palette');
+    expect(JSON.stringify(schemas.ThemeBody)).not.toContain('surfacePage');
+  });
 });

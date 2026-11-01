@@ -37,6 +37,22 @@ it('says in words that a tab holds unsaved changes', () => {
   expect(screen.getByRole('tab', { name: 'Tokens, unsaved changes' })).toBeInTheDocument();
 });
 
+it('says in words that a tab holds part of a change not yet published, beside any unsaved dot', () => {
+  render(
+    <Tabs
+      label="Client sections"
+      tabs={[
+        { id: 'a', label: 'A', changed: true, panel: <p>a</p> },
+        { id: 'b', label: 'B', dirty: true, changed: true, panel: <p>b</p> },
+      ]}
+    />,
+  );
+  expect(screen.getByRole('tab', { name: 'A, changes to publish' })).toBeInTheDocument();
+  expect(
+    screen.getByRole('tab', { name: 'B, unsaved changes, changes to publish' }),
+  ).toBeInTheDocument();
+});
+
 it('reports a selection it is told to control', async () => {
   const user = userEvent.setup();
   const onSelectionChange = vi.fn();
@@ -81,4 +97,12 @@ it('sets unselected tabs on the muted surface and merges the selected one into t
   expect(rule('.tab[data-selected]')).toMatch(/background:\s*var\(--surface-panel\)/u);
   expect(rule('.tab[data-selected]')).toMatch(/border-block-end-color:\s*var\(--surface-panel\)/u);
   expect(rule('.tab[data-selected]')).toMatch(/var\(--signal-active-ink\)/u);
+});
+
+it('draws the changed dot as a square outline and the unsaved dot as a round fill', () => {
+  expect(rule('.dirty')).toMatch(/border-radius:\s*50%/u);
+  expect(rule('.dirty')).toMatch(/background:\s*var\(--signal-warning-ink\)/u);
+  expect(rule('.changed')).toMatch(/border-radius:\s*0/u);
+  expect(rule('.changed')).toMatch(/border:\s*2px solid/u);
+  expect(rule('.changed')).toMatch(/background:\s*transparent/u);
 });

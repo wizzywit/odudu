@@ -1,0 +1,15 @@
+.outcome {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.outcome:empty {
+  position: absolute;
+}
+
+.refused {
+  margin: 0;
+  max-inline-size: 72ch;
+  color: var(--signal-danger-ink);
+  overflow-wrap: anywhere;
+}

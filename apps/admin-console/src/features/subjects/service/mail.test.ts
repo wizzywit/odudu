@@ -108,7 +108,7 @@ describe('mail outcomes', () => {
 
   it('places a 400 under the actions field for the actions mail only', () => {
     const rejected = refusal(400, { errors: [{ path: 'actions', message: 'none' }] });
-    expect(mailFieldErrors('actions', rejected)).toEqual({
+    expect(mailFieldErrors('actions', rejected)).toMatchObject({
       fields: { actions: 'none' },
       other: [],
     });

@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { boolean, integer, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { tenants } from '@odudu/db';
 import { clients } from '#/schema/clients';
 
@@ -24,6 +33,10 @@ export const clientScopes = pgTable('client_scopes', {
   // (packages/db/drizzle/0089_scope_client_default.sql).
   defaultClientAssignment: text('default_client_assignment').$type<ClientScopeAssignment>(),
   consentText: text('consent_text'),
+  // Text per language tag, the base columns being what a language with no
+  // entry falls back to (packages/db/drizzle/0109_i18n_metadata.sql).
+  descriptionI18n: jsonb('description_i18n').$type<Record<string, string>>().notNull().default({}),
+  consentTextI18n: jsonb('consent_text_i18n').$type<Record<string, string>>().notNull().default({}),
   displayOrder: integer('display_order').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   // Search key, in the C collation, filled by the database
@@ -47,6 +60,8 @@ export interface ClientScopeRecord {
   includeInAccessToken: boolean;
   defaultClientAssignment: ClientScopeAssignment | null;
   consentText: string | null;
+  descriptionI18n: Record<string, string>;
+  consentTextI18n: Record<string, string>;
   displayOrder: number;
   createdAt: Date;
 }

@@ -20,6 +20,9 @@ export function ConflictPanel({
   section,
   conflicts,
   source = 'changed',
+  lead,
+  keepHint = 'Saves your values over theirs.',
+  takeHint = 'Drops your edits to these fields and keeps the rest.',
   busy = false,
   onKeepMine,
   onTakeTheirs,
@@ -27,6 +30,11 @@ export function ConflictPanel({
   section: string;
   conflicts: readonly Conflict[];
   source?: ConflictSource;
+  // Replaces the standard lead and the two hints where the choice means
+  // something else, as for a revert.
+  lead?: string;
+  keepHint?: string;
+  takeHint?: string;
   busy?: boolean;
   onKeepMine: () => void;
   onTakeTheirs: () => void;
@@ -40,7 +48,7 @@ export function ConflictPanel({
       <p id={caption} className={styles.title}>
         Changed in {section} since you opened it
       </p>
-      <p className={styles.lead}>{LEAD[source]}</p>
+      <p className={styles.lead}>{lead ?? LEAD[source]}</p>
       <table aria-labelledby={caption} className={styles.table}>
         <thead>
           <tr>
@@ -70,7 +78,7 @@ export function ConflictPanel({
           Keep mine
         </Button>
         <span id={keep} className={styles.hint}>
-          Saves your values over theirs.
+          {keepHint}
         </span>
         <Button
           isDisabled={busy}
@@ -81,7 +89,7 @@ export function ConflictPanel({
           Take theirs
         </Button>
         <span id={take} className={styles.hint}>
-          Drops your edits to these fields and keeps the rest.
+          {takeHint}
         </span>
       </div>
     </div>

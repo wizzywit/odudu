@@ -11,6 +11,8 @@ import {
   Text,
   type Key,
 } from 'react-aria-components';
+import { shortened } from '#/shared/service/format';
+import { narrowOptions, OPTION_DETAIL_LIMIT } from '#/shared/service/options';
 import {
   Description,
   FieldGroupIds,
@@ -74,6 +76,12 @@ function matching(
   );
 }
 
+// What narrows a bounded list: the text typed, but not the label of the
+// option already chosen, which would hide every other.
+function typedQuery(options: readonly ComboOption[], value: string, text: string): string {
+  return options.find((o) => o.id === value)?.label === text ? '' : text;
+}
+
 // More than one character at once is a paste or an autofill, not typing.
 function wholeValue(before: string, after: string): boolean {
   return Math.abs(after.length - before.length) > 1;
@@ -95,6 +103,7 @@ export function ComboBoxField({
   readOnlyText,
   mono = false,
   matchIds = true,
+  limit,
   invalid: part,
   hideLabel,
   placeholder,
@@ -112,6 +121,9 @@ export function ComboBoxField({
     // Whether typing an option's id chooses it: yes for a zone or a locale tag,
     // no for a country, whose two-letter code is also the start of names.
     matchIds?: boolean;
+    // Draws at most this many options, those that hold what is typed, for a
+    // list too long to put on a page whole.
+    limit?: number;
   }) {
   const labelOf = (id: string): string => options.find((o) => o.id === id)?.label ?? id;
   const [shown, setShown] = useState<Shown>(() => ({ value, text: labelOf(value) }));
@@ -123,6 +135,8 @@ export function ComboBoxField({
   if (shown.value !== value) {
     current = { value, text: labelOf(value) };
     setShown(current);
+    // A field emptied from outside, as after an add, would reopen its list.
+    if (value === '') setCloses((n) => n + 1);
   }
   if (readOnly) {
     return (
@@ -145,7 +159,9 @@ export function ComboBoxField({
       {...partProps(group, part)}
       isDisabled={isDisabled ?? false}
       allowsCustomValue={allowsCustomValue}
-      defaultItems={options}
+      {...(limit === undefined
+        ? { defaultItems: options }
+        : { items: narrowOptions(options, typedQuery(options, value, current.text), limit) })}
       value={options.some((o) => o.id === value) ? value : null}
       inputValue={current.text}
       onInputChange={(text) => {
@@ -209,7 +225,7 @@ export function ComboBoxField({
               </Text>
               {option.detail === undefined ? null : (
                 <Text slot="description" className={styles.optionDetail ?? ''}>
-                  {option.detail}
+                  {shortened(option.detail, OPTION_DETAIL_LIMIT)}
                 </Text>
               )}
             </ListBoxItem>

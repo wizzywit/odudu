@@ -1,5 +1,12 @@
 import { type PageLocale, type RenderedPage } from '@odudu/kernel';
 import { escapeHtml, intro, page } from '#/view/document';
+import {
+  consentClientName,
+  consentScopeTexts,
+  NO_CONSENT_I18N,
+  type ConsentI18n,
+} from '#/service/consent-i18n';
+import { fillPage } from '#/view/template';
 import { bdi, t, tHtml } from '#/view/messages';
 
 export interface ConsentPageInput {
@@ -20,6 +27,8 @@ export interface ConsentPageInput {
   alreadyGranted: readonly string[];
   // An administrator's words for a scope, shown in place of its name.
   scopeLabels: Readonly<Record<string, string>>;
+  // The same wording in other languages, for the page's own to replace these.
+  i18n?: ConsentI18n;
 }
 
 function labelOf(scope: string, labels: ConsentPageInput['scopeLabels']): string {
@@ -79,26 +88,38 @@ function renderPageLinks(
 export function renderConsentPage(input: ConsentPageInput, locale: PageLocale): RenderedPage {
   const action = `/tenants/${escapeHtml(encodeURIComponent(input.tenant))}/login-actions/consent`;
   const granted = new Set(input.alreadyGranted);
+  const i18n = input.i18n ?? NO_CONSENT_I18N;
+  const clientName = consentClientName(input.clientName, i18n, locale.tag);
+  const labels = consentScopeTexts(input.scopeLabels, i18n, locale.tag);
   const defaultList = input.defaultScopes
-    .map((scope) => renderDefaultScope(scope, input.scopeLabels))
+    .map((scope) => renderDefaultScope(scope, labels))
     .join('\n  ');
   const optionalList = input.optionalScopes
-    .map((scope) => renderOptionalScope(scope, granted, input.scopeLabels, locale))
+    .map((scope) => renderOptionalScope(scope, granted, labels, locale))
     .join('\n  ');
   return page(
     t(locale, 'consent.title'),
-    `${intro(tHtml(locale, 'consent.heading', {}, { client: input.clientName }), input.tenant)}${renderPageLinks(input.clientPages, input.clientName, locale)}
-<form method="post" action="${action}">
-  <input type="hidden" name="auth_session_id" value="${escapeHtml(input.authSessionId)}">
-  <ul>
+    fillPage(
+      'consent',
+      {
+        client: intro(tHtml(locale, 'consent.heading', {}, { client: clientName }), input.tenant),
+        links: renderPageLinks(input.clientPages, clientName, locale),
+        error: '',
+        'form.open': `<form method="post" action="${action}">
+  <input type="hidden" name="auth_session_id" value="${escapeHtml(input.authSessionId)}">`,
+        scopes: `<ul>
   ${defaultList}
   </ul>
-  ${optionalList}
-  <button type="submit" name="decision" value="allow">${tHtml(locale, 'consent.allow')}</button>
-  <button type="submit" name="decision" value="deny" class="secondary">${tHtml(locale, 'consent.deny')}</button>
-</form>`,
+  ${optionalList}`,
+        'submit.allow': `<button type="submit" name="decision" value="allow">${tHtml(locale, 'consent.allow')}</button>`,
+        'submit.deny': `<button type="submit" name="decision" value="deny" class="secondary">${tHtml(locale, 'consent.deny')}</button>`,
+        'form.close': '</form>',
+      },
+      locale,
+    ),
     null,
     [],
     locale,
+    'consent',
   );
 }

@@ -24,7 +24,7 @@ A scope is a name with three jobs.
 
 1. **It says what the client wants.** The client sends `scope=openid email`, and Odudu reads each word.
 2. **It adds claims.** `email` adds the person's address. `profile` adds their name. `roles` and `groups` add what they hold. Each scope says whether its claims go in the ID token, the access token or both, with `include_in_id_token` and `include_in_access_token`.
-3. **It is what a person approves.** On the consent screen each scope is shown by its `consent_text`, in the order you give it with `display_order`.
+3. **It is what a person approves.** On the consent screen each scope is shown by its `consent_text`, in the order you give it with `display_order`. `consent_text_i18n` holds it by language tag, and the page's language wins over `consent_text`.
 
 `openid` is the scope that turns a request into a sign-in. Without it the client gets no ID token.
 
@@ -41,7 +41,7 @@ A client that asks for a scope it was not assigned is refused with `invalid_scop
 
 ## The built-in scopes
 
-Every tenant starts with eight scopes: `openid`, `profile`, `email`, `address`, `phone`, `roles`, `groups` and `offline_access`. You can edit them, for example to give `profile` a consent text. You can also delete them, except `openid`, which every client's sign-in depends on. Deleting one takes it off every client that carries it and unmaps every role mapped to it. The console counts both first and asks you to type the scope's name. The admin API refuses to delete a built-in scope until the request names it again.
+Every tenant starts with eight scopes: `openid`, `profile`, `email`, `address`, `phone`, `roles`, `groups` and `offline_access`. You can edit them, for example to give `profile` a consent text, which can be translated into the tenant's languages. You can also delete them, except `openid`, which every client's sign-in depends on. Deleting one takes it off every client that carries it and unmaps every role mapped to it. The console counts both first and asks you to type the scope's name. The admin API refuses to delete a built-in scope until the request names it again.
 
 Whether a scope is built in is decided by its name alone. A scope you create under one of those eight names counts as built in: deleting it needs the same confirmation, and a restore leaves it alone.
 

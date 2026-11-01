@@ -1,7 +1,13 @@
 import type { Client } from '@odudu/contracts/admin';
 import {
   CLIENT_ID_FIXED,
+  DESCRIPTION_TRANSLATIONS_LABEL,
+  DESCRIPTION_TRANSLATIONS_NOTE,
+  NAME_TRANSLATIONS_LABEL,
+  NAME_TRANSLATIONS_NOTE,
   PAGES_RULE,
+  SECTION,
+  TRANSLATIONS_LEAD,
   registeredText,
   TYPE_FIXED,
   TYPE_TEXT,
@@ -12,8 +18,10 @@ import {
   type Deletion,
 } from '#/features/clients/usecase/useClientGeneral';
 import type { ClientTabProps } from '#/features/clients/view/ClientTabProps';
+import { DESCRIPTION_MAX } from '#/shared/service/labels';
 import { DeleteZone } from '#/shared/view/DeleteZone';
 import { DescriptionField } from '#/shared/view/DescriptionField';
+import { LocalisedTextField } from '#/shared/view/LocalisedTextField';
 import { Panel } from '#/shared/view/Panel';
 import { CopyValue } from '#/shared/view/CopyValue';
 import { TextField, ToggleField, UrlField } from '#/shared/view/Field';
@@ -71,6 +79,38 @@ function Details({ general }: { general: ClientGeneral }) {
         }}
       />
       <DescriptionField save={s} rule={general.descriptionRule} limit={general.descriptionLimit} />
+    </SaveSection>
+  );
+}
+
+function Translations({ general }: { general: ClientGeneral }) {
+  const s = general.translations;
+  return (
+    <SaveSection title={SECTION.translations} description={TRANSLATIONS_LEAD} save={s}>
+      <LocalisedTextField
+        label={NAME_TRANSLATIONS_LABEL}
+        description={NAME_TRANSLATIONS_NOTE}
+        languages={general.languages}
+        value={s.values.name_i18n}
+        error={s.fieldErrors.name_i18n}
+        changed={s.changed.includes('name_i18n')}
+        onChange={(next) => {
+          s.edit('name_i18n', next);
+        }}
+      />
+      <LocalisedTextField
+        label={DESCRIPTION_TRANSLATIONS_LABEL}
+        description={DESCRIPTION_TRANSLATIONS_NOTE}
+        languages={general.languages}
+        value={s.values.description_i18n}
+        limit={DESCRIPTION_MAX}
+        multiline
+        error={s.fieldErrors.description_i18n}
+        changed={s.changed.includes('description_i18n')}
+        onChange={(next) => {
+          s.edit('description_i18n', next);
+        }}
+      />
     </SaveSection>
   );
 }
@@ -197,6 +237,7 @@ export function GeneralTab({ tenant, client, etag, gone, writable }: ClientTabPr
     <div className={recordTab.tab}>
       <Fixed client={client} />
       <Details general={general} />
+      <Translations general={general} />
       <Pages general={general} />
       <Availability general={general} />
       <Consent general={general} />

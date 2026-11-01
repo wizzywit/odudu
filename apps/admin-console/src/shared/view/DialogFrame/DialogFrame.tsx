@@ -18,7 +18,9 @@ export function DialogFrame({
   isOpen: boolean;
   role?: 'dialog' | 'alertdialog';
   // A wide one holds a page of fields, where a narrow one holds a question.
-  size?: 'regular' | 'wide';
+  // A sheet rises from the bottom edge across the full width, for something
+  // to look at rather than answer.
+  size?: 'regular' | 'wide' | 'sheet';
   title: string;
   description: ReactNode;
   onEscape?: () => void;
@@ -36,6 +38,7 @@ export function DialogFrame({
         if (!open) onEscape?.();
       }}
       className={styles.overlay ?? ''}
+      data-size={size}
     >
       <Modal className={styles.modal ?? ''} data-size={size}>
         <Dialog role={role} aria-describedby={describedBy} className={styles.dialog ?? ''}>

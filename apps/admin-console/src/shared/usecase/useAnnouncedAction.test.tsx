@@ -8,7 +8,7 @@ const refused: GatewayFailure = { ok: false, kind: 'defect' };
 
 function setup(
   answer: () => Promise<GatewayResult<string>>,
-  outcome: (result: GatewayResult<unknown>) => { done: boolean; text: string },
+  outcome: (result: GatewayResult<unknown>) => { done: boolean; text: string; closes?: boolean },
   blocked = false,
 ) {
   const send = vi.fn<(what: number) => Promise<GatewayResult<unknown>>>(answer);
@@ -107,4 +107,27 @@ it('does nothing when nothing is asked, or while another write is under way', as
     expect(await held.hook.result.current.confirm()).toBe(false);
   });
   expect(held.send).not.toHaveBeenCalled();
+});
+
+it('closes the dialog and tells over the page when the outcome says the page must be looked at again', async () => {
+  const { hook, send, report } = setup(
+    () => Promise.resolve(refused),
+    () => ({ done: false, closes: true, text: 'look again' }),
+  );
+  act(() => {
+    hook.result.current.ask(3);
+  });
+  let ended: boolean | undefined;
+  await act(async () => {
+    ended = await hook.result.current.confirm();
+  });
+  expect(ended).toBe(false);
+  expect(send).toHaveBeenCalledOnce();
+  expect(report).toHaveBeenCalledWith(refused, 'manage-keys');
+  expect(hook.result.current).toMatchObject({
+    asked: null,
+    problem: null,
+    notice: 'look again',
+    done: 1,
+  });
 });

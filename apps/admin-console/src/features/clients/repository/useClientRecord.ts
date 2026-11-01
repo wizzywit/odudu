@@ -1,11 +1,12 @@
-import type { Client } from '@odudu/contracts/admin';
+import type { ClientRecord } from '@odudu/contracts/admin';
 import {
   amendClient,
   deleteClient,
   readClient,
   type ClientChanges,
 } from '#/features/clients/adapter/clients';
-import { clientRecord } from '#/features/clients/service';
+import { clientRecord, translationsPatch } from '#/features/clients/service';
+import type { Translations } from '#/shared/service/localised';
 import { countKey, listKey, recordKey, scopeClientsKey } from '#/shared/repository/queryKeys';
 import { rolesGoneReach } from '#/shared/repository/rolesGoneReach';
 import { useAfterChange } from '#/shared/repository/useAfterChange';
@@ -15,7 +16,7 @@ import type { SaveInput } from '#/shared/repository/useSectionSave';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
 
-export function useClientRecord(tenant: string, id: string): RecordState<Client> {
+export function useClientRecord(tenant: string, id: string): RecordState<ClientRecord> {
   return useRecord({
     tenant,
     record: clientRecord(id),
@@ -43,6 +44,11 @@ export function useAfterClientChange(tenant: string) {
 export interface DetailValues extends Readonly<Record<string, unknown>> {
   name: string;
   description: string;
+}
+
+export interface TranslationSectionValues extends Readonly<Record<string, unknown>> {
+  name_i18n: Translations;
+  description_i18n: Translations;
 }
 
 export interface PageValues extends Readonly<Record<string, unknown>> {
@@ -79,6 +85,8 @@ export function useClientSaves(tenant: string, id: string) {
   return {
     details: (gateway: Gateway, { values, ifMatch }: SaveInput<DetailValues>) =>
       amend(gateway, { name: values.name, description: values.description }, ifMatch),
+    translations: (gateway: Gateway, { changes, ifMatch }: SaveInput<TranslationSectionValues>) =>
+      amend(gateway, translationsPatch(changes), ifMatch),
     pages: (gateway: Gateway, { values, ifMatch }: SaveInput<PageValues>) =>
       amend(
         gateway,

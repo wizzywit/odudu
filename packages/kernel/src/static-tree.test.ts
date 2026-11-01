@@ -122,7 +122,10 @@ describe('readStaticTree', () => {
 
   it('lets a caller raise a limit past the defaults for one call', async () => {
     const dir = await tree();
-    for (let i = 0; i < 1_001; i++) await writeFile(join(dir, `f${String(i)}.js`), 'x');
+    for (let batch = 0; batch < 1_001; batch += 100) {
+      const names = Array.from({ length: Math.min(100, 1_001 - batch) }, (_, i) => batch + i);
+      await Promise.all(names.map((n) => writeFile(join(dir, `f${String(n)}.js`), 'x')));
+    }
 
     const refused = await readStaticTree(dir, TYPES, {}, () => undefined)
       .then(() => undefined)

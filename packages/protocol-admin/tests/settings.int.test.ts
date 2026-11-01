@@ -379,3 +379,86 @@ describe('PATCH /settings with nothing to set', () => {
     expect(res.statusCode).toBe(200);
   });
 });
+
+describe('the language settings', () => {
+  async function setup() {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const patch = (payload: Record<string, unknown>) =>
+      fixture.http.inject({
+        method: 'PATCH',
+        url: `/admin/tenants/${t.name}/settings`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload,
+      });
+    return { t, patch };
+  }
+
+  it('starts English only, with no default, as every tenant did', async () => {
+    const { t } = await setup();
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/settings`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.json()).toMatchObject({ supported_locales: ['en'], default_locale: null });
+  });
+
+  it('stores a list and a default from it, in one canonical spelling', async () => {
+    const { patch } = await setup();
+    const res = await patch({ supported_locales: ['EN', 'fr-ca', 'ar'], default_locale: 'FR-CA' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      supported_locales: ['en', 'fr-CA', 'ar'],
+      default_locale: 'fr-CA',
+    });
+  });
+
+  it('clears the default with an empty value', async () => {
+    const { patch } = await setup();
+    await patch({ supported_locales: ['en', 'fr'], default_locale: 'fr' });
+    const res = await patch({ default_locale: '' });
+    expect(res.json()).toMatchObject({ default_locale: null });
+  });
+
+  it.each([
+    ['an empty list', { supported_locales: [] }, 'supported_locales'],
+    ['a tag that is not a locale', { supported_locales: ['en', 'en_US'] }, 'supported_locales'],
+    ['a duplicate in any case', { supported_locales: ['fr', 'FR'] }, 'supported_locales'],
+    [
+      'more than 32',
+      {
+        supported_locales: Array.from({ length: 33 }, (_, i) =>
+          `a${String.fromCharCode(97 + (i % 26))}`.concat(i < 26 ? '' : '-US'),
+        ),
+      },
+      'supported_locales',
+    ],
+    ['a default outside the list', { default_locale: 'de' }, 'default_locale'],
+    ['a default that is not a locale', { default_locale: '../etc' }, 'default_locale'],
+  ])('refuses %s, naming the setting', async (_label, payload, path) => {
+    const { patch, t } = await setup();
+    const res = await patch(payload);
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ errors: { path: string }[] }>().errors.map((e) => e.path)).toContain(path);
+    await withTenant(fixture.app.db, t.id, async (tx) => {
+      const row = await tenantSettingsRepository(tx).byId(t.id);
+      expect(row).toMatchObject({ supported_locales: ['en'], default_locale: null });
+    });
+  });
+
+  it('judges a default against the list stored, so a list cannot drop its default', async () => {
+    const { patch } = await setup();
+    await patch({ supported_locales: ['en', 'fr'], default_locale: 'fr' });
+    const res = await patch({ supported_locales: ['en'] });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('refuses a list that is not a list', async () => {
+    const { patch } = await setup();
+    const res = await patch({ supported_locales: 'en,fr' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('list');
+  });
+});

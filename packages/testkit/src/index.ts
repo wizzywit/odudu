@@ -6,3 +6,4 @@ export {
   type SoftwareAuthenticator,
   type SoftwareRegistration,
 } from '#/webauthn';
+export { makeApng, makePng, type PngOptions } from '#/images';

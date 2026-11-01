@@ -1,3 +1,4 @@
+import { paletteSchema, themeBodySchema, themeLogoSchema } from '@odudu/contracts';
 import { problemDetailsSchema } from '@odudu/contracts/admin';
 import { documentedJsonSchema } from '@odudu/contracts/admin/docs';
 import { ADMIN_API_AUDIENCE } from '@odudu/domain-tenant';
@@ -29,7 +30,7 @@ interface OpenApiOperation {
   readonly parameters: readonly OpenApiParameterOrRef[];
   readonly requestBody?: {
     readonly required: true;
-    readonly content: { readonly 'application/json': { readonly schema: JsonSchema } };
+    readonly content: Readonly<Record<string, { readonly schema: JsonSchema }>>;
   };
   readonly responses: Readonly<Record<string, OpenApiResponse>>;
 }
@@ -42,7 +43,12 @@ export interface OpenApiDocument {
   readonly components: {
     readonly parameters: { readonly tenant: unknown };
     readonly securitySchemes: { readonly bearerAuth: unknown };
-    readonly schemas: { readonly ProblemDetails: JsonSchema };
+    readonly schemas: {
+      readonly ProblemDetails: JsonSchema;
+      readonly ThemeBody: JsonSchema;
+      readonly Palette: JsonSchema;
+      readonly Logo: JsonSchema;
+    };
   };
 }
 
@@ -108,6 +114,38 @@ function queryParametersFor(schema: z.ZodType | undefined): OpenApiParameter[] {
   }));
 }
 
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function without(node: Record<string, unknown>, key: string): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(node).filter(([name]) => name !== key));
+}
+
+const COMPONENT_PREFIX = '#/components/schemas/';
+
+// A shape that occurs more than once, in the theme view for the draft and for
+// the published version, on every route that answers a theme, and for each of
+// the two colour schemes, is written once under `components` and named
+// wherever it occurs, with the field's own description beside the reference.
+function sharing(node: unknown, shape: string, name: string): unknown {
+  if (Array.isArray(node)) return node.map((child) => sharing(child, shape, name));
+  if (!isJsonObject(node)) return node;
+  if (JSON.stringify(without(node, 'description')) === shape) {
+    return {
+      $ref: `${COMPONENT_PREFIX}${name}`,
+      ...(node.description === undefined ? {} : { description: node.description }),
+    };
+  }
+  return Object.fromEntries(
+    Object.entries(node).map(([key, child]) => [key, sharing(child, shape, name)]),
+  );
+}
+
+function standalone(schema: z.ZodType): JsonSchema {
+  return without(jsonSchemaFor(schema), '$schema');
+}
+
 function operationFor(route: AdminRoute): OpenApiOperation {
   const status = String(route.successStatus ?? 200);
   const responses: Record<string, OpenApiResponse> = {
@@ -147,6 +185,19 @@ function operationFor(route: AdminRoute): OpenApiOperation {
             content: { 'application/json': { schema: jsonSchemaFor(route.bodySchema) } },
           },
         }),
+    ...(route.rawBody === undefined
+      ? {}
+      : {
+          requestBody: {
+            required: true as const,
+            content: Object.fromEntries(
+              route.rawBody.contentTypes.map((type) => [
+                type,
+                { schema: { type: 'string', format: 'binary' } },
+              ]),
+            ),
+          },
+        }),
     responses,
   };
 }
@@ -167,15 +218,27 @@ export function buildAdminOpenApiDocument(): OpenApiDocument {
     paths[path] = methods;
   }
 
+  const themeBody = standalone(themeBodySchema);
+  const palette = JSON.stringify(standalone(paletteSchema));
+  const logo = JSON.stringify(standalone(themeLogoSchema));
+  const parts = (node: unknown): unknown =>
+    sharing(sharing(node, palette, 'Palette'), logo, 'Logo');
+  const shared = (node: unknown): unknown =>
+    parts(sharing(node, JSON.stringify(themeBody), 'ThemeBody'));
   return {
     openapi: '3.1.0',
     info: { title: 'Odudu admin API', version: '0.0.0' },
     security: [{ bearerAuth: [] }],
-    paths,
+    paths: shared(paths) as OpenApiDocument['paths'],
     components: {
       parameters: { tenant: TENANT_PARAMETER },
       securitySchemes: { bearerAuth: BEARER_SECURITY_SCHEME },
-      schemas: { ProblemDetails: jsonSchemaFor(problemDetailsSchema) },
+      schemas: {
+        ProblemDetails: jsonSchemaFor(problemDetailsSchema),
+        ThemeBody: parts(themeBody) as JsonSchema,
+        Palette: standalone(paletteSchema),
+        Logo: standalone(themeLogoSchema),
+      },
     },
   };
 }

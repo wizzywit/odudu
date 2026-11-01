@@ -7,6 +7,7 @@ import {
   cursorQuerySchema,
   enabledFilterSchema,
   idSchema,
+  localisedTextSchema,
   searchPrefixSchema,
 } from '#/admin/shared';
 
@@ -19,9 +20,14 @@ export const clientFieldsSchema = z.object({
   client_id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
+  // Replaced whole by a PATCH; the base `name` and `description` answer a
+  // language with no entry.
+  name_i18n: localisedTextSchema,
+  description_i18n: localisedTextSchema,
   type: clientTypeSchema,
   enabled: z.boolean(),
   full_scope_allowed: z.boolean(),
+  skip_logout_confirmation: z.boolean(),
   registration_origin: registrationOriginSchema,
   created_at: createdAtSchema,
   redirect_uris: z.array(z.string()),
@@ -73,6 +79,15 @@ export const clientSchema = clientFieldsSchema.extend({
   service_account_admin_reach: adminReachSchema,
 });
 export type Client = z.infer<typeof clientSchema>;
+
+// What one client's own read and amendment answer: the client, and the
+// languages its tenant offers, which its translated name and description may
+// be written in. A list carries neither the tenant's languages per row nor
+// any more than before.
+export const clientRecordSchema = clientSchema.extend({
+  supported_locales: z.array(z.string()).max(32),
+});
+export type ClientRecord = z.infer<typeof clientRecordSchema>;
 
 // A confidential client's generated secret, carried only in the creation
 // response — never in a read or a list, and never stored except as its

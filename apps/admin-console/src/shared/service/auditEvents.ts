@@ -1,4 +1,5 @@
 import type { AuditEvent } from '@odudu/contracts/admin';
+import { shortened } from '#/shared/service/format';
 
 type Origin = AuditEvent['actor_origin'];
 
@@ -127,6 +128,6 @@ export function detailEntries(detail: Readonly<Record<string, unknown>>): {
 }
 
 export function previewOf(text: string): { shown: string; truncated: boolean } {
-  if (text.length <= PREVIEW_LENGTH) return { shown: text, truncated: false };
-  return { shown: `${text.slice(0, PREVIEW_LENGTH)}…`, truncated: true };
+  const shown = shortened(text, PREVIEW_LENGTH);
+  return { shown, truncated: shown !== text };
 }

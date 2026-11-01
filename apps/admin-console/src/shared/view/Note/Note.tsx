@@ -3,9 +3,17 @@ import styles from '#/shared/view/Note/Note.module.css';
 
 // A dashed one-line aside: what a page cannot offer, and what it needs.
 // `warning` sets it apart as advice worth acting on, still not an error.
-export function Note({ children, tone }: { children: ReactNode; tone?: 'warning' | undefined }) {
+export function Note({
+  children,
+  tone,
+  id,
+}: {
+  children: ReactNode;
+  tone?: 'warning' | undefined;
+  id?: string;
+}) {
   return (
-    <p role="note" className={styles.note} data-tone={tone}>
+    <p id={id} role="note" className={styles.note} data-tone={tone}>
       {children}
     </p>
   );

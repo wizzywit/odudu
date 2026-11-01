@@ -20,9 +20,9 @@ _In words: A timeline from sign-in to a ceiling, with stretches of activity and 
 
 ## What a session is
 
-When a person signs in, Odudu records a session and sets a cookie in their browser. The cookie says which session is theirs, and with `ODUDU_TLS` on it is `Secure` and prefixed `__Host-` ([the names](../operating/configuration.md#cookie-names)). The next time any app in the same tenant sends the person to Odudu, the cookie is found and the person is sent straight back signed in.
+When a person signs in, Odudu records a session and sets a cookie in their browser. The cookie says which session is theirs, and with `ODUDU_TLS` on it is `Secure` and prefixed `__Host-` ([the names](../operating/configuration.md#cookie-names)). The next time any app in the tenant sends the person to Odudu, the cookie is found and they are sent straight back signed in.
 
-While the sign-in page is open, a second, short-lived cookie remembers which sign-in this browser started. It signs nobody in. It lets a link mailed during the sign-in, such as a password reset, bring that browser, and no other, back to the application's original request. Anyone using the same browser profile can continue that sign-in until it expires; the cookie is HttpOnly and lives only as long as the login lifetime.
+While the sign-in page is open, a second, short-lived cookie remembers which sign-in this browser started. It signs nobody in. It lets a link mailed during the sign-in, such as a password reset, bring that browser, and no other, back to the application's original request. Anyone using the same browser profile can continue that sign-in until the cookie, which is HttpOnly, expires with the login lifetime.
 
 A session belongs to a tenant, to a person and to a browser. It also remembers which clients it signed the person in to, so that signing out can reach them all.
 
@@ -40,21 +40,21 @@ One browser can hold several sessions, for example when two people share it. The
 ## How a session ends
 
 - **By itself**, when a limit is reached.
-- **On purpose**, when an app sends the person to the tenant's end-session address. [Refresh and end a session](../guides/refresh-and-end-a-session.md) shows it.
+- **On purpose**, when an app sends the person to the tenant's end-session address. The person is asked to confirm, unless the app's operator turned that off and the request carries the app's own ID token for this session. A form edited since it was issued is refused. [Refresh and end a session](../guides/refresh-and-end-a-session.md) shows it.
 - **By an administrator**, who can end one person's sessions, or call `DELETE /admin/tenants/{tenant}/sessions` to end a tenant's live sessions a few hundred at a time.
 
 Ending a session ends the refresh tokens bound to it, which is what a sign-in in a browser produces. A grant made with `offline_access` has no session, so ending sessions leaves it alone. Its refresh tokens work until they expire or an administrator revokes them. `GET /admin/tenants/{tenant}/subjects/{id}/grants` lists what a person holds, with `offline` set on those grants, and `DELETE /admin/tenants/{tenant}/subjects/{id}/grants/{clientId}` revokes every grant the person holds through one client, offline ones included. An API that checks only an access token's signature keeps accepting it until it expires, which is why access tokens are short. One that asks the introspection endpoint is told at once that it is inactive.
 
 ## Recovery codes
 
-A password and an authenticator app, such as a phone, are two things a person has. Lose the phone and the second is gone. Recovery codes are the way back in.
+A password and an authenticator app are two things a person has. Lose the phone and the second is gone. Recovery codes are the way back in.
 
-Each person who has set up an authenticator app is given **one set of ten recovery codes**. You see them once, when they are made, and are asked to keep them somewhere safe. Making a new set replaces the old one, so there are never two sets.
+Each person who has set up an authenticator app is given **one set of ten recovery codes**. You see them once, when they are made. Making a new set replaces the old one.
 
 A few rules are worth knowing:
 
 1. **Each code works once.** A code that has been used is refused if it is tried again.
-2. **A code stands in for an authenticator code, and only that.** It is accepted on the step that asks for an authenticator code. It is never accepted after a passkey, because a passkey already proves two things. A person with no authenticator app has no use for a code, and any they hold are not accepted.
+2. **A code stands in for an authenticator code, and only that.** It is accepted only on the step that asks for an authenticator code, never after a passkey, which already proves two things. A person with no authenticator app has no use for a code, and any they hold are not accepted.
 3. **Removing the last authenticator app removes the whole set**, used codes included, and writes an entry to the audit trail with the action `subject.recovery_codes_revoke`. A code that outlived its authenticator would otherwise work again after the person set a new one up, and it may have left with the lost phone.
 4. **An administrator can revoke a set**, with `DELETE /admin/tenants/{tenant}/subjects/{id}/recovery-codes`. If the person still has an authenticator, the next sign-in asks them to make a new set, unless the call says `require_new_set=false`. If they have none, nothing more is asked.
 5. **A wrong code counts** towards the lockout that follows too many wrong second-factor attempts.

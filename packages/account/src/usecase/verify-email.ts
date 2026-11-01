@@ -1,7 +1,13 @@
 import { actionLink } from '#/service/action-link';
 import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository, type RequestContext } from '@odudu/domain-audit';
-import { outboxRepository, renderVerifyEmail } from '@odudu/email';
+import {
+  mailContext,
+  outboxRepository,
+  renderVerifyEmail,
+  type MailLookResolver,
+  type MailContext,
+} from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
 
 export interface SendVerificationEmailDeps {
@@ -12,6 +18,8 @@ export interface SendVerificationEmailDeps {
   readonly issuerBase: string;
   // The send time of the mail, from the caller's clock.
   readonly now: () => Date;
+  // Themes the mail the way the tenant's pages are; absent, it is unthemed.
+  readonly resolveMailLook?: MailLookResolver | undefined;
 }
 
 export interface SendVerificationEmailInput {
@@ -41,7 +49,9 @@ export async function enqueueVerificationLink(
   tx: TenantScopedDatabase,
   tenant: Omit<SendVerificationEmailDeps, 'database'>,
   input: SendVerificationEmailInput,
+  context?: MailContext,
 ): Promise<void> {
+  const mail = context ?? (await mailContext(tx, tenant.resolveMailLook, tenant));
   const tokens = actionTokenRepository(tx);
   const { token } = await tokens.issue({
     tenantId: tenant.tenantId,
@@ -59,6 +69,7 @@ export async function enqueueVerificationLink(
       tenantDisplayName: tenant.tenantDisplayName,
       now: tenant.now(),
       locale: input.locale,
+      ...mail,
     }),
   });
 }

@@ -4,6 +4,7 @@ import { escapeHtml, intro, page } from '#/view/document';
 import { t, tHtml } from '#/view/messages';
 import { problemSummary } from '#/view/form-error';
 import { refusalProblems } from '#/view/refusal';
+import { fillPage } from '#/view/template';
 import { type PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/server';
 
 // Matches LABEL_MAX_LENGTH in #/usecase/passkey-enrolment.ts, which
@@ -53,17 +54,10 @@ export function renderPasskeyEnrolmentPage(
   const target = `/tenants/${escapeHtml(encodeURIComponent(tenant))}/login-actions/required-action?action=configure-passkey`;
   // The options are inline, so this script fetches nothing.
   const title = t(locale, 'passkey.title');
-  const body = `${intro(tHtml(locale, 'passkey.title'), tenant)}
-${problemSummary(refusalProblems(locale, error, null))}<p>${tHtml(locale, 'passkey.intro')}</p>
-<form method="post" action="${target}" id="passkey-form" data-failed="${tHtml(locale, 'passkey.failed', { reason: REASON })}" data-cancelled="${tHtml(locale, 'passkey.cancelled')}">
-  <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
-  <input type="hidden" name="credential" id="passkey-credential">
-  <label>${tHtml(locale, 'passkey.nameLabel')} <input type="text" name="label" placeholder="${tHtml(locale, 'passkey.namePlaceholder')}" maxlength="${String(LABEL_MAX_LENGTH)}"></label>
-  <button type="submit" id="passkey-submit">${tHtml(locale, 'passkey.submit')}</button>
-</form>
-<p id="passkey-error" class="alert" role="alert" hidden></p>
+  const script = `<p id="passkey-error" class="alert" role="alert" hidden></p>
 <noscript><p>${tHtml(locale, 'passkey.needsScript')}</p></noscript>
 <script nonce="${escapeHtml(nonce)}">
+function start() {
 const options = ${jsonForScript(offer.options)};
 const form = document.getElementById('passkey-form');
 const field = document.getElementById('passkey-credential');
@@ -98,6 +92,24 @@ form.addEventListener('submit', async (event) => {
     failure.hidden = false;
   }
 });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+else start();
 </script>`;
-  return page(title, body, { nonce, fetchesSameOrigin: false }, [], locale);
+  const body = fillPage(
+    'passkey-enrolment',
+    {
+      intro: intro(tHtml(locale, 'passkey.title'), tenant),
+      error: problemSummary(refusalProblems(locale, error, null)),
+      'form.open': `<form method="post" action="${target}" id="passkey-form" data-failed="${tHtml(locale, 'passkey.failed', { reason: REASON })}" data-cancelled="${tHtml(locale, 'passkey.cancelled')}">
+  <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
+  <input type="hidden" name="credential" id="passkey-credential">`,
+      fields: `<label>${tHtml(locale, 'passkey.nameLabel')} <input type="text" name="label" placeholder="${tHtml(locale, 'passkey.namePlaceholder')}" maxlength="${String(LABEL_MAX_LENGTH)}"></label>`,
+      submit: `<button type="submit" id="passkey-submit">${tHtml(locale, 'passkey.submit')}</button>`,
+      script,
+      'form.close': '</form>',
+    },
+    locale,
+  );
+  return page(title, body, { nonce, fetchesSameOrigin: false }, [], locale, 'passkey-enrolment');
 }

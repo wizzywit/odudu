@@ -1,7 +1,12 @@
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import { type MailLookResolver } from '@odudu/email';
 import { type FastifyInstance } from 'fastify';
 import { signInPath } from '#/service/sign-in-path';
-import { referenceToResume, type FindHeldSignIn } from '#/service/sign-in-resume';
+import {
+  clientOfHeldSignIn,
+  referenceToResume,
+  type FindHeldSignIn,
+} from '#/service/sign-in-resume';
 import { type MailGate } from '#/service/mail-gate';
 import { requestPasswordReset } from '#/usecase/reset-password';
 import {
@@ -10,19 +15,19 @@ import {
   renderResetRequestForm,
   sendResetHtml,
 } from '#/view/reset-html';
-import { requestLocale } from '#/view/request-locale';
+import { brandedLocale, type BrandedLocaleDeps } from '#/view/request-locale';
 
 export interface ResetPasswordTenantLookup {
   readonly id: string;
+  readonly supportedLocales: readonly string[];
+  readonly defaultLocale: string | null;
   readonly name: string;
   readonly displayName: string | null;
   readonly enabled: boolean;
   readonly resetPasswordAllowed: boolean;
 }
 
-export interface ResetPasswordRouteDeps {
-  // The tags a page can be shown in; defaults to what the server ships.
-  pageLocales?: readonly string[];
+export interface ResetPasswordRouteDeps extends BrandedLocaleDeps {
   readonly database: DatabaseHandle;
   readonly findTenant: (name: string) => Promise<ResetPasswordTenantLookup | null>;
   // Operator configuration (ODUDU_PUBLIC_BASE_URL), never anything read off
@@ -35,6 +40,9 @@ export interface ResetPasswordRouteDeps {
   readonly findHeldSignIn: FindHeldSignIn;
   // The clock a mail's send time comes from.
   readonly now: () => Date;
+  // Reads the tenant's theme for the mail this route queues, as it does for
+  // the page: a route cannot queue a mail without being handed it.
+  readonly resolveMailLook: MailLookResolver;
   readonly findByEmail: (
     tx: TenantScopedDatabase,
     email: string,
@@ -69,19 +77,16 @@ export function registerResetPasswordRoute(
     Params: { tenant: string };
     Querystring: Record<string, string | string[] | undefined>;
   }>('/tenants/:tenant/login-actions/reset-password', async (request, reply) => {
-    const locale = requestLocale(request, deps);
     const tenant = await deps.findTenant(request.params.tenant);
     if (!tenantIsOpenForReset(tenant)) {
       return reply.code(404).send();
     }
+    const returnTo = signInPath(request.params.tenant, request.query.return_to);
+    const locale = await brandedLocale(request, deps, tenant, returnTo);
     return sendResetHtml(
       reply,
       200,
-      renderResetRequestForm(
-        request.params.tenant,
-        { signInPath: signInPath(request.params.tenant, request.query.return_to) },
-        locale,
-      ),
+      renderResetRequestForm(request.params.tenant, { signInPath: returnTo }, locale),
     );
   });
 
@@ -89,7 +94,6 @@ export function registerResetPasswordRoute(
     Params: { tenant: string };
     Body: Record<string, string | string[] | undefined>;
   }>('/tenants/:tenant/login-actions/reset-password', async (request, reply) => {
-    const locale = requestLocale(request, deps);
     const tenant = await deps.findTenant(request.params.tenant);
     if (!tenantIsOpenForReset(tenant)) {
       return reply.code(404).send();
@@ -97,6 +101,7 @@ export function registerResetPasswordRoute(
 
     const email = firstNonEmptyString(request.body.email);
     const returnTo = signInPath(request.params.tenant, request.body.return_to);
+    const locale = await brandedLocale(request, deps, tenant, returnTo);
     if (email === undefined) {
       return sendResetHtml(
         reply,
@@ -125,7 +130,9 @@ export function registerResetPasswordRoute(
         tenantDisplayName: tenant.displayName ?? tenant.name,
         issuerBase: deps.publicBaseUrl,
         now: deps.now,
+        resolveMailLook: deps.resolveMailLook,
         authenticationSessionId: referenceToResume(held, returnTo),
+        clientId: clientOfHeldSignIn(held, returnTo),
         findByEmail: deps.findByEmail,
         mailGate: deps.mailGate,
       },

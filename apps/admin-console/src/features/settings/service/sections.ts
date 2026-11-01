@@ -22,6 +22,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
 // Settings with a home of their own, which this page names rather than repeats.
 export const PLACED_ELSEWHERE: Readonly<Record<string, string>> = {
   otp_required: 'Sign-in flow',
+  supported_locales: 'Branding, Languages',
+  default_locale: 'Branding, Languages',
 };
 
 export function sectionHeadingId(id: string): string {

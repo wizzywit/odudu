@@ -47,13 +47,18 @@ export class SessionEntry {
 
   // A value bound to this session and to `purpose`, keyed by the secret:
   // whoever holds only the public id cannot compute it, and the secret
-  // never leaves the cookie to produce it.
-  proof(purpose: string): string {
-    return createHmac('sha256', this.#secret).update(`${purpose}:${this.id}`).digest('base64url');
+  // never leaves the cookie to produce it. Each bound value is length-
+  // prefixed, so moving characters between two of them changes the proof.
+  proof(purpose: string, bound: readonly string[] = []): string {
+    const message = bound.reduce(
+      (text, value) => `${text}:${String(value.length)}:${value}`,
+      `${purpose}:${this.id}`,
+    );
+    return createHmac('sha256', this.#secret).update(message).digest('base64url');
   }
 
-  proves(purpose: string, presented: string): boolean {
-    const expected = Buffer.from(this.proof(purpose));
+  proves(purpose: string, presented: string, bound: readonly string[] = []): boolean {
+    const expected = Buffer.from(this.proof(purpose, bound));
     const received = Buffer.from(presented);
     return expected.length === received.length && timingSafeEqual(expected, received);
   }

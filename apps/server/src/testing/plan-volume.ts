@@ -70,6 +70,9 @@ function volumeStatements(target: VolumeTarget): string[] {
   const v = asText(PLAN_VOLUME);
   const t = `'${target.tenantId}'`;
   const c0 = `'${target.clientDbId}'`;
+  // The most a client's or scope's per-language map holds: 32 entries.
+  const FULL_TEXT =
+    "(select jsonb_object_agg('x' || chr(97 + g % 26) || chr(97 + g / 26), 'Text ' || g) from generate_series(0, 31) g)";
 
   const script = `
 insert into tenants (id, name, display_name)
@@ -90,6 +93,9 @@ select s.id, s.tenant_id, 'o' || row_number() over (),
 insert into clients (id, tenant_id, client_id, name, type)
 select gen_random_uuid(), o.id, 'c' || g, 'App ' || g, 'public'
   from vol_other o cross join generate_series(1, ${v.clientsPerOtherTenant}) g;
+insert into message_overrides (tenant_id, locale, key, message)
+select ${t}, case when g % 2 = 0 then 'en' else 'fr' end, 'bulk.' || g, 'Wording ' || g
+  from generate_series(1, 499) g;
 insert into client_oidc_config (client_id, tenant_id, redirect_uris, grant_types, token_endpoint_auth_method, web_origins)
 select id, tenant_id, '{https://app.example/cb}', '{authorization_code}', 'none', '{+}'
   from clients where tenant_id in (select id from vol_other);
@@ -132,14 +138,25 @@ insert into user_credentials (id, tenant_id, subject_id, type, secret_data)
 select gen_random_uuid(), ${t}, id, 'password', '{"hash":"x"}'::jsonb
   from vol_subjects;
 
-insert into clients (id, tenant_id, client_id, name, type)
-select gen_random_uuid(), ${t}, 'app-' || g, 'Application ' || g, 'public'
+insert into clients (id, tenant_id, client_id, name, type, name_i18n, description_i18n)
+select gen_random_uuid(), ${t}, 'app-' || g, 'Application ' || g, 'public', ${FULL_TEXT}, ${FULL_TEXT}
   from generate_series(1, ${v.clients}) g;
 create temp table vol_clients as
   select row_number() over (order by id) n, id from clients
    where tenant_id = ${t} and client_id like 'app-%';
 create unique index on vol_clients (n);
 analyze vol_clients;
+insert into theme_versions (id, tenant_id, client_id, state, version, body, published_at)
+select gen_random_uuid(), ${t}, id, 'published', 1, '{"tokens":{},"stylesheet":null,"templates":{},"assets":{}}', now()
+  from vol_clients;
+insert into theme_versions (id, tenant_id, client_id, state, version, body, published_at)
+select gen_random_uuid(), ${t}, null, 'published', 21, '{"tokens":{},"stylesheet":null,"templates":{},"assets":{}}', now();
+insert into theme_versions (id, tenant_id, client_id, state, version, body, published_at)
+select gen_random_uuid(), ${t}, null, 'archived', g, '{"tokens":{},"stylesheet":null,"templates":{},"assets":{}}', now()
+  from generate_series(1, 20) g;
+insert into theme_assets (id, tenant_id, sha256, mime, width, height, bytes)
+select gen_random_uuid(), ${t}, md5(g::text) || md5('a' || g), 'image/png', 4, 3, decode('00', 'hex')
+  from generate_series(1, 20) g;
 insert into client_oidc_config (client_id, tenant_id, redirect_uris, grant_types, token_endpoint_auth_method, web_origins)
 select id, ${t}, array['https://app' || (n % 5000) || '.example/cb'], '{authorization_code}', 'none', '{+}'
   from vol_clients;
@@ -175,8 +192,8 @@ select gen_random_uuid(), ${t}, c.id, 'crole-' || g
   from vol_clients c cross join generate_series(1, ${v.clientRoles} / 100) g where c.n <= 100;
 insert into groups (id, tenant_id, name, path)
 select gen_random_uuid(), ${t}, 'group-' || g, '/group-' || g from generate_series(1, ${v.groups}) g;
-insert into client_scopes (id, tenant_id, name)
-select gen_random_uuid(), ${t}, 'scope-' || g from generate_series(1, ${v.scopes}) g;
+insert into client_scopes (id, tenant_id, name, description_i18n, consent_text_i18n)
+select gen_random_uuid(), ${t}, 'scope-' || g, ${FULL_TEXT}, ${FULL_TEXT} from generate_series(1, ${v.scopes}) g;
 create temp table vol_roles as
   select row_number() over (order by name) n, id from roles where tenant_id = ${t} and name like 'role-%';
 create temp table vol_groups as

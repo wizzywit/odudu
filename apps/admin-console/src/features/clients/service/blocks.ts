@@ -32,3 +32,11 @@ export function scopesFixed(client: Fixable): string | null {
     ? `${client.client_id}'s scopes cannot be unassigned. ${BUILTIN_FIXED}`
     : null;
 }
+
+// The built-in admin client's own sign-out must end at once: the console
+// sends no one to a page that would ask, so the setting stays on.
+export function skipLogoutFixed(client: Fixable): string | null {
+  return client.builtin_admin
+    ? `${client.client_id} always signs out at once and this cannot be changed. ${BUILTIN_FIXED}`
+    : null;
+}

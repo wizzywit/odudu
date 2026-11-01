@@ -1,0 +1,75 @@
+---
+title: Client branding in the console
+description: Give one client its own colours, logo and layout over the tenant's, and see what it hides and what its mail wears.
+sidebar_position: 6.5
+---
+
+import { ConsoleShot } from '@site/src/shared/view/ConsoleShot';
+
+# Client branding in the console
+
+An application may want its own look: a shop's sign-in need not look like the tenant's other applications. A client can set one, piece by piece, over the tenant's. The client's pages are the ones people reach when a sign-in starts from that client. A piece the client sets replaces the tenant's one; every piece it leaves unset follows the tenant's published theme, and then Instrument's default. It needs the `manage-clients` capability, and it is the **Branding** tab of a client's record under **Clients**.
+
+The tab works as the tenant's [Branding](./branding.mdx) page does: edits are a draft, the preview shows the draft drawn by the real page, and **Publish** makes it what people see. What differs is what is on it, and that it says, beside each piece, where it comes from. [How branding works](../concepts/branding.mdx) explains the layers.
+
+<ConsoleShot
+  name="client-branding"
+  alt="The Branding tab of the storefront client: a line says a piece set here replaces the tenant’s for sign-ins that start from this client, then the client’s own Publish bar names Version 1 as published, and below it the Theme and Pages tabs begin."
+  caption="A client has a publication of its own: its own draft, bar and versions."
+/>
+
+## 1. Open the client's Branding tab
+
+Choose **Clients**, then the client, then **Branding**. A line at the top says what the tab does: a piece set here replaces the tenant's for sign-ins that start from this client, and a piece left unset follows the tenant's theme, then Instrument's.
+
+The client has a publication of its own: its own draft, its own **Publish** bar, its own versions and its own preview, none of them shared with the tenant's. The tab has two tabs of its own, **Theme** and **Pages**, which are the editors of the tenant's page: **Theme** for the colours and font, the images and the stylesheet, **Pages** for the templates. It has no **Mail** or **Languages** tab. The mail is previewed from the tenant's page, as [section 4](#4-see-the-clients-mail) shows, and the wording of the pages and the mail is the tenant's alone: a client has no message overrides. The name a client is shown under, and its description, are set under **Translations** on its **General** tab, in each language the tenant offers; see [Clients](./clients.mdx).
+
+## 2. Set only what is different
+
+Switch on a palette, set an image or write a stylesheet only for what the client should change. Each piece is a unit: a palette is the client's whole light or dark palette, an image is one slot, the stylesheet is the whole stylesheet, and a template is one page. A background image the client sets replaces the tenant's; with none set, the tenant's shows.
+
+<ConsoleShot
+  name="client-branding-colours"
+  alt="The Colours and font section of the storefront client’s Branding tab: Light colours is switched on, the line under it reads Published: this client, Hides the tenant’s light colours, and the cooler blue colours replace the tenant’s warm ones in the Preview beside it, which draws the sign-in page for the client with the tenant’s logo and background."
+  caption="A palette the client switches on replaces the tenant’s whole palette for its sign-in."
+/>
+
+Beside each piece the tab says which layer supplies it: this client, this tenant or Instrument's default, for the draft and for what is published. For a piece the client sets, the line also says which of the tenant's it hides, as the picture shows for the light colours. The picture's preview draws the sign-in page with the client's cooler palette over the tenant's logo and background, because the client set colours and nothing else.
+
+A client's stylesheet may name only what the tenant's may, from the same **Selectors you can use** and **Design values you can use** lists, and its templates follow the same rules; [Branding](./branding.mdx) describes both.
+
+## 3. Publish, revert and discard
+
+The **Publish** bar above the two tabs names what the client's draft changes and publishes it whole. **Revert this tab to published** takes one tab back to the client's own published theme, and a part it has none of falls back to the tenant's. **Discard draft** drops the client's saved draft and leaves what is published. **Versions** keeps what the client published, and **Restore** publishes a copy of an earlier one. Two administrators editing the client's draft meet the same **Keep mine** and **Take theirs** choice as on the tenant's page. The tab stays available when the client's service account holds more than you do, because a theme change touches nothing that account holds.
+
+## 4. See the client's mail
+
+Odudu's mail takes a client's logo and colours, over the tenant's piece by piece, only when the flow began inside that client's sign-in: a registration or a password reset asked for from it. Any other mail takes the tenant's. It never takes the client's stylesheet, templates or wording, and a draft does not show until it is published.
+
+To see it, open the tenant's **Branding** page, then its **Mail** tab, and choose the client under **Preview as client**. The preview draws the verification mail as that client's sign-in sends it, and **What the mail inherits** says, for each palette, whether the client's theme, the tenant's or Odudu's default supplies it. **Show the tenant’s own** goes back. Choosing a client needs `manage-clients` as well as `manage-tenant`.
+
+<ConsoleShot
+  name="client-mail-preview"
+  alt="The Mail tab with storefront chosen under Preview as client: What the mail inherits says that the client’s theme supplies the light colours, and the Preview shows the verification mail in the client’s cooler colours."
+  caption="Preview as client shows the mail a sign-in of that client sends."
+/>
+
+The picture shows the mail with the client's colours and the tenant's logo and wording: the client set only colours. To see the same mail in a real mailbox, the [Email](./email.mdx) page sends a test message under **Send as client**.
+
+## 5. Use it on a phone
+
+On a narrow screen the client's tab folds as the tenant's does: the editor takes the width, the **Publish** bar is one row with **More**, and the preview is a strip at the bottom that **Open preview** raises to a sheet. [Branding](./branding.mdx) shows each part.
+
+<ConsoleShot
+  name="client-branding-narrow"
+  alt="The storefront client’s Branding tab on a phone, with the folded Publish bar and the preview strip at the bottom."
+  caption="The client’s Branding tab folds the same way on a phone."
+/>
+
+## Things that cannot be undone
+
+**Publish** changes at once what people see when they sign in from this client. **Reset to default**, at the foot of the **Theme** tab, deletes the client's draft and unpublishes its theme, so the client returns to its tenant's look; the version that was published stays under **Versions**. To drop only the draft, use **Discard draft**.
+
+## Do the same through the API
+
+A client's theme has the routes of the tenant's, under the client, in the [clients](../reference/generated/admin-api/clients/index.md) area of the admin API: `GET /clients/{id}/theme` reads it, and the routes beside it save and discard the draft, publish, list and restore versions, reset, and draw the preview. The mail a client's sign-in sends is previewed by `GET /clients/{id}/mail/preview`, and what it inherits is `GET /clients/{id}/mail/branding`, beside the tenant's own in the [mail](../reference/generated/admin-api/mail/index.md) area.

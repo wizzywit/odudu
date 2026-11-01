@@ -1,11 +1,11 @@
 ---
 title: Concepts
-description: Tenants, clients, scopes, roles and groups, sessions, tokens, and consent and audit, each explained with a story and a diagram.
+description: Tenants, clients, scopes, roles and groups, sessions, tokens, consent and audit, and branding, each explained with a story and a diagram.
 ---
 
 # Concepts
 
-You have signed a person in, and now you want to know why it worked. These seven pages explain the ideas behind it, one at a time. Each is short, starts from a small story, and has one diagram you can come back to.
+You have signed a person in, and now you want to know why it worked. These eight pages explain the ideas behind it, one at a time. Each is short, starts from a small story, and has one diagram you can come back to.
 
 If you read them in order, each one leans on the one before.
 
@@ -16,6 +16,7 @@ If you read them in order, each one leans on the one before.
 5. [Sessions](./sessions.mdx): how long a sign-in lasts, how it ends, and what recovery codes are for.
 6. [Tokens](./tokens.mdx): the access, ID and refresh tokens, and what happens when one is used twice.
 7. [Consent and audit](./consent-and-audit.mdx): what a person agreed to share, and the record of what happened.
+8. [Branding](./branding.mdx): how a tenant and a client give the pages their own look, and what a theme can never change.
 
 When Odudu says no, it tells a person, a client or an admin tool in the way each can use. [Read a refusal](../guides/read-a-refusal.md) shows seven of them.
 

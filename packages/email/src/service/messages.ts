@@ -1,5 +1,6 @@
 import { createTranslators, type Messages, type Translators } from '@odudu/i18n';
 import { escapeHtml } from '#/service/escape';
+import { ar } from '#/service/messages.ar';
 
 // Every sentence a mail says, keyed by what it is for. `en` is the source and
 // complete; another locale may omit a key and shows English for it. A message
@@ -86,13 +87,28 @@ export const en = {
   'action.generate-recovery-codes': 'Save a set of recovery codes',
 };
 
+// What a mail says about whose it is. A page carries no such message, so a
+// tenant's wording does not reach these either.
+const ATTRIBUTION: readonly string[] = ['mail.brand', 'mail.copyright', 'mail.poweredBy'];
+
+// The English text of every mail message a tenant's override may name and,
+// for each, the arguments the mail supplies.
+export const MAIL_MESSAGES: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(en).filter(([key]) => !ATTRIBUTION.includes(key)),
+);
+
+export function isMailMessageKey(key: string): boolean {
+  return Object.hasOwn(MAIL_MESSAGES, key);
+}
+
+export { ar };
 export type MessageId = keyof typeof en;
 
 export function translators(byLocale: Messages<typeof en>): Translators<typeof en> {
   return createTranslators(byLocale, escapeHtml);
 }
 
-const shipped = translators({ en });
+const shipped = translators({ en, ar });
 
 export const catalogue = shipped.catalogue;
 export const t = shipped.t;

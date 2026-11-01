@@ -743,6 +743,41 @@
       "when": 1789827281736,
       "tag": "0105_users_self_registered",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1789913681736,
+      "tag": "0106_clients_skip_logout_confirmation",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1790000081736,
+      "tag": "0107_themes",
+      "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1790086481736,
+      "tag": "0108_tenant_locales",
+      "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1790172881736,
+      "tag": "0109_i18n_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1790259281736,
+      "tag": "0110_theme_version_unique",
+      "breakpoints": true
     }
   ]
 }

@@ -74,7 +74,7 @@ export async function adminIds(world: PlanWorld): Promise<AdminIds> {
 // named capabilities on the tenant's built-in admin client, a live
 // session, and a grant, signed by the tenant's own key.
 export async function mintAdminToken(
-  world: PlanWorld,
+  world: Pick<PlanWorld, 'http' | 'app'>,
   tenant: { readonly id: string; readonly name: string },
   capabilities: readonly string[],
 ): Promise<string> {
@@ -287,6 +287,7 @@ export function adminPaths(ids: AdminIds): {
     { path: `${C}/${ids.client}/logout-deliveries?status=failed` },
     { path: `${C}/${ids.client}/sessions` },
     { path: `${T}/registration-tokens` },
+    { path: `${T}/message-overrides?locale=en` },
     { path: `${T}/keys` },
     { path: `${T}/flow/executions` },
     { path: `${S}/${ids.subject}/credentials` },
@@ -334,6 +335,10 @@ export function adminPaths(ids: AdminIds): {
     { path: T },
     { path: `${T}/settings` },
     { path: `${T}/smtp` },
+    { path: `${T}/theme` },
+    { path: `${T}/theme/versions` },
+    { path: `${C}/${ids.client}/theme` },
+    { path: `${C}/${ids.client}/theme/versions` },
     { path: `${T}/audit/export`, alsoAnswers: [413] },
     { path: `${T}/audit/export?actor_subject_id=${ids.subject}` },
     { path: `${T}/audit/export?resource_type=subject&resource_id=${ids.subject}` },

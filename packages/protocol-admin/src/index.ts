@@ -1,3 +1,5 @@
+import { type MessageCatalogueResponse } from '@odudu/contracts/admin';
+import { type MailLookResolver } from '@odudu/email';
 import { sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
 import { type DatabaseHandle, type TenantScopedDatabase, withTenant } from '@odudu/db';
@@ -5,7 +7,14 @@ import { auditRepository, type AdminMutationAction } from '@odudu/domain-audit';
 import { effectiveRoles } from '@odudu/domain-authz';
 import { hashPassword, subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
 import { ADMIN_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
-import { type ClaimMapperRegistry, type Clock, type Logger, systemClock } from '@odudu/kernel';
+import { type inspectImage } from '@odudu/domain-theme';
+import {
+  type ClaimMapperRegistry,
+  type Clock,
+  type Logger,
+  type PageKind,
+  systemClock,
+} from '@odudu/kernel';
 import {
   tenantLookupRepository,
   tokenGrantRepository,
@@ -24,6 +33,9 @@ import { type Audit as RoleAudit } from '#/usecase/roles';
 import { type Audit as ScopeAudit } from '#/usecase/scopes';
 import { type Audit as ScopeMapperAudit } from '#/usecase/scope-mappers';
 import { type Audit as SettingsAudit } from '#/usecase/settings';
+import { type Audit as ThemeAudit } from '#/usecase/theme';
+import { type Audit as MessageOverrideAudit } from '#/usecase/message-overrides';
+import { type Audit as ThemeAssetAudit } from '#/usecase/theme-assets';
 import { type Audit as TenantExportAudit } from '#/usecase/tenant-export';
 import { type Audit as TenantImportAudit } from '#/usecase/tenant-import';
 import { type Audit as SmtpAudit } from '#/usecase/smtp';
@@ -152,6 +164,19 @@ import {
   getSettingsHandler,
   type SettingsRouteDeps,
 } from '#/view/routes/settings';
+import { themeHandlers, type ThemeRouteDeps } from '#/view/routes/theme';
+import {
+  deleteMessageOverrideHandler,
+  listMessageOverridesHandler,
+  messageCatalogueHandler,
+  putMessageOverrideHandler,
+  type MessageOverridesRouteDeps,
+} from '#/view/routes/message-overrides';
+import { stylesheetHooksHandler } from '#/view/routes/stylesheet-hooks';
+import { themeAssetHandlers, type ThemeAssetRouteDeps } from '#/view/routes/theme-assets';
+import { themePreviewHandler, themePreviewInfoHandler } from '#/view/routes/theme-preview';
+import { mailBrandingHandler, mailPreviewHandler } from '#/view/routes/mail-preview';
+import { type ThemePreviewDeps } from '#/usecase/theme-preview';
 import { exportTenantHandler, type TenantExportRouteDeps } from '#/view/routes/tenant-export';
 import { importTenantHandler, type TenantImportRouteDeps } from '#/view/routes/tenant-import';
 import {
@@ -278,9 +303,37 @@ export interface AdminRoutesDeps {
   // its mail, the write @odudu/account's own doors make; wired at the
   // composition root with the public base URL a link is addressed under.
   sendAccountLink: SendAccountLink;
+  // The tenant's theme as its mail wears it, for the notices this package
+  // queues itself; wired at the composition root beside the page resolver.
+  resolveMailLook: MailLookResolver;
   // `ODUDU_OUTBOX_MAX_ATTEMPTS`, the attempts the mail sender makes before it
   // stops offering a message: what `GET …/mail` reports as `failed`.
   outboxMaxAttempts: number;
+  // Drops a tenant's cached themes in this process: called once a publish, a
+  // restore or a reset has committed, and when a client or a tenant is deleted.
+  invalidateTheme: (tenantId: string) => void;
+  // Whether `{{t "key"}}` in a template of `kind` names an entry of the
+  // catalogue its page is filled from, which the packages that render
+  // pages own.
+  isThemeMessageKey: (kind: PageKind, key: string) => boolean;
+  // The page catalogues' keys with their English text, by the page kinds each
+  // fills, for the template editor and the override form.
+  messageCatalogue: () => MessageCatalogueResponse;
+  // What a tenant's message overrides are checked against, which the packages
+  // that own the page catalogues answer: whether a key names a message, and
+  // what is wrong with a text as a message. `invalidate` drops a tenant's
+  // cached overrides in this process once a write has committed.
+  messageOverrides: {
+    isKnownKey: (key: string) => boolean;
+    messageProblem: (key: string, message: string) => string | null;
+    invalidate: (tenantId: string) => void;
+  };
+  // Each page kind rendered by its own package's renderer with sample values,
+  // for the draft preview; the packages that render pages own them.
+  themePreviewPages: ThemePreviewDeps['pages'];
+  // The image inspector an upload runs; the bounded process-wide one when
+  // omitted, which is what production uses. Tests give one that is busy.
+  inspectImage?: typeof inspectImage;
   // How long an audit read may run before it is refused as too broad;
   // `AUDIT_READ_TIMEOUT_MS` unless a test shortens it.
   auditReadTimeoutMs?: number;
@@ -366,6 +419,9 @@ function buildAdminRoutes(
     const scopeMapperAudit: ScopeMapperAudit = recordAudit;
     const smtpAudit: SmtpAudit = recordAudit;
     const settingsAudit: SettingsAudit = recordAudit;
+    const themeAudit: ThemeAudit = recordAudit;
+    const messageOverrideAudit: MessageOverrideAudit = recordAudit;
+    const themeAssetAudit: ThemeAssetAudit = recordAudit;
     const tenantExportAudit: TenantExportAudit = recordAudit;
     const tenantImportAudit: TenantImportAudit = recordAudit;
     // Same call `authzDeps.effectiveRoles` makes below, scoped to whichever
@@ -389,6 +445,7 @@ function buildAdminRoutes(
       cursorKey: deps.cursorKey,
       audit: subjectAudit,
       now: () => clock.now(),
+      resolveMailLook: deps.resolveMailLook,
       callerCapabilities,
     };
     const rolesDeps: RolesRouteDeps = {
@@ -434,6 +491,8 @@ function buildAdminRoutes(
       },
       deploymentSmtp: deps.deploymentSmtp ?? false,
       now: () => clock.now(),
+      resolveMailLook: deps.resolveMailLook,
+      callerCapabilities,
     };
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,
@@ -446,6 +505,7 @@ function buildAdminRoutes(
       callerCapabilities,
       now: () => clock.now(),
       sessionsAudit: tenantSessionsAudit,
+      invalidateTheme: deps.invalidateTheme,
     };
     const tenantExportDeps: TenantExportRouteDeps = {
       database: deps.database.db,
@@ -460,6 +520,7 @@ function buildAdminRoutes(
       consoleClientJwks: deps.consoleClientJwks,
       hashClientSecret: hashPassword,
       tlsClientAuthEnabled: deps.trustProxy ?? false,
+      messageOverrides: deps.messageOverrides,
       claimMappers: deps.claimMappers,
       tenantNameTaken: async (name) =>
         (await tenantLookupRepository(deps.ownerDatabase.db).byName(name)) !== null,
@@ -472,6 +533,38 @@ function buildAdminRoutes(
       now: () => clock.now(),
       sessionsAudit: tenantSessionsAudit,
     };
+    const themeDeps: ThemeRouteDeps = {
+      database: deps.database.db,
+      audit: themeAudit,
+      isMessageKey: deps.isThemeMessageKey,
+      invalidateTenant: deps.invalidateTheme,
+    };
+    const messageOverridesDeps: MessageOverridesRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      audit: messageOverrideAudit,
+      isKnownKey: deps.messageOverrides.isKnownKey,
+      messageProblem: deps.messageOverrides.messageProblem,
+      invalidate: deps.messageOverrides.invalidate,
+    };
+    const tenantTheme = themeHandlers(themeDeps, 'tenant');
+    const clientTheme = themeHandlers(themeDeps, 'client');
+    const assetDeps: ThemeAssetRouteDeps = {
+      database: deps.database.db,
+      audit: themeAssetAudit,
+      ...(deps.inspectImage === undefined ? {} : { inspect: deps.inspectImage }),
+    };
+    const themeAssets = themeAssetHandlers(assetDeps);
+    const previewDeps = { database: deps.database.db, pages: deps.themePreviewPages };
+    const tenantPreview = themePreviewHandler(previewDeps, 'tenant');
+    const clientPreview = themePreviewHandler(previewDeps, 'client');
+    const tenantPreviewInfo = themePreviewInfoHandler(previewDeps, 'tenant');
+    const clientPreviewInfo = themePreviewInfoHandler(previewDeps, 'client');
+    const mailDeps = {
+      database: deps.database.db,
+      resolveMailLook: deps.resolveMailLook,
+      now: () => clock.now(),
+    };
     const clientsDeps: ClientsRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
@@ -479,6 +572,7 @@ function buildAdminRoutes(
       tlsClientAuthEnabled: deps.trustProxy ?? false,
       audit: clientAudit,
       now: () => clock.now(),
+      invalidateTheme: deps.invalidateTheme,
       callerCapabilities,
     };
     const registrationTokensDeps: RegistrationTokensRouteDeps = {
@@ -548,6 +642,7 @@ function buildAdminRoutes(
       audit: accountRecoveryAudit,
       callerCapabilities,
       retireResetLinks: deps.retireResetLinks,
+      resolveMailLook: deps.resolveMailLook,
       now: () => clock.now(),
     };
     const auditDeps: AuditRouteDeps = {
@@ -630,6 +725,45 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/export': exportTenantHandler(tenantExportDeps),
       'GET /admin/tenants/:tenant/settings': getSettingsHandler(settingsDeps),
       'PATCH /admin/tenants/:tenant/settings': amendSettingsHandler(settingsDeps),
+      'GET /admin/tenants/:tenant/theme': tenantTheme.read,
+      'PUT /admin/tenants/:tenant/theme': tenantTheme.put,
+      'DELETE /admin/tenants/:tenant/theme': tenantTheme.reset,
+      'DELETE /admin/tenants/:tenant/theme/draft': tenantTheme.discard,
+      'POST /admin/tenants/:tenant/theme/publish': tenantTheme.publish,
+      'POST /admin/tenants/:tenant/theme/assets': themeAssets.upload,
+      'DELETE /admin/tenants/:tenant/theme/assets/:assetId': themeAssets.remove,
+      'GET /admin/tenants/:tenant/theme/assets/:assetId/content': themeAssets.content,
+      'GET /admin/tenants/:tenant/theme/preview': tenantPreview,
+      'GET /admin/tenants/:tenant/theme/preview/info': tenantPreviewInfo,
+      'GET /admin/tenants/:tenant/mail/preview': mailPreviewHandler(mailDeps),
+      'GET /admin/tenants/:tenant/mail/branding': mailBrandingHandler(mailDeps),
+      'GET /admin/tenants/:tenant/clients/:id/mail/preview': mailPreviewHandler(mailDeps, 'client'),
+      'GET /admin/tenants/:tenant/clients/:id/mail/branding': mailBrandingHandler(
+        mailDeps,
+        'client',
+      ),
+      'GET /admin/tenants/:tenant/theme/versions': tenantTheme.versions,
+      'POST /admin/tenants/:tenant/theme/versions/:versionId/restore': tenantTheme.restore,
+      'GET /admin/tenants/:tenant/theme/stylesheet-hooks': stylesheetHooksHandler,
+      'GET /admin/tenants/:tenant/message-catalogue': messageCatalogueHandler(
+        deps.messageCatalogue,
+      ),
+      'GET /admin/tenants/:tenant/message-overrides':
+        listMessageOverridesHandler(messageOverridesDeps),
+      'PUT /admin/tenants/:tenant/message-overrides/:locale/:key':
+        putMessageOverrideHandler(messageOverridesDeps),
+      'DELETE /admin/tenants/:tenant/message-overrides/:locale/:key':
+        deleteMessageOverrideHandler(messageOverridesDeps),
+      'GET /admin/tenants/:tenant/clients/:id/theme': clientTheme.read,
+      'PUT /admin/tenants/:tenant/clients/:id/theme': clientTheme.put,
+      'DELETE /admin/tenants/:tenant/clients/:id/theme': clientTheme.reset,
+      'DELETE /admin/tenants/:tenant/clients/:id/theme/draft': clientTheme.discard,
+      'POST /admin/tenants/:tenant/clients/:id/theme/publish': clientTheme.publish,
+      'GET /admin/tenants/:tenant/clients/:id/theme/preview': clientPreview,
+      'GET /admin/tenants/:tenant/clients/:id/theme/preview/info': clientPreviewInfo,
+      'GET /admin/tenants/:tenant/clients/:id/theme/versions': clientTheme.versions,
+      'POST /admin/tenants/:tenant/clients/:id/theme/versions/:versionId/restore':
+        clientTheme.restore,
       'GET /admin/tenants/:tenant/clients': listClientsHandler(clientsDeps),
       'GET /admin/tenants/:tenant/clients/count': countClientsHandler(countsDeps),
       'POST /admin/tenants/:tenant/clients': createClientHandler(clientsDeps),

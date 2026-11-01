@@ -159,6 +159,18 @@ async function countRows(url: string, table: string): Promise<number> {
   }
 }
 
+async function consoleClientSkipsLogoutConfirmation(): Promise<boolean> {
+  const handle: DatabaseHandle = createDatabase(database.adminUrl);
+  try {
+    const rows = await handle.db.execute(
+      sql`select skip_logout_confirmation as skip from clients where client_id = ${ADMIN_CLIENT_ID}`,
+    );
+    return (rows as unknown as { skip: boolean }[])[0]?.skip ?? false;
+  } finally {
+    await handle.close();
+  }
+}
+
 describe('odudu init', () => {
   it('creates the roles, migrates, creates the system tenant and one administrator from an empty database', async () => {
     const { io, out } = capture();
@@ -169,6 +181,7 @@ describe('odudu init', () => {
     expect(report.adminEmail).toBe(EMAIL);
     expect(report.consoleUrl).toBe(`${BASE}/console/`);
     expect(await countRows(database.adminUrl, 'tenants')).toBe(1);
+    expect(await consoleClientSkipsLogoutConfirmation()).toBe(true);
     const env = await envFile();
     expect(await countRows(env.get('ODUDU_APP_DATABASE_URL') ?? '', 'tenants')).toBe(0);
     expect(await signIn(EMAIL, report.generatedPassword ?? '')).toBe('change-password');

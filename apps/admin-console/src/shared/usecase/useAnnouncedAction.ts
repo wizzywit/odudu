@@ -9,8 +9,8 @@ export interface AnnouncedAction<A> {
   problem: string | null;
   // What the last action came to, for the line the dialog leaves behind.
   notice: string | null;
-  // How many actions have ended where they were meant to, for a view that
-  // moves focus once the dialog is gone.
+  // How many actions have ended where they were meant to, or closed the
+  // dialog to be looked at again, for a view that moves focus once it is gone.
   done: number;
   ask: (what: A) => void;
   cancel: () => void;
@@ -56,8 +56,16 @@ export function useAnnouncedAction<A>({
       const result = await send(asked);
       const outcome = outcomeOf(asked, result);
       if (!outcome.done) {
-        setProblem(outcome.text);
         refusal.report(result, capability);
+        if (outcome.closes === true) {
+          // Counted so the line that now holds the text takes the focus.
+          setAsked(null);
+          setProblem(null);
+          setNotice(outcome.text);
+          setDone((count) => count + 1);
+          return false;
+        }
+        setProblem(outcome.text);
         return false;
       }
       setAsked(null);

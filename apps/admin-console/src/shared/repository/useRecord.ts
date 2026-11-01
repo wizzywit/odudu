@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { recordKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
+import { freshness } from '#/shared/service/read';
 import { ReadFailure, readFailureOf } from '#/shared/service/readFailure';
 import {
   entryEtag,
@@ -38,6 +39,7 @@ export function useRecord<R>({
   record,
   read,
   enabled = true,
+  recent = false,
 }: {
   tenant: string;
   // The record's path within the tenant, e.g. `clients/<id>`.
@@ -45,6 +47,8 @@ export function useRecord<R>({
   read: (gateway: Gateway) => Promise<GatewayResult<R>>;
   // False holds the read back, as for a record only a dialog needs.
   enabled?: boolean;
+  // Kept for a moment once read, for a page that starts the read early.
+  recent?: boolean;
 }): RecordState<R> {
   const { gateway } = useTransport();
   const { invalidateExact } = useInvalidate();
@@ -52,6 +56,7 @@ export function useRecord<R>({
   const query = useQuery({
     queryKey: key,
     enabled,
+    ...freshness(false, recent),
     queryFn: async (): Promise<RecordEntry<R>> => {
       const result = await read(gateway);
       if (!result.ok) throw new ReadFailure(result);

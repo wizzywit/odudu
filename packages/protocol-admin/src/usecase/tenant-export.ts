@@ -34,6 +34,7 @@ import {
   clientScopeMappers,
   clientScopes,
   isBuiltinScopeName,
+  messageOverrideRepository,
   tenantSettingsRepository,
   type ClientRecord,
   type ClientScopeAssignment,
@@ -327,9 +328,12 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
       clientId: clients.clientId,
       name: clients.name,
       description: clients.description,
+      nameI18n: clients.nameI18n,
+      descriptionI18n: clients.descriptionI18n,
       type: clients.type,
       enabled: clients.enabled,
       fullScopeAllowed: clients.fullScopeAllowed,
+      skipLogoutConfirmation: clients.skipLogoutConfirmation,
       registrationOrigin: clients.registrationOrigin,
       redirectUris: clientOidcConfig.redirectUris,
       grantTypes: clientOidcConfig.grantTypes,
@@ -373,11 +377,14 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
         client_id: row.clientId,
         name: row.name,
         description: row.description,
+        name_i18n: row.nameI18n,
+        description_i18n: row.descriptionI18n,
         // Plain text columns bounded by CHECKs (clients_secret_matches_type,
         // clients_registration_origin_check), narrowed as `clientRepository` does.
         type: row.type as ClientRecord['type'],
         enabled: row.enabled,
         full_scope_allowed: row.fullScopeAllowed,
+        skip_logout_confirmation: row.skipLogoutConfirmation,
         registration_origin: row.registrationOrigin as ClientRecord['registrationOrigin'],
         redirect_uris: row.redirectUris,
         grant_types: row.grantTypes,
@@ -477,6 +484,8 @@ async function exportScopes(
       includeInAccessToken: clientScopes.includeInAccessToken,
       defaultClientAssignment: clientScopes.defaultClientAssignment,
       consentText: clientScopes.consentText,
+      descriptionI18n: clientScopes.descriptionI18n,
+      consentTextI18n: clientScopes.consentTextI18n,
       displayOrder: clientScopes.displayOrder,
     })
     .from(clientScopes)
@@ -520,6 +529,8 @@ async function exportScopes(
     include_in_access_token: row.includeInAccessToken,
     default_client_assignment: row.defaultClientAssignment,
     consent_text: row.consentText,
+    description_i18n: row.descriptionI18n,
+    consent_text_i18n: row.consentTextI18n,
     display_order: row.displayOrder,
     builtin: isBuiltinScopeName(row.name),
     roles: rolesByScope.get(row.id) ?? [],
@@ -699,6 +710,9 @@ export async function exportTenant(
     scopes: await exportScopes(tx, tenantId, roleById),
     registration_policy: registrationPolicy,
     smtp: exportSmtp(smtp),
+    message_overrides: (
+      await messageOverrideRepository(tx, { isKnownKey: () => true }).all(tenantId)
+    ).map(({ locale, key, message }) => ({ locale, key, message })),
     omitted,
   };
 

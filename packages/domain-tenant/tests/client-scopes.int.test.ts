@@ -855,3 +855,100 @@ describe('the limit under concurrent writers', () => {
     expect(marked?.n).toBe(String(CLIENT_SCOPE_LIMIT));
   });
 });
+
+describe('per-language text', () => {
+  it('stores the maps on create and defaults them to empty', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const plain = await create({ name: 'plain', tenantId });
+    expect(plain.descriptionI18n).toEqual({});
+    expect(plain.consentTextI18n).toEqual({});
+
+    const made = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).create({
+        tenantId,
+        name: 'statements',
+        descriptionI18n: { fr: 'Relevés' },
+        consentTextI18n: { fr: 'Lire vos relevés', 'pt-BR': 'Ler seus extratos' },
+      }),
+    );
+    expect(made.consentTextI18n).toEqual({ fr: 'Lire vos relevés', 'pt-BR': 'Ler seus extratos' });
+    const read = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).byName('statements'),
+    );
+    expect(read?.descriptionI18n).toEqual({ fr: 'Relevés' });
+  });
+
+  it('replaces a map whole on amend, and leaves the other one alone', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const made = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).create({
+        tenantId,
+        name: 'statements',
+        descriptionI18n: { fr: 'a' },
+        consentTextI18n: { fr: 'b', de: 'c' },
+      }),
+    );
+    const amended = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).amend(made.id, { consentTextI18n: { es: 'd' } }),
+    );
+    expect(amended.consentTextI18n).toEqual({ es: 'd' });
+    expect(amended.descriptionI18n).toEqual({ fr: 'a' });
+  });
+
+  it.each([
+    ['an array', '[]'],
+    ['a string', '"x"'],
+    ['null', 'null'],
+  ])('refuses %s in a column that holds a map', async (_label, json) => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const made = await create({ name: 'statements', tenantId });
+    const attempt = withTenant(app.db, tenantId, (tx) =>
+      tx.execute(
+        sql`update client_scopes set consent_text_i18n = ${json}::jsonb where id = ${made.id}`,
+      ),
+    );
+    await expect(attempt).rejects.toThrow();
+  });
+
+  it('refuses a map beyond the size ceiling', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const made = await create({ name: 'statements', tenantId });
+    const huge = { fr: 'x'.repeat(140_000) };
+    await expect(
+      withTenant(app.db, tenantId, (tx) =>
+        clientScopeRepository(tx).amend(made.id, { descriptionI18n: huge }),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('does not show, or change, another tenant’s maps', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const made = await clientScopeRepository(tx).create({
+          tenantId,
+          name: 'statements',
+          consentTextI18n: { fr: 'Lire' },
+        });
+        return made.id;
+      },
+      verifySeeded: async (tx, id) => {
+        expect((await clientScopeRepository(tx).byId(id))?.consentTextI18n).toEqual({ fr: 'Lire' });
+      },
+      attempt: async (tx, id) => {
+        const read = await clientScopeRepository(tx).byId(id);
+        const amended = await clientScopeRepository(tx)
+          .amend(id, { consentTextI18n: { fr: 'Pirate' } })
+          .catch(() => null);
+        return { read, amended };
+      },
+      expectBlocked: (result) => {
+        expect(result).toEqual({ read: null, amended: null });
+      },
+    });
+  });
+});

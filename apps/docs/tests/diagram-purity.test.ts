@@ -9,7 +9,7 @@ const names = Object.keys(DRAWINGS) as DiagramName[];
 // `draw` is right the first time and wrong ever after.
 describe('the concept diagrams', () => {
   it('declare every one the pages use', () => {
-    expect(names.length).toBe(7);
+    expect(names.length).toBe(10);
   });
 
   it.each(names)('%s draws the same elements however often it is drawn', (name) => {

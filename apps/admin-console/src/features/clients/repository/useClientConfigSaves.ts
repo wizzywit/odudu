@@ -43,6 +43,10 @@ export interface FrontchannelValues extends Values {
   frontchannel_logout_session_required: boolean;
 }
 
+export interface ConfirmationValues extends Values {
+  skip_logout_confirmation: boolean;
+}
+
 export interface AuthValues extends Values {
   token_endpoint_auth_method: string;
   tls_client_auth_subject_dn: string;
@@ -100,6 +104,8 @@ export function useClientConfigSaves(tenant: string, id: string) {
       ),
     postLogout: (gateway: Gateway, { values, ifMatch }: SaveInput<PostLogoutValues>) =>
       amend(gateway, { post_logout_redirect_uris: values.post_logout_redirect_uris }, ifMatch),
+    confirmation: (gateway: Gateway, { values, ifMatch }: SaveInput<ConfirmationValues>) =>
+      amend(gateway, { skip_logout_confirmation: values.skip_logout_confirmation }, ifMatch),
     backchannel: (gateway: Gateway, { values, ifMatch }: SaveInput<BackchannelValues>) =>
       amend(
         gateway,

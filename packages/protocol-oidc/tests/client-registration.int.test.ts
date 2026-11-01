@@ -197,6 +197,40 @@ describe('[ODUDU-CLIENT-REGISTRATION-OPEN-01] the open policy', () => {
     expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
   });
 
+  it('Dynamic Client Registration refuses the field and a registered client has it off', async () => {
+    const tenantName = `open-skip-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
+    );
+
+    const refused = await http.inject({
+      method: 'POST',
+      url: URL_FOR(tenantName),
+      payload: { ...MINIMAL, skip_logout_confirmation: true },
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json<{ error: string }>().error).toBe('invalid_client_metadata');
+    await withTenant(app.db, tenantId, async (tx) => {
+      expect(await tx.select().from(clients)).toHaveLength(0);
+    });
+
+    const registered = await http.inject({
+      method: 'POST',
+      url: URL_FOR(tenantName),
+      payload: MINIMAL,
+    });
+    expect(registered.statusCode).toBe(201);
+    expect(registered.json<Record<string, unknown>>()).not.toHaveProperty(
+      'skip_logout_confirmation',
+    );
+    const { client_id: oauthClientId } = registered.json<{ client_id: string }>();
+    await withTenant(app.db, tenantId, async (tx) => {
+      const [row] = await tx.select().from(clients).where(eq(clients.clientId, oauthClientId));
+      expect(row?.skipLogoutConfirmation).toBe(false);
+    });
+  });
+
   it('marks an anonymous registration as requiring consent, with origin anonymous', async () => {
     const tenantName = `open-anon-${newId()}`;
     const tenantId = newId();
@@ -704,4 +738,101 @@ describe('[ODUDU-CLIENT-REGISTRATION-JWKS-URI-01] a registered jwks_uri', () => 
       expect(config?.jwksUri).toBe('https://nonexistent.invalid/jwks.json');
     });
   });
+});
+
+describe('client_name#<language> members', () => {
+  async function openTenant(locales: string[]): Promise<{ name: string; id: string }> {
+    const name = `lang-${newId()}`;
+    const id = newId();
+    await withTenant(app.db, id, async (tx) => {
+      await seedTenant(tx, id, { name, policy: 'open' });
+      await tx.update(tenants).set({ supportedLocales: locales }).where(eq(tenants.id, id));
+    });
+    return { name, id };
+  }
+
+  const register = (tenant: string, payload: Record<string, unknown>) =>
+    http.inject({ method: 'POST', url: URL_FOR(tenant), payload: { ...MINIMAL, ...payload } });
+
+  it('[RFC7591-2.2-01] stores client_name#fr in name_i18n, keeps the untagged name as sent and echoes both', async () => {
+    const tenant = await openTenant(['en', 'fr', 'pt-BR']);
+    const res = await register(tenant.name, {
+      client_name: 'Shop',
+      'client_name#fr': 'Boutique',
+      'client_name#pt-br': 'Loja',
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json<Record<string, string>>();
+    expect(body['client_name#fr']).toBe('Boutique');
+    expect(body['client_name#pt-BR']).toBe('Loja');
+    expect(body.client_name).toBe('Shop');
+
+    await withTenant(app.db, tenant.id, async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(clients)
+        .where(eq(clients.clientId, body.client_id ?? ''));
+      expect(row?.name).toBe('Shop');
+      expect(row?.nameI18n).toEqual({ fr: 'Boutique', 'pt-BR': 'Loja' });
+    });
+  });
+
+  it('[ODUDU-CLIENT-REGISTRATION-LANGUAGE-01] leaves out, and does not echo, a language the tenant does not offer', async () => {
+    const tenant = await openTenant(['en', 'fr']);
+    const res = await register(tenant.name, {
+      'client_name#fr': 'Boutique',
+      'client_name#ja': 'x',
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json<Record<string, string>>();
+    expect(body['client_name#ja']).toBeUndefined();
+    expect(body['client_name#fr']).toBe('Boutique');
+  });
+
+  it('[ODUDU-CLIENT-REGISTRATION-LANGUAGE-02] refuses an unoffered tag written twice', async () => {
+    const tenant = await openTenant(['en', 'fr']);
+    const res = await register(tenant.name, { 'client_name#DE': 'a', 'client_name#de': 'b' });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('[ODUDU-CLIENT-REGISTRATION-LANGUAGE-03] reads no other tagged member: client_uri#fr and the like are ignored, nothing echoed', async () => {
+    const tenant = await openTenant(['en', 'fr']);
+    const res = await register(tenant.name, {
+      client_uri: 'https://shop.example',
+      'client_uri#fr': 'https://boutique.example',
+      'logo_uri#fr': 'https://x.example/l.png',
+      'policy_uri#fr': 'https://x.example/p',
+      'tos_uri#fr': 'https://x.example/t',
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    const body = res.json<Record<string, string>>();
+    expect(body.client_uri).toBe('https://shop.example');
+    expect(Object.keys(body).filter((key) => key.includes('#'))).toEqual([]);
+  });
+
+  it('[ODUDU-CLIENT-REGISTRATION-LANGUAGE-04] holds the base client_name to 256 characters, as client_name#fr is', async () => {
+    const tenant = await openTenant(['en']);
+    expect((await register(tenant.name, { client_name: 'x'.repeat(257) })).statusCode).toBe(400);
+    expect((await register(tenant.name, { client_name: 'x'.repeat(256) })).statusCode).toBe(201);
+  });
+
+  it.each([
+    ['a hostile tag', { 'client_name#<script>alert(1)</script>': 'x' }],
+    ['an overlong tag', { ['client_name#' + 'a'.repeat(300)]: 'x' }],
+    ['one tag spelled twice', { 'client_name#fr-ca': 'a', 'client_name#fr-CA': 'b' }],
+    ['a bidirectional control', { 'client_name#fr': `Bank${String.fromCodePoint(0x202e)}` }],
+    ['a value that is not a string', { 'client_name#fr': 7 }],
+    ['an overlong value', { 'client_name#fr': 'x'.repeat(257) }],
+  ])(
+    '[ODUDU-CLIENT-REGISTRATION-LANGUAGE-02] refuses %s, registering nothing',
+    async (_label, extra) => {
+      const tenant = await openTenant(['en', 'fr', 'fr-CA']);
+      const res = await register(tenant.name, extra);
+      expect(res.statusCode).toBe(400);
+      expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
+      expect(res.body).not.toContain('<script>');
+      const rows = await withTenant(app.db, tenant.id, (tx) => tx.select().from(clients));
+      expect(rows.filter((row) => row.registrationOrigin === 'anonymous')).toEqual([]);
+    },
+  );
 });

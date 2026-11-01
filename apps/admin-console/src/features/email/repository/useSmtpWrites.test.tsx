@@ -10,10 +10,20 @@ it('sends a test message to the address given and answers what the server said',
   const { result } = renderHook(() => useSmtpTest('acme'), { wrapper });
   let answer: Awaited<ReturnType<typeof result.current.run>> | undefined;
   await act(async () => {
-    answer = await result.current.run('a@b.example');
+    answer = await result.current.run({ to: 'a@b.example', clientId: null });
   });
   expect(answer).toMatchObject({ ok: true, data: { sent: true } });
   expect(sent[0]).toMatchObject({ method: 'POST', body: { to: 'a@b.example' } });
+  expect(sent[0]?.body).not.toHaveProperty('client_id');
+});
+
+it('names the client the message is sent as, by its row id', async () => {
+  const { wrapper, sent } = harness({ [`POST ${SM}/test`]: json({ sent: true }) });
+  const { result } = renderHook(() => useSmtpTest('acme'), { wrapper });
+  await act(async () => {
+    await result.current.run({ to: 'a@b.example', clientId: 'c-bill' });
+  });
+  expect(sent[0]).toMatchObject({ body: { to: 'a@b.example', client_id: 'c-bill' } });
 });
 
 it('answers a send the server refused as the refusal, not as a thrown error', async () => {
@@ -23,7 +33,7 @@ it('answers a send the server refused as the refusal, not as a thrown error', as
   const { result } = renderHook(() => useSmtpTest('acme'), { wrapper });
   let answer: Awaited<ReturnType<typeof result.current.run>> | undefined;
   await act(async () => {
-    answer = await result.current.run('a@b.example');
+    answer = await result.current.run({ to: 'a@b.example', clientId: null });
   });
   expect(answer).toMatchObject({ ok: false, kind: 'problem' });
   await waitFor(() => {
@@ -48,7 +58,10 @@ it('answers a test whose send threw as a defect, never as a throw', async () => 
   const { wrapper } = harness({}, rejectingTransport());
   const { result } = renderHook(() => useSmtpTest('acme'), { wrapper });
   await act(async () => {
-    expect(await result.current.run('a@b.example')).toEqual({ ok: false, kind: 'defect' });
+    expect(await result.current.run({ to: 'a@b.example', clientId: null })).toEqual({
+      ok: false,
+      kind: 'defect',
+    });
   });
 });
 

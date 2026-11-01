@@ -6,6 +6,7 @@ import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { inTurn, json, offline, problem } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
+import { BILLING, C } from '#/testing/clientsFixtures';
 import { emailRoutes, NO_SMTP, OWN_SMTP, SM, smtpAnswer } from '#/testing/settingsFixtures';
 
 afterEach(() => {
@@ -199,7 +200,77 @@ it('sends a test message through the saved relay and says what the server answer
   expect(await within(test).findByRole('status')).toHaveTextContent(
     'The relay accepted a test message for a@b.example',
   );
-  expect(sent.find((s) => s.method === 'POST')?.body).toEqual({ to: 'a@b.example' });
+  expect(sent.find((s) => s.method === 'POST')?.body).toEqual({
+    to: 'a@b.example',
+    client_id: 'c-admin',
+  });
+});
+
+async function sendTestMessage(
+  routes: ReturnType<typeof emailRoutes>,
+  choose: (region: HTMLElement, user: ReturnType<typeof userEvent.setup>) => Promise<void> | void,
+) {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(AT, routes);
+  const test = await screen.findByRole('region', { name: 'Test message' });
+  await within(test).findByText(/Sent as Odudu admin|Sent in the tenant’s own look/u);
+  await choose(test, user);
+  await user.type(within(test).getByRole('textbox', { name: 'Send to' }), 'a@b.example');
+  await user.click(within(test).getByRole('button', { name: 'Send test message' }));
+  await within(test).findByText(/The relay accepted/u);
+  return sent.find((s) => s.method === 'POST')?.body;
+}
+
+const SENT_OK = { [`POST ${SM}/test`]: json({ sent: true }) };
+
+it('starts the test as the client the administrator signed in with, and says so', async () => {
+  await sendTestMessage(emailRoutes(undefined, SENT_OK), async (test) => {
+    expect(
+      await within(test).findByText('Sent as Odudu admin, the client you signed in with.'),
+    ).toBeVisible();
+  });
+});
+
+it('sends the tenant’s own look, with no client, once that is chosen', async () => {
+  const body = await sendTestMessage(emailRoutes(undefined, SENT_OK), async (test, user) => {
+    await user.click(within(test).getByRole('button', { name: 'Use the tenant’s own look' }));
+    expect(within(test).getByText('Sent in the tenant’s own look.')).toBeVisible();
+  });
+  expect(body).toEqual({ to: 'a@b.example' });
+});
+
+it('sends another client of the tenant once it is picked', async () => {
+  const body = await sendTestMessage(emailRoutes(undefined, SENT_OK), async (test, user) => {
+    await user.click(await within(test).findByRole('option', { name: /Billing/u }));
+    expect(within(test).getByText('Sent as Billing.')).toBeVisible();
+  });
+  expect(body).toEqual({ to: 'a@b.example', client_id: 'c-bill' });
+});
+
+it('starts on the tenant’s own look when the list holds no console client', async () => {
+  const body = await sendTestMessage(
+    emailRoutes(undefined, { ...SENT_OK, [`GET ${C}`]: json({ items: [BILLING] }) }),
+    () => undefined,
+  );
+  expect(body).toEqual({ to: 'a@b.example' });
+});
+
+it('asks for no clients, sends no client and says why the choice is closed, without manage-clients', async () => {
+  const user = userEvent.setup();
+  const { calls, sent } = renderConsoleAt(
+    AT,
+    emailRoutes(['manage-tenant'], {
+      ...SENT_OK,
+      [`GET ${C}`]: problem(403, 'about:blank', 'Forbidden'),
+    }),
+  );
+  const test = await screen.findByRole('region', { name: 'Test message' });
+  expect(await within(test).findByText(/manage-clients/u)).toBeVisible();
+  await user.type(within(test).getByRole('textbox', { name: 'Send to' }), 'a@b.example');
+  await user.click(within(test).getByRole('button', { name: 'Send test message' }));
+  await within(test).findByText(/The relay accepted/u);
+  expect(calls.some((call) => call.path === C)).toBe(false);
+  expect(sent.find((call) => call.method === 'POST')?.body).toEqual({ to: 'a@b.example' });
 });
 
 it('shows the server’s reason when the test fails, and says unsaved edits are not used', async () => {

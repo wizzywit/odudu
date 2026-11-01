@@ -1,4 +1,4 @@
-import type { Client } from '@odudu/contracts/admin';
+import type { ClientRecord } from '@odudu/contracts/admin';
 import { useRefusal } from '#/features/session';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import {
@@ -13,7 +13,7 @@ import type { GatewayFailure } from '#/shared/transport/gateway';
 // whether it has since been found deleted.
 export interface ClientRecordRead {
   tenant: string;
-  client: Client;
+  client: ClientRecord;
   etag: string;
   gone: boolean;
 }

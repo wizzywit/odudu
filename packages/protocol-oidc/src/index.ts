@@ -1,3 +1,4 @@
+import { lookupLocalised } from '@odudu/contracts';
 import {
   admitSession,
   advance,
@@ -44,8 +45,13 @@ import {
   clientScopeRepository,
   consentRepository,
 } from '@odudu/domain-tenant';
-import { SHIPPED_LOCALES } from '@odudu/i18n';
-import { systemClock, type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
+import {
+  systemClock,
+  type BrandingResolver,
+  type OverridesResolver,
+  type ClaimMapperRegistry,
+  type Clock,
+} from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { loadClaimContextIn } from '#/usecase/evaluate-claims';
@@ -148,11 +154,13 @@ export interface OidcRoutesDeps {
   // name, so this is never a constant. Defaults to the same value the
   // kernel config schema does.
   tlsClientCertHeader?: string;
-  // The tags the server's pages can be shown in: what negotiation matches a
-  // request's preference against and what discovery advertises as
-  // `ui_locales_supported`, so the two cannot disagree. Defaults to the
-  // locales the server ships.
-  pageLocales?: readonly string[];
+  // How a page asks for its tenant's or client's theme; the server wires the
+  // theme package's resolver here because protocol packages cannot import it.
+  // None means every page is the default.
+  resolveBranding?: BrandingResolver;
+  // The tenant's own wording for the language a page is shown in; the server
+  // wires the reader here. None means every page reads the catalogue alone.
+  resolveOverrides?: OverridesResolver;
 }
 
 // The plugin apps/server registers. Discovery and JWKS both read the
@@ -321,7 +329,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // party id comes from ODUDU_PUBLIC_BASE_URL and nowhere else, so
     // without it there is nothing behind one.
     const passkeyLogin = { passkeyLogin: deps.publicBaseUrl !== undefined };
-    const pageLocales = deps.pageLocales ?? SHIPPED_LOCALES;
+    const branding = {
+      ...(deps.resolveBranding === undefined ? {} : { resolveBranding: deps.resolveBranding }),
+      ...(deps.resolveOverrides === undefined ? {} : { resolveOverrides: deps.resolveOverrides }),
+    };
     // Read only for a page shown after the first factor was verified, and
     // through the tenant context like every other tenant row.
     const subjectLocale = (tenantId: string, subjectId: string) =>
@@ -370,6 +381,16 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             row.scope.consentText === null ? [] : [[row.scope.name, row.scope.consentText]],
           ),
         );
+        const i18n = {
+          clientName: client?.nameI18n ?? {},
+          scopeLabels: Object.fromEntries(
+            ordered.flatMap((row) =>
+              Object.keys(row.scope.consentTextI18n).length === 0
+                ? []
+                : [[row.scope.name, row.scope.consentTextI18n]],
+            ),
+          ),
+        };
         const scopeIdByName = new Map(assignments.map((row) => [row.scope.name, row.scope.id]));
         return {
           clientName: client?.name ?? '',
@@ -379,6 +400,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             tosUri: config?.tosUri ?? null,
           },
           scopeLabels,
+          i18n,
           consentRequired: config?.consentRequired ?? false,
           defaultScopes,
           optionalScopes,
@@ -484,7 +506,6 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       userinfoEncryptionAlgSupported: JWE_ALGS_PERMITTED,
       userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENCS_PERMITTED,
       trustProxy: deps.trustProxy ?? false,
-      uiLocalesSupported: pageLocales,
     });
     registerJwksRoute(app, { findTenant, listPublishableKeys });
     // Introspection's two grant/session reads, resolved here rather than in
@@ -646,12 +667,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 
     const recoverPendingRequest = (tenantId: string, authSessionId: string) =>
       withTenant(deps.database.db, tenantId, (tx) => loadPendingRequest(tx, authSessionId));
-    const clientName = (tenantId: string, oauthClientId: string) =>
-      withTenant(
-        deps.database.db,
-        tenantId,
-        async (tx) => (await clientRepository(tx).byClientId(oauthClientId))?.name ?? null,
-      );
+    const clientName = (tenantId: string, oauthClientId: string, localeTag: string) =>
+      withTenant(deps.database.db, tenantId, async (tx) => {
+        const client = await clientRepository(tx).byClientId(oauthClientId);
+        return client === null
+          ? null
+          : (lookupLocalised(client.nameI18n, localeTag) ?? client.name);
+      });
     const redirectStillRegistered = (
       tenantId: string,
       oauthClientId: string,
@@ -671,7 +693,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       clientName,
       tls,
       ...passkeyLogin,
-      pageLocales,
+      ...branding,
       subjectLocale,
       listPublishableKeys,
       scopesNamed,
@@ -777,7 +799,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       authenticatedSubject: authenticatedSubjectOf,
       tls,
       ...passkeyLogin,
-      pageLocales,
+      ...branding,
       subjectLocale,
       beginTotpEnrolment: startTotpEnrolment,
       beginRecoveryCodes: startRecoveryCodes,
@@ -863,7 +885,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       beginTotpEnrolment: startTotpEnrolment,
       beginRecoveryCodes: startRecoveryCodes,
       ...passkeyEnrolment,
-      pageLocales,
+      ...branding,
       subjectLocale,
       resolveClientId,
       consentContext,
@@ -877,19 +899,25 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     registerLogoutRoute(app, {
       findTenant,
       tls,
-      pageLocales,
+      ...branding,
       listPublishableKeys,
       now: () => clock.now(),
       // Resolved from the OAuth client_id to that client's own registered
-      // list — an unknown, disabled or unspecified client yields none,
-      // refusing any redirect rather than resolving one with no client (or
-      // no longer-trusted client) to trust it against (RP-Initiated Logout
-      // 1.0 §3).
-      postLogoutRedirectUris: (tenantId, oauthClientId) =>
+      // list and its skip setting, from the one `clients` row and the one
+      // config row — an unknown or disabled client yields none, refusing
+      // any redirect rather than resolving one with no longer-trusted client
+      // to trust it against (RP-Initiated Logout 1.0 §3), and never skipping.
+      logoutClient: (tenantId, oauthClientId) =>
         withTenant(deps.database.db, tenantId, async (tx) => {
           const client = await clientRepository(tx).byClientId(oauthClientId);
-          if (!client?.enabled) return [];
-          return clientOidcConfigRepository(tx).postLogoutRedirectUris(client.id);
+          if (!client?.enabled) return null;
+          return {
+            id: client.clientId,
+            skipsConfirmation: client.skipLogoutConfirmation,
+            postLogoutRedirectUris: await clientOidcConfigRepository(tx).postLogoutRedirectUris(
+              client.id,
+            ),
+          };
         }),
       resolveSessions,
       // Two concurrent logouts on the same session both reach this and both
@@ -1075,3 +1103,8 @@ export {
   type EvaluateClaimsInput,
   type EvaluateClaimsOutcome,
 } from '#/usecase/evaluate-claims';
+export { DEFAULT_TEMPLATES } from '#/view/templates/index';
+export { hasMessage as isOidcMessageKey } from '#/view/template';
+export { en as OIDC_PAGE_MESSAGES } from '#/view/messages';
+export { renderLoggedOutRedirectPage } from '#/view/logout-html';
+export { PREVIEW_PAGES as OIDC_PREVIEW_PAGES } from '#/view/preview-pages';

@@ -15,7 +15,7 @@ Odudu is a release candidate. It runs as one instance, and the [roadmap](../road
 
 Odudu is free software under the GNU Affero General Public License, version 3 (`AGPL-3.0-only`). You may run it, study it and change it. If you let other people use a changed version over a network, the licence asks you to offer them that version's source. Read the [licence](https://github.com/wizzywit/odudu/blob/main/LICENSE) itself for the terms; this is not legal advice. The name and the mark have their own [trademark policy](https://github.com/wizzywit/odudu/blob/main/TRADEMARK.md).
 
-The pages and mail Odudu sends are in English today. Odudu has no SDK of its own: use any OpenID Connect library, as the [guides](../guides/index.md) do.
+The pages and mail Odudu sends come in English and Arabic, and Arabic reads right to left. A tenant lists the languages it offers. Odudu has no SDK of its own: use any OpenID Connect library, as the [guides](../guides/index.md) do.
 
 ## Where to start
 

@@ -12,6 +12,11 @@ export {
   type PasswordHintText,
   type PasswordRules,
 } from '#/password-hints';
+export {
+  createFallbackReporter,
+  MAX_REPORTED_FALLBACKS,
+  type TemplateFallback,
+} from '#/template-fallback';
 export { type Clock, systemClock, FakeClock } from '#/clock';
 export { isUuid, newId, scriptNonce } from '#/ids';
 export {
@@ -22,10 +27,28 @@ export {
   type PageLocale,
   type PageScript,
   type RenderedPage,
+  type ResolvedBranding,
+  MAX_BRANDING_URLS,
+  brandMarkup,
+  brandingHead,
+  brandingProblems,
+  isSameOriginPath,
+  mainClass,
   pageHeaders,
   reloadOnRestore,
+  stylesheetLink,
+  withBranding,
   withPageTheme,
 } from '#/page';
+export { servedAssetHeaders, type AssetReach } from '#/served-asset';
+export {
+  inlinePreview,
+  previewHeaders,
+  mailPreviewHeaders,
+  type InlinedPreview,
+  type PreviewInline,
+  type PreviewRender,
+} from '#/page-preview';
 export {
   PAGE_THEME_COOKIE,
   PAGE_THEMES,
@@ -59,3 +82,35 @@ export { etagMatches, staticEtag } from '#/static-etag';
 export { type Logger } from '#/logger';
 export { ModuleRegistry, type ModuleContext, type OduduModule } from '#/registry';
 export { ClaimMapperRegistry, type ClaimMapper } from '#/registries/claim-mapper';
+export {
+  MAX_SLOT_NAME_LENGTH,
+  MAX_TEMPLATE_LENGTH,
+  fillTemplate,
+  scanSlots,
+  type Slot,
+} from '#/slots';
+export { createPageFiller, fillPageTemplate, type PageFillerOptions } from '#/page-template';
+export {
+  brandLocale,
+  clientFromReturnTo,
+  MAX_CLIENT_ID_LENGTH,
+  type BrandingResolver,
+  type BrandingScope,
+  type OverridesResolver,
+  type PageBranding,
+} from '#/branding-resolver';
+export {
+  MAIL_LOGO_MAX_SIDE,
+  mailColoursProblem,
+  mailLogoProblem,
+  type MailBranding,
+  type MailColours,
+  type MailLogo,
+} from '#/mail-branding';
+export { PAGE_KINDS, type PageKind, type PageManifest } from '#/page-kinds';
+export {
+  CLIENT_RULES,
+  NO_TENANT_IN_SCOPE,
+  type ClientRule,
+  type ClientSource,
+} from '#/page-kinds-registry';

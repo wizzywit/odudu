@@ -34,6 +34,7 @@ import {
 } from '#/testing/plan-background-drives';
 import { unindexedForeignKeys } from '#/testing/plan-catalog';
 import { driveAdminWrites } from '#/testing/plan-admin-writes';
+import { BRANDING_PATHS, driveBranding } from '#/testing/plan-branding-drives';
 import { driveOidc } from '#/testing/plan-oidc-drives';
 import { pathLog, type PathRun } from '#/testing/plan-paths';
 import { startPlanWorld, type PlanWorld } from '#/testing/plan-world';
@@ -69,6 +70,7 @@ beforeAll(async () => {
     rowsUnderLimit: COUNT_CAP + 1000,
   };
   await driveOidc(world, log.capture);
+  await driveBranding(world, log.capture);
   await driveAccount(world, log.capture);
   await driveRequiredActions(world, log.capture);
   const ids = await adminIds(world);
@@ -186,6 +188,148 @@ async function violations(run: PathRun): Promise<string[]> {
   }
   return out;
 }
+
+function workOf(path: string): Statement[] {
+  const run = log.runs.find((candidate) => candidate.path === path);
+  if (run === undefined) throw new Error(`no run named ${path}`);
+  return run.statements.filter(isWork);
+}
+
+const themeReads = (statements: Statement[]): number =>
+  statements.filter((statement) => statement.query.includes('theme_versions')).length;
+
+describe('a themed page render', () => {
+  it("sends the cached render's statements plus at most one theme read on a miss", () => {
+    const baseline = workOf(BRANDING_PATHS.cachedHit);
+    const miss = workOf(BRANDING_PATHS.themedMiss);
+    expect(themeReads(baseline)).toBe(0);
+    expect(themeReads(miss)).toBe(1);
+    expect(miss.length).toBeLessThanOrEqual(baseline.length + 1);
+  });
+
+  it("sends exactly the cached render's statements on a hit", () => {
+    const baseline = workOf(BRANDING_PATHS.cachedHit);
+    const hit = workOf(BRANDING_PATHS.themedHit);
+    expect(themeReads(hit)).toBe(0);
+    expect(hit.length).toBe(baseline.length);
+  });
+});
+
+const overrideReads = (statements: Statement[]): number =>
+  statements.filter((statement) => statement.query.includes('"message_overrides"')).length;
+
+describe('a page render and the tenant’s message overrides', () => {
+  it('reads a locale’s overrides once on a miss, and none on a hit', () => {
+    const baseline = workOf(BRANDING_PATHS.cachedHit);
+    const miss = workOf(BRANDING_PATHS.overridesMiss);
+    expect(overrideReads(baseline)).toBe(0);
+    expect(overrideReads(miss)).toBe(1);
+    expect(miss.length).toBe(baseline.length + 1);
+  });
+
+  it('reads them by the primary key, even where scanning is allowed to lose', async () => {
+    const read = workOf(BRANDING_PATHS.overridesMiss).find((statement) =>
+      statement.query.includes('"message_overrides"'),
+    );
+    expect(read).toBeDefined();
+    if (read === undefined) return;
+    const plan = await planned(read, { settings: ['enable_seqscan = off'] });
+    const own = scansOf(plan).filter((scan) => scan.relation === 'message_overrides');
+    expect(own.length).toBeGreaterThan(0);
+    expect(own.filter((scan) => scan.node === 'Seq Scan')).toEqual([]);
+  });
+});
+
+// What the registration form costs with a cached theme and no return_to: a
+// statement added to every registration path moves this number.
+const PLAIN_REGISTRATION_STATEMENTS = 1;
+
+const tenantLookups = (statements: Statement[]): number =>
+  statements.filter((statement) => statement.query.includes('"tenants"."name"')).length;
+const clientLookups = (statements: Statement[]): number =>
+  statements.filter(
+    (statement) =>
+      statement.query.includes('from "clients"') && statement.query.includes('"client_id" = $'),
+  ).length;
+
+describe('the pages a tenant theme reaches without a parked request', () => {
+  it('looks the tenant up once for a logout page', () => {
+    expect(tenantLookups(workOf(BRANDING_PATHS.logoutPage))).toBe(1);
+  });
+
+  it('checks a return_to client with one indexed lookup, found or not', () => {
+    const plain = workOf(BRANDING_PATHS.registrationPlain);
+    expect(plain.length).toBe(PLAIN_REGISTRATION_STATEMENTS);
+    const garbage = workOf(BRANDING_PATHS.registrationGarbage);
+    const client = workOf(BRANDING_PATHS.registrationClient);
+    const miss = workOf(BRANDING_PATHS.registrationClientMiss);
+    expect(clientLookups(garbage)).toBe(clientLookups(plain) + 1);
+    expect(garbage.length).toBe(plain.length + 1);
+    expect(client.length).toBe(garbage.length);
+    expect(themeReads(client)).toBe(0);
+    expect(miss.length).toBe(client.length + 1);
+    expect(themeReads(miss)).toBe(1);
+  });
+});
+
+// A brand file is a tenant lookup and one read of its own, nothing for a name
+// that cannot be a hash, and the read has a plan that uses the index even
+// where a table is small enough for the planner to prefer scanning it.
+describe('a brand file', () => {
+  const bodyReads = (statements: Statement[]): number =>
+    statements.filter((s) => s.query.includes('"theme_versions"') && s.query.includes('"body"'))
+      .length;
+  const byteReads = (statements: Statement[]): number =>
+    statements.filter((s) => s.query.includes('"theme_assets"."bytes"')).length;
+
+  it('costs a tenant lookup and one read, and nothing for a malformed name', () => {
+    expect(workOf(BRANDING_PATHS.brandNothing)).toEqual([]);
+    for (const path of [BRANDING_PATHS.brandImage, BRANDING_PATHS.brandStylesheet]) {
+      const work = workOf(path);
+      expect(tenantLookups(work), path).toBe(1);
+      expect(work.length, path).toBe(2);
+    }
+  });
+
+  it('reads no body for a wrong stylesheet hash once the versions are remembered', () => {
+    const cold = workOf(BRANDING_PATHS.brandStylesheetCold);
+    expect(bodyReads(cold)).toBe(1);
+    const remembered = workOf(BRANDING_PATHS.brandStylesheetRandom);
+    expect(tenantLookups(remembered)).toBe(1);
+    expect(remembered.length).toBe(2);
+    expect(bodyReads(remembered)).toBe(0);
+    expect(bodyReads(workOf(BRANDING_PATHS.brandStylesheet))).toBe(0);
+  });
+
+  it('answers a matching conditional request for an image without its bytes', () => {
+    const revalidate = workOf(BRANDING_PATHS.brandImageRevalidate);
+    expect(revalidate.length).toBe(2);
+    expect(byteReads(revalidate)).toBe(0);
+    expect(byteReads(workOf(BRANDING_PATHS.brandImage))).toBe(1);
+  });
+
+  it('reads an image and the stylesheet layers by index, even where scanning is allowed to lose', async () => {
+    const image = workOf(BRANDING_PATHS.brandImage).find((s) => s.query.includes('"theme_assets"'));
+    const layers = workOf(BRANDING_PATHS.brandStylesheetRandom).find((s) =>
+      s.query.includes('"theme_versions"'),
+    );
+    expect(image).toBeDefined();
+    expect(layers).toBeDefined();
+    for (const [statement, table] of [
+      [image, 'theme_assets'],
+      [layers, 'theme_versions'],
+    ] as const) {
+      if (statement === undefined) continue;
+      const plan = await planned(statement, { settings: ['enable_seqscan = off'] });
+      const own = scansOf(plan).filter((scan) => scan.relation === table);
+      expect(own.length, table).toBeGreaterThan(0);
+      expect(
+        own.filter((scan) => scan.node === 'Seq Scan'),
+        table,
+      ).toEqual([]);
+    }
+  });
+});
 
 describe('every foreign key', () => {
   it('is found by an index, so a parent row can be deleted without reading its children whole', async () => {

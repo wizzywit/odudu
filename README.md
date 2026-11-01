@@ -43,8 +43,9 @@ data on their own servers.
 - Single sign-on across a tenant's apps, with back-channel logout.
 - Many tenants on one server, kept apart by the database itself.
 - Passwords with a policy and lockouts, passkeys, authenticator codes and recovery codes.
-- Every page in a tenant's theme and a client's branding.
+- Every page the server shows, and its mail, in a tenant's theme and a client's branding: colours, font, images, a stylesheet and page templates, previewed and published as versions.
 - An MCP server that hands an AI agent the admin API as tools, held to the same capabilities as everyone else.
+- Pages and mail in English and Arabic, chosen per tenant, with the tenant's own wording.
 - An admin API with more than a hundred operations, and a console with a page for every area.
 - An audit trail of every change, sign-in and refusal, filterable and exportable.
 - One container plus PostgreSQL, started with Docker Compose.

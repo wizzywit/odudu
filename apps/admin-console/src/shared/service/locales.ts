@@ -1,4 +1,5 @@
 import { isValidLocale } from '@odudu/contracts';
+import type { Choice } from '#/shared/service/choice';
 
 // Languages on their own, then the regional forms most asked for; any other
 // tag the server takes can be typed.
@@ -31,6 +32,16 @@ export function localeName(tag: string, display: string): string {
   } catch {
     return tag;
   }
+}
+
+// A language as a list of them shows it: its English name, then its tag.
+export function languageLabel(tag: string): string {
+  return `${localeName(tag, 'en')} (${tag})`;
+}
+
+// The languages as a select lists them, each by its label.
+export function languageChoices(tags: readonly string[]): Choice[] {
+  return tags.map((tag) => ({ id: tag, label: languageLabel(tag) }));
 }
 
 // `own` is the reader's locale, offered too when it is a shape the server takes.

@@ -58,6 +58,8 @@ export const AMENDABLE_CLIENT_FIELDS: readonly string[] = ALL_FIELDS.filter(
 export const BUILTIN_ADMIN_AMENDABLE_FIELDS: readonly string[] = [
   'name',
   'description',
+  'name_i18n',
+  'description_i18n',
   'client_uri',
   'policy_uri',
   'tos_uri',

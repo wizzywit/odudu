@@ -98,5 +98,133 @@
   "system-admins": {
     "width": 1100,
     "height": 900
+  },
+  "branding-theme": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-colours": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-contrast": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-publish-held": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-images": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-bar": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-stylesheet-refused": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-selectors": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-page-kind": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-pages": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-message-picker": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-template-refused": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-published": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-nothing-to-publish": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-revert": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-discard": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-versions": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-reset": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-mail": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-mail-dark": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-languages": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-overrides": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-override-conflict": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-revert-conflict": {
+    "width": 1440,
+    "height": 960
+  },
+  "branding-narrow-theme": {
+    "width": 375,
+    "height": 812
+  },
+  "branding-narrow-sheet": {
+    "width": 375,
+    "height": 812
+  },
+  "branding-narrow-bar": {
+    "width": 375,
+    "height": 812
+  },
+  "client-branding": {
+    "width": 1440,
+    "height": 960
+  },
+  "client-branding-colours": {
+    "width": 1440,
+    "height": 960
+  },
+  "client-branding-narrow": {
+    "width": 375,
+    "height": 812
+  },
+  "client-mail-preview": {
+    "width": 1440,
+    "height": 960
+  },
+  "email-send-as-client": {
+    "width": 1440,
+    "height": 960
   }
 }

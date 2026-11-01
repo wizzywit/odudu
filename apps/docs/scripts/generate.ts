@@ -5,6 +5,7 @@ import { ADMIN_ROUTES } from '@odudu/protocol-admin';
 import { buildAdminOpenApiDocument } from '@odudu/protocol-admin/docs';
 import { CLI_COMMANDS } from '@odudu/server/src/cli/registry.ts';
 import { servingApp } from '@odudu/server/src/testing/served-routes.ts';
+import { renderBrandingPage } from './branding-page.ts';
 import { renderCliPage } from './cli-page.ts';
 import { renderConfigPage } from './config-page.ts';
 import { renderEndpointsPage } from './endpoints-page.ts';
@@ -74,6 +75,10 @@ export async function sources(): Promise<readonly Source[]> {
     {
       name: 'the error vocabularies of @odudu/kernel, @odudu/protocol-oidc and @odudu/protocol-admin',
       pages: new Map([['errors.md', renderErrorsPage()]]),
+    },
+    {
+      name: 'the page kinds of @odudu/kernel and the stylesheet hooks of @odudu/domain-theme',
+      pages: new Map([['branding.md', renderBrandingPage()]]),
     },
     {
       name: 'the audit vocabularies of @odudu/domain-audit and @odudu/protocol-admin',

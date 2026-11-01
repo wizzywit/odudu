@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { JWE_ALGS_PERMITTED } from '../../packages/crypto/src/index.js';
 import { TENANT_DEFAULT_SCOPE_NAMES } from '../../packages/domain-tenant/src/usecase/provision-defaults.js';
-import { SHIPPED_LOCALES } from '../../packages/i18n/src/index.js';
 import { standardClaimMappers } from '../../packages/protocol-oidc/src/service/claims.js';
 import { USERINFO_ENCRYPTION_ENCS_PERMITTED } from '../../packages/protocol-oidc/src/service/client-metadata.js';
 import { resolveDiscoveryDocument } from '../../packages/protocol-oidc/src/usecase/discovery.js';
@@ -39,6 +38,9 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
           resetPasswordAllowed: false,
           maxSessionsPerBrowser: 25,
           clientRegistrationPolicy: 'disabled',
+          // What a tenant that never set them has: English only, no default.
+          supportedLocales: ['en'],
+          defaultLocale: null,
         }),
       claimNames: () => Promise.resolve(claimMappers.claimNames()),
       // What `seed tenant` puts in a tenant, so the document is checked against
@@ -56,7 +58,6 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
       // transcript was captured against a stack that never set it — see
       // this same value's effect on token_endpoint_auth_methods_supported.
       trustProxy: false,
-      uiLocalesSupported: SHIPPED_LOCALES,
     },
     TENANT,
     ISSUER_BASE,

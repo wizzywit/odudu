@@ -1,7 +1,7 @@
 ---
 title: Tenants in the console
 description: Create a tenant with its first administrator, export it to a file, import a file as a new tenant, disable it and delete it.
-sidebar_position: 15
+sidebar_position: 16
 ---
 
 import { ConsoleShot } from '@site/src/shared/view/ConsoleShot';
@@ -42,7 +42,7 @@ The record has three tabs. **General** holds the **Display name** and the status
 
 ## 4. Export it
 
-Export makes a file of the tenant's configuration: its settings, sign-in flow, clients, roles, groups, scopes, registration policy and mail relay. Open the **Export** tab of a tenant's record, or the **Export** entry under **TENANT** in the menu when you are inside the tenant, which needs the `manage-tenant` capability. Turn on **Include subjects** to add up to ten thousand subjects with their profiles, roles, groups and required actions, and choose **Export to a file**.
+Export makes a file of the tenant's configuration: its settings, sign-in flow, clients, roles, groups, scopes, registration policy and mail relay, and its message overrides. It does not carry the tenant's theme, its clients' themes or the images they use, so a tenant imported from it starts with Odudu's look and its theme is set again; carrying them is planned for P7. Open the **Export** tab of a tenant's record, or the **Export** entry under **TENANT** in the menu when you are inside the tenant, which needs the `manage-tenant` capability. Turn on **Include subjects** to add up to ten thousand subjects with their profiles, roles, groups and required actions, and choose **Export to a file**.
 
 <ConsoleShot
   name="export"

@@ -24,7 +24,7 @@ import {
 
 // The console's sign-out ends the gateway's session and hands the browser
 // the tenant's RP-initiated logout URL, which only a navigation carrying
-// the tenant's own SSO cookie can act on.
+// the tenant's own SSO cookie can act on, after the End-User confirms.
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -206,7 +206,7 @@ describe('POST /console/auth/logout', () => {
     });
   });
 
-  it('ends the SSO session when the returned URL is followed with the tenant’s cookie', async () => {
+  it('ends the SSO session at once, with no page, when the returned URL is followed with the tenant’s cookie', async () => {
     await withStack(async (stack) => {
       const jar = new Jar();
       const { subjectId } = await signIn(stack, jar);

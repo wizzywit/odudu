@@ -40,8 +40,15 @@ const INT4_MAX = 2_147_483_647;
 // A text CHECK the predicate does not restate: `name` is not a setting,
 // and `client_registration_policy`'s values and `audit_event_types`' members
 // are SETTINGS' own enumerations, which `coerceTenantSetting` and
-// `tenantSettingProblems` already refuse outside.
-const NOT_RANGES = new Set(['name', 'client_registration_policy', 'audit_event_types']);
+// `tenantSettingProblems` already refuse outside; the two locale settings
+// are judged by the predicate's locale rules, not a numeric range.
+const NOT_RANGES = new Set([
+  'name',
+  'client_registration_policy',
+  'audit_event_types',
+  'supported_locales',
+  'default_locale',
+]);
 
 function columnOf(name: TenantSettingName): string {
   const entry = TENANT_SETTING_COLUMNS.find((column) => column.name === name);
@@ -163,5 +170,58 @@ describe('tenantSettingProblems agrees with the CHECK constraints on tenants', (
   it.each(orderingCases)('$label', async ({ change }) => {
     const { database, predicate } = await verdicts(change);
     expect(predicate).toBe(database);
+  });
+});
+
+describe('the locale settings agree with the CHECK constraints on tenants', () => {
+  const tags = (count: number): string[] =>
+    Array.from(
+      { length: count },
+      (_, i) => String.fromCharCode(97 + Math.floor(i / 26)) + String.fromCharCode(97 + (i % 26)),
+    );
+
+  async function accepted(
+    supported: string[],
+    defaultLocale: string,
+  ): Promise<{ database: boolean; predicate: boolean }> {
+    const id = newId();
+    let predicate = false;
+    try {
+      await withTenant(owner.db, id, async (tx) => {
+        await tx.insert(tenants).values({ id, name: `locales-${id.slice(-12)}` });
+        predicate =
+          tenantSettingProblems({ supported_locales: supported, default_locale: defaultLocale })
+            .length === 0;
+        await tenantSettingsRepository(tx).amend(id, {
+          supportedLocales: supported,
+          defaultLocale,
+        });
+      });
+      return { database: true, predicate };
+    } catch (error) {
+      if (!(error instanceof TenantSettingCheckViolationError)) throw error;
+      return { database: false, predicate };
+    }
+  }
+
+  it.each([
+    ['one locale', ['en'], 'en'],
+    ['32 locales', tags(32), 'aa'],
+    ['33 locales', tags(33), 'aa'],
+    ['no locale', [], 'en'],
+    ['a default outside the list', ['en', 'fr'], 'de'],
+  ])('%s', async (_label, supported, defaultLocale) => {
+    const { database, predicate } = await accepted(supported, defaultLocale);
+    expect(predicate).toBe(database);
+  });
+
+  it('gives a tenant that never set them English only, and no default', async () => {
+    const id = newId();
+    const held = await withTenant(owner.db, id, async (tx) => {
+      await tx.insert(tenants).values({ id, name: `defaults-${id.slice(-12)}` });
+      return tenantSettingsRepository(tx).byId(id);
+    });
+    expect(held?.supported_locales).toEqual(['en']);
+    expect(held?.default_locale).toBeNull();
   });
 });

@@ -1,3 +1,4 @@
+import { messageOverrideKeySchema, messageOverrideLocaleSchema } from '@odudu/contracts/admin';
 import { z } from 'zod';
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/u;
@@ -10,8 +11,15 @@ export function pathParameterNames(pattern: string): string[] {
   return [...pattern.matchAll(/:(\w+)/gu)].map((match) => match[1] ?? '');
 }
 
+// The parameters that name a catalogue entry rather than a row.
+const NAMED: Readonly<Record<string, z.ZodType>> = {
+  locale: messageOverrideLocaleSchema,
+  key: messageOverrideKeySchema,
+};
+
 /**
- * Every path parameter but `:tenant` addresses a row by id. Derived from the
+ * Every path parameter but `:tenant` addresses a row by id, except the two
+ * that name a message override's locale and key. Derived from the
  * pattern the route already declares, so a route added later is narrowed by
  * existing rather than by being remembered. Loose because `:tenant` travels
  * in the same params object and is deliberately not narrowed here, and
@@ -22,5 +30,5 @@ export function paramsSchemaFor(pattern: string): z.ZodObject | undefined {
   const ids = pathParameterNames(pattern).filter((name) => name !== 'tenant');
   if (ids.length === 0) return undefined;
 
-  return z.looseObject(Object.fromEntries(ids.map((name) => [name, rowIdSchema])));
+  return z.looseObject(Object.fromEntries(ids.map((name) => [name, NAMED[name] ?? rowIdSchema])));
 }

@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { inspect } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { SessionEntry } from '#/service/session-entry';
@@ -60,5 +61,45 @@ describe('SessionEntry', () => {
     expect(entry.proves('logout-confirm', '')).toBe(false);
     expect(SessionEntry.issue(ID).proves('logout-confirm', proof)).toBe(false);
     expect(proof).not.toContain(secretOf(entry));
+  });
+
+  it('proves a purpose without bound values exactly as an HMAC of purpose and id', () => {
+    const entry = SessionEntry.issue(ID);
+    const expected = (purpose: string): string =>
+      createHmac('sha256', secretOf(entry)).update(`${purpose}:${ID}`).digest('base64url');
+
+    for (const purpose of ['logout-confirm', 'other-purpose', 'login', 'csrf']) {
+      expect(entry.proof(purpose)).toBe(expected(purpose));
+      expect(entry.proof(purpose, [])).toBe(expected(purpose));
+    }
+  });
+
+  describe('bound values', () => {
+    it('does not verify once any bound value changes', () => {
+      const entry = SessionEntry.issue(ID);
+      const proof = entry.proof('logout-confirm', ['client', 'https://app.example/out', 'state']);
+
+      expect(
+        entry.proves('logout-confirm', proof, ['client', 'https://app.example/out', 'state']),
+      ).toBe(true);
+      expect(
+        entry.proves('logout-confirm', proof, ['other', 'https://app.example/out', 'state']),
+      ).toBe(false);
+      expect(
+        entry.proves('logout-confirm', proof, ['client', 'https://evil.example/', 'state']),
+      ).toBe(false);
+      expect(
+        entry.proves('logout-confirm', proof, ['client', 'https://app.example/out', 'x']),
+      ).toBe(false);
+      expect(entry.proves('logout-confirm', proof)).toBe(false);
+    });
+
+    it('tells a value moved across a boundary from the original', () => {
+      const entry = SessionEntry.issue(ID);
+
+      expect(entry.proof('p', ['a', 'bc'])).not.toBe(entry.proof('p', ['ab', 'c']));
+      expect(entry.proof('p', ['a', ''])).not.toBe(entry.proof('p', ['', 'a']));
+      expect(entry.proof('p', ['a'])).not.toBe(entry.proof('p', ['a', '']));
+    });
   });
 });

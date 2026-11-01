@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { BRANDING_SCREENS } from './screens-branding.ts';
 import type { Context, Screen } from './screen.ts';
 
 const DEMO = 'demo';
@@ -423,4 +424,5 @@ export const SCREENS: readonly Screen[] = [
       await page.getByText('1 administrator').waitFor();
     },
   },
+  ...BRANDING_SCREENS,
 ];

@@ -18,6 +18,16 @@ export {
   type TenantSettingRange,
 } from '@odudu/contracts/admin';
 export {
+  MAX_MESSAGE_OVERRIDES,
+  messageOverrideRepository,
+  type MessageOverrideDeps,
+  type MessageOverrideRecord,
+  type OverridePrecondition,
+  type NewMessageOverride,
+  type PutMessageOverrideOutcome,
+} from '#/repository/message-overrides';
+export { messageOverrides } from '#/schema/message-overrides';
+export {
   tenantSettingsRepository,
   TenantSettingCheckViolationError,
   type TenantSettingsRecord,

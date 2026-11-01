@@ -7,12 +7,14 @@ import {
   isMissing,
   isRefused,
   isStale,
+  staleWhenTagMissing,
   isStaleCursor,
   isUnknownTenant,
   lookupText,
   removalOutcome,
   writeFailureText,
   namedCreation,
+  problemSubtype,
   type CreateSpec,
   type WriteCopy,
 } from '#/shared/service/failure';
@@ -310,5 +312,33 @@ describe('isStaleCursor', () => {
     expect(isStaleCursor(problem(403))).toBe(false);
     expect(isStaleCursor(NETWORK)).toBe(false);
     expect(isStaleCursor(null)).toBe(false);
+  });
+});
+
+describe('staleWhenTagMissing', () => {
+  const refused = (status: number): GatewayResult<unknown> => ({
+    ok: false,
+    kind: 'problem',
+    problem: { type: 'about:blank', title: 't', status },
+  });
+
+  it('answers a refused-as-required write the way a 412 is answered', () => {
+    const result = staleWhenTagMissing(refused(428));
+    expect(isStale(result)).toBe(true);
+  });
+
+  it('leaves every other answer as it was', () => {
+    for (const result of [refused(400), refused(412), { ok: false, kind: 'network' } as const]) {
+      expect(staleWhenTagMissing(result)).toBe(result);
+    }
+  });
+});
+
+describe('problemSubtype', () => {
+  it('is the name after the hash, and empty for a plain status', () => {
+    expect(problemSubtype({ type: 'about:blank#asset-cap', status: 409, title: 'x' })).toBe(
+      'asset-cap',
+    );
+    expect(problemSubtype({ type: 'about:blank', status: 404, title: 'x' })).toBe('');
   });
 });

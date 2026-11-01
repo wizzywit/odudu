@@ -12,6 +12,7 @@ import {
 import { returnToField } from '#/view/return-to';
 import { t, tHtml } from '#/view/messages';
 import { passwordField } from '#/view/password-field';
+import { fillNotice, fillPage } from '#/view/template';
 import { passwordProblems, type PasswordFailure } from '#/view/password-rules';
 
 export { sendVerificationHtml as sendResetHtml };
@@ -47,14 +48,23 @@ export function renderResetRequestForm(
   const value = echoed === undefined ? '' : ` value="${escapeHtml(echoed)}"`;
   return page(
     t(locale, 'reset.request.title'),
-    `${intro(tHtml(locale, 'reset.request.title'), tenant)}
-${problemSummary(problems)}<form method="post" action="${action}">${returnToField(form.signInPath)}
-  <label>${tHtml(locale, 'reset.request.email')} <input type="email" name="email" autocomplete="email"${value}${attributes}></label>
-  <button type="submit">${tHtml(locale, 'reset.request.submit')}</button>
-</form>${links([backToSignIn(form.signInPath, locale)])}`,
+    fillPage(
+      'reset',
+      {
+        intro: intro(tHtml(locale, 'reset.request.title'), tenant),
+        error: problemSummary(problems),
+        'form.open': `<form method="post" action="${action}">${returnToField(form.signInPath)}`,
+        fields: `<label>${tHtml(locale, 'reset.request.email')} <input type="email" name="email" autocomplete="email"${value}${attributes}></label>`,
+        submit: `<button type="submit">${tHtml(locale, 'reset.request.submit')}</button>`,
+        'form.close': '</form>',
+        links: links([backToSignIn(form.signInPath, locale)]),
+      },
+      locale,
+    ),
     null,
     [],
     locale,
+    'reset',
   );
 }
 
@@ -67,11 +77,16 @@ export function renderResetRequestedPage(
 ): RenderedPage {
   return page(
     t(locale, 'reset.requested.title'),
-    `<h1>${tHtml(locale, 'reset.requested.title')}</h1>
-<p>${tHtml(locale, 'reset.requested.next')}</p>${links([backToSignIn(signInPath, locale)])}`,
+    fillNotice(
+      `<h1>${tHtml(locale, 'reset.requested.title')}</h1>
+<p>${tHtml(locale, 'reset.requested.next')}</p>`,
+      links([backToSignIn(signInPath, locale)]),
+      locale,
+    ),
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -89,14 +104,19 @@ export function renderResetRequestFailedPage(
       : `${retry}?${new URLSearchParams({ return_to: signInPath }).toString()}`;
   return page(
     t(locale, 'reset.requestFailed.title'),
-    `<h1>${tHtml(locale, 'reset.requestFailed.title')}</h1>
+    fillNotice(
+      `<h1>${tHtml(locale, 'reset.requestFailed.title')}</h1>
 <p>${tHtml(locale, 'reset.requestFailed.unavailable')}</p>${links([
-      { href, text: tHtml(locale, 'link.tryAgain') },
-      backToSignIn(signInPath, locale),
-    ])}`,
+        { href, text: tHtml(locale, 'link.tryAgain') },
+        backToSignIn(signInPath, locale),
+      ])}`,
+      '',
+      locale,
+    ),
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -121,15 +141,24 @@ export function renderResetPasswordForm(
   );
   return page(
     t(locale, 'reset.form.title'),
-    `${intro(tHtml(locale, 'reset.form.title'), tenant)}
-${problemSummary(problems)}<form method="post" action="${action}">
-  <input type="hidden" name="key" value="${escapeHtml(key)}">
-  ${password.html}
-  <button type="submit">${tHtml(locale, 'reset.form.submit')}</button>
-</form>`,
+    fillPage(
+      'reset',
+      {
+        intro: intro(tHtml(locale, 'reset.form.title'), tenant),
+        error: problemSummary(problems),
+        'form.open': `<form method="post" action="${action}">
+  <input type="hidden" name="key" value="${escapeHtml(key)}">`,
+        fields: password.html,
+        submit: `<button type="submit">${tHtml(locale, 'reset.form.submit')}</button>`,
+        'form.close': '</form>',
+        links: '',
+      },
+      locale,
+    ),
     password.script,
     [],
     locale,
+    'reset',
   );
 }
 
@@ -155,17 +184,22 @@ function resetSucceeded(
 ): RenderedPage {
   return page(
     t(locale, 'reset.succeeded.title'),
-    `<h1>${tHtml(locale, 'reset.succeeded.heading')}</h1>
+    fillNotice(
+      `<h1>${tHtml(locale, 'reset.succeeded.heading')}</h1>
 <p>${tHtml(locale, signInPath === null ? 'reset.succeeded.next' : 'reset.succeeded.nextWithLink')}</p>${
-      factorsRemoved ? `\n<p>${tHtml(locale, 'reset.succeeded.factorsRemoved')}</p>` : ''
-    }${
-      signInPath === null
-        ? ''
-        : links([{ href: signInPath, text: tHtml(locale, 'link.continueToSignIn') }])
-    }`,
+        factorsRemoved ? `\n<p>${tHtml(locale, 'reset.succeeded.factorsRemoved')}</p>` : ''
+      }${
+        signInPath === null
+          ? ''
+          : links([{ href: signInPath, text: tHtml(locale, 'link.continueToSignIn') }])
+      }`,
+      '',
+      locale,
+    ),
     null,
     [],
     locale,
+    'notice',
   );
 }
 
@@ -182,10 +216,15 @@ export function renderResetLinkFailedPage(
       : { href: requestNewPath, text: tHtml(locale, 'link.requestNewResetLink') };
   return page(
     t(locale, 'reset.linkFailed.title'),
-    `<h1>${tHtml(locale, 'reset.linkFailed.heading')}</h1>
+    fillNotice(
+      `<h1>${tHtml(locale, 'reset.linkFailed.heading')}</h1>
 <p>${tHtml(locale, 'reset.linkFailed.reason')}</p>${links([next, backToSignIn(signInPath, locale)])}`,
+      '',
+      locale,
+    ),
     null,
     [],
     locale,
+    'notice',
   );
 }

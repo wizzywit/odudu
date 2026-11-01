@@ -8,7 +8,7 @@ function resolvingTo(...addresses: string[]) {
   return () => Promise.resolve(addresses);
 }
 
-describe('checkSmtpDestination', () => {
+describe('[ODUDU-THEME-RELAY-01] checkSmtpDestination', () => {
   it('refuses a loopback literal, so the server cannot be pointed at itself', async () => {
     const outcome = await checkSmtpDestination('127.0.0.1', {
       allowPrivate: false,

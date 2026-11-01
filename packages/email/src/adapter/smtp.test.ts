@@ -88,6 +88,10 @@ describe('mailOptions', () => {
     expect(mark?.content.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
   });
 
+  it('[RFC3834-5-01] marks every message as automatically generated', () => {
+    expect(mailOptions(BASE, message).headers).toEqual({ 'Auto-Submitted': 'auto-generated' });
+  });
+
   it('leaves the sending address as configured', () => {
     expect(mailOptions(BASE, message).from).toBe('noreply@example.test');
   });

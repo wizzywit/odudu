@@ -15,7 +15,11 @@ import { renderConsentPage } from '#/view/consent-html';
 import { sendHtml } from '#/view/html-response';
 import { tenantIssuerFor } from '#/view/issuer';
 import { namesUnsupportedRepresentation } from '#/view/media-type';
-import { continuation, requestLocale } from '#/view/routes/continuation';
+import {
+  brandedRequestLocale,
+  continuation,
+  lookingUpTenantOnce,
+} from '#/view/routes/continuation';
 import { sendSignInExpired } from '#/view/routes/expired-sign-in';
 import { sendRequestError } from '#/view/routes/request-error';
 import {
@@ -78,7 +82,7 @@ async function renderAuthorizationOutcome(
         outcome.error,
         outcome.description,
         undefined,
-        requestLocale(reply, deps),
+        await brandedRequestLocale(deps, reply, tenant),
       ),
     );
   }
@@ -160,6 +164,7 @@ async function renderAuthorizationOutcome(
         clientName: outcome.clientName,
         clientPages: outcome.clientPages,
         scopeLabels: outcome.scopeLabels,
+        i18n: outcome.i18n,
         defaultScopes: outcome.defaultScopes,
         optionalScopes: outcome.optionalScopes,
         alreadyGranted: outcome.alreadyGranted,
@@ -213,7 +218,7 @@ async function renderAuthorizationOutcome(
 // `unknown` because that is the truth: they are whatever a body parser
 // produced, and normalizeAuthorizeQuery turns them back into strings.
 async function respondToAuthorizationRequest(
-  deps: AuthorizeRouteDeps,
+  routeDeps: AuthorizeRouteDeps,
   tenant: string,
   params: unknown,
   issuer: string,
@@ -224,6 +229,7 @@ async function respondToAuthorizationRequest(
   reply: FastifyReply,
   reloadable: boolean,
 ): Promise<FastifyReply> {
+  const deps = lookingUpTenantOnce(routeDeps);
   const outcome = await handleAuthorizationRequest(deps, tenant, params, issuer, header);
   return renderAuthorizationOutcome(deps, tenant, issuer, outcome, reply, reloadable);
 }
@@ -236,7 +242,7 @@ function firstString(value: string | string[] | undefined): string | undefined {
 // naming consent and required-action already use for Odudu's own UI
 // actions, never under /protocol/openid-connect/.
 async function respondToSelectAccountSubmission(
-  deps: AuthorizeRouteDeps,
+  routeDeps: AuthorizeRouteDeps,
   tenant: string,
   body: Record<string, string | string[] | undefined> | undefined,
   issuer: string,
@@ -248,6 +254,7 @@ async function respondToSelectAccountSubmission(
   // invalid_request handling below runs instead of throwing on a missing
   // read.
   const fields = body ?? {};
+  const deps = lookingUpTenantOnce(routeDeps);
   const outcome = await handleSelectAccountSubmission(
     deps,
     tenant,
@@ -268,7 +275,7 @@ async function respondToSelectAccountSubmission(
   // because it names some live session in the tenant — see
   // handleSelectAccountSubmission's own comment on why.
   if (outcome.kind === 'invalid_selection') {
-    return sendRequestError(reply, deps, 400, 'error.accountNotSignedIn');
+    return sendRequestError(reply, deps, tenant, 400, 'error.accountNotSignedIn');
   }
 
   return renderAuthorizationOutcome(deps, tenant, issuer, outcome, reply, false);
@@ -306,7 +313,7 @@ export function registerAuthorizeRoute(app: FastifyInstance, deps: AuthorizeRout
               'invalid_request',
               `Authorization request parameters must be sent as ${FORM_MEDIA_TYPE}.`,
               undefined,
-              requestLocale(reply, deps),
+              await brandedRequestLocale(deps, reply, request.params.tenant),
             ),
           );
         }

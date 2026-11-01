@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -11,8 +10,11 @@ const clean: Visible = {
   passwordFieldsFilled: 0,
 };
 
-// The shapes the server really generates: 24 random bytes, base64url.
-const oneTimePassword = (): string => randomBytes(24).toString('base64url');
+// The shape the server generates, 24 bytes as base64url, from fixed bytes: a
+// random draw sometimes lacks a digit or a capital, and then the guard's own
+// shape test passes it for a reason this test is not about.
+const oneTimePassword = (): string =>
+  Buffer.from(Array.from({ length: 24 }, (_, i) => (i * 37 + 11) % 256)).toString('base64url');
 
 describe('findSecrets', () => {
   it('lets a page of demo data through, ids and long paths included', () => {

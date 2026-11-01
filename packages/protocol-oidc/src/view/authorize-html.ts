@@ -1,6 +1,7 @@
 import { type PageLocale, scriptNonce, type RenderedPage } from '@odudu/kernel';
 import { escapeHtml, intro, page } from '#/view/document';
 import { links } from '#/view/links';
+import { fillPage } from '#/view/template';
 import {
   firstInvalidField,
   invalidAttributes,
@@ -36,12 +37,19 @@ export function renderAuthorizeErrorPage(
       : `\n<p><a href="${escapeHtml(wayOn.href)}">${tHtml(locale, WAY_ON_LABEL[wayOn.kind])}</a></p>`;
   return page(
     t(locale, 'error.title'),
-    `<h1>${tHtml(locale, 'error.heading')}</h1>
-<p>${bdi(description)}</p>${link}
-<p><small>${escapeHtml(error)}</small></p>`,
+    fillPage(
+      'authorize-error',
+      {
+        message: `<h1>${tHtml(locale, 'error.heading')}</h1>\n<p>${bdi(description)}</p>`,
+        links: link,
+        code: `\n<p><small>${escapeHtml(error)}</small></p>`,
+      },
+      locale,
+    ),
     null,
     [],
     locale,
+    'authorize-error',
   );
 }
 
@@ -60,15 +68,22 @@ export function renderEmailUnverifiedPage(
 ): RenderedPage {
   return page(
     t(locale, 'emailUnverified.title'),
-    `<h1>${tHtml(locale, 'emailUnverified.heading')}</h1>
-<p>${tHtml(locale, 'emailUnverified.body', { mail: hasEmail ? 'sent' : 'none' })}</p>${
-      signInPath === null
-        ? ''
-        : links([{ href: signInPath, text: tHtml(locale, 'link.backToSignIn') }])
-    }`,
+    fillPage(
+      'email-unverified',
+      {
+        message: `<h1>${tHtml(locale, 'emailUnverified.heading')}</h1>
+<p>${tHtml(locale, 'emailUnverified.body', { mail: hasEmail ? 'sent' : 'none' })}</p>`,
+        links:
+          signInPath === null
+            ? ''
+            : links([{ href: signInPath, text: tHtml(locale, 'link.backToSignIn') }]),
+      },
+      locale,
+    ),
     null,
     [],
     locale,
+    'email-unverified',
   );
 }
 
@@ -298,7 +313,7 @@ export function renderLoginForm(
   // login-submission.ts's own gate is the one that matters, but a checkbox
   // this tenant could never honour is not offered in the first place.
   const rememberMe = rememberMeAllowed
-    ? `<label><input type="checkbox" name="remember_me" id="remember-me" value="true"> ${tHtml(locale, 'login.rememberMe')}</label>\n  `
+    ? `\n  <label><input type="checkbox" name="remember_me" id="remember-me" value="true"> ${tHtml(locale, 'login.rememberMe')}</label>`
     : '';
   const [title, submit] = Object.hasOwn(FORM_LABELS, form)
     ? (FORM_LABELS[form] ?? DEFAULT_LABELS)
@@ -306,15 +321,31 @@ export function renderLoginForm(
   return {
     ...page(
       t(locale, title),
-      `${intro(tHtml(locale, title), tenant, clientName === undefined ? [] : [tHtml(locale, 'login.context', {}, { client: clientName })])}
-${problemSummary(problems)}<form method="post" action="${action}">
-  <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
-  ${renderFormFields(form, loginWithEmail, refusal, problems, locale)}
-  ${rememberMe}<button type="submit">${tHtml(locale, submit)}</button>
-</form>${passkey}${form === 'password' ? waysHtml(ways, locale) : ''}`,
+      fillPage(
+        'sign-in',
+        {
+          intro: intro(
+            tHtml(locale, title),
+            tenant,
+            clientName === undefined
+              ? []
+              : [tHtml(locale, 'login.context', {}, { client: clientName })],
+          ),
+          error: problemSummary(problems),
+          'form.open': `<form method="post" action="${action}">
+  <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">`,
+          fields: `${renderFormFields(form, loginWithEmail, refusal, problems, locale)}${rememberMe}`,
+          submit: `<button type="submit">${tHtml(locale, submit)}</button>`,
+          'form.close': '</form>',
+          passkey,
+          links: form === 'password' ? waysHtml(ways, locale) : '',
+        },
+        locale,
+      ),
       null,
       [],
       locale,
+      'sign-in',
     ),
     script: nonce === null ? null : { nonce, fetchesSameOrigin: true },
   };

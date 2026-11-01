@@ -1,6 +1,11 @@
 import type { ClientScope } from '@odudu/contracts/admin';
 import {
   ACCESS_TOKEN_LABEL,
+  CONSENT_LANGUAGES_LABEL,
+  CONSENT_LANGUAGES_NOTE,
+  CONSENT_LIMIT,
+  DESCRIPTION_LANGUAGES_LABEL,
+  DESCRIPTION_LANGUAGES_NOTE,
   ID_TOKEN_LABEL,
   NAME_FIXED,
   NEW_CLIENT_LABEL,
@@ -10,9 +15,11 @@ import {
   type Deletion,
   type ScopeGeneral,
 } from '#/features/scopes/usecase/useScopeGeneral';
+import { DESCRIPTION_MAX } from '#/shared/service/labels';
 import { DeleteZone } from '#/shared/view/DeleteZone';
 import { DescriptionField } from '#/shared/view/DescriptionField';
 import { SelectField, TextAreaField, TextField, ToggleField } from '#/shared/view/Field';
+import { LocalisedTextField } from '#/shared/view/LocalisedTextField';
 import { Panel } from '#/shared/view/Panel';
 import { SaveSection } from '#/shared/view/SaveSection';
 import { Timestamp } from '#/shared/view/Timestamp';
@@ -49,6 +56,19 @@ function Description({ general }: { general: ScopeGeneral }) {
       save={s}
     >
       <DescriptionField save={s} rule={general.descriptionRule} />
+      <LocalisedTextField
+        label={DESCRIPTION_LANGUAGES_LABEL}
+        description={DESCRIPTION_LANGUAGES_NOTE}
+        languages={general.languages}
+        value={s.values.description_i18n}
+        limit={DESCRIPTION_MAX}
+        multiline
+        error={s.fieldErrors.description_i18n}
+        changed={s.changed.includes('description_i18n')}
+        onChange={(next) => {
+          s.edit('description_i18n', next);
+        }}
+      />
     </SaveSection>
   );
 }
@@ -121,6 +141,19 @@ function Consent({ general }: { general: ScopeGeneral }) {
         changed={s.changed.includes('consent_text')}
         onChange={(value) => {
           s.edit('consent_text', value);
+        }}
+      />
+      <LocalisedTextField
+        label={CONSENT_LANGUAGES_LABEL}
+        description={CONSENT_LANGUAGES_NOTE}
+        languages={general.languages}
+        value={s.values.consent_text_i18n}
+        limit={CONSENT_LIMIT}
+        multiline
+        error={s.fieldErrors.consent_text_i18n}
+        changed={s.changed.includes('consent_text_i18n')}
+        onChange={(next) => {
+          s.edit('consent_text_i18n', next);
         }}
       />
       <TextField

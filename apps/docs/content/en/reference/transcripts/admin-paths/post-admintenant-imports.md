@@ -61,8 +61,14 @@ is provisioning's in both directions.
 Then one transaction creates the tenant the way `POST /admin/tenants` does
 — its row, flow, built-in admin client and a signing key of its own, never
 the source's — and writes the document into it: settings, flow, clients,
-roles and their composites, groups, scopes, service-account roles, SMTP and
-subjects, in that order. Each confidential client is given a fresh secret,
+roles and their composites, groups, scopes, service-account roles, SMTP,
+message overrides and subjects, in that order. A document exported before
+tenants had languages or overrides still imports: a missing
+`supported_locales` is English only, a missing `default_locale` is none, and
+missing `message_overrides` is none. Each override is checked as `PUT
+/message-overrides/{locale}/{key}` checks one, which includes refusing an argument such as `{name}` that the English text of its key does not read (the problem names the argument and the key, so the file can be corrected; this page holds no captured output of it), a pair named twice is refused,
+and there may be at most 500; the problems come back with the rest, by path
+(`document.message_overrides[3].key`). Each confidential client is given a fresh secret,
 answered once under `client_secrets` in the `201` and never logged or
 written to the trail. The SMTP relay arrives without a password, since none
 travels; `PUT /smtp` sets one. A subject arrives with no credential and an
@@ -92,40 +98,61 @@ group `finance` holding it, and a subject `grace` who belongs to it and owes
 `update-password`. The import names the tenant `import-demo2`. Both tenants and
 the secret below are throwaway.
 
+Everything below ran in one session on a freshly built stack with `odudu seed admin
+--username ada` run against it and `$ADMIN_TOKEN` got as in [Getting the
+token](./getting-the-token.md). `import-source` is made first, with an override of
+the sign-in title in the default language:
+
+```bash
+A="Authorization: Bearer $ADMIN_TOKEN"; J='Content-Type: application/json'
+T=http://localhost:3000/admin/tenants/import-source
+curl -sS -X POST -H "$A" -H "$J" -d '{"name":"import-source","display_name":"Import source"}' http://localhost:3000/admin/tenants -o /dev/null
+curl -sS -X POST -H "$A" -H "$J" \
+  -d '{"client_id":"billing-app","grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic"}' $T/clients -o /dev/null
+ROLE=$(curl -sS -X POST -H "$A" -H "$J" -d '{"name":"billing-reader"}' $T/roles | jq -r .id)
+GROUP=$(curl -sS -X POST -H "$A" -H "$J" -d '{"name":"finance"}' $T/groups | jq -r .id)
+curl -sS -X PUT -H "$A" -H "$J" -d "{\"role_ids\":[\"$ROLE\"]}" $T/groups/$GROUP/roles -o /dev/null
+GRACE=$(curl -sS -X POST -H "$A" -H "$J" -d '{"username":"grace","email":"grace@navy.example"}' $T/subjects | jq -r .id)
+curl -sS -X PUT -H "$A" -H "$J" -d "{\"group_ids\":[\"$GROUP\"]}" $T/subjects/$GRACE/groups -o /dev/null
+curl -sS -X PUT -H "$A" -H "$J" -H 'If-None-Match: *' -d '{"message":"Welcome back"}' $T/message-overrides/en/login.title -o /dev/null
+```
+
 The export, saved, then imported under a new name:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/import-source/export?include=subjects" > source.json
+  "http://localhost:3000/admin/tenants/import-source/export?include=subjects" > source.json
 jq -n --slurpfile document source.json \
   '{name: "import-demo2", display_name: "Import demo", document: $document[0]}' \
-  | curl -sS -D - -X POST \
+  | curl -sS -D - -o import.json -X POST \
       -H "Authorization: Bearer $ADMIN_TOKEN" \
       -H "Content-Type: application/json" \
       --data-binary @- \
-      http://localhost:3080/admin/tenant-imports
+      http://localhost:3000/admin/tenant-imports
+cat import.json
 ```
 
 ```
 HTTP/1.1 201 Created
-x-request-id: 01a0ea50-3f09-7d61-ae37-ded07c55d6ab
+x-request-id: 01a18b59-f173-7ddb-89a9-1adadce1ca48
 cache-control: no-store
-etag: "e484b4b5a55af9db632d4bfd1a78673cdf98b7c3e264d006de5be58f721de3f8"
+etag: "7c9c5a3e14185cd52bc89b354c84d6495c35bd154f8f9dfe3f2559f2f716fbbe"
 content-type: application/json; charset=utf-8
 content-length: 264
-Date: Mon, 28 Sep 2026 23:18:42 GMT
+Date: Fri, 30 Oct 2026 05:48:10 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"tenant":{"id":"01a0ea50-3f1f-7f91-b047-452cba78ee10","name":"import-demo2","display_name":"Import demo","enabled":true,"created_at":"2026-09-28T23:18:42.719Z"},"client_secrets":[{"client_id":"billing-app","secret":"aDDFRqLnjfr4hBg9C8l2QQb6vqXn_pjMEe81LPIqTco"}]}
+{"tenant":{"id":"01a18b59-f194-7a57-81d6-48055e174ac1","name":"import-demo2","display_name":"Import demo","enabled":true,"created_at":"2026-10-30T05:48:10.004Z"},"client_secrets":[{"client_id":"billing-app","secret":"RJo6qks28wWjVF8IQNXpPE4Xt23vwllHvad1B8u0XE8"}]}
 ```
 
 The secret it answered authenticates at the new tenant's `/token`:
 
 ```bash
-curl -sS -u 'billing-app:aDDFRqLnjfr4hBg9C8l2QQb6vqXn_pjMEe81LPIqTco' \
+SECRET=$(jq -r '.client_secrets[0].secret' import.json)
+curl -sS -u "billing-app:$SECRET" \
   --data-urlencode 'grant_type=client_credentials' \
-  http://localhost:3080/tenants/import-demo2/protocol/openid-connect/token \
+  http://localhost:3000/tenants/import-demo2/protocol/openid-connect/token \
   | jq -c '{token_type, expires_in, has_access_token: (.access_token | length > 0)}'
 ```
 
@@ -140,7 +167,7 @@ and then those two fields side by side:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/import-demo2/export?include=subjects" > imported.json
+  "http://localhost:3000/admin/tenants/import-demo2/export?include=subjects" > imported.json
 diff <(jq -S 'del(.omitted, .settings.display_name)' source.json) \
      <(jq -S 'del(.omitted, .settings.display_name)' imported.json) && echo identical
 jq -c '{display_name: .settings.display_name, omitted}' source.json imported.json
@@ -163,16 +190,16 @@ ids are a fresh run's, not those above:
 ```bash
 for tenant in import-source import-demo2; do
   curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-    "http://localhost:3082/admin/tenants/$tenant/keys" | jq -c '[.items[].kid]'
+    "http://localhost:3000/admin/tenants/$tenant/keys" | jq -c '[.items[].kid]'
 done
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3082/admin/tenants/import-demo2/audit?action=tenant.import&resource_type=tenant&resource_id=01a0ea50-3f1f-7f91-b047-452cba78ee10"; echo
+  "http://localhost:3000/admin/tenants/import-demo2/audit?action=tenant.import&resource_type=tenant&resource_id=$(jq -r .tenant.id import.json)"; echo
 ```
 
 ```
-["01a0ee8e-88bc-73b0-ac5d-e23cf428d01a"]
-["01a0ee8e-8967-7770-a633-9779f73c79db"]
-{"items":[{"id":"01a17ae2-798f-79fc-a449-e41c2682d80d","occurred_at":"2026-10-27T01:03:44.853Z","event_type":"admin_mutation","action":"tenant.import","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"tenant","resource_id":"01a0ea50-3f1f-7f91-b047-452cba78ee10","request_id":"01a17ae2-78b1-7816-a822-924aade28b00","ip":"172.20.0.1","detail":{"counts":{"roles":9,"groups":1,"scopes":8,"clients":1,"subjects":1},"source_version":1}}]}
+["01a18b59-ecb4-7be6-901e-39fa81a7b735"]
+["01a18b59-f2c1-732a-a5c3-5853fd1fa438"]
+{"items":[{"id":"01a18b59-f3d0-7e38-a3dd-28a9c9d10c6c","occurred_at":"2026-10-30T05:48:10.004Z","event_type":"admin_mutation","action":"tenant.import","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a18b52-bb6d-74f3-bbb4-24841db96596","actor_client_id":"01a18b52-ba78-7c10-a9e4-05dcd20baf9b","actor_name":null,"actor_origin":"system","resource_type":"tenant","resource_id":"01a18b59-f194-7a57-81d6-48055e174ac1","request_id":"01a18b59-f173-7ddb-89a9-1adadce1ca48","ip":"172.20.0.1","detail":{"counts":{"roles":9,"groups":1,"scopes":8,"clients":1,"subjects":1,"message_overrides":1},"source_version":1}}]}
 ```
 
 A document broken in two places at once — a scope mapping naming a role
@@ -206,15 +233,15 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ```
 HTTP/1.1 400 Bad Request
-x-request-id: 01a0e4ef-dd32-77bd-aff1-649ed553a54a
+x-request-id: 01a18b59-f613-74d0-b487-6675d65cf826
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 390
-Date: Sun, 27 Sep 2026 22:15:20 GMT
+Date: Fri, 30 Oct 2026 05:48:11 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 2 problem(s), listed under errors","errors":[{"path":"document.scopes[0].roles[0]","message":"names no role no-such-role"},{"path":"document.clients[0].redirect_uris","message":"redirect_uris entry http://billing.example/callback is not valid"}],"instance":"01a0e4ef-dd32-77bd-aff1-649ed553a54a"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 2 problem(s), listed under errors","errors":[{"path":"document.scopes[0].roles[0]","message":"names no role no-such-role"},{"path":"document.clients[0].redirect_uris","message":"redirect_uris entry http://billing.example/callback is not valid"}],"instance":"01a18b59-f613-74d0-b487-6675d65cf826"}
 {"items":[]}
 ```
 
@@ -233,8 +260,8 @@ done
 ```
 
 ```
-{"type":"about:blank","title":"Conflict","status":409,"detail":"the name \"import-source\" is already in use","instance":"01a0e4ef-ba74-7308-b889-648d797eb195"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"name","message":"the name \"system\" is reserved"}],"instance":"01a0e4ef-ba90-7262-bf3e-1c8e86c8b5ab"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the name \"import-source\" is already in use","instance":"01a18b59-f6eb-7460-819c-7c89e64a5257"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"name","message":"the name \"system\" is reserved"}],"instance":"01a18b59-f718-7365-ba4a-4889acaffcdb"}
 ```
 
 And a body over the limit:
@@ -249,7 +276,7 @@ curl -sS -X POST \
 ```
 
 ```
-{"type":"about:blank","title":"FastifyError","status":413,"detail":"Request body is too large","instance":"01a0e4ef-bb76-7124-83a5-7b6d680169cf"}
+{"type":"about:blank","title":"FastifyError","status":413,"detail":"Request body is too large","instance":"01a18b59-f7fa-7b4c-a864-226cba6e111d"}
 ```
 
 And a document of 10,001 copies of `grace`, each under its own username, built
@@ -272,7 +299,7 @@ echo
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"document.subjects","message":"the tenant holds more than 10000 subjects, too many to export with ?include=subjects; export without it, and move users in bulk through inbound provisioning (P7)"}],"instance":"01a0e5bf-423c-74c8-9938-4e0f9dfc0f84"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"document.subjects","message":"the tenant holds more than 10000 subjects, too many to export with ?include=subjects; export without it, and move users in bulk through inbound provisioning (P7)"}],"instance":"01a18b59-f924-7efb-9d7c-492f7af92596"}
 {"count":0,"capped":false}
 ```
 
@@ -298,6 +325,6 @@ echo
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"document.roles[8].composites[0]","message":"nests billing-reader under view-users, which a new tenant provisions without it: nothing is nested under a capability role"}],"instance":"01a0e5f4-02ce-7c7b-9ed1-aa602860f2df"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"document.roles[8].composites[0]","message":"nests billing-reader under view-users, which a new tenant provisions without it: nothing is nested under a capability role"}],"instance":"01a18b59-fae7-7328-85a5-1739344fb885"}
 {"count":0,"capped":false}
 ```

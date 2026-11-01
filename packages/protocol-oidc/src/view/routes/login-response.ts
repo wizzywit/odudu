@@ -11,7 +11,7 @@ import { renderEmailUnverifiedPage, renderLoginForm } from '#/view/authorize-htm
 import { renderConsentPage } from '#/view/consent-html';
 import { refusalMessage } from '#/view/login-messages';
 import { sendHtml } from '#/view/html-response';
-import { continuation } from '#/view/routes/continuation';
+import { continuation, type TenantLocales } from '#/view/routes/continuation';
 import { sendSignInExpired } from '#/view/routes/expired-sign-in';
 import {
   sendRequiredActionPage,
@@ -23,14 +23,17 @@ export interface LoginResponseDeps extends RequiredActionResponseDeps {
   // Whether this deployment can offer a passkey login at all — see
   // renderLoginForm.
   passkeyLogin?: boolean;
-  findTenant(name: string): Promise<{
-    id: string;
-    rememberMeAllowed: boolean;
-    loginWithEmail: boolean;
-    registrationAllowed: boolean;
-    resetPasswordAllowed: boolean;
-    passwordRules: PasswordRules;
-  } | null>;
+  findTenant(name: string): Promise<
+    | ({
+        id: string;
+        rememberMeAllowed: boolean;
+        loginWithEmail: boolean;
+        registrationAllowed: boolean;
+        resetPasswordAllowed: boolean;
+        passwordRules: PasswordRules;
+      } & TenantLocales)
+    | null
+  >;
   // What to render on a rejected attempt — asked directly rather than
   // threaded through LoginSubmissionOutcome, so handleLoginSubmission stays
   // as unaware of the flow's requirements as its own tests assume.
@@ -143,6 +146,7 @@ export async function sendLoginOutcome(
         clientName: outcome.clientName,
         clientPages: outcome.clientPages,
         scopeLabels: outcome.scopeLabels,
+        i18n: outcome.i18n,
         defaultScopes: outcome.defaultScopes,
         optionalScopes: outcome.optionalScopes,
         alreadyGranted: outcome.alreadyGranted,

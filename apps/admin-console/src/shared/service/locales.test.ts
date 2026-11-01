@@ -1,6 +1,13 @@
 import { isValidLocale } from '@odudu/contracts';
 import { describe, expect, it } from 'vitest';
-import { localeName, localeOptions, localeProblem, typingLocale } from '#/shared/service/locales';
+import {
+  languageChoices,
+  languageLabel,
+  localeName,
+  localeOptions,
+  localeProblem,
+  typingLocale,
+} from '#/shared/service/locales';
 
 describe('locales', () => {
   it('names a tag in the reader’s language', () => {
@@ -29,5 +36,20 @@ describe('typingLocale', () => {
     expect(typingLocale('Engl', options)).toBe(true);
     expect(typingLocale('en-N', options)).toBe(true);
     expect(typingLocale('Klingon', options)).toBe(false);
+  });
+});
+
+describe('a language as a list shows it', () => {
+  it('names the language in English, then gives its tag', () => {
+    expect(languageLabel('fr')).toBe('French (fr)');
+    expect(languageLabel('pt-BR')).toBe('Portuguese (Brazil) (pt-BR)');
+  });
+
+  it('lists tags as choices, each by its label', () => {
+    expect(languageChoices(['fr', 'pt-BR'])).toEqual([
+      { id: 'fr', label: 'French (fr)' },
+      { id: 'pt-BR', label: 'Portuguese (Brazil) (pt-BR)' },
+    ]);
+    expect(languageChoices([])).toEqual([]);
   });
 });

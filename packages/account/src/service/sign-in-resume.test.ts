@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { referenceToResume, resumablePath } from '#/service/sign-in-resume';
+import { clientOfHeldSignIn, referenceToResume, resumablePath } from '#/service/sign-in-resume';
 
 const AUTH =
   '/tenants/acme/protocol/openid-connect/auth?response_type=code&client_id=console&state=s&nonce=n';
-const HELD = { sessionId: '0192f2a0-0000-7000-8000-000000000001', signInPath: AUTH };
+const HELD = {
+  sessionId: '0192f2a0-0000-7000-8000-000000000001',
+  signInPath: AUTH,
+  clientId: 'console',
+};
 
 describe('referenceToResume', () => {
   it('is the held sign-in when the form carried that very request', () => {
@@ -46,5 +50,23 @@ describe('resumablePath', () => {
 
   it('is nothing when the held request cannot be rebuilt faithfully', () => {
     expect(resumablePath({ ...HELD, signInPath: null }, HELD.sessionId)).toBeNull();
+  });
+});
+
+describe('[ODUDU-THEME-RESUME-01] clientOfHeldSignIn', () => {
+  it('is the client of the held sign-in when the form carried that very request', () => {
+    expect(clientOfHeldSignIn(HELD, AUTH)).toBe('console');
+  });
+
+  it('is nothing for every case referenceToResume refuses', () => {
+    expect(clientOfHeldSignIn(null, AUTH)).toBeNull();
+    expect(clientOfHeldSignIn(HELD, null)).toBeNull();
+    expect(clientOfHeldSignIn(HELD, AUTH.replace('console', 'other'))).toBeNull();
+    expect(clientOfHeldSignIn({ ...HELD, signInPath: null }, AUTH)).toBeNull();
+  });
+
+  it('never takes a client from the request the page carried, only from the held sign-in', () => {
+    const forged = AUTH.replace('console', 'victim-client');
+    expect(clientOfHeldSignIn({ ...HELD, signInPath: forged }, forged)).toBe('console');
   });
 });
