@@ -86,7 +86,7 @@ reason looks like when it is written up rather than admitted.
 ### The pass that closes a phase, before the branch is finished
 
 An increment keeps the documents current for what it changed. A phase is the
-only point where anything reads them **as a whole**, and five things go wrong
+only point where anything reads them **as a whole**, and six things go wrong
 only at that scale. Run these after the whole-branch review and before
 `finishing-a-development-branch`, because each one has already happened:
 
@@ -123,6 +123,14 @@ only at that scale. Run these after the whole-branch review and before
    stack. P4b nearly closed with the landing page's "Branding and theming" band
    still labelled "Planned", because nothing listed it as a document a phase
    owns.
+6. **Write the phase into `CHANGELOG.md`, under `## [Unreleased]`.** A release
+   candidate's notes come from that section, and the release workflow stops on
+   a tag whose section is missing. Take what the phase shipped from its note in
+   `docs/phases/`, and write it for a person who installs Odudu, under
+   _Added_, _Changed_, _Fixed_ and _Security_: what they can now do, what
+   behaves differently, and what was closed, never the phase's own task names.
+   P4b closed with `Unreleased` empty, and the candidate's notes had to be
+   reconstructed from the phase note a release later.
 
 Two habits that keep this pass short. When a document admits a gap, say where
 it gets fixed in the same sentence: six passages once said "there is no seed
@@ -285,6 +293,13 @@ where to read the page again rather than trust a green build.
     (`apps/docs/src/features/landing/view/Agents/Agents.test.tsx`). That a
     planned item is removed when its phase ships: no check, so the closing pass
     greps for it.
+- **A change a user or operator can see** (a feature, a changed behaviour, a
+  fix, a security change)
+  - Update: `CHANGELOG.md` under `## [Unreleased]`, in the same commit, in the
+    words of the person who installs Odudu.
+  - Checked by: `tests/lint/release-workflow.test.ts` and the release workflow
+    read only a dated section's form. That `Unreleased` holds the change: no
+    check, so the closing pass reads it.
 - **A roadmap placement** (a deferral, a gap, a phase's scope)
   - Update: `apps/docs/content/en/roadmap.md`, the phase's row in section 11,
     a `docs/NEXT.md` entry under its argument's address, an ADR when it is a
