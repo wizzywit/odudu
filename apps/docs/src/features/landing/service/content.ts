@@ -2,7 +2,7 @@
 // route the build checks, and a test ties the command to the quick start's.
 
 export const RELEASE_URL =
-  'https://github.com/wizzywit/odudu/releases/download/v0.1.0-rc.4/compose.yaml';
+  'https://github.com/wizzywit/odudu/releases/download/v0.1.0-rc.5/compose.yaml';
 
 // The caveat both the landing page and the Quick start carry until a stable
 // release is in the changelog; the address then becomes the `latest` one.

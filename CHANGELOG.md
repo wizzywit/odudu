@@ -6,6 +6,31 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.1.0-rc.5] - 2026-11-01
+
+The fifth release candidate. Odudu has had no independent security review.
+
+### Added
+
+- Every page the server shows, and its mail, can wear a tenant's theme and a client's branding: a light and a dark palette, a font, a logo, a dark logo, a favicon, a background image, a stylesheet and page templates. A client's pieces override the tenant's one piece at a time.
+- A Branding area in the admin console, and a Branding tab on each client: a live preview in a sandboxed frame, a draft that is published as a numbered version, up to twenty versions kept, and Revert, Discard and Restore. On a phone the preview is a strip that opens as a sheet.
+- Two administrators editing the same message override or theme see what changed and choose Keep mine or Take theirs, instead of overwriting each other.
+- Pages and mail in English and Arabic, chosen per tenant, with the tenant's own wording for any message.
+- Mail wears the tenant's logo and colours, and a client's over them when the sign-in began in that client, in a light and a dark look. The Email page can send a test mail as any client.
+- Documentation for tenant and client branding, with a picture for each step in light and dark.
+
+### Changed
+
+- The admin API authenticates every request that carries a body before it reads the body, so an unauthenticated caller can no longer make the server buffer and validate a large body.
+- A client's default scopes are listed in one fixed order, with `openid` first.
+
+### Security
+
+- Templates and stylesheets are checked before they are saved and again when served: a stylesheet cannot hide a needed part of a page, shrink it, wash it out or remove the focus outline, and a template cannot add its own form or script. Uploaded images are re-encoded, and brand and asset responses carry a sandboxing content security policy.
+- A message override of the consent heading must keep the client's name.
+- Every automatic message carries `Auto-Submitted: auto-generated`.
+- The test mail takes one recipient, is rate limited, and says nothing of a failed relay's own text.
+
 ## [0.1.0-rc.4] - 2026-10-27
 
 The fourth release candidate. Odudu has had no independent security review.
@@ -102,7 +127,8 @@ The first release candidate. Odudu is not production ready: it has had no securi
 - Cookies are `Secure` and `__Host-` prefixed under `ODUDU_TLS`, from one setting; before, the session cookie ignored it.
 - Characters that change the direction of text are refused in names and usernames.
 
-[Unreleased]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.4...HEAD
+[Unreleased]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.5...HEAD
+[0.1.0-rc.5]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.4...v0.1.0-rc.5
 [0.1.0-rc.4]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.3...v0.1.0-rc.4
 [0.1.0-rc.3]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.2...v0.1.0-rc.3
 [0.1.0-rc.2]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.1...v0.1.0-rc.2

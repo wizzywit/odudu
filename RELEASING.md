@@ -4,7 +4,7 @@ A release is a tag. Push `v0.1.0` and a workflow builds the image, signs it and
 publishes a GitHub Release. This page is for the people who cut one.
 
 Until the first stable release, the README and the quick start use the
-newest candidate tag, now `v0.1.0-rc.4`, in the download address. When `0.1.0` is out, switch
+newest candidate tag, now `v0.1.0-rc.5`, in the download address. When `0.1.0` is out, switch
 them to `releases/latest/download`: edit `README.md`,
 `apps/docs/content/en/quick-start/index.mdx`,
 `apps/docs/src/features/landing/service/content.ts` and the caveats beside them.
@@ -14,7 +14,7 @@ them to `releases/latest/download`: edit `README.md`,
 Odudu is before 1.0, so a minor version (`0.2.0`) may break something and a
 patch version (`0.1.1`) only fixes. The changelog says which. Tags are
 `vMAJOR.MINOR.PATCH`. A release candidate adds `-rc.N`, counting from 1, as in
-`v0.1.0-rc.4`. No other suffix is accepted: the workflow refuses it.
+`v0.1.0-rc.5`. No other suffix is accepted: the workflow refuses it.
 
 A release candidate is never `latest`. It gets its own image tag and a GitHub
 Release marked as a pre-release, and nothing that follows `latest` moves.
