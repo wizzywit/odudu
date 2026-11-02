@@ -67,3 +67,8 @@ export function startDomReveal(env: RevealEnv): (() => void) | undefined {
   };
   return startReveal(host);
 }
+
+// The reveal over the page the browser is showing.
+export function startPageReveal(): (() => void) | undefined {
+  return startDomReveal({ document, window, Observer: IntersectionObserver });
+}

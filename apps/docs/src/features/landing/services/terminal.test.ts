@@ -3,7 +3,7 @@ import { COMMANDS, RELEASE_CAVEAT } from '@site/src/features/landing/services/co
 import {
   commandOf,
   copyLabel,
-  copyText,
+  copyStatusOf,
   lineVisible,
   TYPED_COMMAND,
   followUpLines,
@@ -50,11 +50,9 @@ describe('the hero terminal', () => {
     expect(typingAfterChoice('done')).toBe('done');
   });
 
-  it('copies the whole command and says whether it could', async () => {
-    const write = vi.fn(() => Promise.resolve());
-    expect(await copyText(write, COMMAND)).toBe('copied');
-    expect(write).toHaveBeenCalledWith(COMMAND);
-    expect(await copyText(() => Promise.reject(new Error('refused')), COMMAND)).toBe('failed');
+  it('says whether the copy worked', () => {
+    expect(copyStatusOf(true)).toBe('copied');
+    expect(copyStatusOf(false)).toBe('failed');
   });
 
   it('words the note and the button for each state', () => {

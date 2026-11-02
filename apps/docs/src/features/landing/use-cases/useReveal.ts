@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useIdle } from '@site/src/features/landing/use-cases/useIdle';
-import { usePrefersReducedMotion } from '@site/src/features/landing/use-cases/usePrefersReducedMotion';
+import { useIdle } from '@site/src/shared/use-cases/useIdle';
+import { usePrefersReducedMotion } from '@site/src/shared/use-cases/usePrefersReducedMotion';
 import { canRevealOnScroll } from '@site/src/shared/platform/page';
 import { useProbe } from '@site/src/shared/use-cases/useProbe';
 
@@ -16,9 +16,9 @@ export function useReveal(): boolean {
     let stop: (() => void) | undefined;
     let cancelled = false;
     import('@site/src/features/landing/platform/revealHost').then(
-      ({ startDomReveal }) => {
+      ({ startPageReveal }) => {
         if (cancelled) return;
-        stop = startDomReveal({ document, window, Observer: IntersectionObserver });
+        stop = startPageReveal();
         setActive(stop !== undefined);
       },
       () => undefined,

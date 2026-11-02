@@ -118,13 +118,6 @@ export function shellChoices(chosen: Shell): ShellChoice[] {
   return COMMANDS.map((entry) => ({ ...entry, checked: entry.shell === chosen }));
 }
 
-export type ClipboardWrite = (text: string) => Promise<void>;
-
-export async function copyText(write: ClipboardWrite, text: string): Promise<CopyStatus> {
-  try {
-    await write(text);
-    return 'copied';
-  } catch {
-    return 'failed';
-  }
+export function copyStatusOf(copied: boolean): CopyStatus {
+  return copied ? 'copied' : 'failed';
 }

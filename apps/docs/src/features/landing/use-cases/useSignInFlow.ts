@@ -10,9 +10,10 @@ import {
   type StepperButton,
 } from '@site/src/features/landing/services/playback';
 import { HAND_OVER_MS } from '@site/src/features/landing/services/timing';
-import { usePrefersReducedMotion } from '@site/src/features/landing/use-cases/usePrefersReducedMotion';
+import { usePrefersReducedMotion } from '@site/src/shared/use-cases/usePrefersReducedMotion';
 import { canObserve, watchVisible } from '@site/src/shared/platform/observe';
 import { watchPageShown } from '@site/src/shared/platform/page';
+import { schedule } from '@site/src/shared/platform/timers';
 
 export interface SignInFlow {
   uid: string;
@@ -68,24 +69,18 @@ export function useSignInFlow(): SignInFlow {
   const running = playing(flow);
   useEffect(() => {
     if (!running) return undefined;
-    const timer = setTimeout(() => {
+    return schedule(() => {
       dispatch({ type: 'tick' });
     }, waitFor(flow.step));
-    return () => {
-      clearTimeout(timer);
-    };
   }, [running, flow.step]);
 
   const view = viewOf(flow);
   const { handing } = view;
   useEffect(() => {
     if (!handing) return undefined;
-    const timer = setTimeout(() => {
+    return schedule(() => {
       dispatch({ type: 'settled' });
     }, HAND_OVER_MS);
-    return () => {
-      clearTimeout(timer);
-    };
   }, [handing, flow.step]);
 
   return {

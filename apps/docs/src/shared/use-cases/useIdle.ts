@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent } from 'react';
+import { whenIdle } from '@site/src/shared/platform/idle';
 
 // Starts `run` once the page is idle, while `enabled`, and stops what it
 // started when `enabled` ends or the page goes. Where the browser has no idle
@@ -8,21 +9,9 @@ export function useIdle(enabled: boolean, fallbackMs: number, run: () => () => v
   useEffect(() => {
     if (!enabled) return undefined;
     let stop: (() => void) | undefined;
-    const start = (): void => {
+    const cancel = whenIdle(() => {
       stop = begin();
-    };
-    let cancel: () => void;
-    if (typeof requestIdleCallback === 'function') {
-      const handle = requestIdleCallback(start);
-      cancel = () => {
-        cancelIdleCallback(handle);
-      };
-    } else {
-      const timer = setTimeout(start, fallbackMs);
-      cancel = () => {
-        clearTimeout(timer);
-      };
-    }
+    }, fallbackMs);
     return () => {
       cancel();
       stop?.();

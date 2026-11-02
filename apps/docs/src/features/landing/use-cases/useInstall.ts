@@ -6,7 +6,7 @@ import {
   TYPED_COMMAND,
   TYPING_SEED,
   commandOf,
-  copyText,
+  copyStatusOf,
   effectiveTyping,
   followUpLines,
   typingAfterChoice,
@@ -14,8 +14,10 @@ import {
   type Typing,
 } from '@site/src/features/landing/services/terminal';
 import type { Timers } from '@site/src/features/landing/services/typewriter';
-import { usePrefersReducedMotion } from '@site/src/features/landing/use-cases/usePrefersReducedMotion';
-import { useIdle } from '@site/src/features/landing/use-cases/useIdle';
+import { usePrefersReducedMotion } from '@site/src/shared/use-cases/usePrefersReducedMotion';
+import { copyText } from '@site/src/shared/platform/clipboard';
+import { schedule } from '@site/src/shared/platform/timers';
+import { useIdle } from '@site/src/shared/use-cases/useIdle';
 
 export interface Install {
   shell: Shell;
@@ -29,10 +31,10 @@ export interface Install {
 }
 
 // The page's own clock, handed to the typewriter service.
-const WINDOW_TIMERS: Timers<ReturnType<typeof setTimeout>> = {
-  set: (run, ms) => setTimeout(run, ms),
-  clear: (handle) => {
-    clearTimeout(handle);
+const WINDOW_TIMERS: Timers<() => void> = {
+  set: schedule,
+  clear: (cancel) => {
+    cancel?.();
   },
 };
 
@@ -83,12 +85,9 @@ export function useInstall(): Install {
 
   useEffect(() => {
     if (status === 'idle') return undefined;
-    const timer = setTimeout(() => {
+    return schedule(() => {
       setStatus('idle');
     }, COPIED_FOR_MS);
-    return () => {
-      clearTimeout(timer);
-    };
   }, [status]);
 
   return {
@@ -104,10 +103,9 @@ export function useInstall(): Install {
       setTyping(typingAfterChoice);
     },
     copy: () => {
-      copyText((text) => navigator.clipboard.writeText(text), commandOf(shell)).then(
-        setStatus,
-        () => undefined,
-      );
+      copyText(commandOf(shell)).then((copied) => {
+        setStatus(copyStatusOf(copied));
+      });
     },
   };
 }
