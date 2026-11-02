@@ -1,17 +1,11 @@
 import type { RevokeClientGrantsResponse } from '@odudu/contracts/admin';
-import { holds } from '#/shared/services/access';
 import { writeFailureText } from '#/shared/services/failure';
 import { counted } from '#/shared/services/format';
-import type { AdminCapability, Authority } from '#/shared/services/principal';
+import type { AdminCapability } from '#/shared/services/principal';
 import type { GatewayFailure } from '#/shared/services/result';
 import { clientRefusal } from '#/features/clients/services/refusal';
 
 export const SESSIONS_CAPABILITY: AdminCapability = 'manage-sessions';
-
-// Whether whoami admits the caller to the sessions: manage-sessions is held, or not yet answered.
-export function sessionsReadable(authority: Authority | undefined): boolean {
-  return authority === undefined || holds(authority, SESSIONS_CAPABILITY);
-}
 
 export const SESSIONS_RULE =
   'The sessions that hold a grant through this client: who is signed in to it now. Ending one is done from the subject it belongs to.';

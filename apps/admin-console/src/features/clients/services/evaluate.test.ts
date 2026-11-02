@@ -4,7 +4,6 @@ import {
   askedParts,
   answerShown,
   artefactsOf,
-  evaluateAllowed,
   evaluateFailureText,
   evaluatedScope,
   evaluationOf,
@@ -40,12 +39,6 @@ it('has no ID token to show without openid', () => {
 it('names the scope it worked out, or says there was none', () => {
   expect(evaluatedScope(RESULT)).toBe('openid profile');
   expect(evaluatedScope({ ...RESULT, scope: '' })).toBe('no scope');
-});
-
-it('admits a caller who may read subjects, and rules nobody out before whoami answers', () => {
-  expect(evaluateAllowed({ capabilities: ['view-users'], crossTenant: false })).toBe(true);
-  expect(evaluateAllowed({ capabilities: ['manage-clients'], crossTenant: false })).toBe(false);
-  expect(evaluateAllowed(undefined)).toBe(true);
 });
 
 it("gives the server's reason in the singular, so it reads as a sentence", () => {

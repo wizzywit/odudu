@@ -1,4 +1,4 @@
-import { holds } from '#/shared/services/access';
+import { readable } from '#/shared/services/access';
 import { withSearch } from '#/shared/services/address';
 import type { Authority } from '#/shared/services/principal';
 
@@ -7,9 +7,7 @@ export const ROLES_CAPABILITY = 'manage-tenant';
 // The role list answers to manage-tenant, and to view-users, which a holder
 // of manage-users has. Until whoami answers nothing is ruled out.
 export function rolesReadable(authority: Authority | undefined): boolean {
-  return (
-    authority === undefined || holds(authority, 'manage-tenant') || holds(authority, 'view-users')
-  );
+  return readable(authority, 'manage-tenant') || readable(authority, 'view-users');
 }
 
 // The roles list that narrows to this client's own, where every filter applies.

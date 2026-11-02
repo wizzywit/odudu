@@ -6,16 +6,17 @@ import { useSubjectPicker } from '#/shared/repository/useSubjectPicker';
 import {
   answerShown,
   askedAfter,
-  evaluateAllowed,
+  EVALUATE_CAPABILITY,
   type Artefact,
   type Asked,
 } from '#/features/clients/services/evaluate';
+import { readable } from '#/shared/services/access';
 import { lastChosen, type PickerState } from '#/shared/services/picker';
 
 // Whether the caller may look at a subject's claims: whoami says view-users
 // is held, or has not yet answered.
 export function useEvaluateAllowed(tenant: string): boolean {
-  return evaluateAllowed(useAuthority(tenant));
+  return readable(useAuthority(tenant), EVALUATE_CAPABILITY);
 }
 
 export interface ClientEvaluate {

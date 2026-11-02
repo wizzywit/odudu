@@ -3,7 +3,6 @@ import {
   revokedText,
   revokeConsequence,
   revokeFailureText,
-  sessionsReadable,
 } from '#/features/clients/services/sessions';
 
 describe('revokedText', () => {
@@ -55,12 +54,4 @@ it('says a lost answer is not sent again, and the server reason otherwise', () =
       'Billing',
     ),
   ).toBe('The revocation for Billing was not carried out: no');
-});
-
-describe('sessionsReadable', () => {
-  it('admits manage-sessions, and rules nobody out before whoami answers', () => {
-    expect(sessionsReadable({ capabilities: ['manage-sessions'], crossTenant: false })).toBe(true);
-    expect(sessionsReadable({ capabilities: ['manage-clients'], crossTenant: false })).toBe(false);
-    expect(sessionsReadable(undefined)).toBe(true);
-  });
 });

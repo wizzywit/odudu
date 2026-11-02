@@ -14,17 +14,16 @@ import {
   revokedText,
   revokeFailureText,
   SESSIONS_CAPABILITY,
-  sessionsReadable,
 } from '#/features/clients/services/sessions';
 import { useGo } from '#/shared/repository/useGo';
-import { lacking } from '#/shared/services/access';
+import { lacking, readable } from '#/shared/services/access';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
 
 // Whether the caller may read them: whoami says manage-sessions is held,
 // or has not yet answered.
 export function useSessionsReadable(tenant: string): boolean {
-  return sessionsReadable(useAuthority(tenant));
+  return readable(useAuthority(tenant), SESSIONS_CAPABILITY);
 }
 
 export interface ClientSessions extends Removal {

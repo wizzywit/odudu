@@ -89,3 +89,17 @@ describe('ceilingCaller', () => {
     expect(ceilingCaller({ status: 'failed' })).toEqual([]);
   });
 });
+
+describe('readable, as the evaluate, sessions and roles gates use it', () => {
+  const sessions = { capabilities: ['manage-sessions'], crossTenant: false } as const;
+  const clients = { capabilities: ['manage-clients'], crossTenant: false } as const;
+
+  it('admits the capability, rules nobody out before whoami answers, and rules out the rest', () => {
+    expect(readable(VIEWER, 'view-users')).toBe(true);
+    expect(readable(clients, 'view-users')).toBe(false);
+    expect(readable(sessions, 'manage-sessions')).toBe(true);
+    expect(readable(clients, 'manage-sessions')).toBe(false);
+    expect(readable(undefined, 'view-users')).toBe(true);
+    expect(readable(undefined, 'manage-sessions')).toBe(true);
+  });
+});
