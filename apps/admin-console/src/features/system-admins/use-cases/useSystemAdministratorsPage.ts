@@ -6,11 +6,7 @@ import { usePickerHolders } from '#/features/system-admins/repository/usePickerH
 import { useSubjectPicker } from '#/shared/repository/useSubjectPicker';
 import { administratorsAccess } from '#/features/system-admins/services/access';
 import { grantedText, grantFailureText } from '#/features/system-admins/services/grant';
-import {
-  choosable,
-  pickerUnavailable,
-  subjectName,
-} from '#/features/system-admins/services/picker';
+import { choosable, pickerUnavailable } from '#/features/system-admins/services/picker';
 import { useBeginAdministrator, type BeginAdministrator } from '#/features/tenants';
 import { useToast } from '#/shared/repository/useToasts';
 import type { Change } from '#/shared/services/access';
@@ -20,7 +16,7 @@ import {
   TENANT_ADMIN,
 } from '#/shared/services/administrators';
 import { holdingOptions, holdingsIn, type HoldingOption } from '#/shared/services/capabilities';
-import { inOrderOf } from '#/shared/services/ids';
+import { inOrderOf, nameOrId } from '#/shared/services/ids';
 import type { PickerState } from '#/shared/services/picker';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/services/principal';
 
@@ -92,7 +88,7 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
         setHoldingsError(problem);
         return;
       }
-      const name = subjectName(chosen);
+      const name = nameOrId(chosen);
       setGrantMessage(null);
       change
         .grant(chosen.id, holdings)

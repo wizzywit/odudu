@@ -16,6 +16,7 @@ import {
   useEvaluateAllowed,
   type ClientEvaluate,
 } from '#/features/clients/use-cases/useClientEvaluate';
+import { nameOrId } from '#/shared/services/ids';
 import { Button } from '#/shared/ui/Button';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { CopyValue } from '#/shared/ui/CopyValue';
@@ -50,7 +51,7 @@ function Form({ page }: { page: ClientEvaluate }) {
         noun={{ one: 'subject', other: 'subjects' }}
         picker={page.picker}
         idOf={(subject) => subject.id}
-        nameOf={(subject) => subject.username ?? subject.id}
+        nameOf={(subject) => nameOrId(subject)}
         detailOf={(subject) => subject.email ?? subject.type}
         searchBy="username"
         capability={EVALUATE_CAPABILITY}

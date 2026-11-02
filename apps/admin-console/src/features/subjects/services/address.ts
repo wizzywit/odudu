@@ -1,5 +1,6 @@
 import { type Credential, type Lockout, type Profile, type Subject } from '@odudu/contracts/admin';
 import { resourceAddress, withSearch } from '#/shared/services/address';
+import { nameOrId } from '#/shared/services/ids';
 import { type AdminCapability } from '#/shared/services/principal';
 
 export type { Credential, Lockout, Profile, Subject };
@@ -14,7 +15,7 @@ export const {
 } = subjects;
 
 export function subjectName(subject: Pick<Subject, 'id' | 'type' | 'username'>): string {
-  return subject.username ?? `${subject.type} ${subject.id}`;
+  return nameOrId(subject, subject.type);
 }
 
 export function createSubjectHref(

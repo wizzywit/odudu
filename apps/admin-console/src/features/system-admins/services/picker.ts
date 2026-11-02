@@ -2,10 +2,6 @@ import type { Subject } from '@odudu/contracts/admin';
 
 export type { Subject };
 
-export function subjectName(subject: Pick<Subject, 'id' | 'username'>): string {
-  return subject.username ?? subject.id;
-}
-
 // A subject holding something already is changed in the list, not given it again.
 export function pickerUnavailable(
   holders: ReadonlySet<string> | null,

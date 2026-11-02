@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { indexById, inOrderOf, removedFrom, sortedIds, uniqueIds } from '#/shared/services/ids';
+import {
+  indexById,
+  inOrderOf,
+  nameOrId,
+  removedFrom,
+  sortedIds,
+  uniqueIds,
+} from '#/shared/services/ids';
 
 describe('sortedIds', () => {
   it('sorts a copy and leaves the input alone', () => {
@@ -40,4 +47,14 @@ describe('indexById', () => {
     expect(index.get('c')).toBeUndefined();
     expect(indexById().size).toBe(0);
   });
+});
+
+it('names by username, or by id when there is none', () => {
+  expect(nameOrId({ id: 's1', username: 'ada' })).toBe('ada');
+  expect(nameOrId({ id: 's2', username: null })).toBe('s2');
+});
+
+it('names an unnamed one by its label and id when a label is given', () => {
+  expect(nameOrId({ id: 's1', username: 'ada' }, 'user')).toBe('ada');
+  expect(nameOrId({ id: 's2', username: null }, 'service')).toBe('service s2');
 });

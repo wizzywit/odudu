@@ -4,18 +4,10 @@ import {
   holdersParams,
   holderSet,
   pickerUnavailable,
-  subjectName,
   type Subject,
 } from '#/features/system-admins/services/picker';
 
 const subject = (id: string): Subject => ({ id, username: id }) as Subject;
-
-describe('a subject of system', () => {
-  it('is named by username, or by id when it has none', () => {
-    expect(subjectName({ id: 's1', username: 'ada' })).toBe('ada');
-    expect(subjectName({ id: 's2', username: null })).toBe('s2');
-  });
-});
 
 describe('the picker of subjects', () => {
   const holders = new Set(['s1']);

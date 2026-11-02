@@ -1,5 +1,6 @@
 import type { EndTenantSessionsResponse, TenantSession } from '@odudu/contracts/admin';
 import { tenantPage } from '#/shared/services/address';
+import { nameOrId } from '#/shared/services/ids';
 import { writeRefusal } from '#/shared/services/capabilities';
 import { writeFailureText } from '#/shared/services/failure';
 import { counted } from '#/shared/services/format';
@@ -27,7 +28,10 @@ export function subjectCell(session: Pick<TenantSession, 'subject_id' | 'usernam
   label: string;
   id: string;
 } {
-  return { label: session.username ?? session.subject_id, id: session.subject_id };
+  return {
+    label: nameOrId({ id: session.subject_id, username: session.username }),
+    id: session.subject_id,
+  };
 }
 
 // Where a session's subject has its page, for a caller who may read subjects.
