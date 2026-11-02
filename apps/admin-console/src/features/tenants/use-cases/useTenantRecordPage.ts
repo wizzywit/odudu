@@ -1,13 +1,8 @@
 import type { Tenant } from '@odudu/contracts/admin';
 import { useAuthority } from '#/features/session';
 import { useTenantRecord } from '#/features/tenants/repository/useTenantRecord';
-import {
-  tenantRecord,
-  tenantRecordAccess,
-  TENANT_TABS,
-  type TenantRecordAccess,
-  type TenantTab,
-} from '#/features/tenants/services';
+import { tenantRecordAccess, type TenantRecordAccess } from '#/features/tenants/services/access';
+import { tenantRecord, TENANT_TABS, type TenantTab } from '#/features/tenants/services/tabs';
 import { useDirtySections } from '#/shared/repository/useDirtySections';
 import { useRecordTab } from '#/shared/repository/useRecordTab';
 import { SYSTEM_TENANT } from '#/shared/services/principal';

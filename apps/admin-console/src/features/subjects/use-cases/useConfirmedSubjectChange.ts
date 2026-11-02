@@ -1,5 +1,5 @@
 import { useRefusal } from '#/features/session';
-import { changeFailureText } from '#/features/subjects/services';
+import { changeFailureText } from '#/features/subjects/services/access';
 import { useToast } from '#/shared/repository/useToasts';
 import type { Write } from '#/shared/repository/useWrite';
 import type { AdminCapability } from '#/shared/services/principal';

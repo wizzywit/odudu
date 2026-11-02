@@ -7,7 +7,7 @@ import {
   PAGE_RULE,
   subjectCell,
   TITLE,
-} from '#/features/tenant-sessions/services';
+} from '#/features/tenant-sessions/services/page';
 import {
   useTenantSessionsPage,
   type TenantSessionsPage as Page,

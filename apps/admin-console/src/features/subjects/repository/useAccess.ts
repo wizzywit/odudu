@@ -27,7 +27,7 @@ import {
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useRead } from '#/shared/repository/useRead';
 import type { Read } from '#/shared/services/read';
-import { actionsRecord, groupsRecord, rolesRecord } from '#/features/subjects/services';
+import { actionsRecord, groupsRecord, rolesRecord } from '#/features/subjects/services/tabs';
 import { readSubjectRoles, setSubjectRoles } from '#/shared/adapter/administrators';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord';
 import { useResourceList } from '#/shared/repository/useResourceList';

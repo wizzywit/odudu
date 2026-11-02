@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
-import { USERNAME_RULE_TEXT } from '#/features/subjects/services';
+import { USERNAME_RULE_TEXT } from '#/features/subjects/services/account';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { json, offline, problem, whoamiReads } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';

@@ -1,13 +1,11 @@
 import { useTenantCreate } from '#/features/tenants/repository/useCreation';
+import { administratorOf, type Creation } from '#/features/tenants/services/creation';
+import { issuerPreview, nameProblem } from '#/features/tenants/services/name';
 import {
-  administratorOf,
   createTenantCall,
   findTenantCall,
-  issuerPreview,
-  nameProblem,
   tenantNotCreatedText,
-  type Creation,
-} from '#/features/tenants/services';
+} from '#/features/tenants/services/steps';
 import type { StepFeedback } from '#/features/tenants/use-cases/useStepFeedback';
 import { TENANT_NAME_RULE_TEXT } from '#/shared/services/labels';
 

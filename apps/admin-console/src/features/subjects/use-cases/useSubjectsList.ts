@@ -1,7 +1,7 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { useAuthority } from '#/features/session';
 import { useSubjectList } from '#/features/subjects/repository/useSubjectList';
-import { createSubjectHref, subjectHref } from '#/features/subjects/services';
+import { createSubjectHref, subjectHref } from '#/features/subjects/services/address';
 import { lacking } from '#/shared/services/access';
 import type { AdminCapability } from '#/shared/services/principal';
 import { useListPage, type ListPageState } from '#/shared/use-cases/useListPage';

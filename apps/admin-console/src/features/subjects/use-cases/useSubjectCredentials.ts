@@ -8,6 +8,8 @@ import {
   useRefreshCredentials,
   useLockout,
 } from '#/features/subjects/repository/useCredentials';
+import { signsInAsItself } from '#/features/subjects/services/account';
+import { subjectName } from '#/features/subjects/services/address';
 import {
   askingAgainst,
   CHOICE_DEFAULTS,
@@ -17,10 +19,8 @@ import {
   credentialDialogOf,
   credentialDoneText,
   credentialFailureText,
-  signsInAsItself,
-  subjectName,
   type Asking,
-} from '#/features/subjects/services';
+} from '#/features/subjects/services/credentials';
 import { useToast } from '#/shared/repository/useToasts';
 import type { NamedDialog } from '#/shared/services/dialog';
 import type { Read } from '#/shared/services/read';

@@ -1,12 +1,7 @@
 import type { RuleId } from './rule.ts';
 
 export const INVENTORY: Record<RuleId, string[]> = {
-  'no-service-barrel': [
-    'apps/admin-console/src/features/subjects/services/index.ts',
-    'apps/admin-console/src/features/system-admins/services/index.ts',
-    'apps/admin-console/src/features/tenant-sessions/services/index.ts',
-    'apps/admin-console/src/features/tenants/services/index.ts',
-  ],
+  'no-service-barrel': [],
   'no-domain-in-shared': [
     'apps/admin-console/src/shared/adapter/administrators.test.ts',
     'apps/admin-console/src/shared/adapter/administrators.ts',

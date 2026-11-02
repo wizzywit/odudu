@@ -12,7 +12,7 @@ import {
   readCredentials,
   readLockout,
 } from '#/features/subjects/adapter/subjects';
-import { staleReadOf, type CredentialChange } from '#/features/subjects/services';
+import { staleReadOf, type CredentialChange } from '#/features/subjects/services/credentials';
 import { issuePassword } from '#/shared/adapter/administrators';
 import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce';
 import { useWrite, type Write } from '#/shared/repository/useWrite';

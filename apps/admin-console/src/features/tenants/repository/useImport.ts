@@ -4,11 +4,8 @@ import { useMutation } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { readFileText } from '#/features/tenants/adapter/files';
 import { findTenant, importTenant } from '#/features/tenants/adapter/tenants';
-import {
-  parseDocument,
-  type ImportedSecret,
-  type ImportOutcome,
-} from '#/features/tenants/services';
+import { parseDocument } from '#/features/tenants/services/document';
+import { type ImportedSecret, type ImportOutcome } from '#/features/tenants/services/import';
 import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
 import { useFreshRead } from '#/shared/repository/useFreshRead';
 import { useTransport } from '#/shared/transport/useTransport';

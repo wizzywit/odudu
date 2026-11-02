@@ -2,14 +2,8 @@ import type { Subject } from '@odudu/contracts/admin';
 import { useAuthority, usePrincipal } from '#/features/session';
 import { useHeldCapabilities } from '#/features/subjects/repository/useAccess';
 import { useSubjectRecord } from '#/features/subjects/repository/useSubjectRecord';
-import {
-  canManageSubject,
-  reachOf,
-  SUBJECT_TABS,
-  subjectBeyond,
-  TAB_RECORDS,
-  type SubjectTab,
-} from '#/features/subjects/services';
+import { canManageSubject, reachOf, subjectBeyond } from '#/features/subjects/services/reach';
+import { SUBJECT_TABS, TAB_RECORDS, type SubjectTab } from '#/features/subjects/services/tabs';
 import { lacking } from '#/shared/services/access';
 import { isSelf, type AdminCapability } from '#/shared/services/principal';
 import type { RecordView } from '#/shared/services/record';

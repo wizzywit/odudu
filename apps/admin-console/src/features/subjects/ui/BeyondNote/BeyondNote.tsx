@@ -1,4 +1,4 @@
-import { beyondText } from '#/features/subjects/services';
+import { beyondText } from '#/features/subjects/services/reach';
 import { Button } from '#/shared/ui/Button';
 import { Note } from '#/shared/ui/Note';
 

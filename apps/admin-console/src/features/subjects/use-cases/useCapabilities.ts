@@ -9,28 +9,26 @@ import {
 } from '#/features/subjects/repository/useAccess';
 import {
   accessRefusal,
-  adminRolesBlocked,
   offersWrites,
+  removalConfirmation,
+  type Confirmation,
+} from '#/features/subjects/services/access';
+import { subjectName } from '#/features/subjects/services/address';
+import {
+  adminRolesBlocked,
   rolesFailure,
-  beyondText,
   capabilitiesRemoveTenants,
   capabilityOptions,
   describeHoldings,
   elsewhereText,
   heldElsewhere,
-  heldOf,
   keptOtherwise,
   onlyHolder,
-  removalConfirmation,
-  roleIdsOf,
-  rolesRecord,
-  splitRoles,
-  subjectBeyond,
-  subjectName,
-  subjectTabHref,
-  type Confirmation,
   type HeldElsewhere,
-} from '#/features/subjects/services';
+} from '#/features/subjects/services/holdings';
+import { beyondText, heldOf, subjectBeyond } from '#/features/subjects/services/reach';
+import { roleIdsOf, splitRoles } from '#/features/subjects/services/roles';
+import { rolesRecord, subjectTabHref } from '#/features/subjects/services/tabs';
 import { administratorCapability } from '#/shared/services/administrators';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';

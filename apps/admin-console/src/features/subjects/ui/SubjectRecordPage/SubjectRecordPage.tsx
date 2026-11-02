@@ -1,12 +1,10 @@
 import type { ReactNode } from 'react';
+import { subjectName, subjectsTrail, type Subject } from '#/features/subjects/services/address';
 import {
   SUBJECT_TAB_LABELS,
   SUBJECT_TABS,
-  subjectName,
-  subjectsTrail,
-  type Subject,
   type SubjectTab,
-} from '#/features/subjects/services';
+} from '#/features/subjects/services/tabs';
 import { useSubjectRecordPage } from '#/features/subjects/use-cases/useSubjectRecordPage';
 import { ActivityPanel } from '#/features/subjects/ui/SubjectRecordPage/ActivityPanel';
 import { ConsentsTab } from '#/features/subjects/ui/SubjectRecordPage/ConsentsTab';

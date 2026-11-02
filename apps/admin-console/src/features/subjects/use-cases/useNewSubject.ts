@@ -2,15 +2,13 @@ import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/features/session';
 import { useCreateSubject } from '#/features/subjects/repository/useCreateSubject';
 import { useGo } from '#/shared/repository/useGo';
+import { USERNAME_RULE_TEXT, usernameProblem } from '#/features/subjects/services/account';
+import { subjectHref, subjectsHref } from '#/features/subjects/services/address';
 import {
   manageUsersRefusal,
   newSubjectSpec,
   subjectCreatedText,
-  subjectHref,
-  subjectsHref,
-  USERNAME_RULE_TEXT,
-  usernameProblem,
-} from '#/features/subjects/services';
+} from '#/features/subjects/services/create';
 import { useToast } from '#/shared/repository/useToasts';
 import { lookupText } from '#/shared/services/failure';
 import { problemAt } from '#/shared/services/fieldErrors';

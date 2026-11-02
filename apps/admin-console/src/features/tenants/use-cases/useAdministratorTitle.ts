@@ -1,6 +1,7 @@
 import { draftOwner, usePrincipal } from '#/features/session';
 import { storedCreation } from '#/features/tenants/repository/useCreation';
-import { administratorTitle, titleOrigin } from '#/features/tenants/services';
+import { administratorTitle } from '#/features/tenants/services/address';
+import { titleOrigin } from '#/features/tenants/services/creation';
 
 // Read before access is checked, so the header matches the page it becomes.
 export function useAdministratorTitle(tenant: string): string {

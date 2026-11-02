@@ -4,7 +4,7 @@ import {
   useSystemAdministratorsPage,
   type SystemAdministrators,
 } from '#/features/system-admins/use-cases/useSystemAdministratorsPage';
-import { subjectName } from '#/features/system-admins/services';
+import { subjectName } from '#/features/system-admins/services/picker';
 import { SystemGate } from '#/features/tenants';
 import { firstChosen } from '#/shared/services/picker';
 import { SYSTEM_TENANT } from '#/shared/services/principal';

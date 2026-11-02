@@ -1,5 +1,5 @@
 import { SUBJECT_CAPABILITY_FILTER, type Subject } from '@odudu/contracts/admin';
-import { subjectName } from '#/features/subjects/services';
+import { subjectName } from '#/features/subjects/services/address';
 import { useSubjectsList } from '#/features/subjects/use-cases/useSubjectsList';
 import { SubjectsGate } from '#/features/subjects/ui/SubjectsGate';
 import { ButtonLink } from '#/shared/ui/ButtonLink';

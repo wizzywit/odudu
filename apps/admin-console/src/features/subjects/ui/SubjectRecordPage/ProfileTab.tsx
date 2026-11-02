@@ -1,15 +1,11 @@
 import { Link } from 'react-aria-components';
-import {
-  deletionRefusal,
-  signsInAsItself,
-  type Profile,
-  type Subject,
-} from '#/features/subjects/services';
+import { deletionRefusal, signsInAsItself } from '#/features/subjects/services/account';
+import { type Profile, type Subject } from '#/features/subjects/services/address';
 import {
   useSubjectAccount,
   type SubjectAccount,
 } from '#/features/subjects/use-cases/useSubjectAccount';
-import type { ClaimField } from '#/features/subjects/services';
+import type { ClaimField } from '#/features/subjects/services/claims';
 import {
   useSubjectClaims,
   useSubjectProfileRead,

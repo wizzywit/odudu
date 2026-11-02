@@ -1,5 +1,5 @@
 import type { Subject } from '@odudu/contracts/admin';
-import { subjectName } from '#/features/subjects/services';
+import { subjectName } from '#/features/subjects/services/address';
 import { useMembers, useMembersReadable } from '#/features/subjects/use-cases/useMembers';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
 import { Count } from '#/shared/ui/Count';

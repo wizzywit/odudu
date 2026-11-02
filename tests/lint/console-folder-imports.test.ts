@@ -4,14 +4,14 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-// A view component, a module in app/ with companions, and a service are
-// folders, imported as the folder: `#/shared/ui/Button`, `#/app/ToastLayer`,
-// `#/features/groups/services`. An import names neither an index.ts nor a file
-// inside another folder, so what a folder keeps private stays private. A
-// folder's own files reach each other by path, since relative imports are
-// banned and its index cannot import itself. A test may read a sibling's
-// stylesheet source, as `.module.css?raw`. Dynamic import() and vi.mock are
-// held to the same rules.
+// A view component, an app/ module with companions and a shared service folder
+// are imported as the folder: `#/shared/ui/Button`, `#/app/ToastLayer`,
+// `#/shared/services/failure`; a feature's services are files (ADR 0048). An
+// import names neither an index.ts nor a file inside another folder, so what a
+// folder keeps private stays private. A folder's own files reach each other by
+// path: relative imports are banned and its index cannot import itself. A test
+// may read a sibling's stylesheet source, as `.module.css?raw`. Dynamic
+// import() and vi.mock are held to the same rules.
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const CONSOLE_SOURCES = 'apps/admin-console/src/**/*.{ts,tsx}';
@@ -21,7 +21,6 @@ const COMPONENT_FOLDER = new RegExp(
     [
       '(?:shared|features/[^/]+)/ui/[A-Z][A-Za-z0-9]*',
       'app/[A-Za-z][A-Za-z0-9]*',
-      'features/[^/]+/services',
       'shared/services/[a-z][A-Za-z0-9]*',
     ].join('|') +
     ')/.',
@@ -107,7 +106,7 @@ describe("the console's folder imports", { timeout: 60_000 }, () => {
 
   it('fail every non-conforming fixture', async () => {
     const files = await read(`${FIXTURES}/fail/src/**/*.{ts,tsx}`, /^.*\/fail\/src\//u);
-    expect(files.size).toBe(10);
+    expect(files.size).toBe(8);
     for (const [file, source] of files) expect(violations(file, source), file).not.toEqual([]);
   });
 });

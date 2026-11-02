@@ -4,14 +4,13 @@ import { useAuthority, useRefusal } from '#/features/session';
 import { useAdministratorGrant } from '#/features/system-admins/repository/useAdministratorChange';
 import { usePickerHolders } from '#/features/system-admins/repository/usePickerHolders';
 import { useSubjectPicker } from '#/shared/repository/useSubjectPicker';
+import { administratorsAccess } from '#/features/system-admins/services/access';
+import { grantedText, grantFailureText } from '#/features/system-admins/services/grant';
 import {
-  administratorsAccess,
   choosable,
-  grantedText,
-  grantFailureText,
   pickerUnavailable,
   subjectName,
-} from '#/features/system-admins/services';
+} from '#/features/system-admins/services/picker';
 import { useBeginAdministrator, type BeginAdministrator } from '#/features/tenants';
 import { useToast } from '#/shared/repository/useToasts';
 import type { Change } from '#/shared/services/access';

@@ -1,5 +1,5 @@
 import type { EffectiveRoleAssignment, Subject } from '@odudu/contracts/admin';
-import { roleOwnerOf } from '#/features/subjects/services';
+import { roleOwnerOf } from '#/features/subjects/services/roles';
 import {
   useCapabilityEditor,
   useSubjectRolesRead,

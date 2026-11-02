@@ -1,7 +1,8 @@
 import { draftOwner, usePrincipal } from '#/features/session';
 import { beginAdministrator, storedCreation } from '#/features/tenants/repository/useCreation';
 import { useGo } from '#/shared/repository/useGo';
-import { administratorStepHref, resumesAdministrator } from '#/features/tenants/services';
+import { administratorStepHref } from '#/features/tenants/services/address';
+import { resumesAdministrator } from '#/features/tenants/services/creation';
 
 export interface BeginAdministrator {
   start: () => void;

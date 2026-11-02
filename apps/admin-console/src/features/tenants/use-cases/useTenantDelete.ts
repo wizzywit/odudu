@@ -1,13 +1,13 @@
 import { useAuthority, useRefusal } from '#/features/session';
 import { useTenantDeletion } from '#/features/tenants/repository/useTenantDeletion';
+import { TENANTS_HREF } from '#/features/tenants/services/address';
 import {
   DELETE_NEEDS,
   deleteConsequence,
   deleteFailure,
   deleteState,
-  TENANTS_HREF,
   type DeleteState,
-} from '#/features/tenants/services';
+} from '#/features/tenants/services/deletion';
 import { useGo } from '#/shared/repository/useGo';
 import { useToast } from '#/shared/repository/useToasts';
 import { lacking } from '#/shared/services/access';

@@ -4,21 +4,20 @@ import { useAdministratorStep } from '#/features/tenants/use-cases/useAdministra
 import { type StepFeedback } from '#/features/tenants/use-cases/useStepFeedback';
 import { useTenantStep } from '#/features/tenants/use-cases/useTenantStep';
 import {
-  ADD_SYSTEM_ADMIN_TITLE,
-  CREATE_TENANT_TITLE,
-  creationHeading,
-  doneStepOf,
-  pageOf,
-  type Creation,
-  type DoneStep,
-  firstAdministratorNote,
-  originText,
-  flowOf,
   systemAdminsTrail,
   tenantAdministratorTrail,
   tenantsTrail,
-  type CreationFlow,
-} from '#/features/tenants/services';
+} from '#/features/tenants/services/address';
+import { type Creation, flowOf, type CreationFlow } from '#/features/tenants/services/creation';
+import { doneStepOf, type DoneStep } from '#/features/tenants/services/done';
+import {
+  ADD_SYSTEM_ADMIN_TITLE,
+  CREATE_TENANT_TITLE,
+  creationHeading,
+  pageOf,
+  firstAdministratorNote,
+  originText,
+} from '#/features/tenants/services/heading';
 import { useAdministratorTitle } from '#/features/tenants/use-cases/useAdministratorTitle';
 import { ReplaceUnfinished } from '#/features/tenants/ui/ReplaceUnfinished';
 import { SystemGate } from '#/features/tenants/ui/SystemGate';

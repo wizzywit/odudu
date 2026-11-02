@@ -1,4 +1,6 @@
 import { Link } from 'react-aria-components';
+import { REQUIRED_ACTIONS } from '#/features/subjects/services/actions';
+import { type Credential, type Lockout, type Subject } from '#/features/subjects/services/address';
 import {
   askToRemove,
   askToRevoke,
@@ -7,11 +9,7 @@ import {
   lockoutSummary,
   recoveryCodesText,
   removeFactorLabel,
-  REQUIRED_ACTIONS,
-  type Credential,
-  type Lockout,
-  type Subject,
-} from '#/features/subjects/services';
+} from '#/features/subjects/services/credentials';
 import {
   useSubjectCredentials,
   type SubjectCredentials,

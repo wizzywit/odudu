@@ -6,18 +6,17 @@ import {
   useSaveGroups,
   type GroupValues,
 } from '#/features/subjects/repository/useAccess';
+import { accessRefusal, type Confirmation } from '#/features/subjects/services/access';
+import { subjectName } from '#/features/subjects/services/address';
 import {
-  accessRefusal,
-  groupsRecord,
   groupsRemoveTenants,
   groupPathOf,
   groupsSaveConfirmation,
   leftGroups,
   membershipsOf,
-  subjectName,
-  type Confirmation,
   type Membership,
-} from '#/features/subjects/services';
+} from '#/features/subjects/services/memberships';
+import { groupsRecord } from '#/features/subjects/services/tabs';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';

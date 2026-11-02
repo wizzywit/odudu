@@ -6,6 +6,9 @@ import {
   chosenFileOf,
   fileChosenProblem,
   fileRequiredProblem,
+  type ChosenFile,
+} from '#/features/tenants/services/document';
+import {
   foundOf,
   importedLink,
   importedTenantOf,
@@ -14,12 +17,11 @@ import {
   importMessage,
   importNameError,
   importUnconfirmed,
-  nameProblem,
   secretPlace,
-  type ChosenFile,
   type Found,
   type ImportedSecret,
-} from '#/features/tenants/services';
+} from '#/features/tenants/services/import';
+import { nameProblem } from '#/features/tenants/services/name';
 import {
   useBeginAdministrator,
   type BeginAdministrator,

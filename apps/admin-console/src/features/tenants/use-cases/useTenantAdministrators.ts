@@ -1,5 +1,5 @@
 import { useAuthority } from '#/features/session';
-import { systemAdminsHrefOf } from '#/features/tenants/services';
+import { systemAdminsHrefOf } from '#/features/tenants/services/address';
 import { administratorCapability, administratorNeeds } from '#/shared/services/administrators';
 import { lacking, notLacking } from '#/shared/services/access';
 import { SYSTEM_TENANT } from '#/shared/services/principal';

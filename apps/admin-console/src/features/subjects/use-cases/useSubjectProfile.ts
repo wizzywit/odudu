@@ -10,11 +10,11 @@ import {
 import {
   claimFields,
   PROFILE_SECTIONS,
-  profileRecord,
   type ClaimField,
   verificationFields,
   type ProfileSection,
-} from '#/features/subjects/services';
+} from '#/features/subjects/services/claims';
+import { profileRecord } from '#/features/subjects/services/tabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import type { RecordState } from '#/shared/repository/useRecord';
 

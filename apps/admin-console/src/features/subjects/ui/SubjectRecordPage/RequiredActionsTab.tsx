@@ -1,5 +1,6 @@
 import type { Subject } from '@odudu/contracts/admin';
-import { REQUIRED_ACTIONS, signsInAsItself } from '#/features/subjects/services';
+import { signsInAsItself } from '#/features/subjects/services/account';
+import { REQUIRED_ACTIONS } from '#/features/subjects/services/actions';
 import {
   useRequiredActions,
   useRequiredActionsRead,

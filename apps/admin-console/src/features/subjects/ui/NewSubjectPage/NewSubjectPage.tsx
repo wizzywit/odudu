@@ -1,4 +1,4 @@
-import { subjectsTrail } from '#/features/subjects/services';
+import { subjectsTrail } from '#/features/subjects/services/address';
 import { useNewSubject } from '#/features/subjects/use-cases/useNewSubject';
 import { SubjectsGate } from '#/features/subjects/ui/SubjectsGate';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';

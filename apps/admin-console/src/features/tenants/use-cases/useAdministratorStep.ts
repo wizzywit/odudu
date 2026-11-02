@@ -1,15 +1,17 @@
 import { useAuthority } from '#/features/session';
 import { useFindSubject, useFirstAdministrator } from '#/features/tenants/repository/useCreation';
+import { systemAdminsHrefOf } from '#/features/tenants/services/address';
+import {
+  administratorProblem,
+  choosesHoldings,
+  type Creation,
+} from '#/features/tenants/services/creation';
+import { issuerPreview } from '#/features/tenants/services/name';
 import {
   administratorFailure,
   administratorLookupText,
-  administratorProblem,
-  choosesHoldings,
   findAdministratorCall,
-  issuerPreview,
-  systemAdminsHrefOf,
-  type Creation,
-} from '#/features/tenants/services';
+} from '#/features/tenants/services/steps';
 import type { StepFeedback } from '#/features/tenants/use-cases/useStepFeedback';
 import { lacking } from '#/shared/services/access';
 import { administratorNeeds } from '#/shared/services/administrators';

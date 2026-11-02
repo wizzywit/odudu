@@ -17,15 +17,15 @@ import {
   useRevokeGrants,
   useSessionList,
 } from '#/features/subjects/repository/useSessions';
+import { subjectName } from '#/features/subjects/services/address';
 import {
   consentRevokedText,
   grantClients,
   grantsRevokedText,
   sessionEndedText,
   sessionsEndedText,
-  subjectName,
   type GrantClient,
-} from '#/features/subjects/services';
+} from '#/features/subjects/services/sessions';
 import { useConfirmedSubjectChange } from '#/features/subjects/use-cases/useConfirmedSubjectChange';
 import { notLacking } from '#/shared/services/access';
 import type { ResourceListState } from '#/shared/services/resourceList';

@@ -3,7 +3,7 @@ import { currentTime } from '#/shared/adapter/clock';
 import { saveFile } from '#/shared/adapter/files';
 import { exportKey } from '#/shared/repository/queryKeys';
 import { readExport } from '#/features/tenants/adapter/tenants';
-import { exportedOf, exportFileName, type Exported } from '#/features/tenants/services';
+import { exportedOf, exportFileName, type Exported } from '#/features/tenants/services/export';
 import { useFreshRead } from '#/shared/repository/useFreshRead';
 import type { GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';

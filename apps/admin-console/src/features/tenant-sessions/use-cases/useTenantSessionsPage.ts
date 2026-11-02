@@ -12,7 +12,7 @@ import {
   endFailure,
   endMoreText,
   subjectLinkOf,
-} from '#/features/tenant-sessions/services';
+} from '#/features/tenant-sessions/services/page';
 import { useToast } from '#/shared/repository/useToasts';
 import { holds } from '#/shared/services/access';
 import { isOwnTenant } from '#/shared/services/principal';

@@ -7,7 +7,7 @@ import {
   type ListTenantsResponse,
   type Tenant,
 } from '@odudu/contracts/admin';
-import type { ImportedSecret } from '#/features/tenants/services';
+import type { ImportedSecret } from '#/features/tenants/services/import';
 import type { Gateway, GatewayResult, RawBody } from '#/shared/transport/gateway';
 import { readDiscovery } from '#/shared/adapter/discovery';
 import { adminRootCall, firstMatch, nothing, segment } from '#/shared/adapter/route';

@@ -8,7 +8,7 @@ import {
   type Creation,
   type CreationFlow,
   type Unfinished,
-} from '#/features/tenants/services';
+} from '#/features/tenants/services/creation';
 import { useStepFeedback, type StepFeedback } from '#/features/tenants/use-cases/useStepFeedback';
 
 export interface NewTenant {

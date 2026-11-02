@@ -10,7 +10,7 @@ import {
   freshCreation,
   type Creation,
   type CreationFlow,
-} from '#/features/tenants/services';
+} from '#/features/tenants/services/creation';
 import { createSubject, findSubject, issuePassword } from '#/shared/adapter/administrators';
 import {
   defect,

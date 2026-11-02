@@ -6,7 +6,8 @@ import {
   useTenantEnabled,
   type GeneralValues,
 } from '#/features/tenants/repository/useTenantRecord';
-import { tenantChangeFailure, tenantRecord } from '#/features/tenants/services';
+import { tenantChangeFailure } from '#/features/tenants/services/failure';
+import { tenantRecord } from '#/features/tenants/services/tabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';
 import { enabledText } from '#/shared/services/failure';

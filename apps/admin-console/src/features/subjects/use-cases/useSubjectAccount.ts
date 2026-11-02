@@ -13,13 +13,12 @@ import {
 import {
   confirmationOf,
   enabledVerb,
-  subjectName,
-  subjectRecord,
-  subjectsHref,
   subjectWriteFailure,
   usernameMode,
   type UsernameMode,
-} from '#/features/subjects/services';
+} from '#/features/subjects/services/account';
+import { subjectName, subjectsHref } from '#/features/subjects/services/address';
+import { subjectRecord } from '#/features/subjects/services/tabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';
 import { deletedText, enabledText } from '#/shared/services/failure';

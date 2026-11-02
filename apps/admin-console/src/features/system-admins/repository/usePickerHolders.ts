@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { holderSet, holdersParams } from '#/features/system-admins/services';
+import { holderSet, holdersParams } from '#/features/system-admins/services/picker';
 import { readSubjectPage } from '#/shared/adapter/directory';
 import { listKey } from '#/shared/repository/queryKeys';
 import { SYSTEM_TENANT } from '#/shared/services/principal';

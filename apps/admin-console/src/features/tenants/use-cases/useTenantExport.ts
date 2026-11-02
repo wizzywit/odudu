@@ -8,7 +8,7 @@ import {
   exportsSubjects,
   savedText,
   type Exported,
-} from '#/features/tenants/services';
+} from '#/features/tenants/services/export';
 import { bytesText } from '#/shared/services/format';
 import { useToast } from '#/shared/repository/useToasts';
 import type { AdminCapability } from '#/shared/services/principal';

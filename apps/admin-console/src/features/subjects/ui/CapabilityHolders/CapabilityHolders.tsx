@@ -1,5 +1,5 @@
 import { Link } from 'react-aria-components';
-import { holderFilterOptions } from '#/features/subjects/services';
+import { holderFilterOptions } from '#/features/subjects/services/holdings';
 import {
   useCapabilityHolders,
   type Holder,

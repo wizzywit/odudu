@@ -3,18 +3,17 @@ import { useState } from 'react';
 import { useRefusal } from '#/features/session';
 import { areaAt, areaHref } from '#/features/shell';
 import { useMailSend, type MailRequest } from '#/features/subjects/repository/useMail';
+import { actionsMailProblem, requiredActionsInOrder } from '#/features/subjects/services/actions';
+import { subjectName } from '#/features/subjects/services/address';
 import {
-  actionsMailProblem,
   mailFailure,
   mailKindState,
   mailOutcome,
   mailSentText,
-  requiredActionsInOrder,
-  subjectName,
-  subjectTabHref,
   withOutcome,
   type MailOutcome,
-} from '#/features/subjects/services';
+} from '#/features/subjects/services/mail';
+import { subjectTabHref } from '#/features/subjects/services/tabs';
 import { withoutField } from '#/shared/services/fieldErrors';
 
 export type { MailOutcome };

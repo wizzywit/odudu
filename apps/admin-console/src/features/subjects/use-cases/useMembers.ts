@@ -2,7 +2,7 @@ import type { Subject } from '@odudu/contracts/admin';
 import { useAuthority } from '#/features/session';
 import { useGo } from '#/shared/repository/useGo';
 import { useMemberList } from '#/features/subjects/repository/useMemberList';
-import { membersListHref, subjectHref } from '#/features/subjects/services';
+import { membersListHref, subjectHref } from '#/features/subjects/services/address';
 import { notLacking } from '#/shared/services/access';
 import type { ResourceListState } from '#/shared/services/resourceList';
 

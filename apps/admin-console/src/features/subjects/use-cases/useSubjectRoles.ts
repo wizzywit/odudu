@@ -6,13 +6,10 @@ import type {
 } from '@odudu/contracts/admin';
 import { useRefusal } from '#/features/session';
 import { useEffectiveRoleList, useSaveRoles } from '#/features/subjects/repository/useAccess';
-import {
-  accessRefusal,
-  roleUnavailableHere,
-  rolesRecord,
-  splitRoles,
-  subjectName,
-} from '#/features/subjects/services';
+import { accessRefusal } from '#/features/subjects/services/access';
+import { subjectName } from '#/features/subjects/services/address';
+import { roleUnavailableHere, splitRoles } from '#/features/subjects/services/roles';
+import { rolesRecord } from '#/features/subjects/services/tabs';
 import { useRolePicker } from '#/shared/repository/useRolePicker';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { describeIds } from '#/shared/services/format';

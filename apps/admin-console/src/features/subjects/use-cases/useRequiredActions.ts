@@ -5,13 +5,10 @@ import {
   useActionsRecord,
   type ActionValues,
 } from '#/features/subjects/repository/useAccess';
-import {
-  accessRefusal,
-  actionsRecord,
-  describeActions,
-  requiredActionsInOrder,
-  subjectName,
-} from '#/features/subjects/services';
+import { accessRefusal } from '#/features/subjects/services/access';
+import { describeActions, requiredActionsInOrder } from '#/features/subjects/services/actions';
+import { subjectName } from '#/features/subjects/services/address';
+import { actionsRecord } from '#/features/subjects/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 
