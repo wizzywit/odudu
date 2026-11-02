@@ -54,7 +54,3 @@ export function mintedText(token: { remaining_uses: number; expires_at: string }
 export function isValid(errors: MintErrors): boolean {
   return Object.keys(errors).length === 0;
 }
-
-export function clearedError(errors: MintErrors, field: keyof MintErrors): MintErrors {
-  return Object.fromEntries(Object.entries(errors).filter(([name]) => name !== field));
-}

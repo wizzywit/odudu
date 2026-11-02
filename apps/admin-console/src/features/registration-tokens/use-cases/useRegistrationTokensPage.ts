@@ -7,7 +7,6 @@ import {
   useTokenRevoke,
 } from '#/features/registration-tokens/repository/useTokenWrites';
 import {
-  clearedError,
   DEFAULT_MINT,
   isValid,
   mintedText,
@@ -17,6 +16,7 @@ import {
 } from '#/features/registration-tokens/services/mint';
 import { askedConsequence, revokeOutcome } from '#/features/registration-tokens/services/revoke';
 import { useToast } from '#/shared/repository/useToasts';
+import { withoutField } from '#/shared/services/fieldErrors';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import { useAnnouncedAction } from '#/shared/use-cases/useAnnouncedAction';
 
@@ -78,11 +78,11 @@ export function useRegistrationTokensPage(tenant: string): RegistrationTokensPag
     lifetime,
     editUses: (value) => {
       setUses(value);
-      setErrors((was) => clearedError(was, 'uses'));
+      setErrors((was) => withoutField(was, 'uses'));
     },
     editLifetime: (value) => {
       setLifetime(value);
-      setErrors((was) => clearedError(was, 'ttl_seconds'));
+      setErrors((was) => withoutField(was, 'ttl_seconds'));
     },
     errors,
     message,

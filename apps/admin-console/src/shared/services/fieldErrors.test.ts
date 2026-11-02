@@ -145,3 +145,9 @@ it('names the field a problem is at, or no problem when there is none', () => {
   expect(problemAt('name', 'Enter a name.')).toEqual({ field: 'name', text: 'Enter a name.' });
   expect(problemAt('name', null)).toBeNull();
 });
+
+it('drops one field of a form whose errors are all strings, as the mint form needs', () => {
+  const errors: Partial<Record<'uses' | 'ttl_seconds', string>> = { uses: 'a', ttl_seconds: 'b' };
+  expect(withoutField(errors, 'uses')).toEqual({ ttl_seconds: 'b' });
+  expect(withoutField({}, 'uses')).toEqual({});
+});

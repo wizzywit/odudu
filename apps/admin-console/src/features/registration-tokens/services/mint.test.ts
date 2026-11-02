@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  clearedError,
   DEFAULT_MINT,
   isValid,
   mintFailure,
@@ -92,11 +91,5 @@ describe('isValid', () => {
   it('holds only for no error at all', () => {
     expect(isValid({})).toBe(true);
     expect(isValid({ uses: 'no' })).toBe(false);
-  });
-});
-
-describe('clearedError', () => {
-  it('drops the one field and keeps the other', () => {
-    expect(clearedError({ uses: 'a', ttl_seconds: 'b' }, 'uses')).toEqual({ ttl_seconds: 'b' });
   });
 });

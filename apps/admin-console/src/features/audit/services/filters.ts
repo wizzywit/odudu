@@ -1,5 +1,6 @@
 import { isAuditInstant, listAuditQuerySchema } from '@odudu/contracts/admin';
 import type { Choice } from '#/shared/services/choice';
+import { withoutField } from '#/shared/services/fieldErrors';
 import { shortened } from '#/shared/services/format';
 
 export const FILTER_NAMES = [
@@ -178,7 +179,7 @@ export function withUnreadable(
   name: 'from' | 'to',
   message: string | null,
 ): Unreadable {
-  const rest = Object.fromEntries(Object.entries(held).filter(([each]) => each !== name));
+  const rest = withoutField(held, name);
   return message === null ? rest : { ...rest, [name]: message };
 }
 
