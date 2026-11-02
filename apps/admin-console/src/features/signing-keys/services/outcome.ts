@@ -1,7 +1,7 @@
 import type { SigningKey } from '@odudu/contracts/admin';
 import { writeRefusal } from '#/shared/services/capabilities';
 import { removalOutcome, type RemovalOutcome } from '#/shared/services/failure';
-import { andList } from '#/shared/services/format';
+import { andList, groupedNumber } from '#/shared/services/format';
 import type { GatewayResult, Problem } from '#/shared/services/result';
 
 export type KeyAction = 'promote' | 'retire' | 'delete';
@@ -41,7 +41,7 @@ function clientsText(problem: Problem): string {
   const more = Number(errors.find((error) => error.path === MORE)?.message ?? 0);
   if (named.length === 0) return 'the server named none';
   if (more === 0) return andList(named);
-  return `${named.join(', ')} and ${more.toLocaleString('en')} more`;
+  return `${named.join(', ')} and ${groupedNumber(more)} more`;
 }
 
 function refusalText(action: KeyAction, key: SigningKey, problem: Problem): string | null {

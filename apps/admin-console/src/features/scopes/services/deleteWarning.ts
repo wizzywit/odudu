@@ -1,6 +1,6 @@
 import type { ScopeImpact } from '@odudu/contracts/admin';
 import { scopeDeleteConsequence } from '#/features/scopes/services/guard';
-import { andList, plural } from '#/shared/services/format';
+import { andList, groupedNumber, plural } from '#/shared/services/format';
 import type { Read } from '#/shared/services/read';
 
 interface Count {
@@ -56,7 +56,7 @@ export function claimMappersOf(
 }
 
 function shown({ count, capped }: Count): string {
-  const n = count.toLocaleString('en-US');
+  const n = groupedNumber(count);
   return capped ? `${n} or more` : n;
 }
 

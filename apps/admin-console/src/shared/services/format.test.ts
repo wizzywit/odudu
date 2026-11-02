@@ -216,3 +216,8 @@ describe('texts as the server reads them', () => {
     expect(nullWhenBlank(' a ')).toBe(' a ');
   });
 });
+
+it('groups the small and the large figures callers used to group inline', () => {
+  const grouped = [0, 7, 999, 1000, 12_345, 1_000_000, 100_000_000].map(groupedNumber);
+  expect(grouped).toEqual(['0', '7', '999', '1,000', '12,345', '1,000,000', '100,000,000']);
+});

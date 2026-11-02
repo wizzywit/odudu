@@ -1,4 +1,4 @@
-import { formatAbsolute, counted } from '#/shared/services/format';
+import { formatAbsolute, counted, groupedNumber } from '#/shared/services/format';
 import { writeRefusal } from '#/shared/services/capabilities';
 import { createFailure, type CreateOutcome } from '#/shared/services/failure';
 import type { GatewayFailure } from '#/shared/services/result';
@@ -19,7 +19,7 @@ export const MINT_FIELDS = ['uses', 'ttl_seconds'] as const;
 
 export type MintErrors = Partial<Record<(typeof MINT_FIELDS)[number], string>>;
 
-const USES_RULE = `Uses is a whole number from ${MINT_LIMITS.uses.min.toLocaleString('en-US')} to ${MINT_LIMITS.uses.max.toLocaleString('en-US')}.`;
+const USES_RULE = `Uses is a whole number from ${groupedNumber(MINT_LIMITS.uses.min)} to ${groupedNumber(MINT_LIMITS.uses.max)}.`;
 const TTL_RULE = `Lifetime is a whole number of seconds, from ${String(MINT_LIMITS.ttl_seconds.min)} seconds (1 minute) to ${String(MINT_LIMITS.ttl_seconds.max)} seconds (365 days).`;
 
 function inRange(value: number, limit: { min: number; max: number }): boolean {
