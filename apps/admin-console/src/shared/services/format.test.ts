@@ -4,6 +4,7 @@ import {
   nullWhenBlank,
   utf8Length,
   bytesText,
+  KIB,
   shortened,
   groupedNumber,
   andList,
@@ -220,4 +221,9 @@ describe('texts as the server reads them', () => {
 it('groups the small and the large figures callers used to group inline', () => {
   const grouped = [0, 7, 999, 1000, 12_345, 1_000_000, 100_000_000].map(groupedNumber);
   expect(grouped).toEqual(['0', '7', '999', '1,000', '12,345', '1,000,000', '100,000,000']);
+});
+
+it('counts a KiB as 1024 bytes, so the limits written in KiB read back as they were', () => {
+  expect(bytesText(256 * KIB)).toBe('256 KiB');
+  expect(bytesText(1024 * KIB)).toBe('1 MiB');
 });

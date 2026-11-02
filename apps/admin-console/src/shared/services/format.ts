@@ -134,7 +134,7 @@ export function shortened(text: string, limit: number): string {
   return text.length > limit ? `${text.slice(0, limit)}…` : text;
 }
 
-const KIB = 1024;
+export const KIB = 1024;
 const MIB = KIB * KIB;
 // Below this a KiB value would print as 1024.0 KiB, so it reads in MiB.
 const MIB_ROUNDS_UP_FROM = MIB - KIB / 20;

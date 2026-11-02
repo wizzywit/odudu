@@ -3,7 +3,7 @@ import type { FieldError } from '@odudu/contracts/admin';
 import type { Read } from '#/shared/services/read';
 import type { Problem } from '#/shared/services/result';
 import { problemSubtype } from '#/shared/services/failure';
-import { bytesText, counted } from '#/shared/services/format';
+import { bytesText, counted, KIB } from '#/shared/services/format';
 import {
   DELETE_LABEL,
   imageNote,
@@ -18,8 +18,6 @@ import {
   type ImageValues,
   type Logo,
 } from '#/features/branding/services/values';
-
-const KIB = 1024;
 
 export interface SlotRule {
   label: string;
