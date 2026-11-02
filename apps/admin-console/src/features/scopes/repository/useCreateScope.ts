@@ -16,7 +16,7 @@ import {
   partMissed,
   type CopyPart as Part,
   type CopyRead,
-} from '#/features/scopes/services';
+} from '#/features/scopes/services/copy';
 import { copyReadOf } from '#/shared/services/copy';
 import {
   copyEtagKey,

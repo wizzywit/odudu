@@ -9,7 +9,7 @@ import {
   lockoutClearState,
   LOCKOUTS_NEEDS,
   type LockoutClearState,
-} from '#/features/settings/services';
+} from '#/features/settings/services/lockouts';
 import { useToast } from '#/shared/repository/useToasts';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
 

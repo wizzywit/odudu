@@ -4,15 +4,10 @@ import { useAuthority, useRefusal } from '#/features/session';
 import { useCreateGroup } from '#/features/groups/repository/useCreateGroup';
 import { useGo } from '#/shared/repository/useGo';
 import { useGroupNamed } from '#/features/groups/repository/useGroupRecord';
-import {
-  createBlocked,
-  createHeld,
-  groupHref,
-  groupsHref,
-  parentUnavailable,
-  NAME_TAKEN,
-  newGroupPlace,
-} from '#/features/groups/services';
+import { groupHref, groupsHref } from '#/features/groups/services/address';
+import { parentUnavailable } from '#/features/groups/services/blocks';
+import { createBlocked, createHeld, newGroupPlace } from '#/features/groups/services/ceiling';
+import { NAME_TAKEN } from '#/features/groups/services/labels';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker';
 import { useToast } from '#/shared/repository/useToasts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';

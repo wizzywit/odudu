@@ -1,5 +1,5 @@
 import { AreaGate, areaAt } from '#/features/shell';
-import { groupsTrail } from '#/features/groups/services';
+import { groupsTrail } from '#/features/groups/services/address';
 import { useNewGroup } from '#/features/groups/use-cases/useNewGroup';
 import {
   CreationActions,

@@ -6,7 +6,7 @@ import {
   scopeMappersRecord,
   scopeRecord,
   scopeRolesRecord,
-} from '#/features/scopes/services';
+} from '#/features/scopes/services/tabs';
 
 it('has the five tabs in order, each labelled', () => {
   expect(SCOPE_TABS.map((tab) => SCOPE_TAB_LABELS[tab])).toEqual([

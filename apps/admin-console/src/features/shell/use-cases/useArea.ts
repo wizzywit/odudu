@@ -1,5 +1,6 @@
 import { useAuthority, useAuthorityAnswered, usePrincipal } from '#/features/session';
-import { areaAccess, type Area, type AreaAccess } from '#/features/shell/services';
+import { type Area } from '#/features/shell/services/areas';
+import { areaAccess, type AreaAccess } from '#/features/shell/services/pending';
 
 export function useArea(tenant: string, area: Area): AreaAccess {
   return areaAccess(

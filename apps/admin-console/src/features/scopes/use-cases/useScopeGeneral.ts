@@ -10,28 +10,32 @@ import {
   type DescriptionSectionValues,
   type TokenValues,
 } from '#/features/scopes/repository/useScopeRecord';
+import { scopesHref } from '#/features/scopes/services/address';
 import {
-  ACCESS_TOKEN_LABEL,
-  assignmentName,
   claimMappersOf,
-  CONSENT_LANGUAGES_LABEL,
-  CONSENT_RULE,
-  DESCRIPTION_LANGUAGES_LABEL,
-  guardedConsent,
-  guardedText,
-  ID_TOKEN_LABEL,
   impactHeld,
   impactOf,
   impactRetry,
   type ImpactRetry,
+  scopeDeleteDialogText,
+} from '#/features/scopes/services/deleteWarning';
+import {
+  ACCESS_TOKEN_LABEL,
+  assignmentName,
+  CONSENT_LANGUAGES_LABEL,
+  CONSENT_RULE,
+  DESCRIPTION_LANGUAGES_LABEL,
+  guardedConsent,
+  ID_TOKEN_LABEL,
   NEW_CLIENT_CHOICES,
   NEW_CLIENT_LABEL,
+} from '#/features/scopes/services/general';
+import {
+  guardedText,
   scopeDeleteConsequence,
-  scopeDeleteDialogText,
   scopeDeleteFailureText,
-  scopeRecord,
-  scopesHref,
-} from '#/features/scopes/services';
+} from '#/features/scopes/services/guard';
+import { scopeRecord } from '#/features/scopes/services/tabs';
 import { useGo } from '#/shared/repository/useGo';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';

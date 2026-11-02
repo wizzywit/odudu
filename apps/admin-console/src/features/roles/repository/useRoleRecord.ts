@@ -8,7 +8,7 @@ import {
   removeComposite,
   setRoleDefault,
 } from '#/features/roles/adapter/roles';
-import { compositesRecord, roleRecord } from '#/features/roles/services';
+import { compositesRecord, roleRecord } from '#/features/roles/services/tabs';
 import { isStale } from '#/shared/services/failure';
 import { useAfterChange } from '#/shared/repository/useAfterChange';
 import { recordKey } from '#/shared/repository/queryKeys';

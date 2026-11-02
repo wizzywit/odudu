@@ -7,7 +7,7 @@ import {
   restoreHeld,
   restoreOffer,
   restoreText,
-} from '#/features/scopes/services';
+} from '#/features/scopes/services/restore';
 
 const items = (missing: readonly string[]) =>
   ['openid', 'roles', 'groups'].map((name) => ({ name, present: !missing.includes(name) }));

@@ -5,7 +5,7 @@ import {
   isGuarded,
   scopeDeleteConsequence,
   scopeDeleteFailureText,
-} from '#/features/scopes/services';
+} from '#/features/scopes/services/guard';
 
 it('guards openid, and only openid', () => {
   expect(isGuarded('openid')).toBe(true);

@@ -9,23 +9,26 @@ import {
   type AddValues,
 } from '#/features/roles/repository/useRoleRecord';
 import {
-  ADD_LABEL,
   addRefusal,
-  type Asked,
-  type Ceiling,
   type Child,
   childRows,
   childUnavailable,
+  compositesFixed,
+} from '#/features/roles/services/blocks';
+import {
+  type Asked,
+  type Ceiling,
+  compositesOffered,
+  roleSelfLoss,
+} from '#/features/roles/services/ceiling';
+import { ADD_LABEL, NEST_LABEL } from '#/features/roles/services/labels';
+import {
   compositeRemovalConfirmation,
   compositeRemovalFailureText,
-  compositesFixed,
-  compositesOffered,
-  compositesRecord,
-  NEST_LABEL,
   removalAction,
-  roleSelfLoss,
   unnestedText,
-} from '#/features/roles/services';
+} from '#/features/roles/services/removal';
+import { compositesRecord } from '#/features/roles/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useRolePicker } from '#/shared/repository/useRolePicker';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';

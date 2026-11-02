@@ -13,10 +13,9 @@ import {
   mintedText,
   mintFailure,
   mintProblems,
-  askedConsequence,
-  revokeOutcome,
   type MintErrors,
-} from '#/features/registration-tokens/services';
+} from '#/features/registration-tokens/services/mint';
+import { askedConsequence, revokeOutcome } from '#/features/registration-tokens/services/revoke';
 import { useToast } from '#/shared/repository/useToasts';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import { useAnnouncedAction } from '#/shared/use-cases/useAnnouncedAction';

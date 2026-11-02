@@ -2,13 +2,8 @@ import type { ReactNode } from 'react';
 import { useAuditReadable } from '#/features/session';
 import { AreaGate, areaAt } from '#/features/shell';
 import { SubjectMembers } from '#/features/subjects';
-import {
-  ROLE_TAB_LABELS,
-  ROLE_TABS,
-  rolesTrail,
-  type Role,
-  type RoleTab,
-} from '#/features/roles/services';
+import { rolesTrail, type Role } from '#/features/roles/services/address';
+import { ROLE_TAB_LABELS, ROLE_TABS, type RoleTab } from '#/features/roles/services/tabs';
 import { useRoleRecordPage, type Ceiling } from '#/features/roles/use-cases/useRoleRecordPage';
 import { CompositesTab } from '#/features/roles/ui/RoleRecordPage/CompositesTab';
 import { GeneralTab } from '#/features/roles/ui/RoleRecordPage/GeneralTab';

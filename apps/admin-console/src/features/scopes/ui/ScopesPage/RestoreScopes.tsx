@@ -1,4 +1,4 @@
-import { RESTORE_CONFIRM_LABEL, RESTORE_DIALOG_TITLE } from '#/features/scopes/services';
+import { RESTORE_CONFIRM_LABEL, RESTORE_DIALOG_TITLE } from '#/features/scopes/services/restore';
 import { useRestoreScopes } from '#/features/scopes/use-cases/useRestoreScopes';
 import { Button } from '#/shared/ui/Button';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';

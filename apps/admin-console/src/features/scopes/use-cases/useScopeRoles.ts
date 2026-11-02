@@ -1,7 +1,8 @@
 import type { ClientScope, Role, SetScopeRolesResponse } from '@odudu/contracts/admin';
 import { useAuthority, useRefusal } from '#/features/session';
 import { useScopeRolesRecord, useScopeSaves } from '#/features/scopes/repository/useScopeRecord';
-import { keptRoles, scopeRolesRecord } from '#/features/scopes/services';
+import { keptRoles } from '#/features/scopes/services/roles';
+import { scopeRolesRecord } from '#/features/scopes/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useRolePicker } from '#/shared/repository/useRolePicker';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';

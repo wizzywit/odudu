@@ -1,13 +1,8 @@
 import { useId } from 'react';
 import { AreaGate, areaAt } from '#/features/shell';
-import {
-  ALG_OPTIONS,
-  LANES,
-  STAGE_RULE,
-  TITLE,
-  type KeyRow,
-  type Lane as LaneSpec,
-} from '#/features/signing-keys/services';
+import { LANES, TITLE, type Lane as LaneSpec } from '#/features/signing-keys/services/lanes';
+import { type KeyRow } from '#/features/signing-keys/services/rows';
+import { ALG_OPTIONS, STAGE_RULE } from '#/features/signing-keys/services/stage';
 import {
   useSigningKeysPage,
   type Lane,

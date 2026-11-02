@@ -1,20 +1,17 @@
 import type { Settings } from '@odudu/contracts/admin';
 import { Fragment } from 'react';
 import { AreaGate, areaAt } from '#/features/shell';
+import { fieldDescription } from '#/features/settings/services/notes';
 import {
-  booleanOf,
-  fieldDescription,
   GENERAL_SECTION,
-  listOf,
   LOCKOUT_SECTION,
-  numberOf,
   PASSWORD_SECTION,
   sectionHeadingId,
   SETTINGS_SECTIONS,
-  textOf,
   type SettingField,
   type SettingsSection,
-} from '#/features/settings/services';
+} from '#/features/settings/services/sections';
+import { booleanOf, listOf, numberOf, textOf } from '#/features/settings/services/values';
 import { usePasswordNote } from '#/features/settings/use-cases/usePasswordNote';
 import {
   useGeneralSection,

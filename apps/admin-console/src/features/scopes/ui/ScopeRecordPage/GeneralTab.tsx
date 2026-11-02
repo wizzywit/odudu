@@ -9,7 +9,7 @@ import {
   ID_TOKEN_LABEL,
   NAME_FIXED,
   NEW_CLIENT_LABEL,
-} from '#/features/scopes/services';
+} from '#/features/scopes/services/general';
 import {
   useScopeGeneral,
   type Deletion,

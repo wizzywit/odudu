@@ -1,5 +1,5 @@
 import type { GroupRecord } from '@odudu/contracts/admin';
-import { NAME_FIXED } from '#/features/groups/services';
+import { NAME_FIXED } from '#/features/groups/services/labels';
 import {
   useGroupGeneral,
   type Defaults,

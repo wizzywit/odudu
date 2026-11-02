@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { readAuthority } from '#/features/session/adapter/session';
-import { authorityOf, refusedUnknownOf, type Authority } from '#/features/session/services';
+import { type Authority } from '#/features/session/services/address';
+import { authorityOf, refusedUnknownOf } from '#/features/session/services/whoami';
 import { authorityKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useTransport } from '#/shared/transport/useTransport';

@@ -2,15 +2,15 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import { useEffect, useEffectEvent } from 'react';
 import { readSession } from '#/features/session/adapter/session';
 import { loadLastTenant, storeLastTenant } from '#/features/session/adapter/lastTenant';
+import { type Principal } from '#/features/session/services/address';
 import {
   draftOwner,
   isReplacement,
-  remembers,
   sessionEndedRead,
   shownPrincipal,
-  type Principal,
   type SessionRead,
-} from '#/features/session/services';
+} from '#/features/session/services/boot';
+import { remembers } from '#/features/session/services/tenant';
 import { sessionKey } from '#/shared/repository/queryKeys';
 import { useDrafts } from '#/shared/repository/useDrafts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';

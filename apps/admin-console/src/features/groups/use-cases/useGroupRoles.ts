@@ -3,17 +3,13 @@ import { useState } from 'react';
 import { useRefusal, useRereadAuthority } from '#/features/session';
 import { useOwnRoles } from '#/features/subjects';
 import { useGroupRolesRecord, useGroupSaves } from '#/features/groups/repository/useGroupRecord';
-import {
-  type Asked,
-  type Ceiling,
-  defaultingOf,
-  groupRolesRecord,
-  keptRoles,
-  lossOf,
-  reachOfRoles,
-  rolesConfirmation,
-  roleUnavailable,
-} from '#/features/groups/services';
+import { type Asked } from '#/features/groups/services/address';
+import { defaultingOf, roleUnavailable } from '#/features/groups/services/blocks';
+import { type Ceiling } from '#/features/groups/services/ceiling';
+import { rolesConfirmation } from '#/features/groups/services/confirm';
+import { lossOf } from '#/features/groups/services/loss';
+import { keptRoles, reachOfRoles } from '#/features/groups/services/mapped';
+import { groupRolesRecord } from '#/features/groups/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useRolePicker } from '#/shared/repository/useRolePicker';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';

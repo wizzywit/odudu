@@ -1,6 +1,6 @@
 import type { Group } from '@odudu/contracts/admin';
 import { readGroupCount, readGroupPage } from '#/features/groups/adapter/groups';
-import { groupListScope } from '#/features/groups/services';
+import { groupListScope } from '#/features/groups/services/list';
 import { listKey } from '#/shared/repository/queryKeys';
 import { useListPages, useResourceList } from '#/shared/repository/useResourceList';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';

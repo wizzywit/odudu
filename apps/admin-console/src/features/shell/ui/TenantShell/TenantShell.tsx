@@ -5,7 +5,7 @@ import {
   useTenantAccess,
   useTenantMissing,
 } from '#/features/session';
-import { areasLabel, brandText } from '#/features/shell/services';
+import { areasLabel, brandText } from '#/features/shell/services/frame';
 import { useShell } from '#/features/shell/use-cases/useShell';
 import { RailFooter } from '#/features/shell/ui/RailFooter';
 import { TenantNotFound } from '#/features/shell/ui/TenantNotFound';

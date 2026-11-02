@@ -1,5 +1,6 @@
 import type { Settings } from '@odudu/contracts/admin';
-import { numberOf, passwordNote, type PasswordNote } from '#/features/settings/services';
+import { passwordNote, type PasswordNote } from '#/features/settings/services/passwordNote';
+import { numberOf } from '#/features/settings/services/values';
 import type { SettingsSave } from '#/features/settings/use-cases/useSettingsSection';
 
 // What to say beside the minimum length, from the length as it is being

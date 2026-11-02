@@ -1,6 +1,6 @@
 import { whoamiResponseSchema } from '@odudu/contracts/admin';
 import { z } from 'zod';
-import type { Authority, Principal } from '#/features/session/services';
+import type { Authority, Principal } from '#/features/session/services/address';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { adminCall } from '#/shared/adapter/route';
 

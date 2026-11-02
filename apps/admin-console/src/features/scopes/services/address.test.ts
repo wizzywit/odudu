@@ -1,5 +1,10 @@
 import { expect, it } from 'vitest';
-import { newScopeHref, scopeHref, scopesHref, scopesTrail } from '#/features/scopes/services';
+import {
+  newScopeHref,
+  scopeHref,
+  scopesHref,
+  scopesTrail,
+} from '#/features/scopes/services/address';
 
 it('addresses the list, the form and a record under the tenant', () => {
   expect(scopesHref('acme')).toBe('/console/acme/scopes');

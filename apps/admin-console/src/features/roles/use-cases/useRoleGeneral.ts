@@ -3,20 +3,21 @@ import { useRefusal, useRereadAuthority } from '#/features/session';
 import { useOwnRoles } from '#/features/subjects';
 import { useGo } from '#/shared/repository/useGo';
 import { useRoleDeletion, useRoleSaves } from '#/features/roles/repository/useRoleRecord';
+import { rolesHref } from '#/features/roles/services/address';
+import { defaultBlock, deletionFixed } from '#/features/roles/services/blocks';
 import {
   type Ceiling,
-  defaultBlock,
-  DEFAULT_LABEL,
   defaultsChecking,
-  deleteChecking,
-  deletionFixed,
   isDeleteHeld,
+  roleSelfLoss,
+} from '#/features/roles/services/ceiling';
+import { DEFAULT_LABEL } from '#/features/roles/services/labels';
+import {
+  deleteChecking,
   roleDeleteConsequence,
   roleDeleteFailureText,
-  roleRecord,
-  roleSelfLoss,
-  rolesHref,
-} from '#/features/roles/services';
+} from '#/features/roles/services/removal';
+import { roleRecord } from '#/features/roles/services/tabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';

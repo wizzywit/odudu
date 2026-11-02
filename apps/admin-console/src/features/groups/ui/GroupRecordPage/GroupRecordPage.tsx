@@ -3,12 +3,8 @@ import type { ReactNode } from 'react';
 import { useAuditReadable } from '#/features/session';
 import { AreaGate, areaAt } from '#/features/shell';
 import { SubjectMembers } from '#/features/subjects';
-import {
-  GROUP_TAB_LABELS,
-  GROUP_TABS,
-  groupsTrail,
-  type GroupTab,
-} from '#/features/groups/services';
+import { groupsTrail } from '#/features/groups/services/address';
+import { GROUP_TAB_LABELS, GROUP_TABS, type GroupTab } from '#/features/groups/services/tabs';
 import { useGroupRecordPage, type Ceiling } from '#/features/groups/use-cases/useGroupRecordPage';
 import { GeneralTab } from '#/features/groups/ui/GroupRecordPage/GeneralTab';
 import { RolesTab } from '#/features/groups/ui/GroupRecordPage/RolesTab';

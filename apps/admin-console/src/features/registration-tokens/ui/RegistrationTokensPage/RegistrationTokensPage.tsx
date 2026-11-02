@@ -1,6 +1,11 @@
 import type { RegistrationToken } from '@odudu/contracts/admin';
 import { AreaGate, areaAt } from '#/features/shell';
-import { NOTHING_YET, NOUN, TITLE, TOKENS_RULE } from '#/features/registration-tokens/services';
+import {
+  NOTHING_YET,
+  NOUN,
+  TITLE,
+  TOKENS_RULE,
+} from '#/features/registration-tokens/services/page';
 import {
   useRegistrationTokensPage,
   type RegistrationTokensPage as Page,

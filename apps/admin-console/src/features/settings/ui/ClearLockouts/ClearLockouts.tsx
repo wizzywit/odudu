@@ -1,4 +1,4 @@
-import { CLEAR_HEADING, CLEAR_RULE, LOCKOUTS_NEEDS } from '#/features/settings/services';
+import { CLEAR_HEADING, CLEAR_RULE, LOCKOUTS_NEEDS } from '#/features/settings/services/lockouts';
 import { useLockoutsClearAction } from '#/features/settings/use-cases/useLockoutsClear';
 import { Button } from '#/shared/ui/Button';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';

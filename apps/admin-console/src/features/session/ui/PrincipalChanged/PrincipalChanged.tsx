@@ -1,4 +1,5 @@
-import { continueAsLabel, signInAgainLabel, type Principal } from '#/features/session/services';
+import { type Principal } from '#/features/session/services/address';
+import { continueAsLabel, signInAgainLabel } from '#/features/session/services/labels';
 import { SessionStatus } from '#/features/session/ui/SessionStatus';
 import { Button } from '#/shared/ui/Button';
 import styles from '#/features/session/ui/PrincipalChanged/PrincipalChanged.module.css';

@@ -6,7 +6,7 @@ import {
   clientsCount,
   withoutScope,
   withScopes,
-} from '#/features/scopes/services';
+} from '#/features/scopes/services/assignment';
 
 it('counts what is loaded', () => {
   expect(clientsCount(1, false)).toBe('1 client.');

@@ -2,6 +2,7 @@ import type { ClientScope } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/features/session';
 import { useCopySource, useCreateScope } from '#/features/scopes/repository/useCreateScope';
+import { scopeHref, scopesHref } from '#/features/scopes/services/address';
 import {
   sourceDescription,
   createBodyOf,
@@ -9,11 +10,9 @@ import {
   copyingOf,
   copyPlan,
   partialCopy,
-  scopeHref,
-  scopesHref,
   sourceBound,
   sourceRoles,
-} from '#/features/scopes/services';
+} from '#/features/scopes/services/copy';
 import { useGo } from '#/shared/repository/useGo';
 import { useToast } from '#/shared/repository/useToasts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';

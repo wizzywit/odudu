@@ -1,14 +1,9 @@
 import type { Role } from '@odudu/contracts/admin';
 import { useAuthority } from '#/features/session';
 import { useRoleRecord } from '#/features/roles/repository/useRoleRecord';
-import {
-  type Ceiling,
-  copyHrefOf,
-  ROLE_TABS,
-  roleCeiling,
-  type RoleTab,
-  TAB_RECORDS,
-} from '#/features/roles/services';
+import { copyHrefOf } from '#/features/roles/services/address';
+import { type Ceiling, roleCeiling } from '#/features/roles/services/ceiling';
+import { ROLE_TABS, type RoleTab, TAB_RECORDS } from '#/features/roles/services/tabs';
 import type { RecordView } from '#/shared/services/record';
 import { useRecordTabs } from '#/shared/use-cases/useRecordTabs';
 

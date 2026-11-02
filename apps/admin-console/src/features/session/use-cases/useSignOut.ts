@@ -1,5 +1,5 @@
 import { useGatewaySignOut } from '#/features/session/repository/useGatewaySignOut';
-import { SIGN_OUT_FAILED } from '#/features/session/services';
+import { SIGN_OUT_FAILED } from '#/features/session/services/loginError';
 import { useToast } from '#/shared/repository/useToasts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
 

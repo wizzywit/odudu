@@ -1,5 +1,5 @@
 import { Link } from 'react-aria-components';
-import { tenantNotFoundText } from '#/features/shell/services';
+import { tenantNotFoundText } from '#/features/shell/services/frame';
 import { EmptyState } from '#/shared/ui/EmptyState';
 import { PageHeader } from '#/shared/ui/PageHeader';
 import styles from '#/features/shell/ui/TenantNotFound/TenantNotFound.module.css';

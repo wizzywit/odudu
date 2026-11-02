@@ -1,7 +1,7 @@
 import { amendTenantSettings } from '#/shared/adapter/tenantSettings';
 import type { SaveInput } from '#/shared/repository/useSectionSave';
 import type { Gateway } from '#/shared/transport/gateway';
-import { settingsRequest, type SettingValue } from '#/features/settings/services';
+import { settingsRequest, type SettingValue } from '#/features/settings/services/values';
 
 export type SectionValues = Readonly<Record<string, SettingValue>>;
 

@@ -8,29 +8,25 @@ import {
   useGroupSaves,
   type ParentValues,
 } from '#/features/groups/repository/useGroupRecord';
+import { type Asked, groupsHref, type Loss } from '#/features/groups/services/address';
+import { defaultBlock, moveRefusal, parentUnavailable } from '#/features/groups/services/blocks';
 import {
-  type Asked,
   type Ceiling,
   ceilingLines,
   ceilingParentReach,
   parentPlace,
-  deleteConsequence,
-  defaultBlock,
-  DEFAULT_LABEL,
-  PLACE_LABEL,
   groupReadiness,
-  groupRecord,
-  groupsHref,
-  lossOf,
-  moveConfirmation,
-  moveRefusal,
   parentPathOf,
-  parentUnavailable,
   placeText,
-  type Loss,
-  type Readiness,
+} from '#/features/groups/services/ceiling';
+import {
+  deleteConsequence,
+  moveConfirmation,
   subtreeDeletedText,
-} from '#/features/groups/services';
+} from '#/features/groups/services/confirm';
+import { DEFAULT_LABEL, PLACE_LABEL } from '#/features/groups/services/labels';
+import { lossOf, type Readiness } from '#/features/groups/services/loss';
+import { groupRecord } from '#/features/groups/services/tabs';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';

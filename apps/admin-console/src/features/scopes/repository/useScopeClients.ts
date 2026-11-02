@@ -2,7 +2,7 @@ import type { AssignScopeToClientResponse, ScopeClient } from '@odudu/contracts/
 import { useQueryClient } from '@tanstack/react-query';
 import { readScopeClients } from '#/features/scopes/adapter/scopes';
 import { assignScope, unassignScope } from '#/shared/adapter/scopeAssignment';
-import { withoutScope, withScopes } from '#/features/scopes/services';
+import { withoutScope, withScopes } from '#/features/scopes/services/assignment';
 import { recordKey, scopeClientsKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import type { RecordEntry } from '#/shared/repository/useRecord';

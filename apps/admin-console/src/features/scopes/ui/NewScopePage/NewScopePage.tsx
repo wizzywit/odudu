@@ -1,5 +1,6 @@
 import { AreaGate, areaAt } from '#/features/shell';
-import { copyingText, scopesTrail } from '#/features/scopes/services';
+import { scopesTrail } from '#/features/scopes/services/address';
+import { copyingText } from '#/features/scopes/services/copy';
 import { useNewScope, type Copying } from '#/features/scopes/use-cases/useNewScope';
 import {
   CreationActions,

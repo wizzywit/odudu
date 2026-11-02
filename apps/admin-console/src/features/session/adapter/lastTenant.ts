@@ -1,4 +1,4 @@
-import { isTenantName } from '#/features/session/services';
+import { isTenantName } from '#/features/session/services/address';
 import { browserStorage } from '#/shared/adapter/browserStorage';
 
 const KEY = 'odudu.console.tenant';

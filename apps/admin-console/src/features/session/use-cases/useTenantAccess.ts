@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { signInHome, tenantEntry, type Principal } from '#/features/session/services';
+import { type Principal } from '#/features/session/services/address';
+import { signInHome, tenantEntry } from '#/features/session/services/entry';
 import { useSignedIn } from '#/features/session/use-cases/useSignedIn';
 import { useSignIn } from '#/features/session/use-cases/useSignIn';
 

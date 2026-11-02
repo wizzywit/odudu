@@ -11,9 +11,9 @@ import {
   mapperChecklist,
   mappersFailure,
   mappersSummary,
-  scopeMappersRecord,
   type MapperOption,
-} from '#/features/scopes/services';
+} from '#/features/scopes/services/mappers';
+import { scopeMappersRecord } from '#/features/scopes/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { writeRefusal } from '#/shared/services/capabilities';

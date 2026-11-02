@@ -4,7 +4,7 @@ import {
   useScopeRolesRead,
   type ScopeRoles,
 } from '#/features/scopes/use-cases/useScopeRoles';
-import { INCLUDE_ALL_POINTER, NO_ROLES_MAPPED } from '#/features/scopes/services';
+import { INCLUDE_ALL_POINTER, NO_ROLES_MAPPED } from '#/features/scopes/services/roles';
 import { MappedRoles } from '#/shared/ui/MappedRoles';
 import { ReadGate } from '#/shared/ui/ReadGate';
 import { RolePicker } from '#/shared/ui/RolePicker';

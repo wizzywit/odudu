@@ -2,13 +2,9 @@ import type { ClientScope } from '@odudu/contracts/admin';
 import type { ReactNode } from 'react';
 import { useAuditReadable } from '#/features/session';
 import { AreaGate, areaAt } from '#/features/shell';
-import {
-  copyHrefOf,
-  SCOPE_TAB_LABELS,
-  SCOPE_TABS,
-  scopesTrail,
-  type ScopeTab,
-} from '#/features/scopes/services';
+import { scopesTrail } from '#/features/scopes/services/address';
+import { copyHrefOf } from '#/features/scopes/services/copy';
+import { SCOPE_TAB_LABELS, SCOPE_TABS, type ScopeTab } from '#/features/scopes/services/tabs';
 import { useScopeRecordPage } from '#/features/scopes/use-cases/useScopeRecordPage';
 import { ClientsTab } from '#/features/scopes/ui/ScopeRecordPage/ClientsTab';
 import { GeneralTab } from '#/features/scopes/ui/ScopeRecordPage/GeneralTab';

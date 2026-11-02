@@ -1,18 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { rememberedTenant } from '#/features/session/repository/useSessionQuery';
+import { CHOOSE_TENANT, type Principal } from '#/features/session/services/address';
 import {
-  CHOOSE_TENANT,
   entersDirectly,
   homeTarget,
   isSystemPrincipal,
-  LOGIN_ERROR,
-  loginNotice,
-  namedTenant,
   replacedSession,
-  switchFailedText,
-  tenantProblem,
-  type Principal,
-} from '#/features/session/services';
+} from '#/features/session/services/entry';
+import { LOGIN_ERROR, loginNotice, switchFailedText } from '#/features/session/services/loginError';
+import { namedTenant, tenantProblem } from '#/features/session/services/tenant';
 import { useSignedIn } from '#/features/session/use-cases/useSignedIn';
 import { useSignIn } from '#/features/session/use-cases/useSignIn';
 import { useGo } from '#/shared/repository/useGo';

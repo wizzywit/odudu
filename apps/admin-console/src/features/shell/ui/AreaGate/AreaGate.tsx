@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { checkingText, type Area } from '#/features/shell/services';
+import { type Area } from '#/features/shell/services/areas';
+import { checkingText } from '#/features/shell/services/frame';
 import { useArea } from '#/features/shell/use-cases/useArea';
 import { AccessGate } from '#/shared/ui/AccessGate';
 import type { Crumb } from '#/shared/ui/Breadcrumb';

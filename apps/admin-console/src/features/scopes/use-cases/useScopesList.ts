@@ -1,6 +1,6 @@
 import type { ClientScope } from '@odudu/contracts/admin';
 import { useScopeList } from '#/features/scopes/repository/useScopeList';
-import { newScopeHref, scopeHref } from '#/features/scopes/services';
+import { newScopeHref, scopeHref } from '#/features/scopes/services/address';
 import { useListPage, type ListPageState } from '#/shared/use-cases/useListPage';
 
 export type ScopesList = ListPageState<ClientScope>;

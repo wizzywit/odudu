@@ -1,6 +1,6 @@
 import type { ClientScope } from '@odudu/contracts/admin';
 import { useScopeRecord } from '#/features/scopes/repository/useScopeRecord';
-import { SCOPE_TABS, type ScopeTab, TAB_RECORDS } from '#/features/scopes/services';
+import { SCOPE_TABS, type ScopeTab, TAB_RECORDS } from '#/features/scopes/services/tabs';
 import type { RecordView } from '#/shared/services/record';
 import { useRecordTabs } from '#/shared/use-cases/useRecordTabs';
 

@@ -8,7 +8,7 @@ import {
   mappersFailureText,
   mappersSummary,
   describeMappers,
-} from '#/features/scopes/services';
+} from '#/features/scopes/services/mappers';
 
 it('offers every available mapper, in the order the registry names them', () => {
   expect(mapperChecklist(['email', 'groups'], [], ['groups'])).toEqual({

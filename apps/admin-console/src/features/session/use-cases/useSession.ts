@@ -1,5 +1,6 @@
 import { useSessionEvent, useSessionQuery } from '#/features/session/repository/useSessionQuery';
-import { bootOf, draftOwner, shownPrincipal, type Principal } from '#/features/session/services';
+import { type Principal } from '#/features/session/services/address';
+import { bootOf, draftOwner, shownPrincipal } from '#/features/session/services/boot';
 import { useSignIn } from '#/features/session/use-cases/useSignIn';
 import { useDrafts } from '#/shared/repository/useDrafts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';

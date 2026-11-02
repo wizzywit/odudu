@@ -2,14 +2,6 @@ import type { RuleId } from './rule.ts';
 
 export const INVENTORY: Record<RuleId, string[]> = {
   'no-service-barrel': [
-    'apps/admin-console/src/features/groups/services/index.ts',
-    'apps/admin-console/src/features/registration-tokens/services/index.ts',
-    'apps/admin-console/src/features/roles/services/index.ts',
-    'apps/admin-console/src/features/scopes/services/index.ts',
-    'apps/admin-console/src/features/session/services/index.ts',
-    'apps/admin-console/src/features/settings/services/index.ts',
-    'apps/admin-console/src/features/shell/services/index.ts',
-    'apps/admin-console/src/features/signing-keys/services/index.ts',
     'apps/admin-console/src/features/subjects/services/index.ts',
     'apps/admin-console/src/features/system-admins/services/index.ts',
     'apps/admin-console/src/features/tenant-sessions/services/index.ts',

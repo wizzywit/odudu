@@ -5,7 +5,7 @@ import {
   displayOrderProblem,
   generalPatch,
   scopeFailureFields,
-} from '#/features/scopes/services';
+} from '#/features/scopes/services/general';
 
 it('accepts a whole number from zero, and nothing else', () => {
   expect(displayOrderProblem('0')).toBeNull();

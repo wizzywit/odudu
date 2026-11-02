@@ -1,7 +1,9 @@
 import type { Settings } from '@odudu/contracts/admin';
 import { usePrincipal, useRefusal } from '#/features/session';
 import { settingsSave, type SectionValues } from '#/features/settings/repository/settingsSave';
-import { disablesTenant, settingEntries, type SettingsSection } from '#/features/settings/services';
+import { disablesTenant } from '#/features/settings/services/general';
+import { type SettingsSection } from '#/features/settings/services/sections';
+import { settingEntries } from '#/features/settings/services/values';
 import {
   useSectionSave,
   type SectionFields,
