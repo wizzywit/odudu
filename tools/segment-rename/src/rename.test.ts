@@ -109,4 +109,28 @@ describe('renameSegments', () => {
     expect(read('src/use.ts')).toContain('/view/');
     expect(existsSync(join(root, 'src/features/a/view'))).toBe(true);
   });
+
+  it('leaves a relative specifier from outside src, and one into a non-src directory', () => {
+    put('server/service/s.ts', 'export const s = 1;\n');
+    put('scripts/run.ts', `import { s } from '../server/service/s';\n`);
+    put('src/use.ts', `import { s } from '../server/service/s';\n`);
+    const result = run();
+    expect(read('scripts/run.ts')).toBe(`import { s } from '../server/service/s';\n`);
+    expect(read('src/use.ts')).toBe(`import { s } from '../server/service/s';\n`);
+    expect(existsSync(join(root, 'server/service/s.ts'))).toBe(true);
+    expect(result.rewritten).not.toContain(join(root, 'scripts/run.ts'));
+  });
+
+  it('leaves a bare package specifier and an unrelated relative path alone', () => {
+    const source = `import ts from 'typescript';\nimport { x } from './viewport/x';\n`;
+    put('src/shared/use.ts', source);
+    run();
+    expect(read('src/shared/use.ts')).toBe(source);
+  });
+
+  it('still rewrites a path under src from a file outside it', () => {
+    put('scripts/run.ts', `import { B } from '../src/features/a/view/B/B';\n`);
+    run();
+    expect(read('scripts/run.ts')).toBe(`import { B } from '../src/features/a/ui/B/B';\n`);
+  });
 });

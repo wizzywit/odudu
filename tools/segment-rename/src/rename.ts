@@ -40,7 +40,9 @@ function walk(dir: string, visit: (path: string, isDir: boolean) => void): void 
 // `base` carries its new name. Only segments that are directories today are
 // renamed, so a file called service.ts is never touched.
 function renamedPath(base: string, path: string, mapping: Record<string, string>): string {
-  const segments = relative(base, path).split(sep);
+  const inside = relative(base, path);
+  if (inside.startsWith('..') || inside === '') return path;
+  const segments = inside.split(sep);
   let current = base;
   const out: string[] = [];
   for (const segment of segments) {
