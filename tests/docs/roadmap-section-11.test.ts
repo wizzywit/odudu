@@ -132,6 +132,22 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
   ],
   ['P4f', 'It also reconciles accounts', 'differ only by case', 'more than one click'],
   [
+    'P4k',
+    'Both frontends',
+    'the admin console and the docs app',
+    '`ui`, `use-cases`, `services`, `repository`, `adapter` and `types`',
+    '`shared` holds no business knowledge',
+  ],
+  [
+    'P4k',
+    'Entities, features and pages',
+    'where evidence showed a need',
+    'one owner for each rule',
+    'adapters map the wire to domain types',
+  ],
+  ['P4k', 'The architecture rules', 'lints with no allowlist'],
+  ['P4k', 'Behaviour does not change', 'behaviour unchanged'],
+  [
     'P4h',
     'Every string in the admin console',
     'read from a catalogue',

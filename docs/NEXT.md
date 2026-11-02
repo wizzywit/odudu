@@ -22,9 +22,10 @@ and wording, Arabic ships as the right-to-left language, and sign-out asks
 first. What it found is in [`docs/phases/p4b.md`](phases/p4b.md). Its one owner
 step is a reader of Arabic, in `RELEASING.md` before the stable tag.
 
-**What is next, in this order: P4j, P5a, P4f, P4h, P4i, P5, P5b**, then the
+**What is next, in this order: P4k, P4j, P5a, P4f, P4h, P4i, P5, P5b**, then the
 phases the roadmap page lists as "Later", P6 to P14. The letters do not read
-in execution order. P4j is a custom domain for each tenant, which left P4b
+in execution order. P4k is the frontend architecture, which the owner
+runs first; P4j is a custom domain for each tenant, which left P4b
 for its own phase; P5a the MCP server;
 P4f self-service through a "me" API and application-initiated actions; P4h
 console localization ([ADR 0043](adr/0043-localization-is-a-catalogue-a-negotiation-and-a-set-of-owners.md));
