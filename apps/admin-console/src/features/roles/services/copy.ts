@@ -1,12 +1,10 @@
 import type { ListRoleCompositesResponse, Role } from '@odudu/contracts/admin';
-import { withSearch } from '#/shared/services/address';
 import type { LeftOut, PartialCopy } from '#/shared/services/copy';
 import { andList } from '#/shared/services/format';
 import type { AdminCapability } from '#/shared/services/principal';
 import type { GatewayResult } from '#/shared/services/result';
-import { TAB_PARAM } from '#/shared/services/record';
 import { childUnavailable } from '#/features/roles/services/blocks';
-import { roleHref } from '#/features/roles/services/address';
+import { roleTabHref } from '#/features/roles/services/tabs';
 
 export type CopyRead =
   | { status: 'none' }
@@ -93,7 +91,7 @@ export function partialCopy(
   if (missed.length === 0) return null;
   return {
     text: `${role.name} was created, but ${andList(missed.map((each) => each.name))} could not be nested in it. Add them from its Composites tab.`,
-    href: withSearch(roleHref(tenant, role.id), { [TAB_PARAM]: 'composites' }),
+    href: roleTabHref(tenant, role.id, 'composites'),
     name: role.name,
   };
 }

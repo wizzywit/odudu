@@ -1,9 +1,8 @@
-import { withSearch } from '#/shared/services/address';
-import { TAB_PARAM } from '#/shared/services/record';
+import { recordTabs } from '#/shared/services/record';
 import { clientHref } from '#/features/clients/services/address';
 
 // A client's record, a tab per concern, in the order the page shows them.
-export const CLIENT_TABS = [
+const TABS = [
   'general',
   'redirects',
   'tokens',
@@ -17,33 +16,7 @@ export const CLIENT_TABS = [
   'activity',
 ] as const;
 
-export type ClientTab = (typeof CLIENT_TABS)[number];
-
-export const CLIENT_TAB_LABELS: Readonly<Record<ClientTab, string>> = {
-  general: 'General',
-  redirects: 'Redirects & origins',
-  tokens: 'Tokens',
-  scopes: 'Scopes',
-  logout: 'Logout',
-  branding: 'Branding',
-  advanced: 'Advanced',
-  roles: 'Roles',
-  service: 'Service account',
-  sessions: 'Sessions',
-  activity: 'Activity',
-};
-
-export function chosenTab(name: string): ClientTab | undefined {
-  return CLIENT_TABS.find((tab) => tab === name);
-}
-
-export function clientTabHref(tenant: string, id: string, tab: ClientTab): string {
-  return withSearch(clientHref(tenant, id), { [TAB_PARAM]: tab });
-}
-
-export function clientRecord(id: string): string {
-  return `clients/${id}`;
-}
+export type ClientTab = (typeof TABS)[number];
 
 // Every tab edits the one record, so its dot follows the sections it holds.
 export const TAB_SECTIONS: Readonly<Record<ClientTab, readonly string[]>> = {
@@ -60,6 +33,33 @@ export const TAB_SECTIONS: Readonly<Record<ClientTab, readonly string[]>> = {
   activity: [],
 };
 
+const model = recordTabs({
+  tabs: TABS,
+  labels: {
+    general: 'General',
+    redirects: 'Redirects & origins',
+    tokens: 'Tokens',
+    scopes: 'Scopes',
+    logout: 'Logout',
+    branding: 'Branding',
+    advanced: 'Advanced',
+    roles: 'Roles',
+    service: 'Service account',
+    sessions: 'Sessions',
+    activity: 'Activity',
+  },
+  sections: TAB_SECTIONS,
+});
+
+export const CLIENT_TABS = model.tabs;
+export const CLIENT_TAB_LABELS = model.labels;
+export const chosenTab = model.named;
+export const clientTabHref = model.hrefOf(clientHref);
+
+export function clientRecord(id: string): string {
+  return `clients/${id}`;
+}
+
 // The service account's roles are saved on its own record, so its dot is read from there.
 export const SERVICE_SECTION = 'serviceRoles';
 
@@ -69,12 +69,10 @@ export function tabsWithEdits(
   serviceDirty: ReadonlySet<string> = new Set(),
   brandingDirty: ReadonlySet<string> = new Set(),
 ): ReadonlySet<ClientTab> {
-  return new Set(
-    CLIENT_TABS.filter(
-      (tab) =>
-        TAB_SECTIONS[tab].some((section) => dirty.has(section)) ||
-        (tab === 'service' && serviceDirty.has(SERVICE_SECTION)) ||
-        (tab === 'branding' && brandingDirty.size > 0),
-    ),
+  return model.edited(
+    (tab) =>
+      model.holds(tab, dirty) ||
+      (tab === 'service' && serviceDirty.has(SERVICE_SECTION)) ||
+      (tab === 'branding' && brandingDirty.size > 0),
   );
 }

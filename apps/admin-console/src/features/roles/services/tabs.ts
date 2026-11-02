@@ -1,13 +1,21 @@
-export const ROLE_TABS = ['general', 'composites', 'members', 'activity'] as const;
+import { recordTabs } from '#/shared/services/record';
+import { roleHref } from '#/features/roles/services/address';
+
+const model = recordTabs({
+  tabs: ['general', 'composites', 'members', 'activity'] as const,
+  labels: {
+    general: 'General',
+    composites: 'Composites',
+    members: 'Members',
+    activity: 'Activity',
+  },
+});
+
+export const ROLE_TABS = model.tabs;
+export const ROLE_TAB_LABELS = model.labels;
+export const roleTabHref = model.hrefOf(roleHref);
 
 export type RoleTab = (typeof ROLE_TABS)[number];
-
-export const ROLE_TAB_LABELS: Readonly<Record<RoleTab, string>> = {
-  general: 'General',
-  composites: 'Composites',
-  members: 'Members',
-  activity: 'Activity',
-};
 
 export function roleRecord(id: string): string {
   return `roles/${id}`;

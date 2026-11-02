@@ -1,3 +1,4 @@
+import { withSearch } from '#/shared/services/address';
 import { isMissing } from '#/shared/services/failure';
 import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
 
@@ -32,6 +33,42 @@ export function dirtyTabs<T extends string>(
   dirty: ReadonlySet<string>,
 ): ReadonlySet<T> {
   return new Set(tabs.filter((tab) => recordsOf(tab).some((record) => dirty.has(record))));
+}
+
+export interface TabSpec<T extends string> {
+  tabs: readonly [T, ...T[]];
+  labels: Readonly<Record<T, string>>;
+  // The sections each tab saves.
+  sections?: Readonly<Record<T, readonly string[]>>;
+}
+
+export interface RecordTabModel<T extends string> {
+  tabs: readonly [T, ...T[]];
+  labels: Readonly<Record<T, string>>;
+  named: (name: string | null) => T | undefined;
+  // The address of one tab of a record, built on the record's own.
+  hrefOf: (
+    address: (tenant: string, id: string) => string,
+  ) => (tenant: string, id: string, tab: T) => string;
+  // Whether `dirty`, the unsaved sections of the record the tab saves to,
+  // holds one of the tab's own.
+  holds: (tab: T, dirty: ReadonlySet<string> | undefined) => boolean;
+  // The tabs, in order, that `isEdited` says carry the dot.
+  edited: (isEdited: (tab: T) => boolean) => ReadonlySet<T>;
+}
+
+// A record page's tabs as data: the list in the order shown, each label,
+// each tab's address and which tabs hold unsaved sections.
+export function recordTabs<T extends string>(spec: TabSpec<T>): RecordTabModel<T> {
+  const { tabs, labels, sections } = spec;
+  return {
+    tabs,
+    labels,
+    named: (name) => tabNamed(tabs, name),
+    hrefOf: (address) => (tenant, id, tab) => withSearch(address(tenant, id), { [TAB_PARAM]: tab }),
+    holds: (tab, dirty) => sections?.[tab].some((section) => dirty?.has(section) === true) === true,
+    edited: (isEdited) => new Set(tabs.filter(isEdited)),
+  };
 }
 
 // Where a section's unsaved edits are recorded: by tenant too, since a

@@ -1,37 +1,37 @@
-import { withSearch } from '#/shared/services/address';
-import { TAB_PARAM } from '#/shared/services/record';
+import { recordTabs } from '#/shared/services/record';
 import { subjectHref } from '#/features/subjects/services/address';
 
 // A subject's record, a tab per concern, in the order the page shows them.
-export const SUBJECT_TABS = [
-  'profile',
-  'credentials',
-  'groups',
-  'roles',
-  'required-actions',
-  'sessions',
-  'consents',
-  'grants',
-  'activity',
-] as const;
+const model = recordTabs({
+  tabs: [
+    'profile',
+    'credentials',
+    'groups',
+    'roles',
+    'required-actions',
+    'sessions',
+    'consents',
+    'grants',
+    'activity',
+  ] as const,
+  labels: {
+    profile: 'Profile',
+    credentials: 'Credentials',
+    groups: 'Groups',
+    roles: 'Roles',
+    'required-actions': 'Required actions',
+    sessions: 'Sessions',
+    consents: 'Consents',
+    grants: 'Grants',
+    activity: 'Activity',
+  },
+});
+
+export const SUBJECT_TABS = model.tabs;
+export const SUBJECT_TAB_LABELS = model.labels;
+export const subjectTabHref = model.hrefOf(subjectHref);
 
 export type SubjectTab = (typeof SUBJECT_TABS)[number];
-
-export const SUBJECT_TAB_LABELS: Readonly<Record<SubjectTab, string>> = {
-  profile: 'Profile',
-  credentials: 'Credentials',
-  groups: 'Groups',
-  roles: 'Roles',
-  'required-actions': 'Required actions',
-  sessions: 'Sessions',
-  consents: 'Consents',
-  grants: 'Grants',
-  activity: 'Activity',
-};
-
-export function subjectTabHref(tenant: string, id: string, tab: SubjectTab): string {
-  return withSearch(subjectHref(tenant, id), { [TAB_PARAM]: tab });
-}
 
 export function subjectRecord(id: string): string {
   return `subjects/${id}`;

@@ -1,21 +1,9 @@
-import { tabNamed } from '#/shared/services/record';
+import { recordTabs, tabNamed } from '#/shared/services/record';
 
 // Every tab of the Branding area, in the order they join it.
-export const BRANDING_TABS = ['theme', 'pages', 'mail', 'languages'] as const;
+const TABS = ['theme', 'pages', 'mail', 'languages'] as const;
 
-export type BrandingTab = (typeof BRANDING_TABS)[number];
-
-// The tabs the area shows, each with a view.
-export const OFFERED_TABS = BRANDING_TABS;
-
-export type OfferedTab = (typeof OFFERED_TABS)[number];
-
-export const BRANDING_TAB_LABELS: Readonly<Record<BrandingTab, string>> = {
-  theme: 'Theme',
-  pages: 'Pages',
-  mail: 'Mail',
-  languages: 'Languages',
-};
+export type BrandingTab = (typeof TABS)[number];
 
 // The sections each tab saves, which carry its unsaved-changes dot.
 export const BRANDING_TAB_SECTIONS: Readonly<Record<BrandingTab, readonly string[]>> = {
@@ -24,6 +12,20 @@ export const BRANDING_TAB_SECTIONS: Readonly<Record<BrandingTab, readonly string
   mail: [],
   languages: ['languages'],
 };
+
+const model = recordTabs({
+  tabs: TABS,
+  labels: { theme: 'Theme', pages: 'Pages', mail: 'Mail', languages: 'Languages' },
+  sections: BRANDING_TAB_SECTIONS,
+});
+
+export const BRANDING_TABS = model.tabs;
+export const BRANDING_TAB_LABELS = model.labels;
+
+// The tabs the area shows, each with a view.
+export const OFFERED_TABS = BRANDING_TABS;
+
+export type OfferedTab = (typeof OFFERED_TABS)[number];
 
 // The record each tab's sections are saved to: the theme's, or the tenant's
 // settings, which the languages go to.
@@ -41,11 +43,7 @@ const TAB_RECORD: Readonly<Record<BrandingTab, TabRecord>> = {
 export function tabsWithEdits(
   dirty: Readonly<Partial<Record<TabRecord, ReadonlySet<string>>>>,
 ): ReadonlySet<OfferedTab> {
-  return new Set(
-    OFFERED_TABS.filter((tab) =>
-      BRANDING_TAB_SECTIONS[tab].some((section) => dirty[TAB_RECORD[tab]]?.has(section) === true),
-    ),
-  );
+  return model.edited((tab) => model.holds(tab, dirty[TAB_RECORD[tab]]));
 }
 
 // The tabs that frame a preview of a page.

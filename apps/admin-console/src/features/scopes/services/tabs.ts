@@ -1,14 +1,20 @@
-export const SCOPE_TABS = ['general', 'roles', 'mappers', 'clients', 'activity'] as const;
+import { recordTabs } from '#/shared/services/record';
+
+const model = recordTabs({
+  tabs: ['general', 'roles', 'mappers', 'clients', 'activity'] as const,
+  labels: {
+    general: 'General',
+    roles: 'Roles',
+    mappers: 'Claim mappers',
+    clients: 'Clients',
+    activity: 'Activity',
+  },
+});
+
+export const SCOPE_TABS = model.tabs;
+export const SCOPE_TAB_LABELS = model.labels;
 
 export type ScopeTab = (typeof SCOPE_TABS)[number];
-
-export const SCOPE_TAB_LABELS: Readonly<Record<ScopeTab, string>> = {
-  general: 'General',
-  roles: 'Roles',
-  mappers: 'Claim mappers',
-  clients: 'Clients',
-  activity: 'Activity',
-};
 
 export function scopeRecord(id: string): string {
   return `scopes/${id}`;

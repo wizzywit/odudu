@@ -1,13 +1,14 @@
-export const GROUP_TABS = ['general', 'roles', 'members', 'activity'] as const;
+import { recordTabs } from '#/shared/services/record';
+
+const model = recordTabs({
+  tabs: ['general', 'roles', 'members', 'activity'] as const,
+  labels: { general: 'General', roles: 'Roles', members: 'Members', activity: 'Activity' },
+});
+
+export const GROUP_TABS = model.tabs;
+export const GROUP_TAB_LABELS = model.labels;
 
 export type GroupTab = (typeof GROUP_TABS)[number];
-
-export const GROUP_TAB_LABELS: Readonly<Record<GroupTab, string>> = {
-  general: 'General',
-  roles: 'Roles',
-  members: 'Members',
-  activity: 'Activity',
-};
 
 export function groupRecord(id: string): string {
   return `groups/${id}`;
