@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   CLIENT_TABS,
+  CLIENT_TAB_LABELS,
   chosenTab,
   clientRecord,
   clientTabHref,
@@ -68,3 +69,26 @@ it('marks the branding tab from the theme saved on the client’s own record', (
   ]);
   expect(tabsWithEdits(new Set(), new Set(), new Set())).toEqual(new Set());
 });
+
+it.each([
+  ['general', 'General', ['details', 'translations', 'pages', 'availability', 'consent']],
+  ['redirects', 'Redirects & origins', ['redirects', 'origins']],
+  ['tokens', 'Tokens', ['lifetimes', 'grants', 'credentials', 'fullScope', 'idToken']],
+  ['scopes', 'Scopes', []],
+  ['logout', 'Logout', ['postLogout', 'confirmation', 'backchannel', 'frontchannel']],
+  ['branding', 'Branding', []],
+  ['advanced', 'Advanced', ['auth', 'keys', 'userinfo', 'audiences', 'exchange']],
+  ['roles', 'Roles', []],
+  ['service', 'Service account', []],
+  ['sessions', 'Sessions', []],
+  ['activity', 'Activity', []],
+] as const)(
+  'characterisation: %s is labelled %s, holds %j and is addressed',
+  (tab, label, held) => {
+    expect(CLIENT_TAB_LABELS[tab]).toBe(label);
+    expect(TAB_SECTIONS[tab]).toEqual(held);
+    expect(clientTabHref('acme', 'c 1', tab)).toBe(`/console/acme/clients/c%201?tab=${tab}`);
+    expect(chosenTab(tab)).toBe(tab);
+    for (const section of held) expect([...tabsWithEdits(new Set([section]))]).toEqual([tab]);
+  },
+);

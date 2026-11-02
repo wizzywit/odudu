@@ -40,3 +40,21 @@ describe('the record tabs', () => {
     expect(subjectTabHref('acme', 's 1', 'roles')).toBe('/console/acme/subjects/s%201?tab=roles');
   });
 });
+
+describe('characterisation: the subject tabs', () => {
+  it.each([
+    ['profile', 'Profile', ['subjects/s', 'subjects/s/profile']],
+    ['credentials', 'Credentials', []],
+    ['groups', 'Groups', ['subjects/s/groups']],
+    ['roles', 'Roles', ['subjects/s/roles']],
+    ['required-actions', 'Required actions', ['subjects/s/required-actions']],
+    ['sessions', 'Sessions', []],
+    ['consents', 'Consents', []],
+    ['grants', 'Grants', []],
+    ['activity', 'Activity', []],
+  ] as const)('%s is labelled %s, edits %j and is addressed by tab', (tab, label, records) => {
+    expect(SUBJECT_TAB_LABELS[tab]).toBe(label);
+    expect(TAB_RECORDS[tab]('s')).toEqual(records);
+    expect(subjectTabHref('acme', 's', tab)).toBe(`/console/acme/subjects/s?tab=${tab}`);
+  });
+});

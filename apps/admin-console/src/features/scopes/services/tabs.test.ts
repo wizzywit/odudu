@@ -26,3 +26,14 @@ it('follows the records each tab edits, so its dot can', () => {
   expect(TAB_RECORDS.activity('s1')).toEqual([]);
   expect(scopeRolesRecord('s1')).toBe('scopes/s1/roles');
 });
+
+it.each([
+  ['general', 'General', ['scopes/s']],
+  ['roles', 'Roles', ['scopes/s/roles']],
+  ['mappers', 'Claim mappers', ['scopes/s/mappers']],
+  ['clients', 'Clients', []],
+  ['activity', 'Activity', []],
+] as const)('characterisation: %s is labelled %s and edits %j', (tab, label, records) => {
+  expect(SCOPE_TAB_LABELS[tab]).toBe(label);
+  expect(TAB_RECORDS[tab]('s')).toEqual(records);
+});

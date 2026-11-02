@@ -10,6 +10,7 @@ import {
 } from '#/features/branding/services/scope';
 import {
   BRANDING_TAB_LABELS,
+  BRANDING_TAB_SECTIONS,
   BRANDING_TABS,
   OFFERED_TABS,
   showsPreview,
@@ -146,5 +147,23 @@ describe('the reads a tab shows', () => {
 
   it('are none that the theme record does not already carry on Mail', () => {
     expect(Object.values(tabReads('mail'))).toEqual([false, false, false, false]);
+  });
+});
+
+describe('characterisation: the branding tabs', () => {
+  it.each([
+    ['theme', 'Theme', ['colours', 'images', 'stylesheet'], 'theme'],
+    ['pages', 'Pages', ['templates'], 'theme'],
+    ['mail', 'Mail', [], 'theme'],
+    ['languages', 'Languages', ['languages'], 'settings'],
+  ] as const)('%s is labelled %s, holds %j in the %s record', (tab, label, held, record) => {
+    expect(BRANDING_TAB_LABELS[tab]).toBe(label);
+    expect(BRANDING_TAB_SECTIONS[tab]).toEqual(held);
+    for (const section of held) {
+      expect([...tabsWithEdits({ [record]: new Set([section]) })]).toEqual([tab]);
+    }
+    expect(tabsWithEdits({ [record === 'theme' ? 'settings' : 'theme']: new Set(held) }).size).toBe(
+      0,
+    );
   });
 });
