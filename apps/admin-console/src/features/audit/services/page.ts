@@ -1,5 +1,3 @@
-export const TITLE = 'Audit trail';
-
 export const NOUN = { one: 'audit event', other: 'audit events' } as const;
 
 export const NO_COUNT =

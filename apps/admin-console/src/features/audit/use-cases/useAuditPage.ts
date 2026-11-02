@@ -1,6 +1,7 @@
 import type { AuditEvent } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useAuthority } from '#/features/session';
+import { areaAt, areaHref } from '#/features/shell';
 import { clientHref } from '#/features/clients';
 import { groupHref } from '#/features/groups';
 import { roleHref } from '#/features/roles';
@@ -129,7 +130,9 @@ export function useAuditPage(tenant: string): AuditPageState {
     },
     hrefs: {
       resource: (event: AuditEvent) =>
-        resourceHref(tenant, event.resource_type, event.resource_id, RECORD_PAGES),
+        resourceHref(tenant, event.resource_type, event.resource_id, RECORD_PAGES, (path) =>
+          areaHref(tenant, areaAt(path)),
+        ),
       actor: (event: AuditEvent) => actorHref(tenant, event, mayReadSubjects, subjectHref),
     },
     narrowed: isFiltered(list.filters),

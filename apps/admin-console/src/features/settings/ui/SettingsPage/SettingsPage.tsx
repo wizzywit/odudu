@@ -33,7 +33,7 @@ import { SaveSection } from '#/shared/ui/SaveSection';
 import { ClearLockouts } from '#/features/settings/ui/ClearLockouts';
 import styles from '#/features/settings/ui/SettingsPage/SettingsPage.module.css';
 
-const TITLE = 'Settings';
+const AREA = areaAt('settings');
 
 function Control({
   field,
@@ -266,10 +266,10 @@ function Sections({ tenant }: { tenant: string }) {
 
 export function SettingsPage({ tenant }: { tenant: string }) {
   return (
-    <AreaGate tenant={tenant} area={areaAt('settings')} title={TITLE}>
+    <AreaGate tenant={tenant} area={AREA} title={AREA.label}>
       <PageHeader
         kicker={tenant}
-        title={TITLE}
+        title={AREA.label}
         description="How this tenant signs people in, what it asks of their passwords, and how long it keeps what it records. Every section saves on its own."
       />
       <Sections tenant={tenant} />

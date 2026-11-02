@@ -9,6 +9,8 @@ import { Timestamp } from '#/shared/ui/Timestamp';
 import styles from '#/features/scopes/ui/ScopesPage/ScopesPage.module.css';
 import { NAME_SEARCH } from '#/shared/services/filters';
 
+const AREA = areaAt('scopes');
+
 const COLUMNS: readonly Column<ClientScope>[] = [
   {
     id: 'name',
@@ -31,7 +33,7 @@ function List({ tenant }: { tenant: string }) {
     <ResourceListPage
       list={page.list}
       kicker={tenant}
-      title="Scopes"
+      title={AREA.label}
       description="A scope is what a client asks to be let do, and what a token says it was granted. A search matches the start of a name."
       actions={
         <>
@@ -54,7 +56,7 @@ function List({ tenant }: { tenant: string }) {
 
 export function ScopesPage({ tenant }: { tenant: string }) {
   return (
-    <AreaGate tenant={tenant} area={areaAt('scopes')} title="Scopes">
+    <AreaGate tenant={tenant} area={AREA} title={AREA.label}>
       <List tenant={tenant} />
     </AreaGate>
   );

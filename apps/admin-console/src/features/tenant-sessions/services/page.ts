@@ -1,11 +1,8 @@
 import type { EndTenantSessionsResponse, TenantSession } from '@odudu/contracts/admin';
-import { tenantPage } from '#/shared/services/address';
 import { nameOrId } from '#/shared/services/ids';
 import { refusedBy, writeFailureText } from '#/shared/services/failure';
 import { counted } from '#/shared/services/format';
 import type { GatewayFailure } from '#/shared/services/result';
-
-export const TITLE = 'Sessions';
 
 export const NOUN = { one: 'session', other: 'sessions' } as const;
 
@@ -16,10 +13,6 @@ export const NOTHING_YET = 'Nobody is signed in to this tenant.';
 
 // The most sessions one request ends; the server does the rest on the next.
 const END_LIMIT = 500;
-
-export function sessionsHref(tenant: string): string {
-  return `${tenantPage(tenant)}/sessions`;
-}
 
 // A subject is named by its username where it has one; its id is what the
 // link and the detail go by.

@@ -4,7 +4,6 @@ import {
   BRANDING_DESCRIPTION,
   BRANDING_NOUN,
   BRANDING_SECTIONS_LABEL,
-  BRANDING_TITLE,
 } from '#/features/branding/services/copy';
 import {
   BRANDING_TAB_LABELS,
@@ -19,6 +18,8 @@ import { PagesPanel, ThemePanel } from '#/features/branding/ui/ScopePanels';
 import { Workspace } from '#/features/branding/ui/Workspace';
 import { RecordPage } from '#/shared/ui/RecordPage';
 import { TouchTargets } from '#/shared/ui/TouchTargets';
+
+const AREA = areaAt('branding');
 
 function Branding({ tenant }: { tenant: string }) {
   const page = useBrandingPage(tenant);
@@ -40,7 +41,7 @@ function Branding({ tenant }: { tenant: string }) {
       <RecordPage
         record={branding.record}
         kicker={tenant}
-        title={BRANDING_TITLE}
+        title={AREA.label}
         description={BRANDING_DESCRIPTION}
         noun={BRANDING_NOUN}
         label={BRANDING_SECTIONS_LABEL}
@@ -71,7 +72,7 @@ function Branding({ tenant }: { tenant: string }) {
 
 export function BrandingPage({ tenant }: { tenant: string }) {
   return (
-    <AreaGate tenant={tenant} area={areaAt('branding')} title={BRANDING_TITLE}>
+    <AreaGate tenant={tenant} area={AREA} title={AREA.label}>
       <Branding tenant={tenant} />
     </AreaGate>
   );

@@ -11,6 +11,8 @@ import { Timestamp } from '#/shared/ui/Timestamp';
 import styles from '#/features/clients/ui/ClientsPage/ClientsPage.module.css';
 import { STATUS_FILTER } from '#/shared/services/filters';
 
+const AREA = areaAt('clients');
+
 const COLUMNS: readonly Column<Client>[] = [
   {
     id: 'name',
@@ -55,7 +57,7 @@ function List({ tenant }: { tenant: string }) {
     <ResourceListPage
       list={list}
       kicker={tenant}
-      title="Clients"
+      title={AREA.label}
       description="A client is an application that signs people in through this tenant. A search matches the start of a client's name, or of its ID, and reaches every client, however many there are."
       actions={
         <ButtonLink href={page.createHref} variant="primary">
@@ -95,7 +97,7 @@ function List({ tenant }: { tenant: string }) {
 
 export function ClientsPage({ tenant }: { tenant: string }) {
   return (
-    <AreaGate tenant={tenant} area={areaAt('clients')} title="Clients">
+    <AreaGate tenant={tenant} area={AREA} title={AREA.label}>
       <List tenant={tenant} />
     </AreaGate>
   );

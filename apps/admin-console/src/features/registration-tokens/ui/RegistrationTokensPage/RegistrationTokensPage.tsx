@@ -1,11 +1,6 @@
 import type { RegistrationToken } from '@odudu/contracts/admin';
 import { AreaGate, areaAt } from '#/features/shell';
-import {
-  NOTHING_YET,
-  NOUN,
-  TITLE,
-  TOKENS_RULE,
-} from '#/features/registration-tokens/services/page';
+import { NOTHING_YET, NOUN, TOKENS_RULE } from '#/features/registration-tokens/services/page';
 import {
   useRegistrationTokensPage,
   type RegistrationTokensPage as Page,
@@ -24,6 +19,8 @@ import { LastAction } from '#/shared/ui/LastAction';
 import { Panel } from '#/shared/ui/Panel';
 import { recordTab } from '#/shared/ui/RecordTab';
 import styles from '#/features/registration-tokens/ui/RegistrationTokensPage/RegistrationTokensPage.module.css';
+
+const AREA = areaAt('registration-tokens');
 
 function columns(page: Page): readonly Column<RegistrationToken>[] {
   return [
@@ -109,7 +106,7 @@ function List({ tenant }: { tenant: string }) {
       <ResourceListPage
         list={page.list}
         kicker={tenant}
-        title={TITLE}
+        title={AREA.label}
         description="Initial access tokens for dynamic client registration."
         lead={<Mint page={page} />}
         noun={NOUN}
@@ -150,7 +147,7 @@ function List({ tenant }: { tenant: string }) {
 
 export function RegistrationTokensPage({ tenant }: { tenant: string }) {
   return (
-    <AreaGate tenant={tenant} area={areaAt('registration-tokens')} title={TITLE}>
+    <AreaGate tenant={tenant} area={AREA} title={AREA.label}>
       <List tenant={tenant} />
     </AreaGate>
   );

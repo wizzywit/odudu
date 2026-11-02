@@ -1,7 +1,3 @@
-import { tenantPage } from '#/shared/services/address';
-
-export const TITLE = 'Registration tokens';
-
 export const NOUN = { one: 'registration token', other: 'registration tokens' } as const;
 
 export const TOKENS_RULE =
@@ -9,7 +5,3 @@ export const TOKENS_RULE =
 
 export const NOTHING_YET =
   'No token is live. Mint one to let a client register itself, once or a few times, until it expires.';
-
-export function tokensHref(tenant: string): string {
-  return `${tenantPage(tenant)}/registration-tokens`;
-}

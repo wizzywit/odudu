@@ -6,7 +6,6 @@ import {
   NOUN,
   PAGE_RULE,
   subjectCell,
-  TITLE,
 } from '#/features/tenant-sessions/services/page';
 import {
   useTenantSessionsPage,
@@ -19,6 +18,8 @@ import type { Column } from '#/shared/ui/DataTable';
 import { ResourceListPage } from '#/shared/ui/ResourceListPage';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import styles from '#/features/tenant-sessions/ui/TenantSessionsPage/TenantSessionsPage.module.css';
+
+const AREA = areaAt('sessions');
 
 function Subject({ session, link }: { session: TenantSession; link: Page['subjectLink'] }) {
   const { label, id } = subjectCell(session);
@@ -81,7 +82,7 @@ function List({ tenant }: { tenant: string }) {
       <ResourceListPage
         list={page.list}
         kicker={tenant}
-        title={TITLE}
+        title={AREA.label}
         description={PAGE_RULE}
         actions={
           <Button
@@ -119,7 +120,7 @@ function List({ tenant }: { tenant: string }) {
 
 export function TenantSessionsPage({ tenant }: { tenant: string }) {
   return (
-    <AreaGate tenant={tenant} area={areaAt('sessions')} title={TITLE}>
+    <AreaGate tenant={tenant} area={AREA} title={AREA.label}>
       <List tenant={tenant} />
     </AreaGate>
   );

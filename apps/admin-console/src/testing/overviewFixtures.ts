@@ -31,6 +31,7 @@ const AREAS: Readonly<Record<string, { label: string; capability: AdminCapabilit
   email: { label: 'Email', capability: 'manage-tenant' },
   keys: { label: 'Signing keys', capability: 'manage-keys' },
   settings: { label: 'Settings', capability: 'manage-tenant' },
+  audit: { label: 'Audit trail', capability: 'view-audit' },
 };
 
 export const areaOf: AreaOf = (path) => {

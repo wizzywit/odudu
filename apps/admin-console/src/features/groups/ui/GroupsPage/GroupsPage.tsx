@@ -10,6 +10,8 @@ import { Timestamp } from '#/shared/ui/Timestamp';
 import styles from '#/features/groups/ui/GroupsPage/GroupTree.module.css';
 import { NAME_SEARCH } from '#/shared/services/filters';
 
+const AREA = areaAt('groups');
+
 const COLUMNS: readonly Column<Group>[] = [
   {
     id: 'path',
@@ -38,7 +40,7 @@ function List({ tenant }: { tenant: string }) {
     <ResourceListPage
       list={page.list}
       kicker={tenant}
-      title="Groups"
+      title={AREA.label}
       description="Groups gather subjects, and every role a group carries is held by its members and by the members of every group beneath it. A search matches the start of a group's own name, at any level."
       actions={
         <ButtonLink href={page.createHref} variant="primary">
@@ -67,7 +69,7 @@ function List({ tenant }: { tenant: string }) {
 
 export function GroupsPage({ tenant }: { tenant: string }) {
   return (
-    <AreaGate tenant={tenant} area={areaAt('groups')} title="Groups">
+    <AreaGate tenant={tenant} area={AREA} title={AREA.label}>
       <List tenant={tenant} />
     </AreaGate>
   );

@@ -121,3 +121,12 @@ describe('the areas', () => {
     expect(areaAt(path)).toMatchObject({ path, label, capability });
   });
 });
+
+describe('where an area lives', () => {
+  it.each([
+    ['registration-tokens', '/console/a%20b/registration-tokens'],
+    ['sessions', '/console/a%20b/sessions'],
+  ] as const)('%s is under the tenant, its name encoded', (path, href) => {
+    expect(areaHref('a b', areaAt(path))).toBe(href);
+  });
+});

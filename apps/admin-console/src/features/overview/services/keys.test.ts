@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { keysView, publishedKeys } from '#/features/overview/services/keys';
 import { rawJson } from '#/features/overview/services/discovery';
-import { LOADING, ready, authority, reads, KEYS } from '#/testing/overviewFixtures';
+import { LOADING, ready, authority, areaOf, reads, KEYS } from '#/testing/overviewFixtures';
 
 describe('the published keys', () => {
   const jwks = {
@@ -42,7 +42,7 @@ describe('the published keys the overview lays out', () => {
   const jwks = ready({ keys: [{ kty: 'EC', kid: 'kid-a', alg: 'ES256', use: 'sig' }] });
 
   it('carries each key in its lane when the key list was read', () => {
-    const view = keysView(reads({ jwks, keys: ready(KEYS) }), authority('manage-keys'));
+    const view = keysView(reads({ jwks, keys: ready(KEYS) }), authority('manage-keys'), areaOf);
     expect(view).toMatchObject({
       status: 'ready',
       data: { lanesNeed: null, rows: [{ kid: 'kid-a', lane: 'active' }] },
@@ -50,7 +50,7 @@ describe('the published keys the overview lays out', () => {
   });
 
   it('leaves the lane unknown and names the capability when the list is not held', () => {
-    const view = keysView(reads({ jwks, keys: ready(KEYS) }), authority('view-users'));
+    const view = keysView(reads({ jwks, keys: ready(KEYS) }), authority('view-users'), areaOf);
     expect(view).toMatchObject({
       status: 'ready',
       data: { lanesNeed: 'manage-keys', rows: [{ lane: 'unknown' }] },
@@ -58,6 +58,6 @@ describe('the published keys the overview lays out', () => {
   });
 
   it('is the JWKS read itself while it has not answered', () => {
-    expect(keysView(reads({ jwks: LOADING }), undefined)).toEqual({ status: 'loading' });
+    expect(keysView(reads({ jwks: LOADING }), undefined, areaOf)).toEqual({ status: 'loading' });
   });
 });

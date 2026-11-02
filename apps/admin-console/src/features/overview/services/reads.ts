@@ -77,23 +77,28 @@ export function gate<T>(
   return read;
 }
 
-// What each read needs; the tenant's public documents need no capability.
-const NEEDS: Readonly<Record<ReadName, AdminCapability | null>> = {
+// What an area says a read needs: the overview's `AreaOf` is one.
+export type CapabilityOf = (path: string) => { capability: AdminCapability | null };
+
+// The area each read belongs to, whose capability it needs; the tenant's
+// public documents belong to none.
+const READ_AREA: Readonly<Record<ReadName, string | null>> = {
   discovery: null,
   jwks: null,
-  subjects: 'view-users',
-  clients: 'manage-clients',
-  groups: 'manage-tenant',
-  roles: 'manage-tenant',
-  scopes: 'manage-tenant',
-  settings: 'manage-tenant',
-  smtp: 'manage-tenant',
-  keys: 'manage-keys',
-  audit: 'view-audit',
+  subjects: 'subjects',
+  clients: 'clients',
+  groups: 'groups',
+  roles: 'roles',
+  scopes: 'scopes',
+  settings: 'settings',
+  smtp: 'email',
+  keys: 'keys',
+  audit: 'audit',
 };
 
-export function readCapability(name: ReadName): AdminCapability | null {
-  return NEEDS[name];
+export function readCapability(name: ReadName, areaOf: CapabilityOf): AdminCapability | null {
+  const area = READ_AREA[name];
+  return area === null ? null : areaOf(area).capability;
 }
 
 // A read the capability allows, once whoami has said what is held; the
@@ -101,9 +106,10 @@ export function readCapability(name: ReadName): AdminCapability | null {
 export function overviewAsks(
   authority: Authority | undefined,
   tenantMissing: boolean | undefined,
+  areaOf: CapabilityOf,
 ): OverviewAsks {
   const has = (name: ReadName): boolean => {
-    const capability = NEEDS[name];
+    const capability = readCapability(name, areaOf);
     return authority !== undefined && capability !== null && holds(authority, capability);
   };
   return {
@@ -126,6 +132,7 @@ export function auditView(
   access: { kind: 'hidden' | 'checking' | 'refused' | 'open' },
   audit: OverviewRead<readonly AuditEvent[]>,
   authority: Authority | undefined,
+  areaOf: CapabilityOf,
 ): Gated<readonly AuditEvent[]> | null {
-  return access.kind === 'refused' ? null : gate(audit, authority, 'view-audit');
+  return access.kind === 'refused' ? null : gate(audit, authority, areaOf('audit').capability);
 }

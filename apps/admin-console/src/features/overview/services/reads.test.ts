@@ -9,7 +9,15 @@ import {
   overviewOutcome,
   type OverviewRead,
 } from '#/features/overview/services/reads';
-import { retry, LOADING, FAILED, REFUSED, ready, authority } from '#/testing/overviewFixtures';
+import {
+  retry,
+  LOADING,
+  FAILED,
+  REFUSED,
+  ready,
+  authority,
+  areaOf,
+} from '#/testing/overviewFixtures';
 
 describe('a read gated by a capability', () => {
   const read = ready(1);
@@ -67,7 +75,7 @@ describe('a read as a gateway answer reads, for the overview', () => {
 
 describe('which reads the overview asks for', () => {
   it('asks for nothing until whoami has answered, and for the public documents once the tenant is known', () => {
-    expect(overviewAsks(undefined, undefined)).toEqual({
+    expect(overviewAsks(undefined, undefined, areaOf)).toEqual({
       discovery: false,
       subjects: false,
       clients: false,
@@ -79,12 +87,12 @@ describe('which reads the overview asks for', () => {
       keys: false,
       audit: false,
     });
-    expect(overviewAsks(undefined, false).discovery).toBe(true);
-    expect(overviewAsks(undefined, true).discovery).toBe(false);
+    expect(overviewAsks(undefined, false, areaOf).discovery).toBe(true);
+    expect(overviewAsks(undefined, true, areaOf).discovery).toBe(false);
   });
 
   it('asks for what the held capabilities read', () => {
-    expect(overviewAsks(authority('view-users', 'manage-keys'), false)).toMatchObject({
+    expect(overviewAsks(authority('view-users', 'manage-keys'), false, areaOf)).toMatchObject({
       subjects: true,
       keys: true,
       clients: false,
@@ -92,7 +100,7 @@ describe('which reads the overview asks for', () => {
       audit: false,
     });
     expect(
-      overviewAsks(authority('manage-tenant', 'view-audit', 'manage-clients'), false),
+      overviewAsks(authority('manage-tenant', 'view-audit', 'manage-clients'), false, areaOf),
     ).toMatchObject({
       groups: true,
       roles: true,
@@ -106,10 +114,10 @@ describe('which reads the overview asks for', () => {
   });
 
   it('names the capability a read needs, none for the public documents', () => {
-    expect(readCapability('discovery')).toBeNull();
-    expect(readCapability('jwks')).toBeNull();
-    expect(readCapability('audit')).toBe('view-audit');
-    expect(readCapability('smtp')).toBe('manage-tenant');
+    expect(readCapability('discovery', areaOf)).toBeNull();
+    expect(readCapability('jwks', areaOf)).toBeNull();
+    expect(readCapability('audit', areaOf)).toBe('view-audit');
+    expect(readCapability('smtp', areaOf)).toBe('manage-tenant');
   });
 });
 
@@ -117,11 +125,11 @@ describe('the latest activity', () => {
   const events = ready([]);
 
   it('is left off the page when the audit trail is not the caller to read', () => {
-    expect(auditView({ kind: 'refused' }, events, authority())).toBeNull();
+    expect(auditView({ kind: 'refused' }, events, authority(), areaOf)).toBeNull();
   });
 
   it('is gated by view-audit otherwise', () => {
-    expect(auditView({ kind: 'open' }, events, authority('view-audit'))).toBe(events);
-    expect(auditView({ kind: 'checking' }, events, undefined)).toBe(events);
+    expect(auditView({ kind: 'open' }, events, authority('view-audit'), areaOf)).toBe(events);
+    expect(auditView({ kind: 'checking' }, events, undefined, areaOf)).toBe(events);
   });
 });

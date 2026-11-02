@@ -5,26 +5,27 @@ const PAGES: RecordPages = {
   subject: (tenant, id) => `/console/${tenant}/subjects/${id}`,
   client: (tenant, id) => `/console/${tenant}/clients/${id}`,
 };
+const areaPage = (area: string): string => `/console/acme/${area}`;
 const ID = '0192f7a4-5c1e-7b3a-9d2e-6f8a1b2c3d4e';
 
 describe('where a resource id leads', () => {
   it('to the record page, for a type that has one', () => {
-    expect(resourceHref('acme', 'client', ID, PAGES)).toBe(`/console/acme/clients/${ID}`);
+    expect(resourceHref('acme', 'client', ID, PAGES, areaPage)).toBe(`/console/acme/clients/${ID}`);
   });
 
   it('to the area, for a type with a page and no record page', () => {
-    expect(resourceHref('acme', 'signing_key', ID, PAGES)).toBe('/console/acme/keys');
-    expect(resourceHref('acme', 'flow', ID, PAGES)).toBe('/console/acme/flow');
-    expect(resourceHref('acme', 'registration_token', ID, PAGES)).toBe(
+    expect(resourceHref('acme', 'signing_key', ID, PAGES, areaPage)).toBe('/console/acme/keys');
+    expect(resourceHref('acme', 'flow', ID, PAGES, areaPage)).toBe('/console/acme/flow');
+    expect(resourceHref('acme', 'registration_token', ID, PAGES, areaPage)).toBe(
       '/console/acme/registration-tokens',
     );
   });
 
   it('nowhere for a type with neither, or an id that is not a record id', () => {
-    expect(resourceHref('acme', 'grant', ID, PAGES)).toBeNull();
-    expect(resourceHref('acme', 'client', 'odudu-admin', PAGES)).toBeNull();
-    expect(resourceHref('acme', null, ID, PAGES)).toBeNull();
-    expect(resourceHref('acme', 'client', null, PAGES)).toBeNull();
+    expect(resourceHref('acme', 'grant', ID, PAGES, areaPage)).toBeNull();
+    expect(resourceHref('acme', 'client', 'odudu-admin', PAGES, areaPage)).toBeNull();
+    expect(resourceHref('acme', null, ID, PAGES, areaPage)).toBeNull();
+    expect(resourceHref('acme', 'client', null, PAGES, areaPage)).toBeNull();
   });
 });
 

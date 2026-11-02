@@ -7,7 +7,6 @@ import {
   NOTHING_YET,
   STALE_TEXT,
   STALE_TITLE,
-  TITLE,
 } from '#/features/audit/services/page';
 import { useAuditPage, type AuditPageState } from '#/features/audit/use-cases/useAuditPage';
 import { AuditFilters } from '#/features/audit/ui/AuditFilters';
@@ -23,6 +22,8 @@ import { PageHeader } from '#/shared/ui/PageHeader';
 import { Pager } from '#/shared/ui/Pager';
 import { TableSkeleton } from '#/shared/ui/Skeleton';
 import styles from '#/features/audit/ui/AuditPage/AuditPage.module.css';
+
+const AREA = areaAt('audit');
 
 function Rows({ page }: { page: AuditPageState }) {
   const { list, hrefs, narrowed } = page;
@@ -86,7 +87,7 @@ function Body({ page }: { page: AuditPageState }) {
           columns={auditColumns({ withResource: true })}
         />
       }
-      refused={{ capability: 'view-audit', noun: TITLE }}
+      refused={{ capability: 'view-audit', noun: AREA.label }}
       failed="The audit trail could not be loaded"
       unchanged
     >
@@ -101,7 +102,7 @@ function Trail({ tenant }: { tenant: string }) {
   return (
     <>
       <PageHeader
-        title={TITLE}
+        title={AREA.label}
         kicker={tenant}
         description="Every change made in this tenant, and every one refused, with who made it and from where."
         {...(refused
@@ -136,7 +137,7 @@ function Trail({ tenant }: { tenant: string }) {
 
 export function AuditPage({ tenant }: { tenant: string }) {
   return (
-    <AreaGate tenant={tenant} area={areaAt('audit')} title={TITLE}>
+    <AreaGate tenant={tenant} area={AREA} title={AREA.label}>
       <Trail tenant={tenant} />
     </AreaGate>
   );

@@ -4,7 +4,6 @@ import {
   endedText,
   endFailure,
   endMoreText,
-  sessionsHref,
   subjectLinkOf,
   subjectCell,
 } from '#/features/tenant-sessions/services/page';
@@ -14,12 +13,6 @@ const refused = (status: number, extra: object = {}): GatewayFailure => ({
   ok: false,
   kind: 'problem',
   problem: { type: 'about:blank', title: 'Title', status, ...extra },
-});
-
-describe('where the page lives', () => {
-  it('is under the tenant, its name encoded', () => {
-    expect(sessionsHref('acme')).toBe('/console/acme/sessions');
-  });
 });
 
 describe('the subject of a session', () => {

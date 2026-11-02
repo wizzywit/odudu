@@ -31,7 +31,7 @@ import { recordTab } from '#/shared/ui/RecordTab';
 import { MailDelivery } from '#/features/email/ui/MailDelivery';
 import styles from '#/features/email/ui/EmailPage/EmailPage.module.css';
 
-const TITLE = 'Email';
+const AREA = areaAt('email');
 
 function RelayForm({ relay, config }: { relay: RelaySection; config: SmtpConfig }) {
   const s = relay.save;
@@ -250,10 +250,10 @@ function Email({ tenant }: { tenant: string }) {
 
 export function EmailPage({ tenant }: { tenant: string }) {
   return (
-    <AreaGate tenant={tenant} area={areaAt('email')} title={TITLE}>
+    <AreaGate tenant={tenant} area={AREA} title={AREA.label}>
       <PageHeader
         kicker={tenant}
-        title={TITLE}
+        title={AREA.label}
         description="The relay this tenant's verification and reset mail goes through."
       />
       <div className={styles.page}>

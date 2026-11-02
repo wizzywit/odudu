@@ -1,9 +1,7 @@
 import type { AuditEvent } from '@odudu/contracts/admin';
-import { tenantPage } from '#/shared/services/address';
-
 export type RecordPages = Readonly<Record<string, (tenant: string, id: string) => string>>;
 
-// A page that is the whole of what the audit log names, with no record of its own.
+// The area that is the whole of what the audit log names, with no record of its own.
 const AREA_PAGES: Readonly<Record<string, string>> = {
   signing_key: 'keys',
   flow: 'flow',
@@ -19,10 +17,11 @@ export function resourceHref(
   type: string | null,
   id: string | null,
   pages: RecordPages,
+  areaPage: (area: string) => string,
 ): string | null {
   if (type === null || id === null) return null;
   const area = AREA_PAGES[type];
-  if (area !== undefined) return `${tenantPage(tenant)}/${area}`;
+  if (area !== undefined) return areaPage(area);
   const page = pages[type];
   return page === undefined || !UUID.test(id) ? null : page(tenant, id);
 }

@@ -35,14 +35,18 @@ export function useOverview(tenant: string): Overview {
     const area = areaAt(path);
     return { label: area.label, capability: area.capability, href: areaHref(tenant, area) };
   };
-  const reads = useOverviewReads(tenant, overviewAsks(authority, missing), (name, result) => {
-    const capability = readCapability(name);
-    if (capability !== null) refusal.report(result, capability);
-  });
+  const reads = useOverviewReads(
+    tenant,
+    overviewAsks(authority, missing, areaOf),
+    (name, result) => {
+      const capability = readCapability(name, areaOf);
+      if (capability !== null) refusal.report(result, capability);
+    },
+  );
   const { retries, ...attention } = attentionState(reads, authority, areaOf, new Date());
   return {
     discovery: mapOverviewRead(reads.discovery, discoveryView),
-    keys: keysView(reads, authority),
+    keys: keysView(reads, authority, areaOf),
     tiles: countTiles(reads, authority, areaOf),
     attention: {
       ...attention,
@@ -50,7 +54,7 @@ export function useOverview(tenant: string): Overview {
         for (const again of retries) again();
       },
     },
-    audit: auditView(auditAccess, reads.audit, authority),
+    audit: auditView(auditAccess, reads.audit, authority, areaOf),
     auditHref: areaHref(tenant, auditArea),
   };
 }

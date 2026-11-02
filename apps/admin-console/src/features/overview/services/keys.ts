@@ -2,6 +2,7 @@ import type { SigningKey } from '@odudu/contracts/admin';
 import type { Authority } from '#/shared/services/principal';
 import { type Jwks, rawJson } from '#/features/overview/services/discovery';
 import {
+  type CapabilityOf,
   type OverviewReads,
   type OverviewRead,
   gate,
@@ -52,8 +53,9 @@ export interface KeysView {
 export function keysView(
   reads: OverviewReads,
   authority: Authority | undefined,
+  areaOf: CapabilityOf,
 ): OverviewRead<KeysView> {
-  const keys = gate(reads.keys, authority, 'manage-keys');
+  const keys = gate(reads.keys, authority, areaOf('keys').capability);
   const listed = keys.status === 'ready' ? keys.data : undefined;
   return mapOverviewRead(reads.jwks, (jwks) => ({
     rows: publishedKeys(jwks, listed),

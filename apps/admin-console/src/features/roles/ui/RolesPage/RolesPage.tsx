@@ -12,6 +12,8 @@ import { Timestamp } from '#/shared/ui/Timestamp';
 import styles from '#/features/roles/ui/RolesPage/RolesPage.module.css';
 import { NAME_SEARCH } from '#/shared/services/filters';
 
+const AREA = areaAt('roles');
+
 const COLUMNS: readonly Column<Role>[] = [
   {
     id: 'name',
@@ -54,7 +56,7 @@ function List({ tenant }: { tenant: string }) {
     <ResourceListPage
       list={page.list}
       kicker={tenant}
-      title="Roles"
+      title={AREA.label}
       description="A tenant role is carried in tokens by its name; a client's role by its client's name and its own. The admin capabilities are the built-in admin client's roles."
       actions={
         <ButtonLink href={page.createHref} variant="primary">
@@ -96,7 +98,7 @@ function List({ tenant }: { tenant: string }) {
 
 export function RolesPage({ tenant }: { tenant: string }) {
   return (
-    <AreaGate tenant={tenant} area={areaAt('roles')} title="Roles">
+    <AreaGate tenant={tenant} area={AREA} title={AREA.label}>
       <List tenant={tenant} />
     </AreaGate>
   );

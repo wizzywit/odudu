@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { AreaGate, areaAt } from '#/features/shell';
-import { LANES, TITLE, type Lane as LaneSpec } from '#/features/signing-keys/services/lanes';
+import { LANES, type Lane as LaneSpec } from '#/features/signing-keys/services/lanes';
 import { type KeyRow } from '#/features/signing-keys/services/rows';
 import { ALG_OPTIONS, STAGE_RULE } from '#/features/signing-keys/services/stage';
 import {
@@ -23,6 +23,8 @@ import { TableSkeleton } from '#/shared/ui/Skeleton';
 import { StatusTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import styles from '#/features/signing-keys/ui/SigningKeysPage/SigningKeysPage.module.css';
+
+const AREA = areaAt('keys');
 
 function columns(spec: LaneSpec, page: Page): readonly Column<KeyRow>[] {
   const common: readonly Column<KeyRow>[] = [
@@ -178,7 +180,7 @@ function Keys({ tenant }: { tenant: string }) {
     <>
       <PageHeader
         kicker={tenant}
-        title={TITLE}
+        title={AREA.label}
         description="The keys that sign this tenant’s tokens, and the ones published for relying parties to verify them."
       />
       <div className={styles.page}>
@@ -205,7 +207,7 @@ function Keys({ tenant }: { tenant: string }) {
 
 export function SigningKeysPage({ tenant }: { tenant: string }) {
   return (
-    <AreaGate tenant={tenant} area={areaAt('keys')} title={TITLE}>
+    <AreaGate tenant={tenant} area={AREA} title={AREA.label}>
       <Keys tenant={tenant} />
     </AreaGate>
   );
