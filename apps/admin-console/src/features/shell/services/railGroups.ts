@@ -1,18 +1,18 @@
 import { readable } from '#/shared/services/access';
-import { recordAddress, tenantPage } from '#/shared/services/address';
+import { recordAddress } from '#/shared/services/address';
 import { SYSTEM_TENANT, type Authority } from '#/shared/services/principal';
-import {
-  type Area,
-  OVERVIEW,
-  type RailSection,
-  SYSTEM_AREAS,
-  TENANT_AREAS,
-  areaAt,
-} from '#/features/shell/services/areas';
+import { type Area, OVERVIEW, SYSTEM_AREAS, TENANT_AREAS, areaAt, areaHref } from '#/entities/area';
 
-export function areaHref(tenant: string, area: Area): string {
-  const base = tenantPage(tenant);
-  return area.path === '' ? base : `${base}/${area.path}`;
+export interface RailLink {
+  href: string;
+  label: string;
+  // The addresses of the pages beside it that it stands for.
+  pages: readonly string[];
+}
+
+export interface RailSection {
+  heading?: string;
+  items: readonly RailLink[];
 }
 
 // Where a system administrator entered this tenant from.

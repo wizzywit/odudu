@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useAuditReadable } from '#/features/session';
-import { AreaGate, areaAt } from '#/features/shell';
+import { AreaGate } from '#/features/shell';
+import { areaAt } from '#/entities/area';
 import { clientsTrail } from '#/features/clients/services/address';
 import { type BrandingOffer } from '#/features/clients/services/branding';
 import { type Reach } from '#/features/clients/services/ceiling';

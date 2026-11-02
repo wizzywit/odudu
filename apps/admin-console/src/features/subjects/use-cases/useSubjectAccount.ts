@@ -1,7 +1,7 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useEndOwnSession, useRefusal } from '#/features/session';
-import { areaAt, areaHref } from '#/features/shell';
+import { areaAt, areaHref } from '#/entities/area';
 import { useGo } from '#/shared/repository/useGo';
 import {
   saveAccount,

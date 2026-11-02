@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { areaAt } from '#/features/shell/services/areas';
+import { areaAt } from '#/entities/area';
 import {
   areasLabel,
   brandText,

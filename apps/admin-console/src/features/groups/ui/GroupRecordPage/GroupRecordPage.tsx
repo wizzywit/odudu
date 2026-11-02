@@ -1,7 +1,8 @@
 import type { GroupRecord } from '@odudu/contracts/admin';
 import type { ReactNode } from 'react';
 import { useAuditReadable } from '#/features/session';
-import { AreaGate, areaAt } from '#/features/shell';
+import { AreaGate } from '#/features/shell';
+import { areaAt } from '#/entities/area';
 import { SubjectMembers } from '#/features/subjects';
 import { groupsTrail } from '#/features/groups/services/address';
 import { GROUP_TAB_LABELS, GROUP_TABS, type GroupTab } from '#/features/groups/services/tabs';

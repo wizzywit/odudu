@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useAuditReadable } from '#/features/session';
-import { AreaGate, areaAt } from '#/features/shell';
+import { AreaGate } from '#/features/shell';
+import { areaAt } from '#/entities/area';
 import { SubjectMembers } from '#/features/subjects';
 import { rolesTrail, type Role } from '#/features/roles/services/address';
 import { ROLE_TAB_LABELS, ROLE_TABS, type RoleTab } from '#/features/roles/services/tabs';

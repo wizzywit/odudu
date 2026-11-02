@@ -1,5 +1,6 @@
 import type { Role } from '@odudu/contracts/admin';
-import { AreaGate, areaAt } from '#/features/shell';
+import { AreaGate } from '#/features/shell';
+import { areaAt } from '#/entities/area';
 import { useRolesList } from '#/features/roles/use-cases/useRolesList';
 import { NarrowedNote } from '#/shared/ui/NarrowedNote';
 import { RoleOwner } from '#/shared/ui/RoleOwner';

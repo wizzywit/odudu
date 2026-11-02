@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { resourceHref } from '#/features/audit/services/links';
-import { areaAt } from '#/features/shell';
+import { areaAt } from '#/entities/area';
 
 const ID = '0192f7a4-5c1e-7b3a-9d2e-6f8a1b2c3d4e';
 

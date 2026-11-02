@@ -12,19 +12,7 @@ export interface Area {
   pages: readonly string[];
 }
 
-export interface RailLink {
-  href: string;
-  label: string;
-  // The addresses of the pages beside it that it stands for.
-  pages: readonly string[];
-}
-
-export interface RailSection {
-  heading?: string;
-  items: readonly RailLink[];
-}
-
-interface AreaGroup {
+export interface AreaGroup {
   heading?: string;
   areas: readonly Area[];
 }

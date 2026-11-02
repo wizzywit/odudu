@@ -1,5 +1,6 @@
 import type { ClientScope } from '@odudu/contracts/admin';
-import { AreaGate, areaAt } from '#/features/shell';
+import { AreaGate } from '#/features/shell';
+import { areaAt } from '#/entities/area';
 import { useScopesList } from '#/features/scopes/use-cases/useScopesList';
 import { RestoreScopes } from '#/features/scopes/ui/ScopesPage/RestoreScopes';
 import { ButtonLink } from '#/shared/ui/ButtonLink';

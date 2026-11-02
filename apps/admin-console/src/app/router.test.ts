@@ -1,7 +1,7 @@
 import { createMemoryHistory } from '@tanstack/react-router';
 import { expect, it } from 'vitest';
 import { createConsoleRouter } from '#/app/router';
-import { EVERY_AREA } from '#/features/shell';
+import { EVERY_AREA } from '#/entities/area';
 
 it('has a route for every area the rail can list', () => {
   const router = createConsoleRouter(createMemoryHistory({ initialEntries: ['/'] }));

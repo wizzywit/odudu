@@ -5,7 +5,7 @@ import {
   type Authority,
   type Principal,
 } from '#/shared/services/principal';
-import { type Area, EVERY_AREA, OVERVIEW, SYSTEM_AREAS } from '#/features/shell/services/areas';
+import { type Area, EVERY_AREA, OVERVIEW, SYSTEM_AREAS } from '#/entities/area';
 import { showsSystemArea } from '#/features/shell/services/systemAuthority';
 
 export type PendingShape = 'overview' | 'list' | 'record' | 'form' | 'page';

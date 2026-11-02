@@ -1,4 +1,5 @@
-import { AreaGate, areaAt } from '#/features/shell';
+import { AreaGate } from '#/features/shell';
+import { areaAt } from '#/entities/area';
 import { rolesTrail } from '#/features/roles/services/address';
 import { copyingText } from '#/features/roles/services/copy';
 import { useNewRole, type Copying } from '#/features/roles/use-cases/useNewRole';

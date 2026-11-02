@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { type Area } from '#/features/shell/services/areas';
+import { type Area } from '#/entities/area';
 import { checkingText } from '#/features/shell/services/shellText';
 import { useArea } from '#/features/shell/use-cases/useArea';
 import { AccessGate } from '#/shared/ui/AccessGate';

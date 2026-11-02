@@ -1,4 +1,5 @@
-import { AreaGate, areaAt } from '#/features/shell';
+import { AreaGate } from '#/features/shell';
+import { areaAt } from '#/entities/area';
 import { clientsTrail } from '#/features/clients/services/address';
 import { SECRET_LABEL, KIND_CHOICES } from '#/features/clients/services/create';
 import { REDIRECTS_RULE } from '#/features/clients/services/labels';

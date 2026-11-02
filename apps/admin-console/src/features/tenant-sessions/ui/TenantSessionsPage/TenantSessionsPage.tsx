@@ -1,6 +1,7 @@
 import type { TenantSession } from '@odudu/contracts/admin';
 import { Link } from 'react-aria-components';
-import { AreaGate, areaAt } from '#/features/shell';
+import { AreaGate } from '#/features/shell';
+import { areaAt } from '#/entities/area';
 import {
   NOTHING_YET,
   NOUN,

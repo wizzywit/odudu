@@ -1,5 +1,6 @@
 import type { Client } from '@odudu/contracts/admin';
-import { AreaGate, areaAt } from '#/features/shell';
+import { AreaGate } from '#/features/shell';
+import { areaAt } from '#/entities/area';
 import { TYPE_TEXT } from '#/features/clients/services/labels';
 import { useClientsList } from '#/features/clients/use-cases/useClientsList';
 import { ButtonLink } from '#/shared/ui/ButtonLink';

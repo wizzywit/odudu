@@ -433,6 +433,24 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ).toBe(true);
   });
 
+  it("permits a widget's service importing an entity index.ts", async () => {
+    const found = await violations('console-service-imports-only-service');
+    expect(found.some((v) => v.from.endsWith('widgets/shell/services/usesEntityIndex.ts'))).toBe(
+      false,
+    );
+  });
+
+  it("rejects a widget's service importing another widget's index.ts", async () => {
+    const found = await violations('console-service-imports-only-service');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('widgets/shell/services/usesWidgetIndex.ts') &&
+          v.to.endsWith('widgets/odd/index.ts'),
+      ),
+    ).toBe(true);
+  });
+
   it('rejects a service topic file importing a feature index.ts, in the folder form', async () => {
     const found = await violations('console-service-imports-only-service');
     expect(

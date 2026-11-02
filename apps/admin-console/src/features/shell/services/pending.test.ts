@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { areaAccess, pendingPage } from '#/features/shell/services/pending';
-import { areaAt, OVERVIEW } from '#/features/shell/services/areas';
+import { areaAt, OVERVIEW } from '#/entities/area';
 
 const SYSTEM_ADMIN = { tenant: 'system', subjectId: 's0', username: 'root' };
 

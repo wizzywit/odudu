@@ -78,7 +78,7 @@ interface Area {
 }
 
 function areas(): Area[] {
-  const source = text(path.join(CONSOLE, 'shell/services/areas.ts'));
+  const source = text(path.join(CONSOLE, '../entities/area/services/areas.ts'));
   return [...source.matchAll(/area\(\s*'([^']*)',\s*'([^']*)',\s*(null|'[^']*')/gu)].map(
     (match) => ({
       path: match[1] ?? '',

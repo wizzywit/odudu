@@ -50,7 +50,7 @@ const inFeature = (path: string, text: string): Evidence => ({
 });
 
 // The menu entry of an area, whose label areas.ts gives beside its path.
-const AREAS = `${FEATURES}/shell/services/areas.ts`;
+const AREAS = 'apps/admin-console/src/entities/area/services/areas.ts';
 const rail = (path: string, label: string): Defined => at(AREAS, `area('${path}', '${label}'`);
 const heading = (label: string): Defined => at(AREAS, `heading: '${label}'`);
 

@@ -1,7 +1,7 @@
 import type { RequiredAction, Subject } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useRefusal } from '#/features/session';
-import { areaAt, areaHref } from '#/features/shell';
+import { areaAt, areaHref } from '#/entities/area';
 import { useMailSend, type MailRequest } from '#/features/subjects/repository/useMail';
 import { actionsMailProblem, requiredActionsInOrder } from '#/features/subjects/services/actions';
 import { subjectName } from '#/features/subjects/services/address';

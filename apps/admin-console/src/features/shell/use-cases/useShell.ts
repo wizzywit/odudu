@@ -1,6 +1,6 @@
 import { useLocation } from '@tanstack/react-router';
 import { SWITCH_HREF, useAuthority, useAuthorityAnswered, useSignOut } from '#/features/session';
-import { type RailSection } from '#/features/shell/services/areas';
+import { type RailSection } from '#/features/shell/services/railGroups';
 import { dialogOpen, pathnameOf } from '#/features/shell/services/pageContext';
 import { currentHref, railGroups, systemRecordHref } from '#/features/shell/services/railGroups';
 import {

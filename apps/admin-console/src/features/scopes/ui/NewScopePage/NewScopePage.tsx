@@ -1,4 +1,5 @@
-import { AreaGate, areaAt } from '#/features/shell';
+import { AreaGate } from '#/features/shell';
+import { areaAt } from '#/entities/area';
 import { scopesTrail } from '#/features/scopes/services/address';
 import { copyingText } from '#/features/scopes/services/copy';
 import { useNewScope, type Copying } from '#/features/scopes/use-cases/useNewScope';
