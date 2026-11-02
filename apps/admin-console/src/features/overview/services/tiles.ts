@@ -1,7 +1,12 @@
 import type { CountResponse } from '@odudu/contracts/admin';
 import { readable } from '#/shared/services/access';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
-import { type Gated, type OverviewReads, gate, readyData } from '#/features/overview/services/reads';
+import {
+  type Gated,
+  type OverviewReads,
+  gate,
+  readyData,
+} from '#/features/overview/services/reads';
 
 export interface CountTile {
   id: string;

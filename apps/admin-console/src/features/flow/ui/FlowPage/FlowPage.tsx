@@ -19,7 +19,10 @@ import {
   type Direction,
 } from '#/features/flow/services';
 import { useFlowSteps, type FlowSteps } from '#/features/flow/use-cases/useFlowSteps';
-import { useOtpRequirement, type OtpRequirement } from '#/features/flow/use-cases/useOtpRequirement';
+import {
+  useOtpRequirement,
+  type OtpRequirement,
+} from '#/features/flow/use-cases/useOtpRequirement';
 import { useFlowRead } from '#/features/flow/use-cases/useFlowPage';
 import { useTenantSettingsRead } from '#/shared/use-cases/useTenantSettingsRead';
 import { Button } from '#/shared/ui/Button';

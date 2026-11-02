@@ -29,7 +29,7 @@ const PROPERTY: Record<(typeof PALETTE_KEYS)[number], string> = {
 };
 
 const TOKENS = readFileSync(
-  path.resolve(import.meta.dirname, '../../../shared/view/tokens.css'),
+  path.resolve(import.meta.dirname, '../../../shared/ui/tokens.css'),
   'utf8',
 );
 

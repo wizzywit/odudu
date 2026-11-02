@@ -63,9 +63,7 @@ describe('the width at which the Branding pages narrow', () => {
     ]) {
       expect(narrowWidths(read(file)).length, file).toBeGreaterThan(0);
     }
-    expect(read('features/branding/ui/Workspace/Workspace.tsx')).toContain(
-      'data-narrow-container',
-    );
+    expect(read('features/branding/ui/Workspace/Workspace.tsx')).toContain('data-narrow-container');
     expect(read('features/branding/ui/Workspace/Workspace.module.css')).toContain(
       'container: workspace / inline-size',
     );

@@ -262,9 +262,9 @@ describe('boundary rules', { timeout: 60_000 }, () => {
 
   it("rejects a docs route importing a feature's internals, and permits its index", async () => {
     const found = await violations('docs-feature-imports-only-index');
-    expect(
-      found.some((v) => v.from.endsWith('pages/index.tsx') && v.to.endsWith('ui/B.tsx')),
-    ).toBe(true);
+    expect(found.some((v) => v.from.endsWith('pages/index.tsx') && v.to.endsWith('ui/B.tsx'))).toBe(
+      true,
+    );
     expect(found.some((v) => v.from.endsWith('image-pages/index.tsx'))).toBe(false);
   });
 
@@ -374,16 +374,16 @@ describe('boundary rules', { timeout: 60_000 }, () => {
 
   it('rejects a console usecase reaching shared/transport', async () => {
     const found = await violations('console-usecase-no-transport');
-    expect(found.some((v) => v.from.endsWith('features/subjects/use-cases/readsTransport.ts'))).toBe(
-      true,
-    );
+    expect(
+      found.some((v) => v.from.endsWith('features/subjects/use-cases/readsTransport.ts')),
+    ).toBe(true);
   });
 
   it('rejects the transport context read outside a repository', async () => {
     const found = await violations('console-transport-context-in-repository');
-    expect(found.some((v) => v.from.endsWith('features/subjects/use-cases/readsTransport.ts'))).toBe(
-      true,
-    );
+    expect(
+      found.some((v) => v.from.endsWith('features/subjects/use-cases/readsTransport.ts')),
+    ).toBe(true);
     expect(found.some((v) => v.from.endsWith('repository/readsTransport.ts'))).toBe(false);
   });
 

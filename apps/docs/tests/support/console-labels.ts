@@ -175,7 +175,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   // Tabs of a record.
   Profile: subjectTab('profile', 'Profile'),
   Credentials: subjectTab('credentials', 'Credentials'),
-  'Required actions': feature('subjects/services/tabs.ts', "'required-actions': 'Required actions'"),
+  'Required actions': feature(
+    'subjects/services/tabs.ts',
+    "'required-actions': 'Required actions'",
+  ),
   Consents: subjectTab('consents', 'Consents'),
   Grants: subjectTab('grants', 'Grants'),
   Activity: several(
@@ -206,10 +209,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   // Creating things.
   'Create a tenant': feature('tenants/ui/TenantsPage/TenantsPage.tsx', '> Create a tenant <'),
   'Create a client': feature('clients/ui/ClientsPage/ClientsPage.tsx', '> Create a client <'),
-  'Create a subject': feature(
-    'subjects/ui/SubjectsPage/SubjectsPage.tsx',
-    '> Create a subject <',
-  ),
+  'Create a subject': feature('subjects/ui/SubjectsPage/SubjectsPage.tsx', '> Create a subject <'),
   'Create a group': feature('groups/ui/GroupsPage/GroupsPage.tsx', '> Create a group <'),
   'Create a role': feature('roles/ui/RolesPage/RolesPage.tsx', '> Create a role <'),
   'Create a scope': feature('scopes/ui/ScopesPage/ScopesPage.tsx', '> Create a scope <'),
@@ -369,22 +369,14 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'roles/ui/RoleRecordPage/CompositesTab.tsx',
     'title="Add a composite"',
   ),
-  'Take it out': feature(
-    'roles/ui/RoleRecordPage/CompositesTab.tsx',
-    'confirmLabel="Take it out"',
-  ),
+  'Take it out': feature('roles/ui/RoleRecordPage/CompositesTab.tsx', 'confirmLabel="Take it out"'),
   'Delete reader': deleteNamed('roles/ui/RoleRecordPage/GeneralTab.tsx', 'reader'),
   'admin capability': shared('services/capabilities/held.ts', "'admin capability'"),
 
   // Clients.
   'Delete my-app': deleteNamed('clients/ui/GeneralTab/GeneralTab.tsx', 'my-app'),
   'Rotate the secret of my-app': template(
-    [
-      inFeature(
-        'clients/ui/AdvancedTab/AdvancedTab.tsx',
-        '`Rotate the secret of ${client.name}`',
-      ),
-    ],
+    [inFeature('clients/ui/AdvancedTab/AdvancedTab.tsx', '`Rotate the secret of ${client.name}`')],
     'Rotate the secret of ${client.name}',
     { 'client.name': 'my-app' },
   ),
@@ -600,7 +592,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Wrap lines': shared('services/code/tokens.ts', "WRAP_LABEL = 'Wrap lines'"),
   'Message key': feature('branding/services/overrides.ts', "KEY_LABEL = 'Message key'"),
   'Add language': feature('branding/services/languages.ts', "ADD_BUTTON = 'Add language'"),
-  'Insert a message': feature('branding/services/catalogue.ts', "INSERT_LABEL = 'Insert a message'"),
+  'Insert a message': feature(
+    'branding/services/catalogue.ts',
+    "INSERT_LABEL = 'Insert a message'",
+  ),
   'Selectors you can use': feature(
     'branding/services/selectors.ts',
     "SELECTORS_LABEL = 'Selectors you can use'",
@@ -648,10 +643,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Counts: feature('overview/ui/CountsPanel/CountsPanel.tsx', 'title="Counts"'),
   Discovery: feature('overview/ui/DiscoveryPanel/DiscoveryPanel.tsx', 'title="Discovery"'),
   Issuer: feature('overview/ui/DiscoveryPanel/DiscoveryPanel.tsx', '>Issuer<'),
-  'Latest activity': feature(
-    'overview/ui/LatestAudit/LatestAudit.tsx',
-    'title="Latest activity"',
-  ),
+  'Latest activity': feature('overview/ui/LatestAudit/LatestAudit.tsx', 'title="Latest activity"'),
   'Open the audit trail': feature(
     'overview/ui/LatestAudit/LatestAudit.tsx',
     '> Open the audit trail <',
@@ -659,10 +651,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
 
   // Tenants and their administrators.
   'Export to a file': feature('tenants/ui/ExportPanel/ExportPanel.tsx', "'Export to a file'"),
-  'Include subjects': feature(
-    'tenants/ui/ExportPanel/ExportPanel.tsx',
-    'label="Include subjects"',
-  ),
+  'Include subjects': feature('tenants/ui/ExportPanel/ExportPanel.tsx', 'label="Include subjects"'),
   Import: feature(TENANT_IMPORT, "'Import'"),
   'Choose a file…': feature(TENANT_IMPORT, '> Choose a file… <'),
   'Tenant document': feature(TENANT_IMPORT, '> Tenant document <'),
@@ -726,7 +715,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Key source': feature('clients/ui/AdvancedTab/AdvancedTab.tsx', 'label="Key source"'),
   'None published': feature('clients/services/advanced.ts', "label: 'None published'"),
   'A JWKS URI': feature('clients/services/advanced.ts', "label: 'A JWKS URI'"),
-  'A key set pasted here': feature('clients/services/advanced.ts', "label: 'A key set pasted here'"),
+  'A key set pasted here': feature(
+    'clients/services/advanced.ts',
+    "label: 'A key set pasted here'",
+  ),
   'Signing algorithm': feature(
     'clients/ui/AdvancedTab/AdvancedTab.tsx',
     'label="Signing algorithm"',
@@ -882,7 +874,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'subjects/services/credentials.ts',
     "label: 'Ask for a new set at next sign-in'",
   ),
-  'Choose a new password': feature('subjects/services/actions.ts', "label: 'Choose a new password'"),
+  'Choose a new password': feature(
+    'subjects/services/actions.ts',
+    "label: 'Choose a new password'",
+  ),
   'Set up an authenticator app': feature(
     'subjects/services/actions.ts',
     "label: 'Set up an authenticator app'",

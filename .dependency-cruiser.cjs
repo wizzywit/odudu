@@ -348,7 +348,9 @@ module.exports = {
       comment:
         'repository holds state and refetch decisions; it depends on adapter and service only.',
       from: { path: '/src/(?:repository|.*/repository)(?:/|\\.tsx?$)', pathNot: '\\.test\\.tsx?$' },
-      to: { path: '/src/(?:usecase|use-cases|view|ui|.*/(?:usecase|use-cases|view|ui))(?:/|\\.tsx?$)' },
+      to: {
+        path: '/src/(?:usecase|use-cases|view|ui|.*/(?:usecase|use-cases|view|ui))(?:/|\\.tsx?$)',
+      },
     },
     {
       name: 'no-view-to-adapter',

@@ -116,14 +116,14 @@ small parallel track.
 
 **D4, target layout.**
 
-| Layer | Holds | Console examples |
-|---|---|---|
-| `app` | providers, router, global guards and layers | today's `app/` |
-| `pages` | one slice per route screen | `clients`, `roles`, `tenants`, `audit` (today's `features/<area>`) |
-| `widgets` | large blocks combining features | the shell (rail, header, pending banner) |
-| `features` | reusable user actions used by 2+ pages | subject-members panel, client and role pickers, audit table, ceiling guard |
-| `entities` | domain data and rules | `session`, `tenant`, `subject`, `role`, `client`, `scope`, `group`, `administrator`, `audit-event` (final list set by evidence) |
-| `shared` | `ui`, `api`, `lib`, `config` | design-system pieces, the transport and gateway, formatters |
+| Layer      | Holds                                       | Console examples                                                                                                                |
+| ---------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `app`      | providers, router, global guards and layers | today's `app/`                                                                                                                  |
+| `pages`    | one slice per route screen                  | `clients`, `roles`, `tenants`, `audit` (today's `features/<area>`)                                                              |
+| `widgets`  | large blocks combining features             | the shell (rail, header, pending banner)                                                                                        |
+| `features` | reusable user actions used by 2+ pages      | subject-members panel, client and role pickers, audit table, ceiling guard                                                      |
+| `entities` | domain data and rules                       | `session`, `tenant`, `subject`, `role`, `client`, `scope`, `group`, `administrator`, `audit-event` (final list set by evidence) |
+| `shared`   | `ui`, `api`, `lib`, `config`                | design-system pieces, the transport and gateway, formatters                                                                     |
 
 The area slices become `pages/` only after their shared parts have moved down,
 as the last step of each domain, so a page's move is a rename with no logic in
