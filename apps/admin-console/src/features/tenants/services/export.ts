@@ -1,3 +1,4 @@
+import { utcDay } from '#/shared/services/dateTime';
 import { utf8Length } from '#/shared/services/format';
 import { lacking } from '#/shared/services/access';
 import { type AdminCapability, type Authority } from '#/shared/services/principal';
@@ -7,7 +8,7 @@ import { omittedOf } from '#/features/tenants/services/document';
 // The UTC day, so one export taken twice in an evening is named the same
 // wherever the person is.
 export function exportFileName(tenant: string, now: Date): string {
-  return `${tenant}-${now.toISOString().slice(0, 10)}.odudu-tenant.json`;
+  return `${tenant}-${utcDay(now)}.odudu-tenant.json`;
 }
 
 export interface Exported {

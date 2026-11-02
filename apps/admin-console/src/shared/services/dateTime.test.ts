@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { edgeOfMinute, granularityOf, localText, readLocal } from '#/shared/services/dateTime';
+import {
+  edgeOfMinute,
+  granularityOf,
+  localText,
+  readLocal,
+  utcDay,
+} from '#/shared/services/dateTime';
 
 describe('the instant a picked minute stands for', () => {
   it('starts at its first millisecond', () => {
@@ -94,5 +100,13 @@ describe('the precision a field shows an instant at', () => {
     expect(granularityOf('2026-09-28T13:41:30.000Z', 'start')).toBe('second');
     expect(granularityOf('2026-09-28T13:41:30Z', 'end')).toBe('second');
     expect(granularityOf('2026-09-28T13:41:59.999Z', 'start')).toBe('second');
+  });
+});
+
+describe('the UTC day of an instant', () => {
+  it('is the date an export is named by, wherever the person is', () => {
+    expect(utcDay(new Date('2026-09-29T23:59:00Z'))).toBe('2026-09-29');
+    expect(utcDay(new Date('2026-09-30T00:00:00Z'))).toBe('2026-09-30');
+    expect(utcDay(new Date('2026-01-05T08:00:00+05:00'))).toBe('2026-01-05');
   });
 });

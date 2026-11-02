@@ -8,6 +8,11 @@ export function edgeOfMinute(iso: string, edge: 'start' | 'end'): string {
   return new Date(edge === 'start' ? start : start + MINUTE_MS - 1).toISOString();
 }
 
+// The UTC date, so a name built from it is the same wherever the person is.
+export function utcDay(instant: Date): string {
+  return instant.toISOString().slice(0, 10);
+}
+
 const DAY_MS = 86_400_000;
 const LOCAL = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)(?::(\d\d))?$/u;
 const PARTS = ['year', 'month', 'day', 'hour', 'minute'] as const;

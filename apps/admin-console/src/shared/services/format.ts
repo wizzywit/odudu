@@ -1,3 +1,4 @@
+import { utcDay } from '#/shared/services/dateTime';
 const UNITS = [
   ['day', 86_400],
   ['hour', 3_600],
@@ -22,7 +23,7 @@ export function formatDuration(seconds: number): string {
 
 export function formatAbsolute(instant: Date): string {
   const iso = instant.toISOString();
-  return `${iso.slice(0, 10)} ${iso.slice(11, 19)} UTC`;
+  return `${utcDay(instant)} ${iso.slice(11, 19)} UTC`;
 }
 
 // Thousands grouped, as the console writes every count.

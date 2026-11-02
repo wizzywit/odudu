@@ -1,4 +1,5 @@
 import { AUDIT_EXPORT_CAP } from '@odudu/contracts/admin';
+import { utcDay } from '#/shared/services/dateTime';
 import { groupedNumber, plural } from '#/shared/services/format';
 import { isTooBroad } from '#/features/audit/services/broad';
 import type { GatewayFailure } from '#/shared/services/result';
@@ -8,7 +9,7 @@ export const EXPORT_NOTE = `Exports the events the applied filters match, newest
 // The UTC day, so one export taken twice in an evening is named the same
 // wherever the person is.
 export function auditFileName(tenant: string, now: Date): string {
-  return `${tenant}-audit-${now.toISOString().slice(0, 10)}.ndjson`;
+  return `${tenant}-audit-${utcDay(now)}.ndjson`;
 }
 
 export function eventsIn(text: string): number {
