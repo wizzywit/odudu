@@ -18,6 +18,7 @@
     "lint/fixtures/renderer-without-shell/**",
     "lint/fixtures/renderer-without-theme/**",
     "lint/fixtures/literals/**",
+    "lint/fixtures/architecture/**",
     "lint/fixtures/docs-no-readonly/**",
     "lint/fixtures/docs-service-no-dom/**",
     "lint/fixtures/docs-usecase-no-browser-globals/**",

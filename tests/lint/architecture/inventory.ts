@@ -1,7 +1,27 @@
 import type { RuleId } from './rule.ts';
 
 export const INVENTORY: Record<RuleId, string[]> = {
-  'no-service-barrel': [],
+  'no-service-barrel': [
+    'apps/admin-console/src/features/audit/services/index.ts',
+    'apps/admin-console/src/features/branding/services/index.ts',
+    'apps/admin-console/src/features/clients/services/index.ts',
+    'apps/admin-console/src/features/email/services/index.ts',
+    'apps/admin-console/src/features/failure/services/index.ts',
+    'apps/admin-console/src/features/flow/services/index.ts',
+    'apps/admin-console/src/features/groups/services/index.ts',
+    'apps/admin-console/src/features/overview/services/index.ts',
+    'apps/admin-console/src/features/registration-tokens/services/index.ts',
+    'apps/admin-console/src/features/roles/services/index.ts',
+    'apps/admin-console/src/features/scopes/services/index.ts',
+    'apps/admin-console/src/features/session/services/index.ts',
+    'apps/admin-console/src/features/settings/services/index.ts',
+    'apps/admin-console/src/features/shell/services/index.ts',
+    'apps/admin-console/src/features/signing-keys/services/index.ts',
+    'apps/admin-console/src/features/subjects/services/index.ts',
+    'apps/admin-console/src/features/system-admins/services/index.ts',
+    'apps/admin-console/src/features/tenant-sessions/services/index.ts',
+    'apps/admin-console/src/features/tenants/services/index.ts',
+  ],
   'no-domain-in-shared': [],
   'no-sideways-slice': [],
   'view-no-service': [],
