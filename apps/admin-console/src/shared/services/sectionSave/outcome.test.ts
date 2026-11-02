@@ -146,3 +146,35 @@ describe('saveFailureText', () => {
     );
   });
 });
+
+describe('saveFailureText for each kind and status', () => {
+  const problem = (status: number, detail?: string): GatewayFailure => ({
+    ok: false,
+    kind: 'problem',
+    problem: { type: 'about:blank', title: `T${String(status)}`, status, detail },
+  });
+  const cases: [string, GatewayFailure, string][] = [
+    [
+      'network',
+      { ok: false, kind: 'network' },
+      'Could not confirm that Settings was saved. Your changes are still here, and saving again is safe.',
+    ],
+    [
+      'schema',
+      { ok: false, kind: 'schema' },
+      'Settings may have been saved, but its answer could not be read. Reload to check.',
+    ],
+    [
+      'defect',
+      { ok: false, kind: 'defect' },
+      'The console could not save Settings. This is a fault in the console, not something you did.',
+    ],
+    ['404', problem(404), 'Settings was not saved: it no longer exists.'],
+    ['400 with detail', problem(400, 'D400'), 'Settings was not saved: D400'],
+    ['500 with title only', problem(500), 'Settings was not saved: T500'],
+    ['412', problem(412), 'Settings was not saved: T412'],
+  ];
+  it.each(cases)('says the same for %s', (_label, failure, text) => {
+    expect(saveFailureText('Settings', failure)).toBe(text);
+  });
+});
