@@ -1,16 +1,16 @@
 import { useRefusal } from '#/features/session';
 import type { ThemeWrites } from '#/features/branding/repository/useThemeWrites';
 import {
-  publishFailure,
   publishDefected,
   publishOutcomeOf,
   announcePublish,
   currentOutcome,
   NO_OUTCOME,
-  writeCapability,
   type PublishOutcome,
-  type ThemeScope,
-} from '#/features/branding/services';
+} from '#/features/branding/services/edits';
+import { publishFailure } from '#/features/branding/services/failures';
+import { writeCapability } from '#/features/branding/services/publication';
+import { type ThemeScope } from '#/features/branding/services/scope';
 import { useToast } from '#/shared/repository/useToasts';
 import { reportFailure } from '#/shared/services/settled';
 

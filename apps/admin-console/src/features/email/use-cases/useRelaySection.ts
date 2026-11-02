@@ -8,7 +8,7 @@ import {
   relayHold,
   relayValues,
   type RelayValues,
-} from '#/features/email/services';
+} from '#/features/email/services/relay';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { writeRefusal } from '#/shared/services/capabilities';
 

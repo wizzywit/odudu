@@ -1,20 +1,19 @@
 import type { ThemeView } from '@odudu/contracts/admin';
+import { STYLESHEET_SECTION_TITLE } from '#/features/branding/services/fields';
+import { type ThemeScope } from '#/features/branding/services/scope';
 import {
   SELECTOR_LIST_LIMIT,
   SELECTORS_FAILED,
   SELECTORS_LABEL,
   SELECTORS_LOADING,
   SELECTORS_NOTE,
-  sourceReading,
-  STYLESHEET_LABEL,
-  STYLESHEET_LEAD,
-  STYLESHEET_SECTION_TITLE,
-  type ThemeScope,
   VALUES_FAILED,
   VALUES_LABEL,
   VALUES_LOADING,
   VALUES_NOTE,
-} from '#/features/branding/services';
+} from '#/features/branding/services/selectors';
+import { sourceReading } from '#/features/branding/services/sources';
+import { STYLESHEET_LABEL, STYLESHEET_LEAD } from '#/features/branding/services/stylesheet';
 import { useDesignValues, useSelectors } from '#/features/branding/use-cases/useSelectors';
 import type { Stylesheet } from '#/features/branding/use-cases/useStylesheet';
 import { InsertPicker } from '#/features/branding/ui/OptionPicker';

@@ -1,7 +1,6 @@
+import { FALLBACK_TITLE } from '#/features/branding/services/fallback';
+import { SCHEME_LABELS, schemeOf } from '#/features/branding/services/palette';
 import {
-  FALLBACK_TITLE,
-  PAGE_KIND_LABELS,
-  PAGE_KIND_OPTIONS,
   PREVIEW_DIFFERS,
   PREVIEW_FRAME_TITLE,
   PREVIEW_KIND_LABEL,
@@ -9,11 +8,13 @@ import {
   PREVIEW_SCHEME_LABEL,
   PREVIEW_TITLE,
   previewSummary,
-  SCHEME_LABELS,
   SCHEME_OPTIONS,
-  schemeOf,
+} from '#/features/branding/services/preview';
+import {
+  PAGE_KIND_LABELS,
+  PAGE_KIND_OPTIONS,
   pageKindOf,
-} from '#/features/branding/services';
+} from '#/features/branding/services/templates';
 import type { Preview } from '#/features/branding/use-cases/usePreview';
 import { PreviewShell } from '#/features/branding/ui/PreviewShell';
 import { InlineFields, SelectField } from '#/shared/ui/Field';

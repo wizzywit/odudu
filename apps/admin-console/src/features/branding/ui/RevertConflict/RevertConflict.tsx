@@ -3,7 +3,7 @@ import {
   REVERT_CONFLICT_LEAD,
   REVERT_KEEP_HINT,
   REVERT_TAKE_HINT,
-} from '#/features/branding/services';
+} from '#/features/branding/services/publication';
 import { ConflictPanel } from '#/shared/ui/ConflictPanel';
 
 // A revert the server refused because the draft moved on: the draft as it

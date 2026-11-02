@@ -1,24 +1,19 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useRefusal } from '#/features/session';
 import { stylesheetSave } from '#/features/branding/repository/themeSaves';
+import { type PublishOutcome } from '#/features/branding/services/edits';
+import { stylesheetFields, STYLESHEET_SECTION_TITLE } from '#/features/branding/services/fields';
+import { firstProblems, type PlacedProblems } from '#/features/branding/services/problems';
+import { themeRefusal, writeCapability } from '#/features/branding/services/publication';
+import { themeRecord, type ThemeScope } from '#/features/branding/services/scope';
 import {
-  firstProblems,
   publishedStylesheetProblems,
-  type PublishOutcome,
-  stylesheetFields,
   stylesheetHold,
   stylesheetProblems,
   stylesheetSize,
-  stylesheetValues,
   STYLESHEET_PATH,
-  STYLESHEET_SECTION_TITLE,
-  themeRecord,
-  type PlacedProblems,
-  type StylesheetValues,
-  type ThemeScope,
-  themeRefusal,
-  writeCapability,
-} from '#/features/branding/services';
+} from '#/features/branding/services/stylesheet';
+import { stylesheetValues, type StylesheetValues } from '#/features/branding/services/values';
 import { useSectionHold } from '#/features/branding/use-cases/useSectionHold';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import type { SizeReading } from '#/shared/services/format';

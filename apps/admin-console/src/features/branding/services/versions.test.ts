@@ -5,7 +5,7 @@ import {
   restoreTitle,
   versionRows,
   versionsLead,
-} from '#/features/branding/services';
+} from '#/features/branding/services/versions';
 import { VERSION_1, VERSION_2 } from '#/testing/brandingFixtures';
 
 describe('versionRows', () => {

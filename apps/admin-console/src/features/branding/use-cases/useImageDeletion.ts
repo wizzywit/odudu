@@ -1,11 +1,9 @@
 import { useRefusal } from '#/features/session';
 import { useAssetDelete } from '#/features/branding/repository/useThemeAssets';
-import {
-  deleteImageFailure,
-  writeCapability,
-  type ImageSlot,
-  type ThemeScope,
-} from '#/features/branding/services';
+import { deleteImageFailure } from '#/features/branding/services/failures';
+import { writeCapability } from '#/features/branding/services/publication';
+import { type ThemeScope } from '#/features/branding/services/scope';
+import { type ImageSlot } from '#/features/branding/services/values';
 import { useConfirmedChange, type Confirming } from '#/shared/use-cases/useConfirmedChange';
 
 export interface ImageAsk {

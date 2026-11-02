@@ -2,23 +2,21 @@ import type { ThemeView } from '@odudu/contracts/admin';
 import { useRefusal } from '#/features/session';
 import { colourSave } from '#/features/branding/repository/themeSaves';
 import {
-  changedColours,
-  colourFields,
-  colourValues,
   coloursHold,
-  COLOURS_TITLE,
   customisedPalette,
   editedPalette,
-  fontChoice,
   paletteField,
-  themeRecord,
-  type ColourValues,
+} from '#/features/branding/services/edits';
+import { colourFields, COLOURS_TITLE } from '#/features/branding/services/fields';
+import {
+  changedColours,
+  fontChoice,
   type PaletteKey,
   type Scheme,
-  type ThemeScope,
-  themeRefusal,
-  writeCapability,
-} from '#/features/branding/services';
+} from '#/features/branding/services/palette';
+import { themeRefusal, writeCapability } from '#/features/branding/services/publication';
+import { themeRecord, type ThemeScope } from '#/features/branding/services/scope';
+import { colourValues, type ColourValues } from '#/features/branding/services/values';
 import { useSectionHold } from '#/features/branding/use-cases/useSectionHold';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 

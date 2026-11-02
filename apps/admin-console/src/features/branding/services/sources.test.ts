@@ -1,6 +1,6 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
-import { sourceReading } from '#/features/branding/services';
+import { sourceReading } from '#/features/branding/services/sources';
 import { draftedView, themeView } from '#/testing/brandingFixtures';
 
 describe('sourceReading', () => {

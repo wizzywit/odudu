@@ -9,7 +9,6 @@ import {
   DISCARD_BODY_TENANT,
   discardBody,
   discardFailure,
-  NOTHING_TO_PUBLISH,
   revertHold,
   revertLead,
   REVERT_CONFLICT_LEAD,
@@ -26,7 +25,8 @@ import {
   tabsChanged,
   tabUnsaved,
   writeCapability,
-} from '#/features/branding/services';
+} from '#/features/branding/services/publication';
+import { NOTHING_TO_PUBLISH } from '#/features/branding/services/publish';
 import { EMPTY, LOGO_ID, OWN_LIGHT, themeView } from '#/testing/brandingFixtures';
 
 const NO_DRAFT = themeView() as ThemeView;

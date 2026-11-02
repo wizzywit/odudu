@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { smtpSave } from '#/features/email/repository/smtpSave';
-import { relayValues } from '#/features/email/services';
+import { relayValues } from '#/features/email/services/relay';
 import { fakeTransport } from '#/testing/fakeTransport';
 import { OWN_SMTP, smtpAnswer, SM } from '#/testing/settingsFixtures';
 import { smtpConfigSchema } from '@odudu/contracts/admin';

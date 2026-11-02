@@ -1,15 +1,15 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_PALETTES } from '#/features/branding/services/palette';
 import {
   baseBody,
   colourRequest,
   colourValues,
-  DEFAULT_PALETTES,
   imageRequest,
   imageValues,
   templateRequest,
   templateValues,
-} from '#/features/branding/services';
+} from '#/features/branding/services/values';
 import { draftedView, EMPTY, themeView } from '#/testing/brandingFixtures';
 
 const view = (changes: Record<string, unknown> = {}) => themeView(changes) as ThemeView;

@@ -1,15 +1,11 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useThemeRunning } from '#/features/branding/repository/useThemeWrites';
-import {
-  colourValues,
-  contrastReport,
-  publicationHolds,
-  tabUnsaved,
-  themeRecord,
-  unsavedSections,
-  type PublicationHolds,
-  type ThemeScope,
-} from '#/features/branding/services';
+import { contrastReport } from '#/features/branding/services/contrast';
+import { unsavedSections } from '#/features/branding/services/fields';
+import { publicationHolds, type PublicationHolds } from '#/features/branding/services/holds';
+import { tabUnsaved } from '#/features/branding/services/publication';
+import { themeRecord, type ThemeScope } from '#/features/branding/services/scope';
+import { colourValues } from '#/features/branding/services/values';
 import { useDirtySections } from '#/shared/repository/useDirtySections';
 
 // Why each action over the whole draft is held, read from what is running

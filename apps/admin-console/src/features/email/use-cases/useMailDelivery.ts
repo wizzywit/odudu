@@ -1,7 +1,7 @@
 import type { MailMessage } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useMail } from '#/features/email/repository/useMail';
-import { anyMasked, oldestWaiting } from '#/features/email/services';
+import { anyMasked, oldestWaiting } from '#/features/email/services/mail';
 import { ANY_STATUS, statusFilter } from '#/shared/services/filters';
 import type { ListStatus } from '#/shared/services/resourceList';
 

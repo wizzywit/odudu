@@ -1,4 +1,8 @@
-import { PANEL_WORDING, RELOAD_LABEL, ROOT_FAILURE_TEXT } from '#/features/failure/services';
+import {
+  PANEL_WORDING,
+  RELOAD_LABEL,
+  ROOT_FAILURE_TEXT,
+} from '#/features/failure/services/wording';
 import { useRootFailure } from '#/features/failure/use-cases/useRootFailure';
 import { PRODUCT_NAME } from '#/shared/services/product';
 import { Button } from '#/shared/ui/Button';

@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import type { MessageEntry } from '#/features/branding/services';
+import type { MessageEntry } from '#/features/branding/services/catalogue';
 import { InsertMessage, MessageKeyField } from '#/features/branding/ui/MessageKeyField';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { CodeField } from '#/shared/ui/CodeField';

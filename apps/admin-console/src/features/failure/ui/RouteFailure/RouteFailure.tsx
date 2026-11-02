@@ -6,7 +6,7 @@ import {
   ROUTE_FAILURE_TEXT,
   SHELL_FAILURE_TEXT,
   TRY_AGAIN_LABEL,
-} from '#/features/failure/services';
+} from '#/features/failure/services/wording';
 import styles from '#/features/failure/ui/RouteFailure/RouteFailure.module.css';
 import { useRouteFailure } from '#/features/failure/use-cases/useRouteFailure';
 import { PRODUCT_NAME } from '#/shared/services/product';

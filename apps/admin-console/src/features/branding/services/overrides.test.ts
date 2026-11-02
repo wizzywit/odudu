@@ -15,7 +15,7 @@ import {
   removeOutcome,
   saveOutcome,
   UNKNOWN_KEY,
-} from '#/features/branding/services';
+} from '#/features/branding/services/overrides';
 import type { GatewayFailure } from '#/shared/services/result';
 
 const refused = (status: number, type: string, extra: object = {}): GatewayFailure => ({

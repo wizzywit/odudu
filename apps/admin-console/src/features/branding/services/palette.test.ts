@@ -12,7 +12,7 @@ import {
   swatchOf,
   typedColour,
   withColour,
-} from '#/features/branding/services';
+} from '#/features/branding/services/palette';
 
 const PROPERTY: Record<(typeof PALETTE_KEYS)[number], string> = {
   surfacePage: '--surface-page',

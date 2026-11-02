@@ -7,7 +7,7 @@ import {
   messageOptions,
   templateReference,
   type MessageEntry,
-} from '#/features/branding/services';
+} from '#/features/branding/services/catalogue';
 import { InsertPicker, OptionPicker } from '#/features/branding/ui/OptionPicker';
 import { mapRead, type Read } from '#/shared/services/read';
 

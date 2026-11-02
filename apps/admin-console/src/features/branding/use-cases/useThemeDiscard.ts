@@ -4,8 +4,8 @@ import {
   DISCARD_DONE,
   discardFailure,
   writeCapability,
-  type ThemeScope,
-} from '#/features/branding/services';
+} from '#/features/branding/services/publication';
+import { type ThemeScope } from '#/features/branding/services/scope';
 import { useToast } from '#/shared/repository/useToasts';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
 

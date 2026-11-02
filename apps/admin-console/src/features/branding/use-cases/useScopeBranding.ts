@@ -1,17 +1,15 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useThemeRecord } from '#/features/branding/repository/useThemeRecord';
+import { NO_OUTCOME, type PublishOutcome } from '#/features/branding/services/edits';
+import { tabsChanged } from '#/features/branding/services/publication';
 import {
-  NO_OUTCOME,
   placedOver,
   TENANT_SCOPE,
-  tabsChanged,
-  tabsWithEdits,
   themeRecord,
-  type OfferedTab,
-  type PublishOutcome,
   type ThemeScope,
-} from '#/features/branding/services';
+} from '#/features/branding/services/scope';
+import { tabsWithEdits, type OfferedTab } from '#/features/branding/services/tabs';
 import { usePreview, type Preview } from '#/features/branding/use-cases/usePreview';
 import { useDirtySections } from '#/shared/repository/useDirtySections';
 import type { RecordState } from '#/shared/repository/useRecord';

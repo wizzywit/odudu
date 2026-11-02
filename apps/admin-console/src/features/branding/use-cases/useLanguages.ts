@@ -4,26 +4,9 @@ import { useRefusal } from '#/features/session';
 import { languagesSave } from '#/features/branding/repository/languagesSave';
 import { useOverrideList, useOverrideWrites } from '#/features/branding/repository/useOverrides';
 import { useMessageKeys } from '#/features/branding/use-cases/useMessageKeys';
+import { type MessageEntry } from '#/features/branding/services/catalogue';
 import {
-  afterSave,
-  askedRemoval,
   addLanguage,
-  conflictsAfterSave,
-  conflictsIn,
-  editedOverride,
-  EMPTY_OVERRIDE,
-  filledOverride,
-  formAfterSave,
-  formAfterTakingTheirs,
-  keepMine,
-  staleOutcome,
-  conflictsOf,
-  settle,
-  SAVE_INTERRUPTED,
-  withConflict,
-  withoutConflict,
-  type OverrideConflict,
-  type SentOverride,
   languageFields,
   languageSettingsOf,
   languagesOf,
@@ -31,15 +14,36 @@ import {
   LANGUAGES_SECTION,
   LANGUAGES_TITLE,
   openingLocale,
+  type LanguageValues,
+} from '#/features/branding/services/languages';
+import {
+  conflictsAfterSave,
+  conflictsIn,
+  formAfterSave,
+  formAfterTakingTheirs,
+  keepMine,
+  staleOutcome,
+  conflictsOf,
+  SAVE_INTERRUPTED,
+  withConflict,
+  withoutConflict,
+  type OverrideConflict,
+} from '#/features/branding/services/overrideConflicts';
+import {
+  afterSave,
+  askedRemoval,
+  editedOverride,
+  EMPTY_OVERRIDE,
+  filledOverride,
+  settle,
+  type SentOverride,
   overrideAttempt,
   removeOutcome,
   shownLocale,
-  type LanguageValues,
-  type MessageEntry,
   type OverrideErrors,
   type OverrideField,
   type OverrideValues,
-} from '#/features/branding/services';
+} from '#/features/branding/services/overrides';
 import { withoutField } from '#/shared/services/fieldErrors';
 import type { Read } from '#/shared/services/read';
 import { useToast } from '#/shared/repository/useToasts';

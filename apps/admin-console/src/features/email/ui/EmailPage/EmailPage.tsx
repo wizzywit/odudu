@@ -5,13 +5,10 @@ import {
   effectiveLabel,
   effectiveReading,
   effectiveTone,
-  PORT_RULE,
-  RELAY_LABELS,
-  removeConsequence,
-  TEST_AS_LABEL,
-  TEST_AS_RULE,
-  TEST_TENANT_OWN,
-} from '#/features/email/services';
+} from '#/features/email/services/effective';
+import { PORT_RULE, RELAY_LABELS } from '#/features/email/services/relay';
+import { removeConsequence } from '#/features/email/services/remove';
+import { TEST_AS_LABEL, TEST_AS_RULE, TEST_TENANT_OWN } from '#/features/email/services/testClient';
 import {
   RELAY_TITLE,
   useRelaySection,

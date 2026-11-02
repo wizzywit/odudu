@@ -1,4 +1,4 @@
-import { PREVIEW_FAILED, PREVIEW_LOADING } from '#/features/branding/services';
+import { PREVIEW_FAILED, PREVIEW_LOADING } from '#/features/branding/services/preview';
 import { InlineFailed } from '#/shared/ui/InlineFailed';
 import styles from '#/features/branding/ui/PreviewFrame/PreviewFrame.module.css';
 

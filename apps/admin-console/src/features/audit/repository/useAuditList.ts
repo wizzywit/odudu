@@ -3,13 +3,13 @@ import { readAuditPage } from '#/shared/adapter/audit';
 import { listKey } from '#/shared/repository/queryKeys';
 import { useListPages } from '#/shared/repository/useResourceList';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';
+import { isTooBroad } from '#/features/audit/services/broad';
 import {
   auditQuery,
   filtersToSearch,
-  isTooBroad,
   readFilters,
   type AuditFilters,
-} from '#/features/audit/services';
+} from '#/features/audit/services/filters';
 import {
   currentCursor,
   trailFromSearch,

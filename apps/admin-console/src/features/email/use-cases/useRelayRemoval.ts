@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useRefusal } from '#/features/session';
 import { useSmtpRemove } from '#/features/email/repository/useSmtpWrites';
-import { removeOutcome } from '#/features/email/services';
+import { removeOutcome } from '#/features/email/services/remove';
 import { useToast } from '#/shared/repository/useToasts';
 
 export interface RelayRemoval {

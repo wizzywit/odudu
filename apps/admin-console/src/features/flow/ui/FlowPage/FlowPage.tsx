@@ -2,22 +2,24 @@ import type { ListExecutionsResponse, Settings } from '@odudu/contracts/admin';
 import { useEffect, useRef } from 'react';
 import { AreaGate, areaAt } from '#/features/shell';
 import {
-  authenticatorText,
-  FLOW_RULE,
-  FLOW_TITLE,
   hasOtpStep,
   NO_OTP_STEP,
-  OTP,
   OTP_LABEL,
   OTP_RULE,
   OTP_TITLE,
   OTP_UNREAD,
   otpReading,
   otpRequired,
+} from '#/features/flow/services/otp';
+import {
+  authenticatorText,
+  FLOW_RULE,
+  FLOW_TITLE,
+  OTP,
   REQUIREMENT_OPTIONS,
   requirementText,
-  type Direction,
-} from '#/features/flow/services';
+} from '#/features/flow/services/requirements';
+import { type Direction } from '#/features/flow/services/steps';
 import { useFlowSteps, type FlowSteps } from '#/features/flow/use-cases/useFlowSteps';
 import {
   useOtpRequirement,

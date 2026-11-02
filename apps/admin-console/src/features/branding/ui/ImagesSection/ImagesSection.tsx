@@ -5,20 +5,20 @@ import {
   ALT_LABEL,
   ALT_RULE,
   altProblem,
-  DELETE_LABEL,
-  IMAGE_SLOTS,
-  IMAGES_LEAD,
-  IMAGES_TITLE,
-  imageField,
   limitText,
-  REMOVE_LABEL,
   SLOT_RULES,
   slotView,
-  sourceReading,
+} from '#/features/branding/services/assets';
+import {
+  DELETE_LABEL,
+  IMAGES_LEAD,
+  REMOVE_LABEL,
   UPLOADING,
-  type ImageSlot,
-  type ThemeScope,
-} from '#/features/branding/services';
+} from '#/features/branding/services/copy';
+import { IMAGES_TITLE } from '#/features/branding/services/fields';
+import { type ThemeScope } from '#/features/branding/services/scope';
+import { sourceReading } from '#/features/branding/services/sources';
+import { IMAGE_SLOTS, imageField, type ImageSlot } from '#/features/branding/services/values';
 import type { Images } from '#/features/branding/use-cases/useImages';
 import type { ImageAsk } from '#/features/branding/use-cases/useImageDeletion';
 import { Button } from '#/shared/ui/Button';

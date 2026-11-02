@@ -1,22 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BRANDING_TAB_LABELS,
-  BRANDING_TABS,
-  OFFERED_TABS,
-  showsPreview,
-  tabsWithEdits,
   themeRecord,
   themeParts,
   tagOf,
   ifMatchOf,
   NO_DRAFT_TAG,
   clientScope,
+  placedOver,
+} from '#/features/branding/services/scope';
+import {
+  BRANDING_TAB_LABELS,
+  BRANDING_TABS,
+  OFFERED_TABS,
+  showsPreview,
+  tabsWithEdits,
   SCOPED_TABS,
   revertTarget,
   selectScopedTab,
-  placedOver,
   tabReads,
-} from '#/features/branding/services';
+} from '#/features/branding/services/tabs';
 
 describe('the tabs a revert applies to', () => {
   it('are the scoped ones, and no other', () => {

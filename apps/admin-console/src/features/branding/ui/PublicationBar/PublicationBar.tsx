@@ -1,27 +1,26 @@
 import type { ThemeView } from '@odudu/contracts/admin';
+import { ISSUES_LABEL, PUBLISH_LABEL, PUBLISHING } from '#/features/branding/services/copy';
+import { discardNote, foldedActions } from '#/features/branding/services/holds';
 import {
   barText,
   changeBrief,
-  discardNote,
-  foldedActions,
   DISCARD_CONFIRM,
   DISCARD_LABEL,
   DISCARD_TITLE,
   discardBody,
-  ISSUES_LABEL,
   MORE_LABEL,
   MORE_TRIGGER,
-  PUBLISH_BODY,
-  PUBLISH_LABEL,
-  PUBLISH_TITLE,
-  PUBLISHING,
   publishedShort,
+} from '#/features/branding/services/publication';
+import {
+  PUBLISH_BODY,
+  PUBLISH_TITLE,
   publishedTag,
   PUBLISH_SHORT,
   publishedText,
   WARNINGS_NOTE,
   WARNINGS_TITLE,
-} from '#/features/branding/services';
+} from '#/features/branding/services/publish';
 import type { ScopeBranding } from '#/features/branding/use-cases/useScopeBranding';
 import { usePublicationBar } from '#/features/branding/use-cases/usePublicationBar';
 import { RevertConflict } from '#/features/branding/ui/RevertConflict';

@@ -4,7 +4,7 @@ import {
   ROOT_FAILURE_TEXT,
   ROUTE_FAILURE_TEXT,
   SHELL_FAILURE_TEXT,
-} from '#/features/failure/services';
+} from '#/features/failure/services/wording';
 
 const SENTENCES = [ROUTE_FAILURE_TEXT, SHELL_FAILURE_TEXT, ROOT_FAILURE_TEXT];
 

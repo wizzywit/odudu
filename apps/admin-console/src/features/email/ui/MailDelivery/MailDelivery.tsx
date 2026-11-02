@@ -7,7 +7,7 @@ import {
   MAIL_STATUS_OPTIONS,
   MASKED_NOTE,
   NO_MAIL,
-} from '#/features/email/services';
+} from '#/features/email/services/mail';
 import {
   useMailDelivery,
   type MailDelivery as Delivery,

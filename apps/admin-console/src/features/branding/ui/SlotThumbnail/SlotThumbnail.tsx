@@ -3,9 +3,9 @@ import {
   THUMBNAIL_LOADING,
   THUMBNAIL_RETRY,
   thumbnailAlt,
-  type ImageSlot,
   type Thumbnail,
-} from '#/features/branding/services';
+} from '#/features/branding/services/assets';
+import { type ImageSlot } from '#/features/branding/services/values';
 import { Button } from '#/shared/ui/Button';
 import styles from '#/features/branding/ui/SlotThumbnail/SlotThumbnail.module.css';
 

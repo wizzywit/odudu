@@ -1,5 +1,9 @@
 import { useStylesheetHooks } from '#/features/branding/repository/useStylesheetHooks';
-import { selectorOptions, valueOptions, type SelectorOption } from '#/features/branding/services';
+import {
+  selectorOptions,
+  valueOptions,
+  type SelectorOption,
+} from '#/features/branding/services/selectors';
 import { mapRead, type Read } from '#/shared/services/read';
 
 // What a rule of a stylesheet may name, as the entries to choose from.

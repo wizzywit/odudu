@@ -1,5 +1,6 @@
 import { useTabReads } from '#/features/branding/repository/useTabReads';
-import { tabReads, type BrandingTab, type ThemeScope } from '#/features/branding/services';
+import { type ThemeScope } from '#/features/branding/services/scope';
+import { tabReads, type BrandingTab } from '#/features/branding/services/tabs';
 
 // Starts the reads the tab shown will need, beside the scope's theme read.
 export function useScopeTabReads(tenant: string, scope: ThemeScope, tab: BrandingTab): void {

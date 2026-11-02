@@ -2,19 +2,18 @@ import type { ThemeView } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { previewSource } from '#/features/branding/repository/preview';
 import { usePreviewInfo } from '#/features/branding/repository/usePreviewInfo';
+import { previewKey, previewWith } from '#/features/branding/services/edits';
+import { noticeLines } from '#/features/branding/services/fallback';
+import { type Scheme } from '#/features/branding/services/palette';
 import {
   DEFAULT_PREVIEW,
-  noticeLines,
-  omissionNote,
   previewAsked,
-  previewKey,
   previewRetry,
-  previewWith,
-  type PageKind,
   type PreviewChoice,
-  type Scheme,
-  type ThemeScope,
-} from '#/features/branding/services';
+} from '#/features/branding/services/preview';
+import { type ThemeScope } from '#/features/branding/services/scope';
+import { omissionNote } from '#/features/branding/services/templates';
+import { type PageKind } from '#/features/branding/services/values';
 
 export interface Preview {
   choice: PreviewChoice;

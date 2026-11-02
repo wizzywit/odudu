@@ -1,5 +1,10 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useId } from 'react';
+import { PAGE_PICKER_LABEL, PAGES_LEAD } from '#/features/branding/services/copy';
+import { type PublishOutcome } from '#/features/branding/services/edits';
+import { TEMPLATES_SECTION_TITLE } from '#/features/branding/services/fields';
+import { type ThemeScope } from '#/features/branding/services/scope';
+import { sourceReading } from '#/features/branding/services/sources';
 import {
   formNote,
   MANIFESTS,
@@ -7,23 +12,16 @@ import {
   OPTIONAL_NOTE,
   PAGE_KIND_LABELS,
   PAGE_KIND_OPTIONS,
-  PAGE_PICKER_LABEL,
-  PAGES_LEAD,
   PARTS_TITLE,
   REQUIRED_NOTE,
   slot,
-  sourceReading,
   TEMPLATE_LABEL,
   TEMPLATE_RULES,
   TEMPLATES_INTRO,
-  TEMPLATES_SECTION_TITLE,
   templateDescription,
-  templateField,
   pageKindOf,
-  type PageKind,
-  type PublishOutcome,
-  type ThemeScope,
-} from '#/features/branding/services';
+} from '#/features/branding/services/templates';
+import { templateField, type PageKind } from '#/features/branding/services/values';
 import { useMessageKeys } from '#/features/branding/use-cases/useMessageKeys';
 import { useRevert } from '#/features/branding/use-cases/useRevert';
 import { useTemplates } from '#/features/branding/use-cases/useTemplates';

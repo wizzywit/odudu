@@ -1,4 +1,5 @@
-import { pickLabel, swatchOf } from '#/features/branding/services';
+import { pickLabel } from '#/features/branding/services/copy';
+import { swatchOf } from '#/features/branding/services/palette';
 import { TextField } from '#/shared/ui/Field';
 import styles from '#/features/branding/ui/ColourField/ColourField.module.css';
 

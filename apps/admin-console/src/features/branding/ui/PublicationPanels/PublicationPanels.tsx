@@ -1,28 +1,32 @@
 import {
-  NO_VERSIONS,
-  RESET_CONFIRM,
   RESET_LABEL,
-  RESET_TITLE,
-  resetBody,
-  resetLead,
   RESTORE_LABEL,
-  restoreBody,
   restoreName,
-  restoreTitle,
+  VERSIONS_COLUMNS,
+  VERSIONS_TABLE_LABEL,
+} from '#/features/branding/services/copy';
+import {
   REVERT_LABEL,
   REVERT_TITLE,
   REVERTING,
   revertLead,
-  VERSIONS_COLUMNS,
+} from '#/features/branding/services/publication';
+import { type ThemeScope } from '#/features/branding/services/scope';
+import { type ScopedTab } from '#/features/branding/services/tabs';
+import {
+  NO_VERSIONS,
+  RESET_CONFIRM,
+  RESET_TITLE,
+  resetBody,
+  resetLead,
+  restoreBody,
+  restoreTitle,
   VERSIONS_FAILED,
-  VERSIONS_TABLE_LABEL,
   VERSIONS_TITLE,
   versionRows,
   versionsLead,
-  type ScopedTab,
-  type ThemeScope,
   type VersionRow,
-} from '#/features/branding/services';
+} from '#/features/branding/services/versions';
 import type { Revert } from '#/features/branding/use-cases/useRevert';
 import type { Versions } from '#/features/branding/use-cases/useVersions';
 import type { Removal } from '#/shared/use-cases/useConfirmedChange';

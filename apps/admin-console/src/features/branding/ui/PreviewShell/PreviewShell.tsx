@@ -4,7 +4,7 @@ import {
   PREVIEW_OPEN_LABEL,
   PREVIEW_SHEET_TITLE,
   sheetFrameTitle,
-} from '#/features/branding/services';
+} from '#/features/branding/services/preview';
 import { usePreviewSheet } from '#/features/branding/use-cases/usePreviewSheet';
 import { PreviewFrame, type PreviewFrameProps } from '#/features/branding/ui/PreviewFrame';
 import { useContainerNarrow } from '#/shared/use-cases/useContainerNarrow';

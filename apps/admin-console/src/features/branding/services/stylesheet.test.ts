@@ -1,11 +1,9 @@
 import { MAX_STYLESHEET_BYTES, MAX_TEMPLATE_BYTES } from '@odudu/contracts';
 import type { FieldError, ThemeView } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
+import { NO_OUTCOME } from '#/features/branding/services/edits';
+import { PROBLEMS_SHOWN, firstProblems, NO_PROBLEMS } from '#/features/branding/services/problems';
 import {
-  PROBLEMS_SHOWN,
-  firstProblems,
-  NO_OUTCOME,
-  NO_PROBLEMS,
   publishedStylesheetProblems,
   STYLESHEET_UNPUBLISHABLE,
   sizeReading,
@@ -14,15 +12,16 @@ import {
   STYLESHEET_REFUSED,
   stylesheetHold,
   stylesheetProblems,
-  stylesheetRequest,
   stylesheetSize,
-  stylesheetValues,
+  templateSize,
+} from '#/features/branding/services/stylesheet';
+import {
   publishedTemplateProblems,
   templateProblems,
   TEMPLATE_UNPUBLISHABLE,
-  templateSize,
   TEMPLATE_REFUSED,
-} from '#/features/branding/services';
+} from '#/features/branding/services/templates';
+import { stylesheetRequest, stylesheetValues } from '#/features/branding/services/values';
 import { draftedView, EMPTY, themeView } from '#/testing/brandingFixtures';
 
 const error = (changes: Partial<FieldError>): FieldError => ({

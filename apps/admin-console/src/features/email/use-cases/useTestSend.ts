@@ -3,19 +3,21 @@ import { useState } from 'react';
 import { useAuthority } from '#/features/session';
 import { useSmtpTest } from '#/features/email/repository/useSmtpWrites';
 import {
+  testBlocked,
+  testOutcome,
+  testSendable,
+  type TestOutcome,
+} from '#/features/email/services/test';
+import {
   chosenTestClient,
   DEFAULT_TEST_CLIENT,
-  testBlocked,
   testClientId,
   testClientSelection,
   testClientsClosed,
   testClientsRead,
   testClientSummary,
-  testOutcome,
-  testSendable,
   type TestClientChoice,
-  type TestOutcome,
-} from '#/features/email/services';
+} from '#/features/email/services/testClient';
 import { useClientPicker } from '#/shared/repository/useClientPicker';
 import type { PickerState } from '#/shared/services/picker';
 

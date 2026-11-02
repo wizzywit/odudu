@@ -1,29 +1,29 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useId } from 'react';
+import { rowText, type ContrastReport } from '#/features/branding/services/contrast';
 import {
   CONTRAST_LEAD,
   CONTRAST_TITLE,
   PAIR_FAILS,
   PAIR_PASSES,
-  rowText,
-  type ContrastReport,
   COLOURS_LEAD,
-  COLOURS_TITLE,
-  colourProblems,
   customLabel,
   FONT_LABEL,
+  paletteFoldOpen,
+  paletteLegend,
+} from '#/features/branding/services/copy';
+import { colourProblems, paletteField } from '#/features/branding/services/edits';
+import { COLOURS_TITLE } from '#/features/branding/services/fields';
+import {
   FONT_OPTIONS,
   PALETTE_LABELS,
   PALETTE_ORDER,
-  paletteField,
-  paletteFoldOpen,
-  paletteLegend,
   SCHEME_LABELS,
   SCHEMES,
-  sourceReading,
   type Scheme,
-  type ThemeScope,
-} from '#/features/branding/services';
+} from '#/features/branding/services/palette';
+import { type ThemeScope } from '#/features/branding/services/scope';
+import { sourceReading } from '#/features/branding/services/sources';
 import type { Colours } from '#/features/branding/use-cases/useColours';
 import { ColourField } from '#/features/branding/ui/ColourField';
 import { useFolds, type Folds } from '#/shared/use-cases/useFolds';

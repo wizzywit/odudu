@@ -5,8 +5,8 @@ import {
   SELECTORS_LABEL,
   selectorOptions,
   valueOptions,
-  STYLESHEET_REFUSALS,
-} from '#/features/branding/services';
+} from '#/features/branding/services/selectors';
+import { STYLESHEET_REFUSALS } from '#/features/branding/services/stylesheet';
 
 const HOOKS: StylesheetHooksResponse = {
   version: 1,

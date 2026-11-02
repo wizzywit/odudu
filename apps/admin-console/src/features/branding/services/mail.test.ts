@@ -16,7 +16,7 @@ import {
   MAIL_LOCALE_OPTIONS,
   paletteRows,
   sourceText,
-} from '#/features/branding/services';
+} from '#/features/branding/services/mail';
 import { mailBranding } from '#/testing/brandingFixtures';
 
 describe('the mail palette', () => {

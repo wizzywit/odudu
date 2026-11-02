@@ -1,16 +1,16 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
+import { publishOutcomeOf } from '#/features/branding/services/edits';
+import { PROBLEMS_SHOWN } from '#/features/branding/services/problems';
 import {
-  PROBLEMS_SHOWN,
   issueLine,
   issuesOf,
   limitedIssues,
   publishedText,
   publishHold,
-  publishOutcomeOf,
   refusalText,
   warningLines,
-} from '#/features/branding/services';
+} from '#/features/branding/services/publish';
 import { draftedView, themeView } from '#/testing/brandingFixtures';
 
 const drafted = draftedView() as ThemeView;

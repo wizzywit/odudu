@@ -20,14 +20,11 @@ import {
   mailLocaleOf,
   MAIL_SUMMARY_NAME,
   paletteRows,
-  previewSummary,
-  SCHEME_LABELS,
-  SCHEME_OPTIONS,
-  schemeOf,
   schemeTitle,
   sourceText,
-  type Scheme,
-} from '#/features/branding/services';
+} from '#/features/branding/services/mail';
+import { SCHEME_LABELS, schemeOf, type Scheme } from '#/features/branding/services/palette';
+import { previewSummary, SCHEME_OPTIONS } from '#/features/branding/services/preview';
 import type { MailTab as Mail } from '#/features/branding/use-cases/useMailTab';
 import { MailClientChoice } from '#/features/branding/ui/MailClientChoice';
 import { PreviewShell } from '#/features/branding/ui/PreviewShell';

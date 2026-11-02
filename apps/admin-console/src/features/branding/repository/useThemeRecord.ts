@@ -1,6 +1,6 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { readTheme } from '#/features/branding/adapter/theme';
-import { themeRecord, type ThemeScope } from '#/features/branding/services';
+import { themeRecord, type ThemeScope } from '#/features/branding/services/scope';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord';
 
 export function useThemeRecord(tenant: string, scope: ThemeScope): RecordState<ThemeView> {

@@ -6,27 +6,28 @@ import { useSlotImages } from '#/features/branding/repository/useSlotImages';
 import { imageSave } from '#/features/branding/repository/themeSaves';
 import {
   altChanged,
+  imagesHold,
+  slotAssetIds,
+  type Thumbnail,
+} from '#/features/branding/services/assets';
+import {
   editAlt,
   finishUpload,
   forgetImage,
   IDLE_SLOTS,
-  imageField,
-  imageFields,
-  imageValues,
-  imagesHold,
-  IMAGES_TITLE,
   slotAfterUpload,
-  slotAssetIds,
   startUpload,
-  themeRecord,
+  type SlotStates,
+} from '#/features/branding/services/edits';
+import { imageFields, IMAGES_TITLE } from '#/features/branding/services/fields';
+import { themeRefusal, writeCapability } from '#/features/branding/services/publication';
+import { themeRecord, type ThemeScope } from '#/features/branding/services/scope';
+import {
+  imageField,
+  imageValues,
   type ImageValues,
   type ImageSlot,
-  type SlotStates,
-  type Thumbnail,
-  type ThemeScope,
-  themeRefusal,
-  writeCapability,
-} from '#/features/branding/services';
+} from '#/features/branding/services/values';
 import { useSectionHold } from '#/features/branding/use-cases/useSectionHold';
 import { useLatest } from '#/shared/repository/useLatest';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';

@@ -1,11 +1,9 @@
 import type { ThemeAsset } from '@odudu/contracts/admin';
 import { describe, expect, it, vi, type Mock } from 'vitest';
+import { altChanged, slotNames, slotView } from '#/features/branding/services/assets';
+import { contrastReport } from '#/features/branding/services/contrast';
 import {
-  altChanged,
   announcePublish,
-  changedColours,
-  contrastReport,
-  DEFAULT_PALETTES,
   IDLE_SLOTS,
   NO_OUTCOME,
   publishOutcomeOf,
@@ -13,18 +11,17 @@ import {
   currentOutcome,
   selectOffered,
   slotAfterUpload,
-  slotNames,
-  slotView,
-  unsavedSections,
   uploadedImage,
   forgetImage,
   finishUpload,
   startUpload,
   editAlt,
-  type ImageValues,
   type SlotStates,
   type UploadStart,
-} from '#/features/branding/services';
+} from '#/features/branding/services/edits';
+import { unsavedSections } from '#/features/branding/services/fields';
+import { changedColours, DEFAULT_PALETTES } from '#/features/branding/services/palette';
+import { type ImageValues } from '#/features/branding/services/values';
 import type { GatewayResult } from '#/shared/services/result';
 
 const none: ImageValues = {

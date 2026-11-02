@@ -1,12 +1,8 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { expect, it } from 'vitest';
 import { colourSave, imageSave, templateSave } from '#/features/branding/repository/themeSaves';
-import {
-  colourValues,
-  imageValues,
-  NO_DRAFT_TAG,
-  templateValues,
-} from '#/features/branding/services';
+import { NO_DRAFT_TAG } from '#/features/branding/services/scope';
+import { colourValues, imageValues, templateValues } from '#/features/branding/services/values';
 import { draftedView, TH } from '#/testing/brandingFixtures';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 

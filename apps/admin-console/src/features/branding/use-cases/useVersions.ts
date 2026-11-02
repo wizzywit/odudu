@@ -2,13 +2,10 @@ import type { ListThemeVersionsResponse } from '@odudu/contracts/admin';
 import { useRefusal } from '#/features/session';
 import { useThemeVersions } from '#/features/branding/repository/useThemeVersions';
 import type { ThemeWrites } from '#/features/branding/repository/useThemeWrites';
-import {
-  restoreFailure,
-  RESTORED_TOAST,
-  type ThemeScope,
-  type VersionRow,
-  writeCapability,
-} from '#/features/branding/services';
+import { restoreFailure } from '#/features/branding/services/failures';
+import { writeCapability } from '#/features/branding/services/publication';
+import { type ThemeScope } from '#/features/branding/services/scope';
+import { RESTORED_TOAST, type VersionRow } from '#/features/branding/services/versions';
 import { useToast } from '#/shared/repository/useToasts';
 import type { Read } from '#/shared/services/read';
 import { useConfirmedChange, type Confirming } from '#/shared/use-cases/useConfirmedChange';

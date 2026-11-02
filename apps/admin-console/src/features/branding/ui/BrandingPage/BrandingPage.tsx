@@ -4,11 +4,13 @@ import {
   BRANDING_DESCRIPTION,
   BRANDING_NOUN,
   BRANDING_SECTIONS_LABEL,
-  BRANDING_TAB_LABELS,
   BRANDING_TITLE,
+} from '#/features/branding/services/copy';
+import {
+  BRANDING_TAB_LABELS,
   OFFERED_TABS,
   type OfferedTab,
-} from '#/features/branding/services';
+} from '#/features/branding/services/tabs';
 import { useBrandingPage } from '#/features/branding/use-cases/useBrandingPage';
 import { LanguagesTab } from '#/features/branding/ui/LanguagesTab';
 import { MailInherits, MailPreview } from '#/features/branding/ui/MailTab';

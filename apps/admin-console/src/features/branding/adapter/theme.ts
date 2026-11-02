@@ -16,15 +16,10 @@ import {
 import { adminCall, nothing, segment } from '#/shared/adapter/route';
 import { staleWhenTagMissing } from '#/shared/services/failure';
 import { GATEWAY_BASE, type Gateway, type GatewayResult } from '#/shared/transport/gateway';
-import {
-  ifMatchOf,
-  imageDataUrl,
-  tagOf,
-  themeParts,
-  type PageKind,
-  type Scheme,
-  type ThemeScope,
-} from '#/features/branding/services';
+import { imageDataUrl } from '#/features/branding/services/assets';
+import { type Scheme } from '#/features/branding/services/palette';
+import { ifMatchOf, tagOf, themeParts, type ThemeScope } from '#/features/branding/services/scope';
+import { type PageKind } from '#/features/branding/services/values';
 
 // A theme with no draft has no ETag; every answer that carries a view says so
 // the same way, so a section can always save against what it was read with.

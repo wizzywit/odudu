@@ -1,12 +1,9 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useThemeWrites } from '#/features/branding/repository/useThemeWrites';
-import {
-  revertTarget,
-  type PublicationHolds,
-  type PublishOutcome,
-  type ScopedTab,
-  type ThemeScope,
-} from '#/features/branding/services';
+import { type PublishOutcome } from '#/features/branding/services/edits';
+import { type PublicationHolds } from '#/features/branding/services/holds';
+import { type ThemeScope } from '#/features/branding/services/scope';
+import { revertTarget, type ScopedTab } from '#/features/branding/services/tabs';
 import { usePublication, type Publication } from '#/features/branding/use-cases/usePublication';
 import { usePublicationHolds } from '#/features/branding/use-cases/usePublicationHolds';
 import { useRevert, type Revert } from '#/features/branding/use-cases/useRevert';

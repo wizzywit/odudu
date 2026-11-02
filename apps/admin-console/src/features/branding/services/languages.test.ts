@@ -9,10 +9,10 @@ import {
   languageAdded,
   languagesRequest,
   openingLocale,
-  shownLocale,
   supportedChoices,
   SHIPPED_LANGUAGES,
-} from '#/features/branding/services';
+} from '#/features/branding/services/languages';
+import { shownLocale } from '#/features/branding/services/overrides';
 
 describe('the shipped languages', () => {
   it('are English and Arabic', () => {

@@ -9,23 +9,25 @@ import {
   SAVE_INTERRUPTED,
   conflictSection,
   conflictsIn,
-  editedOverride,
-  EMPTY_OVERRIDE,
-  filledOverride,
   formAfterSave,
   formAfterTakingTheirs,
   keepMine,
   overrideConflict,
-  overrideFailure,
-  afterSave,
-  removeOutcome,
   staleOutcome,
   conflictsOf,
-  STALE_REMOVAL,
   UNREAD_NEWER,
   withConflict,
   withoutConflict,
-} from '#/features/branding/services';
+} from '#/features/branding/services/overrideConflicts';
+import {
+  editedOverride,
+  EMPTY_OVERRIDE,
+  filledOverride,
+  overrideFailure,
+  afterSave,
+  removeOutcome,
+  STALE_REMOVAL,
+} from '#/features/branding/services/overrides';
 import type { GatewayFailure } from '#/shared/services/result';
 
 const refused = (status: number, type: string): GatewayFailure => ({

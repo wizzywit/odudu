@@ -1,11 +1,8 @@
 import type { ThemeView } from '@odudu/contracts/admin';
-import {
-  DELETE_BODY,
-  DELETE_LABEL,
-  DELETE_TITLE,
-  type PublishOutcome,
-  type ThemeScope,
-} from '#/features/branding/services';
+import { DELETE_BODY, DELETE_TITLE } from '#/features/branding/services/assets';
+import { DELETE_LABEL } from '#/features/branding/services/copy';
+import { type PublishOutcome } from '#/features/branding/services/edits';
+import { type ThemeScope } from '#/features/branding/services/scope';
 import { useThemeTab } from '#/features/branding/use-cases/useThemeTab';
 import { ColoursSection, ContrastPanel } from '#/features/branding/ui/ColoursSection';
 import { ImagesSection } from '#/features/branding/ui/ImagesSection';

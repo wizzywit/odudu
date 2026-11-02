@@ -1,7 +1,8 @@
 import { useParams, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 import { focusPageMain } from '#/features/failure/repository/failureReport';
-import { overviewAddress, routeTemplate } from '#/features/failure/services';
+import { overviewAddress } from '#/features/failure/services/address';
+import { routeTemplate } from '#/features/failure/services/report';
 import { useFailureReport, type FailureShown } from '#/features/failure/use-cases/useFailureReport';
 import { useReloadConsole } from '#/features/session';
 

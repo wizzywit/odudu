@@ -4,9 +4,9 @@ import {
   choiceOf,
   EVENT_TYPE_OPTIONS,
   hasResourceType,
-  NOT_FILTERS,
   OUTCOME_OPTIONS,
-} from '#/features/audit/services';
+} from '#/features/audit/services/filters';
+import { NOT_FILTERS } from '#/features/audit/services/page';
 import { Button } from '#/shared/ui/Button';
 import { DateTimeField, SelectField, TextField } from '#/shared/ui/Field';
 import { FieldGrid, GridCell } from '#/shared/ui/FieldGrid';

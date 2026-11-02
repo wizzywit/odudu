@@ -1,14 +1,14 @@
 import { AreaGate, areaAt } from '#/features/shell';
+import { TOO_BROAD_TITLE } from '#/features/audit/services/broad';
+import { EXPORT_NOTE } from '#/features/audit/services/export';
 import {
-  EXPORT_NOTE,
   NO_COUNT,
   NOTHING_MATCHES,
   NOTHING_YET,
   STALE_TEXT,
   STALE_TITLE,
   TITLE,
-  TOO_BROAD_TITLE,
-} from '#/features/audit/services';
+} from '#/features/audit/services/page';
 import { useAuditPage, type AuditPageState } from '#/features/audit/use-cases/useAuditPage';
 import { AuditFilters } from '#/features/audit/ui/AuditFilters';
 import { CORRELATION_NOTE } from '#/shared/services/auditEvents';

@@ -1,9 +1,9 @@
+import { type FailureReport } from '#/features/failure/services/report';
 import {
   FAILURE_TITLE,
   RELOAD_LABEL,
   ROOT_FAILURE_TEXT,
-  type FailureReport,
-} from '#/features/failure/services';
+} from '#/features/failure/services/wording';
 import { buttonClass } from '#/shared/ui/Button';
 import styles from '#/features/failure/ui/MinimalFailure/MinimalFailure.module.css';
 

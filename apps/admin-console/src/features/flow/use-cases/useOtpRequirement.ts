@@ -7,7 +7,7 @@ import {
   OTP_TITLE,
   otpReading,
   otpRequired,
-} from '#/features/flow/services';
+} from '#/features/flow/services/otp';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { writeRefusal } from '#/shared/services/capabilities';
 import { TENANT_SETTINGS_RECORD } from '#/shared/services/tenantSettings';

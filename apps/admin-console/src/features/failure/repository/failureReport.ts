@@ -12,7 +12,7 @@ import {
   failureLogLine,
   type FailureReport,
   type FailureSource,
-} from '#/features/failure/services';
+} from '#/features/failure/services/report';
 import { currentTime } from '#/shared/adapter/clock';
 
 export function newFailureReport(route: string): FailureReport {

@@ -1,5 +1,6 @@
 import type { PutThemeRequest, ThemeView } from '@odudu/contracts/admin';
 import { putTheme } from '#/features/branding/adapter/theme';
+import { type ThemeScope } from '#/features/branding/services/scope';
 import {
   colourRequest,
   imageRequest,
@@ -9,8 +10,7 @@ import {
   type ImageValues,
   type StylesheetValues,
   type TemplateValues,
-  type ThemeScope,
-} from '#/features/branding/services';
+} from '#/features/branding/services/values';
 import type { SaveInput } from '#/shared/repository/useSectionSave';
 import type { Values } from '#/shared/services/dirty';
 import type { Gateway } from '#/shared/transport/gateway';

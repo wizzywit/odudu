@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
-import { OVER_BOUND, UNKNOWN_KEY } from '#/features/branding/services';
+import { OVER_BOUND, UNKNOWN_KEY } from '#/features/branding/services/overrides';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { HELP_OVERRIDE, languagesRoutes, MC, MO, TITLE_OVERRIDE } from '#/testing/brandingFixtures';
 import { inTurn, json, problem } from '#/testing/fakeTransport';

@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
-import { DEFAULT_PREVIEW } from '#/features/branding/services';
+import { DEFAULT_PREVIEW } from '#/features/branding/services/preview';
 import type { Preview } from '#/features/branding/use-cases/usePreview';
 import { PreviewPane } from '#/features/branding/ui/PreviewPane';
 

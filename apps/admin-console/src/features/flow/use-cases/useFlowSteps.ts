@@ -2,22 +2,20 @@ import type { ExecutionRequirement, ListExecutionsResponse } from '@odudu/contra
 import { useState } from 'react';
 import { useRefusal } from '#/features/session';
 import { flowSaves, FLOW_RECORD, type StepValues } from '#/features/flow/repository/useFlowRecord';
+import { flowOutcome } from '#/features/flow/services/refusal';
+import { FLOW_TITLE, DEFAULT_ADDED, requirementOf } from '#/features/flow/services/requirements';
 import {
   addable,
   added,
   canMove,
   chosenAddition,
   describeSteps,
-  FLOW_TITLE,
-  flowOutcome,
-  DEFAULT_ADDED,
-  requirementOf,
   moved,
   stepsOf,
   withRequirement,
   type Direction,
   type Step,
-} from '#/features/flow/services';
+} from '#/features/flow/services/steps';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { writeRefusal } from '#/shared/services/capabilities';
 

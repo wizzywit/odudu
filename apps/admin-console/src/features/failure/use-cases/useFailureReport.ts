@@ -5,7 +5,11 @@ import {
   messageLabel,
   newFailureReport,
 } from '#/features/failure/repository/failureReport';
-import { failureDetails, shownMessage, type FailureReport } from '#/features/failure/services';
+import {
+  failureDetails,
+  shownMessage,
+  type FailureReport,
+} from '#/features/failure/services/report';
 
 export interface FailureShown {
   report: FailureReport;

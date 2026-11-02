@@ -2,20 +2,20 @@ import type { ThemeView } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useRefusal } from '#/features/session';
 import { useThemeWrites } from '#/features/branding/repository/useThemeWrites';
+import { revertHoldOf } from '#/features/branding/services/holds';
 import {
   announceRevert,
   revertAnswered,
   revertAnswerOf,
   revertDefected,
   type RevertAnswer,
-  revertHoldOf,
   revertRequest,
   revertSection,
   shownRevertConflicts,
   writeCapability,
-  type ScopedTab,
-  type ThemeScope,
-} from '#/features/branding/services';
+} from '#/features/branding/services/publication';
+import { type ThemeScope } from '#/features/branding/services/scope';
+import { type ScopedTab } from '#/features/branding/services/tabs';
 import { usePublicationHolds } from '#/features/branding/use-cases/usePublicationHolds';
 import { useToast } from '#/shared/repository/useToasts';
 import type { Conflict } from '#/shared/services/conflict';

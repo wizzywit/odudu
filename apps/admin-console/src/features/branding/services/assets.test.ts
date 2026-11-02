@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   altEdited,
   altProblem,
-  imageAfterUpload,
   imageDataUrl,
   imagesHold,
   inUse,
@@ -12,11 +11,11 @@ import {
   slotThumbnail,
   slotView,
   thumbnailAlt,
-  uploadFailureOf,
   uploadFailureText,
   uploadRefusal,
-  type ImageValues,
-} from '#/features/branding/services';
+} from '#/features/branding/services/assets';
+import { imageAfterUpload, uploadFailureOf } from '#/features/branding/services/edits';
+import { type ImageValues } from '#/features/branding/services/values';
 
 const none: ImageValues = {
   'assets.logo': null,

@@ -3,12 +3,12 @@ import {
   contrastHold,
   contrastRatio,
   contrastReport,
-  DEFAULT_PALETTES,
   PAIRS,
   pairRows,
   ratioText,
-  type ColourValues,
-} from '#/features/branding/services';
+} from '#/features/branding/services/contrast';
+import { DEFAULT_PALETTES } from '#/features/branding/services/palette';
+import { type ColourValues } from '#/features/branding/services/values';
 
 const values = (light: ColourValues['tokens.light'], dark: ColourValues['tokens.dark'] = null) =>
   ({ 'tokens.light': light, 'tokens.dark': dark, 'tokens.font': null }) satisfies ColourValues;
