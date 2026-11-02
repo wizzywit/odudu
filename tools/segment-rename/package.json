@@ -1,0 +1,17 @@
+{
+  "name": "@odudu/segment-rename",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "rename": "node ./src/cli.ts"
+  },
+  "dependencies": {
+    "typescript": "6.0.3"
+  }
+}
