@@ -58,11 +58,11 @@ const PAGE_OF_AREA: Readonly<Record<string, string>> = {
 // The tabs of a record, by the file that names them; the tenant's are the
 // three its record page opens.
 const TAB_LABELS: Readonly<Record<string, { file: string; map: string } | readonly string[]>> = {
-  subjects: { file: 'subjects/services/tabs.ts', map: 'SUBJECT_TAB_LABELS' },
-  clients: { file: 'clients/services/tabs.ts', map: 'CLIENT_TAB_LABELS' },
-  groups: { file: 'groups/services/tabs.ts', map: 'GROUP_TAB_LABELS' },
-  roles: { file: 'roles/services/tabs.ts', map: 'ROLE_TAB_LABELS' },
-  scopes: { file: 'scopes/services/tabs.ts', map: 'SCOPE_TAB_LABELS' },
+  subjects: { file: 'subjects/services/tabs.ts', map: 'labels: {' },
+  clients: { file: 'clients/services/tabs.ts', map: 'labels: {' },
+  groups: { file: 'groups/services/tabs.ts', map: 'labels: {' },
+  roles: { file: 'roles/services/tabs.ts', map: 'labels: {' },
+  scopes: { file: 'scopes/services/tabs.ts', map: 'labels: {' },
   tenants: ['General', 'Administrators', 'Export'],
 };
 
@@ -101,8 +101,8 @@ function tabLabels(entry: TabSource | readonly string[]): string[] {
   const { file, map } = entry;
   const source = text(path.join(CONSOLE, file));
   const start = source.indexOf(map);
-  const body = source.slice(start, source.indexOf('};', start));
-  return [...body.matchAll(/:\s*'([^']+)',/gu)].map((match) => match[1] ?? '');
+  const body = source.slice(start, source.indexOf('}', start));
+  return [...body.matchAll(/:\s*'([^']+)'/gu)].map((match) => match[1] ?? '');
 }
 
 // A page for a tab of a feature that is big enough to be a page of its own. It is
