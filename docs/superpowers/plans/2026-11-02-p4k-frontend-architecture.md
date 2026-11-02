@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Behaviour never changes (D2a). Where copies of a rule disagree, every variant stays as a named option of the one owner, and each disagreement is appended to `docs/phases/p4k.md` under "Variants kept".
+- Behaviour never changes (D2a). Where copies of a rule disagree, every variant stays as a named option of the one owner, and each disagreement is appended to the p4k note in `docs/phases` (created in the closing pass) under "Variants kept".
 - Segment names become `ui`, `use-cases`, `services` (plus existing `repository`, `adapter`, new `types`). No `model`, `components`, `hooks`, `utils` folders inside a slice.
 - `shared` ends holding `ui`, `api`, `lib`, `config` only. No domain word in it.
 - No `services/index.ts` holding anything. One file per business concept, at most 300 lines (existing `console-service-length`). Domain services pure; application services take side effects as a parameter object; expected outcomes are `{ ok: true } | { ok: false; reason }`; time and randomness enter as parameters.
@@ -53,6 +53,7 @@
 ### Task 1: Place P4k in the roadmap, section 11 and NEXT
 
 **Files:**
+
 - Modify: `docs/superpowers/specs/2026-09-10-odudu-design.md` (a `| P4k |` row in the section 11 table, and the order sentence near line 537)
 - Modify: `apps/docs/content/en/roadmap.md`, `docs/NEXT.md`
 - Test: `tests/docs/roadmap-section-11.test.ts` (existing; must pass)
@@ -68,6 +69,7 @@
 ### Task 2: The segment-rename codemod
 
 **Files:**
+
 - Create: `tools/segment-rename/{package.json,tsconfig.json,src/rename.ts,src/rename.test.ts,src/cli.ts}` (copy `tools/commit-message/package.json` and `tsconfig.json` as the shape)
 
 **Interfaces:** Produces `renameSegments(root: string, aliasPrefix: string, mapping: Record<string, string>): { moved: string[]; rewritten: string[] }` and a CLI `pnpm --filter @odudu/segment-rename run rename -- <root> <aliasPrefix>`. Throwaway: deleted in Task 40.
@@ -81,6 +83,7 @@
 ### Task 3: Rename the console, repoint its checks
 
 **Files:**
+
 - Modify (by codemod): everything under `apps/admin-console/src` and `apps/admin-console/e2e` that names a segment
 - Modify: `.dependency-cruiser.cjs` (console rules and generic `no-*` rules), `eslint.config.js`, the `tests/lint/console-*.test.ts` files and their fixtures under `tests/lint/fixtures/`, `apps/docs/tests/{console-areas,console-warning}.test.ts`, `apps/docs/tests/support/console-labels.ts`, `apps/docs/scripts/page-shots/*` where they name console paths
 - Test: the lints themselves, `pnpm boundaries`, `pnpm lint`, `pnpm typecheck`
@@ -98,6 +101,7 @@
 ### Task 4: Rename the docs app
 
 **Files:**
+
 - Modify (by codemod): `apps/docs/src` with alias `@site/src/`
 - Modify: `.dependency-cruiser.cjs` docs rules (lines 195-265), `eslint.config.js:89`, `tests/lint/{docs-service-no-dom,docs-view-no-logic,docs-no-readonly,lost-art}.test.ts` and `console-no-module-state`, `console-usecase-integration-only` where they also read docs, the docs tests and scripts listed under "Verified facts", MDX imports of `@site/src/shared/view/Diagram` (`apps/docs/content/**`), `apps/docs/plugins/code-highlight.ts:14`
 
@@ -113,6 +117,7 @@
 ### Task 5: Browser access behind `shared/platform`
 
 **Files:**
+
 - Modify: `apps/docs/src/features/landing/use-cases/{useInstall,useSignInFlow,useIdle,useReveal,usePrefersReducedMotion}.ts` (names as of the audit), `apps/docs/src/shared/platform/*`
 - Create: `apps/docs/src/shared/platform/clipboard.ts`, `timers.ts` with tests beside them
 - Test: `tests/lint/docs-usecase-no-browser-globals.test.ts` (new)
@@ -132,6 +137,7 @@
 ### Task 6: The rule framework
 
 **Files:**
+
 - Create: `tests/lint/architecture/migrated.ts` (exported `MIGRATED: readonly string[]`, slice paths such as `apps/admin-console/src/pages/clients`), `tests/lint/architecture/inventory.ts` (a `Record<RuleId, string[]>` of breaching files), `tests/lint/architecture/rule.ts` (the helper), `tests/lint/architecture/rule.test.ts`
 - Test: `tests/lint/architecture/rule.test.ts`
 
@@ -169,7 +175,7 @@
 
 ### Task 10: Steiger spike
 
-**Files:** Create `docs/adr/0045-architecture-checks-extend-dependency-cruiser.md` (check the next free number first: `ls docs/adr | tail -3`).
+**Files:** Create the next free ADR in `docs/adr` (about 0045, "how the frontend architecture is checked") (check the next free number first: `ls docs/adr | tail -3`).
 
 - [ ] **Step 1: Timebox two hours.** In a scratch branch directory outside the repo's tracked tree, install Steiger and run it against `apps/admin-console/src` with a config mapping the new layers. Record: does it enforce public-API-only imports and no same-layer slice imports, with how much configuration, and the added `verify` time.
 - [ ] **Step 2: Write the ADR** with the decision. Default: not adopted unless it clearly beats Tasks 6 to 9. If adopted, add a follow-up task to wire it into `pnpm lint`.
@@ -225,17 +231,17 @@ Each domain is its own increment, pushed and green before the next. Before a dom
 
 **Order and evidence** (from the audits; the controller confirms against the graph):
 
-| # | Domain | Basis |
-|---|---|---|
-| 1 | `session` entity, `shell` widget | 83 and 26 inbound imports; `shell/areas`, `overview` Place/AreaOf types |
-| 2 | `tenants`, `tenant-sessions` | failure, steps, import services; tenant settings in shared |
-| 3 | `subjects`, `administrators`, `system-admins` | credentials.ts (6 concepts), access, holdings, memberships |
-| 4 | `roles` and `groups`, `capabilities` | default-block and `Ceiling` written twice; tab models; held/refusal wording |
-| 5 | `clients`, `scopes` | account, advanced, tokens, create; copy-plan; assignment, guard |
-| 6 | `audit` (`audit-event` entity) | filters.ts 234 lines; export; links |
-| 7 | `branding` | 27 service files, 6,412 lines; scheme labels repeated five times |
-| 8 | `settings`, `email`, `signing-keys`, `registration-tokens`, `flow`, `failure`, `overview` | smaller; `keyPromotion` split ownership; key lane |
-| 9 | docs app features | `content.ts`, `scene.ts`, `geometry.ts`, `playback.ts`, `terminal.ts`; `consoleShot`/`pageShot` twins |
+| #   | Domain                                                                                    | Basis                                                                                                 |
+| --- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 1   | `session` entity, `shell` widget                                                          | 83 and 26 inbound imports; `shell/areas`, `overview` Place/AreaOf types                               |
+| 2   | `tenants`, `tenant-sessions`                                                              | failure, steps, import services; tenant settings in shared                                            |
+| 3   | `subjects`, `administrators`, `system-admins`                                             | credentials.ts (6 concepts), access, holdings, memberships                                            |
+| 4   | `roles` and `groups`, `capabilities`                                                      | default-block and `Ceiling` written twice; tab models; held/refusal wording                           |
+| 5   | `clients`, `scopes`                                                                       | account, advanced, tokens, create; copy-plan; assignment, guard                                       |
+| 6   | `audit` (`audit-event` entity)                                                            | filters.ts 234 lines; export; links                                                                   |
+| 7   | `branding`                                                                                | 27 service files, 6,412 lines; scheme labels repeated five times                                      |
+| 8   | `settings`, `email`, `signing-keys`, `registration-tokens`, `flow`, `failure`, `overview` | smaller; `keyPromotion` split ownership; key lane                                                     |
+| 9   | docs app features                                                                         | `content.ts`, `scene.ts`, `geometry.ts`, `playback.ts`, `terminal.ts`; `consoleShot`/`pageShot` twins |
 
 **Per-domain tasks** (A to G, each its own commit set):
 
@@ -254,7 +260,7 @@ Each domain is its own increment, pushed and green before the next. Before a dom
 
 ### Task D-C: One owner per rule
 
-- [ ] **Step 1: For each duplicate row of the audits that falls in the domain, name its owner (the addendum), extend the owner with the named variant option, repoint, delete the copy** (characterisation tests from D-A pass unchanged). Append each disagreement to `docs/phases/p4k.md` "Variants kept".
+- [ ] **Step 1: For each duplicate row of the audits that falls in the domain, name its owner (the addendum), extend the owner with the named variant option, repoint, delete the copy** (characterisation tests from D-A pass unchanged). Append each disagreement to the p4k note in `docs/phases` (created in the closing pass) "Variants kept".
 - [ ] **Step 2: Commit per row.**
 
 ### Task D-D: Adapter maps to domain types, with saved responses
@@ -296,5 +302,5 @@ Each domain is its own increment, pushed and green before the next. Before a dom
 ### Task 41: The closing pass
 
 - [ ] **Step 1: The six checks of CLAUDE.md, "The pass that closes a phase":** roadmap "What is not implemented" markers still true; grep `P4k`; `docs/NEXT.md` headings; roadmap against section 11 both ways; the public surface (`git grep -n -i -E 'planned|\\bP4k\\b' -- apps/docs README.md`); changelog under `## [Unreleased]` (Changed: none visible; Added: none; write that the console and docs sources were reorganised only if a user-visible install detail changed).
-- [ ] **Step 2:** Write `docs/phases/p4k.md` (what it found, the "Variants kept" list, what was left and where it went); update `CLAUDE.md` "Layering" to the new segment names and the layer table; update ADR 0010 with an amendment pointing at the phase; `git mv` the phase's spec and plan to `docs/archive/`.
+- [ ] **Step 2:** Write the p4k note in `docs/phases` (created in the closing pass) (what it found, the "Variants kept" list, what was left and where it went); update `CLAUDE.md` "Layering" to the new segment names and the layer table; update ADR 0010 with an amendment pointing at the phase; `git mv` the phase's spec and plan to `docs/archive/`.
 - [ ] **Step 3:** Whole-branch review by a fresh Sonnet reviewer (spec compliance and quality); fix loop; then `superpowers:finishing-a-development-branch`.
