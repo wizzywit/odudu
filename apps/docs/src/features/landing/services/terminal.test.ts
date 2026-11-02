@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { COMMANDS, RELEASE_CAVEAT } from '@site/src/features/landing/services/content';
 import {
   commandOf,

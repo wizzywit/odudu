@@ -103,9 +103,12 @@ export function useInstall(): Install {
       setTyping(typingAfterChoice);
     },
     copy: () => {
-      copyText(commandOf(shell)).then((copied) => {
-        setStatus(copyStatusOf(copied));
-      });
+      copyText(commandOf(shell)).then(
+        (copied) => {
+          setStatus(copyStatusOf(copied));
+        },
+        () => undefined,
+      );
     },
   };
 }
