@@ -7,7 +7,7 @@ import {
   REVEAL_MARGIN,
   type RevealHost,
   type RevealItem,
-} from '@site/src/features/landing/service/reveal';
+} from '@site/src/features/landing/services/reveal';
 
 // The parts of a browser the reveal needs, handed in by whoever runs it.
 export interface RevealEnv {

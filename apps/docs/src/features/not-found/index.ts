@@ -1,1 +1,1 @@
-export { NotFoundPage } from '@site/src/features/not-found/view/NotFoundPage/NotFoundPage';
+export { NotFoundPage } from '@site/src/features/not-found/ui/NotFoundPage/NotFoundPage';

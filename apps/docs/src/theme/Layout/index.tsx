@@ -1,6 +1,6 @@
 import Layout from '@theme-original/Layout';
 import type { ComponentProps, ReactElement, ReactNode } from 'react';
-import { useLandmark } from '@site/src/shared/usecase/useLandmark';
+import { useLandmark } from '@site/src/shared/use-cases/useLandmark';
 
 type Props = ComponentProps<typeof Layout>;
 

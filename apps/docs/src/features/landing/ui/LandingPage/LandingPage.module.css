@@ -1,0 +1,55 @@
+.sectionLede {
+  composes: sectionLede from '@site/src/features/landing/ui/Section/Section.module.css';
+}
+
+.page {
+  color: var(--ink-primary);
+}
+
+/*
+ * Motion. Only opacity and transform move. The hero's headline, text and
+ * picture are painted in full from the first frame: they only travel, so
+ * nothing the page is measured on waits for an animation. Items below it
+ * stay visible until script adds [data-motion], and never when motion is
+ * reduced.
+ */
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-motion='ok'] [data-reveal] {
+    --i: 0;
+    transition:
+      opacity 650ms var(--ease) calc(var(--i) * 100ms),
+      transform 650ms var(--ease) calc(var(--i) * 100ms);
+  }
+
+  [data-motion='ok'] [data-reveal]:nth-child(4n + 2) {
+    --i: 1;
+  }
+
+  [data-motion='ok'] [data-reveal]:nth-child(4n + 3) {
+    --i: 2;
+  }
+
+  [data-motion='ok'] [data-reveal]:nth-child(4n + 4) {
+    --i: 3;
+  }
+
+  [data-motion='ok'] [data-reveal][data-pending] {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+
+  [data-motion='ok'] [data-reveal='heading'][data-pending] {
+    transform: translateY(48px);
+  }
+
+  [data-motion='ok'] [data-reveal] img {
+    transition: transform 650ms var(--ease);
+  }
+
+  [data-motion='ok'] [data-reveal][data-pending] img {
+    transform: scale(0.98);
+  }
+}
+
+/* A section's items follow one another by about 100 ms; the heading goes first and travels further. */

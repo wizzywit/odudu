@@ -1,3 +1,0 @@
-.lede {
-  composes: sectionLede from '@site/src/features/landing/view/Section/Section.module.css';
-}

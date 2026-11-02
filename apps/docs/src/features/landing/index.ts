@@ -1,1 +1,1 @@
-export { LandingPage } from '@site/src/features/landing/view/LandingPage/LandingPage';
+export { LandingPage } from '@site/src/features/landing/ui/LandingPage/LandingPage';

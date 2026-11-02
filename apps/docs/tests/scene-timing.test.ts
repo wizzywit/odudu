@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { SCENE_EASE } from '#docs/src/features/landing/service/geometry.ts';
-import { TIMING } from '#docs/src/features/landing/service/timing.ts';
+import { SCENE_EASE } from '#docs/src/features/landing/services/geometry.ts';
+import { TIMING } from '#docs/src/features/landing/services/timing.ts';
 import { DOCS_ROOT } from '#docs/tests/support/dist.ts';
 
 const view = (file: string): string =>
-  readFileSync(path.join(DOCS_ROOT, 'src/features/landing/view', file), 'utf8');
+  readFileSync(path.join(DOCS_ROOT, 'src/features/landing/ui', file), 'utf8');
 const flow = view('SignInFlow/SignInFlow.module.css');
 const controls = view('FlowControls/FlowControls.module.css');
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DRAWINGS, type DiagramName } from '#docs/src/shared/view/Diagram/diagrams.tsx';
+import { DRAWINGS, type DiagramName } from '#docs/src/shared/ui/Diagram/diagrams.tsx';
 import { drawn } from '#docs/tests/support/diagram-markup.ts';
 
 const names = Object.keys(DRAWINGS) as DiagramName[];
