@@ -501,7 +501,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
 
   it("rejects a widget, entity or page importing another slice's internals", async () => {
     const found = await violations('console-feature-imports-only-index');
-    const pairs = [
+    const pairs: [string, string][] = [
       ['widgets/shell/ui/reachesEntityInternals.ts', 'entities/session/services/principal.ts'],
       ['pages/home/ui/reachesWidgetInternals.ts', 'widgets/shell/ui/own.ts'],
     ];
@@ -566,7 +566,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
 
   it('rejects an entity or shared code importing a layer above it', async () => {
     const found = await violations('console-lower-layers-import-no-upper');
-    const pairs = [
+    const pairs: [string, string][] = [
       ['entities/session/services/reachesWidget.ts', 'widgets/shell/index.ts'],
       ['entities/session/services/reachesPage.ts', 'pages/home/index.ts'],
       ['entities/session/services/reachesFeature.ts', 'features/clients/index.ts'],

@@ -1,3 +1,3 @@
-import { shell } from '../../../widgets/shell/index.js';
+import { Shell } from '../../../widgets/shell/index.js';
 
-export const reachesWidget = shell;
+export const reachesWidget = Shell;
