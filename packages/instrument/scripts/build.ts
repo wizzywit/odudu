@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { buildInstrument } from '#/service/build';
 
 const PACKAGE = join(import.meta.dirname, '..');
-const CONSOLE_VIEW = join(PACKAGE, '../../apps/admin-console/src/shared/view');
+const CONSOLE_VIEW = join(PACKAGE, '../../apps/admin-console/src/shared/ui');
 const DIST = join(PACKAGE, 'dist');
 const require = createRequire(join(PACKAGE, 'package.json'));
 

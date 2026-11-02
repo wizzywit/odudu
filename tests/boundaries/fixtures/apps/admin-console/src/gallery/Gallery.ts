@@ -1,4 +1,4 @@
-import { Button } from '../shared/view/Button.js';
-import { canManage } from '../shared/service/capabilities.js';
+import { Button } from '../shared/ui/Button.js';
+import { canManage } from '../shared/services/capabilities.js';
 
 export const shown = [Button, canManage];

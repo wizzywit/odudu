@@ -13,7 +13,7 @@ const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const SOURCE = readFileSync(path.join(REPO_ROOT, 'packages/instrument/src/lost.svg'), 'utf8');
 const COPIES = [
   'apps/docs/src/features/not-found/view/LostArt/LostArt.tsx',
-  'apps/admin-console/src/shared/view/LostArt/LostArt.tsx',
+  'apps/admin-console/src/shared/ui/LostArt/LostArt.tsx',
 ];
 
 interface Node {
@@ -122,7 +122,7 @@ describe('the not-found drawing', () => {
 const STYLESHEETS = [
   'packages/instrument/src/pages.css',
   'apps/docs/src/features/not-found/view/LostArt/LostArt.module.css',
-  'apps/admin-console/src/shared/view/LostArt/LostArt.module.css',
+  'apps/admin-console/src/shared/ui/LostArt/LostArt.module.css',
 ];
 const ELEMENTS = ['routeA', 'routeB', 'badge', 'staff'];
 const MAX_TOTAL_SECONDS = 5;

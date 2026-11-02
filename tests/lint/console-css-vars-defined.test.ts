@@ -227,7 +227,7 @@ describe('console custom properties', { timeout: 60_000 }, () => {
   it('are each declared, or set by a package the console imports', async () => {
     const files = await read(CONSOLE);
     const names = [...files.keys()];
-    expect(names).toContain('src/shared/view/tokens.css');
+    expect(names).toContain('src/shared/ui/tokens.css');
     expect(names.filter((file) => file.endsWith('.module.css')).length).toBeGreaterThan(50);
     const packages = importedPackages(files);
     expect(packages).toContain('react-aria-components');
@@ -240,7 +240,7 @@ describe('console custom properties', { timeout: 60_000 }, () => {
     const files = await read(DOCS);
     // custom.css imports Instrument's tokens and fonts from the console by path.
     for (const name of ['tokens.css', 'fonts.css']) {
-      const text = await readFile(path.join(REPO_ROOT, CONSOLE, 'src/shared/view', name), 'utf8');
+      const text = await readFile(path.join(REPO_ROOT, CONSOLE, 'src/shared/ui', name), 'utf8');
       files.set(`console/${name}`, text);
     }
     expect(files.has('src/css/custom.css')).toBe(true);
@@ -263,15 +263,15 @@ describe('console custom properties', { timeout: 60_000 }, () => {
     const files = await read(`${FIXTURES}/fail`);
     expect(files.size).toBeGreaterThan(2);
     expect(violations(files, FIXTURE_VENDOR)).toEqual([
-      'src/features/signing-keys/view/Keys.tsx:2: var(--type-14) is declared nowhere in the console; declare it, set it in a style object, or give the use a fallback',
-      'src/features/signing-keys/view/Keys.tsx:7: var(--edge) is declared nowhere in the console; declare it, set it in a style object, or give the use a fallback',
-      'src/shared/view/Field.module.css:2: var(--space-5) is declared nowhere in the console; declare it, set it in a style object, or give the use a fallback',
-      'src/shared/view/Field.module.css:6: var(--ink-danger) is declared nowhere in the console; declare it, set it in a style object, or give the use a fallback',
-      'src/shared/view/Field.module.css:7: var(--space-9) is declared nowhere in the console; declare it, set it in a style object, or give the use a fallback',
-      'src/shared/view/Field.module.css:11: var(--spase-2) is a typo of --space-2, which the console declares',
-      'src/shared/view/Field.module.css:12: var(--spase-2) is a typo of --space-2, which the console declares',
-      'src/shared/view/Field.module.css:13: var(--made-up) falls back, but nothing declares --made-up and no package the console imports sets it',
-      'src/shared/view/Sass.module.scss:2: var(--space-6) is declared nowhere in the console; declare it, set it in a style object, or give the use a fallback',
+      'src/features/signing-keys/ui/Keys.tsx:2: var(--type-14) is declared nowhere in the console; declare it, set it in a style object, or give the use a fallback',
+      'src/features/signing-keys/ui/Keys.tsx:7: var(--edge) is declared nowhere in the console; declare it, set it in a style object, or give the use a fallback',
+      'src/shared/ui/Field.module.css:2: var(--space-5) is declared nowhere in the console; declare it, set it in a style object, or give the use a fallback',
+      'src/shared/ui/Field.module.css:6: var(--ink-danger) is declared nowhere in the console; declare it, set it in a style object, or give the use a fallback',
+      'src/shared/ui/Field.module.css:7: var(--space-9) is declared nowhere in the console; declare it, set it in a style object, or give the use a fallback',
+      'src/shared/ui/Field.module.css:11: var(--spase-2) is a typo of --space-2, which the console declares',
+      'src/shared/ui/Field.module.css:12: var(--spase-2) is a typo of --space-2, which the console declares',
+      'src/shared/ui/Field.module.css:13: var(--made-up) falls back, but nothing declares --made-up and no package the console imports sets it',
+      'src/shared/ui/Sass.module.scss:2: var(--space-6) is declared nowhere in the console; declare it, set it in a style object, or give the use a fallback',
     ]);
   });
 });

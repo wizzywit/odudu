@@ -6,7 +6,7 @@ import { mailPalette } from '#/service/palette';
 
 const PACKAGE = join(import.meta.dirname, '..');
 const SERVICE = join(PACKAGE, 'src/service');
-const TOKENS = join(PACKAGE, '../../apps/admin-console/src/shared/view/tokens.css');
+const TOKENS = join(PACKAGE, '../../apps/admin-console/src/shared/ui/tokens.css');
 const MARK = join(PACKAGE, '../instrument/src/mark.svg');
 const PRETTIER = join(PACKAGE, '../../node_modules/.bin/prettier');
 

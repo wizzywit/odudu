@@ -244,7 +244,7 @@ describe('console CSS modules', { timeout: 60_000 }, () => {
     const files = await read(CONSOLE);
     const names = [...files.keys()];
     expect(names.filter((file) => file.endsWith('.module.css')).length).toBeGreaterThan(50);
-    expect(names).toContain('src/shared/view/RecordTab/index.ts');
+    expect(names).toContain('src/shared/ui/RecordTab/index.ts');
     expect(violations(files)).toEqual([]);
   });
 
@@ -265,12 +265,12 @@ describe('console CSS modules', { timeout: 60_000 }, () => {
     const files = await read(`${FIXTURES}/fail`);
     expect(files.size).toBeGreaterThan(2);
     expect(violations(files)).toEqual([
-      'src/features/clients/view/Sessions.tsx:4: recordTab.rule is not a class in src/shared/view/RecordTab/RecordTab.module.css',
-      'src/shared/view/Card/Card.module.css:9: .unused is defined and no source file uses it',
-      'src/shared/view/Card/Card.tsx:7: styles.action is not a class in src/shared/view/Card/Card.module.css',
-      'src/shared/view/Card/Card.tsx:8: styles.separator is not a class in src/shared/view/Card/Card.module.css',
-      'src/shared/view/Card/Card.tsx:9: styles is looked up by a computed key or used whole',
-      'src/shared/view/Card/Card.tsx:14: styles is looked up by a computed key or used whole',
+      'src/features/clients/ui/Sessions.tsx:4: recordTab.rule is not a class in src/shared/ui/RecordTab/RecordTab.module.css',
+      'src/shared/ui/Card/Card.module.css:9: .unused is defined and no source file uses it',
+      'src/shared/ui/Card/Card.tsx:7: styles.action is not a class in src/shared/ui/Card/Card.module.css',
+      'src/shared/ui/Card/Card.tsx:8: styles.separator is not a class in src/shared/ui/Card/Card.module.css',
+      'src/shared/ui/Card/Card.tsx:9: styles is looked up by a computed key or used whole',
+      'src/shared/ui/Card/Card.tsx:14: styles is looked up by a computed key or used whole',
     ]);
   });
 });

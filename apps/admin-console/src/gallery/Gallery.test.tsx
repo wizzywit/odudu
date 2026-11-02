@@ -19,13 +19,13 @@ const PARTS = new Set([
 ]);
 
 const modules = import.meta.glob<Record<string, unknown>>(
-  ['../shared/view/*/*.tsx', '!../shared/view/*/*.test.tsx'],
+  ['../shared/ui/*/*.tsx', '!../shared/ui/*/*.test.tsx'],
   { eager: true },
 );
 
 const components = Object.entries(modules)
   .map(([file, exports]) => ({
-    file: file.replace('../shared/view/', ''),
+    file: file.replace('../shared/ui/', ''),
     names: Object.entries(exports)
       .filter(([name, value]) => /^[A-Z]/u.test(name) && typeof value === 'function')
       .map(([name]) => name),
@@ -40,7 +40,7 @@ it('shows every component of the design system', () => {
   expect(components.length).toBeGreaterThan(20);
   const missing = components.flatMap(({ file, names }) => {
     const folder = file.split('/')[0] ?? '';
-    const imported = gallerySource.includes(`from '#/shared/view/${folder}'`);
+    const imported = gallerySource.includes(`from '#/shared/ui/${folder}'`);
     const shown = (name: string): boolean => new RegExp(`\\b${name}\\b`, 'u').test(gallerySource);
     // The field components share a folder, so each of theirs is asked for by name.
     const family = folder === 'Field' && file !== 'Field/Field.tsx';

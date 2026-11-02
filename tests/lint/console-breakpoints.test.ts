@@ -12,7 +12,7 @@ const files = (pattern: string): string[] =>
 // the Branding pages narrow is written in each stylesheet that asks, and held
 // to `NARROW_REM` here: change one, and this fails until they all agree.
 const NARROW_REM = Number(
-  /export const NARROW_REM = (\d+);/u.exec(read('shared/service/narrow.ts'))?.[1],
+  /export const NARROW_REM = (\d+);/u.exec(read('shared/services/narrow.ts'))?.[1],
 );
 
 // The widths a stylesheet asks about with `<`, in `@container` or `@media`, in
@@ -36,7 +36,7 @@ export function offenders(sheets: Readonly<Record<string, string>>): string[] {
 // so a new one is held to the same width. The bar measures its own width.
 const FRAME_SHEETS = [
   ...files('features/branding/**/*.module.css'),
-  'shared/view/CodeField/CodeField.module.css',
+  'shared/ui/CodeField/CodeField.module.css',
 ].filter((file) => !file.endsWith('PublicationBar.module.css'));
 
 describe('the width at which the Branding pages narrow', () => {
@@ -57,31 +57,31 @@ describe('the width at which the Branding pages narrow', () => {
       [],
     );
     for (const file of [
-      'features/branding/view/PreviewFrame/PreviewFrame.module.css',
-      'features/branding/view/Workspace/Workspace.module.css',
-      'shared/view/CodeField/CodeField.module.css',
+      'features/branding/ui/PreviewFrame/PreviewFrame.module.css',
+      'features/branding/ui/Workspace/Workspace.module.css',
+      'shared/ui/CodeField/CodeField.module.css',
     ]) {
       expect(narrowWidths(read(file)).length, file).toBeGreaterThan(0);
     }
-    expect(read('features/branding/view/Workspace/Workspace.tsx')).toContain(
+    expect(read('features/branding/ui/Workspace/Workspace.tsx')).toContain(
       'data-narrow-container',
     );
-    expect(read('features/branding/view/Workspace/Workspace.module.css')).toContain(
+    expect(read('features/branding/ui/Workspace/Workspace.module.css')).toContain(
       'container: workspace / inline-size',
     );
   });
 
   it('fails for a new stylesheet that asks at another width', () => {
     const sheets = {
-      'features/branding/view/New/New.module.css': '@container workspace (width < 40rem) { a {} }',
-      'features/branding/view/Same/Same.module.css':
+      'features/branding/ui/New/New.module.css': '@container workspace (width < 40rem) { a {} }',
+      'features/branding/ui/Same/Same.module.css':
         '@container workspace (inline-size < 48rem) { a {} }',
     };
-    expect(offenders(sheets)).toEqual(['features/branding/view/New/New.module.css']);
+    expect(offenders(sheets)).toEqual(['features/branding/ui/New/New.module.css']);
   });
 
   it('is the media query of what follows the screen and not the frame', () => {
-    for (const file of ['shared/view/global.css', 'shared/view/Tabs/Tabs.module.css']) {
+    for (const file of ['shared/ui/global.css', 'shared/ui/Tabs/Tabs.module.css']) {
       const widths = narrowWidths(read(file));
       expect(widths.length, file).toBeGreaterThan(0);
       for (const width of widths) expect(width, file).toBe(NARROW_REM);
@@ -90,7 +90,7 @@ describe('the width at which the Branding pages narrow', () => {
 
   it('folds the publication bar 50px of padding and borders later than the frame, so Revert is on one of the two', () => {
     const widths = narrowWidths(
-      read('features/branding/view/PublicationBar/PublicationBar.module.css'),
+      read('features/branding/ui/PublicationBar/PublicationBar.module.css'),
     );
     expect(widths).toEqual([51.125]);
     expect((widths[0] ?? 0) * 16 - NARROW_REM * 16).toBe(50);

@@ -16,7 +16,7 @@ import {
   restartCookie,
   sessionCookie,
 } from '../../packages/console-gateway/src/service/cookies.js';
-import { themeCookie } from '../../apps/admin-console/src/shared/service/theme.js';
+import { themeCookie } from '../../apps/admin-console/src/shared/services/theme.js';
 
 // Every cookie the server (and the console's own script) writes, under TLS and
 // without: the prefix its scope allows, Secure, HttpOnly where the script does

@@ -9,7 +9,7 @@ const read = (file: string): string => readFileSync(path.join(REPOSITORY, file),
 // The server's stylesheet is these two sources with the fonts between them,
 // which no display rule reads.
 const INSTRUMENT =
-  read('apps/admin-console/src/shared/view/tokens.css') + read('packages/instrument/src/pages.css');
+  read('apps/admin-console/src/shared/ui/tokens.css') + read('packages/instrument/src/pages.css');
 
 const locale = (darkUrl: string | null): PageLocale => ({
   tag: 'en',

@@ -49,7 +49,7 @@ describe("the console's properties", { timeout: 60_000 }, () => {
   it('are plain in every console source file, .ts and .tsx alike', async () => {
     const files = await read(CONSOLE_SOURCES);
     expect([...files.keys()]).toContain('apps/admin-console/src/app/App/App.tsx');
-    expect([...files.keys()]).toContain('apps/admin-console/src/shared/service/dirty.ts');
+    expect([...files.keys()]).toContain('apps/admin-console/src/shared/services/dirty.ts');
     const offenders = [...files].flatMap(([file, source]) =>
       violations(file, source).map((v) => `${file}:${v}`),
     );

@@ -10,14 +10,14 @@ import { describe, expect, it } from 'vitest';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const CONSOLE_SRC = 'apps/admin-console/src';
-// A view layer is a folder, or a single view.tsx beside the feature's other layers.
+// A view layer is a folder, or a single ui.tsx beside the feature's other layers.
 const VIEW_TESTS = [
-  'shared/view/**/*.test.tsx',
-  'features/*/view/**/*.test.tsx',
-  'features/*/view.test.tsx',
+  'shared/ui/**/*.test.tsx',
+  'features/*/ui/**/*.test.tsx',
+  'features/*/ui.test.tsx',
 ];
-const VIEWS = ['shared/view/**/*.tsx', 'features/*/view/**/*.tsx', 'features/*/view.tsx'];
-const COMPONENT = /^(?:[A-Z][A-Za-z0-9]*|view)\.tsx$/u;
+const VIEWS = ['shared/ui/**/*.tsx', 'features/*/ui/**/*.tsx', 'features/*/ui.tsx'];
+const COMPONENT = /^(?:[A-Z][A-Za-z0-9]*|ui)\.tsx$/u;
 const FIXTURES = 'tests/lint/fixtures/console-view-axe';
 const AXE_MODULE = '#/testing/axeInBothThemes';
 const AXE_NAME = 'axeInBothThemes';
@@ -95,22 +95,22 @@ async function untested(root: string): Promise<string[]> {
 describe("the console's view tests", { timeout: 60_000 }, () => {
   it('all run axe in both themes', async () => {
     const tests = await read(CONSOLE_SRC, VIEW_TESTS);
-    expect([...tests.keys()]).toContain('shared/view/DialogFrame/DialogFrame.test.tsx');
+    expect([...tests.keys()]).toContain('shared/ui/DialogFrame/DialogFrame.test.tsx');
     expect(await withoutAxe(CONSOLE_SRC)).toEqual([]);
   });
 
   it('exist beside every view', async () => {
     const views = await read(CONSOLE_SRC, VIEWS);
-    expect([...views.keys()]).toContain('features/session/view/SignIn/SignIn.tsx');
+    expect([...views.keys()]).toContain('features/session/ui/SignIn/SignIn.tsx');
     expect(await untested(CONSOLE_SRC)).toEqual([]);
   });
 
   it('are found in a single-file view layer, and missed beside a view, in the fixture tree', async () => {
     const tree = `${FIXTURES}/tree`;
-    expect(await withoutAxe(tree)).toEqual(['features/roles/view.test.tsx']);
+    expect(await withoutAxe(tree)).toEqual(['features/roles/ui.test.tsx']);
     expect(await untested(tree)).toEqual([
-      'features/groups/view/GroupList.tsx',
-      'shared/view/Banner.tsx',
+      'features/groups/ui/GroupList.tsx',
+      'shared/ui/Banner.tsx',
     ]);
   });
 

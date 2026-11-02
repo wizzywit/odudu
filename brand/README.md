@@ -49,7 +49,7 @@ The test holds the bar to the top quarter of the shaft.
 
 The mark, wordmark and lockup take the colour of the text around them. The
 favicon and social image use Instrument's own tokens
-(`apps/admin-console/src/shared/view/tokens.css`) and nothing else: the rail
+(`apps/admin-console/src/shared/ui/tokens.css`) and nothing else: the rail
 surface `#111514`, the rail ink `#e4e9e7`, the system amber `#f7c95a` for the
 ring (amber means authority and nothing else; the owner kept the amber ring
 on 2026-10-21, and the plan does not ask for another), and the jade `#4fc894` rule.

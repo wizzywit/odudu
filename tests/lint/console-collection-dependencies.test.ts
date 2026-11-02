@@ -161,7 +161,7 @@ async function read(pattern: string): Promise<Map<string, string>> {
 describe("the console's dynamic collections", { timeout: 60_000 }, () => {
   it('name what their item render reads besides the item', async () => {
     const files = await read(CONSOLE_SOURCES);
-    expect([...files.keys()]).toContain('apps/admin-console/src/shared/view/Picker/Picker.tsx');
+    expect([...files.keys()]).toContain('apps/admin-console/src/shared/ui/Picker/Picker.tsx');
     const offenders = [...files].flatMap(([file, source]) =>
       violations(file, source).map((v) => `${file}:${v}`),
     );

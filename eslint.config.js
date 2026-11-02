@@ -85,7 +85,7 @@ export default tseslint.config(
     // A usecase or repository decides nothing (ADR 0010's amendment), and a
     // function this branchy is deciding: the decision is a service function.
     files: [
-      'apps/admin-console/src/**/{usecase,repository}/**/*.ts',
+      'apps/admin-console/src/**/{use-cases,repository}/**/*.ts',
       'apps/docs/src/**/usecase/**/*.ts',
     ],
     ignores: ['**/*.test.ts'],

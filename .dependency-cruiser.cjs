@@ -77,17 +77,17 @@ module.exports = {
       name: 'console-service-imports-only-service',
       severity: 'error',
       comment:
-        'A console service is pure: it imports other services, its own or shared/service, and ' +
+        'A console service is pure: it imports other services, its own or shared/services, and ' +
         '@odudu/contracts, and nothing else. A feature index.ts is refused too, since it ' +
         'reaches views and usecases, and through them the stores. libphonenumber-js is admitted ' +
         'as the one pure library a service computes with: numbering plans are data, not I/O.',
       from: {
-        path: '(^|/)apps/admin-console/src/(?:service|.*/service)(?:/|\\.tsx?$)',
+        path: '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
       to: {
         pathNot:
-          '(^|/)apps/admin-console/src/(?:service|.*/service)(?:/|\\.tsx?$)|(^|/)packages/contracts/|/node_modules/libphonenumber-js/',
+          '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)|(^|/)packages/contracts/|/node_modules/libphonenumber-js/',
       },
     },
     {
@@ -100,7 +100,7 @@ module.exports = {
       from: { path: '(^|/)apps/admin-console/src/features/([^/]+)/index\\.ts$' },
       // $2 is substituted unescaped; tests/lint/console-feature-names.test.ts keeps it regex-safe.
       to: {
-        pathNot: '(^|/)apps/admin-console/src/features/$2/(?:view|usecase|service)(?:/|\\.tsx?$)',
+        pathNot: '(^|/)apps/admin-console/src/features/$2/(?:ui|use-cases|services)(?:/|\\.tsx?$)',
         dependencyTypesNot: ['type-only'],
       },
     },
@@ -125,7 +125,7 @@ module.exports = {
       severity: 'error',
       comment:
         'A console view reaches the gateway and the cross-feature stores only through a usecase.',
-      from: { path: '(^|/)apps/admin-console/src/(?:view|.*/view)(?:/|\\.tsx?$)' },
+      from: { path: '(^|/)apps/admin-console/src/(?:ui|.*/ui)(?:/|\\.tsx?$)' },
       to: { path: '(^|/)apps/admin-console/src/shared/(?:transport|repository)/' },
     },
     {
@@ -135,7 +135,7 @@ module.exports = {
         'A console usecase orchestrates; it reaches the gateway, the page and the session ' +
         'events through a repository. A type-only import names a shape and is allowed.',
       from: {
-        path: '(^|/)apps/admin-console/src/(?:usecase|.*/usecase)(?:/|\\.tsx?$)',
+        path: '(^|/)apps/admin-console/src/(?:use-cases|.*/use-cases)(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
       to: {
@@ -284,12 +284,12 @@ module.exports = {
       name: 'console-gallery-shows-only-view',
       severity: 'error',
       comment:
-        'The gallery renders the design system with sample data, so it needs shared/view and ' +
-        'the pure rules in shared/service, and never a store, the transport or a feature.',
+        'The gallery renders the design system with sample data, so it needs shared/ui and ' +
+        'the pure rules in shared/services, and never a store, the transport or a feature.',
       from: { path: '(^|/)apps/admin-console/src/gallery/' },
       to: {
         path: '(^|/)apps/admin-console/src/',
-        pathNot: '(^|/)apps/admin-console/src/(?:gallery|shared/view|shared/service)/',
+        pathNot: '(^|/)apps/admin-console/src/(?:gallery|shared/ui|shared/services)/',
       },
     },
     {
@@ -339,7 +339,7 @@ module.exports = {
     {
       name: 'no-view-to-repository',
       severity: 'error',
-      from: { path: '/src/(?:view|.*/view)(?:/|\\.tsx?$)' },
+      from: { path: '/src/(?:view|ui|.*/(?:view|ui))(?:/|\\.tsx?$)' },
       to: { path: '/src/(?:repository|.*/repository)(?:/|\\.tsx?$)' },
     },
     {
@@ -348,27 +348,27 @@ module.exports = {
       comment:
         'repository holds state and refetch decisions; it depends on adapter and service only.',
       from: { path: '/src/(?:repository|.*/repository)(?:/|\\.tsx?$)', pathNot: '\\.test\\.tsx?$' },
-      to: { path: '/src/(?:usecase|view|.*/(?:usecase|view))(?:/|\\.tsx?$)' },
+      to: { path: '/src/(?:usecase|use-cases|view|ui|.*/(?:usecase|use-cases|view|ui))(?:/|\\.tsx?$)' },
     },
     {
       name: 'no-view-to-adapter',
       severity: 'error',
-      from: { path: '/src/(?:view|.*/view)(?:/|\\.tsx?$)' },
+      from: { path: '/src/(?:view|ui|.*/(?:view|ui))(?:/|\\.tsx?$)' },
       to: { path: '/src/(?:adapter|.*/adapter)(?:/|\\.tsx?$)' },
     },
     {
       name: 'no-usecase-to-adapter',
       severity: 'error',
-      from: { path: '/src/(?:usecase|.*/usecase)(?:/|\\.tsx?$)' },
+      from: { path: '/src/(?:usecase|use-cases|.*/(?:usecase|use-cases))(?:/|\\.tsx?$)' },
       to: { path: '/src/(?:adapter|.*/adapter)(?:/|\\.tsx?$)' },
     },
     {
       name: 'service-is-a-leaf',
       severity: 'error',
       comment: 'service holds domain logic and depends on no other layer.',
-      from: { path: '/src/(?:service|.*/service)(?:/|\\.tsx?$)' },
+      from: { path: '/src/(?:service|services|.*/(?:service|services))(?:/|\\.tsx?$)' },
       to: {
-        path: '/src/(?:(?:view|usecase|repository|adapter)|.*/(?:view|usecase|repository|adapter))(?:/|\\.tsx?$)',
+        path: '/src/(?:(?:view|ui|usecase|use-cases|repository|adapter)|.*/(?:view|ui|usecase|use-cases|repository|adapter))(?:/|\\.tsx?$)',
       },
     },
     {
@@ -380,7 +380,7 @@ module.exports = {
         '`./src/*.ts` (see packages/protocol-oidc/src/testing/). None of the five layers has a ' +
         'legitimate reason to depend on test-only code; a test beside one is not layer code.',
       from: {
-        path: '/src/(?:(?:view|usecase|repository|adapter|service)|.*/(?:view|usecase|repository|adapter|service))(?:/|\\.tsx?$)',
+        path: '/src/(?:(?:view|ui|usecase|use-cases|repository|adapter|service|services)|.*/(?:view|ui|usecase|use-cases|repository|adapter|service|services))(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
       to: { path: '/src/(?:testing|.*/testing)/' },

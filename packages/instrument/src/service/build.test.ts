@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { buildInstrument } from '#/service/build';
 
 const ROOT = join(import.meta.dirname, '..', '..', '..', '..');
-const TOKENS = join(ROOT, 'apps/admin-console/src/shared/view');
+const TOKENS = join(ROOT, 'apps/admin-console/src/shared/ui');
 const read = (path: string): string => readFileSync(path, 'utf8');
 
 const tokensCss = read(join(TOKENS, 'tokens.css'));

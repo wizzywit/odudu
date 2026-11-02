@@ -32,7 +32,7 @@ interface Box {
 const ORIGIN = 'http://pages.test';
 const INSTRUMENT = path.resolve(import.meta.dirname, '../../../../packages/instrument/dist');
 const REPOSITORY = path.resolve(import.meta.dirname, '../../../..');
-const TOKENS = 'apps/admin-console/src/shared/view/tokens.css';
+const TOKENS = 'apps/admin-console/src/shared/ui/tokens.css';
 const PAGES = 'packages/instrument/src/pages.css';
 const OUT = path.resolve(import.meta.dirname, '../../static/server-pages');
 const VIEWPORT = { width: 520, height: 1400 };

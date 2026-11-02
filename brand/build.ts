@@ -37,7 +37,7 @@ function isPlaywright(value: unknown): value is Playwright {
   );
 }
 
-// Instrument surfaces and inks, from apps/admin-console/src/shared/view/tokens.css.
+// Instrument surfaces and inks, from apps/admin-console/src/shared/ui/tokens.css.
 const THEMES = {
   light: { surface: '#e7eae9', ink: '#161b1a' },
   dark: { surface: '#151a19', ink: '#e4e9e7' },

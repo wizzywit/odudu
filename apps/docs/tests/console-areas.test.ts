@@ -58,11 +58,11 @@ const PAGE_OF_AREA: Readonly<Record<string, string>> = {
 // The tabs of a record, by the file that names them; the tenant's are the
 // three its record page opens.
 const TAB_LABELS: Readonly<Record<string, { file: string; map: string } | readonly string[]>> = {
-  subjects: { file: 'subjects/service/tabs.ts', map: 'SUBJECT_TAB_LABELS' },
-  clients: { file: 'clients/service/tabs.ts', map: 'CLIENT_TAB_LABELS' },
-  groups: { file: 'groups/service/tabs.ts', map: 'GROUP_TAB_LABELS' },
-  roles: { file: 'roles/service/tabs.ts', map: 'ROLE_TAB_LABELS' },
-  scopes: { file: 'scopes/service/tabs.ts', map: 'SCOPE_TAB_LABELS' },
+  subjects: { file: 'subjects/services/tabs.ts', map: 'SUBJECT_TAB_LABELS' },
+  clients: { file: 'clients/services/tabs.ts', map: 'CLIENT_TAB_LABELS' },
+  groups: { file: 'groups/services/tabs.ts', map: 'GROUP_TAB_LABELS' },
+  roles: { file: 'roles/services/tabs.ts', map: 'ROLE_TAB_LABELS' },
+  scopes: { file: 'scopes/services/tabs.ts', map: 'SCOPE_TAB_LABELS' },
   tenants: ['General', 'Administrators', 'Export'],
 };
 
@@ -78,7 +78,7 @@ interface Area {
 }
 
 function areas(): Area[] {
-  const source = text(path.join(CONSOLE, 'shell/service/areas.ts'));
+  const source = text(path.join(CONSOLE, 'shell/services/areas.ts'));
   return [...source.matchAll(/area\(\s*'([^']*)',\s*'([^']*)',\s*(null|'[^']*')/gu)].map(
     (match) => ({
       path: match[1] ?? '',

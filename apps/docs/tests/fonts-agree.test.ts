@@ -5,7 +5,7 @@ import { DOCS_ROOT } from '#docs/tests/support/dist.ts';
 
 const docs = readFileSync(path.join(DOCS_ROOT, 'src/css/fonts.css'), 'utf8');
 const console_ = readFileSync(
-  path.join(DOCS_ROOT, '../admin-console/src/shared/view/fonts.css'),
+  path.join(DOCS_ROOT, '../admin-console/src/shared/ui/fonts.css'),
   'utf8',
 );
 

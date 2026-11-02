@@ -200,14 +200,14 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     const output = await cruiseFixtures();
     const composing = [
       'domain-example/src/service/composed-service.ts',
-      'admin-console/src/features/clients/service.ts',
+      'admin-console/src/features/clients/services.ts',
     ];
     for (const file of composing) {
       const importsService = output.modules.some(
         (m) =>
           m.source.endsWith(file) &&
           m.dependencies.some(
-            (d) => !d.couldNotResolve && /\/service(?:\/|\.tsx?$)/u.test(d.resolved),
+            (d) => !d.couldNotResolve && /\/services?(?:\/|\.tsx?$)/u.test(d.resolved),
           ),
       );
       expect(importsService).toBe(true);
@@ -220,7 +220,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('admin-console/src/features/clients/view.tsx') &&
+          v.from.endsWith('admin-console/src/features/clients/ui.tsx') &&
           v.to.endsWith('admin-console/src/features/clients/adapter.ts'),
       ),
     ).toBe(true);
@@ -231,8 +231,8 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/subjects/usecase/reachesIn.ts') &&
-          v.to.endsWith('features/clients/service.ts'),
+          v.from.endsWith('features/subjects/use-cases/reachesIn.ts') &&
+          v.to.endsWith('features/clients/services.ts'),
       ),
     ).toBe(true);
   });
@@ -317,7 +317,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
 
   it('rejects a console feature importing app/', async () => {
     const found = await violations('console-nothing-imports-app');
-    expect(found.some((v) => v.from.endsWith('features/subjects/usecase/appLeak.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('features/subjects/use-cases/appLeak.ts'))).toBe(true);
   });
 
   it('rejects a console view importing shared/transport', async () => {
@@ -325,7 +325,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/subjects/view/SubjectList.tsx') &&
+          v.from.endsWith('features/subjects/ui/SubjectList.tsx') &&
           v.to.endsWith('shared/transport/client.ts'),
       ),
     ).toBe(true);
@@ -336,7 +336,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/subjects/view/ReadsStorage.tsx') &&
+          v.from.endsWith('features/subjects/ui/ReadsStorage.tsx') &&
           v.to.endsWith('shared/adapter/storage.ts'),
       ),
     ).toBe(true);
@@ -347,7 +347,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/subjects/usecase/readsStorage.ts') &&
+          v.from.endsWith('features/subjects/use-cases/readsStorage.ts') &&
           v.to.endsWith('shared/adapter/storage.ts'),
       ),
     ).toBe(true);
@@ -371,14 +371,14 @@ describe('boundary rules', { timeout: 60_000 }, () => {
 
   it('rejects a console usecase reaching shared/transport', async () => {
     const found = await violations('console-usecase-no-transport');
-    expect(found.some((v) => v.from.endsWith('features/subjects/usecase/readsTransport.ts'))).toBe(
+    expect(found.some((v) => v.from.endsWith('features/subjects/use-cases/readsTransport.ts'))).toBe(
       true,
     );
   });
 
   it('rejects the transport context read outside a repository', async () => {
     const found = await violations('console-transport-context-in-repository');
-    expect(found.some((v) => v.from.endsWith('features/subjects/usecase/readsTransport.ts'))).toBe(
+    expect(found.some((v) => v.from.endsWith('features/subjects/use-cases/readsTransport.ts'))).toBe(
       true,
     );
     expect(found.some((v) => v.from.endsWith('repository/readsTransport.ts'))).toBe(false);
@@ -392,14 +392,14 @@ describe('boundary rules', { timeout: 60_000 }, () => {
 
   it('permits a type-only import of the transport anywhere', async () => {
     const output = await cruiseFixtures();
-    const typed = output.modules.find((m) => m.source.endsWith('usecase/typesTransport.ts'));
+    const typed = output.modules.find((m) => m.source.endsWith('use-cases/typesTransport.ts'));
     expect(typed?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(2);
     expect(
-      output.summary.violations.filter((v) => v.from.endsWith('usecase/typesTransport.ts')),
+      output.summary.violations.filter((v) => v.from.endsWith('use-cases/typesTransport.ts')),
     ).toHaveLength(0);
   });
 
-  it('permits the gallery importing shared/view and shared/service', async () => {
+  it('permits the gallery importing shared/ui and shared/services', async () => {
     const output = await cruiseFixtures();
     const gallery = output.modules.find((m) => m.source.endsWith('src/gallery/Gallery.ts'));
     expect(gallery?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(2);
@@ -424,7 +424,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/subjects/service.ts') &&
+          v.from.endsWith('features/subjects/services.ts') &&
           v.to.endsWith('features/clients/index.ts'),
       ),
     ).toBe(true);
@@ -435,7 +435,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/subjects/service/crossFeature.ts') &&
+          v.from.endsWith('features/subjects/services/crossFeature.ts') &&
           v.to.endsWith('features/clients/index.ts'),
       ),
     ).toBe(true);
@@ -446,8 +446,8 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/subjects/service/crossFeature.ts') &&
-          v.to.endsWith('features/clients/service/topic.ts'),
+          v.from.endsWith('features/subjects/services/crossFeature.ts') &&
+          v.to.endsWith('features/clients/services/topic.ts'),
       ),
     ).toBe(true);
   });
@@ -458,7 +458,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(from.map((v) => v.to.replace(/^.*\/src\//u, '')).sort()).toEqual([
       'features/audit/adapter.ts',
       'features/audit/repository.ts',
-      'shared/service/capabilities.ts',
+      'shared/services/capabilities.ts',
     ]);
   });
 
@@ -482,7 +482,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('src/app/reachesIn.ts') && v.to.endsWith('features/clients/service.ts'),
+          v.from.endsWith('src/app/reachesIn.ts') && v.to.endsWith('features/clients/services.ts'),
       ),
     ).toBe(true);
   });

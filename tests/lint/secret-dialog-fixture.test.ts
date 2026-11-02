@@ -10,7 +10,7 @@ import { REPO_ROOT } from '../docs/markdown.js';
 const read = (file: string): string => readFileSync(path.join(REPO_ROOT, file), 'utf8');
 
 it('keeps the capture guard and the console agreed on what the secret dialog renders', () => {
-  const console = read('apps/admin-console/src/shared/view/SecretDialog/secretDialogNodes.json');
+  const console = read('apps/admin-console/src/shared/ui/SecretDialog/secretDialogNodes.json');
   const guard = read('apps/docs/scripts/console-shots/fixtures/secret-dialog.json');
   expect(JSON.parse(guard)).toEqual(JSON.parse(console));
 });
