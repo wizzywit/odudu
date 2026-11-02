@@ -192,40 +192,40 @@ module.exports = {
       name: 'docs-service-imports-only-service',
       severity: 'error',
       comment:
-        'A docs service is pure: it imports other services, its own or shared/service, the ' +
+        'A docs service is pure: it imports other services, its own or shared/services, the ' +
         "site's nav.ts and the picture manifests, and nothing else. A feature index.ts " +
         'is refused too, since it reaches views and usecases.',
       from: {
-        path: '(^|/)apps/docs/src/(?:service|.*/service)(?:/|\\.tsx?$)',
+        path: '(^|/)apps/docs/src/(?:services|.*/services)(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
       to: {
         pathNot:
-          '(^|/)apps/docs/src/(?:service|.*/service)(?:/|\\.tsx?$)|(^|/)apps/docs/nav\\.ts$|(^|/)apps/docs/static/(?:console|server-pages)/manifest\\.json$',
+          '(^|/)apps/docs/src/(?:services|.*/services)(?:/|\\.tsx?$)|(^|/)apps/docs/nav\\.ts$|(^|/)apps/docs/static/(?:console|server-pages)/manifest\\.json$',
       },
     },
     {
       name: 'docs-usecase-imports-no-view',
       severity: 'error',
       comment:
-        'A docs usecase orchestrates for a view and is called by it; a usecase that reached ' +
+        'A docs use case orchestrates for a view and is called by it; a use case that reached ' +
         'back into a view would make the two one thing.',
       from: {
-        path: '(^|/)apps/docs/src/(?:usecase|.*/usecase)(?:/|\\.tsx?$)',
+        path: '(^|/)apps/docs/src/(?:use-cases|.*/use-cases)(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
-      to: { path: '(^|/)apps/docs/src/(?:view|.*/view)(?:/|\\.tsx?$)' },
+      to: { path: '(^|/)apps/docs/src/(?:ui|.*/ui)(?:/|\\.tsx?$)' },
     },
     {
       name: 'docs-index-exports-view-usecase-service',
       severity: 'error',
       comment:
-        "A docs feature's index.ts publishes its own views, usecases and services; a type-only " +
+        "A docs feature's index.ts publishes its own ui, use cases and services; a type-only " +
         'export of anything is allowed.',
       from: { path: '(^|/)apps/docs/src/features/([^/]+)/index\\.ts$' },
       // $2 is substituted unescaped; tests/lint/console-feature-names.test.ts keeps it regex-safe.
       to: {
-        pathNot: '(^|/)apps/docs/src/features/$2/(?:view|usecase|service)(?:/|\\.tsx?$)',
+        pathNot: '(^|/)apps/docs/src/features/$2/(?:ui|use-cases|services)(?:/|\\.tsx?$)',
         dependencyTypesNot: ['type-only'],
       },
     },
@@ -245,7 +245,7 @@ module.exports = {
         'visibility). A view reaches it through its usecase, so markup never decides anything ' +
         'from the DOM.',
       from: {
-        path: '(^|/)apps/docs/src/(?:view|.*/view)(?:/|\\.tsx?$)',
+        path: '(^|/)apps/docs/src/(?:ui|.*/ui)(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
       to: { path: '(^|/)apps/docs/src/(?:shared|features/[^/]+)/platform/' },

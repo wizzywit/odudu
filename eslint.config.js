@@ -86,7 +86,7 @@ export default tseslint.config(
     // function this branchy is deciding: the decision is a service function.
     files: [
       'apps/admin-console/src/**/{use-cases,repository}/**/*.ts',
-      'apps/docs/src/**/usecase/**/*.ts',
+      'apps/docs/src/**/use-cases/**/*.ts',
     ],
     ignores: ['**/*.test.ts'],
     rules: { complexity: ['error', 8] },

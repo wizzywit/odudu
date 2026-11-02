@@ -276,7 +276,7 @@ function hookDecisions(file: ts.SourceFile, report: (node: ts.Node, rule: string
 }
 
 function layerOf(file: string): Layer | null {
-  if (file.includes('/use-cases/') || file.includes('/usecase/')) return 'usecase';
+  if (file.includes('/use-cases/')) return 'usecase';
   if (file.includes('/repository/')) return 'repository';
   return null;
 }
@@ -296,8 +296,8 @@ function scopes(): string[] {
     `${SRC}/shared/{use-cases,repository}/**/*.ts`,
     `${SRC}/features/*/{use-cases,repository}/**/*.ts`,
     // The docs app has no repositories: its usecases are held to the same rule.
-    'apps/docs/src/shared/usecase/**/*.ts',
-    'apps/docs/src/features/*/usecase/**/*.ts',
+    'apps/docs/src/shared/use-cases/**/*.ts',
+    'apps/docs/src/features/*/use-cases/**/*.ts',
   ];
 }
 

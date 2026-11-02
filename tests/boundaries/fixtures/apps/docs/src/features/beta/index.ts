@@ -1,2 +1,2 @@
-export { B } from './view/B';
-export { RULE } from './service/rules';
+export { B } from './ui/B';
+export { RULE } from './services/rules';

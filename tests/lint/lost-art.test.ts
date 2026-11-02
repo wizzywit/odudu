@@ -12,7 +12,7 @@ import { lostArt } from '../../packages/protocol-oidc/src/view/lost-art.js';
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const SOURCE = readFileSync(path.join(REPO_ROOT, 'packages/instrument/src/lost.svg'), 'utf8');
 const COPIES = [
-  'apps/docs/src/features/not-found/view/LostArt/LostArt.tsx',
+  'apps/docs/src/features/not-found/ui/LostArt/LostArt.tsx',
   'apps/admin-console/src/shared/ui/LostArt/LostArt.tsx',
 ];
 
@@ -121,7 +121,7 @@ describe('the not-found drawing', () => {
 // control and is a decision for later (docs/phases/p4g.md).
 const STYLESHEETS = [
   'packages/instrument/src/pages.css',
-  'apps/docs/src/features/not-found/view/LostArt/LostArt.module.css',
+  'apps/docs/src/features/not-found/ui/LostArt/LostArt.module.css',
   'apps/admin-console/src/shared/ui/LostArt/LostArt.module.css',
 ];
 const ELEMENTS = ['routeA', 'routeB', 'badge', 'staff'];

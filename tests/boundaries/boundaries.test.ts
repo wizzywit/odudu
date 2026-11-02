@@ -254,8 +254,8 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/alpha/view/crossFeature.ts') &&
-          v.to.endsWith('features/beta/service/rules.ts'),
+          v.from.endsWith('features/alpha/ui/crossFeature.ts') &&
+          v.to.endsWith('features/beta/services/rules.ts'),
       ),
     ).toBe(true);
   });
@@ -263,7 +263,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
   it("rejects a docs route importing a feature's internals, and permits its index", async () => {
     const found = await violations('docs-feature-imports-only-index');
     expect(
-      found.some((v) => v.from.endsWith('pages/index.tsx') && v.to.endsWith('view/B.tsx')),
+      found.some((v) => v.from.endsWith('pages/index.tsx') && v.to.endsWith('ui/B.tsx')),
     ).toBe(true);
     expect(found.some((v) => v.from.endsWith('image-pages/index.tsx'))).toBe(false);
   });
@@ -271,40 +271,40 @@ describe('boundary rules', { timeout: 60_000 }, () => {
   it("permits a docs feature using its own internals and another feature's index", async () => {
     const output = await cruiseFixtures();
     expect(
-      output.summary.violations.filter((v) => v.from.endsWith('features/alpha/view/usesIndex.ts')),
+      output.summary.violations.filter((v) => v.from.endsWith('features/alpha/ui/usesIndex.ts')),
     ).toHaveLength(0);
   });
 
   it('rejects a docs service importing a view', async () => {
     const found = await violations('docs-service-imports-only-service');
-    expect(found.some((v) => v.from.endsWith('features/alpha/service/reachesView.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('features/alpha/services/reachesView.ts'))).toBe(true);
   });
 
   it('rejects a docs usecase importing a view', async () => {
     const found = await violations('docs-usecase-imports-no-view');
-    expect(found.some((v) => v.from.endsWith('features/alpha/usecase/useBack.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('features/alpha/use-cases/useBack.ts'))).toBe(true);
   });
 
   it('rejects docs shared code importing a feature', async () => {
     const found = await violations('docs-shared-imports-no-feature');
-    expect(found.some((v) => v.from.endsWith('shared/view/Leaky.tsx'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('shared/ui/Leaky.tsx'))).toBe(true);
   });
 
   it('rejects a docs view importing shared/platform, and permits a usecase', async () => {
     const found = await violations('docs-view-imports-no-platform');
-    expect(found.some((v) => v.from.endsWith('features/alpha/view/UsesPlatform.ts'))).toBe(true);
-    expect(found.some((v) => v.from.endsWith('features/alpha/view/UsesFeaturePlatform.ts'))).toBe(
+    expect(found.some((v) => v.from.endsWith('features/alpha/ui/UsesPlatform.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('features/alpha/ui/UsesFeaturePlatform.ts'))).toBe(
       true,
     );
-    expect(found.some((v) => v.from.endsWith('features/alpha/usecase/useWatch.ts'))).toBe(false);
+    expect(found.some((v) => v.from.endsWith('features/alpha/use-cases/useWatch.ts'))).toBe(false);
   });
 
   it('rejects a docs feature importing a route', async () => {
     const found = await violations('docs-nothing-imports-routes');
-    expect(found.some((v) => v.from.endsWith('features/beta/view/routeLeak.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('features/beta/ui/routeLeak.ts'))).toBe(true);
   });
 
-  it('rejects a docs feature index publishing something outside view, usecase and service', async () => {
+  it('rejects a docs feature index publishing something outside ui, use-cases and services', async () => {
     const found = await violations('docs-index-exports-view-usecase-service');
     expect(
       found.some(

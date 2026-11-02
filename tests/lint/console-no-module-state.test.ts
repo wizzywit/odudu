@@ -887,8 +887,8 @@ describe('console source', { timeout: 60_000 }, () => {
   it('holds the docs app to the same rule, tests excepted', async () => {
     const files = await read(DOCS);
     const names = [...files.keys()];
-    expect(names).toContain('src/features/landing/usecase/useSignInFlow.ts');
-    expect(names).toContain('src/shared/view/Diagram/diagrams.tsx');
+    expect(names).toContain('src/features/landing/use-cases/useSignInFlow.ts');
+    expect(names).toContain('src/shared/ui/Diagram/diagrams.tsx');
     expect(violations(files)).toEqual([]);
   });
 
