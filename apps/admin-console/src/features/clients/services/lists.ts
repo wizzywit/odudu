@@ -1,6 +1,6 @@
 export { CLIENT_LIST_LIMIT } from '@odudu/contracts/admin';
 
-import { andList, groupedNumber } from '#/shared/services/format';
+import { groupedNumber } from '#/shared/services/format';
 
 // A row added and left empty is no entry, and one padded with spaces is
 // the entry without them: what is counted and what is sent.
@@ -13,10 +13,4 @@ export function listCount(rows: readonly string[], limit: number, noun: string):
   const count = entriesOf(rows).length;
   if (count <= limit) return `${groupedNumber(count)} of ${groupedNumber(limit)} ${noun}.`;
   return `${groupedNumber(count - limit)} over the limit of ${groupedNumber(limit)} ${noun}.`;
-}
-
-// A list of names as a conflict shows it, or none.
-export function namesText(value: unknown): string {
-  const names = Array.isArray(value) ? value.map(String) : [];
-  return names.length === 0 ? 'none' : andList(names);
 }

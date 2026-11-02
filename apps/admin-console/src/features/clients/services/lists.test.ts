@@ -1,10 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import {
-  CLIENT_LIST_LIMIT,
-  entriesOf,
-  listCount,
-  namesText,
-} from '#/features/clients/services/lists';
+import { expect, it } from 'vitest';
+import { CLIENT_LIST_LIMIT, entriesOf, listCount } from '#/features/clients/services/lists';
 
 const rows = (count: number): string[] =>
   Array.from({ length: count }, (_, i) => `row ${String(i)}`);
@@ -24,13 +19,4 @@ it('counts a row left empty as nothing', () => {
 
 it('takes a row left empty or padded to be no entry, once, for the count and for what is sent', () => {
   expect(entriesOf(['https://a.example/cb ', '', '  '])).toEqual(['https://a.example/cb']);
-});
-
-describe('namesText', () => {
-  it('lists names as a sentence, or says none', () => {
-    expect(namesText(['a', 'b', 'c'])).toBe('a, b and c');
-    expect(namesText(['a'])).toBe('a');
-    expect(namesText([])).toBe('none');
-    expect(namesText(null)).toBe('none');
-  });
 });

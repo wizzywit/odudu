@@ -7,7 +7,7 @@ import {
   type LifetimeValues,
 } from '#/features/clients/repository/useClientConfigSaves';
 import { choiceOf } from '#/features/clients/services/choices';
-import { CLIENT_LIST_LIMIT, listCount, namesText } from '#/features/clients/services/lists';
+import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/lists';
 import {
   AUTH_TIME_LABEL,
   CREDENTIALS_NOUN,
@@ -28,7 +28,7 @@ import {
   type ClientRecordRead,
 } from '#/features/clients/use-cases/useClientSection';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { describeIds } from '#/shared/services/format';
+import { describeIds, namesOrNone } from '#/shared/services/format';
 import type { ChecklistOption } from '#/shared/ui/ChecklistField';
 import type { Choice } from '#/shared/services/choice';
 
@@ -99,7 +99,7 @@ export function useClientTokens(args: ClientRecordRead): ClientTokens {
         value: client.client_credentials_scopes,
         label: TOKEN_FIELD.credentials,
         kind: 'plain',
-        describe: namesText,
+        describe: namesOrNone,
       },
     },
     save: saves.credentials,

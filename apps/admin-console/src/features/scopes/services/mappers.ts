@@ -83,8 +83,3 @@ export function mappersFailure<F extends GatewayFailure>(failure: F): F {
     problem: { ...failure.problem, errors: [{ path: 'mapper_names', message: text }] },
   };
 }
-
-// A draft's mapper list as the unsaved-changes summary reads it.
-export function describeMappers(value: unknown): string {
-  return Array.isArray(value) && value.length > 0 ? andList(value.map(String)) : 'none';
-}

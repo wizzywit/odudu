@@ -59,6 +59,11 @@ export function andList(items: readonly string[]): string {
   return AND.format(items);
 }
 
+// A list a form held, as the names it holds read aloud, or "none".
+export function namesOrNone(value: unknown): string {
+  return Array.isArray(value) && value.length > 0 ? andList(value.map(String)) : 'none';
+}
+
 export function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }

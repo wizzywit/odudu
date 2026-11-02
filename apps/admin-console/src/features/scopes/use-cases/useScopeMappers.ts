@@ -7,7 +7,6 @@ import {
 } from '#/features/scopes/repository/useScopeRecord';
 import {
   boundAfter,
-  describeMappers,
   mapperChecklist,
   mappersFailure,
   mappersSummary,
@@ -17,6 +16,7 @@ import { scopeMappersRecord } from '#/features/scopes/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { writeRefusal } from '#/shared/services/capabilities';
+import { namesOrNone } from '#/shared/services/format';
 import { inOrderOf } from '#/shared/services/ids';
 
 export function useScopeMappersRead(tenant: string, id: string): RecordState<ScopeMappers> {
@@ -62,7 +62,7 @@ export function useScopeMapperSet({
         value: inOrderOf(data.available, data.bound),
         label: 'Claim mappers',
         kind: 'plain',
-        describe: describeMappers,
+        describe: namesOrNone,
       },
     },
     save: async (gateway, input) => {

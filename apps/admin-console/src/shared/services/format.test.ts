@@ -8,6 +8,7 @@ import {
   shortened,
   groupedNumber,
   andList,
+  namesOrNone,
   attemptsText,
   capitalise,
   counted,
@@ -226,4 +227,16 @@ it('groups the small and the large figures callers used to group inline', () => 
 it('counts a KiB as 1024 bytes, so the limits written in KiB read back as they were', () => {
   expect(bytesText(256 * KIB)).toBe('256 KiB');
   expect(bytesText(1024 * KIB)).toBe('1 MiB');
+});
+
+describe('namesOrNone', () => {
+  it('reads a list as a sentence, and an empty or odd one as none', () => {
+    expect(namesOrNone(['a', 'b', 'c'])).toBe('a, b and c');
+    expect(namesOrNone(['a'])).toBe('a');
+    expect(namesOrNone([1, 2])).toBe('1 and 2');
+    expect(namesOrNone([])).toBe('none');
+    expect(namesOrNone(null)).toBe('none');
+    expect(namesOrNone(undefined)).toBe('none');
+    expect(namesOrNone('a')).toBe('none');
+  });
 });

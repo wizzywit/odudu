@@ -21,14 +21,14 @@ import {
   type KeysProblem,
 } from '#/features/clients/services/advanced';
 import { choiceOf } from '#/features/clients/services/choices';
-import { CLIENT_LIST_LIMIT, listCount, namesText } from '#/features/clients/services/lists';
+import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/lists';
 import {
   useClientSection,
   type ClientRecordRead,
 } from '#/features/clients/use-cases/useClientSection';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import type { Choice } from '#/shared/services/choice';
-import { orBlank } from '#/shared/services/format';
+import { namesOrNone, orBlank } from '#/shared/services/format';
 
 export interface ClientAdvanced {
   auth: SectionSave<AuthValues>;
@@ -114,7 +114,7 @@ export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
         value: client.audiences,
         label: 'Audiences',
         kind: 'plain',
-        describe: namesText,
+        describe: namesOrNone,
       },
     },
     save: saves.audiences,
