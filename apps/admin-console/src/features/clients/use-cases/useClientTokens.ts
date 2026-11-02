@@ -6,10 +6,10 @@ import {
   type IdTokenValues,
   type LifetimeValues,
 } from '#/features/clients/repository/useClientConfigSaves';
+import { choiceOf } from '#/features/clients/services/choices';
+import { CLIENT_LIST_LIMIT, listCount, namesText } from '#/features/clients/services/lists';
 import {
   AUTH_TIME_LABEL,
-  choiceOf,
-  CLIENT_LIST_LIMIT,
   CREDENTIALS_NOUN,
   grantOptions,
   grantsBlock,
@@ -18,13 +18,11 @@ import {
   idTokenAlgOptions,
   lifetimeText,
   LIFETIME_LABELS,
-  listCount,
   MAX_AGE_LABEL,
   maxAgeText,
-  namesText,
   SECTIONS_TOKENS,
   TOKEN_FIELD,
-} from '#/features/clients/services';
+} from '#/features/clients/services/tokens';
 import {
   useClientSection,
   type ClientRecordRead,

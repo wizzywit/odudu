@@ -10,7 +10,7 @@ import {
   SKIP_LOGOUT_LABEL,
   SKIP_LOGOUT_WARNING,
   SKIP_LOGOUT_WARNING_ID,
-} from '#/features/clients/services';
+} from '#/features/clients/services/logout';
 import { useClientLogout } from '#/features/clients/use-cases/useClientLogout';
 import { Deliveries } from '#/features/clients/ui/Deliveries';
 import type { ClientTabProps } from '#/features/clients/ui/ClientTabProps';

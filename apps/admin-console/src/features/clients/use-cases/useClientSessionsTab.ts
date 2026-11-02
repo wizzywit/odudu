@@ -7,16 +7,15 @@ import {
   useClientSessionList,
   useGrantRevocation,
 } from '#/features/clients/repository/useClientSessions';
+import { canChange, type Reach } from '#/features/clients/services/ceiling';
+import { ceilingRefused } from '#/features/clients/services/refusal';
 import {
-  canChange,
-  ceilingRefused,
   revokeConsequence,
   revokedText,
   revokeFailureText,
   SESSIONS_CAPABILITY,
   sessionsReadable,
-  type Reach,
-} from '#/features/clients/services';
+} from '#/features/clients/services/sessions';
 import { useGo } from '#/shared/repository/useGo';
 import { lacking } from '#/shared/services/access';
 import type { ResourceListState } from '#/shared/services/resourceList';

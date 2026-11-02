@@ -1,5 +1,6 @@
 import { Link, VisuallyHidden } from 'react-aria-components';
-import { countAgainLabel, limitText, type CountTile } from '#/features/overview/services';
+import { countAgainLabel, limitText } from '#/features/overview/services/panelText';
+import { type CountTile } from '#/features/overview/services/tiles';
 import { Panel } from '#/features/overview/ui/Panel';
 import { Button } from '#/shared/ui/Button';
 import { Count } from '#/shared/ui/Count';

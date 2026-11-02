@@ -3,14 +3,9 @@ import { useState } from 'react';
 import { useRefusal } from '#/features/session';
 import { useCreateClient } from '#/features/clients/repository/useCreateClient';
 import { useGo } from '#/shared/repository/useGo';
+import { clientHref, clientsHref } from '#/features/clients/services/address';
 import {
-  CLIENT_CAPABILITY,
-  CLIENT_ID_TAKEN,
-  CLIENT_LIST_LIMIT,
-  clientHref,
   clientIdProblem,
-  clientsHref,
-  listCount,
   NEW_CLIENT_FIELDS,
   newClientKind,
   afterCreation,
@@ -20,7 +15,10 @@ import {
   secretTitle,
   type NewClientField,
   type NewClientKind,
-} from '#/features/clients/services';
+} from '#/features/clients/services/create';
+import { CLIENT_ID_TAKEN } from '#/features/clients/services/labels';
+import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/lists';
+import { CLIENT_CAPABILITY } from '#/features/clients/services/refusal';
 import { useToast } from '#/shared/repository/useToasts';
 import { problemAt } from '#/shared/services/fieldErrors';
 import { createdText, lookupText } from '#/shared/services/failure';

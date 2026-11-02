@@ -1,10 +1,7 @@
 import type { SigningKey, SmtpConfig } from '@odudu/contracts/admin';
-import type {
-  AreaOf,
-  AttentionInputs,
-  OverviewRead,
-  OverviewReads,
-} from '#/features/overview/services';
+import type { AttentionInputs } from '#/features/overview/services/attention';
+import type { OverviewRead, OverviewReads } from '#/features/overview/services/reads';
+import type { AreaOf } from '#/features/overview/services/tiles';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
 
 export const retry = (): void => undefined;

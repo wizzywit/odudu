@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import type { CountTile } from '#/features/overview/services';
+import type { CountTile } from '#/features/overview/services/tiles';
 import { CountsPanel } from '#/features/overview/ui/CountsPanel';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 

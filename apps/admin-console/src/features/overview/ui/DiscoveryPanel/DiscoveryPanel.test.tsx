@@ -1,7 +1,9 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import { discoveryView, type KeysView, type OverviewRead } from '#/features/overview/services';
+import { discoveryView } from '#/features/overview/services/discovery';
+import { type KeysView } from '#/features/overview/services/keys';
+import { type OverviewRead } from '#/features/overview/services/reads';
 import { DiscoveryPanel } from '#/features/overview/ui/DiscoveryPanel';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 

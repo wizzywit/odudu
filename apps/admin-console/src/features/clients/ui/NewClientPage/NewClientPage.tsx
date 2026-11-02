@@ -1,10 +1,7 @@
 import { AreaGate, areaAt } from '#/features/shell';
-import {
-  clientsTrail,
-  SECRET_LABEL,
-  KIND_CHOICES,
-  REDIRECTS_RULE,
-} from '#/features/clients/services';
+import { clientsTrail } from '#/features/clients/services/address';
+import { SECRET_LABEL, KIND_CHOICES } from '#/features/clients/services/create';
+import { REDIRECTS_RULE } from '#/features/clients/services/labels';
 import { useNewClient } from '#/features/clients/use-cases/useNewClient';
 import { CreationActions, CreationForm } from '#/shared/ui/CreationForm';
 import { SelectField, TextAreaField, TextField, UrlListField } from '#/shared/ui/Field';

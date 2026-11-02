@@ -1,6 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { evaluateClaims } from '#/features/clients/adapter/operations';
-import { askedParts, evaluationOf, type Asked, type Evaluation } from '#/features/clients/services';
+import {
+  askedParts,
+  evaluationOf,
+  type Asked,
+  type Evaluation,
+} from '#/features/clients/services/evaluate';
 import { evaluateKey } from '#/shared/repository/queryKeys';
 import { freshness } from '#/shared/services/read';
 import { useTransport } from '#/shared/transport/useTransport';

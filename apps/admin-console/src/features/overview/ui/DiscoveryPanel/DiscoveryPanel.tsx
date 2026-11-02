@@ -1,14 +1,9 @@
 import { Fragment, useId, type ReactNode } from 'react';
 import { flagText } from '#/shared/services/format';
-import {
-  laneText,
-  unreadableTitle,
-  type DiscoveryView,
-  type KeyLane,
-  type KeysView,
-  type PublishedKey,
-  type OverviewRead,
-} from '#/features/overview/services';
+import { type DiscoveryView } from '#/features/overview/services/discovery';
+import { type KeyLane, type KeysView, type PublishedKey } from '#/features/overview/services/keys';
+import { laneText, unreadableTitle } from '#/features/overview/services/panelText';
+import { type OverviewRead } from '#/features/overview/services/reads';
 import { Panel } from '#/features/overview/ui/Panel';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { CopyValue } from '#/shared/ui/CopyValue';

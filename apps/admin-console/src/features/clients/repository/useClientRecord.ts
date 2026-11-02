@@ -5,7 +5,8 @@ import {
   readClient,
   type ClientChanges,
 } from '#/features/clients/adapter/clients';
-import { clientRecord, translationsPatch } from '#/features/clients/services';
+import { clientRecord } from '#/features/clients/services/tabs';
+import { translationsPatch } from '#/features/clients/services/translations';
 import type { Translations } from '#/shared/services/localised';
 import { countKey, listKey, recordKey, scopeClientsKey } from '#/shared/repository/queryKeys';
 import { rolesGoneReach } from '#/shared/repository/rolesGoneReach';

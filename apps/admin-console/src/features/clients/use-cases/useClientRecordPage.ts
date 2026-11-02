@@ -2,20 +2,16 @@ import type { ClientRecord } from '@odudu/contracts/admin';
 import { clientScope, useScopeEdits } from '#/features/branding';
 import { useAuthority } from '#/features/session';
 import { useClientRecord } from '#/features/clients/repository/useClientRecord';
+import { serviceRolesRecordOf } from '#/features/clients/services/account';
+import { brandingOffer, type BrandingOffer } from '#/features/clients/services/branding';
+import { canChange, clientReach, reachLine, type Reach } from '#/features/clients/services/ceiling';
 import {
-  brandingOffer,
-  canChange,
   CLIENT_TABS,
   chosenTab,
   clientRecord,
-  clientReach,
-  reachLine,
-  serviceRolesRecordOf,
   tabsWithEdits,
-  type BrandingOffer,
   type ClientTab,
-  type Reach,
-} from '#/features/clients/services';
+} from '#/features/clients/services/tabs';
 import { useDirtySections } from '#/shared/repository/useDirtySections';
 import { useRecordTab } from '#/shared/repository/useRecordTab';
 import { lacking } from '#/shared/services/access';

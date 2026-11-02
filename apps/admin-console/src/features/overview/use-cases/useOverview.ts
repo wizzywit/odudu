@@ -2,23 +2,18 @@ import type { AuditEvent } from '@odudu/contracts/admin';
 import { useAuthority, useRefusal, useTenantMissing } from '#/features/session';
 import { areaAt, areaHref, useArea } from '#/features/shell';
 import { useOverviewReads } from '#/features/overview/repository/useOverviewReads';
+import { discoveryView, type DiscoveryView } from '#/features/overview/services/discovery';
+import { keysView, type KeysView } from '#/features/overview/services/keys';
 import {
-  attentionState,
   auditView,
-  countTiles,
-  discoveryView,
-  keysView,
   mapOverviewRead,
   overviewAsks,
   readCapability,
-  type AreaOf,
-  type AttentionState,
-  type CountTile,
-  type DiscoveryView,
   type Gated,
-  type KeysView,
   type OverviewRead,
-} from '#/features/overview/services';
+} from '#/features/overview/services/reads';
+import { attentionState, type AttentionState } from '#/features/overview/services/state';
+import { countTiles, type AreaOf, type CountTile } from '#/features/overview/services/tiles';
 
 export interface Overview {
   discovery: OverviewRead<DiscoveryView>;

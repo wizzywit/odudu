@@ -5,7 +5,7 @@ import {
   deliveryTone,
   NO_DELIVERIES,
   STATUS_OPTIONS,
-} from '#/features/clients/services';
+} from '#/features/clients/services/deliveries';
 import {
   useClientDeliveries,
   type ClientDeliveries,

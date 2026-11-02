@@ -1,17 +1,19 @@
 import type { Client } from '@odudu/contracts/admin';
 import {
   CLIENT_ID_FIXED,
+  PAGES_RULE,
+  SECTION,
+  registeredText,
+  TYPE_FIXED,
+  TYPE_TEXT,
+} from '#/features/clients/services/labels';
+import {
   DESCRIPTION_TRANSLATIONS_LABEL,
   DESCRIPTION_TRANSLATIONS_NOTE,
   NAME_TRANSLATIONS_LABEL,
   NAME_TRANSLATIONS_NOTE,
-  PAGES_RULE,
-  SECTION,
   TRANSLATIONS_LEAD,
-  registeredText,
-  TYPE_FIXED,
-  TYPE_TEXT,
-} from '#/features/clients/services';
+} from '#/features/clients/services/translations';
 import {
   useClientGeneral,
   type ClientGeneral,

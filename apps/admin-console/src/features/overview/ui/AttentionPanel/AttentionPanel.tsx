@@ -1,10 +1,6 @@
 import { Link } from 'react-aria-components';
-import {
-  isClear,
-  openPlaceLabel,
-  UNCHECKED_LEAD,
-  type AttentionState,
-} from '#/features/overview/services';
+import { openPlaceLabel, UNCHECKED_LEAD } from '#/features/overview/services/panelText';
+import { isClear, type AttentionState } from '#/features/overview/services/state';
 import { Panel } from '#/features/overview/ui/Panel';
 import { Button } from '#/shared/ui/Button';
 import { ListSkeleton } from '#/shared/ui/Skeleton';

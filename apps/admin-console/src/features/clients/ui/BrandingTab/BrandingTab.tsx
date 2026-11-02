@@ -15,7 +15,7 @@ import {
   type BrandingOffer,
   BRANDING_LEAD,
   BRANDING_LOADING,
-} from '#/features/clients/services';
+} from '#/features/clients/services/branding';
 import { useClientBranding } from '#/features/clients/use-cases/useClientBranding';
 import { andList } from '#/shared/services/format';
 import type { AdminCapability } from '#/shared/services/principal';

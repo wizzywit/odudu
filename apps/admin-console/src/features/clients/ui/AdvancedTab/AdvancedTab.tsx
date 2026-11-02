@@ -5,9 +5,6 @@ import {
   EXCHANGE_LABEL,
   EXCHANGE_RULE,
   FIXED_BY_DESIGN,
-  GRACE_LABEL,
-  GRACE_MAX,
-  GRACE_RULE,
   JWKS_URI_RULE,
   KEY_SOURCES,
   KEYS_BLOCKED,
@@ -18,7 +15,8 @@ import {
   SECTIONS_ADVANCED,
   SUBJECT_DN_RULE,
   USERINFO_RULE,
-} from '#/features/clients/services';
+} from '#/features/clients/services/advanced';
+import { GRACE_LABEL, GRACE_MAX, GRACE_RULE } from '#/features/clients/services/secret';
 import { useClientAdvanced } from '#/features/clients/use-cases/useClientAdvanced';
 import { useClientSecret, type ClientSecret } from '#/features/clients/use-cases/useClientSecret';
 import { Installation } from '#/features/clients/ui/Installation';

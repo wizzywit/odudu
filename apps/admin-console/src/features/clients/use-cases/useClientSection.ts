@@ -4,9 +4,9 @@ import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import {
   ceilingRefused,
   CLIENT_CAPABILITY,
-  clientRecord,
   clientRefusal,
-} from '#/features/clients/services';
+} from '#/features/clients/services/refusal';
+import { clientRecord } from '#/features/clients/services/tabs';
 import type { GatewayFailure } from '#/shared/transport/gateway';
 
 // The client's record as a tab is given it: the ETag it was read with, and

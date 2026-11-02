@@ -12,18 +12,16 @@ import {
   type PageValues,
   type TranslationSectionValues,
 } from '#/features/clients/repository/useClientRecord';
+import { clientsHref } from '#/features/clients/services/address';
+import { deleteFixed, enabledFixed } from '#/features/clients/services/blocks';
+import { deleteConsequence } from '#/features/clients/services/confirm';
+import { FIELD, SECTION } from '#/features/clients/services/labels';
+import { clientRefusal } from '#/features/clients/services/refusal';
 import {
-  clientRefusal,
-  clientsHref,
-  deleteConsequence,
-  deleteFixed,
   DESCRIPTION_TRANSLATIONS_FIELD,
-  enabledFixed,
-  FIELD,
   NAME_TRANSLATIONS_FIELD,
   offeredBy,
-  SECTION,
-} from '#/features/clients/services';
+} from '#/features/clients/services/translations';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';

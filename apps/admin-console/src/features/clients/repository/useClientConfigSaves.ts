@@ -1,5 +1,6 @@
 import { useAmendClient } from '#/features/clients/repository/useClientRecord';
-import { authPayload, keysPayload, sentOf, userinfoPayload } from '#/features/clients/services';
+import { authPayload, keysPayload, userinfoPayload } from '#/features/clients/services/advanced';
+import { sentOf } from '#/features/clients/services/choices';
 import type { SaveInput } from '#/shared/repository/useSectionSave';
 import type { Gateway } from '#/shared/transport/gateway';
 

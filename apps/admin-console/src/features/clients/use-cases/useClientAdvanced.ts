@@ -8,14 +8,10 @@ import {
 } from '#/features/clients/repository/useClientConfigSaves';
 import {
   authOptions,
-  choiceOf,
-  CLIENT_LIST_LIMIT,
   EXCHANGE_LABEL,
   jwksText,
   keysProblem,
   keySourceOf,
-  listCount,
-  namesText,
   needsSubjectDn,
   SECTIONS_ADVANCED,
   userinfoContentOptions,
@@ -23,7 +19,9 @@ import {
   userinfoSigningOptions,
   encryptsUserinfo,
   type KeysProblem,
-} from '#/features/clients/services';
+} from '#/features/clients/services/advanced';
+import { choiceOf } from '#/features/clients/services/choices';
+import { CLIENT_LIST_LIMIT, listCount, namesText } from '#/features/clients/services/lists';
 import {
   useClientSection,
   type ClientRecordRead,

@@ -9,7 +9,8 @@ import {
   type Role,
   type RotateClientSecretResponse,
 } from '@odudu/contracts/admin';
-import { entriesOf, type NewClientKind } from '#/features/clients/services';
+import { type NewClientKind } from '#/features/clients/services/create';
+import { entriesOf } from '#/features/clients/services/lists';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { readClientPage } from '#/shared/adapter/directory';
 import { adminCall, countReader, nothing } from '#/shared/adapter/route';

@@ -1,4 +1,5 @@
 import type { Client, TenantSession } from '@odudu/contracts/admin';
+import { type Reach } from '#/features/clients/services/ceiling';
 import {
   NO_SESSIONS,
   REVOKE_HEADING,
@@ -6,8 +7,7 @@ import {
   SESSIONS_CAPABILITY,
   SESSIONS_NOUN,
   SESSIONS_RULE,
-  type Reach,
-} from '#/features/clients/services';
+} from '#/features/clients/services/sessions';
 import {
   useClientSessionsTab,
   useSessionsReadable,

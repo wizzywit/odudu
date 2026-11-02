@@ -3,19 +3,18 @@ import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/features/session';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import { useScopeChanges, useScopePicker } from '#/features/clients/repository/useClientScopes';
+import { scopesFixed } from '#/features/clients/services/blocks';
+import { canChange, type Reach } from '#/features/clients/services/ceiling';
+import { ceilingRefused } from '#/features/clients/services/refusal';
 import {
   alreadyAssigned,
-  canChange,
-  ceilingRefused,
   moreScopes,
   scopeCount,
   scopeFailureText,
   SCOPES_CAPABILITY,
   SCOPES_PAGE,
-  scopesFixed,
   shownScopes,
-  type Reach,
-} from '#/features/clients/services';
+} from '#/features/clients/services/scopes';
 import { lacking } from '#/shared/services/access';
 import type { AdminCapability } from '#/shared/services/principal';
 import type { PickerState } from '#/shared/services/picker';

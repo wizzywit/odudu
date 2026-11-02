@@ -10,7 +10,7 @@ import {
   SCOPE_LABEL,
   SCOPE_RULE,
   SUBJECT_PICKER_LABEL,
-} from '#/features/clients/services';
+} from '#/features/clients/services/evaluate';
 import {
   useClientEvaluate,
   useEvaluateAllowed,

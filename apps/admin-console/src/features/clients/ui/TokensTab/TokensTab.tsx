@@ -18,7 +18,7 @@ import {
   REQUIRE_AUTH_TIME_NOTE,
   SECTIONS_TOKENS,
   tenantLifetimeLabel,
-} from '#/features/clients/services';
+} from '#/features/clients/services/tokens';
 import { useClientTokens } from '#/features/clients/use-cases/useClientTokens';
 import { OptionalSecondsField } from '#/features/clients/ui/OptionalSecondsField';
 import type { ClientTabProps } from '#/features/clients/ui/ClientTabProps';

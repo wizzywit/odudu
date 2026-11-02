@@ -9,7 +9,7 @@ import {
   evaluateAllowed,
   type Artefact,
   type Asked,
-} from '#/features/clients/services';
+} from '#/features/clients/services/evaluate';
 import { lastChosen, type PickerState } from '#/shared/services/picker';
 
 // Whether the caller may look at a subject's claims: whoami says view-users

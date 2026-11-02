@@ -3,7 +3,7 @@ import {
   INSTALLATION_RULE,
   NONE,
   type InstallationRow,
-} from '#/features/clients/services';
+} from '#/features/clients/services/installation';
 import { useInstallationPanel } from '#/features/clients/use-cases/useClientInstallationPanel';
 import { Button } from '#/shared/ui/Button';
 import { CopyValue } from '#/shared/ui/CopyValue';

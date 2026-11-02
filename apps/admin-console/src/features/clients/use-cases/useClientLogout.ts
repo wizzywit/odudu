@@ -5,18 +5,17 @@ import {
   type FrontchannelValues,
   type PostLogoutValues,
 } from '#/features/clients/repository/useClientConfigSaves';
+import { skipLogoutFixed } from '#/features/clients/services/blocks';
+import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/lists';
 import {
   BACKCHANNEL_SESSION_LABEL,
-  CLIENT_LIST_LIMIT,
   FRONTCHANNEL_SESSION_LABEL,
   LOGOUT_FIELD,
-  listCount,
   POST_LOGOUT_NOUN,
   SECTIONS_LOGOUT,
-  skipLogoutFixed,
   skipLogoutHint,
   SKIP_LOGOUT_LABEL,
-} from '#/features/clients/services';
+} from '#/features/clients/services/logout';
 import {
   useClientSection,
   type ClientRecordRead,

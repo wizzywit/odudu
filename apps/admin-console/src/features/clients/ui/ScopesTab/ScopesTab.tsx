@@ -1,12 +1,12 @@
 import type { Client, ClientScope } from '@odudu/contracts/admin';
+import { type Reach } from '#/features/clients/services/ceiling';
 import {
   ASSIGN_HEADING,
   ASSIGN_LABEL,
   ASSIGNED_HEADING,
   NO_SCOPES,
   PICKER_LABEL,
-  type Reach,
-} from '#/features/clients/services';
+} from '#/features/clients/services/scopes';
 import {
   useClientScopeAssignment,
   type ClientScopes,

@@ -6,7 +6,8 @@ import {
   type SigningKey,
 } from '@odudu/contracts/admin';
 import { z } from 'zod';
-import type { Collection, Jwks } from '#/features/overview/services';
+import type { Jwks } from '#/features/overview/services/discovery';
+import type { Collection } from '#/features/overview/services/reads';
 import { readAuditPage } from '#/shared/adapter/audit';
 import { readKeyPage } from '#/shared/adapter/directory';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';

@@ -9,18 +9,17 @@ import {
 import {
   accountIdleNote,
   assignedRoles,
-  canChange,
-  ceilingRefused,
   heldCapabilitiesText,
   roleUnavailable,
   serviceAccess,
   serviceRolesRecord,
   SERVICE_CAPABILITY,
-  SERVICE_SECTION,
   splitAssigned,
-  type Reach,
   type ServiceAccess,
-} from '#/features/clients/services';
+} from '#/features/clients/services/account';
+import { canChange, type Reach } from '#/features/clients/services/ceiling';
+import { ceilingRefused } from '#/features/clients/services/refusal';
+import { SERVICE_SECTION } from '#/features/clients/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useRolePicker } from '#/shared/repository/useRolePicker';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
