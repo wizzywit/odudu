@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { rememberedTenant } from '#/features/session/repository/useSessionQuery';
-import { CHOOSE_TENANT, type Principal } from '#/features/session/services/address';
+import { CHOOSE_TENANT } from '#/features/session/services/loginUrl';
+import { type Principal } from '#/shared/services/principal';
 import {
   entersDirectly,
   homeTarget,

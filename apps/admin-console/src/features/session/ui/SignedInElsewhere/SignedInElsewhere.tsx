@@ -1,6 +1,6 @@
 import { Link } from 'react-aria-components';
-import { type Principal } from '#/features/session/services/address';
-import { backToLabel, signedInToTitle, signInToLabel } from '#/features/session/services/labels';
+import { type Principal } from '#/shared/services/principal';
+import { backToLabel, signedInToTitle, signInToLabel } from '#/features/session/services/signInText';
 import { SessionStatus } from '#/features/session/ui/SessionStatus';
 import { Button } from '#/shared/ui/Button';
 import styles from '#/features/session/ui/SignedInElsewhere/SignedInElsewhere.module.css';

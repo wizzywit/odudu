@@ -1,14 +1,5 @@
 import { UNSAFE_RETURN_TO } from '@odudu/contracts';
-import { type SignOutAnswer } from '#/features/session/services/boot';
 import { CONSOLE_ROOT } from '#/shared/services/address';
-
-export {
-  isTenantName,
-  SYSTEM_TENANT,
-  type AdminCapability,
-  type Authority,
-  type Principal,
-} from '#/shared/services/principal';
 
 const ROOT = CONSOLE_ROOT;
 
@@ -30,17 +21,4 @@ export function returnPath(asked: string): string {
     return ROOT;
   }
   return `${url.pathname}${url.search}`;
-}
-
-export function loginUrl(tenant: string, returnTo: string): string {
-  const query = new URLSearchParams({ tenant, return_to: returnPath(returnTo) });
-  return `/console/auth/login?${query.toString()}`;
-}
-
-export const CHOOSE_TENANT = 'choose';
-
-export const SWITCH_HREF = `/console/?${CHOOSE_TENANT}`;
-
-export function signOutDestination(result: SignOutAnswer): string {
-  return result.ok ? result.redirect : CONSOLE_ROOT;
 }

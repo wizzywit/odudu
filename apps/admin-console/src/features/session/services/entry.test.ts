@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CHOOSE_TENANT, SWITCH_HREF, type Principal } from '#/features/session/services/address';
+import { CHOOSE_TENANT, SWITCH_HREF } from '#/features/session/services/loginUrl';
+import { type Principal } from '#/shared/services/principal';
 import {
   entersDirectly,
   homeTarget,

@@ -96,7 +96,7 @@ const deleteNamed = (page: string, subject: string): Defined =>
 
 export const DEFINED: Readonly<Record<string, Defined>> = {
   // Sign-in, as the console and Odudu's own page word it.
-  'Continue to sign-in': feature('session/services/labels.ts', "return 'Continue to sign-in'"),
+  'Continue to sign-in': feature('session/services/signInText.ts', "return 'Continue to sign-in'"),
   Username: several(
     at(MESSAGES, "'login.username': 'Username'"),
     feature('subjects/ui/NewSubjectPage/NewSubjectPage.tsx', 'label="Username"'),

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { type Principal } from '#/features/session/services/address';
+import { type Principal } from '#/shared/services/principal';
 import { signInHome, tenantEntry } from '#/features/session/services/entry';
 import { useSignedIn } from '#/features/session/use-cases/useSignedIn';
 import { useSignIn } from '#/features/session/use-cases/useSignIn';

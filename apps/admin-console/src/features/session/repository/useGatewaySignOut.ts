@@ -1,5 +1,5 @@
 import { logOut } from '#/features/session/adapter/logout';
-import { signOutDestination } from '#/features/session/services/address';
+import { signOutDestination } from '#/features/session/services/loginUrl';
 import { sessionGone } from '#/features/session/services/boot';
 import { useDrafts } from '#/shared/repository/useDrafts';
 import { useLeaveConsole } from '#/features/session/repository/useLeaveConsole';

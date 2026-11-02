@@ -2,7 +2,7 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import { useEffect, useEffectEvent } from 'react';
 import { readSession } from '#/features/session/adapter/session';
 import { loadLastTenant, storeLastTenant } from '#/features/session/adapter/lastTenant';
-import { type Principal } from '#/features/session/services/address';
+import { type Principal } from '#/shared/services/principal';
 import {
   draftOwner,
   isReplacement,

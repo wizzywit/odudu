@@ -9,7 +9,7 @@ import {
   sessionEndedRead,
   type SessionRead,
 } from '#/features/session/services/boot';
-import { type Principal } from '#/features/session/services/address';
+import { type Principal } from '#/shared/services/principal';
 
 const grace: Principal = { tenant: 'acme', subjectId: 's1', username: 'grace' };
 

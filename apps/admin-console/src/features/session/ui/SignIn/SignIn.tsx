@@ -1,6 +1,6 @@
 import { useState, type SubmitEvent } from 'react';
-import { type Principal } from '#/features/session/services/address';
-import { enteredTenant, signInLabel, signInToLabel } from '#/features/session/services/labels';
+import { type Principal } from '#/shared/services/principal';
+import { enteredTenant, signInLabel, signInToLabel } from '#/features/session/services/signInText';
 import { SessionStatus } from '#/features/session/ui/SessionStatus';
 import { Button } from '#/shared/ui/Button';
 import { TextField } from '#/shared/ui/Field';

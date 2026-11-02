@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isTenantName, type Principal } from '#/features/session/services/address';
+import { isTenantName, type Principal } from '#/shared/services/principal';
 import {
   namedTenant,
   remembers,
