@@ -4,11 +4,9 @@ import {
   areasLabel,
   brandText,
   checkingText,
-  dialogOpen,
-  pathnameOf,
   signedInFrom,
   tenantNotFoundText,
-} from '#/features/shell/services/frame';
+} from '#/features/shell/services/shellText';
 
 describe('the frame text', () => {
   it('names the tenant in the brand and the rail', () => {
@@ -24,17 +22,5 @@ describe('the frame text', () => {
   it('says what an area is doing before it opens', () => {
     expect(checkingText(areaAt('subjects'))).toBe('Checking access to Subjects');
     expect(tenantNotFoundText('ghost')).toBe('No tenant is named ghost.');
-  });
-
-  it('keeps a dialog from the shortcuts whether the host or the guard asks', () => {
-    expect(dialogOpen(0, false)).toBe(false);
-    expect(dialogOpen(1, false)).toBe(true);
-    expect(dialogOpen(0, true)).toBe(true);
-  });
-
-  it('reads the path of the address the router reports', () => {
-    expect(pathnameOf('/console/acme/roles?x=1#a', 'https://console.example')).toBe(
-      '/console/acme/roles',
-    );
   });
 });

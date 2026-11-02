@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { THEME_COOKIE, themeCookie } from '#/shared/services/theme';
+import { THEME_CHOICES, THEME_COOKIE, themeChoice, themeCookie } from '#/shared/services/theme';
 
 describe('the cookie that tells the server-rendered pages the choice', () => {
   it('names the cookie the server reads', () => {
@@ -23,5 +23,20 @@ describe('the cookie that tells the server-rendered pages the choice', () => {
     expect(themeCookie('system', true)).toBe(
       'odudu-theme=; Path=/; SameSite=Lax; Max-Age=0; Secure',
     );
+  });
+});
+
+describe('the theme choices', () => {
+  it('are system, light and dark, in that order', () => {
+    expect(THEME_CHOICES.map((c) => c.id)).toEqual(['system', 'light', 'dark']);
+  });
+
+  it('accepts a known choice and nothing else', () => {
+    expect(themeChoice('dark')).toBe('dark');
+    expect(themeChoice('sepia')).toBeUndefined();
+    expect(themeChoice('light')).toBe('light');
+    expect(themeChoice('system')).toBe('system');
+    expect(themeChoice('')).toBeUndefined();
+    expect(themeChoice('Dark')).toBeUndefined();
   });
 });

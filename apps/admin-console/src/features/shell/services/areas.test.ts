@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { areaAt, OVERVIEW } from '#/features/shell/services/areas';
-import { areaHref, currentHref, railGroups } from '#/features/shell/services/rail';
+import { areaHref, currentHref, railGroups } from '#/features/shell/services/railGroups';
 
 describe('the rail', () => {
   it('groups the tenant areas by task, in the order of the information architecture', () => {

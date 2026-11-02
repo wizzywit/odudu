@@ -1,14 +1,12 @@
 import { useLocation } from '@tanstack/react-router';
 import { SWITCH_HREF, useAuthority, useAuthorityAnswered, useSignOut } from '#/features/session';
 import { type RailSection } from '#/features/shell/services/areas';
-import { dialogOpen, pathnameOf } from '#/features/shell/services/frame';
+import { dialogOpen, pathnameOf } from '#/features/shell/services/pageContext';
+import { currentHref, railGroups, systemRecordHref } from '#/features/shell/services/railGroups';
 import {
   actsWithSystemAuthority,
-  currentHref,
-  railGroups,
   showsSystemArea,
-  systemRecordHref,
-} from '#/features/shell/services/rail';
+} from '#/features/shell/services/systemAuthority';
 import { useDialogHost } from '#/shared/repository/useDialogHost';
 import { useRailCollapsed } from '#/features/shell/repository/useRailCollapsed';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';

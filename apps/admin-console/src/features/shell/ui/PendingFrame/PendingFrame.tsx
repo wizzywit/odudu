@@ -1,4 +1,4 @@
-import { brandText } from '#/features/shell/services/frame';
+import { brandText } from '#/features/shell/services/shellText';
 import { type PendingPage } from '#/features/shell/services/pending';
 import { usePendingFrame } from '#/features/shell/use-cases/usePendingFrame';
 import styles from '#/features/shell/ui/PendingFrame/PendingFrame.module.css';

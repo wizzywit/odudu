@@ -20,13 +20,3 @@ export function checkingText(area: Area): string {
 export function tenantNotFoundText(tenant: string): string {
   return `No tenant is named ${tenant}.`;
 }
-
-// A shortcut is paused while a dialog is open, the unsaved-changes guard's
-// own included.
-export function dialogOpen(openDialogs: number, guardAsking: boolean): boolean {
-  return openDialogs > 0 || guardAsking;
-}
-
-export function pathnameOf(href: string, base: string): string {
-  return new URL(href, base).pathname;
-}

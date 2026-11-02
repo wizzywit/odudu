@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   actsWithSystemAuthority,
   showsSystemArea,
-  systemRecordHref,
-} from '#/features/shell/services/rail';
+} from '#/features/shell/services/systemAuthority';
 
 const SYSTEM_ADMIN = { tenant: 'system', subjectId: 's0', username: 'root' };
 
@@ -55,12 +54,5 @@ describe('the System area, by the rest of the inputs', () => {
     expect(showsSystemArea(SYSTEM_ADMIN, 'system', { capabilities: [], crossTenant: false })).toBe(
       false,
     );
-  });
-});
-
-describe('the way back to system', () => {
-  it('is the tenant’s record under System › Tenants, where it was entered', () => {
-    expect(systemRecordHref('acme')).toBe('/console/system/tenants/acme');
-    expect(systemRecordHref('a b')).toBe('/console/system/tenants/a%20b');
   });
 });

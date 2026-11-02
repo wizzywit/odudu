@@ -1,5 +1,5 @@
 import { Button, Link } from 'react-aria-components';
-import { signedInFrom } from '#/features/shell/services/frame';
+import { signedInFrom } from '#/features/shell/services/shellText';
 import type { ThemeChoice } from '#/shared/services/theme';
 import { ThemeControl } from '#/features/shell/ui/ThemeControl';
 import styles from '#/features/shell/ui/RailFooter/RailFooter.module.css';

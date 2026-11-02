@@ -1,6 +1,6 @@
-import { holds, readable } from '#/shared/services/access';
+import { readable } from '#/shared/services/access';
 import { recordAddress, tenantPage } from '#/shared/services/address';
-import { SYSTEM_TENANT, type Authority, type Principal } from '#/shared/services/principal';
+import { SYSTEM_TENANT, type Authority } from '#/shared/services/principal';
 import {
   type Area,
   OVERVIEW,
@@ -9,32 +9,6 @@ import {
   TENANT_AREAS,
   areaAt,
 } from '#/features/shell/services/areas';
-
-export { holds };
-
-export function showsSystemArea(
-  principal: Principal,
-  tenant: string,
-  authority: Authority | undefined,
-): boolean {
-  return (
-    principal.tenant === SYSTEM_TENANT &&
-    tenant === SYSTEM_TENANT &&
-    holds(authority, 'manage-tenants')
-  );
-}
-
-// A system administrator inside any other tenant acts with system authority,
-// and the bar saying so is shown from the first render: whoami can only
-// confirm it, never be waited for.
-export function actsWithSystemAuthority(
-  principal: Principal,
-  tenant: string,
-  authority: Authority | undefined,
-): boolean {
-  if (principal.tenant !== SYSTEM_TENANT || tenant === SYSTEM_TENANT) return false;
-  return authority?.crossTenant ?? true;
-}
 
 export function areaHref(tenant: string, area: Area): string {
   const base = tenantPage(tenant);
