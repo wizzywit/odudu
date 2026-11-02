@@ -5,7 +5,7 @@ import { checkRule } from './rule.ts';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
 const FIXTURE_ROOT = path.join(import.meta.dirname, '../fixtures/architecture/no-sideways-slice');
-const SLICE_LAYERS = new Set(['features', 'pages', 'entities']);
+const SLICE_LAYERS = new Set(['features', 'widgets', 'pages', 'entities']);
 const ALIAS_PREFIXES = ['#/', '@site/src/'];
 
 interface Slice {
@@ -62,9 +62,10 @@ describe('no-sideways-slice', () => {
     const { files, lines } = await findSidewaysBreaches(FIXTURE_ROOT);
     expect(files).toEqual([
       'apps/admin-console/src/features/alpha/ui/Sideways.tsx',
+      'apps/admin-console/src/widgets/alpha/ui/Sideways.tsx',
       'apps/docs/src/features/alpha/usecase/index.ts',
     ]);
-    expect(lines).toBe(5);
+    expect(lines).toBe(6);
   });
 
   it('has no sideways import outside the inventory', async () => {

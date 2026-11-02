@@ -499,6 +499,97 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ).toHaveLength(0);
   });
 
+  it("rejects a widget, entity or page importing another slice's internals", async () => {
+    const found = await violations('console-feature-imports-only-index');
+    const pairs = [
+      ['widgets/shell/ui/reachesEntityInternals.ts', 'entities/session/services/principal.ts'],
+      ['pages/home/ui/reachesWidgetInternals.ts', 'widgets/shell/ui/own.ts'],
+    ];
+    for (const [from, to] of pairs) {
+      expect(found.some((v) => v.from.endsWith(from) && v.to.endsWith(to))).toBe(true);
+    }
+  });
+
+  it("permits a slice importing another layer's index.ts and its own internals", async () => {
+    const output = await cruiseFixtures();
+    const clean = [
+      'widgets/shell/ui/usesEntityIndex.ts',
+      'widgets/shell/ui/Shell.ts',
+      'pages/home/ui/usesWidgetIndex.ts',
+      'features/clients/usesUpperLayers.ts',
+    ];
+    for (const file of clean) {
+      expect(output.modules.some((m) => m.source.endsWith(file))).toBe(true);
+      expect(output.summary.violations.filter((v) => v.from.endsWith(file))).toHaveLength(0);
+    }
+  });
+
+  it('rejects a widget, entity or page index.ts publishing an adapter or a helper', async () => {
+    const found = await violations('console-index-exports-view-usecase-service');
+    expect(
+      found.some(
+        (v) => v.from.endsWith('entities/odd/index.ts') && v.to.endsWith('adapter/wire.ts'),
+      ),
+    ).toBe(true);
+    expect(
+      found.some(
+        (v) => v.from.endsWith('widgets/odd/index.ts') && v.to.endsWith('helpers/tool.ts'),
+      ),
+    ).toBe(true);
+    expect(
+      found.some((v) => v.from.endsWith('pages/odd/index.ts') && v.to.endsWith('helpers/tool.ts')),
+    ).toBe(true);
+  });
+
+  it('permits a widget, entity or page index.ts publishing its own services and views', async () => {
+    const found = await violations('console-index-exports-view-usecase-service');
+    for (const file of [
+      'entities/session/index.ts',
+      'widgets/shell/index.ts',
+      'pages/home/index.ts',
+    ]) {
+      expect(found.some((v) => v.from.endsWith(file))).toBe(false);
+    }
+  });
+
+  it('rejects console shared code importing a widget', async () => {
+    const found = await violations('console-shared-imports-no-feature');
+    expect(found.some((v) => v.from.endsWith('shared/services/reachesWidget.ts'))).toBe(true);
+  });
+
+  it('rejects an entity, widget or page importing app/', async () => {
+    const found = await violations('console-nothing-imports-app');
+    for (const file of ['entities/session/services/reachesApp.ts', 'pages/home/ui/reachesApp.ts']) {
+      expect(found.some((v) => v.from.endsWith(file))).toBe(true);
+    }
+  });
+
+  it('rejects an entity or shared code importing a layer above it', async () => {
+    const found = await violations('console-lower-layers-import-no-upper');
+    const pairs = [
+      ['entities/session/services/reachesWidget.ts', 'widgets/shell/index.ts'],
+      ['entities/session/services/reachesPage.ts', 'pages/home/index.ts'],
+      ['entities/session/services/reachesFeature.ts', 'features/clients/index.ts'],
+      ['entities/session/services/reachesApp.ts', 'app/router.ts'],
+      ['shared/services/reachesWidget.ts', 'widgets/shell/index.ts'],
+    ];
+    for (const [from, to] of pairs) {
+      expect(found.some((v) => v.from.endsWith(from) && v.to.endsWith(to))).toBe(true);
+    }
+  });
+
+  it('lets a feature slice in waiting import a widget and an entity', async () => {
+    const found = await violations('console-lower-layers-import-no-upper');
+    expect(found.some((v) => v.from.includes('/features/'))).toBe(false);
+  });
+
+  it('rejects a widget importing a page, and only a widget', async () => {
+    const found = await violations('console-widgets-import-no-page');
+    expect(found.map((v) => v.from.replace(/^.*\/src\//u, ''))).toEqual([
+      'widgets/shell/ui/reachesPage.ts',
+    ]);
+  });
+
   it('rejects console code importing the gallery', async () => {
     const found = await violations('console-nothing-imports-gallery');
     expect(found.some((v) => v.from.endsWith('shared/repository/galleryLeak.ts'))).toBe(true);

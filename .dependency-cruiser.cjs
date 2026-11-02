@@ -65,13 +65,18 @@ module.exports = {
       name: 'console-feature-imports-only-index',
       severity: 'error',
       comment:
-        "A console feature's index.ts is its only importable surface, to other features and to " +
-        'app/ alike; everything else in it can change without anything outside noticing.',
-      // From app/ the group is empty, so no feature is exempt; from a feature
-      // it is that feature, which may reach its own internals.
-      from: { path: '(^|/)apps/admin-console/src/(?:app/|features/([^/]+)/)' },
+        "A console slice's index.ts (a feature, widget, entity or page) is its only importable " +
+        'surface, to other slices and to app/ alike; everything else in it can change without ' +
+        'anything outside noticing.',
+      // From app/ the group is empty, so no slice is exempt; from a slice it is
+      // that slice's layer and name, which may reach its own internals.
+      from: {
+        path: '(^|/)apps/admin-console/src/(?:app/|((?:features|widgets|entities|pages)/[^/]+)/)',
+      },
       // $2 is substituted unescaped; tests/lint/console-feature-names.test.ts keeps it regex-safe.
-      to: { path: '(^|/)apps/admin-console/src/features/(?!$2/)[^/]+/(?!index\\.ts$)' },
+      to: {
+        path: '(^|/)apps/admin-console/src/(?!$2/)(?:features|widgets|entities|pages)/[^/]+/(?!index\\.ts$)',
+      },
     },
     {
       name: 'console-service-imports-only-service',
@@ -94,22 +99,45 @@ module.exports = {
       name: 'console-index-exports-view-usecase-service',
       severity: 'error',
       comment:
-        "A console feature's index.ts publishes its own views, usecases and services. A " +
-        'repository or adapter published there would hand another feature the store or the ' +
-        'wire past every layer rule; a type-only export of anything is allowed.',
-      from: { path: '(^|/)apps/admin-console/src/features/([^/]+)/index\\.ts$' },
+        "A console slice's index.ts (a feature, widget, entity or page) publishes its own views, " +
+        'usecases and services. A repository or adapter published there would hand another ' +
+        'slice the store or the wire past every layer rule; a type-only export of anything is ' +
+        'allowed.',
+      from: {
+        path: '(^|/)apps/admin-console/src/((?:features|widgets|entities|pages)/[^/]+)/index\\.ts$',
+      },
       // $2 is substituted unescaped; tests/lint/console-feature-names.test.ts keeps it regex-safe.
       to: {
-        pathNot: '(^|/)apps/admin-console/src/features/$2/(?:ui|use-cases|services)(?:/|\\.tsx?$)',
+        pathNot: '(^|/)apps/admin-console/src/$2/(?:ui|use-cases|services)(?:/|\\.tsx?$)',
         dependencyTypesNot: ['type-only'],
       },
     },
     {
       name: 'console-shared-imports-no-feature',
       severity: 'error',
-      comment: 'shared/ holds only what two or more features use, so it depends on none of them.',
+      comment:
+        'shared/ holds only what two or more slices use, so it depends on no feature, widget, ' +
+        'entity or page.',
       from: { path: '(^|/)apps/admin-console/src/shared/' },
-      to: { path: '(^|/)apps/admin-console/src/features/' },
+      to: { path: '(^|/)apps/admin-console/src/(?:features|widgets|entities|pages)/' },
+    },
+    {
+      name: 'console-lower-layers-import-no-upper',
+      severity: 'error',
+      comment:
+        'Imports run down the layers: app, pages, widgets, features, entities, shared. ' +
+        'entities/ and shared/ import none of widgets, pages, features or app. The area ' +
+        'slices still in features/ are pages in waiting and are not a source here, so they may ' +
+        'import a widget or an entity.',
+      from: { path: '(^|/)apps/admin-console/src/(?:entities|shared)/' },
+      to: { path: '(^|/)apps/admin-console/src/(?:widgets|pages|features|app)/' },
+    },
+    {
+      name: 'console-widgets-import-no-page',
+      severity: 'error',
+      comment: 'A widget is composed into a page, so it never imports one.',
+      from: { path: '(^|/)apps/admin-console/src/widgets/' },
+      to: { path: '(^|/)apps/admin-console/src/pages/' },
     },
     {
       name: 'console-nothing-imports-app',
@@ -117,7 +145,7 @@ module.exports = {
       comment:
         'app/ is the composition root. With console-feature-imports-only-index it is the one ' +
         "place that sees every feature's index.ts together, and nothing below it sees app/.",
-      from: { path: '(^|/)apps/admin-console/src/(?:shared|features)/' },
+      from: { path: '(^|/)apps/admin-console/src/(?:shared|features|widgets|entities|pages)/' },
       to: { path: '(^|/)apps/admin-console/src/app/' },
     },
     {
