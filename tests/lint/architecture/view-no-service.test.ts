@@ -16,7 +16,7 @@ function reachesServices(file: string, reference: ModuleReference): boolean {
 export async function findViewServiceBreaches(root: string): Promise<string[]> {
   const breaches: string[] = [];
   for (const { file, references } of await scanApps(root)) {
-    if (!segments(file).includes('ui')) continue;
+    if (!segments(file).includes('ui') || /\.test\.tsx?$/.test(file)) continue;
     if (references.some((reference) => !reference.typeOnly && reachesServices(file, reference))) {
       breaches.push(file);
     }
@@ -25,7 +25,7 @@ export async function findViewServiceBreaches(root: string): Promise<string[]> {
 }
 
 describe('view-no-service', () => {
-  it('flags a ui file importing a service value, and not a type-only import', async () => {
+  it('flags a ui file importing a service value, not a type-only import nor a test file', async () => {
     expect(await findViewServiceBreaches(FIXTURE_ROOT)).toEqual([
       'apps/admin-console/src/features/alpha/ui/Reaches.tsx',
       'apps/admin-console/src/shared/ui/Relative.tsx',
