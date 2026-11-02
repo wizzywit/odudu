@@ -1,6 +1,6 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useAuthority, useRefusal } from '#/features/session';
+import { useAuthority, useRefusal } from '#/entities/session';
 import { useAdministratorGrant } from '#/features/system-admins/repository/useAdministratorChange';
 import { usePickerHolders } from '#/features/system-admins/repository/usePickerHolders';
 import { useSubjectPicker } from '#/shared/repository/useSubjectPicker';

@@ -1,5 +1,5 @@
 import type { ListThemeVersionsResponse } from '@odudu/contracts/admin';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { useThemeVersions } from '#/features/branding/repository/useThemeVersions';
 import type { ThemeWrites } from '#/features/branding/repository/useThemeWrites';
 import { restoreFailure } from '#/features/branding/services/failures';

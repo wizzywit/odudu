@@ -1,12 +1,11 @@
 import type { ListedSubject } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { usePrincipal } from '#/features/session';
+import { usePrincipal, isSelf } from '#/entities/session';
 import { useHolderList } from '#/features/subjects/repository/useHolders';
 import { subjectHref, subjectName } from '#/features/subjects/services/address';
 import { reachesEveryTenant } from '#/features/subjects/services/holdings';
 import { heldLines, type HeldLine } from '#/features/subjects/services/roles';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
-import { isSelf } from '#/shared/services/principal';
 import type { ResourceListState } from '#/shared/services/resourceList';
 
 export interface Holder {

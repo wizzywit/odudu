@@ -1,5 +1,5 @@
 import type { SmtpConfig } from '@odudu/contracts/admin';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { smtpSave } from '#/features/email/repository/smtpSave';
 import { SMTP_RECORD } from '#/features/email/repository/useSmtpRecord';
 import {

@@ -1,6 +1,6 @@
 import type { ClientScope } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useAuthority, useRefusal } from '#/features/session';
+import { useAuthority, useRefusal } from '#/entities/session';
 import { useCopySource, useCreateScope } from '#/features/scopes/repository/useCreateScope';
 import { scopeHref, scopesHref } from '#/features/scopes/services/address';
 import {

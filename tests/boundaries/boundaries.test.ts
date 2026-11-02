@@ -440,6 +440,13 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     );
   });
 
+  it("permits an entity's service importing its own types", async () => {
+    const found = await violations('console-service-imports-only-service');
+    expect(found.some((v) => v.from.endsWith('entities/session/services/usesOwnTypes.ts'))).toBe(
+      false,
+    );
+  });
+
   it("rejects a widget's service importing another widget's index.ts", async () => {
     const found = await violations('console-service-imports-only-service');
     expect(

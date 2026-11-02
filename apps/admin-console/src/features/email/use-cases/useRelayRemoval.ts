@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { useSmtpRemove } from '#/features/email/repository/useSmtpWrites';
 import { removeOutcome } from '#/features/email/services/remove';
 import { useToast } from '#/shared/repository/useToasts';

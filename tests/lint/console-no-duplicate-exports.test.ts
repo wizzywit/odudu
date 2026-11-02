@@ -110,7 +110,9 @@ function ownerOf(file: string): string | null {
   if (file.startsWith('e2e/')) return file;
   const parts = file.split('/');
   if (parts[0] !== 'src') return null;
-  if (parts[1] === 'features') return `features/${parts[2] ?? ''}`;
+  if (['features', 'entities', 'widgets', 'pages'].includes(parts[1] ?? '')) {
+    return `${parts[1] ?? ''}/${parts[2] ?? ''}`;
+  }
   if (parts[1] === 'shared' || parts[1] === 'app') return parts[1];
   if (parts[1] === 'gallery' || parts[1] === 'testing') return null;
   return file;

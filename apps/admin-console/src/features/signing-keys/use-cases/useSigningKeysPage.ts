@@ -1,6 +1,6 @@
 import type { SigningKey, SigningKeyAlg } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { useKeyLane, type KeyLane } from '#/features/signing-keys/repository/useKeyLane';
 import {
   useDeleteKey,

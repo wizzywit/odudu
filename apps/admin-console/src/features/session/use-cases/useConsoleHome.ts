@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { rememberedTenant } from '#/features/session/repository/useSessionQuery';
-import { CHOOSE_TENANT } from '#/features/session/services/loginUrl';
-import { type Principal } from '#/shared/services/principal';
 import {
+  rememberedTenant,
+  CHOOSE_TENANT,
+  type Principal,
   entersDirectly,
   homeTarget,
   isSystemPrincipal,
   replacedSession,
-} from '#/features/session/services/entry';
-import { LOGIN_ERROR, loginNotice, switchFailedText } from '#/features/session/services/loginError';
-import { namedTenant, tenantProblem } from '#/features/session/services/tenant';
-import { useSignedIn } from '#/features/session/use-cases/useSignedIn';
-import { useSignIn } from '#/features/session/use-cases/useSignIn';
+  LOGIN_ERROR,
+  loginNotice,
+  switchFailedText,
+  namedTenant,
+  tenantProblem,
+  useSignedIn,
+  useSignIn,
+} from '#/entities/session';
 import { useGo } from '#/shared/repository/useGo';
 import { useToast } from '#/shared/repository/useToasts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';

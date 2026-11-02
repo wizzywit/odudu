@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
-import { useSession } from '#/features/session/use-cases/useSession';
+import { useSession, SignedInContext } from '#/entities/session';
 import { usePlaceholderDue } from '#/features/session/use-cases/usePlaceholderDue';
-import { SignedInContext } from '#/features/session/use-cases/useSignedIn';
 import { PrincipalChanged } from '#/features/session/ui/PrincipalChanged';
 import { SessionStatus } from '#/features/session/ui/SessionStatus';
 import { CONSOLE_TITLE } from '#/shared/services/product';

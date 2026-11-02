@@ -1,7 +1,7 @@
 import type { Client, Role } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { roleHref, rolesHref } from '#/features/roles';
-import { useAuthority, useRefusal } from '#/features/session';
+import { useAuthority, useRefusal } from '#/entities/session';
 import {
   useClientRoleList,
   useCreateClientRole,

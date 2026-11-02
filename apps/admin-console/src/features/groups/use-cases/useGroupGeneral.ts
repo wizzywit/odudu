@@ -1,6 +1,6 @@
 import type { Group, GroupRecord } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal, useRereadAuthority } from '#/features/session';
+import { useRefusal, useRereadAuthority } from '#/entities/session';
 import { useOwnRoles } from '#/features/subjects';
 import { useGo } from '#/shared/repository/useGo';
 import {

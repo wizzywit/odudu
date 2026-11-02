@@ -1,7 +1,7 @@
 import type { Client, TenantSession } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { subjectHref } from '#/features/subjects';
-import { useAuthority, useRefusal } from '#/features/session';
+import { useAuthority, useRefusal } from '#/entities/session';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import {
   useClientSessionList,

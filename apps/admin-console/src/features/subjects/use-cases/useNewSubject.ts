@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuthority, useRefusal } from '#/features/session';
+import { useAuthority, useRefusal } from '#/entities/session';
 import { useCreateSubject } from '#/features/subjects/repository/useCreateSubject';
 import { useGo } from '#/shared/repository/useGo';
 import { USERNAME_RULE_TEXT, usernameProblem } from '#/features/subjects/services/account';

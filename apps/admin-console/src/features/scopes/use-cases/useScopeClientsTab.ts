@@ -1,5 +1,5 @@
 import type { Client, ClientScope, ScopeClient } from '@odudu/contracts/admin';
-import { useAuthority, useRefusal } from '#/features/session';
+import { useAuthority, useRefusal } from '#/entities/session';
 import {
   useClientAssignment,
   useScopeClients,

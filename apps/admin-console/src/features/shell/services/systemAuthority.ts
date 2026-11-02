@@ -1,5 +1,6 @@
 import { holds } from '#/shared/services/access';
-import { SYSTEM_TENANT, type Authority, type Principal } from '#/shared/services/principal';
+import { SYSTEM_TENANT, type Authority } from '#/shared/services/principal';
+import { type Principal } from '#/entities/session';
 
 export function showsSystemArea(
   principal: Principal,

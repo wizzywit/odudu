@@ -1,5 +1,5 @@
 import type { Tenant } from '@odudu/contracts/admin';
-import { useAuthority } from '#/features/session';
+import { useAuthority } from '#/entities/session';
 import { useTenantRecord } from '#/features/tenants/repository/useTenantRecord';
 import { tenantRecordAccess, type TenantRecordAccess } from '#/features/tenants/services/access';
 import { tenantRecord, TENANT_TABS, type TenantTab } from '#/features/tenants/services/tabs';

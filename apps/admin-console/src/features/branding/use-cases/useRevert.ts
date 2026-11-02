@@ -1,6 +1,6 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { useThemeWrites } from '#/features/branding/repository/useThemeWrites';
 import { revertHoldOf } from '#/features/branding/services/holds';
 import {

@@ -1,5 +1,5 @@
 import type { SetRolesResponse, Subject } from '@odudu/contracts/admin';
-import { useAuthority, useRefusal, useRereadAuthority } from '#/features/session';
+import { useAuthority, useRefusal, useRereadAuthority } from '#/entities/session';
 import {
   useAdminRoleIds,
   useHeldCapabilities,

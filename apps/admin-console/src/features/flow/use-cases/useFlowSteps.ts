@@ -1,6 +1,6 @@
 import type { ExecutionRequirement, ListExecutionsResponse } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { flowSaves, FLOW_RECORD, type StepValues } from '#/features/flow/repository/useFlowRecord';
 import { flowOutcome } from '#/features/flow/services/refusal';
 import { FLOW_TITLE, DEFAULT_ADDED, requirementOf } from '#/features/flow/services/requirements';

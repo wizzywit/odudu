@@ -294,7 +294,7 @@ async function read(pattern: string): Promise<Map<string, string>> {
 function scopes(): string[] {
   return [
     `${SRC}/shared/{use-cases,repository}/**/*.ts`,
-    `${SRC}/features/*/{use-cases,repository}/**/*.ts`,
+    `${SRC}/{features,entities,widgets,pages}/*/{use-cases,repository}/**/*.ts`,
     // The docs app has no repositories: its usecases are held to the same rule.
     'apps/docs/src/shared/use-cases/**/*.ts',
     'apps/docs/src/features/*/use-cases/**/*.ts',

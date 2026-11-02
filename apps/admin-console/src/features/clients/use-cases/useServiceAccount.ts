@@ -1,6 +1,6 @@
 import type { Client, Role, SetRolesResponse } from '@odudu/contracts/admin';
 import { subjectHref } from '#/features/subjects';
-import { useAuthority, useRefusal } from '#/features/session';
+import { useAuthority, useRefusal } from '#/entities/session';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import {
   useSaveServiceRoles,

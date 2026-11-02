@@ -1,5 +1,5 @@
 import type { ThemeView } from '@odudu/contracts/admin';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { templateSave } from '#/features/branding/repository/themeSaves';
 import { type PublishOutcome } from '#/features/branding/services/edits';
 import { templateFields, TEMPLATES_SECTION_TITLE } from '#/features/branding/services/fields';

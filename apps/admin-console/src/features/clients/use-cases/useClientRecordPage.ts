@@ -1,6 +1,6 @@
 import type { ClientRecord } from '@odudu/contracts/admin';
 import { clientScope, useScopeEdits } from '#/features/branding';
-import { useAuthority } from '#/features/session';
+import { useAuthority } from '#/entities/session';
 import { useClientRecord } from '#/features/clients/repository/useClientRecord';
 import { serviceRolesRecordOf } from '#/features/clients/services/account';
 import { brandingOffer, type BrandingOffer } from '#/features/clients/services/branding';

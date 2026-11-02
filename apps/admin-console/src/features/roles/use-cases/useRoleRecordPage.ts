@@ -1,5 +1,5 @@
 import type { Role } from '@odudu/contracts/admin';
-import { useAuthority } from '#/features/session';
+import { useAuthority } from '#/entities/session';
 import { useRoleRecord } from '#/features/roles/repository/useRoleRecord';
 import { copyHrefOf } from '#/features/roles/services/address';
 import { type Ceiling, roleCeiling } from '#/features/roles/services/ceiling';

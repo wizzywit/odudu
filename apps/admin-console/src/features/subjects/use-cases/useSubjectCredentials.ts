@@ -1,6 +1,6 @@
 import type { ListCredentialsResponse, Lockout, Subject } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import {
   useCredentialChanges,
   useCredentials,

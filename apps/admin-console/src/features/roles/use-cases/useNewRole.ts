@@ -1,6 +1,6 @@
 import type { Role } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useAuthority, useRefusal } from '#/features/session';
+import { useAuthority, useRefusal } from '#/entities/session';
 import { useCopySource, useCreateRole } from '#/features/roles/repository/useCreateRole';
 import { useGo } from '#/shared/repository/useGo';
 import { roleHref, rolesHref } from '#/features/roles/services/address';

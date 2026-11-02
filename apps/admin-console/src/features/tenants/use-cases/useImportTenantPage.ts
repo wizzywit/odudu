@@ -1,6 +1,6 @@
 import type { ImportError } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { useImport } from '#/features/tenants/repository/useImport';
 import {
   chosenFileOf,

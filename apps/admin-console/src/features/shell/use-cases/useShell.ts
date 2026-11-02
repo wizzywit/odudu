@@ -1,5 +1,11 @@
 import { useLocation } from '@tanstack/react-router';
-import { SWITCH_HREF, useAuthority, useAuthorityAnswered, useSignOut } from '#/features/session';
+import {
+  SWITCH_HREF,
+  useAuthority,
+  useAuthorityAnswered,
+  useSignOut,
+  type Principal,
+} from '#/entities/session';
 import { type RailSection } from '#/features/shell/services/railGroups';
 import { dialogOpen, pathnameOf } from '#/features/shell/services/pageContext';
 import { currentHref, railGroups, systemRecordHref } from '#/features/shell/services/railGroups';
@@ -10,7 +16,6 @@ import {
 import { useDialogHost } from '#/shared/repository/useDialogHost';
 import { useRailCollapsed } from '#/features/shell/repository/useRailCollapsed';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
-import type { Principal } from '#/shared/services/principal';
 import type { ThemeChoice } from '#/shared/services/theme';
 import { useTheme } from '#/shared/repository/useTheme';
 

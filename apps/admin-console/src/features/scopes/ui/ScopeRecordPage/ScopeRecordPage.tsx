@@ -1,6 +1,6 @@
 import type { ClientScope } from '@odudu/contracts/admin';
 import type { ReactNode } from 'react';
-import { useAuditReadable } from '#/features/session';
+import { useAuditReadable } from '#/entities/session';
 import { AreaGate } from '#/features/shell';
 import { areaAt } from '#/entities/area';
 import { scopesTrail } from '#/features/scopes/services/address';

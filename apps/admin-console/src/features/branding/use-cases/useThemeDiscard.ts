@@ -1,4 +1,4 @@
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import type { ThemeWrites } from '#/features/branding/repository/useThemeWrites';
 import {
   DISCARD_DONE,

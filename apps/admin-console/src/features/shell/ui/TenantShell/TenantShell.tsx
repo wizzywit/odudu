@@ -1,16 +1,12 @@
 import type { ReactNode } from 'react';
-import {
-  SignedInElsewhere,
-  SigningIn,
-  useTenantAccess,
-  useTenantMissing,
-} from '#/features/session';
+import { SignedInElsewhere, SigningIn } from '#/features/session';
+import { useTenantAccess, useTenantMissing, type Principal } from '#/entities/session';
 import { areasLabel, brandText } from '#/features/shell/services/shellText';
 import { useShell } from '#/features/shell/use-cases/useShell';
 import { RailFooter } from '#/features/shell/ui/RailFooter';
 import { TenantNotFound } from '#/features/shell/ui/TenantNotFound';
 import { PRODUCT_NAME } from '#/shared/services/product';
-import { isTenantName, type Principal } from '#/shared/services/principal';
+import { isTenantName } from '#/shared/services/principal';
 import { AppShell } from '#/shared/ui/AppShell';
 import { BrandLine } from '#/shared/ui/BrandLine';
 import { ContextBar } from '#/shared/ui/ContextBar';

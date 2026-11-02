@@ -1,4 +1,4 @@
-import { type Principal } from '#/shared/services/principal';
+import { type Principal } from '#/entities/session';
 import { continueAsLabel, signInAgainLabel } from '#/features/session/services/signInText';
 import { SessionStatus } from '#/features/session/ui/SessionStatus';
 import { Button } from '#/shared/ui/Button';

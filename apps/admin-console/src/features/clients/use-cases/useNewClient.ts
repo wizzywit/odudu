@@ -1,6 +1,6 @@
 import type { Client } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { useCreateClient } from '#/features/clients/repository/useCreateClient';
 import { useGo } from '#/shared/repository/useGo';
 import { clientHref, clientsHref } from '#/features/clients/services/address';

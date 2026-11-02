@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { useAuditExport } from '#/features/audit/repository/useAuditExport';
 import { exportFailureText, savedText } from '#/features/audit/services/export';
 import { type AuditFilters } from '#/features/audit/services/filters';

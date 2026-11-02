@@ -1,5 +1,5 @@
 import type { Settings } from '@odudu/contracts/admin';
-import { usePrincipal, useRefusal } from '#/features/session';
+import { usePrincipal, useRefusal, isOwnTenant } from '#/entities/session';
 import { settingsSave, type SectionValues } from '#/features/settings/repository/settingsSave';
 import { disablesTenant } from '#/features/settings/services/general';
 import { type SettingsSection } from '#/features/settings/services/sections';
@@ -13,7 +13,6 @@ import { writeRefusal } from '#/shared/services/capabilities';
 import { disableConsequence } from '#/shared/services/tenantEnabled';
 import { TENANT_SETTINGS_RECORD } from '#/shared/services/tenantSettings';
 import { useSaveConfirmation } from '#/shared/use-cases/useSaveConfirmation';
-import { isOwnTenant } from '#/shared/services/principal';
 
 export type SettingsSave = SectionSave<SectionValues>;
 

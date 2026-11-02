@@ -85,7 +85,8 @@ module.exports = {
         'A console service is pure: it imports other services, its own or shared/services, and ' +
         '@odudu/contracts, and nothing else. A feature index.ts is refused too, since it ' +
         'reaches views and usecases, and through them the stores; an entity index is the one ' +
-        'index admitted, since a service in a higher layer computes from the domain it owns. ' +
+        'index admitted, since a service in a higher layer computes from the domain it owns, and ' +
+        "an entity's own types/ folder is admitted, since it holds declarations only. " +
         'libphonenumber-js is admitted as the one pure library a service computes with: ' +
         'numbering plans are data, not I/O.',
       from: {
@@ -94,7 +95,7 @@ module.exports = {
       },
       to: {
         pathNot:
-          '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)|(^|/)apps/admin-console/src/entities/[^/]+/index\\.ts$|(^|/)packages/contracts/|/node_modules/libphonenumber-js/',
+          '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)|(^|/)apps/admin-console/src/entities/[^/]+/(?:index\\.ts$|types/)|(^|/)packages/contracts/|/node_modules/libphonenumber-js/',
       },
     },
     {

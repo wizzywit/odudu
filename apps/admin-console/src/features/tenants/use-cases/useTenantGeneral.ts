@@ -1,6 +1,6 @@
 import type { Tenant } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { usePrincipal, useRefusal } from '#/features/session';
+import { usePrincipal, useRefusal, isOwnTenant } from '#/entities/session';
 import {
   saveGeneral,
   useTenantEnabled,
@@ -12,7 +12,7 @@ import { useSectionSave, type SectionSave } from '#/shared/repository/useSection
 import { useToast } from '#/shared/repository/useToasts';
 import { enabledText } from '#/shared/services/failure';
 import { disableConsequence, disableFixed } from '#/shared/services/tenantEnabled';
-import { isOwnTenant, SYSTEM_TENANT } from '#/shared/services/principal';
+import { SYSTEM_TENANT } from '#/shared/services/principal';
 import { orBlank } from '#/shared/services/format';
 
 export interface EnabledControl {

@@ -1,6 +1,6 @@
 import type { Client, Subject } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useAuthority } from '#/features/session';
+import { useAuthority } from '#/entities/session';
 import { useEvaluation } from '#/features/clients/repository/useClientEvaluation';
 import { useSubjectPicker } from '#/shared/repository/useSubjectPicker';
 import {

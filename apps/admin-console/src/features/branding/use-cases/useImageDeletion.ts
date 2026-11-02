@@ -1,4 +1,4 @@
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { useAssetDelete } from '#/features/branding/repository/useThemeAssets';
 import { deleteImageFailure } from '#/features/branding/services/failures';
 import { writeCapability } from '#/features/branding/services/publication';

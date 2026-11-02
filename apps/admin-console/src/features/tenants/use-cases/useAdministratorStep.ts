@@ -1,4 +1,4 @@
-import { useAuthority } from '#/features/session';
+import { useAuthority } from '#/entities/session';
 import { useFindSubject, useFirstAdministrator } from '#/features/tenants/repository/useCreation';
 import { systemAdminsHrefOf } from '#/features/tenants/services/address';
 import {

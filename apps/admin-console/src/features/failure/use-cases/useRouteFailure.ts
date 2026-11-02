@@ -4,7 +4,7 @@ import { focusPageMain } from '#/features/failure/repository/failureReport';
 import { overviewAddress } from '#/features/failure/services/address';
 import { routeTemplate } from '#/features/failure/services/report';
 import { useFailureReport, type FailureShown } from '#/features/failure/use-cases/useFailureReport';
-import { useReloadConsole } from '#/features/session';
+import { useReloadConsole } from '#/entities/session';
 
 export interface RouteFailureShown extends FailureShown {
   overviewHref: string;

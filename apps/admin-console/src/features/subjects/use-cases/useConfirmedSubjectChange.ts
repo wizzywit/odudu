@@ -1,4 +1,4 @@
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { changeFailureText } from '#/features/subjects/services/access';
 import { useToast } from '#/shared/repository/useToasts';
 import type { Write } from '#/shared/repository/useWrite';

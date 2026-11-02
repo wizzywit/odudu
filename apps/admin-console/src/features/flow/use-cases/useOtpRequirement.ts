@@ -1,5 +1,5 @@
 import type { Settings } from '@odudu/contracts/admin';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { flowSaves, type OtpValues } from '#/features/flow/repository/useFlowRecord';
 import {
   describeOtp,

@@ -1,6 +1,6 @@
 import type { MessageOverride, Settings } from '@odudu/contracts/admin';
 import { useRef, useState } from 'react';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { languagesSave } from '#/features/branding/repository/languagesSave';
 import { useOverrideList, useOverrideWrites } from '#/features/branding/repository/useOverrides';
 import { useMessageKeys } from '#/features/branding/use-cases/useMessageKeys';

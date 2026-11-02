@@ -1,5 +1,5 @@
 import { Link } from 'react-aria-components';
-import { type Principal } from '#/shared/services/principal';
+import { type Principal } from '#/entities/session';
 import {
   backToLabel,
   signedInToTitle,

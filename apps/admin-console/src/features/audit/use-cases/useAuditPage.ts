@@ -1,6 +1,6 @@
 import type { AuditEvent } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useAuthority } from '#/features/session';
+import { useAuthority } from '#/entities/session';
 import { areaAt, areaHref } from '#/entities/area';
 import { clientHref } from '#/features/clients';
 import { groupHref } from '#/features/groups';

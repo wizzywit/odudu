@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuthority, useRefusal } from '#/features/session';
+import { useAuthority, useRefusal } from '#/entities/session';
 import { useExport } from '#/features/tenants/repository/useExport';
 import {
   exportBlame,

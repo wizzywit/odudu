@@ -1,4 +1,4 @@
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import type { ThemeWrites } from '#/features/branding/repository/useThemeWrites';
 import { resetFailure } from '#/features/branding/services/failures';
 import { writeCapability } from '#/features/branding/services/publication';

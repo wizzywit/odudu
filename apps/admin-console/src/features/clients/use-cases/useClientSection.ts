@@ -1,5 +1,5 @@
 import type { ClientRecord } from '@odudu/contracts/admin';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import {
   ceilingRefused,

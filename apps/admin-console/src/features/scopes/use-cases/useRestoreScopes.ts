@@ -6,7 +6,7 @@ import {
   restoreOffer,
   restoreText,
 } from '#/features/scopes/services/restore';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { useToast } from '#/shared/repository/useToasts';
 import { useConfirmedRemoval } from '#/shared/use-cases/useConfirmedChange';
 

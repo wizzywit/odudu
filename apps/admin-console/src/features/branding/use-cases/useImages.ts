@@ -1,6 +1,6 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { useAssetUpload } from '#/features/branding/repository/useThemeAssets';
 import { useSlotImages } from '#/features/branding/repository/useSlotImages';
 import { imageSave } from '#/features/branding/repository/themeSaves';

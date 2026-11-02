@@ -1,6 +1,6 @@
 import type { RegistrationToken } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { useTokenList } from '#/features/registration-tokens/repository/useTokenList';
 import {
   useTokenMint,

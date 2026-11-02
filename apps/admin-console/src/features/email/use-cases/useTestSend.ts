@@ -1,6 +1,6 @@
 import type { Client } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useAuthority } from '#/features/session';
+import { useAuthority } from '#/entities/session';
 import { useSmtpTest } from '#/features/email/repository/useSmtpWrites';
 import {
   testBlocked,

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { EndTenantSessionsResponse, TenantSession } from '@odudu/contracts/admin';
-import { useAuthority, usePrincipal, useRefusal } from '#/features/session';
+import { useAuthority, usePrincipal, useRefusal, isOwnTenant } from '#/entities/session';
 import { subjectHref } from '#/features/subjects';
 import {
   useEndTenantSessions,
@@ -15,7 +15,6 @@ import {
 } from '#/features/tenant-sessions/services/page';
 import { useToast } from '#/shared/repository/useToasts';
 import { holds } from '#/shared/services/access';
-import { isOwnTenant } from '#/shared/services/principal';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import { useConfirmedChange, type Confirming } from '#/shared/use-cases/useConfirmedChange';
 

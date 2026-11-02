@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { draftOwner, usePrincipal } from '#/features/session';
+import { draftOwner, usePrincipal } from '#/entities/session';
 import { useCreationProgress } from '#/features/tenants/repository/useCreation';
 import { useSystemIssuer } from '#/features/tenants/repository/useSystemIssuer';
 import {

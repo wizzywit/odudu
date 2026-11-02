@@ -1,5 +1,5 @@
 import type { ThemeView } from '@odudu/contracts/admin';
-import { useRefusal } from '#/features/session';
+import { useRefusal } from '#/entities/session';
 import { colourSave } from '#/features/branding/repository/themeSaves';
 import {
   coloursHold,

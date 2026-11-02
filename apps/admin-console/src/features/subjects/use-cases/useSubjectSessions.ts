@@ -7,7 +7,7 @@ import type {
   Subject,
 } from '@odudu/contracts/admin';
 import type { AdminCapability } from '#/shared/services/principal';
-import { useAuthority } from '#/features/session';
+import { useAuthority } from '#/entities/session';
 import {
   useConsentList,
   useEndAllSessions,

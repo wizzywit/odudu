@@ -1,5 +1,5 @@
 import type { Group, GroupFields, SetSubjectGroupsResponse, Subject } from '@odudu/contracts/admin';
-import { useRefusal, useRereadAuthority } from '#/features/session';
+import { useRefusal, useRereadAuthority } from '#/entities/session';
 import {
   useHeldCapabilities,
   useGroupsRecord,

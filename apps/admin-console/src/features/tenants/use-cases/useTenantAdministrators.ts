@@ -1,4 +1,4 @@
-import { useAuthority } from '#/features/session';
+import { useAuthority } from '#/entities/session';
 import { systemAdminsHrefOf } from '#/features/tenants/services/address';
 import { administratorCapability, administratorNeeds } from '#/shared/services/administrators';
 import { lacking, notLacking } from '#/shared/services/access';
