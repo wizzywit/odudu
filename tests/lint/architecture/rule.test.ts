@@ -37,9 +37,32 @@ describe('checkRule', () => {
   });
 });
 
+describe('checkRule slice matching', () => {
+  it('does not treat a sibling with the same prefix as the migrated slice', () => {
+    const sibling = 'apps/admin-console/src/pages/clients-extra/x.ts';
+    const { errors } = checkRule('view-no-service', [sibling], {
+      migrated: [SLICE],
+      inventory: [sibling],
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it('reports the migrated error for a file that is also inventoried', () => {
+    const { errors } = checkRule('view-no-service', [MIGRATED_FILE], {
+      migrated: [SLICE],
+      inventory: [MIGRATED_FILE],
+    });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('migrated slice');
+  });
+});
+
 describe('the committed inventory', () => {
-  it.each(RULE_IDS)('%s holds no more entries than its baseline', (id: RuleId) => {
-    expect(INVENTORY[id].length).toBeLessThanOrEqual(baseline[id]);
+  it.each(RULE_IDS)('%s inventory may not gain an entry', (id: RuleId) => {
+    expect(
+      INVENTORY[id].length,
+      `${id}: update inventory.baseline.json in the same commit; a shrink lowers the baseline, a growth is never allowed`,
+    ).toBe(baseline[id]);
   });
 
   it('has a baseline for exactly the known rules', () => {
