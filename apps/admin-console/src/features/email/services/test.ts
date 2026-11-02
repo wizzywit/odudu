@@ -25,7 +25,9 @@ export function testSendable(busy: boolean, blocked: string | undefined): boolea
 
 const refuseAsManageTenant = refusedBy('manage-tenant');
 
-function refusedTestSend(problem: Problem): string | null {
+// Every problem status of a send is worded here, so the copy below has no
+// stale or missing text for a status to be taken by first.
+function testSendProblemText(problem: Problem): string | null {
   const said = problem.detail ?? problem.title;
   const reason = said.endsWith('.') ? said : `${said}.`;
   if (problem.status === 400) return `Not sent. The server said: ${reason}`;
@@ -49,7 +51,7 @@ export function testOutcome(result: GatewayResult<{ sent: boolean }>, to: string
       name: 'The test message',
       verb: 'sent',
       lookAt: 'the inbox',
-      refused: refusedTestSend,
+      refused: testSendProblemText,
     }),
   };
 }

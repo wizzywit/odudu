@@ -1,27 +1,27 @@
 import type { FieldError } from '@odudu/contracts/admin';
 import { type Values } from '#/shared/services/dirty';
 import { fieldErrorsOf } from '#/shared/services/fieldErrors';
-import { CONSOLE_FAULT, writeFailureText } from '#/shared/services/failure';
+import { CONSOLE_FAULT, failureTextWith } from '#/shared/services/failure';
 import type { GatewayFailure, GatewayResult, Problem } from '#/shared/services/result';
 import { type SavePhase, type SectionState } from '#/shared/services/sectionSave/state';
 import { unsavedAfter } from '#/shared/services/sectionSave/transitions';
 
 export function saveFailureText(label: string, failure: GatewayFailure): string {
-  switch (failure.kind) {
-    case 'network':
-      return `Could not confirm that ${label} was saved. Your changes are still here, and saving again is safe.`;
-    case 'schema':
-      return `${label} may have been saved, but its answer could not be read. Reload to check.`;
-    case 'defect':
-      return `The console could not save ${label}. ${CONSOLE_FAULT}`;
-    case 'problem':
-      return writeFailureText(failure, {
-        name: label,
-        verb: 'saved',
-        lookAt: '',
-        missing: `${label} was not saved: it no longer exists.`,
-      });
-  }
+  return failureTextWith(
+    {
+      network: () =>
+        `Could not confirm that ${label} was saved. Your changes are still here, and saving again is safe.`,
+      schema: () =>
+        `${label} may have been saved, but its answer could not be read. Reload to check.`,
+      defect: () => `The console could not save ${label}. ${CONSOLE_FAULT}`,
+    },
+    {
+      name: label,
+      verb: 'saved',
+      lookAt: '',
+      missing: `${label} was not saved: it no longer exists.`,
+    },
+  )(failure);
 }
 
 export interface SaveOutcome {
