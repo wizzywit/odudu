@@ -17,7 +17,7 @@ import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer';
 import { useDirtySection } from '#/shared/repository/useDirtySection';
 import { useRecordTab } from '#/shared/repository/useRecordTab';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
-import { Tabs } from '#/shared/view/Tabs';
+import { Tabs } from '#/shared/ui/Tabs';
 import { resetConsole } from '#/testing/resetConsole';
 
 afterEach(() => {

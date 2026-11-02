@@ -12,7 +12,7 @@ import {
   groupRolesRecord,
   namedGroupRead,
   type GroupRead,
-} from '#/features/groups/service';
+} from '#/features/groups/services';
 import {
   GROUP_KIND,
   groupKey,
@@ -28,7 +28,7 @@ import type { SaveInput } from '#/shared/repository/useSectionSave';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
-import type { DescriptionValues, DefaultValues, RoleValues } from '#/shared/service/sectionValues';
+import type { DescriptionValues, DefaultValues, RoleValues } from '#/shared/services/sectionValues';
 
 export function useGroupRecord(tenant: string, id: string): RecordState<GroupRecord> {
   return useRecord({

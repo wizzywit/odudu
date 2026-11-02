@@ -1,7 +1,7 @@
 import type { AuditEvent } from '@odudu/contracts/admin';
 import { readAuditPage } from '#/shared/adapter/audit';
 import { useResourceList } from '#/shared/repository/useResourceList';
-import type { ResourceListState } from '#/shared/service/resourceList';
+import type { ResourceListState } from '#/shared/services/resourceList';
 
 // A record's Activity is the audit trail with its resource fixed; the API
 // refuses `resource_id` without `resource_type`, so both are required here.

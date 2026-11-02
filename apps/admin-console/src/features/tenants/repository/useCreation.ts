@@ -10,7 +10,7 @@ import {
   freshCreation,
   type Creation,
   type CreationFlow,
-} from '#/features/tenants/service';
+} from '#/features/tenants/services';
 import { createSubject, findSubject, issuePassword } from '#/shared/adapter/administrators';
 import {
   defect,
@@ -23,7 +23,7 @@ import {
   subjectlessRequest,
   type AdministratorCall,
   type AdministratorRequest,
-} from '#/shared/service/administrators';
+} from '#/shared/services/administrators';
 import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce';
 import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
 import { useFreshRead } from '#/shared/repository/useFreshRead';

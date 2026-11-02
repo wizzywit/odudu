@@ -3,8 +3,8 @@ import { useRef } from 'react';
 import { recordKey } from '#/shared/repository/queryKeys';
 import type { RecordEntry } from '#/shared/repository/useRecord';
 import { useToasts } from '#/shared/repository/useToasts';
-import type { Values } from '#/shared/service/dirty';
-import type { AdminCapability } from '#/shared/service/principal';
+import type { Values } from '#/shared/services/dirty';
+import type { AdminCapability } from '#/shared/services/principal';
 import {
   afterSave,
   rereadPhase,
@@ -13,7 +13,7 @@ import {
   valuesOf,
   type SaveOutcome,
   type SectionState,
-} from '#/shared/service/sectionSave';
+} from '#/shared/services/sectionSave';
 import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
 import type { Problem } from '#/shared/transport/problem';
 import { useTransport } from '#/shared/transport/useTransport';

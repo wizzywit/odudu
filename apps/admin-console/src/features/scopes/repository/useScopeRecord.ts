@@ -24,8 +24,8 @@ import {
   scopeRecord,
   scopeRolesRecord,
   type GeneralValues,
-} from '#/features/scopes/service';
-import { uniqueIds } from '#/shared/service/ids';
+} from '#/features/scopes/services';
+import { uniqueIds } from '#/shared/services/ids';
 import {
   builtinScopesKey,
   countKey,
@@ -36,13 +36,13 @@ import {
 import { useAfterChange } from '#/shared/repository/useAfterChange';
 import { useRead } from '#/shared/repository/useRead';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord';
-import type { Read } from '#/shared/service/read';
+import type { Read } from '#/shared/services/read';
 import { useTransport } from '#/shared/transport/useTransport';
 import type { SaveInput } from '#/shared/repository/useSectionSave';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
-import type { Translations } from '#/shared/service/localised';
-import type { DescriptionValues, RoleValues } from '#/shared/service/sectionValues';
+import type { Translations } from '#/shared/services/localised';
+import type { DescriptionValues, RoleValues } from '#/shared/services/sectionValues';
 
 export function useScopeRecord(tenant: string, id: string): RecordState<ClientScope> {
   return useRecord({

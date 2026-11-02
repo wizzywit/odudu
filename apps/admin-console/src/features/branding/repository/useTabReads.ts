@@ -1,7 +1,7 @@
 import { useMessageCatalogue } from '#/features/branding/repository/useMessageCatalogue';
 import { useStylesheetHooks } from '#/features/branding/repository/useStylesheetHooks';
 import { useThemeVersions } from '#/features/branding/repository/useThemeVersions';
-import type { TabReads, ThemeScope } from '#/features/branding/service';
+import type { TabReads, ThemeScope } from '#/features/branding/services';
 import { useTenantSettings } from '#/shared/repository/useTenantSettings';
 
 // Starts the reads a tab will show without waiting for the theme: they share

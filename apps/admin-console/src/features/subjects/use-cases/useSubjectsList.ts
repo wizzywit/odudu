@@ -1,0 +1,23 @@
+import type { Subject } from '@odudu/contracts/admin';
+import { useAuthority } from '#/features/session';
+import { useSubjectList } from '#/features/subjects/repository/useSubjectList';
+import { createSubjectHref, subjectHref } from '#/features/subjects/services';
+import { lacking } from '#/shared/services/access';
+import type { AdminCapability } from '#/shared/services/principal';
+import { useListPage, type ListPageState } from '#/shared/use-cases/useListPage';
+
+// `createHref` is null while whoami says creating would be refused.
+export interface SubjectsList extends ListPageState<Subject, string | null> {
+  // What changing a subject needs that whoami says is missing.
+  changeNeeds: readonly AdminCapability[];
+}
+
+export function useSubjectsList(tenant: string): SubjectsList {
+  const list = useSubjectList(tenant);
+  const authority = useAuthority(tenant);
+  const changeNeeds = lacking(authority, ['manage-users']);
+  return {
+    ...useListPage(list, createSubjectHref(tenant, changeNeeds), (id) => subjectHref(tenant, id)),
+    changeNeeds,
+  };
+}

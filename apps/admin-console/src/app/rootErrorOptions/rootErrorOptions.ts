@@ -1,8 +1,8 @@
 import { CatchBoundary } from '@tanstack/react-router';
 import type { RootOptions } from 'react-dom/client';
 import { caughtIsLogged, RootBoundary, recordFailure, type CaughtBy } from '#/features/failure';
-import { ChunkLoadError } from '#/shared/service/chunkLoad';
-import { ChunkBoundary } from '#/shared/view/ChunkBoundary';
+import { ChunkLoadError } from '#/shared/services/chunkLoad';
+import { ChunkBoundary } from '#/shared/ui/ChunkBoundary';
 
 // The route's own and the root's boundaries draw an id and log it; the chunk
 // boundary draws none; any other boundary is not ours to have an opinion on.

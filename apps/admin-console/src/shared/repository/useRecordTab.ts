@@ -1,5 +1,5 @@
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';
-import { TAB_PARAM, tabNamed } from '#/shared/service/record';
+import { TAB_PARAM, tabNamed } from '#/shared/services/record';
 
 // A record's tab is position, so it lives in the URL; a tab the record does
 // not have falls back to its first. A new tab starts with nothing but its

@@ -1,6 +1,6 @@
 import { loadThemeChoice, storeThemeChoice } from '#/shared/adapter/themeChoice';
 import { restoreThemeCookie, writeThemeCookie } from '#/shared/adapter/themeCookie';
-import type { ThemeChoice } from '#/shared/service/theme';
+import type { ThemeChoice } from '#/shared/services/theme';
 
 // The choice is named on <html> first, so it holds for this page even when
 // the browser refuses to remember it.

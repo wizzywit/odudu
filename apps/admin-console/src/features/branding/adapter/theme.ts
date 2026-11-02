@@ -14,7 +14,7 @@ import {
   type ThemeView,
 } from '@odudu/contracts/admin';
 import { adminCall, nothing, segment } from '#/shared/adapter/route';
-import { staleWhenTagMissing } from '#/shared/service/failure';
+import { staleWhenTagMissing } from '#/shared/services/failure';
 import { GATEWAY_BASE, type Gateway, type GatewayResult } from '#/shared/transport/gateway';
 import {
   ifMatchOf,
@@ -24,7 +24,7 @@ import {
   type PageKind,
   type Scheme,
   type ThemeScope,
-} from '#/features/branding/service';
+} from '#/features/branding/services';
 
 // A theme with no draft has no ETag; every answer that carries a view says so
 // the same way, so a section can always save against what it was read with.

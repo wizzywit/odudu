@@ -1,8 +1,8 @@
-export { SubjectsPage } from '#/features/subjects/view/SubjectsPage';
-export { subjectHref, subjectsHref } from '#/features/subjects/service';
-export { NewSubjectPage } from '#/features/subjects/view/NewSubjectPage';
-export { SubjectRecordPage } from '#/features/subjects/view/SubjectRecordPage';
-export { CapabilityHolders } from '#/features/subjects/view/CapabilityHolders';
-export { subjectTabHref } from '#/features/subjects/service';
-export { SubjectMembers } from '#/features/subjects/view/SubjectMembers';
-export { useOwnRoles, type OwnRoles } from '#/features/subjects/usecase/useOwnRoles';
+export { SubjectsPage } from '#/features/subjects/ui/SubjectsPage';
+export { subjectHref, subjectsHref } from '#/features/subjects/services';
+export { NewSubjectPage } from '#/features/subjects/ui/NewSubjectPage';
+export { SubjectRecordPage } from '#/features/subjects/ui/SubjectRecordPage';
+export { CapabilityHolders } from '#/features/subjects/ui/CapabilityHolders';
+export { subjectTabHref } from '#/features/subjects/services';
+export { SubjectMembers } from '#/features/subjects/ui/SubjectMembers';
+export { useOwnRoles, type OwnRoles } from '#/features/subjects/use-cases/useOwnRoles';

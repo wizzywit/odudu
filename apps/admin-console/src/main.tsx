@@ -1,7 +1,7 @@
 import '#/zodConfig';
-import '#/shared/view/fonts.css';
-import '#/shared/view/tokens.css';
-import '#/shared/view/global.css';
+import '#/shared/ui/fonts.css';
+import '#/shared/ui/tokens.css';
+import '#/shared/ui/global.css';
 import { createRoot } from 'react-dom/client';
 import { App } from '#/app/App';
 import { createConsoleRouter } from '#/app/router';

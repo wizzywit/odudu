@@ -1,10 +1,10 @@
 import type { ZodType } from 'zod';
-import { isPrincipalChanged, isSessionEnded } from '#/shared/service/sessionEnded';
-import { createSessionEvents, type SessionEvents } from '#/shared/service/sessionEvents';
+import { isPrincipalChanged, isSessionEnded } from '#/shared/services/sessionEnded';
+import { createSessionEvents, type SessionEvents } from '#/shared/services/sessionEvents';
 import { nextCursor } from '#/shared/transport/cursor';
 import { readEtag } from '#/shared/transport/etag';
 import { readProblem } from '#/shared/transport/problem';
-import type { GatewayFailure, GatewayResult, GatewaySuccess } from '#/shared/service/result';
+import type { GatewayFailure, GatewayResult, GatewaySuccess } from '#/shared/services/result';
 
 export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export type Fetch = (url: string, init: RequestInit) => Promise<Response>;

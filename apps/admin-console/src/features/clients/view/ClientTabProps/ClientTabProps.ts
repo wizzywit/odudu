@@ -1,5 +1,0 @@
-import type { ClientRecordRead } from '#/features/clients/usecase/useClientSection';
-
-// What every tab of a client's record is given: the record as it was read,
-// and whether the page offers any change to it.
-export type ClientTabProps = ClientRecordRead & { writable: boolean };

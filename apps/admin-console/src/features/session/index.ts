@@ -1,20 +1,20 @@
-export { SessionGate } from '#/features/session/view/SessionGate';
-export { ConsoleHome } from '#/features/session/view/ConsoleHome';
-export { SigningIn } from '#/features/session/view/SigningIn';
-export { SignedInElsewhere } from '#/features/session/view/SignedInElsewhere';
-export { CHOOSE_TENANT, SWITCH_HREF } from '#/features/session/service';
-export { usePrincipal, useSignedIn } from '#/features/session/usecase/useSignedIn';
-export { useSignIn } from '#/features/session/usecase/useSignIn';
-export { useSignOut } from '#/features/session/usecase/useSignOut';
-export { useEndOwnSession } from '#/features/session/usecase/useEndOwnSession';
-export { useTenantAccess, type TenantAccess } from '#/features/session/usecase/useTenantAccess';
+export { SessionGate } from '#/features/session/ui/SessionGate';
+export { ConsoleHome } from '#/features/session/ui/ConsoleHome';
+export { SigningIn } from '#/features/session/ui/SigningIn';
+export { SignedInElsewhere } from '#/features/session/ui/SignedInElsewhere';
+export { CHOOSE_TENANT, SWITCH_HREF } from '#/features/session/services';
+export { usePrincipal, useSignedIn } from '#/features/session/use-cases/useSignedIn';
+export { useSignIn } from '#/features/session/use-cases/useSignIn';
+export { useSignOut } from '#/features/session/use-cases/useSignOut';
+export { useEndOwnSession } from '#/features/session/use-cases/useEndOwnSession';
+export { useTenantAccess, type TenantAccess } from '#/features/session/use-cases/useTenantAccess';
 export {
   useAuthority,
   useAuthorityAnswered,
   useRefusal,
   useRereadAuthority,
   useTenantMissing,
-} from '#/features/session/usecase/useAuthority';
-export { draftOwner } from '#/features/session/service';
-export { useAuditReadable } from '#/features/session/usecase/useAuditReadable';
-export { useReloadConsole } from '#/features/session/usecase/useReloadConsole';
+} from '#/features/session/use-cases/useAuthority';
+export { draftOwner } from '#/features/session/services';
+export { useAuditReadable } from '#/features/session/use-cases/useAuditReadable';
+export { useReloadConsole } from '#/features/session/use-cases/useReloadConsole';

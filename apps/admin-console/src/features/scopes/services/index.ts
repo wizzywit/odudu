@@ -1,0 +1,100 @@
+export {
+  newScopeHref,
+  scopeHref,
+  scopesHref,
+  scopesTrail,
+} from '#/features/scopes/services/address';
+export {
+  SCOPE_TAB_LABELS,
+  SCOPE_TABS,
+  type ScopeTab,
+  TAB_RECORDS,
+  scopeMappersRecord,
+  scopeRecord,
+  scopeRolesRecord,
+} from '#/features/scopes/services/tabs';
+export {
+  GUARDED_TEXT,
+  guardedText,
+  isGuarded,
+  scopeDeleteConsequence,
+  scopeDeleteFailureText,
+} from '#/features/scopes/services/guard';
+export {
+  type Impact,
+  impactHeld,
+  type ImpactRetry,
+  impactRetry,
+  impactOf,
+  claimMappersOf,
+  scopeDeleteDialogText,
+  scopeDeleteWarning,
+} from '#/features/scopes/services/deleteWarning';
+export {
+  type RestoreOffer,
+  RESTORE_CONFIRM_LABEL,
+  RESTORE_DIALOG_TITLE,
+  restoredText,
+  restoreFailureText,
+  restoreHeld,
+  restoreOffer,
+  restoreText,
+} from '#/features/scopes/services/restore';
+export {
+  DEFAULT_MAPPER_NOTE,
+  NONE_TEXT,
+  boundAfter,
+  mapperChecklist,
+  type MapperOption,
+  mappersFailure,
+  mappersFailureText,
+  mappersSummary,
+  describeMappers,
+} from '#/features/scopes/services/mappers';
+export {
+  chosenClient,
+  clientsOffered,
+  clientAssignmentFailure,
+  clientsCount,
+  withoutScope,
+  withScopes,
+} from '#/features/scopes/services/assignment';
+export {
+  ACCESS_TOKEN_LABEL,
+  assignmentName,
+  CONSENT_LANGUAGES_LABEL,
+  CONSENT_LANGUAGES_NOTE,
+  CONSENT_LIMIT,
+  CONSENT_RULE,
+  DESCRIPTION_LANGUAGES_LABEL,
+  DESCRIPTION_LANGUAGES_NOTE,
+  guardedConsent,
+  ID_TOKEN_LABEL,
+  NEW_CLIENT_LABEL,
+  displayOrderProblem,
+  generalPatch,
+  type GeneralValues,
+  NAME_FIXED,
+  NEW_CLIENT_CHOICES,
+  scopeFailureFields,
+} from '#/features/scopes/services/general';
+export { INCLUDE_ALL_POINTER, keptRoles, NO_ROLES_MAPPED } from '#/features/scopes/services/roles';
+export {
+  type Copying,
+  type CopyPlan,
+  type CopyRead,
+  sourceDescription,
+  copyBody,
+  createBodyOf,
+  copyHrefOf,
+  copyingOf,
+  copyingText,
+  copyPlan,
+  asksPart,
+  copySourceOf,
+  partMissed,
+  type CopyPart,
+  partialCopy,
+  sourceBound,
+  sourceRoles,
+} from '#/features/scopes/services/copy';

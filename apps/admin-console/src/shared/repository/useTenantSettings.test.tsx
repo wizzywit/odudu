@@ -5,7 +5,7 @@ import { expect, it } from 'vitest';
 import { createQueryClient } from '#/shared/repository/queryClient';
 import { recordKey } from '#/shared/repository/queryKeys';
 import { useTenantSettings } from '#/shared/repository/useTenantSettings';
-import { TENANT_SETTINGS_RECORD } from '#/shared/service/tenantSettings';
+import { TENANT_SETTINGS_RECORD } from '#/shared/services/tenantSettings';
 import { TransportContext } from '#/shared/transport/useTransport';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';

@@ -1,0 +1,33 @@
+import type { ReactNode } from 'react';
+import { checkingText, type Area } from '#/features/shell/services';
+import { useArea } from '#/features/shell/use-cases/useArea';
+import { AccessGate } from '#/shared/ui/AccessGate';
+import type { Crumb } from '#/shared/ui/Breadcrumb';
+
+// The page is not drawn, so makes none of its reads, until whoami has answered.
+export function AreaGate({
+  tenant,
+  area,
+  title,
+  breadcrumb,
+  children,
+}: {
+  tenant: string;
+  area: Area;
+  title: string;
+  breadcrumb?: readonly Crumb[];
+  children: ReactNode;
+}) {
+  const access = useArea(tenant, area);
+  return (
+    <AccessGate
+      access={access}
+      title={title}
+      kicker={tenant}
+      {...(breadcrumb === undefined ? {} : { breadcrumb })}
+      checking={checkingText(area)}
+    >
+      {children}
+    </AccessGate>
+  );
+}

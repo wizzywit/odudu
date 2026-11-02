@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { ThemeChoice } from '#/shared/service/theme';
+import type { ThemeChoice } from '#/shared/services/theme';
 
 export interface Theme {
   choice: ThemeChoice;

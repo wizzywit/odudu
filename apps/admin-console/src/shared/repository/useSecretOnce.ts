@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
-import { failureOfSettled, restOf, type Settled } from '#/shared/service/settled';
+import { failureOfSettled, restOf, type Settled } from '#/shared/services/settled';
 import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
 

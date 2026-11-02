@@ -1,6 +1,6 @@
 import { readLogoutDeliveries } from '#/features/clients/adapter/operations';
 import { deliveriesKey } from '#/shared/repository/queryKeys';
-import { optionalFilter } from '#/shared/service/filters';
+import { optionalFilter } from '#/shared/services/filters';
 import { useListPages } from '#/shared/repository/useResourceList';
 
 // The deliveries of one status, or of any, a page at a time; the list reads

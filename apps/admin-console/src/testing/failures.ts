@@ -1,4 +1,4 @@
-import type { GatewayFailure } from '#/shared/service/result';
+import type { GatewayFailure } from '#/shared/services/result';
 
 export const failure = (kind: 'network' | 'schema' | 'defect'): GatewayFailure => ({
   ok: false,

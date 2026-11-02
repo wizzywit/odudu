@@ -1,4 +1,4 @@
-export { ClientsPage } from '#/features/clients/view/ClientsPage';
-export { NewClientPage } from '#/features/clients/view/NewClientPage';
-export { ClientRecordPage } from '#/features/clients/view/ClientRecordPage';
-export { clientHref } from '#/features/clients/service';
+export { ClientsPage } from '#/features/clients/ui/ClientsPage';
+export { NewClientPage } from '#/features/clients/ui/NewClientPage';
+export { ClientRecordPage } from '#/features/clients/ui/ClientRecordPage';
+export { clientHref } from '#/features/clients/services';

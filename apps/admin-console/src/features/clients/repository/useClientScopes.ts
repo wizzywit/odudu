@@ -3,7 +3,7 @@ import { assignScope, unassignScope } from '#/shared/adapter/scopeAssignment';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import { readScopePage } from '#/shared/adapter/directory';
 import { usePicker } from '#/shared/repository/usePicker';
-import type { PickerState } from '#/shared/service/picker';
+import type { PickerState } from '#/shared/services/picker';
 import type { GatewayResult } from '#/shared/transport/gateway';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
 

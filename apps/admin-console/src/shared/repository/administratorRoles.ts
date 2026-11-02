@@ -10,7 +10,7 @@ import {
   clientRole,
   withRole,
   type AdministratorRequest,
-} from '#/shared/service/administrators';
+} from '#/shared/services/administrators';
 import type { Gateway, GatewayFailure } from '#/shared/transport/gateway';
 
 export function defect(message: string): GatewayFailure {

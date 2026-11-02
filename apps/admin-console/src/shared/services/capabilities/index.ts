@@ -1,0 +1,40 @@
+export {
+  ADMIN_CLIENT_KEY,
+  type Holding,
+  CAPABILITY_TEXT,
+  fullText,
+  holdingLabel,
+  grantableIn,
+  holdingsIn,
+  isHolding,
+  adminClientOfRoles,
+  holdingRoleIds,
+  isAdminRole,
+  includedBy,
+} from '#/shared/services/capabilities/holdings';
+export {
+  provenanceText,
+  type Held,
+  heldCapabilities,
+  ceilingOf,
+  beyondCaller,
+  roleReachUnavailable,
+  TENANT_ROLE_TEXT,
+  roleOwnerText,
+  holdingNote,
+  type HoldingOption,
+  holdingOptions,
+} from '#/shared/services/capabilities/held';
+export { writeRefusal } from '#/shared/services/capabilities/refusal';
+export {
+  adminLoss,
+  type OwnAccess,
+  type OwnAccessRead,
+  possibleLoss,
+  type Asked,
+  type Loss,
+  judgedLoss,
+  lossText,
+  asksFirst,
+  lossBlocked,
+} from '#/shared/services/capabilities/loss';

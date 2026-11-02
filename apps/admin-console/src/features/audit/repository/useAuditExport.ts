@@ -4,7 +4,7 @@ import { currentTime } from '#/shared/adapter/clock';
 import { saveFile } from '#/shared/adapter/files';
 import { auditExportKey } from '#/shared/repository/queryKeys';
 import { useFreshRead } from '#/shared/repository/useFreshRead';
-import { auditFileName, auditQuery, eventsIn, type AuditFilters } from '#/features/audit/service';
+import { auditFileName, auditQuery, eventsIn, type AuditFilters } from '#/features/audit/services';
 import type { GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
 

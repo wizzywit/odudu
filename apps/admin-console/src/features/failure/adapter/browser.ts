@@ -1,4 +1,4 @@
-import { MESSAGE_LABEL } from '#/features/failure/service';
+import { MESSAGE_LABEL } from '#/features/failure/services';
 
 export function randomBytes(length: number): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(length));

@@ -8,8 +8,8 @@ import {
   removeComposite,
   setRoleDefault,
 } from '#/features/roles/adapter/roles';
-import { compositesRecord, roleRecord } from '#/features/roles/service';
-import { isStale } from '#/shared/service/failure';
+import { compositesRecord, roleRecord } from '#/features/roles/services';
+import { isStale } from '#/shared/services/failure';
 import { useAfterChange } from '#/shared/repository/useAfterChange';
 import { recordKey } from '#/shared/repository/queryKeys';
 import { rolesGoneReach } from '#/shared/repository/rolesGoneReach';
@@ -18,7 +18,7 @@ import { useRecord, type RecordState } from '#/shared/repository/useRecord';
 import type { SaveInput } from '#/shared/repository/useSectionSave';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
-import type { DescriptionValues, DefaultValues } from '#/shared/service/sectionValues';
+import type { DescriptionValues, DefaultValues } from '#/shared/services/sectionValues';
 
 export function useRoleRecord(tenant: string, id: string): RecordState<Role> {
   return useRecord({

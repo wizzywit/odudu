@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { anySaving, savingToggled } from '#/shared/service/savingSections';
+import { anySaving, savingToggled } from '#/shared/services/savingSections';
 
 interface SavingSections {
   saving: ReadonlySet<string>;

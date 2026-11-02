@@ -5,11 +5,11 @@ import { recordKey } from '#/shared/repository/queryKeys';
 import { useSaveRun, type RefusalReporter, type SaveInput } from '#/shared/repository/useSaveRun';
 import { useSavingSections } from '#/shared/repository/useSavingSections';
 import { useSectionDraft } from '#/shared/repository/useSectionDraft';
-import type { Conflict } from '#/shared/service/conflict';
-import { savingKey } from '#/shared/service/savingSections';
-import type { Values } from '#/shared/service/dirty';
-import { draftFieldsOf } from '#/shared/service/drafts';
-import type { AdminCapability } from '#/shared/service/principal';
+import type { Conflict } from '#/shared/services/conflict';
+import { savingKey } from '#/shared/services/savingSections';
+import type { Values } from '#/shared/services/dirty';
+import { draftFieldsOf } from '#/shared/services/drafts';
+import type { AdminCapability } from '#/shared/services/principal';
 import {
   canKeepMine,
   canSubmit,
@@ -34,7 +34,7 @@ import {
   type SectionField,
   type SectionFields,
   type SectionState,
-} from '#/shared/service/sectionSave';
+} from '#/shared/services/sectionSave';
 import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
 import type { Problem } from '#/shared/transport/problem';
 import { useLatest } from '#/shared/repository/useLatest';

@@ -1,1 +1,1 @@
-export { RegistrationTokensPage } from '#/features/registration-tokens/view/RegistrationTokensPage';
+export { RegistrationTokensPage } from '#/features/registration-tokens/ui/RegistrationTokensPage';

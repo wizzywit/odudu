@@ -1,7 +1,7 @@
 import type { AuditEvent, Group, Role } from '@odudu/contracts/admin';
-import type { Conflict } from '#/shared/service/conflict';
-import { formatDuration } from '#/shared/service/format';
-import type { KeyValuePair } from '#/shared/view/Field';
+import type { Conflict } from '#/shared/services/conflict';
+import { formatDuration } from '#/shared/services/format';
+import type { KeyValuePair } from '#/shared/ui/Field';
 
 export const TENANT = 'acme';
 

@@ -14,10 +14,10 @@ import { NavigationGuard } from '#/app/NavigationGuard';
 import { RouteFailure, ShellFailure } from '#/features/failure';
 import { ConsoleHome, SessionGate } from '#/features/session';
 import { pendingPage, PendingFrame, TenantShell } from '#/features/shell';
-import { PRODUCT_NAME } from '#/shared/service/product';
-import { parseSearch, stringifySearch } from '#/shared/service/search';
-import { LostFrame } from '#/shared/view/LostFrame';
-import { PageNotFound } from '#/shared/view/PageNotFound';
+import { PRODUCT_NAME } from '#/shared/services/product';
+import { parseSearch, stringifySearch } from '#/shared/services/search';
+import { LostFrame } from '#/shared/ui/LostFrame';
+import { PageNotFound } from '#/shared/ui/PageNotFound';
 
 // React Aria's links navigate through the router, so a rail link is still a
 // real href for a new tab while an ordinary click waits on the guard.

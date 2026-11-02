@@ -16,8 +16,8 @@ import {
   partMissed,
   type CopyPart as Part,
   type CopyRead,
-} from '#/features/scopes/service';
-import { copyReadOf } from '#/shared/service/copy';
+} from '#/features/scopes/services';
+import { copyReadOf } from '#/shared/services/copy';
 import {
   copyEtagKey,
   copyKey,
@@ -29,7 +29,7 @@ import {
 import { useFreshRead } from '#/shared/repository/useFreshRead';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useWrite } from '#/shared/repository/useWrite';
-import { etagOfRead } from '#/shared/service/record';
+import { etagOfRead } from '#/shared/services/record';
 import type { GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
 

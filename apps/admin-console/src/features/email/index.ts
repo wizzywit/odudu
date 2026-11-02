@@ -1,1 +1,1 @@
-export { EmailPage } from '#/features/email/view/EmailPage';
+export { EmailPage } from '#/features/email/ui/EmailPage';

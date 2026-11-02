@@ -1,6 +1,6 @@
 import type { ThemeAsset } from '@odudu/contracts/admin';
 import { deleteAsset, uploadAsset } from '#/features/branding/adapter/theme';
-import { TENANT_WIDE_WRITES } from '#/features/branding/service';
+import { TENANT_WIDE_WRITES } from '#/features/branding/services';
 import { themeWriteKey } from '#/shared/repository/queryKeys';
 import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
 import type { GatewayResult } from '#/shared/transport/gateway';

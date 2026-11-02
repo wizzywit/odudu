@@ -1,7 +1,7 @@
-export { TenantShell } from '#/features/shell/view/TenantShell';
-export { PendingFrame } from '#/features/shell/view/PendingFrame';
-export { AreaGate } from '#/features/shell/view/AreaGate';
-export { useArea } from '#/features/shell/usecase/useArea';
+export { TenantShell } from '#/features/shell/ui/TenantShell';
+export { PendingFrame } from '#/features/shell/ui/PendingFrame';
+export { AreaGate } from '#/features/shell/ui/AreaGate';
+export { useArea } from '#/features/shell/use-cases/useArea';
 export {
   areaAt,
   areaHref,
@@ -11,4 +11,4 @@ export {
   pendingPage,
   type Area,
   type AreaAccess,
-} from '#/features/shell/service';
+} from '#/features/shell/services';

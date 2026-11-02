@@ -1,7 +1,7 @@
 import { importErrorSchema, problemDetailsSchema } from '@odudu/contracts/admin';
 import { z } from 'zod';
-import type { Problem } from '#/shared/service/result';
-import { parseJson } from '#/shared/service/json';
+import type { Problem } from '#/shared/services/result';
+import { parseJson } from '#/shared/services/json';
 
 export const problemSchema = problemDetailsSchema.extend({
   instance: z.string().optional(),

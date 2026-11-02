@@ -1,6 +1,6 @@
-import '#/shared/view/fonts.css';
-import '#/shared/view/tokens.css';
-import '#/shared/view/global.css';
+import '#/shared/ui/fonts.css';
+import '#/shared/ui/tokens.css';
+import '#/shared/ui/global.css';
 import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Gallery, type GalleryDialog, type GalleryTheme } from '#/gallery/Gallery';

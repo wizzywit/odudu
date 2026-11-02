@@ -1,1 +1,1 @@
-export { OverviewPage } from '#/features/overview/view/OverviewPage';
+export { OverviewPage } from '#/features/overview/ui/OverviewPage';

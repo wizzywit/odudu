@@ -6,7 +6,7 @@ import {
   imageValues,
   NO_DRAFT_TAG,
   templateValues,
-} from '#/features/branding/service';
+} from '#/features/branding/services';
 import { draftedView, TH } from '#/testing/brandingFixtures';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 

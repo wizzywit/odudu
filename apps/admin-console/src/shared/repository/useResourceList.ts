@@ -3,8 +3,8 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { countKey, listKey, pageKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';
-import { currentCursor, trailFromSearch, trailToSearch } from '#/shared/service/cursorTrail';
-import { ReadFailure } from '#/shared/service/readFailure';
+import { currentCursor, trailFromSearch, trailToSearch } from '#/shared/services/cursorTrail';
+import { ReadFailure } from '#/shared/services/readFailure';
 import {
   apiQuery,
   canLoadMore,
@@ -22,7 +22,7 @@ import {
   type ResourceListState,
   withDefaults,
   withFilter,
-} from '#/shared/service/resourceList';
+} from '#/shared/services/resourceList';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDirtySection } from '#/shared/repository/useDirtySection';
-import { sectionKey } from '#/shared/service/record';
+import { sectionKey } from '#/shared/services/record';
 import { useDrafts, type DraftFields, type KeptDraft } from '#/shared/repository/useDrafts';
 import { useLatest } from '#/shared/repository/useLatest';
 

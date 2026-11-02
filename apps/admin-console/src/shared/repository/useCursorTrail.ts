@@ -1,5 +1,5 @@
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';
-import { trailFromSearch, trailToSearch, type CursorTrail } from '#/shared/service/cursorTrail';
+import { trailFromSearch, trailToSearch, type CursorTrail } from '#/shared/services/cursorTrail';
 
 export function useCursorTrail(): {
   trail: CursorTrail;

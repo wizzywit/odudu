@@ -10,9 +10,9 @@ import {
   type StylesheetValues,
   type TemplateValues,
   type ThemeScope,
-} from '#/features/branding/service';
+} from '#/features/branding/services';
 import type { SaveInput } from '#/shared/repository/useSectionSave';
-import type { Values } from '#/shared/service/dirty';
+import type { Values } from '#/shared/services/dirty';
 import type { Gateway } from '#/shared/transport/gateway';
 
 // Each section saves the whole draft: its own part as edited, the rest as the

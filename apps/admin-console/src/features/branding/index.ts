@@ -1,12 +1,12 @@
-export { BrandingPage } from '#/features/branding/view/BrandingPage';
-export { PublicationBar } from '#/features/branding/view/PublicationBar';
-export { PagesPanel, ThemePanel } from '#/features/branding/view/ScopePanels';
-export { useScopeTabReads } from '#/features/branding/usecase/useScopeTabReads';
+export { BrandingPage } from '#/features/branding/ui/BrandingPage';
+export { PublicationBar } from '#/features/branding/ui/PublicationBar';
+export { PagesPanel, ThemePanel } from '#/features/branding/ui/ScopePanels';
+export { useScopeTabReads } from '#/features/branding/use-cases/useScopeTabReads';
 export {
   useScopeBranding,
   useScopeEdits,
   type ScopeBranding,
-} from '#/features/branding/usecase/useScopeBranding';
+} from '#/features/branding/use-cases/useScopeBranding';
 export {
   BRANDING_SECTIONS_LABEL,
   BRANDING_TAB_LABELS,
@@ -16,4 +16,4 @@ export {
   showsPreview,
   type ScopedTab,
   type ThemeScope,
-} from '#/features/branding/service';
+} from '#/features/branding/services';

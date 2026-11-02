@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import type { z } from 'zod';
-import type { Problem } from '#/shared/service/result';
+import type { Problem } from '#/shared/services/result';
 import type { problemSchema } from '#/shared/transport/problem';
 import { readProblem } from '#/shared/transport/problem';
 

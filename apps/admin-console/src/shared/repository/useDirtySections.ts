@@ -1,5 +1,5 @@
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
-import { sectionsOf } from '#/shared/service/record';
+import { sectionsOf } from '#/shared/services/record';
 
 // The sections of one record with unsaved edits, by the section id each
 // gave `useSectionSave`, so its tabs can carry their dots.

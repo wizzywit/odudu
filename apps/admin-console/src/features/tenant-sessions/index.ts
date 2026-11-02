@@ -1,1 +1,1 @@
-export { TenantSessionsPage } from '#/features/tenant-sessions/view/TenantSessionsPage';
+export { TenantSessionsPage } from '#/features/tenant-sessions/ui/TenantSessionsPage';

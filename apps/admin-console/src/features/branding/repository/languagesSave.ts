@@ -1,7 +1,7 @@
 import { amendTenantSettings } from '#/shared/adapter/tenantSettings';
 import type { SaveInput } from '#/shared/repository/useSectionSave';
 import type { Gateway } from '#/shared/transport/gateway';
-import { languagesRequest, type LanguageValues } from '#/features/branding/service';
+import { languagesRequest, type LanguageValues } from '#/features/branding/services';
 
 // The languages are two of the tenant's settings, saved on the one ETag that
 // stands for every setting.

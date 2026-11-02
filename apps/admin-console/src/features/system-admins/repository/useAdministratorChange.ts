@@ -1,7 +1,7 @@
 import { grantHoldings, type Refused } from '#/shared/repository/administratorRoles';
 import { countKey, holdersKey, listKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { SYSTEM_TENANT } from '#/shared/service/principal';
+import { SYSTEM_TENANT } from '#/shared/services/principal';
 import { useWrite } from '#/shared/repository/useWrite';
 
 export interface AdministratorGrant {

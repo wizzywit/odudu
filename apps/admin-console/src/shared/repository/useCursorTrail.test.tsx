@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it } from 'vitest';
 import { useCursorTrail } from '#/shared/repository/useCursorTrail';
-import { Pager } from '#/shared/view/Pager';
+import { Pager } from '#/shared/ui/Pager';
 import { mountAtRoute } from '#/testing/mountAtRoute';
 
 const PAGES = ['', 'b2Zmc2V0LTE.dGFnMQ', 'b2Zmc2V0LTI.dGFnMg'];

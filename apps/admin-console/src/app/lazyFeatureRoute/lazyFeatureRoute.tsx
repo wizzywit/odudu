@@ -1,8 +1,8 @@
 import { lazy, Suspense, useState, type ComponentType } from 'react';
 import { useReloadConsole } from '#/features/session';
-import { ChunkLoadError } from '#/shared/service/chunkLoad';
-import { ChunkBoundary } from '#/shared/view/ChunkBoundary';
-import { Skeleton } from '#/shared/view/Skeleton';
+import { ChunkLoadError } from '#/shared/services/chunkLoad';
+import { ChunkBoundary } from '#/shared/ui/ChunkBoundary';
+import { Skeleton } from '#/shared/ui/Skeleton';
 
 export type FeatureRoute<P extends object> = ComponentType<P> & {
   // Fetches the chunk ahead of the first render, which then draws at once.

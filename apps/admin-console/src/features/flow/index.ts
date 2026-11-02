@@ -1,1 +1,1 @@
-export { FlowPage } from '#/features/flow/view/FlowPage';
+export { FlowPage } from '#/features/flow/ui/FlowPage';

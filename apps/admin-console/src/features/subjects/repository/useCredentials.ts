@@ -6,13 +6,13 @@ import type {
 import { subjectReadKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useRead } from '#/shared/repository/useRead';
-import type { Read } from '#/shared/service/read';
+import type { Read } from '#/shared/services/read';
 import {
   changeCredential,
   readCredentials,
   readLockout,
 } from '#/features/subjects/adapter/subjects';
-import { staleReadOf, type CredentialChange } from '#/features/subjects/service';
+import { staleReadOf, type CredentialChange } from '#/features/subjects/services';
 import { issuePassword } from '#/shared/adapter/administrators';
 import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce';
 import { useWrite, type Write } from '#/shared/repository/useWrite';

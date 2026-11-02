@@ -7,7 +7,7 @@ import {
 } from '@odudu/contracts/admin';
 import { expect, it } from 'vitest';
 import { createQueryClient } from '#/shared/repository/queryClient';
-import { ROW_BUDGET } from '#/shared/service/resourceList';
+import { ROW_BUDGET } from '#/shared/services/resourceList';
 import { useResourceList } from '#/shared/repository/useResourceList';
 import type { Gateway } from '#/shared/transport/gateway';
 import { fakeTransport, json, pending, problem, type Answer } from '#/testing/fakeTransport';

@@ -5,12 +5,12 @@ import { graceRoutes, renderConsoleAt } from '#/testing/renderConsole';
 
 // Every panel a route can draw fails too, so a page error climbs past the
 // root match: the router's own boundary or the console's root fallback is next.
-vi.mock('#/features/failure/view/RouteFailure', () => ({
+vi.mock('#/features/failure/ui/RouteFailure', () => ({
   RouteFailure: () => {
     throw new Error('the route panel failed');
   },
 }));
-vi.mock('#/features/failure/view/ShellFailure', () => ({
+vi.mock('#/features/failure/ui/ShellFailure', () => ({
   ShellFailure: () => {
     throw new Error('the shell panel failed');
   },

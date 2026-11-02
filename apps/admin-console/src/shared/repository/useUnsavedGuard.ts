@@ -7,7 +7,7 @@ import {
   unsavedLabels,
   withLabel,
   type Departure,
-} from '#/shared/service/unsavedGuard';
+} from '#/shared/services/unsavedGuard';
 
 interface UnsavedGuard {
   // Section id to the name a person knows it by.

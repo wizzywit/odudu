@@ -1,49 +1,49 @@
 import { useState, type ReactNode } from 'react';
-import { advance, type CursorTrail } from '#/shared/service/cursorTrail';
-import type { Read } from '#/shared/service/read';
-import type { Translations } from '#/shared/service/localised';
-import type { PickerState } from '#/shared/service/picker';
-import type { ListSearch, ResourceListState } from '#/shared/service/resourceList';
-import { current, dirtyFields, discard, edit, startDraft } from '#/shared/service/dirty';
-import type { Toast } from '#/shared/service/toast';
-import { AccessGate } from '#/shared/view/AccessGate';
-import { ActivityTab } from '#/shared/view/ActivityTab';
-import { ChecklistField } from '#/shared/view/ChecklistField';
-import { CodeField } from '#/shared/view/CodeField';
-import { LocalisedTextField } from '#/shared/view/LocalisedTextField';
-import { AuditActor } from '#/shared/view/AuditActor';
-import { ActionMenu } from '#/shared/view/ActionMenu';
-import { AuditDetail } from '#/shared/view/AuditDetail';
-import { AuditTable } from '#/shared/view/AuditTable';
-import { AppShell } from '#/shared/view/AppShell';
-import { Breadcrumb } from '#/shared/view/Breadcrumb';
-import { BrandLine } from '#/shared/view/BrandLine';
-import { Button } from '#/shared/view/Button';
-import { CreationActions, CreationForm } from '#/shared/view/CreationForm';
-import { DeleteZone } from '#/shared/view/DeleteZone';
-import { DescriptionField } from '#/shared/view/DescriptionField';
-import { KeyHint, PlatformContext } from '#/shared/view/KeyHint';
-import { ButtonLink } from '#/shared/view/ButtonLink';
-import { CapabilityNote } from '#/shared/view/CapabilityNote';
-import { InlineFailed } from '#/shared/view/InlineFailed';
-import { LastAction } from '#/shared/view/LastAction';
-import { ListGate } from '#/shared/view/ListGate';
-import { AssignedList, AssignedRow, AssignPanel } from '#/shared/view/AssignmentControls';
-import { LoadFailed } from '#/shared/view/LoadFailed';
-import { LoadMore, LoadMoreFailed } from '#/shared/view/LoadMore';
-import { LiveMessage, Problem } from '#/shared/view/Message';
-import { MappedRoles } from '#/shared/view/MappedRoles';
-import { NarrowedNote } from '#/shared/view/NarrowedNote';
-import { Note, NoteCode } from '#/shared/view/Note';
-import { ChunkFailed } from '#/shared/view/ChunkBoundary';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
-import { ConflictPanel } from '#/shared/view/ConflictPanel';
-import { ContextBar } from '#/shared/view/ContextBar';
-import { CopyValue } from '#/shared/view/CopyValue';
-import { Count } from '#/shared/view/Count';
-import { DataTable, type Column } from '#/shared/view/DataTable';
-import { Duration } from '#/shared/view/Duration';
-import { EmptyState } from '#/shared/view/EmptyState';
+import { advance, type CursorTrail } from '#/shared/services/cursorTrail';
+import type { Read } from '#/shared/services/read';
+import type { Translations } from '#/shared/services/localised';
+import type { PickerState } from '#/shared/services/picker';
+import type { ListSearch, ResourceListState } from '#/shared/services/resourceList';
+import { current, dirtyFields, discard, edit, startDraft } from '#/shared/services/dirty';
+import type { Toast } from '#/shared/services/toast';
+import { AccessGate } from '#/shared/ui/AccessGate';
+import { ActivityTab } from '#/shared/ui/ActivityTab';
+import { ChecklistField } from '#/shared/ui/ChecklistField';
+import { CodeField } from '#/shared/ui/CodeField';
+import { LocalisedTextField } from '#/shared/ui/LocalisedTextField';
+import { AuditActor } from '#/shared/ui/AuditActor';
+import { ActionMenu } from '#/shared/ui/ActionMenu';
+import { AuditDetail } from '#/shared/ui/AuditDetail';
+import { AuditTable } from '#/shared/ui/AuditTable';
+import { AppShell } from '#/shared/ui/AppShell';
+import { Breadcrumb } from '#/shared/ui/Breadcrumb';
+import { BrandLine } from '#/shared/ui/BrandLine';
+import { Button } from '#/shared/ui/Button';
+import { CreationActions, CreationForm } from '#/shared/ui/CreationForm';
+import { DeleteZone } from '#/shared/ui/DeleteZone';
+import { DescriptionField } from '#/shared/ui/DescriptionField';
+import { KeyHint, PlatformContext } from '#/shared/ui/KeyHint';
+import { ButtonLink } from '#/shared/ui/ButtonLink';
+import { CapabilityNote } from '#/shared/ui/CapabilityNote';
+import { InlineFailed } from '#/shared/ui/InlineFailed';
+import { LastAction } from '#/shared/ui/LastAction';
+import { ListGate } from '#/shared/ui/ListGate';
+import { AssignedList, AssignedRow, AssignPanel } from '#/shared/ui/AssignmentControls';
+import { LoadFailed } from '#/shared/ui/LoadFailed';
+import { LoadMore, LoadMoreFailed } from '#/shared/ui/LoadMore';
+import { LiveMessage, Problem } from '#/shared/ui/Message';
+import { MappedRoles } from '#/shared/ui/MappedRoles';
+import { NarrowedNote } from '#/shared/ui/NarrowedNote';
+import { Note, NoteCode } from '#/shared/ui/Note';
+import { ChunkFailed } from '#/shared/ui/ChunkBoundary';
+import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
+import { ConflictPanel } from '#/shared/ui/ConflictPanel';
+import { ContextBar } from '#/shared/ui/ContextBar';
+import { CopyValue } from '#/shared/ui/CopyValue';
+import { Count } from '#/shared/ui/Count';
+import { DataTable, type Column } from '#/shared/ui/DataTable';
+import { Duration } from '#/shared/ui/Duration';
+import { EmptyState } from '#/shared/ui/EmptyState';
 import {
   BirthdateField,
   ComboBoxField,
@@ -62,29 +62,29 @@ import {
   ToggleField,
   UrlField,
   UrlListField,
-} from '#/shared/view/Field';
-import { FieldGrid, GridCell } from '#/shared/view/FieldGrid';
-import { FilterBar } from '#/shared/view/FilterBar';
-import { GroupPicker } from '#/shared/view/GroupPicker';
-import { PageHeader } from '#/shared/view/PageHeader';
-import { FailurePanel } from '#/shared/view/FailurePanel';
-import { PageNotFound } from '#/shared/view/PageNotFound';
-import { Pager } from '#/shared/view/Pager';
-import { Panel } from '#/shared/view/Panel';
-import { Rail } from '#/shared/view/Rail';
-import { ReadGate } from '#/shared/view/ReadGate';
-import { RecordActivity } from '#/shared/view/RecordActivity';
-import { RecordPage } from '#/shared/view/RecordPage';
-import { recordTab } from '#/shared/view/RecordTab';
-import { ResourceListPage } from '#/shared/view/ResourceListPage';
-import { RoleOwner } from '#/shared/view/RoleOwner';
-import { ClientPicker } from '#/shared/view/ClientPicker';
-import { RolePicker } from '#/shared/view/RolePicker';
-import { SaveBar } from '#/shared/view/SaveBar';
-import { SaveSection } from '#/shared/view/SaveSection';
-import { SecretDialog } from '#/shared/view/SecretDialog';
-import { Section } from '#/shared/view/Section';
-import { SectionNotice } from '#/shared/view/SectionNotice';
+} from '#/shared/ui/Field';
+import { FieldGrid, GridCell } from '#/shared/ui/FieldGrid';
+import { FilterBar } from '#/shared/ui/FilterBar';
+import { GroupPicker } from '#/shared/ui/GroupPicker';
+import { PageHeader } from '#/shared/ui/PageHeader';
+import { FailurePanel } from '#/shared/ui/FailurePanel';
+import { PageNotFound } from '#/shared/ui/PageNotFound';
+import { Pager } from '#/shared/ui/Pager';
+import { Panel } from '#/shared/ui/Panel';
+import { Rail } from '#/shared/ui/Rail';
+import { ReadGate } from '#/shared/ui/ReadGate';
+import { RecordActivity } from '#/shared/ui/RecordActivity';
+import { RecordPage } from '#/shared/ui/RecordPage';
+import { recordTab } from '#/shared/ui/RecordTab';
+import { ResourceListPage } from '#/shared/ui/ResourceListPage';
+import { RoleOwner } from '#/shared/ui/RoleOwner';
+import { ClientPicker } from '#/shared/ui/ClientPicker';
+import { RolePicker } from '#/shared/ui/RolePicker';
+import { SaveBar } from '#/shared/ui/SaveBar';
+import { SaveSection } from '#/shared/ui/SaveSection';
+import { SecretDialog } from '#/shared/ui/SecretDialog';
+import { Section } from '#/shared/ui/Section';
+import { SectionNotice } from '#/shared/ui/SectionNotice';
 import {
   FormSkeleton,
   ListSkeleton,
@@ -92,14 +92,14 @@ import {
   Skeleton,
   TableSkeleton,
   TermsSkeleton,
-} from '#/shared/view/Skeleton';
-import { StatusTag } from '#/shared/view/StatusTag';
-import { Tabs } from '#/shared/view/Tabs';
-import { TouchTargets } from '#/shared/view/TouchTargets';
-import { Timestamp } from '#/shared/view/Timestamp';
-import { Toasts } from '#/shared/view/Toasts';
-import { UnsavedChangesDialog } from '#/shared/view/UnsavedChangesDialog';
-import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
+} from '#/shared/ui/Skeleton';
+import { StatusTag } from '#/shared/ui/StatusTag';
+import { Tabs } from '#/shared/ui/Tabs';
+import { TouchTargets } from '#/shared/ui/TouchTargets';
+import { Timestamp } from '#/shared/ui/Timestamp';
+import { Toasts } from '#/shared/ui/Toasts';
+import { UnsavedChangesDialog } from '#/shared/ui/UnsavedChangesDialog';
+import { ViewOnlyNote } from '#/shared/ui/ViewOnlyNote';
 import styles from '#/gallery/Gallery.module.css';
 import {
   CLAIM_VALUES,

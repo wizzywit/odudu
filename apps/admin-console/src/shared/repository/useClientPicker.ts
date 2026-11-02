@@ -1,7 +1,7 @@
 import type { Client } from '@odudu/contracts/admin';
 import { readClientPage } from '#/shared/adapter/directory';
 import { usePicker } from '#/shared/repository/usePicker';
-import type { PickerState } from '#/shared/service/picker';
+import type { PickerState } from '#/shared/services/picker';
 
 // A tenant can hold thousands of clients, so a search is a prefix of the name
 // answered by the server a page at a time.

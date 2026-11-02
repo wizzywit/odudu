@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it } from 'vitest';
 import { useRecordTab } from '#/shared/repository/useRecordTab';
-import { Tabs } from '#/shared/view/Tabs';
+import { Tabs } from '#/shared/ui/Tabs';
 import { mountAtRoute } from '#/testing/mountAtRoute';
 
 function Client() {

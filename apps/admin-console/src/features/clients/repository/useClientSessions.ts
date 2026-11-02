@@ -5,7 +5,7 @@ import {
   revokeClientGrants,
 } from '#/features/clients/adapter/operations';
 import { useResourceList } from '#/shared/repository/useResourceList';
-import type { ResourceListState } from '#/shared/service/resourceList';
+import type { ResourceListState } from '#/shared/services/resourceList';
 import type { GatewayResult } from '#/shared/transport/gateway';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
 

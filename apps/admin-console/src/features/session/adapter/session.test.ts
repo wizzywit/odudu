@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { readAuthority, readSession } from '#/features/session/adapter/session';
-import { createSessionEvents } from '#/shared/service/sessionEvents';
+import { createSessionEvents } from '#/shared/services/sessionEvents';
 import { createGateway, type Fetch } from '#/shared/transport/gateway';
 
 function gatewayAnswering(body: unknown, urls: string[] = []) {

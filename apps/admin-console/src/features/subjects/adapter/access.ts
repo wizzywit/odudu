@@ -16,7 +16,7 @@ import {
   adminClientOfRoles,
   holdingRoleIds,
   type Holding,
-} from '#/shared/service/capabilities';
+} from '#/shared/services/capabilities';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { adminCall } from '#/shared/adapter/route';
 

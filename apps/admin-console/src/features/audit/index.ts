@@ -1,1 +1,1 @@
-export { AuditPage } from '#/features/audit/view/AuditPage';
+export { AuditPage } from '#/features/audit/ui/AuditPage';

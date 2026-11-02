@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { deleteTenant } from '#/features/tenants/adapter/tenants';
-import { heldForTenant, settledDeletion, tenantRecord } from '#/features/tenants/service';
+import { heldForTenant, settledDeletion, tenantRecord } from '#/features/tenants/services';
 import {
   countKey,
   listKey,
@@ -11,8 +11,8 @@ import {
 } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
-import { SYSTEM_TENANT } from '#/shared/service/principal';
-import type { GatewayResult } from '#/shared/service/result';
+import { SYSTEM_TENANT } from '#/shared/services/principal';
+import type { GatewayResult } from '#/shared/services/result';
 
 // The lists of tenants, their count and the system trail that records the
 // deletion are read again at once. The deleted tenant's own entries go when

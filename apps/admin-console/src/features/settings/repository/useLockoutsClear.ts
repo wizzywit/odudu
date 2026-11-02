@@ -3,7 +3,7 @@ import { clearTenantLockouts } from '#/features/settings/adapter/lockouts';
 import { listKey, subjectReadKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
-import type { GatewayResult } from '#/shared/service/result';
+import type { GatewayResult } from '#/shared/services/result';
 
 // A clear changes what every subject's lockout read says, and is itself
 // recorded in the tenant's audit trail.

@@ -10,12 +10,12 @@ import {
   shownPrincipal,
   type Principal,
   type SessionRead,
-} from '#/features/session/service';
+} from '#/features/session/services';
 import { sessionKey } from '#/shared/repository/queryKeys';
 import { useDrafts } from '#/shared/repository/useDrafts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
 import type { Gateway } from '#/shared/transport/gateway';
-import type { SessionEvents } from '#/shared/service/sessionEvents';
+import type { SessionEvents } from '#/shared/services/sessionEvents';
 import { useTransport } from '#/shared/transport/useTransport';
 
 const KEY = sessionKey();

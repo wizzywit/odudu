@@ -1,4 +1,4 @@
-import type { ThemeChoice } from '#/shared/service/theme';
+import type { ThemeChoice } from '#/shared/services/theme';
 import { browserStorage } from '#/shared/adapter/browserStorage';
 
 const KEY = 'odudu.console.theme';

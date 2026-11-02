@@ -1,7 +1,7 @@
 import { listSubjectsResponseSchema, subjectSchema } from '@odudu/contracts/admin';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { createSessionEvents } from '#/shared/service/sessionEvents';
+import { createSessionEvents } from '#/shared/services/sessionEvents';
 import { createGateway, type Fetch, type Method } from '#/shared/transport/gateway';
 
 const SUBJECT = {

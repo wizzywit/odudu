@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { createSessionEvents } from '#/shared/service/sessionEvents';
+import { createSessionEvents } from '#/shared/services/sessionEvents';
 import { createAuth } from '#/shared/transport/auth';
 import { createGateway, type Fetch } from '#/shared/transport/gateway';
 import type { Transport } from '#/shared/transport/transport';

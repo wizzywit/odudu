@@ -12,7 +12,7 @@ import { listKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useResourceList } from '#/shared/repository/useResourceList';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
-import type { ResourceListState } from '#/shared/service/resourceList';
+import type { ResourceListState } from '#/shared/services/resourceList';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 
 function sessionsResource(id: string): string {

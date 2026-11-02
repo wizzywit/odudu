@@ -4,8 +4,8 @@ import type {
   AttentionInputs,
   OverviewRead,
   OverviewReads,
-} from '#/features/overview/service';
-import type { AdminCapability, Authority } from '#/shared/service/principal';
+} from '#/features/overview/services';
+import type { AdminCapability, Authority } from '#/shared/services/principal';
 
 export const retry = (): void => undefined;
 

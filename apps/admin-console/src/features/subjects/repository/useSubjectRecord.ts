@@ -14,9 +14,9 @@ import { useRecord, type RecordEntry, type RecordState } from '#/shared/reposito
 import type { SaveInput } from '#/shared/repository/useSectionSave';
 import { useRead } from '#/shared/repository/useRead';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
-import { profileRecord, subjectRecord } from '#/features/subjects/service';
-import { isStale } from '#/shared/service/failure';
-import type { Read } from '#/shared/service/read';
+import { profileRecord, subjectRecord } from '#/features/subjects/services';
+import { isStale } from '#/shared/services/failure';
+import type { Read } from '#/shared/services/read';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
 

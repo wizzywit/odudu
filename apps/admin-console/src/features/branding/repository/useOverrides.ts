@@ -5,7 +5,7 @@ import {
   readOverride,
   readOverridePage,
 } from '#/features/branding/adapter/overrides';
-import { PAGE_SIZE, TENANT_WIDE_WRITES } from '#/features/branding/service';
+import { PAGE_SIZE, TENANT_WIDE_WRITES } from '#/features/branding/services';
 import { listKey, overrideReadKey, themeWriteKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useListPages } from '#/shared/repository/useResourceList';

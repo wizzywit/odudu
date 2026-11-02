@@ -14,9 +14,9 @@ import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
 import type { Gateway, GatewayFailure } from '#/shared/transport/gateway';
 import type { Problem } from '#/shared/transport/problem';
 import { TransportContext } from '#/shared/transport/useTransport';
-import { NumberWithUnitField, TextField } from '#/shared/view/Field';
-import { Section } from '#/shared/view/Section';
-import { SectionNotice } from '#/shared/view/SectionNotice';
+import { NumberWithUnitField, TextField } from '#/shared/ui/Field';
+import { Section } from '#/shared/ui/Section';
+import { SectionNotice } from '#/shared/ui/SectionNotice';
 import {
   fakeTransport,
   inTurn,

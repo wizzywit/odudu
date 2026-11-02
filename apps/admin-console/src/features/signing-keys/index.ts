@@ -1,1 +1,1 @@
-export { SigningKeysPage } from '#/features/signing-keys/view/SigningKeysPage';
+export { SigningKeysPage } from '#/features/signing-keys/ui/SigningKeysPage';

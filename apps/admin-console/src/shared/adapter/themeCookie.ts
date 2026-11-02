@@ -1,6 +1,6 @@
 import { readThemeChoice } from '#/shared/adapter/themeChoice';
-import type { ThemeChoice } from '#/shared/service/theme';
-import { themeCookie } from '#/shared/service/theme';
+import type { ThemeChoice } from '#/shared/services/theme';
+import { themeCookie } from '#/shared/services/theme';
 
 export function writeThemeCookie(choice: ThemeChoice): void {
   try {

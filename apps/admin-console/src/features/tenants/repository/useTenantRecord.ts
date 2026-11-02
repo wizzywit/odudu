@@ -1,14 +1,14 @@
 import type { Tenant } from '@odudu/contracts/admin';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { amendTenant, readTenant } from '#/features/tenants/adapter/tenants';
-import { generalPatch, missingIfUnknown, tenantRecord } from '#/features/tenants/service';
+import { generalPatch, missingIfUnknown, tenantRecord } from '#/features/tenants/services';
 import { recordKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useRecord, type RecordEntry, type RecordState } from '#/shared/repository/useRecord';
 import type { SaveInput } from '#/shared/repository/useSectionSave';
-import { isStale } from '#/shared/service/failure';
-import { SYSTEM_TENANT } from '#/shared/service/principal';
-import { failureOf } from '#/shared/service/settled';
+import { isStale } from '#/shared/services/failure';
+import { SYSTEM_TENANT } from '#/shared/services/principal';
+import { failureOf } from '#/shared/services/settled';
 import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
 

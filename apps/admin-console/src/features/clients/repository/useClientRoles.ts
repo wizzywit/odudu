@@ -4,7 +4,7 @@ import { readRoleCount, readRolePage } from '#/shared/adapter/directory';
 import { countKey, listKey, pickerKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useResourceList } from '#/shared/repository/useResourceList';
-import type { ResourceListState } from '#/shared/service/resourceList';
+import type { ResourceListState } from '#/shared/services/resourceList';
 import type { GatewayResult } from '#/shared/transport/gateway';
 import { useWrite } from '#/shared/repository/useWrite';
 

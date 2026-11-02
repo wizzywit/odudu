@@ -1,4 +1,4 @@
-import { createSessionEvents, type SessionEvents } from '#/shared/service/sessionEvents';
+import { createSessionEvents, type SessionEvents } from '#/shared/services/sessionEvents';
 import { createAuth, type Auth } from '#/shared/transport/auth';
 import { createGateway, type Gateway } from '#/shared/transport/gateway';
 

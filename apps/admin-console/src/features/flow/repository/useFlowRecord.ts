@@ -1,6 +1,6 @@
 import type { ListExecutionsResponse } from '@odudu/contracts/admin';
 import { replaceFlow, readFlow } from '#/features/flow/adapter/flow';
-import type { Step } from '#/features/flow/service';
+import type { Step } from '#/features/flow/services';
 import { amendTenantSettings } from '#/shared/adapter/tenantSettings';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord';
 import type { SaveInput } from '#/shared/repository/useSectionSave';

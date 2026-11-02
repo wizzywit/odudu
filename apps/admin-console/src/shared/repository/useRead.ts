@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { freshness, readOutcome, type Read } from '#/shared/service/read';
+import { freshness, readOutcome, type Read } from '#/shared/services/read';
 import type { GatewayResult } from '#/shared/transport/gateway';
 
 // One read a tab shows, keyed so a change elsewhere can ask for it again.

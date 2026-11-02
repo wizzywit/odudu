@@ -1,9 +1,9 @@
 import type { ThemePreviewInfo } from '@odudu/contracts/admin';
 import { readPreviewInfo } from '#/features/branding/adapter/theme';
-import { scopeKeyPart, type PreviewChoice, type ThemeScope } from '#/features/branding/service';
+import { scopeKeyPart, type PreviewChoice, type ThemeScope } from '#/features/branding/services';
 import { previewInfoKey } from '#/shared/repository/queryKeys';
 import { useRead } from '#/shared/repository/useRead';
-import type { Read } from '#/shared/service/read';
+import type { Read } from '#/shared/services/read';
 import { useTransport } from '#/shared/transport/useTransport';
 
 // What the frame shows, asked when the frame is, and again whenever it

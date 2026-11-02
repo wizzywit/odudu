@@ -14,7 +14,7 @@ import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer';
 import { SessionGate } from '#/features/session';
 import { TenantShell } from '#/features/shell';
 import { createQueryClient } from '#/shared/repository/queryClient';
-import { parseSearch, stringifySearch } from '#/shared/service/search';
+import { parseSearch, stringifySearch } from '#/shared/services/search';
 import { fakeTransport, type Answer } from '#/testing/fakeTransport';
 
 // A section on acme's client c1, inside the session gate, the tenant shell and

@@ -3,8 +3,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { rootErrorOptions } from '#/app/rootErrorOptions/rootErrorOptions';
 import { RootBoundary } from '#/features/failure';
-import { ChunkLoadError } from '#/shared/service/chunkLoad';
-import { ChunkBoundary } from '#/shared/view/ChunkBoundary';
+import { ChunkLoadError } from '#/shared/services/chunkLoad';
+import { ChunkBoundary } from '#/shared/ui/ChunkBoundary';
 import { failingAt } from '#/testing/mountFailing';
 
 const LINE = /^odudu console failure [0-9A-Z]{8} \((caught|uncaught|recoverable)\) at \/\$tenant$/u;

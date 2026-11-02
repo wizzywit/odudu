@@ -12,7 +12,7 @@ import {
   type OverviewReads,
   type OverviewRead,
   type ReadName,
-} from '#/features/overview/service';
+} from '#/features/overview/services';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
 

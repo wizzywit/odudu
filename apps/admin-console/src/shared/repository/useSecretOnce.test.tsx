@@ -8,8 +8,8 @@ import { createQueryClient } from '#/shared/repository/queryClient';
 import { useSecretOnce } from '#/shared/repository/useSecretOnce';
 import type { Gateway } from '#/shared/transport/gateway';
 import { TransportContext } from '#/shared/transport/useTransport';
-import { Button } from '#/shared/view/Button';
-import { SecretDialog } from '#/shared/view/SecretDialog';
+import { Button } from '#/shared/ui/Button';
+import { SecretDialog } from '#/shared/ui/SecretDialog';
 import { fakeTransport, json, pending, problem, type Answer } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 

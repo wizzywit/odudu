@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { readSystemIssuer } from '#/features/tenants/adapter/tenants';
 import { systemIssuerKey } from '#/shared/repository/queryKeys';
-import { freshness } from '#/shared/service/read';
-import { dataOf } from '#/shared/service/settled';
+import { freshness } from '#/shared/services/read';
+import { dataOf } from '#/shared/services/settled';
 import { useTransport } from '#/shared/transport/useTransport';
 
 // The system tenant's issuer as relying parties see it, the public base's.

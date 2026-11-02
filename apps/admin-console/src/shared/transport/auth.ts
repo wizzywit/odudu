@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Fetch } from '#/shared/transport/gateway';
 import { readProblem, type Problem } from '#/shared/transport/problem';
-import { parseJson } from '#/shared/service/json';
+import { parseJson } from '#/shared/services/json';
 
 const LOGOUT = '/console/auth/logout';
 const DEFAULT_TIMEOUT_MS = 30_000;

@@ -2,15 +2,15 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { recordKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { freshness } from '#/shared/service/read';
-import { ReadFailure, readFailureOf } from '#/shared/service/readFailure';
+import { freshness } from '#/shared/services/read';
+import { ReadFailure, readFailureOf } from '#/shared/services/readFailure';
 import {
   entryEtag,
   recordView,
   seenAfter,
   shownFailure,
   type RecordView,
-} from '#/shared/service/record';
+} from '#/shared/services/record';
 import type {
   Gateway,
   GatewayFailure,

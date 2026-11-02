@@ -8,8 +8,8 @@ import { useDialogHost } from '#/shared/repository/useDialogHost';
 import { ThemeContext } from '#/shared/repository/useTheme';
 import { createBrowserTransport, type Transport } from '#/shared/transport/transport';
 import { TransportContext } from '#/shared/transport/useTransport';
-import type { ThemeChoice } from '#/shared/service/theme';
-import { DialogPresence } from '#/shared/view/dialogPresence';
+import type { ThemeChoice } from '#/shared/services/theme';
+import { DialogPresence } from '#/shared/ui/dialogPresence';
 
 // What the console keeps in Context rather than a store: the transport, the
 // theme, and the query client the repositories read through. Dates, names

@@ -14,7 +14,7 @@ import {
   writesRunning,
   type ThemeScope,
   type WritesRunning,
-} from '#/features/branding/service';
+} from '#/features/branding/services';
 import { useRecordSaving } from '#/shared/repository/useSavingSections';
 import {
   recordKey,

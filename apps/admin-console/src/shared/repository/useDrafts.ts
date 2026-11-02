@@ -9,7 +9,7 @@ import {
   type DraftFields,
   type DraftValues,
   type KeptDraft,
-} from '#/shared/service/drafts';
+} from '#/shared/services/drafts';
 
 export type { DraftField, DraftFields, DraftValues, KeptDraft };
 

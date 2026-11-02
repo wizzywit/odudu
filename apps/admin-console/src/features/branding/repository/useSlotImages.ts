@@ -4,7 +4,7 @@ import {
   type ImageSlot,
   type SlotAsk,
   type Thumbnail,
-} from '#/features/branding/service';
+} from '#/features/branding/services';
 import { assetImageKey } from '#/shared/repository/queryKeys';
 import { useRead } from '#/shared/repository/useRead';
 import { useTransport } from '#/shared/transport/useTransport';

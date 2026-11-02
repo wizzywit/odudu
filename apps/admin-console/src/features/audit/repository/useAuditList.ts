@@ -9,14 +9,14 @@ import {
   isTooBroad,
   readFilters,
   type AuditFilters,
-} from '#/features/audit/service';
+} from '#/features/audit/services';
 import {
   currentCursor,
   trailFromSearch,
   trailToSearch,
   type CursorTrail,
-} from '#/shared/service/cursorTrail';
-import type { ListStatus } from '#/shared/service/resourceList';
+} from '#/shared/services/cursorTrail';
+import type { ListStatus } from '#/shared/services/resourceList';
 
 export interface AuditList {
   status: ListStatus;
