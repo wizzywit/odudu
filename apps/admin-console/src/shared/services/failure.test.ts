@@ -4,6 +4,7 @@ import {
   createFailure,
   deletedText,
   enabledText,
+  failureTextWith,
   isMissing,
   isRefused,
   isStale,
@@ -11,6 +12,7 @@ import {
   isStaleCursor,
   isUnknownTenant,
   lookupText,
+  refusedBy,
   removalOutcome,
   writeFailureText,
   namedCreation,
@@ -340,5 +342,62 @@ describe('problemSubtype', () => {
       'asset-cap',
     );
     expect(problemSubtype({ type: 'about:blank', status: 404, title: 'x' })).toBe('');
+  });
+});
+
+describe('failureTextWith', () => {
+  const copy: WriteCopy = { name: 'eng/ops', verb: 'deleted', lookAt: 'the groups' };
+
+  it('replaces the text of the kinds it is given and leaves the rest to writeFailureText', () => {
+    const text = failureTextWith({ network: () => 'Lost.' }, copy);
+    expect(text(NETWORK)).toBe('Lost.');
+    expect(text(SCHEMA)).toBe(writeFailureText(SCHEMA, copy));
+    expect(text(DEFECT)).toBe(writeFailureText(DEFECT, copy));
+    expect(text(problem(400, { detail: 'x' }))).toBe(
+      writeFailureText(problem(400, { detail: 'x' }), copy),
+    );
+  });
+
+  it('hands a problem override the problem, and keeps the stale and missing wording out of its way', () => {
+    const text = failureTextWith(
+      { problem: (p) => `Status ${String(p.status)}.` },
+      {
+        ...copy,
+        stale: 'Changed.',
+      },
+    );
+    expect(text(problem(412))).toBe('Status 412.');
+    expect(text(NETWORK)).toBe(writeFailureText(NETWORK, copy));
+  });
+
+  it('needs no copy once every kind has its own text', () => {
+    const text = failureTextWith({
+      network: () => 'n',
+      schema: () => 's',
+      defect: () => 'd',
+      problem: (p) => p.title,
+    });
+    expect([text(NETWORK), text(SCHEMA), text(DEFECT), text(problem(409))]).toEqual([
+      'n',
+      's',
+      'd',
+      'T409',
+    ]);
+  });
+});
+
+describe('refusedBy', () => {
+  it('words a capability refusal the way writeRefusal does, for the capability it is given', () => {
+    const refuse = refusedBy('manage-clients');
+    expect(refuse({ type: 'about:blank', title: 'T', status: 403 })).toBe(
+      'Refused: it needs the manage-clients capability, or reaches a capability you do not hold.',
+    );
+    expect(refuse({ type: 'about:blank', title: 'T', status: 400 })).toBeNull();
+  });
+
+  it('names manage-tenant when no capability is given', () => {
+    expect(refusedBy()({ type: 'about:blank', title: 'T', status: 403 })).toBe(
+      'Refused: it needs the manage-tenant capability, or reaches a capability you do not hold.',
+    );
   });
 });

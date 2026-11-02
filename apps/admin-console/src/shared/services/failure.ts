@@ -106,6 +106,49 @@ export function writeFailureText(failure: GatewayFailure, copy: WriteCopy): stri
   }
 }
 
+export type FailureKind = GatewayFailure['kind'];
+
+// What a feature says in place of the default for each kind of failure; a
+// `problem` override is handed the problem and is not given the copy's
+// stale, missing or refused wording to defer to.
+export interface FailureOverrides {
+  network?: () => string;
+  schema?: () => string;
+  defect?: () => string;
+  problem?: (problem: Problem) => string;
+}
+
+// Reached only through the overload that names every kind.
+const UNUSED_COPY: WriteCopy = { name: 'It', verb: 'done', lookAt: 'the page' };
+
+// A failure's text with some kinds worded by the feature and the rest by
+// writeFailureText: with every kind worded no copy is needed.
+export function failureTextWith(
+  overrides: Required<FailureOverrides>,
+): (failure: GatewayFailure) => string;
+export function failureTextWith(
+  overrides: FailureOverrides,
+  copy: WriteCopy,
+): (failure: GatewayFailure) => string;
+export function failureTextWith(
+  overrides: FailureOverrides,
+  copy: WriteCopy = UNUSED_COPY,
+): (failure: GatewayFailure) => string {
+  return (failure) => {
+    if (failure.kind === 'problem') {
+      return overrides.problem?.(failure.problem) ?? writeFailureText(failure, copy);
+    }
+    return overrides[failure.kind]?.() ?? writeFailureText(failure, copy);
+  };
+}
+
+// The refusal wording of a write that needs `capability`, for a spec's `refused`.
+export function refusedBy(
+  capability: AdminCapability = 'manage-tenant',
+): (problem: Problem) => string | null {
+  return (problem) => writeRefusal(problem, capability);
+}
+
 export interface RemovalSpec {
   // What the page says once the thing is gone.
   doneText: string;
@@ -195,7 +238,7 @@ export function createFailure(failure: GatewayFailure, spec: CreateSpec): Create
           errors: { [spec.taken.field]: sentence(problem.detail ?? spec.taken.fallback) },
         };
       }
-      const refused = (spec.refused ?? ((p) => writeRefusal(p, spec.capability)))(problem);
+      const refused = (spec.refused ?? refusedBy(spec.capability))(problem);
       if (refused !== null) return { ...none, message: refused, report: true };
       const placed = fieldErrorsOf(problem, spec.fields);
       return {
