@@ -240,8 +240,11 @@ describe('boundary rules', { timeout: 60_000 }, () => {
   it("permits a console feature importing another feature's index.ts", async () => {
     const output = await cruiseFixtures();
     expect(
+      output.modules.some((m) => m.source.endsWith('features/subjects/use-cases/usesIndex.ts')),
+    ).toBe(true);
+    expect(
       output.summary.violations.filter((v) =>
-        v.from.endsWith('features/subjects/usecase/usesIndex.ts'),
+        v.from.endsWith('features/subjects/use-cases/usesIndex.ts'),
       ),
     ).toHaveLength(0);
   });
