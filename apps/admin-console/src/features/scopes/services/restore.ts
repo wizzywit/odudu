@@ -1,6 +1,5 @@
 import type { ListBuiltinScopesResponse } from '@odudu/contracts/admin';
-import { writeRefusal } from '#/shared/services/capabilities';
-import { writeFailureText } from '#/shared/services/failure';
+import { refusedBy, writeFailureText } from '#/shared/services/failure';
 import { andList, plural } from '#/shared/services/format';
 import type { Read } from '#/shared/services/read';
 import type { GatewayFailure } from '#/shared/services/result';
@@ -58,6 +57,6 @@ export function restoreFailureText(failure: GatewayFailure): string {
     name: 'The restore of the built-in scopes',
     verb: 'done',
     lookAt: 'the scopes list',
-    refused: (problem) => writeRefusal(problem),
+    refused: refusedBy(),
   });
 }

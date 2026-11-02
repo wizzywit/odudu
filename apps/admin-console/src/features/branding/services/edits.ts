@@ -1,4 +1,5 @@
 import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
+import { failureTextWith } from '#/shared/services/failure';
 import { reportFailure } from '#/shared/services/settled';
 import {
   altEdited,
@@ -121,14 +122,12 @@ export function slotDone(slots: SlotStates, slot: ImageSlot): SlotStates {
 
 // What a failed upload says, in the console's words.
 export function uploadFailureOf(slot: ImageSlot, failure: GatewayFailure): string {
-  switch (failure.kind) {
-    case 'problem':
-      return uploadFailureText(slot, failure.problem);
-    case 'network':
-      return UPLOAD_LOST;
-    default:
-      return UPLOAD_FAULT;
-  }
+  return failureTextWith({
+    network: () => UPLOAD_LOST,
+    schema: () => UPLOAD_FAULT,
+    defect: () => UPLOAD_FAULT,
+    problem: (problem) => uploadFailureText(slot, problem),
+  })(failure);
 }
 
 export interface PublishOutcome {

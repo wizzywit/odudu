@@ -1,6 +1,5 @@
 import { formatAbsolute, counted, groupedNumber } from '#/shared/services/format';
-import { writeRefusal } from '#/shared/services/capabilities';
-import { createFailure, type CreateOutcome } from '#/shared/services/failure';
+import { type CreateOutcome, createFailure, refusedBy } from '#/shared/services/failure';
 import type { GatewayFailure } from '#/shared/services/result';
 
 export interface MintValues {
@@ -43,7 +42,7 @@ export function mintFailure(failure: GatewayFailure): CreateOutcome {
     fields: MINT_FIELDS,
     capability: 'manage-clients',
     schema: LOST,
-    refused: (problem) => writeRefusal(problem, 'manage-clients'),
+    refused: refusedBy('manage-clients'),
   });
 }
 

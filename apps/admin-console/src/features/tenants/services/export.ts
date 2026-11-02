@@ -1,5 +1,6 @@
 import { utcDay } from '#/shared/services/dateTime';
 import { utf8Length } from '#/shared/services/format';
+import { failureTextWith } from '#/shared/services/failure';
 import { lacking } from '#/shared/services/access';
 import { type AdminCapability, type Authority } from '#/shared/services/principal';
 import type { GatewayFailure } from '#/shared/services/result';
@@ -51,8 +52,13 @@ export function exportFailureText(
   if (refused) {
     return `The export needs manage-tenant and manage-clients${withSubjects ? ', and view-users with subjects' : ''}.`;
   }
-  if (failure.kind === 'problem') return failure.problem.detail ?? failure.problem.title;
-  return 'The export could not be read. Nothing was saved; try again.';
+  const unreadable = () => 'The export could not be read. Nothing was saved; try again.';
+  return failureTextWith({
+    network: unreadable,
+    schema: unreadable,
+    defect: unreadable,
+    problem: ({ detail, title }) => detail ?? title,
+  })(failure);
 }
 
 export function savedText(fileName: string): string {

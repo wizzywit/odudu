@@ -1,6 +1,6 @@
 import { holdingLabel, type Holding } from '#/shared/services/capabilities';
 import type { DialogAsk } from '#/shared/services/dialog';
-import { COULD_NOT_FINISH } from '#/shared/services/failure';
+import { COULD_NOT_FINISH, failureTextWith } from '#/shared/services/failure';
 import { andList } from '#/shared/services/format';
 import { notLacking } from '#/shared/services/access';
 import { type AdminCapability, type Authority } from '#/shared/services/principal';
@@ -101,18 +101,16 @@ export function subjectRefusal(who: string, capability: AdminCapability): string
 }
 
 export function changeFailureText(failure: GatewayFailure, capability: AdminCapability): string {
-  switch (failure.kind) {
-    case 'network':
-      return 'Could not confirm the result. Nothing was sent again; the tab shows what the server holds now.';
-    case 'schema':
-      return 'It may have happened, but the answer could not be read. The tab shows what the server holds now.';
-    case 'defect':
-      return COULD_NOT_FINISH;
-    case 'problem':
-      if (failure.problem.status === 403) {
-        return `Refused: ${subjectRefusal('the subject', capability)}`;
-      }
-      if (failure.problem.status === 404) return 'It is already gone.';
-      return `Refused: ${failure.problem.detail ?? failure.problem.title}`;
-  }
+  return failureTextWith({
+    network: () =>
+      'Could not confirm the result. Nothing was sent again; the tab shows what the server holds now.',
+    schema: () =>
+      'It may have happened, but the answer could not be read. The tab shows what the server holds now.',
+    defect: () => COULD_NOT_FINISH,
+    problem: ({ status, detail, title }) => {
+      if (status === 403) return `Refused: ${subjectRefusal('the subject', capability)}`;
+      if (status === 404) return 'It is already gone.';
+      return `Refused: ${detail ?? title}`;
+    },
+  })(failure);
 }

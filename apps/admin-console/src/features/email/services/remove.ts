@@ -1,5 +1,4 @@
-import { writeRefusal } from '#/shared/services/capabilities';
-import { removalOutcome, type RemovalOutcome } from '#/shared/services/failure';
+import { type RemovalOutcome, refusedBy, removalOutcome } from '#/shared/services/failure';
 import type { GatewayResult } from '#/shared/services/result';
 
 export const REMOVED_TEXT = 'The tenant’s own relay was removed.';
@@ -18,7 +17,7 @@ export function removeOutcome(result: GatewayResult<unknown>): RemovalOutcome {
       name: 'The relay',
       verb: 'removed',
       lookAt: 'the page',
-      refused: (problem) => writeRefusal(problem, 'manage-tenant'),
+      refused: refusedBy('manage-tenant'),
     },
   );
 }

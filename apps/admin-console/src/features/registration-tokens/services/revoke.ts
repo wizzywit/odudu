@@ -1,5 +1,4 @@
-import { writeRefusal } from '#/shared/services/capabilities';
-import { removalOutcome, type RemovalOutcome } from '#/shared/services/failure';
+import { type RemovalOutcome, refusedBy, removalOutcome } from '#/shared/services/failure';
 import { counted } from '#/shared/services/format';
 import type { GatewayResult } from '#/shared/services/result';
 
@@ -26,7 +25,7 @@ export function revokeOutcome(result: GatewayResult<unknown>): RemovalOutcome {
       name: 'The token',
       verb: 'revoked',
       lookAt: 'the list',
-      refused: (problem) => writeRefusal(problem, 'manage-clients'),
+      refused: refusedBy('manage-clients'),
     },
   );
 }

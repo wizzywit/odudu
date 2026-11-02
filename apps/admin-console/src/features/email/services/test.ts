@@ -1,7 +1,6 @@
 import { testRecipientSchema } from '@odudu/contracts/admin';
-import { writeRefusal } from '#/shared/services/capabilities';
-import { writeFailureText } from '#/shared/services/failure';
-import type { GatewayResult } from '#/shared/services/result';
+import { refusedBy, writeFailureText } from '#/shared/services/failure';
+import type { GatewayResult, Problem } from '#/shared/services/result';
 
 export interface TestOutcome {
   tone: 'success' | 'error';
@@ -24,6 +23,16 @@ export function testSendable(busy: boolean, blocked: string | undefined): boolea
   return !busy && blocked === undefined;
 }
 
+const refuseAsManageTenant = refusedBy('manage-tenant');
+
+function refusedTestSend(problem: Problem): string | null {
+  const said = problem.detail ?? problem.title;
+  const reason = said.endsWith('.') ? said : `${said}.`;
+  if (problem.status === 400) return `Not sent. The server said: ${reason}`;
+  if (problem.status === 502) return `Not sent. The relay failed: ${reason}`;
+  return refuseAsManageTenant(problem);
+}
+
 // The server's own words for why a send failed, in a sentence that says so.
 export function testOutcome(result: GatewayResult<{ sent: boolean }>, to: string): TestOutcome {
   if (result.ok) {
@@ -34,24 +43,13 @@ export function testOutcome(result: GatewayResult<{ sent: boolean }>, to: string
         }
       : { tone: 'error', text: `The relay did not take the test message for ${to}.` };
   }
-  if (result.kind === 'problem') {
-    const { problem } = result;
-    const said = problem.detail ?? problem.title;
-    const reason = said.endsWith('.') ? said : `${said}.`;
-    if (problem.status === 400) {
-      return { tone: 'error', text: `Not sent. The server said: ${reason}` };
-    }
-    if (problem.status === 502) {
-      return { tone: 'error', text: `Not sent. The relay failed: ${reason}` };
-    }
-  }
   return {
     tone: 'error',
     text: writeFailureText(result, {
       name: 'The test message',
       verb: 'sent',
       lookAt: 'the inbox',
-      refused: (problem) => writeRefusal(problem, 'manage-tenant'),
+      refused: refusedTestSend,
     }),
   };
 }

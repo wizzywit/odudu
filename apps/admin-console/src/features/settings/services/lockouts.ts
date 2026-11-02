@@ -1,7 +1,6 @@
 import type { ClearLockoutsResponse } from '@odudu/contracts/admin';
 import { holds } from '#/shared/services/access';
-import { writeRefusal } from '#/shared/services/capabilities';
-import { writeFailureText } from '#/shared/services/failure';
+import { refusedBy, writeFailureText } from '#/shared/services/failure';
 import { counted } from '#/shared/services/format';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
 import type { GatewayFailure } from '#/shared/services/result';
@@ -60,6 +59,6 @@ export function clearFailure(tenant: string, failure: GatewayFailure): string {
     name: `The clearing of every lockout in ${tenant}`,
     verb: 'done',
     lookAt: 'a subject’s lockout',
-    refused: (problem) => writeRefusal(problem, LOCKOUTS_NEEDS),
+    refused: refusedBy(LOCKOUTS_NEEDS),
   });
 }

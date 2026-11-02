@@ -1,4 +1,5 @@
 import { type ImportError, type Tenant } from '@odudu/contracts/admin';
+import { failureTextWith } from '#/shared/services/failure';
 import type { GatewayFailure, Problem } from '#/shared/services/result';
 import { tenantHref } from '#/features/tenants/services/address';
 
@@ -64,20 +65,27 @@ export function importUnconfirmed(outcome: ImportOutcome | null, found: Found | 
   return refusedImport(outcome)?.kind === 'network' && importedTenantOf(outcome, found) === null;
 }
 
+const IMPORT_UNREADABLE =
+  'The import could not be read back. This is a fault in the console; check whether the tenant exists.';
+
+const importFailureText = failureTextWith({
+  network: () => IMPORT_NETWORK,
+  schema: () => IMPORT_UNREADABLE,
+  defect: () => IMPORT_UNREADABLE,
+  problem: ({ status, detail, title }) => {
+    if (status === 403) return 'Importing a tenant needs the manage-tenants capability.';
+    if (status === 413) return TOO_LARGE;
+    return detail ?? title;
+  },
+});
+
 export function importMessage(outcome: ImportOutcome | null, found: Found | null): string | null {
   if (importedTenantOf(outcome, found) !== null) return null;
   if (found !== null && 'missing' in found)
     return `${found.missing} was not imported. Import it again.`;
   const failure = refusedImport(outcome);
   if (failure === null) return null;
-  if (failure.kind === 'network') return IMPORT_NETWORK;
-  if (failure.kind !== 'problem') {
-    return 'The import could not be read back. This is a fault in the console; check whether the tenant exists.';
-  }
-  const { problem } = failure;
-  if (problem.status === 403) return 'Importing a tenant needs the manage-tenants capability.';
-  if (problem.status === 413) return TOO_LARGE;
-  return problem.detail ?? problem.title;
+  return importFailureText(failure);
 }
 
 export function secretPlace(outcome: ImportOutcome | null, shown: number): string {

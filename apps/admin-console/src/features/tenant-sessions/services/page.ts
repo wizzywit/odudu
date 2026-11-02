@@ -1,8 +1,7 @@
 import type { EndTenantSessionsResponse, TenantSession } from '@odudu/contracts/admin';
 import { tenantPage } from '#/shared/services/address';
 import { nameOrId } from '#/shared/services/ids';
-import { writeRefusal } from '#/shared/services/capabilities';
-import { writeFailureText } from '#/shared/services/failure';
+import { refusedBy, writeFailureText } from '#/shared/services/failure';
 import { counted } from '#/shared/services/format';
 import type { GatewayFailure } from '#/shared/services/result';
 
@@ -77,6 +76,6 @@ export function endFailure(tenant: string, failure: GatewayFailure): string {
     name: `The end of every session in ${tenant}`,
     verb: 'done',
     lookAt: 'the sessions list',
-    refused: (problem) => writeRefusal(problem, 'manage-sessions'),
+    refused: refusedBy('manage-sessions'),
   });
 }

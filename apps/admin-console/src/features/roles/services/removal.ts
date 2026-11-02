@@ -5,7 +5,7 @@ import {
   type Loss,
   writeRefusal,
 } from '#/shared/services/capabilities';
-import { writeFailureText } from '#/shared/services/failure';
+import { failureTextWith, writeFailureText } from '#/shared/services/failure';
 import type { GatewayFailure } from '#/shared/services/result';
 import { compositeRefusal } from '#/features/roles/services/blocks';
 import { type Ceiling } from '#/features/roles/services/ceiling';
@@ -26,16 +26,18 @@ export function compositeRemovalFailureText(
   child: string,
   failure: GatewayFailure,
 ): string {
-  if (failure.kind !== 'problem') {
-    return `Could not confirm whether ${child} was taken out. Look at the list before trying again.`;
-  }
-  return writeFailureText(failure, {
-    name: child,
-    verb: 'taken out',
-    lookAt: 'the list',
-    stale: `${role}'s composites changed since you opened them, so ${child} was not taken out. They have been read again; look before trying again.`,
-    refused: (problem) => compositeRefusal(child, problem),
-  });
+  const unconfirmed = () =>
+    `Could not confirm whether ${child} was taken out. Look at the list before trying again.`;
+  return failureTextWith(
+    { network: unconfirmed, schema: unconfirmed, defect: unconfirmed },
+    {
+      name: child,
+      verb: 'taken out',
+      lookAt: 'the list',
+      stale: `${role}'s composites changed since you opened them, so ${child} was not taken out. They have been read again; look before trying again.`,
+      refused: (problem) => compositeRefusal(child, problem),
+    },
+  )(failure);
 }
 
 export type RemovalAction = 'wait' | 'ask' | 'run';

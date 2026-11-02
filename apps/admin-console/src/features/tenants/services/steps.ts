@@ -5,7 +5,7 @@ import {
 } from '#/shared/services/administrators';
 import { type AdminCapability } from '#/shared/services/principal';
 import { fieldErrorsOf } from '#/shared/services/fieldErrors';
-import { CONSOLE_FAULT } from '#/shared/services/failure';
+import { CONSOLE_FAULT, failureTextWith } from '#/shared/services/failure';
 import type { GatewayFailure } from '#/shared/services/result';
 
 // A request of a step: what it names when it fails, which fields a refusal
@@ -38,17 +38,15 @@ export function findAdministratorCall(username: string): StepCall {
 
 export function stepFailureText(call: StepCall, failure: GatewayFailure): string {
   const { what, needed } = call;
-  switch (failure.kind) {
-    case 'network':
-      return `Could not confirm that ${what}. Nothing was sent again; check before trying again.`;
-    case 'schema':
-      return `${what} may have happened, but the answer could not be read. Check before trying again.`;
-    case 'defect':
-      return `The console could not finish: ${what} did not happen. ${CONSOLE_FAULT}`;
-    case 'problem':
-      if (failure.problem.status === 403) return `Refused: ${what} needs the ${needed} capability.`;
-      return failure.problem.detail ?? failure.problem.title;
-  }
+  return failureTextWith({
+    network: () =>
+      `Could not confirm that ${what}. Nothing was sent again; check before trying again.`,
+    schema: () =>
+      `${what} may have happened, but the answer could not be read. Check before trying again.`,
+    defect: () => `The console could not finish: ${what} did not happen. ${CONSOLE_FAULT}`,
+    problem: ({ status, detail, title }) =>
+      status === 403 ? `Refused: ${what} needs the ${needed} capability.` : (detail ?? title),
+  })(failure);
 }
 
 export interface StepRefusal {

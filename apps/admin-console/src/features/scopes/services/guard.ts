@@ -1,5 +1,4 @@
-import { writeRefusal } from '#/shared/services/capabilities';
-import { writeFailureText } from '#/shared/services/failure';
+import { refusedBy, writeFailureText } from '#/shared/services/failure';
 import type { GatewayFailure } from '#/shared/services/result';
 
 const GUARDED = 'openid';
@@ -28,6 +27,6 @@ export function scopeDeleteFailureText(name: string, failure: GatewayFailure): s
     verb: 'deleted',
     lookAt: 'the scopes list',
     missing: `${name} was already gone.`,
-    refused: (problem) => writeRefusal(problem),
+    refused: refusedBy(),
   });
 }

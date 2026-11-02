@@ -1,5 +1,4 @@
-import { writeRefusal } from '#/shared/services/capabilities';
-import { writeFailureText } from '#/shared/services/failure';
+import { refusedBy, writeFailureText } from '#/shared/services/failure';
 import { counted } from '#/shared/services/format';
 import type { GatewayFailure } from '#/shared/services/result';
 
@@ -20,7 +19,7 @@ export function clientAssignmentFailure(
     name: `${scope} for ${client}`,
     verb,
     lookAt: "the scope's clients",
-    refused: (problem) => writeRefusal(problem),
+    refused: refusedBy(),
   });
 }
 

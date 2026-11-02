@@ -6,7 +6,7 @@ import {
 } from '@odudu/contracts/admin';
 import type { Read } from '#/shared/services/read';
 import type { NamedDialog } from '#/shared/services/dialog';
-import { COULD_NOT_FINISH } from '#/shared/services/failure';
+import { COULD_NOT_FINISH, failureTextWith } from '#/shared/services/failure';
 import { counted, formatAbsolute, lowerFirst } from '#/shared/services/format';
 import type { GatewayFailure } from '#/shared/services/result';
 import { subjectRefusal } from '#/features/subjects/services/access';
@@ -183,24 +183,21 @@ export function credentialDoneText(name: string, asking: Change): string {
 }
 
 export function credentialFailureText(what: string, failure: GatewayFailure): string {
-  switch (failure.kind) {
-    case 'network':
-      return `Could not confirm the result. ${what} has not been sent again; the tab shows what the server holds now.`;
-    case 'schema':
-      return `${what} may have happened, but the answer could not be read. The tab shows what the server holds now.`;
-    case 'defect':
-      return COULD_NOT_FINISH;
-    case 'problem':
-      if (failure.problem.status === 403) {
-        // The one refusal that is the caller's own: ending sessions needs a
-        // capability the removal itself does not.
-        if (failure.problem.detail === END_SESSIONS_NEEDS_MANAGE_SESSIONS) {
-          return `Refused: ${subjectRefusal('the subject', 'manage-sessions')}`;
-        }
-        return `Refused: ${subjectRefusal('the subject', 'manage-users')}`;
-      }
-      return `Refused: ${failure.problem.detail ?? failure.problem.title}`;
-  }
+  return failureTextWith({
+    network: () =>
+      `Could not confirm the result. ${what} has not been sent again; the tab shows what the server holds now.`,
+    schema: () =>
+      `${what} may have happened, but the answer could not be read. The tab shows what the server holds now.`,
+    defect: () => COULD_NOT_FINISH,
+    problem: ({ status, detail, title }) => {
+      if (status !== 403) return `Refused: ${detail ?? title}`;
+      // The one refusal that is the caller's own: ending sessions needs a
+      // capability the removal itself does not.
+      const needs =
+        detail === END_SESSIONS_NEEDS_MANAGE_SESSIONS ? 'manage-sessions' : 'manage-users';
+      return `Refused: ${subjectRefusal('the subject', needs)}`;
+    },
+  })(failure);
 }
 
 export function credentialDialog(asking: Asking, name: string, self: boolean): NamedDialog {

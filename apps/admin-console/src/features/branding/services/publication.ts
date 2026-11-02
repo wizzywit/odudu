@@ -1,8 +1,7 @@
 import type { ThemeBodyRequest, ThemeBodyWire } from '@odudu/contracts';
 import type { ThemeView } from '@odudu/contracts/admin';
-import { writeRefusal } from '#/shared/services/capabilities';
 import type { Conflict } from '#/shared/services/conflict';
-import { isStale, writeFailureText } from '#/shared/services/failure';
+import { isStale, refusedBy, writeFailureText } from '#/shared/services/failure';
 import { andList, counted } from '#/shared/services/format';
 import type { AdminCapability } from '#/shared/services/principal';
 import type { GatewayFailure, GatewayResult, Problem } from '#/shared/services/result';
@@ -296,5 +295,5 @@ export function writeCapability(scope: ThemeScope): AdminCapability {
 
 // What a refused section save says of a 403, naming the capability of the scope.
 export function themeRefusal(scope: ThemeScope): (problem: Problem) => string | null {
-  return (problem) => writeRefusal(problem, writeCapability(scope));
+  return refusedBy(writeCapability(scope));
 }

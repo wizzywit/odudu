@@ -7,11 +7,12 @@ import {
 } from '@odudu/contracts/admin';
 import { writeRefusal } from '#/shared/services/capabilities';
 import {
+  type RemovalOutcome,
   isStale,
   problemSubtype,
+  refusedBy,
   removalOutcome,
   writeFailureText,
-  type RemovalOutcome,
 } from '#/shared/services/failure';
 import { fieldErrorsOf } from '#/shared/services/fieldErrors';
 import { counted } from '#/shared/services/format';
@@ -181,7 +182,7 @@ export function removeOutcome(result: GatewayResult<unknown>): RemovalOutcome {
       name: 'The override',
       verb: 'removed',
       lookAt: 'the list',
-      refused: (problem) => writeRefusal(problem, 'manage-tenant'),
+      refused: refusedBy('manage-tenant'),
     },
   );
   // The version asked about is out of date, so asking again could only be
