@@ -9,5 +9,9 @@ describe('the theme choices', () => {
   it('accepts a known choice and nothing else', () => {
     expect(themeChoice('dark')).toBe('dark');
     expect(themeChoice('sepia')).toBeUndefined();
+    expect(themeChoice('light')).toBe('light');
+    expect(themeChoice('system')).toBe('system');
+    expect(themeChoice('')).toBeUndefined();
+    expect(themeChoice('Dark')).toBeUndefined();
   });
 });

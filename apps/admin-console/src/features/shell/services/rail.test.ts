@@ -46,6 +46,18 @@ describe('the system-authority context bar', () => {
   });
 });
 
+describe('the System area, by the rest of the inputs', () => {
+  it('is hidden from a tenant administrator inside their own tenant, whoever whoami says they are', () => {
+    expect(showsSystemArea(ACME_ADMIN, 'acme', everything)).toBe(false);
+  });
+
+  it('is hidden from a system administrator whose whoami holds no capabilities', () => {
+    expect(showsSystemArea(SYSTEM_ADMIN, 'system', { capabilities: [], crossTenant: false })).toBe(
+      false,
+    );
+  });
+});
+
 describe('the way back to system', () => {
   it('is the tenant’s record under System › Tenants, where it was entered', () => {
     expect(systemRecordHref('acme')).toBe('/console/system/tenants/acme');
