@@ -14,7 +14,7 @@ export function optionalFilter(
   return value === null || value === undefined ? {} : { [name]: value };
 }
 
-// The choice that sends no status filter, for a list a status narrows.
+// A select's way of saying no filter; a select cannot hold an empty key.
 export const ANY_STATUS = 'any';
 
 // A filter the server takes, or none for any.

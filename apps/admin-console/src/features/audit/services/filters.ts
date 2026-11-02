@@ -1,6 +1,7 @@
 import { isAuditInstant, listAuditQuerySchema } from '@odudu/contracts/admin';
 import type { Choice } from '#/shared/services/choice';
 import { withoutField } from '#/shared/services/fieldErrors';
+import { ANY_STATUS } from '#/shared/services/filters';
 import { shortened } from '#/shared/services/format';
 
 export const FILTER_NAMES = [
@@ -41,9 +42,6 @@ export const FILTER_LABELS: Record<FilterName, string> = {
   from: 'from',
   to: 'to',
 };
-
-// A select's way of saying no filter; a select cannot hold an empty key.
-export const ANY = 'any';
 
 const SHAPE = listAuditQuerySchema.shape;
 const SHOWN_LENGTH = 40;
@@ -144,7 +142,7 @@ export function filtersOf(draft: Draft): AuditFilters {
 
 // What a select shows for a draft field: its option, or "any" while unset.
 export function choiceOf(draft: Draft, name: FilterName): string {
-  return draft[name] === '' ? ANY : draft[name];
+  return draft[name] === '' ? ANY_STATUS : draft[name];
 }
 
 // Problems are said once a submit has met them, not while the field is half typed.
@@ -163,7 +161,7 @@ export function hasResourceType(draft: Draft): boolean {
 
 // A resource id is meaningless without its type, so the form cannot hold one.
 export function withField(draft: Draft, name: FilterName, value: string): Draft {
-  const next = { ...draft, [name]: value === ANY ? '' : value };
+  const next = { ...draft, [name]: value === ANY_STATUS ? '' : value };
   if (!hasResourceType(next)) next.resource_id = '';
   return next;
 }
@@ -218,7 +216,7 @@ export function draftProblems(draft: Draft, unreadable: Unreadable = {}): DraftP
 }
 
 export const EVENT_TYPE_OPTIONS: readonly Choice[] = [
-  { id: ANY, label: 'Any event type' },
+  { id: ANY_STATUS, label: 'Any event type' },
   { id: 'admin_mutation', label: 'Admin change' },
   { id: 'admin_access', label: 'Admin access' },
   { id: 'authentication', label: 'Authentication' },
@@ -228,7 +226,7 @@ export const EVENT_TYPE_OPTIONS: readonly Choice[] = [
 ];
 
 export const OUTCOME_OPTIONS: readonly Choice[] = [
-  { id: ANY, label: 'Any outcome' },
+  { id: ANY_STATUS, label: 'Any outcome' },
   { id: 'allowed', label: 'Allowed' },
   { id: 'refused', label: 'Refused' },
   { id: 'failed', label: 'Failed' },

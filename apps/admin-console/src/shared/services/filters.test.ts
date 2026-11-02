@@ -11,3 +11,7 @@ it('sends no status filter for any status, and the status itself otherwise', () 
   expect(statusFilter(ANY_STATUS)).toBeNull();
   expect(statusFilter('failed')).toBe('failed');
 });
+
+it('writes the no-filter choice of a select as the key every list uses', () => {
+  expect(ANY_STATUS).toBe('any');
+});

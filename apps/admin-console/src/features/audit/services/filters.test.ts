@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ANY,
   applyBlocked,
   auditQuery,
   choiceOf,
@@ -16,6 +15,7 @@ import {
   withUnreadable,
   EMPTY_DRAFT,
 } from '#/features/audit/services/filters';
+import { ANY_STATUS } from '#/shared/services/filters';
 
 const ACTOR = '0192f7a4-5c1e-7b3a-9d2e-6f8a1b2c3d4e';
 
@@ -121,8 +121,10 @@ describe('the address a set of filters makes', () => {
 
 describe('the form as a draft of the filters', () => {
   it('reads "any" as no filter, and shows no filter as "any"', () => {
-    expect(withField({ ...EMPTY_DRAFT, outcome: 'refused' }, 'outcome', ANY).outcome).toBe('');
-    expect(choiceOf(EMPTY_DRAFT, 'outcome')).toBe(ANY);
+    expect(withField({ ...EMPTY_DRAFT, outcome: 'refused' }, 'outcome', ANY_STATUS).outcome).toBe(
+      '',
+    );
+    expect(choiceOf(EMPTY_DRAFT, 'outcome')).toBe(ANY_STATUS);
     expect(choiceOf({ ...EMPTY_DRAFT, outcome: 'failed' }, 'outcome')).toBe('failed');
   });
 
