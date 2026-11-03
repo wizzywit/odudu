@@ -1,7 +1,7 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import { publishOutcomeOf } from '#/features/branding/services/edits';
-import { PROBLEMS_SHOWN } from '#/features/branding/services/problems';
+import { moreProblems, PROBLEMS_SHOWN } from '#/features/branding/services/problems';
 import {
   issueLine,
   issuesOf,
@@ -63,6 +63,22 @@ describe('what the server refused', () => {
     expect(limitedIssues(text)).toMatch(/; and 10 more problems$/u);
     expect(limitedIssues('one; two')).toBe('one; two');
     expect(limitedIssues(undefined)).toBeUndefined();
+  });
+
+  it('cuts nothing at twenty and one problem over at twenty-one', () => {
+    const joined = (count: number) =>
+      Array.from({ length: count }, (_, i) => `e${String(i)}`).join('; ');
+    expect(limitedIssues(joined(20))).toBe(joined(20));
+    expect(limitedIssues(joined(21))).toBe(`${joined(20)}; and 1 more problem`);
+    const errors = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({ path: `p${String(i)}`, message: 'm' }));
+    expect(issuesOf(errors(20)).more).toBeNull();
+    expect(issuesOf(errors(21)).more).toBe('and 1 more problem');
+  });
+
+  it('counts the problems left out as one or many', () => {
+    expect(moreProblems(1)).toBe('1 more problem');
+    expect(moreProblems(2)).toBe('2 more problems');
   });
 
   it('is worded per problem type for a publish or a restore', () => {

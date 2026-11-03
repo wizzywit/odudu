@@ -175,3 +175,52 @@ describe('the stylesheet in a request', () => {
     expect(stylesheetValues(view)).toEqual({ stylesheet: 'a {}' });
   });
 });
+
+describe('a template’s refusals and the stylesheet’s, read the same way', () => {
+  const lined = (path: string, changes: Partial<FieldError> = {}) =>
+    error({
+      path,
+      message: 'Their words.',
+      line: 3,
+      code: 'unknown-class',
+      detail: 'x',
+      ...changes,
+    });
+
+  it('mark the lines of their own piece, the stylesheet by its code and the template by its message', () => {
+    expect(stylesheetProblems([lined('stylesheet')], undefined).lines).toEqual([
+      { line: 3, text: `${STYLESHEET_REFUSALS['unknown-class'] ?? ''} (x)` },
+    ]);
+    expect(templateProblems('sign-in', [lined('templates.sign-in')], undefined).lines).toEqual([
+      { line: 3, text: 'Their words. (x)' },
+    ]);
+  });
+
+  it('open the message with their own sentence, saved and published', () => {
+    expect(stylesheetProblems([lined('stylesheet')], undefined).message).toBe(STYLESHEET_REFUSED);
+    expect(templateProblems('sign-in', [lined('templates.sign-in')], undefined).message).toBe(
+      TEMPLATE_REFUSED,
+    );
+    const outcome = {
+      ...NO_OUTCOME,
+      errors: [lined('stylesheet'), lined('templates.sign-in')],
+      atTag: '"d1"',
+    };
+    expect(publishedStylesheetProblems(outcome, '"d1"', false).message).toBe(
+      STYLESHEET_UNPUBLISHABLE,
+    );
+    expect(publishedTemplateProblems('sign-in', outcome, '"d1"', false).message).toBe(
+      TEMPLATE_UNPUBLISHABLE,
+    );
+  });
+
+  it('say the refusals that name no line in the message, after the sentence', () => {
+    const plain = (path: string) => error({ path, message: 'Too much.', code: 'too-large' });
+    expect(stylesheetProblems([plain('stylesheet')], undefined).message).toBe(
+      `${STYLESHEET_REFUSED} ${STYLESHEET_REFUSALS['too-large'] ?? ''}`,
+    );
+    expect(templateProblems('notice', [plain('templates.notice')], undefined).message).toBe(
+      `${TEMPLATE_REFUSED} Too much.`,
+    );
+  });
+});
