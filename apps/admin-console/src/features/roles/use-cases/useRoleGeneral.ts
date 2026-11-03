@@ -7,7 +7,7 @@ import { rolesHref } from '#/features/roles/services/roleAddress';
 import { defaultBlock } from '#/features/roles/services/roleDefault';
 import { deletionFixed } from '#/features/roles/services/roleDeletion';
 import {
-  type Ceiling,
+  type RoleCeiling,
   defaultsChecking,
   isDeleteHeld,
 } from '#/features/roles/services/roleCeiling';
@@ -66,7 +66,7 @@ export function useRoleGeneral({
   role: Role;
   etag: string;
   gone: boolean;
-  ceiling: Ceiling;
+  ceiling: RoleCeiling;
 }): RoleGeneral {
   const refusal = useRefusal(tenant);
   const reread = useRereadAuthority(tenant);

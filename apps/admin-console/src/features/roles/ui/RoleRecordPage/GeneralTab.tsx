@@ -6,7 +6,7 @@ import {
   type Deletion,
   type RoleGeneral,
 } from '#/features/roles/use-cases/useRoleGeneral';
-import type { Ceiling } from '#/features/roles/use-cases/useRoleRecordPage';
+import type { RoleCeiling } from '#/features/roles/use-cases/useRoleRecordPage';
 import { DeleteZone } from '#/shared/ui/DeleteZone';
 import { DescriptionField } from '#/shared/ui/DescriptionField';
 import { Panel } from '#/shared/ui/Panel';
@@ -106,7 +106,7 @@ export function GeneralTab({
   role: Role;
   etag: string;
   gone: boolean;
-  ceiling: Ceiling;
+  ceiling: RoleCeiling;
 }) {
   const general = useRoleGeneral({ tenant, role, etag, gone, ceiling });
   return (

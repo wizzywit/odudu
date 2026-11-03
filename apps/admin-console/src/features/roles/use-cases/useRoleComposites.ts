@@ -15,7 +15,7 @@ import {
   childUnavailable,
   compositesFixed,
 } from '#/features/roles/services/composites';
-import { type Ceiling, compositesOffered } from '#/features/roles/services/roleCeiling';
+import { type RoleCeiling, compositesOffered } from '#/features/roles/services/roleCeiling';
 import { roleSelfLoss } from '#/features/roles/services/roleLoss';
 import { ADD_LABEL, NEST_LABEL } from '#/features/roles/services/composites';
 import {
@@ -79,7 +79,7 @@ export function useRoleComposites({
   data: ListRoleCompositesResponse;
   etag: string;
   gone: boolean;
-  ceiling: Ceiling;
+  ceiling: RoleCeiling;
 }): RoleComposites {
   const refusal = useRefusal(tenant);
   const reread = useRereadAuthority(tenant);

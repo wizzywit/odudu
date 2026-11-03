@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
 import { SignedInContext } from '#/entities/session';
 import { useGroupRoles } from '#/features/groups/use-cases/useGroupRoles';
-import { type Ceiling } from '#/features/groups/services/groupCeiling';
+import { type GroupCeiling } from '#/features/groups/services/groupCeiling';
 import { json, type Answer } from '#/testing/fakeTransport';
 import { record } from '#/testing/groupAnswers';
 import { ENG, G } from '#/testing/groupsFixtures';
@@ -20,7 +20,7 @@ const KEYS = role('r-keys', 'manage-keys', 'odudu-admin');
 const USERS = role('r-users', 'view-users', 'odudu-admin');
 const PLAIN = role('r-aud', 'auditor');
 
-function ceilingOf(caller: Extract<Ceiling, { status: 'ready' }>['caller']): Ceiling {
+function ceilingOf(caller: Extract<GroupCeiling, { status: 'ready' }>['caller']): GroupCeiling {
   return {
     status: 'ready',
     parentReach: [],
@@ -31,7 +31,7 @@ function ceilingOf(caller: Extract<Ceiling, { status: 'ready' }>['caller']): Cei
 
 function roles(
   items: SetGroupRolesResponse['items'],
-  caller: Extract<Ceiling, { status: 'ready' }>['caller'],
+  caller: Extract<GroupCeiling, { status: 'ready' }>['caller'],
   extra: Record<string, Answer> = {},
 ) {
   const harness = hookHarness({

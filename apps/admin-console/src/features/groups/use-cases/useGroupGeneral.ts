@@ -12,7 +12,7 @@ import { groupsHref } from '#/features/groups/services/groupAddress';
 import { defaultBlock } from '#/features/groups/services/groupReach';
 import { moveRefusal, parentUnavailable } from '#/features/groups/services/groupMove';
 import {
-  type Ceiling,
+  type GroupCeiling,
   ceilingLines,
   ceilingParentReach,
   groupReadiness,
@@ -96,7 +96,7 @@ export function useGroupGeneral({
   group: GroupRecord;
   etag: string;
   gone: boolean;
-  ceiling: Ceiling;
+  ceiling: GroupCeiling;
 }): GroupGeneral {
   const refusal = useRefusal(tenant);
   const reread = useRereadAuthority(tenant);

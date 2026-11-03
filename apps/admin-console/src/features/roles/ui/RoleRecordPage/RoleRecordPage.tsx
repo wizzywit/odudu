@@ -5,7 +5,7 @@ import { areaAt } from '#/entities/area';
 import { SubjectMembers } from '#/features/subject-members';
 import { rolesTrail, type Role } from '#/features/roles/services/roleAddress';
 import { ROLE_TAB_LABELS, ROLE_TABS, type RoleTab } from '#/features/roles/services/tabs';
-import { useRoleRecordPage, type Ceiling } from '#/features/roles/use-cases/useRoleRecordPage';
+import { useRoleRecordPage, type RoleCeiling } from '#/features/roles/use-cases/useRoleRecordPage';
 import { CompositesTab } from '#/features/roles/ui/RoleRecordPage/CompositesTab';
 import { GeneralTab } from '#/features/roles/ui/RoleRecordPage/GeneralTab';
 import { RecordActivity } from '#/shared/ui/RecordActivity';
@@ -16,7 +16,7 @@ import { StatusTag } from '#/shared/ui/StatusTag';
 import { Note } from '#/shared/ui/Note';
 
 type PanelProps = RecordPanelProps<'role', Role> & {
-  ceiling: Ceiling;
+  ceiling: RoleCeiling;
 };
 
 function Activity({ tenant, id }: { tenant: string; id: string }) {
@@ -44,7 +44,7 @@ const PANELS: Readonly<Record<RoleTab, (props: PanelProps) => ReactNode>> = {
   activity: (props) => <Activity tenant={props.tenant} id={props.role.id} />,
 };
 
-function Lines({ ceiling }: { ceiling: Ceiling }) {
+function Lines({ ceiling }: { ceiling: RoleCeiling }) {
   if (ceiling.status !== 'ready' || ceiling.deleteHeld === null) return null;
   return <Note>{ceiling.deleteHeld}</Note>;
 }

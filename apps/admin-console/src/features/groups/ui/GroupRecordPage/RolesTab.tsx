@@ -4,7 +4,7 @@ import {
   useGroupRolesRead,
   type GroupRoles,
 } from '#/features/groups/use-cases/useGroupRoles';
-import type { Ceiling } from '#/features/groups/use-cases/useGroupRecordPage';
+import type { GroupCeiling } from '#/features/groups/use-cases/useGroupRecordPage';
 import { AskedDialog } from '#/shared/ui/ConfirmDialog';
 import { MappedRoles } from '#/shared/ui/MappedRoles';
 import { ReadGate } from '#/shared/ui/ReadGate';
@@ -56,7 +56,7 @@ function Ready({
 }: {
   tenant: string;
   group: GroupRecord;
-  ceiling: Ceiling;
+  ceiling: GroupCeiling;
   data: Parameters<typeof useGroupRoles>[0]['data'];
   etag: string;
   gone: boolean;
@@ -72,7 +72,7 @@ export function RolesTab({
 }: {
   tenant: string;
   group: GroupRecord;
-  ceiling: Ceiling;
+  ceiling: GroupCeiling;
 }) {
   const read = useGroupRolesRead(tenant, group.id);
   return (

@@ -3,14 +3,14 @@ import { beyondCaller } from '#/shared/services/capabilities';
 import { andList, capitalise } from '#/shared/services/format';
 import { type AdminCapability } from '#/shared/services/principal';
 import { newGroupHref } from '#/features/groups/services/groupAddress';
-import { type Ceiling } from '#/features/groups/services/groupCeiling';
+import { type GroupCeiling } from '#/features/groups/services/groupCeiling';
 
 // A group made under this one receives what it hands out, so it is offered
 // only to a caller holding all of that.
 export function createUnderHref(
   tenant: string,
   group: Pick<GroupRecord, 'id' | 'admin_reach'> | undefined,
-  ceiling: Ceiling,
+  ceiling: GroupCeiling,
 ): string | null {
   return ceiling.status === 'ready' &&
     group !== undefined &&

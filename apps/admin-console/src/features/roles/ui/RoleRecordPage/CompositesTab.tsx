@@ -4,7 +4,7 @@ import {
   useRoleComposites,
   type RoleComposites,
 } from '#/features/roles/use-cases/useRoleComposites';
-import type { Ceiling } from '#/features/roles/use-cases/useRoleRecordPage';
+import type { RoleCeiling } from '#/features/roles/use-cases/useRoleRecordPage';
 import { LiveMessage } from '#/shared/ui/Message';
 import { Panel, useHeadingFocus } from '#/shared/ui/Panel';
 import { ReadGate } from '#/shared/ui/ReadGate';
@@ -99,7 +99,7 @@ function Ready({
 }: {
   tenant: string;
   role: Role;
-  ceiling: Ceiling;
+  ceiling: RoleCeiling;
   data: Parameters<typeof useRoleComposites>[0]['data'];
   etag: string;
   gone: boolean;
@@ -120,7 +120,7 @@ export function CompositesTab({
 }: {
   tenant: string;
   role: Role;
-  ceiling: Ceiling;
+  ceiling: RoleCeiling;
 }) {
   const read = useCompositesRead(tenant, role.id);
   return (

@@ -7,7 +7,7 @@ import {
   type GroupGeneral,
   type Place,
 } from '#/features/groups/use-cases/useGroupGeneral';
-import type { Ceiling } from '#/features/groups/use-cases/useGroupRecordPage';
+import type { GroupCeiling } from '#/features/groups/use-cases/useGroupRecordPage';
 import { DeleteZone } from '#/shared/ui/DeleteZone';
 import { DescriptionField } from '#/shared/ui/DescriptionField';
 import { Panel } from '#/shared/ui/Panel';
@@ -158,7 +158,7 @@ export function GeneralTab({
   group: GroupRecord;
   etag: string;
   gone: boolean;
-  ceiling: Ceiling;
+  ceiling: GroupCeiling;
 }) {
   const general = useGroupGeneral({ tenant, group, etag, gone, ceiling });
   return (

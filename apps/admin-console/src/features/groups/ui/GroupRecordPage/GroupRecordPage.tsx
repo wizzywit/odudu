@@ -6,7 +6,10 @@ import { areaAt } from '#/entities/area';
 import { SubjectMembers } from '#/features/subject-members';
 import { groupsTrail } from '#/features/groups/services/groupAddress';
 import { GROUP_TAB_LABELS, GROUP_TABS, type GroupTab } from '#/features/groups/services/tabs';
-import { useGroupRecordPage, type Ceiling } from '#/features/groups/use-cases/useGroupRecordPage';
+import {
+  useGroupRecordPage,
+  type GroupCeiling,
+} from '#/features/groups/use-cases/useGroupRecordPage';
 import { GeneralTab } from '#/features/groups/ui/GroupRecordPage/GeneralTab';
 import { RolesTab } from '#/features/groups/ui/GroupRecordPage/RolesTab';
 import { Button } from '#/shared/ui/Button';
@@ -17,7 +20,7 @@ import { StatusTag } from '#/shared/ui/StatusTag';
 import { Note } from '#/shared/ui/Note';
 
 type PanelProps = RecordPanelProps<'group', GroupRecord> & {
-  ceiling: Ceiling;
+  ceiling: GroupCeiling;
 };
 
 function Activity({ tenant, id }: { tenant: string; id: string }) {
@@ -45,7 +48,7 @@ const PANELS: Readonly<Record<GroupTab, (props: PanelProps) => ReactNode>> = {
 
 // The one line under the header: what the ceiling rules out here, or that it
 // could not be judged.
-function Lines({ ceiling }: { ceiling: Ceiling }) {
+function Lines({ ceiling }: { ceiling: GroupCeiling }) {
   if (ceiling.status === 'failed') {
     return (
       <Note>

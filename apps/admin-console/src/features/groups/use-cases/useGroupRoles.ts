@@ -5,7 +5,7 @@ import { useOwnRoles } from '#/features/own-roles';
 import { useGroupRolesRecord, useGroupSaves } from '#/features/groups/repository/useGroupRecord';
 import { defaultingOf } from '#/features/groups/services/groupReach';
 import { roleUnavailable } from '#/features/groups/services/groupRoles';
-import { type Ceiling } from '#/features/groups/services/groupCeiling';
+import { type GroupCeiling } from '#/features/groups/services/groupCeiling';
 import { rolesConfirmation } from '#/features/groups/services/groupConfirmation';
 import { lossOf } from '#/features/groups/services/groupLoss';
 import { keptRoles, reachOfRoles } from '#/features/groups/services/groupRoles';
@@ -61,7 +61,7 @@ export function useGroupRoles({
   data: SetGroupRolesResponse;
   etag: string;
   gone: boolean;
-  ceiling: Ceiling;
+  ceiling: GroupCeiling;
 }): GroupRoles {
   const refusal = useRefusal(tenant);
   const reread = useRereadAuthority(tenant);

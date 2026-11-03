@@ -1,13 +1,13 @@
 import type { GroupRecord } from '@odudu/contracts/admin';
 import { useAuthority } from '#/entities/session';
 import { useGroupNamed, useGroupRecord } from '#/features/groups/repository/useGroupRecord';
-import { type Ceiling, groupCeiling } from '#/features/groups/services/groupCeiling';
+import { type GroupCeiling, groupCeiling } from '#/features/groups/services/groupCeiling';
 import { createUnderHref } from '#/features/groups/services/groupCreation';
 import { GROUP_TABS, type GroupTab, TAB_RECORDS } from '#/features/groups/services/tabs';
 import type { RecordView } from '#/shared/services/record';
 import { useRecordTabs } from '#/shared/use-cases/useRecordTabs';
 
-export type { Ceiling };
+export type { GroupCeiling };
 
 export interface GroupRecordPage {
   record: RecordView;
@@ -17,7 +17,7 @@ export interface GroupRecordPage {
   selectTab: (tab: string) => void;
   // Tabs with a section holding unsaved edits, for their dots.
   dirty: ReadonlySet<GroupTab>;
-  ceiling: Ceiling;
+  ceiling: GroupCeiling;
   // A group made under this one receives what it hands out, so it is offered
   // only to a caller holding all of that.
   createUnderHref: string | null;

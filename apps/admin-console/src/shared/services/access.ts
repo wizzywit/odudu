@@ -12,6 +12,13 @@ export function callerCapabilities(authority: Authority | undefined): readonly A
   return authority?.capabilities ?? [];
 }
 
+// What a page judges its writes by: nothing is offered until it has been
+// read, and `Ready` is what the page adds to the caller's capabilities then.
+export type Ceiling<Ready extends object> =
+  | { status: 'checking' }
+  | { status: 'failed'; retry: () => void }
+  | ({ status: 'ready'; caller: readonly AdminCapability[] } & Ready);
+
 // What the caller can give, once a page's ceiling has been read.
 export function ceilingCaller(
   ceiling:
