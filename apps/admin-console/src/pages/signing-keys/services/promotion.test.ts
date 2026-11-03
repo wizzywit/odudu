@@ -4,7 +4,7 @@ import {
   promotionLabel,
   promotionReading,
   promotionText,
-} from '#/features/signing-keys/services/promotion';
+} from '#/pages/signing-keys/services/promotion';
 
 const NOW = new Date('2026-10-12T12:00:00Z');
 

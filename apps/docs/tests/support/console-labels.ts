@@ -78,7 +78,7 @@ const EMAIL_RELAY = 'email/services/relay.ts';
 const EMAIL_MAIL = 'email/services/mail.ts';
 const ACCESS = 'settings/services/accessSections.ts';
 const PLATFORM = 'settings/services/platformSections.ts';
-const KEYS_PAGE = 'signing-keys/ui/SigningKeysPage/SigningKeysPage.tsx';
+const KEYS_WORDS = 'signing-keys/services/keysWords.ts';
 const KEYS_CONFIRM = 'signing-keys/services/confirm.ts';
 const TOKENS_WORDS = 'registration-tokens/services/tokenWording.ts';
 const FLOW_WORDS = 'flow/services/flowWording.ts';
@@ -358,7 +358,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Delete: several(
     at(DELETE_ZONE, 'title="Delete"'),
     page(SUBJECT_PROFILE, 'title="Delete"'),
-    feature(KEYS_PAGE, '> Delete <'),
+    page(KEYS_WORDS, "delete: 'Delete'"),
   ),
 
   // Groups and roles.
@@ -475,20 +475,20 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
 
   // Signing keys.
-  'Stage a key': feature(KEYS_PAGE, 'title="Stage a key"'),
-  'Stage key': feature(KEYS_PAGE, "'Stage key'"),
-  Algorithm: feature(KEYS_PAGE, 'label="Algorithm"'),
-  Rotating: feature('signing-keys/services/laneWording.ts', "title: 'Rotating'"),
-  Active: feature('signing-keys/services/laneWording.ts', "title: 'Active'"),
-  Retired: feature('signing-keys/services/laneWording.ts', "title: 'Retired'"),
-  Promote: feature(KEYS_PAGE, '> Promote <'),
-  Retire: feature(KEYS_PAGE, '> Retire <'),
-  'Promote key': feature(KEYS_CONFIRM, "confirmLabel: 'Promote key'"),
-  'Retire key': feature(KEYS_CONFIRM, "confirmLabel: 'Retire key'"),
-  'Delete key': feature(KEYS_CONFIRM, "confirmLabel: 'Delete key'"),
-  Ready: feature('signing-keys/services/promotion.ts', "return 'Ready'"),
-  'Not ready': feature('signing-keys/services/promotion.ts', "return 'Not ready'"),
-  'Changes algorithm': feature('signing-keys/services/promotion.ts', "return 'Changes algorithm'"),
+  'Stage a key': page(KEYS_WORDS, "title: 'Stage a key'"),
+  'Stage key': page(KEYS_WORDS, "submit: 'Stage key'"),
+  Algorithm: page(KEYS_WORDS, "algorithm: 'Algorithm'"),
+  Rotating: page('signing-keys/services/laneWording.ts', "title: 'Rotating'"),
+  Active: page('signing-keys/services/laneWording.ts', "title: 'Active'"),
+  Retired: page('signing-keys/services/laneWording.ts', "title: 'Retired'"),
+  Promote: page(KEYS_WORDS, "promote: 'Promote'"),
+  Retire: page(KEYS_WORDS, "retire: 'Retire'"),
+  'Promote key': page(KEYS_CONFIRM, "confirmLabel: 'Promote key'"),
+  'Retire key': page(KEYS_CONFIRM, "confirmLabel: 'Retire key'"),
+  'Delete key': page(KEYS_CONFIRM, "confirmLabel: 'Delete key'"),
+  Ready: page('signing-keys/services/promotion.ts', "return 'Ready'"),
+  'Not ready': page('signing-keys/services/promotion.ts', "return 'Not ready'"),
+  'Changes algorithm': page('signing-keys/services/promotion.ts', "return 'Changes algorithm'"),
 
   // Settings.
   'Registration and recovery': page(ACCESS, "title: 'Registration and recovery'"),
@@ -901,11 +901,11 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     FLOW_WORDS,
     "addRequirementLabel: 'Requirement of the new step'",
   ),
-  'ES256 (elliptic curve)': feature(
+  'ES256 (elliptic curve)': page(
     'signing-keys/services/stage.ts',
     "label: 'ES256 (elliptic curve)'",
   ),
-  'RS256 (RSA)': feature('signing-keys/services/stage.ts', "label: 'RS256 (RSA)'"),
+  'RS256 (RSA)': page('signing-keys/services/stage.ts', "label: 'RS256 (RSA)'"),
   'Holding anything or nothing': page(
     'subjects/services/subjectFilters.ts',
     "label: 'Holding anything or nothing'",

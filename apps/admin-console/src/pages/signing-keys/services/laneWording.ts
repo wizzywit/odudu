@@ -27,3 +27,27 @@ export const LANES: readonly Lane[] = [
     empty: 'No key has been retired.',
   },
 ];
+
+export interface LaneWords extends Lane {
+  // The lane's name for a list, a skeleton, a failure and an empty state.
+  label: string;
+  noun: string;
+  loading: string;
+  failed: string;
+  nothing: string;
+}
+
+function laneWords(spec: Lane): LaneWords {
+  const label = `${spec.title} keys`;
+  const noun = label.toLowerCase();
+  return {
+    ...spec,
+    label,
+    noun,
+    loading: `Loading ${noun}`,
+    failed: `${label} could not be loaded`,
+    nothing: `No ${noun}`,
+  };
+}
+
+export const LANE_WORDS: readonly LaneWords[] = LANES.map(laneWords);

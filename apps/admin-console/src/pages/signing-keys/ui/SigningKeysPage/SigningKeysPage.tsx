@@ -1,14 +1,13 @@
 import { useId } from 'react';
 import { AreaGate } from '#/widgets/shell';
-import { areaAt } from '#/entities/area';
-import { LANES, type Lane as LaneSpec } from '#/features/signing-keys/services/laneWording';
-import { type KeyRow } from '#/features/signing-keys/services/rows';
-import { ALG_OPTIONS, STAGE_RULE } from '#/features/signing-keys/services/stage';
+import type { LaneWords } from '#/pages/signing-keys/services/laneWording';
+import type { KeyRow } from '#/pages/signing-keys/services/rows';
 import {
+  useKeysArea,
   useSigningKeysPage,
   type Lane,
   type SigningKeysPage as Page,
-} from '#/features/signing-keys/use-cases/useSigningKeysPage';
+} from '#/pages/signing-keys/use-cases/useSigningKeysPage';
 import { Button } from '#/shared/ui/Button';
 import { AskedDialog } from '#/shared/ui/ConfirmDialog';
 import { DataTable, type Column } from '#/shared/ui/DataTable';
@@ -23,29 +22,28 @@ import { Panel } from '#/shared/ui/Panel';
 import { TableSkeleton } from '#/shared/ui/Skeleton';
 import { StatusTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
-import styles from '#/features/signing-keys/ui/SigningKeysPage/SigningKeysPage.module.css';
+import styles from '#/pages/signing-keys/ui/SigningKeysPage/SigningKeysPage.module.css';
 
-const AREA = areaAt('keys');
-
-function columns(spec: LaneSpec, page: Page): readonly Column<KeyRow>[] {
+function columns(spec: LaneWords, page: Page): readonly Column<KeyRow>[] {
+  const { columns: header, promote, retire, activeNote } = page.words;
   const common: readonly Column<KeyRow>[] = [
     {
       id: 'kid',
-      header: 'Key',
+      header: header.key,
       isRowHeader: true,
       cell: ({ key }) => <code className={styles.kid}>{key.kid}</code>,
     },
-    { id: 'alg', header: 'Algorithm', cell: ({ key }) => key.alg },
+    { id: 'alg', header: header.algorithm, cell: ({ key }) => key.alg },
     {
       id: 'created_at',
-      header: 'Created',
+      header: header.created,
       secondary: true,
       cell: ({ key }) => <Timestamp value={key.created_at} />,
     },
   ];
   const readiness: Column<KeyRow> = {
     id: 'readiness',
-    header: 'Readiness',
+    header: header.readiness,
     cell: ({ readiness: reading }) =>
       reading === null ? null : (
         <div className={styles.cell}>
@@ -56,8 +54,8 @@ function columns(spec: LaneSpec, page: Page): readonly Column<KeyRow>[] {
   };
   const actions: Column<KeyRow> = {
     id: 'actions',
-    header: 'Actions',
-    cell: ({ key }) => {
+    header: header.actions,
+    cell: ({ key, labels }) => {
       switch (spec.status) {
         case 'rotating':
           return (
@@ -65,38 +63,38 @@ function columns(spec: LaneSpec, page: Page): readonly Column<KeyRow>[] {
               <Button
                 size="small"
                 variant="quiet"
-                aria-label={`Promote ${key.kid}`}
+                aria-label={labels.promote}
                 onPress={() => {
                   page.ask('promote', key);
                 }}
               >
-                Promote
+                {promote}
               </Button>
               <Button
                 size="small"
                 variant="quiet"
-                aria-label={`Retire ${key.kid}`}
+                aria-label={labels.retire}
                 onPress={() => {
                   page.ask('retire', key);
                 }}
               >
-                Retire
+                {retire}
               </Button>
             </div>
           );
         case 'active':
-          return <p className={styles.reading}>It cannot be retired while it is active.</p>;
+          return <p className={styles.reading}>{activeNote}</p>;
         case 'retired':
           return (
             <Button
               size="small"
               variant="quiet"
-              aria-label={`Delete ${key.kid}`}
+              aria-label={labels.delete}
               onPress={() => {
                 page.ask('delete', key);
               }}
             >
-              Delete
+              {page.words.delete}
             </Button>
           );
       }
@@ -105,35 +103,39 @@ function columns(spec: LaneSpec, page: Page): readonly Column<KeyRow>[] {
   return spec.status === 'rotating' ? [...common, readiness, actions] : [...common, actions];
 }
 
-function LaneBody({ spec, lane, page }: { spec: LaneSpec; lane: Lane; page: Page }) {
+function LaneBody({ spec, lane, page }: { spec: LaneWords; lane: Lane; page: Page }) {
   const cols = columns(spec, page);
-  const label = `${spec.title} keys`;
   return (
     <ListGate
       list={lane}
-      loading={<TableSkeleton label={`Loading ${label.toLowerCase()}`} columns={cols} rows={2} />}
-      failed={`${label} could not be loaded`}
+      loading={<TableSkeleton label={spec.loading} columns={cols} rows={2} />}
+      failed={spec.failed}
       unchanged
     >
       {() =>
         lane.rows.length === 0 ? (
-          <EmptyState variant="nothing-yet" title={`No ${label.toLowerCase()}`}>
+          <EmptyState variant="nothing-yet" title={spec.nothing}>
             {spec.empty}
           </EmptyState>
         ) : (
           <>
-            <DataTable label={label} columns={cols} rows={lane.rows} rowKey={({ key }) => key.id} />
+            <DataTable
+              label={spec.label}
+              columns={cols}
+              rows={lane.rows}
+              rowKey={({ key }) => key.id}
+            />
             {lane.next === null ? null : (
               <div>
                 <LoadMore
-                  noun={label.toLowerCase()}
+                  noun={spec.noun}
                   loading={lane.loadingMore}
                   limited={lane.loadLimited}
                   onPress={lane.loadMore}
                 />
               </div>
             )}
-            {lane.loadMoreFailed ? <LoadMoreFailed noun={label.toLowerCase()} /> : null}
+            {lane.loadMoreFailed ? <LoadMoreFailed noun={spec.noun} /> : null}
           </>
         )
       }
@@ -141,7 +143,7 @@ function LaneBody({ spec, lane, page }: { spec: LaneSpec; lane: Lane; page: Page
   );
 }
 
-function LaneSection({ spec, page }: { spec: LaneSpec; page: Page }) {
+function LaneSection({ spec, page }: { spec: LaneWords; page: Page }) {
   const heading = useId();
   return (
     <section aria-labelledby={heading} className={styles.lane}>
@@ -155,21 +157,22 @@ function LaneSection({ spec, page }: { spec: LaneSpec; page: Page }) {
 }
 
 function Stage({ page }: { page: Page }) {
+  const { stage } = page.words;
   return (
-    <Panel title="Stage a key">
-      <p className={styles.rule}>{STAGE_RULE}</p>
+    <Panel title={stage.title}>
+      <p className={styles.rule}>{stage.rule}</p>
       <div className={styles.stage}>
         <SelectField
-          label="Algorithm"
-          options={ALG_OPTIONS}
+          label={stage.algorithm}
+          options={stage.options}
           value={page.alg}
           onChange={page.chooseAlg}
         />
         <Button variant="primary" isDisabled={page.staging} onPress={page.stage}>
-          {page.staging ? 'Staging…' : 'Stage key'}
+          {page.staging ? stage.staging : stage.submit}
         </Button>
       </div>
-      <LiveMessage label="Last stage">{page.stageMessage}</LiveMessage>
+      <LiveMessage label={stage.last}>{page.stageMessage}</LiveMessage>
     </Panel>
   );
 }
@@ -179,17 +182,13 @@ function Keys({ tenant }: { tenant: string }) {
   const { asking } = page;
   return (
     <>
-      <PageHeader
-        kicker={tenant}
-        title={AREA.label}
-        description="The keys that sign this tenant’s tokens, and the ones published for relying parties to verify them."
-      />
+      <PageHeader kicker={tenant} title={page.title} description={page.words.description} />
       <div className={styles.page}>
         <Stage page={page} />
-        <LastAction label="Last key action" count={page.acted}>
+        <LastAction label={page.words.lastAction} count={page.acted}>
           {page.notice}
         </LastAction>
-        {LANES.map((spec) => (
+        {page.words.lanes.map((spec) => (
           <LaneSection key={spec.status} spec={spec} page={page} />
         ))}
       </div>
@@ -207,8 +206,9 @@ function Keys({ tenant }: { tenant: string }) {
 }
 
 export function SigningKeysPage({ tenant }: { tenant: string }) {
+  const { area, title } = useKeysArea();
   return (
-    <AreaGate tenant={tenant} area={AREA} title={AREA.label}>
+    <AreaGate tenant={tenant} area={area} title={title}>
       <Keys tenant={tenant} />
     </AreaGate>
   );

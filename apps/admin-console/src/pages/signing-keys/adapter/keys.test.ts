@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { deleteKey, promoteKey, retireKey, stageKey } from '#/features/signing-keys/adapter/keys';
+import { deleteKey, promoteKey, retireKey, stageKey } from '#/pages/signing-keys/adapter/keys';
 import { fakeTransport, json, problem } from '#/testing/fakeTransport';
 import { KEYS } from '#/testing/keysFixtures';
 

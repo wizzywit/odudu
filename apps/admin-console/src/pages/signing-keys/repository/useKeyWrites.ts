@@ -1,6 +1,6 @@
 import type { SigningKey, SigningKeyAlg } from '@odudu/contracts/admin';
 import { useRef } from 'react';
-import { deleteKey, promoteKey, retireKey, stageKey } from '#/features/signing-keys/adapter/keys';
+import { deleteKey, promoteKey, retireKey, stageKey } from '#/pages/signing-keys/adapter/keys';
 import { listKey, overviewKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';

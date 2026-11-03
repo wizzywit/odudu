@@ -6,7 +6,7 @@ import {
   promoteConsequence,
   retireConsequence,
   retireTyped,
-} from '#/features/signing-keys/services/confirm';
+} from '#/pages/signing-keys/services/confirm';
 
 function key(overrides: Partial<SigningKey>): SigningKey {
   return {

@@ -437,7 +437,7 @@ const flow = createRoute({
 });
 
 const SigningKeys = lazyFeatureRoute(
-  () => import('#/features/signing-keys').then((feature) => feature.SigningKeysPage),
+  () => import('#/pages/signing-keys').then((feature) => feature.SigningKeysPage),
   'Loading signing keys',
 );
 

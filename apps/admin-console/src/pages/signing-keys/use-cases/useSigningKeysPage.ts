@@ -1,27 +1,26 @@
 import type { SigningKey, SigningKeyAlg } from '@odudu/contracts/admin';
 import { useState } from 'react';
+import { type Area } from '#/entities/area';
 import { promotionOf, type Promotion } from '#/entities/signing-key';
 import { useRefusal } from '#/entities/session';
-import { useKeyLane, type KeyLane } from '#/features/signing-keys/repository/useKeyLane';
+import { useKeyLane, type KeyLane } from '#/pages/signing-keys/repository/useKeyLane';
 import {
   useDeleteKey,
   usePromoteKey,
   useRetireKey,
   useStageKey,
-} from '#/features/signing-keys/repository/useKeyWrites';
-import { keyActionOutcome, type KeyAction } from '#/features/signing-keys/services/outcome';
-import {
-  promotionReading,
-  type PromotionReading,
-} from '#/features/signing-keys/services/promotion';
+} from '#/pages/signing-keys/repository/useKeyWrites';
+import { keyActionOutcome, type KeyAction } from '#/pages/signing-keys/services/outcome';
+import { promotionReading, type PromotionReading } from '#/pages/signing-keys/services/promotion';
 import {
   askingOf,
   keyRows,
   shownAlg,
   type Asking,
   type KeyRow,
-} from '#/features/signing-keys/services/rows';
-import { algOf, stageFailure, stagedText } from '#/features/signing-keys/services/stage';
+} from '#/pages/signing-keys/services/rows';
+import { KEYS_WORDS, keysArea, type KeysWords } from '#/pages/signing-keys/services/keysWords';
+import { algOf, stageFailure, stagedText } from '#/pages/signing-keys/services/stage';
 import { useToast } from '#/shared/repository/useToasts';
 import { useAnnouncedAction } from '#/shared/use-cases/useAnnouncedAction';
 import { useNow } from '#/shared/use-cases/useNow';
@@ -33,7 +32,14 @@ export interface Lane extends Omit<KeyLane, 'rows'> {
   rows: readonly KeyRow[];
 }
 
+// The gate wraps the page, so it takes the area and the title before anything is read.
+export function useKeysArea(): { area: Area; title: string } {
+  return keysArea();
+}
+
 export interface SigningKeysPage {
+  title: string;
+  words: KeysWords;
   rotating: Lane;
   active: Lane;
   retired: Lane;
@@ -86,6 +92,8 @@ export function useSigningKeysPage(tenant: string): SigningKeysPage {
     rows: keyRows(lane.rows, rotatingRows ? readiness : null),
   });
   return {
+    title: keysArea().title,
+    words: KEYS_WORDS,
     rotating: laneOf(rotating, true),
     active: laneOf(active, false),
     retired: laneOf(retired, false),

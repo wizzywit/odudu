@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
-import { useKeyLane } from '#/features/signing-keys/repository/useKeyLane';
+import { useKeyLane } from '#/pages/signing-keys/repository/useKeyLane';
 import { createQueryClient } from '#/shared/repository/queryClient';
 import { TransportContext } from '#/shared/transport/useTransport';
 import { fakeTransport, json, problem, type Answer } from '#/testing/fakeTransport';

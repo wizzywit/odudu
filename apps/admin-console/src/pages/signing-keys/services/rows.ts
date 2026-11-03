@@ -1,13 +1,21 @@
 import type { SigningKey, SigningKeyAlg } from '@odudu/contracts/admin';
 import type { Promotion } from '#/entities/signing-key';
 import type { NamedDialog } from '#/shared/services/dialog';
-import { dialogOf } from '#/features/signing-keys/services/confirm';
-import type { KeyAction } from '#/features/signing-keys/services/outcome';
-import type { PromotionReading } from '#/features/signing-keys/services/promotion';
-import { defaultAlg } from '#/features/signing-keys/services/stage';
+import { dialogOf } from '#/pages/signing-keys/services/confirm';
+import type { KeyAction } from '#/pages/signing-keys/services/outcome';
+import type { PromotionReading } from '#/pages/signing-keys/services/promotion';
+import { defaultAlg } from '#/pages/signing-keys/services/stage';
+
+// What each action on a key is called to a screen reader, by the key it acts on.
+export interface KeyActionLabels {
+  promote: string;
+  retire: string;
+  delete: string;
+}
 
 export interface KeyRow {
   key: SigningKey;
+  labels: KeyActionLabels;
   // Only a rotating key can be promoted, and says whether it is ready.
   readiness: PromotionReading | null;
 }
@@ -23,7 +31,15 @@ export function keyRows(
   keys: readonly SigningKey[],
   readiness: ((key: SigningKey) => PromotionReading) | null,
 ): KeyRow[] {
-  return keys.map((key) => ({ key, readiness: readiness === null ? null : readiness(key) }));
+  return keys.map((key) => ({
+    key,
+    labels: {
+      promote: `Promote ${key.kid}`,
+      retire: `Retire ${key.kid}`,
+      delete: `Delete ${key.kid}`,
+    },
+    readiness: readiness === null ? null : readiness(key),
+  }));
 }
 
 // Staging offers the algorithm chosen, else the one the active key signs with.

@@ -1,6 +1,6 @@
 import type { SigningKey } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
-import { keyActionOutcome } from '#/features/signing-keys/services/outcome';
+import { keyActionOutcome } from '#/pages/signing-keys/services/outcome';
 
 const KEY: SigningKey = {
   id: 'k1',

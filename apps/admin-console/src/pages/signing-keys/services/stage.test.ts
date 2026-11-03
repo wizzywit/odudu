@@ -6,7 +6,7 @@ import {
   defaultAlg,
   stageFailure,
   stagedText,
-} from '#/features/signing-keys/services/stage';
+} from '#/pages/signing-keys/services/stage';
 
 describe('stage', () => {
   it('starts from the active key’s algorithm, since a rotation usually keeps it', () => {

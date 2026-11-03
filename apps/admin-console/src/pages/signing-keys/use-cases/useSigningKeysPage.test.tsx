@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, expect, it } from 'vitest';
 import { SignedInContext } from '#/entities/session';
-import { useSigningKeysPage } from '#/features/signing-keys/use-cases/useSigningKeysPage';
+import { useSigningKeysPage } from '#/pages/signing-keys/use-cases/useSigningKeysPage';
 import { json, problem } from '#/testing/fakeTransport';
 import { hookHarness } from '#/testing/hookHarness';
 import {
@@ -140,4 +140,17 @@ it('says nothing when the server refuses the algorithm field alone', async () =>
     expect(result.current.staging).toBe(false);
   });
   expect(result.current.stageMessage).toBeNull();
+});
+
+it('carries the title and the words the view shows', async () => {
+  const { result } = page();
+  await listed(result);
+  expect(result.current.title).toBe('Signing keys');
+  expect(result.current.words.lanes.map((lane) => lane.title)).toEqual([
+    'Rotating',
+    'Active',
+    'Retired',
+  ]);
+  expect(result.current.words.stage.submit).toBe('Stage key');
+  expect(result.current.rotating.rows[0]?.labels.promote).toBe('Promote kid-k-ready');
 });

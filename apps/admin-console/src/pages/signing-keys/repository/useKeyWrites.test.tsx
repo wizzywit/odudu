@@ -5,7 +5,7 @@ import {
   usePromoteKey,
   useRetireKey,
   useStageKey,
-} from '#/features/signing-keys/repository/useKeyWrites';
+} from '#/pages/signing-keys/repository/useKeyWrites';
 import { json, problem } from '#/testing/fakeTransport';
 import { hookHarness as harness, rejectingTransport } from '#/testing/hookHarness';
 import { settledWriteContract } from '#/testing/settledWriteContract';

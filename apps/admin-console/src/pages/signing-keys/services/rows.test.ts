@@ -1,8 +1,8 @@
 import type { SigningKey } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
-import { askingOf, keyRows, shownAlg } from '#/features/signing-keys/services/rows';
-import { dialogOf } from '#/features/signing-keys/services/confirm';
-import { DEFAULT_ALG } from '#/features/signing-keys/services/stage';
+import { askingOf, keyRows, shownAlg } from '#/pages/signing-keys/services/rows';
+import { dialogOf } from '#/pages/signing-keys/services/confirm';
+import { DEFAULT_ALG } from '#/pages/signing-keys/services/stage';
 
 function key(overrides: Partial<SigningKey>): SigningKey {
   return {
@@ -23,16 +23,18 @@ describe('keyRows', () => {
   const keys = [key({ id: 'k1' }), key({ id: 'k2' })];
 
   it('says how ready each key is to be promoted, in a lane that can promote', () => {
-    expect(keyRows(keys, () => READY)).toEqual([
-      { key: keys[0], readiness: READY },
-      { key: keys[1], readiness: READY },
-    ]);
+    expect(keyRows(keys, () => READY).map((row) => row.readiness)).toEqual([READY, READY]);
   });
   it('says nothing of readiness in a lane that cannot promote, and does not ask', () => {
-    expect(keyRows(keys, null)).toEqual([
-      { key: keys[0], readiness: null },
-      { key: keys[1], readiness: null },
-    ]);
+    expect(keyRows(keys, null).map((row) => row.readiness)).toEqual([null, null]);
+  });
+
+  it('names each action by the key it acts on, for a screen reader', () => {
+    expect(keyRows([key({ kid: 'kid-x' })], null)[0]?.labels).toEqual({
+      promote: 'Promote kid-x',
+      retire: 'Retire kid-x',
+      delete: 'Delete kid-x',
+    });
   });
 });
 
