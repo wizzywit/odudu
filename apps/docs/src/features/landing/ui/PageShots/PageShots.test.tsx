@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PAGES_BASE } from '@site/site.config';
-import { PAGE_SHOTS } from '@site/src/features/landing/services/content';
+import { PAGE_SHOTS } from '@site/src/features/landing/services/serverPageCards';
 import { PageShots } from '@site/src/features/landing/ui/PageShots/PageShots';
 import { markupOf } from '@site/tests/support/markup';
 

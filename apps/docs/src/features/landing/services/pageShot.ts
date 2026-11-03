@@ -1,4 +1,4 @@
-import { PAGE_SHOTS, type PageShotCard } from '@site/src/features/landing/services/content';
+import { PAGE_SHOTS, type PageShotCard } from '@site/src/features/landing/services/serverPageCards';
 import manifest from '@site/static/server-pages/manifest.json';
 
 export interface PageShotSize {

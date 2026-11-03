@@ -284,9 +284,10 @@ where to read the page again rather than trust a green build.
     for the header a screenshot shows.
 - **A capability the landing page or `README.md` shows as planned**
   - Update: when a phase ships what the landing page marks "Planned"
-    (`apps/docs/src/features/landing/services/content.ts`: `AGENT_ITEMS`,
-    `BRANDING` and any later item), turn the item into a shipped one with a
-    real picture, its claim, alt text and tests, or remove it; correct the
+    (`apps/docs/src/features/landing/services/`: `plannedClaims.ts` for
+    `AGENT_ITEMS`, `brandingClaim.ts` for `BRANDING` and any later item),
+    turn the item into a shipped one with a real picture, its claim, alt
+    text and tests, or remove it; correct the
     feature list in `README.md` and any "Planned (P…)" line in
     `tests/docs/questions.md`.
   - Checked by: the landing feature's tests, which pin the planned items

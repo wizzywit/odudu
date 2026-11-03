@@ -1,7 +1,7 @@
 import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import type { ReactElement } from 'react';
 import { REPOSITORY_URL } from '@site/nav';
-import { LICENSING_URL_PATH } from '@site/src/features/landing/services/content';
+import { LICENSING_URL_PATH } from '@site/src/features/landing/services/capabilityCards';
 import { useAssetUrls } from '@site/src/features/landing/use-cases/useAssetUrls';
 import { Chip } from '@site/src/features/landing/ui/Chip/Chip';
 import { Section } from '@site/src/features/landing/ui/Section/Section';

@@ -1,4 +1,4 @@
-import { BRANDING } from '@site/src/features/landing/services/content';
+import { BRANDING } from '@site/src/features/landing/services/brandingClaim';
 import { usePageShot } from '@site/src/features/landing/use-cases/usePageShot';
 
 export type Look = 'odudu' | 'other';

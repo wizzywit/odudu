@@ -1,4 +1,8 @@
-import { COMMANDS, FOLLOW_UP, type Shell } from '@site/src/features/landing/services/content';
+import {
+  COMMANDS,
+  FOLLOW_UP,
+  type Shell,
+} from '@site/src/features/landing/services/installCommands';
 
 // How far the hero's terminal has got: not started, typing the command, past
 // it, finished, or skipped for a reader who asked for less motion.

@@ -1,6 +1,6 @@
 import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import type { ReactElement } from 'react';
-import type { Card } from '@site/src/features/landing/services/content';
+import type { Card } from '@site/src/features/landing/services/capabilityCards';
 import styles from '@site/src/features/landing/ui/CardList/CardList.module.css';
 
 const LAYOUTS = { 2: styles.cards2, 4: styles.cards4 } as const;

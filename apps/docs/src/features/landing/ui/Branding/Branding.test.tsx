@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PAGES_BASE, PAGES_DOCS_BASE } from '@site/site.config';
-import { BRANDING } from '@site/src/features/landing/services/content';
+import { BRANDING } from '@site/src/features/landing/services/brandingClaim';
 import { Branding } from '@site/src/features/landing/ui/Branding/Branding';
 import { markupOf } from '@site/tests/support/markup';
 

@@ -1,6 +1,6 @@
 import Head from '@docusaurus/Head';
 import type { ReactElement } from 'react';
-import { CAPABILITIES } from '@site/src/features/landing/services/content';
+import { CAPABILITIES } from '@site/src/features/landing/services/capabilityCards';
 import { useLandingPage } from '@site/src/features/landing/use-cases/useLandingPage';
 import { Agents } from '@site/src/features/landing/ui/Agents/Agents';
 import { Branding } from '@site/src/features/landing/ui/Branding/Branding';

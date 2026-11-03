@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { COMMANDS, FOLLOW_UP, RELEASE_CAVEAT } from '@site/src/features/landing/services/content';
+import { COMMANDS, FOLLOW_UP } from '@site/src/features/landing/services/installCommands';
+import { RELEASE_CAVEAT } from '@site/src/features/landing/services/release';
 import { Install } from '@site/src/features/landing/ui/Install/Install';
 import { markupOf } from '@site/tests/support/markup';
 

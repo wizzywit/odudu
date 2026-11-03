@@ -1,7 +1,7 @@
 import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import type { ReactElement } from 'react';
 import { JOURNEYS, SECTIONS } from '@site/nav';
-import { MARKDOWN_LINE } from '@site/src/features/landing/services/content';
+import { MARKDOWN_LINE } from '@site/src/features/landing/services/capabilityCards';
 import { useAssetUrls } from '@site/src/features/landing/use-cases/useAssetUrls';
 import { Section } from '@site/src/features/landing/ui/Section/Section';
 import styles from '@site/src/features/landing/ui/Browse/Browse.module.css';

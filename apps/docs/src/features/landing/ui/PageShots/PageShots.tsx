@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { type PageShotCard } from '@site/src/features/landing/services/content';
+import { type PageShotCard } from '@site/src/features/landing/services/serverPageCards';
 import { shotsOfSize } from '@site/src/features/landing/services/pageShot';
 import { usePageShot } from '@site/src/features/landing/use-cases/usePageShot';
 import { Frame } from '@site/src/features/landing/ui/Frame/Frame';

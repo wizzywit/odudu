@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Card } from '@site/src/features/landing/services/content';
+import type { Card } from '@site/src/features/landing/services/capabilityCards';
 import { CardList } from '@site/src/features/landing/ui/CardList/CardList';
 import { markupOf } from '@site/tests/support/markup';
 import { PAGES_DOCS_BASE } from '@site/site.config';

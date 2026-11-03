@@ -6,7 +6,7 @@ import {
   EXAMPLES_URL_PATH,
   READERS,
   WORDPRESS,
-} from '@site/src/features/landing/services/content';
+} from '@site/src/features/landing/services/capabilityCards';
 import { CardList } from '@site/src/features/landing/ui/CardList/CardList';
 import { Section } from '@site/src/features/landing/ui/Section/Section';
 import styles from '@site/src/features/landing/ui/Ways/Ways.module.css';

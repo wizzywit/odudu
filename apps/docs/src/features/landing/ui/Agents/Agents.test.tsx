@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PAGES_DOCS_BASE } from '@site/site.config';
-import { AGENT_ITEMS } from '@site/src/features/landing/services/content';
+import { AGENT_ITEMS } from '@site/src/features/landing/services/plannedClaims';
 import { Agents } from '@site/src/features/landing/ui/Agents/Agents';
 import { markupOf } from '@site/tests/support/markup';
 

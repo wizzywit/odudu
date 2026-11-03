@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STEPS } from '@site/src/features/landing/services/content';
+import { STEPS } from '@site/src/features/landing/services/startSteps';
 import { Steps } from '@site/src/features/landing/ui/Steps/Steps';
 import { markupOf } from '@site/tests/support/markup';
 import { PAGES_DOCS_BASE } from '@site/site.config';

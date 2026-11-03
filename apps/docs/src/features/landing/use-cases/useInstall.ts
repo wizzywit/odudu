@@ -1,6 +1,6 @@
 import useIsBrowser from '@docusaurus/useIsBrowser';
 import { useEffect, useState } from 'react';
-import type { Shell } from '@site/src/features/landing/services/content';
+import type { Shell } from '@site/src/features/landing/services/installCommands';
 import {
   COPIED_FOR_MS,
   copyStatusOf,

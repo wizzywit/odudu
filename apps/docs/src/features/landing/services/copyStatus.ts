@@ -1,4 +1,4 @@
-import { RELEASE_CAVEAT } from '@site/src/features/landing/services/content';
+import { RELEASE_CAVEAT } from '@site/src/features/landing/services/release';
 
 export type CopyStatus = 'idle' | 'copied' | 'failed';
 

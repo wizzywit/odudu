@@ -4,7 +4,7 @@ import {
   AGENT_ITEMS,
   PLANNED_LABEL,
   ROADMAP_NEXT,
-} from '@site/src/features/landing/services/content';
+} from '@site/src/features/landing/services/plannedClaims';
 import { Chip } from '@site/src/features/landing/ui/Chip/Chip';
 import { Section } from '@site/src/features/landing/ui/Section/Section';
 import styles from '@site/src/features/landing/ui/Agents/Agents.module.css';

@@ -1,6 +1,6 @@
 import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import type { ReactElement } from 'react';
-import { BRANDING } from '@site/src/features/landing/services/content';
+import { BRANDING } from '@site/src/features/landing/services/brandingClaim';
 import { useBrandingPictures } from '@site/src/features/landing/use-cases/useBrandingPictures';
 import { Frame } from '@site/src/features/landing/ui/Frame/Frame';
 import { Section } from '@site/src/features/landing/ui/Section/Section';

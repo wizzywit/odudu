@@ -1,6 +1,6 @@
 import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import type { ReactElement } from 'react';
-import { STEPS } from '@site/src/features/landing/services/content';
+import { STEPS } from '@site/src/features/landing/services/startSteps';
 import { Section } from '@site/src/features/landing/ui/Section/Section';
 import styles from '@site/src/features/landing/ui/Steps/Steps.module.css';
 

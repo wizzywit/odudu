@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COMMANDS } from '@site/src/features/landing/services/content';
+import { COMMANDS } from '@site/src/features/landing/services/installCommands';
 import {
   commandOf,
   lineVisible,

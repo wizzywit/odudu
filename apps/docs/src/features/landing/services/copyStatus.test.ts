@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RELEASE_CAVEAT } from '@site/src/features/landing/services/content';
+import { RELEASE_CAVEAT } from '@site/src/features/landing/services/release';
 import { copyLabel, copyStatusOf, noteFor } from '@site/src/features/landing/services/copyStatus';
 
 describe('the copy status', () => {

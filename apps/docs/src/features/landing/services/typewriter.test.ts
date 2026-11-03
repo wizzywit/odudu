@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { COMMANDS, FOLLOW_UP } from '@site/src/features/landing/services/content';
+import { COMMANDS, FOLLOW_UP } from '@site/src/features/landing/services/installCommands';
 import {
   DEFAULT_RHYTHM,
   playTerminal,
