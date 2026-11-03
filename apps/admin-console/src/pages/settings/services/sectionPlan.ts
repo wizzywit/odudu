@@ -14,7 +14,7 @@ import {
 // What a section needs beside its fields: the general one asks before it
 // disables the tenant, the password one carries a hint and the brute-force
 // one is followed by the clear of every lockout.
-export type SectionKind = 'general' | 'password' | 'lockouts' | 'plain';
+type SectionKind = 'general' | 'password' | 'lockouts' | 'plain';
 
 export interface SectionPlan {
   section: SettingsSection;

@@ -5,8 +5,7 @@ import { SM } from '#/testing/settingsFixtures';
 
 // The bodies are those of get-smtp-put-smtp-delete-smtp-and-post-smtptest.md, verbatim:
 // the relay after a PUT with a password, the refusal of a password kept for a moved
-// host, the refusal of a test for a tenant with no configuration and the one for a
-// host this server will not dial. The transcript shows no 200 for a test: that body is
+// host and the refusal of a test for a host this server will not dial. The transcript shows no 200 for a test: that body is
 // the documented { sent } of testSmtpResponseSchema.
 const STORED = {
   configured: true,

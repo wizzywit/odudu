@@ -15,14 +15,14 @@ export function authenticatorText(authenticator: string): string {
   );
 }
 
-export const FLOW_RULE =
+const FLOW_RULE =
   'The steps run in this order at every sign-in. Alternatives that sit next to each other are one run: passing any of them is enough. The whole list is replaced when you save.';
 
 export function flowArea(): { area: Area; title: string } {
   return areaTitled('flow');
 }
 
-export const FLOW_WORDS = {
+const FLOW_WORDS = {
   description: 'What a subject is asked, in what order, to sign in to this tenant.',
   loading: 'Loading the flow',
   failed: 'The sign-in flow could not be loaded',

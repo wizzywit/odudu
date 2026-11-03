@@ -2,7 +2,7 @@ import type { MailMessage } from '@odudu/contracts/admin';
 import { ANY_STATUS } from '#/shared/services/filters';
 import { attemptsText } from '#/shared/services/format';
 
-export type MailTone = 'neutral' | 'active' | 'warning' | 'danger';
+type MailTone = 'neutral' | 'active' | 'warning' | 'danger';
 
 export function mailTone(status: MailMessage['status']): MailTone {
   switch (status) {

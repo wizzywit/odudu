@@ -1,3 +1,4 @@
+import { spaced } from '#/shared/services/format';
 import { areaTitled, type Area } from '#/entities/area';
 import { PORT_RULE, RELAY_LABELS } from '#/pages/email/services/relay';
 import { removeConsequence } from '#/pages/email/services/remove';
@@ -46,7 +47,7 @@ const TEST_RULE = 'Sends one message through the saved relay and tells what the 
 const TEST_UNSAVED = 'The test uses the saved relay, not the changes above.';
 
 export function testRule(unsaved: boolean): string {
-  return unsaved ? `${TEST_RULE} ${TEST_UNSAVED}` : TEST_RULE;
+  return unsaved ? spaced(TEST_RULE, TEST_UNSAVED) : TEST_RULE;
 }
 
 export function emailArea(): { area: Area; title: string } {

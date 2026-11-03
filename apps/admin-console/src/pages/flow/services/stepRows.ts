@@ -3,7 +3,7 @@ import { authenticatorText } from '#/pages/flow/services/flowWording';
 import { OTP, requirementText } from '#/pages/flow/services/requirement';
 import { canMove, type Direction, type Step } from '#/pages/flow/services/steps';
 
-export interface MoveButton {
+interface MoveButton {
   label: string;
   enabled: boolean;
 }

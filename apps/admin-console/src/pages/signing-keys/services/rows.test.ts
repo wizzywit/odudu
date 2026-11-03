@@ -23,7 +23,9 @@ describe('keyRows', () => {
   const keys = [key({ id: 'k1' }), key({ id: 'k2' })];
 
   it('says how ready each key is to be promoted, in a lane that can promote', () => {
-    expect(keyRows(keys, () => READY).map((row) => row.readiness)).toEqual([READY, READY]);
+    const rows = keyRows(keys, () => READY);
+    expect(rows.map((row) => row.key)).toEqual(keys);
+    expect(rows.map((row) => row.readiness)).toEqual([READY, READY]);
   });
   it('says nothing of readiness in a lane that cannot promote, and does not ask', () => {
     expect(keyRows(keys, null).map((row) => row.readiness)).toEqual([null, null]);
