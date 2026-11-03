@@ -1,3 +1,4 @@
+import { capitalise } from '#/shared/lib/services/format';
 import { counted } from '#/shared/lib/services/format';
 import {
   PALETTE_LABELS,
@@ -79,8 +80,9 @@ export interface PairRow {
 }
 
 function pairName(pair: Pair): string {
-  const text = `${PALETTE_LABELS[pair.foreground].short} on ${PALETTE_LABELS[pair.background].short}`;
-  return text.charAt(0).toUpperCase() + text.slice(1);
+  return capitalise(
+    `${PALETTE_LABELS[pair.foreground].short} on ${PALETTE_LABELS[pair.background].short}`,
+  );
 }
 
 // A pair with a colour not yet finished cannot pass, and says why in place

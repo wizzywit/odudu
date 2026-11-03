@@ -1,7 +1,6 @@
+import { andList } from '#/shared/lib/services/format';
 import { Button } from '#/shared/ui/Button';
 import { DialogFrame } from '#/shared/ui/DialogFrame';
-
-const LIST = new Intl.ListFormat('en', { type: 'conjunction' });
 
 export function UnsavedChangesDialog({
   isOpen,
@@ -19,7 +18,7 @@ export function UnsavedChangesDialog({
       isOpen={isOpen}
       role="alertdialog"
       title="Leave without saving?"
-      description={`Your unsaved changes to ${LIST.format(sections)} will be lost.`}
+      description={`Your unsaved changes to ${andList(sections)} will be lost.`}
       onEscape={onStay}
       actions={
         <>
