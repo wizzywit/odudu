@@ -48,9 +48,9 @@ function columns(page: Page): readonly Column<RegistrationToken>[] {
         <Button
           size="small"
           variant="quiet"
-          aria-label={page.revokeLabel(token)}
+          aria-label={page.revoke.label(token.id)}
           onPress={() => {
-            page.ask(token);
+            page.revoke.ask(token);
           }}
         >
           {header.revoke}
@@ -65,16 +65,16 @@ function Mint({ page }: { page: Page }) {
   return (
     <Panel title={mint.title}>
       <p className={recordTab.rule}>{mint.rule}</p>
-      <CreationForm submit={page.mint}>
+      <CreationForm submit={page.mint.start}>
         <FieldGrid>
           <GridCell>
             <NumberWithUnitField
               label={mint.usesLabel}
               description={mint.usesDescription}
               unit={mint.usesUnit}
-              value={page.uses}
-              error={page.errors.uses}
-              onChange={page.editUses}
+              value={page.mint.uses}
+              error={page.mint.errors.uses}
+              onChange={page.mint.editUses}
             />
           </GridCell>
           <GridCell>
@@ -82,18 +82,18 @@ function Mint({ page }: { page: Page }) {
               label={mint.lifetimeLabel}
               description={mint.lifetimeDescription}
               unit={mint.lifetimeUnit}
-              value={page.lifetime}
-              error={page.errors.ttl_seconds}
-              onChange={page.editLifetime}
+              value={page.mint.lifetime}
+              error={page.mint.errors.ttl_seconds}
+              onChange={page.mint.editLifetime}
             />
           </GridCell>
         </FieldGrid>
         <div className={styles.actions}>
-          <Button type="submit" variant="primary" isDisabled={page.minting}>
-            {page.minting ? mint.minting : mint.submit}
+          <Button type="submit" variant="primary" isDisabled={page.mint.busy}>
+            {page.mint.busy ? mint.minting : mint.submit}
           </Button>
         </div>
-        <LiveMessage label={mint.last}>{page.message}</LiveMessage>
+        <LiveMessage label={mint.last}>{page.mint.message}</LiveMessage>
       </CreationForm>
     </Panel>
   );
@@ -116,31 +116,31 @@ function List({ tenant }: { tenant: string }) {
         capability="manage-clients"
         nothingYet={words.nothingYet}
         notice={
-          <LastAction label={words.lastRevoke} count={page.revoked}>
-            {page.notice}
+          <LastAction label={words.lastRevoke} count={page.revoke.count}>
+            {page.revoke.notice}
           </LastAction>
         }
       />
       <SecretDialog
-        secret={page.secret}
+        secret={page.mint.secret}
         title={words.secret.title}
         label={words.secret.label}
-        onClose={page.closeSecret}
+        onClose={page.mint.closeSecret}
       >
         {words.secret.note}
       </SecretDialog>
       <ConfirmDialog
-        isOpen={page.revoking !== null}
+        isOpen={page.revoke.asked !== null}
         title={words.revoke.title}
-        consequence={page.consequence}
+        consequence={page.revoke.consequence}
         confirmLabel={words.revoke.confirm}
         tone="danger"
-        busy={page.revokeBusy}
-        problem={page.revokeProblem}
+        busy={page.revoke.busy}
+        problem={page.revoke.problem}
         onConfirm={() => {
-          page.confirm().catch(() => undefined);
+          page.revoke.confirm().catch(() => undefined);
         }}
-        onCancel={page.cancel}
+        onCancel={page.revoke.cancel}
       />
     </>
   );

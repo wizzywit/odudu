@@ -30,33 +30,41 @@ export function useTokensArea(): { area: Area; title: string } {
   return tokensArea();
 }
 
-export interface RegistrationTokensPage {
-  title: string;
-  words: TokenWords;
-  revokeLabel: (token: RegistrationToken) => string;
-  list: ResourceListState<RegistrationToken>;
+export interface MintSection {
   uses: number;
   lifetime: number;
   editUses: (value: number) => void;
   editLifetime: (value: number) => void;
   errors: MintErrors;
   message: string | null;
-  minting: boolean;
-  mint: () => void;
+  busy: boolean;
+  start: () => void;
   // For the SecretDialog, and for nothing else.
   secret: string | null;
   closeSecret: () => void;
-  revoking: RegistrationToken | null;
+}
+
+export interface RevokeSection {
+  asked: RegistrationToken | null;
   consequence: string;
-  revokeBusy: boolean;
-  revokeProblem: string | null;
+  busy: boolean;
+  problem: string | null;
   // What the last revoke came to, for the line beside the list.
   notice: string | null;
   // How many revokes have ended the token, for a view that moves focus once the dialog is gone.
-  revoked: number;
+  count: number;
   ask: (token: RegistrationToken) => void;
   cancel: () => void;
   confirm: () => Promise<boolean>;
+  label: (id: string) => string;
+}
+
+export interface RegistrationTokensPage {
+  title: string;
+  words: TokenWords;
+  list: ResourceListState<RegistrationToken>;
+  mint: MintSection;
+  revoke: RevokeSection;
 }
 
 export function useRegistrationTokensPage(tenant: string): RegistrationTokensPage {
@@ -88,37 +96,41 @@ export function useRegistrationTokensPage(tenant: string): RegistrationTokensPag
   return {
     title: tokensArea().title,
     words: TOKEN_WORDS,
-    revokeLabel: (token) => revokeLabel(token.id),
     list,
-    uses,
-    lifetime,
-    editUses: (value) => {
-      setUses(value);
-      setErrors((was) => withoutField(was, 'uses'));
+    mint: {
+      uses,
+      lifetime,
+      editUses: (value) => {
+        setUses(value);
+        setErrors((was) => withoutField(was, 'uses'));
+      },
+      editLifetime: (value) => {
+        setLifetime(value);
+        setErrors((was) => withoutField(was, 'ttl_seconds'));
+      },
+      errors,
+      message,
+      busy: minting.busy,
+      start: () => {
+        const problems = mintProblems({ uses, ttl_seconds: lifetime });
+        setErrors(problems);
+        setMessage(null);
+        if (isEmptyRecord(problems)) minting.start({ uses, ttl_seconds: lifetime });
+      },
+      secret: minting.secret,
+      closeSecret: minting.close,
     },
-    editLifetime: (value) => {
-      setLifetime(value);
-      setErrors((was) => withoutField(was, 'ttl_seconds'));
+    revoke: {
+      asked: action.asked,
+      consequence: askedConsequence(action.asked),
+      busy: revoke.busy,
+      problem: action.problem,
+      notice: action.notice,
+      count: action.done,
+      ask: action.ask,
+      cancel: action.cancel,
+      confirm: action.confirm,
+      label: revokeLabel,
     },
-    errors,
-    message,
-    minting: minting.busy,
-    mint: () => {
-      const problems = mintProblems({ uses, ttl_seconds: lifetime });
-      setErrors(problems);
-      setMessage(null);
-      if (isEmptyRecord(problems)) minting.start({ uses, ttl_seconds: lifetime });
-    },
-    secret: minting.secret,
-    closeSecret: minting.close,
-    revoking: action.asked,
-    consequence: askedConsequence(action.asked),
-    revokeBusy: revoke.busy,
-    revokeProblem: action.problem,
-    notice: action.notice,
-    revoked: action.done,
-    ask: action.ask,
-    cancel: action.cancel,
-    confirm: action.confirm,
   };
 }

@@ -5,7 +5,7 @@ import type { KeyRow } from '#/pages/signing-keys/services/rows';
 import {
   useKeysArea,
   useSigningKeysPage,
-  type Lane,
+  type LaneView,
   type SigningKeysPage as Page,
 } from '#/pages/signing-keys/use-cases/useSigningKeysPage';
 import { Button } from '#/shared/ui/Button';
@@ -65,7 +65,7 @@ function columns(spec: LaneWords, page: Page): readonly Column<KeyRow>[] {
                 variant="quiet"
                 aria-label={labels.promote}
                 onPress={() => {
-                  page.ask('promote', key);
+                  page.action.ask('promote', key);
                 }}
               >
                 {promote}
@@ -75,7 +75,7 @@ function columns(spec: LaneWords, page: Page): readonly Column<KeyRow>[] {
                 variant="quiet"
                 aria-label={labels.retire}
                 onPress={() => {
-                  page.ask('retire', key);
+                  page.action.ask('retire', key);
                 }}
               >
                 {retire}
@@ -91,7 +91,7 @@ function columns(spec: LaneWords, page: Page): readonly Column<KeyRow>[] {
               variant="quiet"
               aria-label={labels.delete}
               onPress={() => {
-                page.ask('delete', key);
+                page.action.ask('delete', key);
               }}
             >
               {page.words.delete}
@@ -103,7 +103,7 @@ function columns(spec: LaneWords, page: Page): readonly Column<KeyRow>[] {
   return spec.status === 'rotating' ? [...common, readiness, actions] : [...common, actions];
 }
 
-function LaneBody({ spec, lane, page }: { spec: LaneWords; lane: Lane; page: Page }) {
+function LaneBody({ spec, lane, page }: { spec: LaneWords; lane: LaneView; page: Page }) {
   const cols = columns(spec, page);
   return (
     <ListGate
@@ -151,7 +151,7 @@ function LaneSection({ spec, page }: { spec: LaneWords; page: Page }) {
         {spec.title}
       </h2>
       <p className={styles.rule}>{spec.rule}</p>
-      <LaneBody spec={spec} lane={page[spec.status]} page={page} />
+      <LaneBody spec={spec} lane={page.lanes[spec.status]} page={page} />
     </section>
   );
 }
@@ -164,30 +164,30 @@ function Stage({ page }: { page: Page }) {
       <div className={styles.stage}>
         <SelectField
           label={stage.algorithm}
-          error={page.algError}
+          error={page.stage.algError}
           options={stage.options}
-          value={page.alg}
-          onChange={page.chooseAlg}
+          value={page.stage.alg}
+          onChange={page.stage.choose}
         />
-        <Button variant="primary" isDisabled={page.staging} onPress={page.stage}>
-          {page.staging ? stage.staging : stage.submit}
+        <Button variant="primary" isDisabled={page.stage.busy} onPress={page.stage.start}>
+          {page.stage.busy ? stage.staging : stage.submit}
         </Button>
       </div>
-      <LiveMessage label={stage.last}>{page.stageMessage}</LiveMessage>
+      <LiveMessage label={stage.last}>{page.stage.message}</LiveMessage>
     </Panel>
   );
 }
 
 function Keys({ tenant }: { tenant: string }) {
   const page = useSigningKeysPage(tenant);
-  const { asking } = page;
+  const { asking } = page.action;
   return (
     <>
       <PageHeader kicker={tenant} title={page.title} description={page.words.description} />
       <div className={styles.page}>
         <Stage page={page} />
-        <LastAction label={page.words.lastAction} count={page.acted}>
-          {page.notice}
+        <LastAction label={page.words.lastAction} count={page.action.count}>
+          {page.action.notice}
         </LastAction>
         {page.words.lanes.map((spec) => (
           <LaneSection key={spec.status} spec={spec} page={page} />
@@ -195,12 +195,12 @@ function Keys({ tenant }: { tenant: string }) {
       </div>
       <AskedDialog
         asked={asking?.dialog ?? null}
-        busy={page.busy}
-        problem={page.problem}
+        busy={page.action.busy}
+        problem={page.action.problem}
         onConfirm={() => {
-          page.confirm().catch(() => undefined);
+          page.action.confirm().catch(() => undefined);
         }}
-        onCancel={page.cancel}
+        onCancel={page.action.cancel}
       />
     </>
   );

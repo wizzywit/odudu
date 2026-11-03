@@ -38,19 +38,19 @@ it('shows a minted secret to its dialog once, and not again after it is closed',
   const { result, sent } = page({ [`POST ${RT}`]: json(MINTED, 201) });
   await listed(result);
   act(() => {
-    result.current.mint();
+    result.current.mint.start();
   });
   await waitFor(() => {
-    expect(result.current.secret).toBe(MINTED_SECRET);
+    expect(result.current.mint.secret).toBe(MINTED_SECRET);
   });
   expect(sent.find((call) => call.method === 'POST')?.body).toEqual({
     uses: 1,
     ttl_seconds: 3600,
   });
   act(() => {
-    result.current.closeSecret();
+    result.current.mint.closeSecret();
   });
-  expect(result.current.secret).toBeNull();
+  expect(result.current.mint.secret).toBeNull();
   await listed(result);
   expect(JSON.stringify(result.current.list)).not.toContain(MINTED_SECRET);
 });
@@ -59,13 +59,13 @@ it('blocks minting with the range text when uses is out of range, and sends noth
   const { result, sent } = page();
   await listed(result);
   act(() => {
-    result.current.editUses(0);
+    result.current.mint.editUses(0);
   });
   act(() => {
-    result.current.mint();
+    result.current.mint.start();
   });
-  expect(result.current.errors.uses).toBe('Uses is a whole number from 1 to 2,147,483,647.');
-  expect(result.current.errors.ttl_seconds).toBeUndefined();
+  expect(result.current.mint.errors.uses).toBe('Uses is a whole number from 1 to 2,147,483,647.');
+  expect(result.current.mint.errors.ttl_seconds).toBeUndefined();
   expect(sent.some((call) => call.method === 'POST')).toBe(false);
 });
 
@@ -73,12 +73,12 @@ it('blocks minting with the range text when the lifetime is out of range, and se
   const { result, sent } = page();
   await listed(result);
   act(() => {
-    result.current.editLifetime(59);
+    result.current.mint.editLifetime(59);
   });
   act(() => {
-    result.current.mint();
+    result.current.mint.start();
   });
-  expect(result.current.errors.ttl_seconds).toBe(
+  expect(result.current.mint.errors.ttl_seconds).toBe(
     'Lifetime is a whole number of seconds, from 60 seconds (1 minute) to 31536000 seconds (365 days).',
   );
   expect(sent.some((call) => call.method === 'POST')).toBe(false);
@@ -88,15 +88,15 @@ it('clears the error of a field once it is edited', async () => {
   const { result } = page();
   await listed(result);
   act(() => {
-    result.current.editUses(0);
+    result.current.mint.editUses(0);
   });
   act(() => {
-    result.current.mint();
+    result.current.mint.start();
   });
   act(() => {
-    result.current.editUses(2);
+    result.current.mint.editUses(2);
   });
-  expect(result.current.errors.uses).toBeUndefined();
+  expect(result.current.mint.errors.uses).toBeUndefined();
 });
 
 it('names manage-clients when the server refuses a revoke', async () => {
@@ -105,14 +105,14 @@ it('names manage-clients when the server refuses a revoke', async () => {
   });
   await listed(result);
   act(() => {
-    result.current.ask(TOKEN_ONE);
+    result.current.revoke.ask(TOKEN_ONE);
   });
-  expect(result.current.consequence).toContain('Nobody can register a client with it again');
+  expect(result.current.revoke.consequence).toContain('Nobody can register a client with it again');
   await act(async () => {
-    await result.current.confirm();
+    await result.current.revoke.confirm();
   });
-  expect(result.current.revokeProblem).toContain('manage-clients');
-  expect(result.current.revoking).not.toBeNull();
+  expect(result.current.revoke.problem).toContain('manage-clients');
+  expect(result.current.revoke.asked).not.toBeNull();
 });
 
 it('says the token is already gone when the server no longer has it', async () => {
@@ -121,12 +121,12 @@ it('says the token is already gone when the server no longer has it', async () =
   });
   await listed(result);
   act(() => {
-    result.current.ask(TOKEN_ONE);
+    result.current.revoke.ask(TOKEN_ONE);
   });
   await act(async () => {
-    await result.current.confirm();
+    await result.current.revoke.confirm();
   });
-  expect(result.current.notice).toContain('already gone');
+  expect(result.current.revoke.notice).toContain('already gone');
 });
 
 it('names the page, its words and the label of a token’s revoke', async () => {
@@ -134,5 +134,5 @@ it('names the page, its words and the label of a token’s revoke', async () => 
   await listed(result);
   expect(result.current.title).toBe('Registration tokens');
   expect(result.current.words.mint.title).toBe('Mint a registration token');
-  expect(result.current.revokeLabel(TOKEN_ONE)).toBe('Revoke t-one');
+  expect(result.current.revoke.label(TOKEN_ONE.id)).toBe('Revoke t-one');
 });

@@ -28,7 +28,7 @@ import { useNow } from '#/shared/use-cases/useNow';
 // Finer than the minutes a key's readiness is measured in.
 const CLOCK_MS = 30_000;
 
-export interface Lane extends Omit<KeyLane, 'rows'> {
+export interface LaneView extends Omit<KeyLane, 'rows'> {
   rows: readonly KeyRow[];
 }
 
@@ -37,28 +37,34 @@ export function useKeysArea(): { area: Area; title: string } {
   return keysArea();
 }
 
-export interface SigningKeysPage {
-  title: string;
-  words: KeysWords;
-  rotating: Lane;
-  active: Lane;
-  retired: Lane;
+export interface StageSection {
   alg: SigningKeyAlg;
-  chooseAlg: (value: string) => void;
-  staging: boolean;
-  stage: () => void;
-  stageMessage: string | null;
+  choose: (value: string) => void;
+  busy: boolean;
+  start: () => void;
+  message: string | null;
   algError: string | undefined;
+}
+
+export interface ActionSection {
   asking: Asking | null;
   busy: boolean;
   problem: string | null;
   // What the last action came to, for the line beside the lanes.
   notice: string | null;
   // How many actions have ended in the key's new place, for a view that moves focus once the dialog is gone.
-  acted: number;
+  count: number;
   ask: (action: KeyAction, key: SigningKey) => void;
   cancel: () => void;
   confirm: () => Promise<boolean>;
+}
+
+export interface SigningKeysPage {
+  title: string;
+  words: KeysWords;
+  lanes: Record<'rotating' | 'active' | 'retired', LaneView>;
+  stage: StageSection;
+  action: ActionSection;
 }
 
 export function useSigningKeysPage(tenant: string): SigningKeysPage {
@@ -89,49 +95,55 @@ export function useSigningKeysPage(tenant: string): SigningKeysPage {
   const promotionFor = (key: SigningKey): Promotion =>
     promotionOf(key, active.rows, now, activeKnown);
   const readiness = (key: SigningKey): PromotionReading => promotionReading(promotionFor(key));
-  const laneOf = (lane: KeyLane, rotatingRows: boolean): Lane => ({
+  const laneOf = (lane: KeyLane, rotatingRows: boolean): LaneView => ({
     ...lane,
     rows: keyRows(lane.rows, rotatingRows ? readiness : null),
   });
   return {
     title: keysArea().title,
     words: KEYS_WORDS,
-    rotating: laneOf(rotating, true),
-    active: laneOf(active, false),
-    retired: laneOf(retired, false),
-    alg,
-    chooseAlg: (value) => {
-      setChosen(algOf(value));
+    lanes: {
+      rotating: laneOf(rotating, true),
+      active: laneOf(active, false),
+      retired: laneOf(retired, false),
     },
-    staging: staging.busy,
-    stage: () => {
-      setStageMessage(null);
-      setStageErrors({});
-      staging
-        .run(alg)
-        .then((result) => {
-          if (result.ok) {
-            toast.succeeded(stagedText(result.data));
-            return;
-          }
-          const outcome = stageFailure(result);
-          setStageMessage(outcome.message);
-          setStageErrors(outcome.errors);
-          if (outcome.report) refusal.report(result, 'manage-keys');
-        })
-        .catch(() => undefined);
+    stage: {
+      alg,
+      choose: (value) => {
+        setChosen(algOf(value));
+      },
+      busy: staging.busy,
+      start: () => {
+        setStageMessage(null);
+        setStageErrors({});
+        staging
+          .run(alg)
+          .then((result) => {
+            if (result.ok) {
+              toast.succeeded(stagedText(result.data));
+              return;
+            }
+            const outcome = stageFailure(result);
+            setStageMessage(outcome.message);
+            setStageErrors(outcome.errors);
+            if (outcome.report) refusal.report(result, 'manage-keys');
+          })
+          .catch(() => undefined);
+      },
+      message: stageMessage,
+      algError: stageErrors.alg,
     },
-    stageMessage,
-    algError: stageErrors.alg,
-    asking: askingOf(acting.asked, current, promotionFor),
-    busy: promote.busy || retire.busy || remove.busy,
-    problem: acting.problem,
-    notice: acting.notice,
-    acted: acting.done,
-    ask: (action, key) => {
-      acting.ask({ action, key });
+    action: {
+      asking: askingOf(acting.asked, current, promotionFor),
+      busy: promote.busy || retire.busy || remove.busy,
+      problem: acting.problem,
+      notice: acting.notice,
+      count: acting.done,
+      ask: (action, key) => {
+        acting.ask({ action, key });
+      },
+      cancel: acting.cancel,
+      confirm: acting.confirm,
     },
-    cancel: acting.cancel,
-    confirm: acting.confirm,
   };
 }

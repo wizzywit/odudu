@@ -30,7 +30,7 @@ function sending(
 
 async function listed(result: { current: ReturnType<typeof useTestSend> }) {
   await waitFor(() => {
-    expect(result.current.picker.status).toBe('ready');
+    expect(result.current.client.picker.status).toBe('ready');
   });
 }
 
@@ -39,12 +39,12 @@ const SENT = { [`POST ${SM}/test`]: json({ sent: true }) };
 it('sends as the client the administrator signed in with until another is chosen', async () => {
   const { result, sent } = sending(true, SENT);
   await listed(result);
-  expect(result.current.selected).toEqual(['c-admin']);
+  expect(result.current.client.selected).toEqual(['c-admin']);
   act(() => {
-    result.current.setTo('a@b.example');
+    result.current.form.setTo('a@b.example');
   });
   act(() => {
-    result.current.send();
+    result.current.form.send();
   });
   await waitFor(() => {
     expect(result.current.outcome?.tone).toBe('success');
@@ -59,15 +59,15 @@ it('sends with no client_id once the tenant’s own look is chosen', async () =>
   const { result, sent } = sending(true, SENT);
   await listed(result);
   act(() => {
-    result.current.useTenantOwn();
+    result.current.client.useTenantOwn();
   });
-  expect(result.current.selected).toEqual([]);
-  expect(result.current.summary).toBe('Sent in the tenant’s own look.');
+  expect(result.current.client.selected).toEqual([]);
+  expect(result.current.client.summary).toBe('Sent in the tenant’s own look.');
   act(() => {
-    result.current.setTo('a@b.example');
+    result.current.form.setTo('a@b.example');
   });
   act(() => {
-    result.current.send();
+    result.current.form.send();
   });
   await waitFor(() => {
     expect(result.current.outcome).not.toBeNull();
@@ -79,13 +79,13 @@ it('sends nothing, saying why, while the tenant has no relay of its own', async 
   const { result, sent } = sending(false, SENT);
   await listed(result);
   act(() => {
-    result.current.setTo('a@b.example');
+    result.current.form.setTo('a@b.example');
   });
-  expect(result.current.blocked).toBe(
+  expect(result.current.form.blocked).toBe(
     'Save a relay of this tenant’s own first: the test sends through the saved one.',
   );
   act(() => {
-    result.current.send();
+    result.current.form.send();
   });
   expect(sent.some((call) => call.method === 'POST')).toBe(false);
 });
@@ -98,10 +98,10 @@ it('says the server’s reason for a 400 and for a 502', async () => {
   });
   await listed(bad.result);
   act(() => {
-    bad.result.current.setTo('a@b.example');
+    bad.result.current.form.setTo('a@b.example');
   });
   act(() => {
-    bad.result.current.send();
+    bad.result.current.form.send();
   });
   await waitFor(() => {
     expect(bad.result.current.outcome?.text).toBe(
@@ -115,10 +115,10 @@ it('says the server’s reason for a 400 and for a 502', async () => {
   });
   await listed(failed.result);
   act(() => {
-    failed.result.current.setTo('a@b.example');
+    failed.result.current.form.setTo('a@b.example');
   });
   act(() => {
-    failed.result.current.send();
+    failed.result.current.form.send();
   });
   await waitFor(() => {
     expect(failed.result.current.outcome?.text).toBe(

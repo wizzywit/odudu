@@ -124,35 +124,42 @@ function TestMessage({
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
-          test.send();
+          test.form.send();
         }}
       >
-        <TextField label={test.words.to} type="email" value={test.to} onChange={test.setTo} />
-        <Button type="submit" isDisabled={test.busy || test.blocked !== undefined}>
-          {test.busy ? test.words.sending : test.words.submit}
+        <TextField
+          label={test.words.to}
+          type="email"
+          value={test.form.to}
+          onChange={test.form.setTo}
+        />
+        <Button type="submit" isDisabled={test.form.busy || test.form.blocked !== undefined}>
+          {test.form.busy ? test.words.sending : test.words.submit}
         </Button>
       </form>
       <div className={styles.client}>
-        {test.clientsClosed ? (
+        {test.client.closed ? (
           <CapabilityNote capability="manage-clients">{test.words.clientsNeeded}</CapabilityNote>
         ) : (
           <ClientPicker
             label={test.words.clientLabel}
-            picker={test.picker}
-            selected={test.selected}
+            picker={test.client.picker}
+            selected={test.client.selected}
             selectionMode="single"
-            onChange={test.choose}
+            onChange={test.client.choose}
           />
         )}
         <p className={recordTab.rule}>{test.words.clientRule}</p>
-        <p className={recordTab.rule}>{test.summary}</p>
-        {test.selected.length === 0 ? null : (
-          <Button size="small" onPress={test.useTenantOwn}>
+        <p className={recordTab.rule}>{test.client.summary}</p>
+        {test.client.selected.length === 0 ? null : (
+          <Button size="small" onPress={test.client.useTenantOwn}>
             {test.words.tenantOwn}
           </Button>
         )}
       </div>
-      {test.blocked === undefined ? null : <p className={recordTab.rule}>{test.blocked}</p>}
+      {test.form.blocked === undefined ? null : (
+        <p className={recordTab.rule}>{test.form.blocked}</p>
+      )}
       <p role="status" className={styles.outcome} data-tone={test.outcome?.tone}>
         {test.outcome?.text}
       </p>
