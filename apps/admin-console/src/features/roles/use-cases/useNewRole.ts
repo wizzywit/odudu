@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useCopySource, useCreateRole } from '#/features/roles/repository/useCreateRole';
 import { useGo } from '#/shared/repository/useGo';
-import { roleHref, rolesHref } from '#/features/roles/services/address';
+import { roleHref, rolesHref } from '#/features/roles/services/roleAddress';
 import {
   sourceDescription,
   type Copying,
@@ -11,7 +11,7 @@ import {
   copyPlan,
   partialCopy,
   sourceChildren,
-} from '#/features/roles/services/copy';
+} from '#/features/roles/services/roleCopy';
 import { useToast } from '#/shared/repository/useToasts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';
 import { problemAt, requiredProblem } from '#/shared/services/fieldErrors';

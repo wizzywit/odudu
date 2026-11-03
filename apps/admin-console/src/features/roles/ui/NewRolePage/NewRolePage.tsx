@@ -1,7 +1,7 @@
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
-import { rolesTrail } from '#/features/roles/services/address';
-import { copyingText } from '#/features/roles/services/copy';
+import { rolesTrail } from '#/features/roles/services/roleAddress';
+import { copyingText } from '#/features/roles/services/roleCopy';
 import { useNewRole, type Copying } from '#/features/roles/use-cases/useNewRole';
 import {
   CreationActions,

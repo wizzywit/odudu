@@ -7,7 +7,7 @@ import {
   readComposites,
   readRole,
 } from '#/features/roles/adapter/roles';
-import { copySourceOf, type CopyRead } from '#/features/roles/services/copy';
+import { copySourceOf, type CopyRead } from '#/features/roles/services/roleCopy';
 import { copyReadOf } from '#/shared/services/copy';
 import { copyKey, findKey, listKey, pickerKey } from '#/shared/repository/queryKeys';
 import { useFreshRead } from '#/shared/repository/useFreshRead';

@@ -1,6 +1,6 @@
 import type { Role } from '@odudu/contracts/admin';
 import { useRoleList } from '#/features/roles/repository/useRoleList';
-import { newRoleHref, roleHref } from '#/features/roles/services/address';
+import { newRoleHref, roleHref } from '#/features/roles/services/roleAddress';
 import { useListPage, type ListPageState } from '#/shared/use-cases/useListPage';
 
 export type RolesList = ListPageState<Role>;

@@ -1,5 +1,5 @@
 import { recordTabs } from '#/shared/services/record';
-import { roleHref } from '#/features/roles/services/address';
+import { roleHref } from '#/features/roles/services/roleAddress';
 
 const model = recordTabs({
   tabs: ['general', 'composites', 'members', 'activity'] as const,

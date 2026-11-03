@@ -1,10 +1,21 @@
-import type { ListRoleCompositesResponse, Role } from '@odudu/contracts/admin';
-import type { LeftOut, PartialCopy } from '#/shared/services/copy';
+import { type Role, type ListRoleCompositesResponse } from '@odudu/contracts/admin';
+import { withSearch } from '#/shared/services/address';
+import { newRoleHref } from '#/features/roles/services/roleAddress';
+import { type LeftOut, type PartialCopy } from '#/shared/services/copy';
 import { andList } from '#/shared/services/format';
-import type { AdminCapability } from '#/shared/services/principal';
-import type { GatewayResult } from '#/shared/services/result';
+import { type AdminCapability } from '#/shared/services/principal';
+import { type GatewayResult } from '#/shared/services/result';
 import { childUnavailable } from '#/features/roles/services/composites';
 import { roleTabHref } from '#/features/roles/services/tabs';
+
+export function copyHref(tenant: string, id: string): string {
+  return withSearch(newRoleHref(tenant), { copy: id });
+}
+
+// A copy is a tenant role, so only a tenant role offers one.
+export function copyHrefOf(tenant: string, role: Role | undefined): string | null {
+  return role?.client_id === null ? copyHref(tenant, role.id) : null;
+}
 
 export type CopyRead =
   | { status: 'none' }
