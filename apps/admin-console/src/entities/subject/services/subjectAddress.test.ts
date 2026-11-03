@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { areaAt } from '#/entities/area';
 import {
   newSubjectHref,
   subjectHref,
@@ -28,5 +29,13 @@ describe('the way back to the list', () => {
 describe('the tabs of a record', () => {
   it('addresses one tab of a record', () => {
     expect(subjectTabHref('acme', 's 1', 'roles')).toBe('/console/acme/subjects/s%201?tab=roles');
+  });
+});
+
+describe('the breadcrumb label', () => {
+  it('is the title the area catalogue gives the Subjects area', () => {
+    expect(subjectsTrail('acme', 'ada').map((crumb) => crumb.label)).toContain(
+      areaAt('subjects').label,
+    );
   });
 });

@@ -26,3 +26,5 @@ console, what it reaches, and the access it is given.
 Imports `shared` only. The profile, credentials, sessions, consents and
 grants of one subject are a page's and stay in `pages/subjects`. The access
 and role calls reach other slices through `use-cases/subjectCalls`.
+
+`repository/subjectCalls` and `use-cases/subjectCalls` are pass-throughs: use-cases may not import adapters and an index may not export them, so the calls other slices make reach them this way.
