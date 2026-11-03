@@ -19,7 +19,6 @@ export {
   clientScope,
   TENANT_SCOPE,
   TENANT_WIDE_WRITES,
-  type ThemeScope,
 } from '#/features/branding-editor/services/themeScope';
 export {
   BRANDING_TAB_LABELS,
