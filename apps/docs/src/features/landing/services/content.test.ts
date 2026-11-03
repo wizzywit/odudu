@@ -6,20 +6,10 @@ import {
   PAGE_SHOTS,
   RELEASE_URL,
   STEPS,
-  claimText,
 } from '@site/src/features/landing/services/content';
 import manifest from '@site/static/server-pages/manifest.json';
 
 describe('what the landing page says', () => {
-  it('words each claim the scene names, and leaves an unknown one as it is', () => {
-    expect(claimText('passwords')).toBe('Passwords');
-    expect(claimText('passkeys')).toBe('Passkeys');
-    expect(claimText('authenticator-codes')).toBe('Authenticator codes');
-    expect(claimText('single-sign-on')).toBe('Single sign-on across one tenant');
-    expect(claimText('back-channel-logout')).toBe('Back-channel logout');
-    expect(claimText('something-else')).toBe('something-else');
-  });
-
   it('shows the three steps of the start, in order', () => {
     expect(STEPS.map((step) => step.title)).toEqual([
       'Start it',

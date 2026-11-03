@@ -1,14 +1,13 @@
+import { keyframeName } from '@site/src/features/landing/services/sceneMotion';
 import {
-  ACTIVITY,
   LAYOUTS,
-  keyframeName,
   pathData,
   type Box,
   type LayoutName,
   type Point,
   type RouteId,
-  type Step,
-} from '@site/src/features/landing/services/geometry';
+} from '@site/src/features/landing/services/sceneLayouts';
+import { ACTIVITY, type Step } from '@site/src/features/landing/services/signInBeats';
 
 // The sign-in scene as plain data: every position, every flag and every
 // animation name the drawing needs, so the view only maps it to elements.

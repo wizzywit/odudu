@@ -1,5 +1,4 @@
-import { claimText } from '@site/src/features/landing/services/content';
-import { BEATS, type Step } from '@site/src/features/landing/services/geometry';
+import { BEATS, claimText, type Step } from '@site/src/features/landing/services/signInBeats';
 
 export const LAST = BEATS.length;
 // How long the finished scene rests before it starts again.

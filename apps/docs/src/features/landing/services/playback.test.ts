@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BEATS } from '@site/src/features/landing/services/geometry';
+import { BEATS } from '@site/src/features/landing/services/signInBeats';
 import {
   LAST,
   REST_MS,

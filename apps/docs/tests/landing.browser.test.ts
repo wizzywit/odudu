@@ -5,7 +5,8 @@ import type { Result } from 'axe-core';
 import { chromium, type Browser, type BrowserContextOptions, type Page } from '@playwright/test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOURNEYS, SECTIONS } from '#docs/nav.ts';
-import { BEATS, SCENE_EASE } from '#docs/src/features/landing/services/geometry.ts';
+import { SCENE_EASE } from '#docs/src/features/landing/services/sceneMotion.ts';
+import { BEATS } from '#docs/src/features/landing/services/signInBeats.ts';
 import { PAGES_BASE, PAGES_DOCS_BASE } from '#docs/site.config.ts';
 import { DOCS_ROOT, distDir } from '#docs/tests/support/dist.ts';
 

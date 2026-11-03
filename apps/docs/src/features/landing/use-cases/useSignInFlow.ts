@@ -1,5 +1,5 @@
 import { useEffect, useId, useReducer, useRef, type RefObject } from 'react';
-import type { Step } from '@site/src/features/landing/services/geometry';
+import type { Step } from '@site/src/features/landing/services/signInBeats';
 import {
   FLOW_START,
   flowReducer,

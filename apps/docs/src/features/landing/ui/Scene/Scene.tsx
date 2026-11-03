@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
-import type { LayoutName, Step } from '@site/src/features/landing/services/geometry';
+import type { LayoutName } from '@site/src/features/landing/services/sceneLayouts';
+import type { Step } from '@site/src/features/landing/services/signInBeats';
 import { buildScene } from '@site/src/features/landing/services/scene';
 import '@site/src/features/landing/ui/Scene/travel.css';
 import { SceneCheck } from '@site/src/features/landing/ui/SceneCheck/SceneCheck';

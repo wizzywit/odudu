@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BEATS, LAYOUTS, type Step } from '@site/src/features/landing/services/geometry';
+import { LAYOUTS } from '@site/src/features/landing/services/sceneLayouts';
+import { BEATS, type Step } from '@site/src/features/landing/services/signInBeats';
 import {
   CHIPS,
   STAGE,

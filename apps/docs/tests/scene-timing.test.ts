@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { SCENE_EASE } from '#docs/src/features/landing/services/geometry.ts';
+import { SCENE_EASE } from '#docs/src/features/landing/services/sceneMotion.ts';
 import { TIMING } from '#docs/src/features/landing/services/timing.ts';
 import { DOCS_ROOT } from '#docs/tests/support/dist.ts';
 

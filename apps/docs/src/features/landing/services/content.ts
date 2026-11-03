@@ -262,16 +262,3 @@ export const FOLLOW_UP = {
   command: 'docker compose logs setup',
   output: ['Odudu is ready.', ' console:  http://localhost:3000/console/'],
 } as const;
-
-const CLAIM_TEXT: Record<string, string> = {
-  passwords: 'Passwords',
-  passkeys: 'Passkeys',
-  'authenticator-codes': 'Authenticator codes',
-  'single-sign-on': 'Single sign-on across one tenant',
-  'back-channel-logout': 'Back-channel logout',
-};
-
-// The words for a capability the scene names; the capability is its own text if unknown.
-export function claimText(claim: string): string {
-  return CLAIM_TEXT[claim] ?? claim;
-}
