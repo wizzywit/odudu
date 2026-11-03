@@ -10,6 +10,7 @@ import {
   provenanceListText,
   provenanceText,
   roleOwnerText,
+  blockedByDefault,
 } from '#/shared/services/capabilities/held';
 import { effectiveRole } from '#/testing/roleAnswers';
 
@@ -160,5 +161,16 @@ describe('roleReachUnavailable', () => {
     expect(roleReachUnavailable(capability, ['view-users'], 'acme')).toBe(
       'You do not hold manage-keys, so you cannot give or take it.',
     );
+  });
+});
+
+describe('blockedByDefault', () => {
+  it('names the reach a default may not carry, and nothing for what is no default', () => {
+    expect(blockedByDefault(true, ['view-users', 'manage-users'])).toEqual([
+      'view-users',
+      'manage-users',
+    ]);
+    expect(blockedByDefault(true, [])).toEqual([]);
+    expect(blockedByDefault(false, ['view-users'])).toEqual([]);
   });
 });

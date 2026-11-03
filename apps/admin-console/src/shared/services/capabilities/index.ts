@@ -25,6 +25,7 @@ export {
   ceilingOf,
   beyondCaller,
   roleReachUnavailable,
+  blockedByDefault,
   TENANT_ROLE_TEXT,
   roleOwnerText,
   holdingNote,

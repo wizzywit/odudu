@@ -1,4 +1,4 @@
-import { roleReachUnavailable } from '#/shared/services/capabilities';
+import { blockedByDefault, roleReachUnavailable } from '#/shared/services/capabilities';
 import { type AdminCapability } from '#/shared/services/principal';
 import { type Defaulting } from '#/features/groups/services/groupReach';
 import { type SetGroupRolesResponse } from '@odudu/contracts/admin';
@@ -9,11 +9,10 @@ export function roleUnavailable(
   defaulting: Defaulting,
   tenant: string,
 ): string | null {
-  if (defaulting === 'itself' && role.admin_reach.length > 0) {
-    return 'Every new subject joins this group, so it may hand out no admin capability.';
-  }
-  if (defaulting === 'beneath' && role.admin_reach.length > 0) {
-    return 'Every new subject joins a group beneath this one and so receives what this one hands out, so it may hand out no admin capability.';
+  if (blockedByDefault(defaulting !== null, role.admin_reach).length > 0) {
+    return defaulting === 'itself'
+      ? 'Every new subject joins this group, so it may hand out no admin capability.'
+      : 'Every new subject joins a group beneath this one and so receives what this one hands out, so it may hand out no admin capability.';
   }
   return roleReachUnavailable(role, caller, tenant);
 }

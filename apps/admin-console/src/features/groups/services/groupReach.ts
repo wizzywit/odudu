@@ -1,5 +1,5 @@
 import { type Group, type GroupRecord } from '@odudu/contracts/admin';
-import { beyondCaller } from '#/shared/services/capabilities';
+import { beyondCaller, blockedByDefault } from '#/shared/services/capabilities';
 import { andList } from '#/shared/services/format';
 import { type AdminCapability } from '#/shared/services/principal';
 
@@ -33,8 +33,9 @@ export function reachLines(
 }
 
 export function defaultBlock(group: Group): string | null {
-  if (group.default_for_new_subjects || group.admin_reach.length === 0) return null;
-  return `Every new subject would join it and so receive ${andList(group.admin_reach)}, and a group every new subject joins may reach no admin capability. Take those roles off it, or off the groups above it, first.`;
+  const blocked = blockedByDefault(!group.default_for_new_subjects, group.admin_reach);
+  if (blocked.length === 0) return null;
+  return `Every new subject would join it and so receive ${andList(blocked)}, and a group every new subject joins may reach no admin capability. Take those roles off it, or off the groups above it, first.`;
 }
 
 export type Defaulting = 'itself' | 'beneath' | null;

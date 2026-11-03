@@ -1,5 +1,5 @@
 import { type Group, type GroupRecord } from '@odudu/contracts/admin';
-import { beyondCaller, writeRefusal } from '#/shared/services/capabilities';
+import { beyondCaller, blockedByDefault, writeRefusal } from '#/shared/services/capabilities';
 import { andList } from '#/shared/services/format';
 import { type AdminCapability } from '#/shared/services/principal';
 import { within } from '#/features/groups/services/groupPath';
@@ -40,8 +40,9 @@ export function parentUnavailable(
 ): string | null {
   const loop = group === null ? null : moveUnavailable(group, candidate);
   if (loop !== null) return loop;
-  if (group?.holds_default_group === true && candidate.admin_reach.length > 0) {
-    return `its members receive ${andList(candidate.admin_reach)}, and a group every new subject joins, or holds one beneath it, may reach no admin capability`;
+  const blocked = blockedByDefault(group?.holds_default_group === true, candidate.admin_reach);
+  if (blocked.length > 0) {
+    return `its members receive ${andList(blocked)}, and a group every new subject joins, or holds one beneath it, may reach no admin capability`;
   }
   const beyond = beyondCaller(candidate.admin_reach, caller);
   return beyond.length === 0

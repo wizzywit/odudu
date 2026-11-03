@@ -91,6 +91,12 @@ export function roleReachUnavailable(
     : `It reaches ${andList(beyond)}, which you do not hold, so you cannot give or take it.`;
 }
 
+// What a role or group that every new subject receives may not carry, which
+// is all it reaches: nothing at all when it is not, and will not become, one.
+export function blockedByDefault(isDefault: boolean, reach: readonly string[]): readonly string[] {
+  return isDefault ? reach : [];
+}
+
 export const TENANT_ROLE_TEXT = 'tenant role';
 
 // Whose a role is, in words: a client's role reaches a token under its

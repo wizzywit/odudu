@@ -1,5 +1,6 @@
 import { type Role } from '@odudu/contracts/admin';
 import {
+  blockedByDefault,
   roleReachUnavailable,
   writeRefusal,
   lossText,
@@ -34,7 +35,7 @@ export function childUnavailable(
 ): string | null {
   if (child.id === parent.id) return 'this role itself';
   if (children.some((each) => each.id === child.id)) return 'nested here already';
-  if (parent.default_for_new_subjects && child.admin_reach.length > 0) {
+  if (blockedByDefault(parent.default_for_new_subjects, child.admin_reach).length > 0) {
     return 'Every new subject receives this role, so it may nest no admin capability.';
   }
   return roleReachUnavailable(child, caller, tenant);
