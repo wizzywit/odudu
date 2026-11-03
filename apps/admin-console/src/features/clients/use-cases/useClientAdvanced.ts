@@ -6,20 +6,21 @@ import {
   type KeyValues,
   type UserinfoValues,
 } from '#/features/clients/repository/useClientConfigSaves';
+import { authOptions, needsSubjectDn } from '#/features/clients/services/clientAuthentication';
+import { EXCHANGE_LABEL } from '#/features/clients/services/tokenExchange';
 import {
-  authOptions,
-  EXCHANGE_LABEL,
   jwksText,
   keysProblem,
   keySourceOf,
-  needsSubjectDn,
-  SECTIONS_ADVANCED,
+  type KeysProblem,
+} from '#/features/clients/services/clientKeys';
+import { SECTIONS_ADVANCED } from '#/features/clients/services/clientSections';
+import {
   userinfoContentOptions,
   userinfoEncryptionOptions,
   userinfoSigningOptions,
   encryptsUserinfo,
-  type KeysProblem,
-} from '#/features/clients/services/advanced';
+} from '#/features/clients/services/userinfoResponse';
 import { choiceOf } from '#/features/clients/services/choices';
 import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/lists';
 import {

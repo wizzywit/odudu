@@ -9,7 +9,7 @@ import {
   rotatedTitle,
   rotateConsequence,
   rotationProblem,
-} from '#/features/clients/services/secret';
+} from '#/features/clients/services/secretRotation';
 
 export interface ClientSecret {
   // What became of the secret the last rotation replaced, or null.

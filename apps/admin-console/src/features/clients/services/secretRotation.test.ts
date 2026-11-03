@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  secretFixedNote,
   GRACE_MAX,
   rotatedNote,
   rotatedTitle,
@@ -7,7 +8,30 @@ import {
   rotationFailureText,
   rotationProblem,
   rotateConsequence,
-} from '#/features/clients/services/secret';
+} from '#/features/clients/services/secretRotation';
+
+describe('secretFixedNote', () => {
+  it('names a public client as having no secret', () => {
+    expect(secretFixedNote({ type: 'public', token_endpoint_auth_method: 'none' })).toBe(
+      'A public client has no secret to rotate.',
+    );
+  });
+
+  it.each(['private_key_jwt', 'tls_client_auth'])('names a %s client as having none', (method) => {
+    expect(secretFixedNote({ type: 'confidential', token_endpoint_auth_method: method })).toBe(
+      `A client that authenticates with ${method} has no secret to rotate.`,
+    );
+  });
+
+  it.each(['client_secret_basic', 'client_secret_post'])(
+    'says nothing of a %s client',
+    (method) => {
+      expect(
+        secretFixedNote({ type: 'confidential', token_endpoint_auth_method: method }),
+      ).toBeNull();
+    },
+  );
+});
 
 it('holds the grace to the week the server allows', () => {
   expect(GRACE_MAX).toBe(604_800);

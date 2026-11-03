@@ -1,22 +1,25 @@
 import type { Client } from '@odudu/contracts/admin';
 import {
   AUDIENCES_RULE,
-  authNote,
   EXCHANGE_LABEL,
   EXCHANGE_RULE,
   FIXED_BY_DESIGN,
+} from '#/features/clients/services/tokenExchange';
+import {
+  authNote,
+  PUBLIC_AUTH_FIXED,
+  SUBJECT_DN_RULE,
+} from '#/features/clients/services/clientAuthentication';
+import {
   JWKS_URI_RULE,
   KEY_SOURCES,
   KEYS_BLOCKED,
   KEYS_RULE,
-  PUBLIC_AUTH_FIXED,
-  secretFixedNote,
-  SECRET_RULE,
-  SECTIONS_ADVANCED,
-  SUBJECT_DN_RULE,
-  USERINFO_RULE,
-} from '#/features/clients/services/advanced';
-import { GRACE_LABEL, GRACE_MAX, GRACE_RULE } from '#/features/clients/services/secret';
+} from '#/features/clients/services/clientKeys';
+import { secretFixedNote, SECRET_RULE } from '#/features/clients/services/secretRotation';
+import { SECTIONS_ADVANCED } from '#/features/clients/services/clientSections';
+import { USERINFO_RULE } from '#/features/clients/services/userinfoResponse';
+import { GRACE_LABEL, GRACE_MAX, GRACE_RULE } from '#/features/clients/services/secretRotation';
 import { useClientAdvanced } from '#/features/clients/use-cases/useClientAdvanced';
 import { useClientSecret, type ClientSecret } from '#/features/clients/use-cases/useClientSecret';
 import { Installation } from '#/features/clients/ui/Installation';

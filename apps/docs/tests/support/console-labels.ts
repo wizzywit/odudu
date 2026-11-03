@@ -401,7 +401,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'clients/ui/AdvancedTab/AdvancedTab.tsx',
     'confirmLabel="Rotate secret"',
   ),
-  'Grace period': feature('clients/services/secret.ts', "GRACE_LABEL = 'Grace period'"),
+  'Grace period': feature('clients/services/secretRotation.ts', "GRACE_LABEL = 'Grace period'"),
   'Revoke every token': feature(
     'clients/services/sessions.ts',
     "REVOKE_HEADING = 'Revoke every token'",
@@ -730,10 +730,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'label="Certificate subject"',
   ),
   'Key source': feature('clients/ui/AdvancedTab/AdvancedTab.tsx', 'label="Key source"'),
-  'None published': feature('clients/services/advanced.ts', "label: 'None published'"),
-  'A JWKS URI': feature('clients/services/advanced.ts', "label: 'A JWKS URI'"),
+  'None published': feature('clients/services/clientKeys.ts', "label: 'None published'"),
+  'A JWKS URI': feature('clients/services/clientKeys.ts', "label: 'A JWKS URI'"),
   'A key set pasted here': feature(
-    'clients/services/advanced.ts',
+    'clients/services/clientKeys.ts',
     "label: 'A key set pasted here'",
   ),
   'Signing algorithm': feature(
@@ -741,22 +741,22 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'label="Signing algorithm"',
   ),
   'Plain JSON, not signed': feature(
-    'clients/services/advanced.ts',
+    'clients/services/userinfoResponse.ts',
     "label: 'Plain JSON, not signed'",
   ),
   'Encryption algorithm': feature(
     'clients/ui/AdvancedTab/AdvancedTab.tsx',
     'label="Encryption algorithm"',
   ),
-  'Not encrypted': feature('clients/services/advanced.ts', "label: 'Not encrypted'"),
+  'Not encrypted': feature('clients/services/userinfoResponse.ts', "label: 'Not encrypted'"),
   'Content encryption': feature(
     'clients/ui/AdvancedTab/AdvancedTab.tsx',
     'label="Content encryption"',
   ),
-  'Response type': feature('clients/services/advanced.ts', "label: 'Response type'"),
+  'Response type': feature('clients/services/tokenExchange.ts', "label: 'Response type'"),
   Audiences: feature('clients/ui/AdvancedTab/AdvancedTab.tsx', 'label="Audiences"'),
   'Allow impersonation in token exchange': feature(
-    'clients/services/advanced.ts',
+    'clients/services/tokenExchange.ts',
     "'Allow impersonation in token exchange'",
   ),
   'New subjects': page('roles/use-cases/useRoleGeneral.ts', "label: 'New subjects'"),
