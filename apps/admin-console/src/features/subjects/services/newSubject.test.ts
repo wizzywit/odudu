@@ -10,8 +10,13 @@ import { failure, refusal } from '#/testing/failures';
 
 describe('creating a subject', () => {
   it('offers creating only while nothing rules it out', () => {
-    expect(createSubjectHref('acme', [])).toBe('/console/acme/subjects/new');
-    expect(createSubjectHref('acme', ['manage-users'])).toBeNull();
+    expect(createSubjectHref('acme', undefined)).toBe('/console/acme/subjects/new');
+    expect(createSubjectHref('acme', { capabilities: ['manage-users'], crossTenant: false })).toBe(
+      '/console/acme/subjects/new',
+    );
+    expect(
+      createSubjectHref('acme', { capabilities: ['view-users'], crossTenant: false }),
+    ).toBeNull();
   });
 });
 

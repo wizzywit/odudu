@@ -1,13 +1,11 @@
-import { type AdminCapability, type Authority } from '#/shared/services/principal';
+import { type Authority } from '#/shared/services/principal';
 import { newSubjectHref } from '#/features/subjects/services/subjectAddress';
-import { lacking } from '#/shared/services/access';
+import { notLacking } from '#/shared/services/access';
 import { createdText, type CreateSpec } from '#/shared/services/failure';
 
-export function createSubjectHref(
-  tenant: string,
-  lacking: readonly AdminCapability[],
-): string | null {
-  return lacking.length === 0 ? newSubjectHref(tenant) : null;
+// Offered only while whoami says nothing rules creating out.
+export function createSubjectHref(tenant: string, authority: Authority | undefined): string | null {
+  return notLacking(authority, ['manage-users']) ? newSubjectHref(tenant) : null;
 }
 
 export function subjectCreatedText(name: string): string {
@@ -28,8 +26,7 @@ export function newSubjectSpec(name: string): CreateSpec {
   };
 }
 
-// Offered only while whoami says nothing rules creating out.
 // What creating needs that whoami says is missing; none before it answers.
 export function manageUsersRefusal(authority: Authority | undefined): 'manage-users' | null {
-  return lacking(authority, ['manage-users']).length === 0 ? null : 'manage-users';
+  return notLacking(authority, ['manage-users']) ? null : 'manage-users';
 }

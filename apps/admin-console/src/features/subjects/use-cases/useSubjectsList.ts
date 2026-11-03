@@ -18,7 +18,7 @@ export function useSubjectsList(tenant: string): SubjectsList {
   const authority = useAuthority(tenant);
   const changeNeeds = lacking(authority, ['manage-users']);
   return {
-    ...useListPage(list, createSubjectHref(tenant, changeNeeds), (id) => subjectHref(tenant, id)),
+    ...useListPage(list, createSubjectHref(tenant, authority), (id) => subjectHref(tenant, id)),
     changeNeeds,
   };
 }

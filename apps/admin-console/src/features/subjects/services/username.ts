@@ -1,11 +1,12 @@
 import { USERNAME_RULE } from '@odudu/contracts/admin';
+import { requiredProblem } from '#/shared/services/fieldErrors';
 import { sentence } from '#/shared/services/format';
 import type { Loaded } from '#/shared/services/read';
 
 export const USERNAME_RULE_TEXT = sentence(USERNAME_RULE);
 
 export function usernameProblem(username: string): string | null {
-  return username === '' ? 'Enter a username.' : null;
+  return requiredProblem(username, 'Enter a username.', { trim: false });
 }
 
 export type UsernameMode =
