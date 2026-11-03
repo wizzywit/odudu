@@ -1,5 +1,5 @@
 import { writeFailureText } from '#/shared/services/failure';
-import { unsavedBlock } from '#/features/branding/services/sectionTitles';
+import { unsavedBlock } from '#/features/branding/services/unsavedBlock';
 import type { GatewayFailure } from '#/shared/services/result';
 import type { ThemeScope } from '#/features/branding/services/themeScope';
 

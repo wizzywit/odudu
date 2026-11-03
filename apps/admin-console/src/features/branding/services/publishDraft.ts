@@ -1,5 +1,5 @@
 import type { ThemeView } from '@odudu/contracts/admin';
-import { unsavedBlock } from '#/features/branding/services/sectionTitles';
+import { unsavedBlock } from '#/features/branding/services/unsavedBlock';
 
 export const PUBLISH_TITLE = 'Publish';
 

@@ -4,7 +4,8 @@ import type { Conflict } from '#/shared/services/conflict';
 import { isStale, writeFailureText } from '#/shared/services/failure';
 import { counted } from '#/shared/services/format';
 import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
-import { unsavedBlock, unsavedSections } from '#/features/branding/services/sectionTitles';
+import { unsavedSections } from '#/features/branding/services/sectionTitles';
+import { unsavedBlock } from '#/features/branding/services/unsavedBlock';
 import type { ThemeScope } from '#/features/branding/services/themeScope';
 import {
   BRANDING_TAB_SECTIONS,
