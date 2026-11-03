@@ -2,6 +2,7 @@ import { Fragment, type ReactElement } from 'react';
 import type { InstallPanel } from '@site/src/features/landing/services/installView';
 import type { TypedSegment } from '@site/src/features/landing/services/installTyping';
 import { useInstall } from '@site/src/features/landing/use-cases/useInstall';
+import { classNames } from '@site/src/shared/ui/classNames';
 import styles from '@site/src/features/landing/ui/Install/Install.module.css';
 
 const LINE_LOOKS = { command: undefined, output: styles.output };
@@ -45,7 +46,7 @@ export function Install(): ReactElement {
       {view.shells.map((entry) => (
         <input
           key={entry.shell}
-          className={[styles.shellRadio, 'visually-hidden'].join(' ')}
+          className={classNames(styles.shellRadio, 'visually-hidden')}
           type="radio"
           name="shell"
           id={`shell-${entry.shell}`}

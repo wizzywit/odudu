@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  COPIED_FOR_MS,
-  noteFor,
-  type CopyStatus,
-} from '@site/src/features/landing/services/copyStatus';
+import { COPIED_FOR_MS, type CopyStatus } from '@site/src/features/landing/services/copyStatus';
 import { commandOf } from '@site/src/features/landing/services/installTyping';
 import { useInstall } from '@site/src/features/landing/use-cases/useInstall';
 import type { Install } from '@site/src/features/landing/use-cases/useInstall';
@@ -14,10 +10,7 @@ vi.mock('react', async () => (await import('@site/tests/support/hookRunner')).fa
 const copyText = vi.hoisted(() => vi.fn<(text: string) => Promise<boolean>>());
 vi.mock('@site/src/shared/lib/platform/clipboard', () => ({ copyText }));
 
-const statusOf = (install: Install): CopyStatus =>
-  (['idle', 'copied', 'failed'] as const).find(
-    (status) => noteFor(status) === install.view.copyBar.note,
-  ) ?? 'idle';
+const statusOf = (install: Install): CopyStatus => install.view.copyBar.status;
 const chosen = (install: Install) => install.view.shells.find((entry) => entry.checked)?.shell;
 const typedCount = (install: Install) =>
   install.view.panels[0]?.overlay?.map((part) => part.shown).join('').length ?? 0;

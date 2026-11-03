@@ -1,6 +1,5 @@
 import type { ReactElement } from 'react';
-import { loadingFor } from '@site/src/shared/lib/services/pictureShot';
-import { useConsoleShot } from '@site/src/shared/lib/use-cases/useShot';
+import { useConsoleShot } from '@site/src/shared/lib/use-cases/useConsoleShot';
 import styles from '@site/src/shared/ui/ConsoleShot/ConsoleShot.module.css';
 
 interface Props {
@@ -13,8 +12,10 @@ interface Props {
 
 // One capture per colour scheme; the one that matches the page's theme shows.
 export function ConsoleShot({ name, alt, caption, priority = false }: Props): ReactElement {
-  const { light, dark, size } = useConsoleShot(name);
-  const { fetchPriority, loading } = loadingFor(priority);
+  const {
+    shot: { light, dark, size },
+    loading: { fetchPriority, loading },
+  } = useConsoleShot(name, priority);
   return (
     <figure className={styles.shot}>
       <img

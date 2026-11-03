@@ -9,9 +9,9 @@ describe('useSignInFlow', () => {
     const flow = resultOf(useSignInFlow);
     expect(flow.step).toBe(0);
     expect(flow.wantsPlay).toBe(false);
-    expect(flow.label).toBe('Play');
+    expect(flow.view.label).toBe('Play');
     expect(flow.buttons).toHaveLength(7);
-    expect(flow.live).toBe(REST_NOTE);
+    expect(flow.view.live).toBe(REST_NOTE);
     expect(flow.scenes.wide).toEqual(buildScene('wide', 0));
     expect(flow.scenes.tall).toEqual(buildScene('tall', 0));
     expect(flow.captions).toEqual(captions());

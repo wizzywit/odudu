@@ -10,7 +10,7 @@ import styles from '@site/src/features/landing/ui/SignInFlow/SignInFlow.module.c
 // once when it comes into view, then loops, and the stepper lets the reader take over.
 export function SignInFlow(): ReactElement {
   const flow = useSignInFlow();
-  const { uid, stage, step } = flow;
+  const { uid, stage, step, view } = flow;
   return (
     <div className={styles.flow} data-flow="" data-step={String(step)}>
       <div className={styles.stage} ref={stage} data-stage="">
@@ -22,16 +22,16 @@ export function SignInFlow(): ReactElement {
           step={step}
           buttons={flow.buttons}
           playing={flow.wantsPlay}
-          running={flow.running}
-          holdMs={flow.holdMs}
-          label={flow.label}
-          live={flow.live}
-          leaving={flow.leaving}
-          moved={flow.moved}
-          handOver={flow.handOver}
-          marker={flow.marker}
-          widest={flow.widest}
-          politeness={flow.politeness}
+          running={view.running}
+          holdMs={view.holdMs}
+          label={view.label}
+          live={view.live}
+          leaving={view.leaving}
+          moved={view.moved}
+          handOver={view.handOver}
+          marker={view.marker}
+          widest={view.widest}
+          politeness={view.politeness}
           onChoose={flow.choose}
           onToggle={flow.toggle}
           onReplay={flow.replay}

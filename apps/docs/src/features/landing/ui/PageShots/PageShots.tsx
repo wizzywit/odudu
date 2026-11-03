@@ -3,6 +3,7 @@ import type { PageShotCard } from '@site/src/features/landing/services/serverPag
 import type { LandingPage } from '@site/src/features/landing/use-cases/useLandingPage';
 import { usePageShot } from '@site/src/features/landing/use-cases/usePageShot';
 import { Frame } from '@site/src/features/landing/ui/Frame/Frame';
+import { classNames } from '@site/src/shared/ui/classNames';
 import styles from '@site/src/features/landing/ui/PageShots/PageShots.module.css';
 
 function Shot({ name, caption, alt, size: kind, note }: PageShotCard): ReactElement {
@@ -45,7 +46,7 @@ const ROWS = { large: styles.large, small: styles.small };
 
 function Row({ kind, shots }: { kind: PageShotCard['size']; shots: PageShotCard[] }): ReactElement {
   return (
-    <div className={[styles.row, ROWS[kind]].join(' ')} data-row={kind}>
+    <div className={classNames(styles.row, ROWS[kind])} data-row={kind}>
       {shots.map((shot) => (
         <Shot key={shot.name} {...shot} />
       ))}

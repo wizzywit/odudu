@@ -1,14 +1,19 @@
 import Link from '@docusaurus/Link';
 import type { ReactElement } from 'react';
-import { useNotFound } from '@site/src/features/not-found/use-cases/useNotFound';
+import type { NotFoundContent } from '@site/src/features/not-found/services/notFound';
 import { LostArt } from '@site/src/features/not-found/ui/LostArt/LostArt';
 import { classNames } from '@site/src/shared/ui/classNames';
 import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import styles from '@site/src/features/not-found/ui/NotFoundPage/NotFoundPage.module.css';
 
 // What the theme's not-found route shows, in place of its default.
-export function NotFoundPage(): ReactElement {
-  const { title, message, routes, searchLabel } = useNotFound();
+interface Props {
+  content: NotFoundContent;
+}
+
+export function NotFoundPage({
+  content: { title, message, routes, searchLabel },
+}: Props): ReactElement {
   return (
     <main className={classNames('container margin-vert--xl', styles.page)} data-page="not-found">
       <LostArt />

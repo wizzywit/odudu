@@ -1,3 +1,5 @@
+import { classNames } from '@site/src/shared/lib/services/classNames';
+
 export interface CodeToken {
   types: string[];
   content: string;
@@ -59,7 +61,7 @@ export function tokenClass(types: string[]): string | undefined {
 }
 
 export function lineProps(extra: string | undefined): { className: string } {
-  return { className: extra === undefined || extra === '' ? 'token-line' : `token-line ${extra}` };
+  return { className: classNames('token-line', extra) };
 }
 
 export function tokenProps(token: CodeToken): { className: string | undefined; children: string } {

@@ -1,5 +1,3 @@
-import manifest from '@site/static/console/manifest.json';
-
 export interface ShotSize {
   width: number;
   height: number;
@@ -31,22 +29,4 @@ export function shotCatalogue({ manifest: sizes, directory, noun }: ShotSource):
     },
     addressOf: (name, scheme) => `${directory}/${name}-${scheme}.webp`,
   };
-}
-
-export const consoleShots = shotCatalogue({
-  manifest,
-  directory: '/console',
-  noun: 'console capture',
-});
-
-export interface ShotLoading {
-  fetchPriority: 'high' | undefined;
-  loading: 'lazy' | undefined;
-}
-
-// The light capture is what a priority picture waits for; any other is fetched lazily.
-export function loadingFor(priority: boolean): ShotLoading {
-  return priority
-    ? { fetchPriority: 'high', loading: undefined }
-    : { fetchPriority: undefined, loading: 'lazy' };
 }

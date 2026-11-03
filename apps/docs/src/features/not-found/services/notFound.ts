@@ -15,3 +15,17 @@ export const NOT_FOUND_ROUTES: NotFoundRoute[] = [
 ];
 
 export const SEARCH_LABEL = 'Search the documentation';
+
+export interface NotFoundContent {
+  title: string;
+  message: string;
+  routes: NotFoundRoute[];
+  searchLabel: string;
+}
+
+export const NOT_FOUND_CONTENT: NotFoundContent = {
+  title: NOT_FOUND_TITLE,
+  message: NOT_FOUND_MESSAGE,
+  routes: NOT_FOUND_ROUTES,
+  searchLabel: SEARCH_LABEL,
+};

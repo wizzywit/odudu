@@ -53,11 +53,13 @@ describe('the hero terminal as the view draws it', () => {
 
   it('says what copying did, and keeps the button out until script has run', () => {
     expect(installView(START).copyBar).toEqual({
+      status: 'idle',
       label: 'Copy',
       note: noteFor('idle'),
       hidden: true,
     });
     expect(installView({ ...START, status: 'copied', interactive: true }).copyBar).toEqual({
+      status: 'copied',
       label: 'Copied',
       note: noteFor('copied'),
       hidden: false,

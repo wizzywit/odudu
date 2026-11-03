@@ -4,6 +4,7 @@ import type { LandingPage } from '@site/src/features/landing/use-cases/useLandin
 import { useBrandingPictures } from '@site/src/features/landing/use-cases/useBrandingPictures';
 import { Frame } from '@site/src/features/landing/ui/Frame/Frame';
 import { Section } from '@site/src/features/landing/ui/Section/Section';
+import { classNames } from '@site/src/shared/ui/classNames';
 import styles from '@site/src/features/landing/ui/Branding/Branding.module.css';
 
 const LOOKS = { odudu: styles.odudu, other: styles.other };
@@ -21,7 +22,7 @@ export function Branding({ branding }: Props): ReactElement {
         {pictures.map((item) => (
           <img
             key={item.src}
-            className={[styles.picture, LOOKS[item.look], SCHEMES[item.scheme]].join(' ')}
+            className={classNames(styles.picture, LOOKS[item.look], SCHEMES[item.scheme])}
             src={item.src}
             alt={item.alt}
             width={item.width}

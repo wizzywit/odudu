@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
+import { classNames } from '@site/src/shared/ui/classNames';
 import styles from '@site/src/features/landing/ui/Frame/Frame.module.css';
 
 type Kind = 'large' | 'small' | 'look';
@@ -14,7 +15,7 @@ interface Props {
 // never changes height: a taller page is cropped at the bottom, a shorter one centred.
 export function Frame({ kind, children }: Props): ReactElement {
   return (
-    <div className={[styles.frame, KINDS[kind]].join(' ')} data-frame={kind}>
+    <div className={classNames(styles.frame, KINDS[kind])} data-frame={kind}>
       {children}
     </div>
   );

@@ -1,9 +1,5 @@
 import useBaseUrl from '@docusaurus/useBaseUrl';
-import {
-  consoleShots,
-  type ShotCatalogue,
-  type ShotSize,
-} from '@site/src/shared/lib/services/pictureShot';
+import type { ShotCatalogue, ShotSize } from '@site/src/shared/lib/services/pictureShot';
 
 export interface ShotView {
   light: string;
@@ -19,9 +15,4 @@ export function useShot(catalogue: ShotCatalogue, name: string): ShotView {
     dark: useBaseUrl(catalogue.addressOf(name, 'dark')),
     size,
   };
-}
-
-// The two captures of one console page.
-export function useConsoleShot(name: string): ShotView {
-  return useShot(consoleShots, name);
 }

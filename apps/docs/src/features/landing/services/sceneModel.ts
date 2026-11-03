@@ -280,3 +280,14 @@ export function buildScene(layout: LayoutName, step: Step): SceneModel {
           ],
   };
 }
+
+const STEPS: Step[] = [0, 1, 2, 3, 4, 5, 6, 7];
+
+// Both layouts at every step, built once: the scene only ever shows these.
+const SCENES: Record<Step, { wide: SceneModel; tall: SceneModel }> = Object.fromEntries(
+  STEPS.map((step) => [step, { wide: buildScene('wide', step), tall: buildScene('tall', step) }]),
+) as Record<Step, { wide: SceneModel; tall: SceneModel }>;
+
+export function scenesAt(step: Step): { wide: SceneModel; tall: SceneModel } {
+  return SCENES[step];
+}

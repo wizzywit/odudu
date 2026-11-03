@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classNames } from '@site/src/shared/ui/classNames';
+import { classNames } from '@site/src/shared/lib/services/classNames';
 
 describe('classNames', () => {
   it('joins what is present, in order, and skips the rest', () => {

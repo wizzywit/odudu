@@ -22,7 +22,8 @@ interface Instance {
   pending: Pending[];
   render: () => void;
   rendering: boolean;
-  dirty: boolean;
+  // State changes asked for while a render ran, so it runs once more.
+  requests: number;
 }
 
 let active: Instance | undefined;
@@ -41,12 +42,8 @@ function changed(before: unknown[] | undefined, after: unknown[] | undefined): b
   return before.length !== after.length || before.some((value, i) => !Object.is(value, after[i]));
 }
 
-function isDirty(instance: Instance): boolean {
-  return instance.dirty;
-}
-
 function request(instance: Instance): void {
-  if (instance.rendering) instance.dirty = true;
+  if (instance.rendering) instance.requests += 1;
   else instance.render();
 }
 
@@ -102,7 +99,7 @@ function useSyncExternalStore<T>(_subscribe: unknown, snapshot: () => T): T {
   return snapshot();
 }
 
-export const fakeReact = {
+const IMPLEMENTED: Record<string, unknown> = {
   useState,
   useReducer,
   useRef,
@@ -111,6 +108,16 @@ export const fakeReact = {
   useId,
   useSyncExternalStore,
 };
+
+// Reaching for a hook the runner does not implement fails by name.
+export const fakeReact: Record<string, unknown> = new Proxy(IMPLEMENTED, {
+  get: (target, name) => {
+    if (typeof name === 'symbol' || name in target || name === 'then' || name === '__esModule') {
+      return Reflect.get(target, name) as unknown;
+    }
+    throw new Error(`the hook runner does not implement React's ${name}`);
+  },
+});
 
 export interface Mounted<T> {
   current: () => T;
@@ -124,10 +131,11 @@ export function mount<T>(hook: () => T): Mounted<T> {
     cursor: 0,
     pending: [],
     rendering: false,
-    dirty: false,
+    requests: 0,
     render: () => {
+      let before: number;
       do {
-        instance.dirty = false;
+        before = instance.requests;
         instance.cursor = 0;
         instance.pending = [];
         instance.rendering = true;
@@ -144,7 +152,7 @@ export function mount<T>(hook: () => T): Mounted<T> {
           effect.slot.cleanup = effect.run();
         }
         instance.rendering = false;
-      } while (isDirty(instance));
+      } while (instance.requests !== before);
     },
   };
   instance.render();

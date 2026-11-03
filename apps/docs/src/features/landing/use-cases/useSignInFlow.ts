@@ -12,9 +12,10 @@ import {
   stepper,
   viewOf,
   type CaptionItem,
+  type FlowView,
   type StepperButton,
 } from '@site/src/features/landing/services/flowView';
-import { buildScene, type SceneModel } from '@site/src/features/landing/services/sceneModel';
+import { scenesAt, type SceneModel } from '@site/src/features/landing/services/sceneModel';
 import { HAND_OVER_MS } from '@site/src/features/landing/services/timing';
 import { usePrefersReducedMotion } from '@site/src/shared/lib/use-cases/usePrefersReducedMotion';
 import { canObserve, watchVisible } from '@site/src/shared/lib/platform/observe';
@@ -26,23 +27,17 @@ export interface SignInFlow {
   stage: RefObject<HTMLDivElement | null>;
   step: Step;
   wantsPlay: boolean;
-  label: 'Pause' | 'Play';
-  live: string;
-  leaving: string;
-  moved: boolean;
-  handOver: 'none' | 'timed' | 'click';
-  marker: Step;
-  widest: string;
-  holdMs: number;
-  running: boolean;
-  politeness: 'off' | 'polite';
-  buttons: StepperButton[];
+  view: FlowView;
   scenes: { wide: SceneModel; tall: SceneModel };
   captions: CaptionItem[];
+  buttons: StepperButton[];
   choose: (step: Step) => void;
   toggle: () => void;
   replay: () => void;
 }
+
+// What the page says under the scene, the same for every step.
+const CAPTIONS = captions();
 
 // A margin as well as a share, so a short landscape screen still counts the scene as in view.
 const IN_VIEW = { rootMargin: '20% 0px 20% 0px', threshold: 0.4 };
@@ -93,19 +88,10 @@ export function useSignInFlow(): SignInFlow {
     stage,
     step: flow.step,
     wantsPlay: flow.wantsPlay,
-    label: view.label,
-    live: view.live,
-    leaving: view.leaving,
-    moved: view.moved,
-    handOver: view.handOver,
-    marker: view.marker,
-    widest: view.widest,
-    holdMs: view.holdMs,
-    running: view.running,
-    politeness: view.politeness,
+    view,
+    scenes: scenesAt(flow.step),
+    captions: CAPTIONS,
     buttons: stepper(flow.step),
-    scenes: { wide: buildScene('wide', flow.step), tall: buildScene('tall', flow.step) },
-    captions: captions(),
     choose: (step) => {
       dispatch({ type: 'choose', step });
     },

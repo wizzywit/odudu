@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react';
-import { NotFoundPage } from '@site/src/features/not-found';
+import { NOT_FOUND_CONTENT, NotFoundPage } from '@site/src/features/not-found';
 
 // The content of the theme's not-found route. The theme keeps the route's
 // page metadata and layout around it.
 export default function NotFoundContent(): ReactElement {
-  return <NotFoundPage />;
+  return <NotFoundPage content={NOT_FOUND_CONTENT} />;
 }

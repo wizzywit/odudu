@@ -49,6 +49,7 @@ export interface InstallPanel {
 }
 
 export interface CopyBar {
+  status: CopyStatus;
   label: 'Copied' | 'Copy';
   note: string;
   hidden: boolean;
@@ -79,6 +80,7 @@ export function installView(state: InstallState): InstallView {
       })),
     })),
     copyBar: {
+      status: state.status,
       label: copyLabel(state.status),
       note: noteFor(state.status),
       hidden: !state.interactive,

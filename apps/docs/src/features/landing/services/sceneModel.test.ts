@@ -8,6 +8,7 @@ import {
   flag,
   headTransform,
   passRouteOf,
+  scenesAt,
 } from '@site/src/features/landing/services/sceneModel';
 import { TIMING } from '@site/src/features/landing/services/timing';
 
@@ -113,5 +114,14 @@ describe('the stage against the durations', () => {
     const passMs = 1500;
     expect(STAGE.returnPass + passMs).toBeLessThan(BEATS[5]?.ms ?? 0);
     expect(STAGE.pass + passMs).toBeLessThan(BEATS[3]?.ms ?? 0);
+  });
+
+  it('holds both layouts at every step, as buildScene draws them', () => {
+    for (const step of [0, 1, 2, 3, 4, 5, 6, 7] as const) {
+      expect(scenesAt(step)).toEqual({
+        wide: buildScene('wide', step),
+        tall: buildScene('tall', step),
+      });
+    }
   });
 });

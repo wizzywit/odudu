@@ -29,7 +29,7 @@ describe('useSignInFlow motion', () => {
     stubBrowser(true);
     const hook = mount(useSignInFlow);
     await vi.advanceTimersByTimeAsync(IDLE_FOR_MS);
-    expect(hook.current()).toMatchObject({ step: 0, wantsPlay: false, running: false });
+    expect(hook.current()).toMatchObject({ step: 0, wantsPlay: false, view: { running: false } });
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -37,7 +37,7 @@ describe('useSignInFlow motion', () => {
     stubBrowser(false);
     const hook = mount(useSignInFlow);
     await vi.advanceTimersByTimeAsync(IDLE_FOR_MS);
-    expect(hook.current()).toMatchObject({ step: 0, running: false });
+    expect(hook.current()).toMatchObject({ step: 0, view: { running: false } });
   });
 
   it('takes a step chosen by the reader', () => {
