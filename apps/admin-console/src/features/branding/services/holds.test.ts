@@ -1,9 +1,6 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import {
-  discardNote,
-  discardUnsaved,
-  DISCARDING,
   foldedActions,
   publicationHolds,
   runningLine,
@@ -11,7 +8,9 @@ import {
   sectionHold,
   writesRunning,
   type WritesRunning,
+  discardNote,
 } from '#/features/branding/services/holds';
+import { DISCARDING } from '#/features/branding/services/discardDraft';
 import { PUBLISHING } from '#/features/branding/services/copy';
 import { REVERTING } from '#/features/branding/services/publication';
 import { EMPTY, themeView } from '#/testing/brandingFixtures';
@@ -209,16 +208,5 @@ describe('the hold on a theme section’s Save from what else is writing', () =>
 
   it('still holds a section that is saving while the bar runs a write of its own', () => {
     expect(sectionHold(undefined, running({ publish: true }), true)).toBe(PUBLISHING);
-  });
-});
-
-describe('the sentence that asks for a save or a discard first', () => {
-  it('names the sections and what is left alone', () => {
-    expect(discardUnsaved(['Colours and font'])).toBe(
-      'Save or discard your changes first, in “Colours and font”: discarding the draft does not touch them.',
-    );
-    expect(discardUnsaved(['Images', 'Stylesheet'])).toBe(
-      'Save or discard your changes first, in “Images” and “Stylesheet”: discarding the draft does not touch them.',
-    );
   });
 });

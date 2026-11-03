@@ -1,13 +1,15 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { ISSUES_LABEL, PUBLISH_LABEL, PUBLISHING } from '#/features/branding/services/copy';
-import { discardNote, foldedActions } from '#/features/branding/services/holds';
+import { foldedActions, discardNote } from '#/features/branding/services/holds';
 import {
-  barText,
-  changeBrief,
   DISCARD_CONFIRM,
   DISCARD_LABEL,
   DISCARD_TITLE,
   discardBody,
+} from '#/features/branding/services/discardDraft';
+import {
+  barText,
+  changeBrief,
   MORE_LABEL,
   MORE_TRIGGER,
   publishedShort,

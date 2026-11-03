@@ -1,6 +1,6 @@
 import { useRefusal } from '#/entities/session';
 import type { ThemeWrites } from '#/features/branding/repository/useThemeWrites';
-import { DISCARD_DONE, discardFailure } from '#/features/branding/services/publication';
+import { DISCARD_DONE, discardFailure } from '#/features/branding/services/discardDraft';
 import { writeCapability, type ThemeScope } from '#/features/branding/services/themeScope';
 import { useToast } from '#/shared/repository/useToasts';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';

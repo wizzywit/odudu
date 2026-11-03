@@ -6,9 +6,6 @@ import {
   changeBrief,
   changeCount,
   changedText,
-  DISCARD_BODY_TENANT,
-  discardBody,
-  discardFailure,
   revertHold,
   revertUnsaved,
   revertLead,
@@ -174,18 +171,6 @@ describe('what a revert answers', () => {
     announceRevert(stale, toast);
     expect(toast).not.toHaveBeenCalled();
     expect(revertProblem(stale)).toMatch(/Somebody saved the draft/u);
-  });
-});
-
-describe('discarding the draft', () => {
-  it('says published stays, unlike a reset, in the scope’s words', () => {
-    expect(discardBody({ kind: 'tenant' })).toBe(DISCARD_BODY_TENANT);
-    expect(DISCARD_BODY_TENANT).toMatch(/people keep seeing it/u);
-    expect(discardBody({ kind: 'client', id: 'c1' })).toMatch(/client/u);
-  });
-
-  it('words a failure like the other writes', () => {
-    expect(discardFailure({ ok: false, kind: 'network' })).toMatch(/discard/u);
   });
 });
 

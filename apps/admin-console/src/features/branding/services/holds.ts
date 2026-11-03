@@ -1,24 +1,16 @@
 import type { ThemeView } from '@odudu/contracts/admin';
-import { andList } from '#/shared/services/format';
 import { PUBLISHING } from '#/features/branding/services/copy';
+import { REVERT_LABEL, REVERTING, revertHold } from '#/features/branding/services/publication';
 import {
   DISCARD_LABEL,
-  REVERT_LABEL,
-  REVERTING,
-  revertHold,
-} from '#/features/branding/services/publication';
+  DISCARDING,
+  NO_DRAFT_TO_DISCARD,
+  discardUnsaved,
+} from '#/features/branding/services/discardDraft';
 import { publishHold } from '#/features/branding/services/publish';
 import type { ScopedTab } from '#/features/branding/services/tabs';
 
-export const DISCARDING = 'Discarding…';
-
 export const SAVING = 'Saving…';
-
-export const NO_DRAFT_TO_DISCARD = 'There is no draft to discard.';
-
-export function discardUnsaved(sections: readonly string[]): string {
-  return `Save or discard your changes first, in ${andList(sections.map((title) => `“${title}”`))}: discarding the draft does not touch them.`;
-}
 
 // Which writes to the theme are running now, whichever part of the page asked.
 export interface WritesRunning {
@@ -72,17 +64,6 @@ export function sectionHold(
 // The hold on the revert of a tab, from the holds of the whole bar.
 export function revertHoldOf(holds: PublicationHolds, tab: ScopedTab): string | undefined {
   return tab === 'theme' ? holds.revertTheme : holds.revertPages;
-}
-
-// The line under the bar for a Discard that is held for its own reason. With
-// no draft the Publish line already says so, and a line the same as Publish's
-// is not said twice.
-export function discardNote(
-  holds: PublicationHolds,
-  hasDraft: boolean,
-  publishHold: string | undefined,
-): string | undefined {
-  return hasDraft && holds.discard !== publishHold ? holds.discard : undefined;
 }
 
 // What the menu a narrow bar folds its actions under offers: Revert for a tab
@@ -168,4 +149,15 @@ export function publicationHolds({
     revertTheme: revertHold({ view, tab: 'theme', unsaved: unsavedByTab.theme }),
     revertPages: revertHold({ view, tab: 'pages', unsaved: unsavedByTab.pages }),
   };
+}
+
+// The line under the bar for a Discard that is held for its own reason. With
+// no draft the Publish line already says so, and a line the same as Publish's
+// is not said twice.
+export function discardNote(
+  holds: PublicationHolds,
+  hasDraft: boolean,
+  publishHold: string | undefined,
+): string | undefined {
+  return hasDraft && holds.discard !== publishHold ? holds.discard : undefined;
 }
