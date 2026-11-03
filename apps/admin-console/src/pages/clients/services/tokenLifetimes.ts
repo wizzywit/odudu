@@ -1,6 +1,6 @@
 import { CLIENT_TOKEN_TTL_RANGES, type ClientTokenTtlField } from '@odudu/contracts/admin';
 import { formatDuration } from '#/shared/services/format';
-import { rangeSentence } from '#/shared/services/numbers';
+import { numberKept, rangeSentence } from '#/shared/services/numbers';
 
 export interface Lifetime {
   field: ClientTokenTtlField;
@@ -64,4 +64,9 @@ export function lifetimeText(value: unknown): string {
 // A duration a client may leave to a default, as a read-only page says it.
 export function secondsReading(value: number | null, offText: string): string {
   return value === null ? offText : formatDuration(value);
+}
+
+// A number entered for a duration; cleared (NaN), the duration stays as it was.
+export function keptSeconds(next: number | null, was: number | null): number | null {
+  return next === null || was === null ? next : numberKept(next, was);
 }

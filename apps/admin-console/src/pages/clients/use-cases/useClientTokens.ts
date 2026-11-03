@@ -34,6 +34,7 @@ import {
 } from '#/pages/clients/services/grantTypes';
 import {
   lifetimeBounds,
+  keptSeconds,
   lifetimeRule,
   LIFETIMES,
   lifetimeText,
@@ -41,14 +42,14 @@ import {
   secondsReading,
   tenantLifetimeLabel,
 } from '#/pages/clients/services/tokenLifetimes';
-import { SECTIONS_TOKENS, TOKEN_FIELD } from '#/pages/clients/services/clientSections';
+import { SECTIONS_TOKENS, TOKEN_FIELD } from '#/pages/clients/services/sectionTitles';
 import {
   useClientSection,
   type ClientRecordRead,
 } from '#/pages/clients/use-cases/useClientSection';
 import type { ClientTokenTtlField } from '@odudu/contracts/admin';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { describeIds, namesOrNone } from '#/shared/services/format';
+import { describeIds, namesOrNone, spaced } from '#/shared/services/format';
 import type { ChecklistOption } from '#/shared/ui/ChecklistField';
 import type { Choice } from '#/shared/services/choice';
 
@@ -71,6 +72,9 @@ export interface LifetimeFieldView extends SecondsFieldView {
 }
 
 export interface ClientTokens {
+  // Sets a lifetime to a number entered, or leaves it as it was when cleared.
+  setLifetime: (field: ClientTokenTtlField, value: number | null) => void;
+  setMaxAge: (value: number | null) => void;
   sections: typeof SECTIONS_TOKENS;
   lifetimeFields: readonly LifetimeFieldView[];
   grantsRule: string;
@@ -196,6 +200,12 @@ export function useClientTokens(args: ClientRecordRead): ClientTokens {
     CREDENTIALS_NOUN,
   );
   return {
+    setLifetime: (field, value) => {
+      lifetimes.edit(field, keptSeconds(value, lifetimes.values[field]));
+    },
+    setMaxAge: (value) => {
+      idToken.edit('default_max_age', keptSeconds(value, idToken.values.default_max_age));
+    },
     sections: SECTIONS_TOKENS,
     lifetimeFields: LIFETIMES.map((each) => ({
       field: each.field,
@@ -208,7 +218,7 @@ export function useClientTokens(args: ClientRecordRead): ClientTokens {
       readText: secondsReading(lifetimes.values[each.field], each.inherits),
     })),
     grantsRule: GRANTS_RULE,
-    credentialsDescription: `${CREDENTIALS_RULE} ${credentialCount}`,
+    credentialsDescription: spaced(CREDENTIALS_RULE, credentialCount),
     fullScopeLabel: FULL_SCOPE_LABEL,
     fullScopeRule: FULL_SCOPE_RULE,
     idTokenAlgLabel: ID_TOKEN_ALG_LABEL,
@@ -224,7 +234,7 @@ export function useClientTokens(args: ClientRecordRead): ClientTokens {
       readText: secondsReading(idToken.values.default_max_age, MAX_AGE_OFF),
     },
     authTimeLabel: AUTH_TIME_LABEL,
-    authTimeDescription: `${AUTH_TIME_RULE} ${REQUIRE_AUTH_TIME_NOTE}`,
+    authTimeDescription: spaced(AUTH_TIME_RULE, REQUIRE_AUTH_TIME_NOTE),
     lifetimes,
     grants,
     grantOptions: grantOptions(client),

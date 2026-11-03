@@ -40,7 +40,7 @@ import { useToast } from '#/shared/repository/useToasts';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
 import { deletedText, writeFailureText } from '#/shared/services/failure';
 import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/services/labels';
-import { orBlank } from '#/shared/services/format';
+import { orBlank, spaced } from '#/shared/services/format';
 import { describeTranslations } from '#/shared/services/localised';
 import type { Read } from '#/shared/services/read';
 
@@ -179,7 +179,7 @@ export function useClientGeneral({ tenant, client, etag, gone }: ClientRecordRea
     text: {
       type: TYPE_TEXT[client.type] ?? client.type,
       registered: registeredText(client.registration_origin),
-      identityFixed: `${CLIENT_ID_FIXED} ${TYPE_FIXED}`,
+      identityFixed: spaced(CLIENT_ID_FIXED, TYPE_FIXED),
       translationsTitle: SECTION.translations,
       translationsLead: TRANSLATIONS_LEAD,
       nameTranslationsLabel: NAME_TRANSLATIONS_LABEL,

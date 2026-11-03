@@ -2,7 +2,7 @@ import type { Client } from '#/entities/client';
 import { useState } from 'react';
 import { useNow } from '#/shared/use-cases/useNow';
 import { useRotateSecret } from '#/pages/clients/repository/useRotateSecret';
-import { SECTIONS_ADVANCED } from '#/pages/clients/services/clientSections';
+import { SECTIONS_ADVANCED } from '#/pages/clients/services/sectionTitles';
 import {
   GRACE_LABEL,
   GRACE_MAX,

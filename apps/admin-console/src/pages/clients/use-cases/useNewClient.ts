@@ -28,6 +28,7 @@ import { problemAt } from '#/shared/services/fieldErrors';
 import { createdText, lookupText } from '#/shared/services/failure';
 import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/services/labels';
 import { useCreationFlow } from '#/shared/use-cases/useCreationFlow';
+import { spaced } from '#/shared/services/format';
 
 type Errors = Partial<Record<NewClientField, string>>;
 
@@ -118,7 +119,7 @@ export function useNewClient(tenant: string): NewClientPage {
     asksRedirects: asksRedirects(kind),
     redirectUris,
     redirectCount,
-    redirectsDescription: `${REDIRECTS_RULE} ${redirectCount}`,
+    redirectsDescription: spaced(REDIRECTS_RULE, redirectCount),
     errors: flow.errors,
     message: flow.message,
     unconfirmed: flow.unconfirmed,

@@ -22,13 +22,13 @@ import {
   SKIP_LOGOUT_WARNING,
   SKIP_LOGOUT_WARNING_ID,
 } from '#/pages/clients/services/logoutSettings';
-import { SECTIONS_LOGOUT } from '#/pages/clients/services/clientSections';
+import { SECTIONS_LOGOUT } from '#/pages/clients/services/sectionTitles';
 import {
   useClientSection,
   type ClientRecordRead,
 } from '#/pages/clients/use-cases/useClientSection';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { orBlank } from '#/shared/services/format';
+import { orBlank, spaced } from '#/shared/services/format';
 
 export interface ClientLogout {
   sections: typeof SECTIONS_LOGOUT;
@@ -122,11 +122,10 @@ export function useClientLogout(args: ClientRecordRead): ClientLogout {
   return {
     sections: SECTIONS_LOGOUT,
     postLogout,
-    postLogoutDescription: `${POST_LOGOUT_RULE} ${listCount(
-      postLogout.values.post_logout_redirect_uris,
-      CLIENT_LIST_LIMIT,
-      POST_LOGOUT_NOUN,
-    )}`,
+    postLogoutDescription: spaced(
+      POST_LOGOUT_RULE,
+      listCount(postLogout.values.post_logout_redirect_uris, CLIENT_LIST_LIMIT, POST_LOGOUT_NOUN),
+    ),
     skipLogoutLabel: SKIP_LOGOUT_LABEL,
     skipLogoutWarningId: SKIP_LOGOUT_WARNING_ID,
     skipLogoutWarning: SKIP_LOGOUT_WARNING,

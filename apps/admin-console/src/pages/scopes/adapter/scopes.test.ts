@@ -1,4 +1,6 @@
 import { expect, it } from 'vitest';
+// scope-list.json and builtins.json are composed from real rows of two tenants:
+// the transcript prints only jq projections of those two answers.
 import builtins from '#/pages/scopes/adapter/fixtures/builtins.json';
 import impact from '#/pages/scopes/adapter/fixtures/impact.json';
 import mappers from '#/pages/scopes/adapter/fixtures/mappers.json';

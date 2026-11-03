@@ -32,7 +32,7 @@ export function TokensTab({ tenant, client, etag, gone, writable }: ClientTabPro
               error={lifetimes.fieldErrors[each.field]}
               changed={lifetimes.changed.includes(each.field)}
               onChange={(value) => {
-                lifetimes.edit(each.field, value);
+                page.setLifetime(each.field, value);
               }}
             />
           ))}
@@ -104,7 +104,7 @@ export function TokensTab({ tenant, client, etag, gone, writable }: ClientTabPro
             error={idToken.fieldErrors.default_max_age}
             changed={idToken.changed.includes('default_max_age')}
             onChange={(value) => {
-              idToken.edit('default_max_age', value);
+              page.setMaxAge(value);
             }}
           />
           <ToggleField

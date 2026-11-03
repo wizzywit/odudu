@@ -29,7 +29,7 @@ import {
   keySourceOf,
   type KeysProblem,
 } from '#/pages/clients/services/clientKeys';
-import { SECTIONS_ADVANCED } from '#/pages/clients/services/clientSections';
+import { SECTIONS_ADVANCED } from '#/pages/clients/services/sectionTitles';
 import {
   USERINFO_RULE,
   userinfoContentOptions,
@@ -45,7 +45,7 @@ import {
 } from '#/pages/clients/use-cases/useClientSection';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import type { Choice } from '#/shared/services/choice';
-import { namesOrNone, orBlank } from '#/shared/services/format';
+import { namesOrNone, orBlank, spaced } from '#/shared/services/format';
 
 export interface ClientAdvanced {
   sections: typeof SECTIONS_ADVANCED;
@@ -176,7 +176,10 @@ export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
     keysBlocked: keysBlockedBy(problem),
     jwksUriRule: JWKS_URI_RULE,
     userinfoRule: USERINFO_RULE,
-    audiencesDescription: `${AUDIENCES_RULE} ${listCount(audiences.values.audiences, CLIENT_LIST_LIMIT, 'audiences')}`,
+    audiencesDescription: spaced(
+      AUDIENCES_RULE,
+      listCount(audiences.values.audiences, CLIENT_LIST_LIMIT, 'audiences'),
+    ),
     exchangeLabel: EXCHANGE_LABEL,
     exchangeRule: EXCHANGE_RULE,
     fixedByDesign: FIXED_BY_DESIGN,

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { recordAddress, resourceAddress, tenantPage, withSearch } from '#/shared/services/address';
+import {
+  pageFrame,
+  recordAddress,
+  resourceAddress,
+  tenantPage,
+  withSearch,
+} from '#/shared/services/address';
 
 describe('addresses', () => {
   it('addresses a tenant, its name encoded', () => {
@@ -39,5 +45,16 @@ describe('addresses', () => {
     expect(withSearch('/console/acme/groups/new', { parent: undefined })).toBe(
       '/console/acme/groups/new',
     );
+  });
+});
+
+it('frames a page by its title and the trail that ends at it', () => {
+  const trail = (tenant: string, current: string) => [
+    { label: tenant, href: '/' },
+    { label: current },
+  ];
+  expect(pageFrame(trail, 'acme', 'Client')).toEqual({
+    title: 'Client',
+    breadcrumb: [{ label: 'acme', href: '/' }, { label: 'Client' }],
   });
 });

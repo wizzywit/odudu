@@ -72,6 +72,11 @@ export function lowerFirst(text: string): string {
   return text.charAt(0).toLowerCase() + text.slice(1);
 }
 
+// Sentences read one after another.
+export function spaced(...sentences: readonly string[]): string {
+  return sentences.join(' ');
+}
+
 export function sentence(text: string): string {
   const said = capitalise(text);
   return said.endsWith('.') ? said : `${said}.`;

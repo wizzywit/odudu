@@ -53,3 +53,17 @@ export function resourceAddress({ segment, group, label }: ResourceNames): Resou
     ],
   };
 }
+
+// What the area gate shows in place of a page it does not let through.
+export interface PageFrame {
+  title: string;
+  breadcrumb: readonly Crumb[];
+}
+
+export function pageFrame(
+  trail: (tenant: string, current: string) => readonly Crumb[],
+  tenant: string,
+  title: string,
+): PageFrame {
+  return { title, breadcrumb: trail(tenant, title) };
+}

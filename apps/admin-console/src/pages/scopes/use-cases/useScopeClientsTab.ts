@@ -25,6 +25,7 @@ import {
   unassignedText,
   useAssignmentFlow,
 } from '#/features/scope-assignment';
+import { spaced } from '#/shared/services/format';
 
 export interface ScopeClientsTab {
   list: ScopeClients;
@@ -84,7 +85,7 @@ export function useScopeClientsTab({
   return {
     list,
     count: clientsCount(list.rows.length, list.more),
-    rule: `${ASSIGNMENT_RULE} ${clientsCount(list.rows.length, list.more)}`,
+    rule: spaced(ASSIGNMENT_RULE, clientsCount(list.rows.length, list.more)),
     choices: ASSIGNMENTS,
     needs,
     offered,

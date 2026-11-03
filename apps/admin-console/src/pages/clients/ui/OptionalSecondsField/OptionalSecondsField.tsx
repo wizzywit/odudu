@@ -70,7 +70,7 @@ export function OptionalSecondsField({
           {...(max === undefined ? {} : { maxValue: max })}
           value={value}
           onChange={(entered) => {
-            if (!Number.isNaN(entered)) onChange(entered);
+            onChange(entered);
           }}
         />
       )}

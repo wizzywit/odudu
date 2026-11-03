@@ -62,14 +62,14 @@ it('hands the default back, as null', async () => {
   expect(onChange).toHaveBeenCalledWith(null);
 });
 
-it('keeps the value it had when the number is cleared', async () => {
+it('hands a cleared number on as NaN, for the page to keep the value it had', async () => {
   const user = userEvent.setup();
   const onChange = vi.fn();
   render(<Field initial={600} onChange={onChange} />);
   const input = screen.getByRole('textbox', { name: 'Access token lifetime, in seconds' });
   await user.clear(input);
   await user.tab();
-  expect(onChange).not.toHaveBeenCalledWith(Number.NaN);
+  expect(onChange).toHaveBeenCalledWith(Number.NaN);
 });
 
 it('is text, with its reading, on a page that cannot be changed', () => {

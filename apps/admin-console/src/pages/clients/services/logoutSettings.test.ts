@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { skipLogoutFixed } from '#/pages/clients/services/builtinFixed';
-import { SECTIONS_LOGOUT } from '#/pages/clients/services/clientSections';
+import { SECTIONS_LOGOUT } from '#/pages/clients/services/sectionTitles';
 import {
   SKIP_LOGOUT_HINT,
   SKIP_LOGOUT_HINT_ON,

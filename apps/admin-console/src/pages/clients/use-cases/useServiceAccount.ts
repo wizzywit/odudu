@@ -19,6 +19,7 @@ import {
   assignedCount,
   heldCapabilitiesText,
   NO_ROLES,
+  ROLES_LABEL,
   roleUnavailable,
   splitAssigned,
 } from '#/pages/clients/services/serviceRoles';
@@ -112,7 +113,7 @@ export function useServiceRoles({
     tenant,
     record: serviceRolesRecord(subjectId),
     section: SERVICE_SECTION,
-    label: 'Roles',
+    label: ROLES_LABEL,
     etag,
     capability: SERVICE_CAPABILITY,
     gone,
@@ -124,7 +125,7 @@ export function useServiceRoles({
     fields: {
       role_ids: {
         value: sortedIds(split.roleIds),
-        label: 'Roles',
+        label: ROLES_LABEL,
         kind: 'plain',
         describe: (value) => describeIds(value, roleNameOf(known)),
       },

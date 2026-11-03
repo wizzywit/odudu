@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   LIFETIMES,
   lifetimeBounds,
+  keptSeconds,
   lifetimeRule,
   secondsReading,
   tenantLifetimeLabel,
@@ -44,5 +45,14 @@ describe('secondsReading', () => {
   it('says where the default comes from when there is no value, else the duration', () => {
     expect(secondsReading(null, "Takes the tenant's.")).toBe("Takes the tenant's.");
     expect(secondsReading(600, "Takes the tenant's.")).toBe('600 s · 10 minutes');
+  });
+});
+
+describe('keptSeconds', () => {
+  it('takes what was entered, or the old value when the number was cleared', () => {
+    expect(keptSeconds(900, 600)).toBe(900);
+    expect(keptSeconds(null, 600)).toBeNull();
+    expect(keptSeconds(300, null)).toBe(300);
+    expect(keptSeconds(Number.NaN, 600)).toBe(600);
   });
 });

@@ -34,6 +34,7 @@ import {
   unassignedText,
   useAssignmentFlow,
 } from '#/features/scope-assignment';
+import { spaced } from '#/shared/services/format';
 
 type Assigned = Client['scopes'][number];
 
@@ -117,7 +118,7 @@ export function useClientScopeAssignment({
     needs,
     fixed: scopesFixed(client),
     count: scopeCount(client.scopes.length),
-    rule: `${ASSIGNMENT_RULE} ${scopeCount(client.scopes.length)}`,
+    rule: spaced(ASSIGNMENT_RULE, scopeCount(client.scopes.length)),
     choices: ASSIGNMENTS,
     shown: shownScopes(client.scopes, page),
     more: moreScopes(client.scopes, page),

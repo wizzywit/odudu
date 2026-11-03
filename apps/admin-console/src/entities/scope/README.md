@@ -19,3 +19,6 @@ Imports `shared` only. Creating, editing and removing a scope, its roles and
 its claim mappers are `pages/scopes`'. The assignment calls reach other slices
 through `use-cases/scopeCalls`: use-cases may not import adapters and an index
 may not export them.
+
+`use-cases/scopeCalls.ts` only re-exports the assignment calls, for the same
+reason; `use-cases/scopePicker.ts` does the same for `useScopePicker`.

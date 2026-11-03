@@ -18,6 +18,7 @@ import { CLIENT_LIST_LIMIT, listCount } from '#/pages/clients/services/listEntri
 import { clientHref } from '#/entities/client';
 import { clientTabHrefOf } from '#/pages/clients/services/tabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
+import { spaced } from '#/shared/services/format';
 
 export interface ClientRedirects {
   redirects: SectionSave<RedirectValues>;
@@ -64,9 +65,15 @@ export function useClientRedirects({
 
   return {
     redirects,
-    redirectsDescription: `${REDIRECTS_RULE} ${listCount(redirects.values.redirect_uris, CLIENT_LIST_LIMIT, 'redirect URIs')}`,
+    redirectsDescription: spaced(
+      REDIRECTS_RULE,
+      listCount(redirects.values.redirect_uris, CLIENT_LIST_LIMIT, 'redirect URIs'),
+    ),
     origins,
-    originsDescription: `${ORIGINS_RULE} ${listCount(origins.values.web_origins, CLIENT_LIST_LIMIT, 'web origins')}`,
+    originsDescription: spaced(
+      ORIGINS_RULE,
+      listCount(origins.values.web_origins, CLIENT_LIST_LIMIT, 'web origins'),
+    ),
     fixed: redirectsFixed(client),
     readOnly: listsReadOnly(client, writable),
     logoutHref: clientTabHrefOf(clientHref)(tenant, client.id, 'logout'),

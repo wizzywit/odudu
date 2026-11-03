@@ -22,6 +22,7 @@ import {
   orBlank,
   plural,
   sentence,
+  spaced,
 } from '#/shared/services/format';
 
 describe('formatDuration', () => {
@@ -239,4 +240,8 @@ describe('namesOrNone', () => {
     expect(namesOrNone(undefined)).toBe('none');
     expect(namesOrNone('a')).toBe('none');
   });
+});
+
+it('puts sentences one after another, a space between', () => {
+  expect(spaced('A rule.', '3 of 50 URIs.')).toBe('A rule. 3 of 50 URIs.');
 });
