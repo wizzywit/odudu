@@ -3,40 +3,13 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-aria-components';
 import type { Gated } from '#/features/overview/services/reads';
 import { Panel } from '#/features/overview/ui/Panel';
-import { AuditActor } from '#/shared/ui/AuditActor';
+import { auditSummaryColumns } from '#/shared/ui/AuditTable';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
-import { DataTable, type Column } from '#/shared/ui/DataTable';
+import { DataTable } from '#/shared/ui/DataTable';
 import { EmptyState } from '#/shared/ui/EmptyState';
 import { LoadFailed } from '#/shared/ui/LoadFailed';
 import { TableSkeleton } from '#/shared/ui/Skeleton';
-import { OutcomeTag } from '#/shared/ui/StatusTag';
-import { Timestamp } from '#/shared/ui/Timestamp';
 import styles from '#/features/overview/ui/LatestAudit/LatestAudit.module.css';
-
-function columns(now: Date | undefined): readonly Column<AuditEvent>[] {
-  return [
-    {
-      id: 'when',
-      header: 'When',
-      isRowHeader: true,
-      cell: (event) => (
-        <Timestamp value={event.occurred_at} {...(now === undefined ? {} : { now })} />
-      ),
-    },
-    { id: 'action', header: 'Action', cell: (event) => <code>{event.action}</code> },
-    {
-      id: 'outcome',
-      header: 'Outcome',
-      cell: (event) => <OutcomeTag outcome={event.outcome} />,
-    },
-    {
-      id: 'actor',
-      header: 'Actor',
-      secondary: true,
-      cell: (event) => <AuditActor event={event} />,
-    },
-  ];
-}
 
 export function LatestAudit({
   audit,
@@ -54,7 +27,12 @@ export function LatestAudit({
       break;
     case 'off':
     case 'loading':
-      body = <TableSkeleton label="Loading the latest audit rows" columns={columns(now)} />;
+      body = (
+        <TableSkeleton
+          label="Loading the latest audit rows"
+          columns={auditSummaryColumns({ now })}
+        />
+      );
       break;
     case 'failed':
       body = <LoadFailed title="The audit trail could not be read" retry={audit.retry} />;
@@ -68,7 +46,7 @@ export function LatestAudit({
         ) : (
           <DataTable
             label="Latest audit rows"
-            columns={columns(now)}
+            columns={auditSummaryColumns({ now })}
             rows={audit.data}
             rowKey={(event) => event.id}
           />

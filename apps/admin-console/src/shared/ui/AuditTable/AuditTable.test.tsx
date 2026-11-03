@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it } from 'vitest';
-import { AuditTable } from '#/shared/ui/AuditTable/AuditTable';
+import { auditColumns, auditSummaryColumns, AuditTable } from '#/shared/ui/AuditTable/AuditTable';
 import { auditEvent } from '#/testing/auditFixtures';
 import { at } from '#/testing/at';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
@@ -118,4 +118,15 @@ it('passes axe in both themes, closed and with a detail open', async () => {
     },
   );
   expect(open).toEqual({ light: [], dark: [] });
+});
+
+it('draws the overview summary as the first four cells of the trail, the actor kept secondary', () => {
+  const summary = auditSummaryColumns({ now: NOW });
+  const trail = auditColumns({ now: NOW });
+  expect(summary.map((column) => column.id)).toEqual(['when', 'action', 'outcome', 'actor']);
+  expect(trail.slice(0, 4).map((column) => [column.id, column.header])).toEqual(
+    summary.map((column) => [column.id, column.header]),
+  );
+  expect(summary.map((column) => column.secondary === true)).toEqual([false, false, false, true]);
+  expect(trail.some((column) => column.secondary === true)).toBe(false);
 });

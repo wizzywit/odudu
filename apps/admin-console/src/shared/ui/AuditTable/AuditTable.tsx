@@ -67,6 +67,52 @@ function Correlation({ id, shared }: { id: string | null; shared: ReadonlyMap<st
   );
 }
 
+function whenColumn(now: Date | undefined): Column<AuditEvent> {
+  return {
+    id: 'when',
+    header: 'When',
+    cell: (event) => (
+      <Timestamp value={event.occurred_at} {...(now === undefined ? {} : { now })} />
+    ),
+    isRowHeader: true,
+  };
+}
+
+const ACTION_COLUMN: Column<AuditEvent> = {
+  id: 'action',
+  header: 'Action',
+  cell: (event) => <code>{event.action}</code>,
+};
+
+const OUTCOME_COLUMN: Column<AuditEvent> = {
+  id: 'outcome',
+  header: 'Outcome',
+  cell: (event) => <OutcomeTag outcome={event.outcome} />,
+};
+
+function actorColumn(hrefs: AuditHrefs | undefined): Column<AuditEvent> {
+  return {
+    id: 'actor',
+    header: 'Actor',
+    cell: (event) => <AuditActor event={event} href={hrefs?.actor(event) ?? null} />,
+  };
+}
+
+// What a row says at a glance: when, what, how it ended and who. The overview
+// draws these; the trail adds the rest to them.
+export function auditSummaryColumns({
+  now,
+}: {
+  now?: Date | undefined;
+}): readonly Column<AuditEvent>[] {
+  return [
+    whenColumn(now),
+    ACTION_COLUMN,
+    OUTCOME_COLUMN,
+    { ...actorColumn(undefined), secondary: true },
+  ];
+}
+
 export function auditColumns({
   now,
   withResource = false,
@@ -84,25 +130,10 @@ export function auditColumns({
       ]
     : [];
   return [
-    {
-      id: 'when',
-      header: 'When',
-      cell: (event) => (
-        <Timestamp value={event.occurred_at} {...(now === undefined ? {} : { now })} />
-      ),
-      isRowHeader: true,
-    },
-    { id: 'action', header: 'Action', cell: (event) => <code>{event.action}</code> },
-    {
-      id: 'outcome',
-      header: 'Outcome',
-      cell: (event) => <OutcomeTag outcome={event.outcome} />,
-    },
-    {
-      id: 'actor',
-      header: 'Actor',
-      cell: (event) => <AuditActor event={event} href={hrefs?.actor(event) ?? null} />,
-    },
+    whenColumn(now),
+    ACTION_COLUMN,
+    OUTCOME_COLUMN,
+    actorColumn(hrefs),
     ...resource,
     {
       id: 'correlation',
