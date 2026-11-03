@@ -4,7 +4,7 @@ import {
   assignedText,
   assignmentOf,
   unassignedText,
-} from '#/shared/services/assignment';
+} from '#/features/scope-assignment/services/assignmentWords';
 
 describe('a scope assigned to a client', () => {
   it('offers default and optional', () => {

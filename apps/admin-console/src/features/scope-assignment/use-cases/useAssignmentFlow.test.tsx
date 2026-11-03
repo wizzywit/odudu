@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { useToasts } from '#/shared/repository/useToasts';
 import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
-import { useAssignmentFlow } from '#/shared/use-cases/useAssignmentFlow';
+import { useAssignmentFlow } from '#/features/scope-assignment/use-cases/useAssignmentFlow';
 import { resetConsole } from '#/testing/resetConsole';
 
 const done: GatewayResult<string> = { ok: true, status: 200, data: 'ok', etag: null, next: null };

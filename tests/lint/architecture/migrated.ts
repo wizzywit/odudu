@@ -10,6 +10,7 @@ export const MIGRATED: readonly string[] = [
   'apps/admin-console/src/features/begin-administrator',
   'apps/admin-console/src/features/grant-administrator',
   'apps/admin-console/src/features/own-roles',
+  'apps/admin-console/src/features/scope-assignment',
   'apps/admin-console/src/features/subject-capabilities',
   'apps/admin-console/src/features/subject-members',
   'apps/admin-console/src/pages/console-home',

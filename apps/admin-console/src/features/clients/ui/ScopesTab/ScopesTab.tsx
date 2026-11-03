@@ -13,20 +13,19 @@ import {
   type ClientScopes,
 } from '#/features/clients/use-cases/useClientScopeAssignment';
 import { Evaluate } from '#/features/clients/ui/Evaluate';
-import { AssignedList, AssignedRow, AssignPanel } from '#/shared/ui/AssignmentControls';
+import { AssignedList, AssignedRow, AssignPanel } from '#/features/scope-assignment';
 import { Button } from '#/shared/ui/Button';
 import { Problem } from '#/shared/ui/Message';
 import { Panel, useHeadingFocus } from '#/shared/ui/Panel';
 import { Picker } from '#/shared/ui/Picker';
 import { ViewOnlyNote } from '#/shared/ui/ViewOnlyNote';
 import { recordTab } from '#/shared/ui/RecordTab';
-import { ASSIGNMENT_RULE } from '#/shared/services/assignment';
 
 function Assigned({ client, page }: { client: Client; page: ClientScopes }) {
   const { heading, afterRemoval } = useHeadingFocus();
   return (
     <Panel title={ASSIGNED_HEADING} headingRef={heading}>
-      <p className={recordTab.rule}>{`${ASSIGNMENT_RULE} ${page.count}`}</p>
+      <p className={recordTab.rule}>{page.rule}</p>
       {page.fixed === null ? null : <p className={recordTab.rule}>{page.fixed}</p>}
       {page.shown.length === 0 ? (
         <p className={recordTab.text}>{NO_SCOPES}</p>
@@ -36,6 +35,7 @@ function Assigned({ client, page }: { client: Client; page: ClientScopes }) {
             <AssignedRow
               key={scope.id}
               name={<code>{scope.name}</code>}
+              choices={page.choices}
               assignment={
                 page.offered
                   ? {
@@ -76,6 +76,7 @@ function Assign({ page }: { page: ClientScopes }) {
     <AssignPanel
       title={ASSIGN_HEADING}
       assignment={page.assignment}
+      choices={page.choices}
       onAssignment={page.setAssignment}
       label={page.chosen === null ? ASSIGN_LABEL : `${ASSIGN_LABEL} ${page.chosen.name}`}
       disabled={page.chosen === null || page.working !== null}

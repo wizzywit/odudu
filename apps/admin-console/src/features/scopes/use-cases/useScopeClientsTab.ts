@@ -16,12 +16,23 @@ import { type Client, useClientPicker } from '#/entities/client';
 import { lacking } from '#/shared/services/access';
 import type { PickerState } from '#/shared/services/picker';
 import type { AdminCapability } from '#/shared/services/principal';
-import { useAssignmentFlow, type Counterpart } from '#/shared/use-cases/useAssignmentFlow';
-import { assignedText, assignmentOf, unassignedText } from '#/shared/services/assignment';
+import {
+  assignedText,
+  ASSIGNMENT_RULE,
+  ASSIGNMENTS,
+  assignmentOf,
+  type Counterpart,
+  unassignedText,
+  useAssignmentFlow,
+} from '#/features/scope-assignment';
 
 export interface ScopeClientsTab {
   list: ScopeClients;
   count: string;
+  // The rule for what an assignment sends, with how many carry the scope.
+  rule: string;
+  // What an assignment can be.
+  choices: typeof ASSIGNMENTS;
   // What the caller lacks to search for a client to assign.
   needs: readonly AdminCapability[];
   // Whether it may: whoami has answered and names nothing missing.
@@ -73,6 +84,8 @@ export function useScopeClientsTab({
   return {
     list,
     count: clientsCount(list.rows.length, list.more),
+    rule: `${ASSIGNMENT_RULE} ${clientsCount(list.rows.length, list.more)}`,
+    choices: ASSIGNMENTS,
     needs,
     offered,
     picker,

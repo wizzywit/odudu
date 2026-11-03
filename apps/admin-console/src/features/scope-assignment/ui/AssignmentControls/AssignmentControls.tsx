@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
-import { ASSIGNMENTS } from '#/shared/services/assignment';
+import type { Choice } from '#/shared/services/choice';
 import { Button } from '#/shared/ui/Button';
 import { InlineFields, SelectField } from '#/shared/ui/Field';
 import { Panel } from '#/shared/ui/Panel';
 import { recordTab } from '#/shared/ui/RecordTab';
-import styles from '#/shared/ui/AssignmentControls/AssignmentControls.module.css';
+import styles from '#/features/scope-assignment/ui/AssignmentControls/AssignmentControls.module.css';
 
 // Assigning a scope to a client, from either side: the picker for the other
 // side as `children`, how it is assigned, and the button that does it. The
@@ -12,6 +12,7 @@ import styles from '#/shared/ui/AssignmentControls/AssignmentControls.module.css
 export function AssignPanel({
   title,
   assignment,
+  choices,
   onAssignment,
   label,
   disabled,
@@ -20,6 +21,7 @@ export function AssignPanel({
 }: {
   title: string;
   assignment: string;
+  choices: readonly Choice[];
   onAssignment: (value: string) => void;
   label: string;
   disabled: boolean;
@@ -31,7 +33,7 @@ export function AssignPanel({
       {children}
       <SelectField
         label="Assign it as"
-        options={ASSIGNMENTS}
+        options={choices}
         value={assignment}
         onChange={onAssignment}
       />
@@ -63,10 +65,13 @@ export function AssignedList({ label, children }: { label: string; children: Rea
 export function AssignedRow({
   name,
   assignment,
+  choices,
   working,
   remove,
 }: {
   name: ReactNode;
+  // What an assignment can be changed to.
+  choices: readonly Choice[];
   assignment:
     { label: string; value: string; onChange: (value: string) => Promise<unknown> } | string;
   // Another change is on its way, so none is offered meanwhile.
@@ -83,7 +88,7 @@ export function AssignedRow({
           <SelectField
             label={assignment.label}
             hideLabel
-            options={ASSIGNMENTS}
+            options={choices}
             value={assignment.value}
             isDisabled={working}
             onChange={(value) => {

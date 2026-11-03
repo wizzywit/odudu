@@ -3,7 +3,7 @@ import {
   useScopeClientsTab,
   type ScopeClientsTab,
 } from '#/features/scopes/use-cases/useScopeClientsTab';
-import { AssignedList, AssignedRow, AssignPanel } from '#/shared/ui/AssignmentControls';
+import { AssignedList, AssignedRow, AssignPanel } from '#/features/scope-assignment';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { ClientPicker } from '#/entities/client';
 import { ListGate } from '#/shared/ui/ListGate';
@@ -12,7 +12,6 @@ import { Problem } from '#/shared/ui/Message';
 import { Panel, useHeadingFocus } from '#/shared/ui/Panel';
 import { ListSkeleton } from '#/shared/ui/Skeleton';
 import { recordTab } from '#/shared/ui/RecordTab';
-import { ASSIGNMENT_RULE } from '#/shared/services/assignment';
 
 function Carriers({ scope, page }: { scope: Scope; page: ScopeClientsTab }) {
   const { heading, afterRemoval } = useHeadingFocus();
@@ -32,6 +31,7 @@ function Carriers({ scope, page }: { scope: Scope; page: ScopeClientsTab }) {
             {list.rows.map((row) => (
               <AssignedRow
                 key={row.id}
+                choices={page.choices}
                 name={
                   <span>
                     {row.name} <code>{row.client_id}</code>
@@ -57,7 +57,7 @@ function Carriers({ scope, page }: { scope: Scope; page: ScopeClientsTab }) {
   );
   return (
     <Panel title={label} headingRef={heading}>
-      <p className={recordTab.rule}>{`${ASSIGNMENT_RULE} ${page.count}`}</p>
+      <p className={recordTab.rule}>{page.rule}</p>
       {body}
       {list.more ? (
         <div className={recordTab.actions}>
@@ -84,6 +84,7 @@ function Assign({ page }: { page: ScopeClientsTab }) {
     <AssignPanel
       title="Assign to a client"
       assignment={page.assignment}
+      choices={page.choices}
       onAssignment={page.setAssignment}
       label={page.chosen === null ? 'Assign to a client' : `Assign to ${page.chosen.name}`}
       disabled={page.chosen === null || page.working !== null}

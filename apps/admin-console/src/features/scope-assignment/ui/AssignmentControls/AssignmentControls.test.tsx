@@ -1,7 +1,12 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import { AssignedList, AssignedRow, AssignPanel } from '#/shared/ui/AssignmentControls';
+import {
+  AssignedList,
+  AssignedRow,
+  AssignPanel,
+} from '#/features/scope-assignment/ui/AssignmentControls';
+import { ASSIGNMENTS } from '#/features/scope-assignment/services/assignmentWords';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 
 function panel(overrides: Partial<Parameters<typeof AssignPanel>[0]> = {}) {
@@ -9,6 +14,7 @@ function panel(overrides: Partial<Parameters<typeof AssignPanel>[0]> = {}) {
     <AssignPanel
       title="Assign to a client"
       assignment="default"
+      choices={ASSIGNMENTS}
       onAssignment={vi.fn()}
       label="Assign to Billing"
       disabled={false}
@@ -25,6 +31,7 @@ function rows(row: Partial<Parameters<typeof AssignedRow>[0]> = {}) {
     <AssignedList label="Scopes assigned to Billing">
       <AssignedRow
         name={<code>billing</code>}
+        choices={ASSIGNMENTS}
         assignment={{ label: 'Assignment of billing', value: 'optional', onChange: vi.fn() }}
         working={false}
         remove={{ verb: 'Remove', target: 'billing', onRemove: vi.fn(() => Promise.resolve(true)) }}

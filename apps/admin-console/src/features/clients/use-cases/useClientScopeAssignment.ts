@@ -20,8 +20,15 @@ import {
 import { lacking } from '#/shared/services/access';
 import type { AdminCapability } from '#/shared/services/principal';
 import type { PickerState } from '#/shared/services/picker';
-import { useAssignmentFlow, type Counterpart } from '#/shared/use-cases/useAssignmentFlow';
-import { assignedText, assignmentOf, unassignedText } from '#/shared/services/assignment';
+import {
+  assignedText,
+  ASSIGNMENT_RULE,
+  ASSIGNMENTS,
+  assignmentOf,
+  type Counterpart,
+  unassignedText,
+  useAssignmentFlow,
+} from '#/features/scope-assignment';
 
 type Assigned = Client['scopes'][number];
 
@@ -34,6 +41,10 @@ export interface ClientScopes {
   // Why scopes cannot be removed from this client, or null.
   fixed: string | null;
   count: string;
+  // The rule for what an assignment sends, with how many are held.
+  rule: string;
+  // What an assignment can be.
+  choices: typeof ASSIGNMENTS;
   shown: readonly Assigned[];
   more: number;
   showMore: () => void;
@@ -90,6 +101,8 @@ export function useClientScopeAssignment({
     needs,
     fixed: scopesFixed(client),
     count: scopeCount(client.scopes.length),
+    rule: `${ASSIGNMENT_RULE} ${scopeCount(client.scopes.length)}`,
+    choices: ASSIGNMENTS,
     shown: shownScopes(client.scopes, page),
     more: moreScopes(client.scopes, page),
     showMore: () => {
