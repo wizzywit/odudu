@@ -23,13 +23,12 @@ import {
   compositeRemovalFailureText,
   unnestedText,
 } from '#/features/roles/services/composites';
-import { removalAction } from '#/features/roles/services/roleCeiling';
 import { compositesRecord } from '#/features/roles/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useRolePicker } from '#/shared/repository/useRolePicker';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';
-import { type Asked, judgedLoss, type Loss } from '#/shared/services/capabilities';
+import { type Asked, judgedLoss, lossAction, type Loss } from '#/shared/services/capabilities';
 import { describeId } from '#/shared/services/format';
 import { roleNameOf } from '#/shared/services/mappedRoles';
 import { firstChosen, type PickerState } from '#/shared/services/picker';
@@ -129,7 +128,7 @@ export function useRoleComposites({
       const result = await removal.remove({ child: child.id, ifMatch: etag });
       if (result.ok) {
         toast.succeeded(unnestedText(child.name, role.name));
-        if (removalAction(lossOf(child)) !== 'run') reread();
+        if (lossAction(lossOf(child)) !== 'run') reread();
         return true;
       }
       refusal.report(result, 'manage-tenant');
@@ -155,7 +154,7 @@ export function useRoleComposites({
     message,
     remove: (child) => {
       const lost = lossOf(child);
-      const action = removalAction(lost);
+      const action = lossAction(lost);
       if (action === 'wait') return Promise.resolve(false);
       if (action === 'run') return run(child);
       setAsking({ child, asked: compositeRemovalConfirmation(role.name, child.name, lost) });

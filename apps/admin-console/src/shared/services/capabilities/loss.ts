@@ -87,9 +87,13 @@ export function lossText(loss: Loss, through: string): string {
     : ` If you hold ${held} through ${through}, this takes it from you, and this console with it.`;
 }
 
-// Whether a write has to be confirmed first: it takes something from the caller.
-export function asksFirst(loss: Loss): boolean {
-  return loss.kind === 'certain' || loss.kind === 'possible';
+// What a write does before it is sent: waits for the loss to be read, asks
+// first where it takes something from the caller, else runs.
+export type LossAction = 'wait' | 'ask' | 'run';
+
+export function lossAction(loss: Loss): LossAction {
+  if (loss.kind === 'checking') return 'wait';
+  return loss.kind === 'none' ? 'run' : 'ask';
 }
 
 export function lossBlocked(loss: Loss): string | undefined {

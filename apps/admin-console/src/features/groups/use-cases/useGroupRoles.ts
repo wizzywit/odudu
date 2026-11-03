@@ -13,7 +13,7 @@ import { groupRolesRecord } from '#/features/groups/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useRolePicker } from '#/shared/repository/useRolePicker';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { type Asked, asksFirst, lossBlocked, writeRefusal } from '#/shared/services/capabilities';
+import { type Asked, lossAction, lossBlocked, writeRefusal } from '#/shared/services/capabilities';
 import { describeIds } from '#/shared/services/format';
 import { removedFrom, sortedIds } from '#/shared/services/ids';
 import type { PickerState } from '#/shared/services/picker';
@@ -114,8 +114,9 @@ export function useGroupRoles({
       ...save,
       blocked: lossBlocked(loss) ?? save.blocked,
       submit: () => {
-        if (loss.kind === 'checking') return false;
-        if (!asksFirst(loss)) return save.submit();
+        const action = lossAction(loss);
+        if (action === 'wait') return false;
+        if (action === 'run') return save.submit();
         setAsking(rolesConfirmation(group.path, loss));
         return true;
       },

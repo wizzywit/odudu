@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  asksFirst,
+  lossAction,
   lossBlocked,
   adminLoss,
   removalConfirmation,
@@ -40,12 +40,12 @@ describe('adminLoss', () => {
   });
 });
 
-describe('asksFirst and lossBlocked', () => {
-  it('asks before a loss that is certain or possible, and waits while it is checked', () => {
-    expect(asksFirst({ kind: 'certain', lost: ['a'] })).toBe(true);
-    expect(asksFirst({ kind: 'possible', lost: ['a'] })).toBe(true);
-    expect(asksFirst({ kind: 'none' })).toBe(false);
-    expect(asksFirst({ kind: 'checking' })).toBe(false);
+describe('lossAction and lossBlocked', () => {
+  it('waits while a loss is checked, asks when it is certain or possible, else runs', () => {
+    expect(lossAction({ kind: 'checking' })).toBe('wait');
+    expect(lossAction({ kind: 'none' })).toBe('run');
+    expect(lossAction({ kind: 'certain', lost: ['a'] })).toBe('ask');
+    expect(lossAction({ kind: 'possible', lost: ['a'] })).toBe('ask');
     expect(lossBlocked({ kind: 'checking' })).toBe('Checking what this takes from you first.');
     expect(lossBlocked({ kind: 'none' })).toBeUndefined();
     expect(lossBlocked({ kind: 'certain', lost: ['a'] })).toBeUndefined();

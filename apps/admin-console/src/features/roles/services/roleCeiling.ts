@@ -1,15 +1,8 @@
-import { asksFirst, type Loss, type OwnAccessRead } from '#/shared/services/capabilities';
+import { type Loss, type OwnAccessRead } from '#/shared/services/capabilities';
 import { type Role } from '@odudu/contracts/admin';
 import { type Ceiling } from '#/shared/services/access';
 import { type Authority } from '#/shared/services/principal';
 import { deleteBlock, isBuiltin } from '#/features/roles/services/roleDeletion';
-
-export type RemovalAction = 'wait' | 'ask' | 'run';
-
-export function removalAction(loss: Loss): RemovalAction {
-  if (loss.kind === 'checking') return 'wait';
-  return asksFirst(loss) ? 'ask' : 'run';
-}
 
 export function deleteChecking(ceiling: RoleCeiling, loss: Loss): boolean {
   return ceiling.status !== 'ready' || loss.kind === 'checking';

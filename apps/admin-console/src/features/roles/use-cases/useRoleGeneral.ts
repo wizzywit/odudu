@@ -22,7 +22,7 @@ import { roleRecord } from '#/features/roles/services/tabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
-import { asksFirst, judgedLoss, writeRefusal } from '#/shared/services/capabilities';
+import { judgedLoss, lossAction, writeRefusal } from '#/shared/services/capabilities';
 import { deletedText } from '#/shared/services/failure';
 import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/services/labels';
 import type { DefaultValues, DescriptionValues } from '#/shared/services/sectionValues';
@@ -122,7 +122,7 @@ export function useRoleGeneral({
     change: deletion,
     failureText: (failure) => roleDeleteFailureText(role.name, failure),
     done: () => {
-      if (asksFirst(loss)) reread();
+      if (lossAction(loss) === 'ask') reread();
       toast.succeeded(deletedText(role.name));
       go(rolesHref(tenant), { replace: true });
     },

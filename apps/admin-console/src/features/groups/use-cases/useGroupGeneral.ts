@@ -32,7 +32,7 @@ import { useGroupPicker } from '#/shared/repository/useGroupPicker';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
-import { type Asked, asksFirst, type Loss, writeRefusal } from '#/shared/services/capabilities';
+import { type Asked, lossAction, type Loss, writeRefusal } from '#/shared/services/capabilities';
 import { writeFailureText } from '#/shared/services/failure';
 import { firstChosen, type PickerState } from '#/shared/services/picker';
 import type { GatewayResult } from '#/shared/transport/gateway';
@@ -201,7 +201,7 @@ export function useGroupGeneral({
     change: deletion,
     failureText: (failure) => writeFailureText(failure, deleteCopy),
     done: () => {
-      if (asksFirst(deleteLoss)) reread();
+      if (lossAction(deleteLoss) === 'ask') reread();
       toast.succeeded(subtreeDeletedText(group.path));
       go(groupsHref(tenant), { replace: true });
     },
@@ -215,7 +215,7 @@ export function useGroupGeneral({
       save: {
         ...parent,
         submit: () => {
-          if (!asksFirst(moveLoss)) return parent.submit();
+          if (lossAction(moveLoss) !== 'ask') return parent.submit();
           setAsking(moveConfirmation(group.path, moveLoss));
           return true;
         },
