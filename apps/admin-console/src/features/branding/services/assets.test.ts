@@ -6,7 +6,6 @@ import {
   imagesHold,
   inUse,
   inUseTitle,
-  limitText,
   slotAssetIds,
   slotThumbnail,
   slotView,
@@ -15,7 +14,7 @@ import {
   uploadRefusal,
 } from '#/features/branding/services/assets';
 import { imageAfterUpload, uploadFailureOf } from '#/features/branding/services/edits';
-import { type ImageValues } from '#/features/branding/services/values';
+import type { ImageValues } from '#/features/branding/services/values';
 
 const none: ImageValues = {
   'assets.logo': null,
@@ -31,12 +30,7 @@ const problemOf = (type: string, status = 422, extra = {}) => ({
   ...extra,
 });
 
-describe('limits', () => {
-  it('state the size and side of each kind', () => {
-    expect(limitText('logo')).toContain('up to 256 KiB and 1024 pixels');
-    expect(limitText('background')).toContain('up to 1 MiB and 2560 pixels');
-  });
-
+describe('a file against the limits', () => {
   it('refuse a file over its size or of another type before it is sent', () => {
     expect(uploadRefusal('logo', { type: 'image/gif', size: 1 })).toBe(
       'That is not a PNG, a JPEG or a WebP.',

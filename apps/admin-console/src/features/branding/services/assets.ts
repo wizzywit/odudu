@@ -3,7 +3,7 @@ import type { FieldError } from '@odudu/contracts/admin';
 import type { Read } from '#/shared/services/read';
 import type { Problem } from '#/shared/services/result';
 import { problemSubtype } from '#/shared/services/failure';
-import { bytesText, counted, KIB } from '#/shared/services/format';
+import { bytesText, counted } from '#/shared/services/format';
 import {
   DELETE_LABEL,
   imageNote,
@@ -18,42 +18,11 @@ import {
   type ImageValues,
   type Logo,
 } from '#/features/branding/services/values';
-
-export interface SlotRule {
-  label: string;
-  hint: string;
-  bytes: number;
-  side: number;
-}
-
-const SMALL = { bytes: 256 * KIB, side: 1024 } as const;
-
-// The limits the server holds each kind to, stated beside its upload. The
-// server decides; stating them first saves a trip for the usual mistake.
-export const SLOT_RULES: Readonly<Record<ImageSlot, SlotRule>> = {
-  logo: { label: 'Logo', hint: 'Shown above the form.', ...SMALL },
-  darkLogo: {
-    label: 'Logo for the dark scheme',
-    hint: 'Used instead of the logo when the page is dark, so a dark logo does not vanish.',
-    ...SMALL,
-  },
-  favicon: { label: 'Favicon', hint: 'The icon in the browser tab.', ...SMALL },
-  background: {
-    label: 'Background image',
-    hint: 'Behind the page.',
-    bytes: 1024 * KIB,
-    side: 2560,
-  },
-};
-
-export const ACCEPTED_TYPES = 'image/png,image/jpeg,image/webp';
-
-export const TENANT_IMAGE_CAP = '8 MiB';
-
-export function limitText(slot: ImageSlot): string {
-  const rule = SLOT_RULES[slot];
-  return `PNG, JPEG or WebP, up to ${bytesText(rule.bytes)} and ${String(rule.side)} pixels on the longer side. All the tenant’s images together may total ${TENANT_IMAGE_CAP}.`;
-}
+import {
+  SLOT_RULES,
+  TENANT_IMAGE_CAP,
+  ACCEPTED_TYPE_LIST,
+} from '#/features/branding/services/imageSlots';
 
 export const ALT_LABEL = 'Alt text';
 
@@ -80,8 +49,6 @@ export function logoOf(assetId: string, previous: Logo | null): Logo {
   return { assetId, alt: previous?.alt ?? '' };
 }
 
-const TYPES = ['image/png', 'image/jpeg', 'image/webp'];
-
 // A file the server would refuse by its size or type, said before it is sent.
 // The bytes and the decoded size are the server's to judge.
 export function uploadRefusal(
@@ -89,7 +56,7 @@ export function uploadRefusal(
   file: { type: string; size: number },
 ): string | null {
   const rule = SLOT_RULES[slot];
-  if (file.type !== '' && !TYPES.includes(file.type)) {
+  if (file.type !== '' && !ACCEPTED_TYPE_LIST.includes(file.type)) {
     return 'That is not a PNG, a JPEG or a WebP.';
   }
   return file.size > rule.bytes
@@ -178,7 +145,7 @@ const CHUNK = 0x8000;
 // only the three types an upload can be stored as are shown.
 export function imageDataUrl(bytes: Uint8Array, contentType: string | null): string | null {
   const type = contentType?.split(';')[0]?.trim().toLowerCase() ?? '';
-  if (!TYPES.includes(type)) return null;
+  if (!ACCEPTED_TYPE_LIST.includes(type)) return null;
   let binary = '';
   for (let at = 0; at < bytes.length; at += CHUNK) {
     binary += String.fromCharCode(...bytes.subarray(at, at + CHUNK));

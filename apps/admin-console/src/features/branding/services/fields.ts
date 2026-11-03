@@ -9,7 +9,7 @@ import {
   type StylesheetValues,
   type TemplateValues,
 } from '#/features/branding/services/values';
-import { SLOT_RULES } from '#/features/branding/services/assets';
+import { SLOT_RULES } from '#/features/branding/services/imageSlots';
 import { THEME_PAGE_KINDS } from '@odudu/contracts';
 
 export const COLOURS_TITLE = 'Colours and font';

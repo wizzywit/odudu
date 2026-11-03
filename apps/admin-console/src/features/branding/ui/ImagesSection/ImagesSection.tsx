@@ -1,14 +1,6 @@
 import { FileTrigger } from 'react-aria-components';
 import type { ThemeView } from '@odudu/contracts/admin';
-import {
-  ACCEPTED_TYPES,
-  ALT_LABEL,
-  ALT_RULE,
-  altProblem,
-  limitText,
-  SLOT_RULES,
-  slotView,
-} from '#/features/branding/services/assets';
+import { ALT_LABEL, ALT_RULE, altProblem, slotView } from '#/features/branding/services/assets';
 import {
   DELETE_LABEL,
   IMAGES_LEAD,
@@ -19,6 +11,7 @@ import { IMAGES_TITLE } from '#/features/branding/services/fields';
 import { type ThemeScope } from '#/features/branding/services/scope';
 import { sourceReading } from '#/features/branding/services/sources';
 import { IMAGE_SLOTS, imageField, type ImageSlot } from '#/features/branding/services/values';
+import { ACCEPTED_TYPES, limitText, SLOT_RULES } from '#/features/branding/services/imageSlots';
 import type { Images } from '#/features/branding/use-cases/useImages';
 import type { ImageAsk } from '#/features/branding/use-cases/useImageDeletion';
 import { Button } from '#/shared/ui/Button';

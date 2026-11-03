@@ -21,12 +21,12 @@ interface Mirrors {
   pairRows: (scheme: 'light', palette: Palette) => { id: string; passes: boolean }[];
 }
 async function load(): Promise<Mirrors> {
-  const [assets, palette, templates, contrast] = await Promise.all(
-    ['assets', 'palette', 'templates', 'contrast'].map(
+  const [slots, palette, templates, contrast] = await Promise.all(
+    ['imageSlots', 'palette', 'templates', 'contrast'].map(
       (name) => import(path.join(SERVICE, `${name}.ts`)) as Promise<Record<string, unknown>>,
     ),
   );
-  return { ...assets, ...palette, ...templates, ...contrast } as unknown as Mirrors;
+  return { ...slots, ...palette, ...templates, ...contrast } as unknown as Mirrors;
 }
 
 // The Branding screens may not import the server's packages, so three things

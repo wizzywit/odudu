@@ -1,9 +1,9 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { capitalise } from '#/shared/services/format';
-import { SLOT_RULES } from '#/features/branding/services/assets';
 import type { ThemeScope } from '#/features/branding/services/scope';
 import { PAGE_KIND_LABELS, pageKindOf } from '#/features/branding/services/templates';
 import type { ImageSlot } from '#/features/branding/services/values';
+import { SLOT_RULES } from '#/features/branding/services/imageSlots';
 
 type Source = 'client' | 'tenant' | 'default';
 
