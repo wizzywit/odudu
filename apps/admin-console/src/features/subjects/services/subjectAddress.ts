@@ -1,7 +1,12 @@
+import { areaAt } from '#/entities/area';
 import { resourceAddress } from '#/shared/services/address';
 import { tabHrefOf } from '#/shared/services/record';
 
-const subjects = resourceAddress({ segment: 'subjects', group: 'Identity', label: 'Subjects' });
+const subjects = resourceAddress({
+  segment: 'subjects',
+  group: 'Identity',
+  label: areaAt('subjects').label,
+});
 
 export const {
   listHref: subjectsHref,

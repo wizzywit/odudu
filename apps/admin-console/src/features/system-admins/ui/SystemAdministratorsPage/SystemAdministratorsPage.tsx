@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { areaAt } from '#/entities/area';
 import { CapabilityHolders } from '#/features/subjects';
 import {
   useSystemAdministratorsPage,
@@ -16,7 +17,7 @@ import { Picker } from '#/shared/ui/Picker';
 import { ViewOnlyNote } from '#/shared/ui/ViewOnlyNote';
 import styles from '#/features/system-admins/ui/SystemAdministratorsPage/SystemAdministratorsPage.module.css';
 
-const TITLE = 'System administrators';
+const TITLE = areaAt('system-admins').label;
 
 function Add({ page }: { page: SystemAdministrators }) {
   const heading = useId();
