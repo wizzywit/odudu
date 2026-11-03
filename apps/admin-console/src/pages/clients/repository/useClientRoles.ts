@@ -1,6 +1,6 @@
 import type { Role } from '@odudu/contracts/admin';
 import { createClientRole } from '#/pages/clients/adapter/clients';
-import { readRoleCount, readRolePage } from '#/shared/adapter/directory';
+import { readRoleCount, readRolePage } from '#/entities/role';
 import { countKey, listKey, pickerKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useResourceList } from '#/shared/repository/useResourceList';

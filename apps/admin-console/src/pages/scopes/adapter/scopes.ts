@@ -8,13 +8,12 @@ import {
   scopeMappersSchema,
   setScopeRolesResponseSchema,
 } from '@odudu/contracts/admin';
-import type { Scope } from '#/entities/scope';
+import { readScopePage, type Scope } from '#/entities/scope';
 import type { BuiltinScopes, RestoredScopes } from '#/pages/scopes/types/builtinScopes';
 import type { ScopeClientList } from '#/pages/scopes/types/scopeClient';
 import type { ScopeImpact } from '#/pages/scopes/types/scopeImpact';
 import type { ScopeMappers } from '#/pages/scopes/types/scopeMappers';
 import type { ScopeRoleList } from '#/pages/scopes/types/scopeRoles';
-import { readScopePage } from '#/shared/adapter/directory';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { adminCall, countReader, firstMatch, nothing } from '#/shared/adapter/route';
 

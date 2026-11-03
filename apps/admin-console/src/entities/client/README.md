@@ -15,9 +15,10 @@ The wire's field names are kept (`client_id`, `service_account_admin_reach`):
 the capability rules read them as they come.
 
 Imports `shared` only. Creating, configuring, rotating the secret of and
-removing a client are `pages/clients`'. The list read stays in
-`shared/adapter/directory`, since an entity cannot import another slice's
-adapter and the administrator grant reads the same page.
+removing a client are `pages/clients`'. The list read (`readClientPage`) is
+here, because the picker, the clients page and the administrator grant read the
+same page.
 
-`use-cases/clientPicker.ts` only re-exports `useClientPicker`, so other slices
-reach the repository through a use-case, as the layering requires.
+`use-cases/clientPicker.ts` and `clientCalls.ts` only re-export, so other
+slices reach the repository and the adapter through a use-case, as the layering
+requires.

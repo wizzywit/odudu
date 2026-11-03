@@ -1,8 +1,7 @@
 import { groupRecordSchema, MAX_LIMIT, setGroupRolesResponseSchema } from '@odudu/contracts/admin';
-import { readGroupPage } from '#/shared/adapter/directory';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { adminCall, countReader, nothing } from '#/shared/adapter/route';
-import type { Group, GroupRecord } from '#/entities/group';
+import { readGroupPage, type Group, type GroupRecord } from '#/entities/group';
 import type { GroupRoleList } from '#/pages/groups/types/groupRoles';
 
 export { readGroupPage };

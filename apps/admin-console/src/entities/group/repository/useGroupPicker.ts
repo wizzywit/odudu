@@ -1,4 +1,4 @@
-import { readGroupPage } from '#/shared/adapter/directory';
+import { readGroupPage } from '#/entities/group/adapter/groupPage';
 import { usePicker } from '#/shared/repository/usePicker';
 import type { PickerState } from '#/shared/services/picker';
 import type { Group } from '#/entities/group/types/group';

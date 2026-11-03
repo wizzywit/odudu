@@ -5,7 +5,7 @@ import {
   roleSchema,
   type Role,
 } from '@odudu/contracts/admin';
-import type { Client } from '#/entities/client';
+import { readClientPage, type Client } from '#/entities/client';
 import type {
   ClientRecord,
   CreatedClient,
@@ -14,7 +14,6 @@ import type {
 import { type NewClientKind } from '#/pages/clients/services/newClient';
 import { entriesOf } from '#/pages/clients/services/listEntries';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { readClientPage } from '#/shared/adapter/directory';
 import { adminCall, countReader, mapResult, nothing } from '#/shared/adapter/route';
 
 export { readClientPage };

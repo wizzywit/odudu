@@ -7,7 +7,6 @@ export const INVENTORY: Record<RuleId, string[]> = {
     'apps/admin-console/src/shared/adapter/browserStorage.ts',
     'apps/admin-console/src/shared/adapter/clock.test.ts',
     'apps/admin-console/src/shared/adapter/clock.ts',
-    'apps/admin-console/src/shared/adapter/directory.ts',
     'apps/admin-console/src/shared/adapter/draftStorage.test.ts',
     'apps/admin-console/src/shared/adapter/draftStorage.ts',
     'apps/admin-console/src/shared/adapter/files.test.ts',

@@ -1,4 +1,4 @@
-import { readRolePage } from '#/shared/adapter/directory';
+import { readRolePage } from '#/entities/role/adapter/rolePage';
 import { usePicker } from '#/shared/repository/usePicker';
 import { optionalFilter } from '#/shared/services/filters';
 import type { PickerState } from '#/shared/services/picker';

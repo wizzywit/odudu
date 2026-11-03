@@ -1,4 +1,4 @@
-import { readScopePage } from '#/shared/adapter/directory';
+import { readScopePage } from '#/entities/scope/adapter/scopePage';
 import { usePicker } from '#/shared/repository/usePicker';
 import type { PickerState } from '#/shared/services/picker';
 import type { Scope } from '#/entities/scope/types/scope';

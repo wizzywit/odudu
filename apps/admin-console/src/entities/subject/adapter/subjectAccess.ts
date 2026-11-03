@@ -1,6 +1,7 @@
 import {
   adminCapabilitiesResponseSchema,
   listEffectiveRolesResponseSchema,
+  listRolesResponseSchema,
   MAX_LIMIT,
   setRequiredActionsResponseSchema,
   setSubjectGroupsResponseSchema,
@@ -10,7 +11,6 @@ import {
   type SetRequiredActionsResponse,
   type SetSubjectGroupsResponse,
 } from '@odudu/contracts/admin';
-import { readRolePage } from '#/shared/adapter/directory';
 import {
   ADMIN_CLIENT_KEY,
   adminClientOfRoles,
@@ -18,7 +18,11 @@ import {
   type Holding,
 } from '#/shared/services/capabilities';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall } from '#/shared/adapter/route';
+import { adminCall, listReader } from '#/shared/adapter/route';
+
+// An entity cannot import another's adapter, so the roles list is read here
+// with the same call the role entity makes.
+const listRoles = listReader('roles', listRolesResponseSchema);
 
 export function readSubjectGroups(
   gateway: Gateway,
@@ -109,14 +113,14 @@ export async function readAdminRoles(
   gateway: Gateway,
   tenant: string,
 ): Promise<GatewayResult<ReadonlyMap<Holding, string>>> {
-  const named = await readRolePage(gateway, tenant, new URLSearchParams({ name: 'tenant-admin' }));
+  const named = await listRoles(gateway, tenant, new URLSearchParams({ name: 'tenant-admin' }));
   if (!named.ok) return named;
   const client = adminClientOfRoles(named.data.items);
   if (client === null) {
     console.error(`console defect: ${tenant} lists no tenant-admin of ${ADMIN_CLIENT_KEY}`);
     return { ok: false, kind: 'defect' };
   }
-  const roles = await readRolePage(
+  const roles = await listRoles(
     gateway,
     tenant,
     new URLSearchParams({ client, limit: String(MAX_LIMIT) }),

@@ -1,4 +1,4 @@
-import { readClientPage } from '#/shared/adapter/directory';
+import { readClientPage } from '#/entities/client/adapter/clientPage';
 import { usePicker } from '#/shared/repository/usePicker';
 import type { PickerState } from '#/shared/services/picker';
 import type { Client } from '#/entities/client/types/client';
