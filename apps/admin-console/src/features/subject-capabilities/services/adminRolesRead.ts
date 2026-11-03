@@ -12,3 +12,7 @@ export function adminRolesBlocked(
   if (status === 'failed') return 'The admin roles could not be read, so nothing can be saved.';
   return blocked;
 }
+
+export function missingRoleIdDefect(missing: readonly string[], tenant: string): string {
+  return `console defect: no role id for ${missing.join(', ')} in ${tenant}`;
+}

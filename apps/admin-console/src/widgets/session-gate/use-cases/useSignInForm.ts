@@ -6,12 +6,10 @@ export interface SignInForm {
   asking: boolean;
   tenant: string;
   error: string | undefined;
-  // The button that signs in to the remembered tenant.
-  rememberedLabel: string | null;
+  signInToLabel: (tenant: string) => string;
   submitLabel: string;
   setTenant: (tenant: string) => void;
   ask: () => void;
-  signInRemembered: () => void;
   submit: (event: SubmitEvent<HTMLFormElement>) => void;
 }
 
@@ -33,14 +31,11 @@ export function useSignInForm({
     asking,
     tenant,
     error,
-    rememberedLabel: remembered === null ? null : signInToLabel(remembered),
+    signInToLabel,
     submitLabel: signInLabel(enters, enteredTenant(tenant)),
     setTenant,
     ask: () => {
       setAsking(true);
-    },
-    signInRemembered: () => {
-      if (remembered !== null) onSignIn(remembered);
     },
     submit: (event) => {
       event.preventDefault();

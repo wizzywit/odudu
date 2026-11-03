@@ -1,12 +1,7 @@
 import { createContext, Fragment, use } from 'react';
 import { VisuallyHidden } from 'react-aria-components';
-import {
-  keyLabel,
-  PLATFORM,
-  type Key,
-  type KeyLabel,
-  type Platform,
-} from '#/shared/lib/services/platform';
+import { PLATFORM } from '#/shared/lib/platform/platform';
+import { keyLabel, type Key, type KeyLabel, type Platform } from '#/shared/lib/services/platform';
 import styles from '#/shared/ui/KeyHint/KeyHint.module.css';
 
 // Set once for the page; a test names the platform it draws for.

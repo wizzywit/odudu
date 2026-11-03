@@ -35,8 +35,13 @@ export function SignIn({
             You last signed in to <strong>{remembered}</strong> in this browser.
           </p>
           <div className={styles.actions}>
-            <Button variant="primary" onPress={form.signInRemembered}>
-              {form.rememberedLabel}
+            <Button
+              variant="primary"
+              onPress={() => {
+                onSignIn(remembered);
+              }}
+            >
+              {form.signInToLabel(remembered)}
             </Button>
             <Button variant="quiet" onPress={form.ask}>
               A different tenant

@@ -8,15 +8,10 @@ export interface NavigatorLike {
 
 const APPLE = /mac|iphone|ipad|ipod|ios/iu;
 
-export function platformOf(navigator: NavigatorLike | undefined): Platform {
-  const name = navigator?.userAgentData?.platform ?? navigator?.platform ?? '';
+export function platformOf(source: NavigatorLike | undefined): Platform {
+  const name = source?.userAgentData?.platform ?? source?.platform ?? '';
   return APPLE.test(name) ? 'mac' : 'other';
 }
-
-// Read once: the platform does not change under a page.
-export const PLATFORM: Platform = platformOf(
-  typeof navigator === 'undefined' ? undefined : navigator,
-);
 
 export type Key = 'Enter' | 'Mod' | 'Alt' | (string & {});
 

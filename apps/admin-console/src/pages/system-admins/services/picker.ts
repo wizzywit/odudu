@@ -33,3 +33,6 @@ export function holdersParams(query: string, cursor: string | undefined): URLSea
   if (cursor !== undefined) params.set('cursor', cursor);
   return params;
 }
+
+export const HOLDERS_PAST_PAGES_DEFECT =
+  "console defect: system's administrators run past ten pages; only those are marked";

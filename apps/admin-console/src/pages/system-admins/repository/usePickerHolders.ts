@@ -1,5 +1,10 @@
+import { reportDefect } from '#/shared/lib/platform/report';
 import { useQuery } from '@tanstack/react-query';
-import { holderSet, holdersParams } from '#/pages/system-admins/services/picker';
+import {
+  HOLDERS_PAST_PAGES_DEFECT,
+  holderSet,
+  holdersParams,
+} from '#/pages/system-admins/services/picker';
 import { listKey } from '#/shared/lib/repository/queryKeys';
 import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
 import { useTransport } from '#/shared/api/transport/useTransport';
@@ -26,9 +31,7 @@ export function usePickerHolders(query: string): ReadonlySet<string> | null {
         cursor = result.data.next;
         if (cursor === undefined) return ids;
       }
-      console.error(
-        `console defect: system's administrators run past ten pages; only those are marked`,
-      );
+      reportDefect(HOLDERS_PAST_PAGES_DEFECT);
       return ids;
     },
   });

@@ -1,3 +1,4 @@
+import { reportDefect } from '#/shared/lib/platform/report';
 import { readSubjectRoles, setSubjectRoles } from '#/entities/subject';
 import {
   readAdminClients,
@@ -13,7 +14,7 @@ import {
 } from '#/entities/administrator';
 
 export function defect(message: string): GatewayFailure {
-  console.error(message);
+  reportDefect(message);
   return { ok: false, kind: 'defect' };
 }
 

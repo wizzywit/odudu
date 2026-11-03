@@ -38,9 +38,9 @@ export function useImport(onRefused: (failure: GatewayFailure) => void): TenantI
   const inFlight = useRef(false);
   const mutation = useMutation({
     mutationFn: async (input: ImportInput): Promise<ImportOutcome> => {
-      const document = parseDocument(await readFileText(input.file));
-      if (!document.ok) return { ok: false, kind: 'file', message: document.message };
-      const result = await importTenant(gateway, { ...input, document: document.document });
+      const parsed = parseDocument(await readFileText(input.file));
+      if (!parsed.ok) return { ok: false, kind: 'file', message: parsed.message };
+      const result = await importTenant(gateway, { ...input, document: parsed.document });
       if (!result.ok) {
         onRefused(result);
         return { ok: false, kind: 'refused', failure: result };

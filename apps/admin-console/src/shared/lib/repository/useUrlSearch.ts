@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from '@tanstack/react-router';
+import { pageOrigin } from '#/shared/lib/platform/location';
 
 export interface UrlSearch {
   params: URLSearchParams;
@@ -12,7 +13,7 @@ export interface UrlSearch {
 export function useUrlSearch(): UrlSearch {
   const { publicHref, searchStr } = useLocation();
   const navigate = useNavigate();
-  const pathname = new URL(publicHref, globalThis.location.origin).pathname;
+  const pathname = new URL(publicHref, pageOrigin()).pathname;
   const href = (params: URLSearchParams): string => {
     const search = params.toString();
     return search === '' ? pathname : `${pathname}?${search}`;

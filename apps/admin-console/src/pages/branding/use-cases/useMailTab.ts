@@ -1,7 +1,8 @@
 import { chooseScheme, SCHEME_PREVIEW_WORDS, type ThemeView } from '#/features/branding-editor';
 import type { Client } from '#/entities/client';
 import { useState } from 'react';
-import { mailPreviewSource, pageOrigin } from '#/pages/branding/repository/mailPreview';
+import { mailPreviewSource } from '#/pages/branding/repository/mailPreview';
+import { pageOrigin } from '#/shared/lib/platform/location';
 import { useMailBranding } from '#/pages/branding/repository/useMailBranding';
 import {
   DEFAULT_MAIL_CHOICE,

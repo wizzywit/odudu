@@ -17,7 +17,7 @@ import {
   type Snapshot,
   type TextEdit,
 } from '#/shared/lib/services/code';
-import { PLATFORM } from '#/shared/lib/services/platform';
+import { PLATFORM } from '#/shared/lib/platform/platform';
 
 export interface CodeHistory {
   // The field's onChange: it also settles what the change did to the history.

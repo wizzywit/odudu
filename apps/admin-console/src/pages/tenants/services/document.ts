@@ -9,9 +9,9 @@ export const IMPORT_ACCEPTED_TYPES = ['application/json', TENANT_DOCUMENT_MEDIA_
 // What an export says it left out, by JSON path; read only to show it, since
 // the file saved is the text as the server sent it.
 export function omittedOf(text: string): readonly string[] {
-  const document = parseJson(text);
-  if (!isRecord(document)) return [];
-  const omitted = document.omitted;
+  const parsed = parseJson(text);
+  if (!isRecord(parsed)) return [];
+  const omitted = parsed.omitted;
   return Array.isArray(omitted)
     ? omitted.filter((path): path is string => typeof path === 'string')
     : [];
@@ -25,10 +25,10 @@ export function importFileProblem(bytes: number): string | null {
 export type ParsedDocument = { ok: true; document: unknown } | { ok: false; message: string };
 
 export function parseDocument(text: string): ParsedDocument {
-  const document = parseJson(text);
-  return document === undefined
+  const parsed = parseJson(text);
+  return parsed === undefined
     ? { ok: false, message: 'The file is not JSON, so it cannot be a tenant document.' }
-    : { ok: true, document };
+    : { ok: true, document: parsed };
 }
 
 export interface ChosenFile {

@@ -23,12 +23,12 @@ export function rawJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
-export function discoveryView(document: Discovery): DiscoveryView {
-  const members = Object.entries(document);
+export function discoveryView(discovery: Discovery): DiscoveryView {
+  const members = Object.entries(discovery);
   return {
-    issuer: document.issuer,
-    document: `${document.issuer.replace(/\/$/u, '')}/.well-known/openid-configuration`,
-    raw: rawJson(document),
+    issuer: discovery.issuer,
+    document: `${discovery.issuer.replace(/\/$/u, '')}/.well-known/openid-configuration`,
+    raw: rawJson(discovery),
     endpoints: members.flatMap(([name, value]) =>
       isEndpoint(name) && typeof value === 'string' ? [{ name, url: value }] : [],
     ),

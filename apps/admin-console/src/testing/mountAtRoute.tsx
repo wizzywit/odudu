@@ -18,7 +18,8 @@ interface Mounted {
 }
 
 // One component at one route, read through the console's own search parser.
-export function mountAtRoute(
+// The router comes back with the element, for a test that renders it itself.
+export function routedElement(
   url: string,
   path: string,
   component: RouteComponent,
@@ -34,14 +35,24 @@ export function mountAtRoute(
     stringifySearch,
   });
   const routed = <RouterProvider router={router} />;
-  const view = render(
+  const element =
     providers === undefined ? (
       routed
     ) : (
       <TransportContext value={providers.transport}>
         <QueryClientProvider client={providers.queryClient}>{routed}</QueryClientProvider>
       </TransportContext>
-    ),
-  );
+    );
+  return { router, element };
+}
+
+export function mountAtRoute(
+  url: string,
+  path: string,
+  component: RouteComponent,
+  options: Mounted = {},
+) {
+  const { router, element } = routedElement(url, path, component, options);
+  const view = render(element);
   return { router, unmount: view.unmount };
 }

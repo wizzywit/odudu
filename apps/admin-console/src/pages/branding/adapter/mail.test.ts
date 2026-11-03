@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import tenantBranding from '#/pages/branding/adapter/fixtures/mail-branding.json';
 import clientBranding from '#/pages/branding/adapter/fixtures/mail-branding-client.json';
-import { mailPreviewSource, pageOrigin, readMailBranding } from '#/pages/branding/adapter/mail';
+import { mailPreviewSource, readMailBranding } from '#/pages/branding/adapter/mail';
 import { fakeTransport, json, problem } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 
@@ -59,8 +59,4 @@ it('addresses a client’s preview under the client, and encodes what it is give
   expect(mailPreviewSource('a b', { scheme: 'light', locale: '', client: '' })).toContain(
     '/tenants/a%20b/mail/preview',
   );
-});
-
-it('names the address the console is served from', () => {
-  expect(pageOrigin()).toBe(globalThis.location.origin);
 });

@@ -1,4 +1,5 @@
 import { useEffect, useState, type RefObject } from 'react';
+import { rootFontSize } from '#/shared/lib/platform/rootFont';
 import { isNarrow } from '#/shared/lib/services/narrow';
 
 // Whether the container a part sits in is narrow, as the stylesheets' own
@@ -13,7 +14,7 @@ export function useContainerNarrow(part: RefObject<HTMLElement | null>): boolean
       return undefined;
     }
     const measure = (): void => {
-      const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const rem = rootFontSize();
       setNarrow(isNarrow(container.getBoundingClientRect().width, rem));
     };
     measure();

@@ -27,3 +27,11 @@ export function storeThemeChoice(choice: ThemeChoice): void {
     // Unremembered, the choice still holds for this page.
   }
 }
+
+// Named on <html> first, so the choice holds for this page even when the
+// browser refuses to remember it.
+export function showThemeChoice(choice: ThemeChoice): void {
+  const root = document.documentElement;
+  if (choice === 'system') delete root.dataset.theme;
+  else root.dataset.theme = choice;
+}

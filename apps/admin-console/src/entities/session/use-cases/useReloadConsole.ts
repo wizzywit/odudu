@@ -1,4 +1,5 @@
 import { useLeaveConsole } from '#/entities/session/repository/useLeaveConsole';
+import { pageHref } from '#/shared/lib/platform/location';
 import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 
 // Reloads the page once the unsaved-changes guard lets it go, asking in the
@@ -8,7 +9,7 @@ export function useReloadConsole(): () => void {
   const request = useUnsavedGuard((guard) => guard.request);
   return () => {
     request(() => {
-      leave(window.location.href);
+      leave(pageHref());
     });
   };
 }

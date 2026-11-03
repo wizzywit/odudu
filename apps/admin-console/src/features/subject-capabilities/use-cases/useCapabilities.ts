@@ -1,3 +1,5 @@
+import { missingRoleIdDefect } from '#/features/subject-capabilities/services/adminRolesRead';
+import { reportDefect } from '#/shared/lib/platform/report';
 import type { SetRolesResponse } from '#/entities/subject';
 import { useAuthority, useRefusal, useRereadAuthority } from '#/entities/session';
 import type { RecordState } from '#/shared/lib/repository/useRecord';
@@ -146,7 +148,7 @@ export function useCapabilityEditor({
     save: async (gateway, { values, ifMatch }) => {
       const roles = roleIdsOf(values.capabilities, adminRoles);
       if ('missing' in roles) {
-        console.error(`console defect: no role id for ${roles.missing.join(', ')} in ${tenant}`);
+        reportDefect(missingRoleIdDefect(roles.missing, tenant));
         return { ok: false, kind: 'defect' };
       }
       const result = await saveRoles(gateway, [...split.roleIds, ...roles.ids], ifMatch);

@@ -10,6 +10,7 @@ import { type RailSection } from '#/widgets/shell/services/railGroups';
 import { dialogOpen, pathnameOf } from '#/widgets/shell/services/pageContext';
 import { currentHref, railGroups, systemRecordHref } from '#/widgets/shell/services/railGroups';
 import { actsWithSystemAuthority, showsSystemArea } from '#/widgets/shell/services/systemAuthority';
+import { pageOrigin } from '#/shared/lib/platform/location';
 import { useDialogHost } from '#/shared/lib/repository/useDialogHost';
 import { useRailCollapsed } from '#/widgets/shell/repository/useRailCollapsed';
 import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
@@ -60,7 +61,7 @@ export function useShell(tenant: string, principal: Principal): Shell {
     authority,
     checking,
   );
-  const pathname = pathnameOf(publicHref, globalThis.location.origin);
+  const pathname = pathnameOf(publicHref, pageOrigin());
 
   return {
     groups,
