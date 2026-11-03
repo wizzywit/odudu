@@ -1,15 +1,17 @@
 import type { ClientScope } from '@odudu/contracts/admin';
 import {
   ACCESS_TOKEN_LABEL,
+  ID_TOKEN_LABEL,
+  NEW_CLIENT_LABEL,
+} from '#/features/scopes/services/scopeDelivery';
+import {
   CONSENT_LANGUAGES_LABEL,
   CONSENT_LANGUAGES_NOTE,
   CONSENT_LIMIT,
   DESCRIPTION_LANGUAGES_LABEL,
   DESCRIPTION_LANGUAGES_NOTE,
-  ID_TOKEN_LABEL,
-  NAME_FIXED,
-  NEW_CLIENT_LABEL,
-} from '#/features/scopes/services/general';
+} from '#/features/scopes/services/scopeConsent';
+import { NAME_FIXED } from '#/features/scopes/services/scopeDetails';
 import {
   useScopeGeneral,
   type Deletion,

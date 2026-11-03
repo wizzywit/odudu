@@ -18,7 +18,7 @@ import {
   setScopeMappers,
   setScopeRoles,
 } from '#/features/scopes/adapter/scopes';
-import { generalPatch, type GeneralValues } from '#/features/scopes/services/general';
+import { generalPatch, type GeneralValues } from '#/features/scopes/services/scopeDetails';
 import { scopeMappersRecord, scopeRecord, scopeRolesRecord } from '#/features/scopes/services/tabs';
 import { uniqueIds } from '#/shared/services/ids';
 import {

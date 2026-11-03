@@ -22,14 +22,16 @@ import {
 import {
   ACCESS_TOKEN_LABEL,
   assignmentName,
+  ID_TOKEN_LABEL,
+  NEW_CLIENT_CHOICES,
+  NEW_CLIENT_LABEL,
+} from '#/features/scopes/services/scopeDelivery';
+import {
   CONSENT_LANGUAGES_LABEL,
   CONSENT_RULE,
   DESCRIPTION_LANGUAGES_LABEL,
   guardedConsent,
-  ID_TOKEN_LABEL,
-  NEW_CLIENT_CHOICES,
-  NEW_CLIENT_LABEL,
-} from '#/features/scopes/services/general';
+} from '#/features/scopes/services/scopeConsent';
 import {
   guardedText,
   scopeDeleteConsequence,

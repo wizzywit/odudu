@@ -80,7 +80,7 @@ const KEYS_CONFIRM = 'signing-keys/services/confirm.ts';
 const TOKENS_PAGE = 'registration-tokens/ui/RegistrationTokensPage/RegistrationTokensPage.tsx';
 const FLOW_REQUIREMENTS = 'flow/services/requirements.ts';
 const SCOPE_GENERAL = 'scopes/ui/ScopeRecordPage/GeneralTab.tsx';
-const SCOPE_VALUES = 'scopes/services/general.ts';
+const SCOPE_DELIVERY = 'scopes/services/scopeDelivery.ts';
 const CLIENT_NEW = 'clients/ui/NewClientPage/NewClientPage.tsx';
 const TENANT_NEW = 'tenants/ui/NewTenantPage/NewTenantPage.tsx';
 const TENANT_IMPORT = 'tenants/ui/ImportTenantPage/ImportTenantPage.tsx';
@@ -409,8 +409,8 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Evaluate claims': feature('clients/services/evaluate.ts', "'Evaluate claims'"),
 
   // Scopes.
-  'In the ID token': feature(SCOPE_VALUES, "'In the ID token'"),
-  'In the access token': feature(SCOPE_VALUES, "'In the access token'"),
+  'In the ID token': feature(SCOPE_DELIVERY, "'In the ID token'"),
+  'In the access token': feature(SCOPE_DELIVERY, "'In the access token'"),
   'Consent text': feature(SCOPE_GENERAL, 'label="Consent text"'),
   'Display order': feature(SCOPE_GENERAL, 'label="Display order"'),
   'Client to assign': feature(
@@ -623,11 +623,11 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   Translations: feature('clients/services/clientDetails.ts', "translations: 'Translations'"),
   'Description by language': feature(
-    'scopes/services/general.ts',
+    'scopes/services/scopeConsent.ts',
     "DESCRIPTION_LANGUAGES_LABEL = 'Description by language'",
   ),
   'Consent text by language': feature(
-    'scopes/services/general.ts',
+    'scopes/services/scopeConsent.ts',
     "CONSENT_LANGUAGES_LABEL = 'Consent text by language'",
   ),
 
@@ -762,9 +762,15 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'New subjects': page('roles/use-cases/useRoleGeneral.ts', "label: 'New subjects'"),
   'Tenant or client': page('roles/ui/RolesPage/RolesPage.tsx', "label: 'Tenant or client'"),
   'New clients': feature('scopes/use-cases/useScopeGeneral.ts', "label: 'New clients'"),
-  'Assigned as default': feature('scopes/services/general.ts', "label: 'Assigned as default'"),
-  'Assigned as optional': feature('scopes/services/general.ts', "label: 'Assigned as optional'"),
-  'Not assigned': feature('scopes/services/general.ts', "label: 'Not assigned'"),
+  'Assigned as default': feature(
+    'scopes/services/scopeDelivery.ts',
+    "label: 'Assigned as default'",
+  ),
+  'Assigned as optional': feature(
+    'scopes/services/scopeDelivery.ts',
+    "label: 'Assigned as optional'",
+  ),
+  'Not assigned': feature('scopes/services/scopeDelivery.ts', "label: 'Not assigned'"),
   'Sessions per browser': feature(
     'settings/services/accessSections.ts',
     "label: 'Sessions per browser'",
