@@ -9,4 +9,10 @@ describe('useLandingPage', () => {
     expect(page.jsonLd).toContain('https://example.test/odudu/');
     expect(page.jsonLd).not.toContain('<');
   });
+
+  it('carries the motion, the mark the stylesheet reads and the description, and no more', () => {
+    const page = resultOf(useLandingPage);
+    expect(Object.keys(page).sort()).toEqual(['jsonLd', 'mark', 'motion']);
+    expect(page.mark).toBeUndefined();
+  });
 });

@@ -16,6 +16,10 @@ describe('the server page pictures', () => {
     expect(pageShotSize('look-other')).toEqual(pageShotSize('look-odudu'));
   });
 
+  it('hands out the width and height alone, without the capture hash', () => {
+    expect(pageShotSize('sign-in')).toEqual({ width: 460, height: 753 });
+  });
+
   it('refuses a page the manifest does not know', () => {
     expect(() => pageShotSize('no-such-page')).toThrow('no server page capture named no-such-page');
   });

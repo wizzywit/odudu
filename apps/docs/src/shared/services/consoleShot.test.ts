@@ -7,6 +7,10 @@ describe('the console picture service', () => {
     expect(captureAddress('clients', 'dark')).toBe('/console/clients-dark.webp');
   });
 
+  it('refuses a page the manifest does not know', () => {
+    expect(() => sizeOf('no-such-page')).toThrow('no console capture named no-such-page');
+  });
+
   it('fetches a priority picture first and any other lazily', () => {
     expect(loadingFor(true)).toEqual({ fetchPriority: 'high', loading: undefined });
     expect(loadingFor(false)).toEqual({ fetchPriority: undefined, loading: 'lazy' });
