@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import type { LayoutName } from '@site/src/features/landing/services/sceneLayouts';
 import type { Step } from '@site/src/features/landing/services/signInBeats';
-import { buildScene } from '@site/src/features/landing/services/sceneModel';
+import type { SceneModel } from '@site/src/features/landing/services/sceneModel';
 import '@site/src/features/landing/ui/Scene/travel.css';
 import { SceneCheck } from '@site/src/features/landing/ui/SceneCheck/SceneCheck';
 import { SceneWindow } from '@site/src/features/landing/ui/SceneWindow/SceneWindow';
@@ -9,13 +9,13 @@ import styles from '@site/src/features/landing/ui/Scene/Scene.module.css';
 
 interface Props {
   layout: LayoutName;
+  scene: SceneModel;
   step: Step;
   uid: string;
 }
 
-// The sign-in scene at one step, drawn from the model the service builds.
-export function Scene({ layout, step, uid }: Props): ReactElement {
-  const scene = buildScene(layout, step);
+// The sign-in scene at one step, drawn from its model.
+export function Scene({ layout, scene, step, uid }: Props): ReactElement {
   const { hub } = scene;
   return (
     <svg

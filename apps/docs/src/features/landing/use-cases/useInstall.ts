@@ -1,6 +1,7 @@
 import useIsBrowser from '@docusaurus/useIsBrowser';
 import { useEffect, useState } from 'react';
 import type { Shell } from '@site/src/features/landing/services/installCommands';
+import { installView, type InstallView } from '@site/src/features/landing/services/installView';
 import {
   COPIED_FOR_MS,
   copyStatusOf,
@@ -23,12 +24,7 @@ import { schedule } from '@site/src/shared/lib/platform/timers';
 import { useIdle } from '@site/src/shared/lib/use-cases/useIdle';
 
 export interface Install {
-  shell: Shell;
-  status: CopyStatus;
-  typing: Typing;
-  typed: number;
-  lines: number;
-  interactive: boolean;
+  view: InstallView;
   choose: (shell: Shell) => void;
   copy: () => void;
 }
@@ -94,12 +90,14 @@ export function useInstall(): Install {
   }, [status]);
 
   return {
-    shell,
-    status,
-    typing: effectiveTyping(reduced, started),
-    typed,
-    lines,
-    interactive,
+    view: installView({
+      shell,
+      status,
+      typing: effectiveTyping(reduced, started),
+      typed,
+      lines,
+      interactive,
+    }),
     choose: (next) => {
       setShell(next);
       setStatus('idle');

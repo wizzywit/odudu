@@ -1,25 +1,16 @@
 import { Fragment, type ReactElement } from 'react';
-import { copyLabel, noteFor } from '@site/src/features/landing/services/copyStatus';
-import {
-  TYPED_COMMAND,
-  followUpLines,
-  lineVisible,
-  overlayShown,
-  panelTyping,
-  pieces,
-  shellChoices,
-  typedSegments,
-} from '@site/src/features/landing/services/installTyping';
+import type { InstallPanel } from '@site/src/features/landing/services/installView';
+import type { TypedSegment } from '@site/src/features/landing/services/installTyping';
 import { useInstall } from '@site/src/features/landing/use-cases/useInstall';
 import styles from '@site/src/features/landing/ui/Install/Install.module.css';
 
 const LINE_LOOKS = { command: undefined, output: styles.output };
 
 // A command broken after each slash, so a long address wraps at a slash.
-function Wrapped({ text }: { text: string }): ReactElement {
+function Wrapped({ command }: { command: InstallPanel['command'] }): ReactElement {
   return (
     <>
-      {pieces(text).map((piece, index) => (
+      {command.map((piece, index) => (
         <Fragment key={`${piece.text}-${String(index)}`}>
           {piece.breakBefore ? <wbr /> : null}
           {piece.text}
@@ -29,11 +20,11 @@ function Wrapped({ text }: { text: string }): ReactElement {
   );
 }
 
-// The same breaks as the real text, with only the first `count` characters shown.
-function WrappedTyped({ text, count }: { text: string; count: number }): ReactElement {
+// The same breaks as the real text, with only the typed characters shown.
+function WrappedTyped({ typed }: { typed: TypedSegment[] }): ReactElement {
   return (
     <>
-      {typedSegments(text, count).map(({ shown, hidden, hasHidden, breakBefore }, index) => (
+      {typed.map(({ shown, hidden, hasHidden, breakBefore }, index) => (
         <Fragment key={`${shown}${hidden}-${String(index)}`}>
           {breakBefore ? <wbr /> : null}
           {shown}
@@ -47,11 +38,11 @@ function WrappedTyped({ text, count }: { text: string; count: number }): ReactEl
 // The radios and their panels work with no script, through the sibling
 // selectors in Install.module.css; the copy button appears once React has run.
 export function Install(): ReactElement {
-  const { shell, status, typing, typed, lines, interactive, choose, copy } = useInstall();
+  const { view, choose, copy } = useInstall();
   return (
     <fieldset className={styles.install}>
       <legend className="visually-hidden">Your shell</legend>
-      {shellChoices(shell).map((entry) => (
+      {view.shells.map((entry) => (
         <input
           key={entry.shell}
           className={[styles.shellRadio, 'visually-hidden'].join(' ')}
@@ -67,7 +58,7 @@ export function Install(): ReactElement {
       ))}
       <div className={styles.installBar}>
         <div className={styles.shells}>
-          {shellChoices(shell).map((entry) => (
+          {view.shells.map((entry) => (
             <label
               key={entry.shell}
               className={styles.shellLabel}
@@ -78,29 +69,29 @@ export function Install(): ReactElement {
             </label>
           ))}
         </div>
-        <button type="button" className={styles.copy} hidden={!interactive} onClick={copy}>
-          {copyLabel(status)}
+        <button type="button" className={styles.copy} hidden={view.copyBar.hidden} onClick={copy}>
+          {view.copyBar.label}
           <span className="visually-hidden"> the command</span>
         </button>
       </div>
-      {shellChoices(shell).map((entry) => (
-        <div key={entry.shell} className={styles.panel} data-panel={entry.shell}>
+      {view.panels.map((panel) => (
+        <div key={panel.shell} className={styles.panel} data-panel={panel.shell}>
           <div className={styles.typeWrap}>
-            <code data-shell={entry.shell} data-typing={panelTyping(entry.shell, typing)}>
-              <Wrapped text={entry.command} />
+            <code data-shell={panel.shell} data-typing={panel.typing}>
+              <Wrapped command={panel.command} />
             </code>
-            {overlayShown(entry.shell, shell, typing) ? (
+            {panel.overlay ? (
               <span className={styles.typed} aria-hidden="true">
-                <WrappedTyped text={TYPED_COMMAND} count={typed} />
+                <WrappedTyped typed={panel.overlay} />
               </span>
             ) : null}
           </div>
           <div className={styles.followUp}>
-            {followUpLines().map((line, index) => (
+            {panel.lines.map((line) => (
               <code
                 key={line.text}
                 className={LINE_LOOKS[line.kind]}
-                data-visible={String(lineVisible(entry.shell, typing, lines, index))}
+                data-visible={String(line.visible)}
               >
                 {line.text}
               </code>
@@ -109,7 +100,7 @@ export function Install(): ReactElement {
         </div>
       ))}
       <p className={styles.installNote} role="status" data-install-note="">
-        {noteFor(status)}
+        {view.copyBar.note}
       </p>
     </fieldset>
   );

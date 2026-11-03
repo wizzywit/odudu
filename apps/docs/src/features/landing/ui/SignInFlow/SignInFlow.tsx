@@ -1,6 +1,5 @@
 import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import type { ReactElement } from 'react';
-import { captions } from '@site/src/features/landing/services/flowView';
 import { useSignInFlow } from '@site/src/features/landing/use-cases/useSignInFlow';
 import { FlowControls } from '@site/src/features/landing/ui/FlowControls/FlowControls';
 import { Scene } from '@site/src/features/landing/ui/Scene/Scene';
@@ -15,8 +14,8 @@ export function SignInFlow(): ReactElement {
   return (
     <div className={styles.flow} data-flow="" data-step={String(step)}>
       <div className={styles.stage} ref={stage} data-stage="">
-        <Scene layout="wide" step={step} uid={`${uid}-w`} />
-        <Scene layout="tall" step={step} uid={`${uid}-t`} />
+        <Scene layout="wide" scene={flow.scenes.wide} step={step} uid={`${uid}-w`} />
+        <Scene layout="tall" scene={flow.scenes.tall} step={step} uid={`${uid}-t`} />
       </div>
       <div className={styles.below}>
         <FlowControls
@@ -38,7 +37,7 @@ export function SignInFlow(): ReactElement {
           onReplay={flow.replay}
         />
         <ol className={styles.captions} data-flow-captions="">
-          {captions().map((item) => (
+          {flow.captions.map((item) => (
             <li key={item.label}>
               <p className={styles.caption}>{item.caption}</p>
               {item.hasClaims ? (

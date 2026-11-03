@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { REST_NOTE } from '@site/src/features/landing/services/flowView';
+import { REST_NOTE, captions } from '@site/src/features/landing/services/flowView';
+import { buildScene } from '@site/src/features/landing/services/sceneModel';
 import { useSignInFlow } from '@site/src/features/landing/use-cases/useSignInFlow';
 import { resultOf } from '@site/tests/support/hook';
 
@@ -11,6 +12,9 @@ describe('useSignInFlow', () => {
     expect(flow.label).toBe('Play');
     expect(flow.buttons).toHaveLength(7);
     expect(flow.live).toBe(REST_NOTE);
+    expect(flow.scenes.wide).toEqual(buildScene('wide', 0));
+    expect(flow.scenes.tall).toEqual(buildScene('tall', 0));
+    expect(flow.captions).toEqual(captions());
     expect(flow.uid).not.toContain(':');
   });
 });

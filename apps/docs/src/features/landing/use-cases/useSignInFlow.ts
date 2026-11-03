@@ -7,7 +7,14 @@ import {
   sceneMotionAllowed,
   waitFor,
 } from '@site/src/features/landing/services/flowMachine';
-import { stepper, viewOf, type StepperButton } from '@site/src/features/landing/services/flowView';
+import {
+  captions,
+  stepper,
+  viewOf,
+  type CaptionItem,
+  type StepperButton,
+} from '@site/src/features/landing/services/flowView';
+import { buildScene, type SceneModel } from '@site/src/features/landing/services/sceneModel';
 import { HAND_OVER_MS } from '@site/src/features/landing/services/timing';
 import { usePrefersReducedMotion } from '@site/src/shared/lib/use-cases/usePrefersReducedMotion';
 import { canObserve, watchVisible } from '@site/src/shared/lib/platform/observe';
@@ -30,6 +37,8 @@ export interface SignInFlow {
   running: boolean;
   politeness: 'off' | 'polite';
   buttons: StepperButton[];
+  scenes: { wide: SceneModel; tall: SceneModel };
+  captions: CaptionItem[];
   choose: (step: Step) => void;
   toggle: () => void;
   replay: () => void;
@@ -95,6 +104,8 @@ export function useSignInFlow(): SignInFlow {
     running: view.running,
     politeness: view.politeness,
     buttons: stepper(flow.step),
+    scenes: { wide: buildScene('wide', flow.step), tall: buildScene('tall', flow.step) },
+    captions: captions(),
     choose: (step) => {
       dispatch({ type: 'choose', step });
     },
