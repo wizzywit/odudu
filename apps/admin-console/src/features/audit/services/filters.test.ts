@@ -1,3 +1,4 @@
+import { isAuditInstant } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import {
   applyBlocked,
@@ -85,6 +86,34 @@ describe('reading the filters from the address', () => {
 
   it('keeps a range that starts and ends at the same instant', () => {
     expect(read('from=2026-09-28T12:00:00Z&to=2026-09-28T12:00:00Z').ignored).toEqual([]);
+  });
+
+  it('ignores an end that is no instant, and says which end it was', () => {
+    const { filters, ignored } = read('to=tomorrow&from=2026-09-28T10:00:00Z');
+    expect(filters).toEqual({ from: '2026-09-28T10:00:00Z' });
+    expect(ignored).toEqual([
+      'The address names a to the trail cannot read (“tomorrow”), so it was ignored.',
+    ]);
+  });
+
+  it('ignores a date a person would read but the API would not: no zone, or a spelled-out month', () => {
+    expect(read('from=2026-09-28T10:00:00').ignored).toHaveLength(1);
+    expect(read('to=Dec 25 2026').ignored).toHaveLength(1);
+  });
+
+  it('ignores a resource type or id longer than the API accepts, and the id left alone with it', () => {
+    const long = 'a'.repeat(257);
+    expect(read(`resource_type=${long}`).filters).toEqual({});
+    const { filters, ignored } = read(`resource_type=client&resource_id=${long}`);
+    expect(filters).toEqual({ resource_type: 'client' });
+    expect(ignored).toHaveLength(1);
+  });
+
+  it('shows a long ignored value cut, so the page does not echo the whole address', () => {
+    const { ignored } = read(`outcome=${'x'.repeat(100)}`);
+    expect(ignored[0]).toBe(
+      `The address names a outcome the trail cannot read (“${'x'.repeat(40)}…”), so it was ignored.`,
+    );
   });
 
   it('takes the first of a repeated parameter', () => {
@@ -177,6 +206,14 @@ describe('the form as a draft of the filters', () => {
     });
     expect(problems.to).toMatch(/before/iu);
     expect(problems.from).toBeUndefined();
+  });
+
+  it('reads a range of dates before the trail begins as backwards, though the address would ignore them', () => {
+    const before = { from: '1969-12-31T23:00:00Z', to: '1969-12-30T00:00:00Z' };
+    expect(isAuditInstant(before.from)).toBe(false);
+    expect(Number.isNaN(Date.parse(before.from))).toBe(false);
+    expect(draftProblems({ ...EMPTY_DRAFT, ...before }).to).toMatch(/before/iu);
+    expect(read(`from=${before.from}&to=${before.to}`).ignored).toHaveLength(2);
   });
 
   it('is accepted with only one end of the range', () => {

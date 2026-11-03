@@ -13,6 +13,28 @@ describe('where a resource id leads', () => {
     expect(resourceHref('acme', 'client', ID, PAGES, areaPage)).toBe(`/console/acme/clients/${ID}`);
   });
 
+  it('to the record page of each type that has one, and the uppercase of a record id', () => {
+    const every: RecordPages = {
+      subject: (tenant, id) => `/s/${tenant}/${id}`,
+      client: (tenant, id) => `/c/${tenant}/${id}`,
+      group: (tenant, id) => `/g/${tenant}/${id}`,
+      role: (tenant, id) => `/r/${tenant}/${id}`,
+      scope: (tenant, id) => `/o/${tenant}/${id}`,
+    };
+    for (const [type, prefix] of [
+      ['subject', 's'],
+      ['client', 'c'],
+      ['group', 'g'],
+      ['role', 'r'],
+      ['scope', 'o'],
+    ] as const) {
+      expect(resourceHref('acme', type, ID, every, areaPage), type).toBe(`/${prefix}/acme/${ID}`);
+    }
+    expect(resourceHref('acme', 'client', ID.toUpperCase(), every, areaPage)).toBe(
+      `/c/acme/${ID.toUpperCase()}`,
+    );
+  });
+
   it('to the area, for a type with a page and no record page', () => {
     expect(resourceHref('acme', 'signing_key', ID, PAGES, areaPage)).toBe('/console/acme/keys');
     expect(resourceHref('acme', 'flow', ID, PAGES, areaPage)).toBe('/console/acme/flow');

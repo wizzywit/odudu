@@ -103,6 +103,23 @@ describe('the detail as readable entries', () => {
     expect(omitted).toBe(5);
   });
 
+  it('reads a pair and a list of scalars at the deepest level it lays out', () => {
+    expect(
+      detailEntries({ a: { b: { c: { before: 'x', after: 'y' }, list: [1, null, ''] } } }).entries,
+    ).toEqual([
+      { path: 'a.b.c', text: 'x → y', change: true },
+      { path: 'a.b.list', text: '1, none, (empty)', change: false },
+    ]);
+    expect(detailEntries({ none: [] }).entries[0]?.text).toBe('none');
+  });
+
+  it('omits nothing at the bound itself', () => {
+    const detail = Object.fromEntries(
+      Array.from({ length: MAX_DETAIL_ENTRIES }, (_, i) => [`k${String(i)}`, i]),
+    );
+    expect(detailEntries(detail).omitted).toBe(0);
+  });
+
   it('is empty for no detail', () => {
     expect(detailEntries({})).toEqual({ entries: [], omitted: 0 });
   });
