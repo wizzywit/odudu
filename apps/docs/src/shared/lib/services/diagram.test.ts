@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INK, SURFACE, vertical } from '@site/src/shared/services/diagram';
+import { INK, SURFACE, vertical } from '@site/src/shared/lib/services/diagram';
 
 describe('the diagram parts', () => {
   it('draws a vertical line between two heights', () => {

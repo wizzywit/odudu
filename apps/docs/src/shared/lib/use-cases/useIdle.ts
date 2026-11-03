@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent } from 'react';
-import { whenIdle } from '@site/src/shared/platform/idle';
+import { whenIdle } from '@site/src/shared/lib/platform/idle';
 
 // Starts `run` once the page is idle, while `enabled`, and stops what it
 // started when `enabled` ends or the page goes. Where the browser has no idle

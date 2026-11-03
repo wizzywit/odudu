@@ -4,7 +4,7 @@ import {
   prefersReducedMotion,
   serverReducedMotion,
   subscribeReducedMotion,
-} from '@site/src/shared/platform/motion';
+} from '@site/src/shared/lib/platform/motion';
 
 afterEach(() => {
   vi.unstubAllGlobals();

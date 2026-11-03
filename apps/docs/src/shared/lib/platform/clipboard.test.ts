@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { copyText } from '@site/src/shared/platform/clipboard';
+import { copyText } from '@site/src/shared/lib/platform/clipboard';
 
 afterEach(() => {
   vi.unstubAllGlobals();

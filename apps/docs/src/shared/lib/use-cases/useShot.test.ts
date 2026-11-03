@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { useConsoleShot } from '@site/src/shared/use-cases/useConsoleShot';
+import { useConsoleShot } from '@site/src/shared/lib/use-cases/useShot';
 import { resultOf } from '@site/tests/support/hook';
 import { PAGES_BASE } from '@site/site.config';
 

@@ -4,7 +4,7 @@ import {
   observeIntersections,
   watchVisible,
   type IntersectionConstructor,
-} from '@site/src/shared/platform/observe';
+} from '@site/src/shared/lib/platform/observe';
 
 afterEach(() => {
   vi.unstubAllGlobals();

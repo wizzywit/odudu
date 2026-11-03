@@ -3,7 +3,7 @@ import {
   prefersReducedMotion,
   serverReducedMotion,
   subscribeReducedMotion,
-} from '@site/src/shared/platform/motion';
+} from '@site/src/shared/lib/platform/motion';
 
 // Whether the reader asked for less motion; the server, which cannot know, says no.
 export function usePrefersReducedMotion(): boolean {

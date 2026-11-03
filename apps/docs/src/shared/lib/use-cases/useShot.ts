@@ -3,7 +3,7 @@ import {
   consoleShots,
   type ShotCatalogue,
   type ShotSize,
-} from '@site/src/shared/services/consoleShot';
+} from '@site/src/shared/lib/services/pictureShot';
 
 export interface ShotView {
   light: string;

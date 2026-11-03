@@ -1,7 +1,7 @@
 import {
   observeIntersections,
   type IntersectionConstructor,
-} from '@site/src/shared/platform/observe';
+} from '@site/src/shared/lib/platform/observe';
 import {
   startReveal,
   REVEAL_MARGIN,

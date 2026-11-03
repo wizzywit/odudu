@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { SURFACE, type Tone } from '@site/src/shared/services/diagram';
+import { SURFACE, type Tone } from '@site/src/shared/lib/services/diagram';
 
 interface Props {
   x: number;

@@ -1,4 +1,5 @@
 export const MIGRATED: readonly string[] = [
+  'apps/docs/src/shared',
   'apps/admin-console/src/entities/administrator',
   'apps/admin-console/src/entities/area',
   'apps/admin-console/src/entities/audit-event',

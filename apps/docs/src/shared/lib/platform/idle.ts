@@ -1,4 +1,4 @@
-import { schedule } from '@site/src/shared/platform/timers';
+import { schedule } from '@site/src/shared/lib/platform/timers';
 
 // Runs `run` once the page is idle, or after `fallbackMs` where the browser has no idle callback;
 // the returned function cancels it.

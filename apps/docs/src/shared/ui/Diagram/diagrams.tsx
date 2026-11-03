@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { vertical, WIDTH } from '@site/src/shared/services/diagram';
+import { vertical, WIDTH } from '@site/src/shared/lib/services/diagram';
 import { DiagramArrow } from '@site/src/shared/ui/DiagramArrow/DiagramArrow';
 import { DiagramBox } from '@site/src/shared/ui/DiagramBox/DiagramBox';
 import { DiagramText } from '@site/src/shared/ui/DiagramText/DiagramText';

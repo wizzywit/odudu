@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
-import { loadingFor } from '@site/src/shared/services/consoleShot';
-import { useConsoleShot } from '@site/src/shared/use-cases/useConsoleShot';
+import { loadingFor } from '@site/src/shared/lib/services/pictureShot';
+import { useConsoleShot } from '@site/src/shared/lib/use-cases/useShot';
 import styles from '@site/src/shared/ui/ConsoleShot/ConsoleShot.module.css';
 
 interface Props {

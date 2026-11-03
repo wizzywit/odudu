@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { consoleShots, loadingFor, shotCatalogue } from '@site/src/shared/services/consoleShot';
+import { consoleShots, loadingFor, shotCatalogue } from '@site/src/shared/lib/services/pictureShot';
 
 describe('the console picture service', () => {
   it('reads a picture size from the manifest and names its two captures', () => {

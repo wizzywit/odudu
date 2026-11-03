@@ -141,11 +141,11 @@ describe('services in the docs app', { timeout: 60_000 }, () => {
       'src/features/a/services/Members.ts:10: the DOM method getBoundingClientRect',
       'src/features/a/services/Members.ts:8: the DOM method addEventListener',
       'src/features/a/services/Members.ts:9: the DOM method querySelectorAll',
-      'src/shared/services/Types.ts:1: the DOM type Document',
-      'src/shared/services/Types.ts:1: the DOM type Element',
-      'src/shared/services/Types.ts:1: the DOM type HTMLElement',
-      'src/shared/services/Types.ts:1: the DOM type Window',
-      'src/shared/services/Types.ts:2: the DOM type HTMLElement',
+      'src/shared/lib/services/Types.ts:1: the DOM type Document',
+      'src/shared/lib/services/Types.ts:1: the DOM type Element',
+      'src/shared/lib/services/Types.ts:1: the DOM type HTMLElement',
+      'src/shared/lib/services/Types.ts:1: the DOM type Window',
+      'src/shared/lib/services/Types.ts:2: the DOM type HTMLElement',
     ]);
   });
 });

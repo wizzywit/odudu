@@ -5,7 +5,7 @@ import {
   isAutomated,
   subscribeNever,
   watchPageShown,
-} from '@site/src/shared/platform/page';
+} from '@site/src/shared/lib/platform/page';
 
 afterEach(() => {
   vi.unstubAllGlobals();

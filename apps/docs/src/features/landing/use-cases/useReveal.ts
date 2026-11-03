@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { revealWanted } from '@site/src/features/landing/services/reveal';
-import { useIdle } from '@site/src/shared/use-cases/useIdle';
-import { usePrefersReducedMotion } from '@site/src/shared/use-cases/usePrefersReducedMotion';
-import { canRevealOnScroll } from '@site/src/shared/platform/page';
-import { useProbe } from '@site/src/shared/use-cases/useProbe';
+import { useIdle } from '@site/src/shared/lib/use-cases/useIdle';
+import { usePrefersReducedMotion } from '@site/src/shared/lib/use-cases/usePrefersReducedMotion';
+import { canRevealOnScroll } from '@site/src/shared/lib/platform/page';
+import { useProbe } from '@site/src/shared/lib/use-cases/useProbe';
 
 // Nothing changes until this has confirmed that the browser has an
 // IntersectionObserver, motion is allowed and no automation is driving (a

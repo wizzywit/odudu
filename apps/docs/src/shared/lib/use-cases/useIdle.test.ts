@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useIdle } from '@site/src/shared/use-cases/useIdle';
+import { useIdle } from '@site/src/shared/lib/use-cases/useIdle';
 
 // Effects are collected and run by the test, so no DOM is needed.
 const effects: (() => (() => void) | undefined)[] = [];

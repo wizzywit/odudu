@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DOCS_DIRECTORY } from '@site/site.config';
-import { docsAddress, docsRouteOf } from '@site/src/shared/services/docsAddress';
+import { docsAddress, docsRouteOf } from '@site/src/shared/lib/services/docsAddress';
 
 describe('docsAddress', () => {
   it('puts a route under the docs directory the build serves from', () => {

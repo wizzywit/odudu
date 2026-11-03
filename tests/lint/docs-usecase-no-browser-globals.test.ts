@@ -3,7 +3,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-// A docs use case reaches the browser through `shared/platform` (or a feature's own `platform`
+// A docs use case reaches the browser through `shared/lib/platform` (or a feature's own `platform`
 // folder), never directly, so a test drives it without faking a global. Flagged in every non-test
 // file under a `use-cases` folder: a reference to window, document, navigator, location, history,
 // storage, matchMedia, getComputedStyle, the observers, frame, idle and timer functions. Not seen:
@@ -83,7 +83,7 @@ describe('use cases in the docs app', { timeout: 60_000 }, () => {
     const files = await read(DOCS);
     const names = [...files.keys()];
     expect(names).toContain('src/features/landing/use-cases/useInstall.ts');
-    expect(names).toContain('src/shared/use-cases/useProbe.ts');
+    expect(names).toContain('src/shared/lib/use-cases/useProbe.ts');
     expect(violations(files)).toEqual([]);
   });
 
@@ -106,8 +106,8 @@ describe('use cases in the docs app', { timeout: 60_000 }, () => {
       'src/features/a/use-cases/useGlobals.ts:7: the browser global IntersectionObserver',
       'src/features/a/use-cases/useGlobals.ts:8: the browser global document',
       'src/features/a/use-cases/useGlobals.ts:8: the browser global window',
-      'src/shared/use-cases/useClear.ts:2: the browser global clearTimeout',
-      'src/shared/use-cases/useClear.ts:3: the browser global cancelIdleCallback',
+      'src/shared/lib/use-cases/useClear.ts:2: the browser global clearTimeout',
+      'src/shared/lib/use-cases/useClear.ts:3: the browser global cancelIdleCallback',
     ]);
   });
 });

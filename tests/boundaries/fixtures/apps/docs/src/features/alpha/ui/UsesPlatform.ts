@@ -1,3 +1,3 @@
-import { watch } from '../../../shared/platform/watch';
+import { watch } from '../../../shared/lib/platform/watch';
 
 export const watched = watch();

@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
-import { classNames } from '@site/src/shared/services/classNames';
+import { classNames } from '@site/src/shared/ui/classNames';
 import styles from '@site/src/features/landing/ui/Wrap/Wrap.module.css';
 
 interface Props {

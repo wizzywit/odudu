@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { useProbe } from '@site/src/shared/use-cases/useProbe';
+import { useProbe } from '@site/src/shared/lib/use-cases/useProbe';
 
 // The server snapshot or the client's, whichever the test is standing in for.
 const where = vi.hoisted(() => ({ server: true }));

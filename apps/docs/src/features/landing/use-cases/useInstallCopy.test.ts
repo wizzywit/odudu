@@ -7,7 +7,7 @@ import { mount } from '@site/tests/support/hookRunner';
 vi.mock('react', async () => (await import('@site/tests/support/hookRunner')).fakeReact);
 
 const copyText = vi.hoisted(() => vi.fn<(text: string) => Promise<boolean>>());
-vi.mock('@site/src/shared/platform/clipboard', () => ({ copyText }));
+vi.mock('@site/src/shared/lib/platform/clipboard', () => ({ copyText }));
 
 beforeEach(() => {
   vi.useFakeTimers();

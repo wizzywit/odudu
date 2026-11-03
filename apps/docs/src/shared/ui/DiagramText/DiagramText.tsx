@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
-import { INK, type Ink } from '@site/src/shared/services/diagram';
+import { INK, type Ink } from '@site/src/shared/lib/services/diagram';
 
 interface Props {
   x: number;

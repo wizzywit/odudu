@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { INK, WIDTH } from '@site/src/shared/services/diagram';
+import { INK, WIDTH } from '@site/src/shared/lib/services/diagram';
 
 export function DiagramWall({ y }: { y: number }): ReactElement {
   return (

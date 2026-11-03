@@ -1,4 +1,4 @@
-import { shotCatalogue } from '@site/src/shared/services/consoleShot';
+import { shotCatalogue } from '@site/src/shared/lib/services/pictureShot';
 import { PAGE_SHOTS, type PageShotCard } from '@site/src/features/landing/services/serverPageCards';
 import manifest from '@site/static/server-pages/manifest.json';
 

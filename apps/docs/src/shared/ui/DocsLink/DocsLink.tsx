@@ -1,6 +1,6 @@
 import Link from '@docusaurus/Link';
 import type { ComponentProps, ReactElement } from 'react';
-import { useDocsAddress } from '@site/src/shared/use-cases/useDocsAddress';
+import { useDocsAddress } from '@site/src/shared/lib/use-cases/useDocsAddress';
 
 type Props = Omit<ComponentProps<typeof Link>, 'to'> & {
   // A route of the documentation, as `nav.ts` writes it, with an optional fragment.

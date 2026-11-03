@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { classNames } from '@site/src/shared/services/classNames';
+import { classNames } from '@site/src/shared/ui/classNames';
 import {
   linesFor,
   tokenClass,

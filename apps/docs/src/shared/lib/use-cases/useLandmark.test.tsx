@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { LandmarkProvider, useLandmark } from '@site/src/shared/use-cases/useLandmark';
+import { LandmarkProvider, useLandmark } from '@site/src/shared/lib/use-cases/useLandmark';
 import { resultOf } from '@site/tests/support/hook';
 
 function Probe() {

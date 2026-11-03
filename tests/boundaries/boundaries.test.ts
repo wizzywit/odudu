@@ -290,7 +290,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(found.some((v) => v.from.endsWith('shared/ui/Leaky.tsx'))).toBe(true);
   });
 
-  it('rejects a docs view importing shared/platform, and permits a usecase', async () => {
+  it('rejects a docs view importing shared/lib/platform, and permits a usecase', async () => {
     const found = await violations('docs-view-imports-no-platform');
     expect(found.some((v) => v.from.endsWith('features/alpha/ui/UsesPlatform.ts'))).toBe(true);
     expect(found.some((v) => v.from.endsWith('features/alpha/ui/UsesFeaturePlatform.ts'))).toBe(

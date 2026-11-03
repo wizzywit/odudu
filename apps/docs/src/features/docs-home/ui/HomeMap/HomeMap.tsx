@@ -2,7 +2,7 @@ import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import { JOURNEYS } from '@site/nav';
 import type { HomeMapSections } from '@site/src/features/docs-home/services/homeMap';
 import type { ReactNode } from 'react';
-import { classNames } from '@site/src/shared/services/classNames';
+import { classNames } from '@site/src/shared/ui/classNames';
 import styles from '@site/src/features/docs-home/ui/HomeMap/HomeMap.module.css';
 
 const LOOKS = { primary: styles.primary, plain: undefined };

@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
-import { useDiagramId } from '@site/src/shared/use-cases/useDiagramId';
+import { useDiagramId } from '@site/src/shared/lib/use-cases/useDiagramId';
 import { DRAWINGS, type DiagramName } from '@site/src/shared/ui/Diagram/diagrams';
-import { WIDTH } from '@site/src/shared/services/diagram';
+import { WIDTH } from '@site/src/shared/lib/services/diagram';
 import styles from '@site/src/shared/ui/Diagram/Diagram.module.css';
 
 interface Props {

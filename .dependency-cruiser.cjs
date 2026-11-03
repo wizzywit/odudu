@@ -251,7 +251,7 @@ module.exports = {
       name: 'docs-service-imports-only-service',
       severity: 'error',
       comment:
-        'A docs service is pure: it imports other services, its own or shared/services, the ' +
+        'A docs service is pure: it imports other services, its own or shared/lib/services, the ' +
         "site's nav.ts and the picture manifests, and nothing else. A feature index.ts " +
         'is refused too, since it reaches views and usecases.',
       from: {
@@ -307,7 +307,7 @@ module.exports = {
         path: '(^|/)apps/docs/src/(?:ui|.*/ui)(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
-      to: { path: '(^|/)apps/docs/src/(?:shared|features/[^/]+)/platform/' },
+      to: { path: '(^|/)apps/docs/src/(?:shared/lib|features/[^/]+)/platform/' },
     },
     {
       name: 'docs-nothing-imports-routes',

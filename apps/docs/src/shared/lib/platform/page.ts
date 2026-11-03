@@ -1,4 +1,4 @@
-import { canObserve } from '@site/src/shared/platform/observe';
+import { canObserve } from '@site/src/shared/lib/platform/observe';
 
 // Reports whether the page is shown (not in a hidden tab); the returned function stops.
 export function watchPageShown(onChange: (shown: boolean) => void): () => void {

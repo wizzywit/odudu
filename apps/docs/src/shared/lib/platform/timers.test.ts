@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { schedule } from '@site/src/shared/platform/timers';
+import { schedule } from '@site/src/shared/lib/platform/timers';
 
 beforeEach(() => {
   vi.useFakeTimers();

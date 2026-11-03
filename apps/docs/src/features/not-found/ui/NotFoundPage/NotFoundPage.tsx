@@ -7,7 +7,7 @@ import {
   SEARCH_LABEL,
 } from '@site/src/features/not-found/services/notFound';
 import { LostArt } from '@site/src/features/not-found/ui/LostArt/LostArt';
-import { classNames } from '@site/src/shared/services/classNames';
+import { classNames } from '@site/src/shared/ui/classNames';
 import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import styles from '@site/src/features/not-found/ui/NotFoundPage/NotFoundPage.module.css';
 

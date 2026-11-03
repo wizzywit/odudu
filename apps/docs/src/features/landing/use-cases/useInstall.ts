@@ -17,10 +17,10 @@ import {
   type Typing,
 } from '@site/src/features/landing/services/installTyping';
 import type { Timers } from '@site/src/features/landing/services/typewriter';
-import { usePrefersReducedMotion } from '@site/src/shared/use-cases/usePrefersReducedMotion';
-import { copyText } from '@site/src/shared/platform/clipboard';
-import { schedule } from '@site/src/shared/platform/timers';
-import { useIdle } from '@site/src/shared/use-cases/useIdle';
+import { usePrefersReducedMotion } from '@site/src/shared/lib/use-cases/usePrefersReducedMotion';
+import { copyText } from '@site/src/shared/lib/platform/clipboard';
+import { schedule } from '@site/src/shared/lib/platform/timers';
+import { useIdle } from '@site/src/shared/lib/use-cases/useIdle';
 
 export interface Install {
   shell: Shell;

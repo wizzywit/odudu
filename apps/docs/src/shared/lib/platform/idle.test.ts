@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { whenIdle } from '@site/src/shared/platform/idle';
+import { whenIdle } from '@site/src/shared/lib/platform/idle';
 
 beforeEach(() => {
   vi.useFakeTimers();

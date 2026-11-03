@@ -12,13 +12,15 @@ function resolve(file: string, reference: ModuleReference): string {
     : reference.specifier;
 }
 
-const SHARED_SERVICES = /^(?:#\/|apps\/admin-console\/src\/)shared\/lib\/services(?:\/|$)/;
+const SHARED_SERVICES =
+  /^(?:#\/|@site\/src\/|apps\/admin-console\/src\/)shared\/lib\/services(?:\/|$)/;
+const SHARED_UI = /^apps\/(?:admin-console|docs)\/src\/shared\/ui\//;
 
 // The design system formats with the pure helpers in shared/lib/services; a
 // slice's services stay out of every view, shared/ui included (ADR 0048).
 function reachesServices(file: string, reference: ModuleReference): boolean {
   const resolved = resolve(file, reference);
-  if (file.startsWith('apps/admin-console/src/shared/ui/') && SHARED_SERVICES.test(resolved)) {
+  if (SHARED_UI.test(file) && SHARED_SERVICES.test(resolved)) {
     return false;
   }
   return segments(resolved).includes('services');
@@ -43,6 +45,8 @@ describe('view-no-service', () => {
       'apps/admin-console/src/shared/ui/Relative.tsx',
       'apps/admin-console/src/shared/ui/Slice.tsx',
       'apps/docs/src/features/alpha/ui/Dynamic.tsx',
+      'apps/docs/src/features/alpha/ui/ReachesShared.tsx',
+      'apps/docs/src/shared/ui/Slice.tsx',
     ]);
   });
 

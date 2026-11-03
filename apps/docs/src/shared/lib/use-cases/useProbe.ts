@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { absent, subscribeNever } from '@site/src/shared/platform/page';
+import { absent, subscribeNever } from '@site/src/shared/lib/platform/page';
 
 // A fact about the browser that does not change after load. The server and the
 // first client render both say no, so markup matches; the browser's answer follows.
