@@ -16,9 +16,8 @@ function Roles({ name, roles }: { name: string; roles: ScopeRoles }) {
       empty={roles.empty}
       mapping={roles}
       save={roles.save}
-    >
-      <p className={recordTab.rule}>{roles.pointer}</p>
-    </RoleMapping>
+      afterPicker={<p className={recordTab.rule}>{roles.pointer}</p>}
+    />
   );
 }
 

@@ -16,6 +16,7 @@ export function RoleMapping({
   empty,
   mapping,
   save,
+  afterPicker,
   children,
 }: {
   name: string;
@@ -24,6 +25,8 @@ export function RoleMapping({
   empty?: string | undefined;
   mapping: RoleMappingModel;
   save: Save;
+  // What one side adds between the picker and the kept-roles note.
+  afterPicker?: ReactNode;
   children?: ReactNode;
 }) {
   return (
@@ -40,6 +43,7 @@ export function RoleMapping({
       ) : (
         <p className={recordTab.rule}>Checking what you may give or take here…</p>
       )}
+      {afterPicker}
       {mapping.kept.length === 0 ? null : (
         <p className={recordTab.rule}>
           A role you could not give is one you cannot take away either, so it stays whatever else is

@@ -77,6 +77,40 @@ it('explains a role that stays, only when there is one', () => {
   expect(screen.getByText(/cannot take away either/u)).toBeVisible();
 });
 
+it('puts what follows the picker before the kept-roles note, and children after it', () => {
+  const mapping: RoleMappingModel = {
+    save: save(),
+    offered: false,
+    picker: pickerState([]),
+    unavailableOf: () => null,
+    choose: vi.fn(),
+    mapped: [],
+    kept: ['r-keys'],
+  };
+  render(
+    <RoleMapping
+      name="billing"
+      description="d"
+      mapping={mapping}
+      save={mapping.save}
+      afterPicker={<p>after the picker</p>}
+    >
+      <p>at the end</p>
+    </RoleMapping>,
+  );
+  const order = [
+    'Checking what you may give or take here…',
+    'after the picker',
+    /cannot take away either/u,
+    'at the end',
+  ].map((text) => screen.getByText(text));
+  for (let i = 1; i < order.length; i += 1) {
+    expect(order[i - 1]?.compareDocumentPosition(order[i] as Node)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  }
+});
+
 it('has no accessibility violations in either theme', async () => {
   expect(await axeInBothThemes(() => view({ offered: false }))).toEqual({ light: [], dark: [] });
 });
