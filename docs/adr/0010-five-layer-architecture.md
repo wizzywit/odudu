@@ -47,7 +47,7 @@ So, in a console:
 
 - **A usecase** holds hooks, local state, and calls. It calls service functions with that state and hands their results to the view, and it navigates. It decides nothing itself: no branch on domain data, no copy, no formatting, no failure classification.
 - **A repository** holds queries, mutations, cache keys and invalidation. It holds no rule about what the data means.
-- **A service** is where every such decision lives, as a pure function a unit test calls directly. A decision two features share lives once, in `shared/service`.
+- **A service** is where every such decision lives, as a pure function a unit test calls directly. A decision two features share lives once, in `shared/lib/services`.
 - **An adapter** maps the wire and nothing more.
 
 `tests/lint/console-usecase-integration-only.test.ts` holds the usecase and repository layers to this. It fails the build on the constructs that are logic in every case. The file name is fixed here and the checks are chosen by the audit that produced this amendment. A construct the test cannot see is still a breach.

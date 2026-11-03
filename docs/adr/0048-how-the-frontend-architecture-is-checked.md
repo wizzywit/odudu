@@ -207,3 +207,8 @@ case or repository. Test files and `testing/` are outside it. A slice's types
 file re-exports what the slice reads, so the rule fixes where a wire shape is
 named, not that it is mapped: camelCase domain types are a later pass
 (`docs/NEXT.md`).
+
+`console-no-browser-globals-below-ui` (in `tests/lint`, with fixtures) holds the
+console's use cases, repositories and services to reading no page global:
+`location`, `document`, `window`, `navigator`, storage and `console` go through
+`shared/lib/platform` or `shared/api/adapter`. A view keeps its DOM integration.

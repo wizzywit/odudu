@@ -30,7 +30,8 @@ Both frontends use one folder vocabulary, the segments `ui`, `use-cases`,
 **The docs app** (`apps/docs/src`): `features/<name>/{ui,use-cases,services}`
 with one `index.ts`, and `shared/{ui,lib}` where `lib` holds `services`,
 `use-cases` and `platform` (the browser wrappers a use case hands to a
-service). It has no `pages`, `widgets` or `entities`: it has no remote data.
+service; the landing feature keeps its own, `features/landing/platform`, for
+the reveal observers). It has no `pages`, `widgets` or `entities`: it has no remote data.
 
 Beyond the move:
 
@@ -39,12 +40,18 @@ Beyond the move:
   data (`entities/area`), the ceiling state machine (`Ceiling<Ready>`), the
   default-reach rule (`blockedByDefault`), the mapped-roles rule (`keptRoles`)
   and the exact copies of existing helpers.
-- Adapters map to domain types and each has a mapping test over a saved
-  response, including the nine that had no test.
+- Adapters parse the wire and each has a mapping test over a saved response,
+  including the nine that had no test. The `types/` files re-export the wire
+  shape in most slices and do not map it: the wire's snake_case names
+  (`admin_reach`, `client_key`) remain on the domain types (see Left).
 - Services split by concept, one file per noun phrase and none over 300 lines
   (`console-service-length`, now reading the docs app too).
 - The docs use cases no longer touch the clipboard, timers or observers
-  directly; they receive them from `shared/lib/platform`.
+  directly; they receive them from `shared/lib/platform`, or from the landing
+  feature's own `platform` folder for the reveal. The console's use cases,
+  repositories and services read no `location`, `document`, `window`,
+  `navigator`, storage or `console` either: `shared/lib/platform` and
+  `shared/api/adapter` read the page, and views keep their DOM integration.
 
 ## The architecture checks
 
@@ -56,7 +63,10 @@ ADR 0048 has the account.
 
 - `tests/lint/architecture`: `no-service-barrel`, `no-domain-in-shared`,
   `no-sideways-slice`, `view-no-service`, `no-adapter-export`, read over both
-  apps, plus `console-service-length`.
+  apps, plus `contracts-only-in-adapter` (the console only) and
+  `console-service-length`.
+- `tests/lint/console-no-browser-globals-below-ui.test.ts`: the page globals
+  above, read in no use case, repository or service (fixtures included).
 - dependency-cruiser (`pnpm boundaries`): `console-feature-imports-only-index`,
   `console-service-imports-only-service`, `console-service-entity-index-type-only`,
   `console-index-exports-ui-use-cases-services`, `console-lower-layers-import-no-upper`,
@@ -183,6 +193,15 @@ decision (spec D2). None changed a word a person reads.
   `types/` files hand the wire shape on unchanged; mapping them to camelCase
   domain types is in `docs/NEXT.md`, "Decisions still open", with the other
   cleanup.
+- **Large views and logic the lints do not see, for P4h.** `shared/ui/Field/Field.tsx`
+  (958 lines, 20 exports, formatting logic), `gallery/Gallery.tsx` (1239),
+  `app/router.tsx` (605) and the docs `Diagram/diagrams.tsx` (574): the 300-line
+  rule covers services only. Repository logic no lint matches
+  (`pages/tenants/repository/useCreation.ts`, `pages/scopes/repository/useScopeClients.ts`,
+  `entities/session/repository/useSessionQuery.ts`), endpoint paths built in
+  repositories (`pages/subjects/repository/useSessions.ts`, `useRecordActivity.ts`)
+  and phrasing in views (`SectionNotice`, `ChecklistField`, `Field`'s `counted`). All in
+  the same `docs/NEXT.md` row; **P4h** takes them with its rewrite of those files.
 - **Console literals, for P4h.** The console has no lint for typed text yet.
   `AuditDetail`, `AuditTable` and `RecordActivity` still hold literals ("Event
   id", "Details", "Close", "no subject", "from elsewhere"), and

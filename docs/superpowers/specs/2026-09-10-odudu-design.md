@@ -143,7 +143,7 @@ Permitted imports:
 
 | Layer      | May import                       | Never imports             |
 | ---------- | -------------------------------- | ------------------------- |
-| view       | own model, `shared/view`         | repository, adapter       |
+| view       | own model, `shared/ui`           | repository, adapter       |
 | usecase    | repository, service, view models | adapter                   |
 | repository | adapter, service                 | view, usecase             |
 | adapter    | transport, service               | view, usecase, repository |
