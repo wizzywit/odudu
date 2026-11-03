@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
-import { readCount, readJwks, readKeys, readLatestAudit } from '#/features/overview/adapter';
-import { fakeTransport, inTurn, json } from '#/testing/fakeTransport';
+import { readCount, readJwks, readLatestAudit } from '#/features/overview/adapter';
+import { fakeTransport, json } from '#/testing/fakeTransport';
 
 it("reads the tenant's JWKS through the gateway", async () => {
   const jwks = { keys: [{ kty: 'EC', kid: 'k1', alg: 'ES256', use: 'sig', crv: 'P-256' }] };
@@ -32,30 +32,6 @@ it('counts each collection at its own route', async () => {
   ]);
 });
 
-const KEY = {
-  id: 'k1',
-  status: 'active',
-  kid: 'kid1',
-  alg: 'ES256',
-  created_at: '2026-09-01T00:00:00Z',
-  not_after: null,
-};
-
-it('reads every signing key, following the cursor to the last page', async () => {
-  const fake = fakeTransport({
-    'GET /console/api/admin/tenants/acme/keys': inTurn(
-      json({ items: [KEY], next: 'c1' }),
-      json({ items: [{ ...KEY, id: 'k2', status: 'rotating' }] }),
-    ),
-  });
-  const result = await readKeys(fake.transport.gateway, 'acme');
-  expect(result).toMatchObject({ ok: true, data: [{ id: 'k1' }, { id: 'k2' }] });
-  expect(fake.sent.map((sent) => sent.search.toString())).toEqual([
-    'limit=200',
-    'limit=200&cursor=c1',
-  ]);
-});
-
 it('reads the five latest audit rows', async () => {
   const fake = fakeTransport({
     'GET /console/api/admin/tenants/acme/audit': json({ items: [] }),
@@ -65,17 +41,4 @@ it('reads the five latest audit rows', async () => {
     data: [],
   });
   expect(fake.sent[0]?.search.toString()).toBe('limit=5');
-});
-
-it('gives up, and says so, on a key list whose cursor never ends', async () => {
-  const fake = fakeTransport({
-    'GET /console/api/admin/tenants/acme/keys': json({ items: [KEY], next: 'again' }),
-  });
-  const logged: string[] = [];
-  const result = await readKeys(fake.transport.gateway, 'acme', (message) => {
-    logged.push(message);
-  });
-  expect(result).toEqual({ ok: false, kind: 'defect' });
-  expect(fake.calls).toHaveLength(10);
-  expect(logged).toEqual(['console defect: GET keys of acme still had a next page after 10 pages']);
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { keysView, publishedKeys } from '#/features/overview/services/keys';
 import { rawJson } from '#/features/overview/services/discovery';
-import { LOADING, ready, authority, areaOf, reads, KEYS } from '#/testing/overviewFixtures';
+import { LOADING, ready, authority, areaOf, reads, KEYS, RULES } from '#/testing/overviewFixtures';
 
 describe('the published keys', () => {
   const jwks = {
@@ -13,7 +13,7 @@ describe('the published keys', () => {
   };
 
   it('names each key by its lane, matched on kid', () => {
-    expect(publishedKeys(jwks, KEYS)).toEqual([
+    expect(publishedKeys(jwks, KEYS, RULES.publishedLane)).toEqual([
       { row: '0', kid: 'kid-a', kty: 'EC', alg: 'ES256', use: 'sig', lane: 'active' },
       { row: '1', kid: 'kid-r', kty: 'EC', alg: 'ES256', use: 'sig', lane: 'rotating' },
       { row: '2', kid: 'kid-x', kty: 'RSA', alg: null, use: null, lane: 'unlisted' },
@@ -21,7 +21,11 @@ describe('the published keys', () => {
   });
 
   it('tells apart two keys that carry no kid', () => {
-    const rows = publishedKeys({ keys: [{ kty: 'RSA' }, { kty: 'RSA' }] }, undefined);
+    const rows = publishedKeys(
+      { keys: [{ kty: 'RSA' }, { kty: 'RSA' }] },
+      undefined,
+      RULES.publishedLane,
+    );
     expect(new Set(rows.map((key) => key.row)).size).toBe(2);
   });
 
@@ -30,7 +34,7 @@ describe('the published keys', () => {
   });
 
   it('says the lane is unknown when the keys could not be read', () => {
-    expect(publishedKeys(jwks, undefined).map((key) => key.lane)).toEqual([
+    expect(publishedKeys(jwks, undefined, RULES.publishedLane).map((key) => key.lane)).toEqual([
       'unknown',
       'unknown',
       'unknown',
@@ -42,7 +46,12 @@ describe('the published keys the overview lays out', () => {
   const jwks = ready({ keys: [{ kty: 'EC', kid: 'kid-a', alg: 'ES256', use: 'sig' }] });
 
   it('carries each key in its lane when the key list was read', () => {
-    const view = keysView(reads({ jwks, keys: ready(KEYS) }), authority('manage-keys'), areaOf);
+    const view = keysView(
+      reads({ jwks, keys: ready(KEYS) }),
+      authority('manage-keys'),
+      areaOf,
+      RULES,
+    );
     expect(view).toMatchObject({
       status: 'ready',
       data: { lanesNeed: null, rows: [{ kid: 'kid-a', lane: 'active' }] },
@@ -50,7 +59,12 @@ describe('the published keys the overview lays out', () => {
   });
 
   it('leaves the lane unknown and names the capability when the list is not held', () => {
-    const view = keysView(reads({ jwks, keys: ready(KEYS) }), authority('view-users'), areaOf);
+    const view = keysView(
+      reads({ jwks, keys: ready(KEYS) }),
+      authority('view-users'),
+      areaOf,
+      RULES,
+    );
     expect(view).toMatchObject({
       status: 'ready',
       data: { lanesNeed: 'manage-keys', rows: [{ lane: 'unknown' }] },
@@ -58,6 +72,8 @@ describe('the published keys the overview lays out', () => {
   });
 
   it('is the JWKS read itself while it has not answered', () => {
-    expect(keysView(reads({ jwks: LOADING }), undefined, areaOf)).toEqual({ status: 'loading' });
+    expect(keysView(reads({ jwks: LOADING }), undefined, areaOf, RULES)).toEqual({
+      status: 'loading',
+    });
   });
 });

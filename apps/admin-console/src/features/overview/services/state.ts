@@ -1,6 +1,7 @@
 import { holds } from '#/shared/services/access';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
 import { type AttentionItem, needsAttention } from '#/features/overview/services/attention';
+import type { EntityRules } from '#/features/overview/services/entityRules';
 import { type OverviewReads, readyData } from '#/features/overview/services/reads';
 import { type AreaOf } from '#/features/overview/services/tiles';
 
@@ -33,6 +34,7 @@ export function attentionState(
   authority: Authority | undefined,
   areaOf: AreaOf,
   now: Date,
+  rules: EntityRules,
 ): AttentionData {
   const used = [reads.settings, reads.smtp, reads.keys, reads.counts.clients];
   const unchecked = authority === undefined ? [] : CHECKED_WITH.filter((c) => !holds(authority, c));
@@ -43,6 +45,7 @@ export function attentionState(
     keys: readyData(reads.keys),
     clients: readyData(reads.counts.clients),
     now,
+    rules,
   }).map((item) => {
     const place = areaOf(item.area);
     return { ...item, href: place.href, place: place.label };

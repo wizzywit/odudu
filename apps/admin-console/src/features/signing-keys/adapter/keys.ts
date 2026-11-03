@@ -1,9 +1,6 @@
 import { signingKeySchema, type SigningKey, type SigningKeyAlg } from '@odudu/contracts/admin';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { readKeyPage } from '#/shared/adapter/directory';
 import { adminCall, nothing } from '#/shared/adapter/route';
-
-export { readKeyPage };
 
 export function stageKey(
   gateway: Gateway,

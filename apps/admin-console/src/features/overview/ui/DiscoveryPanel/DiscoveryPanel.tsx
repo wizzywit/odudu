@@ -1,7 +1,8 @@
 import { Fragment, useId, type ReactNode } from 'react';
+import type { PublishedLane } from '#/entities/signing-key';
 import { flagText } from '#/shared/services/format';
 import { type DiscoveryView } from '#/features/overview/services/discovery';
-import { type KeyLane, type KeysView, type PublishedKey } from '#/features/overview/services/keys';
+import { type KeysView, type PublishedKey } from '#/features/overview/services/keys';
 import { laneText, unreadableTitle } from '#/features/overview/services/panelText';
 import { type OverviewRead } from '#/features/overview/services/reads';
 import { Panel } from '#/features/overview/ui/Panel';
@@ -13,7 +14,7 @@ import { TableSkeleton, TermsSkeleton } from '#/shared/ui/Skeleton';
 import { StatusTag, type StatusTone } from '#/shared/ui/StatusTag';
 import styles from '#/features/overview/ui/DiscoveryPanel/DiscoveryPanel.module.css';
 
-const TONES: Record<KeyLane, StatusTone> = {
+const TONES: Record<PublishedLane, StatusTone> = {
   active: 'active',
   rotating: 'neutral',
   retired: 'danger',

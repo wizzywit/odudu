@@ -1,7 +1,7 @@
-import { type KeyLane } from '#/features/overview/services/keys';
+import type { PublishedLane } from '#/entities/signing-key';
 import { groupedNumber } from '#/shared/services/format';
 
-export function laneText(lane: KeyLane): string {
+export function laneText(lane: PublishedLane): string {
   return lane === 'unlisted' ? 'not in the key list' : lane;
 }
 

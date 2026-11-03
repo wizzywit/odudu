@@ -1,5 +1,7 @@
 import type { SigningKey, SmtpConfig } from '@odudu/contracts/admin';
+import { publishedLane, readyToPromote } from '#/entities/signing-key';
 import type { AttentionInputs } from '#/features/overview/services/attention';
+import type { EntityRules } from '#/features/overview/services/entityRules';
 import type { OverviewRead, OverviewReads } from '#/features/overview/services/reads';
 import type { AreaOf } from '#/features/overview/services/tiles';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
@@ -83,6 +85,8 @@ export const SMTP_NONE: SmtpConfig = {
   effective: 'none',
 };
 
+export const RULES: EntityRules = { readyToPromote, publishedLane };
+
 export const QUIET: AttentionInputs = {
   settings: {
     verify_email: false,
@@ -95,4 +99,5 @@ export const QUIET: AttentionInputs = {
   clients: { count: 3, capped: false },
   // Half an hour after the rotating key was staged.
   now: new Date('2026-09-02T00:30:00Z'),
+  rules: RULES,
 };

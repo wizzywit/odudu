@@ -1,7 +1,6 @@
 import {
   listClientsResponseSchema,
   listGroupsResponseSchema,
-  listKeysResponseSchema,
   listRolesResponseSchema,
   listScopesResponseSchema,
 } from '@odudu/contracts/admin';
@@ -14,4 +13,3 @@ export const readRoleCount = countReader('roles');
 export const readGroupPage = listReader('groups', listGroupsResponseSchema);
 export const readScopePage = listReader('scopes', listScopesResponseSchema);
 export const readClientPage = listReader('clients', listClientsResponseSchema);
-export const readKeyPage = listReader('keys', listKeysResponseSchema);

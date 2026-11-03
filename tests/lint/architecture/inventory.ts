@@ -137,8 +137,6 @@ export const INVENTORY: Record<RuleId, string[]> = {
     'apps/admin-console/src/shared/services/ids.ts',
     'apps/admin-console/src/shared/services/json.test.ts',
     'apps/admin-console/src/shared/services/json.ts',
-    'apps/admin-console/src/shared/services/keyPromotion.test.ts',
-    'apps/admin-console/src/shared/services/keyPromotion.ts',
     'apps/admin-console/src/shared/services/labels.test.ts',
     'apps/admin-console/src/shared/services/labels.ts',
     'apps/admin-console/src/shared/services/locales.test.ts',

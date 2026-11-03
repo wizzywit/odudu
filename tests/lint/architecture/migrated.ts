@@ -8,6 +8,7 @@ export const MIGRATED: readonly string[] = [
   'apps/admin-console/src/entities/role',
   'apps/admin-console/src/entities/scope',
   'apps/admin-console/src/entities/session',
+  'apps/admin-console/src/entities/signing-key',
   'apps/admin-console/src/entities/subject',
   'apps/admin-console/src/entities/tenant',
   'apps/admin-console/src/features/begin-administrator',

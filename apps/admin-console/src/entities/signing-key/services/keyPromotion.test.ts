@@ -1,10 +1,11 @@
-import type { SigningKey } from '@odudu/contracts/admin';
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   LONGEST_TOKEN_LIFETIME_SECONDS,
   promotableAt,
   readyToPromote,
-} from '#/shared/services/keyPromotion';
+  promotionOf,
+} from '#/entities/signing-key/services/keyPromotion';
+import type { SigningKey } from '#/entities/signing-key/types/signingKey';
 
 const NOW = new Date('2026-09-29T12:00:00Z');
 
@@ -74,4 +75,46 @@ it('says when a rotating key becomes ready', () => {
   const staged = key({ created_at: '2026-09-29T11:00:00Z' });
   expect(promotableAt(staged).toISOString()).toBe('2026-09-29T12:05:00.000Z');
   expect(promotableAt(staged, 60).toISOString()).toBe('2026-09-29T11:06:00.000Z');
+});
+
+describe('promotionOf', () => {
+  it('is ready for a rotating key published longer than the longest token lives', () => {
+    expect(promotionOf(key({}), [ACTIVE], NOW, true)).toEqual({ kind: 'ready' });
+  });
+
+  it('says when a young key becomes ready', () => {
+    const young = key({ created_at: '2026-09-29T11:30:00Z' });
+    expect(promotionOf(young, [ACTIVE], NOW, true)).toEqual({
+      kind: 'young',
+      at: new Date('2026-09-29T12:35:00Z'),
+    });
+  });
+
+  it('is young at exactly the lifetime and margin and ready a second after', () => {
+    const at = new Date(NOW.getTime() - (3600 + 300) * 1000);
+    const edge = key({ created_at: at.toISOString() });
+    const over = key({ created_at: new Date(at.getTime() - 1000).toISOString() });
+    expect(promotionOf(edge, [ACTIVE], NOW, true)).toEqual({ kind: 'young', at: NOW });
+    expect(promotionOf(over, [ACTIVE], NOW, true)).toEqual({ kind: 'ready' });
+  });
+
+  it('says why a key of another algorithm than the active one is not offered', () => {
+    expect(promotionOf(key({ alg: 'RS256' }), [ACTIVE], NOW, true)).toEqual({
+      kind: 'algorithm',
+      active: 'ES256',
+    });
+  });
+
+  it('says a key older than the active one is probably the one it replaced', () => {
+    const older = key({ created_at: '2026-08-01T00:00:00Z' });
+    expect(promotionOf(older, [ACTIVE], NOW, true)).toEqual({ kind: 'replaced' });
+  });
+
+  it('judges nothing while the active key has not been read', () => {
+    expect(promotionOf(key({}), [], NOW, false)).toEqual({ kind: 'unknown' });
+  });
+
+  it('is ready with no active key at all, once old enough', () => {
+    expect(promotionOf(key({}), [], NOW, true)).toEqual({ kind: 'ready' });
+  });
 });

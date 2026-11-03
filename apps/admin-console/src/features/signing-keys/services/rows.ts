@@ -1,8 +1,9 @@
 import type { SigningKey, SigningKeyAlg } from '@odudu/contracts/admin';
+import type { Promotion } from '#/entities/signing-key';
 import type { NamedDialog } from '#/shared/services/dialog';
 import { dialogOf } from '#/features/signing-keys/services/confirm';
 import type { KeyAction } from '#/features/signing-keys/services/outcome';
-import type { Promotion, PromotionReading } from '#/features/signing-keys/services/promotion';
+import type { PromotionReading } from '#/features/signing-keys/services/promotion';
 import { defaultAlg } from '#/features/signing-keys/services/stage';
 
 export interface KeyRow {

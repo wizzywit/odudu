@@ -1,5 +1,6 @@
 import type { SigningKey, SigningKeyAlg } from '@odudu/contracts/admin';
 import { useState } from 'react';
+import { promotionOf, type Promotion } from '#/entities/signing-key';
 import { useRefusal } from '#/entities/session';
 import { useKeyLane, type KeyLane } from '#/features/signing-keys/repository/useKeyLane';
 import {
@@ -10,9 +11,7 @@ import {
 } from '#/features/signing-keys/repository/useKeyWrites';
 import { keyActionOutcome, type KeyAction } from '#/features/signing-keys/services/outcome';
 import {
-  promotionOf,
   promotionReading,
-  type Promotion,
   type PromotionReading,
 } from '#/features/signing-keys/services/promotion';
 import {

@@ -1,5 +1,5 @@
 import type { CountResponse, Settings, SigningKey, SmtpConfig } from '@odudu/contracts/admin';
-import { readyToPromote } from '#/shared/services/keyPromotion';
+import type { EntityRules } from '#/features/overview/services/entityRules';
 
 export interface AttentionItem {
   id: string;
@@ -17,6 +17,7 @@ export interface AttentionInputs {
   keys: readonly SigningKey[] | undefined;
   clients: CountResponse | undefined;
   now: Date;
+  rules: EntityRules;
 }
 
 function mailNeeds(settings: Settings): string | null {
@@ -41,8 +42,12 @@ function mail(settings: Settings | undefined, smtp: SmtpConfig | undefined): Att
   ];
 }
 
-function promotions(keys: readonly SigningKey[] | undefined, now: Date): AttentionItem[] {
-  return (keys === undefined ? [] : readyToPromote(keys, now)).map((key) => ({
+function promotions(
+  keys: readonly SigningKey[] | undefined,
+  now: Date,
+  rules: EntityRules,
+): AttentionItem[] {
+  return (keys === undefined ? [] : rules.readyToPromote(keys, now)).map((key) => ({
     id: `key:${key.id}`,
     area: 'keys',
     title: 'A signing key is ready to promote',
@@ -75,7 +80,7 @@ function registration(
 export function needsAttention(inputs: AttentionInputs): readonly AttentionItem[] {
   return [
     ...mail(inputs.settings, inputs.smtp),
-    ...promotions(inputs.keys, inputs.now),
+    ...promotions(inputs.keys, inputs.now, inputs.rules),
     ...registration(inputs.settings, inputs.clients),
   ];
 }

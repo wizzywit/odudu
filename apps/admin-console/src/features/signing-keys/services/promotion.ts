@@ -1,33 +1,5 @@
-import type { SigningKey } from '@odudu/contracts/admin';
+import type { Promotion } from '#/entities/signing-key';
 import { formatAbsolute } from '#/shared/services/format';
-import { promotableAt, readyToPromote } from '#/shared/services/keyPromotion';
-
-export type Promotion =
-  | { kind: 'ready' }
-  | { kind: 'young'; at: Date }
-  | { kind: 'algorithm'; active: string }
-  | { kind: 'replaced' }
-  | { kind: 'unknown' };
-
-// Judged against the active key, so nothing is judged until it has been read.
-export function promotionOf(
-  key: SigningKey,
-  keys: readonly SigningKey[],
-  now: Date,
-  activeKnown: boolean,
-): Promotion {
-  if (!activeKnown) return { kind: 'unknown' };
-  const active = keys.find((other) => other.status === 'active');
-  if (readyToPromote([...(active === undefined ? [] : [active]), key], now).length > 0) {
-    return { kind: 'ready' };
-  }
-  const at = promotableAt(key);
-  if (now.getTime() <= at.getTime()) return { kind: 'young', at };
-  if (active !== undefined && active.alg !== key.alg) {
-    return { kind: 'algorithm', active: active.alg };
-  }
-  return { kind: 'replaced' };
-}
 
 export function promotionLabel(promotion: Promotion): string {
   switch (promotion.kind) {

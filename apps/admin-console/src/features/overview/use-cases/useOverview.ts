@@ -1,8 +1,10 @@
 import type { AuditEvent } from '#/entities/audit-event';
+import { publishedLane, readyToPromote } from '#/entities/signing-key';
 import { useAuthority, useRefusal, useTenantMissing } from '#/entities/session';
 import { areaAt, areaHref } from '#/entities/area';
 import { useArea } from '#/widgets/shell';
 import { useOverviewReads } from '#/features/overview/repository/useOverviewReads';
+import type { EntityRules } from '#/features/overview/services/entityRules';
 import { discoveryView, type DiscoveryView } from '#/features/overview/services/discovery';
 import { keysView, type KeysView } from '#/features/overview/services/keys';
 import {
@@ -15,6 +17,8 @@ import {
 } from '#/features/overview/services/reads';
 import { attentionState, type AttentionState } from '#/features/overview/services/state';
 import { countTiles, type AreaOf, type CountTile } from '#/features/overview/services/tiles';
+
+const RULES: EntityRules = { readyToPromote, publishedLane };
 
 export interface Overview {
   discovery: OverviewRead<DiscoveryView>;
@@ -44,10 +48,10 @@ export function useOverview(tenant: string): Overview {
       if (capability !== null) refusal.report(result, capability);
     },
   );
-  const { retries, ...attention } = attentionState(reads, authority, areaOf, new Date());
+  const { retries, ...attention } = attentionState(reads, authority, areaOf, new Date(), RULES);
   return {
     discovery: mapOverviewRead(reads.discovery, discoveryView),
-    keys: keysView(reads, authority, areaOf),
+    keys: keysView(reads, authority, areaOf, RULES),
     tiles: countTiles(reads, authority, areaOf),
     attention: {
       ...attention,

@@ -1,4 +1,4 @@
-import type { SigningKey } from '@odudu/contracts/admin';
+import type { SigningKey } from '#/entities/signing-key/types/signingKey';
 
 // No signed token outlives its client's access token lifetime, which
 // `client_oidc_config_access_token_ttl_ceiling`
@@ -35,4 +35,31 @@ export function readyToPromote(
       (activeSince === null || new Date(key.created_at).getTime() > activeSince) &&
       now.getTime() > promotableAt(key, longestTokenLifetimeSeconds).getTime(),
   );
+}
+
+export type Promotion =
+  | { kind: 'ready' }
+  | { kind: 'young'; at: Date }
+  | { kind: 'algorithm'; active: string }
+  | { kind: 'replaced' }
+  | { kind: 'unknown' };
+
+// Judged against the active key, so nothing is judged until it has been read.
+export function promotionOf(
+  key: SigningKey,
+  keys: readonly SigningKey[],
+  now: Date,
+  activeKnown: boolean,
+): Promotion {
+  if (!activeKnown) return { kind: 'unknown' };
+  const active = keys.find((other) => other.status === 'active');
+  if (readyToPromote([...(active === undefined ? [] : [active]), key], now).length > 0) {
+    return { kind: 'ready' };
+  }
+  const at = promotableAt(key);
+  if (now.getTime() <= at.getTime()) return { kind: 'young', at };
+  if (active !== undefined && active.alg !== key.alg) {
+    return { kind: 'algorithm', active: active.alg };
+  }
+  return { kind: 'replaced' };
 }
