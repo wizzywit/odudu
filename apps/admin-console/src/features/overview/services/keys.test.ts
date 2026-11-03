@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { keysView, publishedKeys } from '#/features/overview/services/keys';
 import { rawJson } from '#/features/overview/services/discovery';
-import { LOADING, ready, authority, areaOf, reads, KEYS, RULES } from '#/testing/overviewFixtures';
+import {
+  TRANSCRIPT_JWKS,
+  LOADING,
+  ready,
+  authority,
+  areaOf,
+  reads,
+  KEYS,
+  RULES,
+} from '#/testing/overviewFixtures';
 
 describe('the published keys', () => {
   const jwks = {
@@ -74,6 +83,19 @@ describe('the published keys the overview lays out', () => {
   it('is the JWKS read itself while it has not answered', () => {
     expect(keysView(reads({ jwks: LOADING }), undefined, areaOf, RULES)).toEqual({
       status: 'loading',
+    });
+  });
+});
+
+describe('the published keys a running server published', () => {
+  it('carries the one RSA key with its kid, algorithm and use, and no lane when the list is unread', () => {
+    const [row] = publishedKeys(TRANSCRIPT_JWKS, undefined, RULES.publishedLane);
+    expect(row).toMatchObject({
+      kid: '01a0ea7f-01af-7637-a8b5-093872f1685f',
+      kty: 'RSA',
+      alg: 'RS256',
+      use: 'sig',
+      lane: 'unknown',
     });
   });
 });

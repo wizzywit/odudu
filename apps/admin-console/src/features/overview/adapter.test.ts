@@ -1,11 +1,20 @@
 import { expect, it } from 'vitest';
 import { readCount, readJwks, readLatestAudit } from '#/features/overview/adapter';
 import { fakeTransport, json } from '#/testing/fakeTransport';
+import { TRANSCRIPT_JWKS } from '#/testing/overviewFixtures';
 
 it("reads the tenant's JWKS through the gateway", async () => {
   const jwks = { keys: [{ kty: 'EC', kid: 'k1', alg: 'ES256', use: 'sig', crv: 'P-256' }] };
   const fake = fakeTransport({ 'GET /console/api/tenants/acme/jwks': json(jwks) });
   expect(await readJwks(fake.transport.gateway, 'acme')).toMatchObject({ ok: true, data: jwks });
+});
+
+it("reads a running server's JWKS, keeping the key's members the page does not read", async () => {
+  const fake = fakeTransport({ 'GET /console/api/tenants/acme/jwks': json(TRANSCRIPT_JWKS) });
+  expect(await readJwks(fake.transport.gateway, 'acme')).toMatchObject({
+    ok: true,
+    data: TRANSCRIPT_JWKS,
+  });
 });
 
 it('counts each collection at its own route', async () => {

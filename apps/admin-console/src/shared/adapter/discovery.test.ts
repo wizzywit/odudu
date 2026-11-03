@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { discoverySchema, readDiscovery } from '#/shared/adapter/discovery';
 import { fakeTransport, json } from '#/testing/fakeTransport';
+import { TRANSCRIPT_DISCOVERY } from '#/testing/overviewFixtures';
 
 const DISCOVERY = {
   issuer: 'https://id.example/tenants/acme',
@@ -39,5 +40,15 @@ it('refuses a discovery document with no issuer', async () => {
   expect(await readDiscovery(fake.transport.gateway, 'acme')).toEqual({
     ok: false,
     kind: 'schema',
+  });
+});
+
+it("reads a running server's discovery document whole", async () => {
+  const fake = fakeTransport({
+    'GET /console/api/tenants/system/discovery': json(TRANSCRIPT_DISCOVERY),
+  });
+  expect(await readDiscovery(fake.transport.gateway, 'system')).toMatchObject({
+    ok: true,
+    data: TRANSCRIPT_DISCOVERY,
   });
 });

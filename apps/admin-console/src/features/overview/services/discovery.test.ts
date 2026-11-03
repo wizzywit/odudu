@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { discoveryView } from '#/features/overview/services/discovery';
+import { TRANSCRIPT_DISCOVERY } from '#/testing/overviewFixtures';
 
 describe('the discovery document, as the page lays it out', () => {
   const view = discoveryView({
@@ -41,5 +42,41 @@ describe('the discovery document, as the page lays it out', () => {
       { name: 'claims_parameter_supported', value: true },
       { name: 'frontchannel_logout_supported', value: false },
     ]);
+  });
+});
+
+describe('the discovery document a running server published', () => {
+  const view = discoveryView(TRANSCRIPT_DISCOVERY);
+
+  it('keeps the issuer and the address of the document it publishes', () => {
+    expect(view.issuer).toBe('http://localhost:3082/tenants/system');
+    expect(view.document).toBe(
+      'http://localhost:3082/tenants/system/.well-known/openid-configuration',
+    );
+  });
+
+  it('lists the seven endpoints and the JWKS address in the document order', () => {
+    expect(view.endpoints.map((endpoint) => endpoint.name)).toEqual([
+      'authorization_endpoint',
+      'token_endpoint',
+      'introspection_endpoint',
+      'revocation_endpoint',
+      'userinfo_endpoint',
+      'jwks_uri',
+      'end_session_endpoint',
+    ]);
+  });
+
+  it('keeps the lists and the flags apart, and leaves out what is neither', () => {
+    expect(view.flags.map((flag) => flag.name)).toEqual([
+      'authorization_response_iss_parameter_supported',
+      'claims_parameter_supported',
+      'backchannel_logout_supported',
+      'backchannel_logout_session_supported',
+      'frontchannel_logout_supported',
+      'frontchannel_logout_session_supported',
+    ]);
+    expect(view.lists.map((list) => list.name)).not.toContain('claims_parameter_supported');
+    expect(view.lists.find((list) => list.name === 'scopes_supported')?.values).toContain('openid');
   });
 });
