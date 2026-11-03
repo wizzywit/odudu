@@ -119,16 +119,22 @@ boundaries`): the segment boundaries, which layer may import which, and the
   migration ends and every rule has an empty inventory. What remains is the
   rules, which then run with no exemption, like every other test in
   `tests/lint`.
-- The repository's `tsconfig` does not resolve `#/`, so dependency-cruiser
-  cannot see the console's own imports. A rule about those imports goes in
-  `tests/lint`; teaching dependency-cruiser the alias would move
-  them, and is not needed to finish the migration.
+- dependency-cruiser does resolve the console's `#/` specifiers: it reads
+  them through the `imports` map of `apps/admin-console/package.json`, which
+  the repository's `tsconfig` does not need (verified: `npx depcruise --config
+.dependency-cruiser.cjs -T json apps/admin-console/src/entities/subject/index.ts`
+  lists `#/entities/subject/services/subjectAddress` as resolved). Rules about
+  those imports may therefore live in `.dependency-cruiser.cjs`; `tests/lint`
+  keeps the ones that read the source itself.
 - The sideways rule compares slices of one layer only. A page importing a
-  feature is legal by the layer order and is not flagged, as it should not be;
-  a feature importing a page breaks that order and is not flagged either,
-  since dependency-cruiser cannot read `#/` and no `tests/lint` rule checks the
-  order. It showed in domain 3, when `features/groups` and `features/roles`
-  imported `pages/subjects` between two commits with every check green.
+  feature is legal by the layer order and is not flagged, as it should not be.
+  A feature importing a page broke that order unflagged in domain 3, when
+  `features/groups` and `features/roles` imported `pages/subjects` between two
+  commits with every check green. `console-features-import-no-page` and
+  `console-features-import-no-widget` close the gap. The widget rule exempts
+  the slices not yet migrated, which are pages in waiting;
+  `tests/lint/architecture/waiting.test.ts` keeps that list equal to the
+  features outside `migrated.ts`, so a slice that migrates must leave it.
 - Steiger's findings are not a gap in coverage we are accepting: the two
   checks it makes are made here, and it makes no check we lack except
   `insignificant-slice` and the naming rules, which are advice about FSD and

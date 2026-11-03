@@ -640,6 +640,20 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ]);
   });
 
+  it('rejects a feature importing a page', async () => {
+    const found = await violations('console-features-import-no-page');
+    expect(found.map((v) => v.from.replace(/^.*\/src\//u, ''))).toEqual([
+      'features/picked/reachesPage.ts',
+    ]);
+  });
+
+  it('rejects a migrated feature importing a widget, and not a slice in waiting', async () => {
+    const found = await violations('console-features-import-no-widget');
+    expect(found.map((v) => v.from.replace(/^.*\/src\//u, ''))).toEqual([
+      'features/picked/reachesWidget.ts',
+    ]);
+  });
+
   it('rejects console code importing the gallery', async () => {
     const found = await violations('console-nothing-imports-gallery');
     expect(found.some((v) => v.from.endsWith('shared/repository/galleryLeak.ts'))).toBe(true);

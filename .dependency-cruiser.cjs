@@ -159,6 +159,27 @@ module.exports = {
       to: { path: '(^|/)apps/admin-console/src/pages/' },
     },
     {
+      name: 'console-features-import-no-page',
+      severity: 'error',
+      comment: 'A feature is composed into a page, so it never imports one.',
+      from: { path: '(^|/)apps/admin-console/src/features/' },
+      to: { path: '(^|/)apps/admin-console/src/pages/' },
+    },
+    {
+      name: 'console-features-import-no-widget',
+      severity: 'error',
+      comment:
+        'A widget sits above a feature, so a feature never imports one. The slices still named ' +
+        'here are pages in waiting and may; tests/lint/architecture/waiting.test.ts keeps the ' +
+        'list equal to the features that are not migrated.',
+      from: {
+        path:
+          '(^|/)apps/admin-console/src/features/(?!(?:audit|branding|clients|email|failure|flow|' +
+          'groups|overview|registration-tokens|roles|scopes|settings|signing-keys)/)',
+      },
+      to: { path: '(^|/)apps/admin-console/src/widgets/' },
+    },
+    {
       name: 'console-nothing-imports-app',
       severity: 'error',
       comment:
