@@ -1,4 +1,4 @@
-import type { GroupRecord } from '@odudu/contracts/admin';
+import type { GroupRecord } from '#/entities/group';
 import { NAME_FIXED } from '#/features/groups/services/groupPath';
 import {
   useGroupGeneral,

@@ -1,4 +1,4 @@
-import type { Role } from '@odudu/contracts/admin';
+import type { Role } from '#/entities/role';
 import { readRoleCount, readRolePage } from '#/features/roles/adapter/roles';
 import { useResourceList } from '#/shared/repository/useResourceList';
 import type { ResourceListState } from '#/shared/services/resourceList';

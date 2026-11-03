@@ -1,4 +1,4 @@
-import { type Role } from '@odudu/contracts/admin';
+import type { Role } from '#/entities/role';
 import { blockedByDefault } from '#/shared/services/capabilities';
 import { andList } from '#/shared/services/format';
 import { isBuiltin } from '#/features/roles/services/roleDeletion';

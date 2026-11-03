@@ -1,4 +1,4 @@
-import type { GroupRecord } from '@odudu/contracts/admin';
+import type { GroupRecord } from '#/entities/group';
 import type { ReactNode } from 'react';
 import { useAuditReadable } from '#/entities/session';
 import { AreaGate } from '#/widgets/shell';

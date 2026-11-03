@@ -1,4 +1,4 @@
-import { type Group, type GroupRecord } from '@odudu/contracts/admin';
+import type { Group, GroupRecord } from '#/entities/group';
 import { beyondCaller } from '#/shared/services/capabilities';
 import { andList, capitalise } from '#/shared/services/format';
 import { type AdminCapability } from '#/shared/services/principal';

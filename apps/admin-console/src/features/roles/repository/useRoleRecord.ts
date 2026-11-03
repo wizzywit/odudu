@@ -1,4 +1,5 @@
-import type { ListRoleCompositesResponse, Role } from '@odudu/contracts/admin';
+import type { Role } from '#/entities/role';
+import type { Composites } from '#/features/roles/types/composite';
 import {
   addComposite,
   amendRole,
@@ -28,10 +29,7 @@ export function useRoleRecord(tenant: string, id: string): RecordState<Role> {
   });
 }
 
-export function useCompositesRecord(
-  tenant: string,
-  id: string,
-): RecordState<ListRoleCompositesResponse> {
+export function useCompositesRecord(tenant: string, id: string): RecordState<Composites> {
   return useRecord({
     tenant,
     record: compositesRecord(id),
@@ -102,7 +100,7 @@ export function useAddComposite(tenant: string, id: string) {
   return async (
     gateway: Gateway,
     { values, ifMatch }: SaveInput<AddValues>,
-  ): Promise<GatewayResult<ListRoleCompositesResponse>> => {
+  ): Promise<GatewayResult<Composites>> => {
     if (values.child_role_id === null) return { ok: false, kind: 'defect' };
     const added = after(await addComposite(gateway, tenant, id, values.child_role_id, ifMatch));
     if (!added.ok) return added;

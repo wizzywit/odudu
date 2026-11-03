@@ -1,4 +1,4 @@
-import { type Group, type GroupRecord } from '@odudu/contracts/admin';
+import type { Group, GroupRecord } from '#/entities/group';
 import { beyondCaller, blockedByDefault } from '#/shared/services/capabilities';
 import { andList } from '#/shared/services/format';
 import { type AdminCapability } from '#/shared/services/principal';

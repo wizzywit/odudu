@@ -1,4 +1,6 @@
-import { type Role, type ListRoleCompositesResponse } from '@odudu/contracts/admin';
+import type { Role } from '#/entities/role';
+import type { Composites } from '#/features/roles/types/composite';
+import type { RoleCopySource } from '#/features/roles/types/roleCopySource';
 import { withSearch } from '#/shared/services/address';
 import { newRoleHref } from '#/features/roles/services/roleAddress';
 import { type LeftOut, type PartialCopy } from '#/shared/services/copy';
@@ -20,7 +22,7 @@ export function copyHrefOf(tenant: string, role: Role | undefined): string | nul
 export type CopyRead =
   | { status: 'none' }
   | { status: 'loading' }
-  | { status: 'ready'; role: Role; children: ListRoleCompositesResponse['items'] }
+  | ({ status: 'ready' } & RoleCopySource)
   | { status: 'failed' };
 
 export type Copying =
@@ -79,12 +81,12 @@ export function copyingText(copying: { name: string; children: readonly string[]
 // The role with its children, or nothing when either read failed.
 export function copySourceOf(
   role: GatewayResult<Role>,
-  children: GatewayResult<ListRoleCompositesResponse>,
-): { role: Role; children: ListRoleCompositesResponse['items'] } | null {
+  children: GatewayResult<Composites>,
+): RoleCopySource | null {
   return role.ok && children.ok ? { role: role.data, children: children.data.items } : null;
 }
 
-export function sourceChildren(source: CopyRead): ListRoleCompositesResponse['items'] {
+export function sourceChildren(source: CopyRead): Role[] {
   return source.status === 'ready' ? source.children : [];
 }
 

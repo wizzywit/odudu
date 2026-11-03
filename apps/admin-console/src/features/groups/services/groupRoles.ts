@@ -1,7 +1,7 @@
 import { blockedByDefault, roleReachUnavailable } from '#/shared/services/capabilities';
 import { type AdminCapability } from '#/shared/services/principal';
 import { type Defaulting } from '#/features/groups/services/groupReach';
-import { type SetGroupRolesResponse } from '@odudu/contracts/admin';
+import type { GroupRole } from '#/features/groups/types/groupRoles';
 
 export function roleUnavailable(
   role: { name: string; client_key: string | null; admin_reach: readonly string[] },
@@ -17,7 +17,7 @@ export function roleUnavailable(
   return roleReachUnavailable(role, caller, tenant);
 }
 
-type MappedItem = SetGroupRolesResponse['items'][number];
+type MappedItem = GroupRole;
 
 // A role mapped here that the caller could not give is one it cannot take.
 export function keptRoles(

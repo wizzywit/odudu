@@ -1,15 +1,20 @@
-import {
-  listRoleCompositesResponseSchema,
-  MAX_LIMIT,
-  roleSchema,
-  type ListRoleCompositesResponse,
-  type Role,
-} from '@odudu/contracts/admin';
-import { readRole, readRoleCount, readRolePage } from '#/shared/adapter/directory';
+import { listRoleCompositesResponseSchema, MAX_LIMIT, roleSchema } from '@odudu/contracts/admin';
+import { readRoleCount, readRolePage } from '#/shared/adapter/directory';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { adminCall, firstMatch, nothing } from '#/shared/adapter/route';
+import type { Role } from '#/entities/role';
+import type { Composites } from '#/features/roles/types/composite';
 
-export { readRole, readRoleCount, readRolePage };
+export { readRoleCount, readRolePage };
+
+// One role with what it reaches, for a list that names a role by id alone.
+export function readRole(
+  gateway: Gateway,
+  tenant: string,
+  roleId: string,
+): Promise<GatewayResult<Role>> {
+  return adminCall(gateway, 'GET', tenant, ['roles', roleId], { schema: roleSchema });
+}
 
 // A tenant role: a client's own roles are made from that client's page.
 export function createRole(
@@ -67,7 +72,7 @@ export function readComposites(
   gateway: Gateway,
   tenant: string,
   roleId: string,
-): Promise<GatewayResult<ListRoleCompositesResponse>> {
+): Promise<GatewayResult<Composites>> {
   return adminCall(gateway, 'GET', tenant, ['roles', roleId, 'composites'], {
     schema: listRoleCompositesResponseSchema,
   });

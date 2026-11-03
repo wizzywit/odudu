@@ -1,4 +1,5 @@
-import type { GroupRecord, SetGroupRolesResponse } from '@odudu/contracts/admin';
+import type { GroupRecord } from '#/entities/group';
+import type { GroupRole } from '#/features/groups/types/groupRoles';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
@@ -30,7 +31,7 @@ function ceilingOf(caller: Extract<GroupCeiling, { status: 'ready' }>['caller'])
 }
 
 function roles(
-  items: SetGroupRolesResponse['items'],
+  items: GroupRole[],
   caller: Extract<GroupCeiling, { status: 'ready' }>['caller'],
   extra: Record<string, Answer> = {},
 ) {

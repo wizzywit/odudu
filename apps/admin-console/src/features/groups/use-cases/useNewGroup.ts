@@ -1,4 +1,4 @@
-import type { Group } from '@odudu/contracts/admin';
+import type { Group } from '#/entities/group';
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useCreateGroup } from '#/features/groups/repository/useCreateGroup';

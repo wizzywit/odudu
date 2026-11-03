@@ -1,4 +1,4 @@
-import type { Role } from '@odudu/contracts/admin';
+import type { Role } from '#/entities/role';
 import { useAuthority } from '#/entities/session';
 import { useRoleRecord } from '#/features/roles/repository/useRoleRecord';
 import { copyHrefOf } from '#/features/roles/services/roleCopy';

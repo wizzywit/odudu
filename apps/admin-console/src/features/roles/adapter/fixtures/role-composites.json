@@ -1,0 +1,24 @@
+{
+  "items": [
+    {
+      "id": "01a10bd5-5894-7574-967a-b9d73aca3cc2",
+      "name": "billing-viewer",
+      "description": null,
+      "client_id": null,
+      "client_key": null,
+      "default_for_new_subjects": false,
+      "created_at": "2026-10-05T11:31:33.651Z",
+      "admin_reach": []
+    },
+    {
+      "id": "01a10bd5-58b1-7f83-933d-edbb5b0d9d23",
+      "name": "invoice-editor",
+      "description": null,
+      "client_id": null,
+      "client_key": null,
+      "default_for_new_subjects": false,
+      "created_at": "2026-10-05T11:31:33.680Z",
+      "admin_reach": []
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import type { Group } from '@odudu/contracts/admin';
+import type { Group } from '#/entities/group';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { useGroupsList } from '#/features/groups/use-cases/useGroupsList';

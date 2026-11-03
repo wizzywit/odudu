@@ -12,13 +12,17 @@ import {
   removeComposite,
   setRoleDefault,
 } from '#/features/roles/adapter/roles';
+import composites from '#/features/roles/adapter/fixtures/role-composites.json';
+import count from '#/features/roles/adapter/fixtures/role-count.json';
+import list from '#/features/roles/adapter/fixtures/role-list.json';
+import bundle from '#/features/roles/adapter/fixtures/role.json';
 import { fakeTransport, json } from '#/testing/fakeTransport';
-import { role } from '#/testing/roleAnswers';
 
 const R = '/console/api/admin/tenants/acme/roles';
 
-const AUDITOR = role('r-aud', 'auditor');
-const READER = role('r-read', 'reader');
+const BUNDLE = `${R}/${bundle.id}`;
+const CHILD = composites.items.at(0)?.id ?? '';
+const BILLING_VIEWER = list.items.find((each) => each.name === 'billing-viewer');
 
 function noContent(etag: string) {
   return () => new Response(null, { status: 204, headers: { etag } });
@@ -26,67 +30,78 @@ function noContent(etag: string) {
 
 it('lists and counts roles by the query given', async () => {
   const fake = fakeTransport({
-    [`GET ${R}`]: json({ items: [AUDITOR] }),
-    [`GET ${R}/count`]: json({ count: 1, capped: false }),
+    [`GET ${R}`]: json(list),
+    [`GET ${R}/count`]: json(count),
   });
   const gateway = fake.transport.gateway;
   expect(
     await readRolePage(gateway, 'acme', new URLSearchParams({ client: 'tenant' })),
-  ).toMatchObject({ ok: true, data: { items: [AUDITOR] } });
+  ).toMatchObject({ ok: true, data: list });
   expect(fake.sent.at(-1)?.search.get('client')).toBe('tenant');
-  await readRoleCount(gateway, 'acme', new URLSearchParams({ name: 'a' }));
-  expect(fake.sent.at(-1)?.search.get('name')).toBe('a');
+  expect(
+    await readRoleCount(gateway, 'acme', new URLSearchParams({ name: 'billing' })),
+  ).toMatchObject({ ok: true, data: count });
+  expect(fake.sent.at(-1)?.search.get('name')).toBe('billing');
 });
 
 it('creates a tenant role, with a description only when given', async () => {
-  const fake = fakeTransport({ [`POST ${R}`]: json(AUDITOR, 201) });
+  const fake = fakeTransport({ [`POST ${R}`]: json(bundle, 201) });
   const gateway = fake.transport.gateway;
-  await createRole(gateway, 'acme', { name: 'auditor', description: '' });
-  expect(fake.sent.at(-1)?.body).toEqual({ name: 'auditor' });
-  await createRole(gateway, 'acme', { name: 'auditor', description: 'Reads the books' });
-  expect(fake.sent.at(-1)?.body).toEqual({ name: 'auditor', description: 'Reads the books' });
+  expect(
+    await createRole(gateway, 'acme', { name: 'audit-bundle', description: '' }),
+  ).toMatchObject({ ok: true, data: bundle });
+  expect(fake.sent.at(-1)?.body).toEqual({ name: 'audit-bundle' });
+  await createRole(gateway, 'acme', { name: 'audit-bundle', description: 'Reads the books' });
+  expect(fake.sent.at(-1)?.body).toEqual({
+    name: 'audit-bundle',
+    description: 'Reads the books',
+  });
 });
 
 it('reads, amends, marks and deletes a role, each write on the ETag given', async () => {
   const fake = fakeTransport({
-    [`GET ${R}/r-aud`]: json(AUDITOR, 200, { etag: '"a1"' }),
-    [`PATCH ${R}/r-aud`]: json(AUDITOR, 200, { etag: '"a2"' }),
-    [`PUT ${R}/r-aud/default`]: json(AUDITOR, 200, { etag: '"a3"' }),
-    [`DELETE ${R}/r-aud`]: () => new Response(null, { status: 204 }),
+    [`GET ${BUNDLE}`]: json(bundle, 200, { etag: '"a1"' }),
+    [`PATCH ${BUNDLE}`]: json(bundle, 200, { etag: '"a2"' }),
+    [`PUT ${BUNDLE}/default`]: json(bundle, 200, { etag: '"a3"' }),
+    [`DELETE ${BUNDLE}`]: () => new Response(null, { status: 204 }),
   });
   const gateway = fake.transport.gateway;
-  expect(await readRole(gateway, 'acme', 'r-aud')).toMatchObject({ ok: true, etag: '"a1"' });
-  await amendRole(gateway, 'acme', 'r-aud', { description: null }, '"a1"');
+  expect(await readRole(gateway, 'acme', bundle.id)).toMatchObject({
+    ok: true,
+    etag: '"a1"',
+    data: bundle,
+  });
+  await amendRole(gateway, 'acme', bundle.id, { description: null }, '"a1"');
   expect(fake.sent.at(-1)).toMatchObject({ body: { description: null }, ifMatch: '"a1"' });
-  await amendRole(gateway, 'acme', 'r-aud', { description: '' }, '"a1"');
+  await amendRole(gateway, 'acme', bundle.id, { description: '' }, '"a1"');
   expect(fake.sent.at(-1)?.body).toEqual({ description: null });
-  await amendRole(gateway, 'acme', 'r-aud', { description: 'Reads' }, '"a1"');
+  await amendRole(gateway, 'acme', bundle.id, { description: 'Reads' }, '"a1"');
   expect(fake.sent.at(-1)?.body).toEqual({ description: 'Reads' });
-  await setRoleDefault(gateway, 'acme', 'r-aud', true, '"a2"');
+  await setRoleDefault(gateway, 'acme', bundle.id, true, '"a2"');
   expect(fake.sent.at(-1)).toMatchObject({ body: { default: true }, ifMatch: '"a2"' });
-  expect(await deleteRole(gateway, 'acme', 'r-aud')).toMatchObject({ ok: true });
+  expect(await deleteRole(gateway, 'acme', bundle.id)).toMatchObject({ ok: true });
 });
 
 it("reads a role's composites and changes them one edge at a time, on their ETag", async () => {
   const fake = fakeTransport({
-    [`GET ${R}/r-aud/composites`]: json({ items: [READER] }, 200, { etag: '"c1"' }),
-    [`POST ${R}/r-aud/composites`]: noContent('"c2"'),
-    [`DELETE ${R}/r-aud/composites/r-read`]: noContent('"c3"'),
+    [`GET ${BUNDLE}/composites`]: json(composites, 200, { etag: '"c1"' }),
+    [`POST ${BUNDLE}/composites`]: noContent('"c2"'),
+    [`DELETE ${BUNDLE}/composites/${CHILD}`]: noContent('"c3"'),
   });
   const gateway = fake.transport.gateway;
-  expect(await readComposites(gateway, 'acme', 'r-aud')).toMatchObject({
+  expect(await readComposites(gateway, 'acme', bundle.id)).toMatchObject({
     ok: true,
     etag: '"c1"',
-    data: { items: [READER] },
+    data: composites,
   });
-  expect(await addComposite(gateway, 'acme', 'r-aud', 'r-read', '"c1"')).toMatchObject({
+  expect(await addComposite(gateway, 'acme', bundle.id, CHILD, '"c1"')).toMatchObject({
     ok: true,
     etag: '"c2"',
   });
-  expect(fake.sent.at(-1)).toMatchObject({ body: { child_role_id: 'r-read' }, ifMatch: '"c1"' });
-  await addComposite(gateway, 'acme', 'r-aud', 'r-read', null);
+  expect(fake.sent.at(-1)).toMatchObject({ body: { child_role_id: CHILD }, ifMatch: '"c1"' });
+  await addComposite(gateway, 'acme', bundle.id, CHILD, null);
   expect(fake.sent.at(-1)?.ifMatch).toBeNull();
-  expect(await removeComposite(gateway, 'acme', 'r-aud', 'r-read', '"c2"')).toMatchObject({
+  expect(await removeComposite(gateway, 'acme', bundle.id, CHILD, '"c2"')).toMatchObject({
     ok: true,
     etag: '"c3"',
   });
@@ -94,12 +109,13 @@ it("reads a role's composites and changes them one edge at a time, on their ETag
 });
 
 it('finds a tenant role by its exact name, for a creation whose answer was lost', async () => {
-  const fake = fakeTransport({
-    [`GET ${R}`]: json({ items: [role('r-x', 'auditors'), AUDITOR] }),
-  });
+  const fake = fakeTransport({ [`GET ${R}`]: json(list) });
   const gateway = fake.transport.gateway;
-  expect(await findRole(gateway, 'acme', 'auditor')).toMatchObject({ ok: true, data: AUDITOR });
+  expect(await findRole(gateway, 'acme', 'billing-viewer')).toMatchObject({
+    ok: true,
+    data: BILLING_VIEWER,
+  });
   expect(fake.sent.at(-1)?.search.get('client')).toBe('tenant');
   expect(fake.sent.at(-1)?.search.get('limit')).toBe('200');
-  expect(await findRole(gateway, 'acme', 'nobody')).toMatchObject({ ok: true, data: null });
+  expect(await findRole(gateway, 'acme', 'billing')).toMatchObject({ ok: true, data: null });
 });

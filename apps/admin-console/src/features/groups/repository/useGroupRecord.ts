@@ -1,4 +1,5 @@
-import type { GroupRecord, SetGroupRolesResponse } from '@odudu/contracts/admin';
+import type { GroupRecord } from '#/entities/group';
+import type { GroupRoleList } from '#/features/groups/types/groupRoles';
 import {
   amendGroup,
   deleteGroup,
@@ -34,10 +35,7 @@ export function useGroupRecord(tenant: string, id: string): RecordState<GroupRec
   });
 }
 
-export function useGroupRolesRecord(
-  tenant: string,
-  id: string,
-): RecordState<SetGroupRolesResponse> {
+export function useGroupRolesRecord(tenant: string, id: string): RecordState<GroupRoleList> {
   return useRecord({
     tenant,
     record: groupRolesRecord(id),

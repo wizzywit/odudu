@@ -1,4 +1,4 @@
-import type { Role } from '@odudu/contracts/admin';
+import type { Role } from '#/entities/role';
 import { useQuery } from '@tanstack/react-query';
 import {
   addComposite,

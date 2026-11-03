@@ -1,4 +1,4 @@
-import type { Group } from '@odudu/contracts/admin';
+import type { Group } from '#/entities/group';
 import { createGroup, findGroup } from '#/features/groups/adapter/groups';
 import { findKey, listKey, pickerKey } from '#/shared/repository/queryKeys';
 import { useFreshRead } from '#/shared/repository/useFreshRead';

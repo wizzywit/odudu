@@ -1,4 +1,6 @@
-import type { GroupRecord, Role, SetGroupRolesResponse } from '@odudu/contracts/admin';
+import type { GroupRecord } from '#/entities/group';
+import type { Role } from '#/entities/role';
+import type { GroupRoleList } from '#/features/groups/types/groupRoles';
 import { useState } from 'react';
 import { useRefusal, useRereadAuthority } from '#/entities/session';
 import { useOwnRoles } from '#/features/own-roles';
@@ -27,7 +29,7 @@ import {
 } from '#/shared/services/mappedRoles';
 import { ceilingCaller } from '#/shared/services/access';
 
-export function useGroupRolesRead(tenant: string, id: string): RecordState<SetGroupRolesResponse> {
+export function useGroupRolesRead(tenant: string, id: string): RecordState<GroupRoleList> {
   return useGroupRolesRecord(tenant, id);
 }
 
@@ -58,7 +60,7 @@ export function useGroupRoles({
 }: {
   tenant: string;
   group: GroupRecord;
-  data: SetGroupRolesResponse;
+  data: GroupRoleList;
   etag: string;
   gone: boolean;
   ceiling: GroupCeiling;

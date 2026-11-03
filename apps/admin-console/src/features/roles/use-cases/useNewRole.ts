@@ -1,4 +1,4 @@
-import type { Role } from '@odudu/contracts/admin';
+import type { Role } from '#/entities/role';
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useCopySource, useCreateRole } from '#/features/roles/repository/useCreateRole';

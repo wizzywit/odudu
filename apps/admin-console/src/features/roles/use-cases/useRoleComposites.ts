@@ -1,4 +1,5 @@
-import type { ListRoleCompositesResponse, Role } from '@odudu/contracts/admin';
+import type { Role } from '#/entities/role';
+import type { Composites } from '#/features/roles/types/composite';
 import { useState } from 'react';
 import { useRefusal, useRereadAuthority } from '#/entities/session';
 import { useOwnRoles } from '#/features/own-roles';
@@ -35,10 +36,7 @@ import { firstChosen, type PickerState } from '#/shared/services/picker';
 import { ceilingCaller } from '#/shared/services/access';
 import { indexById } from '#/shared/services/ids';
 
-export function useCompositesRead(
-  tenant: string,
-  id: string,
-): RecordState<ListRoleCompositesResponse> {
+export function useCompositesRead(tenant: string, id: string): RecordState<Composites> {
   return useCompositesRecord(tenant, id);
 }
 
@@ -75,7 +73,7 @@ export function useRoleComposites({
 }: {
   tenant: string;
   role: Role;
-  data: ListRoleCompositesResponse;
+  data: Composites;
   etag: string;
   gone: boolean;
   ceiling: RoleCeiling;

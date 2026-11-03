@@ -1,0 +1,10 @@
+{
+  "id": "01a10bd6-2cbc-706c-8d46-891aad99d5bb",
+  "name": "audit-bundle",
+  "description": null,
+  "client_id": null,
+  "client_key": null,
+  "default_for_new_subjects": false,
+  "created_at": "2026-10-05T11:32:27.964Z",
+  "admin_reach": ["view-audit"]
+}

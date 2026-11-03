@@ -1,14 +1,9 @@
-import {
-  groupRecordSchema,
-  MAX_LIMIT,
-  setGroupRolesResponseSchema,
-  type Group,
-  type GroupRecord,
-  type SetGroupRolesResponse,
-} from '@odudu/contracts/admin';
+import { groupRecordSchema, MAX_LIMIT, setGroupRolesResponseSchema } from '@odudu/contracts/admin';
 import { readGroupPage } from '#/shared/adapter/directory';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { adminCall, countReader, nothing } from '#/shared/adapter/route';
+import type { Group, GroupRecord } from '#/entities/group';
+import type { GroupRoleList } from '#/features/groups/types/groupRoles';
 
 export { readGroupPage };
 
@@ -82,7 +77,7 @@ export function readGroupRoles(
   gateway: Gateway,
   tenant: string,
   groupId: string,
-): Promise<GatewayResult<SetGroupRolesResponse>> {
+): Promise<GatewayResult<GroupRoleList>> {
   return adminCall(gateway, 'GET', tenant, ['groups', groupId, 'roles'], {
     schema: setGroupRolesResponseSchema,
   });
@@ -94,7 +89,7 @@ export function setGroupRoles(
   groupId: string,
   roleIds: readonly string[],
   ifMatch: string,
-): Promise<GatewayResult<SetGroupRolesResponse>> {
+): Promise<GatewayResult<GroupRoleList>> {
   return adminCall(gateway, 'PUT', tenant, ['groups', groupId, 'roles'], {
     body: { role_ids: roleIds },
     ifMatch,

@@ -1,4 +1,4 @@
-import { type GroupRecord } from '@odudu/contracts/admin';
+import type { GroupRecord } from '#/entities/group';
 import { type Loss } from '#/shared/services/capabilities';
 import { type Ceiling } from '#/shared/services/access';
 import { type Authority } from '#/shared/services/principal';

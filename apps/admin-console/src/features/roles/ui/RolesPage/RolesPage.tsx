@@ -1,4 +1,4 @@
-import type { Role } from '@odudu/contracts/admin';
+import type { Role } from '#/entities/role';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { useRolesList } from '#/features/roles/use-cases/useRolesList';

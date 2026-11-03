@@ -1,4 +1,4 @@
-import type { Group } from '@odudu/contracts/admin';
+import type { Group } from '#/entities/group';
 import { useState } from 'react';
 import { useGroupChildren, useGroupList } from '#/features/groups/repository/useGroupList';
 import { groupHref, newGroupHref } from '#/features/groups/services/groupAddress';

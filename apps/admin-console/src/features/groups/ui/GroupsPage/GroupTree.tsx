@@ -1,4 +1,4 @@
-import type { Group } from '@odudu/contracts/admin';
+import type { Group } from '#/entities/group';
 import { useId } from 'react';
 import { Link } from 'react-aria-components';
 import { useGroupNode, type GroupNode } from '#/features/groups/use-cases/useGroupsList';

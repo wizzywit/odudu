@@ -1,5 +1,5 @@
 import { type Loss, type OwnAccessRead } from '#/shared/services/capabilities';
-import { type Role } from '@odudu/contracts/admin';
+import type { Role } from '#/entities/role';
 import { type Ceiling } from '#/shared/services/access';
 import { type Authority } from '#/shared/services/principal';
 import { deleteBlock, isBuiltin } from '#/features/roles/services/roleDeletion';

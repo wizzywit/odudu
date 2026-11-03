@@ -1,4 +1,4 @@
-import type { Group } from '@odudu/contracts/admin';
+import type { Group } from '#/entities/group';
 import { readGroupCount, readGroupPage } from '#/features/groups/adapter/groups';
 import { groupListScope } from '#/features/groups/services/list';
 import { listKey } from '#/shared/repository/queryKeys';
