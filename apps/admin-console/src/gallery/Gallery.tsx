@@ -32,7 +32,6 @@ import { AssignedList, AssignedRow, AssignPanel } from '#/shared/ui/AssignmentCo
 import { LoadFailed } from '#/shared/ui/LoadFailed';
 import { LoadMore, LoadMoreFailed } from '#/shared/ui/LoadMore';
 import { LiveMessage, Problem } from '#/shared/ui/Message';
-import { MappedRoles } from '#/shared/ui/MappedRoles';
 import { NarrowedNote } from '#/shared/ui/NarrowedNote';
 import { Note, NoteCode } from '#/shared/ui/Note';
 import { ChunkFailed } from '#/shared/ui/ChunkBoundary';
@@ -65,7 +64,6 @@ import {
 } from '#/shared/ui/Field';
 import { FieldGrid, GridCell } from '#/shared/ui/FieldGrid';
 import { FilterBar } from '#/shared/ui/FilterBar';
-import { GroupPicker } from '#/shared/ui/GroupPicker';
 import { PageHeader } from '#/shared/ui/PageHeader';
 import { FailurePanel } from '#/shared/ui/FailurePanel';
 import { PageNotFound } from '#/shared/ui/PageNotFound';
@@ -77,9 +75,7 @@ import { RecordActivity } from '#/shared/ui/RecordActivity';
 import { RecordPage } from '#/shared/ui/RecordPage';
 import { recordTab } from '#/shared/ui/RecordTab';
 import { ResourceListPage } from '#/shared/ui/ResourceListPage';
-import { RoleOwner } from '#/shared/ui/RoleOwner';
 import { ClientPicker } from '#/shared/ui/ClientPicker';
-import { RolePicker } from '#/shared/ui/RolePicker';
 import { SaveBar } from '#/shared/ui/SaveBar';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { SecretDialog } from '#/shared/ui/SecretDialog';
@@ -109,12 +105,10 @@ import {
   CONFLICTS,
   DETAILED_EVENT,
   EVENTS,
-  GROUPS,
   JWKS_SAMPLE,
   NOW,
   RAIL_GROUPS,
   REDIRECT_URIS,
-  ROLES,
   STEP_REQUIREMENTS,
   SUBJECT_FIELDS,
   TENANT,
@@ -462,23 +456,9 @@ const CLIENT_OPTIONS = [
 ];
 
 function Pickers() {
-  const [roles, setRoles] = useState<readonly string[]>(['r2']);
   const [clients, setClients] = useState<readonly string[]>([]);
-  const [groups, setGroups] = useState<readonly string[]>([]);
   return (
     <div className={styles.grid}>
-      <RolePicker
-        label="Roles"
-        picker={pickerOf(ROLES, true)}
-        selected={roles}
-        onChange={setRoles}
-      />
-      <GroupPicker
-        label="Groups"
-        picker={pickerOf(GROUPS, false)}
-        selected={groups}
-        onChange={setGroups}
-      />
       <ClientPicker
         label="Clients"
         picker={pickerOf(CLIENT_OPTIONS, false)}
@@ -882,9 +862,6 @@ function RecordPieces() {
           <Button>A control that grows</Button>
         </TouchTargets>
       </Specimen>
-      <Specimen label="MappedRoles: what a group or a scope hands on">
-        <MappedRoles name="billing" mapped={ROLES} />
-      </Specimen>
       <Specimen label="NarrowedNote: a list narrowed to one record">
         <NarrowedNote all="Show every role" onClear={NOTHING}>
           Only the roles of client <code>billing-portal</code>.
@@ -1142,13 +1119,6 @@ export function Gallery({
               <StatusTag tone="system-authority">system</StatusTag>
             </div>
           </Specimen>
-          <Specimen label="RoleOwner">
-            <div className={styles.row}>
-              <RoleOwner role={{ client_id: null, client_key: null }} />
-              <RoleOwner role={{ client_id: 'c-portal', client_key: 'portal' }} />
-              <RoleOwner role={{ client_id: 'c-admin', client_key: 'odudu-admin' }} />
-            </div>
-          </Specimen>
           <Specimen label="CopyValue">
             <div className={styles.stack}>
               <CopyValue label="issuer" value="https://id.acme.example/acme" />
@@ -1262,7 +1232,7 @@ export function Gallery({
               error="The only required step of the flow cannot be disabled."
             />
           </Specimen>
-          <Specimen label="RolePicker, GroupPicker and ClientPicker: searched, paged, each role's owner named">
+          <Specimen label="ClientPicker: searched and paged">
             <Pickers />
           </Specimen>
           <Specimen label="ChecklistField: a set from a short list, each held back with its reason">

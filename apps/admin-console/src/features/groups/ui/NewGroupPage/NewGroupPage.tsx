@@ -1,6 +1,6 @@
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
-import { groupsTrail } from '#/features/groups/services/groupAddress';
+import { groupsTrail, GroupPicker } from '#/entities/group';
 import { useNewGroup } from '#/features/groups/use-cases/useNewGroup';
 import {
   CreationActions,
@@ -8,7 +8,6 @@ import {
   creationForm,
   NameDescriptionFields,
 } from '#/shared/ui/CreationForm';
-import { GroupPicker } from '#/shared/ui/GroupPicker';
 import { PageHeader } from '#/shared/ui/PageHeader';
 
 function Form({ tenant }: { tenant: string }) {

@@ -1,8 +1,8 @@
-import type { Role } from '@odudu/contracts/admin';
+import type { Role } from '#/entities/role/types/role';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import { RolePicker } from '#/shared/ui/RolePicker/RolePicker';
+import { RolePicker } from '#/entities/role/ui/RolePicker/RolePicker';
 import { roleOwnerShort } from '#/shared/services/capabilities';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { pickerState } from '#/testing/pickerState';

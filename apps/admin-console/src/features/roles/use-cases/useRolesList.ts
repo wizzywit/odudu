@@ -1,6 +1,5 @@
-import type { Role } from '#/entities/role';
 import { useRoleList } from '#/features/roles/repository/useRoleList';
-import { newRoleHref, roleHref } from '#/features/roles/services/roleAddress';
+import { type Role, newRoleHref, roleHref } from '#/entities/role';
 import { useListPage, type ListPageState } from '#/shared/use-cases/useListPage';
 
 export type RolesList = ListPageState<Role>;

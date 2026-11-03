@@ -2,15 +2,13 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
+import { useRolePicker } from '#/entities/role/repository/useRolePicker';
 import { createQueryClient } from '#/shared/repository/queryClient';
-import { useGroupPicker } from '#/shared/repository/useGroupPicker';
-import { useRolePicker } from '#/shared/repository/useRolePicker';
 import { TransportContext } from '#/shared/transport/useTransport';
-import { fakeTransport, json, problem, type Answer } from '#/testing/fakeTransport';
+import { fakeTransport, json, type Answer } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 
 const ROLES = `GET ${ACME_ADMIN}/roles`;
-const GROUPS = `GET ${ACME_ADMIN}/groups`;
 const CURSOR = 'b2Zmc2V0LTE.dGFnMQ';
 
 function role(id: string) {
@@ -71,13 +69,5 @@ it('searches roles by name and loads the next page in place', async () => {
       `/console/api/admin/tenants/acme/roles?client=tenant&cursor=${CURSOR}`,
       `${ACME_ADMIN}/roles?name=aud&client=tenant`,
     ]);
-  });
-});
-
-it('reads groups, and says when the list is refused', async () => {
-  const { wrapper } = wrapperFor({ [GROUPS]: problem(403, 'about:blank', 'Forbidden') });
-  const { result } = renderHook(() => useGroupPicker('acme'), { wrapper });
-  await waitFor(() => {
-    expect(result.current.status).toBe('refused');
   });
 });

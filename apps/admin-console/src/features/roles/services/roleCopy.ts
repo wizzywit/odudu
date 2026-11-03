@@ -1,22 +1,20 @@
-import type { Role } from '#/entities/role';
 import type { Composites } from '#/features/roles/types/composite';
 import type { RoleCopySource } from '#/features/roles/types/roleCopySource';
 import { withSearch } from '#/shared/services/address';
-import { newRoleHref } from '#/features/roles/services/roleAddress';
+import type { Role } from '#/entities/role';
 import { type LeftOut, type PartialCopy } from '#/shared/services/copy';
 import { andList } from '#/shared/services/format';
 import { type AdminCapability } from '#/shared/services/principal';
 import { type GatewayResult } from '#/shared/services/result';
 import { childUnavailable } from '#/features/roles/services/composites';
-import { roleTabHref } from '#/features/roles/services/tabs';
 
-export function copyHref(tenant: string, id: string): string {
-  return withSearch(newRoleHref(tenant), { copy: id });
+export function copyHref(newHref: string, id: string): string {
+  return withSearch(newHref, { copy: id });
 }
 
 // A copy is a tenant role, so only a tenant role offers one.
-export function copyHrefOf(tenant: string, role: Role | undefined): string | null {
-  return role?.client_id === null ? copyHref(tenant, role.id) : null;
+export function copyHrefOf(newHref: string, role: Role | undefined): string | null {
+  return role?.client_id === null ? copyHref(newHref, role.id) : null;
 }
 
 export type CopyRead =
@@ -97,14 +95,14 @@ export function sourceDescription(source: CopyRead): string | null {
 // A copy missing some of its composites stays on the page, saying so, since
 // a toast is never the only copy of something to act on.
 export function partialCopy(
-  tenant: string,
-  role: Pick<Role, 'id' | 'name'>,
+  compositesHref: string,
+  role: Pick<Role, 'name'>,
   missed: readonly Pick<Role, 'name'>[],
 ): PartialCopy | null {
   if (missed.length === 0) return null;
   return {
     text: `${role.name} was created, but ${andList(missed.map((each) => each.name))} could not be nested in it. Add them from its Composites tab.`,
-    href: roleTabHref(tenant, role.id, 'composites'),
+    href: compositesHref,
     name: role.name,
   };
 }

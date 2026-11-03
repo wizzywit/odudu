@@ -4,7 +4,7 @@ import {
   groupsHref,
   groupsTrail,
   newGroupHref,
-} from '#/features/groups/services/groupAddress';
+} from '#/entities/group/services/groupAddress';
 
 describe('addresses', () => {
   it('puts a group under its tenant, and a new one under the parent it was asked from', () => {

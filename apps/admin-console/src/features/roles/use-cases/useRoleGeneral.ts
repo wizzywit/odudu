@@ -1,9 +1,8 @@
-import type { Role } from '#/entities/role';
 import { useRefusal, useRereadAuthority } from '#/entities/session';
 import { useOwnRoles } from '#/features/own-roles';
 import { useGo } from '#/shared/repository/useGo';
 import { useRoleDeletion, useRoleSaves } from '#/features/roles/repository/useRoleRecord';
-import { rolesHref } from '#/features/roles/services/roleAddress';
+import { type Role, rolesHref } from '#/entities/role';
 import { defaultBlock } from '#/features/roles/services/roleDefault';
 import { deletionFixed } from '#/features/roles/services/roleDeletion';
 import {

@@ -1,7 +1,6 @@
-import type { Group } from '#/entities/group';
 import { useState } from 'react';
 import { useGroupChildren, useGroupList } from '#/features/groups/repository/useGroupList';
-import { groupHref, newGroupHref } from '#/features/groups/services/groupAddress';
+import { type Group, groupHref, newGroupHref } from '#/entities/group';
 import { useListPage, type ListPageState } from '#/shared/use-cases/useListPage';
 
 export interface GroupsList extends ListPageState<Group> {

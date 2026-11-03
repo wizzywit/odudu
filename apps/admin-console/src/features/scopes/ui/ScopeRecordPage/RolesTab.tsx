@@ -5,9 +5,8 @@ import {
   type ScopeRoles,
 } from '#/features/scopes/use-cases/useScopeRoles';
 import { INCLUDE_ALL_POINTER, NO_ROLES_MAPPED } from '#/features/scopes/services/roles';
-import { MappedRoles } from '#/shared/ui/MappedRoles';
+import { MappedRoles, RolePicker } from '#/entities/role';
 import { ReadGate } from '#/shared/ui/ReadGate';
-import { RolePicker } from '#/shared/ui/RolePicker';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { recordTab } from '#/shared/ui/RecordTab';
 

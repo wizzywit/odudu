@@ -1,5 +1,5 @@
-import type { Group } from '@odudu/contracts/admin';
 import { Picker, type PickerFieldProps } from '#/shared/ui/Picker';
+import type { Group } from '#/entities/group/types/group';
 
 export function GroupPicker({
   label,

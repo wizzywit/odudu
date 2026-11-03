@@ -1,4 +1,3 @@
-import type { GroupRecord } from '#/entities/group';
 import { NAME_FIXED } from '#/features/groups/services/groupPath';
 import {
   useGroupGeneral,
@@ -13,7 +12,7 @@ import { DescriptionField } from '#/shared/ui/DescriptionField';
 import { Panel } from '#/shared/ui/Panel';
 import { AskedDialog } from '#/shared/ui/ConfirmDialog';
 import { ToggleField } from '#/shared/ui/Field';
-import { GroupPicker } from '#/shared/ui/GroupPicker';
+import { type GroupRecord, GroupPicker } from '#/entities/group';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';

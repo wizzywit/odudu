@@ -1,4 +1,4 @@
-import type { Role } from '#/entities/role';
+import { newRoleHref, type Role } from '#/entities/role';
 import { useAuthority } from '#/entities/session';
 import { useRoleRecord } from '#/features/roles/repository/useRoleRecord';
 import { copyHrefOf } from '#/features/roles/services/roleCopy';
@@ -31,7 +31,7 @@ export function useRoleRecordPage(tenant: string, id: string): RoleRecordPage {
     record,
     role,
     etag: record.etag,
-    copyHref: copyHrefOf(tenant, role),
+    copyHref: copyHrefOf(newRoleHref(tenant), role),
     ...tabs,
     ceiling: roleCeiling(role, authority),
   };

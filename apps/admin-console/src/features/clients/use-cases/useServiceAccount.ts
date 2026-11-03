@@ -7,7 +7,6 @@ import {
 } from '#/features/clients/repository/useServiceAccount';
 import {
   accountIdleNote,
-  assignedRoles,
   heldCapabilitiesText,
   roleUnavailable,
   serviceAccess,
@@ -20,11 +19,16 @@ import { canChange, type Reach } from '#/features/clients/services/ceiling';
 import { ceilingRefused } from '#/features/clients/services/refusal';
 import { SERVICE_SECTION } from '#/features/clients/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
-import { useRolePicker } from '#/shared/repository/useRolePicker';
+import {
+  assignedRoles,
+  knownAssignments,
+  roleNameOf,
+  useRolePicker,
+  type AssignedRole,
+} from '#/entities/role';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { callerCapabilities, lacking } from '#/shared/services/access';
 import { writeRefusal } from '#/shared/services/capabilities';
-import { knownAssignments, roleNameOf, type AssignedRole } from '#/shared/services/mappedRoles';
 import { describeIds } from '#/shared/services/format';
 import { sortedIds } from '#/shared/services/ids';
 import type { PickerState } from '#/shared/services/picker';

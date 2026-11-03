@@ -1,9 +1,8 @@
-import type { Role } from '#/entities/role';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { useRolesList } from '#/features/roles/use-cases/useRolesList';
 import { NarrowedNote } from '#/shared/ui/NarrowedNote';
-import { RoleOwner } from '#/shared/ui/RoleOwner';
+import { type Role, RoleOwner } from '#/entities/role';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
 import type { Column } from '#/shared/ui/DataTable';
 import { SelectField } from '#/shared/ui/Field';

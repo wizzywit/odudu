@@ -1,4 +1,3 @@
-import type { Group, GroupRecord } from '#/entities/group';
 import { useState } from 'react';
 import { useRefusal, useRereadAuthority } from '#/entities/session';
 import { useOwnRoles } from '#/features/own-roles';
@@ -8,7 +7,7 @@ import {
   useGroupSaves,
   type ParentValues,
 } from '#/features/groups/repository/useGroupRecord';
-import { groupsHref } from '#/features/groups/services/groupAddress';
+import { type Group, type GroupRecord, groupsHref, useGroupPicker } from '#/entities/group';
 import { defaultBlock } from '#/features/groups/services/groupReach';
 import { moveRefusal, parentUnavailable } from '#/features/groups/services/groupMove';
 import {
@@ -28,7 +27,6 @@ import { PLACE_LABEL } from '#/features/groups/services/groupCreation';
 import { lossOf } from '#/features/groups/services/groupLoss';
 import { type Readiness } from '#/features/groups/services/groupCeiling';
 import { groupRecord } from '#/features/groups/services/tabs';
-import { useGroupPicker } from '#/shared/repository/useGroupPicker';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';

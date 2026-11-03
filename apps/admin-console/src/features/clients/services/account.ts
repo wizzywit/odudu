@@ -2,7 +2,6 @@ import type { Client, Role, SetRolesResponse } from '@odudu/contracts/admin';
 import { lacking } from '#/shared/services/access';
 import { beyondCaller, isAdminRole } from '#/shared/services/capabilities';
 import { andList, counted } from '#/shared/services/format';
-import { assignmentsOf, byNameThenClient, type AssignedRole } from '#/shared/services/mappedRoles';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
 
 export const SERVICE_CAPABILITY: AdminCapability = 'manage-users';
@@ -67,13 +66,6 @@ export function assignedCount(count: number): string {
 }
 
 export const NO_ROLES = 'The service account holds no role other than its admin capabilities.';
-
-export function assignedRoles(
-  ids: readonly string[],
-  known: ReadonlyMap<string, AssignedRole>,
-): AssignedRole[] {
-  return byNameThenClient(assignmentsOf(ids, known));
-}
 
 export const IDLE_ACCOUNT =
   'Not in use: the client credentials grant is off. The account keeps its roles.';

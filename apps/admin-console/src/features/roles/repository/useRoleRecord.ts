@@ -1,4 +1,3 @@
-import type { Role } from '#/entities/role';
 import type { Composites } from '#/features/roles/types/composite';
 import {
   addComposite,
@@ -13,7 +12,7 @@ import { compositesRecord, roleRecord } from '#/features/roles/services/tabs';
 import { isStale } from '#/shared/services/failure';
 import { useAfterChange } from '#/shared/repository/useAfterChange';
 import { recordKey } from '#/shared/repository/queryKeys';
-import { rolesGoneReach } from '#/shared/repository/rolesGoneReach';
+import { type Role, rolesGoneReach } from '#/entities/role';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord';
 import type { SaveInput } from '#/shared/repository/useSectionSave';

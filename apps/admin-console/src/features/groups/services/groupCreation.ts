@@ -1,8 +1,7 @@
-import type { Group, GroupRecord } from '#/entities/group';
 import { beyondCaller } from '#/shared/services/capabilities';
 import { andList, capitalise } from '#/shared/services/format';
 import { type AdminCapability } from '#/shared/services/principal';
-import { newGroupHref } from '#/features/groups/services/groupAddress';
+import type { Group, GroupRecord } from '#/entities/group';
 import { type GroupCeiling } from '#/features/groups/services/groupCeiling';
 
 // A group made under this one receives what it hands out, so it is offered
@@ -11,11 +10,12 @@ export function createUnderHref(
   tenant: string,
   group: Pick<GroupRecord, 'id' | 'admin_reach'> | undefined,
   ceiling: GroupCeiling,
+  newHref: (tenant: string, parent: string) => string,
 ): string | null {
   return ceiling.status === 'ready' &&
     group !== undefined &&
     beyondCaller(group.admin_reach, ceiling.caller).length === 0
-    ? newGroupHref(tenant, group.id)
+    ? newHref(tenant, group.id)
     : null;
 }
 

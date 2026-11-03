@@ -1,5 +1,4 @@
 import { recordTabs } from '#/shared/services/record';
-import { roleHref } from '#/features/roles/services/roleAddress';
 
 const model = recordTabs({
   tabs: ['general', 'composites', 'members', 'activity'] as const,
@@ -13,7 +12,7 @@ const model = recordTabs({
 
 export const ROLE_TABS = model.tabs;
 export const ROLE_TAB_LABELS = model.labels;
-export const roleTabHref = model.hrefOf(roleHref);
+export const roleTabHrefOf = model.hrefOf;
 
 export type RoleTab = (typeof ROLE_TABS)[number];
 

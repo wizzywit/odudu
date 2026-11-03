@@ -18,7 +18,7 @@ import { SaveSection } from '#/shared/ui/SaveSection';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { ReadOnlyFields } from '#/shared/ui/Field';
-import { RolePicker } from '#/shared/ui/RolePicker';
+import { RolePicker } from '#/entities/role';
 import { recordTab } from '#/shared/ui/RecordTab';
 
 function Editor({

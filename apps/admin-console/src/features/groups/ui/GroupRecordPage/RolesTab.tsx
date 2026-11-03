@@ -6,9 +6,8 @@ import {
 } from '#/features/groups/use-cases/useGroupRoles';
 import type { GroupCeiling } from '#/features/groups/use-cases/useGroupRecordPage';
 import { AskedDialog } from '#/shared/ui/ConfirmDialog';
-import { MappedRoles } from '#/shared/ui/MappedRoles';
+import { MappedRoles, RolePicker } from '#/entities/role';
 import { ReadGate } from '#/shared/ui/ReadGate';
-import { RolePicker } from '#/shared/ui/RolePicker';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { recordTab } from '#/shared/ui/RecordTab';
 

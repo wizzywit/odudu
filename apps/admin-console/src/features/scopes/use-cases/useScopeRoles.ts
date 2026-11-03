@@ -4,7 +4,14 @@ import { useScopeRolesRecord, useScopeSaves } from '#/features/scopes/repository
 import { keptRoles } from '#/features/scopes/services/roles';
 import { scopeRolesRecord } from '#/features/scopes/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
-import { useRolePicker } from '#/shared/repository/useRolePicker';
+import {
+  useRolePicker,
+  type MappedRole,
+  mappedRoles,
+  roleIndex,
+  roleNameOf,
+  withKept,
+} from '#/entities/role';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { roleReachUnavailable, writeRefusal } from '#/shared/services/capabilities';
 import { describeIds } from '#/shared/services/format';
@@ -12,13 +19,6 @@ import { sortedIds } from '#/shared/services/ids';
 import type { PickerState } from '#/shared/services/picker';
 import { callerCapabilities } from '#/shared/services/access';
 import type { RoleValues } from '#/shared/services/sectionValues';
-import {
-  type MappedRole,
-  mappedRoles,
-  roleIndex,
-  roleNameOf,
-  withKept,
-} from '#/shared/services/mappedRoles';
 
 export function useScopeRolesRead(tenant: string, id: string): RecordState<SetScopeRolesResponse> {
   return useScopeRolesRecord(tenant, id);

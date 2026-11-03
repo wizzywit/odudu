@@ -1,14 +1,12 @@
-import type { Group } from '#/entities/group';
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useCreateGroup } from '#/features/groups/repository/useCreateGroup';
 import { useGo } from '#/shared/repository/useGo';
 import { useGroupNamed } from '#/features/groups/repository/useGroupRecord';
-import { groupHref, groupsHref } from '#/features/groups/services/groupAddress';
+import { type Group, groupHref, groupsHref, useGroupPicker } from '#/entities/group';
 import { parentUnavailable } from '#/features/groups/services/groupMove';
 import { createBlocked, createHeld, newGroupPlace } from '#/features/groups/services/groupCreation';
 import { NAME_TAKEN } from '#/features/groups/services/groupCreation';
-import { useGroupPicker } from '#/shared/repository/useGroupPicker';
 import { useToast } from '#/shared/repository/useToasts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';
 import { problemAt, requiredProblem } from '#/shared/services/fieldErrors';

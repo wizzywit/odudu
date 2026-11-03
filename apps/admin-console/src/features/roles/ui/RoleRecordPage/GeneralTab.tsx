@@ -1,4 +1,3 @@
-import type { Role } from '#/entities/role';
 import { NAME_FIXED } from '#/features/roles/services/roleCopy';
 import {
   useRoleGeneral,
@@ -10,7 +9,7 @@ import type { RoleCeiling } from '#/features/roles/use-cases/useRoleRecordPage';
 import { DeleteZone } from '#/shared/ui/DeleteZone';
 import { DescriptionField } from '#/shared/ui/DescriptionField';
 import { Panel } from '#/shared/ui/Panel';
-import { RoleOwner } from '#/shared/ui/RoleOwner';
+import { type Role, RoleOwner } from '#/entities/role';
 import { ToggleField } from '#/shared/ui/Field';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { Timestamp } from '#/shared/ui/Timestamp';

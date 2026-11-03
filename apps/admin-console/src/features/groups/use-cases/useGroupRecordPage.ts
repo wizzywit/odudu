@@ -1,4 +1,4 @@
-import type { GroupRecord } from '#/entities/group';
+import { newGroupHref, type GroupRecord } from '#/entities/group';
 import { useAuthority } from '#/entities/session';
 import { useGroupNamed, useGroupRecord } from '#/features/groups/repository/useGroupRecord';
 import { type GroupCeiling, groupCeiling } from '#/features/groups/services/groupCeiling';
@@ -33,7 +33,7 @@ export function useGroupRecordPage(tenant: string, id: string): GroupRecordPage 
   return {
     record,
     group: record.data,
-    createUnderHref: createUnderHref(tenant, record.data, ceiling),
+    createUnderHref: createUnderHref(tenant, record.data, ceiling, newGroupHref),
     etag: record.etag,
     ...tabs,
     ceiling,

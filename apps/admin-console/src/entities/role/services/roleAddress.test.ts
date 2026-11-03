@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  newRoleHref,
-  roleHref,
-  rolesHref,
-  rolesTrail,
-} from '#/features/roles/services/roleAddress';
+import { newRoleHref, roleHref, rolesHref, rolesTrail } from '#/entities/role/services/roleAddress';
 
 describe('addresses', () => {
   it('puts a role, and a new one, under its tenant', () => {

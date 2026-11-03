@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assignedRoles,
   assignmentsOf,
   byNameThenClient,
   knownAssignments,
@@ -7,7 +8,7 @@ import {
   roleIndex,
   roleNameOf,
   withKept,
-} from '#/shared/services/mappedRoles';
+} from '#/entities/role/services/mappedRoles';
 
 const REACH = ['view-audit'];
 const ITEMS = [
@@ -79,5 +80,25 @@ describe('role assignments', () => {
         { id: 'z', name: 'admin', client: null },
       ]).map((role) => role.id),
     ).toEqual(['z', 't1', 'c1']);
+  });
+});
+
+describe('assignedRoles', () => {
+  const TENANT = { id: 't1', name: 'reader', client_id: null, client_key: null };
+  const CLIENT = { id: 'c1', name: 'reader', client_id: 'cc', client_key: 'billing' };
+
+  it('lists them by name, a tenant role before a client role of the same name', () => {
+    const known = knownAssignments([CLIENT, TENANT, { id: 'z', name: 'admin', client_key: null }]);
+    expect(assignedRoles(['c1', 't1', 'z'], known)).toEqual([
+      { id: 'z', name: 'admin', client: null },
+      { id: 't1', name: 'reader', client: null },
+      { id: 'c1', name: 'reader', client: 'billing' },
+    ]);
+  });
+
+  it('names a role it has not seen by its id', () => {
+    expect(assignedRoles(['gone'], knownAssignments())).toEqual([
+      { id: 'gone', name: 'gone', client: null },
+    ]);
   });
 });

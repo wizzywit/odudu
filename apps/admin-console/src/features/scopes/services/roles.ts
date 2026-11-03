@@ -1,5 +1,5 @@
 import { roleReachUnavailable } from '#/shared/services/capabilities';
-import type { IndexedRole } from '#/shared/services/mappedRoles';
+import type { IndexedRole } from '#/entities/role';
 import type { AdminCapability } from '#/shared/services/principal';
 
 // A mapped role the caller could not give is one it cannot take.

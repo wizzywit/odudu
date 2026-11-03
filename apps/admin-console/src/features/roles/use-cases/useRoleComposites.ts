@@ -1,4 +1,3 @@
-import type { Role } from '#/entities/role';
 import type { Composites } from '#/features/roles/types/composite';
 import { useState } from 'react';
 import { useRefusal, useRereadAuthority } from '#/entities/session';
@@ -26,12 +25,11 @@ import {
 } from '#/features/roles/services/composites';
 import { compositesRecord } from '#/features/roles/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
-import { useRolePicker } from '#/shared/repository/useRolePicker';
+import { type Role, useRolePicker, roleNameOf } from '#/entities/role';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';
 import { type Asked, judgedLoss, lossAction, type Loss } from '#/shared/services/capabilities';
 import { describeId } from '#/shared/services/format';
-import { roleNameOf } from '#/shared/services/mappedRoles';
 import { firstChosen, type PickerState } from '#/shared/services/picker';
 import { ceilingCaller } from '#/shared/services/access';
 import { indexById } from '#/shared/services/ids';

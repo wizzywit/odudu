@@ -1,7 +1,7 @@
 import type { Role } from '@odudu/contracts/admin';
 import { expect, it } from 'vitest';
 import { keptRoles } from '#/features/scopes/services/roles';
-import { roleIndex } from '#/shared/services/mappedRoles';
+import { roleIndex } from '#/entities/role';
 
 const READER = {
   id: 'r1',

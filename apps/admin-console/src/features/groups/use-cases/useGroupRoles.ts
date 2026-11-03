@@ -1,5 +1,4 @@
 import type { GroupRecord } from '#/entities/group';
-import type { Role } from '#/entities/role';
 import type { GroupRoleList } from '#/features/groups/types/groupRoles';
 import { useState } from 'react';
 import { useRefusal, useRereadAuthority } from '#/entities/session';
@@ -13,20 +12,21 @@ import { lossOf } from '#/features/groups/services/groupLoss';
 import { keptRoles, reachOfRoles } from '#/features/groups/services/groupRoles';
 import { groupRolesRecord } from '#/features/groups/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
-import { useRolePicker } from '#/shared/repository/useRolePicker';
+import {
+  type Role,
+  useRolePicker,
+  type MappedRole,
+  mappedRoles,
+  roleIndex,
+  roleNameOf,
+  withKept,
+} from '#/entities/role';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { type Asked, lossAction, lossBlocked, writeRefusal } from '#/shared/services/capabilities';
 import { describeIds } from '#/shared/services/format';
 import { removedFrom, sortedIds } from '#/shared/services/ids';
 import type { PickerState } from '#/shared/services/picker';
 import type { RoleValues } from '#/shared/services/sectionValues';
-import {
-  type MappedRole,
-  mappedRoles,
-  roleIndex,
-  roleNameOf,
-  withKept,
-} from '#/shared/services/mappedRoles';
 import { ceilingCaller } from '#/shared/services/access';
 
 export function useGroupRolesRead(tenant: string, id: string): RecordState<GroupRoleList> {

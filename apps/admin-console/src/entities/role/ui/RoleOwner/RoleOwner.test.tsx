@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
-import { RoleOwner } from '#/shared/ui/RoleOwner/RoleOwner';
+import { RoleOwner } from '#/entities/role/ui/RoleOwner/RoleOwner';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 
 const TENANT = { client_id: null, client_key: null };

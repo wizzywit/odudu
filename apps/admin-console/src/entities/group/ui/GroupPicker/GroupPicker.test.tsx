@@ -1,8 +1,8 @@
-import type { Group } from '@odudu/contracts/admin';
+import type { Group } from '#/entities/group/types/group';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import { GroupPicker } from '#/shared/ui/GroupPicker/GroupPicker';
+import { GroupPicker } from '#/entities/group/ui/GroupPicker/GroupPicker';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { pickerState } from '#/testing/pickerState';
 

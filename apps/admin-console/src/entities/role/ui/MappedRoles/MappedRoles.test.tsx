@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import { expect, it } from 'vitest';
-import type { MappedRole } from '#/shared/services/mappedRoles';
-import { MappedRoles } from '#/shared/ui/MappedRoles';
+import type { MappedRole } from '#/entities/role/types/mappedRole';
+import { MappedRoles } from '#/entities/role/ui/MappedRoles/MappedRoles';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 
 const MAPPED: readonly MappedRole[] = [

@@ -9,7 +9,7 @@ import { clientRecord } from '#/features/clients/services/tabs';
 import { translationsPatch } from '#/features/clients/services/translations';
 import type { Translations } from '#/shared/services/localised';
 import { countKey, listKey, recordKey, scopeClientsKey } from '#/shared/repository/queryKeys';
-import { rolesGoneReach } from '#/shared/repository/rolesGoneReach';
+import { rolesGoneReach } from '#/entities/role';
 import { useAfterChange } from '#/shared/repository/useAfterChange';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord';

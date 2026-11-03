@@ -1,6 +1,6 @@
-import type { MappedRole } from '#/shared/services/mappedRoles';
 import { recordTab } from '#/shared/ui/RecordTab';
-import { RoleOwner } from '#/shared/ui/RoleOwner';
+import type { MappedRole } from '#/entities/role/types/mappedRole';
+import { RoleOwner } from '#/entities/role/ui/RoleOwner';
 
 // The roles a group or a scope hands on, each told apart by whose it is.
 export function MappedRoles({

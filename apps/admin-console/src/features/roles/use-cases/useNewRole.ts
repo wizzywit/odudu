@@ -1,9 +1,8 @@
-import type { Role } from '#/entities/role';
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useCopySource, useCreateRole } from '#/features/roles/repository/useCreateRole';
 import { useGo } from '#/shared/repository/useGo';
-import { roleHref, rolesHref } from '#/features/roles/services/roleAddress';
+import { type Role, roleHref, rolesHref } from '#/entities/role';
 import {
   sourceDescription,
   type Copying,
@@ -12,6 +11,7 @@ import {
   partialCopy,
   sourceChildren,
 } from '#/features/roles/services/roleCopy';
+import { roleTabHrefOf } from '#/features/roles/services/tabs';
 import { useToast } from '#/shared/repository/useToasts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';
 import { problemAt, requiredProblem } from '#/shared/services/fieldErrors';
@@ -63,7 +63,7 @@ export function useNewRole(tenant: string): NewRole {
   const looked = lookupText('role', name);
 
   const land = (role: Role, missed: readonly Role[]): void => {
-    const left = partialCopy(tenant, role, missed);
+    const left = partialCopy(roleTabHrefOf(roleHref)(tenant, role.id, 'composites'), role, missed);
     if (left !== null) {
       setPartial(left);
       return;

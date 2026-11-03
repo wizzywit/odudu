@@ -1,15 +1,15 @@
 import type { EffectiveRoleAssignment, Role, SetRolesResponse } from '@odudu/contracts/admin';
 import { useRefusal } from '#/entities/session';
-import { useRolePicker } from '#/shared/repository/useRolePicker';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { describeIds } from '#/shared/services/format';
-import { sortedIds } from '#/shared/services/ids';
 import {
+  useRolePicker,
   assignmentsOf,
   knownAssignments,
   roleNameOf,
   type AssignedRole,
-} from '#/shared/services/mappedRoles';
+} from '#/entities/role';
+import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
+import { describeIds } from '#/shared/services/format';
+import { sortedIds } from '#/shared/services/ids';
 import type { PickerState } from '#/shared/services/picker';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import type { RoleValues } from '#/shared/services/sectionValues';

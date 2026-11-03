@@ -5,7 +5,7 @@ import {
   type SubjectGroups,
 } from '#/pages/subjects/use-cases/useSubjectGroups';
 import { AskedDialog } from '#/shared/ui/ConfirmDialog';
-import { GroupPicker } from '#/shared/ui/GroupPicker';
+import { GroupPicker } from '#/entities/group';
 import { ReadGate } from '#/shared/ui/ReadGate';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { recordTab } from '#/shared/ui/RecordTab';

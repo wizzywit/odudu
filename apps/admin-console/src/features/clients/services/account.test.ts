@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   accountIdleNote,
   assignedCount,
-  assignedRoles,
   heldCapabilitiesText,
   roleUnavailable,
   serviceAccess,
@@ -10,7 +9,6 @@ import {
   serviceRolesRecordOf,
   splitAssigned,
 } from '#/features/clients/services/account';
-import { knownAssignments } from '#/shared/services/mappedRoles';
 
 const ADMIN = { id: 'a1', name: 'manage-users', client_id: 'ac', client_key: 'odudu-admin' };
 const TENANT = { id: 't1', name: 'reader', client_id: null, client_key: null };
@@ -68,23 +66,6 @@ describe('roleUnavailable', () => {
       'reaches manage-users, which you do not hold',
     );
     expect(roleUnavailable(nested, ['manage-users', 'view-users'])).toBeNull();
-  });
-});
-
-describe('assignedRoles', () => {
-  it('lists them by name, a tenant role before a client role of the same name', () => {
-    const known = knownAssignments([CLIENT, TENANT, { id: 'z', name: 'admin', client_key: null }]);
-    expect(assignedRoles(['c1', 't1', 'z'], known)).toEqual([
-      { id: 'z', name: 'admin', client: null },
-      { id: 't1', name: 'reader', client: null },
-      { id: 'c1', name: 'reader', client: 'billing' },
-    ]);
-  });
-
-  it('names a role it has not seen by its id', () => {
-    expect(assignedRoles(['gone'], knownAssignments())).toEqual([
-      { id: 'gone', name: 'gone', client: null },
-    ]);
   });
 });
 

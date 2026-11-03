@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { newGroupHref } from '#/entities/group';
 import { createUnderHref } from '#/features/groups/services/groupCreation';
 import {
   groupCeiling,
@@ -50,15 +51,17 @@ describe('the ceiling of a group record', () => {
   });
   it('offers a group under this one only to a caller holding all it hands out', () => {
     const ready = groupCeiling({ status: 'none' }, authority, record);
-    expect(createUnderHref('acme', record, ready)).toBe('/console/acme/groups/new?parent=g-eng');
+    expect(createUnderHref('acme', record, ready, newGroupHref)).toBe(
+      '/console/acme/groups/new?parent=g-eng',
+    );
     const narrow = groupCeiling(
       { status: 'none' },
       { ...authority, capabilities: reach('manage-users') },
       record,
     );
-    expect(createUnderHref('acme', record, narrow)).toBeNull();
-    expect(createUnderHref('acme', undefined, ready)).toBeNull();
-    expect(createUnderHref('acme', record, { status: 'checking' })).toBeNull();
+    expect(createUnderHref('acme', record, narrow, newGroupHref)).toBeNull();
+    expect(createUnderHref('acme', undefined, ready, newGroupHref)).toBeNull();
+    expect(createUnderHref('acme', record, { status: 'checking' }, newGroupHref)).toBeNull();
   });
 });
 

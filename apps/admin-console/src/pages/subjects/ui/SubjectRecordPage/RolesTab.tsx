@@ -9,7 +9,7 @@ import { Panel } from '#/shared/ui/Panel';
 import { PagedList } from '#/pages/subjects/ui/SubjectRecordPage/SessionsTab';
 import type { Column } from '#/shared/ui/DataTable';
 import { ReadGate } from '#/shared/ui/ReadGate';
-import { RolePicker } from '#/shared/ui/RolePicker';
+import { RolePicker } from '#/entities/role';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { recordTab } from '#/shared/ui/RecordTab';
 import { type Subject } from '#/entities/subject';

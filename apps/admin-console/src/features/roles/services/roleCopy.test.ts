@@ -66,17 +66,21 @@ describe('copying a role', () => {
     );
   });
   it('keeps a copy missing composites on the page, pointing at where to add them', () => {
-    expect(partialCopy('acme', READER, [])).toBeNull();
-    expect(partialCopy('acme', READER, [AUDITOR, USERS])).toEqual({
+    expect(partialCopy('/console/acme/roles/r-read?tab=composites', READER, [])).toBeNull();
+    expect(
+      partialCopy('/console/acme/roles/r-read?tab=composites', READER, [AUDITOR, USERS]),
+    ).toEqual({
       text: 'reader was created, but auditor and manage-users could not be nested in it. Add them from its Composites tab.',
       href: '/console/acme/roles/r-read?tab=composites',
       name: 'reader',
     });
   });
   it('offers a copy only of a tenant role', () => {
-    expect(copyHrefOf('acme', READER)).toBe('/console/acme/roles/new?copy=r-read');
-    expect(copyHrefOf('acme', USERS)).toBeNull();
-    expect(copyHrefOf('acme', undefined)).toBeNull();
+    expect(copyHrefOf('/console/acme/roles/new', READER)).toBe(
+      '/console/acme/roles/new?copy=r-read',
+    );
+    expect(copyHrefOf('/console/acme/roles/new', USERS)).toBeNull();
+    expect(copyHrefOf('/console/acme/roles/new', undefined)).toBeNull();
   });
 });
 
@@ -92,6 +96,6 @@ describe('the children of the source a copy is made of', () => {
 
 describe('the address of a copy', () => {
   it('sits beside a new role, naming the source', () => {
-    expect(copyHref('acme', 'r-aud')).toBe('/console/acme/roles/new?copy=r-aud');
+    expect(copyHref('/console/acme/roles/new', 'r-aud')).toBe('/console/acme/roles/new?copy=r-aud');
   });
 });

@@ -1,12 +1,5 @@
 import { sortedIds } from '#/shared/services/ids';
-
-export interface MappedRole {
-  id: string;
-  name: string;
-  client_id: string | null;
-  client_key: string | null;
-  description: string | null;
-}
+import type { MappedRole } from '#/entities/role/types/mappedRole';
 
 export type IndexedRole = MappedRole & { admin_reach: readonly string[] };
 
@@ -94,6 +87,15 @@ export function byNameThenClient(roles: readonly AssignedRole[]): AssignedRole[]
   return [...roles].sort(
     (a, b) => a.name.localeCompare(b.name) || (a.client ?? '').localeCompare(b.client ?? ''),
   );
+}
+
+// The assignments shown for a client's service account: sorted, a role not
+// known named by its id.
+export function assignedRoles(
+  ids: readonly string[],
+  known: ReadonlyMap<string, AssignedRole>,
+): AssignedRole[] {
+  return byNameThenClient(assignmentsOf(ids, known));
 }
 
 export function roleNameOf(known: ReadonlyMap<string, { name: string }>): (id: string) => string {

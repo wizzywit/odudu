@@ -1,4 +1,3 @@
-import type { Role } from '#/entities/role';
 import {
   useCompositesRead,
   useRoleComposites,
@@ -8,10 +7,9 @@ import type { RoleCeiling } from '#/features/roles/use-cases/useRoleRecordPage';
 import { LiveMessage } from '#/shared/ui/Message';
 import { Panel, useHeadingFocus } from '#/shared/ui/Panel';
 import { ReadGate } from '#/shared/ui/ReadGate';
-import { RoleOwner } from '#/shared/ui/RoleOwner';
+import { type Role, RoleOwner, RolePicker } from '#/entities/role';
 import { Button } from '#/shared/ui/Button';
 import { AskedDialog } from '#/shared/ui/ConfirmDialog';
-import { RolePicker } from '#/shared/ui/RolePicker';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { recordTab } from '#/shared/ui/RecordTab';
 import styles from '#/features/roles/ui/RoleRecordPage/Tab.module.css';
