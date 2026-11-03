@@ -1,9 +1,9 @@
 import { expect, it } from 'vitest';
-import { FRESH_CREATION, administratorOf } from '#/entities/creation-draft';
+import { administratorOf, freshCreation } from '#/entities/creation-draft';
 import { unfinishedOf } from '#/pages/tenants/services/unfinishedCreation';
 
 it('drops a creation only when a subject was already made', () => {
-  expect(unfinishedOf(FRESH_CREATION)).toBeNull();
+  expect(unfinishedOf(freshCreation('tenant'))).toBeNull();
   expect(unfinishedOf(administratorOf('acme', 'existing'))).toBeNull();
   expect(
     unfinishedOf({

@@ -1,5 +1,5 @@
 export {
-  beginAdministrator,
+  beginOrResumeAdministrator,
   storedCreation,
 } from '#/entities/creation-draft/repository/storedCreation';
 export {

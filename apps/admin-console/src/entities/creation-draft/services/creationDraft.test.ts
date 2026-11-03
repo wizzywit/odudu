@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Creation } from '#/entities/creation-draft/types/creation';
 import {
+  administratorDraft,
   administratorOf,
   belongsTo,
   flowOf,
-  FRESH_CREATION,
   freshCreation,
   resumesAdministrator,
 } from '#/entities/creation-draft/services/creationDraft';
@@ -37,7 +37,7 @@ describe('the three guided flows', () => {
     expect(belongsTo('administrator/globex', acme)).toBe(false);
     expect(belongsTo('tenant', acme)).toBe(false);
     expect(belongsTo('tenant', administratorOf('acme', 'created'))).toBe(true);
-    expect(belongsTo('administrator/acme', FRESH_CREATION)).toBe(false);
+    expect(belongsTo('administrator/acme', freshCreation('tenant'))).toBe(false);
     expect(belongsTo('system-administrator', administratorOf('system', 'existing'))).toBe(true);
     expect(belongsTo('system-administrator', administratorOf('acme', 'existing'))).toBe(false);
     expect(belongsTo('tenant', { step: 'done', tenant: 'system', username: 'ada' })).toBe(false);
@@ -58,8 +58,23 @@ describe('the stored administrator step', () => {
 
   it('is resumed only once its subject was created', () => {
     expect(resumesAdministrator(null)).toBe(false);
-    expect(resumesAdministrator(FRESH_CREATION)).toBe(false);
+    expect(resumesAdministrator(freshCreation('tenant'))).toBe(false);
     expect(resumesAdministrator(stored(null))).toBe(false);
     expect(resumesAdministrator(stored('s1'))).toBe(true);
+  });
+});
+
+describe('the administrator step to begin', () => {
+  const half = { ...administratorOf('acme', 'existing'), username: 'ada', subjectId: 's1' };
+  const typed = { ...administratorOf('acme', 'existing'), username: 'grace' };
+
+  it('resumes one whose subject was created', () => {
+    expect(administratorDraft(half, 'acme', 'imported')).toBe(half);
+  });
+
+  it('begins afresh when nothing is stored or what is stored got no further', () => {
+    const fresh = administratorOf('acme', 'imported');
+    expect(administratorDraft(null, 'acme', 'imported')).toEqual(fresh);
+    expect(administratorDraft(typed, 'acme', 'imported')).toEqual(fresh);
   });
 });

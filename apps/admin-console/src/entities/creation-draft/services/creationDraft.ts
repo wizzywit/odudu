@@ -43,6 +43,16 @@ export function belongsTo(flow: CreationFlow, creation: Creation): boolean {
   );
 }
 
+// What a tenant's administrator step starts from: the stored one when it is
+// resumed, otherwise a fresh one.
+export function administratorDraft(
+  stored: Creation | null,
+  tenant: string,
+  origin: 'created' | 'imported' | 'existing',
+): Creation {
+  return stored !== null && resumesAdministrator(stored) ? stored : administratorOf(tenant, origin);
+}
+
 // Resumed when the subject was already created, since a retry would find its
 // username taken and leave it without a role.
 export function resumesAdministrator(stored: Creation | null): boolean {

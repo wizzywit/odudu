@@ -1,6 +1,6 @@
 export type { Creation, CreationFlow } from '#/entities/creation-draft/types/creation';
 export {
-  beginAdministrator,
+  beginOrResumeAdministrator,
   storedCreation,
   useCreationProgress,
   type CreationProgress,
@@ -9,7 +9,5 @@ export {
   administratorOf,
   flowOf,
   freshCreation,
-  FRESH_CREATION,
-  resumesAdministrator,
 } from '#/entities/creation-draft/services/creationDraft';
 export { administratorStepHref } from '#/entities/creation-draft/services/draftRoute';

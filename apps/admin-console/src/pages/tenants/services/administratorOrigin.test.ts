@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FRESH_CREATION, administratorOf } from '#/entities/creation-draft';
+import { administratorOf, freshCreation } from '#/entities/creation-draft';
 import {
   administratorTitle,
   firstAdministratorNote,
@@ -9,7 +9,7 @@ import {
 
 it('titles the page by where the tenant came from, an existing one when nothing is stored', () => {
   expect(titleOrigin(null)).toBe('existing');
-  expect(titleOrigin(FRESH_CREATION)).toBe('existing');
+  expect(titleOrigin(freshCreation('tenant'))).toBe('existing');
   expect(titleOrigin(administratorOf('acme', 'created'))).toBe('created');
   expect(titleOrigin(administratorOf('acme', 'imported'))).toBe('imported');
 });
