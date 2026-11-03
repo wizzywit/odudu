@@ -1,6 +1,6 @@
 import { AUDIT_QUERY_TOO_BROAD } from '@odudu/contracts/admin';
 import { andList } from '#/shared/services/format';
-import { edgeOfMinute } from '#/shared/services/dateTime';
+import { DAY_MS, edgeOfMinute } from '#/shared/services/dateTime';
 import type { GatewayFailure } from '#/shared/services/result';
 import { FILTER_LABELS, type AuditFilters } from '#/features/audit/services/auditFilters';
 
@@ -28,8 +28,6 @@ export function tooBroadAdvice(filters: AuditFilters): string {
     ? `${lead} Narrow the range, or drop one of them.`
     : `${lead} Choose a time range: the trail is ordered by time, so a range keeps the search short however many events match the rest.`;
 }
-
-const DAY_MS = 86_400_000;
 
 // The day up to now, as the instants a range filter carries.
 export function lastDay(now: Date): { from: string; to: string } {

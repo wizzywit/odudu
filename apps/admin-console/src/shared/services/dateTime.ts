@@ -13,7 +13,7 @@ export function utcDay(instant: Date): string {
   return instant.toISOString().slice(0, 10);
 }
 
-const DAY_MS = 86_400_000;
+export const DAY_MS = 86_400_000;
 const LOCAL = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)(?::(\d\d))?$/u;
 const PARTS = ['year', 'month', 'day', 'hour', 'minute'] as const;
 
