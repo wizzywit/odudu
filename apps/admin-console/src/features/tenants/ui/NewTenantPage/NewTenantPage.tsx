@@ -22,7 +22,7 @@ import {
 } from '#/features/tenants/services/administratorOrigin';
 import { useAdministratorTitle } from '#/features/tenants/use-cases/useAdministratorTitle';
 import { ReplaceUnfinished } from '#/features/tenants/ui/ReplaceUnfinished';
-import { SystemGate } from '#/features/tenants/ui/SystemGate';
+import { SystemGate } from '#/widgets/shell';
 import { Button } from '#/shared/ui/Button';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
 import { ChecklistField } from '#/shared/ui/ChecklistField';

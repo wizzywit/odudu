@@ -20,3 +20,9 @@ export function checkingText(area: Area): string {
 export function tenantNotFoundText(tenant: string): string {
   return `No tenant is named ${tenant}.`;
 }
+
+export const SYSTEM_KICKER = 'System';
+
+export function systemCheckingText(title: string): string {
+  return `Checking access to ${title}`;
+}

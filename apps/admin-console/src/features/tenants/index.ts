@@ -7,7 +7,6 @@ export {
 } from '#/features/tenants/ui/NewTenantPage';
 export { ImportTenantPage } from '#/features/tenants/ui/ImportTenantPage';
 export { ExportPage } from '#/features/tenants/ui/ExportPage';
-export { SystemGate } from '#/features/tenants/ui/SystemGate';
 export {
   useBeginAdministrator,
   type BeginAdministrator,

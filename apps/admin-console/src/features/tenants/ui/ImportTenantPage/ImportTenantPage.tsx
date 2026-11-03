@@ -7,7 +7,7 @@ import {
   type ImportTenantPage as ImportState,
 } from '#/features/tenants/use-cases/useImportTenantPage';
 import { counted } from '#/shared/services/format';
-import { SystemGate } from '#/features/tenants/ui/SystemGate';
+import { SystemGate } from '#/widgets/shell';
 import { Button } from '#/shared/ui/Button';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
 import { TextField } from '#/shared/ui/Field';

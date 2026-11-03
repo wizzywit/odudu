@@ -5,6 +5,8 @@ import {
   brandText,
   checkingText,
   signedInFrom,
+  SYSTEM_KICKER,
+  systemCheckingText,
   tenantNotFoundText,
 } from '#/widgets/shell/services/shellText';
 
@@ -22,5 +24,10 @@ describe('the frame text', () => {
   it('says what an area is doing before it opens', () => {
     expect(checkingText(areaAt('subjects'))).toBe('Checking access to Subjects');
     expect(tenantNotFoundText('ghost')).toBe('No tenant is named ghost.');
+  });
+
+  it('names the page a system gate checks access to', () => {
+    expect(SYSTEM_KICKER).toBe('System');
+    expect(systemCheckingText('Tenants')).toBe('Checking access to Tenants');
   });
 });

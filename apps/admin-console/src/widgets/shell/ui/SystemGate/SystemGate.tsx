@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useTenantsArea } from '#/features/tenants/use-cases/useTenantsArea';
+import { useSystemArea } from '#/widgets/shell/use-cases/useSystemArea';
 import { AccessGate } from '#/shared/ui/AccessGate';
 import type { Crumb } from '#/shared/ui/Breadcrumb';
 
@@ -16,14 +16,14 @@ export function SystemGate({
   breadcrumb?: readonly Crumb[];
   children: ReactNode;
 }) {
-  const access = useTenantsArea(tenant);
+  const { access, kicker, checking } = useSystemArea(tenant, title);
   return (
     <AccessGate
       access={access}
       title={title}
-      kicker="System"
+      kicker={kicker}
       {...(breadcrumb === undefined ? {} : { breadcrumb })}
-      checking={`Checking access to ${title}`}
+      checking={checking}
     >
       {children}
     </AccessGate>

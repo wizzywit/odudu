@@ -3,7 +3,7 @@ import { Link } from 'react-aria-components';
 import { areaAt } from '#/entities/area';
 import { IMPORT_TENANT_HREF, NEW_TENANT_HREF } from '#/features/tenants/services/systemAddress';
 import { useTenantsList } from '#/features/tenants/use-cases/useTenantsList';
-import { SystemGate } from '#/features/tenants/ui/SystemGate';
+import { SystemGate } from '#/widgets/shell';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
 import type { Column } from '#/shared/ui/DataTable';
 import { SelectField } from '#/shared/ui/Field';
