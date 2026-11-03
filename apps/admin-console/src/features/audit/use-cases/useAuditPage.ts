@@ -28,7 +28,7 @@ import {
 } from '#/features/audit/services/filterDraft';
 import { isFiltered, type FilterName } from '#/features/audit/services/auditFilters';
 import { actorHref, resourceHref, type RecordPages } from '#/features/audit/services/links';
-import { loadedRange } from '#/features/audit/services/range';
+import { loadedRange } from '#/features/audit/services/trailCount';
 import { holds } from '#/shared/services/access';
 import { useNow } from '#/shared/use-cases/useNow';
 import { localZone } from '#/shared/services/zones';

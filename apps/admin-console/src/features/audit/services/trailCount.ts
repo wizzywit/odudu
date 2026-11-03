@@ -2,6 +2,9 @@ import type { AuditEvent } from '@odudu/contracts/admin';
 import { counted } from '#/shared/services/format';
 import { formatInZone } from '#/shared/services/zones';
 
+export const NO_COUNT =
+  'The audit trail has no count: it is read a page at a time, newest first, and a total over a trail this long would be an estimate.';
+
 // The trail has no count, so the page says what it does know: how far back
 // the rows read so far reach.
 export function loadedRange(

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { auditEvent } from '#/testing/auditFixtures';
-import { loadedRange } from '#/features/audit/services/range';
+import { loadedRange } from '#/features/audit/services/trailCount';
 
 describe('the time range of the rows loaded', () => {
   it('names nothing for no rows', () => {

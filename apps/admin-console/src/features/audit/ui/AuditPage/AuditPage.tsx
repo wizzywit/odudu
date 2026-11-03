@@ -2,13 +2,9 @@ import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { TOO_BROAD_TITLE } from '#/features/audit/services/broad';
 import { EXPORT_NOTE } from '#/features/audit/services/export';
-import {
-  NO_COUNT,
-  NOTHING_MATCHES,
-  NOTHING_YET,
-  STALE_TEXT,
-  STALE_TITLE,
-} from '#/features/audit/services/page';
+import { NO_COUNT } from '#/features/audit/services/trailCount';
+import { NOTHING_MATCHES, NOTHING_YET } from '#/features/audit/services/emptyTrail';
+import { STALE_TEXT, STALE_TITLE } from '#/features/audit/services/staleTrail';
 import { useAuditPage, type AuditPageState } from '#/features/audit/use-cases/useAuditPage';
 import { AuditFilters } from '#/features/audit/ui/AuditFilters';
 import { CORRELATION_NOTE } from '#/shared/services/auditEvents';
