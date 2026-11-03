@@ -9,7 +9,7 @@ import {
   type Creation,
 } from '#/entities/creation-draft';
 import { draftOwner, SignedInContext } from '#/entities/session';
-import { useBeginAdministrator } from '#/features/tenants/use-cases/useBeginAdministrator';
+import { useBeginAdministrator } from '#/features/begin-administrator';
 
 const go = vi.fn();
 

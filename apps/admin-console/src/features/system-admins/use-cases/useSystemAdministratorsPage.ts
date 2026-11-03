@@ -7,7 +7,7 @@ import { useSubjectPicker } from '#/shared/repository/useSubjectPicker';
 import { administratorsAccess } from '#/features/system-admins/services/access';
 import { grantedText, grantFailureText } from '#/features/system-admins/services/grant';
 import { choosable, pickerUnavailable } from '#/features/system-admins/services/picker';
-import { useBeginAdministrator, type BeginAdministrator } from '#/features/tenants';
+import { useBeginAdministrator, type BeginAdministrator } from '#/features/begin-administrator';
 import { useToast } from '#/shared/repository/useToasts';
 import type { Change } from '#/shared/services/access';
 import {

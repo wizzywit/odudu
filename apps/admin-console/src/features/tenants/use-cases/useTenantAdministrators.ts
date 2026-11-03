@@ -3,10 +3,7 @@ import { systemAdminsHrefOf } from '#/features/tenants/services/systemAddress';
 import { administratorCapability, administratorNeeds } from '#/shared/services/administrators';
 import { lacking, notLacking } from '#/shared/services/access';
 import { SYSTEM_TENANT } from '#/shared/services/principal';
-import {
-  useBeginAdministrator,
-  type BeginAdministrator,
-} from '#/features/tenants/use-cases/useBeginAdministrator';
+import { useBeginAdministrator, type BeginAdministrator } from '#/features/begin-administrator';
 
 export interface TenantAdministrators {
   // The capability or role the guard counts, and for `system` where its

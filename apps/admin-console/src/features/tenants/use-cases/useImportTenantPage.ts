@@ -22,10 +22,7 @@ import {
   type ImportedSecret,
 } from '#/features/tenants/services/import';
 import { nameProblem } from '#/features/tenants/services/tenantName';
-import {
-  useBeginAdministrator,
-  type BeginAdministrator,
-} from '#/features/tenants/use-cases/useBeginAdministrator';
+import { useBeginAdministrator, type BeginAdministrator } from '#/features/begin-administrator';
 import { TENANT_NAME_RULE_TEXT } from '#/shared/services/labels';
 import { SYSTEM_TENANT } from '#/shared/services/principal';
 
