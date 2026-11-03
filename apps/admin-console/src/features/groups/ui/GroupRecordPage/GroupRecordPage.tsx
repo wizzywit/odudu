@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useAuditReadable } from '#/entities/session';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
-import { SubjectMembers } from '#/features/subjects';
+import { SubjectMembers } from '#/pages/subjects';
 import { groupsTrail } from '#/features/groups/services/address';
 import { GROUP_TAB_LABELS, GROUP_TABS, type GroupTab } from '#/features/groups/services/tabs';
 import { useGroupRecordPage, type Ceiling } from '#/features/groups/use-cases/useGroupRecordPage';

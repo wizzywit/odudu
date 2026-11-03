@@ -15,7 +15,7 @@ vi.mock('#/features/failure/ui/ShellFailure', () => ({
     throw new Error('the shell panel failed');
   },
 }));
-vi.mock('#/features/subjects', async (importOriginal) => ({
+vi.mock('#/pages/subjects', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   SubjectsPage: () => {
     throw new Error('a page failed');

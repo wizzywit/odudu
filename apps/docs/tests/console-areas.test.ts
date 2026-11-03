@@ -63,12 +63,12 @@ const PAGE_OF_AREA: Readonly<Record<string, string>> = {
 
 // The tabs of a record, by the file that names them; the tenant's are the
 // three its record page opens.
-const TAB_LABELS: Readonly<Record<string, { file: string; map: string } | readonly string[]>> = {
-  subjects: { file: 'subjects/services/tabs.ts', map: 'labels: {' },
-  clients: { file: 'clients/services/tabs.ts', map: 'labels: {' },
-  groups: { file: 'groups/services/tabs.ts', map: 'labels: {' },
-  roles: { file: 'roles/services/tabs.ts', map: 'labels: {' },
-  scopes: { file: 'scopes/services/tabs.ts', map: 'labels: {' },
+const TAB_LABELS: Readonly<Record<string, TabSource | readonly string[]>> = {
+  subjects: { file: 'subjects/services/tabs.ts', map: 'labels: {', root: CONSOLE_PAGES },
+  clients: { file: 'clients/services/tabs.ts', map: 'labels: {', root: CONSOLE },
+  groups: { file: 'groups/services/tabs.ts', map: 'labels: {', root: CONSOLE },
+  roles: { file: 'roles/services/tabs.ts', map: 'labels: {', root: CONSOLE },
+  scopes: { file: 'scopes/services/tabs.ts', map: 'labels: {', root: CONSOLE },
   tenants: ['General', 'Administrators', 'Export'],
 };
 
@@ -97,6 +97,7 @@ function areas(): Area[] {
 interface TabSource {
   file: string;
   map: string;
+  root: string;
 }
 
 const fromFile = (entry: TabSource | readonly string[]): entry is TabSource =>
@@ -104,8 +105,8 @@ const fromFile = (entry: TabSource | readonly string[]): entry is TabSource =>
 
 function tabLabels(entry: TabSource | readonly string[]): string[] {
   if (!fromFile(entry)) return [...entry];
-  const { file, map } = entry;
-  const source = text(path.join(CONSOLE, file));
+  const { file, map, root } = entry;
+  const source = text(path.join(root, file));
   const start = source.indexOf(map);
   const body = source.slice(start, source.indexOf('}', start));
   return [...body.matchAll(/:\s*'([^']+)'/gu)].map((match) => match[1] ?? '');

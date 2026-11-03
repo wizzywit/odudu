@@ -10,7 +10,7 @@ import { graceRoutes, renderConsoleAt } from '#/testing/renderConsole';
 
 const broken = vi.hoisted(() => ({ page: true, shell: false, toasts: false }));
 
-vi.mock('#/features/subjects', async (importOriginal) => {
+vi.mock('#/pages/subjects', async (importOriginal) => {
   const { createElement } = await import('react');
   return {
     ...(await importOriginal<Record<string, unknown>>()),

@@ -1,6 +1,6 @@
 import type { Role } from '@odudu/contracts/admin';
 import { useRefusal, useRereadAuthority } from '#/entities/session';
-import { useOwnRoles } from '#/features/subjects';
+import { useOwnRoles } from '#/pages/subjects';
 import { useGo } from '#/shared/repository/useGo';
 import { useRoleDeletion, useRoleSaves } from '#/features/roles/repository/useRoleRecord';
 import { rolesHref } from '#/features/roles/services/address';

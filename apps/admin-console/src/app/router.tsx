@@ -171,7 +171,7 @@ const tenantRecord = tenantPages[1];
 const tenantAdministrator = tenantPages[2];
 
 const SystemAdministrators = lazyFeatureRoute(
-  () => import('#/features/system-admins').then((feature) => feature.SystemAdministratorsPage),
+  () => import('#/pages/system-admins').then((feature) => feature.SystemAdministratorsPage),
   'Loading system administrators',
 );
 
@@ -195,7 +195,7 @@ const newSystemAdmin = createRoute({
 
 function subjectsPage(name: 'SubjectsPage' | 'NewSubjectPage') {
   return lazyFeatureRoute(
-    () => import('#/features/subjects').then((feature) => feature[name]),
+    () => import('#/pages/subjects').then((feature) => feature[name]),
     'Loading subjects',
   );
 }
@@ -203,7 +203,7 @@ function subjectsPage(name: 'SubjectsPage' | 'NewSubjectPage') {
 const Subjects = subjectsPage('SubjectsPage');
 const NewSubject = subjectsPage('NewSubjectPage');
 const SubjectRecord = lazyFeatureRoute(
-  () => import('#/features/subjects').then((feature) => feature.SubjectRecordPage),
+  () => import('#/pages/subjects').then((feature) => feature.SubjectRecordPage),
   'Loading the subject',
 );
 

@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { listSubjects } from '#/features/subjects/adapter/subjects';
+import { listSubjects } from '#/pages/subjects/adapter/subjects';
 
 export function useList(gateway: unknown) {
   return useMutation({

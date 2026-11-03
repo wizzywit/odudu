@@ -37,7 +37,7 @@ describe("the console's service files", { timeout: 60_000 }, () => {
   it('stay within the length limit, tests excepted', async () => {
     const files = await read(CONSOLE_SERVICES);
     expect([...files.keys()]).toContain(
-      'apps/admin-console/src/features/subjects/services/credentialAsk.ts',
+      'apps/admin-console/src/pages/subjects/services/credentialAsk.ts',
     );
     expect([...files.keys()]).toContain('apps/admin-console/src/shared/services/dirty.ts');
     const offenders = [...files].flatMap(([file, source]) => violation(file, source) ?? []);

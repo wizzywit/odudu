@@ -1,7 +1,7 @@
 import type { ListRoleCompositesResponse, Role } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useRefusal, useRereadAuthority } from '#/entities/session';
-import { useOwnRoles } from '#/features/subjects';
+import { useOwnRoles } from '#/pages/subjects';
 import {
   useAddComposite,
   useCompositeRemoval,

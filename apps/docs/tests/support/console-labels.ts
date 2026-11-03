@@ -63,7 +63,8 @@ const heading = (label: string): Defined => at(AREAS, `heading: '${label}'`);
 
 const tab = (feature_: string, key: string, label: string): Defined =>
   feature(`${feature_}/services/tabs.ts`, `${key}: '${label}'`);
-const subjectTab = (key: string, label: string): Defined => tab('subjects', key, label);
+const subjectTab = (key: string, label: string): Defined =>
+  page('subjects/services/tabs.ts', `${key}: '${label}'`);
 const clientTab = (key: string, label: string): Defined => tab('clients', key, label);
 
 const FILTERS = 'audit/ui/AuditFilters/AuditFilters.tsx';
@@ -87,9 +88,13 @@ const SUBJECT_PROFILE = 'subjects/ui/SubjectRecordPage/ProfileTab.tsx';
 const CREATION_FORM = `${SHARED}/ui/CreationForm/CreationForm.tsx`;
 const DELETE_ZONE = `${SHARED}/ui/DeleteZone/DeleteZone.tsx`;
 
-const createWith = (noun: string, page: string): Defined =>
+const createWith = (
+  noun: string,
+  file: string,
+  evidenceIn: (path: string, text: string) => Evidence = inFeature,
+): Defined =>
   template(
-    [{ file: CREATION_FORM, text: '`Create ${noun}`' }, inFeature(page, `noun="${noun}"`)],
+    [{ file: CREATION_FORM, text: '`Create ${noun}`' }, evidenceIn(file, `noun="${noun}"`)],
     'Create ${noun}',
     { noun },
   );
@@ -109,10 +114,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   Username: several(
     at(MESSAGES, "'login.username': 'Username'"),
-    feature('subjects/ui/NewSubjectPage/NewSubjectPage.tsx', 'label="Username"'),
+    page('subjects/ui/NewSubjectPage/NewSubjectPage.tsx', 'label="Username"'),
     page(TENANT_NEW, 'label="Username"'),
     feature(EMAIL_RELAY, "username: 'Username'"),
-    feature('subjects/ui/CapabilityHolders/CapabilityHolders.tsx', "label: 'Username'"),
+    page('subjects/ui/CapabilityHolders/CapabilityHolders.tsx', "label: 'Username'"),
   ),
   Password: at(MESSAGES, "'login.password': 'Password'"),
   'Sign out': at('apps/admin-console/src/widgets/shell/ui/RailFooter/RailFooter.tsx', 'Sign out'),
@@ -171,7 +176,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Branding: rail('branding', 'Branding'),
   Email: several(
     rail('email', 'Email'),
-    feature('subjects/ui/NewSubjectPage/NewSubjectPage.tsx', 'label="Email"'),
+    page('subjects/ui/NewSubjectPage/NewSubjectPage.tsx', 'label="Email"'),
     page(TENANT_NEW, 'label="Email"'),
   ),
   Export: several(
@@ -185,10 +190,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   // Tabs of a record.
   Profile: subjectTab('profile', 'Profile'),
   Credentials: subjectTab('credentials', 'Credentials'),
-  'Required actions': feature(
-    'subjects/services/tabs.ts',
-    "'required-actions': 'Required actions'",
-  ),
+  'Required actions': page('subjects/services/tabs.ts', "'required-actions': 'Required actions'"),
   Consents: subjectTab('consents', 'Consents'),
   Grants: subjectTab('grants', 'Grants'),
   Activity: several(
@@ -219,7 +221,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   // Creating things.
   'Create a tenant': page('tenants/ui/TenantsPage/TenantsPage.tsx', '> Create a tenant <'),
   'Create a client': feature('clients/ui/ClientsPage/ClientsPage.tsx', '> Create a client <'),
-  'Create a subject': feature('subjects/ui/SubjectsPage/SubjectsPage.tsx', '> Create a subject <'),
+  'Create a subject': page('subjects/ui/SubjectsPage/SubjectsPage.tsx', '> Create a subject <'),
   'Create a group': feature('groups/ui/GroupsPage/GroupsPage.tsx', '> Create a group <'),
   'Create a role': feature('roles/ui/RolesPage/RolesPage.tsx', '> Create a role <'),
   'Create a scope': feature('scopes/ui/ScopesPage/ScopesPage.tsx', '> Create a scope <'),
@@ -243,12 +245,12 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   'Create tenant': page(TENANT_NEW, "'Create tenant'"),
   'Create client': createWith('client', CLIENT_NEW),
-  'Create subject': createWith('subject', 'subjects/ui/NewSubjectPage/NewSubjectPage.tsx'),
+  'Create subject': createWith('subject', 'subjects/ui/NewSubjectPage/NewSubjectPage.tsx', inPage),
   'Create group': createWith('group', 'groups/ui/NewGroupPage/NewGroupPage.tsx'),
   'Create role': createWith('role', 'roles/ui/NewRolePage/NewRolePage.tsx'),
   'Create scope': createWith('scope', 'scopes/ui/NewScopePage/NewScopePage.tsx'),
   'Create administrator': page(TENANT_NEW, "'Create administrator'"),
-  'Create a new subject as an administrator': feature(
+  'Create a new subject as an administrator': page(
     SYSTEM_PAGE,
     '>Create a new subject as an administrator<',
   ),
@@ -291,59 +293,59 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   }),
 
   // Finding things in a list.
-  Capability: feature('subjects/ui/SubjectsPage/SubjectsPage.tsx', 'label="Capability"'),
+  Capability: page('subjects/ui/SubjectsPage/SubjectsPage.tsx', 'label="Capability"'),
   Status: several(
-    feature('subjects/ui/SubjectsPage/SubjectsPage.tsx', 'label="Status"'),
+    page('subjects/ui/SubjectsPage/SubjectsPage.tsx', 'label="Status"'),
     page('tenants/ui/TenantsPage/TenantsPage.tsx', 'label="Status"'),
-    feature('subjects/ui/CapabilityHolders/CapabilityHolders.tsx', 'label="Status"'),
+    page('subjects/ui/CapabilityHolders/CapabilityHolders.tsx', 'label="Status"'),
   ),
-  Holds: feature('subjects/ui/CapabilityHolders/CapabilityHolders.tsx', 'label="Holds"'),
+  Holds: page('subjects/ui/CapabilityHolders/CapabilityHolders.tsx', 'label="Holds"'),
   'Belongs to': feature('roles/ui/RolesPage/RolesPage.tsx', 'label="Belongs to"'),
   Previous: shared('ui/Pager/Pager.tsx', 'Previous'),
   Next: shared('ui/Pager/Pager.tsx', 'Next'),
 
   // Subjects.
-  'Issue a one-time password': feature(
+  'Issue a one-time password': page(
     'subjects/ui/SubjectRecordPage/CredentialsTab.tsx',
     'Issue a one-time password',
   ),
-  'Issue password': feature('subjects/services/credentialAsk.ts', "confirmLabel: 'Issue password'"),
-  'Send a password reset email': feature(
+  'Issue password': page('subjects/services/credentialAsk.ts', "confirmLabel: 'Issue password'"),
+  'Send a password reset email': page(
     'subjects/ui/SubjectRecordPage/CredentialsTab.tsx',
     '> Send a password reset email <',
   ),
-  'Revoke recovery codes': feature(
+  'Revoke recovery codes': page(
     'subjects/services/credentialAsk.ts',
     "confirmLabel: 'Revoke recovery codes'",
   ),
-  'Revoke grants': feature(
+  'Revoke grants': page(
     'subjects/ui/SubjectRecordPage/GrantsTab.tsx',
     'confirmLabel="Revoke grants"',
   ),
-  'End session': feature(
+  'End session': page(
     'subjects/ui/SubjectRecordPage/SessionsTab.tsx',
     'confirmLabel="End session"',
   ),
   'End every session': several(
-    feature('subjects/ui/SubjectRecordPage/SessionsTab.tsx', 'confirmLabel="End every session"'),
+    page('subjects/ui/SubjectRecordPage/SessionsTab.tsx', 'confirmLabel="End every session"'),
     page(
       'tenant-sessions/ui/TenantSessionsPage/TenantSessionsPage.tsx',
       'confirmLabel="End every session"',
     ),
   ),
-  'Admin capabilities': feature(
+  'Admin capabilities': page(
     'subjects/ui/SubjectRecordPage/CapabilityEditor.tsx',
     'title="Admin capabilities"',
   ),
-  'Disable ada': template([inFeature(SUBJECT_PROFILE, '`Disable ${name}`')], 'Disable ${name}', {
+  'Disable ada': template([inPage(SUBJECT_PROFILE, '`Disable ${name}`')], 'Disable ${name}', {
     name: 'ada',
   }),
-  'Delete ada': template([inFeature(SUBJECT_PROFILE, '`Delete ${name}`')], 'Delete ${name}', {
+  'Delete ada': template([inPage(SUBJECT_PROFILE, '`Delete ${name}`')], 'Delete ${name}', {
     name: 'ada',
   }),
   Delete: several(
     at(DELETE_ZONE, 'title="Delete"'),
-    feature(SUBJECT_PROFILE, 'title="Delete"'),
+    page(SUBJECT_PROFILE, 'title="Delete"'),
     feature(KEYS_PAGE, '> Delete <'),
   ),
 
@@ -666,19 +668,19 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Choose a file…': page(TENANT_IMPORT, '> Choose a file… <'),
   'Tenant document': page(TENANT_IMPORT, '> Tenant document <'),
   'Add an administrator': several(
-    feature(SYSTEM_PAGE, '> Add an administrator <'),
+    page(SYSTEM_PAGE, '> Add an administrator <'),
     page('tenants/ui/AdministratorsTab/AdministratorsTab.tsx', '>Add an administrator<'),
   ),
-  'Subject in system': feature(SYSTEM_PAGE, 'label="Subject in system"'),
+  'Subject in system': page(SYSTEM_PAGE, 'label="Subject in system"'),
   'What they hold': several(
-    feature(SYSTEM_PAGE, 'label="What they hold"'),
+    page(SYSTEM_PAGE, 'label="What they hold"'),
     page(TENANT_NEW, 'label="What they hold"'),
   ),
-  'Give it to the chosen subject': feature(SYSTEM_PAGE, "'Give it to the chosen subject'"),
+  'Give it to the chosen subject': page(SYSTEM_PAGE, "'Give it to the chosen subject'"),
   'Full (tenant-admin)': at(`${SHARED}/services/capabilities/holdings.ts`, "'Full (tenant-admin)'"),
   'Change admin@odudu.local’s capabilities': template(
     [
-      inFeature(
+      inPage(
         'subjects/ui/CapabilityHolders/CapabilityHolders.tsx',
         '`Change ${holder.name}’s capabilities`',
       ),
@@ -865,46 +867,43 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     "label: 'ES256 (elliptic curve)'",
   ),
   'RS256 (RSA)': feature('signing-keys/services/stage.ts', "label: 'RS256 (RSA)'"),
-  'Holding anything or nothing': feature(
+  'Holding anything or nothing': page(
     'subjects/ui/SubjectsPage/SubjectsPage.tsx',
     "label: 'Holding anything or nothing'",
   ),
-  'Given name': feature('subjects/services/claims.ts', "label: 'Given name'"),
-  'Family name': feature('subjects/services/claims.ts', "label: 'Family name'"),
-  'Middle name': feature('subjects/services/claims.ts', "label: 'Middle name'"),
-  'Preferred username': feature('subjects/services/claims.ts', "label: 'Preferred username'"),
-  'Phone number verified': feature(
+  'Given name': page('subjects/services/claims.ts', "label: 'Given name'"),
+  'Family name': page('subjects/services/claims.ts', "label: 'Family name'"),
+  'Middle name': page('subjects/services/claims.ts', "label: 'Middle name'"),
+  'Preferred username': page('subjects/services/claims.ts', "label: 'Preferred username'"),
+  'Phone number verified': page(
     'subjects/ui/SubjectRecordPage/ProfileTab.tsx',
     'label="Phone number verified"',
   ),
-  Locality: feature('subjects/services/claims.ts', "label: 'Locality'"),
-  Region: feature('subjects/services/claims.ts', "label: 'Region'"),
-  'Postal code': feature('subjects/services/claims.ts', "label: 'Postal code'"),
-  'Ask for a new set at next sign-in': feature(
+  Locality: page('subjects/services/claims.ts', "label: 'Locality'"),
+  Region: page('subjects/services/claims.ts', "label: 'Region'"),
+  'Postal code': page('subjects/services/claims.ts', "label: 'Postal code'"),
+  'Ask for a new set at next sign-in': page(
     'subjects/services/credentialAsk.ts',
     "label: 'Ask for a new set at next sign-in'",
   ),
-  'Choose a new password': feature(
+  'Choose a new password': page(
     'subjects/services/requiredActions.ts',
     "label: 'Choose a new password'",
   ),
-  'Set up an authenticator app': feature(
+  'Set up an authenticator app': page(
     'subjects/services/requiredActions.ts',
     "label: 'Set up an authenticator app'",
   ),
-  'Register a passkey': feature(
-    'subjects/services/requiredActions.ts',
-    "label: 'Register a passkey'",
-  ),
-  'Generate recovery codes': feature(
+  'Register a passkey': page('subjects/services/requiredActions.ts', "label: 'Register a passkey'"),
+  'Generate recovery codes': page(
     'subjects/services/requiredActions.ts',
     "label: 'Generate recovery codes'",
   ),
-  'Required actions to email': feature(
+  'Required actions to email': page(
     'subjects/ui/SubjectRecordPage/CredentialsTab.tsx',
     'label="Required actions to email"',
   ),
-  'Filter administrators': feature(
+  'Filter administrators': page(
     'subjects/ui/CapabilityHolders/CapabilityHolders.tsx',
     'label="Filter administrators"',
   ),
@@ -913,17 +912,17 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'label="Which tenant do you administer?"',
   ),
   Consent: feature('clients/services/labels.ts', "consent: 'Consent'"),
-  'Full name': feature('subjects/services/claims.ts', "label: 'Full name'"),
-  Nickname: feature('subjects/services/claims.ts', "label: 'Nickname'"),
-  Gender: feature('subjects/services/claims.ts', "label: 'Gender'"),
-  Birthdate: feature('subjects/services/claims.ts', "label: 'Birthdate'"),
-  'Time zone': feature('subjects/services/claims.ts', "label: 'Time zone'"),
-  Locale: feature('subjects/services/claims.ts', "label: 'Locale'"),
-  'Profile page': feature('subjects/services/claims.ts', "label: 'Profile page'"),
-  Website: feature('subjects/services/claims.ts', "label: 'Website'"),
-  Picture: feature('subjects/services/claims.ts', "label: 'Picture'"),
-  'Phone number': feature('subjects/services/claims.ts', "label: 'Phone number'"),
-  'Formatted address': feature('subjects/services/claims.ts', "label: 'Formatted address'"),
-  Street: feature('subjects/services/claims.ts', "label: 'Street'"),
-  Country: feature('subjects/services/claims.ts', "label: 'Country'"),
+  'Full name': page('subjects/services/claims.ts', "label: 'Full name'"),
+  Nickname: page('subjects/services/claims.ts', "label: 'Nickname'"),
+  Gender: page('subjects/services/claims.ts', "label: 'Gender'"),
+  Birthdate: page('subjects/services/claims.ts', "label: 'Birthdate'"),
+  'Time zone': page('subjects/services/claims.ts', "label: 'Time zone'"),
+  Locale: page('subjects/services/claims.ts', "label: 'Locale'"),
+  'Profile page': page('subjects/services/claims.ts', "label: 'Profile page'"),
+  Website: page('subjects/services/claims.ts', "label: 'Website'"),
+  Picture: page('subjects/services/claims.ts', "label: 'Picture'"),
+  'Phone number': page('subjects/services/claims.ts', "label: 'Phone number'"),
+  'Formatted address': page('subjects/services/claims.ts', "label: 'Formatted address'"),
+  Street: page('subjects/services/claims.ts', "label: 'Street'"),
+  Country: page('subjects/services/claims.ts', "label: 'Country'"),
 };
