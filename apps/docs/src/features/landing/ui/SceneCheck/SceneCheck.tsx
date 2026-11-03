@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { CheckModel } from '@site/src/features/landing/services/scene';
+import type { CheckModel } from '@site/src/features/landing/services/sceneModel';
 import styles from '@site/src/features/landing/ui/SceneCheck/SceneCheck.module.css';
 
 interface Props {

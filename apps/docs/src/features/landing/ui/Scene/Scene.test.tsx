@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHIPS } from '@site/src/features/landing/services/scene';
+import { CHIPS } from '@site/src/features/landing/services/sceneShapes';
 import { Scene } from '@site/src/features/landing/ui/Scene/Scene';
 import { markupOf } from '@site/tests/support/markup';
 

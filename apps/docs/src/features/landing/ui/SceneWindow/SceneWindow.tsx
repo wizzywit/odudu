@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { WindowModel } from '@site/src/features/landing/services/scene';
+import type { WindowModel } from '@site/src/features/landing/services/sceneModel';
 import { SceneCheck } from '@site/src/features/landing/ui/SceneCheck/SceneCheck';
 import styles from '@site/src/features/landing/ui/SceneWindow/SceneWindow.module.css';
 
