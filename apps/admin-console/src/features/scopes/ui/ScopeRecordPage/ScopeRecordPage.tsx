@@ -1,9 +1,8 @@
-import type { Scope } from '#/entities/scope';
 import type { ReactNode } from 'react';
 import { useAuditReadable } from '#/entities/session';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
-import { scopesTrail } from '#/features/scopes/services/address';
+import { newScopeHref, type Scope, scopesTrail } from '#/entities/scope';
 import { copyHrefOf } from '#/features/scopes/services/scopeCopy';
 import { SCOPE_TITLE } from '#/features/scopes/services/scopeDetails';
 import { SCOPE_TAB_LABELS, SCOPE_TABS, type ScopeTab } from '#/features/scopes/services/tabs';
@@ -56,7 +55,7 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
         ? {}
         : {
             actions: (
-              <ButtonLink href={copyHrefOf(tenant, scope.id)} size="small">
+              <ButtonLink href={copyHrefOf(newScopeHref(tenant), scope.id)} size="small">
                 Create a copy
               </ButtonLink>
             ),

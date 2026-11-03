@@ -1,9 +1,8 @@
-import type { Client } from '#/entities/client';
 import { useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { useCreateClient } from '#/features/clients/repository/useCreateClient';
 import { useGo } from '#/shared/repository/useGo';
-import { clientHref, clientsHref } from '#/features/clients/services/address';
+import { type Client, clientHref, clientsHref } from '#/entities/client';
 import {
   clientIdProblem,
   NEW_CLIENT_FIELDS,

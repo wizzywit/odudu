@@ -5,7 +5,7 @@ import {
 } from '#/features/branding/services/mail';
 import type { MailTab } from '#/features/branding/use-cases/useMailTab';
 import { Button } from '#/shared/ui/Button';
-import { ClientPicker } from '#/shared/ui/ClientPicker';
+import { ClientPicker } from '#/entities/client';
 import styles from '#/features/branding/ui/MailClientChoice/MailClientChoice.module.css';
 
 // Which look the preview shows: the tenant's own, or the mail a sign-in of one

@@ -12,7 +12,7 @@ import {
   type PageValues,
   type TranslationSectionValues,
 } from '#/features/clients/repository/useClientRecord';
-import { clientsHref } from '#/features/clients/services/address';
+import { clientsHref } from '#/entities/client';
 import { deleteFixed } from '#/features/clients/services/clientDeletion';
 import { enabledFixed } from '#/features/clients/services/builtinFixed';
 import { deleteConsequence } from '#/features/clients/services/clientDeletion';

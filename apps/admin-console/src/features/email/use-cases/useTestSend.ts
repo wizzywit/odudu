@@ -18,7 +18,7 @@ import {
   testClientSummary,
   type TestClientChoice,
 } from '#/features/email/services/testClient';
-import { useClientPicker } from '#/shared/repository/useClientPicker';
+import { useClientPicker } from '#/entities/client';
 import type { PickerState } from '#/shared/services/picker';
 
 export interface TestSend {

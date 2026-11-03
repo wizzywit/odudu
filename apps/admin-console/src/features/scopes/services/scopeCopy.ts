@@ -6,7 +6,6 @@ import type { LeftOut, PartialCopy } from '#/shared/services/copy';
 import { andList, plural } from '#/shared/services/format';
 import type { AdminCapability } from '#/shared/services/principal';
 import type { GatewayResult } from '#/shared/services/result';
-import { scopeHref, scopesHref } from '#/features/scopes/services/address';
 
 type MappedRole = ScopeRoleList['items'][number];
 
@@ -52,8 +51,8 @@ export interface CopyPlan {
   left: LeftOut[];
 }
 
-export function copyHrefOf(tenant: string, id: string): string {
-  return withSearch(`${scopesHref(tenant)}/new`, { copy: id });
+export function copyHrefOf(newHref: string, id: string): string {
+  return withSearch(newHref, { copy: id });
 }
 
 // A copy maps the roles a caller could give. Until the caller is known every
@@ -152,7 +151,7 @@ export function partMissed(part: CopyPart, written: { ok: boolean } | null): Cop
 // A copy missing some of its parts stays on the page, saying so, since a toast
 // is never the only copy of something to act on.
 export function partialCopy(
-  tenant: string,
+  scopeHref: string,
   scope: { id: string; name: string },
   missed: readonly (keyof typeof PARTS)[],
 ): PartialCopy | null {
@@ -160,7 +159,7 @@ export function partialCopy(
   const tabs = missed.map((part) => (part === 'roles' ? 'Roles' : 'Claim mappers'));
   return {
     text: `${scope.name} was created, but its ${andList(missed.map((part) => PARTS[part]))} could not be copied. Set them from its ${andList(tabs)} ${plural(tabs.length, 'tab', 'tabs')}.`,
-    href: scopeHref(tenant, scope.id),
+    href: scopeHref,
     name: scope.name,
   };
 }

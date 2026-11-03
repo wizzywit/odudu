@@ -12,7 +12,7 @@ import {
   type MailClient,
 } from '#/features/branding/services/mail';
 import { type Scheme } from '#/features/branding/services/palette';
-import { useClientPicker } from '#/shared/repository/useClientPicker';
+import { useClientPicker } from '#/entities/client';
 import type { PickerState } from '#/shared/services/picker';
 import type { Read } from '#/shared/services/read';
 

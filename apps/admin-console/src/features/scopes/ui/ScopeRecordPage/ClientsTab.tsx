@@ -5,7 +5,7 @@ import {
 } from '#/features/scopes/use-cases/useScopeClientsTab';
 import { AssignedList, AssignedRow, AssignPanel } from '#/shared/ui/AssignmentControls';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
-import { ClientPicker } from '#/shared/ui/ClientPicker';
+import { ClientPicker } from '#/entities/client';
 import { ListGate } from '#/shared/ui/ListGate';
 import { LoadMore } from '#/shared/ui/LoadMore';
 import { Problem } from '#/shared/ui/Message';

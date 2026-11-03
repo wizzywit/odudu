@@ -10,7 +10,8 @@ import {
 import { listsReadOnly, redirectsFixed } from '#/features/clients/services/builtinFixed';
 import { FIELD, SECTION } from '#/features/clients/services/clientDetails';
 import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/listEntries';
-import { clientTabHref } from '#/features/clients/services/tabs';
+import { clientHref } from '#/entities/client';
+import { clientTabHrefOf } from '#/features/clients/services/tabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 
 export interface ClientRedirects {
@@ -61,6 +62,6 @@ export function useClientRedirects({
     originCount: listCount(origins.values.web_origins, CLIENT_LIST_LIMIT, 'web origins'),
     fixed: redirectsFixed(client),
     readOnly: listsReadOnly(client, writable),
-    logoutHref: clientTabHref(tenant, client.id, 'logout'),
+    logoutHref: clientTabHrefOf(clientHref)(tenant, client.id, 'logout'),
   };
 }

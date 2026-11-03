@@ -4,7 +4,7 @@ import {
   clientsHref,
   clientsTrail,
   newClientHref,
-} from '#/features/clients/services/address';
+} from '#/entities/client/services/clientAddress';
 
 it('addresses the list, the creation page and a record, each tenant and id encoded', () => {
   expect(clientsHref('acme')).toBe('/console/acme/clients');

@@ -1,4 +1,3 @@
-import type { Scope } from '#/entities/scope';
 import { useRefusal } from '#/entities/session';
 import {
   useScopeDeletion,
@@ -10,7 +9,7 @@ import {
   type DescriptionSectionValues,
   type TokenValues,
 } from '#/features/scopes/repository/useScopeRecord';
-import { scopesHref } from '#/features/scopes/services/address';
+import { type Scope, scopesHref } from '#/entities/scope';
 import {
   claimMappersOf,
   impactHeld,

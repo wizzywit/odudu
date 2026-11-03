@@ -1,6 +1,5 @@
-import type { Scope } from '#/entities/scope';
 import { useScopeList } from '#/features/scopes/repository/useScopeList';
-import { newScopeHref, scopeHref } from '#/features/scopes/services/address';
+import { type Scope, newScopeHref, scopeHref } from '#/entities/scope';
 import { useListPage, type ListPageState } from '#/shared/use-cases/useListPage';
 
 export type ScopesList = ListPageState<Scope>;

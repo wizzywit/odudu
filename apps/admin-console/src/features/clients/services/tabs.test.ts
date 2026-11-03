@@ -1,10 +1,11 @@
 import { expect, it } from 'vitest';
+import { clientHref } from '#/entities/client';
 import {
   CLIENT_TABS,
   CLIENT_TAB_LABELS,
   chosenTab,
   clientRecord,
-  clientTabHref,
+  clientTabHrefOf,
   TAB_SECTIONS,
   tabsWithEdits,
 } from '#/features/clients/services/tabs';
@@ -24,7 +25,9 @@ it('keeps the tabs in the order the record page shows them', () => {
     'activity',
   ]);
   expect(clientRecord('c1')).toBe('clients/c1');
-  expect(clientTabHref('acme', 'c1', 'logout')).toBe('/console/acme/clients/c1?tab=logout');
+  expect(clientTabHrefOf(clientHref)('acme', 'c1', 'logout')).toBe(
+    '/console/acme/clients/c1?tab=logout',
+  );
 });
 
 it('marks the tab whose section holds edits, and no other', () => {
@@ -87,7 +90,9 @@ it.each([
   (tab, label, held) => {
     expect(CLIENT_TAB_LABELS[tab]).toBe(label);
     expect(TAB_SECTIONS[tab]).toEqual(held);
-    expect(clientTabHref('acme', 'c 1', tab)).toBe(`/console/acme/clients/c%201?tab=${tab}`);
+    expect(clientTabHrefOf(clientHref)('acme', 'c 1', tab)).toBe(
+      `/console/acme/clients/c%201?tab=${tab}`,
+    );
     expect(chosenTab(tab)).toBe(tab);
     for (const section of held) expect([...tabsWithEdits(new Set([section]))]).toEqual([tab]);
   },

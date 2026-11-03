@@ -1,20 +1,7 @@
-import type { AssignedScopes, Scope } from '#/entities/scope';
-import { assignScope, unassignScope } from '#/shared/adapter/scopeAssignment';
+import { assignScope, unassignScope, type AssignedScopes } from '#/entities/scope';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
-import { readScopePage } from '#/shared/adapter/directory';
-import { usePicker } from '#/shared/repository/usePicker';
-import type { PickerState } from '#/shared/services/picker';
 import type { GatewayResult } from '#/shared/transport/gateway';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
-
-// The tenant's scopes, searched by name on the server a page at a time.
-export function useScopePicker(tenant: string): PickerState<Scope> {
-  return usePicker({
-    tenant,
-    resource: 'scopes',
-    read: (gateway, query) => readScopePage(gateway, tenant, query),
-  });
-}
 
 export interface ScopeChanges {
   assign: Write<

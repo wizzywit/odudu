@@ -1,6 +1,6 @@
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
-import { clientsTrail } from '#/features/clients/services/address';
+import { clientsTrail } from '#/entities/client';
 import { SECRET_LABEL } from '#/features/clients/services/createdSecret';
 import { KIND_CHOICES, NEW_CLIENT_TITLE } from '#/features/clients/services/newClient';
 import { REDIRECTS_RULE } from '#/features/clients/services/clientRedirects';

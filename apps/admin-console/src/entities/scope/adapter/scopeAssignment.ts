@@ -1,7 +1,5 @@
-import {
-  assignScopeToClientResponseSchema,
-  type AssignScopeToClientResponse,
-} from '@odudu/contracts/admin';
+import { assignScopeToClientResponseSchema } from '@odudu/contracts/admin';
+import type { AssignedScopes } from '#/entities/scope/types/scope';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { adminCall, nothing } from '#/shared/adapter/route';
 
@@ -12,7 +10,7 @@ export function assignScope(
   scopeId: string,
   clientDbId: string,
   assignment: 'default' | 'optional',
-): Promise<GatewayResult<AssignScopeToClientResponse>> {
+): Promise<GatewayResult<AssignedScopes>> {
   return adminCall(gateway, 'PUT', tenant, ['scopes', scopeId, 'clients', clientDbId], {
     body: { assignment },
     schema: assignScopeToClientResponseSchema,

@@ -19,7 +19,7 @@ import { useRelayRemoval } from '#/features/email/use-cases/useRelayRemoval';
 import { useTestSend } from '#/features/email/use-cases/useTestSend';
 import { Button } from '#/shared/ui/Button';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
-import { ClientPicker } from '#/shared/ui/ClientPicker';
+import { ClientPicker } from '#/entities/client';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
 import { TextField, ToggleField } from '#/shared/ui/Field';
 import { FieldGrid, GridCell } from '#/shared/ui/FieldGrid';

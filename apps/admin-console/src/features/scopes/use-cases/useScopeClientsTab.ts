@@ -1,4 +1,3 @@
-import type { Client } from '#/entities/client';
 import type { Scope } from '#/entities/scope';
 import type { ScopeClient } from '#/features/scopes/types/scopeClient';
 import { useAuthority, useRefusal } from '#/entities/session';
@@ -13,7 +12,7 @@ import {
   clientsCount,
   clientsOffered,
 } from '#/features/scopes/services/scopeClients';
-import { useClientPicker } from '#/shared/repository/useClientPicker';
+import { type Client, useClientPicker } from '#/entities/client';
 import { lacking } from '#/shared/services/access';
 import type { PickerState } from '#/shared/services/picker';
 import type { AdminCapability } from '#/shared/services/principal';

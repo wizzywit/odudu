@@ -123,8 +123,10 @@ describe('copying a scope', () => {
   });
 
   it('says what a copy could not take, and where to set it', () => {
-    expect(partialCopy('acme', { id: 'n1', name: 'billing-2' }, [])).toBeNull();
-    expect(partialCopy('acme', { id: 'n1', name: 'billing-2' }, ['roles', 'mappers'])).toEqual({
+    expect(partialCopy('/console/acme/scopes/n1', { id: 'n1', name: 'billing-2' }, [])).toBeNull();
+    expect(
+      partialCopy('/console/acme/scopes/n1', { id: 'n1', name: 'billing-2' }, ['roles', 'mappers']),
+    ).toEqual({
       text: 'billing-2 was created, but its roles and claim mappers could not be copied. Set them from its Roles and Claim mappers tabs.',
       href: '/console/acme/scopes/n1',
       name: 'billing-2',
@@ -132,7 +134,7 @@ describe('copying a scope', () => {
   });
 
   it('offers a copy from the scope, never for another tenant', () => {
-    expect(copyHrefOf('acme', 's1')).toBe('/console/acme/scopes/new?copy=s1');
+    expect(copyHrefOf('/console/acme/scopes/new', 's1')).toBe('/console/acme/scopes/new?copy=s1');
   });
 });
 

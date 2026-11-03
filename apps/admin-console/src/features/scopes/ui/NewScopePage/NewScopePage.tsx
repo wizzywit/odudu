@@ -1,6 +1,6 @@
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
-import { scopesTrail } from '#/features/scopes/services/address';
+import { scopesTrail } from '#/entities/scope';
 import { copyingText } from '#/features/scopes/services/scopeCopy';
 import { NEW_SCOPE_TITLE } from '#/features/scopes/services/scopeDetails';
 import { useNewScope, type Copying } from '#/features/scopes/use-cases/useNewScope';

@@ -1,5 +1,4 @@
 import { recordTabs } from '#/shared/services/record';
-import { clientHref } from '#/features/clients/services/address';
 
 // A client's record, a tab per concern, in the order the page shows them.
 const TABS = [
@@ -54,7 +53,7 @@ const model = recordTabs({
 export const CLIENT_TABS = model.tabs;
 export const CLIENT_TAB_LABELS = model.labels;
 export const chosenTab = model.named;
-export const clientTabHref = model.hrefOf(clientHref);
+export const clientTabHrefOf = model.hrefOf;
 
 export function clientRecord(id: string): string {
   return `clients/${id}`;

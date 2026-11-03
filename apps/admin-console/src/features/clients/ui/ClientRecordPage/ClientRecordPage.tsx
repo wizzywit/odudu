@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useAuditReadable } from '#/entities/session';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
-import { clientsTrail } from '#/features/clients/services/address';
+import { clientsTrail } from '#/entities/client';
 import { type BrandingOffer } from '#/features/clients/services/branding';
 import { type ServiceAccountReach } from '#/features/clients/services/ceiling';
 import { ACTIVITY_NOTE, CLIENT_TITLE } from '#/features/clients/services/clientDetails';

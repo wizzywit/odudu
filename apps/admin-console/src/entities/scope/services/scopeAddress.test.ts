@@ -4,7 +4,7 @@ import {
   scopeHref,
   scopesHref,
   scopesTrail,
-} from '#/features/scopes/services/address';
+} from '#/entities/scope/services/scopeAddress';
 
 it('addresses the list, the form and a record under the tenant', () => {
   expect(scopesHref('acme')).toBe('/console/acme/scopes');

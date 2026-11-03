@@ -1,6 +1,5 @@
-import type { Client } from '#/entities/client';
 import { useClientList } from '#/features/clients/repository/useClientList';
-import { clientHref, newClientHref } from '#/features/clients/services/address';
+import { type Client, clientHref, newClientHref } from '#/entities/client';
 import { useListPage, type ListPageState } from '#/shared/use-cases/useListPage';
 
 export type ClientsList = ListPageState<Client>;

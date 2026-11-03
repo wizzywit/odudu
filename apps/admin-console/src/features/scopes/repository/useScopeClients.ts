@@ -1,8 +1,7 @@
-import type { AssignedScopes } from '#/entities/scope';
 import type { ScopeClient } from '#/features/scopes/types/scopeClient';
 import { useQueryClient } from '@tanstack/react-query';
 import { readScopeClients } from '#/features/scopes/adapter/scopes';
-import { assignScope, unassignScope } from '#/shared/adapter/scopeAssignment';
+import { type AssignedScopes, assignScope, unassignScope } from '#/entities/scope';
 import { withoutScope, withScopes } from '#/features/scopes/services/clientScopesCache';
 import { recordKey, scopeClientsKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';

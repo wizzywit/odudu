@@ -1,8 +1,7 @@
-import type { Scope } from '#/entities/scope';
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useCopySource, useCreateScope } from '#/features/scopes/repository/useCreateScope';
-import { scopeHref, scopesHref } from '#/features/scopes/services/address';
+import { type Scope, scopeHref, scopesHref } from '#/entities/scope';
 import {
   sourceDescription,
   createBodyOf,
@@ -64,7 +63,7 @@ export function useNewScope(tenant: string): NewScope {
   const looked = lookupText('scope', name);
 
   const land = (scope: Scope, missed: Parameters<typeof partialCopy>[2]): void => {
-    const left = partialCopy(tenant, scope, missed);
+    const left = partialCopy(scopeHref(tenant, scope.id), scope, missed);
     if (left !== null) {
       setPartial(left);
       return;

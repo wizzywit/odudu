@@ -1,4 +1,4 @@
-import type { Client } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client/types/client';
 import { Picker, type PickerFieldProps } from '#/shared/ui/Picker';
 
 type ClientOption = Pick<Client, 'id' | 'name' | 'client_id' | 'type'>;

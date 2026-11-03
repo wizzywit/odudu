@@ -2,7 +2,6 @@ import { useState, type ReactNode } from 'react';
 import { advance, type CursorTrail } from '#/shared/services/cursorTrail';
 import type { Read } from '#/shared/services/read';
 import type { Translations } from '#/shared/services/localised';
-import type { PickerState } from '#/shared/services/picker';
 import type { ListSearch, ResourceListState } from '#/shared/services/resourceList';
 import { current, dirtyFields, discard, edit, startDraft } from '#/shared/services/dirty';
 import type { Toast } from '#/shared/services/toast';
@@ -75,7 +74,6 @@ import { RecordActivity } from '#/shared/ui/RecordActivity';
 import { RecordPage } from '#/shared/ui/RecordPage';
 import { recordTab } from '#/shared/ui/RecordTab';
 import { ResourceListPage } from '#/shared/ui/ResourceListPage';
-import { ClientPicker } from '#/shared/ui/ClientPicker';
 import { SaveBar } from '#/shared/ui/SaveBar';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { SecretDialog } from '#/shared/ui/SecretDialog';
@@ -434,40 +432,6 @@ function listOf<T>(rows: readonly T[], next: string | null): ResourceListState<T
     loadMore: NOTHING,
     retry: NOTHING,
   };
-}
-
-function pickerOf<T>(options: readonly T[], more: boolean): PickerState<T> {
-  return {
-    status: 'ready',
-    options,
-    query: '',
-    search: NOTHING,
-    more,
-    loadingMore: false,
-    loadLimited: false,
-    loadMore: NOTHING,
-    retry: NOTHING,
-  };
-}
-
-const CLIENT_OPTIONS = [
-  { id: 'c1', name: 'Billing', client_id: 'billing', type: 'confidential' as const },
-  { id: 'c2', name: 'Portal', client_id: 'portal', type: 'public' as const },
-];
-
-function Pickers() {
-  const [clients, setClients] = useState<readonly string[]>([]);
-  return (
-    <div className={styles.grid}>
-      <ClientPicker
-        label="Clients"
-        picker={pickerOf(CLIENT_OPTIONS, false)}
-        selected={clients}
-        onChange={setClients}
-        selectionMode="single"
-      />
-    </div>
-  );
 }
 
 const GRANT_TYPES = [
@@ -1231,9 +1195,6 @@ export function Gallery({
               onChange={() => undefined}
               error="The only required step of the flow cannot be disabled."
             />
-          </Specimen>
-          <Specimen label="ClientPicker: searched and paged">
-            <Pickers />
           </Specimen>
           <Specimen label="ChecklistField: a set from a short list, each held back with its reason">
             <ChecklistField
