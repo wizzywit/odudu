@@ -1,50 +1,9 @@
-import type { Group, GroupRecord } from '@odudu/contracts/admin';
-import { beyondCaller, type Loss } from '#/shared/services/capabilities';
+import { type Group, type GroupRecord } from '@odudu/contracts/admin';
+import { beyondCaller } from '#/shared/services/capabilities';
 import { andList, capitalise } from '#/shared/services/format';
-import type { AdminCapability, Authority } from '#/shared/services/principal';
-import type { Loaded } from '#/shared/services/read';
-import { type ReachLines, reachLines } from '#/features/groups/services/groupReach';
+import { type AdminCapability } from '#/shared/services/principal';
 import { newGroupHref } from '#/features/groups/services/address';
-import { type Readiness } from '#/features/groups/services/loss';
-
-export type GroupRead = { status: 'none' } | Loaded<GroupRecord>;
-
-// A group named by an id that may not be there: none for none, else what was read.
-export function namedGroupRead(id: string | null, read: GroupRead): GroupRead {
-  return id === null ? { status: 'none' } : read;
-}
-
-// What its parent hands down beside what the group itself carries, and the
-// caller's own capabilities: every ceiling on its writes is judged by them,
-// so none is offered until all three are known.
-export type Ceiling =
-  | { status: 'checking' }
-  | { status: 'failed'; retry: () => void }
-  | {
-      status: 'ready';
-      parentReach: readonly string[];
-      caller: readonly AdminCapability[];
-      lines: ReachLines;
-    };
-
-export function groupCeiling(
-  parent: GroupRead,
-  authority: Authority | undefined,
-  group: GroupRecord | undefined,
-): Ceiling {
-  if (parent.status === 'failed') return { status: 'failed', retry: parent.retry };
-  const parentReach =
-    parent.status === 'none' ? [] : parent.status === 'ready' ? parent.data.admin_reach : null;
-  if (parentReach === null || authority === undefined || group === undefined) {
-    return { status: 'checking' };
-  }
-  return {
-    status: 'ready',
-    parentReach,
-    caller: authority.capabilities,
-    lines: reachLines(group, parentReach, authority.capabilities),
-  };
-}
+import { type Ceiling } from '#/features/groups/services/groupCeiling';
 
 // A group made under this one receives what it hands out, so it is offered
 // only to a caller holding all of that.
@@ -58,11 +17,6 @@ export function createUnderHref(
     beyondCaller(group.admin_reach, ceiling.caller).length === 0
     ? newGroupHref(tenant, group.id)
     : null;
-}
-
-export function groupReadiness(status: Ceiling['status'], loss: Loss): Readiness {
-  if (status === 'failed') return 'failed';
-  return status !== 'ready' || loss.kind === 'checking' ? 'checking' : 'ready';
 }
 
 export function createBlocked(busy: boolean, held: string | null): boolean {
@@ -120,12 +74,4 @@ export function parentPlace(
   known: ReadonlyMap<string, Pick<Group, 'path'>>,
 ): string | null {
   return id === null ? null : parentPathOf(group, id, known);
-}
-
-export function ceilingParentReach(ceiling: Ceiling): readonly string[] {
-  return ceiling.status === 'ready' ? ceiling.parentReach : [];
-}
-
-export function ceilingLines(ceiling: Ceiling): ReachLines {
-  return ceiling.status === 'ready' ? ceiling.lines : { move: null, remove: null };
 }

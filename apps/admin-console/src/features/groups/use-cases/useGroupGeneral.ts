@@ -15,18 +15,17 @@ import {
   type Ceiling,
   ceilingLines,
   ceilingParentReach,
-  parentPlace,
   groupReadiness,
-  parentPathOf,
-  placeText,
-} from '#/features/groups/services/ceiling';
+} from '#/features/groups/services/groupCeiling';
+import { parentPlace, parentPathOf, placeText } from '#/features/groups/services/groupCreation';
 import {
   deleteConsequence,
   moveConfirmation,
   subtreeDeletedText,
 } from '#/features/groups/services/confirm';
 import { DEFAULT_LABEL, PLACE_LABEL } from '#/features/groups/services/labels';
-import { lossOf, type Readiness } from '#/features/groups/services/loss';
+import { lossOf } from '#/features/groups/services/groupLoss';
+import { type Readiness } from '#/features/groups/services/groupCeiling';
 import { groupRecord } from '#/features/groups/services/tabs';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';

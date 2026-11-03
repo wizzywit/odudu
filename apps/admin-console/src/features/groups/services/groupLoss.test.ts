@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lossOf, selfLoss } from '#/features/groups/services/loss';
+import { lossOf, selfLoss } from '#/features/groups/services/groupLoss';
 import { lossText, possibleLoss } from '#/shared/services/capabilities';
 
 describe('what a write here takes from yourself', () => {
@@ -15,7 +15,6 @@ describe('what a write here takes from yourself', () => {
     client_key: 'odudu-admin',
     via: paths.map(via),
   });
-
   it('takes from a delete only what reaches you through groups inside it', () => {
     const roles = [held('manage-users', '/eng'), held('view-audit', '/eng/platform')];
     expect(
@@ -26,7 +25,6 @@ describe('what a write here takes from yourself', () => {
       selfLoss({ roles, groups: ['/eng'] }, { kind: 'delete', path: '/eng/platform' }),
     ).toEqual([]);
   });
-
   it('takes from a move what the groups above handed down, unless the new parent is under them', () => {
     const roles = [held('manage-keys', '/top')];
     const groups = ['/top/mid'];
@@ -43,7 +41,6 @@ describe('what a write here takes from yourself', () => {
       ),
     ).toEqual([]);
   });
-
   it('takes the roles taken off a group, as mapped there', () => {
     const roles = [held('manage-users', '/eng'), held('view-audit', '/eng')];
     expect(
@@ -53,7 +50,6 @@ describe('what a write here takes from yourself', () => {
       ),
     ).toEqual(['manage-users']);
   });
-
   it('asks without your own groups by what you hold that the write would take', () => {
     expect(possibleLoss(['view-audit', 'manage-keys'], ['manage-keys', 'view-users'])).toEqual([
       'manage-keys',
@@ -72,11 +68,9 @@ describe('the loss a write is asked about', () => {
     },
   ];
   const change = { kind: 'delete' as const, path: '/eng' };
-
   it('waits while the principal’s own access is read', () => {
     expect(lossOf({ status: 'loading' }, [], change, [])).toEqual({ kind: 'checking' });
   });
-
   it('is certain from the principal’s own access, and possible from whoami alone', () => {
     const certain = lossOf({ status: 'ready', roles, groups: ['/eng'] }, [], change, []);
     expect(certain).toEqual({ kind: 'certain', lost: ['view-audit'] });

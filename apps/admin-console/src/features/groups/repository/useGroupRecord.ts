@@ -7,7 +7,7 @@ import {
   setGroupDefault,
   setGroupRoles,
 } from '#/features/groups/adapter/groups';
-import { namedGroupRead, type GroupRead } from '#/features/groups/services/ceiling';
+import { namedGroupRead, type GroupRead } from '#/features/groups/services/groupCeiling';
 import { groupRecord, groupRolesRecord } from '#/features/groups/services/tabs';
 import {
   GROUP_KIND,

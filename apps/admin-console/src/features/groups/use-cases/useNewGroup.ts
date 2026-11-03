@@ -6,7 +6,7 @@ import { useGo } from '#/shared/repository/useGo';
 import { useGroupNamed } from '#/features/groups/repository/useGroupRecord';
 import { groupHref, groupsHref } from '#/features/groups/services/address';
 import { parentUnavailable } from '#/features/groups/services/groupMove';
-import { createBlocked, createHeld, newGroupPlace } from '#/features/groups/services/ceiling';
+import { createBlocked, createHeld, newGroupPlace } from '#/features/groups/services/groupCreation';
 import { NAME_TAKEN } from '#/features/groups/services/labels';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker';
 import { useToast } from '#/shared/repository/useToasts';

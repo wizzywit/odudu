@@ -1,7 +1,8 @@
 import type { GroupRecord } from '@odudu/contracts/admin';
 import { useAuthority } from '#/entities/session';
 import { useGroupNamed, useGroupRecord } from '#/features/groups/repository/useGroupRecord';
-import { type Ceiling, createUnderHref, groupCeiling } from '#/features/groups/services/ceiling';
+import { type Ceiling, groupCeiling } from '#/features/groups/services/groupCeiling';
+import { createUnderHref } from '#/features/groups/services/groupCreation';
 import { GROUP_TABS, type GroupTab, TAB_RECORDS } from '#/features/groups/services/tabs';
 import type { RecordView } from '#/shared/services/record';
 import { useRecordTabs } from '#/shared/use-cases/useRecordTabs';

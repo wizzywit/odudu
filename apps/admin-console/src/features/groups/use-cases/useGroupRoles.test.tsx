@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
 import { SignedInContext } from '#/entities/session';
 import { useGroupRoles } from '#/features/groups/use-cases/useGroupRoles';
-import type { Ceiling } from '#/features/groups/services/ceiling';
+import { type Ceiling } from '#/features/groups/services/groupCeiling';
 import { json, type Answer } from '#/testing/fakeTransport';
 import { record } from '#/testing/groupAnswers';
 import { ENG, G } from '#/testing/groupsFixtures';

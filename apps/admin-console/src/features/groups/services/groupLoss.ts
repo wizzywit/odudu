@@ -1,4 +1,4 @@
-import type { RoleProvenance } from '@odudu/contracts/admin';
+import { type RoleProvenance } from '@odudu/contracts/admin';
 import {
   adminLoss,
   judgedLoss,
@@ -6,7 +6,7 @@ import {
   type OwnAccess,
   type OwnAccessRead,
 } from '#/shared/services/capabilities';
-import type { AdminCapability } from '#/shared/services/principal';
+import { type AdminCapability } from '#/shared/services/principal';
 import { within } from '#/features/groups/services/groupPath';
 
 export type Change =
@@ -60,7 +60,3 @@ export function lossOf(
 ): Loss {
   return judgedLoss(own, (access) => selfLoss(access, change), caller, taken);
 }
-
-// A write waits for what it is judged by to be read: until it has been, it
-// is checking; if it could not be, the page's one line says so.
-export type Readiness = 'checking' | 'failed' | 'ready';
