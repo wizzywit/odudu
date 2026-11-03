@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { readCount, readJwks, readLatestAudit } from '#/pages/overview/adapter';
+import { readCount, readJwks, readLatestAudit } from '#/pages/overview/adapter/overview';
 import { readKeys } from '#/entities/signing-key';
 import { overviewKey } from '#/shared/lib/repository/queryKeys';
 import { useInvalidate } from '#/shared/lib/repository/useInvalidate';

@@ -1,4 +1,4 @@
-import type { Client } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
 import { holds, lacking } from '#/shared/lib/services/access';
 import type { Authority } from '#/shared/lib/services/principal';
 import { ADMIN_CLIENT_KEY } from '#/shared/lib/services/capabilities';

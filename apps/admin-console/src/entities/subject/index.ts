@@ -5,6 +5,13 @@ export type {
   SubjectChanges,
   SubjectType,
 } from '#/entities/subject/types/subject';
+export type {
+  AdminCapabilitiesResponse,
+  RequiredAction,
+  SetRequiredActionsResponse,
+  SetRolesResponse,
+  SetSubjectGroupsResponse,
+} from '#/entities/subject/types/subjectWrites';
 export { subjectReadKey } from '#/entities/subject/use-cases/subjectKeys';
 export { useSubjectPicker } from '#/entities/subject/use-cases/subjectPicker';
 export {

@@ -1,4 +1,6 @@
-import { smtpPortSchema, type PutSmtpRequest, type SmtpConfig } from '@odudu/contracts/admin';
+import type { SmtpConfig } from '#/entities/mail-relay';
+import type { PutSmtpRequest } from '#/pages/email/types/smtp';
+import { smtpPortSchema } from '@odudu/contracts/admin';
 
 export interface RelayValues extends Readonly<Record<string, unknown>> {
   host: string;

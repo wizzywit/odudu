@@ -1,4 +1,4 @@
-import type { ClearLockoutsResponse } from '@odudu/contracts/admin';
+import type { ClearLockoutsResponse } from '#/pages/settings/types/lockouts';
 import { clearTenantLockouts } from '#/pages/settings/adapter/lockouts';
 import { listKey } from '#/shared/lib/repository/queryKeys';
 import { subjectReadKey } from '#/entities/subject';

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { readCount, readJwks, readLatestAudit } from '#/pages/overview/adapter';
+import { readCount, readJwks, readLatestAudit } from '#/pages/overview/adapter/overview';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 import { TRANSCRIPT_JWKS } from '#/testing/overviewFixtures';
 

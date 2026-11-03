@@ -1,4 +1,4 @@
-import type { CountResponse } from '@odudu/contracts/admin';
+import type { CountResponse } from '#/shared/lib/types/count';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { countKey, listKey, pageKey } from '#/shared/lib/repository/queryKeys';
 import { useInvalidate } from '#/shared/lib/repository/useInvalidate';

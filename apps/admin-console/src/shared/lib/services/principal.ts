@@ -1,8 +1,8 @@
 import { TENANT_NAME_RULE } from '@odudu/contracts';
-import type { ADMIN_CAPABILITIES } from '@odudu/contracts/admin';
+import type { AdminCapability } from '#/shared/lib/types/capabilities';
 import { sentence } from '#/shared/lib/services/format';
 
-export type AdminCapability = (typeof ADMIN_CAPABILITIES)[number];
+export type { AdminCapability };
 
 // What whoami says the principal holds on one tenant: advice for what to
 // render, never authority, since every request is authorised by the server.

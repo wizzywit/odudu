@@ -1,6 +1,6 @@
+import type { Settings } from '#/entities/tenant';
 import { type MessageKeys, useMessageKeys } from '#/features/branding-editor';
 import type { MessageOverride } from '#/pages/branding/types/messageOverride';
-import type { Settings } from '@odudu/contracts/admin';
 import { useRef, useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { useOverrideList, useOverrideWrites } from '#/pages/branding/repository/useOverrides';

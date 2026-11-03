@@ -1,5 +1,5 @@
+import type { FieldError } from '#/shared/lib/types/fieldError';
 import { MAX_STYLESHEET_BYTES, MAX_TEMPLATE_BYTES } from '@odudu/contracts';
-import type { FieldError } from '@odudu/contracts/admin';
 import { byteSizeReading, utf8Length, type SizeReading } from '#/shared/lib/services/format';
 import { SELECTORS_LABEL } from '#/features/branding-editor/services/selectors';
 import { detailed, problemsFor } from '#/features/branding-editor/services/problems';

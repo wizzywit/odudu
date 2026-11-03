@@ -1,4 +1,7 @@
-import type { CountResponse, Settings, SigningKey, SmtpConfig } from '@odudu/contracts/admin';
+import type { SmtpConfig } from '#/entities/mail-relay';
+import type { SigningKey } from '#/entities/signing-key';
+import type { Settings } from '#/entities/tenant';
+import type { CountResponse } from '#/shared/lib/types/count';
 import type { EntityRules } from '#/pages/overview/services/entityRules';
 
 export interface AttentionItem {

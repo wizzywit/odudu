@@ -1,5 +1,8 @@
 import type { PALETTE_KEYS, THEME_PAGE_KINDS } from '@odudu/contracts';
 
+export type { PutThemeRequest } from '@odudu/contracts/admin';
+export type { ThemeBodyRequest } from '@odudu/contracts';
+
 export type FontChoice = 'IBM Plex Sans' | 'IBM Plex Mono';
 
 export type ThemePageKind = (typeof THEME_PAGE_KINDS)[number];

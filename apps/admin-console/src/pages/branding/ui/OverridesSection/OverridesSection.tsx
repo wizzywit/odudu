@@ -1,6 +1,6 @@
+import type { Settings } from '#/entities/tenant';
 import { MessageKeyField } from '#/features/branding-editor';
 import type { OverrideLine } from '#/pages/branding/services/overridesView';
-import type { Settings } from '@odudu/contracts/admin';
 import { useRef } from 'react';
 import { useOverrideTable, type OverrideTable } from '#/pages/branding/use-cases/useOverrideTable';
 import { Button } from '#/shared/ui/Button';

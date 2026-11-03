@@ -1,4 +1,4 @@
-import type { FieldError } from '@odudu/contracts/admin';
+import type { FieldError } from '#/shared/lib/types/fieldError';
 
 export interface FieldErrors {
   fields: Readonly<Record<string, string>>;

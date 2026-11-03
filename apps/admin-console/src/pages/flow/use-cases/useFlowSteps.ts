@@ -1,4 +1,4 @@
-import type { ExecutionRequirement, ListExecutionsResponse } from '@odudu/contracts/admin';
+import type { ExecutionRequirement, ListExecutionsResponse } from '#/pages/flow/types/executions';
 import { useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { flowSaves, FLOW_RECORD, type StepValues } from '#/pages/flow/repository/useFlowRecord';

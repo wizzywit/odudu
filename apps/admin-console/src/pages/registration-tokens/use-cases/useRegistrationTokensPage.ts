@@ -1,4 +1,4 @@
-import type { RegistrationToken } from '@odudu/contracts/admin';
+import type { RegistrationToken } from '#/pages/registration-tokens/types/registrationToken';
 import { useState } from 'react';
 import type { Area } from '#/entities/area';
 import { useRefusal } from '#/entities/session';

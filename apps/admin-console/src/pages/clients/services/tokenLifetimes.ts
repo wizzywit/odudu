@@ -1,4 +1,5 @@
-import { CLIENT_TOKEN_TTL_RANGES, type ClientTokenTtlField } from '@odudu/contracts/admin';
+import type { ClientTokenTtlField } from '#/pages/clients/types/tokenTtl';
+import { CLIENT_TOKEN_TTL_RANGES } from '@odudu/contracts/admin';
 import { formatDuration } from '#/shared/lib/services/format';
 import { numberKept, rangeSentence } from '#/shared/lib/services/numbers';
 

@@ -1,4 +1,4 @@
-import type { MintRegistrationTokenResponse } from '@odudu/contracts/admin';
+import type { MintRegistrationTokenResponse } from '#/pages/registration-tokens/types/registrationToken';
 import { mintToken, revokeToken } from '#/pages/registration-tokens/adapter/registrationTokens';
 import { listKey } from '#/shared/lib/repository/queryKeys';
 import { useInvalidate } from '#/shared/lib/repository/useInvalidate';

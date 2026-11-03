@@ -1,4 +1,5 @@
-import { signingKeyAlgSchema, type SigningKeyAlg } from '@odudu/contracts/admin';
+import type { SigningKeyAlg } from '#/entities/signing-key';
+import { signingKeyAlgSchema } from '@odudu/contracts/admin';
 import { createFailure, type CreateOutcome } from '#/shared/lib/services/failure';
 import type { GatewayFailure } from '#/shared/lib/services/result';
 

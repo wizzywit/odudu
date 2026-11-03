@@ -1,4 +1,4 @@
-import type { Settings } from '@odudu/contracts/admin';
+import type { Settings } from '#/entities/tenant';
 import { useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { languagesSave } from '#/pages/branding/repository/languagesSave';

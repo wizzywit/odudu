@@ -1,4 +1,4 @@
-import type { ExecutionRequirement } from '@odudu/contracts/admin';
+import type { ExecutionRequirement } from '#/pages/flow/types/executions';
 
 export const REQUIREMENT_OPTIONS: readonly { id: ExecutionRequirement; label: string }[] = [
   { id: 'required', label: 'Required' },

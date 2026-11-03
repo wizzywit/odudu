@@ -1,4 +1,4 @@
-import type { SetRolesResponse } from '@odudu/contracts/admin';
+import type { SetRolesResponse } from '#/entities/subject';
 import { useAuthority, useRefusal, useRereadAuthority } from '#/entities/session';
 import type { RecordState } from '#/shared/lib/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';

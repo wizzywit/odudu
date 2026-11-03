@@ -1,4 +1,4 @@
-import type { Settings } from '@odudu/contracts/admin';
+import type { Settings } from '#/entities/tenant';
 import { useTenantSettingsRead } from '#/entities/tenant';
 import { settingsSections, type SectionPlan } from '#/pages/settings/services/sectionPlan';
 import type { SettingsPageWords } from '#/pages/settings/services/settingsPageWords';

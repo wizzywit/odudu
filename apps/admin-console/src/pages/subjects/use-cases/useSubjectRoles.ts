@@ -1,4 +1,6 @@
-import type { EffectiveRoleAssignment, Role, SetRolesResponse } from '@odudu/contracts/admin';
+import type { Role } from '#/entities/role';
+import type { SetRolesResponse } from '#/entities/subject';
+import type { EffectiveRoleAssignment } from '#/shared/lib/types/capabilities';
 import { useRefusal } from '#/entities/session';
 import {
   useRolePicker,

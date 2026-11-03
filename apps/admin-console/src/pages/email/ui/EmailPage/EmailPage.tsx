@@ -1,4 +1,4 @@
-import type { SmtpConfig } from '@odudu/contracts/admin';
+import type { SmtpConfig } from '#/entities/mail-relay';
 import { AreaGate } from '#/widgets/shell';
 import { useEffectiveReading } from '#/pages/email/use-cases/useEffectiveReading';
 import { useEmailArea, useEmailPage } from '#/pages/email/use-cases/useEmailPage';

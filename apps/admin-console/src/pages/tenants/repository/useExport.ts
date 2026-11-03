@@ -1,8 +1,8 @@
-import { TENANT_DOCUMENT_MEDIA_TYPE } from '@odudu/contracts/admin';
 import { currentTime } from '#/shared/api/adapter/clock';
 import { saveFile } from '#/shared/api/adapter/files';
 import { exportKey } from '#/shared/lib/repository/queryKeys';
 import { readExport } from '#/pages/tenants/adapter/tenants';
+import { TENANT_DOCUMENT_MEDIA_TYPE } from '#/pages/tenants/services/document';
 import { exportedOf, exportFileName, type Exported } from '#/pages/tenants/services/export';
 import { useFreshRead } from '#/shared/lib/repository/useFreshRead';
 import type { GatewayResult } from '#/shared/api/transport/gateway';

@@ -1,4 +1,4 @@
-import type { CountResponse } from '@odudu/contracts/admin';
+import type { CountResponse } from '#/shared/lib/types/count';
 import { readable } from '#/shared/lib/services/access';
 import type { Authority } from '#/shared/lib/services/principal';
 import { countAgainLabel, limitText } from '#/pages/overview/services/panelText';

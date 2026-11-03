@@ -1,4 +1,4 @@
-import type { SmtpConfig } from '@odudu/contracts/admin';
+import type { SmtpConfig } from '#/entities/mail-relay';
 import { type Area } from '#/entities/area';
 import { useSmtpRecord } from '#/pages/email/repository/useSmtpRecord';
 import { EMAIL_WORDS, emailArea, type EmailWords } from '#/pages/email/services/emailWords';

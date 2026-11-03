@@ -1,5 +1,6 @@
+import type { ThemeBodyRequest } from '#/features/branding-editor/types/theme';
 import type { ThemeView } from '#/features/branding-editor/types/theme';
-import { THEME_PAGE_KINDS, type ThemeBodyRequest } from '@odudu/contracts';
+import { THEME_PAGE_KINDS } from '@odudu/contracts';
 import type { PageKind } from '#/features/branding-editor/services/pageKinds';
 import { baseBody } from '#/features/branding-editor/services/themeBody';
 

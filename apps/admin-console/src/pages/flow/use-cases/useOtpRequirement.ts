@@ -1,4 +1,4 @@
-import type { Settings } from '@odudu/contracts/admin';
+import type { Settings } from '#/entities/tenant';
 import { useRefusal } from '#/entities/session';
 import { flowSaves, type OtpValues } from '#/pages/flow/repository/useFlowRecord';
 import {

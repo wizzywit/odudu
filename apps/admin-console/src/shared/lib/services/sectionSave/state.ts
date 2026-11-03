@@ -1,4 +1,4 @@
-import type { FieldError } from '@odudu/contracts/admin';
+import type { FieldError } from '#/shared/lib/types/fieldError';
 import { sameValue, type Values } from '#/shared/lib/services/dirty';
 
 // `conflict`, `stale` and `unread` all follow a 412: `conflict` while a

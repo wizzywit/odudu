@@ -1,4 +1,4 @@
-import type { FieldError } from '@odudu/contracts/admin';
+import type { FieldError } from '#/shared/lib/types/fieldError';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { recordKey } from '#/shared/lib/repository/queryKeys';

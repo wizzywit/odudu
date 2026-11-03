@@ -1,3 +1,4 @@
+import type { FieldError } from '#/shared/lib/types/fieldError';
 import type { PublishThemeResponse } from '#/features/branding-editor/types/theme';
 import type { GatewayFailure, GatewayResult } from '#/shared/lib/services/result';
 import { PUBLISHED_TOAST } from '#/features/branding-editor/services/publishDraft';
@@ -7,7 +8,6 @@ import {
   warningLines,
   type Issues,
 } from '#/features/branding-editor/services/publishIssues';
-import type { FieldError } from '@odudu/contracts/admin';
 
 export interface PublishOutcome {
   issues: Issues;

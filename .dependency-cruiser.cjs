@@ -86,7 +86,7 @@ module.exports = {
         '@odudu/contracts, and nothing else. A feature index.ts is refused too, since it ' +
         'reaches views and usecases, and through them the stores; an entity index is the one ' +
         'index admitted, since a service in a higher layer computes from the domain it owns, and ' +
-        "a slice's types/ folder is admitted, since it holds declarations only. " +
+        "a slice's types/ folder and shared/lib/types are admitted, since they hold declarations only. " +
         'libphonenumber-js is admitted as the one pure library a service computes with: ' +
         'numbering plans are data, not I/O.',
       from: {
@@ -95,7 +95,7 @@ module.exports = {
       },
       to: {
         pathNot:
-          '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)|(^|/)apps/admin-console/src/entities/[^/]+/index\\.ts$|(^|/)apps/admin-console/src/(?:entities|features|pages)/[^/]+/types/|(^|/)packages/contracts/|/node_modules/libphonenumber-js/',
+          '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)|(^|/)apps/admin-console/src/entities/[^/]+/index\\.ts$|(^|/)apps/admin-console/src/(?:entities|features|pages)/[^/]+/types/|(^|/)apps/admin-console/src/shared/lib/types/|(^|/)packages/contracts/|/node_modules/libphonenumber-js/',
       },
     },
     {

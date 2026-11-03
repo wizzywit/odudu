@@ -1,4 +1,4 @@
-import type { Settings } from '@odudu/contracts/admin';
+import type { Settings } from '#/entities/tenant';
 import { useLanguagesSection } from '#/pages/branding/use-cases/useLanguages';
 import { OverridesSection } from '#/pages/branding/ui/OverridesSection';
 import { useLanguagesTab } from '#/pages/branding/use-cases/useLanguagesTab';

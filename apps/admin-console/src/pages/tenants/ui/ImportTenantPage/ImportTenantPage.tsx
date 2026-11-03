@@ -1,4 +1,3 @@
-import { TENANT_DOCUMENT_MEDIA_TYPE } from '@odudu/contracts/admin';
 import { useId } from 'react';
 import { FileTrigger } from 'react-aria-components';
 import {
@@ -15,8 +14,6 @@ import { PageHeader } from '#/shared/ui/PageHeader';
 import { SecretDialog } from '#/shared/ui/SecretDialog';
 import styles from '#/pages/tenants/ui/ImportTenantPage/ImportTenantPage.module.css';
 
-const ACCEPTED = ['application/json', TENANT_DOCUMENT_MEDIA_TYPE, '.json'];
-
 function DocumentField({ state }: { state: ImportState }) {
   const label = useId();
   const described = useId();
@@ -28,7 +25,7 @@ function DocumentField({ state }: { state: ImportState }) {
       </span>
       <div className={styles.fileRow}>
         <FileTrigger
-          acceptedFileTypes={ACCEPTED}
+          acceptedFileTypes={state.acceptedTypes}
           onSelect={(files) => {
             state.choose(files?.item(0) ?? null);
           }}

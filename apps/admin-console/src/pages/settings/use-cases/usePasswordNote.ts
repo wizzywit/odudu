@@ -1,4 +1,4 @@
-import type { Settings } from '@odudu/contracts/admin';
+import type { Settings } from '#/entities/tenant';
 import { passwordNote, type PasswordNote } from '#/pages/settings/services/passwordNote';
 import { numberOf } from '#/pages/settings/services/values';
 import type { SettingsSave } from '#/pages/settings/use-cases/useSettingsSection';

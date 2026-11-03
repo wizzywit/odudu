@@ -1,4 +1,4 @@
-import type { ListExecutionsResponse } from '@odudu/contracts/admin';
+import type { ListExecutionsResponse } from '#/pages/flow/types/executions';
 import { useTenantSettingsRead } from '#/entities/tenant';
 import { useFlowRecord } from '#/pages/flow/repository/useFlowRecord';
 import { flowPage, type FlowWords } from '#/pages/flow/services/flowWording';

@@ -1,4 +1,4 @@
-import type { Settings } from '@odudu/contracts/admin';
+import type { Settings } from '#/entities/tenant';
 import { Fragment } from 'react';
 import { AreaGate } from '#/widgets/shell';
 import type { ControlView } from '#/pages/settings/services/controls';

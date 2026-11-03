@@ -1,4 +1,4 @@
-import type { RegistrationToken } from '@odudu/contracts/admin';
+import type { RegistrationToken } from '#/pages/registration-tokens/types/registrationToken';
 import { readTokenPage } from '#/pages/registration-tokens/adapter/registrationTokens';
 import { useResourceList } from '#/shared/lib/repository/useResourceList';
 import type { ResourceListState } from '#/shared/lib/services/resourceList';

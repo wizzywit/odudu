@@ -1,4 +1,4 @@
-import type { Role } from '@odudu/contracts/admin';
+import type { Role } from '#/entities/role';
 import { createClientRole } from '#/pages/clients/adapter/clients';
 import { readRoleCount, readRolePage } from '#/entities/role';
 import { countKey, listKey, pickerKey } from '#/shared/lib/repository/queryKeys';

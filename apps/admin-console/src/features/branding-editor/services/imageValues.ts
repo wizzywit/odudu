@@ -1,5 +1,5 @@
+import type { ThemeBodyRequest } from '#/features/branding-editor/types/theme';
 import type { ThemeView } from '#/features/branding-editor/types/theme';
-import type { ThemeBodyRequest } from '@odudu/contracts';
 import { baseBody } from '#/features/branding-editor/services/themeBody';
 
 export type ImageSlot = 'logo' | 'darkLogo' | 'favicon' | 'background';

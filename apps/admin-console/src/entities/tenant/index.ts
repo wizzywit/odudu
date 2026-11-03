@@ -1,3 +1,4 @@
+export type { Settings } from '#/entities/tenant/types/settings';
 export {
   useTenantSettings,
   readTenantSettings,

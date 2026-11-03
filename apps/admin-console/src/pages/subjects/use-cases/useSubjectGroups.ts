@@ -1,4 +1,5 @@
-import type { Group, GroupFields, SetSubjectGroupsResponse } from '@odudu/contracts/admin';
+import type { Group, GroupFields } from '#/entities/group';
+import type { SetSubjectGroupsResponse } from '#/entities/subject';
 import { useRefusal, useRereadAuthority } from '#/entities/session';
 import { useGroupPicker } from '#/entities/group';
 import type { RecordState } from '#/shared/lib/repository/useRecord';

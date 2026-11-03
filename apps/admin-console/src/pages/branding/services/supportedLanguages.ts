@@ -1,4 +1,5 @@
-import { MAIL_PREVIEW_LOCALES, type AmendSettingsRequest } from '@odudu/contracts/admin';
+import type { AmendSettingsRequest } from '#/pages/branding/types/settingsAmend';
+import { MAIL_PREVIEW_LOCALES } from '@odudu/contracts/admin';
 import { languageChoices } from '#/shared/lib/services/locales';
 import { uniqueIds } from '#/shared/lib/services/ids';
 import type { Choice } from '#/shared/lib/services/choice';

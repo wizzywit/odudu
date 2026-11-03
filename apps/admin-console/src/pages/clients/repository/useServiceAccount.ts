@@ -1,4 +1,4 @@
-import type { SetRolesResponse } from '@odudu/contracts/admin';
+import type { SetRolesResponse } from '#/entities/subject';
 import { useRereadClient } from '#/pages/clients/repository/useClientRecord';
 import { serviceRolesRecord } from '#/pages/clients/services/serviceAccess';
 import { useRecord, type RecordState } from '#/shared/lib/repository/useRecord';

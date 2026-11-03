@@ -1,4 +1,4 @@
-import type { SetRolesResponse } from '@odudu/contracts/admin';
+import type { SetRolesResponse } from '#/entities/subject';
 import type { Client } from '#/entities/client';
 import { type ServiceAccountReach } from '#/pages/clients/services/ceiling';
 import {

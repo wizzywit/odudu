@@ -1,4 +1,4 @@
-import type { ExecutionRequirement } from '@odudu/contracts/admin';
+import type { ExecutionRequirement } from '#/pages/flow/types/executions';
 import { authenticatorText } from '#/pages/flow/services/flowWording';
 import { OTP, requirementText } from '#/pages/flow/services/requirement';
 import { canMove, type Direction, type Step } from '#/pages/flow/services/steps';

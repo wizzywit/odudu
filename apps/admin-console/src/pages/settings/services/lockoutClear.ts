@@ -1,4 +1,4 @@
-import type { ClearLockoutsResponse } from '@odudu/contracts/admin';
+import type { ClearLockoutsResponse } from '#/pages/settings/types/lockouts';
 import { holds } from '#/shared/lib/services/access';
 import { refusedBy, writeFailureText } from '#/shared/lib/services/failure';
 import { counted } from '#/shared/lib/services/format';

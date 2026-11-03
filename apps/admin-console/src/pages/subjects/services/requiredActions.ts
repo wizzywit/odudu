@@ -1,4 +1,4 @@
-import { type RequiredAction } from '@odudu/contracts/admin';
+import type { RequiredAction } from '#/entities/subject';
 import { listOrNone } from '#/shared/lib/services/format';
 import { inOrderOf } from '#/shared/lib/services/ids';
 

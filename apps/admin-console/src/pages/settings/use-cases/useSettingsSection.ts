@@ -1,4 +1,4 @@
-import type { Settings } from '@odudu/contracts/admin';
+import type { Settings } from '#/entities/tenant';
 import { usePrincipal, useRefusal, isOwnTenant } from '#/entities/session';
 import { settingsSave, type SectionValues } from '#/pages/settings/repository/settingsSave';
 import { type SettingsSection } from '#/pages/settings/services/sections';

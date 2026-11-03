@@ -1,4 +1,4 @@
-import type { Settings } from '@odudu/contracts/admin';
+import type { Settings } from '#/entities/tenant/types/settings';
 import type { RecordState } from '#/shared/lib/repository/useRecord';
 import { useTenantSettings } from '#/entities/tenant/repository/useTenantSettings';
 

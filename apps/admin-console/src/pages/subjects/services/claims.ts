@@ -1,4 +1,4 @@
-import { type Profile } from '@odudu/contracts/admin';
+import type { Profile } from '#/pages/subjects/types/profile';
 import { flagText } from '#/shared/lib/services/format';
 import type { SectionFields } from '#/shared/lib/services/sectionSave';
 

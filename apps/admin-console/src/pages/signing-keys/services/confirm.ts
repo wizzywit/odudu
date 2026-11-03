@@ -1,4 +1,4 @@
-import type { SigningKey } from '@odudu/contracts/admin';
+import type { SigningKey } from '#/entities/signing-key';
 import type { Promotion } from '#/entities/signing-key';
 import type { NamedDialog } from '#/shared/lib/services/dialog';
 import type { KeyAction } from '#/pages/signing-keys/services/outcome';

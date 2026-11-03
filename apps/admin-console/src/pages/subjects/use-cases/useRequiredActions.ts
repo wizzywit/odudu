@@ -1,4 +1,4 @@
-import type { SetRequiredActionsResponse } from '@odudu/contracts/admin';
+import type { SetRequiredActionsResponse } from '#/entities/subject';
 import { useRefusal } from '#/entities/session';
 import type { RecordState } from '#/shared/lib/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';

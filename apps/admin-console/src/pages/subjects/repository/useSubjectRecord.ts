@@ -1,4 +1,4 @@
-import type { Profile } from '@odudu/contracts/admin';
+import type { Profile } from '#/pages/subjects/types/profile';
 import { useQueryClient } from '@tanstack/react-query';
 import { amendProfile, readProfile, readUsernameEditable } from '#/pages/subjects/adapter/subjects';
 import { listKey, recordKey, usernamePolicyKey } from '#/shared/lib/repository/queryKeys';

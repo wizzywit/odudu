@@ -1,4 +1,4 @@
-import type { ProblemDetails } from '@odudu/contracts/admin';
+import type { ProblemDetails } from '#/shared/lib/types/problem';
 
 // The gateway's own refusals and the admin API's forwarded ones share this
 // shape; `detail` is absent from some (the gateway's 502 has none).

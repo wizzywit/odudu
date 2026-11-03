@@ -1,5 +1,5 @@
+import type { FieldError } from '#/shared/lib/types/fieldError';
 import type { PublishThemeResponse } from '#/features/branding-editor/types/theme';
-import type { FieldError } from '@odudu/contracts/admin';
 import { problemSubtype } from '#/shared/lib/services/failure';
 import { shown } from '#/shared/lib/services/format';
 import { moreProblems, PROBLEMS_SHOWN } from '#/features/branding-editor/services/problems';

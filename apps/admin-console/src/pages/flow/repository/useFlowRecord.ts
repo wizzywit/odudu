@@ -1,4 +1,4 @@
-import type { ListExecutionsResponse } from '@odudu/contracts/admin';
+import type { ListExecutionsResponse } from '#/pages/flow/types/executions';
 import { replaceFlow, readFlow } from '#/pages/flow/adapter/flow';
 import type { Step } from '#/pages/flow/services/steps';
 import { amendTenantSettings } from '#/entities/tenant';

@@ -1,4 +1,5 @@
-import type { Role, SetRolesResponse } from '@odudu/contracts/admin';
+import type { Role } from '#/entities/role';
+import type { SetRolesResponse } from '#/entities/subject';
 import { beyondCaller, isAdminRole } from '#/shared/lib/services/capabilities';
 import { andList, counted } from '#/shared/lib/services/format';
 import type { AdminCapability } from '#/shared/lib/services/principal';

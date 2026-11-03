@@ -1,4 +1,4 @@
-import { type RoleProvenance } from '@odudu/contracts/admin';
+import type { RoleProvenance } from '#/shared/lib/types/capabilities';
 import {
   adminLoss,
   judgedLoss,

@@ -1,4 +1,4 @@
-import type { SigningKey } from '@odudu/contracts/admin';
+import type { SigningKey } from '#/entities/signing-key';
 import { writeRefusal } from '#/shared/lib/services/capabilities';
 import { removalOutcome, type RemovalOutcome } from '#/shared/lib/services/failure';
 import { andList, groupedNumber } from '#/shared/lib/services/format';

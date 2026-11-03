@@ -1,3 +1,4 @@
+import type { Profile } from '#/pages/subjects/types/profile';
 import { Link } from 'react-aria-components';
 import {
   useSubjectAccount,
@@ -24,7 +25,6 @@ import { SaveSection } from '#/shared/ui/SaveSection';
 import { EnabledTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
-import type { Profile } from '@odudu/contracts/admin';
 import { type Subject } from '#/entities/subject';
 
 interface TabProps {

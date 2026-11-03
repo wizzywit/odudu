@@ -1,3 +1,4 @@
+import type { ClientTokenTtlField } from '#/pages/clients/types/tokenTtl';
 import {
   useClientConfigSaves,
   type CredentialValues,
@@ -47,7 +48,6 @@ import {
   useClientSection,
   type ClientRecordRead,
 } from '#/pages/clients/use-cases/useClientSection';
-import type { ClientTokenTtlField } from '@odudu/contracts/admin';
 import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
 import { describeIds, namesOrNone, spaced } from '#/shared/lib/services/format';
 import type { ChecklistOption } from '#/shared/ui/ChecklistField';

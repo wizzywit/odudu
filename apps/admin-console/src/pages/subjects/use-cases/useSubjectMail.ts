@@ -1,4 +1,4 @@
-import type { RequiredAction } from '@odudu/contracts/admin';
+import type { RequiredAction } from '#/entities/subject';
 import { useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { areaAt, areaHref } from '#/entities/area';

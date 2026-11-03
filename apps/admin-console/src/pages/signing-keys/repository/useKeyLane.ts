@@ -1,4 +1,4 @@
-import type { SigningKey, SigningKeyStatus } from '@odudu/contracts/admin';
+import type { SigningKey, SigningKeyStatus } from '#/entities/signing-key';
 import { readKeyPage } from '#/entities/signing-key';
 import { listKey } from '#/shared/lib/repository/queryKeys';
 import { useListPages } from '#/shared/lib/repository/useResourceList';

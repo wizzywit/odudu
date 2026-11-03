@@ -1,5 +1,5 @@
+import type { PutThemeRequest } from '#/features/branding-editor/types/theme';
 import type { ThemeView } from '#/features/branding-editor/types/theme';
-import type { PutThemeRequest } from '@odudu/contracts/admin';
 import { putTheme } from '#/features/branding-editor/adapter/themeDraft';
 import type { ThemeScope } from '#/features/branding-editor/services/themeScope';
 import {

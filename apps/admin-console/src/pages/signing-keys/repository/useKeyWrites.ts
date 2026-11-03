@@ -1,4 +1,4 @@
-import type { SigningKey, SigningKeyAlg } from '@odudu/contracts/admin';
+import type { SigningKey, SigningKeyAlg } from '#/entities/signing-key';
 import { useRef } from 'react';
 import { deleteKey, promoteKey, retireKey, stageKey } from '#/pages/signing-keys/adapter/keys';
 import { listKey, overviewKey } from '#/shared/lib/repository/queryKeys';

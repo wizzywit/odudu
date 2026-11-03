@@ -1,4 +1,4 @@
-import type { ImportError } from '@odudu/contracts/admin';
+import type { ImportError } from '#/pages/tenants/types/importError';
 import { useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { useImport } from '#/pages/tenants/repository/useImport';
@@ -6,6 +6,7 @@ import {
   chosenFileOf,
   fileChosenProblem,
   fileRequiredProblem,
+  IMPORT_ACCEPTED_TYPES,
   type ChosenFile,
 } from '#/pages/tenants/services/document';
 import {
@@ -37,6 +38,7 @@ export interface ImportTenantPage {
   file: ChosenFile | null;
   nameError: string | undefined;
   fileError: string | undefined;
+  acceptedTypes: readonly string[];
   // Every problem the import found in the document, each at its JSON path.
   errors: readonly ImportError[];
   problemsHeading: string;
@@ -84,6 +86,7 @@ export function useImportTenantPage(): ImportTenantPage {
     file: chosenFileOf(file),
     nameError: nameError ?? importNameError(outcome),
     fileError: fileError ?? importFileRefusal(outcome),
+    acceptedTypes: IMPORT_ACCEPTED_TYPES,
     errors: importErrors(outcome),
     problemsHeading: importProblemsHeading(importErrors(outcome).length),
     message: importMessage(outcome, found),

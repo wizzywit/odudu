@@ -1,4 +1,4 @@
-import { type ImportError } from '@odudu/contracts/admin';
+import type { ImportError } from '#/pages/tenants/types/importError';
 import type { Tenant } from '#/pages/tenants/types/tenant';
 import { counted } from '#/shared/lib/services/format';
 import { failureTextWith } from '#/shared/lib/services/failure';

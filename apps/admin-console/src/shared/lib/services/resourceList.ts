@@ -1,5 +1,5 @@
+import type { CountResponse } from '#/shared/lib/types/count';
 import { isEmptyRecord } from '#/shared/lib/services/fieldErrors';
-import type { CountResponse } from '@odudu/contracts/admin';
 import type { CursorTrail } from '#/shared/lib/services/cursorTrail';
 import { isRefused, isStaleCursor } from '#/shared/lib/services/failure';
 import { readFailureOf } from '#/shared/lib/services/readFailure';

@@ -1,1 +1,1 @@
-export type { SigningKey, SigningKeyStatus } from '@odudu/contracts/admin';
+export type { SigningKey, SigningKeyAlg, SigningKeyStatus } from '@odudu/contracts/admin';

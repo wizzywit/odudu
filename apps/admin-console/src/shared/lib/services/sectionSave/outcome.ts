@@ -1,4 +1,4 @@
-import type { FieldError } from '@odudu/contracts/admin';
+import type { FieldError } from '#/shared/lib/types/fieldError';
 import { type Values } from '#/shared/lib/services/dirty';
 import { fieldErrorsOf } from '#/shared/lib/services/fieldErrors';
 import { CONSOLE_FAULT, failureTextWith } from '#/shared/lib/services/failure';

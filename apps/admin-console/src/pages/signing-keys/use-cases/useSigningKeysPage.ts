@@ -1,4 +1,4 @@
-import type { SigningKey, SigningKeyAlg } from '@odudu/contracts/admin';
+import type { SigningKey, SigningKeyAlg } from '#/entities/signing-key';
 import { useState } from 'react';
 import { type Area } from '#/entities/area';
 import { promotionOf, type Promotion } from '#/entities/signing-key';

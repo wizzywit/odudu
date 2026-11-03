@@ -11,6 +11,9 @@ export interface Group {
   admin_reach: AdminCapability[];
 }
 
+// What a group lists as, before the reach membership hands out.
+export type GroupFields = Omit<Group, 'admin_reach'>;
+
 // A group's own record adds what deleting it would take away, its subtree's
 // reach included, and whether it or one beneath it is a default.
 export interface GroupRecord extends Group {

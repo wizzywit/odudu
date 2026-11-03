@@ -1,4 +1,4 @@
-import type { SmtpConfig } from '@odudu/contracts/admin';
+import type { SmtpConfig } from '#/entities/mail-relay';
 import { useRefusal } from '#/entities/session';
 import { smtpSave } from '#/pages/email/repository/smtpSave';
 import { SMTP_RECORD } from '#/pages/email/repository/useSmtpRecord';

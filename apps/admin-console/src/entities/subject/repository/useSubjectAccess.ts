@@ -1,12 +1,12 @@
 import type {
   AdminCapabilitiesResponse,
-  CountResponse,
-  EffectiveRoleAssignment,
   RequiredAction,
   SetRequiredActionsResponse,
   SetRolesResponse,
   SetSubjectGroupsResponse,
-} from '@odudu/contracts/admin';
+} from '#/entities/subject/types/subjectWrites';
+import type { EffectiveRoleAssignment } from '#/shared/lib/types/capabilities';
+import type { CountResponse } from '#/shared/lib/types/count';
 import {
   heldCapabilitiesKey,
   holdersKey,

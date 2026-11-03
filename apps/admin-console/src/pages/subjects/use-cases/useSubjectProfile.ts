@@ -1,4 +1,4 @@
-import type { Profile } from '@odudu/contracts/admin';
+import type { Profile } from '#/pages/subjects/types/profile';
 import { useRefusal } from '#/entities/session';
 import {
   saveClaims,

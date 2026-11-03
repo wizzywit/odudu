@@ -1,5 +1,5 @@
+import type { PutThemeRequest } from '#/features/branding-editor/types/theme';
 import type { PublishThemeResponse, ThemeView } from '#/features/branding-editor/types/theme';
-import type { PutThemeRequest } from '@odudu/contracts/admin';
 import { useIsMutating, useQueryClient } from '@tanstack/react-query';
 import {
   discardThemeDraft,

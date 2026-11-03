@@ -1,4 +1,5 @@
-import type { ListExecutionsResponse, Settings } from '@odudu/contracts/admin';
+import type { Settings } from '#/entities/tenant';
+import type { ListExecutionsResponse } from '#/pages/flow/types/executions';
 import { useEffect, useRef } from 'react';
 import { AreaGate } from '#/widgets/shell';
 import type { FlowWords } from '#/pages/flow/services/flowWording';

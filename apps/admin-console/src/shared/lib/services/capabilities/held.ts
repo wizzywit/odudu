@@ -1,4 +1,4 @@
-import { type EffectiveRoleAssignment, type RoleProvenance } from '@odudu/contracts/admin';
+import type { EffectiveRoleAssignment, RoleProvenance } from '#/shared/lib/types/capabilities';
 import { andList } from '#/shared/lib/services/format';
 import type { AdminCapability } from '#/shared/lib/services/principal';
 import {

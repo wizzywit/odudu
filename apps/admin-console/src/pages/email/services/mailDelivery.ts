@@ -1,4 +1,4 @@
-import type { MailMessage } from '@odudu/contracts/admin';
+import type { MailMessage } from '#/pages/email/types/mailMessage';
 import { ANY_STATUS } from '#/shared/lib/services/filters';
 import { attemptsText } from '#/shared/lib/services/format';
 

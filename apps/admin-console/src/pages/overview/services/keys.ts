@@ -1,4 +1,4 @@
-import type { SigningKey } from '@odudu/contracts/admin';
+import type { SigningKey } from '#/entities/signing-key';
 import type { PublishedLane } from '#/entities/signing-key';
 import type { Authority } from '#/shared/lib/services/principal';
 import { laneText } from '#/pages/overview/services/panelText';

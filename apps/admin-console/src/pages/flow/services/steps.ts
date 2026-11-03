@@ -1,4 +1,4 @@
-import type { ExecutionRequirement, ExecutionStep } from '@odudu/contracts/admin';
+import type { ExecutionRequirement, ExecutionStep } from '#/pages/flow/types/executions';
 import { listOrNone } from '#/shared/lib/services/format';
 import { isRecord } from '#/shared/lib/services/json';
 

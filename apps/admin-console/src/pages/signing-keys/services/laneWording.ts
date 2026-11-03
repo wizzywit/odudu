@@ -1,4 +1,4 @@
-import type { SigningKeyStatus } from '@odudu/contracts/admin';
+import type { SigningKeyStatus } from '#/entities/signing-key';
 
 export interface Lane {
   status: SigningKeyStatus;

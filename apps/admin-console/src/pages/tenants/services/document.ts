@@ -1,6 +1,10 @@
-import { TENANT_IMPORT_BODY_LIMIT } from '@odudu/contracts/admin';
+import { TENANT_DOCUMENT_MEDIA_TYPE, TENANT_IMPORT_BODY_LIMIT } from '@odudu/contracts/admin';
 import { bytesText } from '#/shared/lib/services/format';
 import { isRecord, parseJson } from '#/shared/lib/services/json';
+
+export { TENANT_DOCUMENT_MEDIA_TYPE };
+
+export const IMPORT_ACCEPTED_TYPES = ['application/json', TENANT_DOCUMENT_MEDIA_TYPE, '.json'];
 
 // What an export says it left out, by JSON path; read only to show it, since
 // the file saved is the text as the server sent it.

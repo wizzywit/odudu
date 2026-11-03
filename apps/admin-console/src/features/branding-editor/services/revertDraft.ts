@@ -1,5 +1,5 @@
+import type { ThemeBodyRequest } from '#/features/branding-editor/types/theme';
 import type { ThemeBody, ThemeView } from '#/features/branding-editor/types/theme';
-import type { ThemeBodyRequest } from '@odudu/contracts';
 import type { Conflict } from '#/shared/lib/services/conflict';
 import { isStale, writeFailureText } from '#/shared/lib/services/failure';
 import { counted } from '#/shared/lib/services/format';

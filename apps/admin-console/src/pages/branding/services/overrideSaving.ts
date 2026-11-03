@@ -1,4 +1,4 @@
-import type { FieldError } from '@odudu/contracts/admin';
+import type { FieldError } from '#/shared/lib/types/fieldError';
 import { writeRefusal } from '#/shared/lib/services/capabilities';
 import { problemSubtype, writeFailureText } from '#/shared/lib/services/failure';
 import { fieldErrorsOf } from '#/shared/lib/services/fieldErrors';

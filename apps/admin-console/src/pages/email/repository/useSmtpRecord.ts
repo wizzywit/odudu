@@ -1,4 +1,4 @@
-import type { SmtpConfig } from '@odudu/contracts/admin';
+import type { SmtpConfig } from '#/entities/mail-relay';
 import { readSmtp } from '#/entities/mail-relay';
 import { useRecord, type RecordState } from '#/shared/lib/repository/useRecord';
 
