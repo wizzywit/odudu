@@ -121,8 +121,9 @@ boundaries`): the segment boundaries, which layer may import which, and the
   `tests/lint`.
 - Some platform vocabulary stays in `shared` although it names a domain word:
   the tenant vocabulary (`SYSTEM_TENANT`, `isTenantName`, `tenantPage`,
-  `isUnknownTenant`), the capability rules under `shared/services/capabilities`
-  and what the failure wording reads from them. Several slices read each, an
+  `isUnknownTenant`), the capability rules under `shared/services/capabilities`,
+  what the failure wording reads from them and the `group` cache kind, which the
+  role entity invalidates and the group page reads. Several slices read each, an
   entity imports no entity, and an `@x` file per symbol would be the ten
   cross-imports the architecture document calls a wrong boundary. They are
   named in `tests/lint/architecture/shared-vocabulary.ts`, one line of reason
