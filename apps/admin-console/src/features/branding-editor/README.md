@@ -31,5 +31,9 @@ field and `Workspace`, the hooks that read and edit a scope's theme, and the
 scope, tab and scheme names the Branding page and `pages/clients` need.
 Adapters and repositories are never exported.
 
+`SCHEME_PREVIEW_WORDS` carries functions (the scheme's name, its title and the
+strip's join) so the mail preview on `pages/branding` speaks of the scheme in
+the editor's own words without importing a service.
+
 `pages/branding` holds the mail, languages and message-override tabs and
 composes this feature through its index.
