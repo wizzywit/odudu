@@ -5,18 +5,22 @@ import {
   addsOnKey,
   ADD_LABEL,
   ADD_NOTE,
+} from '#/features/branding/services/addedLanguage';
+import {
   defaultChoices,
   DEFAULT_LABEL,
   DEFAULT_NOTE,
   languageSettingsOf,
-  LANGUAGES_DESCRIPTION,
-  LANGUAGES_SECTION,
-  LANGUAGES_TITLE,
   overrideLocales,
   SUPPORTED_LABEL,
   SUPPORTED_NOTE,
   supportedChoices,
-} from '#/features/branding/services/languages';
+} from '#/features/branding/services/supportedLanguages';
+import {
+  LANGUAGES_DESCRIPTION,
+  LANGUAGES_SECTION,
+  LANGUAGES_TITLE,
+} from '#/features/branding/services/languagesSection';
 import {
   conflictFields,
   conflictLead,

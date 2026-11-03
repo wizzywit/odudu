@@ -579,11 +579,11 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Quiet text': feature('branding/services/mailInheritance.ts', "label: 'Quiet text'"),
   'Button text': feature('branding/services/mailInheritance.ts', "label: 'Button text'"),
   'Supported languages': feature(
-    'branding/services/languages.ts',
+    'branding/services/supportedLanguages.ts',
     "SUPPORTED_LABEL = 'Supported languages'",
   ),
   'Default language': feature(
-    'branding/services/languages.ts',
+    'branding/services/supportedLanguages.ts',
     "DEFAULT_LABEL = 'Default language'",
   ),
   'Message overrides': feature(
@@ -631,7 +631,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   More: feature('branding/services/changeSummary.ts', "MORE_TRIGGER = 'More'"),
   'Wrap lines': shared('services/code/tokens.ts', "WRAP_LABEL = 'Wrap lines'"),
   'Message key': feature('branding/services/overrides.ts', "KEY_LABEL = 'Message key'"),
-  'Add language': feature('branding/services/languages.ts', "ADD_BUTTON = 'Add language'"),
+  'Add language': feature('branding/services/addedLanguage.ts', "ADD_BUTTON = 'Add language'"),
   'Insert a message': feature(
     'branding/services/catalogue.ts',
     "INSERT_LABEL = 'Insert a message'",

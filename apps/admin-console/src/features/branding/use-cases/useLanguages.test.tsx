@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, expect, it } from 'vitest';
 import { SignedInContext } from '#/entities/session';
-import { ADD_DUPLICATE, ADD_NEEDED } from '#/features/branding/services/languages';
+import { ADD_DUPLICATE, ADD_NEEDED } from '#/features/branding/services/addedLanguage';
 import {
   ALREADY_REMOVED,
   REMOVED_TEXT,

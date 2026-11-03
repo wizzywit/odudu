@@ -1,24 +1,14 @@
-import { LOCALISED_TEXT_ENTRIES_MAX } from '@odudu/contracts';
 import { MAIL_PREVIEW_LOCALES, type AmendSettingsRequest } from '@odudu/contracts/admin';
-import { languageChoices, localeProblem } from '#/shared/services/locales';
+import { languageChoices } from '#/shared/services/locales';
 import { uniqueIds } from '#/shared/services/ids';
 import type { Choice } from '#/shared/services/choice';
-import type { SectionFields } from '#/shared/services/sectionSave';
+import { ADD_LABEL } from '#/features/branding/services/addedLanguage';
 
 // The languages this build holds a catalogue for; a test in packages/email
 // holds the list equal to the i18n package's SHIPPED_LOCALES.
 export const SHIPPED_LANGUAGES: readonly string[] = MAIL_PREVIEW_LOCALES;
 
-export const LANGUAGES_SECTION = 'languages';
-
-export const LANGUAGES_TITLE = 'Languages';
-
-export const LANGUAGES_DESCRIPTION =
-  'The languages the tenant’s pages and mail are offered in, and the one used when a visitor’s browser does not decide.';
-
 export const SUPPORTED_LABEL = 'Supported languages';
-
-export const ADD_LABEL = 'Add a language';
 
 export const SUPPORTED_NOTE = `A language the build ships with is complete. Any other the tenant already offers stays listed, and “${ADD_LABEL}” below adds one; its pages use the English text unless a message override says otherwise.`;
 
@@ -26,17 +16,6 @@ export const DEFAULT_LABEL = 'Default language';
 
 export const DEFAULT_NOTE =
   'Used ahead of the browser’s preference, when the request names no language.';
-
-export const ADD_NOTE =
-  'Choose a language or type its tag, such as fr or pt-BR. Its pages use the English text unless a message override says otherwise.';
-
-export const ADD_BUTTON = 'Add language';
-
-export const ADD_NEEDED = 'Choose a language, or type a tag such as fr-CA.';
-
-export const ADD_DUPLICATE = 'That language is already offered.';
-
-export const ADD_FULL = `A tenant offers at most ${String(LOCALISED_TEXT_ENTRIES_MAX)} languages.`;
 
 export const BROWSER_DECIDES = 'The browser decides';
 
@@ -121,59 +100,3 @@ export function openingLocale(settings: LanguageSettings): string {
 }
 
 export const DEFAULT_NONE = 'the browser decides';
-
-// The section's fields as the save reads them: the label a conflict or a
-// restored draft names, and how a value reads aloud.
-export function languageFields(base: LanguageValues): SectionFields<LanguageValues> {
-  return {
-    supported_locales: {
-      value: base.supported_locales,
-      label: SUPPORTED_LABEL,
-      kind: 'plain',
-      describe: (value) => (Array.isArray(value) ? value.join(', ') : ''),
-    },
-    default_locale: {
-      value: base.default_locale,
-      label: DEFAULT_LABEL,
-      kind: 'plain',
-      describe: (value) => (value === '' ? DEFAULT_NONE : String(value)),
-    },
-  };
-}
-
-export interface Added {
-  // The supported languages with the new one, or null when it is refused.
-  supported: string[] | null;
-  problem: string | null;
-}
-
-// A typed or chosen tag joined to the supported languages, or why it cannot.
-export function languageAdded(supported: readonly string[], text: string): Added {
-  const tag = text.trim();
-  const problem = tag === '' ? ADD_NEEDED : localeProblem(tag);
-  if (problem !== null) return { supported: null, problem };
-  if (supported.some((held) => held.toLowerCase() === tag.toLowerCase())) {
-    return { supported: null, problem: ADD_DUPLICATE };
-  }
-  if (supported.length >= LOCALISED_TEXT_ENTRIES_MAX) return { supported: null, problem: ADD_FULL };
-  return { supported: [...supported, tag], problem: null };
-}
-
-export interface AddedTo {
-  // The problem with what was typed, or undefined to clear one shown.
-  problem: (problem: string | undefined) => void;
-  accepted: (supported: string[]) => void;
-}
-
-// Adds what was typed, or says why it cannot be.
-export function addLanguage(supported: readonly string[], text: string, to: AddedTo): void {
-  const added = languageAdded(supported, text);
-  to.problem(added.problem ?? undefined);
-  if (added.supported !== null) to.accepted(added.supported);
-}
-
-// Enter adds the typed tag, unless it is choosing an option the list points at
-// that is not the one already chosen.
-export function addsOnKey(key: string, choosing: boolean): boolean {
-  return key === 'Enter' && !choosing;
-}

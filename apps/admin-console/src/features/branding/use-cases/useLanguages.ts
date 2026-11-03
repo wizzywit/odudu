@@ -4,18 +4,20 @@ import { useRefusal } from '#/entities/session';
 import { languagesSave } from '#/features/branding/repository/languagesSave';
 import { useOverrideList, useOverrideWrites } from '#/features/branding/repository/useOverrides';
 import { useMessageKeys } from '#/features/branding/use-cases/useMessageKeys';
-import { type MessageEntry } from '#/features/branding/services/catalogue';
+import type { MessageEntry } from '#/features/branding/services/catalogue';
+import { addLanguage } from '#/features/branding/services/addedLanguage';
 import {
-  addLanguage,
   languageFields,
+  LANGUAGES_SECTION,
+  LANGUAGES_TITLE,
+} from '#/features/branding/services/languagesSection';
+import {
   languageSettingsOf,
   languagesOf,
   languagesHold,
-  LANGUAGES_SECTION,
-  LANGUAGES_TITLE,
   openingLocale,
   type LanguageValues,
-} from '#/features/branding/services/languages';
+} from '#/features/branding/services/supportedLanguages';
 import {
   conflictsAfterSave,
   conflictsIn,
