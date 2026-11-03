@@ -8,7 +8,7 @@ import { roleHref } from '#/entities/role';
 import { scopeHref } from '#/entities/scope';
 import { useAuditList, type AuditList } from '#/features/audit/repository/useAuditList';
 import { useExportEvents, type ExportEvents } from '#/features/audit/use-cases/useExportEvents';
-import { lastDay, tooBroadAdvice } from '#/features/audit/services/broad';
+import { lastDay, tooBroadAdvice } from '#/features/audit/services/tooBroad';
 import { auditQuery } from '#/features/audit/services/auditAddress';
 import {
   applyBlocked,

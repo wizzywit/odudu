@@ -1,6 +1,6 @@
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
-import { TOO_BROAD_TITLE } from '#/features/audit/services/broad';
+import { TOO_BROAD_TITLE } from '#/features/audit/services/tooBroad';
 import { EXPORT_NOTE } from '#/features/audit/services/export';
 import { NO_COUNT } from '#/features/audit/services/trailCount';
 import { NOTHING_MATCHES, NOTHING_YET } from '#/features/audit/services/emptyTrail';

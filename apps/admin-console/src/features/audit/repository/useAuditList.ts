@@ -3,7 +3,7 @@ import { readAuditPage } from '#/shared/adapter/audit';
 import { listKey } from '#/shared/repository/queryKeys';
 import { useListPages } from '#/shared/repository/useResourceList';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';
-import { isTooBroad } from '#/features/audit/services/broad';
+import { isTooBroad } from '#/features/audit/services/tooBroad';
 import { auditQuery, filtersToSearch, readFilters } from '#/features/audit/services/auditAddress';
 import { type AuditFilters } from '#/features/audit/services/auditFilters';
 import {

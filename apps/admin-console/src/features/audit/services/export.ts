@@ -2,7 +2,7 @@ import { AUDIT_EXPORT_CAP } from '@odudu/contracts/admin';
 import { utcDay } from '#/shared/services/dateTime';
 import { failureTextWith } from '#/shared/services/failure';
 import { groupedNumber, plural } from '#/shared/services/format';
-import { isTooBroad } from '#/features/audit/services/broad';
+import { isTooBroad } from '#/features/audit/services/tooBroad';
 import type { GatewayFailure } from '#/shared/services/result';
 
 export const EXPORT_NOTE = `Exports the events the applied filters match, newest first, one JSON object per line, up to ${groupedNumber(AUDIT_EXPORT_CAP)}. Past that the export is refused rather than cut short. The export is itself recorded in the trail.`;

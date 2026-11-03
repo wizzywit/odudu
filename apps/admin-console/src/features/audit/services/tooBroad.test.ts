@@ -4,7 +4,7 @@ import {
   lastDay,
   tooBroadAdvice,
   TOO_BROAD_TITLE,
-} from '#/features/audit/services/broad';
+} from '#/features/audit/services/tooBroad';
 import type { GatewayFailure } from '#/shared/services/result';
 
 function problem(status: number, type: string): GatewayFailure {
