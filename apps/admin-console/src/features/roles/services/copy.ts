@@ -3,7 +3,7 @@ import type { LeftOut, PartialCopy } from '#/shared/services/copy';
 import { andList } from '#/shared/services/format';
 import type { AdminCapability } from '#/shared/services/principal';
 import type { GatewayResult } from '#/shared/services/result';
-import { childUnavailable } from '#/features/roles/services/blocks';
+import { childUnavailable } from '#/features/roles/services/composites';
 import { roleTabHref } from '#/features/roles/services/tabs';
 
 export type CopyRead =

@@ -1,30 +1,18 @@
-import type { EffectiveRoleAssignment, Role } from '@odudu/contracts/admin';
-import { adminLoss, type Asked, type OwnAccessRead } from '#/shared/services/capabilities';
-import type { AdminCapability, Authority } from '#/shared/services/principal';
-import { deleteBlock, isBuiltin } from '#/features/roles/services/blocks';
+import { asksFirst, type Loss, type OwnAccessRead } from '#/shared/services/capabilities';
+import { type Role } from '@odudu/contracts/admin';
+import { type AdminCapability, type Authority } from '#/shared/services/principal';
+import { deleteBlock, isBuiltin } from '#/features/roles/services/roleDeletion';
 
-export type RoleChange =
-  { kind: 'delete'; id: string } | { kind: 'remove'; id: string; child: string };
+export type RemovalAction = 'wait' | 'ask' | 'run';
 
-// What a principal holding `own` stops holding: a deleted role takes itself
-// and everything held only within it, and an edge what it alone carried.
-export function roleSelfLoss(
-  own: readonly EffectiveRoleAssignment[],
-  change: RoleChange,
-): string[] {
-  switch (change.kind) {
-    case 'delete':
-      return adminLoss(own, (_via, role) => role.id === change.id);
-    case 'remove':
-      return adminLoss(
-        own,
-        (via, role) =>
-          role.id === change.child && via.kind === 'composite' && via.parent_role_id === change.id,
-      );
-  }
+export function removalAction(loss: Loss): RemovalAction {
+  if (loss.kind === 'checking') return 'wait';
+  return asksFirst(loss) ? 'ask' : 'run';
 }
 
-export type { Asked };
+export function deleteChecking(ceiling: Ceiling, loss: Loss): boolean {
+  return ceiling.status !== 'ready' || loss.kind === 'checking';
+}
 
 // What the role reaches, which its record carries, and the caller's own
 // capabilities: every ceiling on its writes is judged by both, so nothing is

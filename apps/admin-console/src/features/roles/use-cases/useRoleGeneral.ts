@@ -4,19 +4,20 @@ import { useOwnRoles } from '#/features/own-roles';
 import { useGo } from '#/shared/repository/useGo';
 import { useRoleDeletion, useRoleSaves } from '#/features/roles/repository/useRoleRecord';
 import { rolesHref } from '#/features/roles/services/address';
-import { defaultBlock, deletionFixed } from '#/features/roles/services/blocks';
+import { defaultBlock } from '#/features/roles/services/roleDefault';
+import { deletionFixed } from '#/features/roles/services/roleDeletion';
 import {
   type Ceiling,
   defaultsChecking,
   isDeleteHeld,
-  roleSelfLoss,
-} from '#/features/roles/services/ceiling';
+} from '#/features/roles/services/roleCeiling';
+import { roleSelfLoss } from '#/features/roles/services/roleLoss';
 import { DEFAULT_LABEL } from '#/features/roles/services/labels';
+import { deleteChecking } from '#/features/roles/services/roleCeiling';
 import {
-  deleteChecking,
   roleDeleteConsequence,
   roleDeleteFailureText,
-} from '#/features/roles/services/removal';
+} from '#/features/roles/services/roleDeletion';
 import { roleRecord } from '#/features/roles/services/tabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';

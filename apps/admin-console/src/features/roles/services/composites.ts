@@ -1,38 +1,15 @@
-import type { Role } from '@odudu/contracts/admin';
+import { type Role } from '@odudu/contracts/admin';
 import {
-  ADMIN_CLIENT_KEY,
-  beyondCaller,
   roleReachUnavailable,
   writeRefusal,
+  lossText,
+  type Asked,
+  type Loss,
 } from '#/shared/services/capabilities';
-import { andList } from '#/shared/services/format';
-import type { AdminCapability } from '#/shared/services/principal';
-
-// Every role of the built-in admin client, which the server guards by the
-// client rather than by the role's name.
-export function isBuiltin(role: Pick<Role, 'client_key'>): boolean {
-  return role.client_key === ADMIN_CLIENT_KEY;
-}
-
-// `admin_reach` is the server's judgement of what a role hands out, however
-// deep it nests a capability: the same one each ceiling on its writes makes.
-export function deleteBlock(role: Role, caller: readonly AdminCapability[]): string | null {
-  if (isBuiltin(role)) {
-    return deletionFixed(role);
-  }
-  const beyond = beyondCaller(role.admin_reach, caller);
-  return beyond.length === 0
-    ? null
-    : `${role.name} reaches ${andList(beyond)}, which you do not hold, so you cannot delete it.`;
-}
-
-export function defaultBlock(role: Role): string | null {
-  if (isBuiltin(role)) {
-    return 'A capability of the built-in admin client is never handed to every new subject.';
-  }
-  if (role.default_for_new_subjects || role.admin_reach.length === 0) return null;
-  return `It reaches ${andList(role.admin_reach)}, and a role every new subject receives may reach no admin capability. Take those composites out of it first.`;
-}
+import { type AdminCapability } from '#/shared/services/principal';
+import { isBuiltin } from '#/features/roles/services/roleDeletion';
+import { failureTextWith } from '#/shared/services/failure';
+import { type GatewayFailure } from '#/shared/services/result';
 
 export interface Child {
   role: Role;
@@ -86,8 +63,32 @@ export function compositesFixed(role: Role): string | null {
     : null;
 }
 
-export function deletionFixed(role: Role): string | null {
-  return isBuiltin(role)
-    ? `${role.name} is a capability of the built-in admin client, so it cannot be deleted: every administrator holding it would lose it.`
-    : null;
+export function compositeRemovalConfirmation(role: string, child: string, loss: Loss): Asked {
+  return {
+    title: 'Take out a role your own access runs through?',
+    consequence: `Whoever holds ${role} no longer holds ${child} through it.${lossText(loss, `${child} nested in ${role}`)}`,
+  };
+}
+
+export function unnestedText(child: string, role: string): string {
+  return `${child} is no longer nested in ${role}.`;
+}
+
+export function compositeRemovalFailureText(
+  role: string,
+  child: string,
+  failure: GatewayFailure,
+): string {
+  const unconfirmed = () =>
+    `Could not confirm whether ${child} was taken out. Look at the list before trying again.`;
+  return failureTextWith(
+    { network: unconfirmed, schema: unconfirmed, defect: unconfirmed },
+    {
+      name: child,
+      verb: 'taken out',
+      lookAt: 'the list',
+      stale: `${role}'s composites changed since you opened them, so ${child} was not taken out. They have been read again; look before trying again.`,
+      refused: (problem) => compositeRefusal(child, problem),
+    },
+  )(failure);
 }

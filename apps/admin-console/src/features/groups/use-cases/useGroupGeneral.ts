@@ -8,7 +8,7 @@ import {
   useGroupSaves,
   type ParentValues,
 } from '#/features/groups/repository/useGroupRecord';
-import { type Asked, groupsHref, type Loss } from '#/features/groups/services/address';
+import { groupsHref } from '#/features/groups/services/address';
 import { defaultBlock, moveRefusal, parentUnavailable } from '#/features/groups/services/blocks';
 import {
   type Ceiling,
@@ -31,7 +31,7 @@ import { useGroupPicker } from '#/shared/repository/useGroupPicker';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
-import { asksFirst, writeRefusal } from '#/shared/services/capabilities';
+import { type Asked, asksFirst, type Loss, writeRefusal } from '#/shared/services/capabilities';
 import { writeFailureText } from '#/shared/services/failure';
 import { firstChosen, type PickerState } from '#/shared/services/picker';
 import type { GatewayResult } from '#/shared/transport/gateway';

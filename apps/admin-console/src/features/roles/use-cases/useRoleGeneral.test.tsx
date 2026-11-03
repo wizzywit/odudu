@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { SignedInContext } from '#/entities/session';
-import { roleCeiling } from '#/features/roles/services/ceiling';
+import { roleCeiling } from '#/features/roles/services/roleCeiling';
 import { useRoleGeneral } from '#/features/roles/use-cases/useRoleGeneral';
 import { useToasts } from '#/shared/repository/useToasts';
 import type { AdminCapability } from '#/shared/services/principal';
