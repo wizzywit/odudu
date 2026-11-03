@@ -1,4 +1,4 @@
-import type { Group, GroupRecord } from '@odudu/contracts/admin';
+import { type Group, type GroupRecord } from '@odudu/contracts/admin';
 import { resourceAddress, withSearch } from '#/shared/services/address';
 
 export type { Group, GroupRecord };

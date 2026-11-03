@@ -2,7 +2,7 @@ import { type Group, type GroupRecord } from '@odudu/contracts/admin';
 import { beyondCaller } from '#/shared/services/capabilities';
 import { andList, capitalise } from '#/shared/services/format';
 import { type AdminCapability } from '#/shared/services/principal';
-import { newGroupHref } from '#/features/groups/services/address';
+import { newGroupHref } from '#/features/groups/services/groupAddress';
 import { type Ceiling } from '#/features/groups/services/groupCeiling';
 
 // A group made under this one receives what it hands out, so it is offered

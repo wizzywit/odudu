@@ -4,7 +4,7 @@ import { useAuditReadable } from '#/entities/session';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { SubjectMembers } from '#/features/subject-members';
-import { groupsTrail } from '#/features/groups/services/address';
+import { groupsTrail } from '#/features/groups/services/groupAddress';
 import { GROUP_TAB_LABELS, GROUP_TABS, type GroupTab } from '#/features/groups/services/tabs';
 import { useGroupRecordPage, type Ceiling } from '#/features/groups/use-cases/useGroupRecordPage';
 import { GeneralTab } from '#/features/groups/ui/GroupRecordPage/GeneralTab';

@@ -1,7 +1,7 @@
 import type { Group } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useGroupChildren, useGroupList } from '#/features/groups/repository/useGroupList';
-import { groupHref, newGroupHref } from '#/features/groups/services/address';
+import { groupHref, newGroupHref } from '#/features/groups/services/groupAddress';
 import { useListPage, type ListPageState } from '#/shared/use-cases/useListPage';
 
 export interface GroupsList extends ListPageState<Group> {

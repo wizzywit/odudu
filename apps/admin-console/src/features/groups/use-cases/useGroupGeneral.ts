@@ -8,7 +8,7 @@ import {
   useGroupSaves,
   type ParentValues,
 } from '#/features/groups/repository/useGroupRecord';
-import { groupsHref } from '#/features/groups/services/address';
+import { groupsHref } from '#/features/groups/services/groupAddress';
 import { defaultBlock } from '#/features/groups/services/groupReach';
 import { moveRefusal, parentUnavailable } from '#/features/groups/services/groupMove';
 import {

@@ -1,6 +1,6 @@
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
-import { groupsTrail } from '#/features/groups/services/address';
+import { groupsTrail } from '#/features/groups/services/groupAddress';
 import { useNewGroup } from '#/features/groups/use-cases/useNewGroup';
 import {
   CreationActions,
