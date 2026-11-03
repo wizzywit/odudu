@@ -6,6 +6,7 @@ import {
   lossText,
   type Asked,
   type Loss,
+  type RefusalProblem,
 } from '#/shared/services/capabilities';
 import { type AdminCapability } from '#/shared/services/principal';
 import { isBuiltin } from '#/features/roles/services/roleDeletion';
@@ -41,9 +42,7 @@ export function childUnavailable(
   return roleReachUnavailable(child, caller, tenant);
 }
 
-type RefusedProblem = Parameters<typeof writeRefusal>[0];
-
-export function compositeRefusal(child: string, problem: RefusedProblem): string | null {
+export function compositeRefusal(child: string, problem: RefusalProblem): string | null {
   if (problem.status === 409 && problem.detail === 'would create a role composite cycle') {
     return `Refused: ${child} already includes this role, so nesting it here would make a loop.`;
   }
@@ -54,7 +53,7 @@ export function compositeRefusal(child: string, problem: RefusedProblem): string
 }
 
 // What a refused nesting of the role chosen in the picker means.
-export function addRefusal(problem: RefusedProblem): string | null {
+export function addRefusal(problem: RefusalProblem): string | null {
   return compositeRefusal('the role chosen', problem);
 }
 

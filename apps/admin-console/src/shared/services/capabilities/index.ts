@@ -36,6 +36,9 @@ export {
   writeRefusal,
   accessRefusal,
   subjectRefusal,
+  isLastAdministrator,
+  detailSuffix,
+  type RefusalProblem,
 } from '#/shared/services/capabilities/refusal';
 export {
   adminLoss,

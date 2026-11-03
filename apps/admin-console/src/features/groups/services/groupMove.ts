@@ -1,5 +1,10 @@
 import { type Group, type GroupRecord } from '@odudu/contracts/admin';
-import { beyondCaller, blockedByDefault, writeRefusal } from '#/shared/services/capabilities';
+import {
+  beyondCaller,
+  blockedByDefault,
+  type RefusalProblem,
+  writeRefusal,
+} from '#/shared/services/capabilities';
 import { andList } from '#/shared/services/format';
 import { type AdminCapability } from '#/shared/services/principal';
 import { within } from '#/features/groups/services/groupPath';
@@ -16,11 +21,9 @@ export function moveUnavailable(
   return null;
 }
 
-type RefusedProblem = Parameters<typeof writeRefusal>[0];
-
 const TAKEN = /^a group named (".*") already exists there$/u;
 
-export function moveRefusal(problem: RefusedProblem): string | null {
+export function moveRefusal(problem: RefusalProblem): string | null {
   if (problem.status === 409 && problem.detail === 'would create a group reparent cycle') {
     return 'Refused: the parent chosen sits beneath this group, so the move would make a loop. Nothing was changed.';
   }

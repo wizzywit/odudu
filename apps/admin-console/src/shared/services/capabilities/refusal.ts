@@ -7,17 +7,29 @@ function namedAfter(parts: readonly string[], lead: string): string[] {
   return part === undefined ? [] : part.slice(lead.length).split(', ');
 }
 
+export interface RefusalProblem {
+  type: string;
+  status: number;
+  detail?: string | undefined;
+}
+
+// The server's guard against leaving a tenant with no enabled administrator.
+export function isLastAdministrator(problem: RefusalProblem): boolean {
+  return problem.status === 409 && problem.type === 'about:blank#last-administrator';
+}
+
+// The guard's own detail, appended to the sentence that words it.
+export function detailSuffix(problem: RefusalProblem): string {
+  return problem.detail === undefined ? '' : ` (${problem.detail})`;
+}
+
 // What a group, role or scope write refused by its guards means, worded
 // where it was made; the server's own reason is kept when it is not the
 // capability ceiling's (ADR 0040). Null for anything else.
-export function writeRefusal(
-  problem: { type: string; status: number; detail?: string | undefined },
-  capability = 'manage-tenant',
-): string | null {
+export function writeRefusal(problem: RefusalProblem, capability = 'manage-tenant'): string | null {
   const detail = problem.detail;
-  if (problem.status === 409 && problem.type === 'about:blank#last-administrator') {
-    const who = detail === undefined ? '' : ` (${detail})`;
-    return `Refused: it would leave this tenant with no enabled administrator${who}. Make somebody else an administrator first.`;
+  if (isLastAdministrator(problem)) {
+    return `Refused: it would leave this tenant with no enabled administrator${detailSuffix(problem)}. Make somebody else an administrator first.`;
   }
   if (problem.status !== 403) return null;
   if (detail === undefined || detail === '') {
@@ -47,12 +59,11 @@ export function accessRefusal(
   name: string,
   what: 'groups' | 'roles' | 'actions',
   self = false,
-): (problem: { type: string; status: number; detail?: string | undefined }) => string | null {
+): (problem: RefusalProblem) => string | null {
   return (problem) => {
-    if (problem.status === 409 && problem.type === 'about:blank#last-administrator') {
+    if (isLastAdministrator(problem)) {
       const who = self ? 'You are' : `${name} is`;
-      const detail = problem.detail === undefined ? '' : ` (${problem.detail})`;
-      return `${who} the last enabled administrator here, and this would take that away, so nothing was changed${detail}. Make somebody else an administrator first.`;
+      return `${who} the last enabled administrator here, and this would take that away, so nothing was changed${detailSuffix(problem)}. Make somebody else an administrator first.`;
     }
     if (problem.status !== 403) return null;
     const ceiling = `nor can you change a subject who holds a capability you do not. It also needs manage-users.`;

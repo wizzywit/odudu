@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { writeRefusal, accessRefusal } from '#/shared/services/capabilities/refusal';
+import {
+  accessRefusal,
+  detailSuffix,
+  isLastAdministrator,
+  writeRefusal,
+} from '#/shared/services/capabilities/refusal';
 
 describe('writeRefusal', () => {
   const refused = (status: number, detail?: string, type = 'about:blank') => ({
@@ -96,5 +101,21 @@ describe('the last-administrator guard without a detail', () => {
   it('leaves another 409 to the caller', () => {
     expect(writeRefusal({ type: 'about:blank', status: 409 })).toBeNull();
     expect(accessRefusal('ada', 'groups')({ type: 'about:blank', status: 409 })).toBeNull();
+  });
+});
+
+describe('the last-administrator problem', () => {
+  it('is a 409 of its own type, and nothing else', () => {
+    const last = { type: 'about:blank#last-administrator', status: 409 };
+    expect(isLastAdministrator(last)).toBe(true);
+    expect(isLastAdministrator({ ...last, status: 403 })).toBe(false);
+    expect(isLastAdministrator({ type: 'about:blank', status: 409 })).toBe(false);
+  });
+
+  it('puts the server’s detail in brackets, or says nothing without one', () => {
+    expect(detailSuffix({ type: 'x', status: 409, detail: 'ada is the last' })).toBe(
+      ' (ada is the last)',
+    );
+    expect(detailSuffix({ type: 'x', status: 409 })).toBe('');
   });
 });
