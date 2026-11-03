@@ -1,4 +1,5 @@
 import type { SigningKey, SmtpConfig } from '@odudu/contracts/admin';
+import { hasRelay } from '#/entities/mail-relay';
 import { publishedLane, readyToPromote } from '#/entities/signing-key';
 import type { AttentionInputs } from '#/features/overview/services/attention';
 import type { EntityRules } from '#/features/overview/services/entityRules';
@@ -85,7 +86,7 @@ export const SMTP_NONE: SmtpConfig = {
   effective: 'none',
 };
 
-export const RULES: EntityRules = { readyToPromote, publishedLane };
+export const RULES: EntityRules = { readyToPromote, hasRelay, publishedLane };
 
 export const QUIET: AttentionInputs = {
   settings: {

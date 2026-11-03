@@ -28,8 +28,12 @@ function mailNeeds(settings: Settings): string | null {
   return needs.length === 0 ? null : needs.join(' and ');
 }
 
-function mail(settings: Settings | undefined, smtp: SmtpConfig | undefined): AttentionItem[] {
-  if (settings === undefined || smtp?.effective !== 'none') return [];
+function mail(
+  settings: Settings | undefined,
+  smtp: SmtpConfig | undefined,
+  rules: EntityRules,
+): AttentionItem[] {
+  if (settings === undefined || smtp === undefined || rules.hasRelay(smtp)) return [];
   const needs = mailNeeds(settings);
   if (needs === null) return [];
   return [
@@ -79,7 +83,7 @@ function registration(
 
 export function needsAttention(inputs: AttentionInputs): readonly AttentionItem[] {
   return [
-    ...mail(inputs.settings, inputs.smtp),
+    ...mail(inputs.settings, inputs.smtp, inputs.rules),
     ...promotions(inputs.keys, inputs.now, inputs.rules),
     ...registration(inputs.settings, inputs.clients),
   ];

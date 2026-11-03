@@ -1,12 +1,8 @@
 import type { SmtpConfig } from '@odudu/contracts/admin';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
+import { effectiveLabel, effectiveReading, effectiveTone } from '#/entities/mail-relay';
 import { useEmailPage } from '#/features/email/use-cases/useEmailPage';
-import {
-  effectiveLabel,
-  effectiveReading,
-  effectiveTone,
-} from '#/features/email/services/effective';
 import { PORT_RULE, RELAY_LABELS } from '#/features/email/services/relay';
 import { removeConsequence } from '#/features/email/services/remove';
 import { TEST_AS_LABEL, TEST_AS_RULE, TEST_TENANT_OWN } from '#/features/email/services/testClient';

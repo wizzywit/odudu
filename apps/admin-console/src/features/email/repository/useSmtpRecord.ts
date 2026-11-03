@@ -1,5 +1,5 @@
 import type { SmtpConfig } from '@odudu/contracts/admin';
-import { readSmtp } from '#/shared/adapter/smtp';
+import { readSmtp } from '#/entities/mail-relay';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord';
 
 export const SMTP_RECORD = 'smtp';

@@ -5,6 +5,7 @@ export const MIGRATED: readonly string[] = [
   'apps/admin-console/src/entities/client',
   'apps/admin-console/src/entities/creation-draft',
   'apps/admin-console/src/entities/group',
+  'apps/admin-console/src/entities/mail-relay',
   'apps/admin-console/src/entities/role',
   'apps/admin-console/src/entities/scope',
   'apps/admin-console/src/entities/session',

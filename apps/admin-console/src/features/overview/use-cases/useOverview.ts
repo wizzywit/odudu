@@ -1,4 +1,5 @@
 import type { AuditEvent } from '#/entities/audit-event';
+import { hasRelay } from '#/entities/mail-relay';
 import { publishedLane, readyToPromote } from '#/entities/signing-key';
 import { useAuthority, useRefusal, useTenantMissing } from '#/entities/session';
 import { areaAt, areaHref } from '#/entities/area';
@@ -18,7 +19,7 @@ import {
 import { attentionState, type AttentionState } from '#/features/overview/services/state';
 import { countTiles, type AreaOf, type CountTile } from '#/features/overview/services/tiles';
 
-const RULES: EntityRules = { readyToPromote, publishedLane };
+const RULES: EntityRules = { readyToPromote, hasRelay, publishedLane };
 
 export interface Overview {
   discovery: OverviewRead<DiscoveryView>;

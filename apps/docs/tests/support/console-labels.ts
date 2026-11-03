@@ -546,9 +546,9 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Retrying: feature(EMAIL_MAIL_QUERY, "'Retrying'"),
   Sent: feature(EMAIL_MAIL_QUERY, "'Sent'"),
   Failed: several(feature(EMAIL_MAIL_QUERY, "'Failed'"), page(AUDIT_KINDS, "'Failed'")),
-  'not sent': feature('email/services/effective.ts', "return 'not sent'"),
-  'deployment sender': feature('email/services/effective.ts', "return 'deployment sender'"),
-  'own relay': feature('email/services/effective.ts', "return 'own relay'"),
+  'not sent': entity('mail-relay/services/effective.ts', "return 'not sent'"),
+  'deployment sender': entity('mail-relay/services/effective.ts', "return 'deployment sender'"),
+  'own relay': entity('mail-relay/services/effective.ts', "return 'own relay'"),
 
   // Branding.
   Theme: tab('branding-editor', 'theme', 'Theme'),

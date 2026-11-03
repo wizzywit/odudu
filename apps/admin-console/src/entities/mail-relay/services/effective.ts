@@ -1,6 +1,11 @@
-import type { SmtpConfig } from '@odudu/contracts/admin';
+import type { SmtpConfig } from '#/entities/mail-relay/types/mailRelay';
 
 type Effective = SmtpConfig['effective'];
+
+// Whether any relay will send the tenant's mail: its own or the deployment's.
+export function hasRelay(config: SmtpConfig): boolean {
+  return config.effective !== 'none';
+}
 
 export function effectiveReading(effective: Effective): string {
   switch (effective) {

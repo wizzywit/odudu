@@ -16,8 +16,6 @@ export const INVENTORY: Record<RuleId, string[]> = {
     'apps/admin-console/src/shared/adapter/files.ts',
     'apps/admin-console/src/shared/adapter/route.test.ts',
     'apps/admin-console/src/shared/adapter/route.ts',
-    'apps/admin-console/src/shared/adapter/smtp.test.ts',
-    'apps/admin-console/src/shared/adapter/smtp.ts',
     'apps/admin-console/src/shared/adapter/themeChoice.test.ts',
     'apps/admin-console/src/shared/adapter/themeChoice.ts',
     'apps/admin-console/src/shared/adapter/themeCookie.test.ts',

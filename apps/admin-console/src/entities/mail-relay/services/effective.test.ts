@@ -3,7 +3,9 @@ import {
   effectiveLabel,
   effectiveReading,
   effectiveTone,
-} from '#/features/email/services/effective';
+  hasRelay,
+} from '#/entities/mail-relay/services/effective';
+import type { SmtpConfig } from '#/entities/mail-relay/types/mailRelay';
 
 describe('effectiveReading', () => {
   it('says whose relay the tenant’s mail goes through', () => {
@@ -26,5 +28,24 @@ describe('effectiveLabel', () => {
     expect(effectiveLabel('tenant')).toBe('own relay');
     expect(effectiveLabel('deployment')).toBe('deployment sender');
     expect(effectiveLabel('none')).toBe('not sent');
+  });
+});
+
+describe('hasRelay', () => {
+  const config = (effective: SmtpConfig['effective']): SmtpConfig => ({
+    configured: effective === 'tenant',
+    host: null,
+    port: null,
+    from_address: null,
+    username: null,
+    password_set: false,
+    starttls: null,
+    effective,
+  });
+
+  it('is true for the tenant’s own relay and for the deployment’s, false for none', () => {
+    expect(hasRelay(config('tenant'))).toBe(true);
+    expect(hasRelay(config('deployment'))).toBe(true);
+    expect(hasRelay(config('none'))).toBe(false);
   });
 });
