@@ -3,7 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { usePickerHolders } from '#/pages/system-admins/repository/usePickerHolders';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { TransportContext } from '#/shared/transport/useTransport';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 
@@ -33,7 +33,7 @@ function holders(pages: number) {
       return json({ items: [subject(`h${String(at)}`)], ...next })(request);
     },
   });
-  const client = createQueryClient();
+  const client = createReadCache();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <TransportContext value={fake.transport}>
       <QueryClientProvider client={client}>{children}</QueryClientProvider>

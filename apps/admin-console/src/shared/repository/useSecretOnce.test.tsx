@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
 import { z } from 'zod';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { useSecretOnce } from '#/shared/repository/useSecretOnce';
 import type { Gateway } from '#/shared/transport/gateway';
 import { TransportContext } from '#/shared/transport/useTransport';
@@ -34,7 +34,7 @@ const options = {
 
 function harness(answer: Answer) {
   const fake = fakeTransport({ [ROTATE]: answer });
-  const queryClient = createQueryClient();
+  const queryClient = createReadCache();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <TransportContext value={fake.transport}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>

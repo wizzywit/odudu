@@ -13,7 +13,7 @@ import { Providers } from '#/app/Providers';
 import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer';
 import { SessionGate } from '#/widgets/session-gate';
 import { TenantShell } from '#/widgets/shell';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { parseSearch, stringifySearch } from '#/shared/services/search';
 import { fakeTransport, type Answer } from '#/testing/fakeTransport';
 
@@ -51,7 +51,7 @@ export function mountGuardedPage(routes: Record<string, Answer>, page: RouteComp
     stringifySearch,
   });
   const view = render(
-    <Providers transport={fake.transport} queryClient={createQueryClient()}>
+    <Providers transport={fake.transport} queryClient={createReadCache()}>
       <RouterProvider router={router} />
       <UnsavedGuardLayer />
     </Providers>,

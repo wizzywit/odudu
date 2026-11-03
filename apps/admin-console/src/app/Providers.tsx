@@ -1,7 +1,7 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { StrictMode, useState, type ReactNode } from 'react';
 import { I18nProvider } from 'react-aria-components';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { loadThemeChoice } from '#/shared/adapter/themeChoice';
 import { rememberThemeChoice } from '#/shared/repository/themeChoice';
 import { useDialogHost } from '#/shared/repository/useDialogHost';
@@ -24,7 +24,7 @@ export function Providers({
   children: ReactNode;
 }) {
   const [transport] = useState(() => given ?? createBrowserTransport());
-  const [queryClient] = useState(() => givenClient ?? createQueryClient());
+  const [queryClient] = useState(() => givenClient ?? createReadCache());
   const [choice, setChoice] = useState<ThemeChoice>(loadThemeChoice);
   const [theme] = useState(() => ({
     choose: (next: ThemeChoice) => {

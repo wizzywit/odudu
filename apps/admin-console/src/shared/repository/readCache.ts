@@ -5,7 +5,7 @@ import { QueryClient } from '@tanstack/react-query';
 // multiply the first and override the second. A mutation's result is
 // dropped as soon as nothing observes it, since it may carry a secret shown
 // once, which never stays in the cache.
-export function createQueryClient(): QueryClient {
+export function createReadCache(): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: { refetchOnWindowFocus: true, retry: false },

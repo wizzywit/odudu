@@ -3,7 +3,7 @@ import { render } from '@testing-library/react';
 import { App } from '#/app/App';
 import { beforeAll } from 'vitest';
 import { createConsoleRouter, preloadFeatures } from '#/app/router';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 import { fakeTransport, json, type Answer } from '#/testing/fakeTransport';
 
@@ -42,7 +42,7 @@ export function graceRoutes(
 export function consoleAt(path: string, routes: Record<string, Answer>) {
   const fake = fakeTransport(routes);
   const router = createConsoleRouter(createMemoryHistory({ initialEntries: [path] }));
-  const queryClient = createQueryClient();
+  const queryClient = createReadCache();
   const element = <App router={router} transport={fake.transport} queryClient={queryClient} />;
   return { ...fake, router, queryClient, element };
 }

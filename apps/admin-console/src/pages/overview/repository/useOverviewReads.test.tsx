@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
 import { useOverviewReads } from '#/pages/overview/repository/useOverviewReads';
 import type { OverviewAsks } from '#/pages/overview/types/overviewReads';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { TransportContext } from '#/shared/transport/useTransport';
 import { fakeTransport, json, pending, problem, type Answer } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
@@ -24,7 +24,7 @@ const NOTHING: OverviewAsks = {
 
 function mount(routes: Record<string, Answer>, asks: OverviewAsks) {
   const fake = fakeTransport(routes);
-  const client = createQueryClient();
+  const client = createReadCache();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <TransportContext value={fake.transport}>
       <QueryClientProvider client={client}>{children}</QueryClientProvider>

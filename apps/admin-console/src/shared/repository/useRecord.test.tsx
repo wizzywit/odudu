@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
 import { z } from 'zod';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { recordKey } from '#/shared/repository/queryKeys';
 import { useRecord, type RecordEntry } from '#/shared/repository/useRecord';
 import type { Gateway } from '#/shared/transport/gateway';
@@ -25,7 +25,7 @@ const read = (gateway: Gateway) =>
 
 function harness(answer: Answer) {
   const fake = fakeTransport({ [GET]: answer });
-  const queryClient = createQueryClient();
+  const queryClient = createReadCache();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <TransportContext value={fake.transport}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>

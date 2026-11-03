@@ -7,7 +7,7 @@ import {
   useSessionEvent,
   useSessionQuery,
 } from '#/entities/session/repository/useSessionQuery';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { sessionKey } from '#/shared/repository/queryKeys';
 import { TransportContext } from '#/shared/transport/useTransport';
 import { fakeTransport, json } from '#/testing/fakeTransport';
@@ -16,7 +16,7 @@ it('drops every other cached read when the session is marked ended', async () =>
   const { transport } = fakeTransport({
     'GET /console/api/session': json({ tenant: 'acme', subject_id: 's1', username: 'grace' }),
   });
-  const client = createQueryClient();
+  const client = createReadCache();
   client.setQueryData(['whoami', 'acme'], { ok: true });
   client.setQueryData(['clients', 'acme'], { ok: true });
   const wrapper = ({ children }: { children: ReactNode }) => (

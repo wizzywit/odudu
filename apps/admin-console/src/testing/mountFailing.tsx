@@ -9,14 +9,14 @@ import {
 } from '@tanstack/react-router';
 import type { ReactElement, ReactNode } from 'react';
 import { RouteFailure, ShellFailure } from '#/widgets/failure';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { TransportContext } from '#/shared/transport/useTransport';
 import { fakeTransport } from '#/testing/fakeTransport';
 
 function withProviders(routed: ReactElement): ReactElement {
   return (
     <TransportContext value={fakeTransport({}).transport}>
-      <QueryClientProvider client={createQueryClient()}>{routed}</QueryClientProvider>
+      <QueryClientProvider client={createReadCache()}>{routed}</QueryClientProvider>
     </TransportContext>
   );
 }

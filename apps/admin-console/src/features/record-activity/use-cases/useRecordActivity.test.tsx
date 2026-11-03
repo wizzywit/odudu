@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { useRecordActivity } from '#/features/record-activity/use-cases/useRecordActivity';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 import { mountAtRoute } from '#/testing/mountAtRoute';
@@ -43,7 +43,7 @@ it('reads the audit trail narrowed to the record, from the cursor the address ho
     Activity,
     {
       basepath: '/console',
-      providers: { transport: fake.transport, queryClient: createQueryClient() },
+      providers: { transport: fake.transport, queryClient: createReadCache() },
     },
   );
   expect(await screen.findByText('rows 1')).toBeVisible();

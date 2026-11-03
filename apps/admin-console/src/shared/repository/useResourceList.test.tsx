@@ -6,7 +6,7 @@ import {
   type Subject,
 } from '@odudu/contracts/admin';
 import { expect, it } from 'vitest';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { ROW_BUDGET } from '#/shared/services/resourceList';
 import { useResourceList } from '#/shared/repository/useResourceList';
 import type { Gateway } from '#/shared/transport/gateway';
@@ -99,7 +99,7 @@ function mount(url: string, routes: Record<string, Answer>) {
   const fake = fakeTransport(routes);
   const { router } = mountAtRoute(url, '/acme/subjects', Subjects, {
     basepath: '/console',
-    providers: { transport: fake.transport, queryClient: createQueryClient() },
+    providers: { transport: fake.transport, queryClient: createReadCache() },
   });
   const asked = (key: string) =>
     fake.sent
@@ -264,7 +264,7 @@ it('reads a filter the address does not set as its default, without calling that
   const fake = fakeTransport({ [LIST]: json({ items: [subject('ada')] }) });
   mountAtRoute('/console/acme/subjects', '/acme/subjects', Defaulted, {
     basepath: '/console',
-    providers: { transport: fake.transport, queryClient: createQueryClient() },
+    providers: { transport: fake.transport, queryClient: createReadCache() },
   });
   expect(await screen.findByText('narrowed false rows 1')).toBeVisible();
   expect(fake.sent.map((request) => request.search.toString())).toEqual(['enabled=true']);
@@ -274,7 +274,7 @@ it('lets the address override a default', async () => {
   const fake = fakeTransport({ [LIST]: json({ items: [subject('ada')] }) });
   mountAtRoute('/console/acme/subjects?enabled=false', '/acme/subjects', Defaulted, {
     basepath: '/console',
-    providers: { transport: fake.transport, queryClient: createQueryClient() },
+    providers: { transport: fake.transport, queryClient: createReadCache() },
   });
   expect(await screen.findByText('narrowed true rows 1')).toBeVisible();
   expect(fake.sent.map((request) => request.search.toString())).toEqual(['enabled=false']);

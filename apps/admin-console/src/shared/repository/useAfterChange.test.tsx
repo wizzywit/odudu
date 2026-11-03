@@ -2,7 +2,7 @@ import { QueryClientProvider, type QueryClient, type QueryKey } from '@tanstack/
 import { renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { useAfterChange, type ChangeReach } from '#/shared/repository/useAfterChange';
 import type { GatewayResult } from '#/shared/transport/gateway';
 
@@ -35,7 +35,7 @@ const SEEDED: readonly QueryKey[] = [
 ];
 
 function seeded() {
-  const client = createQueryClient();
+  const client = createReadCache();
   for (const key of SEEDED) client.setQueryData(key, 'held');
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>

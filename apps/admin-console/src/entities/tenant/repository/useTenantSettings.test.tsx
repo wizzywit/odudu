@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { recordKey } from '#/shared/repository/queryKeys';
 import { useTenantSettings } from '#/entities/tenant/repository/useTenantSettings';
 import { TENANT_SETTINGS_RECORD } from '#/entities/tenant/services/tenantSettings';
@@ -14,7 +14,7 @@ const GET = `GET ${ACME_ADMIN}/settings`;
 
 it('reads the tenant settings under the record every section of them shares', async () => {
   const fake = fakeTransport({ [GET]: json({ display_name: 'Acme' }, 200, { etag: '"s1"' }) });
-  const queryClient = createQueryClient();
+  const queryClient = createReadCache();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <TransportContext value={fake.transport}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>

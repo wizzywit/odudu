@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { afterEach, expect, it } from 'vitest';
 import { z } from 'zod';
 import { storeDrafts } from '#/shared/adapter/draftStorage';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { recordKey } from '#/shared/repository/queryKeys';
 import { useRecord } from '#/shared/repository/useRecord';
 import { useSectionSave, type RefusalReporter } from '#/shared/repository/useSectionSave';
@@ -198,7 +198,7 @@ function mount(
   refusal?: RefusalReporter,
 ) {
   const fake = fakeTransport(routes);
-  const queryClient = createQueryClient();
+  const queryClient = createReadCache();
   render(
     <TransportContext value={fake.transport}>
       <QueryClientProvider client={queryClient}>
@@ -575,7 +575,7 @@ it('stays able to save after a save that threw', async () => {
   }
   render(
     <TransportContext value={fake.transport}>
-      <QueryClientProvider client={createQueryClient()}>
+      <QueryClientProvider client={createReadCache()}>
         <Page />
       </QueryClientProvider>
     </TransportContext>,
@@ -811,7 +811,7 @@ it('saves the edits left after taking theirs, and keeps focus in the section', a
   }
   render(
     <TransportContext value={fake.transport}>
-      <QueryClientProvider client={createQueryClient()}>
+      <QueryClientProvider client={createReadCache()}>
         <Page />
       </QueryClientProvider>
     </TransportContext>,
@@ -982,7 +982,7 @@ function DirectRecord() {
 
 function mountDirect(routes: Record<string, Answer>) {
   const fake = fakeTransport(routes);
-  const queryClient = createQueryClient();
+  const queryClient = createReadCache();
   render(
     <TransportContext value={fake.transport}>
       <QueryClientProvider client={queryClient}>

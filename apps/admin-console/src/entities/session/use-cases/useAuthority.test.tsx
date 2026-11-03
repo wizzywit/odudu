@@ -5,7 +5,7 @@ import { expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { useRefusal } from '#/entities/session/use-cases/useAuthority';
 import { SignedInContext } from '#/entities/session/use-cases/useSignedIn';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { useTransport, TransportContext } from '#/shared/transport/useTransport';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { fakeTransport, json, problem } from '#/testing/fakeTransport';
@@ -52,7 +52,7 @@ function mount(answer: ReturnType<typeof json>) {
   });
   render(
     <TransportContext value={fake.transport}>
-      <QueryClientProvider client={createQueryClient()}>
+      <QueryClientProvider client={createReadCache()}>
         <SignedInContext value={{ principal: GRACE, ended: null }}>
           <RotateSecret />
         </SignedInContext>
@@ -100,7 +100,7 @@ it('asks whoami nothing while nobody is signed in', async () => {
   const fake = fakeTransport({ [WHOAMI]: json({}) });
   render(
     <TransportContext value={fake.transport}>
-      <QueryClientProvider client={createQueryClient()}>
+      <QueryClientProvider client={createReadCache()}>
         <RotateSecret />
       </QueryClientProvider>
     </TransportContext>,
@@ -114,7 +114,7 @@ it('asks whoami nothing once the session has ended, until the principal is back'
   const fake = fakeTransport({ [WHOAMI]: json({}) });
   render(
     <TransportContext value={fake.transport}>
-      <QueryClientProvider client={createQueryClient()}>
+      <QueryClientProvider client={createReadCache()}>
         <SignedInContext value={{ principal: GRACE, ended: GRACE }}>
           <RotateSecret />
         </SignedInContext>
@@ -130,7 +130,7 @@ it('reads whoami again for a part that mounts once what it said has gone stale',
   vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
   try {
     const fake = fakeTransport({ [WHOAMI]: json({}) });
-    const client = createQueryClient();
+    const client = createReadCache();
     const tree = (parts: number) => (
       <TransportContext value={fake.transport}>
         <QueryClientProvider client={client}>

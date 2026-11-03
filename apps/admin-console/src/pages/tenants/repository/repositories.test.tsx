@@ -5,7 +5,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { useFirstAdministrator } from '#/pages/tenants/repository/useCreation';
 import { useExport } from '#/pages/tenants/repository/useExport';
 import { useImport } from '#/pages/tenants/repository/useImport';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { TransportContext } from '#/shared/transport/useTransport';
 import { fakeTransport, json, problem, type Answer } from '#/testing/fakeTransport';
 import { administratorRoutes } from '#/testing/tenantsFixtures';
@@ -24,7 +24,7 @@ const TENANT = {
 
 function harness(routes: Record<string, Answer>) {
   const fake = fakeTransport(routes);
-  const queryClient = createQueryClient();
+  const queryClient = createReadCache();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <TransportContext value={fake.transport}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>

@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
 import { useKeyLane } from '#/pages/signing-keys/repository/useKeyLane';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { TransportContext } from '#/shared/transport/useTransport';
 import { fakeTransport, json, problem, type Answer } from '#/testing/fakeTransport';
 import { KEYS, READY_KEY, signingKey } from '#/testing/keysFixtures';
@@ -12,7 +12,7 @@ function harness(routes: Record<string, Answer>) {
   const fake = fakeTransport(routes);
   const wrapper = ({ children }: { children: ReactNode }) => (
     <TransportContext value={fake.transport}>
-      <QueryClientProvider client={createQueryClient()}>{children}</QueryClientProvider>
+      <QueryClientProvider client={createReadCache()}>{children}</QueryClientProvider>
     </TransportContext>
   );
   return { ...fake, wrapper };

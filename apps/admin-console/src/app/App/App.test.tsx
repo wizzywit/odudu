@@ -5,7 +5,7 @@ import axe from 'axe-core';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { App } from '#/app/App/App';
 import { createConsoleRouter } from '#/app/router';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { useDialogHost } from '#/shared/repository/useDialogHost';
 import { useToasts } from '#/shared/repository/useToasts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
@@ -41,7 +41,7 @@ function renderAt(path: string, routes: Record<string, Answer>) {
   const fake = fakeTransport(routes);
   const router = createConsoleRouter(createMemoryHistory({ initialEntries: [path] }));
   const view = render(
-    <App router={router} transport={fake.transport} queryClient={createQueryClient()} />,
+    <App router={router} transport={fake.transport} queryClient={createReadCache()} />,
   );
   return { ...fake, router, unmount: view.unmount };
 }

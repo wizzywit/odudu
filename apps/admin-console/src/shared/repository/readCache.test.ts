@@ -1,9 +1,9 @@
 import { MutationObserver } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 
-describe('createQueryClient', () => {
-  const defaults = createQueryClient().getDefaultOptions();
+describe('createReadCache', () => {
+  const defaults = createReadCache().getDefaultOptions();
 
   it('refetches reads when the window regains focus', () => {
     expect(defaults.queries?.refetchOnWindowFocus).toBe(true);
@@ -24,7 +24,7 @@ describe('createQueryClient', () => {
   it('holds no finished mutation a second after its observer has gone', async () => {
     vi.useFakeTimers();
     try {
-      const client = createQueryClient();
+      const client = createReadCache();
       const observer = new MutationObserver(client, {
         mutationFn: () => Promise.resolve({ secret: 'correct-horse' }),
       });
@@ -39,6 +39,6 @@ describe('createQueryClient', () => {
   });
 
   it('gives each caller its own client', () => {
-    expect(createQueryClient()).not.toBe(createQueryClient());
+    expect(createReadCache()).not.toBe(createReadCache());
   });
 });

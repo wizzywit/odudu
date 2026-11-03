@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
 import { useRolePicker } from '#/entities/role/repository/useRolePicker';
-import { createQueryClient } from '#/shared/repository/queryClient';
+import { createReadCache } from '#/shared/repository/readCache';
 import { TransportContext } from '#/shared/transport/useTransport';
 import { fakeTransport, json, type Answer } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
@@ -26,7 +26,7 @@ function role(id: string) {
 
 function wrapperFor(routes: Record<string, Answer>) {
   const fake = fakeTransport(routes);
-  const queryClient = createQueryClient();
+  const queryClient = createReadCache();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <TransportContext value={fake.transport}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
