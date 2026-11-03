@@ -1,6 +1,6 @@
 import { isMissing, isStale, problemSubtype, writeFailureText } from '#/shared/services/failure';
 import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
-import { publishConflict, refusalText } from '#/features/branding/services/publish';
+import { publishConflict, refusalText } from '#/features/branding/services/publishIssues';
 import { inUse, inUseTitle } from '#/features/branding/services/imageRefusals';
 
 export function publishFailure(failure: GatewayFailure): string {

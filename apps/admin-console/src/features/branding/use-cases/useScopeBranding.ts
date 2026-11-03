@@ -1,7 +1,7 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useThemeRecord } from '#/features/branding/repository/useThemeRecord';
-import { NO_OUTCOME, type PublishOutcome } from '#/features/branding/services/edits';
+import { NO_OUTCOME, type PublishOutcome } from '#/features/branding/services/publishOutcome';
 import { tabsChanged } from '#/features/branding/services/changeSummary';
 import {
   placedOver,

@@ -1,8 +1,8 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
-import { PUBLISHING } from '#/features/branding/services/copy';
-import { NO_OUTCOME } from '#/features/branding/services/edits';
+import { PUBLISHING } from '#/features/branding/services/publishDraft';
+import { NO_OUTCOME } from '#/features/branding/services/publishOutcome';
 import { foldedActions } from '#/features/branding/services/holds';
 import { NO_DRAFT_TO_DISCARD } from '#/features/branding/services/discardDraft';
 import { TENANT_SCOPE } from '#/features/branding/services/themeScope';

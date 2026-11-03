@@ -10,9 +10,9 @@ import {
   previewRetry,
   type PreviewChoice,
 } from '#/features/branding/services/preview';
-import { type ThemeScope } from '#/features/branding/services/themeScope';
+import type { ThemeScope } from '#/features/branding/services/themeScope';
 import { omissionNote } from '#/features/branding/services/templates';
-import { type PageKind } from '#/features/branding/services/values';
+import type { PageKind } from '#/features/branding/services/values';
 import type { Scheme } from '#/features/branding/services/colourScheme';
 
 export interface Preview {

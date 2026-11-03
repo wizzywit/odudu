@@ -1,7 +1,7 @@
 import { MAX_STYLESHEET_BYTES, MAX_TEMPLATE_BYTES } from '@odudu/contracts';
 import type { FieldError } from '@odudu/contracts/admin';
 import { byteSizeReading, utf8Length, type SizeReading } from '#/shared/services/format';
-import type { PublishOutcome } from '#/features/branding/services/edits';
+import type { PublishOutcome } from '#/features/branding/services/publishOutcome';
 import { SELECTORS_LABEL } from '#/features/branding/services/selectors';
 import {
   detailed,

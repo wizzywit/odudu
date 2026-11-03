@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { expect, it } from 'vitest';
-import { NO_OUTCOME } from '#/features/branding/services/edits';
+import { NO_OUTCOME } from '#/features/branding/services/publishOutcome';
 import {
   writeCapability,
   clientScope,

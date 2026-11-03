@@ -1,8 +1,8 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useThemeWrites } from '#/features/branding/repository/useThemeWrites';
 import { contrastReport, type ContrastReport } from '#/features/branding/services/contrast';
-import { type PublishOutcome } from '#/features/branding/services/edits';
-import { type ThemeScope } from '#/features/branding/services/themeScope';
+import type { PublishOutcome } from '#/features/branding/services/publishOutcome';
+import type { ThemeScope } from '#/features/branding/services/themeScope';
 import { useColours, type Colours } from '#/features/branding/use-cases/useColours';
 import { useImageDeletion, type ImageAsk } from '#/features/branding/use-cases/useImageDeletion';
 import { useImages, type Images } from '#/features/branding/use-cases/useImages';

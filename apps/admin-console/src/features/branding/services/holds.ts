@@ -1,5 +1,5 @@
 import type { ThemeView } from '@odudu/contracts/admin';
-import { PUBLISHING } from '#/features/branding/services/copy';
+import { PUBLISHING, publishHold } from '#/features/branding/services/publishDraft';
 import { REVERT_LABEL, REVERTING, revertHold } from '#/features/branding/services/revertDraft';
 import {
   DISCARD_LABEL,
@@ -7,7 +7,6 @@ import {
   NO_DRAFT_TO_DISCARD,
   discardUnsaved,
 } from '#/features/branding/services/discardDraft';
-import { publishHold } from '#/features/branding/services/publish';
 import type { ScopedTab } from '#/features/branding/services/tabs';
 
 export const SAVING = 'Saving…';

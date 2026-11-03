@@ -1,6 +1,6 @@
 import { THEME_PAGE_KINDS } from '@odudu/contracts';
 import { describe, expect, it } from 'vitest';
-import { limitedIssues } from '#/features/branding/services/publish';
+import { limitedIssues } from '#/features/branding/services/publishIssues';
 import {
   formNote,
   MANIFESTS,

@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { useThemeWrites } from '#/features/branding/repository/useThemeWrites';
-import { PUBLISHING } from '#/features/branding/services/copy';
+import { PUBLISHING } from '#/features/branding/services/publishDraft';
 import { SAVING } from '#/features/branding/services/holds';
 import { useSectionHold } from '#/features/branding/use-cases/useSectionHold';
 import { TH } from '#/testing/brandingFixtures';

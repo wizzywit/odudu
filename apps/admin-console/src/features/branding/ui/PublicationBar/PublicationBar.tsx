@@ -1,5 +1,18 @@
 import type { ThemeView } from '@odudu/contracts/admin';
-import { ISSUES_LABEL, PUBLISH_LABEL, PUBLISHING } from '#/features/branding/services/copy';
+import {
+  ISSUES_LABEL,
+  WARNINGS_NOTE,
+  WARNINGS_TITLE,
+} from '#/features/branding/services/publishIssues';
+import {
+  PUBLISH_LABEL,
+  PUBLISHING,
+  PUBLISH_BODY,
+  PUBLISH_TITLE,
+  publishedTag,
+  PUBLISH_SHORT,
+  publishedText,
+} from '#/features/branding/services/publishDraft';
 import { foldedActions, discardNote } from '#/features/branding/services/holds';
 import {
   DISCARD_CONFIRM,
@@ -14,15 +27,6 @@ import {
   MORE_TRIGGER,
   publishedShort,
 } from '#/features/branding/services/changeSummary';
-import {
-  PUBLISH_BODY,
-  PUBLISH_TITLE,
-  publishedTag,
-  PUBLISH_SHORT,
-  publishedText,
-  WARNINGS_NOTE,
-  WARNINGS_TITLE,
-} from '#/features/branding/services/publish';
 import type { ScopeBranding } from '#/features/branding/use-cases/useScopeBranding';
 import { usePublicationBar } from '#/features/branding/use-cases/usePublicationBar';
 import { RevertConflict } from '#/features/branding/ui/RevertConflict';

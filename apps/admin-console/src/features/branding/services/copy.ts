@@ -5,10 +5,6 @@ export const BRANDING_SECTIONS_LABEL = 'Branding sections';
 
 export const BRANDING_NOUN = 'theme';
 
-export const PUBLISH_LABEL = 'Publish the draft';
-
-export const PUBLISHING = 'Publishing…';
-
 export const RESTORE_LABEL = 'Restore';
 
 export const RESET_LABEL = 'Reset to default…';
@@ -30,8 +26,6 @@ export const PAGES_LEAD =
   'Choose a page, then change its layout. The preview shows the page as people see it.';
 
 export const PAGE_PICKER_LABEL = 'Page';
-
-export const ISSUES_LABEL = 'What the server refused';
 
 export function pickLabel(label: string): string {
   return `Pick ${label.toLowerCase()}`;

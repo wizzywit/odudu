@@ -1,7 +1,7 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useRefusal } from '#/entities/session';
 import { templateSave } from '#/features/branding/repository/themeSaves';
-import type { PublishOutcome } from '#/features/branding/services/edits';
+import type { PublishOutcome } from '#/features/branding/services/publishOutcome';
 import { templateFields, TEMPLATES_SECTION_TITLE } from '#/features/branding/services/fields';
 import { firstProblems, type PlacedProblems } from '#/features/branding/services/problems';
 import {
@@ -10,7 +10,7 @@ import {
   themeRecord,
   type ThemeScope,
 } from '#/features/branding/services/themeScope';
-import { limitedIssues } from '#/features/branding/services/publish';
+import { limitedIssues } from '#/features/branding/services/publishIssues';
 import { templateSize } from '#/features/branding/services/stylesheet';
 import {
   publishedTemplateProblems,

@@ -1,7 +1,7 @@
 import { MAX_STYLESHEET_BYTES, MAX_TEMPLATE_BYTES } from '@odudu/contracts';
 import type { FieldError, ThemeView } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
-import { NO_OUTCOME } from '#/features/branding/services/edits';
+import { NO_OUTCOME } from '#/features/branding/services/publishOutcome';
 import { PROBLEMS_SHOWN, firstProblems, NO_PROBLEMS } from '#/features/branding/services/problems';
 import {
   publishedStylesheetProblems,
