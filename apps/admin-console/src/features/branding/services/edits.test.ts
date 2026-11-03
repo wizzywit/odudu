@@ -1,6 +1,5 @@
 import type { ThemeAsset } from '@odudu/contracts/admin';
 import { describe, expect, it, vi, type Mock } from 'vitest';
-import { slotNames, slotView } from '#/features/branding/services/assets';
 import { contrastReport } from '#/features/branding/services/contrast';
 import {
   announcePublish,
@@ -23,6 +22,7 @@ import { unsavedSections } from '#/features/branding/services/fields';
 import { changedColours, DEFAULT_PALETTES } from '#/features/branding/services/palette';
 import { type ImageValues } from '#/features/branding/services/values';
 import { altChanged } from '#/features/branding/services/logoAlt';
+import { slotNames, slotView } from '#/features/branding/services/imageThumbnails';
 import type { GatewayResult } from '#/shared/services/result';
 
 const none: ImageValues = {

@@ -4,7 +4,6 @@ import { useRefusal } from '#/entities/session';
 import { useAssetUpload } from '#/features/branding/repository/useThemeAssets';
 import { useSlotImages } from '#/features/branding/repository/useSlotImages';
 import { imageSave } from '#/features/branding/repository/themeSaves';
-import { slotAssetIds, type Thumbnail } from '#/features/branding/services/assets';
 import {
   editAlt,
   finishUpload,
@@ -24,6 +23,7 @@ import {
   type ImageSlot,
 } from '#/features/branding/services/values';
 import { altChanged, imagesHold } from '#/features/branding/services/logoAlt';
+import { slotAssetIds, type Thumbnail } from '#/features/branding/services/imageThumbnails';
 import { useSectionHold } from '#/features/branding/use-cases/useSectionHold';
 import { useLatest } from '#/shared/repository/useLatest';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';

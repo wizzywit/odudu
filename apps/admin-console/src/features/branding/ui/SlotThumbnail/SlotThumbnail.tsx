@@ -1,11 +1,11 @@
+import { type ImageSlot } from '#/features/branding/services/values';
 import {
   THUMBNAIL_FAILED,
   THUMBNAIL_LOADING,
   THUMBNAIL_RETRY,
   thumbnailAlt,
   type Thumbnail,
-} from '#/features/branding/services/assets';
-import { type ImageSlot } from '#/features/branding/services/values';
+} from '#/features/branding/services/imageThumbnails';
 import { Button } from '#/shared/ui/Button';
 import styles from '#/features/branding/ui/SlotThumbnail/SlotThumbnail.module.css';
 

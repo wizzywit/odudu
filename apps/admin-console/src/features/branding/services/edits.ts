@@ -1,7 +1,6 @@
 import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
 import { failureTextWith } from '#/shared/services/failure';
 import { reportFailure } from '#/shared/services/settled';
-import { slotNames } from '#/features/branding/services/assets';
 import {
   colourProblem,
   DEFAULT_PALETTES,
@@ -40,6 +39,7 @@ import {
   UPLOAD_FAULT,
   UPLOAD_LOST,
 } from '#/features/branding/services/imageRefusals';
+import { slotNames } from '#/features/branding/services/imageThumbnails';
 
 export function paletteField(scheme: Scheme): 'tokens.light' | 'tokens.dark' {
   return `tokens.${scheme}`;
