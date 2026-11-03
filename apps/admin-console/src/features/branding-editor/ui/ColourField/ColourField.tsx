@@ -1,5 +1,3 @@
-import { pickLabel } from '#/features/branding-editor/services/pageKinds';
-import { swatchOf } from '#/features/branding-editor/services/colourEdits';
 import { TextField } from '#/shared/ui/Field';
 import styles from '#/features/branding-editor/ui/ColourField/ColourField.module.css';
 
@@ -9,12 +7,16 @@ export function ColourField({
   value,
   error,
   changed,
+  pickLabel,
+  swatch,
   onChange,
 }: {
   label: string;
   value: string;
   error: string | undefined;
   changed: boolean;
+  pickLabel: string;
+  swatch: string;
   onChange: (value: string) => void;
 }) {
   return (
@@ -30,8 +32,8 @@ export function ColourField({
       <input
         type="color"
         className={styles.swatch}
-        aria-label={pickLabel(label)}
-        value={swatchOf(value)}
+        aria-label={pickLabel}
+        value={swatch}
         onChange={(event) => {
           onChange(event.target.value);
         }}

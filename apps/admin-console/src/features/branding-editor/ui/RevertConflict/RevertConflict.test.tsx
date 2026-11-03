@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import type { Revert } from '#/features/branding-editor/use-cases/useRevert';
+import { revertWords } from '#/features/branding-editor/services/revertDraft';
 import { RevertConflict } from '#/features/branding-editor/ui/RevertConflict';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 
@@ -21,6 +22,7 @@ function revert(changes: Partial<Revert> = {}): Revert {
       },
     ],
     section: 'the Pages tab',
+    words: revertWords({ kind: 'tenant' }, 'pages', false),
     revert: () => undefined,
     takeTheirs: () => undefined,
     ...changes,

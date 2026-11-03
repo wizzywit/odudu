@@ -1,11 +1,5 @@
 import { useId, useRef, type ReactNode } from 'react';
-import {
-  PREVIEW_CLOSE_LABEL,
-  PREVIEW_OPEN_LABEL,
-  PREVIEW_SHEET_TITLE,
-  sheetFrameTitle,
-} from '#/features/branding-editor/services/preview';
-import { usePreviewSheet } from '#/features/branding-editor/use-cases/usePreviewSheet';
+import { usePreviewShell } from '#/features/branding-editor/use-cases/usePreviewShell';
 import { PreviewFrame, type PreviewFrameProps } from '#/features/branding-editor/ui/PreviewFrame';
 import { useContainerNarrow } from '#/shared/use-cases/useContainerNarrow';
 import { Button } from '#/shared/ui/Button';
@@ -45,9 +39,14 @@ export function PreviewShell({
   // The strip is what is shown, a miniature that is not for the keyboard and
   // is not loaded again while the sheet shows the page.
   const strip = useContainerNarrow(pane);
-  const sheet = usePreviewSheet(strip, () => {
-    titleRef.current?.focus();
-  });
+  const sheet = usePreviewShell(
+    strip,
+    () => {
+      titleRef.current?.focus();
+    },
+    frame.title,
+  );
+  const { words } = sheet;
   return (
     <section ref={pane} aria-labelledby={heading} className={styles.pane} data-preview-strip>
       <h2 ref={titleRef} id={heading} tabIndex={-1} className={styles.title}>
@@ -58,28 +57,30 @@ export function PreviewShell({
       <div className={styles.notes}>{notes}</div>
       <div className={styles.live}>{live}</div>
       <div className={styles.stage}>
-        {strip && sheet.isOpen ? null : <PreviewFrame {...frame} tabbable={!strip} />}
+        {strip && sheet.isOpen ? null : (
+          <PreviewFrame {...frame} words={words.frame} tabbable={!strip} />
+        )}
       </div>
       <p role="status" className={styles.summary} title={summary}>
         {summary}
       </p>
       <div className={styles.open}>
-        <Button onPress={sheet.open}>{PREVIEW_OPEN_LABEL}</Button>
+        <Button onPress={sheet.open}>{words.open}</Button>
       </div>
       <DialogFrame
         isOpen={sheet.isOpen}
         size="sheet"
-        title={PREVIEW_SHEET_TITLE}
+        title={words.sheetTitle}
         description={lead}
         onEscape={sheet.close}
-        actions={<Button onPress={sheet.close}>{PREVIEW_CLOSE_LABEL}</Button>}
+        actions={<Button onPress={sheet.close}>{words.close}</Button>}
       >
         <div className={styles.switches}>
           <NativeSelectFields>{controls}</NativeSelectFields>
         </div>
         <div className={styles.notes}>{notes}</div>
         <div className={styles.live}>{live}</div>
-        <PreviewFrame {...frame} title={sheetFrameTitle(frame.title)} fill />
+        <PreviewFrame {...frame} words={words.frame} title={words.sheetFrameTitle} fill />
       </DialogFrame>
     </section>
   );

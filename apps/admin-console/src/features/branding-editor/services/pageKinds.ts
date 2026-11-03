@@ -119,3 +119,9 @@ export const PAGE_PICKER_LABEL = 'Page';
 export function pickLabel(label: string): string {
   return `Pick ${label.toLowerCase()}`;
 }
+
+// Hands on the kind a control's id names, nothing for any other.
+export function chooseKind(id: string, choose: (kind: PageKind) => void): void {
+  const kind = pageKindOf(id);
+  if (kind !== undefined) choose(kind);
+}

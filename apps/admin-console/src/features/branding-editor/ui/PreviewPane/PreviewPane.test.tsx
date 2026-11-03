@@ -2,13 +2,15 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
-import { DEFAULT_PREVIEW } from '#/features/branding-editor/services/preview';
+import { DEFAULT_PREVIEW, PREVIEW_WORDS } from '#/features/branding-editor/services/preview';
 import type { Preview } from '#/features/branding-editor/use-cases/usePreview';
 import { PreviewPane } from '#/features/branding-editor/ui/PreviewPane';
 
 function preview(changes: Partial<Preview> = {}): Preview {
   return {
     choice: DEFAULT_PREVIEW,
+    words: PREVIEW_WORDS,
+    summary: 'Sign in · Light',
     src: '/console/api/admin/tenants/acme/theme/preview?kind=sign-in&scheme=light',
     frameKey: 'k',
     note: null,
@@ -17,6 +19,8 @@ function preview(changes: Partial<Preview> = {}): Preview {
     onLoaded: () => undefined,
     setKind: () => undefined,
     setScheme: () => undefined,
+    chooseKind: () => undefined,
+    chooseScheme: () => undefined,
     ...changes,
   };
 }

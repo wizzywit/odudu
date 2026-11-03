@@ -1,26 +1,5 @@
-import type { ThemeView } from '#/features/branding-editor/types/theme';
 import { FileTrigger } from 'react-aria-components';
-import { type ThemeScope } from '#/features/branding-editor/services/themeScope';
-import { sourceReading } from '#/features/branding-editor/services/sources';
-import {
-  ACCEPTED_TYPES,
-  limitText,
-  SLOT_RULES,
-} from '#/features/branding-editor/services/imageSlots';
-import { ALT_LABEL, ALT_RULE, altProblem } from '#/features/branding-editor/services/logoAlt';
-import { slotView } from '#/features/branding-editor/services/imageThumbnails';
-import {
-  IMAGE_SLOTS,
-  imageField,
-  type ImageSlot,
-} from '#/features/branding-editor/services/imageValues';
-import {
-  DELETE_LABEL,
-  IMAGES_LEAD,
-  REMOVE_LABEL,
-  UPLOADING,
-  IMAGES_TITLE,
-} from '#/features/branding-editor/services/imageSection';
+import type { SlotCard } from '#/features/branding-editor/services/imageCards';
 import type { Images } from '#/features/branding-editor/use-cases/useImages';
 import type { ImageAsk } from '#/features/branding-editor/use-cases/useImageDeletion';
 import { Button } from '#/shared/ui/Button';
@@ -30,111 +9,95 @@ import { SaveSection } from '#/shared/ui/SaveSection';
 import styles from '#/features/branding-editor/ui/ImagesSection/ImagesSection.module.css';
 
 function Slot({
-  slot,
-  scope,
-  view,
+  card,
   images,
   onDelete,
 }: {
-  slot: ImageSlot;
-  scope: ThemeScope;
-  view: ThemeView;
+  card: SlotCard;
   images: Images;
   onDelete: (ask: ImageAsk) => void;
 }) {
-  const state = images.slots[slot];
-  const shown = slotView(slot, images.save.values, state.busy);
-  const { assetId } = shown;
+  const { slot, alt, drop } = card;
   return (
     <fieldset className={styles.slot}>
-      <legend className={styles.legend}>{shown.label}</legend>
-      <p className={styles.hint}>{SLOT_RULES[slot].hint}</p>
-      <p className={styles.hint}>{sourceReading(scope, view, imageField(slot))}</p>
-      <p className={styles.hint}>{limitText(slot)}</p>
-      <p className={styles.state}>{shown.note}</p>
-      <SlotThumbnail slot={slot} thumbnail={images.thumbnails[slot]} alt={shown.alt} />
-      {shown.alt === null ? null : (
+      <legend className={styles.legend}>{card.legend}</legend>
+      {card.hints.map((hint) => (
+        <p key={hint} className={styles.hint}>
+          {hint}
+        </p>
+      ))}
+      <p className={styles.state}>{card.note}</p>
+      <SlotThumbnail thumbnail={card.thumbnail} alt={card.picture} words={images.words.thumbnail} />
+      {alt === null ? null : (
         <TextField
-          label={`${shown.label}: ${ALT_LABEL.toLowerCase()}`}
-          description={ALT_RULE}
-          value={shown.alt}
-          error={altProblem(shown.alt)}
-          changed={images.altChanged(slot)}
-          onChange={(alt) => {
-            if (slot === 'logo' || slot === 'darkLogo') images.setAlt(slot, alt);
+          label={alt.label}
+          description={alt.description}
+          value={alt.value}
+          error={alt.error}
+          changed={alt.changed}
+          onChange={(text) => {
+            images.setAlt(slot, text);
           }}
         />
       )}
       <div className={styles.actions}>
         <FileTrigger
-          acceptedFileTypes={ACCEPTED_TYPES.split(',')}
+          acceptedFileTypes={card.accept}
           onSelect={(files) => {
             const file = files?.item(0);
             if (file !== null && file !== undefined) images.upload(slot, file);
           }}
         >
-          <Button isDisabled={state.busy} aria-label={shown.uploadName}>
-            {state.busy ? UPLOADING : shown.uploadText}
+          <Button isDisabled={card.upload.busy} aria-label={card.upload.name}>
+            {card.upload.text}
           </Button>
         </FileTrigger>
-        {assetId === null ? null : (
+        {drop === null ? null : (
           <>
             <Button
               variant="quiet"
-              aria-label={shown.removeName}
+              aria-label={card.remove.name}
               onPress={() => {
                 images.remove(slot);
               }}
             >
-              {REMOVE_LABEL}
+              {card.remove.text}
             </Button>
             <Button
               variant="quiet"
-              aria-label={shown.deleteName}
+              aria-label={drop.name}
               onPress={() => {
-                onDelete({ slot, assetId });
+                onDelete({ slot, assetId: drop.assetId });
               }}
             >
-              {DELETE_LABEL}
+              {drop.text}
             </Button>
           </>
         )}
       </div>
       <p role="alert" className={styles.error}>
-        {state.error}
+        {card.error}
       </p>
     </fieldset>
   );
 }
 
 export function ImagesSection({
-  scope,
-  view,
   images,
   onDelete,
 }: {
-  scope: ThemeScope;
-  view: ThemeView;
   images: Images;
   onDelete: (ask: ImageAsk) => void;
 }) {
-  const blocked = images.blocked;
   return (
     <SaveSection
-      title={IMAGES_TITLE}
-      description={IMAGES_LEAD}
-      blocked={blocked}
+      title={images.words.title}
+      description={images.words.lead}
+      blocked={images.blocked}
       save={images.save}
     >
-      {IMAGE_SLOTS.map((slot) => (
-        <Slot
-          key={slot}
-          slot={slot}
-          scope={scope}
-          view={view}
-          images={images}
-          onDelete={onDelete}
-        />
+      {images.cards.map((card) => (
+        <Slot key={card.slot} card={card} images={images} onDelete={onDelete} />
       ))}
     </SaveSection>
   );

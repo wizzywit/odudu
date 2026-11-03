@@ -1,37 +1,12 @@
-import type { ThemeView } from '#/features/branding-editor/types/theme';
 import { useId } from 'react';
-import {
-  PAGE_PICKER_LABEL,
-  PAGES_LEAD,
-  MANIFESTS,
-  PAGE_KIND_LABELS,
-  PAGE_KIND_OPTIONS,
-  slot,
-  pageKindOf,
-  type PageKind,
-} from '#/features/branding-editor/services/pageKinds';
+import type { PartsView } from '#/features/branding-editor/services/pagesTab';
+import type { PageKind } from '#/features/branding-editor/services/pageKinds';
 import type { PublishOutcome } from '#/features/branding-editor/services/publishOutcome';
-import {
-  TEMPLATES_SECTION_TITLE,
-  formNote,
-  MESSAGE_NOTE,
-  OPTIONAL_NOTE,
-  PARTS_TITLE,
-  REQUIRED_NOTE,
-  TEMPLATE_LABEL,
-  TEMPLATE_RULES,
-  TEMPLATES_INTRO,
-  templateDescription,
-} from '#/features/branding-editor/services/templateParts';
 import type { ThemeScope } from '#/features/branding-editor/services/themeScope';
-import { sourceReading } from '#/features/branding-editor/services/sources';
-import { templateField } from '#/features/branding-editor/services/templateValues';
-import { useMessageKeys } from '#/features/branding-editor/use-cases/useMessageKeys';
-import { useRevert } from '#/features/branding-editor/use-cases/useRevert';
-import { useTemplates } from '#/features/branding-editor/use-cases/useTemplates';
+import { usePagesTab } from '#/features/branding-editor/use-cases/usePagesTab';
 import { InsertMessage } from '#/features/branding-editor/ui/MessageKeyField';
 import { RevertPanel } from '#/features/branding-editor/ui/PublicationPanels';
-import { useFolds, type Folds } from '#/shared/use-cases/useFolds';
+import type { ThemeView } from '#/features/branding-editor/types/theme';
 import { Button } from '#/shared/ui/Button';
 import { CodeField } from '#/shared/ui/CodeField';
 import { NativeSelectFields, SelectField } from '#/shared/ui/Field';
@@ -40,47 +15,45 @@ import { recordTab } from '#/shared/ui/RecordTab';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import styles from '#/features/branding-editor/ui/PagesTab/PagesTab.module.css';
 
-function Parts({ kind, folds }: { kind: PageKind; folds: Folds }) {
-  const manifest = MANIFESTS[kind];
-  const inside = formNote(manifest);
-  const body = useId();
-  const open = folds.isOpen('parts');
-  const toggle = (): void => {
-    folds.toggle('parts');
-  };
+function PartList({ parts }: { parts: string[] }) {
   return (
-    <Panel title={PARTS_TITLE} headingClassName={styles.partsTitle ?? ''}>
+    <ul className={styles.parts}>
+      {parts.map((part) => (
+        <li key={part}>
+          <code>{part}</code>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Parts({ parts, toggle }: { parts: PartsView; toggle: () => void }) {
+  const body = useId();
+  const { optional } = parts;
+  return (
+    <Panel title={parts.title} headingClassName={styles.partsTitle ?? ''}>
       <div className={styles.fold}>
-        <Button aria-expanded={open} aria-controls={body} onPress={toggle}>
-          <span>{PARTS_TITLE}</span>
-          <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+        <Button aria-expanded={parts.open} aria-controls={body} onPress={toggle}>
+          <span>{parts.title}</span>
+          <span aria-hidden="true">{parts.open ? '▴' : '▾'}</span>
         </Button>
       </div>
-      <div id={body} className={styles.partsBody} data-collapsed={!open || undefined}>
-        <p className={recordTab.rule}>{TEMPLATES_INTRO}</p>
-        <p className={recordTab.text}>{REQUIRED_NOTE}</p>
-        <ul className={styles.parts}>
-          {manifest.required.map((part) => (
-            <li key={part}>
-              <code>{slot(part)}</code>
-            </li>
-          ))}
-        </ul>
-        {manifest.optional.length === 0 ? null : (
+      <div id={body} className={styles.partsBody} data-collapsed={!parts.open || undefined}>
+        <p className={recordTab.rule}>{parts.intro}</p>
+        <p className={recordTab.text}>{parts.required.note}</p>
+        <PartList parts={parts.required.parts} />
+        {optional === null ? null : (
           <>
-            <p className={recordTab.text}>{OPTIONAL_NOTE}</p>
-            <ul className={styles.parts}>
-              {manifest.optional.map((part) => (
-                <li key={part}>
-                  <code>{slot(part)}</code>
-                </li>
-              ))}
-            </ul>
+            <p className={recordTab.text}>{optional.note}</p>
+            <PartList parts={optional.parts} />
           </>
         )}
-        {inside === null ? null : <p className={recordTab.rule}>{inside}</p>}
-        <p className={recordTab.rule}>{MESSAGE_NOTE}</p>
-        <p className={recordTab.rule}>{TEMPLATE_RULES}</p>
+        {parts.inside === null ? null : <p className={recordTab.rule}>{parts.inside}</p>}
+        {parts.notes.map((note) => (
+          <p key={note} className={recordTab.rule}>
+            {note}
+          </p>
+        ))}
       </div>
     </Panel>
   );
@@ -105,59 +78,45 @@ export function PagesTab({
   onKind: (kind: PageKind) => void;
   published: PublishOutcome;
 }) {
-  const templates = useTemplates({ tenant, scope, view, tag, gone, published });
-  const { save } = templates;
-  const revert = useRevert({ tenant, scope, view, tag, tab: 'pages' });
-  const keys = useMessageKeys(tenant, kind);
-  const folds = useFolds();
-  const problems = templates.problems(kind);
+  const tab = usePagesTab({ tenant, scope, view, tag, gone, kind, onKind, published });
+  const { section, words, editor } = tab;
   return (
     <div className={styles.tab}>
       <SaveSection
-        title={TEMPLATES_SECTION_TITLE}
-        description={PAGES_LEAD}
-        save={save}
-        blocked={templates.blocked}
+        title={words.title}
+        description={words.lead}
+        save={section.save}
+        blocked={section.blocked}
       >
         {/* The browser's own select: a phone opens its picker, and a page of
             six or so has no need of a search. */}
         <NativeSelectFields>
           <SelectField
-            label={PAGE_PICKER_LABEL}
-            options={PAGE_KIND_OPTIONS}
+            label={words.pickerLabel}
+            options={words.pickerOptions}
             value={kind}
-            onChange={(id) => {
-              const next = pageKindOf(id);
-              if (next !== undefined) onKind(next);
-            }}
+            onChange={tab.choose}
           />
         </NativeSelectFields>
         <CodeField
           key={kind}
-          wrap={{
-            on: folds.isOpen('wrap'),
-            toggle: () => {
-              folds.toggle('wrap');
-            },
-          }}
-          label={`${PAGE_KIND_LABELS[kind]}: ${TEMPLATE_LABEL.toLowerCase()}`}
-          description={`${sourceReading(scope, view, templateField(kind))}. ${templateDescription()}`}
+          wrap={editor.wrap}
+          label={editor.words.label}
+          description={editor.words.description}
           language="template"
-          tools={<InsertMessage keys={keys} />}
-          value={templates.text(kind)}
-          size={templates.size(kind)}
-          issues={problems.lines}
-          error={problems.message}
-          changed={templates.changed(kind)}
-          onChange={(text) => {
-            templates.edit(kind, text);
-          }}
+          tools={<InsertMessage keys={editor.keys} />}
+          value={editor.text}
+          size={editor.size}
+          issues={editor.problems.lines}
+          error={editor.problems.message}
+          changed={editor.changed}
+          onChange={editor.edit}
         />
       </SaveSection>
       <div className={styles.revert}>
-        <RevertPanel scope={scope} tab="pages" revert={revert} />
+        <RevertPanel revert={tab.revert} />
       </div>
-      <Parts kind={kind} folds={folds} />
+      <Parts parts={tab.parts.view} toggle={tab.parts.toggle} />
     </div>
   );
 }

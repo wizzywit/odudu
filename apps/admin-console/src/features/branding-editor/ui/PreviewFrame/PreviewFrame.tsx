@@ -1,4 +1,4 @@
-import { PREVIEW_FAILED, PREVIEW_LOADING } from '#/features/branding-editor/services/preview';
+import type { FrameWords } from '#/features/branding-editor/services/preview';
 import { InlineFailed } from '#/shared/ui/InlineFailed';
 import styles from '#/features/branding-editor/ui/PreviewFrame/PreviewFrame.module.css';
 
@@ -24,9 +24,10 @@ export function PreviewFrame({
   loading,
   retry,
   onLoaded,
+  words,
   fill = false,
   tabbable = true,
-}: PreviewFrameProps & { fill?: boolean; tabbable?: boolean }) {
+}: PreviewFrameProps & { words: FrameWords; fill?: boolean; tabbable?: boolean }) {
   return (
     <div
       className={styles.frame}
@@ -45,11 +46,11 @@ export function PreviewFrame({
         onLoad={onLoaded}
       />
       {retry === undefined ? null : (
-        <InlineFailed message={PREVIEW_FAILED} retry={retry} className={styles.failed} />
+        <InlineFailed message={words.failed} retry={retry} className={styles.failed} />
       )}
       {loading && retry === undefined ? (
         <p role="status" className={styles.loading}>
-          {PREVIEW_LOADING}
+          {words.loading}
         </p>
       ) : null}
     </div>

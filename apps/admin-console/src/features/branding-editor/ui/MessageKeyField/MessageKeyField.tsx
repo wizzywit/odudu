@@ -1,19 +1,7 @@
-import {
-  INSERT_LABEL,
-  INSERT_NOTE,
-  KEY_FAILED,
-  LIST_LIMIT,
-  KEY_LOADING,
-  messageOptions,
-  templateReference,
-} from '#/features/branding-editor/services/catalogue';
-import type { MessageEntry } from '#/features/branding-editor/types/messageCatalogue';
+import type { MessageKeys } from '#/features/branding-editor/services/catalogue';
 import { InsertPicker, OptionPicker } from '#/features/branding-editor/ui/OptionPicker';
-import { mapRead, type Read } from '#/shared/services/read';
 
-const WORDING = { loading: KEY_LOADING, failed: KEY_FAILED };
-
-// A message key chosen from the catalogue's list, at most LIST_LIMIT
+// A message key chosen from the catalogue's list, at most `keys.limit`
 // drawn at a time and narrowed by typing part of a key or of its text.
 export function MessageKeyField({
   keys,
@@ -25,7 +13,7 @@ export function MessageKeyField({
   mono,
   custom,
 }: {
-  keys: Read<MessageEntry[]>;
+  keys: MessageKeys;
   label: string;
   description: string;
   value: string;
@@ -38,9 +26,9 @@ export function MessageKeyField({
 }) {
   return (
     <OptionPicker
-      options={mapRead(keys, messageOptions)}
-      wording={WORDING}
-      limit={LIST_LIMIT}
+      options={keys.options}
+      wording={keys.wording}
+      limit={keys.limit}
       label={label}
       description={description}
       value={value}
@@ -54,15 +42,15 @@ export function MessageKeyField({
 
 // The picker above a template editor: chooses a message and types a reference
 // to it at the caret.
-export function InsertMessage({ keys }: { keys: Read<MessageEntry[]> }) {
+export function InsertMessage({ keys }: { keys: MessageKeys }) {
   return (
     <InsertPicker
-      options={mapRead(keys, messageOptions)}
-      wording={WORDING}
-      limit={LIST_LIMIT}
-      label={INSERT_LABEL}
-      description={INSERT_NOTE}
-      text={templateReference}
+      options={keys.options}
+      wording={keys.wording}
+      limit={keys.limit}
+      label={keys.insert.label}
+      description={keys.insert.description}
+      text={keys.insert.text}
     />
   );
 }

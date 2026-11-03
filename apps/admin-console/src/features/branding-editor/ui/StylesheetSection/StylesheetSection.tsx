@@ -1,71 +1,36 @@
-import type { ThemeView } from '#/features/branding-editor/types/theme';
-import {
-  STYLESHEET_SECTION_TITLE,
-  STYLESHEET_LABEL,
-  STYLESHEET_LEAD,
-} from '#/features/branding-editor/services/stylesheet';
-import type { ThemeScope } from '#/features/branding-editor/services/themeScope';
-import {
-  SELECTORS_FAILED,
-  SELECTORS_LABEL,
-  SELECTORS_LOADING,
-  SELECTORS_NOTE,
-  VALUES_FAILED,
-  VALUES_LABEL,
-  VALUES_LOADING,
-  VALUES_NOTE,
-} from '#/features/branding-editor/services/selectors';
-import { LIST_LIMIT } from '#/features/branding-editor/services/catalogue';
-import { sourceReading } from '#/features/branding-editor/services/sources';
-import { useDesignValues, useSelectors } from '#/features/branding-editor/use-cases/useSelectors';
 import type { Stylesheet } from '#/features/branding-editor/use-cases/useStylesheet';
 import { InsertPicker } from '#/features/branding-editor/ui/OptionPicker';
 import { CodeField } from '#/shared/ui/CodeField';
 import { SaveSection } from '#/shared/ui/SaveSection';
 
-const WORDING = { loading: SELECTORS_LOADING, failed: SELECTORS_FAILED };
-const VALUES_WORDING = { loading: VALUES_LOADING, failed: VALUES_FAILED };
-
-export function StylesheetSection({
-  tenant,
-  scope,
-  view,
-  stylesheet,
-}: {
-  tenant: string;
-  scope: ThemeScope;
-  view: ThemeView;
-  stylesheet: Stylesheet;
-}) {
-  const { save, problems } = stylesheet;
-  const selectors = useSelectors(tenant);
-  const values = useDesignValues(tenant);
+export function StylesheetSection({ stylesheet }: { stylesheet: Stylesheet }) {
+  const { save, problems, words, selectors, values } = stylesheet;
   return (
     <SaveSection
-      title={STYLESHEET_SECTION_TITLE}
-      description={STYLESHEET_LEAD}
+      title={words.title}
+      description={words.lead}
       blocked={stylesheet.blocked}
       save={save}
     >
       <CodeField
-        label={STYLESHEET_LABEL}
-        description={`${sourceReading(scope, view, 'stylesheet')}.`}
+        label={words.label}
+        description={words.description}
         language="css"
         tools={
           <>
             <InsertPicker
-              options={selectors}
-              wording={WORDING}
-              limit={LIST_LIMIT}
-              label={SELECTORS_LABEL}
-              description={SELECTORS_NOTE}
+              options={selectors.options}
+              wording={selectors.wording}
+              limit={selectors.limit}
+              label={selectors.label}
+              description={selectors.description}
             />
             <InsertPicker
-              options={values}
-              wording={VALUES_WORDING}
-              limit={LIST_LIMIT}
-              label={VALUES_LABEL}
-              description={VALUES_NOTE}
+              options={values.options}
+              wording={values.wording}
+              limit={values.limit}
+              label={values.label}
+              description={values.description}
             />
           </>
         }

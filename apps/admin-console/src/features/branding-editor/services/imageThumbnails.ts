@@ -70,6 +70,18 @@ export const THUMBNAIL_FAILED = 'The image could not be shown.';
 
 export const THUMBNAIL_RETRY = 'Try again';
 
+export interface ThumbnailWords {
+  loading: string;
+  failed: string;
+  retry: string;
+}
+
+export const THUMBNAIL_WORDS: ThumbnailWords = {
+  loading: THUMBNAIL_LOADING,
+  failed: THUMBNAIL_FAILED,
+  retry: THUMBNAIL_RETRY,
+};
+
 export interface SlotView {
   label: string;
   note: string;

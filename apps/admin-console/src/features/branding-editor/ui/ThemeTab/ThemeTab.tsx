@@ -1,8 +1,6 @@
 import type { ThemeView } from '#/features/branding-editor/types/theme';
 import type { PublishOutcome } from '#/features/branding-editor/services/publishOutcome';
 import type { ThemeScope } from '#/features/branding-editor/services/themeScope';
-import { DELETE_BODY, DELETE_TITLE } from '#/features/branding-editor/services/imageRefusals';
-import { DELETE_LABEL } from '#/features/branding-editor/services/imageSection';
 import { useThemeTab } from '#/features/branding-editor/use-cases/useThemeTab';
 import { ColoursSection, ContrastPanel } from '#/features/branding-editor/ui/ColoursSection';
 import { ImagesSection } from '#/features/branding-editor/ui/ImagesSection';
@@ -31,23 +29,23 @@ export function ThemeTab({
   published: PublishOutcome;
 }) {
   const theme = useThemeTab({ tenant, scope, view, tag, gone, published });
-  const { deletion } = theme;
+  const { deletion, deleteWords } = theme;
   return (
     <div className={styles.tab}>
-      <ColoursSection scope={scope} view={view} colours={theme.colours} />
-      <ContrastPanel report={theme.report} />
-      <ImagesSection scope={scope} view={view} images={theme.images} onDelete={deletion.ask} />
-      <StylesheetSection tenant={tenant} scope={scope} view={view} stylesheet={theme.stylesheet} />
+      <ColoursSection colours={theme.colours} />
+      <ContrastPanel contrast={theme.contrast} />
+      <ImagesSection images={theme.images} onDelete={deletion.ask} />
+      <StylesheetSection stylesheet={theme.stylesheet} />
       <div className={styles.revert}>
-        <RevertPanel scope={scope} tab="theme" revert={theme.revert} />
+        <RevertPanel revert={theme.revert} />
       </div>
       <VersionsPanel versions={theme.versions} />
-      <ResetPanel scope={scope} reset={theme.reset} />
+      <ResetPanel reset={theme.reset} />
       <ConfirmDialog
         isOpen={deletion.asking !== null}
-        title={DELETE_TITLE}
-        consequence={DELETE_BODY}
-        confirmLabel={DELETE_LABEL}
+        title={deleteWords.title}
+        consequence={deleteWords.consequence}
+        confirmLabel={deleteWords.confirmLabel}
         tone="danger"
         busy={deletion.busy}
         problem={deletion.problem}

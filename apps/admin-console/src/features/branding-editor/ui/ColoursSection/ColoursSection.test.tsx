@@ -70,6 +70,16 @@ it('marks a colour changed once it differs from the saved one', async () => {
   expect(within(section).getAllByText('Changed')).toHaveLength(2);
 });
 
+it('shows black in the picker for a colour not finished yet', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
+  const section = await screen.findByRole('region', { name: 'Colours and font' });
+  const text = within(section).getByRole('textbox', { name: 'Light text' });
+  await user.clear(text);
+  await user.type(text, '#12');
+  expect(within(section).getByLabelText('Pick light text')).toHaveValue('#000000');
+});
+
 it('shows every pair of a customised palette with its ratio', async () => {
   renderConsoleAt(AT, brandingRoutes(themeAnswer(draftedView(), '"d1"')));
   const contrast = await screen.findByRole('region', { name: 'Contrast' });

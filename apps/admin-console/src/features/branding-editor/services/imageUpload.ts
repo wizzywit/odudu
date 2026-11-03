@@ -126,10 +126,11 @@ export function finishUpload(
 // Sets a logo's alt text where a logo is set.
 export function editAlt(
   values: ImageValues,
-  slot: 'logo' | 'darkLogo',
+  slot: ImageSlot,
   alt: string,
   edit: (slot: ImageSlot, logo: Logo) => void,
 ): void {
+  if (slot !== 'logo' && slot !== 'darkLogo') return;
   const logo = altEdited(values, slot, alt);
   if (logo !== null) edit(slot, logo);
 }

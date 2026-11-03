@@ -1,41 +1,37 @@
-import {
-  THUMBNAIL_FAILED,
-  THUMBNAIL_LOADING,
-  THUMBNAIL_RETRY,
-  thumbnailAlt,
-  type Thumbnail,
+import type {
+  Thumbnail,
+  ThumbnailWords,
 } from '#/features/branding-editor/services/imageThumbnails';
-import type { ImageSlot } from '#/features/branding-editor/services/imageValues';
 import { Button } from '#/shared/ui/Button';
 import styles from '#/features/branding-editor/ui/SlotThumbnail/SlotThumbnail.module.css';
 
 // The image a slot holds, small and whole, so that what was uploaded is what
 // is seen before anything publishes it.
 export function SlotThumbnail({
-  slot,
   thumbnail,
   alt,
+  words,
 }: {
-  slot: ImageSlot;
   thumbnail: Thumbnail;
-  alt: string | null;
+  alt: string;
+  words: ThumbnailWords;
 }) {
   if (thumbnail.status === 'none') return null;
   if (thumbnail.status === 'ready') {
-    return <img className={styles.picture} src={thumbnail.data} alt={thumbnailAlt(slot, alt)} />;
+    return <img className={styles.picture} src={thumbnail.data} alt={alt} />;
   }
   if (thumbnail.status === 'loading') {
     return (
       <p role="status" className={styles.note}>
-        {THUMBNAIL_LOADING}
+        {words.loading}
       </p>
     );
   }
   return (
     <div className={styles.failed}>
-      <p className={styles.note}>{THUMBNAIL_FAILED}</p>
+      <p className={styles.note}>{words.failed}</p>
       <Button variant="quiet" onPress={thumbnail.retry}>
-        {THUMBNAIL_RETRY}
+        {words.retry}
       </Button>
     </div>
   );

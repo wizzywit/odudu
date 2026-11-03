@@ -8,16 +8,22 @@ import {
   DEFAULT_PREVIEW,
   previewAsked,
   previewRetry,
+  pageSummary,
+  PREVIEW_WORDS,
   type PreviewChoice,
+  type PreviewWords,
 } from '#/features/branding-editor/services/preview';
 import { noticeLines } from '#/features/branding-editor/services/fallback';
 import type { ThemeScope } from '#/features/branding-editor/services/themeScope';
-import type { PageKind } from '#/features/branding-editor/services/pageKinds';
+import { chooseKind, type PageKind } from '#/features/branding-editor/services/pageKinds';
 import { omissionNote } from '#/features/branding-editor/services/templateParts';
-import type { Scheme } from '#/features/branding-editor/services/colourScheme';
+import { chooseScheme, type Scheme } from '#/features/branding-editor/services/colourScheme';
 
 export interface Preview {
   choice: PreviewChoice;
+  words: PreviewWords;
+  // The strip's line of what the frame shows.
+  summary: string;
   // The frame's address, and the key that reloads it when what it shows changed.
   src: string;
   frameKey: string;
@@ -32,6 +38,9 @@ export interface Preview {
   onLoaded: () => void;
   setKind: (kind: PageKind) => void;
   setScheme: (scheme: Scheme) => void;
+  // The same choices as a control's id gives them.
+  chooseKind: (id: string) => void;
+  chooseScheme: (id: string) => void;
 }
 
 // What the preview frame shows: one page kind in one scheme, of the saved draft.
@@ -46,22 +55,33 @@ export function usePreview(
   const [loaded, setLoaded] = useState('');
   const frameKey = previewKey(view, tag, choice);
   const info = usePreviewInfo(tenant, scope, choice, frameKey, previewAsked(asked, view));
+  const fallback = noticeLines(info, scope);
+  const setKind = (kind: PageKind): void => {
+    setChoice((was) => previewWith(was, { kind }));
+  };
+  const setScheme = (scheme: Scheme): void => {
+    setChoice((was) => previewWith(was, { scheme }));
+  };
   return {
     choice,
+    words: PREVIEW_WORDS,
+    summary: pageSummary(choice, fallback),
     src: previewSource(tenant, scope, choice),
     frameKey,
     note: omissionNote(choice.kind),
-    fallback: noticeLines(info, scope),
+    fallback,
     loading: loaded !== frameKey,
     retry: previewRetry(info),
     onLoaded: () => {
       setLoaded(frameKey);
     },
-    setKind: (kind) => {
-      setChoice((was) => previewWith(was, { kind }));
+    setKind,
+    setScheme,
+    chooseKind: (id) => {
+      chooseKind(id, setKind);
     },
-    setScheme: (scheme) => {
-      setChoice((was) => previewWith(was, { scheme }));
+    chooseScheme: (id) => {
+      chooseScheme(id, setScheme);
     },
   };
 }

@@ -3,6 +3,18 @@ import { useThemeWrites } from '#/features/branding-editor/repository/useThemeWr
 import type { PublishOutcome } from '#/features/branding-editor/services/publishOutcome';
 import type { PublicationHolds } from '#/features/branding-editor/services/publicationHolds';
 import type { ThemeScope } from '#/features/branding-editor/services/themeScope';
+import {
+  barMenu,
+  discardView,
+  holdNotes,
+  outcomeView,
+  publicationStatus,
+  publishButton,
+  type BarMenu,
+  type DiscardView,
+  type OutcomeView,
+  type PublicationStatus,
+} from '#/features/branding-editor/services/publicationBar';
 import { revertTarget, type ScopedTab } from '#/features/branding-editor/services/tabs';
 import {
   usePublication,
@@ -25,6 +37,15 @@ export interface PublicationBar {
   revertTab: ScopedTab;
   // Why each action is held, which a running write does to all of them.
   holds: PublicationHolds;
+  // What the bar reads out of the above.
+  bar: {
+    status: PublicationStatus;
+    publish: { label: string; short: string };
+    notes: { publish: string | undefined; discard: string | undefined };
+    outcome: OutcomeView;
+    discard: DiscardView;
+    menu: BarMenu;
+  };
 }
 
 // What every tab shares: publishing the saved draft whole, and dropping it.
@@ -50,20 +71,39 @@ export function usePublicationBar({
   const writes = useThemeWrites(tenant, scope);
   const holds = usePublicationHolds(tenant, scope, view);
   const target = revertTarget(tab);
+  const revert = useRevert({ tenant, scope, view, tag, tab: target.tab });
+  const publication = usePublication({
+    tenant,
+    scope,
+    tag,
+    hold: holds.publish,
+    writes,
+    outcome: published,
+    onOutcome: onPublished,
+  });
+  const discard = useThemeDiscard(tenant, scope, tag, writes);
   return {
-    revert: useRevert({ tenant, scope, view, tag, tab: target.tab }),
+    revert,
     revertOffered: target.offered,
     revertTab: target.tab,
     holds,
-    publication: usePublication({
-      tenant,
-      scope,
-      tag,
-      hold: holds.publish,
-      writes,
-      outcome: published,
-      onOutcome: onPublished,
-    }),
-    discard: useThemeDiscard(tenant, scope, tag, writes),
+    publication,
+    discard,
+    bar: {
+      status: publicationStatus(view),
+      publish: publishButton(publication.busy),
+      notes: holdNotes(holds, view, publication.hold),
+      outcome: outcomeView(publication.outcome, revert.problem),
+      discard: discardView(scope, holds),
+      menu: barMenu(
+        {
+          holds,
+          tab: target.tab,
+          revertOffered: target.offered,
+          reverting: revert.busy,
+        },
+        { revert: revert.revert, discard: discard.ask },
+      ),
+    },
   };
 }

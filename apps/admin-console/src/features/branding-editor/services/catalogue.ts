@@ -3,6 +3,7 @@ import type {
   MessageEntry,
 } from '#/features/branding-editor/types/messageCatalogue';
 import { sortedIds } from '#/shared/services/ids';
+import { mapRead, type Read } from '#/shared/services/read';
 import type { PageKind } from '#/features/branding-editor/services/pageKinds';
 
 export const MAIL_GROUP_LABEL = 'Mail';
@@ -48,9 +49,7 @@ function oneLine(text: string): string {
   return text.replace(/\s+/gu, ' ').trim();
 }
 
-export function messageOptions(
-  entries: readonly MessageEntry[],
-): { id: string; label: string; detail: string }[] {
+export function messageOptions(entries: readonly MessageEntry[]): MessageOption[] {
   return entries.map((entry) => ({
     id: entry.key,
     label: entry.key,
@@ -63,4 +62,27 @@ export function messageOptions(
 // every message an override may be set under.
 export function messagesOf(catalogue: MessageCatalogue, kind: PageKind | null): MessageEntry[] {
   return kind === null ? allMessages(catalogue) : messagesForKind(catalogue, kind);
+}
+
+export interface MessageOption {
+  id: string;
+  label: string;
+  detail: string;
+}
+
+// The messages to choose from, with the words a picker of them says.
+export interface MessageKeys {
+  options: Read<MessageOption[]>;
+  wording: { loading: string; failed: string };
+  limit: number;
+  insert: { label: string; description: string; text: (key: string) => string };
+}
+
+export function messageKeys(entries: Read<MessageEntry[]>): MessageKeys {
+  return {
+    options: mapRead(entries, messageOptions),
+    wording: { loading: KEY_LOADING, failed: KEY_FAILED },
+    limit: LIST_LIMIT,
+    insert: { label: INSERT_LABEL, description: INSERT_NOTE, text: templateReference },
+  };
 }

@@ -25,3 +25,9 @@ export function schemeColoursTitle(scheme: Scheme): string {
 export function schemeColoursName(scheme: Scheme): string {
   return schemeColoursTitle(scheme).toLowerCase();
 }
+
+// Hands on the scheme a control's id names, nothing for any other.
+export function chooseScheme(id: string, choose: (scheme: Scheme) => void): void {
+  const scheme = schemeOf(id);
+  if (scheme !== undefined) choose(scheme);
+}

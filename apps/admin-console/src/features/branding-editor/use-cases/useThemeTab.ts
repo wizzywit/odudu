@@ -1,6 +1,11 @@
 import type { ThemeView } from '#/features/branding-editor/types/theme';
 import { useThemeWrites } from '#/features/branding-editor/repository/useThemeWrites';
-import { contrastReport, type ContrastReport } from '#/features/branding-editor/services/contrast';
+import {
+  contrastPanel,
+  contrastReport,
+  type ContrastPanelView,
+} from '#/features/branding-editor/services/contrast';
+import { IMAGE_DELETE_WORDS } from '#/features/branding-editor/services/imageCards';
 import type { PublishOutcome } from '#/features/branding-editor/services/publishOutcome';
 import type { ThemeScope } from '#/features/branding-editor/services/themeScope';
 import { useColours, type Colours } from '#/features/branding-editor/use-cases/useColours';
@@ -11,19 +16,20 @@ import {
 import { useImages, type Images } from '#/features/branding-editor/use-cases/useImages';
 import { useStylesheet, type Stylesheet } from '#/features/branding-editor/use-cases/useStylesheet';
 import { useRevert, type Revert } from '#/features/branding-editor/use-cases/useRevert';
-import { useThemeReset } from '#/features/branding-editor/use-cases/useThemeReset';
+import { useThemeReset, type ThemeReset } from '#/features/branding-editor/use-cases/useThemeReset';
 import { useVersions, type Versions } from '#/features/branding-editor/use-cases/useVersions';
-import type { Confirming, Removal } from '#/shared/use-cases/useConfirmedChange';
+import type { Confirming } from '#/shared/use-cases/useConfirmedChange';
 
 export interface ThemeTab {
   colours: Colours;
   images: Images;
   stylesheet: Stylesheet;
   deletion: Confirming<ImageAsk>;
-  report: ContrastReport;
+  contrast: ContrastPanelView;
+  deleteWords: typeof IMAGE_DELETE_WORDS;
   revert: Revert;
   versions: Versions;
-  reset: Removal;
+  reset: ThemeReset;
 }
 
 export function useThemeTab({
@@ -45,13 +51,13 @@ export function useThemeTab({
   const images = useImages({ tenant, scope, view, tag, gone });
   const deletion = useImageDeletion(tenant, scope, images.forget);
   const writes = useThemeWrites(tenant, scope);
-  const report = contrastReport(colours.save.values);
   return {
     colours,
     images,
     stylesheet: useStylesheet({ tenant, scope, view, tag, gone, published }),
     deletion,
-    report,
+    contrast: contrastPanel(contrastReport(colours.save.values)),
+    deleteWords: IMAGE_DELETE_WORDS,
     revert: useRevert({ tenant, scope, view, tag, tab: 'theme' }),
     versions: useVersions(tenant, scope, writes),
     reset: useThemeReset(tenant, scope, writes),

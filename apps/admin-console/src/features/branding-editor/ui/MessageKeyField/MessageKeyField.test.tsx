@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import { messageKeys } from '#/features/branding-editor/services/catalogue';
 import type { MessageEntry } from '#/features/branding-editor/types/messageCatalogue';
 import { InsertMessage, MessageKeyField } from '#/features/branding-editor/ui/MessageKeyField';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
@@ -21,7 +22,7 @@ function Override({ keys = ready }: { keys?: Read<MessageEntry[]> }) {
   return (
     <>
       <MessageKeyField
-        keys={keys}
+        keys={messageKeys(keys)}
         label="Message key"
         description="The key to replace."
         value={value}
@@ -42,7 +43,7 @@ function Editor({ keys = ready, start = '' }: { keys?: Read<MessageEntry[]>; sta
       language="template"
       value={text}
       onChange={setText}
-      tools={<InsertMessage keys={keys} />}
+      tools={<InsertMessage keys={messageKeys(keys)} />}
     />
   );
 }

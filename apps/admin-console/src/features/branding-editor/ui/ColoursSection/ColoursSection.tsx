@@ -1,37 +1,8 @@
-import type { ThemeView } from '#/features/branding-editor/types/theme';
 import { useId } from 'react';
-import {
-  rowText,
-  type ContrastReport,
-  CONTRAST_LEAD,
-  CONTRAST_TITLE,
-  PAIR_FAILS,
-  PAIR_PASSES,
-} from '#/features/branding-editor/services/contrast';
-import {
-  FONT_OPTIONS,
-  PALETTE_LABELS,
-  PALETTE_ORDER,
-} from '#/features/branding-editor/services/palette';
-import { type ThemeScope } from '#/features/branding-editor/services/themeScope';
-import { sourceReading } from '#/features/branding-editor/services/sources';
-import {
-  SCHEME_LABELS,
-  SCHEMES,
-  schemeColoursTitle,
-  type Scheme,
-} from '#/features/branding-editor/services/colourScheme';
-import { colourProblems, paletteField } from '#/features/branding-editor/services/colourEdits';
-import {
-  COLOURS_LEAD,
-  customLabel,
-  FONT_LABEL,
-  paletteFoldOpen,
-  COLOURS_TITLE,
-} from '#/features/branding-editor/services/colourSection';
+import type { ContrastPanelView } from '#/features/branding-editor/services/contrast';
+import type { SchemeView } from '#/features/branding-editor/services/colourSection';
 import type { Colours } from '#/features/branding-editor/use-cases/useColours';
 import { ColourField } from '#/features/branding-editor/ui/ColourField';
-import { useFolds, type Folds } from '#/shared/use-cases/useFolds';
 import { Button } from '#/shared/ui/Button';
 import { FieldGroup, SelectField, ToggleField } from '#/shared/ui/Field';
 import { FieldGrid, GridCell } from '#/shared/ui/FieldGrid';
@@ -42,138 +13,104 @@ import { SaveSection } from '#/shared/ui/SaveSection';
 import { StatusTag } from '#/shared/ui/StatusTag';
 import styles from '#/features/branding-editor/ui/ColoursSection/ColoursSection.module.css';
 
-function SchemeGroup({
-  scheme,
-  scope,
-  view,
-  colours,
-  folds,
-}: {
-  scheme: Scheme;
-  scope: ThemeScope;
-  view: ThemeView;
-  colours: Colours;
-  folds: Folds;
-}) {
-  const { save } = colours;
-  const field = paletteField(scheme);
-  const palette = save.values[field];
-  const problems = colourProblems(palette);
-  const changed = colours.changedKeys(scheme);
-  const legend = schemeColoursTitle(scheme);
-  const open = paletteFoldOpen(folds.isOpen(scheme), save.fieldErrors[field], problems);
+function SchemeGroup({ group, colours }: { group: SchemeView; colours: Colours }) {
+  const { scheme } = group;
   const body = useId();
   return (
     <div className={styles.scheme}>
       <div className={styles.fold}>
         <Button
-          aria-expanded={open}
+          aria-expanded={group.open}
           aria-controls={body}
           onPress={() => {
-            folds.toggle(scheme);
+            colours.toggle(scheme);
           }}
         >
-          <span>{legend}</span>
-          <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+          <span>{group.legend}</span>
+          <span aria-hidden="true">{group.open ? '▴' : '▾'}</span>
         </Button>
       </div>
-      <div id={body} className={styles.body} data-collapsed={!open || undefined}>
-        <FieldGroup label={legend}>
+      <div id={body} className={styles.body} data-collapsed={!group.open || undefined}>
+        <FieldGroup label={group.legend}>
           <ToggleField
-            label={customLabel(scheme)}
-            description={sourceReading(scope, view, field)}
-            value={palette !== null}
-            error={save.fieldErrors[field]}
-            changed={save.changed.includes(field)}
+            label={group.customLabel}
+            description={group.description}
+            value={group.custom}
+            error={group.error}
+            changed={group.changed}
             onChange={(custom) => {
               colours.customise(scheme, custom);
             }}
           />
-          {palette === null ? null : (
+          {group.custom ? (
             <div className={styles.colours}>
               <FieldGrid>
-                {PALETTE_ORDER.map((key) => (
-                  <GridCell key={key}>
+                {group.colours.map((colour) => (
+                  <GridCell key={colour.key}>
                     <ColourField
-                      label={`${SCHEME_LABELS[scheme]} ${PALETTE_LABELS[key].label.toLowerCase()}`}
-                      value={palette[key]}
-                      error={problems[key]}
-                      changed={changed.includes(key)}
+                      label={colour.label}
+                      value={colour.value}
+                      error={colour.error}
+                      changed={colour.changed}
+                      pickLabel={colour.pickLabel}
+                      swatch={colour.swatch}
                       onChange={(text) => {
-                        colours.setColour(scheme, key, text);
+                        colours.setColour(scheme, colour.key, text);
                       }}
                     />
                   </GridCell>
                 ))}
               </FieldGrid>
             </div>
-          )}
+          ) : null}
         </FieldGroup>
       </div>
     </div>
   );
 }
 
-export function ColoursSection({
-  scope,
-  view,
-  colours,
-}: {
-  scope: ThemeScope;
-  view: ThemeView;
-  colours: Colours;
-}) {
-  const { save } = colours;
-  const folds = useFolds();
+export function ColoursSection({ colours }: { colours: Colours }) {
+  const { save, font } = colours;
   return (
     <SaveSection
-      title={COLOURS_TITLE}
-      description={COLOURS_LEAD}
+      title={colours.words.title}
+      description={colours.words.lead}
       blocked={colours.blocked}
       save={save}
     >
       <SelectField
-        label={FONT_LABEL}
-        description={sourceReading(scope, view, 'tokens.font')}
-        options={FONT_OPTIONS}
-        value={save.values['tokens.font'] ?? ''}
-        error={save.fieldErrors['tokens.font']}
-        changed={save.changed.includes('tokens.font')}
+        label={font.label}
+        description={font.description}
+        options={font.options}
+        value={font.value}
+        error={font.error}
+        changed={font.changed}
         onChange={(id) => {
           colours.setFont(id);
         }}
       />
-      {SCHEMES.map((scheme) => (
-        <SchemeGroup
-          key={scheme}
-          scheme={scheme}
-          scope={scope}
-          view={view}
-          colours={colours}
-          folds={folds}
-        />
+      {colours.schemes.map((group) => (
+        <SchemeGroup key={group.scheme} group={group} colours={colours} />
       ))}
     </SaveSection>
   );
 }
 
 // Every pair the palettes being edited are held to, as they stand on screen.
-export function ContrastPanel({ report }: { report: ContrastReport }) {
+export function ContrastPanel({ contrast }: { contrast: ContrastPanelView }) {
   return (
-    <Panel title={CONTRAST_TITLE}>
-      <p className={recordTab.rule}>{CONTRAST_LEAD}</p>
-      <p className={styles.summary} data-failing={report.failing.length > 0 || undefined}>
-        {report.summary}
+    <Panel title={contrast.title}>
+      <p className={recordTab.rule}>{contrast.lead}</p>
+      <p className={styles.summary} data-failing={contrast.failing || undefined}>
+        {contrast.summary}
       </p>
-      <VisuallyHidden role="status">{report.verdict}</VisuallyHidden>
-      {report.rows.length === 0 ? null : (
+      <VisuallyHidden role="status">{contrast.verdict}</VisuallyHidden>
+      {contrast.rows.length === 0 ? null : (
         <ul className={styles.pairs}>
-          {report.rows.map((row) => (
+          {contrast.rows.map((row) => (
             <li key={row.id} className={styles.pair}>
-              <StatusTag tone={row.passes ? 'active' : 'danger'}>
-                {row.passes ? PAIR_PASSES : PAIR_FAILS}
-              </StatusTag>
-              <span>{rowText(row)}</span>
+              <StatusTag tone={row.passes ? 'active' : 'danger'}>{row.tag}</StatusTag>
+              <span>{row.text}</span>
             </li>
           ))}
         </ul>

@@ -11,7 +11,9 @@ import {
   type RevertAnswer,
   revertRequest,
   revertSection,
+  revertWords,
   shownRevertConflicts,
+  type RevertWords,
 } from '#/features/branding-editor/services/revertDraft';
 import { writeCapability, type ThemeScope } from '#/features/branding-editor/services/themeScope';
 import type { ScopedTab } from '#/features/branding-editor/services/tabs';
@@ -30,6 +32,7 @@ export interface Revert {
   // what the revert would write, once the server has refused it as stale.
   conflicts: Conflict[];
   section: string;
+  words: RevertWords;
   revert: () => void;
   takeTheirs: () => void;
 }
@@ -60,6 +63,7 @@ export function useRevert({
     problem,
     conflicts: shownRevertConflicts(stale, view, tab),
     section: revertSection(tab),
+    words: revertWords(scope, tab, writes.revert.busy),
     takeTheirs: () => {
       setAnswer(null);
     },

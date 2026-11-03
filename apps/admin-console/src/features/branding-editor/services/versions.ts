@@ -1,6 +1,7 @@
 import type { ThemeVersions } from '#/features/branding-editor/types/themeVersion';
 import { THEME_VERSIONS_LIMIT } from '@odudu/contracts/admin';
 import { formatAbsolute } from '#/shared/services/format';
+import type { Read } from '#/shared/services/read';
 import type { ThemeScope } from '#/features/branding-editor/services/themeScope';
 
 type Version = ThemeVersions['items'][number];
@@ -79,3 +80,69 @@ export const VERSIONS_COLUMNS = {
 } as const;
 
 export const VERSIONS_TABLE_LABEL = 'Theme versions';
+
+export interface VersionLine extends VersionRow {
+  restoreName: string;
+}
+
+export interface VersionsWords {
+  title: string;
+  lead: string;
+  loading: string;
+  failed: string;
+  tableLabel: string;
+  columns: typeof VERSIONS_COLUMNS;
+  empty: string;
+  restoreLabel: string;
+}
+
+export const VERSIONS_WORDS: VersionsWords = {
+  title: VERSIONS_TITLE,
+  lead: versionsLead(),
+  loading: 'Loading the versions',
+  failed: VERSIONS_FAILED,
+  tableLabel: VERSIONS_TABLE_LABEL,
+  columns: VERSIONS_COLUMNS,
+  empty: NO_VERSIONS,
+  restoreLabel: RESTORE_LABEL,
+};
+
+// The rows to list once the versions are read, none before.
+export function versionLines(read: Read<ThemeVersions>): VersionLine[] {
+  return read.status === 'ready'
+    ? versionRows(read.data.items).map((row) => ({ ...row, restoreName: restoreName(row.name) }))
+    : [];
+}
+
+// The confirmation of restoring the version asked about, empty while none is.
+export function restoreDialog(asked: VersionRow | null): {
+  title: string;
+  consequence: string;
+  confirmLabel: string;
+} {
+  return {
+    title: asked === null ? '' : restoreTitle(asked),
+    consequence: asked === null ? '' : restoreBody(asked),
+    confirmLabel: RESTORE_LABEL,
+  };
+}
+
+export interface ResetWords {
+  title: string;
+  lead: string;
+  label: string;
+  dialog: { title: string; consequence: string; confirmLabel: string };
+}
+
+export function resetWords(scope: ThemeScope): ResetWords {
+  return {
+    title: RESET_TITLE,
+    lead: resetLead(scope),
+    label: RESET_LABEL,
+    dialog: {
+      title: `${RESET_TITLE}?`,
+      consequence: resetBody(scope),
+      confirmLabel: RESET_CONFIRM,
+    },
+  };
+}

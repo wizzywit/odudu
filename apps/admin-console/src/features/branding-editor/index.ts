@@ -41,5 +41,5 @@ export {
   type Scheme,
 } from '#/features/branding-editor/services/colourScheme';
 export { previewSummary } from '#/features/branding-editor/services/preview';
-export type { MessageEntry } from '#/features/branding-editor/types/messageCatalogue';
+export type { MessageKeys } from '#/features/branding-editor/services/catalogue';
 export type { ThemeView } from '#/features/branding-editor/types/theme';

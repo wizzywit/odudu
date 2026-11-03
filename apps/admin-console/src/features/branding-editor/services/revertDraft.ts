@@ -190,3 +190,24 @@ export function announceRevert(
 ): void {
   if (result.ok) toast(REVERT_DONE);
 }
+
+export interface RevertWords {
+  title: string;
+  lead: string;
+  label: string;
+  conflict: { lead: string; keepHint: string; takeHint: string };
+}
+
+// The Revert panel's words, the button saying so while it runs.
+export function revertWords(scope: ThemeScope, tab: ScopedTab, busy: boolean): RevertWords {
+  return {
+    title: REVERT_TITLE,
+    lead: revertLead(scope, tab),
+    label: busy ? REVERTING : REVERT_LABEL,
+    conflict: {
+      lead: REVERT_CONFLICT_LEAD,
+      keepHint: REVERT_KEEP_HINT,
+      takeHint: REVERT_TAKE_HINT,
+    },
+  };
+}

@@ -1,7 +1,17 @@
 import type { ThemeView } from '#/features/branding-editor/types/theme';
 import type { Read } from '#/shared/services/read';
-import type { PageKind } from '#/features/branding-editor/services/pageKinds';
-import type { Scheme } from '#/features/branding-editor/services/colourScheme';
+import { FALLBACK_TITLE } from '#/features/branding-editor/services/fallback';
+import {
+  PAGE_KIND_LABELS,
+  PAGE_KIND_OPTIONS,
+  type PageKind,
+} from '#/features/branding-editor/services/pageKinds';
+import {
+  SCHEME_LABELS,
+  SCHEME_PICKER_LABEL,
+  schemeOptions,
+  type Scheme,
+} from '#/features/branding-editor/services/colourScheme';
 
 export interface PreviewChoice {
   kind: PageKind;
@@ -69,4 +79,61 @@ export function previewKey(
   choice: PreviewChoice,
 ): string {
   return `${String(view?.published?.version ?? 0)}|${tag ?? ''}|${choice.kind}|${choice.scheme}`;
+}
+
+export interface FrameWords {
+  failed: string;
+  loading: string;
+}
+
+export interface ShellWords {
+  open: string;
+  sheetTitle: string;
+  close: string;
+  sheetFrameTitle: string;
+  frame: FrameWords;
+}
+
+// What the shell and its frame say besides the page's own words: the button
+// to the sheet, the sheet, and the frame's states.
+export function shellWords(frameTitle: string): ShellWords {
+  return {
+    open: PREVIEW_OPEN_LABEL,
+    sheetTitle: PREVIEW_SHEET_TITLE,
+    close: PREVIEW_CLOSE_LABEL,
+    sheetFrameTitle: sheetFrameTitle(frameTitle),
+    frame: { failed: PREVIEW_FAILED, loading: PREVIEW_LOADING },
+  };
+}
+
+export interface PreviewWords {
+  title: string;
+  lead: string;
+  kindLabel: string;
+  kindOptions: typeof PAGE_KIND_OPTIONS;
+  schemeLabel: string;
+  schemeOptions: typeof schemeOptions;
+  fallbackTitle: string;
+  frameTitle: string;
+}
+
+export const PREVIEW_WORDS: PreviewWords = {
+  title: PREVIEW_TITLE,
+  lead: PREVIEW_NOTE,
+  kindLabel: PREVIEW_KIND_LABEL,
+  kindOptions: PAGE_KIND_OPTIONS,
+  schemeLabel: SCHEME_PICKER_LABEL,
+  schemeOptions,
+  fallbackTitle: FALLBACK_TITLE,
+  frameTitle: PREVIEW_FRAME_TITLE,
+};
+
+// The strip's line for the page of the theme: its kind, its scheme, and that
+// it is not the saved draft when the server said it shows something else.
+export function pageSummary(choice: PreviewChoice, fallback: readonly string[]): string {
+  return previewSummary(
+    PAGE_KIND_LABELS[choice.kind],
+    SCHEME_LABELS[choice.scheme],
+    fallback.length === 0 ? '' : PREVIEW_DIFFERS,
+  );
 }

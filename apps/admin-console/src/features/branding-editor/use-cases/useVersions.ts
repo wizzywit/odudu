@@ -4,7 +4,15 @@ import { useThemeVersions } from '#/features/branding-editor/repository/useTheme
 import type { ThemeWrites } from '#/features/branding-editor/repository/useThemeWrites';
 import { restoreFailure } from '#/features/branding-editor/services/writeFailures';
 import { writeCapability, type ThemeScope } from '#/features/branding-editor/services/themeScope';
-import { RESTORED_TOAST, type VersionRow } from '#/features/branding-editor/services/versions';
+import {
+  RESTORED_TOAST,
+  restoreDialog,
+  VERSIONS_WORDS,
+  versionLines,
+  type VersionLine,
+  type VersionRow,
+  type VersionsWords,
+} from '#/features/branding-editor/services/versions';
 import { useToast } from '#/shared/repository/useToasts';
 import type { Read } from '#/shared/services/read';
 import { useConfirmedChange, type Confirming } from '#/shared/use-cases/useConfirmedChange';
@@ -12,6 +20,9 @@ import { useConfirmedChange, type Confirming } from '#/shared/use-cases/useConfi
 export interface Versions {
   read: Read<ThemeVersions>;
   restoring: Confirming<VersionRow>;
+  words: VersionsWords;
+  lines: VersionLine[];
+  dialog: { title: string; consequence: string; confirmLabel: string };
 }
 
 // The versions kept, and the restore of one behind a confirmation.
@@ -28,5 +39,11 @@ export function useVersions(tenant: string, scope: ThemeScope, writes: ThemeWrit
       toast.succeeded(RESTORED_TOAST);
     },
   });
-  return { read, restoring };
+  return {
+    read,
+    restoring,
+    words: VERSIONS_WORDS,
+    lines: versionLines(read),
+    dialog: restoreDialog(restoring.asking),
+  };
 }

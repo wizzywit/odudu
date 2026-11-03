@@ -21,12 +21,23 @@ import {
   stylesheetValues,
   type StylesheetValues,
 } from '#/features/branding-editor/services/stylesheetValues';
+import {
+  selectorList,
+  stylesheetWords,
+  valueList,
+  type InsertList,
+  type StylesheetWords,
+} from '#/features/branding-editor/services/stylesheetView';
+import { useDesignValues, useSelectors } from '#/features/branding-editor/use-cases/useSelectors';
 import { useSectionHold } from '#/features/branding-editor/use-cases/useSectionHold';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import type { SizeReading } from '#/shared/services/format';
 
 export interface Stylesheet {
   save: SectionSave<StylesheetValues>;
+  words: StylesheetWords;
+  selectors: InsertList;
+  values: InsertList;
   text: string;
   size: SizeReading;
   blocked: string | undefined;
@@ -69,8 +80,13 @@ export function useStylesheet({
   const text = save.values.stylesheet;
   const changed = save.changed.includes('stylesheet');
   const blocked = useSectionHold(tenant, scope, stylesheetHold(text), save.saving);
+  const selectors = useSelectors(tenant);
+  const values = useDesignValues(tenant);
   return {
     save,
+    words: stylesheetWords(scope, view),
+    selectors: selectorList(selectors),
+    values: valueList(values),
     text,
     size: stylesheetSize(text),
     blocked,

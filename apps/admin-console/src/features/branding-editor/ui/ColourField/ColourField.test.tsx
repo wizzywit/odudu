@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
+import { pickLabel } from '#/features/branding-editor/services/pageKinds';
+import { swatchOf } from '#/features/branding-editor/services/colourEdits';
 import { ColourField } from '#/features/branding-editor/ui/ColourField';
 
 function field(onChange: (value: string) => void = () => undefined, value = '#0a6344') {
@@ -11,6 +13,8 @@ function field(onChange: (value: string) => void = () => undefined, value = '#0a
       value={value}
       error={undefined}
       changed={false}
+      pickLabel={pickLabel('Light text')}
+      swatch={swatchOf(value)}
       onChange={onChange}
     />
   );

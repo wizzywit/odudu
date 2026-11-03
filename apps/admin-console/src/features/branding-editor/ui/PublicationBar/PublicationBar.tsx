@@ -1,32 +1,4 @@
 import type { ThemeView } from '#/features/branding-editor/types/theme';
-import {
-  ISSUES_LABEL,
-  WARNINGS_NOTE,
-  WARNINGS_TITLE,
-} from '#/features/branding-editor/services/publishIssues';
-import {
-  PUBLISH_LABEL,
-  PUBLISHING,
-  PUBLISH_BODY,
-  PUBLISH_TITLE,
-  publishedTag,
-  PUBLISH_SHORT,
-  publishedText,
-} from '#/features/branding-editor/services/publishDraft';
-import { foldedActions, discardNote } from '#/features/branding-editor/services/publicationHolds';
-import {
-  DISCARD_CONFIRM,
-  DISCARD_LABEL,
-  DISCARD_TITLE,
-  discardBody,
-} from '#/features/branding-editor/services/discardDraft';
-import {
-  barText,
-  changeBrief,
-  MORE_LABEL,
-  MORE_TRIGGER,
-  publishedShort,
-} from '#/features/branding-editor/services/changeSummary';
 import type { ScopeBranding } from '#/features/branding-editor/use-cases/useScopeBranding';
 import { usePublicationBar } from '#/features/branding-editor/use-cases/usePublicationBar';
 import { RevertConflict } from '#/features/branding-editor/ui/RevertConflict';
@@ -55,82 +27,72 @@ export function PublicationBar({
   // The tab being shown, whose parts a revert from the narrow bar takes back.
   tab: string;
 }) {
-  const { scope } = branding;
-  const { publication, discard, revert, revertOffered, revertTab, holds } = usePublicationBar({
+  const { publication, discard, revert, bar } = usePublicationBar({
     tenant,
-    scope,
+    scope: branding.scope,
     view,
     tag,
     tab,
     published: branding.published,
     onPublished: branding.setPublished,
   });
-  const { outcome } = publication;
-  const state = publishedTag(view);
-  const brief = changeBrief(view);
-  const note = discardNote(holds, view.draft !== null, publication.hold);
-  const handlers = { revert: revert.revert, discard: discard.ask };
+  const { status, publish, notes, outcome } = bar;
   return (
     <div className={styles.bar}>
-      <Panel title={PUBLISH_TITLE} headingClassName={styles.title ?? ''}>
+      <Panel title={status.title} headingClassName={styles.title ?? ''}>
         <div className={styles.row}>
           <div className={styles.summary}>
             <p className={recordTab.text}>
-              <StatusTag tone={state.tone}>
-                <span className={styles.full}>{state.text}</span>
-                <span className={styles.brief} title={state.text}>
-                  {publishedShort(view)}
+              <StatusTag tone={status.tag.tone}>
+                <span className={styles.full}>{status.tag.text}</span>
+                <span className={styles.brief} title={status.tag.text}>
+                  {status.short}
                 </span>
               </StatusTag>{' '}
-              <span className={styles.published}>{publishedText(view)}</span>
+              <span className={styles.published}>{status.published}</span>
             </p>
             <p className={recordTab.rule}>
-              <span className={styles.sentence}>{barText(view)}</span>
-              <span className={styles.count} title={barText(view)}>
-                {brief}
+              <span className={styles.sentence}>{status.sentence}</span>
+              <span className={styles.count} title={status.sentence}>
+                {status.brief}
               </span>
             </p>
-            <p className={`${recordTab.rule ?? ''} ${styles.explain ?? ''}`}>{PUBLISH_BODY}</p>
+            <p className={`${recordTab.rule ?? ''} ${styles.explain ?? ''}`}>{status.explain}</p>
           </div>
           <div className={styles.hold}>
-            {publication.hold === undefined ? null : <Note tone="warning">{publication.hold}</Note>}
-            {note === undefined ? null : <Note tone="warning">{note}</Note>}
+            {notes.publish === undefined ? null : <Note tone="warning">{notes.publish}</Note>}
+            {notes.discard === undefined ? null : <Note tone="warning">{notes.discard}</Note>}
           </div>
           <div className={`${recordTab.actions ?? ''} ${styles.actions ?? ''}`}>
             <Button
               variant="primary"
-              aria-label={publication.busy ? PUBLISHING : PUBLISH_LABEL}
+              aria-label={publish.label}
               isDisabled={publication.hold !== undefined}
               onPress={publication.publish}
             >
-              <span className={styles.full}>{publication.busy ? PUBLISHING : PUBLISH_LABEL}</span>
-              <span className={styles.brief}>{publication.busy ? PUBLISHING : PUBLISH_SHORT}</span>
+              <span className={styles.full}>{publish.label}</span>
+              <span className={styles.brief}>{publish.short}</span>
             </Button>
             <div className={styles.inline}>
-              <Button isDisabled={holds.discard !== undefined} onPress={discard.ask}>
-                {DISCARD_LABEL}
+              <Button isDisabled={bar.discard.disabled} onPress={discard.ask}>
+                {bar.discard.label}
               </Button>
             </div>
             <div className={styles.folded}>
               <ActionMenu
-                label={MORE_LABEL}
-                trigger={MORE_TRIGGER}
-                actions={foldedActions({
-                  holds,
-                  tab: revertTab,
-                  revertOffered,
-                  reverting: revert.busy,
-                }).map((action) => ({ ...action, onAction: handlers[action.id] }))}
+                label={bar.menu.label}
+                trigger={bar.menu.trigger}
+                actions={bar.menu.actions}
               />
             </div>
           </div>
         </div>
         <div role="status" className={styles.outcome}>
           {outcome.message === null ? null : <p className={styles.refused}>{outcome.message}</p>}
-          {revert.problem === null ? null : <p className={styles.refused}>{revert.problem}</p>}
-          {outcome.issues.lines.length === 0 ? null : (
+          {outcome.problem === null ? null : <p className={styles.refused}>{outcome.problem}</p>}
+          {outcome.issues === null ? null : (
             <>
-              <p className={recordTab.rule}>{ISSUES_LABEL}</p>
+              <p className={recordTab.rule}>{outcome.issues.label}</p>
               <ul className={styles.issues}>
                 {outcome.issues.lines.map((line) => (
                   <li key={line}>{line}</li>
@@ -141,14 +103,14 @@ export function PublicationBar({
               )}
             </>
           )}
-          {outcome.warnings.length === 0 ? null : (
+          {outcome.warnings === null ? null : (
             <>
               <p className={recordTab.text}>
-                <strong>{WARNINGS_TITLE}</strong>
+                <strong>{outcome.warnings.title}</strong>
               </p>
-              <p className={recordTab.rule}>{WARNINGS_NOTE}</p>
+              <p className={recordTab.rule}>{outcome.warnings.note}</p>
               <ul className={styles.issues}>
-                {outcome.warnings.map((line) => (
+                {outcome.warnings.lines.map((line) => (
                   <li key={line}>{line}</li>
                 ))}
               </ul>
@@ -158,9 +120,9 @@ export function PublicationBar({
         <RevertConflict revert={revert} />
         <ConfirmDialog
           isOpen={discard.confirming}
-          title={DISCARD_TITLE}
-          consequence={discardBody(scope)}
-          confirmLabel={DISCARD_CONFIRM}
+          title={bar.discard.dialog.title}
+          consequence={bar.discard.dialog.consequence}
+          confirmLabel={bar.discard.dialog.confirmLabel}
           tone="danger"
           busy={discard.busy}
           problem={discard.problem}

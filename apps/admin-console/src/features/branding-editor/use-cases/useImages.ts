@@ -11,7 +11,13 @@ import {
   type ThemeScope,
 } from '#/features/branding-editor/services/themeScope';
 import { altChanged, imagesHold } from '#/features/branding-editor/services/logoAlt';
-import { slotAssetIds, type Thumbnail } from '#/features/branding-editor/services/imageThumbnails';
+import { slotAssetIds } from '#/features/branding-editor/services/imageThumbnails';
+import {
+  IMAGES_WORDS,
+  slotCard,
+  type ImagesWords,
+  type SlotCard,
+} from '#/features/branding-editor/services/imageCards';
 import {
   editAlt,
   finishUpload,
@@ -19,9 +25,9 @@ import {
   IDLE_SLOTS,
   slotAfterUpload,
   startUpload,
-  type SlotStates,
 } from '#/features/branding-editor/services/imageUpload';
 import {
+  IMAGE_SLOTS,
   imageField,
   imageValues,
   type ImageValues,
@@ -35,16 +41,14 @@ import { useSectionSave, type SectionSave } from '#/shared/repository/useSection
 export interface Images {
   save: SectionSave<ImageValues>;
   blocked: string | undefined;
-  slots: SlotStates;
-  // What each slot's image looks like, as it is held now, saved or not.
-  thumbnails: Record<ImageSlot, Thumbnail>;
+  words: ImagesWords;
+  // Each slot, with the image it holds now, saved or not.
+  cards: SlotCard[];
   upload: (slot: ImageSlot, file: File) => void;
-  setAlt: (slot: 'logo' | 'darkLogo', alt: string) => void;
+  setAlt: (slot: ImageSlot, alt: string) => void;
   remove: (slot: ImageSlot) => void;
   // Takes a deleted image out of the slot that still names it.
   forget: (slot: ImageSlot, assetId: string) => void;
-  // Whether a logo's alt text differs from the saved one.
-  altChanged: (slot: ImageSlot) => boolean;
 }
 
 export function useImages({
@@ -82,9 +86,18 @@ export function useImages({
   const blocked = useSectionHold(tenant, scope, imagesHold(save.values), save.saving);
   return {
     save,
-    thumbnails,
+    words: IMAGES_WORDS,
+    cards: IMAGE_SLOTS.map((slot) =>
+      slotCard(slot, {
+        scope,
+        view,
+        values: save.values,
+        state: slots[slot],
+        thumbnail: thumbnails[slot],
+        altChanged: altChanged(saved, save.values, slot),
+      }),
+    ),
     blocked,
-    slots,
     upload: (slot, file) => {
       startUpload(slot, file, {
         show: setSlots,
@@ -121,6 +134,5 @@ export function useImages({
         save.edit(imageField(at), image);
       });
     },
-    altChanged: (slot) => altChanged(saved, save.values, slot),
   };
 }

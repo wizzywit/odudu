@@ -1,44 +1,56 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
+import {
+  THUMBNAIL_WORDS,
+  thumbnailAlt,
+  type Thumbnail,
+} from '#/features/branding-editor/services/imageThumbnails';
+import type { ImageSlot } from '#/features/branding-editor/services/imageValues';
 import { SlotThumbnail } from '#/features/branding-editor/ui/SlotThumbnail';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
+
+function Thumb({
+  slot,
+  thumbnail,
+  alt,
+}: {
+  slot: ImageSlot;
+  thumbnail: Thumbnail;
+  alt: string | null;
+}) {
+  return (
+    <SlotThumbnail thumbnail={thumbnail} alt={thumbnailAlt(slot, alt)} words={THUMBNAIL_WORDS} />
+  );
+}
 
 const SRC = 'data:image/png;base64,iVBOR/8=';
 
 it('shows nothing for a slot that holds no image', () => {
-  const { container } = render(
-    <SlotThumbnail slot="favicon" thumbnail={{ status: 'none' }} alt={null} />,
-  );
+  const { container } = render(<Thumb slot="favicon" thumbnail={{ status: 'none' }} alt={null} />);
   expect(container).toBeEmptyDOMElement();
 });
 
 it('shows the image under the logo’s own alt text', () => {
-  render(<SlotThumbnail slot="logo" thumbnail={{ status: 'ready', data: SRC }} alt="Acme" />);
+  render(<Thumb slot="logo" thumbnail={{ status: 'ready', data: SRC }} alt="Acme" />);
   const picture = screen.getByRole('img', { name: 'Acme' });
   expect(picture).toHaveAttribute('src', SRC);
 });
 
 it('names an image with no alt text of its own after its slot', () => {
-  render(<SlotThumbnail slot="background" thumbnail={{ status: 'ready', data: SRC }} alt={null} />);
+  render(<Thumb slot="background" thumbnail={{ status: 'ready', data: SRC }} alt={null} />);
   expect(screen.getByRole('img', { name: 'Background image' })).toBeVisible();
 });
 
 it('says it is loading, in a status the screen reader announces politely', () => {
-  render(<SlotThumbnail slot="logo" thumbnail={{ status: 'loading' }} alt="Acme" />);
+  render(<Thumb slot="logo" thumbnail={{ status: 'loading' }} alt="Acme" />);
   expect(screen.getByRole('status')).toHaveTextContent('Loading the image…');
   expect(screen.queryByRole('img')).toBeNull();
 });
 
 it('says it failed and offers to try again', async () => {
   const retry = vi.fn();
-  render(
-    <SlotThumbnail
-      slot="logo"
-      thumbnail={{ status: 'failed', refused: false, retry }}
-      alt="Acme"
-    />,
-  );
+  render(<Thumb slot="logo" thumbnail={{ status: 'failed', refused: false, retry }} alt="Acme" />);
   expect(screen.getByText('The image could not be shown.')).toBeVisible();
   await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
   expect(retry).toHaveBeenCalledTimes(1);
@@ -46,7 +58,7 @@ it('says it failed and offers to try again', async () => {
 
 it('says nothing more than it failed for a caller the server refused', () => {
   render(
-    <SlotThumbnail
+    <Thumb
       slot="logo"
       thumbnail={{ status: 'failed', refused: true, retry: vi.fn() }}
       alt="Acme"
@@ -63,7 +75,7 @@ it('has nothing axe can find in either theme, in any state', async () => {
   ] as const;
   for (const thumbnail of states) {
     const found = await axeInBothThemes(
-      () => <SlotThumbnail slot="logo" thumbnail={thumbnail} alt="Acme" />,
+      () => <Thumb slot="logo" thumbnail={thumbnail} alt="Acme" />,
       () => Promise.resolve(document.body),
       { frames: false },
     );

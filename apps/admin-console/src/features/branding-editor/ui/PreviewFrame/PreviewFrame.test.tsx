@@ -1,11 +1,21 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
+import { shellWords } from '#/features/branding-editor/services/preview';
 import { PreviewFrame } from '#/features/branding-editor/ui/PreviewFrame/PreviewFrame';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 
+const { frame: words } = shellWords('A preview');
+
 const frame = (loading: boolean, onLoaded = () => undefined) => (
-  <PreviewFrame title="A preview" src="/x" frameKey="k" loading={loading} onLoaded={onLoaded} />
+  <PreviewFrame
+    title="A preview"
+    src="/x"
+    frameKey="k"
+    loading={loading}
+    words={words}
+    onLoaded={onLoaded}
+  />
 );
 
 it('frames the address it is given, allowing nothing', () => {
@@ -38,6 +48,7 @@ it('says the preview could not be shown, with a way to ask again, and hides the 
       src="/x"
       frameKey="k"
       loading={false}
+      words={words}
       retry={retry}
       onLoaded={() => undefined}
     />,
@@ -58,6 +69,7 @@ it('has nothing axe can find in either theme, framed or failed', async () => {
           src="/y"
           frameKey="j"
           loading={false}
+          words={words}
           retry={() => undefined}
           onLoaded={() => undefined}
         />

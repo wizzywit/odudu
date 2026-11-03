@@ -1,4 +1,4 @@
-import { type MessageEntry, useMessageKeys } from '#/features/branding-editor';
+import { type MessageKeys, useMessageKeys } from '#/features/branding-editor';
 import type { MessageOverride } from '#/pages/branding/types/messageOverride';
 import type { Settings } from '@odudu/contracts/admin';
 import { useRef, useState } from 'react';
@@ -48,7 +48,6 @@ import {
 } from '#/pages/branding/services/overrideForm';
 import { shownLocale } from '#/pages/branding/services/overrideList';
 import { withoutField } from '#/shared/services/fieldErrors';
-import type { Read } from '#/shared/services/read';
 import { useToast } from '#/shared/repository/useToasts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { writeRefusal } from '#/shared/services/capabilities';
@@ -123,7 +122,7 @@ export interface Overrides {
   pick: (locale: string) => void;
   list: ReturnType<typeof useOverrideList>;
   // Every message an override may be set under, for the key field.
-  keys: Read<MessageEntry[]>;
+  keys: MessageKeys;
   values: OverrideValues;
   errors: OverrideErrors;
   message: string | null;

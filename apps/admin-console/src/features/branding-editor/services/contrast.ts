@@ -163,3 +163,29 @@ export function contrastReport(values: ColourValues): ContrastReport {
     hold: contrastHold(failing),
   };
 }
+
+export interface ContrastPanelView {
+  title: string;
+  lead: string;
+  summary: string;
+  verdict: string;
+  failing: boolean;
+  rows: { id: string; passes: boolean; tag: string; text: string }[];
+}
+
+// The contrast panel's words and one line per pair, as they read on screen.
+export function contrastPanel(report: ContrastReport): ContrastPanelView {
+  return {
+    title: CONTRAST_TITLE,
+    lead: CONTRAST_LEAD,
+    summary: report.summary,
+    verdict: report.verdict,
+    failing: report.failing.length > 0,
+    rows: report.rows.map((row) => ({
+      id: row.id,
+      passes: row.passes,
+      tag: row.passes ? PAIR_PASSES : PAIR_FAILS,
+      text: rowText(row),
+    })),
+  };
+}
