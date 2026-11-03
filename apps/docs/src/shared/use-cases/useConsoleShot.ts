@@ -1,18 +1,27 @@
 import useBaseUrl from '@docusaurus/useBaseUrl';
-import { captureAddress, sizeOf, type ShotSize } from '@site/src/shared/services/consoleShot';
+import {
+  consoleShots,
+  type ShotCatalogue,
+  type ShotSize,
+} from '@site/src/shared/services/consoleShot';
 
-export interface ConsoleShotView {
+export interface ShotView {
   light: string;
   dark: string;
   size: ShotSize;
 }
 
-// The two captures of one console page, under the site's base address.
-export function useConsoleShot(name: string): ConsoleShotView {
-  const size = sizeOf(name);
+// The two captures of one picture, under the site's base address.
+export function useShot(catalogue: ShotCatalogue, name: string): ShotView {
+  const size = catalogue.sizeOf(name);
   return {
-    light: useBaseUrl(captureAddress(name, 'light')),
-    dark: useBaseUrl(captureAddress(name, 'dark')),
+    light: useBaseUrl(catalogue.addressOf(name, 'light')),
+    dark: useBaseUrl(catalogue.addressOf(name, 'dark')),
     size,
   };
+}
+
+// The two captures of one console page.
+export function useConsoleShot(name: string): ShotView {
+  return useShot(consoleShots, name);
 }
