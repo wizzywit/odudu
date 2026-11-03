@@ -1,4 +1,4 @@
-import type { Tenant } from '@odudu/contracts/admin';
+import type { Tenant } from '#/features/tenants/types/tenant';
 import { useState } from 'react';
 import { usePrincipal, useRefusal, isOwnTenant } from '#/entities/session';
 import {
@@ -53,7 +53,7 @@ export function useTenantGeneral(
     gone,
     refusal,
     fields: {
-      display_name: { value: orBlank(tenant.display_name), label: 'Display name', kind: 'plain' },
+      display_name: { value: orBlank(tenant.displayName), label: 'Display name', kind: 'plain' },
     },
     save: saveGeneral(name),
   });

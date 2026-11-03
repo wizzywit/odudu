@@ -1,9 +1,6 @@
 import { isTenantName } from '@odudu/contracts';
-import { type Tenant } from '@odudu/contracts/admin';
 import { requiredProblem } from '#/shared/services/fieldErrors';
 import { TENANT_NAME_RULE_TEXT } from '#/shared/services/labels';
-
-export type { Tenant };
 
 export function nameProblem(name: string): string | null {
   const missing = requiredProblem(name, 'Enter a name for the tenant.', { trim: false });

@@ -4,20 +4,34 @@ import {
   listTenantsResponseSchema,
   tenantSchema,
   type CountResponse,
-  type ListTenantsResponse,
-  type Tenant,
+  type Tenant as WireTenant,
 } from '@odudu/contracts/admin';
 import type { ImportedSecret } from '#/features/tenants/services/import';
+import type { Tenant } from '#/features/tenants/types/tenant';
+import type { ListPage } from '#/shared/services/resourceList';
 import type { Gateway, GatewayResult, RawBody } from '#/shared/transport/gateway';
 import { readDiscovery } from '#/shared/adapter/discovery';
-import { adminRootCall, firstMatch, nothing, segment } from '#/shared/adapter/route';
+import { adminRootCall, firstMatch, mapResult, nothing, segment } from '#/shared/adapter/route';
 import { SYSTEM_TENANT } from '#/shared/services/principal';
 
-export function readTenantPage(
+function tenantOf(wire: WireTenant): Tenant {
+  return {
+    name: wire.name,
+    displayName: wire.display_name,
+    enabled: wire.enabled,
+    createdAt: wire.created_at,
+  };
+}
+
+export async function readTenantPage(
   gateway: Gateway,
   query: URLSearchParams,
-): Promise<GatewayResult<ListTenantsResponse>> {
-  return adminRootCall(gateway, 'GET', ['tenants'], { query, schema: listTenantsResponseSchema });
+): Promise<GatewayResult<ListPage<Tenant>>> {
+  const result = await adminRootCall(gateway, 'GET', ['tenants'], {
+    query,
+    schema: listTenantsResponseSchema,
+  });
+  return mapResult(result, ({ items, next }) => ({ items: items.map(tenantOf), next }));
 }
 
 export function readTenantCount(
@@ -35,14 +49,15 @@ function displayNameOf(displayName: string): { display_name?: string } {
   return displayName === '' ? {} : { display_name: displayName };
 }
 
-export function createTenant(
+export async function createTenant(
   gateway: Gateway,
   input: { name: string; displayName: string },
 ): Promise<GatewayResult<Tenant>> {
-  return adminRootCall(gateway, 'POST', ['tenants'], {
+  const result = await adminRootCall(gateway, 'POST', ['tenants'], {
     body: { name: input.name, ...displayNameOf(input.displayName) },
     schema: tenantSchema,
   });
+  return mapResult(result, tenantOf);
 }
 
 // The list's `name` is a prefix search, sorted by name, so the exact name
@@ -55,22 +70,24 @@ export async function findTenant(
   return firstMatch(result, (tenant) => tenant.name === name);
 }
 
-export function readTenant(gateway: Gateway, name: string): Promise<GatewayResult<Tenant>> {
-  return adminRootCall(gateway, 'GET', ['tenants', name], { schema: tenantSchema });
+export async function readTenant(gateway: Gateway, name: string): Promise<GatewayResult<Tenant>> {
+  const result = await adminRootCall(gateway, 'GET', ['tenants', name], { schema: tenantSchema });
+  return mapResult(result, tenantOf);
 }
 
 // An emptied display name is cleared, as the server keeps no empty one.
-export function amendTenant(
+export async function amendTenant(
   gateway: Gateway,
   name: string,
   changes: { display_name?: string | null; enabled?: boolean },
   ifMatch: string,
 ): Promise<GatewayResult<Tenant>> {
-  return adminRootCall(gateway, 'PATCH', ['tenants', name], {
+  const result = await adminRootCall(gateway, 'PATCH', ['tenants', name], {
     body: changes.display_name === '' ? { ...changes, display_name: null } : changes,
     ifMatch,
     schema: tenantSchema,
   });
+  return mapResult(result, tenantOf);
 }
 
 // The server wants the tenant's own name again, so a slip of the path
@@ -90,15 +107,10 @@ export async function importTenant(
     body: { name: input.name, ...displayNameOf(input.displayName), document: input.document },
     schema: importTenantResponseSchema,
   });
-  if (!result.ok) return result;
-  const { tenant, client_secrets } = result.data;
-  return {
-    ...result,
-    data: {
-      tenant,
-      secrets: client_secrets.map(({ client_id, secret }) => ({ clientId: client_id, secret })),
-    },
-  };
+  return mapResult(result, ({ tenant, client_secrets }) => ({
+    tenant: tenantOf(tenant),
+    secrets: client_secrets.map(({ client_id, secret }) => ({ clientId: client_id, secret })),
+  }));
 }
 
 export function readExport(

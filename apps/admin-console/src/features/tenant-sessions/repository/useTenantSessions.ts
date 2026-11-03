@@ -1,4 +1,4 @@
-import type { EndTenantSessionsResponse, TenantSession } from '@odudu/contracts/admin';
+import type { SessionsEnded, TenantSession } from '#/features/tenant-sessions/types/tenantSession';
 import {
   endTenantSessions,
   readTenantSessionPage,
@@ -20,9 +20,7 @@ export function useTenantSessionList(tenant: string): ResourceListState<TenantSe
 
 // Ending sessions revokes their grants, so every list of the tenant is read
 // again: this one, each subject's and each client's.
-export function useEndTenantSessions(
-  tenant: string,
-): Write<'all', GatewayResult<EndTenantSessionsResponse>> {
+export function useEndTenantSessions(tenant: string): Write<'all', GatewayResult<SessionsEnded>> {
   const { invalidate } = useInvalidate();
   return useWrite({
     send: (gateway) => endTenantSessions(gateway, tenant),

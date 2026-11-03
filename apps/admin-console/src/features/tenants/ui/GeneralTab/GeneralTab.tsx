@@ -1,4 +1,4 @@
-import type { Tenant } from '#/features/tenants/services/tenantName';
+import type { Tenant } from '#/features/tenants/types/tenant';
 import { useTenantDelete } from '#/features/tenants/use-cases/useTenantDelete';
 import { useTenantGeneral } from '#/features/tenants/use-cases/useTenantGeneral';
 import { Button } from '#/shared/ui/Button';

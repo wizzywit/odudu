@@ -1,34 +1,51 @@
 import { expect, it } from 'vitest';
+import endSessions from '#/features/tenant-sessions/adapter/fixtures/end-sessions.json';
+import sessionList from '#/features/tenant-sessions/adapter/fixtures/session-list.json';
 import {
   endTenantSessions,
   readTenantSessionPage,
 } from '#/features/tenant-sessions/adapter/tenantSessions';
+import type { GatewayResult } from '#/shared/transport/gateway';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 
-const SESSION = {
-  id: '01a0e72d-7fc7-7950-a1e7-1d079588f8b4',
-  subject_id: '01a0e72d-7fc7-7950-a1e7-1d079588f8b5',
-  username: 'ada',
-  created_at: '2026-09-28T08:41:53.858Z',
-  last_active_at: '2026-09-28T09:41:53.858Z',
-  remembered: false,
-  client_ids: ['odudu-admin'],
-};
+function dataOf<T>(result: GatewayResult<T>): T | undefined {
+  return result.ok ? result.data : undefined;
+}
 
 it('reads one page of the tenant’s sessions with the cursor it is given', async () => {
   const fake = fakeTransport({
-    'GET /console/api/admin/tenants/acme/sessions': json({ items: [SESSION], next: 'c2' }),
+    'GET /console/api/admin/tenants/acme/sessions': json(sessionList),
   });
   const query = new URLSearchParams({ cursor: 'c1' });
-  expect(await readTenantSessionPage(fake.transport.gateway, 'acme', query)).toMatchObject({
-    ok: true,
-    data: { items: [SESSION], next: 'c2' },
+  const page = dataOf(await readTenantSessionPage(fake.transport.gateway, 'acme', query));
+  expect(page).toEqual({
+    items: [
+      {
+        id: '01a0ee8b-26ae-74b4-8598-c6ca2545c92f',
+        subjectId: '01a0ee8a-c58a-716c-96a6-edcab4ca1a70',
+        username: 'grace',
+        createdAt: '2026-09-29T19:01:31.945Z',
+        lastActiveAt: '2026-09-29T19:01:31.945Z',
+        remembered: false,
+        clientIds: [],
+      },
+      {
+        id: '01a0ee8b-27fa-7271-bb21-8bf1dec2d0fa',
+        subjectId: '01a0ee8a-c58a-716c-96a6-edcab4ca1a70',
+        username: 'grace',
+        createdAt: '2026-09-29T19:01:32.281Z',
+        lastActiveAt: '2026-09-29T19:01:32.281Z',
+        remembered: false,
+        clientIds: ['ops-app'],
+      },
+    ],
+    next: sessionList.next,
   });
   expect(fake.sent.map((sent) => sent.search.toString())).toEqual(['cursor=c1']);
 });
 
 it('refuses an answer that names no subject', async () => {
-  const bare = { ...SESSION, subject_id: undefined };
+  const bare = { ...sessionList.items[0], subject_id: undefined };
   const fake = fakeTransport({
     'GET /console/api/admin/tenants/acme/sessions': json({ items: [bare] }),
   });
@@ -39,15 +56,12 @@ it('refuses an answer that names no subject', async () => {
 
 it('ends every session in the tenant and reads the three counts it answers with', async () => {
   const fake = fakeTransport({
-    'DELETE /console/api/admin/tenants/acme/sessions': json({
-      ended: 3,
-      remaining: 1,
-      beyond_ceiling: 2,
-    }),
+    'DELETE /console/api/admin/tenants/acme/sessions': json(endSessions),
   });
-  expect(await endTenantSessions(fake.transport.gateway, 'acme')).toMatchObject({
-    ok: true,
-    data: { ended: 3, remaining: 1, beyond_ceiling: 2 },
+  expect(dataOf(await endTenantSessions(fake.transport.gateway, 'acme'))).toEqual({
+    ended: 4,
+    remaining: 0,
+    beyondCeiling: 1,
   });
   expect(fake.sent.map((sent) => sent.method)).toEqual(['DELETE']);
 });

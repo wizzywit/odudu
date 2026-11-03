@@ -1,4 +1,4 @@
-import type { Tenant } from '@odudu/contracts/admin';
+import type { Tenant } from '#/features/tenants/types/tenant';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { amendTenant, readTenant } from '#/features/tenants/adapter/tenants';
 import { missingIfUnknown } from '#/features/tenants/services/deletion';

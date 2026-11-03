@@ -231,7 +231,11 @@ it('shows each imported secret once, one at a time, and keeps them out of every 
   });
   expect(sent).toHaveLength(1);
   expect(sent[0]?.body).toEqual({ name: 'acme', document: { version: 1 } });
-  expect(result.current.outcome).toEqual({ ok: true, tenant: TENANT, secrets: 2 });
+  expect(result.current.outcome).toEqual({
+    ok: true,
+    tenant: { name: 'acme', displayName: null, enabled: true, createdAt: TENANT.created_at },
+    secrets: 2,
+  });
   expect(cached(queryClient)).not.toContain(SECRET);
 
   act(() => {

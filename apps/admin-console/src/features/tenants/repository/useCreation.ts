@@ -1,4 +1,5 @@
-import type { Subject, Tenant } from '@odudu/contracts/admin';
+import type { Subject } from '@odudu/contracts/admin';
+import type { Tenant } from '#/features/tenants/types/tenant';
 import { findKey } from '#/shared/repository/queryKeys';
 import { useEffect, useState } from 'react';
 import { loadCreation, storeCreation } from '#/features/tenants/adapter/creationStorage';

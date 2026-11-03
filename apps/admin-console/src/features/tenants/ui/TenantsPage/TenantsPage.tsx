@@ -1,4 +1,4 @@
-import type { Tenant } from '@odudu/contracts/admin';
+import type { Tenant } from '#/features/tenants/types/tenant';
 import { Link } from 'react-aria-components';
 import { areaAt } from '#/entities/area';
 import { IMPORT_TENANT_HREF, NEW_TENANT_HREF } from '#/features/tenants/services/systemAddress';
@@ -22,7 +22,7 @@ const COLUMNS: readonly Column<Tenant>[] = [
     isRowHeader: true,
     cell: (tenant) => <code className={styles.name}>{tenant.name}</code>,
   },
-  { id: 'display_name', header: 'Display name', cell: (tenant) => tenant.display_name ?? '—' },
+  { id: 'display_name', header: 'Display name', cell: (tenant) => tenant.displayName ?? '—' },
   {
     id: 'enabled',
     header: 'Status',
@@ -32,7 +32,7 @@ const COLUMNS: readonly Column<Tenant>[] = [
     id: 'created_at',
     header: 'Created',
     secondary: true,
-    cell: (tenant) => <Timestamp value={tenant.created_at} />,
+    cell: (tenant) => <Timestamp value={tenant.createdAt} />,
   },
   {
     id: 'enter',

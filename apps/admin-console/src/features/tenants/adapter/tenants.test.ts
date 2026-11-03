@@ -11,26 +11,44 @@ import {
   readTenantCount,
   readTenantPage,
 } from '#/features/tenants/adapter/tenants';
+import tenantList from '#/features/tenants/adapter/fixtures/tenant-list.json';
+import tenantImport from '#/features/tenants/adapter/fixtures/tenant-import.json';
+import tenantRecord from '#/features/tenants/adapter/fixtures/tenant.json';
+import type { GatewayResult } from '#/shared/transport/gateway';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 
-const ACME = {
-  id: '01a0e72d-7fc7-7950-a1e7-1d079588f8b4',
-  name: 'acme',
-  display_name: 'Acme',
+const SYSTEM = {
+  name: 'system',
+  displayName: 'System',
   enabled: true,
-  created_at: '2026-09-28T08:41:53.858Z',
+  createdAt: '2026-09-25T05:12:51.138Z',
 };
-const ACME_EU = { ...ACME, id: '01a0e72d-7fc7-7950-a1e7-1d079588f8b5', name: 'acme-eu' };
+const DEMO = {
+  name: 'demo',
+  displayName: 'Demo',
+  enabled: true,
+  createdAt: '2026-09-25T05:14:08.294Z',
+};
+const SHOWCASE = {
+  name: 'showcase',
+  displayName: 'Showcase',
+  enabled: true,
+  createdAt: '2026-09-28T23:16:00.990Z',
+};
+
+function dataOf<T>(result: GatewayResult<T>): T | undefined {
+  return result.ok ? result.data : undefined;
+}
 
 it('lists and counts tenants with the query it is given', async () => {
   const fake = fakeTransport({
-    'GET /console/api/admin/tenants': json({ items: [ACME], next: 'c2' }),
+    'GET /console/api/admin/tenants': json({ ...tenantList, next: 'c2' }),
     'GET /console/api/admin/tenants/count': json({ count: 1, capped: false }),
   });
   const query = new URLSearchParams({ name: 'ac', enabled: 'true' });
-  expect(await readTenantPage(fake.transport.gateway, query)).toMatchObject({
-    ok: true,
-    data: { items: [ACME], next: 'c2' },
+  expect(dataOf(await readTenantPage(fake.transport.gateway, query))).toEqual({
+    items: [SYSTEM, DEMO],
+    next: 'c2',
   });
   expect(await readTenantCount(fake.transport.gateway, query)).toMatchObject({
     ok: true,
@@ -42,70 +60,84 @@ it('lists and counts tenants with the query it is given', async () => {
   ]);
 });
 
+it('keeps a tenant with no display name as null', async () => {
+  const bare = { ...tenantRecord, display_name: null };
+  const fake = fakeTransport({ 'GET /console/api/admin/tenants/showcase': json(bare) });
+  expect(dataOf(await readTenant(fake.transport.gateway, 'showcase'))).toEqual({
+    ...SHOWCASE,
+    displayName: null,
+  });
+});
+
 it('creates a tenant, sending the display name only when there is one', async () => {
-  const fake = fakeTransport({ 'POST /console/api/admin/tenants': json(ACME, 201) });
-  await createTenant(fake.transport.gateway, { name: 'acme', displayName: 'Acme' });
-  await createTenant(fake.transport.gateway, { name: 'acme', displayName: '' });
+  const fake = fakeTransport({ 'POST /console/api/admin/tenants': json(tenantRecord, 201) });
+  const created = await createTenant(fake.transport.gateway, {
+    name: 'showcase',
+    displayName: 'Showcase',
+  });
+  await createTenant(fake.transport.gateway, { name: 'showcase', displayName: '' });
+  expect(dataOf(created)).toEqual(SHOWCASE);
   expect(fake.sent.map((sent) => sent.body)).toEqual([
-    { name: 'acme', display_name: 'Acme' },
-    { name: 'acme' },
+    { name: 'showcase', display_name: 'Showcase' },
+    { name: 'showcase' },
   ]);
 });
 
 it('finds a tenant by its exact name, not a longer one the prefix search also matches', async () => {
+  const demoEu = { ...tenantList.items[1], name: 'demo-eu' };
   const fake = fakeTransport({
-    'GET /console/api/admin/tenants': json({ items: [ACME_EU, ACME] }),
+    'GET /console/api/admin/tenants': json({ items: [demoEu, ...tenantList.items] }),
   });
-  expect(await findTenant(fake.transport.gateway, 'acme')).toMatchObject({
-    ok: true,
-    data: ACME,
-  });
-  expect(fake.sent[0]?.search.get('name')).toBe('acme');
+  expect(dataOf(await findTenant(fake.transport.gateway, 'demo'))).toEqual(DEMO);
+  expect(fake.sent[0]?.search.get('name')).toBe('demo');
 
-  const none = fakeTransport({ 'GET /console/api/admin/tenants': json({ items: [ACME_EU] }) });
-  expect(await findTenant(none.transport.gateway, 'acme')).toMatchObject({ ok: true, data: null });
+  const none = fakeTransport({ 'GET /console/api/admin/tenants': json({ items: [demoEu] }) });
+  expect(await findTenant(none.transport.gateway, 'demo')).toMatchObject({ ok: true, data: null });
 });
 
 it('reads a tenant with its ETag, and amends it under If-Match', async () => {
   const fake = fakeTransport({
-    'GET /console/api/admin/tenants/acme': json(ACME, 200, { etag: '"e1"' }),
-    'PATCH /console/api/admin/tenants/acme': json({ ...ACME, enabled: false }, 200, {
+    'GET /console/api/admin/tenants/showcase': json(tenantRecord, 200, { etag: '"e1"' }),
+    'PATCH /console/api/admin/tenants/showcase': json({ ...tenantRecord, enabled: false }, 200, {
       etag: '"e2"',
     }),
   });
-  expect(await readTenant(fake.transport.gateway, 'acme')).toMatchObject({
-    ok: true,
-    etag: '"e1"',
-  });
+  const read = await readTenant(fake.transport.gateway, 'showcase');
+  expect(read).toMatchObject({ ok: true, etag: '"e1"' });
+  expect(dataOf(read)).toEqual(SHOWCASE);
   expect(
-    await amendTenant(fake.transport.gateway, 'acme', { enabled: false }, '"e1"'),
+    await amendTenant(fake.transport.gateway, 'showcase', { enabled: false }, '"e1"'),
   ).toMatchObject({ ok: true, etag: '"e2"', data: { enabled: false } });
   expect(fake.sent[1]).toMatchObject({ ifMatch: '"e1"', body: { enabled: false } });
 });
 
 it('clears an emptied display name rather than sending an empty one', async () => {
-  const fake = fakeTransport({ 'PATCH /console/api/admin/tenants/acme': json(ACME) });
-  await amendTenant(fake.transport.gateway, 'acme', { display_name: '' }, '"e1"');
-  await amendTenant(fake.transport.gateway, 'acme', { display_name: 'Acme' }, '"e1"');
+  const fake = fakeTransport({ 'PATCH /console/api/admin/tenants/showcase': json(tenantRecord) });
+  await amendTenant(fake.transport.gateway, 'showcase', { display_name: '' }, '"e1"');
+  await amendTenant(fake.transport.gateway, 'showcase', { display_name: 'Showcase' }, '"e1"');
   expect(fake.sent.map((sent) => sent.body)).toEqual([
     { display_name: null },
-    { display_name: 'Acme' },
+    { display_name: 'Showcase' },
   ]);
 });
 
 it('imports a document under a new name', async () => {
-  const answer = { tenant: ACME, client_secrets: [{ client_id: 'web', secret: 's3cr3t' }] };
-  const fake = fakeTransport({ 'POST /console/api/admin/tenant-imports': json(answer, 201) });
+  const fake = fakeTransport({ 'POST /console/api/admin/tenant-imports': json(tenantImport, 201) });
   const result = await importTenant(fake.transport.gateway, {
-    name: 'acme',
+    name: 'import-demo2',
     displayName: '',
     document: { version: 1 },
   });
-  expect(result).toMatchObject({
-    ok: true,
-    data: { tenant: ACME, secrets: [{ clientId: 'web', secret: 's3cr3t' }] },
+  expect(dataOf(result)).toEqual({
+    tenant: {
+      name: 'import-demo2',
+      displayName: 'Import demo',
+      enabled: true,
+      createdAt: '2026-10-30T05:48:10.004Z',
+    },
+    secrets: [{ clientId: 'billing-app', secret: tenantImport.client_secrets[0]?.secret }],
   });
-  expect(fake.sent[0]?.body).toEqual({ name: 'acme', document: { version: 1 } });
+  expect(fake.sent[0]?.body).toEqual({ name: 'import-demo2', document: { version: 1 } });
 });
 
 it('reads an export as the text the server sent, with or without subjects', async () => {
@@ -124,8 +156,8 @@ it('reads an export as the text the server sent, with or without subjects', asyn
 
 it('encodes a tenant name that needs it, to read and to amend', async () => {
   const fake = fakeTransport({
-    'GET /console/api/admin/tenants/a%20b%2Fc': json(ACME),
-    'PATCH /console/api/admin/tenants/a%20b%2Fc': json(ACME),
+    'GET /console/api/admin/tenants/a%20b%2Fc': json(tenantRecord),
+    'PATCH /console/api/admin/tenants/a%20b%2Fc': json(tenantRecord),
   });
   expect(await readTenant(fake.transport.gateway, 'a b/c')).toMatchObject({ ok: true });
   expect(

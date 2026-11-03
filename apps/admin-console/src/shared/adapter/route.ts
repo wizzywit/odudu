@@ -62,3 +62,8 @@ export function firstMatch<T>(
   if (!result.ok) return result;
   return { ...result, data: result.data.items.find(matches) ?? null };
 }
+
+// The answer with its data mapped, a failure passed through as it is.
+export function mapResult<T, U>(result: GatewayResult<T>, map: (data: T) => U): GatewayResult<U> {
+  return result.ok ? { ...result, data: map(result.data) } : result;
+}

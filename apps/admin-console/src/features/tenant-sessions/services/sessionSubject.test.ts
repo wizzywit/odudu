@@ -3,14 +3,14 @@ import { subjectLinkOf, subjectCell } from '#/features/tenant-sessions/services/
 
 describe('the subject of a session', () => {
   it('is named by its username, with its id kept for the link and the detail', () => {
-    expect(subjectCell({ subject_id: 's1', username: 'ada' })).toEqual({
+    expect(subjectCell({ subjectId: 's1', username: 'ada' })).toEqual({
       label: 'ada',
       id: 's1',
     });
   });
 
   it('falls back to the id for a subject that has no username', () => {
-    expect(subjectCell({ subject_id: 's1', username: null })).toEqual({
+    expect(subjectCell({ subjectId: 's1', username: null })).toEqual({
       label: 's1',
       id: 's1',
     });

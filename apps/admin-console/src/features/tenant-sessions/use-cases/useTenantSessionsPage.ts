@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { EndTenantSessionsResponse, TenantSession } from '@odudu/contracts/admin';
+import type { SessionsEnded, TenantSession } from '#/features/tenant-sessions/types/tenantSession';
 import { useAuthority, usePrincipal, useRefusal, isOwnTenant } from '#/entities/session';
 import { subjectHref } from '#/features/subjects';
 import {
@@ -37,7 +37,7 @@ export function useTenantSessionsPage(tenant: string): TenantSessionsPage {
   return {
     list: useTenantSessionList(tenant),
     subjectLink: subjectLinkOf(holds(authority, 'view-users'), tenant, subjectHref),
-    endAll: useConfirmedChange<'all', EndTenantSessionsResponse>({
+    endAll: useConfirmedChange<'all', SessionsEnded>({
       refusal,
       capability: 'manage-sessions',
       change: useEndTenantSessions(tenant),

@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "id": "0199aa00-0000-7000-8000-000000000001",
+      "name": "system",
+      "display_name": "System",
+      "enabled": true,
+      "created_at": "2026-09-25T05:12:51.138Z"
+    },
+    {
+      "id": "01a0d6fc-3626-7e23-94d7-3b1b666e278f",
+      "name": "demo",
+      "display_name": "Demo",
+      "enabled": true,
+      "created_at": "2026-09-25T05:14:08.294Z"
+    }
+  ]
+}

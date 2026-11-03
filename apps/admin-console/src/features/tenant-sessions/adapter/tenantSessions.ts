@@ -1,19 +1,51 @@
 import {
   endTenantSessionsResponseSchema,
   listTenantSessionsResponseSchema,
-  type EndTenantSessionsResponse,
+  type ListTenantSessionsResponse,
+  type TenantSession as WireSession,
 } from '@odudu/contracts/admin';
-import { adminCall, listReader } from '#/shared/adapter/route';
+import { adminCall, listReader, mapResult } from '#/shared/adapter/route';
+import type { ListPage } from '#/shared/services/resourceList';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+import type { SessionsEnded, TenantSession } from '#/features/tenant-sessions/types/tenantSession';
 
-export const readTenantSessionPage = listReader('sessions', listTenantSessionsResponseSchema);
+const readWirePage = listReader('sessions', listTenantSessionsResponseSchema);
 
-// At most 500 sessions per call: `remaining` says whether to call again.
-export function endTenantSessions(
+function sessionOf(wire: WireSession): TenantSession {
+  return {
+    id: wire.id,
+    subjectId: wire.subject_id,
+    username: wire.username,
+    createdAt: wire.created_at,
+    lastActiveAt: wire.last_active_at,
+    remembered: wire.remembered,
+    clientIds: wire.client_ids,
+  };
+}
+
+function pageOf(wire: ListTenantSessionsResponse): ListPage<TenantSession> {
+  return { items: wire.items.map(sessionOf), next: wire.next };
+}
+
+export async function readTenantSessionPage(
   gateway: Gateway,
   tenant: string,
-): Promise<GatewayResult<EndTenantSessionsResponse>> {
-  return adminCall(gateway, 'DELETE', tenant, ['sessions'], {
+  query: URLSearchParams,
+): Promise<GatewayResult<ListPage<TenantSession>>> {
+  return mapResult(await readWirePage(gateway, tenant, query), pageOf);
+}
+
+// At most 500 sessions per call: `remaining` says whether to call again.
+export async function endTenantSessions(
+  gateway: Gateway,
+  tenant: string,
+): Promise<GatewayResult<SessionsEnded>> {
+  const result = await adminCall(gateway, 'DELETE', tenant, ['sessions'], {
     schema: endTenantSessionsResponseSchema,
   });
+  return mapResult(result, ({ ended, remaining, beyond_ceiling }) => ({
+    ended,
+    remaining,
+    beyondCeiling: beyond_ceiling,
+  }));
 }

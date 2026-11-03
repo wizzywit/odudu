@@ -1,4 +1,4 @@
-import type { Tenant } from '@odudu/contracts/admin';
+import type { Tenant } from '#/features/tenants/types/tenant';
 import { findKey } from '#/shared/repository/queryKeys';
 import { useMutation } from '@tanstack/react-query';
 import { useRef, useState } from 'react';

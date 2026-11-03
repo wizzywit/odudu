@@ -1,8 +1,8 @@
-import type { TenantSession } from '@odudu/contracts/admin';
 import { Link } from 'react-aria-components';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { NOTHING_YET, NOUN, PAGE_RULE } from '#/features/tenant-sessions/services/sessionListText';
+import type { TenantSession } from '#/features/tenant-sessions/types/tenantSession';
 import { subjectCell } from '#/features/tenant-sessions/services/sessionSubject';
 import {
   useTenantSessionsPage,
@@ -47,21 +47,21 @@ function columns(page: Page): readonly Column<TenantSession>[] {
       id: 'clients',
       header: 'Clients',
       cell: (session) =>
-        session.client_ids.length === 0 ? (
+        session.clientIds.length === 0 ? (
           <span className={styles.none}>none</span>
         ) : (
-          session.client_ids.join(', ')
+          session.clientIds.join(', ')
         ),
     },
     {
       id: 'created_at',
       header: 'Started',
-      cell: (session) => <Timestamp value={session.created_at} />,
+      cell: (session) => <Timestamp value={session.createdAt} />,
     },
     {
       id: 'last_active_at',
       header: 'Last active',
-      cell: (session) => <Timestamp value={session.last_active_at} />,
+      cell: (session) => <Timestamp value={session.lastActiveAt} />,
     },
     {
       id: 'remembered',

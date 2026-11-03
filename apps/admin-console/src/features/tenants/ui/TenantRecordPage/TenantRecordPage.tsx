@@ -28,7 +28,7 @@ function Record({ name, access }: { name: string; access: TenantRecordAccess }) 
         ? {}
         : {
             status: <EnabledTag enabled={tenant.enabled} />,
-            description: tenant.display_name ?? 'No display name',
+            description: tenant.displayName ?? 'No display name',
           })}
       actions={<ButtonLink href={tenantPage(name)}>{`Enter ${name}`}</ButtonLink>}
       noun="tenant"

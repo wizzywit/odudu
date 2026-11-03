@@ -33,7 +33,7 @@ describe('what ending every session says it does', () => {
 
 describe('what ending every session came to', () => {
   const ended = (n: number, remaining = 0, beyond = 0) =>
-    endedText('acme', { ended: n, remaining, beyond_ceiling: beyond });
+    endedText('acme', { ended: n, remaining, beyondCeiling: beyond });
 
   it('counts what ended', () => {
     expect(ended(1)).toBe('1 session in acme ended.');
@@ -68,9 +68,9 @@ describe('when ending every session fails', () => {
 
 describe('what stays beside the action while sessions remain', () => {
   it('says to end again only while more are live, and is none otherwise', () => {
-    expect(endMoreText('acme', { ended: 500, remaining: 12, beyond_ceiling: 0 })).toBe(
+    expect(endMoreText('acme', { ended: 500, remaining: 12, beyondCeiling: 0 })).toBe(
       'More sessions are still live in acme: end every session again to end the next 500.',
     );
-    expect(endMoreText('acme', { ended: 3, remaining: 0, beyond_ceiling: 1 })).toBeNull();
+    expect(endMoreText('acme', { ended: 3, remaining: 0, beyondCeiling: 1 })).toBeNull();
   });
 });

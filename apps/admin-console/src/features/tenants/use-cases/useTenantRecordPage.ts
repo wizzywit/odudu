@@ -1,4 +1,4 @@
-import type { Tenant } from '@odudu/contracts/admin';
+import type { Tenant } from '#/features/tenants/types/tenant';
 import { useAuthority } from '#/entities/session';
 import { useTenantRecord } from '#/features/tenants/repository/useTenantRecord';
 import { tenantRecordAccess, type TenantRecordAccess } from '#/features/tenants/services/access';

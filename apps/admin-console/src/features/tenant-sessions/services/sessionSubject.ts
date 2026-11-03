@@ -1,15 +1,15 @@
-import type { TenantSession } from '@odudu/contracts/admin';
+import type { TenantSession } from '#/features/tenant-sessions/types/tenantSession';
 import { nameOrId } from '#/shared/services/ids';
 
 // A subject is named by its username where it has one; its id is what the
 // link and the detail go by.
-export function subjectCell(session: Pick<TenantSession, 'subject_id' | 'username'>): {
+export function subjectCell(session: Pick<TenantSession, 'subjectId' | 'username'>): {
   label: string;
   id: string;
 } {
   return {
-    label: nameOrId({ id: session.subject_id, username: session.username }),
-    id: session.subject_id,
+    label: nameOrId({ id: session.subjectId, username: session.username }),
+    id: session.subjectId,
   };
 }
 

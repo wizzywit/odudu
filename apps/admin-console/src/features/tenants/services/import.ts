@@ -1,4 +1,5 @@
-import { type ImportError, type Tenant } from '@odudu/contracts/admin';
+import { type ImportError } from '@odudu/contracts/admin';
+import type { Tenant } from '#/features/tenants/types/tenant';
 import { failureTextWith } from '#/shared/services/failure';
 import type { GatewayFailure, Problem } from '#/shared/services/result';
 import { tenantHref } from '#/features/tenants/services/systemAddress';
