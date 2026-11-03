@@ -132,22 +132,6 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
   ],
   ['P4f', 'It also reconciles accounts', 'differ only by case', 'more than one click'],
   [
-    'P4k',
-    'Both frontends',
-    'the admin console and the docs app',
-    '`ui`, `use-cases`, `services`, `repository`, `adapter` and `types`',
-    '`shared` holds no business knowledge',
-  ],
-  [
-    'P4k',
-    'Entities, features and pages',
-    'where evidence showed a need',
-    'one owner for each rule',
-    'adapters map the wire to domain types',
-  ],
-  ['P4k', 'The architecture rules', 'lints with no allowlist'],
-  ['P4k', 'Behaviour does not change', 'behaviour unchanged'],
-  [
     'P4h',
     'Every string in the admin console',
     'read from a catalogue',
@@ -285,7 +269,7 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     const missing: string[] = [];
     let seen = 0;
     // A phase that has shipped leaves "Next" and "Later" for "Shipped".
-    const shipped = new Set(['P4b']);
+    const shipped = new Set(['P4b', 'P4k']);
     for (const [phase, row] of criteria()) {
       const at = row.indexOf(MARKER);
       if (at === -1) continue;
@@ -351,6 +335,11 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     ['A person who confirms a "finish registration"', ['P4f'], ['more than one click']],
     ['Accounts that differ only by the case', ['P4f'], ['differ only by case']],
     ['The Node major moves by hand', ['P12'], ['even-numbered node lts']],
+    [
+      'Contract types still appear above the adapters',
+      ['P4h'],
+      'console source cleanup left by the closed P4k, no product behaviour',
+    ],
   ];
 
   function nextPlacements(): { start: string; phases: string[] }[] {
