@@ -3,6 +3,9 @@ import { shortened } from '#/shared/services/format';
 
 type Origin = AuditEvent['actor_origin'];
 
+// What the dialog that opens one row is called.
+export const AUDIT_EVENT_TITLE = 'Audit event';
+
 export function isElsewhere(origin: Origin): boolean {
   return origin === 'system' || origin === 'other-tenant';
 }

@@ -1,7 +1,7 @@
 import type { AuditEvent } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useAuthority } from '#/entities/session';
-import { areaAt, areaHref } from '#/entities/area';
+import { areaAt, areaHref, type Area } from '#/entities/area';
 import { clientHref } from '#/entities/client';
 import { groupHref } from '#/entities/group';
 import { roleHref } from '#/entities/role';
@@ -28,7 +28,8 @@ import {
 } from '#/features/audit/services/filterDraft';
 import { isFiltered, type FilterName } from '#/features/audit/services/auditFilters';
 import { actorHref, resourceHref, type RecordPages } from '#/features/audit/services/resourceLinks';
-import { loadedRange } from '#/features/audit/services/trailCount';
+import { loadedRange, TRAIL_LABEL } from '#/features/audit/services/trailCount';
+import { NOTHING_YET_TITLE } from '#/features/audit/services/emptyTrail';
 import { holds } from '#/shared/services/access';
 import { useNow } from '#/shared/use-cases/useNow';
 import { localZone } from '#/shared/services/zones';
@@ -65,6 +66,11 @@ export interface TooBroad {
 }
 
 export interface AuditPageState {
+  // What the area is called, for the heading and for a refusal to name.
+  title: string;
+  // What the table and the pager are called.
+  trailLabel: string;
+  nothingYetTitle: string;
   list: AuditList;
   form: AuditFilterForm;
   hrefs: AuditHrefs;
@@ -113,13 +119,22 @@ function useFilterForm(list: AuditList): AuditFilterForm {
   };
 }
 
+export function useAuditArea(): { area: Area; title: string } {
+  const area = areaAt('audit');
+  return { area, title: area.label };
+}
+
 export function useAuditPage(tenant: string): AuditPageState {
+  const { title } = useAuditArea();
   const list = useAuditList(tenant);
   const form = useFilterForm(list);
   const exporting = useExportEvents(tenant, list.filters);
   const now = useNow(60_000);
   const mayReadSubjects = holds(useAuthority(tenant), 'view-users');
   return {
+    title,
+    trailLabel: TRAIL_LABEL,
+    nothingYetTitle: NOTHING_YET_TITLE,
     list,
     form,
     exporting,

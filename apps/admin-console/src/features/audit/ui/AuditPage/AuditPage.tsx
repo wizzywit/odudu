@@ -1,11 +1,14 @@
 import { AreaGate } from '#/widgets/shell';
-import { areaAt } from '#/entities/area';
 import { TOO_BROAD_TITLE } from '#/features/audit/services/tooBroad';
 import { EXPORT_NOTE } from '#/features/audit/services/auditExport';
 import { NO_COUNT } from '#/features/audit/services/trailCount';
 import { NOTHING_MATCHES, NOTHING_YET } from '#/features/audit/services/emptyTrail';
 import { STALE_TEXT, STALE_TITLE } from '#/features/audit/services/staleTrail';
-import { useAuditPage, type AuditPageState } from '#/features/audit/use-cases/useAuditPage';
+import {
+  useAuditArea,
+  useAuditPage,
+  type AuditPageState,
+} from '#/features/audit/use-cases/useAuditPage';
 import { AuditFilters } from '#/features/audit/ui/AuditFilters';
 import { CORRELATION_NOTE } from '#/shared/services/auditEvents';
 import { auditColumns, AuditTable } from '#/shared/ui/AuditTable';
@@ -19,8 +22,6 @@ import { PageHeader } from '#/shared/ui/PageHeader';
 import { Pager } from '#/shared/ui/Pager';
 import { TableSkeleton } from '#/shared/ui/Skeleton';
 import styles from '#/features/audit/ui/AuditPage/AuditPage.module.css';
-
-const AREA = areaAt('audit');
 
 function Rows({ page }: { page: AuditPageState }) {
   const { list, hrefs, narrowed } = page;
@@ -37,15 +38,15 @@ function Rows({ page }: { page: AuditPageState }) {
   }
   if (list.rows.length === 0) {
     return (
-      <EmptyState variant="nothing-yet" title="No audit events yet">
+      <EmptyState variant="nothing-yet" title={page.nothingYetTitle}>
         {NOTHING_YET}
       </EmptyState>
     );
   }
   return (
     <>
-      <AuditTable label="Audit events" rows={list.rows} withResource hrefs={hrefs} />
-      <Pager label="Audit events" list={list} />
+      <AuditTable label={page.trailLabel} rows={list.rows} withResource hrefs={hrefs} />
+      <Pager label={page.trailLabel} list={list} />
       {list.loadMoreFailed ? <LoadMoreFailed noun="audit events" /> : null}
     </>
   );
@@ -84,7 +85,7 @@ function Body({ page }: { page: AuditPageState }) {
           columns={auditColumns({ withResource: true })}
         />
       }
-      refused={{ capability: 'view-audit', noun: AREA.label }}
+      refused={{ capability: 'view-audit', noun: page.title }}
       failed="The audit trail could not be loaded"
       unchanged
     >
@@ -99,7 +100,7 @@ function Trail({ tenant }: { tenant: string }) {
   return (
     <>
       <PageHeader
-        title={AREA.label}
+        title={page.title}
         kicker={tenant}
         description="Every change made in this tenant, and every one refused, with who made it and from where."
         {...(refused
@@ -133,8 +134,9 @@ function Trail({ tenant }: { tenant: string }) {
 }
 
 export function AuditPage({ tenant }: { tenant: string }) {
+  const { area, title } = useAuditArea();
   return (
-    <AreaGate tenant={tenant} area={AREA} title={AREA.label}>
+    <AreaGate tenant={tenant} area={area} title={title}>
       <Trail tenant={tenant} />
     </AreaGate>
   );

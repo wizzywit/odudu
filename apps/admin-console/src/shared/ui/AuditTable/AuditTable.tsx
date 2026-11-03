@@ -2,6 +2,7 @@ import type { AuditEvent } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { Link, VisuallyHidden } from 'react-aria-components';
 import {
+  AUDIT_EVENT_TITLE,
   ELSEWHERE_NOTE,
   isElsewhere,
   requestLabel,
@@ -191,7 +192,7 @@ export function AuditTable({
       <DialogFrame
         isOpen={open !== null}
         size="wide"
-        title="Audit event"
+        title={AUDIT_EVENT_TITLE}
         description={open === null ? '' : `${open.action}, ${open.outcome}`}
         onEscape={() => {
           setOpen(null);

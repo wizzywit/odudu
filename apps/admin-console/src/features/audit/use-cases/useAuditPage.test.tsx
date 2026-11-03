@@ -132,3 +132,13 @@ it('links an actor only for a tenant caller, and only while view-users is held',
   });
   expect(lacking.result.current.hrefs.actor(tenant)).toBeNull();
 });
+
+it('supplies the titles the page shows: the area name, the table name and the empty trail', async () => {
+  const { result } = page();
+  await waitFor(() => {
+    expect(result.current.list.status).toBe('ready');
+  });
+  expect(result.current.title).toBe('Audit trail');
+  expect(result.current.trailLabel).toBe('Audit events');
+  expect(result.current.nothingYetTitle).toBe('No audit events yet');
+});
