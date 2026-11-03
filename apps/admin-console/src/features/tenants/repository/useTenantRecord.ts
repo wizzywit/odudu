@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { amendTenant, readTenant } from '#/features/tenants/adapter/tenants';
 import { missingIfUnknown } from '#/features/tenants/services/deletion';
 import { generalPatch } from '#/features/tenants/services/tenantChange';
-import { tenantRecord } from '#/features/tenants/services/tabs';
+import { tenantRecord } from '#/features/tenants/services/tenantRecordTabs';
 import { recordKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useRecord, type RecordEntry, type RecordState } from '#/shared/repository/useRecord';

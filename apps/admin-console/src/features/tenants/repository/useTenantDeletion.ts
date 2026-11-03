@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { deleteTenant } from '#/features/tenants/adapter/tenants';
 import { heldForTenant, settledDeletion } from '#/features/tenants/services/deletion';
-import { tenantRecord } from '#/features/tenants/services/tabs';
+import { tenantRecord } from '#/features/tenants/services/tenantRecordTabs';
 import {
   countKey,
   listKey,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TENANT_TABS, tenantRecord } from '#/features/tenants/services/tabs';
+import { TENANT_TABS, tenantRecord } from '#/features/tenants/services/tenantRecordTabs';
 
 describe('the tenant record page', () => {
   it('keeps its tabs and its record name in one place', () => {

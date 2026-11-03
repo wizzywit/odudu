@@ -2,7 +2,7 @@ import { writeRefusal } from '#/shared/services/capabilities';
 import { isMissing, isUnknownTenant, writeFailureText } from '#/shared/services/failure';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/services/principal';
 import type { GatewayFailure, GatewayResult, Problem } from '#/shared/services/result';
-import { tenantRecord } from '#/features/tenants/services/tabs';
+import { tenantRecord } from '#/features/tenants/services/tenantRecordTabs';
 
 // What `DELETE /admin/tenants/:tenant` takes of the caller.
 export const DELETE_NEEDS: readonly AdminCapability[] = ['manage-tenants'];

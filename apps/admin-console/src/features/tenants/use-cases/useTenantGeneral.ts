@@ -7,7 +7,7 @@ import {
   type GeneralValues,
 } from '#/features/tenants/repository/useTenantRecord';
 import { tenantChangeFailure } from '#/features/tenants/services/tenantChange';
-import { tenantRecord } from '#/features/tenants/services/tabs';
+import { tenantRecord } from '#/features/tenants/services/tenantRecordTabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';
 import { enabledText } from '#/shared/services/failure';
