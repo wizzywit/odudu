@@ -7,14 +7,6 @@ import {
   type GroupValues,
 } from '#/features/subjects/repository/useAccess';
 import { subjectName } from '#/features/subjects/services/address';
-import {
-  groupsRemoveTenants,
-  groupPathOf,
-  groupsSaveConfirmation,
-  leftGroups,
-  membershipsOf,
-  type Membership,
-} from '#/features/subjects/services/memberships';
 import { groupsRecord } from '#/features/subjects/services/tabs';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker';
 import type { RecordState } from '#/shared/repository/useRecord';
@@ -24,6 +16,16 @@ import { indexById, sortedIds } from '#/shared/services/ids';
 import type { PickerState } from '#/shared/services/picker';
 import { useSaveConfirmation } from '#/shared/use-cases/useSaveConfirmation';
 import { accessRefusal, type Confirmation } from '#/shared/services/capabilities';
+import {
+  groupsRemoveTenants,
+  groupsSaveConfirmation,
+} from '#/features/subjects/services/membershipLoss';
+import {
+  groupPathOf,
+  leftGroups,
+  membershipsOf,
+  type Membership,
+} from '#/features/subjects/services/groupMembership';
 
 export function useSubjectGroupsRead(
   tenant: string,
