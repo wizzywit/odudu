@@ -1,6 +1,6 @@
 import type { Role } from '@odudu/contracts/admin';
 import { expect, it } from 'vitest';
-import { keptRoles } from '#/features/scopes/services/roles';
+import { keptRoles } from '#/features/scopes/services/scopeRoles';
 import { roleIndex } from '#/entities/role';
 
 const READER = {

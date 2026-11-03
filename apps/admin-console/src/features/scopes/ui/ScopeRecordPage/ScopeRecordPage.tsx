@@ -4,7 +4,7 @@ import { useAuditReadable } from '#/entities/session';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { scopesTrail } from '#/features/scopes/services/address';
-import { copyHrefOf } from '#/features/scopes/services/copy';
+import { copyHrefOf } from '#/features/scopes/services/scopeCopy';
 import { SCOPE_TAB_LABELS, SCOPE_TABS, type ScopeTab } from '#/features/scopes/services/tabs';
 import { useScopeRecordPage } from '#/features/scopes/use-cases/useScopeRecordPage';
 import { ClientsTab } from '#/features/scopes/ui/ScopeRecordPage/ClientsTab';

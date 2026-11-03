@@ -12,7 +12,7 @@ import {
   partialCopy,
   sourceBound,
   sourceRoles,
-} from '#/features/scopes/services/copy';
+} from '#/features/scopes/services/scopeCopy';
 import { useGo } from '#/shared/repository/useGo';
 import { useToast } from '#/shared/repository/useToasts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';

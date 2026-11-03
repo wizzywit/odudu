@@ -1,7 +1,7 @@
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { scopesTrail } from '#/features/scopes/services/address';
-import { copyingText } from '#/features/scopes/services/copy';
+import { copyingText } from '#/features/scopes/services/scopeCopy';
 import { useNewScope, type Copying } from '#/features/scopes/use-cases/useNewScope';
 import {
   CreationActions,

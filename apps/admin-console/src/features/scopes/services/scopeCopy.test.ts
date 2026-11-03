@@ -14,7 +14,7 @@ import {
   partialCopy,
   sourceBound,
   sourceRoles,
-} from '#/features/scopes/services/copy';
+} from '#/features/scopes/services/scopeCopy';
 import { role } from '#/testing/roleAnswers';
 
 const AUDITOR = role('r1', 'auditor');

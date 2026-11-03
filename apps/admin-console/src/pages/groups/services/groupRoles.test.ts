@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defaultingOf } from '#/pages/groups/services/groupReach';
 import { roleUnavailable, keptRoles, reachOfRoles } from '#/pages/groups/services/groupRoles';
 import { roleIndex } from '#/entities/role';
-import { keptRoles as scopeKeptRoles } from '#/features/scopes/services/roles';
+import { keptRoles as scopeKeptRoles } from '#/features/scopes/services/scopeRoles';
 import { reach } from '#/testing/roleAnswers';
 
 describe('what a group hands out', () => {

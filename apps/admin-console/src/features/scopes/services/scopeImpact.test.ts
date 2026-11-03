@@ -7,7 +7,7 @@ import {
   scopeDeleteDialogText,
   scopeDeleteWarning,
   type Impact,
-} from '#/features/scopes/services/deleteWarning';
+} from '#/features/scopes/services/scopeImpact';
 
 const count = (n: number, capped = false) => ({ count: n, capped });
 

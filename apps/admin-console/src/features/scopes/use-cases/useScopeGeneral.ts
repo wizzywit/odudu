@@ -18,7 +18,7 @@ import {
   impactRetry,
   type ImpactRetry,
   scopeDeleteDialogText,
-} from '#/features/scopes/services/deleteWarning';
+} from '#/features/scopes/services/scopeImpact';
 import {
   ACCESS_TOKEN_LABEL,
   assignmentName,
@@ -36,7 +36,7 @@ import {
   guardedText,
   scopeDeleteConsequence,
   scopeDeleteFailureText,
-} from '#/features/scopes/services/guard';
+} from '#/features/scopes/services/scopeDeletion';
 import { scopeRecord } from '#/features/scopes/services/tabs';
 import { useGo } from '#/shared/repository/useGo';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';

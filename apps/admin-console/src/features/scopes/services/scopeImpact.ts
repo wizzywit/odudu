@@ -1,5 +1,5 @@
 import type { ScopeImpact } from '@odudu/contracts/admin';
-import { scopeDeleteConsequence } from '#/features/scopes/services/guard';
+import { scopeDeleteConsequence } from '#/features/scopes/services/scopeDeletion';
 import { andList, groupedNumber, plural } from '#/shared/services/format';
 import type { Read } from '#/shared/services/read';
 
