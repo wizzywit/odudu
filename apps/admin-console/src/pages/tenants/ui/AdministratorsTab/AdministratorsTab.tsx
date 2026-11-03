@@ -1,5 +1,5 @@
 import { Link } from 'react-aria-components';
-import { CapabilityHolders } from '#/pages/subjects';
+import { CapabilityHolders } from '#/features/subject-capabilities';
 import { useTenantAdministrators } from '#/pages/tenants/use-cases/useTenantAdministrators';
 import { Button } from '#/shared/ui/Button';
 import styles from '#/pages/tenants/ui/AdministratorsTab/AdministratorsTab.module.css';

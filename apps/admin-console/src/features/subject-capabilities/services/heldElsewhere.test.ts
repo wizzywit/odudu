@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { heldElsewhere, elsewhereText } from '#/pages/subjects/services/heldElsewhere';
+import {
+  heldElsewhere,
+  elsewhereText,
+} from '#/features/subject-capabilities/services/heldElsewhere';
 
 describe('what is held elsewhere', () => {
   const held = new Map([

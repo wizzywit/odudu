@@ -3,7 +3,7 @@ import {
   capabilityOptions,
   describeHoldings,
   holderFilterOptions,
-} from '#/pages/subjects/services/capabilityChoices';
+} from '#/features/subject-capabilities/services/capabilityChoices';
 
 describe('the capabilities offered', () => {
   const held = new Map([

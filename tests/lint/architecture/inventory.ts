@@ -314,7 +314,6 @@ export const INVENTORY: Record<RuleId, string[]> = {
     'apps/admin-console/src/features/clients/use-cases/useClientRolesTab.ts',
     'apps/admin-console/src/features/groups/ui/GroupRecordPage/GroupRecordPage.tsx',
     'apps/admin-console/src/features/roles/ui/RoleRecordPage/RoleRecordPage.tsx',
-    'apps/admin-console/src/pages/system-admins/ui/SystemAdministratorsPage/SystemAdministratorsPage.tsx',
   ],
   'view-no-service': [
     'apps/admin-console/src/features/audit/ui/AuditFilters/AuditFilters.tsx',
@@ -382,7 +381,7 @@ export const INVENTORY: Record<RuleId, string[]> = {
     'apps/admin-console/src/features/settings/ui/ClearLockouts/ClearLockouts.tsx',
     'apps/admin-console/src/features/settings/ui/SettingsPage/SettingsPage.tsx',
     'apps/admin-console/src/features/signing-keys/ui/SigningKeysPage/SigningKeysPage.tsx',
-    'apps/admin-console/src/pages/subjects/ui/CapabilityHolders/CapabilityHolders.tsx',
+    'apps/admin-console/src/features/subject-capabilities/ui/CapabilityHolders/CapabilityHolders.tsx',
     'apps/admin-console/src/pages/subjects/ui/SubjectRecordPage/CredentialsTab.tsx',
     'apps/admin-console/src/pages/subjects/ui/SubjectRecordPage/ProfileTab.tsx',
     'apps/admin-console/src/pages/subjects/ui/SubjectRecordPage/RequiredActionsTab.tsx',

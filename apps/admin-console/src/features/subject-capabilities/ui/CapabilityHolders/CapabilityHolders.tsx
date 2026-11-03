@@ -1,6 +1,9 @@
 import { Link } from 'react-aria-components';
-import { useCapabilityHolders, type Holder } from '#/pages/subjects/use-cases/useCapabilityHolders';
-import { SubjectCapabilities } from '#/pages/subjects/ui/SubjectRecordPage';
+import {
+  useCapabilityHolders,
+  type Holder,
+} from '#/features/subject-capabilities/use-cases/useCapabilityHolders';
+import { SubjectCapabilities } from '#/features/subject-capabilities/ui/CapabilityEditor';
 import { Button } from '#/shared/ui/Button';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { Count } from '#/shared/ui/Count';
@@ -12,9 +15,9 @@ import { Pager } from '#/shared/ui/Pager';
 import { ListSkeleton } from '#/shared/ui/Skeleton';
 import { StatusTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
-import styles from '#/pages/subjects/ui/CapabilityHolders/CapabilityHolders.module.css';
+import styles from '#/features/subject-capabilities/ui/CapabilityHolders/CapabilityHolders.module.css';
 import { STATUS_FILTER } from '#/shared/services/filters';
-import { holderFilterOptions } from '#/pages/subjects/services/capabilityChoices';
+import { holderFilterOptions } from '#/features/subject-capabilities/services/capabilityChoices';
 
 const NOUN = { one: 'administrator', other: 'administrators' };
 const SEARCH = [{ id: 'username', label: 'Username' }];

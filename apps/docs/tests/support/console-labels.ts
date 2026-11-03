@@ -117,7 +117,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     page('subjects/ui/NewSubjectPage/NewSubjectPage.tsx', 'label="Username"'),
     page(TENANT_NEW, 'label="Username"'),
     feature(EMAIL_RELAY, "username: 'Username'"),
-    page('subjects/ui/CapabilityHolders/CapabilityHolders.tsx', "label: 'Username'"),
+    feature('subject-capabilities/ui/CapabilityHolders/CapabilityHolders.tsx', "label: 'Username'"),
   ),
   Password: at(MESSAGES, "'login.password': 'Password'"),
   'Sign out': at('apps/admin-console/src/widgets/shell/ui/RailFooter/RailFooter.tsx', 'Sign out'),
@@ -297,9 +297,12 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Status: several(
     page('subjects/ui/SubjectsPage/SubjectsPage.tsx', 'label="Status"'),
     page('tenants/ui/TenantsPage/TenantsPage.tsx', 'label="Status"'),
-    page('subjects/ui/CapabilityHolders/CapabilityHolders.tsx', 'label="Status"'),
+    feature('subject-capabilities/ui/CapabilityHolders/CapabilityHolders.tsx', 'label="Status"'),
   ),
-  Holds: page('subjects/ui/CapabilityHolders/CapabilityHolders.tsx', 'label="Holds"'),
+  Holds: feature(
+    'subject-capabilities/ui/CapabilityHolders/CapabilityHolders.tsx',
+    'label="Holds"',
+  ),
   'Belongs to': feature('roles/ui/RolesPage/RolesPage.tsx', 'label="Belongs to"'),
   Previous: shared('ui/Pager/Pager.tsx', 'Previous'),
   Next: shared('ui/Pager/Pager.tsx', 'Next'),
@@ -333,8 +336,8 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
       'confirmLabel="End every session"',
     ),
   ),
-  'Admin capabilities': page(
-    'subjects/ui/SubjectRecordPage/CapabilityEditor.tsx',
+  'Admin capabilities': feature(
+    'subject-capabilities/ui/CapabilityEditor/CapabilityEditor.tsx',
     'title="Admin capabilities"',
   ),
   'Disable ada': template([inPage(SUBJECT_PROFILE, '`Disable ${name}`')], 'Disable ${name}', {
@@ -680,8 +683,8 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Full (tenant-admin)': at(`${SHARED}/services/capabilities/holdings.ts`, "'Full (tenant-admin)'"),
   'Change admin@odudu.local’s capabilities': template(
     [
-      inPage(
-        'subjects/ui/CapabilityHolders/CapabilityHolders.tsx',
+      inFeature(
+        'subject-capabilities/ui/CapabilityHolders/CapabilityHolders.tsx',
         '`Change ${holder.name}’s capabilities`',
       ),
     ],
@@ -903,8 +906,8 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'subjects/ui/SubjectRecordPage/CredentialsTab.tsx',
     'label="Required actions to email"',
   ),
-  'Filter administrators': page(
-    'subjects/ui/CapabilityHolders/CapabilityHolders.tsx',
+  'Filter administrators': feature(
+    'subject-capabilities/ui/CapabilityHolders/CapabilityHolders.tsx',
     'label="Filter administrators"',
   ),
   'Which tenant do you administer?': at(

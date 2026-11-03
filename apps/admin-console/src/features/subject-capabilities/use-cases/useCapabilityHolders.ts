@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { usePrincipal, isSelf } from '#/entities/session';
-import { useHolderList } from '#/pages/subjects/repository/useHolders';
+import { useHolderList } from '#/features/subject-capabilities/repository/useHolders';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
 import type { ResourceListState } from '#/shared/services/resourceList';
-import { reachesEveryTenant } from '#/pages/subjects/services/tenantReach';
-import { heldLines, type HeldLine } from '#/pages/subjects/services/heldLines';
+import { reachesEveryTenant } from '#/features/subject-capabilities/services/tenantReach';
+import { heldLines, type HeldLine } from '#/features/subject-capabilities/services/heldLines';
 import { type ListedSubject, subjectHref, subjectName } from '#/entities/subject';
 
 export interface Holder {

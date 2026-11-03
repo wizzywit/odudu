@@ -3,7 +3,7 @@ import type { Holding } from '#/shared/services/capabilities';
 import {
   capabilitiesRemoveTenants,
   reachesEveryTenant,
-} from '#/pages/subjects/services/tenantReach';
+} from '#/features/subject-capabilities/services/tenantReach';
 
 describe('reaching every tenant', () => {
   it('takes manage-tenants away only in system, when none of what carries it is kept', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Holding } from '#/shared/services/capabilities';
-import { keptOtherwise, onlyHolder } from '#/pages/subjects/services/lastHolder';
+import { keptOtherwise, onlyHolder } from '#/features/subject-capabilities/services/lastHolder';
 
 describe('the last holder of a capability', () => {
   it('counts a capability as kept when a group or another role gives it', () => {

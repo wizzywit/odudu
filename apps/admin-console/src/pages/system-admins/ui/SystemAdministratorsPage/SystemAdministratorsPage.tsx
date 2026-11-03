@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { areaAt } from '#/entities/area';
-import { CapabilityHolders } from '#/pages/subjects';
+import { CapabilityHolders } from '#/features/subject-capabilities';
 import {
   useSystemAdministratorsPage,
   type SystemAdministrators,

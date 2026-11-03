@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { heldLines } from '#/pages/subjects/services/heldLines';
+import { heldLines } from '#/features/subject-capabilities/services/heldLines';
 
 describe('a holder in a list of administrators', () => {
   it('says what is held and whether directly, leaving out what another holding carries', () => {

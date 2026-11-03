@@ -14,15 +14,21 @@ import {
 import { inOrderOf, removedFrom } from '#/shared/services/ids';
 import type { AdminCapability } from '#/shared/services/principal';
 import { useSaveConfirmation } from '#/shared/use-cases/useSaveConfirmation';
-import { adminRolesBlocked, rolesFailure } from '#/pages/subjects/services/adminRolesRead';
-import { capabilitiesRemoveTenants } from '#/pages/subjects/services/tenantReach';
-import { capabilityOptions, describeHoldings } from '#/pages/subjects/services/capabilityChoices';
+import {
+  adminRolesBlocked,
+  rolesFailure,
+} from '#/features/subject-capabilities/services/adminRolesRead';
+import { capabilitiesRemoveTenants } from '#/features/subject-capabilities/services/tenantReach';
+import {
+  capabilityOptions,
+  describeHoldings,
+} from '#/features/subject-capabilities/services/capabilityChoices';
 import {
   elsewhereText,
   heldElsewhere,
   type HeldElsewhere,
-} from '#/pages/subjects/services/heldElsewhere';
-import { keptOtherwise, onlyHolder } from '#/pages/subjects/services/lastHolder';
+} from '#/features/subject-capabilities/services/heldElsewhere';
+import { keptOtherwise, onlyHolder } from '#/features/subject-capabilities/services/lastHolder';
 import { offersWrites } from '#/shared/services/access';
 import {
   type Subject,

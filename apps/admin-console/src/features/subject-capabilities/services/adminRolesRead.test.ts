@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { adminRolesBlocked, rolesFailure } from '#/pages/subjects/services/adminRolesRead';
+import {
+  adminRolesBlocked,
+  rolesFailure,
+} from '#/features/subject-capabilities/services/adminRolesRead';
 
 describe('reading the admin roles', () => {
   it('says why nothing can be saved until the admin roles are read', () => {

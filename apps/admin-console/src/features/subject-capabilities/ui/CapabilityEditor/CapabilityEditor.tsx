@@ -2,7 +2,7 @@ import {
   useCapabilityEditor,
   useSubjectRolesRead,
   type CapabilityEditing,
-} from '#/pages/subjects/use-cases/useCapabilities';
+} from '#/features/subject-capabilities/use-cases/useCapabilities';
 import { Link } from 'react-aria-components';
 import { Button } from '#/shared/ui/Button';
 import { AskedDialog } from '#/shared/ui/ConfirmDialog';

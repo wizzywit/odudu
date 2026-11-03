@@ -1,10 +1,10 @@
 import type { EffectiveRoleAssignment } from '@odudu/contracts/admin';
 import {
+  CapabilitySection,
   useCapabilityEditor,
   useSubjectRolesRead,
-} from '#/pages/subjects/use-cases/useCapabilities';
+} from '#/features/subject-capabilities';
 import { useSubjectRoles, type SubjectRoles } from '#/pages/subjects/use-cases/useSubjectRoles';
-import { CapabilitySection } from '#/pages/subjects/ui/SubjectRecordPage/CapabilityEditor';
 import { Panel } from '#/shared/ui/Panel';
 import { PagedList } from '#/pages/subjects/ui/SubjectRecordPage/SessionsTab';
 import { provenanceText } from '#/shared/services/capabilities';
