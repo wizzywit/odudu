@@ -1,6 +1,10 @@
 import type { ThemeView } from '@odudu/contracts/admin';
-import { STYLESHEET_SECTION_TITLE } from '#/features/branding/services/fields';
-import { type ThemeScope } from '#/features/branding/services/themeScope';
+import {
+  STYLESHEET_SECTION_TITLE,
+  STYLESHEET_LABEL,
+  STYLESHEET_LEAD,
+} from '#/features/branding/services/stylesheet';
+import type { ThemeScope } from '#/features/branding/services/themeScope';
 import {
   SELECTOR_LIST_LIMIT,
   SELECTORS_FAILED,
@@ -13,7 +17,6 @@ import {
   VALUES_NOTE,
 } from '#/features/branding/services/selectors';
 import { sourceReading } from '#/features/branding/services/sources';
-import { STYLESHEET_LABEL, STYLESHEET_LEAD } from '#/features/branding/services/stylesheet';
 import { useDesignValues, useSelectors } from '#/features/branding/use-cases/useSelectors';
 import type { Stylesheet } from '#/features/branding/use-cases/useStylesheet';
 import { InsertPicker } from '#/features/branding/ui/OptionPicker';

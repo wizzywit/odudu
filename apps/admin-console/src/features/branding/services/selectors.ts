@@ -1,6 +1,6 @@
 import type { StylesheetHooksResponse } from '@odudu/contracts/admin';
 import { KEY_LIST_LIMIT } from '#/features/branding/services/catalogue';
-import { PAGE_KIND_LABELS, pageKindOf } from '#/features/branding/services/templates';
+import { PAGE_KIND_LABELS, pageKindOf } from '#/features/branding/services/pageKinds';
 
 export interface SelectorOption {
   id: string;

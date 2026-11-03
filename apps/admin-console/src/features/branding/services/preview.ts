@@ -1,6 +1,8 @@
 import type { Read } from '#/shared/services/read';
-import type { PageKind } from '#/features/branding/services/values';
+import type { PageKind } from '#/features/branding/services/pageKinds';
 import type { Scheme } from '#/features/branding/services/colourScheme';
+import type { ThemeView } from '@odudu/contracts/admin';
+
 export interface PreviewChoice {
   kind: PageKind;
   scheme: Scheme;
@@ -60,4 +62,18 @@ export function previewAsked(framed: boolean, view: unknown): boolean {
 // How to ask for the preview again, when what it shows could not be read.
 export function previewRetry(read: Read<unknown>): (() => void) | undefined {
   return read.status === 'failed' ? read.retry : undefined;
+}
+
+export function previewWith(choice: PreviewChoice, change: Partial<PreviewChoice>): PreviewChoice {
+  return { ...choice, ...change };
+}
+
+// A frame reloads when what it shows may have changed: the published version,
+// the draft, or what is asked of it.
+export function previewKey(
+  view: ThemeView | undefined,
+  tag: string | null,
+  choice: PreviewChoice,
+): string {
+  return `${String(view?.published?.version ?? 0)}|${tag ?? ''}|${choice.kind}|${choice.scheme}`;
 }

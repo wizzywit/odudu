@@ -4,12 +4,3 @@ export const BRANDING_DESCRIPTION =
 export const BRANDING_SECTIONS_LABEL = 'Branding sections';
 
 export const BRANDING_NOUN = 'theme';
-
-export const PAGES_LEAD =
-  'Choose a page, then change its layout. The preview shows the page as people see it.';
-
-export const PAGE_PICKER_LABEL = 'Page';
-
-export function pickLabel(label: string): string {
-  return `Pick ${label.toLowerCase()}`;
-}

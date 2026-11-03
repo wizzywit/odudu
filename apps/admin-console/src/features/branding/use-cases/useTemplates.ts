@@ -2,7 +2,10 @@ import type { ThemeView } from '@odudu/contracts/admin';
 import { useRefusal } from '#/entities/session';
 import { templateSave } from '#/features/branding/repository/themeSaves';
 import type { PublishOutcome } from '#/features/branding/services/publishOutcome';
-import { templateFields, TEMPLATES_SECTION_TITLE } from '#/features/branding/services/fields';
+import {
+  templateFields,
+  TEMPLATES_SECTION_TITLE,
+} from '#/features/branding/services/templateParts';
 import { firstProblems, type PlacedProblems } from '#/features/branding/services/problems';
 import {
   themeRefusal,
@@ -12,16 +15,16 @@ import {
 } from '#/features/branding/services/themeScope';
 import { limitedIssues } from '#/features/branding/services/publishIssues';
 import { templateSize } from '#/features/branding/services/stylesheet';
+import type { PageKind } from '#/features/branding/services/pageKinds';
 import {
   publishedTemplateProblems,
   templateProblems,
-} from '#/features/branding/services/templates';
+} from '#/features/branding/services/templateProblems';
 import {
   templateField,
   templateValues,
-  type PageKind,
   type TemplateValues,
-} from '#/features/branding/services/values';
+} from '#/features/branding/services/templateValues';
 import { useSectionHold } from '#/features/branding/use-cases/useSectionHold';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import type { SizeReading } from '#/shared/services/format';

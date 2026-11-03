@@ -2,7 +2,15 @@ import type { ThemeView } from '@odudu/contracts/admin';
 import { useRefusal } from '#/entities/session';
 import { stylesheetSave } from '#/features/branding/repository/themeSaves';
 import type { PublishOutcome } from '#/features/branding/services/publishOutcome';
-import { stylesheetFields, STYLESHEET_SECTION_TITLE } from '#/features/branding/services/fields';
+import {
+  stylesheetFields,
+  STYLESHEET_SECTION_TITLE,
+  publishedStylesheetProblems,
+  stylesheetHold,
+  stylesheetProblems,
+  stylesheetSize,
+  STYLESHEET_PATH,
+} from '#/features/branding/services/stylesheet';
 import { firstProblems, type PlacedProblems } from '#/features/branding/services/problems';
 import {
   themeRefusal,
@@ -11,13 +19,9 @@ import {
   type ThemeScope,
 } from '#/features/branding/services/themeScope';
 import {
-  publishedStylesheetProblems,
-  stylesheetHold,
-  stylesheetProblems,
-  stylesheetSize,
-  STYLESHEET_PATH,
-} from '#/features/branding/services/stylesheet';
-import { stylesheetValues, type StylesheetValues } from '#/features/branding/services/values';
+  stylesheetValues,
+  type StylesheetValues,
+} from '#/features/branding/services/stylesheetValues';
 import { useSectionHold } from '#/features/branding/use-cases/useSectionHold';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import type { SizeReading } from '#/shared/services/format';

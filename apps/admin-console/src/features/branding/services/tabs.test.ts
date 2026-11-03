@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   themeRecord,
   themeParts,
@@ -19,6 +19,7 @@ import {
   revertTarget,
   selectScopedTab,
   tabReads,
+  selectOffered,
 } from '#/features/branding/services/tabs';
 
 describe('the tabs a revert applies to', () => {
@@ -165,5 +166,15 @@ describe('characterisation: the branding tabs', () => {
     expect(tabsWithEdits({ [record === 'theme' ? 'settings' : 'theme']: new Set(held) }).size).toBe(
       0,
     );
+  });
+});
+
+describe('the tabs', () => {
+  it('select a tab this area has, and nothing for another name', () => {
+    const select = vi.fn<(tab: string) => void>();
+    selectOffered('pages', select);
+    selectOffered('languages', select);
+    selectOffered('nope', select);
+    expect(select.mock.calls).toEqual([['pages'], ['languages']]);
   });
 });

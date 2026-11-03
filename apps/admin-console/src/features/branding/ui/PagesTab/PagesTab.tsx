@@ -1,27 +1,31 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useId } from 'react';
-import { PAGE_PICKER_LABEL, PAGES_LEAD } from '#/features/branding/services/copy';
-import type { PublishOutcome } from '#/features/branding/services/publishOutcome';
-import { TEMPLATES_SECTION_TITLE } from '#/features/branding/services/fields';
-import type { ThemeScope } from '#/features/branding/services/themeScope';
-import { sourceReading } from '#/features/branding/services/sources';
 import {
-  formNote,
+  PAGE_PICKER_LABEL,
+  PAGES_LEAD,
   MANIFESTS,
-  MESSAGE_NOTE,
-  OPTIONAL_NOTE,
   PAGE_KIND_LABELS,
   PAGE_KIND_OPTIONS,
+  slot,
+  pageKindOf,
+  type PageKind,
+} from '#/features/branding/services/pageKinds';
+import type { PublishOutcome } from '#/features/branding/services/publishOutcome';
+import {
+  TEMPLATES_SECTION_TITLE,
+  formNote,
+  MESSAGE_NOTE,
+  OPTIONAL_NOTE,
   PARTS_TITLE,
   REQUIRED_NOTE,
-  slot,
   TEMPLATE_LABEL,
   TEMPLATE_RULES,
   TEMPLATES_INTRO,
   templateDescription,
-  pageKindOf,
-} from '#/features/branding/services/templates';
-import { templateField, type PageKind } from '#/features/branding/services/values';
+} from '#/features/branding/services/templateParts';
+import type { ThemeScope } from '#/features/branding/services/themeScope';
+import { sourceReading } from '#/features/branding/services/sources';
+import { templateField } from '#/features/branding/services/templateValues';
 import { useMessageKeys } from '#/features/branding/use-cases/useMessageKeys';
 import { useRevert } from '#/features/branding/use-cases/useRevert';
 import { useTemplates } from '#/features/branding/use-cases/useTemplates';

@@ -5,7 +5,7 @@ import {
   BRANDING_DESCRIPTION,
   BRANDING_NOUN,
   BRANDING_SECTIONS_LABEL,
-} from '#/features/branding/services/copy';
+} from '#/features/branding/services/brandingArea';
 import {
   BRANDING_TAB_LABELS,
   OFFERED_TABS,

@@ -1,5 +1,5 @@
 import { MAX_STYLESHEET_BYTES, MAX_TEMPLATE_BYTES } from '@odudu/contracts';
-import type { FieldError, ThemeView } from '@odudu/contracts/admin';
+import type { FieldError } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import { NO_OUTCOME } from '#/features/branding/services/publishOutcome';
 import { PROBLEMS_SHOWN, firstProblems, NO_PROBLEMS } from '#/features/branding/services/problems';
@@ -20,9 +20,7 @@ import {
   templateProblems,
   TEMPLATE_UNPUBLISHABLE,
   TEMPLATE_REFUSED,
-} from '#/features/branding/services/templates';
-import { stylesheetRequest, stylesheetValues } from '#/features/branding/services/values';
-import { draftedView, EMPTY, themeView } from '#/testing/brandingFixtures';
+} from '#/features/branding/services/templateProblems';
 
 const error = (changes: Partial<FieldError>): FieldError => ({
   path: 'stylesheet',
@@ -157,22 +155,6 @@ describe('what a refused publish says of a template', () => {
   it('lets go once the draft moved or the template was edited', () => {
     expect(publishedTemplateProblems('sign-in', outcome, '"d2"', false)).toEqual(NO_PROBLEMS);
     expect(publishedTemplateProblems('sign-in', outcome, '"d1"', true)).toEqual(NO_PROBLEMS);
-  });
-});
-
-describe('the stylesheet in a request', () => {
-  it('is none when empty, and is carried with the rest of the draft', () => {
-    const view = draftedView() as ThemeView;
-    expect(stylesheetValues(themeView() as ThemeView)).toEqual({ stylesheet: '' });
-    const request = stylesheetRequest(view, { stylesheet: 'a { color: red }' });
-    expect(request.stylesheet).toBe('a { color: red }');
-    expect(request.tokens).toEqual(view.draft?.tokens);
-    expect(stylesheetRequest(view, { stylesheet: '  \n' }).stylesheet).toBeNull();
-  });
-
-  it('reads the draft’s stylesheet back', () => {
-    const view = themeView({ draft: { ...EMPTY, stylesheet: 'a {}' } }) as ThemeView;
-    expect(stylesheetValues(view)).toEqual({ stylesheet: 'a {}' });
   });
 });
 

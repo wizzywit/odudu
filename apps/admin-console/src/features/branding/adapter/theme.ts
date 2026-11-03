@@ -22,7 +22,7 @@ import {
   themeParts,
   type ThemeScope,
 } from '#/features/branding/services/themeScope';
-import { type PageKind } from '#/features/branding/services/values';
+import type { PageKind } from '#/features/branding/services/pageKinds';
 import { imageDataUrl } from '#/features/branding/services/imageThumbnails';
 import type { Scheme } from '#/features/branding/services/colourScheme';
 

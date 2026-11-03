@@ -92,3 +92,9 @@ const TAB_READS: Readonly<Record<BrandingTab, TabReads>> = {
 export function tabReads(tab: BrandingTab): TabReads {
   return TAB_READS[tab];
 }
+
+// Runs `select` for a tab this area has, and for no other name.
+export function selectOffered(name: string, select: (tab: OfferedTab) => void): void {
+  const tab = tabNamed(OFFERED_TABS, name);
+  if (tab !== undefined) select(tab);
+}

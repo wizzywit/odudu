@@ -1,12 +1,11 @@
 import type { PutThemeRequest, ThemeView } from '@odudu/contracts/admin';
 import { putTheme } from '#/features/branding/adapter/theme';
-import { type ThemeScope } from '#/features/branding/services/themeScope';
+import type { ThemeScope } from '#/features/branding/services/themeScope';
+import { templateRequest, type TemplateValues } from '#/features/branding/services/templateValues';
 import {
   stylesheetRequest,
-  templateRequest,
   type StylesheetValues,
-  type TemplateValues,
-} from '#/features/branding/services/values';
+} from '#/features/branding/services/stylesheetValues';
 import { imageRequest, type ImageValues } from '#/features/branding/services/imageValues';
 import { colourRequest, type ColourValues } from '#/features/branding/services/colourValues';
 import type { SaveInput } from '#/shared/repository/useSectionSave';

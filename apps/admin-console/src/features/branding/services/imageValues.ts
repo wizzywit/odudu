@@ -1,6 +1,6 @@
 import type { ThemeBodyRequest } from '@odudu/contracts';
 import type { ThemeView } from '@odudu/contracts/admin';
-import { baseBody } from '#/features/branding/services/values';
+import { baseBody } from '#/features/branding/services/themeBody';
 
 export type ImageSlot = 'logo' | 'darkLogo' | 'favicon' | 'background';
 

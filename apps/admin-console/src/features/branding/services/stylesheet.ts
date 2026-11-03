@@ -9,6 +9,9 @@ import {
   placedProblems,
   type PlacedProblems,
 } from '#/features/branding/services/problems';
+import type { SectionFields } from '#/shared/services/sectionSave';
+import type { StylesheetValues } from '#/features/branding/services/stylesheetValues';
+import { describeTemplate } from '#/features/branding/services/templateParts';
 
 export const STYLESHEET_LEAD =
   'Plain CSS for what the page’s own styling cannot do. Rules may name only the page’s documented classes, such as .logo and .page-sign-in; @import, @font-face, scripts and addresses outside this theme’s images are refused. The preview shows the saved stylesheet, so save to see a change.';
@@ -94,4 +97,17 @@ export function publishedStylesheetProblems(
     refused: STYLESHEET_UNPUBLISHABLE,
     wording,
   });
+}
+
+export const STYLESHEET_SECTION_TITLE = 'Stylesheet';
+
+export function stylesheetFields(now: StylesheetValues): SectionFields<StylesheetValues> {
+  return {
+    stylesheet: {
+      value: now.stylesheet,
+      label: STYLESHEET_SECTION_TITLE,
+      kind: 'plain',
+      describe: describeTemplate,
+    },
+  };
 }

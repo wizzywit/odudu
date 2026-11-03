@@ -590,7 +590,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     { scheme: 'light' },
   ),
   Images: feature('branding/services/imageSection.ts', "IMAGES_TITLE = 'Images'"),
-  Stylesheet: feature('branding/services/fields.ts', "STYLESHEET_SECTION_TITLE = 'Stylesheet'"),
+  Stylesheet: feature('branding/services/stylesheet.ts', "STYLESHEET_SECTION_TITLE = 'Stylesheet'"),
   Contrast: feature('branding/services/contrast.ts', "CONTRAST_TITLE = 'Contrast'"),
   Publish: feature('branding/services/publishDraft.ts', "PUBLISH_TITLE = 'Publish'"),
   Versions: feature('branding/services/versions.ts', "VERSIONS_TITLE = 'Versions'"),

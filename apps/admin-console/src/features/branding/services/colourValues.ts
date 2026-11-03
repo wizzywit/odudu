@@ -1,7 +1,7 @@
 import type { FontChoice, ThemeBodyRequest } from '@odudu/contracts';
 import type { ThemeView } from '@odudu/contracts/admin';
 import type { Palette } from '#/features/branding/services/palette';
-import { baseBody } from '#/features/branding/services/values';
+import { baseBody } from '#/features/branding/services/themeBody';
 
 // The fields are named for the pieces the server names, so a refusal at
 // `tokens.light.inkPrimary` lands on the field that holds it.

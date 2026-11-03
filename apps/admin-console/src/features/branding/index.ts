@@ -7,7 +7,7 @@ export {
   useScopeEdits,
   type ScopeBranding,
 } from '#/features/branding/use-cases/useScopeBranding';
-export { BRANDING_SECTIONS_LABEL } from '#/features/branding/services/copy';
+export { BRANDING_SECTIONS_LABEL } from '#/features/branding/services/brandingArea';
 export { clientScope, type ThemeScope } from '#/features/branding/services/themeScope';
 export {
   BRANDING_TAB_LABELS,

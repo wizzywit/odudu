@@ -1,6 +1,6 @@
 import type { MessageCatalogueResponse } from '@odudu/contracts/admin';
 import { sortedIds } from '#/shared/services/ids';
-import type { PageKind } from '#/features/branding/services/values';
+import type { PageKind } from '#/features/branding/services/pageKinds';
 
 export interface MessageEntry {
   key: string;

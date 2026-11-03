@@ -13,7 +13,7 @@ import {
   PAGE_KIND_LABELS,
   PAGE_KIND_OPTIONS,
   pageKindOf,
-} from '#/features/branding/services/templates';
+} from '#/features/branding/services/pageKinds';
 import { SCHEME_LABELS, schemeOf } from '#/features/branding/services/colourScheme';
 import type { Preview } from '#/features/branding/use-cases/usePreview';
 import { PreviewShell } from '#/features/branding/ui/PreviewShell';

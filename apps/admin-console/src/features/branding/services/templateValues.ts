@@ -1,21 +1,7 @@
-import { THEME_PAGE_KINDS, type ThemeBodyRequest, type ThemeBodyWire } from '@odudu/contracts';
+import { THEME_PAGE_KINDS, type ThemeBodyRequest } from '@odudu/contracts';
 import type { ThemeView } from '@odudu/contracts/admin';
-import { nullWhenBlank } from '#/shared/services/format';
-
-export type PageKind = (typeof THEME_PAGE_KINDS)[number];
-
-export const EMPTY_BODY: ThemeBodyWire = {
-  tokens: {},
-  stylesheet: null,
-  templates: {},
-  assets: {},
-};
-
-// What a save of the theme starts from: the draft, or with none the published
-// theme it would be made from.
-export function baseBody(view: ThemeView): ThemeBodyWire {
-  return view.draft ?? view.published?.body ?? EMPTY_BODY;
-}
+import type { PageKind } from '#/features/branding/services/pageKinds';
+import { baseBody } from '#/features/branding/services/themeBody';
 
 export type TemplateField = `templates.${PageKind}`;
 
@@ -43,22 +29,6 @@ function templatesOf(values: TemplateValues): ThemeBodyRequest['templates'] {
       return text.trim() === '' ? [] : [[kind, text]];
     }),
   );
-}
-
-export interface StylesheetValues extends Readonly<Record<string, unknown>> {
-  stylesheet: string;
-}
-
-// An empty stylesheet is none: the page uses the layer below.
-export function stylesheetValues(view: ThemeView): StylesheetValues {
-  return { stylesheet: baseBody(view).stylesheet ?? '' };
-}
-
-export function stylesheetRequest(view: ThemeView, values: StylesheetValues): ThemeBodyRequest {
-  return {
-    ...baseBody(view),
-    stylesheet: nullWhenBlank(values.stylesheet),
-  };
 }
 
 export function templateRequest(view: ThemeView, values: TemplateValues): ThemeBodyRequest {

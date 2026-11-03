@@ -1,7 +1,7 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { capitalise } from '#/shared/services/format';
 import type { ThemeScope } from '#/features/branding/services/themeScope';
-import { PAGE_KIND_LABELS, pageKindOf } from '#/features/branding/services/templates';
+import { PAGE_KIND_LABELS, pageKindOf } from '#/features/branding/services/pageKinds';
 import { SLOT_RULES } from '#/features/branding/services/imageSlots';
 import type { ImageSlot } from '#/features/branding/services/imageValues';
 

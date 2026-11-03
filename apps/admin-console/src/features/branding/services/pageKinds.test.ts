@@ -2,15 +2,14 @@ import { THEME_PAGE_KINDS } from '@odudu/contracts';
 import { describe, expect, it } from 'vitest';
 import { limitedIssues } from '#/features/branding/services/publishIssues';
 import {
-  formNote,
   MANIFESTS,
-  omissionNote,
   PAGE_KIND_LABELS,
   PAGE_KIND_OPTIONS,
   pageKindOf,
   slot,
-} from '#/features/branding/services/templates';
-import { templateField, TEMPLATE_FIELDS } from '#/features/branding/services/values';
+} from '#/features/branding/services/pageKinds';
+import { formNote, omissionNote } from '#/features/branding/services/templateParts';
+import { templateField, TEMPLATE_FIELDS } from '#/features/branding/services/templateValues';
 
 describe('the page kinds', () => {
   it('each have a label, a manifest and a field, in the contract’s order', () => {

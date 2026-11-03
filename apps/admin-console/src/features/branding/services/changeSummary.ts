@@ -1,9 +1,7 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { counted } from '#/shared/services/format';
-import {
-  STYLESHEET_SECTION_TITLE,
-  TEMPLATES_SECTION_TITLE,
-} from '#/features/branding/services/fields';
+import { STYLESHEET_SECTION_TITLE } from '#/features/branding/services/stylesheet';
+import { TEMPLATES_SECTION_TITLE } from '#/features/branding/services/templateParts';
 import { OFFERED_TABS, type BrandingTab, type OfferedTab } from '#/features/branding/services/tabs';
 import { IMAGES_TITLE } from '#/features/branding/services/imageSection';
 import { COLOURS_TITLE } from '#/features/branding/services/colourSection';

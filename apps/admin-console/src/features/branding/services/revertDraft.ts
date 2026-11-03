@@ -4,14 +4,14 @@ import type { Conflict } from '#/shared/services/conflict';
 import { isStale, writeFailureText } from '#/shared/services/failure';
 import { andList, counted } from '#/shared/services/format';
 import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
-import { unsavedSections } from '#/features/branding/services/fields';
+import { unsavedSections } from '#/features/branding/services/sectionTitles';
 import type { ThemeScope } from '#/features/branding/services/themeScope';
 import {
   BRANDING_TAB_SECTIONS,
   type BrandingTab,
   type ScopedTab,
 } from '#/features/branding/services/tabs';
-import { EMPTY_BODY, baseBody } from '#/features/branding/services/values';
+import { EMPTY_BODY, baseBody } from '#/features/branding/services/themeBody';
 import {
   TAB_PIECES,
   type ChangedPiece,
