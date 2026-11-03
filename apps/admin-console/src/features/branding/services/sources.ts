@@ -1,5 +1,6 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { capitalise } from '#/shared/services/format';
+import { schemeColoursName } from '#/features/branding/services/colourScheme';
 import type { ThemeScope } from '#/features/branding/services/themeScope';
 import { PAGE_KIND_LABELS, pageKindOf } from '#/features/branding/services/pageKinds';
 import { SLOT_RULES } from '#/features/branding/services/imageSlots';
@@ -17,8 +18,8 @@ function wordsFor(scope: ThemeScope, source: Source | undefined): string {
 }
 
 const NAMED: Readonly<Record<string, string>> = {
-  'tokens.light': 'light colours',
-  'tokens.dark': 'dark colours',
+  'tokens.light': schemeColoursName('light'),
+  'tokens.dark': schemeColoursName('dark'),
   'tokens.font': 'font',
   stylesheet: 'stylesheet',
 };

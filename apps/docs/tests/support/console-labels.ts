@@ -597,9 +597,9 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     "COLOURS_TITLE = 'Colours and font'",
   ),
   'Use my own light colours': template(
-    [inFeature('branding/services/colourSection.ts', 'Use my own ${scheme} colours')],
-    'Use my own ${scheme} colours',
-    { scheme: 'light' },
+    [inFeature('branding/services/colourSection.ts', 'Use my own ${schemeColoursName(scheme)}')],
+    'Use my own ${scheme}',
+    { scheme: 'light colours' },
   ),
   Images: feature('branding/services/imageSection.ts', "IMAGES_TITLE = 'Images'"),
   Stylesheet: feature('branding/services/stylesheet.ts', "STYLESHEET_SECTION_TITLE = 'Stylesheet'"),
@@ -622,8 +622,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Delete image': feature('branding/services/imageSection.ts', "DELETE_LABEL = 'Delete image'"),
   Preview: feature('branding/services/preview.ts', "PREVIEW_TITLE = 'Preview'"),
   'Colour scheme': several(
-    feature('branding/services/preview.ts', "PREVIEW_SCHEME_LABEL = 'Colour scheme'"),
-    feature('branding/services/mailPreview.ts', "MAIL_SCHEME_LABEL = 'Colour scheme'"),
+    feature('branding/services/colourScheme.ts', "SCHEME_PICKER_LABEL = 'Colour scheme'"),
   ),
   'Open preview': feature('branding/services/preview.ts', "PREVIEW_OPEN_LABEL = 'Open preview'"),
   'Page preview': feature('branding/services/preview.ts', "PREVIEW_SHEET_TITLE = 'Page preview'"),

@@ -6,7 +6,6 @@ import {
   mailInheritsLead,
   MAIL_INHERITS_TITLE,
   paletteRows,
-  schemeTitle,
   sourceText,
 } from '#/features/branding/services/mailInheritance';
 import {
@@ -15,7 +14,6 @@ import {
   MAIL_LOADING_BRANDING,
   mailPreviewNote,
   MAIL_PREVIEW_TITLE,
-  MAIL_SCHEME_LABEL,
 } from '#/features/branding/services/mailPreview';
 import { mailClientName } from '#/features/branding/services/mailChoice';
 import {
@@ -25,8 +23,15 @@ import {
   mailLocaleOf,
   MAIL_SUMMARY_NAME,
 } from '#/features/branding/services/mailLocale';
-import { previewSummary, SCHEME_OPTIONS } from '#/features/branding/services/preview';
-import { SCHEME_LABELS, schemeOf, type Scheme } from '#/features/branding/services/colourScheme';
+import { previewSummary } from '#/features/branding/services/preview';
+import {
+  SCHEME_LABELS,
+  SCHEME_PICKER_LABEL,
+  schemeColoursTitle,
+  schemeOf,
+  schemeOptions,
+  type Scheme,
+} from '#/features/branding/services/colourScheme';
 import type { MailTab as Mail } from '#/features/branding/use-cases/useMailTab';
 import { MailClientChoice } from '#/features/branding/ui/MailClientChoice';
 import { PreviewShell } from '#/features/branding/ui/PreviewShell';
@@ -52,8 +57,8 @@ export function MailPreview({ mail }: { mail: Mail }) {
         <>
           <InlineFields>
             <SelectField
-              label={MAIL_SCHEME_LABEL}
-              options={SCHEME_OPTIONS}
+              label={SCHEME_PICKER_LABEL}
+              options={schemeOptions}
               value={mail.choice.scheme}
               onChange={(id) => {
                 const scheme = schemeOf(id);
@@ -118,10 +123,10 @@ function Logos({ branding, origin }: { branding: MailBrandingView; origin: strin
 
 function Palette({ scheme, view }: { scheme: Scheme; view: MailBrandingView['light'] }) {
   return (
-    <Panel title={schemeTitle(scheme)}>
+    <Panel title={schemeColoursTitle(scheme)}>
       <p className={recordTab.rule}>{sourceText(view.source)}</p>
       <table className={styles.table}>
-        <caption className={styles.caption}>{schemeTitle(scheme)}</caption>
+        <caption className={styles.caption}>{schemeColoursTitle(scheme)}</caption>
         <thead>
           <tr>
             <th scope="col">Colour</th>

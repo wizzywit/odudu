@@ -1,17 +1,18 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import { pairRows, rowText } from '#/features/branding/services/contrast';
-import { MAIL_SCHEME_LABEL } from '#/features/branding/services/mailPreview';
-import { schemeTitle } from '#/features/branding/services/mailInheritance';
 import { DEFAULT_PALETTES } from '#/features/branding/services/palette';
-import { SCHEME_LABELS, SCHEMES, schemeOf } from '#/features/branding/services/colourScheme';
-import { PREVIEW_SCHEME_LABEL, SCHEME_OPTIONS } from '#/features/branding/services/preview';
-import { sourceReading } from '#/features/branding/services/sources';
 import {
-  customLabel,
-  paletteLegend,
-  colourFields,
-} from '#/features/branding/services/colourSection';
+  SCHEME_LABELS,
+  SCHEME_PICKER_LABEL,
+  SCHEMES,
+  schemeColoursName,
+  schemeColoursTitle,
+  schemeOf,
+  schemeOptions,
+} from '#/features/branding/services/colourScheme';
+import { sourceReading } from '#/features/branding/services/sources';
+import { customLabel, colourFields } from '#/features/branding/services/colourSection';
 import { themeView } from '#/testing/brandingFixtures';
 
 const NAMES = { light: 'Light', dark: 'Dark' } as const;
@@ -26,8 +27,8 @@ describe('how a colour scheme is spelled', () => {
   it.each(SCHEMES)('says the %s scheme in each of its forms', (scheme) => {
     const name = NAMES[scheme];
     expect(SCHEME_LABELS[scheme]).toBe(name);
-    expect(SCHEME_OPTIONS.find((option) => option.id === scheme)?.label).toBe(name);
-    expect(schemeTitle(scheme)).toBe(`${name} colours`);
+    expect(schemeOptions.find((option) => option.id === scheme)?.label).toBe(name);
+    expect(schemeColoursTitle(scheme)).toBe(`${name} colours`);
     expect(
       colourFields({
         'tokens.light': null,
@@ -38,21 +39,18 @@ describe('how a colour scheme is spelled', () => {
     expect(hiddenReading(`tokens.${scheme}`)).toContain(
       `the tenant’s ${name.toLowerCase()} colours`,
     );
-    expect(paletteLegend(SCHEME_LABELS[scheme])).toBe(`${name} colours`);
-    expect(customLabel(SCHEME_LABELS[scheme].toLowerCase())).toBe(
-      `Use my own ${name.toLowerCase()} colours`,
-    );
+    expect(schemeColoursName(scheme)).toBe(`${name.toLowerCase()} colours`);
+    expect(customLabel(scheme)).toBe(`Use my own ${name.toLowerCase()} colours`);
     const rows = pairRows(scheme, DEFAULT_PALETTES[scheme]);
     expect(rows.map(rowText).every((text) => text.startsWith(`${name}: `))).toBe(true);
   });
 
   it('lists the options in the order the schemes are', () => {
-    expect(SCHEME_OPTIONS.map((option) => option.id)).toEqual([...SCHEMES]);
+    expect(schemeOptions.map((option) => option.id)).toEqual([...SCHEMES]);
   });
 
   it('names the picker the same in the preview and in the mail', () => {
-    expect(PREVIEW_SCHEME_LABEL).toBe('Colour scheme');
-    expect(MAIL_SCHEME_LABEL).toBe('Colour scheme');
+    expect(SCHEME_PICKER_LABEL).toBe('Colour scheme');
   });
 });
 

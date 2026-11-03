@@ -11,14 +11,18 @@ import {
 import { FONT_OPTIONS, PALETTE_LABELS, PALETTE_ORDER } from '#/features/branding/services/palette';
 import { type ThemeScope } from '#/features/branding/services/themeScope';
 import { sourceReading } from '#/features/branding/services/sources';
-import { SCHEME_LABELS, SCHEMES, type Scheme } from '#/features/branding/services/colourScheme';
+import {
+  SCHEME_LABELS,
+  SCHEMES,
+  schemeColoursTitle,
+  type Scheme,
+} from '#/features/branding/services/colourScheme';
 import { colourProblems, paletteField } from '#/features/branding/services/colourEdits';
 import {
   COLOURS_LEAD,
   customLabel,
   FONT_LABEL,
   paletteFoldOpen,
-  paletteLegend,
   COLOURS_TITLE,
 } from '#/features/branding/services/colourSection';
 import type { Colours } from '#/features/branding/use-cases/useColours';
@@ -52,7 +56,7 @@ function SchemeGroup({
   const palette = save.values[field];
   const problems = colourProblems(palette);
   const changed = colours.changedKeys(scheme);
-  const legend = paletteLegend(SCHEME_LABELS[scheme]);
+  const legend = schemeColoursTitle(scheme);
   const open = paletteFoldOpen(folds.isOpen(scheme), save.fieldErrors[field], problems);
   const body = useId();
   return (
@@ -72,7 +76,7 @@ function SchemeGroup({
       <div id={body} className={styles.body} data-collapsed={!open || undefined}>
         <FieldGroup label={legend}>
           <ToggleField
-            label={customLabel(SCHEME_LABELS[scheme].toLowerCase())}
+            label={customLabel(scheme)}
             description={sourceReading(scope, view, field)}
             value={palette !== null}
             error={save.fieldErrors[field]}

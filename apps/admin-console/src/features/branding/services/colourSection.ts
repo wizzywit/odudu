@@ -1,4 +1,9 @@
 import type { SectionFields } from '#/shared/services/sectionSave';
+import {
+  schemeColoursName,
+  schemeColoursTitle,
+  type Scheme,
+} from '#/features/branding/services/colourScheme';
 import type { ColourValues } from '#/features/branding/services/colourValues';
 
 export const COLOURS_LEAD =
@@ -6,8 +11,8 @@ export const COLOURS_LEAD =
 
 export const FONT_LABEL = 'Font';
 
-export function customLabel(scheme: string): string {
-  return `Use my own ${scheme} colours`;
+export function customLabel(scheme: Scheme): string {
+  return `Use my own ${schemeColoursName(scheme)}`;
 }
 
 // Narrow, each palette is a fold under its legend. One that holds a problem
@@ -18,10 +23,6 @@ export function paletteFoldOpen(
   colourProblems: Readonly<Record<string, string | undefined>>,
 ): boolean {
   return opened || fieldError !== undefined || Object.keys(colourProblems).length > 0;
-}
-
-export function paletteLegend(scheme: string): string {
-  return `${scheme} colours`;
 }
 
 export const COLOURS_TITLE = 'Colours and font';
@@ -35,13 +36,13 @@ export function colourFields(now: ColourValues): SectionFields<ColourValues> {
   return {
     'tokens.light': {
       value: now['tokens.light'],
-      label: 'Light colours',
+      label: schemeColoursTitle('light'),
       kind: 'plain',
       describe: describePalette,
     },
     'tokens.dark': {
       value: now['tokens.dark'],
-      label: 'Dark colours',
+      label: schemeColoursTitle('dark'),
       kind: 'plain',
       describe: describePalette,
     },

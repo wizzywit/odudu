@@ -15,8 +15,6 @@ export function mailPreviewNote(clientName: string | null): string {
 
 export const MAIL_FRAME_TITLE = 'Preview of the verification mail';
 
-export const MAIL_SCHEME_LABEL = 'Colour scheme';
-
 export const MAIL_FAILED = 'The colours and logo could not be loaded.';
 
 export const MAIL_LOADING_BRANDING = 'Loading what the mail inherits';

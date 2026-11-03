@@ -4,17 +4,20 @@ import {
   PREVIEW_FRAME_TITLE,
   PREVIEW_KIND_LABEL,
   PREVIEW_NOTE,
-  PREVIEW_SCHEME_LABEL,
   PREVIEW_TITLE,
   previewSummary,
-  SCHEME_OPTIONS,
 } from '#/features/branding/services/preview';
 import {
   PAGE_KIND_LABELS,
   PAGE_KIND_OPTIONS,
   pageKindOf,
 } from '#/features/branding/services/pageKinds';
-import { SCHEME_LABELS, schemeOf } from '#/features/branding/services/colourScheme';
+import {
+  SCHEME_LABELS,
+  SCHEME_PICKER_LABEL,
+  schemeOf,
+  schemeOptions,
+} from '#/features/branding/services/colourScheme';
 import type { Preview } from '#/features/branding/use-cases/usePreview';
 import { PreviewShell } from '#/features/branding/ui/PreviewShell';
 import { InlineFields, SelectField } from '#/shared/ui/Field';
@@ -47,8 +50,8 @@ export function PreviewPane({ preview, pickKind }: { preview: Preview; pickKind:
             />
           ) : null}
           <SelectField
-            label={PREVIEW_SCHEME_LABEL}
-            options={SCHEME_OPTIONS}
+            label={SCHEME_PICKER_LABEL}
+            options={schemeOptions}
             value={preview.choice.scheme}
             onChange={(id) => {
               const scheme = schemeOf(id);

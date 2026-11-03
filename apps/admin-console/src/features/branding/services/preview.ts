@@ -14,13 +14,6 @@ export const PREVIEW_TITLE = 'Preview';
 
 export const PREVIEW_KIND_LABEL = 'Page';
 
-export const PREVIEW_SCHEME_LABEL = 'Colour scheme';
-
-export const SCHEME_OPTIONS: readonly { id: Scheme; label: string }[] = [
-  { id: 'light', label: 'Light' },
-  { id: 'dark', label: 'Dark' },
-];
-
 export const PREVIEW_NOTE =
   'The saved draft, drawn by the real page. Unsaved changes appear after you save them.';
 

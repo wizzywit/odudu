@@ -1,5 +1,4 @@
 import type { MailColoursView } from '@odudu/contracts/admin';
-import type { Scheme } from '#/features/branding/services/colourScheme';
 
 export const MAIL_INHERITS_TITLE = 'What the mail inherits';
 
@@ -44,8 +43,4 @@ export function paletteRows(colours: MailColoursView): readonly PaletteRow[] {
 export function sourceText(source: 'client' | 'tenant' | 'default'): string {
   if (source === 'client') return 'From the client’s published theme.';
   return source === 'tenant' ? 'From the tenant’s published theme.' : 'Odudu’s default.';
-}
-
-export function schemeTitle(scheme: Scheme): string {
-  return scheme === 'light' ? 'Light colours' : 'Dark colours';
 }
