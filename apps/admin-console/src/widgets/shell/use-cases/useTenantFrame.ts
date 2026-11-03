@@ -1,6 +1,5 @@
-import { PRODUCT_NAME } from '#/shared/services/product';
-import { isTenantName } from '#/shared/services/principal';
+import { tenantFrame } from '#/widgets/shell/services/tenantFrame';
 
-export function useTenantFrame(tenant: string): { valid: boolean; productName: string } {
-  return { valid: isTenantName(tenant), productName: PRODUCT_NAME };
+export function useTenantFrame(tenant: string): ReturnType<typeof tenantFrame> {
+  return tenantFrame(tenant);
 }
