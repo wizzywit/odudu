@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { clientRolesListHref, roleOwnerLine, rolesReadable } from '#/features/clients/services/clientRoles';
+import {
+  clientRolesListHref,
+  roleOwnerLine,
+  rolesReadable,
+} from '#/features/clients/services/clientRoles';
 
 describe('rolesReadable', () => {
   it('admits manage-tenant, and view-users that manage-users carries', () => {
