@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { revealWanted } from '@site/src/features/landing/services/reveal';
 import { useIdle } from '@site/src/shared/use-cases/useIdle';
 import { usePrefersReducedMotion } from '@site/src/shared/use-cases/usePrefersReducedMotion';
 import { canRevealOnScroll } from '@site/src/shared/platform/page';
@@ -12,7 +13,7 @@ export function useReveal(): boolean {
   const [active, setActive] = useState(false);
   const reduced = usePrefersReducedMotion();
   const capable = useProbe(canRevealOnScroll);
-  useIdle(capable && !reduced, 200, () => {
+  useIdle(revealWanted(capable, reduced), 200, () => {
     let stop: (() => void) | undefined;
     let cancelled = false;
     import('@site/src/features/landing/platform/revealHost').then(

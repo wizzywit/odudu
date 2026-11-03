@@ -3,6 +3,7 @@ import {
   belowFold,
   motionMark,
   reached,
+  revealWanted,
   startReveal,
   type RevealHost,
   type RevealItem,
@@ -128,5 +129,14 @@ describe('the page mark', () => {
   it('marks the page only once the reveal has taken hold', () => {
     expect(motionMark(true)).toBe('ok');
     expect(motionMark(false)).toBeUndefined();
+  });
+});
+
+describe('when the reveal is wanted', () => {
+  it('wants it only where the browser can and the reader welcomes motion', () => {
+    expect(revealWanted(true, false)).toBe(true);
+    expect(revealWanted(true, true)).toBe(false);
+    expect(revealWanted(false, false)).toBe(false);
+    expect(revealWanted(false, true)).toBe(false);
   });
 });

@@ -88,15 +88,20 @@ describe('watching one element', () => {
     fake.report([{ target: first, isIntersecting: true }]);
     fake.report([{ target: first, isIntersecting: false }]);
     expect(seen).toEqual([true, false]);
-    stop();
+    stop?.();
     expect(fake.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('watches nothing, and says so, where there is no element yet', () => {
+    vi.stubGlobal('IntersectionObserver', fakeObserver().Observer);
+    expect(watchVisible(null, {}, vi.fn())).toBeUndefined();
   });
 
   it('does nothing, and returns a stop that does nothing, without an observer', () => {
     vi.stubGlobal('IntersectionObserver', undefined);
     const onChange = vi.fn();
     const stop = watchVisible(first, {}, onChange);
-    stop();
+    stop?.();
     expect(onChange).not.toHaveBeenCalled();
   });
 });

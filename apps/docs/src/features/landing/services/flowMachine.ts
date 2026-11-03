@@ -65,6 +65,11 @@ export const FLOW_START: Flow = {
   motion: false,
 };
 
+// The scene may move on its own for a reader who welcomes motion, where the browser can watch it.
+export function sceneMotionAllowed(reduced: boolean, observable: boolean): boolean {
+  return !reduced && observable;
+}
+
 // The scene runs only while it is wanted, on screen and on a visible page.
 export function playing(flow: Flow): boolean {
   return flow.wantsPlay && flow.inView && flow.pageShown;

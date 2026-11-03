@@ -4,6 +4,7 @@ import {
   FLOW_START,
   flowReducer,
   playing,
+  sceneMotionAllowed,
   waitFor,
 } from '@site/src/features/landing/services/flowMachine';
 import { stepper, viewOf, type StepperButton } from '@site/src/features/landing/services/flowView';
@@ -47,17 +48,14 @@ export function useSignInFlow(): SignInFlow {
   const reduced = usePrefersReducedMotion();
 
   useEffect(() => {
-    dispatch({ type: 'motion', allowed: !reduced && canObserve() });
+    dispatch({ type: 'motion', allowed: sceneMotionAllowed(reduced, canObserve()) });
     const stopPage = watchPageShown((shown) => {
       dispatch({ type: 'page', shown });
     });
     const target = stage.current;
-    const stopView =
-      target === null
-        ? undefined
-        : watchVisible(target, IN_VIEW, (visible) => {
-            dispatch({ type: 'view', visible });
-          });
+    const stopView = watchVisible(target, IN_VIEW, (visible) => {
+      dispatch({ type: 'view', visible });
+    });
     return () => {
       stopPage();
       stopView?.();

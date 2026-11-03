@@ -4,6 +4,7 @@ import type { Shell } from '@site/src/features/landing/services/installCommands'
 import {
   COPIED_FOR_MS,
   copyStatusOf,
+  copyTimerIdle,
   type CopyStatus,
 } from '@site/src/features/landing/services/copyStatus';
 import {
@@ -86,7 +87,7 @@ export function useInstall(): Install {
   });
 
   useEffect(() => {
-    if (status === 'idle') return undefined;
+    if (copyTimerIdle(status)) return undefined;
     return schedule(() => {
       setStatus('idle');
     }, COPIED_FOR_MS);

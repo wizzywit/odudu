@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { RELEASE_CAVEAT } from '@site/src/features/landing/services/release';
-import { copyLabel, copyStatusOf, noteFor } from '@site/src/features/landing/services/copyStatus';
+import {
+  copyLabel,
+  copyStatusOf,
+  copyTimerIdle,
+  noteFor,
+} from '@site/src/features/landing/services/copyStatus';
 
 describe('the copy status', () => {
   it('says whether the copy worked', () => {
@@ -14,5 +19,11 @@ describe('the copy status', () => {
     expect(noteFor('failed')).toContain('by hand');
     expect(copyLabel('copied')).toBe('Copied');
     expect(copyLabel('idle')).toBe('Copy');
+  });
+
+  it('has nothing to count down while idle, and counts the others down', () => {
+    expect(copyTimerIdle('idle')).toBe(true);
+    expect(copyTimerIdle('copied')).toBe(false);
+    expect(copyTimerIdle('failed')).toBe(false);
   });
 });

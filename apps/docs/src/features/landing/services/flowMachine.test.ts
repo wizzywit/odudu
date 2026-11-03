@@ -6,6 +6,7 @@ import {
   advance,
   flowReducer,
   playing,
+  sceneMotionAllowed,
   stepOf,
   waitFor,
   type Flow,
@@ -167,5 +168,14 @@ describe('the hand-over of a step', () => {
       motion: false,
     });
     expect(run(going, { type: 'motion', allowed: true }).wantsPlay).toBe(true);
+  });
+});
+
+describe('when the scene may move on its own', () => {
+  it('moves only for a reader who welcomes motion, in a browser that can watch it', () => {
+    expect(sceneMotionAllowed(false, true)).toBe(true);
+    expect(sceneMotionAllowed(true, true)).toBe(false);
+    expect(sceneMotionAllowed(false, false)).toBe(false);
+    expect(sceneMotionAllowed(true, false)).toBe(false);
   });
 });

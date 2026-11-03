@@ -72,6 +72,11 @@ export function startReveal<T extends RevealItem>(host: RevealHost<T>): (() => v
   return putBack;
 }
 
+// Nothing changes until the browser can watch for it and the reader welcomes motion.
+export function revealWanted(capable: boolean, reduced: boolean): boolean {
+  return capable && !reduced;
+}
+
 // What the page marks itself with once the reveal has taken hold, for the stylesheet.
 export function motionMark(active: boolean): 'ok' | undefined {
   return active ? 'ok' : undefined;

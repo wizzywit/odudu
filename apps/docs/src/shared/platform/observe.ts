@@ -16,12 +16,14 @@ export function observeIntersections(
   };
 }
 
-// Reports whether one element is in view; a no-op where the browser has no observer.
+// Reports whether one element is in view; a no-op where the browser has no
+// observer, and nothing to stop where there is no element yet.
 export function watchVisible(
-  target: Element,
+  target: Element | null,
   options: IntersectionObserverInit,
   onChange: (visible: boolean) => void,
-): () => void {
+): (() => void) | undefined {
+  if (target === null) return undefined;
   if (!canObserve()) return () => undefined;
   return observeIntersections([target], options, (_target, visible) => {
     onChange(visible);
