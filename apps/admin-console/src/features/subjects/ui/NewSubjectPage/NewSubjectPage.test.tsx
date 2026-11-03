@@ -1,12 +1,12 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
-import { USERNAME_RULE_TEXT } from '#/features/subjects/services/account';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { json, offline, problem, whoamiReads } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
 import { ADA, ADA_ID, S, subjectRoutes } from '#/testing/subjectsFixtures';
+import { USERNAME_RULE_TEXT } from '#/features/subjects/services/username';
 
 afterEach(() => {
   resetConsole();

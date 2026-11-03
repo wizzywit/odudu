@@ -10,19 +10,18 @@ import {
   useUsernamePolicy,
   type AccountValues,
 } from '#/features/subjects/repository/useSubjectRecord';
-import {
-  confirmationOf,
-  enabledVerb,
-  subjectWriteFailure,
-  usernameMode,
-  type UsernameMode,
-} from '#/features/subjects/services/account';
 import { subjectName, subjectsHref } from '#/features/subjects/services/address';
 import { subjectRecord } from '#/features/subjects/services/tabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';
 import { deletedText, enabledText } from '#/shared/services/failure';
 import { orBlank } from '#/shared/services/format';
+import {
+  confirmationOf,
+  enabledVerb,
+  subjectWriteFailure,
+} from '#/features/subjects/services/subjectAccount';
+import { usernameMode, type UsernameMode } from '#/features/subjects/services/username';
 
 export type { UsernameMode };
 
