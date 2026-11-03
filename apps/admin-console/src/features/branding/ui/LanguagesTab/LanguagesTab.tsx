@@ -42,7 +42,7 @@ import {
   useOverrides,
   type Overrides,
 } from '#/features/branding/use-cases/useLanguages';
-import { useTenantSettingsRead } from '#/shared/use-cases/useTenantSettingsRead';
+import { offeredLocales, useTenantSettingsRead } from '#/entities/tenant';
 import { MessageKeyField } from '#/features/branding/ui/MessageKeyField';
 import { Button } from '#/shared/ui/Button';
 import { ConflictPanel } from '#/shared/ui/ConflictPanel';
@@ -78,7 +78,7 @@ function LanguagesSection({ tenant, data, etag, gone }: Props) {
     etag,
     gone,
   });
-  const saved = languageSettingsOf(data);
+  const saved = languageSettingsOf(data, offeredLocales(data));
   return (
     <SaveSection
       title={LANGUAGES_TITLE}
@@ -259,7 +259,9 @@ function OverridesSection({ tenant, data }: { tenant: string; data: Settings }) 
         <p className={recordTab.rule}>{OVERRIDES_DESCRIPTION}</p>
         <SelectField
           label={OVERRIDE_LOCALE_LABEL}
-          options={overrideLocales(languageSettingsOf(data).supported_locales)}
+          options={overrideLocales(
+            languageSettingsOf(data, offeredLocales(data)).supported_locales,
+          )}
           value={page.locale}
           onChange={page.pick}
         />

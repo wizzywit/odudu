@@ -3,7 +3,7 @@ import { loadDrafts } from '#/shared/adapter/draftStorage';
 import { useDrafts } from '#/shared/repository/useDrafts';
 import { recordKey } from '#/shared/repository/queryKeys';
 import type { RecordEntry } from '#/shared/repository/useRecord';
-import { TENANT_SETTINGS_RECORD } from '#/shared/services/tenantSettings';
+import { TENANT_SETTINGS_RECORD } from '#/entities/tenant';
 
 // What a session ending mid-edit would keep in the browser, as text.
 export function draftsKept(owner: string): { sections: number; stored: string } {

@@ -10,7 +10,7 @@ import {
 } from '#/features/flow/services/otp';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { writeRefusal } from '#/shared/services/capabilities';
-import { TENANT_SETTINGS_RECORD } from '#/shared/services/tenantSettings';
+import { TENANT_SETTINGS_RECORD } from '#/entities/tenant';
 
 export interface OtpRequirement {
   save: SectionSave<OtpValues>;

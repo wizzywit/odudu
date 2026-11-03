@@ -10,8 +10,7 @@ import {
   type SectionSave,
 } from '#/shared/repository/useSectionSave';
 import { writeRefusal } from '#/shared/services/capabilities';
-import { disableConsequence } from '#/shared/services/tenantEnabled';
-import { TENANT_SETTINGS_RECORD } from '#/shared/services/tenantSettings';
+import { disableConsequence, TENANT_SETTINGS_RECORD } from '#/entities/tenant';
 import { useSaveConfirmation } from '#/shared/use-cases/useSaveConfirmation';
 
 export type SettingsSave = SectionSave<SectionValues>;

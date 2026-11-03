@@ -11,7 +11,7 @@ import { tenantRecord } from '#/features/tenants/services/tenantRecordTabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';
 import { enabledText } from '#/shared/services/failure';
-import { disableConsequence, disableFixed } from '#/shared/services/tenantEnabled';
+import { disableConsequence, disableFixed } from '#/entities/tenant';
 import { SYSTEM_TENANT } from '#/shared/services/principal';
 import { orBlank } from '#/shared/services/format';
 

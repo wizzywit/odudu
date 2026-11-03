@@ -2,7 +2,6 @@ import { LOCALISED_TEXT_ENTRIES_MAX } from '@odudu/contracts';
 import { MAIL_PREVIEW_LOCALES, type AmendSettingsRequest } from '@odudu/contracts/admin';
 import { languageChoices, localeProblem } from '#/shared/services/locales';
 import { uniqueIds } from '#/shared/services/ids';
-import { offeredLocales } from '#/shared/services/offeredLocales';
 import type { Choice } from '#/shared/services/choice';
 import type { SectionFields } from '#/shared/services/sectionSave';
 
@@ -51,11 +50,15 @@ export interface LanguageSettings {
   default_locale: string | null;
 }
 
-// The two settings out of the whole record, which the contract types loosely.
-export function languageSettingsOf(settings: Readonly<Record<string, unknown>>): LanguageSettings {
+// The two settings out of the whole record, which the contract types loosely;
+// `supported` is the languages the tenant offers, read by the tenant entity.
+export function languageSettingsOf(
+  settings: Readonly<Record<string, unknown>>,
+  supported: readonly string[],
+): LanguageSettings {
   const fallback = settings.default_locale;
   return {
-    supported_locales: offeredLocales(settings),
+    supported_locales: supported,
     default_locale: typeof fallback === 'string' && fallback !== '' ? fallback : null,
   };
 }

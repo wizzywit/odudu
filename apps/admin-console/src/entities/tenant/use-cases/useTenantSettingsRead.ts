@@ -1,6 +1,6 @@
 import type { Settings } from '@odudu/contracts/admin';
 import type { RecordState } from '#/shared/repository/useRecord';
-import { useTenantSettings } from '#/shared/repository/useTenantSettings';
+import { useTenantSettings } from '#/entities/tenant/repository/useTenantSettings';
 
 // The tenant's settings record for a page that shows or edits one of them.
 // `recent` keeps a read another part of the page started a moment before.

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { disableConsequence, disableFixed } from '#/shared/services/tenantEnabled';
+import { disableConsequence, disableFixed } from '#/entities/tenant/services/tenantEnabled';
 
 it('says why the system tenant cannot be switched off, and nothing for another', () => {
   expect(disableFixed('system')).toMatch(/^system cannot be disabled/u);

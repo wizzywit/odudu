@@ -20,12 +20,11 @@ import {
   type SettingsSave,
 } from '#/features/settings/use-cases/useSettingsSection';
 import { numberKept } from '#/shared/services/numbers';
-import { disableFixed } from '#/shared/services/tenantEnabled';
+import { disableFixed, useTenantSettingsRead } from '#/entities/tenant';
 import { Button } from '#/shared/ui/Button';
 import { ChecklistField } from '#/shared/ui/ChecklistField';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
 import { NumberWithUnitField, SelectField, TextField, ToggleField } from '#/shared/ui/Field';
-import { useTenantSettingsRead } from '#/shared/use-cases/useTenantSettingsRead';
 import { FieldGrid, GridCell } from '#/shared/ui/FieldGrid';
 import { PageHeader } from '#/shared/ui/PageHeader';
 import { Note } from '#/shared/ui/Note';

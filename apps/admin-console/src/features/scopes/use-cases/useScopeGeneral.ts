@@ -45,7 +45,7 @@ import { deletedText } from '#/shared/services/failure';
 import { DESCRIPTION_RULE } from '#/shared/services/labels';
 import { describeTranslations } from '#/shared/services/localised';
 import type { Read } from '#/shared/services/read';
-import { useOfferedLocales } from '#/shared/use-cases/useOfferedLocales';
+import { useOfferedLocales } from '#/entities/tenant';
 import type { Choice } from '#/shared/services/choice';
 import type { AdminCapability } from '#/shared/services/principal';
 import { orBlank } from '#/shared/services/format';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { offeredLocales } from '#/shared/services/offeredLocales';
+import { offeredLocales } from '#/entities/tenant/services/offeredLocales';
 
 describe('the languages a tenant offers', () => {
   it('reads supported_locales out of the settings record', () => {

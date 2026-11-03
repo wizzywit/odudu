@@ -4,7 +4,7 @@ import { overviewKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { readDiscovery } from '#/shared/adapter/discovery';
 import { readSmtp } from '#/shared/adapter/smtp';
-import { readTenantSettings } from '#/shared/adapter/tenantSettings';
+import { readTenantSettings } from '#/entities/tenant';
 import {
   overviewOutcome,
   type Collection,

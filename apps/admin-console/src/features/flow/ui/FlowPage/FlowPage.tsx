@@ -27,7 +27,7 @@ import {
   type OtpRequirement,
 } from '#/features/flow/use-cases/useOtpRequirement';
 import { useFlowRead } from '#/features/flow/use-cases/useFlowPage';
-import { useTenantSettingsRead } from '#/shared/use-cases/useTenantSettingsRead';
+import { useTenantSettingsRead } from '#/entities/tenant';
 import { Button } from '#/shared/ui/Button';
 import { InlineFields, SelectField, ToggleField } from '#/shared/ui/Field';
 import { PageHeader } from '#/shared/ui/PageHeader';

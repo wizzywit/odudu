@@ -1,7 +1,7 @@
 import type { Settings } from '@odudu/contracts/admin';
-import { readTenantSettings } from '#/shared/adapter/tenantSettings';
+import { readTenantSettings } from '#/entities/tenant/adapter/tenantSettings';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord';
-import { TENANT_SETTINGS_RECORD } from '#/shared/services/tenantSettings';
+import { TENANT_SETTINGS_RECORD } from '#/entities/tenant/services/tenantSettings';
 
 export function useTenantSettings(
   tenant: string,

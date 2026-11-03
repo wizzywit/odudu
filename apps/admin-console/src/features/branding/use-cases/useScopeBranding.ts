@@ -13,7 +13,7 @@ import { tabsWithEdits, type OfferedTab } from '#/features/branding/services/tab
 import { usePreview, type Preview } from '#/features/branding/use-cases/usePreview';
 import { useDirtySections } from '#/shared/repository/useDirtySections';
 import type { RecordState } from '#/shared/repository/useRecord';
-import { TENANT_SETTINGS_RECORD } from '#/shared/services/tenantSettings';
+import { TENANT_SETTINGS_RECORD } from '#/entities/tenant';
 
 export interface ScopeBranding {
   record: RecordState<ThemeView>;

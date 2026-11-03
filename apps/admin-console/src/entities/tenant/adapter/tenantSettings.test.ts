@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
-import settings from '#/shared/adapter/fixtures/settings.json';
-import { readTenantSettings } from '#/shared/adapter/tenantSettings';
+import settings from '#/entities/tenant/adapter/fixtures/settings.json';
+import { readTenantSettings } from '#/entities/tenant/adapter/tenantSettings';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 
 it('reads the settings of a tenant as the one record the server keeps', async () => {

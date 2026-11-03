@@ -49,7 +49,7 @@ import type { Read } from '#/shared/services/read';
 import { useToast } from '#/shared/repository/useToasts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { writeRefusal } from '#/shared/services/capabilities';
-import { TENANT_SETTINGS_RECORD } from '#/shared/services/tenantSettings';
+import { offeredLocales, TENANT_SETTINGS_RECORD } from '#/entities/tenant';
 import { useAnnouncedAction } from '#/shared/use-cases/useAnnouncedAction';
 
 export interface LanguagesInput {
@@ -87,7 +87,7 @@ export function useLanguagesSection({
     gone,
     refusal,
     explain: writeRefusal,
-    fields: languageFields(languagesOf(languageSettingsOf(data))),
+    fields: languageFields(languagesOf(languageSettingsOf(data, offeredLocales(data)))),
     save: languagesSave(tenant),
   });
   const [adding, setAdding] = useState('');
@@ -150,7 +150,7 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
   const refusal = useRefusal(tenant);
   const toast = useToast();
   const [picked, setPicked] = useState<string | null>(null);
-  const languages = languageSettingsOf(data);
+  const languages = languageSettingsOf(data, offeredLocales(data));
   const locale = shownLocale(picked, languages.supported_locales, openingLocale(languages));
   const list = useOverrideList(tenant, locale);
   const keys = useMessageKeys(tenant, null);

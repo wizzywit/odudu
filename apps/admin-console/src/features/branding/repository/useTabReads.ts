@@ -3,7 +3,7 @@ import { useStylesheetHooks } from '#/features/branding/repository/useStylesheet
 import { useThemeVersions } from '#/features/branding/repository/useThemeVersions';
 import type { ThemeScope } from '#/features/branding/services/scope';
 import type { TabReads } from '#/features/branding/services/tabs';
-import { useTenantSettings } from '#/shared/repository/useTenantSettings';
+import { useTenantSettings } from '#/entities/tenant';
 
 // Starts the reads a tab will show without waiting for the theme: they share
 // their keys with the tab's own hooks, which then find them under way.

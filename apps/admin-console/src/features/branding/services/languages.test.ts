@@ -31,10 +31,12 @@ describe('the shipped languages', () => {
 
 describe('the settings as languages', () => {
   it('read the two settings out of the whole record, whatever else is in it', () => {
-    expect(
-      languageSettingsOf({ supported_locales: ['en', 3, 'ar'], default_locale: null, other: 1 }),
-    ).toEqual({ supported_locales: ['en', 'ar'], default_locale: null });
-    expect(languageSettingsOf({})).toEqual({ supported_locales: [], default_locale: null });
+    const settings = { supported_locales: ['en', 3, 'ar'], default_locale: null, other: 1 };
+    expect(languageSettingsOf(settings, ['en', 'ar'])).toEqual({
+      supported_locales: ['en', 'ar'],
+      default_locale: null,
+    });
+    expect(languageSettingsOf({}, [])).toEqual({ supported_locales: [], default_locale: null });
   });
 
   it('show no default as an empty choice', () => {
