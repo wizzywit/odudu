@@ -7,14 +7,16 @@ import {
 } from '#/features/clients/repository/useServiceAccount';
 import {
   accountIdleNote,
-  heldCapabilitiesText,
-  roleUnavailable,
   serviceAccess,
   serviceRolesRecord,
   SERVICE_CAPABILITY,
-  splitAssigned,
   type ServiceAccess,
-} from '#/features/clients/services/account';
+} from '#/features/clients/services/serviceAccess';
+import {
+  heldCapabilitiesText,
+  roleUnavailable,
+  splitAssigned,
+} from '#/features/clients/services/serviceRoles';
 import { canChange, type Reach } from '#/features/clients/services/ceiling';
 import { ceilingRefused } from '#/features/clients/services/refusal';
 import { SERVICE_SECTION } from '#/features/clients/services/tabs';

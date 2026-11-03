@@ -1,10 +1,6 @@
 import type { Client, SetRolesResponse } from '@odudu/contracts/admin';
-import {
-  NO_ROLES,
-  assignedCount,
-  SERVICE_CAPABILITY,
-  SERVICE_RULE,
-} from '#/features/clients/services/account';
+import { NO_ROLES, assignedCount } from '#/features/clients/services/serviceRoles';
+import { SERVICE_CAPABILITY, SERVICE_RULE } from '#/features/clients/services/serviceAccess';
 import { type Reach } from '#/features/clients/services/ceiling';
 import { roleOwnerLine } from '#/features/clients/services/roles';
 import {

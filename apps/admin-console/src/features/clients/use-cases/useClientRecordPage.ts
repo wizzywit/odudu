@@ -2,7 +2,7 @@ import type { ClientRecord } from '@odudu/contracts/admin';
 import { clientScope, useScopeEdits } from '#/features/branding';
 import { useAuthority } from '#/entities/session';
 import { useClientRecord } from '#/features/clients/repository/useClientRecord';
-import { serviceRolesRecordOf } from '#/features/clients/services/account';
+import { serviceRolesRecordOf } from '#/features/clients/services/serviceAccess';
 import { brandingOffer, type BrandingOffer } from '#/features/clients/services/branding';
 import { canChange, clientReach, reachLine, type Reach } from '#/features/clients/services/ceiling';
 import {
