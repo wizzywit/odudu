@@ -1,6 +1,5 @@
 import Head from '@docusaurus/Head';
 import type { ReactElement } from 'react';
-import { CAPABILITIES } from '@site/src/features/landing/services/capabilityCards';
 import { useLandingPage } from '@site/src/features/landing/use-cases/useLandingPage';
 import { Agents } from '@site/src/features/landing/ui/Agents/Agents';
 import { Branding } from '@site/src/features/landing/ui/Branding/Branding';
@@ -19,7 +18,19 @@ import styles from '@site/src/features/landing/ui/LandingPage/LandingPage.module
 
 // The home page's content, under the site's own header and footer.
 export function LandingPage(): ReactElement {
-  const { mark, jsonLd } = useLandingPage();
+  const {
+    mark,
+    jsonLd,
+    capabilities,
+    steps,
+    readers,
+    examples,
+    agents,
+    branding,
+    markdown,
+    where,
+    pageShots,
+  } = useLandingPage();
   return (
     <>
       <Head>
@@ -55,16 +66,16 @@ export function LandingPage(): ReactElement {
           title="A complete sign-in service, built and shown working"
           section="capabilities"
         >
-          <CardList cards={CAPABILITIES} columns={4} />
+          <CardList cards={capabilities} columns={4} />
         </Section>
-        <Pages />
-        <Branding />
-        <Steps />
-        <Ways />
-        <Agents />
+        <Pages pageShots={pageShots} />
+        <Branding branding={branding} />
+        <Steps steps={steps} />
+        <Ways readers={readers} examples={examples} />
+        <Agents agents={agents} />
         <Compare />
-        <Where />
-        <Browse />
+        <Where where={where} />
+        <Browse markdown={markdown} />
       </main>
     </>
   );

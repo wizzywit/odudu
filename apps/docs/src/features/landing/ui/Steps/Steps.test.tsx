@@ -6,7 +6,7 @@ import { PAGES_DOCS_BASE } from '@site/site.config';
 
 describe('Steps', () => {
   it('names the three steps in order and links the quick start', () => {
-    const $ = markupOf(<Steps />);
+    const $ = markupOf(<Steps steps={STEPS} />);
     expect($('h2').text()).toBe('From docker compose up to your first sign-in');
     expect(
       $('ol li h3')

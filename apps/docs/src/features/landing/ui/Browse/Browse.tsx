@@ -1,12 +1,16 @@
 import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import type { ReactElement } from 'react';
 import { JOURNEYS, SECTIONS } from '@site/nav';
-import { MARKDOWN_LINE } from '@site/src/features/landing/services/capabilityCards';
+import type { LandingPage } from '@site/src/features/landing/use-cases/useLandingPage';
 import { useAssetUrls } from '@site/src/features/landing/use-cases/useAssetUrls';
 import { Section } from '@site/src/features/landing/ui/Section/Section';
 import styles from '@site/src/features/landing/ui/Browse/Browse.module.css';
 
-export function Browse(): ReactElement {
+interface Props {
+  markdown: LandingPage['markdown'];
+}
+
+export function Browse({ markdown }: Props): ReactElement {
   const { llms } = useAssetUrls();
   return (
     <Section
@@ -52,9 +56,9 @@ export function Browse(): ReactElement {
             </ol>
           </div>
           <p className={styles.cardBody} data-markdown="" data-reveal="">
-            {MARKDOWN_LINE.before}
-            <a href={llms}>{MARKDOWN_LINE.link}</a>
-            {MARKDOWN_LINE.after}
+            {markdown.before}
+            <a href={llms}>{markdown.link}</a>
+            {markdown.after}
           </p>
         </div>
       </div>

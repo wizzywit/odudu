@@ -1,15 +1,15 @@
 import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import type { ReactElement } from 'react';
-import {
-  AGENT_ITEMS,
-  PLANNED_LABEL,
-  ROADMAP_NEXT,
-} from '@site/src/features/landing/services/plannedClaims';
+import type { LandingPage } from '@site/src/features/landing/use-cases/useLandingPage';
 import { Chip } from '@site/src/features/landing/ui/Chip/Chip';
 import { Section } from '@site/src/features/landing/ui/Section/Section';
 import styles from '@site/src/features/landing/ui/Agents/Agents.module.css';
 
-export function Agents(): ReactElement {
+interface Props {
+  agents: LandingPage['agents'];
+}
+
+export function Agents({ agents }: Props): ReactElement {
   return (
     <Section
       id="home-agents"
@@ -19,15 +19,15 @@ export function Agents(): ReactElement {
       tone="sunken"
     >
       <div className={styles.cards}>
-        {AGENT_ITEMS.map((item) => (
+        {agents.items.map((item) => (
           <div key={item.id} className={styles.pane} data-reveal="" data-planned={item.id}>
             <h3 className={styles.title}>
               {item.title}
-              <Chip>{PLANNED_LABEL}</Chip>
+              <Chip>{agents.plannedLabel}</Chip>
             </h3>
             <p className={styles.body}>{item.claim}</p>
             <p className={styles.link}>
-              <DocsLink to={ROADMAP_NEXT}>On the roadmap</DocsLink>
+              <DocsLink to={agents.roadmapPath}>On the roadmap</DocsLink>
             </p>
           </div>
         ))}

@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { shotsOfSize } from '@site/src/features/landing/services/pageShot';
 import { PAGES_BASE } from '@site/site.config';
 import { PAGE_SHOTS } from '@site/src/features/landing/services/serverPageCards';
 import { PageShots } from '@site/src/features/landing/ui/PageShots/PageShots';
 import { markupOf } from '@site/tests/support/markup';
 
+const PROPS = { pageShots: { large: shotsOfSize('large'), small: shotsOfSize('small') } };
+
 describe('PageShots', () => {
   it('shows the four pages, each in a light and a dark capture', () => {
-    const $ = markupOf(<PageShots />);
+    const $ = markupOf(<PageShots {...PROPS} />);
     expect(PAGE_SHOTS.map((shot) => shot.name)).toEqual([
       'sign-in',
       'create-account',
@@ -26,7 +29,7 @@ describe('PageShots', () => {
   });
 
   it('puts the sign-in and create-account pages large, the other two small', () => {
-    const $ = markupOf(<PageShots />);
+    const $ = markupOf(<PageShots {...PROPS} />);
     const named = (row: string): string[] =>
       $(`[data-row="${row}"] figcaption [data-caption]`)
         .map((_, caption) => $(caption).text())
@@ -38,7 +41,7 @@ describe('PageShots', () => {
   });
 
   it('says in a sentence what each small page is for', () => {
-    const $ = markupOf(<PageShots />);
+    const $ = markupOf(<PageShots {...PROPS} />);
     const notes = $('[data-row="small"] [data-note]')
       .map((_, note) => $(note).text())
       .get();
@@ -49,7 +52,7 @@ describe('PageShots', () => {
   });
 
   it('sizes every picture, describes it and fetches it lazily', () => {
-    const $ = markupOf(<PageShots />);
+    const $ = markupOf(<PageShots {...PROPS} />);
     $('img').each((_, element) => {
       const image = $(element);
       expect(image.attr('width'), image.attr('src')).toBeDefined();
@@ -60,7 +63,7 @@ describe('PageShots', () => {
   });
 
   it('captions each page with its name', () => {
-    const $ = markupOf(<PageShots />);
+    const $ = markupOf(<PageShots {...PROPS} />);
     expect(
       $('[data-caption]')
         .map((_, caption) => $(caption).text())

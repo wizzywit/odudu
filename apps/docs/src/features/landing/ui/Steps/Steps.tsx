@@ -1,10 +1,14 @@
 import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import type { ReactElement } from 'react';
-import { STEPS } from '@site/src/features/landing/services/startSteps';
+import type { LandingPage } from '@site/src/features/landing/use-cases/useLandingPage';
 import { Section } from '@site/src/features/landing/ui/Section/Section';
 import styles from '@site/src/features/landing/ui/Steps/Steps.module.css';
 
-export function Steps(): ReactElement {
+interface Props {
+  steps: LandingPage['steps'];
+}
+
+export function Steps({ steps }: Props): ReactElement {
   return (
     <Section
       id="home-steps"
@@ -13,7 +17,7 @@ export function Steps(): ReactElement {
       tone="sunken"
     >
       <ol className={styles.steps}>
-        {STEPS.map((step) => (
+        {steps.map((step) => (
           <li key={step.title} className={styles.step} data-reveal="">
             <h3 className={styles.cardTitle}>{step.title}</h3>
             <p className={styles.cardBody}>{step.body}</p>

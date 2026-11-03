@@ -4,9 +4,11 @@ import { BRANDING } from '@site/src/features/landing/services/brandingClaim';
 import { Branding } from '@site/src/features/landing/ui/Branding/Branding';
 import { markupOf } from '@site/tests/support/markup';
 
+const PROPS = { branding: BRANDING };
+
 describe('Branding', () => {
   it('is a band of its own, with its text beside one framed picture', () => {
-    const $ = markupOf(<Branding />);
+    const $ = markupOf(<Branding {...PROPS} />);
     const band = $('section[data-section="branding"]');
     expect(band).toHaveLength(1);
     expect(band.find('h2').text()).toBe(BRANDING.title);
@@ -16,7 +18,7 @@ describe('Branding', () => {
   });
 
   it('is shipped, not planned: no chip, no roadmap link, no phase name', () => {
-    const $ = markupOf(<Branding />);
+    const $ = markupOf(<Branding {...PROPS} />);
     const band = $('section[data-section="branding"]');
     expect(band.find('[data-chip]')).toHaveLength(0);
     expect(band.find('[data-planned], [data-today]')).toHaveLength(0);
@@ -26,14 +28,14 @@ describe('Branding', () => {
   });
 
   it('links the branding guide in the console pages', () => {
-    const $ = markupOf(<Branding />);
+    const $ = markupOf(<Branding {...PROPS} />);
     expect($('section[data-section="branding"] a').attr('href')).toBe(
       `${PAGES_DOCS_BASE}admin-console/branding/`,
     );
   });
 
   it('swaps two looks of the same page with a labelled control that needs no script', () => {
-    const $ = markupOf(<Branding />);
+    const $ = markupOf(<Branding {...PROPS} />);
     const group = $('fieldset');
     expect(group).toHaveLength(1);
     expect(group.find('legend').text()).toBe(BRANDING.legend);
@@ -57,14 +59,14 @@ describe('Branding', () => {
   });
 
   it('says the pictures once: in the legend, with a short caption', () => {
-    const $ = markupOf(<Branding />);
+    const $ = markupOf(<Branding {...PROPS} />);
     expect($('legend').text()).toBe(BRANDING.legend);
     expect($('legend').text()).not.toMatch(/planned|illustration/iu);
     expect($('figcaption').text()).toBe(BRANDING.caption);
   });
 
   it('shows two real looks with alt text', () => {
-    const $ = markupOf(<Branding />);
+    const $ = markupOf(<Branding {...PROPS} />);
     const alts = $('img')
       .map((_, image) => $(image).attr('alt') ?? '')
       .get();

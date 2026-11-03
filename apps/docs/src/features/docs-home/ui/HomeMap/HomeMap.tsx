@@ -1,6 +1,6 @@
 import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import { JOURNEYS } from '@site/nav';
-import { homeMapSections } from '@site/src/features/docs-home/services/homeMap';
+import type { HomeMapSections } from '@site/src/features/docs-home/services/homeMap';
 import type { ReactNode } from 'react';
 import { classNames } from '@site/src/shared/services/classNames';
 import styles from '@site/src/features/docs-home/ui/HomeMap/HomeMap.module.css';
@@ -8,8 +8,11 @@ import styles from '@site/src/features/docs-home/ui/HomeMap/HomeMap.module.css';
 const LOOKS = { primary: styles.primary, plain: undefined };
 
 // Where to begin, then the journeys in the order to read them, then the rest.
-export function HomeMap(): ReactNode {
-  const { start, guides, deeper } = homeMapSections();
+interface Props {
+  sections: HomeMapSections;
+}
+
+export function HomeMap({ sections: { start, guides, deeper } }: Props): ReactNode {
   return (
     <div className={styles.map}>
       <section aria-labelledby="home-start">

@@ -95,14 +95,27 @@ export const EXAMPLES: Card[] = [
   },
 ];
 
-export const WORDPRESS = {
+export interface WordpressLine {
+  lead: string;
+  link: string;
+  end: string;
+  to: string;
+}
+
+export const WORDPRESS: WordpressLine = {
   lead: 'Also a hand-tested guide: ',
   link: 'sign in to WordPress',
   end: '.',
   to: '/guides/wordpress/',
 };
 
-export const MARKDOWN_LINE = {
+export interface MarkdownLine {
+  before: string;
+  link: string;
+  after: string;
+}
+
+export const MARKDOWN_LINE: MarkdownLine = {
   before: 'Every page also comes as Markdown, and ',
   link: 'llms.txt',
   after: ' lists them.',

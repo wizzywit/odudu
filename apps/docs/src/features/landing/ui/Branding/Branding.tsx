@@ -1,6 +1,6 @@
 import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import type { ReactElement } from 'react';
-import { BRANDING } from '@site/src/features/landing/services/brandingClaim';
+import type { LandingPage } from '@site/src/features/landing/use-cases/useLandingPage';
 import { useBrandingPictures } from '@site/src/features/landing/use-cases/useBrandingPictures';
 import { Frame } from '@site/src/features/landing/ui/Frame/Frame';
 import { Section } from '@site/src/features/landing/ui/Section/Section';
@@ -9,7 +9,11 @@ import styles from '@site/src/features/landing/ui/Branding/Branding.module.css';
 const LOOKS = { odudu: styles.odudu, other: styles.other };
 const SCHEMES = { light: styles.light, dark: styles.dark };
 
-export function Branding(): ReactElement {
+interface Props {
+  branding: LandingPage['branding'];
+}
+
+export function Branding({ branding }: Props): ReactElement {
   const pictures = useBrandingPictures();
   const picture = (
     <figure className={styles.figure}>
@@ -26,23 +30,23 @@ export function Branding(): ReactElement {
           />
         ))}
       </Frame>
-      <figcaption className={styles.caption}>{BRANDING.caption}</figcaption>
+      <figcaption className={styles.caption}>{branding.caption}</figcaption>
     </figure>
   );
   return (
     <Section
       id="home-branding"
       kicker="Make it yours"
-      title={BRANDING.title}
+      title={branding.title}
       section="branding"
       tone="sunken"
       aside={picture}
     >
       <p className={styles.body}>
-        {BRANDING.claim} <DocsLink to={BRANDING.guide.path}>{BRANDING.guide.label}</DocsLink>
+        {branding.claim} <DocsLink to={branding.guide.path}>{branding.guide.label}</DocsLink>
       </p>
       <fieldset className={styles.looks}>
-        <legend className={styles.legend}>{BRANDING.legend}</legend>
+        <legend className={styles.legend}>{branding.legend}</legend>
         <label className={styles.look}>
           <input
             className={styles.pickOdudu}

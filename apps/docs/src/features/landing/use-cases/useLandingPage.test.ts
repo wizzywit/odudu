@@ -10,9 +10,35 @@ describe('useLandingPage', () => {
     expect(page.jsonLd).not.toContain('<');
   });
 
-  it('carries the motion, the mark the stylesheet reads and the description, and no more', () => {
+  it('carries the page state, then one group of content per section', () => {
     const page = resultOf(useLandingPage);
-    expect(Object.keys(page).sort()).toEqual(['jsonLd', 'mark', 'motion']);
+    expect(Object.keys(page).sort()).toEqual([
+      'agents',
+      'branding',
+      'capabilities',
+      'examples',
+      'jsonLd',
+      'mark',
+      'markdown',
+      'motion',
+      'pageShots',
+      'readers',
+      'steps',
+      'where',
+    ]);
     expect(page.mark).toBeUndefined();
+  });
+
+  it('hands each section the text it shows', () => {
+    const page = resultOf(useLandingPage);
+    expect(page.capabilities).toHaveLength(8);
+    expect(page.steps).toHaveLength(3);
+    expect(page.readers).toHaveLength(4);
+    expect(page.examples.cards).toHaveLength(4);
+    expect(page.agents.items.map((item) => item.id)).toEqual(['mcp-server', 'agent-identity']);
+    expect(page.agents.plannedLabel).toBe('Planned');
+    expect(page.branding.id).toBe('branding');
+    expect(page.pageShots.large.map((shot) => shot.name)).toEqual(['sign-in', 'create-account']);
+    expect(page.pageShots.small).toHaveLength(2);
   });
 });

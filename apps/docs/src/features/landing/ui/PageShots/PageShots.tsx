@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
-import { type PageShotCard } from '@site/src/features/landing/services/serverPageCards';
-import { shotsOfSize } from '@site/src/features/landing/services/pageShot';
+import type { PageShotCard } from '@site/src/features/landing/services/serverPageCards';
+import type { LandingPage } from '@site/src/features/landing/use-cases/useLandingPage';
 import { usePageShot } from '@site/src/features/landing/use-cases/usePageShot';
 import { Frame } from '@site/src/features/landing/ui/Frame/Frame';
 import styles from '@site/src/features/landing/ui/PageShots/PageShots.module.css';
@@ -43,21 +43,25 @@ function Shot({ name, caption, alt, size: kind, note }: PageShotCard): ReactElem
 
 const ROWS = { large: styles.large, small: styles.small };
 
-function Row({ kind }: { kind: PageShotCard['size'] }): ReactElement {
+function Row({ kind, shots }: { kind: PageShotCard['size']; shots: PageShotCard[] }): ReactElement {
   return (
     <div className={[styles.row, ROWS[kind]].join(' ')} data-row={kind}>
-      {shotsOfSize(kind).map((shot) => (
+      {shots.map((shot) => (
         <Shot key={shot.name} {...shot} />
       ))}
     </div>
   );
 }
 
-export function PageShots(): ReactElement {
+interface Props {
+  pageShots: LandingPage['pageShots'];
+}
+
+export function PageShots({ pageShots }: Props): ReactElement {
   return (
     <div className={styles.strip} data-strip="">
-      <Row kind="large" />
-      <Row kind="small" />
+      <Row kind="large" shots={pageShots.large} />
+      <Row kind="small" shots={pageShots.small} />
     </div>
   );
 }

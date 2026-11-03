@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
+import { PLANNED_LABEL, ROADMAP_NEXT } from '@site/src/features/landing/services/plannedClaims';
 import { PAGES_DOCS_BASE } from '@site/site.config';
 import { AGENT_ITEMS } from '@site/src/features/landing/services/plannedClaims';
 import { Agents } from '@site/src/features/landing/ui/Agents/Agents';
 import { markupOf } from '@site/tests/support/markup';
 
+const PROPS = {
+  agents: { items: AGENT_ITEMS, plannedLabel: PLANNED_LABEL, roadmapPath: ROADMAP_NEXT },
+};
+
 describe('Agents', () => {
   it('holds only what is planned: two items and nothing that already works', () => {
-    const $ = markupOf(<Agents />);
+    const $ = markupOf(<Agents {...PROPS} />);
     expect($('[data-planned]')).toHaveLength(2);
     expect($('[data-shipped]')).toHaveLength(0);
     expect($('a[href$="llms.txt"]')).toHaveLength(0);
@@ -14,7 +19,7 @@ describe('Agents', () => {
   });
 
   it('labels each planned item Planned and links it to the roadmap', () => {
-    const $ = markupOf(<Agents />);
+    const $ = markupOf(<Agents {...PROPS} />);
     const planned = $('[data-planned]');
     expect(planned).toHaveLength(AGENT_ITEMS.length);
     planned.each((_, element) => {
@@ -28,12 +33,12 @@ describe('Agents', () => {
   });
 
   it('heads the band as what is planned', () => {
-    const $ = markupOf(<Agents />);
+    const $ = markupOf(<Agents {...PROPS} />);
     expect($('h2').text()).toMatch(/planned/iu);
   });
 
   it('names no phase, no date and no "coming soon"', () => {
-    const $ = markupOf(<Agents />);
+    const $ = markupOf(<Agents {...PROPS} />);
     expect($.text()).not.toMatch(/\bP\d+[a-z]?\b|coming soon|\b20\d\d\b|\bsoon\b/iu);
   });
 });

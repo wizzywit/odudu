@@ -1,13 +1,17 @@
 import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import type { ReactElement } from 'react';
 import { REPOSITORY_URL } from '@site/nav';
-import { LICENSING_URL_PATH } from '@site/src/features/landing/services/capabilityCards';
+import type { LandingPage } from '@site/src/features/landing/use-cases/useLandingPage';
 import { useAssetUrls } from '@site/src/features/landing/use-cases/useAssetUrls';
 import { Chip } from '@site/src/features/landing/ui/Chip/Chip';
 import { Section } from '@site/src/features/landing/ui/Section/Section';
 import styles from '@site/src/features/landing/ui/Where/Where.module.css';
 
-export function Where(): ReactElement {
+interface Props {
+  where: LandingPage['where'];
+}
+
+export function Where({ where }: Props): ReactElement {
   const { sansLicence, monoLicence } = useAssetUrls();
   return (
     <Section id="home-where" kicker="Where it runs" title="Self-hosted today, hosted in the works">
@@ -35,7 +39,7 @@ export function Where(): ReactElement {
         Free software: the server, the console and the command-line tool are AGPL-3.0, and the
         documentation text and the examples are Apache-2.0. An app that only talks to Odudu over
         OpenID Connect or the admin API is not a derivative work of it.{' '}
-        <a href={`${REPOSITORY_URL}${LICENSING_URL_PATH}`}>How the licences fit together</a>. The
+        <a href={`${REPOSITORY_URL}${where.licensingPath}`}>How the licences fit together</a>. The
         fonts are IBM Plex Sans and Mono under the SIL Open Font License 1.1 (
         <a href={sansLicence}>Sans</a>, <a href={monoLicence}>Mono</a>)
       </p>
