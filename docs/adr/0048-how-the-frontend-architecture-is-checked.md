@@ -109,8 +109,8 @@ boundaries`): the segment boundaries, which layer may import which, and the
   commit that shows it. A slice listed in `migrated.ts` may not breach any
   rule at all and has no inventory entry. The rules are `no-service-barrel`,
   `no-domain-in-shared`, `no-sideways-slice`, `view-no-service` and
-  `no-adapter-export`; `contracts-only-in-adapter` is added when the first
-  contract is moved.
+  `no-adapter-export`. A sixth, `contracts-only-in-adapter`, was planned for
+  the first contract moved and was never built (see Consequences).
 
 ## Consequences
 
@@ -172,3 +172,34 @@ boundaries`): the segment boundaries, which layer may import which, and the
   (131 in 106 files) but needs the alias, and cannot read the inventory or
   the segment-content rules; kept as the first thing to try if the alias is
   ever made resolvable.
+
+## Amendment, 2026-11-03: an entity carries use-cases
+
+The design spec (D10) gave an entity `types`, `adapter`, `repository` and
+`services` and at most presentational `ui`, and a feature the `use-cases`. Three
+entities carry use-cases anyway, `session`, `tenant` and `creation-draft`, and
+the rule is amended to say so rather than leave them as exceptions.
+
+An entity's reads and rules reach the slices above as hooks. The session gate,
+the shell and 24 area slices read the session; the tenant settings are read by
+every tenant-scoped page. A hook belongs in a `use-cases` segment, an entity
+cannot import a feature, and a feature that held the entity's hook would be
+imported by the entity's own use-cases. So an entity's use-cases expose its
+reads and its rules to the slices above, never an orchestration of a journey
+(that stays in the page or feature), and its `index.ts` still exports only `ui`,
+`use-cases` and `services`. A wire call is exposed through a thin re-export in a
+use-case file (`tenantSettingsCalls`, `subjectCalls`), since a use case may not
+import an adapter and an index may not export one. `entities/area` and
+`entities/administrator` publish services and types only, and
+`console-service-entity-index-type-only` lets a service import any other entity
+index for types alone, so a rule an entity owns reaches a service as an
+argument.
+
+The check `console-lower-layers-import-no-upper` holds the layers below
+`features` out of the layers above, and `console-features-import-no-page` and
+`console-features-import-no-widget` close the gap that sideways-slice leaves.
+
+`contracts-only-in-adapter` was not built, and the spec's aim that a contracts
+type appear only in an adapter holds for the entities and not for the pages:
+145 non-test files above the adapters import `@odudu/contracts`. It is a
+decision still open in `docs/NEXT.md`.

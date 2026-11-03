@@ -51,3 +51,29 @@ So, in a console:
 - **An adapter** maps the wire and nothing more.
 
 `tests/lint/console-usecase-integration-only.test.ts` holds the usecase and repository layers to this. It fails the build on the constructs that are logic in every case. The file name is fixed here and the checks are chosen by the audit that produced this amendment. A construct the test cannot see is still a breach.
+
+## Amendment, 2026-11-03: the consoles name the layers by segment and place them in slices
+
+P4k ([the phase note](../phases/p4k.md)) brought both consoles to the shape this
+decision describes and made the shape checkable. The five layers and their
+import rules are unchanged; what changed is where they live.
+
+- **Segments.** In a console the layers are folders named `ui`, `use-cases`,
+  `repository`, `adapter` and `services`, with `types` for a slice's
+  declarations. The server's packages keep `view`, `usecase` and `service`: the
+  rename was a console decision and no server rule reads it.
+- **Slices in layers.** "Each feature exposes a single `index.ts`" generalises: a
+  console's code is in slices (`pages`, `widgets`, `features`, `entities`),
+  `app` and `shared`, a slice imports only from a layer below it and only
+  through that slice's `index.ts`, and the five layers sit inside each slice.
+  `shared` is `ui`, `api` and `lib` and holds no business knowledge. ADR 0048
+  has the checks and the one closed list of platform words that stay in `shared`.
+- **A view reaches a service through a use case.** The earlier text let a view
+  read its own model; 143 views imported a service directly and each is now
+  routed through a use case. A file in `shared/ui` may import
+  `shared/lib/services`, the pure helpers the design system formats with.
+- **Where a shared rule lives.** The earlier text put a decision two features
+  share in `shared/service`. It now lives once in the entity that owns the
+  concept, or in `shared/lib/services` when it names no domain concept; where
+  two copies of a rule disagreed the variant stayed as a named option of the one
+  owner, and the disagreements are listed in the phase note.

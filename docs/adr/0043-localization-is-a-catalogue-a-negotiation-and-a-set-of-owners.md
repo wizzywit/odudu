@@ -201,7 +201,7 @@ as `client_name#fr` (OpenID Connect Registration §2.1; RFC 7591 §2.2).
 written as an entry in one flat record keyed by a stable ID, and read from
 it.** In the server that is a `messages.ts` beside the renderer; in the console,
 the wording constants `service` already holds. Wording with a count keeps the
-existing `counted()` and `plural()` (`apps/admin-console/src/shared/service/format.ts`),
+existing `counted()` and `plural()` (`apps/admin-console/src/shared/lib/services/format.ts`),
 the two calls extraction replaces, rather than inventing a third shape. A
 string built inline in markup or a hook, with no record, is what a later
 extraction cannot find mechanically.

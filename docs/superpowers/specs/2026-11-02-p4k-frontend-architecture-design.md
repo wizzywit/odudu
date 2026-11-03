@@ -203,6 +203,8 @@ rules specific to the action. A repository sits in the entity unless exactly
 one feature uses that data. A concept qualifies as an entity when two or more
 slices use it, and the evidence (the importing slices) goes in the plan.
 
+_Amended 2026-11-03: an entity may carry `use-cases` where the slices above consume its reads and rules as hooks (ADR 0048, second amendment)._
+
 **D11, characterisation first.** Before two copies of a rule are merged, a
 unit test pins each variant's current output on shared inputs, and it passes
 before and after the merge. Existing tests, `console-shots` and the e2e specs
