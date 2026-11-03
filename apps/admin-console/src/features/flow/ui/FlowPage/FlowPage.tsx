@@ -1,7 +1,6 @@
 import type { ListExecutionsResponse, Settings } from '@odudu/contracts/admin';
 import { useEffect, useRef } from 'react';
 import { AreaGate } from '#/widgets/shell';
-import { areaAt } from '#/entities/area';
 import {
   hasOtpStep,
   NO_OTP_STEP,
@@ -12,14 +11,8 @@ import {
   otpReading,
   otpRequired,
 } from '#/features/flow/services/otp';
-import {
-  authenticatorText,
-  FLOW_RULE,
-  FLOW_TITLE,
-  OTP,
-  REQUIREMENT_OPTIONS,
-  requirementText,
-} from '#/features/flow/services/requirements';
+import { authenticatorText, FLOW_RULE, flowArea } from '#/features/flow/services/flowWording';
+import { OTP, REQUIREMENT_OPTIONS, requirementText } from '#/features/flow/services/requirement';
 import { type Direction } from '#/features/flow/services/steps';
 import { useFlowSteps, type FlowSteps } from '#/features/flow/use-cases/useFlowSteps';
 import {
@@ -81,7 +74,7 @@ function Steps({ flow, reading }: { flow: FlowSteps; reading: string | null }) {
     flow.move(authenticator, direction);
   };
   return (
-    <SaveSection title="Steps" description={FLOW_RULE} noticeTitle={FLOW_TITLE} save={s}>
+    <SaveSection title="Steps" description={FLOW_RULE} noticeTitle={flowArea().title} save={s}>
       <ol ref={list} aria-label="Sign-in steps" className={styles.steps}>
         {flow.steps.map((step, at) => (
           <li
@@ -236,11 +229,12 @@ function Flow({ tenant }: { tenant: string }) {
 }
 
 export function FlowPage({ tenant }: { tenant: string }) {
+  const { area, title } = flowArea();
   return (
-    <AreaGate tenant={tenant} area={areaAt('flow')} title={FLOW_TITLE}>
+    <AreaGate tenant={tenant} area={area} title={title}>
       <PageHeader
         kicker={tenant}
-        title={FLOW_TITLE}
+        title={title}
         description="What a subject is asked, in what order, to sign in to this tenant."
       />
       <Flow tenant={tenant} />

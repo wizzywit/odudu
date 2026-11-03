@@ -1,5 +1,5 @@
 import type { Step } from '#/features/flow/services/steps';
-import { OTP } from '#/features/flow/services/requirements';
+import { OTP } from '#/features/flow/services/requirement';
 
 export const OTP_TITLE = 'One-time password';
 

@@ -9,11 +9,10 @@ import {
 import {
   DEFAULT_MINT,
   isValid,
-  mintedText,
-  mintFailure,
   mintProblems,
   type MintErrors,
 } from '#/features/registration-tokens/services/mint';
+import { mintedText, mintFailure } from '#/features/registration-tokens/services/mintOutcome';
 import { askedConsequence, revokeOutcome } from '#/features/registration-tokens/services/revoke';
 import { useToast } from '#/shared/repository/useToasts';
 import { withoutField } from '#/shared/services/fieldErrors';

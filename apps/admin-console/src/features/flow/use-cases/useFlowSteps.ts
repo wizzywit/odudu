@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { flowSaves, FLOW_RECORD, type StepValues } from '#/features/flow/repository/useFlowRecord';
 import { flowOutcome } from '#/features/flow/services/refusal';
-import { FLOW_TITLE, DEFAULT_ADDED, requirementOf } from '#/features/flow/services/requirements';
+import { flowArea } from '#/features/flow/services/flowWording';
+import { DEFAULT_ADDED, requirementOf } from '#/features/flow/services/requirement';
 import {
   addable,
   added,
@@ -53,7 +54,7 @@ export function useFlowSteps({
     tenant,
     record: FLOW_RECORD,
     section: 'steps',
-    label: FLOW_TITLE,
+    label: flowArea().title,
     etag,
     capability: 'manage-tenant',
     gone,
