@@ -9,6 +9,7 @@ import {
   type MappedRole,
   type ReachFrom,
   type Role,
+  type RoleValues,
 } from '#/entities/role';
 import {
   useSectionSave,
@@ -20,7 +21,6 @@ import { describeIds } from '#/shared/services/format';
 import { sortedIds } from '#/shared/services/ids';
 import type { PickerState } from '#/shared/services/picker';
 import type { AdminCapability } from '#/shared/services/principal';
-import type { RoleValues } from '#/shared/services/sectionValues';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 
 export interface MappedItem {

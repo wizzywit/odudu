@@ -27,7 +27,13 @@ import { canChange, type ServiceAccountReach } from '#/pages/clients/services/ce
 import { ceilingRefused } from '#/pages/clients/services/refusal';
 import { SERVICE_SECTION } from '#/pages/clients/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
-import { assignedRoles, knownAssignments, roleNameOf, useRolePicker } from '#/entities/role';
+import {
+  assignedRoles,
+  knownAssignments,
+  roleNameOf,
+  useRolePicker,
+  type RoleValues,
+} from '#/entities/role';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { callerCapabilities, lacking } from '#/shared/services/access';
 import { writeRefusal } from '#/shared/services/capabilities';
@@ -35,7 +41,6 @@ import { describeIds } from '#/shared/services/format';
 import { sortedIds } from '#/shared/services/ids';
 import type { PickerState } from '#/shared/services/picker';
 import type { AdminCapability } from '#/shared/services/principal';
-import type { RoleValues } from '#/shared/services/sectionValues';
 import { subjectHref } from '#/entities/subject';
 
 // The tab's access, and the note for an account the client no longer uses.

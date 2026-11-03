@@ -29,7 +29,8 @@ import type { SaveInput } from '#/shared/repository/useSectionSave';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
 import type { Translations } from '#/shared/services/localised';
-import type { DescriptionValues, RoleValues } from '#/shared/services/sectionValues';
+import type { DescriptionValues } from '#/shared/services/sectionValues';
+import type { RoleValues } from '#/entities/role';
 
 export function useScopeRecord(tenant: string, id: string): RecordState<Scope> {
   return useRecord({

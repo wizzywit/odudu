@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react';
-import { MappedRoles, RolePicker } from '#/entities/role';
+import { MappedRoles, RolePicker, type RoleValues } from '#/entities/role';
 import type { RoleMappingModel } from '#/features/role-mapping/use-cases/useRoleMapping';
 import { recordTab } from '#/shared/ui/RecordTab';
 import { SaveSection } from '#/shared/ui/SaveSection';
-import type { RoleValues } from '#/shared/services/sectionValues';
 
 type Save = Parameters<typeof SaveSection>[0]['save'] & { values: RoleValues };
 

@@ -25,7 +25,8 @@ import type { SaveInput } from '#/shared/repository/useSectionSave';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
-import type { DescriptionValues, DefaultValues, RoleValues } from '#/shared/services/sectionValues';
+import type { DescriptionValues, DefaultValues } from '#/shared/services/sectionValues';
+import type { RoleValues } from '#/entities/role';
 
 export function useGroupRecord(tenant: string, id: string): RecordState<GroupRecord> {
   return useRecord({

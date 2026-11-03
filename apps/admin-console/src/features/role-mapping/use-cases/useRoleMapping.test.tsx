@@ -1,11 +1,10 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { expect, it, vi } from 'vitest';
-import type { ReachFrom } from '#/entities/role';
+import type { ReachFrom, RoleValues } from '#/entities/role';
 import { SignedInContext } from '#/entities/session';
 import { useRoleMapping } from '#/features/role-mapping/use-cases/useRoleMapping';
 import type { SaveInput } from '#/shared/repository/useSectionSave';
-import type { RoleValues } from '#/shared/services/sectionValues';
 import { json } from '#/testing/fakeTransport';
 import { hookHarness } from '#/testing/hookHarness';
 import { role } from '#/testing/roleAnswers';
