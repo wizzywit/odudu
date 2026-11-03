@@ -5,13 +5,12 @@ import {
   listLogoutDeliveriesResponseSchema,
   listTenantSessionsResponseSchema,
   revokeClientGrantsResponseSchema,
-  type ClientInstallation,
   type CountResponse,
-  type EvaluateClaimsResponse,
-  type ListLogoutDeliveriesResponse,
-  type ListTenantSessionsResponse,
-  type RevokeClientGrantsResponse,
 } from '@odudu/contracts/admin';
+import type { EvaluatedClaims } from '#/features/clients/types/evaluation';
+import type { Installation } from '#/features/clients/types/installation';
+import type { LogoutDeliveryList } from '#/features/clients/types/logoutDelivery';
+import type { ClientSessionList, RevokedGrants } from '#/features/clients/types/clientSession';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { adminCall } from '#/shared/adapter/route';
 
@@ -20,7 +19,7 @@ export function readClientSessions(
   tenant: string,
   clientDbId: string,
   query: URLSearchParams,
-): Promise<GatewayResult<ListTenantSessionsResponse>> {
+): Promise<GatewayResult<ClientSessionList>> {
   return adminCall(gateway, 'GET', tenant, ['clients', clientDbId, 'sessions'], {
     query,
     schema: listTenantSessionsResponseSchema,
@@ -45,7 +44,7 @@ export function revokeClientGrants(
   gateway: Gateway,
   tenant: string,
   clientDbId: string,
-): Promise<GatewayResult<RevokeClientGrantsResponse>> {
+): Promise<GatewayResult<RevokedGrants>> {
   return adminCall(gateway, 'DELETE', tenant, ['clients', clientDbId, 'grants'], {
     schema: revokeClientGrantsResponseSchema,
   });
@@ -56,7 +55,7 @@ export function readLogoutDeliveries(
   tenant: string,
   clientDbId: string,
   query: URLSearchParams,
-): Promise<GatewayResult<ListLogoutDeliveriesResponse>> {
+): Promise<GatewayResult<LogoutDeliveryList>> {
   return adminCall(gateway, 'GET', tenant, ['clients', clientDbId, 'logout-deliveries'], {
     query,
     schema: listLogoutDeliveriesResponseSchema,
@@ -67,7 +66,7 @@ export function readInstallation(
   gateway: Gateway,
   tenant: string,
   clientDbId: string,
-): Promise<GatewayResult<ClientInstallation>> {
+): Promise<GatewayResult<Installation>> {
   return adminCall(gateway, 'GET', tenant, ['clients', clientDbId, 'installation'], {
     schema: clientInstallationSchema,
   });
@@ -79,7 +78,7 @@ export function evaluateClaims(
   tenant: string,
   clientDbId: string,
   request: { subject: string; scope: string },
-): Promise<GatewayResult<EvaluateClaimsResponse>> {
+): Promise<GatewayResult<EvaluatedClaims>> {
   const query = new URLSearchParams({ subject: request.subject });
   if (request.scope.trim() !== '') query.set('scope', request.scope.trim());
   return adminCall(gateway, 'GET', tenant, ['clients', clientDbId, 'evaluate'], {

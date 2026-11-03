@@ -1,4 +1,4 @@
-import type { Client } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
 import { BUILTIN_FIXED } from '#/features/clients/services/clientDetails';
 
 export type Fixable = Pick<Client, 'builtin_admin' | 'client_id'>;

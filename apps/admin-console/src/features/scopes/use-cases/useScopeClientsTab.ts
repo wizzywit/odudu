@@ -1,4 +1,6 @@
-import type { Client, ClientScope, ScopeClient } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
+import type { Scope } from '#/entities/scope';
+import type { ScopeClient } from '#/features/scopes/types/scopeClient';
 import { useAuthority, useRefusal } from '#/entities/session';
 import {
   useClientAssignment,
@@ -44,7 +46,7 @@ export function useScopeClientsTab({
   scope,
 }: {
   tenant: string;
-  scope: ClientScope;
+  scope: Scope;
 }): ScopeClientsTab {
   const refusal = useRefusal(tenant);
   const list = useScopeClients(tenant, scope.id);

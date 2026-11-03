@@ -1,4 +1,5 @@
-import type { Client, ClientScope } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
+import type { Scope } from '#/entities/scope';
 import { writeRefusal } from '#/shared/services/capabilities';
 import { writeFailureText } from '#/shared/services/failure';
 import { counted } from '#/shared/services/format';
@@ -31,7 +32,7 @@ export const NO_SCOPES = 'No scope is assigned: a request to this client can ask
 
 // Why a scope cannot be chosen to assign: it already is, and its assignment is changed in the list.
 export function alreadyAssigned(
-  scope: Pick<ClientScope, 'id'>,
+  scope: Pick<Scope, 'id'>,
   assigned: readonly Assignment[],
 ): string | null {
   const held = assigned.find((each) => each.id === scope.id);

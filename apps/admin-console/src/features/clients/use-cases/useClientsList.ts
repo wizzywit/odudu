@@ -1,4 +1,4 @@
-import type { Client } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
 import { useClientList } from '#/features/clients/repository/useClientList';
 import { clientHref, newClientHref } from '#/features/clients/services/address';
 import { useListPage, type ListPageState } from '#/shared/use-cases/useListPage';

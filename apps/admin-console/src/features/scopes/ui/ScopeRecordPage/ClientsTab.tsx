@@ -1,4 +1,4 @@
-import type { ClientScope } from '@odudu/contracts/admin';
+import type { Scope } from '#/entities/scope';
 import {
   useScopeClientsTab,
   type ScopeClientsTab,
@@ -14,7 +14,7 @@ import { ListSkeleton } from '#/shared/ui/Skeleton';
 import { recordTab } from '#/shared/ui/RecordTab';
 import { ASSIGNMENT_RULE } from '#/shared/services/assignment';
 
-function Carriers({ scope, page }: { scope: ClientScope; page: ScopeClientsTab }) {
+function Carriers({ scope, page }: { scope: Scope; page: ScopeClientsTab }) {
   const { heading, afterRemoval } = useHeadingFocus();
   const { list } = page;
   const label = `Clients carrying ${scope.name}`;
@@ -100,7 +100,7 @@ function Assign({ page }: { page: ScopeClientsTab }) {
   );
 }
 
-export function ClientsTab({ tenant, scope }: { tenant: string; scope: ClientScope }) {
+export function ClientsTab({ tenant, scope }: { tenant: string; scope: Scope }) {
   const page = useScopeClientsTab({ tenant, scope });
   return (
     <div className={recordTab.tab}>

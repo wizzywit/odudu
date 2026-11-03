@@ -1,4 +1,4 @@
-import type { EvaluateClaimsResponse } from '@odudu/contracts/admin';
+import type { EvaluatedClaims } from '#/features/clients/types/evaluation';
 import { writeFailureText } from '#/shared/services/failure';
 import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
 
@@ -23,7 +23,7 @@ export interface Artefact {
   text: string | null;
 }
 
-export function artefactsOf(result: EvaluateClaimsResponse): Artefact[] {
+export function artefactsOf(result: EvaluatedClaims): Artefact[] {
   const show = (claims: unknown): string => JSON.stringify(claims, null, 2);
   return [
     {
@@ -46,7 +46,7 @@ export function artefactsOf(result: EvaluateClaimsResponse): Artefact[] {
 
 export const NO_ID_TOKEN = "No ID token. The scope doesn't include openid.";
 
-export function evaluatedScope(result: EvaluateClaimsResponse): string {
+export function evaluatedScope(result: EvaluatedClaims): string {
   return result.scope === '' ? 'no scope' : result.scope;
 }
 
@@ -77,12 +77,12 @@ export function askedParts(asked: Asked | null): readonly [string, string, numbe
 export interface Evaluation {
   // Nothing was asked, the answer is awaited, or it came.
   status: 'idle' | 'loading' | 'ready';
-  result: GatewayResult<EvaluateClaimsResponse> | null;
+  result: GatewayResult<EvaluatedClaims> | null;
 }
 
 export function evaluationOf(
   asked: Asked | null,
-  answer: GatewayResult<EvaluateClaimsResponse> | null | undefined,
+  answer: GatewayResult<EvaluatedClaims> | null | undefined,
 ): Evaluation {
   if (asked === null) return { status: 'idle', result: null };
   return answer === undefined
@@ -90,7 +90,7 @@ export function evaluationOf(
     : { status: 'ready', result: answer };
 }
 
-export function answerShown(answer: GatewayResult<EvaluateClaimsResponse> | null): {
+export function answerShown(answer: GatewayResult<EvaluatedClaims> | null): {
   problem: string | null;
   // The scope the answer was worked out for, and the claims it came to.
   worked: string | null;

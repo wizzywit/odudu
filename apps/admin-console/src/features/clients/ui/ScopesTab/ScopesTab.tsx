@@ -1,4 +1,5 @@
-import type { Client, ClientScope } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
+import type { Scope } from '#/entities/scope';
 import { type ServiceAccountReach } from '#/features/clients/services/ceiling';
 import {
   ASSIGN_HEADING,
@@ -80,7 +81,7 @@ function Assign({ page }: { page: ClientScopes }) {
       disabled={page.chosen === null || page.working !== null}
       onAssign={page.assign}
     >
-      <Picker<ClientScope>
+      <Picker<Scope>
         label={PICKER_LABEL}
         noun={{ one: 'scope', other: 'scopes' }}
         picker={page.picker}

@@ -1,4 +1,5 @@
-import type { AssignScopeToClientResponse, ScopeClient } from '@odudu/contracts/admin';
+import type { AssignedScopes } from '#/entities/scope';
+import type { ScopeClient } from '#/features/scopes/types/scopeClient';
 import { useQueryClient } from '@tanstack/react-query';
 import { readScopeClients } from '#/features/scopes/adapter/scopes';
 import { assignScope, unassignScope } from '#/shared/adapter/scopeAssignment';
@@ -13,7 +14,7 @@ import { useWrite } from '#/shared/repository/useWrite';
 
 // What the console holds of a client that a scope's assignment changes.
 interface ClientRecord {
-  scopes: AssignScopeToClientResponse['scopes'];
+  scopes: AssignedScopes['scopes'];
 }
 
 export interface ScopeClients {

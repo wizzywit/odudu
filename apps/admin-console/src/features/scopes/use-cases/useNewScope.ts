@@ -1,4 +1,4 @@
-import type { ClientScope } from '@odudu/contracts/admin';
+import type { Scope } from '#/entities/scope';
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useCopySource, useCreateScope } from '#/features/scopes/repository/useCreateScope';
@@ -63,7 +63,7 @@ export function useNewScope(tenant: string): NewScope {
   const mappers = sourceBound(source);
   const looked = lookupText('scope', name);
 
-  const land = (scope: ClientScope, missed: Parameters<typeof partialCopy>[2]): void => {
+  const land = (scope: Scope, missed: Parameters<typeof partialCopy>[2]): void => {
     const left = partialCopy(tenant, scope, missed);
     if (left !== null) {
       setPartial(left);
@@ -73,7 +73,7 @@ export function useNewScope(tenant: string): NewScope {
     go(scopeHref(tenant, scope.id), { replace: true });
   };
 
-  const made = (scope: ClientScope): void => {
+  const made = (scope: Scope): void => {
     creation
       .fill(
         scope.id,

@@ -1,4 +1,4 @@
-import type { Client } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
 import { beyondCaller } from '#/shared/services/capabilities';
 import { andList } from '#/shared/services/format';
 import type { AdminCapability } from '#/shared/services/principal';

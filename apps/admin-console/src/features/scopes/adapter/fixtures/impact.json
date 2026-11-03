@@ -1,0 +1,11 @@
+{
+  "builtin": true,
+  "client_assignments": {
+    "count": 0,
+    "capped": false
+  },
+  "role_mappings": {
+    "count": 0,
+    "capped": false
+  }
+}

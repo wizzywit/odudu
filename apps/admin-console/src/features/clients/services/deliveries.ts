@@ -1,4 +1,4 @@
-import type { LogoutDelivery } from '@odudu/contracts/admin';
+import type { LogoutDelivery } from '#/features/clients/types/logoutDelivery';
 import type { Choice } from '#/shared/services/choice';
 import { ANY_STATUS } from '#/shared/services/filters';
 

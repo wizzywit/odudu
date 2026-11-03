@@ -1,4 +1,4 @@
-import type { ClientScope } from '@odudu/contracts/admin';
+import type { Scope } from '#/entities/scope';
 import { useScopeRecord } from '#/features/scopes/repository/useScopeRecord';
 import { SCOPE_TABS, type ScopeTab, TAB_RECORDS } from '#/features/scopes/services/tabs';
 import type { RecordView } from '#/shared/services/record';
@@ -6,7 +6,7 @@ import { useRecordTabs } from '#/shared/use-cases/useRecordTabs';
 
 export interface ScopeRecordPage {
   record: RecordView;
-  scope: ClientScope | undefined;
+  scope: Scope | undefined;
   etag: string | null;
   tab: ScopeTab;
   selectTab: (tab: string) => void;

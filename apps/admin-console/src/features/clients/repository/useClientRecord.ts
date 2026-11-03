@@ -1,4 +1,4 @@
-import type { ClientRecord } from '@odudu/contracts/admin';
+import type { ClientRecord } from '#/features/clients/types/clientRecord';
 import {
   amendClient,
   deleteClient,

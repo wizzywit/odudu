@@ -1,4 +1,4 @@
-import type { RotateClientSecretResponse } from '@odudu/contracts/admin';
+import type { RotatedSecret } from '#/features/clients/types/clientRecord';
 import { rotateClientSecret } from '#/features/clients/adapter/clients';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import { splitSecret } from '#/features/clients/services/createdSecret';
@@ -9,7 +9,7 @@ import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnc
 export function useRotateSecret(
   tenant: string,
   clientDbId: string,
-): SecretOnce<{ grace: number }, Omit<RotateClientSecretResponse, 'client_secret'>> {
+): SecretOnce<{ grace: number }, Omit<RotatedSecret, 'client_secret'>> {
   const reread = useRereadClient(tenant, clientDbId);
   return useSecretOnce({
     run: async (gateway, { grace }: { grace: number }) => {

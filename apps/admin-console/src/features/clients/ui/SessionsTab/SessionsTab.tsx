@@ -1,4 +1,5 @@
-import type { Client, TenantSession } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
+import type { ClientSession } from '#/features/clients/types/clientSession';
 import { type ServiceAccountReach } from '#/features/clients/services/ceiling';
 import {
   NO_SESSIONS,
@@ -27,8 +28,8 @@ import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
 
 function columnsOf(
-  subjectLabel: (session: TenantSession) => string,
-): readonly Column<TenantSession>[] {
+  subjectLabel: (session: ClientSession) => string,
+): readonly Column<ClientSession>[] {
   return [
     {
       id: 'subject',

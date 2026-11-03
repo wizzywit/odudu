@@ -1,4 +1,4 @@
-import type { ClientScope } from '@odudu/contracts/admin';
+import type { Scope } from '#/entities/scope';
 import {
   useScopeMapperSet,
   useScopeMappersRead,
@@ -36,7 +36,7 @@ function Ready({
   ...read
 }: {
   tenant: string;
-  scope: ClientScope;
+  scope: Scope;
   data: Parameters<typeof useScopeMapperSet>[0]['data'];
   etag: string;
   gone: boolean;
@@ -45,7 +45,7 @@ function Ready({
   return <Mappers name={scope.name} set={set} />;
 }
 
-export function MappersTab({ tenant, scope }: { tenant: string; scope: ClientScope }) {
+export function MappersTab({ tenant, scope }: { tenant: string; scope: Scope }) {
   const read = useScopeMappersRead(tenant, scope.id);
   return (
     <ReadGate

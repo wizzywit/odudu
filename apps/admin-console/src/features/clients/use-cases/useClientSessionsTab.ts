@@ -1,4 +1,5 @@
-import type { Client, TenantSession } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
+import type { ClientSession } from '#/features/clients/types/clientSession';
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
@@ -27,10 +28,10 @@ export function useSessionsReadable(tenant: string): boolean {
 }
 
 export interface ClientSessions extends Removal {
-  list: ResourceListState<TenantSession>;
+  list: ResourceListState<ClientSession>;
   open: (subjectId: string) => void;
   // How a session names its subject: the username, or the ID when it has none.
-  subjectLabel: (session: TenantSession) => string;
+  subjectLabel: (session: ClientSession) => string;
   // Whether revoking is offered: the capability is held and the client's
   // service account is within the caller's reach.
   offered: boolean;

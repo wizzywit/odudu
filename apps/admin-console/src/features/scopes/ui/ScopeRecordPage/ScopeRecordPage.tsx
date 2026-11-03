@@ -1,4 +1,4 @@
-import type { ClientScope } from '@odudu/contracts/admin';
+import type { Scope } from '#/entities/scope';
 import type { ReactNode } from 'react';
 import { useAuditReadable } from '#/entities/session';
 import { AreaGate } from '#/widgets/shell';
@@ -16,7 +16,7 @@ import { ButtonLink } from '#/shared/ui/ButtonLink';
 import { RecordActivity } from '#/shared/ui/RecordActivity';
 import { RecordPage, type RecordPanelProps } from '#/shared/ui/RecordPage';
 
-type PanelProps = RecordPanelProps<'scope', ClientScope>;
+type PanelProps = RecordPanelProps<'scope', Scope>;
 
 function Activity({ tenant, id }: { tenant: string; id: string }) {
   const readable = useAuditReadable(tenant);

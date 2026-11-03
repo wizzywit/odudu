@@ -1,4 +1,6 @@
-import type { ClientScope, Role, SetScopeRolesResponse } from '@odudu/contracts/admin';
+import type { Role } from '@odudu/contracts/admin';
+import type { Scope } from '#/entities/scope';
+import type { ScopeRoleList } from '#/features/scopes/types/scopeRoles';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useScopeRolesRecord, useScopeSaves } from '#/features/scopes/repository/useScopeRecord';
 import { scopeRolesRecord } from '#/features/scopes/services/tabs';
@@ -20,7 +22,7 @@ import type { PickerState } from '#/shared/services/picker';
 import { callerCapabilities } from '#/shared/services/access';
 import type { RoleValues } from '#/shared/services/sectionValues';
 
-export function useScopeRolesRead(tenant: string, id: string): RecordState<SetScopeRolesResponse> {
+export function useScopeRolesRead(tenant: string, id: string): RecordState<ScopeRoleList> {
   return useScopeRolesRecord(tenant, id);
 }
 
@@ -44,8 +46,8 @@ export function useScopeRoles({
   gone,
 }: {
   tenant: string;
-  scope: ClientScope;
-  data: SetScopeRolesResponse;
+  scope: Scope;
+  data: ScopeRoleList;
   etag: string;
   gone: boolean;
 }): ScopeRoles {

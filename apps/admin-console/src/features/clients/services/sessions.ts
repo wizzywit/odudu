@@ -1,4 +1,4 @@
-import type { RevokeClientGrantsResponse } from '@odudu/contracts/admin';
+import type { RevokedGrants } from '#/features/clients/types/clientSession';
 import { writeFailureText } from '#/shared/services/failure';
 import { counted } from '#/shared/services/format';
 import type { AdminCapability } from '#/shared/services/principal';
@@ -27,7 +27,7 @@ export function revokeConsequence(name: string, builtin: boolean): string {
 }
 
 // What one call did, and whether another is owed: one call revokes at most 10,000.
-export function revokedText(name: string, result: RevokeClientGrantsResponse): string {
+export function revokedText(name: string, result: RevokedGrants): string {
   const parts = [`${counted(result.revoked, 'grant', 'grants')} of ${name} revoked.`];
   if (result.beyond_ceiling > 0) {
     parts.push(

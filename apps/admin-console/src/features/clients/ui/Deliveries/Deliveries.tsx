@@ -1,4 +1,5 @@
-import type { Client, LogoutDelivery } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
+import type { LogoutDelivery } from '#/features/clients/types/logoutDelivery';
 import {
   DELIVERIES_HEADING,
   DELIVERIES_RULE,

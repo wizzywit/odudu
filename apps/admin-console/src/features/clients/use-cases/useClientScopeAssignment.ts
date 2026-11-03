@@ -1,4 +1,5 @@
-import type { Client, ClientScope } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
+import type { Scope } from '#/entities/scope';
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
@@ -35,9 +36,9 @@ export interface ClientScopes {
   shown: readonly Assigned[];
   more: number;
   showMore: () => void;
-  picker: PickerState<ClientScope>;
-  unavailableOf: (scope: ClientScope) => string | null;
-  chosen: ClientScope | null;
+  picker: PickerState<Scope>;
+  unavailableOf: (scope: Scope) => string | null;
+  chosen: Scope | null;
   choose: (ids: readonly string[]) => void;
   assignment: string;
   setAssignment: (value: string) => void;

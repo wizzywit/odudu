@@ -1,4 +1,9 @@
 import { expect, it } from 'vitest';
+import count from '#/features/clients/adapter/fixtures/client-count.json';
+import detail from '#/features/clients/adapter/fixtures/client.json';
+import created from '#/features/clients/adapter/fixtures/created-client.json';
+import list from '#/features/clients/adapter/fixtures/client-list.json';
+import rotated from '#/features/clients/adapter/fixtures/rotated-secret.json';
 import {
   amendClient,
   createClient,
@@ -7,35 +12,28 @@ import {
   readClient,
   readClientCount,
   readClientPage,
+  rotateClientSecret,
 } from '#/features/clients/adapter/clients';
 import { fakeTransport, json } from '#/testing/fakeTransport';
-import { BILLING, C } from '#/testing/clientsFixtures';
+import { C } from '#/testing/clientsFixtures';
 
-// A list carries no languages: the client's own read does.
-const LISTED = Object.fromEntries(
-  Object.entries(BILLING).filter(([key]) => key !== 'supported_locales'),
-);
+const [LISTED] = list.items;
 
 it('pages the clients, searched and filtered by the server, and counts them', async () => {
   const fake = fakeTransport({
-    [`GET ${C}`]: json({ items: [BILLING], next: 'n1' }),
-    [`GET ${C}/count`]: json({ count: 1, capped: false }),
+    [`GET ${C}`]: json(list),
+    [`GET ${C}/count`]: json(count),
   });
   const gateway = fake.transport.gateway;
-  const query = new URLSearchParams({ name: 'bil', type: 'confidential' });
-  expect(await readClientPage(gateway, 'acme', query)).toMatchObject({
-    ok: true,
-    data: { items: [LISTED], next: 'n1' },
-  });
-  expect(fake.sent.at(-1)?.search.get('name')).toBe('bil');
-  await readClientCount(gateway, 'acme', query);
-  expect(fake.sent.at(-1)?.search.get('type')).toBe('confidential');
+  const query = new URLSearchParams({ client_id: 'DEMO', type: 'public' });
+  expect(await readClientPage(gateway, 'acme', query)).toMatchObject({ ok: true, data: list });
+  expect(fake.sent.at(-1)?.search.get('client_id')).toBe('DEMO');
+  expect(await readClientCount(gateway, 'acme', query)).toMatchObject({ ok: true, data: count });
+  expect(fake.sent.at(-1)?.search.get('type')).toBe('public');
 });
 
 it('creates a confidential client with the secret method, and a public one with none', async () => {
-  const fake = fakeTransport({
-    [`POST ${C}`]: json({ ...BILLING, client_secret: 'shh' }, 201, { etag: '"b1"' }),
-  });
+  const fake = fakeTransport({ [`POST ${C}`]: json(created, 201, { etag: '"b1"' }) });
   const gateway = fake.transport.gateway;
   const made = await createClient(gateway, 'acme', {
     clientId: 'billing',
@@ -44,7 +42,7 @@ it('creates a confidential client with the secret method, and a public one with 
     kind: 'confidential',
     redirectUris: ['https://billing.example/callback'],
   });
-  expect(made).toMatchObject({ ok: true, data: { client_secret: 'shh' } });
+  expect(made).toMatchObject({ ok: true, data: created });
   expect(fake.sent.at(-1)?.body).toEqual({
     client_id: 'billing',
     name: 'Billing',
@@ -67,9 +65,7 @@ it('creates a confidential client with the secret method, and a public one with 
 });
 
 it('creates a service with the client credentials grant and no redirect URI', async () => {
-  const fake = fakeTransport({
-    [`POST ${C}`]: json({ ...BILLING, client_secret: 'shh' }, 201, { etag: '"b1"' }),
-  });
+  const fake = fakeTransport({ [`POST ${C}`]: json(created, 201, { etag: '"b1"' }) });
   await createClient(fake.transport.gateway, 'acme', {
     clientId: 'worker',
     name: '',
@@ -86,12 +82,16 @@ it('creates a service with the client credentials grant and no redirect URI', as
 
 it('reads a client with its ETag, and amends it on the ETag given', async () => {
   const fake = fakeTransport({
-    [`GET ${C}/c-bill`]: json(BILLING, 200, { etag: '"b1"' }),
-    [`PATCH ${C}/c-bill`]: json(BILLING, 200, { etag: '"b2"' }),
+    [`GET ${C}/${detail.id}`]: json(detail, 200, { etag: '"b1"' }),
+    [`PATCH ${C}/${detail.id}`]: json(detail, 200, { etag: '"b2"' }),
   });
   const gateway = fake.transport.gateway;
-  expect(await readClient(gateway, 'acme', 'c-bill')).toMatchObject({ ok: true, etag: '"b1"' });
-  await amendClient(gateway, 'acme', 'c-bill', { web_origins: ['https://a.example'] }, '"b1"');
+  expect(await readClient(gateway, 'acme', detail.id)).toMatchObject({
+    ok: true,
+    etag: '"b1"',
+    data: detail,
+  });
+  await amendClient(gateway, 'acme', detail.id, { web_origins: ['https://a.example'] }, '"b1"');
   expect(fake.sent.at(-1)).toMatchObject({
     body: { web_origins: ['https://a.example'] },
     ifMatch: '"b1"',
@@ -99,7 +99,7 @@ it('reads a client with its ETag, and amends it on the ETag given', async () => 
 });
 
 it('clears an emptied description or page by sending null, since the server keeps no empty one', async () => {
-  const fake = fakeTransport({ [`PATCH ${C}/c-bill`]: json(BILLING, 200, { etag: '"b2"' }) });
+  const fake = fakeTransport({ [`PATCH ${C}/c-bill`]: json(detail, 200, { etag: '"b2"' }) });
   const gateway = fake.transport.gateway;
   await amendClient(
     gateway,
@@ -117,7 +117,7 @@ it('clears an emptied description or page by sending null, since the server keep
 });
 
 it('sends a list without the rows left empty or padded', async () => {
-  const fake = fakeTransport({ [`PATCH ${C}/c-bill`]: json(BILLING, 200, { etag: '"b2"' }) });
+  const fake = fakeTransport({ [`PATCH ${C}/c-bill`]: json(detail, 200, { etag: '"b2"' }) });
   const gateway = fake.transport.gateway;
   await amendClient(
     gateway,
@@ -135,11 +135,11 @@ it('deletes a client', async () => {
 });
 
 it('looks for a client by its exact id in one bounded request', async () => {
-  const fake = fakeTransport({ [`GET ${C}`]: json({ items: [BILLING] }) });
-  const found = await findClient(fake.transport.gateway, 'acme', 'billing');
-  expect(found).toMatchObject({ ok: true, data: { id: 'c-bill' } });
+  const fake = fakeTransport({ [`GET ${C}`]: json(list) });
+  const found = await findClient(fake.transport.gateway, 'acme', LISTED?.client_id ?? '');
+  expect(found).toMatchObject({ ok: true, data: LISTED });
   expect(fake.sent).toHaveLength(1);
-  expect(fake.sent[0]?.search.get('client_id_exact')).toBe('billing');
+  expect(fake.sent[0]?.search.get('client_id_exact')).toBe(LISTED?.client_id);
   expect(fake.sent[0]?.search.get('limit')).toBe('1');
 });
 
@@ -149,4 +149,13 @@ it('finds no client when the server answers none', async () => {
     ok: true,
     data: null,
   });
+});
+
+it('rotates the secret, naming how long the replaced one keeps working, and returns the new one', async () => {
+  const fake = fakeTransport({ [`POST ${C}/${rotated.id}/secret`]: json(rotated) });
+  expect(await rotateClientSecret(fake.transport.gateway, 'acme', rotated.id, 3600)).toMatchObject({
+    ok: true,
+    data: rotated,
+  });
+  expect(fake.sent.at(-1)?.search.get('grace_seconds')).toBe('3600');
 });

@@ -1,4 +1,4 @@
-import type { ClientScope } from '@odudu/contracts/admin';
+import type { Scope } from '#/entities/scope';
 import {
   ACCESS_TOKEN_LABEL,
   ID_TOKEN_LABEL,
@@ -27,7 +27,7 @@ import { SaveSection } from '#/shared/ui/SaveSection';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
 
-function Fixed({ scope }: { scope: ClientScope }) {
+function Fixed({ scope }: { scope: Scope }) {
   return (
     <Panel title="Name">
       <dl className={recordTab.fixed}>
@@ -199,7 +199,7 @@ export function GeneralTab({
   gone,
 }: {
   tenant: string;
-  scope: ClientScope;
+  scope: Scope;
   etag: string;
   gone: boolean;
 }) {

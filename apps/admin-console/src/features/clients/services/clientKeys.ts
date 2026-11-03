@@ -1,4 +1,4 @@
-import { type Client } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
 import type { Choice } from '#/shared/services/choice';
 import { isRecord } from '#/shared/services/json';
 

@@ -1,4 +1,5 @@
-import type { Client, Role } from '@odudu/contracts/admin';
+import type { Role } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
 import { type SubmitEvent } from 'react';
 import {
   CLIENT_ROLES_RULE,

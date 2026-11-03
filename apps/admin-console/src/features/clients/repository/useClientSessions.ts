@@ -1,4 +1,4 @@
-import type { RevokeClientGrantsResponse, TenantSession } from '@odudu/contracts/admin';
+import type { ClientSession, RevokedGrants } from '#/features/clients/types/clientSession';
 import {
   readClientSessionCount,
   readClientSessions,
@@ -13,7 +13,7 @@ import { useWrite, type Write } from '#/shared/repository/useWrite';
 export function useClientSessionList(
   tenant: string,
   clientDbId: string,
-): ResourceListState<TenantSession> {
+): ResourceListState<ClientSession> {
   return useResourceList({
     tenant,
     resource: `clients/${clientDbId}/sessions`,
@@ -25,6 +25,6 @@ export function useClientSessionList(
 export function useGrantRevocation(
   tenant: string,
   clientDbId: string,
-): Write<void, GatewayResult<RevokeClientGrantsResponse>> {
+): Write<void, GatewayResult<RevokedGrants>> {
   return useWrite({ send: (gateway) => revokeClientGrants(gateway, tenant, clientDbId) });
 }

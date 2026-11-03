@@ -1,4 +1,5 @@
-import type { ClientScope, SetScopeRolesResponse } from '@odudu/contracts/admin';
+import type { Scope } from '#/entities/scope';
+import type { ScopeRoleList } from '#/features/scopes/types/scopeRoles';
 import { withSearch } from '#/shared/services/address';
 import { roleReachUnavailable } from '#/shared/services/capabilities';
 import type { LeftOut, PartialCopy } from '#/shared/services/copy';
@@ -7,12 +8,12 @@ import type { AdminCapability } from '#/shared/services/principal';
 import type { GatewayResult } from '#/shared/services/result';
 import { scopeHref, scopesHref } from '#/features/scopes/services/address';
 
-type MappedRole = SetScopeRolesResponse['items'][number];
+type MappedRole = ScopeRoleList['items'][number];
 
 export type CopyRead =
   | { status: 'none' }
   | { status: 'loading' }
-  | { status: 'ready'; scope: ClientScope; roles: readonly MappedRole[]; bound: readonly string[] }
+  | { status: 'ready'; scope: Scope; roles: readonly MappedRole[]; bound: readonly string[] }
   | { status: 'failed' };
 
 export type Copying =
@@ -30,14 +31,14 @@ export type Copying =
     };
 
 export interface CopySource {
-  scope: ClientScope;
+  scope: Scope;
   roles: readonly MappedRole[];
   bound: readonly string[];
 }
 
 // The scope with what it maps and binds, or nothing when any read failed.
 export function copySourceOf(
-  scope: GatewayResult<ClientScope>,
+  scope: GatewayResult<Scope>,
   roles: GatewayResult<{ items: readonly MappedRole[] }>,
   mappers: GatewayResult<{ bound: readonly string[] }>,
 ): CopySource | null {
@@ -112,7 +113,7 @@ function translated(map: Readonly<Record<string, string>>): boolean {
 
 // The fields a copy is made with, the name aside: a null text is left out, and
 // so is a translation map nobody filled.
-export function copyBody(scope: ClientScope, description: string) {
+export function copyBody(scope: Scope, description: string) {
   return {
     description,
     include_in_id_token: scope.include_in_id_token,

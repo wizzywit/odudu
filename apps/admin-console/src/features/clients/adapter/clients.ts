@@ -3,12 +3,14 @@ import {
   createClientResponseSchema,
   rotateClientSecretResponseSchema,
   roleSchema,
-  type Client,
-  type ClientRecord,
-  type CreateClientResponse,
   type Role,
-  type RotateClientSecretResponse,
 } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
+import type {
+  ClientRecord,
+  CreatedClient,
+  RotatedSecret,
+} from '#/features/clients/types/clientRecord';
 import { type NewClientKind } from '#/features/clients/services/newClient';
 import { entriesOf } from '#/features/clients/services/listEntries';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
@@ -52,7 +54,7 @@ export function createClient(
   gateway: Gateway,
   tenant: string,
   input: NewClient,
-): Promise<GatewayResult<CreateClientResponse>> {
+): Promise<GatewayResult<CreatedClient>> {
   return adminCall(gateway, 'POST', tenant, ['clients'], {
     body: {
       client_id: input.clientId,
@@ -187,7 +189,7 @@ export function rotateClientSecret(
   tenant: string,
   id: string,
   graceSeconds: number,
-): Promise<GatewayResult<RotateClientSecretResponse>> {
+): Promise<GatewayResult<RotatedSecret>> {
   const query = new URLSearchParams({ grace_seconds: String(graceSeconds) });
   return adminCall(gateway, 'POST', tenant, ['clients', id, 'secret'], {
     query,

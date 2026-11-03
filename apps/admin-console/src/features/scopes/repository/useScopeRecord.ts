@@ -1,11 +1,8 @@
-import type {
-  ClientScope,
-  ListBuiltinScopesResponse,
-  RestoreBuiltinScopesResponse,
-  ScopeImpact,
-  ScopeMappers,
-  SetScopeRolesResponse,
-} from '@odudu/contracts/admin';
+import type { Scope } from '#/entities/scope';
+import type { BuiltinScopes, RestoredScopes } from '#/features/scopes/types/builtinScopes';
+import type { ScopeImpact } from '#/features/scopes/types/scopeImpact';
+import type { ScopeMappers } from '#/features/scopes/types/scopeMappers';
+import type { ScopeRoleList } from '#/features/scopes/types/scopeRoles';
 import {
   amendScope,
   deleteScope,
@@ -39,7 +36,7 @@ import { useWrite, type Write } from '#/shared/repository/useWrite';
 import type { Translations } from '#/shared/services/localised';
 import type { DescriptionValues, RoleValues } from '#/shared/services/sectionValues';
 
-export function useScopeRecord(tenant: string, id: string): RecordState<ClientScope> {
+export function useScopeRecord(tenant: string, id: string): RecordState<Scope> {
   return useRecord({
     tenant,
     record: scopeRecord(id),
@@ -47,10 +44,7 @@ export function useScopeRecord(tenant: string, id: string): RecordState<ClientSc
   });
 }
 
-export function useScopeRolesRecord(
-  tenant: string,
-  id: string,
-): RecordState<SetScopeRolesResponse> {
+export function useScopeRolesRecord(tenant: string, id: string): RecordState<ScopeRoleList> {
   return useRecord({
     tenant,
     record: scopeRolesRecord(id),
@@ -147,14 +141,12 @@ export function useScopeImpact(tenant: string, id: string, asked: boolean): Read
   return useRead(scopeImpactKey(tenant, id), asked, () => readScopeImpact(gateway, tenant, id));
 }
 
-export function useBuiltinScopes(tenant: string, asked: boolean): Read<ListBuiltinScopesResponse> {
+export function useBuiltinScopes(tenant: string, asked: boolean): Read<BuiltinScopes> {
   const { gateway } = useTransport();
   return useRead(builtinScopesKey(tenant), asked, () => readBuiltinScopes(gateway, tenant));
 }
 
-export function useRestoreBuiltins(
-  tenant: string,
-): Write<void, GatewayResult<RestoreBuiltinScopesResponse>> {
+export function useRestoreBuiltins(tenant: string): Write<void, GatewayResult<RestoredScopes>> {
   const after = useAfterScopeChange(tenant);
   return useWrite({
     send: async (gateway) => after(await restoreBuiltinScopes(gateway, tenant)),

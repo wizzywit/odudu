@@ -7,14 +7,13 @@ import {
   scopeImpactSchema,
   scopeMappersSchema,
   setScopeRolesResponseSchema,
-  type ClientScope,
-  type ListBuiltinScopesResponse,
-  type ListScopeClientsResponse,
-  type RestoreBuiltinScopesResponse,
-  type ScopeImpact,
-  type ScopeMappers,
-  type SetScopeRolesResponse,
 } from '@odudu/contracts/admin';
+import type { Scope } from '#/entities/scope';
+import type { BuiltinScopes, RestoredScopes } from '#/features/scopes/types/builtinScopes';
+import type { ScopeClientList } from '#/features/scopes/types/scopeClient';
+import type { ScopeImpact } from '#/features/scopes/types/scopeImpact';
+import type { ScopeMappers } from '#/features/scopes/types/scopeMappers';
+import type { ScopeRoleList } from '#/features/scopes/types/scopeRoles';
 import { readScopePage } from '#/shared/adapter/directory';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { adminCall, countReader, firstMatch, nothing } from '#/shared/adapter/route';
@@ -27,7 +26,7 @@ export async function findScope(
   gateway: Gateway,
   tenant: string,
   name: string,
-): Promise<GatewayResult<ClientScope | null>> {
+): Promise<GatewayResult<Scope | null>> {
   const result = await readScopePage(
     gateway,
     tenant,
@@ -51,7 +50,7 @@ export function createScope(
   gateway: Gateway,
   tenant: string,
   input: CreateScopeInput,
-): Promise<GatewayResult<ClientScope>> {
+): Promise<GatewayResult<Scope>> {
   const { description, ...rest } = input;
   return adminCall(gateway, 'POST', tenant, ['scopes'], {
     body: {
@@ -66,7 +65,7 @@ export function readScope(
   gateway: Gateway,
   tenant: string,
   scopeId: string,
-): Promise<GatewayResult<ClientScope>> {
+): Promise<GatewayResult<Scope>> {
   return adminCall(gateway, 'GET', tenant, ['scopes', scopeId], {
     schema: clientScopeSchema,
   });
@@ -78,7 +77,7 @@ export function amendScope(
   scopeId: string,
   changes: object,
   ifMatch: string,
-): Promise<GatewayResult<ClientScope>> {
+): Promise<GatewayResult<Scope>> {
   return adminCall(gateway, 'PATCH', tenant, ['scopes', scopeId], {
     body: changes,
     ifMatch,
@@ -112,7 +111,7 @@ export function readScopeImpact(
 export function readBuiltinScopes(
   gateway: Gateway,
   tenant: string,
-): Promise<GatewayResult<ListBuiltinScopesResponse>> {
+): Promise<GatewayResult<BuiltinScopes>> {
   return adminCall(gateway, 'GET', tenant, ['scopes', 'builtins'], {
     schema: listBuiltinScopesResponseSchema,
   });
@@ -121,7 +120,7 @@ export function readBuiltinScopes(
 export function restoreBuiltinScopes(
   gateway: Gateway,
   tenant: string,
-): Promise<GatewayResult<RestoreBuiltinScopesResponse>> {
+): Promise<GatewayResult<RestoredScopes>> {
   return adminCall(gateway, 'POST', tenant, ['scopes', 'restore-builtins'], {
     schema: restoreBuiltinScopesResponseSchema,
   });
@@ -131,7 +130,7 @@ export function readScopeRoles(
   gateway: Gateway,
   tenant: string,
   scopeId: string,
-): Promise<GatewayResult<SetScopeRolesResponse>> {
+): Promise<GatewayResult<ScopeRoleList>> {
   return adminCall(gateway, 'GET', tenant, ['scopes', scopeId, 'roles'], {
     schema: setScopeRolesResponseSchema,
   });
@@ -143,7 +142,7 @@ export function setScopeRoles(
   scopeId: string,
   roleIds: readonly string[],
   ifMatch: string,
-): Promise<GatewayResult<SetScopeRolesResponse>> {
+): Promise<GatewayResult<ScopeRoleList>> {
   return adminCall(gateway, 'PUT', tenant, ['scopes', scopeId, 'roles'], {
     body: { role_ids: roleIds },
     ifMatch,
@@ -180,7 +179,7 @@ export function readScopeClients(
   tenant: string,
   scopeId: string,
   query: URLSearchParams,
-): Promise<GatewayResult<ListScopeClientsResponse>> {
+): Promise<GatewayResult<ScopeClientList>> {
   return adminCall(gateway, 'GET', tenant, ['scopes', scopeId, 'clients'], {
     query,
     schema: listScopeClientsResponseSchema,

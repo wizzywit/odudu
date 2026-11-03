@@ -1,4 +1,4 @@
-import type { Client } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
 import { readClientCount, readClientPage } from '#/features/clients/adapter/clients';
 import { useResourceList } from '#/shared/repository/useResourceList';
 import type { ResourceListState } from '#/shared/services/resourceList';

@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ClientRecord } from '@odudu/contracts/admin';
+import type { ClientRecord } from '#/features/clients/types/clientRecord';
 import { afterEach, describe, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import {

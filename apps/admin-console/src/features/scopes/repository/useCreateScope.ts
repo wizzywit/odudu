@@ -1,4 +1,4 @@
-import type { ClientScope } from '@odudu/contracts/admin';
+import type { Scope } from '#/entities/scope';
 import { useQuery } from '@tanstack/react-query';
 import {
   createScope,
@@ -37,9 +37,9 @@ export type ScopeInput = CreateScopeInput;
 
 export interface CreateScope {
   busy: boolean;
-  create: (input: ScopeInput) => Promise<GatewayResult<ClientScope>>;
+  create: (input: ScopeInput) => Promise<GatewayResult<Scope>>;
   // For a creation whose answer was lost: never sent twice, looked for instead.
-  find: (name: string) => Promise<GatewayResult<ClientScope | null>>;
+  find: (name: string) => Promise<GatewayResult<Scope | null>>;
   // Maps the roles and binds the mappers of a copy, one write each on the tag
   // its own read answers, and answers the parts that did not take.
   fill: (id: string, roleIds: readonly string[], mapperNames: readonly string[]) => Promise<Part[]>;

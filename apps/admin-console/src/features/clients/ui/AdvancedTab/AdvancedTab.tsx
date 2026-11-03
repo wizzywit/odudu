@@ -1,4 +1,4 @@
-import type { Client } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
 import {
   AUDIENCES_RULE,
   EXCHANGE_LABEL,

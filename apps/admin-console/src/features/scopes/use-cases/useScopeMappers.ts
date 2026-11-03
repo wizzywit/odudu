@@ -1,4 +1,4 @@
-import type { ScopeMappers } from '@odudu/contracts/admin';
+import type { ScopeMappers } from '#/features/scopes/types/scopeMappers';
 import { useRefusal } from '#/entities/session';
 import {
   useScopeMappersRecord,

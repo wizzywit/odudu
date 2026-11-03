@@ -1,4 +1,4 @@
-import type { ListBuiltinScopesResponse } from '@odudu/contracts/admin';
+import type { BuiltinScopes } from '#/features/scopes/types/builtinScopes';
 import { refusedBy, writeFailureText } from '#/shared/services/failure';
 import { andList, plural } from '#/shared/services/format';
 import type { Read } from '#/shared/services/read';
@@ -10,7 +10,7 @@ export type RestoreOffer =
   | { kind: 'nothing' }
   | { kind: 'missing'; names: readonly string[] };
 
-export function restoreOffer(read: Read<ListBuiltinScopesResponse>): RestoreOffer {
+export function restoreOffer(read: Read<BuiltinScopes>): RestoreOffer {
   if (read.status === 'loading') return { kind: 'reading' };
   if (read.status === 'failed') return { kind: 'unknown' };
   const names = read.data.items.filter((item) => !item.present).map((item) => item.name);

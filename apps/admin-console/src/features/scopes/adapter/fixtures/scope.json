@@ -1,0 +1,13 @@
+{
+  "id": "01a18729-51d8-77dd-805d-9637168ce505",
+  "name": "roles",
+  "description": null,
+  "include_in_id_token": false,
+  "include_in_access_token": true,
+  "default_client_assignment": "default",
+  "consent_text": null,
+  "description_i18n": {},
+  "consent_text_i18n": {},
+  "display_order": 0,
+  "created_at": "2026-10-29T10:16:34.517Z"
+}

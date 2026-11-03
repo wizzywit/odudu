@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "id": "01a12d29-71bb-7e4c-91c8-845063e60e93",
+      "name": "view-audit",
+      "client_id": "01a12d29-713b-7852-a836-47dc3d851563",
+      "client_key": "odudu-admin",
+      "admin_reach": ["view-audit"]
+    },
+    {
+      "id": "01a12d29-72f8-74a0-a73a-0fa6dd6d4d76",
+      "name": "billing-viewer",
+      "client_id": null,
+      "client_key": null,
+      "admin_reach": []
+    }
+  ]
+}

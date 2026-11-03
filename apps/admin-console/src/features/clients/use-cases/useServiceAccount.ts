@@ -1,4 +1,5 @@
-import type { Client, Role, SetRolesResponse } from '@odudu/contracts/admin';
+import type { Role, SetRolesResponse } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import {

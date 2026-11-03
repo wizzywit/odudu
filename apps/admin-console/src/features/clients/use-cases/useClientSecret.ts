@@ -1,4 +1,4 @@
-import type { Client } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
 import { useState } from 'react';
 import { useNow } from '#/shared/use-cases/useNow';
 import { useRotateSecret } from '#/features/clients/repository/useRotateSecret';

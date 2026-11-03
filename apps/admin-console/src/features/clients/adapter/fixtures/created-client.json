@@ -1,0 +1,89 @@
+{
+  "id": "01a1872d-c5f8-7478-9e8b-af94e890f5ec",
+  "client_id": "demo-fields-check",
+  "name": "demo-fields-check",
+  "description": null,
+  "name_i18n": {},
+  "description_i18n": {},
+  "type": "confidential",
+  "enabled": true,
+  "full_scope_allowed": false,
+  "skip_logout_confirmation": false,
+  "registration_origin": "operator",
+  "created_at": "2026-10-29T10:21:26.329Z",
+  "redirect_uris": [],
+  "grant_types": ["client_credentials"],
+  "token_endpoint_auth_method": "client_secret_basic",
+  "audiences": ["https://api.demo.example"],
+  "access_token_ttl_seconds": null,
+  "id_token_ttl_seconds": null,
+  "refresh_token_ttl_seconds": null,
+  "client_credentials_scopes": [],
+  "web_origins": ["https://app.demo.example"],
+  "post_logout_redirect_uris": [],
+  "jwks": null,
+  "jwks_uri": null,
+  "frontchannel_logout_uri": null,
+  "backchannel_logout_uri": null,
+  "frontchannel_logout_session_required": false,
+  "backchannel_logout_session_required": false,
+  "consent_required": false,
+  "token_exchange_impersonation_allowed": false,
+  "userinfo_signed_response_alg": null,
+  "userinfo_encrypted_response_alg": null,
+  "userinfo_encrypted_response_enc": null,
+  "tls_client_auth_subject_dn": null,
+  "client_uri": null,
+  "policy_uri": null,
+  "tos_uri": null,
+  "id_token_signed_response_alg": null,
+  "default_max_age": null,
+  "require_auth_time": false,
+  "previous_secret_expires_at": null,
+  "builtin_admin": false,
+  "service_subject_id": "01a1872d-c5c0-7f06-8ba9-0d74ae247824",
+  "scopes": [
+    {
+      "id": "01a1872d-be50-7c99-b10f-59264732dd59",
+      "name": "address",
+      "assignment": "default"
+    },
+    {
+      "id": "01a1872d-be4c-7b63-b0c0-4728817f0c89",
+      "name": "email",
+      "assignment": "default"
+    },
+    {
+      "id": "01a1872d-be5a-7b84-b831-65d00005856b",
+      "name": "groups",
+      "assignment": "default"
+    },
+    {
+      "id": "01a1872d-be60-7e39-be4f-62cbd9d20558",
+      "name": "offline_access",
+      "assignment": "optional"
+    },
+    {
+      "id": "01a1872d-be41-73ef-af64-901bdd91fa51",
+      "name": "openid",
+      "assignment": "default"
+    },
+    {
+      "id": "01a1872d-be55-7d06-9f55-76fa04c0a0bc",
+      "name": "phone",
+      "assignment": "default"
+    },
+    {
+      "id": "01a1872d-be47-7b6d-ba14-a31162354b1f",
+      "name": "profile",
+      "assignment": "default"
+    },
+    {
+      "id": "01a1872d-be57-7e6c-81fd-34d0d5b6e4c8",
+      "name": "roles",
+      "assignment": "default"
+    }
+  ],
+  "service_account_admin_reach": [],
+  "client_secret": "rJDK_mW0gJbIOk6kgrZ6KzVaLD1sJi4tEY4vwx056nk"
+}

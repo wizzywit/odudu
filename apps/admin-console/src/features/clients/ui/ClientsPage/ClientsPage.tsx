@@ -1,4 +1,4 @@
-import type { Client } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { TYPE_TEXT } from '#/features/clients/services/clientDetails';

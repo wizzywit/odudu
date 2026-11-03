@@ -1,4 +1,4 @@
-import type { ClientInstallation } from '@odudu/contracts/admin';
+import type { Installation } from '#/features/clients/types/installation';
 
 export const INSTALLATION_HEADING = 'Installation';
 export const INSTALLATION_RULE =
@@ -12,7 +12,7 @@ export interface InstallationRow {
   copy: boolean;
 }
 
-export function installationRows(installation: ClientInstallation): InstallationRow[] {
+export function installationRows(installation: Installation): InstallationRow[] {
   return [
     { label: 'Issuer', values: [installation.issuer], copy: true },
     { label: 'Discovery URL', values: [installation.discovery_url], copy: true },

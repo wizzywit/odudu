@@ -1,4 +1,5 @@
-import { CLIENT_GRANT_TYPES, type Client } from '@odudu/contracts/admin';
+import { CLIENT_GRANT_TYPES } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
 
 export const GRANT_LABELS: Readonly<Record<string, string>> = {
   authorization_code: 'Authorization code',

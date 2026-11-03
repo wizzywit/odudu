@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { ClientRecord } from '@odudu/contracts/admin';
+import type { ClientRecord } from '#/features/clients/types/clientRecord';
 import {
   BRANDING_SECTIONS_LABEL,
   BRANDING_TAB_LABELS,

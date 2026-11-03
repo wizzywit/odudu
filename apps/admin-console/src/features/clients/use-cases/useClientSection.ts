@@ -1,4 +1,4 @@
-import type { ClientRecord } from '@odudu/contracts/admin';
+import type { ClientRecord } from '#/features/clients/types/clientRecord';
 import { useRefusal } from '#/entities/session';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import {

@@ -1,4 +1,4 @@
-import type { ClientScope } from '@odudu/contracts/admin';
+import type { Scope } from '#/entities/scope';
 import {
   useScopeRoles,
   useScopeRolesRead,
@@ -47,7 +47,7 @@ function Ready({
   ...read
 }: {
   tenant: string;
-  scope: ClientScope;
+  scope: Scope;
   data: Parameters<typeof useScopeRoles>[0]['data'];
   etag: string;
   gone: boolean;
@@ -56,7 +56,7 @@ function Ready({
   return <Roles name={scope.name} roles={roles} />;
 }
 
-export function RolesTab({ tenant, scope }: { tenant: string; scope: ClientScope }) {
+export function RolesTab({ tenant, scope }: { tenant: string; scope: Scope }) {
   const read = useScopeRolesRead(tenant, scope.id);
   return (
     <ReadGate

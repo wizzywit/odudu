@@ -1,0 +1,30 @@
+{
+  "items": [
+    {
+      "id": "01a18729-51d8-77dd-805d-9637168ce505",
+      "name": "roles",
+      "description": null,
+      "include_in_id_token": false,
+      "include_in_access_token": true,
+      "default_client_assignment": "default",
+      "consent_text": null,
+      "description_i18n": {},
+      "consent_text_i18n": {},
+      "display_order": 0,
+      "created_at": "2026-10-29T10:16:34.517Z"
+    },
+    {
+      "id": "01a1872c-0f50-76e2-826f-b46896955125",
+      "name": "billing",
+      "description": null,
+      "include_in_id_token": false,
+      "include_in_access_token": true,
+      "default_client_assignment": "optional",
+      "consent_text": "See and pay your invoices",
+      "description_i18n": {},
+      "consent_text_i18n": {},
+      "display_order": 10,
+      "created_at": "2026-10-29T10:19:34.093Z"
+    }
+  ]
+}

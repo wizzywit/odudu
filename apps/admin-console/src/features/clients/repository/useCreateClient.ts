@@ -1,4 +1,4 @@
-import type { Client } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
 import { findKey } from '#/shared/repository/queryKeys';
 import { createClient, findClient, type NewClient } from '#/features/clients/adapter/clients';
 import { useAfterClientChange } from '#/features/clients/repository/useClientRecord';

@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import type { Client } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
 import {
   type Artefact,
   EVALUATE_CAPABILITY,

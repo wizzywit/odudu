@@ -1,4 +1,4 @@
-import type { ClientScope } from '@odudu/contracts/admin';
+import type { Scope } from '#/entities/scope';
 import { useRefusal } from '#/entities/session';
 import {
   useScopeDeletion,
@@ -85,7 +85,7 @@ export function useScopeGeneral({
   gone,
 }: {
   tenant: string;
-  scope: ClientScope;
+  scope: Scope;
   etag: string;
   gone: boolean;
 }): ScopeGeneral {

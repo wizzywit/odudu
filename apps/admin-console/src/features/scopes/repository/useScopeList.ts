@@ -1,9 +1,9 @@
-import type { ClientScope } from '@odudu/contracts/admin';
+import type { Scope } from '#/entities/scope';
 import { readScopeCount, readScopePage } from '#/features/scopes/adapter/scopes';
 import { useResourceList } from '#/shared/repository/useResourceList';
 import type { ResourceListState } from '#/shared/services/resourceList';
 
-export function useScopeList(tenant: string): ResourceListState<ClientScope> {
+export function useScopeList(tenant: string): ResourceListState<Scope> {
   return useResourceList({
     tenant,
     resource: 'scopes',

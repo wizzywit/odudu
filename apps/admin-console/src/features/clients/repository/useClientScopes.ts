@@ -1,4 +1,4 @@
-import type { AssignScopeToClientResponse, ClientScope } from '@odudu/contracts/admin';
+import type { AssignedScopes, Scope } from '#/entities/scope';
 import { assignScope, unassignScope } from '#/shared/adapter/scopeAssignment';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import { readScopePage } from '#/shared/adapter/directory';
@@ -8,7 +8,7 @@ import type { GatewayResult } from '#/shared/transport/gateway';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
 
 // The tenant's scopes, searched by name on the server a page at a time.
-export function useScopePicker(tenant: string): PickerState<ClientScope> {
+export function useScopePicker(tenant: string): PickerState<Scope> {
   return usePicker({
     tenant,
     resource: 'scopes',
@@ -19,7 +19,7 @@ export function useScopePicker(tenant: string): PickerState<ClientScope> {
 export interface ScopeChanges {
   assign: Write<
     { scopeId: string; assignment: 'default' | 'optional' },
-    GatewayResult<AssignScopeToClientResponse>
+    GatewayResult<AssignedScopes>
   >;
   unassign: Write<{ scopeId: string }, GatewayResult<undefined>>;
 }

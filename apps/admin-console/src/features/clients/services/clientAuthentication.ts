@@ -1,4 +1,5 @@
-import { CLIENT_AUTH_METHODS, type Client } from '@odudu/contracts/admin';
+import { CLIENT_AUTH_METHODS } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
 import type { Choice } from '#/shared/services/choice';
 
 const AUTH_LABELS: Readonly<Record<string, string>> = {

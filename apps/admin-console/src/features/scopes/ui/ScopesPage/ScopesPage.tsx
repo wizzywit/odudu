@@ -1,4 +1,4 @@
-import type { ClientScope } from '@odudu/contracts/admin';
+import type { Scope } from '#/entities/scope';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { useScopesList } from '#/features/scopes/use-cases/useScopesList';
@@ -12,7 +12,7 @@ import { NAME_SEARCH } from '#/shared/services/filters';
 
 const AREA = areaAt('scopes');
 
-const COLUMNS: readonly Column<ClientScope>[] = [
+const COLUMNS: readonly Column<Scope>[] = [
   {
     id: 'name',
     header: 'Scope',
