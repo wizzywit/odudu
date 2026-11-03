@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addRefusal,
   childRows,
+  childUnavailable,
   compositesFixed,
   deletionFixed,
   defaultBlock,
@@ -65,5 +66,47 @@ describe('childRows', () => {
       { role: USERS, held: expect.stringContaining('manage-users') as string },
     ]);
     expect(childRows([], ['view-users'], 'acme')).toEqual([]);
+  });
+});
+
+describe('a role every new subject receives', () => {
+  it('may be switched on only while it reaches no admin capability', () => {
+    const reaching = role('r-bundle', 'bundle', null, ['view-users', 'manage-users']);
+    expect(defaultBlock(READER)).toBeNull();
+    expect(defaultBlock(reaching)).toBe(
+      'It reaches view-users and manage-users, and a role every new subject receives may reach no admin capability. Take those composites out of it first.',
+    );
+    // Turning it off is never refused.
+    expect(defaultBlock({ ...reaching, default_for_new_subjects: true })).toBeNull();
+  });
+});
+
+describe('childUnavailable', () => {
+  const parent = { id: 'r-parent', default_for_new_subjects: false };
+  const reaching = role('r-bundle', 'bundle', null, ['view-users']);
+
+  it('refuses a role nested in itself or nested already, before judging its reach', () => {
+    expect(childUnavailable(parent, role('r-parent', 'p'), [], ['view-users'], 'acme')).toBe(
+      'this role itself',
+    );
+    expect(childUnavailable(parent, READER, [READER], ['view-users'], 'acme')).toBe(
+      'nested here already',
+    );
+  });
+
+  it('refuses a role reaching an admin capability under a default, in its own sentence', () => {
+    expect(
+      childUnavailable({ ...parent, default_for_new_subjects: true }, reaching, [], [], 'acme'),
+    ).toBe('Every new subject receives this role, so it may nest no admin capability.');
+    expect(
+      childUnavailable({ ...parent, default_for_new_subjects: true }, READER, [], [], 'acme'),
+    ).toBeNull();
+  });
+
+  it('leaves a role beyond the caller to the shared ceiling wording', () => {
+    expect(childUnavailable(parent, reaching, [], [], 'acme')).toBe(
+      'It reaches view-users, which you do not hold, so you cannot give or take it.',
+    );
+    expect(childUnavailable(parent, reaching, [], ['view-users'], 'acme')).toBeNull();
   });
 });

@@ -41,6 +41,7 @@ describe('role assignments', () => {
   it('says whose a directly held role is', () => {
     expect(roleOwnerOf(null)).toBe('tenant role');
     expect(roleOwnerOf('web')).toBe('client web');
+    expect(roleOwnerOf('odudu-admin')).toBe('client odudu-admin');
   });
 });
 

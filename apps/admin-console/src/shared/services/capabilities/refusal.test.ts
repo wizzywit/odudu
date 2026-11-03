@@ -77,3 +77,24 @@ describe('the last-administrator guard, worded in place', () => {
     );
   });
 });
+
+describe('the last-administrator guard without a detail', () => {
+  const last = { type: 'about:blank#last-administrator', status: 409 };
+
+  it('is worded in the write refusal and the access refusal, each in its own sentence', () => {
+    expect(writeRefusal(last)).toBe(
+      'Refused: it would leave this tenant with no enabled administrator. Make somebody else an administrator first.',
+    );
+    expect(accessRefusal('ada', 'groups')(last)).toBe(
+      'ada is the last enabled administrator here, and this would take that away, so nothing was changed. Make somebody else an administrator first.',
+    );
+    expect(accessRefusal('ada', 'groups', true)(last)).toBe(
+      'You are the last enabled administrator here, and this would take that away, so nothing was changed. Make somebody else an administrator first.',
+    );
+  });
+
+  it('leaves another 409 to the caller', () => {
+    expect(writeRefusal({ type: 'about:blank', status: 409 })).toBeNull();
+    expect(accessRefusal('ada', 'groups')({ type: 'about:blank', status: 409 })).toBeNull();
+  });
+});

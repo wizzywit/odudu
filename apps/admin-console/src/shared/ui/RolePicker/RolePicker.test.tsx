@@ -20,6 +20,7 @@ function role(id: string, name: string, clientKey: string | null = null): Role {
 }
 
 const ROLES = [role('r1', 'auditor'), role('r2', 'admin', 'billing-portal')];
+const BUILT_IN = role('r4', 'view-users', 'odudu-admin');
 const DESCRIBED = { ...role('r3', 'reviewer'), description: 'Reads every invoice' };
 
 it("names each role's owner: the tenant, or the client it belongs to", () => {
@@ -31,6 +32,15 @@ it("names each role's owner: the tenant, or the client it belongs to", () => {
     'adminclient billing-portal',
   ]);
   expect(options[1]).toHaveAccessibleName('admin, a role of client billing-portal');
+});
+
+it('names the built-in admin client as the owner of its roles', () => {
+  render(
+    <RolePicker label="Roles" picker={pickerState([BUILT_IN])} selected={[]} onChange={vi.fn()} />,
+  );
+  const option = within(screen.getByRole('listbox', { name: 'Roles' })).getByRole('option');
+  expect(option).toHaveTextContent('view-usersclient odudu-admin');
+  expect(option).toHaveAccessibleName('view-users, a role of client odudu-admin');
 });
 
 it("shows a role's description beside its owner", () => {
