@@ -1,14 +1,8 @@
 import { MAX_STYLESHEET_BYTES, MAX_TEMPLATE_BYTES } from '@odudu/contracts';
 import type { FieldError } from '@odudu/contracts/admin';
 import { byteSizeReading, utf8Length, type SizeReading } from '#/shared/services/format';
-import type { PublishOutcome } from '#/features/branding/services/publishOutcome';
 import { SELECTORS_LABEL } from '#/features/branding/services/selectors';
-import {
-  detailed,
-  NO_PROBLEMS,
-  placedProblems,
-  type PlacedProblems,
-} from '#/features/branding/services/problems';
+import { detailed, problemsFor } from '#/features/branding/services/problems';
 import type { SectionFields } from '#/shared/services/sectionSave';
 import type { StylesheetValues } from '#/features/branding/services/stylesheetValues';
 import { describeTemplate } from '#/features/branding/services/templateParts';
@@ -71,33 +65,14 @@ function wording(error: FieldError): string {
   return detailed(known ?? error.message, error);
 }
 
-// What a refused save says about the stylesheet: the refusals that name a
-// line are marked on it, the rest are said under the editor.
-export function stylesheetProblems(
-  errors: readonly FieldError[],
-  saved: string | undefined,
-): PlacedProblems {
-  return placedProblems(errors, saved, {
-    path: STYLESHEET_PATH,
-    refused: STYLESHEET_REFUSED,
-    wording,
-  });
-}
-
-// What a refused publish says about the stylesheet, for as long as the draft
-// it refused is the one on screen.
-export function publishedStylesheetProblems(
-  outcome: PublishOutcome,
-  tag: string,
-  changed: boolean,
-): PlacedProblems {
-  if (changed || outcome.atTag !== tag) return NO_PROBLEMS;
-  return placedProblems(outcome.errors, undefined, {
-    path: STYLESHEET_PATH,
-    refused: STYLESHEET_UNPUBLISHABLE,
-    wording,
-  });
-}
+// The refusals that name a line are marked on it, the rest are said under
+// the editor.
+export const STYLESHEET_PROBLEMS = problemsFor({
+  path: STYLESHEET_PATH,
+  refusedSave: STYLESHEET_REFUSED,
+  refusedPublish: STYLESHEET_UNPUBLISHABLE,
+  wording,
+});
 
 export const STYLESHEET_SECTION_TITLE = 'Stylesheet';
 

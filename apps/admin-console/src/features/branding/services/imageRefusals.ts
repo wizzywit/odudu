@@ -42,7 +42,8 @@ const ASSET_PROBLEMS: Readonly<Record<string, (slot: ImageSlot) => string>> = {
 };
 
 // What a refused upload says, in the console's own words and never the
-// server's, which may name a decoder.
+// server's, which may name a decoder. `uploadFailureOf` takes a failure of any
+// kind and uses this for the refusals.
 export function uploadFailureText(slot: ImageSlot, problem: Problem): string {
   const said = ASSET_PROBLEMS[problemSubtype(problem)]?.(slot);
   if (said !== undefined) return said;

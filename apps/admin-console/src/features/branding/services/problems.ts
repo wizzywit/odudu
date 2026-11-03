@@ -49,6 +49,40 @@ export function placedProblems(
   };
 }
 
+export interface ProblemsReader {
+  // What a refused save says; `saved` stands when the refusals have none of their own.
+  save: (errors: readonly FieldError[], saved: string | undefined) => PlacedProblems;
+  // What a refused publish says, for as long as the draft it refused is on screen.
+  publish: (
+    outcome: { errors: readonly FieldError[]; atTag: string | null },
+    tag: string,
+    changed: boolean,
+  ) => PlacedProblems;
+}
+
+// One piece of the theme read for its refusals at save and at publish. What
+// differs between pieces is the path, the two opening sentences and how a
+// refusal is worded.
+export function problemsFor({
+  path,
+  refusedSave,
+  refusedPublish,
+  wording,
+}: {
+  path: string;
+  refusedSave: string;
+  refusedPublish: string;
+  wording: (e: FieldError) => string;
+}): ProblemsReader {
+  return {
+    save: (errors, saved) => placedProblems(errors, saved, { path, refused: refusedSave, wording }),
+    publish: (outcome, tag, changed) =>
+      changed || outcome.atTag !== tag
+        ? NO_PROBLEMS
+        : placedProblems(outcome.errors, undefined, { path, refused: refusedPublish, wording }),
+  };
+}
+
 // The first of two readings that has something to say.
 export function firstProblems(first: PlacedProblems, second: PlacedProblems): PlacedProblems {
   return first.message === undefined ? second : first;

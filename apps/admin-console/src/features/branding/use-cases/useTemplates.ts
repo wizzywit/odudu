@@ -16,10 +16,7 @@ import {
 import { limitedIssues } from '#/features/branding/services/publishIssues';
 import { templateSize } from '#/features/branding/services/stylesheet';
 import type { PageKind } from '#/features/branding/services/pageKinds';
-import {
-  publishedTemplateProblems,
-  templateProblems,
-} from '#/features/branding/services/templateProblems';
+import { templateProblemsFor } from '#/features/branding/services/templateProblems';
 import {
   templateField,
   templateValues,
@@ -77,12 +74,15 @@ export function useTemplates({
     text: (kind) => save.values[templateField(kind)],
     problems: (kind) =>
       firstProblems(
-        templateProblems(
-          kind,
+        templateProblemsFor(kind).save(
           save.refusals[templateField(kind)] ?? [],
           limitedIssues(save.fieldErrors[templateField(kind)]),
         ),
-        publishedTemplateProblems(kind, published, tag, save.changed.includes(templateField(kind))),
+        templateProblemsFor(kind).publish(
+          published,
+          tag,
+          save.changed.includes(templateField(kind)),
+        ),
       ),
     size: (kind) => templateSize(save.values[templateField(kind)]),
     edit: (kind, text) => {

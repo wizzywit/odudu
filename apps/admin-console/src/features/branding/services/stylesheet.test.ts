@@ -4,20 +4,18 @@ import { describe, expect, it } from 'vitest';
 import { NO_OUTCOME } from '#/features/branding/services/publishOutcome';
 import { PROBLEMS_SHOWN, firstProblems, NO_PROBLEMS } from '#/features/branding/services/problems';
 import {
-  publishedStylesheetProblems,
+  STYLESHEET_PROBLEMS,
   STYLESHEET_UNPUBLISHABLE,
   sizeReading,
   STYLESHEET_OVER,
   STYLESHEET_REFUSALS,
   STYLESHEET_REFUSED,
   stylesheetHold,
-  stylesheetProblems,
   stylesheetSize,
   templateSize,
 } from '#/features/branding/services/stylesheet';
 import {
-  publishedTemplateProblems,
-  templateProblems,
+  templateProblemsFor,
   TEMPLATE_UNPUBLISHABLE,
   TEMPLATE_REFUSED,
 } from '#/features/branding/services/templateProblems';
@@ -55,11 +53,11 @@ describe('the size of a text', () => {
 
 describe('what a refused stylesheet says', () => {
   it('says nothing when there are neither refusals nor a save’s own error', () => {
-    expect(stylesheetProblems([], undefined)).toEqual(NO_PROBLEMS);
+    expect(STYLESHEET_PROBLEMS.save([], undefined)).toEqual(NO_PROBLEMS);
   });
 
   it('marks a refusal that names a line, in the console’s words with what it quoted', () => {
-    const problems = stylesheetProblems(
+    const problems = STYLESHEET_PROBLEMS.save(
       [error({ code: 'property-not-allowed', detail: 'behavior', line: 4, column: 3 })],
       'The server’s words.',
     );
@@ -70,7 +68,7 @@ describe('what a refused stylesheet says', () => {
   });
 
   it('says a refusal with no line under the editor, and does not mark it', () => {
-    const problems = stylesheetProblems(
+    const problems = STYLESHEET_PROBLEMS.save(
       [error({ code: 'too-large', detail: '200000 bytes', line: null, column: null })],
       'x',
     );
@@ -81,22 +79,25 @@ describe('what a refused stylesheet says', () => {
   });
 
   it('falls back to the server’s words for a code it does not know', () => {
-    const problems = stylesheetProblems([error({ code: 'new-code', line: 2 })], 'x');
+    const problems = STYLESHEET_PROBLEMS.save([error({ code: 'new-code', line: 2 })], 'x');
     expect(problems.lines).toEqual([{ line: 2, text: 'The server’s words.' }]);
   });
 
   it('keeps the save’s own words when the refusal names nothing of the stylesheet', () => {
     expect(
-      stylesheetProblems([error({ path: 'templates.sign-in', line: 1 })], 'A saved sentence.'),
+      STYLESHEET_PROBLEMS.save(
+        [error({ path: 'templates.sign-in', line: 1 })],
+        'A saved sentence.',
+      ),
     ).toEqual({ lines: [], message: 'A saved sentence.' });
-    expect(stylesheetProblems([], 'A saved sentence.').message).toBe('A saved sentence.');
+    expect(STYLESHEET_PROBLEMS.save([], 'A saved sentence.').message).toBe('A saved sentence.');
   });
 
   it('marks at most as many as it lists, and counts the rest', () => {
     const many = Array.from({ length: PROBLEMS_SHOWN + 5 }, (_, index) =>
       error({ code: 'selector-not-allowed', line: index + 1 }),
     );
-    const problems = stylesheetProblems(many, 'x');
+    const problems = STYLESHEET_PROBLEMS.save(many, 'x');
     expect(problems.lines).toHaveLength(PROBLEMS_SHOWN);
     expect(problems.message).toBe(`${STYLESHEET_REFUSED} And 5 more problems.`);
   });
@@ -104,14 +105,14 @@ describe('what a refused stylesheet says', () => {
   it('says what a refused publish says of a stylesheet only while the draft is the one refused', () => {
     const errors = [error({ code: 'property-not-allowed', detail: 'x', line: 5 })];
     const outcome = { ...NO_OUTCOME, errors, atTag: '"d1"' };
-    const marked = publishedStylesheetProblems(outcome, '"d1"', false);
+    const marked = STYLESHEET_PROBLEMS.publish(outcome, '"d1"', false);
     expect(marked.lines).toEqual([
       { line: 5, text: `${STYLESHEET_REFUSALS['property-not-allowed'] ?? ''} (x)` },
     ]);
     expect(marked.message).toBe(STYLESHEET_UNPUBLISHABLE);
-    expect(publishedStylesheetProblems(outcome, '"d2"', false)).toEqual(NO_PROBLEMS);
-    expect(publishedStylesheetProblems(outcome, '"d1"', true)).toEqual(NO_PROBLEMS);
-    expect(publishedStylesheetProblems(NO_OUTCOME, '"d1"', false)).toEqual(NO_PROBLEMS);
+    expect(STYLESHEET_PROBLEMS.publish(outcome, '"d2"', false)).toEqual(NO_PROBLEMS);
+    expect(STYLESHEET_PROBLEMS.publish(outcome, '"d1"', true)).toEqual(NO_PROBLEMS);
+    expect(STYLESHEET_PROBLEMS.publish(NO_OUTCOME, '"d1"', false)).toEqual(NO_PROBLEMS);
   });
 
   it('prefers the save’s reading to the publish’s', () => {
@@ -129,11 +130,11 @@ describe('what a refused template says', () => {
       error({ path: 'templates.sign-in', message: 'Needs {{form.close}} once.', line: 2 }),
       error({ path: 'templates.consent', message: 'Elsewhere.', line: 1 }),
     ];
-    expect(templateProblems('sign-in', errors, 'x')).toEqual({
+    expect(templateProblemsFor('sign-in').save(errors, 'x')).toEqual({
       lines: [{ line: 2, text: 'Needs {{form.close}} once.' }],
       message: TEMPLATE_REFUSED,
     });
-    expect(templateProblems('notice', errors, 'Their words.').message).toBe('Their words.');
+    expect(templateProblemsFor('notice').save(errors, 'Their words.').message).toBe('Their words.');
   });
 });
 
@@ -145,16 +146,16 @@ describe('what a refused publish says of a template', () => {
   const outcome = { ...NO_OUTCOME, errors, atTag: '"d1"' };
 
   it('marks its own kind’s line while the refused draft stands, and no other kind’s', () => {
-    expect(publishedTemplateProblems('sign-in', outcome, '"d1"', false)).toEqual({
+    expect(templateProblemsFor('sign-in').publish(outcome, '"d1"', false)).toEqual({
       lines: [{ line: 2, text: 'Needs {{form.close}}.' }],
       message: TEMPLATE_UNPUBLISHABLE,
     });
-    expect(publishedTemplateProblems('notice', outcome, '"d1"', false)).toEqual(NO_PROBLEMS);
+    expect(templateProblemsFor('notice').publish(outcome, '"d1"', false)).toEqual(NO_PROBLEMS);
   });
 
   it('lets go once the draft moved or the template was edited', () => {
-    expect(publishedTemplateProblems('sign-in', outcome, '"d2"', false)).toEqual(NO_PROBLEMS);
-    expect(publishedTemplateProblems('sign-in', outcome, '"d1"', true)).toEqual(NO_PROBLEMS);
+    expect(templateProblemsFor('sign-in').publish(outcome, '"d2"', false)).toEqual(NO_PROBLEMS);
+    expect(templateProblemsFor('sign-in').publish(outcome, '"d1"', true)).toEqual(NO_PROBLEMS);
   });
 });
 
@@ -170,38 +171,40 @@ describe('a template’s refusals and the stylesheet’s, read the same way', ()
     });
 
   it('mark the lines of their own piece, the stylesheet by its code and the template by its message', () => {
-    expect(stylesheetProblems([lined('stylesheet')], undefined).lines).toEqual([
+    expect(STYLESHEET_PROBLEMS.save([lined('stylesheet')], undefined).lines).toEqual([
       { line: 3, text: `${STYLESHEET_REFUSALS['unknown-class'] ?? ''} (x)` },
     ]);
-    expect(templateProblems('sign-in', [lined('templates.sign-in')], undefined).lines).toEqual([
-      { line: 3, text: 'Their words. (x)' },
-    ]);
+    expect(
+      templateProblemsFor('sign-in').save([lined('templates.sign-in')], undefined).lines,
+    ).toEqual([{ line: 3, text: 'Their words. (x)' }]);
   });
 
   it('open the message with their own sentence, saved and published', () => {
-    expect(stylesheetProblems([lined('stylesheet')], undefined).message).toBe(STYLESHEET_REFUSED);
-    expect(templateProblems('sign-in', [lined('templates.sign-in')], undefined).message).toBe(
-      TEMPLATE_REFUSED,
+    expect(STYLESHEET_PROBLEMS.save([lined('stylesheet')], undefined).message).toBe(
+      STYLESHEET_REFUSED,
     );
+    expect(
+      templateProblemsFor('sign-in').save([lined('templates.sign-in')], undefined).message,
+    ).toBe(TEMPLATE_REFUSED);
     const outcome = {
       ...NO_OUTCOME,
       errors: [lined('stylesheet'), lined('templates.sign-in')],
       atTag: '"d1"',
     };
-    expect(publishedStylesheetProblems(outcome, '"d1"', false).message).toBe(
+    expect(STYLESHEET_PROBLEMS.publish(outcome, '"d1"', false).message).toBe(
       STYLESHEET_UNPUBLISHABLE,
     );
-    expect(publishedTemplateProblems('sign-in', outcome, '"d1"', false).message).toBe(
+    expect(templateProblemsFor('sign-in').publish(outcome, '"d1"', false).message).toBe(
       TEMPLATE_UNPUBLISHABLE,
     );
   });
 
   it('say the refusals that name no line in the message, after the sentence', () => {
     const plain = (path: string) => error({ path, message: 'Too much.', code: 'too-large' });
-    expect(stylesheetProblems([plain('stylesheet')], undefined).message).toBe(
+    expect(STYLESHEET_PROBLEMS.save([plain('stylesheet')], undefined).message).toBe(
       `${STYLESHEET_REFUSED} ${STYLESHEET_REFUSALS['too-large'] ?? ''}`,
     );
-    expect(templateProblems('notice', [plain('templates.notice')], undefined).message).toBe(
+    expect(templateProblemsFor('notice').save([plain('templates.notice')], undefined).message).toBe(
       `${TEMPLATE_REFUSED} Too much.`,
     );
   });

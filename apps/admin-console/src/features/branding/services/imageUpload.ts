@@ -52,7 +52,8 @@ export function slotDone(slots: SlotStates, slot: ImageSlot): SlotStates {
   return { ...slots, [slot]: QUIET };
 }
 
-// What a failed upload says, in the console's words.
+// What any failed upload says; `uploadFailureText` is the part for a refusal
+// the server answered, which this one hands it.
 export function uploadFailureOf(slot: ImageSlot, failure: GatewayFailure): string {
   return failureTextWith({
     network: () => UPLOAD_LOST,

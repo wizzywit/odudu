@@ -5,9 +5,8 @@ import type { PublishOutcome } from '#/features/branding/services/publishOutcome
 import {
   stylesheetFields,
   STYLESHEET_SECTION_TITLE,
-  publishedStylesheetProblems,
+  STYLESHEET_PROBLEMS,
   stylesheetHold,
-  stylesheetProblems,
   stylesheetSize,
   STYLESHEET_PATH,
 } from '#/features/branding/services/stylesheet';
@@ -76,8 +75,8 @@ export function useStylesheet({
     size: stylesheetSize(text),
     blocked,
     problems: firstProblems(
-      stylesheetProblems(save.refusals.stylesheet ?? [], save.fieldErrors[STYLESHEET_PATH]),
-      publishedStylesheetProblems(published, tag, changed),
+      STYLESHEET_PROBLEMS.save(save.refusals.stylesheet ?? [], save.fieldErrors[STYLESHEET_PATH]),
+      STYLESHEET_PROBLEMS.publish(published, tag, changed),
     ),
     edit: (next) => {
       save.edit('stylesheet', next);
