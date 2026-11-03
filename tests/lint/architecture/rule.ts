@@ -4,6 +4,7 @@ export const RULE_IDS = [
   'no-sideways-slice',
   'view-no-service',
   'no-adapter-export',
+  'contracts-only-in-adapter',
 ] as const;
 
 // The whole-repo scans parse every console and docs source, which a shard

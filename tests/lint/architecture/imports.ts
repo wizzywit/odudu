@@ -5,6 +5,9 @@ import ts from 'typescript';
 export interface ModuleReference {
   specifier: string;
   typeOnly: boolean;
+  // What the statement binds: a type, a value, or both in one braces list.
+  hasType: boolean;
+  hasValue: boolean;
   line: number;
 }
 
@@ -40,25 +43,55 @@ function isTypeOnlyExport(node: ts.ExportDeclaration): boolean {
   );
 }
 
+function importBindings(node: ts.ImportDeclaration): { hasType: boolean; hasValue: boolean } {
+  const clause = node.importClause;
+  if (!clause) return { hasType: false, hasValue: true };
+  if (clause.phaseModifier === ts.SyntaxKind.TypeKeyword) return { hasType: true, hasValue: false };
+  const bindings = clause.namedBindings;
+  const named = bindings !== undefined && ts.isNamedImports(bindings) ? bindings.elements : [];
+  return {
+    hasType: named.some((element) => element.isTypeOnly),
+    hasValue:
+      clause.name !== undefined ||
+      (bindings !== undefined && ts.isNamespaceImport(bindings)) ||
+      named.some((element) => !element.isTypeOnly),
+  };
+}
+
+function exportBindings(node: ts.ExportDeclaration): { hasType: boolean; hasValue: boolean } {
+  if (node.isTypeOnly) return { hasType: true, hasValue: false };
+  const clause = node.exportClause;
+  if (clause === undefined || !ts.isNamedExports(clause)) return { hasType: false, hasValue: true };
+  return {
+    hasType: clause.elements.some((element) => element.isTypeOnly),
+    hasValue: clause.elements.some((element) => !element.isTypeOnly),
+  };
+}
+
 export function moduleReferences(file: string, text: string): ModuleReference[] {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   const found: ModuleReference[] = [];
-  const add = (literal: ts.StringLiteralLike, typeOnly: boolean): void => {
+  const add = (
+    literal: ts.StringLiteralLike,
+    typeOnly: boolean,
+    bindings: { hasType: boolean; hasValue: boolean },
+  ): void => {
     const line = source.getLineAndCharacterOfPosition(literal.getStart(source)).line + 1;
-    found.push({ specifier: literal.text, typeOnly, line });
+    found.push({ specifier: literal.text, typeOnly, ...bindings, line });
   };
   const visit = (node: ts.Node): void => {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-      add(node.moduleSpecifier, isTypeOnlyImport(node));
+      add(node.moduleSpecifier, isTypeOnlyImport(node), importBindings(node));
     } else if (
       ts.isExportDeclaration(node) &&
       node.moduleSpecifier &&
       ts.isStringLiteral(node.moduleSpecifier)
     ) {
-      add(node.moduleSpecifier, isTypeOnlyExport(node));
+      add(node.moduleSpecifier, isTypeOnlyExport(node), exportBindings(node));
     } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
       const [argument] = node.arguments;
-      if (argument && ts.isStringLiteralLike(argument)) add(argument, false);
+      if (argument && ts.isStringLiteralLike(argument))
+        add(argument, false, { hasType: false, hasValue: true });
     }
     ts.forEachChild(node, visit);
   };

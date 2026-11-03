@@ -18,6 +18,8 @@ export const SHARED_VOCABULARY: Readonly<Record<string, string>> = {
     'the capability rules: who owns a role and what it reaches, worded for every slice that lists roles',
   'apps/admin-console/src/shared/lib/services/capabilities/refusal.ts':
     'the wording of a refused write, shared by the failure service and the subjects pages',
+  'apps/admin-console/src/shared/lib/types/capabilities.ts':
+    'EffectiveRoleAssignment and RoleProvenance: the wire shapes the capability rules above read, which no one entity owns',
   'apps/admin-console/src/shared/lib/services/capabilities/index.ts':
     'the capability rules barrel, which re-exports the three files above',
 };
