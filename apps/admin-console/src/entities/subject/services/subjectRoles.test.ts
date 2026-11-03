@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   roleIdsOf,
-  roleOwnerOf,
   roleUnavailableHere,
   splitRoles,
 } from '#/entities/subject/services/subjectRoles';
@@ -36,12 +35,6 @@ describe('role assignments', () => {
       'an admin capability: set it under Admin capabilities',
     );
     expect(roleUnavailableHere({ name: 'editor', client_key: null })).toBeNull();
-  });
-
-  it('says whose a directly held role is', () => {
-    expect(roleOwnerOf(null)).toBe('tenant role');
-    expect(roleOwnerOf('web')).toBe('client web');
-    expect(roleOwnerOf('odudu-admin')).toBe('client odudu-admin');
   });
 });
 

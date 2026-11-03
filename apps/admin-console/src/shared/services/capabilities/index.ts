@@ -27,6 +27,7 @@ export {
   roleReachUnavailable,
   blockedByDefault,
   TENANT_ROLE_TEXT,
+  roleOwnerShort,
   roleOwnerText,
   holdingNote,
   type HoldingOption,

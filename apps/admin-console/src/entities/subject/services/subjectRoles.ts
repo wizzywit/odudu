@@ -1,10 +1,4 @@
-import {
-  TENANT_ADMIN,
-  TENANT_ROLE_TEXT,
-  isAdminRole,
-  isHolding,
-  type Holding,
-} from '#/shared/services/capabilities';
+import { TENANT_ADMIN, isAdminRole, isHolding, type Holding } from '#/shared/services/capabilities';
 import { loadedData, type Loaded } from '#/shared/services/read';
 
 interface Assigned {
@@ -40,10 +34,6 @@ export function roleUnavailableHere(role: {
   client_key: string | null;
 }): string | null {
   return isAdminRole(role) ? 'an admin capability: set it under Admin capabilities' : null;
-}
-
-export function roleOwnerOf(client: string | null): string {
-  return client === null ? TENANT_ROLE_TEXT : `client ${client}`;
 }
 
 export function roleIdsOf(

@@ -11,6 +11,7 @@ import {
   provenanceText,
   roleOwnerText,
   blockedByDefault,
+  roleOwnerShort,
 } from '#/shared/services/capabilities/held';
 import { effectiveRole } from '#/testing/roleAnswers';
 
@@ -172,5 +173,13 @@ describe('blockedByDefault', () => {
     ]);
     expect(blockedByDefault(true, [])).toEqual([]);
     expect(blockedByDefault(false, ['view-users'])).toEqual([]);
+  });
+});
+
+describe('roleOwnerShort', () => {
+  it('says the tenant for a tenant role and the client otherwise, built-in client included', () => {
+    expect(roleOwnerShort(null)).toBe('tenant role');
+    expect(roleOwnerShort('portal')).toBe('client portal');
+    expect(roleOwnerShort(ADMIN_CLIENT_KEY)).toBe('client odudu-admin');
   });
 });

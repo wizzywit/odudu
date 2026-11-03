@@ -67,7 +67,6 @@ export {
 } from '#/entities/subject/services/subjectReach';
 export {
   roleIdsOf,
-  roleOwnerOf,
   roleUnavailableHere,
   splitRoles,
   type SplitRoles,

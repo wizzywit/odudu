@@ -13,14 +13,13 @@ import {
 import type { PickerState } from '#/shared/services/picker';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import type { RoleValues } from '#/shared/services/sectionValues';
-import { accessRefusal, provenanceListText } from '#/shared/services/capabilities';
+import { accessRefusal, provenanceListText, roleOwnerShort } from '#/shared/services/capabilities';
 import {
   type Subject,
   useEffectiveRoleList,
   useSaveRoles,
   subjectName,
   rolesRecord,
-  roleOwnerOf,
   roleUnavailableHere,
   splitRoles,
 } from '#/entities/subject';
@@ -87,7 +86,7 @@ export function useSubjectRoles(
     unavailableOf: roleUnavailableHere,
     assigned: assignmentsOf(save.values.role_ids, known),
     effective,
-    ownerOf: roleOwnerOf,
+    ownerOf: roleOwnerShort,
     heldBy: (role) => provenanceListText(role.via),
   };
 }

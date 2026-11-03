@@ -99,6 +99,11 @@ export function blockedByDefault(isDefault: boolean, reach: readonly string[]): 
 
 export const TENANT_ROLE_TEXT = 'tenant role';
 
+// Whose a role is where it sits beside others: its tenant or its client's key.
+export function roleOwnerShort(client: string | null): string {
+  return client === null ? TENANT_ROLE_TEXT : `client ${client}`;
+}
+
 // Whose a role is, in words: a client's role reaches a token under its
 // client's name, and the built-in admin client's roles are the capabilities.
 export function roleOwnerText(role: {
