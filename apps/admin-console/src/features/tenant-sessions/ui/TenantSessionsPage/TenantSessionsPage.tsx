@@ -2,12 +2,8 @@ import type { TenantSession } from '@odudu/contracts/admin';
 import { Link } from 'react-aria-components';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
-import {
-  NOTHING_YET,
-  NOUN,
-  PAGE_RULE,
-  subjectCell,
-} from '#/features/tenant-sessions/services/page';
+import { NOTHING_YET, NOUN, PAGE_RULE } from '#/features/tenant-sessions/services/sessionListText';
+import { subjectCell } from '#/features/tenant-sessions/services/sessionSubject';
 import {
   useTenantSessionsPage,
   type TenantSessionsPage as Page,

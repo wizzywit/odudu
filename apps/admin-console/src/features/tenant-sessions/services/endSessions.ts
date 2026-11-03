@@ -1,39 +1,10 @@
-import type { EndTenantSessionsResponse, TenantSession } from '@odudu/contracts/admin';
-import { nameOrId } from '#/shared/services/ids';
+import type { EndTenantSessionsResponse } from '@odudu/contracts/admin';
 import { refusedBy, writeFailureText } from '#/shared/services/failure';
 import { counted } from '#/shared/services/format';
 import type { GatewayFailure } from '#/shared/services/result';
 
-export const NOUN = { one: 'session', other: 'sessions' } as const;
-
-export const PAGE_RULE =
-  'Every browser sign-in in this tenant that has neither ended nor idled out, whoever holds it, in the order the server keeps them. One subject’s sessions are listed, and ended one at a time, on the subject’s own Sessions tab.';
-
-export const NOTHING_YET = 'Nobody is signed in to this tenant.';
-
 // The most sessions one request ends; the server does the rest on the next.
 const END_LIMIT = 500;
-
-// A subject is named by its username where it has one; its id is what the
-// link and the detail go by.
-export function subjectCell(session: Pick<TenantSession, 'subject_id' | 'username'>): {
-  label: string;
-  id: string;
-} {
-  return {
-    label: nameOrId({ id: session.subject_id, username: session.username }),
-    id: session.subject_id,
-  };
-}
-
-// Where a session's subject has its page, for a caller who may read subjects.
-export function subjectLinkOf(
-  mayRead: boolean,
-  tenant: string,
-  href: (tenant: string, id: string) => string,
-): ((id: string) => string) | null {
-  return mayRead ? (id) => href(tenant, id) : null;
-}
 
 // `ownTenant`: the operator's own console session belongs to this tenant.
 export function endConsequence(tenant: string, ownTenant: boolean): string {

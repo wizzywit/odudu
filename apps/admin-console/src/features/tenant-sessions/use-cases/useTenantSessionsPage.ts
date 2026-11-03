@@ -11,8 +11,8 @@ import {
   endedText,
   endFailure,
   endMoreText,
-  subjectLinkOf,
-} from '#/features/tenant-sessions/services/page';
+} from '#/features/tenant-sessions/services/endSessions';
+import { subjectLinkOf } from '#/features/tenant-sessions/services/sessionSubject';
 import { useToast } from '#/shared/repository/useToasts';
 import { holds } from '#/shared/services/access';
 import type { ResourceListState } from '#/shared/services/resourceList';
