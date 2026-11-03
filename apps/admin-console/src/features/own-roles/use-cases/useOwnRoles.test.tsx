@@ -2,7 +2,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
 import { SignedInContext } from '#/entities/session';
-import { useOwnRoles } from '#/pages/subjects/use-cases/useOwnRoles';
+import { useOwnRoles } from '#/features/own-roles/use-cases/useOwnRoles';
 import { hookHarness } from '#/testing/hookHarness';
 import { json, pending, type Answer } from '#/testing/fakeTransport';
 import { whoami } from '#/testing/renderConsole';

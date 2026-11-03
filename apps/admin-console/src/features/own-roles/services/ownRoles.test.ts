@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ownRolesOf } from '#/pages/subjects/services/ownRoles';
+import { ownRolesOf } from '#/features/own-roles/services/ownRoles';
 
 describe('the roles the caller holds', () => {
   const roles = {

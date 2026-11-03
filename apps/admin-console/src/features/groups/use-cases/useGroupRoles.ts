@@ -1,7 +1,7 @@
 import type { GroupRecord, Role, SetGroupRolesResponse } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useRefusal, useRereadAuthority } from '#/entities/session';
-import { useOwnRoles } from '#/pages/subjects';
+import { useOwnRoles } from '#/features/own-roles';
 import { useGroupRolesRecord, useGroupSaves } from '#/features/groups/repository/useGroupRecord';
 import { type Asked } from '#/features/groups/services/address';
 import { defaultingOf, roleUnavailable } from '#/features/groups/services/blocks';

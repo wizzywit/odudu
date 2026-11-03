@@ -37,8 +37,14 @@ const DESCRIBED_BY_THE_TOUR = ['console-home', 'failure'];
 
 // Parts of other pages, described on the pages that show them: adding an
 // administrator on Tenants and System administrators, the capability list on
-// those two and on a subject, the Members tab on Groups and Roles.
-const DESCRIBED_BY_ITS_PAGES = ['begin-administrator', 'subject-capabilities', 'subject-members'];
+// those two and on a subject, the Members tab on Groups and Roles; own-roles
+// holds no screen, only what a write on those pages would take from the caller.
+const DESCRIBED_BY_ITS_PAGES = [
+  'begin-administrator',
+  'own-roles',
+  'subject-capabilities',
+  'subject-members',
+];
 
 // The area each menu entry opens, by the path areas.ts gives it, and the page
 // that covers it. The Export entry is a tenant's export, on the Tenants page.

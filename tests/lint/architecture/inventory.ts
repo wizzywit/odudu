@@ -313,7 +313,11 @@ export const INVENTORY: Record<RuleId, string[]> = {
     'apps/admin-console/src/features/clients/use-cases/useClientRecordPage.ts',
     'apps/admin-console/src/features/clients/use-cases/useClientRolesTab.ts',
     'apps/admin-console/src/features/groups/ui/GroupRecordPage/GroupRecordPage.tsx',
+    'apps/admin-console/src/features/groups/use-cases/useGroupGeneral.ts',
+    'apps/admin-console/src/features/groups/use-cases/useGroupRoles.ts',
     'apps/admin-console/src/features/roles/ui/RoleRecordPage/RoleRecordPage.tsx',
+    'apps/admin-console/src/features/roles/use-cases/useRoleComposites.ts',
+    'apps/admin-console/src/features/roles/use-cases/useRoleGeneral.ts',
   ],
   'view-no-service': [
     'apps/admin-console/src/features/audit/ui/AuditFilters/AuditFilters.tsx',
