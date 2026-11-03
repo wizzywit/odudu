@@ -1,4 +1,4 @@
-import { useMembers, useMembersReadable } from '#/pages/subjects/use-cases/useMembers';
+import { useMembers, useMembersReadable } from '#/features/subject-members/use-cases/useMembers';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
 import { Count } from '#/shared/ui/Count';
 import { DataTable, type Column } from '#/shared/ui/DataTable';
@@ -8,14 +8,14 @@ import { Pager } from '#/shared/ui/Pager';
 import { TableSkeleton } from '#/shared/ui/Skeleton';
 import { EnabledTag } from '#/shared/ui/StatusTag';
 import { recordTab } from '#/shared/ui/RecordTab';
-import { type Subject, subjectName } from '#/entities/subject';
+import type { Subject } from '#/entities/subject';
 
-const COLUMNS: readonly Column<Subject>[] = [
+const columnsFor = (nameOf: (subject: Subject) => string): readonly Column<Subject>[] => [
   {
     id: 'username',
     header: 'Username',
     isRowHeader: true,
-    cell: (subject) => <code>{subjectName(subject)}</code>,
+    cell: (subject) => <code>{nameOf(subject)}</code>,
   },
   { id: 'email', header: 'Email', cell: (subject) => subject.email ?? '—' },
   {
@@ -51,7 +51,8 @@ function List({
   // How the record is known in running text: a group's path, a role's name.
   name: string;
 }) {
-  const { list, listHref, open } = useMembers(tenant, by, id);
+  const { list, listHref, open, nameOf } = useMembers(tenant, by, id);
+  const tableColumns = columnsFor(nameOf);
   const label = by === 'group' ? `Members of ${name}` : `Holders of ${name}`;
   return (
     <>
@@ -67,7 +68,7 @@ function List({
       )}
       <ListGate
         list={list}
-        loading={<TableSkeleton label="Loading members" columns={COLUMNS} rows={2} />}
+        loading={<TableSkeleton label="Loading members" columns={tableColumns} rows={2} />}
         refused={{ capability: 'view-users', noun: 'Members' }}
         failed="The members could not be loaded"
       >
@@ -78,7 +79,7 @@ function List({
             <>
               <DataTable
                 label={label}
-                columns={COLUMNS}
+                columns={tableColumns}
                 rows={list.rows}
                 rowKey={(subject) => subject.id}
                 onRowAction={open}

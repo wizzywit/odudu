@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useAuditReadable } from '#/entities/session';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
-import { SubjectMembers } from '#/pages/subjects';
+import { SubjectMembers } from '#/features/subject-members';
 import { rolesTrail, type Role } from '#/features/roles/services/address';
 import { ROLE_TAB_LABELS, ROLE_TABS, type RoleTab } from '#/features/roles/services/tabs';
 import { useRoleRecordPage, type Ceiling } from '#/features/roles/use-cases/useRoleRecordPage';

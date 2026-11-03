@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { membersListHref } from '#/pages/subjects/services/memberListAddress';
+import { membersListHref } from '#/features/subject-members/services/memberListAddress';
 
 const LIST = '/console/acme/subjects';
 

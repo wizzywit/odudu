@@ -36,8 +36,9 @@ const PAGE_OF_FEATURE: Readonly<Record<string, string>> = {
 const DESCRIBED_BY_THE_TOUR = ['console-home', 'failure'];
 
 // An action of other pages, described on the pages that offer it: adding an
-// administrator, on Tenants and System administrators.
-const DESCRIBED_BY_ITS_PAGES = ['begin-administrator'];
+// administrator, on Tenants and System administrators; the Members tab, on
+// Groups and Roles.
+const DESCRIBED_BY_ITS_PAGES = ['begin-administrator', 'subject-members'];
 
 // The area each menu entry opens, by the path areas.ts gives it, and the page
 // that covers it. The Export entry is a tenant's export, on the Tenants page.

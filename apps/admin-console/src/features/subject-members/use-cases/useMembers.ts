@@ -1,10 +1,10 @@
 import { useAuthority } from '#/entities/session';
 import { useGo } from '#/shared/repository/useGo';
-import { useMemberList } from '#/pages/subjects/repository/useMemberList';
+import { useMemberList } from '#/features/subject-members/repository/useMemberList';
 import { notLacking } from '#/shared/services/access';
 import type { ResourceListState } from '#/shared/services/resourceList';
-import { membersListHref } from '#/pages/subjects/services/memberListAddress';
-import { type Subject, subjectHref, subjectsHref } from '#/entities/subject';
+import { membersListHref } from '#/features/subject-members/services/memberListAddress';
+import { type Subject, subjectHref, subjectName, subjectsHref } from '#/entities/subject';
 
 // whoami is advice: a caller it says cannot read subjects is told so, rather
 // than sent a read the server would refuse.
@@ -17,6 +17,7 @@ export interface Members {
   // The same subjects in the Subjects list, where every other filter applies.
   listHref: string;
   open: (id: string) => void;
+  nameOf: (subject: Subject) => string;
 }
 
 export function useMembers(tenant: string, by: 'group' | 'role', id: string): Members {
@@ -25,6 +26,7 @@ export function useMembers(tenant: string, by: 'group' | 'role', id: string): Me
   return {
     list,
     listHref: membersListHref(subjectsHref(tenant), by, id),
+    nameOf: subjectName,
     open: (subject) => {
       go(subjectHref(tenant, subject));
     },
