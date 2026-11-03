@@ -135,6 +135,8 @@ it('asks for a value only when it is blank', () => {
   expect(requiredProblem('', 'Enter a name.')).toBe('Enter a name.');
   expect(requiredProblem('  ', 'Enter a name.')).toBe('Enter a name.');
   expect(requiredProblem('x', 'Enter a name.')).toBeNull();
+  expect(requiredProblem('  ', 'Enter a name.', { trim: false })).toBeNull();
+  expect(requiredProblem('', 'Enter a name.', { trim: false })).toBe('Enter a name.');
 });
 
 it('names the one field that is wrong, and nothing else', () => {

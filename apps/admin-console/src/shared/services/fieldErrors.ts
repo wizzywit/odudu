@@ -94,6 +94,12 @@ export function problemAt<F extends string>(field: F, text: string | null): Fiel
   return text === null ? null : { field, text };
 }
 
-export function requiredProblem(value: string, text: string): string | null {
-  return value.trim() === '' ? text : null;
+// Whitespace counts as nothing unless `trim` is false, for a value a rule
+// elsewhere refuses in its own words.
+export function requiredProblem(
+  value: string,
+  text: string,
+  { trim = true }: { trim?: boolean } = {},
+): string | null {
+  return (trim ? value.trim() : value) === '' ? text : null;
 }

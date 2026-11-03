@@ -1,11 +1,13 @@
 import { isTenantName } from '@odudu/contracts';
 import { type Tenant } from '@odudu/contracts/admin';
+import { requiredProblem } from '#/shared/services/fieldErrors';
 import { TENANT_NAME_RULE_TEXT } from '#/shared/services/labels';
 
 export type { Tenant };
 
 export function nameProblem(name: string): string | null {
-  if (name === '') return 'Enter a name for the tenant.';
+  const missing = requiredProblem(name, 'Enter a name for the tenant.', { trim: false });
+  if (missing !== null) return missing;
   return isTenantName(name) ? null : TENANT_NAME_RULE_TEXT;
 }
 
