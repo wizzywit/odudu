@@ -27,7 +27,7 @@ import {
   type Draft,
 } from '#/features/audit/services/filterDraft';
 import { isFiltered, type FilterName } from '#/features/audit/services/auditFilters';
-import { actorHref, resourceHref, type RecordPages } from '#/features/audit/services/links';
+import { actorHref, resourceHref, type RecordPages } from '#/features/audit/services/resourceLinks';
 import { loadedRange } from '#/features/audit/services/trailCount';
 import { holds } from '#/shared/services/access';
 import { useNow } from '#/shared/use-cases/useNow';

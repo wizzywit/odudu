@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { exportFailureText } from '#/features/audit/services/export';
+import { exportFailureText } from '#/features/audit/services/auditExport';
 import type { GatewayFailure } from '#/shared/services/result';
 import { failure, refusal } from '#/testing/failures';
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { useAuditExport } from '#/features/audit/repository/useAuditExport';
-import { exportFailureText, savedText } from '#/features/audit/services/export';
+import { exportFailureText, savedText } from '#/features/audit/services/auditExport';
 import { type AuditFilters } from '#/features/audit/services/auditFilters';
 import { useToast } from '#/shared/repository/useToasts';
 

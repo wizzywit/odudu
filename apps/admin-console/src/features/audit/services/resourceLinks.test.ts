@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { actorHref, resourceHref, type RecordPages } from '#/features/audit/services/links';
+import { actorHref, resourceHref, type RecordPages } from '#/features/audit/services/resourceLinks';
 
 const PAGES: RecordPages = {
   subject: (tenant, id) => `/console/${tenant}/subjects/${id}`,

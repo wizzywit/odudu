@@ -4,7 +4,7 @@ import {
   eventsIn,
   exportFailureText,
   savedText,
-} from '#/features/audit/services/export';
+} from '#/features/audit/services/auditExport';
 import type { GatewayFailure } from '#/shared/services/result';
 
 describe('the file an export is saved as', () => {
