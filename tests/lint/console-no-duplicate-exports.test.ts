@@ -181,8 +181,8 @@ describe('declarations in the console', { timeout: 60_000 }, () => {
     const files = await read(CONSOLE, TREE);
     const names = [...files.keys()];
     expect(names).toContain('src/shared/services/failure.ts');
-    expect(names.filter((file) => file.startsWith('src/features/groups/'))).not.toEqual([]);
-    expect(names.filter((file) => file.startsWith('src/features/roles/'))).not.toEqual([]);
+    expect(names.filter((file) => file.startsWith('src/pages/groups/'))).not.toEqual([]);
+    expect(names.filter((file) => file.startsWith('src/pages/roles/'))).not.toEqual([]);
     expect(names.filter((file) => file.startsWith('src/features/clients/'))).not.toEqual([]);
     expect(names).toContain('e2e/stack.ts');
     expect(violations(files)).toEqual([]);

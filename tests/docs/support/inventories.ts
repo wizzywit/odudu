@@ -37,7 +37,8 @@ export interface Item {
 }
 
 const CONTENT = path.join(REPO_ROOT, 'apps/docs/content/en');
-const FEATURES = path.join(REPO_ROOT, 'apps/admin-console/src/features');
+const CONSOLE_SRC = path.join(REPO_ROOT, 'apps/admin-console/src');
+const SCREEN_ROOTS = ['features', 'pages'].map((layer) => path.join(CONSOLE_SRC, layer));
 
 function walk(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
@@ -60,9 +61,11 @@ const NOISE = /^(loading|checking|reading|move \$|any )|\$\{| sections$/iu;
 // in a section table, and the FIELD, SECTION and tab-label constants.
 function consoleLabels(): Item[] {
   const found = new Map<string, Item>();
-  const files = walk(FEATURES).filter((file) => /\.tsx?$/u.test(file) && !file.includes('.test.'));
+  const files = SCREEN_ROOTS.flatMap((root) =>
+    walk(root).filter((file) => /\.tsx?$/u.test(file) && !file.includes('.test.')),
+  );
   for (const file of files) {
-    const feature = path.relative(FEATURES, file).split(path.sep)[0] ?? '';
+    const feature = path.relative(CONSOLE_SRC, file).split(path.sep)[1] ?? '';
     const source = readFileSync(file, 'utf8');
     const visible = source
       .split('\n')
@@ -142,7 +145,7 @@ function contractFields(): Item[] {
 function settingLabels(): Map<string, string> {
   const labels = new Map<string, string>();
   for (const file of ['accessSections.ts', 'platformSections.ts']) {
-    const source = readFileSync(path.join(FEATURES, 'settings/services', file), 'utf8');
+    const source = readFileSync(path.join(CONSOLE_SRC, 'features/settings/services', file), 'utf8');
     for (const m of source.matchAll(/name:\s*'([a-z_]+)',\s*label:\s*'([^'\n]+)'/gu)) {
       labels.set(m[1] ?? '', m[2] ?? '');
     }

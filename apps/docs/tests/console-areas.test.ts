@@ -75,8 +75,8 @@ const PAGE_OF_AREA: Readonly<Record<string, string>> = {
 const TAB_LABELS: Readonly<Record<string, TabSource | readonly string[]>> = {
   subjects: { file: 'subjects/services/tabs.ts', map: 'labels: {', root: CONSOLE_PAGES },
   clients: { file: 'clients/services/tabs.ts', map: 'labels: {', root: CONSOLE },
-  groups: { file: 'groups/services/tabs.ts', map: 'labels: {', root: CONSOLE },
-  roles: { file: 'roles/services/tabs.ts', map: 'labels: {', root: CONSOLE },
+  groups: { file: 'groups/services/tabs.ts', map: 'labels: {', root: CONSOLE_PAGES },
+  roles: { file: 'roles/services/tabs.ts', map: 'labels: {', root: CONSOLE_PAGES },
   scopes: { file: 'scopes/services/tabs.ts', map: 'labels: {', root: CONSOLE },
   tenants: ['General', 'Administrators', 'Export'],
 };

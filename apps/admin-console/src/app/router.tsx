@@ -238,7 +238,7 @@ const subjectRecord = subjectPages[2];
 
 function groupsPage(name: 'GroupsPage' | 'NewGroupPage') {
   return lazyFeatureRoute(
-    () => import('#/features/groups').then((feature) => feature[name]),
+    () => import('#/pages/groups').then((feature) => feature[name]),
     'Loading groups',
   );
 }
@@ -246,7 +246,7 @@ function groupsPage(name: 'GroupsPage' | 'NewGroupPage') {
 const Groups = groupsPage('GroupsPage');
 const NewGroup = groupsPage('NewGroupPage');
 const GroupRecord = lazyFeatureRoute(
-  () => import('#/features/groups').then((feature) => feature.GroupRecordPage),
+  () => import('#/pages/groups').then((feature) => feature.GroupRecordPage),
   'Loading the group',
 );
 
@@ -281,7 +281,7 @@ const groupRecord = groupPages[2];
 
 function rolesPage(name: 'RolesPage' | 'NewRolePage') {
   return lazyFeatureRoute(
-    () => import('#/features/roles').then((feature) => feature[name]),
+    () => import('#/pages/roles').then((feature) => feature[name]),
     'Loading roles',
   );
 }
@@ -289,7 +289,7 @@ function rolesPage(name: 'RolesPage' | 'NewRolePage') {
 const Roles = rolesPage('RolesPage');
 const NewRole = rolesPage('NewRolePage');
 const RoleRecord = lazyFeatureRoute(
-  () => import('#/features/roles').then((feature) => feature.RoleRecordPage),
+  () => import('#/pages/roles').then((feature) => feature.RoleRecordPage),
   'Loading the role',
 );
 

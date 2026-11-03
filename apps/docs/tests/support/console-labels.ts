@@ -63,8 +63,9 @@ const heading = (label: string): Defined => at(AREAS, `heading: '${label}'`);
 
 const tab = (feature_: string, key: string, label: string): Defined =>
   feature(`${feature_}/services/tabs.ts`, `${key}: '${label}'`);
-const subjectTab = (key: string, label: string): Defined =>
-  page('subjects/services/tabs.ts', `${key}: '${label}'`);
+const pageTab = (page_: string, key: string, label: string): Defined =>
+  page(`${page_}/services/tabs.ts`, `${key}: '${label}'`);
+const subjectTab = (key: string, label: string): Defined => pageTab('subjects', key, label);
 const clientTab = (key: string, label: string): Defined => tab('clients', key, label);
 
 const FILTERS = 'audit/ui/AuditFilters/AuditFilters.tsx';
@@ -99,9 +100,13 @@ const createWith = (
     { noun },
   );
 
-const deleteNamed = (page: string, subject: string): Defined =>
+const deleteNamed = (
+  page: string,
+  subject: string,
+  evidenceIn: (path: string, text: string) => Evidence = inFeature,
+): Defined =>
   template(
-    [{ file: DELETE_ZONE, text: '`Delete ${name}`' }, inFeature(page, '<DeleteZone')],
+    [{ file: DELETE_ZONE, text: '`Delete ${name}`' }, evidenceIn(page, '<DeleteZone')],
     'Delete ${name}',
     { name: subject },
   );
@@ -157,7 +162,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Roles: several(
     rail('roles', 'Roles'),
     subjectTab('roles', 'Roles'),
-    tab('groups', 'roles', 'Roles'),
+    pageTab('groups', 'roles', 'Roles'),
     tab('scopes', 'roles', 'Roles'),
     clientTab('roles', 'Roles'),
   ),
@@ -196,14 +201,14 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Activity: several(
     subjectTab('activity', 'Activity'),
     clientTab('activity', 'Activity'),
-    tab('groups', 'activity', 'Activity'),
-    tab('roles', 'activity', 'Activity'),
+    pageTab('groups', 'activity', 'Activity'),
+    pageTab('roles', 'activity', 'Activity'),
     tab('scopes', 'activity', 'Activity'),
   ),
   General: several(
     clientTab('general', 'General'),
-    tab('groups', 'general', 'General'),
-    tab('roles', 'general', 'General'),
+    pageTab('groups', 'general', 'General'),
+    pageTab('roles', 'general', 'General'),
     tab('scopes', 'general', 'General'),
     page('tenants/ui/GeneralTab/GeneralTab.tsx', 'title="General"'),
     feature(ACCESS, "title: 'General'"),
@@ -213,8 +218,8 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Logout: clientTab('logout', 'Logout'),
   Advanced: clientTab('advanced', 'Advanced'),
   'Service account': clientTab('service', 'Service account'),
-  Members: several(tab('groups', 'members', 'Members'), tab('roles', 'members', 'Members')),
-  Composites: tab('roles', 'composites', 'Composites'),
+  Members: several(pageTab('groups', 'members', 'Members'), pageTab('roles', 'members', 'Members')),
+  Composites: pageTab('roles', 'composites', 'Composites'),
   'Claim mappers': tab('scopes', 'mappers', 'Claim mappers'),
   Administrators: page('tenants/ui/TenantRecordPage/TenantRecordPage.tsx', "'Administrators'"),
 
@@ -222,8 +227,8 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Create a tenant': page('tenants/ui/TenantsPage/TenantsPage.tsx', '> Create a tenant <'),
   'Create a client': feature('clients/ui/ClientsPage/ClientsPage.tsx', '> Create a client <'),
   'Create a subject': page('subjects/ui/SubjectsPage/SubjectsPage.tsx', '> Create a subject <'),
-  'Create a group': feature('groups/ui/GroupsPage/GroupsPage.tsx', '> Create a group <'),
-  'Create a role': feature('roles/ui/RolesPage/RolesPage.tsx', '> Create a role <'),
+  'Create a group': page('groups/ui/GroupsPage/GroupsPage.tsx', '> Create a group <'),
+  'Create a role': page('roles/ui/RolesPage/RolesPage.tsx', '> Create a role <'),
   'Create a scope': feature('scopes/ui/ScopesPage/ScopesPage.tsx', '> Create a scope <'),
   'Restore built-in scopes': feature(
     'scopes/ui/ScopesPage/RestoreScopes.tsx',
@@ -238,7 +243,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'scopes/services/mappers.ts',
     "DEFAULT_MAPPER_NOTE = 'Used because nothing is bound'",
   ),
-  'Create a copy': feature('roles/ui/RoleRecordPage/RoleRecordPage.tsx', '> Create a copy <'),
+  'Create a copy': page('roles/ui/RoleRecordPage/RoleRecordPage.tsx', '> Create a copy <'),
   'Import a tenant': several(
     page('tenants/ui/TenantsPage/TenantsPage.tsx', '>Import a tenant<'),
     page('tenants/services/creationPosition.ts', "IMPORT_TITLE = 'Import a tenant'"),
@@ -246,8 +251,8 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Create tenant': page(TENANT_NEW, "'Create tenant'"),
   'Create client': createWith('client', CLIENT_NEW),
   'Create subject': createWith('subject', 'subjects/ui/NewSubjectPage/NewSubjectPage.tsx', inPage),
-  'Create group': createWith('group', 'groups/ui/NewGroupPage/NewGroupPage.tsx'),
-  'Create role': createWith('role', 'roles/ui/NewRolePage/NewRolePage.tsx'),
+  'Create group': createWith('group', 'groups/ui/NewGroupPage/NewGroupPage.tsx', inPage),
+  'Create role': createWith('role', 'roles/ui/NewRolePage/NewRolePage.tsx', inPage),
   'Create scope': createWith('scope', 'scopes/ui/NewScopePage/NewScopePage.tsx'),
   'Create administrator': page(TENANT_NEW, "'Create administrator'"),
   'Create a new subject as an administrator': page(
@@ -282,7 +287,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'clients/ui/LogoutTab/LogoutTab.tsx',
     'label="Post-logout redirect URIs"',
   ),
-  Parent: feature('groups/ui/NewGroupPage/NewGroupPage.tsx', 'label="Parent"'),
+  Parent: page('groups/ui/NewGroupPage/NewGroupPage.tsx', 'label="Parent"'),
   'Enter demo': template(
     [inPage('tenants/ui/TenantsPage/TenantsPage.tsx', '`Enter ${tenant.name}`')],
     'Enter ${tenant.name}',
@@ -303,7 +308,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'subject-capabilities/ui/CapabilityHolders/CapabilityHolders.tsx',
     'label="Holds"',
   ),
-  'Belongs to': feature('roles/ui/RolesPage/RolesPage.tsx', 'label="Belongs to"'),
+  'Belongs to': page('roles/ui/RolesPage/RolesPage.tsx', 'label="Belongs to"'),
   Previous: shared('ui/Pager/Pager.tsx', 'Previous'),
   Next: shared('ui/Pager/Pager.tsx', 'Next'),
 
@@ -353,22 +358,22 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
 
   // Groups and roles.
-  'Place in the tree': feature(
+  'Place in the tree': page(
     'groups/ui/GroupRecordPage/GeneralTab.tsx',
     'title="Place in the tree"',
   ),
-  'Save Place in the tree': feature(
+  'Save Place in the tree': page(
     'groups/ui/GroupRecordPage/GeneralTab.tsx',
     'confirmLabel="Save Place in the tree"',
   ),
-  'Save Roles': feature('groups/ui/GroupRecordPage/RolesTab.tsx', 'confirmLabel="Save Roles"'),
-  'Joined by every new subject': feature(
+  'Save Roles': page('groups/ui/GroupRecordPage/RolesTab.tsx', 'confirmLabel="Save Roles"'),
+  'Joined by every new subject': page(
     'groups/ui/GroupRecordPage/GeneralTab.tsx',
     'label="Joined by every new subject"',
   ),
   'Delete /eng and every group beneath it': template(
     [
-      inFeature(
+      inPage(
         'groups/ui/GroupRecordPage/GeneralTab.tsx',
         '`Delete ${path} and every group beneath it`',
       ),
@@ -376,16 +381,13 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'Delete ${path} and every group beneath it',
     { path: '/eng' },
   ),
-  'Given to every new subject': feature(
+  'Given to every new subject': page(
     'roles/ui/RoleRecordPage/GeneralTab.tsx',
     'label="Given to every new subject"',
   ),
-  'Add a composite': feature(
-    'roles/ui/RoleRecordPage/CompositesTab.tsx',
-    'title="Add a composite"',
-  ),
-  'Take it out': feature('roles/ui/RoleRecordPage/CompositesTab.tsx', 'confirmLabel="Take it out"'),
-  'Delete reader': deleteNamed('roles/ui/RoleRecordPage/GeneralTab.tsx', 'reader'),
+  'Add a composite': page('roles/ui/RoleRecordPage/CompositesTab.tsx', 'title="Add a composite"'),
+  'Take it out': page('roles/ui/RoleRecordPage/CompositesTab.tsx', 'confirmLabel="Take it out"'),
+  'Delete reader': deleteNamed('roles/ui/RoleRecordPage/GeneralTab.tsx', 'reader', inPage),
   'admin capability': shared('services/capabilities/held.ts', "'admin capability'"),
 
   // Clients.
@@ -757,8 +759,8 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'clients/services/advanced.ts',
     "'Allow impersonation in token exchange'",
   ),
-  'New subjects': feature('roles/use-cases/useRoleGeneral.ts', "label: 'New subjects'"),
-  'Tenant or client': feature('roles/ui/RolesPage/RolesPage.tsx', "label: 'Tenant or client'"),
+  'New subjects': page('roles/use-cases/useRoleGeneral.ts', "label: 'New subjects'"),
+  'Tenant or client': page('roles/ui/RolesPage/RolesPage.tsx', "label: 'Tenant or client'"),
   'New clients': feature('scopes/use-cases/useScopeGeneral.ts', "label: 'New clients'"),
   'Assigned as default': feature('scopes/services/general.ts', "label: 'Assigned as default'"),
   'Assigned as optional': feature('scopes/services/general.ts', "label: 'Assigned as optional'"),
