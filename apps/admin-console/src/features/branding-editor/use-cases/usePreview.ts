@@ -37,7 +37,6 @@ export interface Preview {
   retry?: (() => void) | undefined;
   onLoaded: () => void;
   setKind: (kind: PageKind) => void;
-  setScheme: (scheme: Scheme) => void;
   // The same choices as a control's id gives them.
   chooseKind: (id: string) => void;
   chooseScheme: (id: string) => void;
@@ -76,7 +75,6 @@ export function usePreview(
       setLoaded(frameKey);
     },
     setKind,
-    setScheme,
     chooseKind: (id) => {
       chooseKind(id, setKind);
     },

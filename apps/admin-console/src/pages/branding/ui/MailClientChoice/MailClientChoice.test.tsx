@@ -14,15 +14,21 @@ const BILLING = {
   type: 'confidential' as const,
 };
 
-function mailWith(changes: Partial<MailTab> = {}): MailTab {
+function mailWith(
+  changes: {
+    client?: { id: string; name: string };
+    chooseClient?: () => void;
+    showTenantOwn?: () => void;
+  } = {},
+): MailTab {
   // Only what the choice reads; the rest of the tab is its frame and lists.
   return {
-    client: null,
-    clientChoice: mailClientChoice(changes.client ?? null),
-    picker: pickerState([BILLING]),
-    chooseClient: vi.fn(),
-    showTenantOwn: vi.fn(),
-    ...changes,
+    clientChoice: {
+      view: mailClientChoice(changes.client ?? null),
+      picker: pickerState([BILLING]),
+      choose: changes.chooseClient ?? vi.fn(),
+      showTenantOwn: changes.showTenantOwn ?? vi.fn(),
+    },
   } as unknown as MailTab;
 }
 

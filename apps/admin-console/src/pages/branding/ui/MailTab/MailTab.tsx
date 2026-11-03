@@ -11,7 +11,7 @@ import { FormSkeleton } from '#/shared/ui/Skeleton';
 import styles from '#/pages/branding/ui/MailTab/MailTab.module.css';
 
 export function MailPreview({ mail }: { mail: Mail }) {
-  const { preview } = mail;
+  const { view: preview } = mail.preview;
   return (
     <PreviewShell
       title={preview.title}
@@ -24,13 +24,13 @@ export function MailPreview({ mail }: { mail: Mail }) {
               label={preview.scheme.label}
               options={preview.scheme.options}
               value={preview.scheme.value}
-              onChange={mail.chooseScheme}
+              onChange={mail.preview.chooseScheme}
             />
             <SelectField
               label={preview.locale.label}
               options={preview.locale.options}
               value={preview.locale.value}
-              onChange={mail.chooseLocale}
+              onChange={mail.preview.chooseLocale}
             />
           </InlineFields>
           <MailClientChoice mail={mail} />
@@ -38,10 +38,10 @@ export function MailPreview({ mail }: { mail: Mail }) {
       }
       frame={{
         title: preview.frameTitle,
-        src: mail.src,
-        frameKey: mail.frameKey,
-        loading: mail.loading,
-        onLoaded: mail.onLoaded,
+        src: mail.frame.src,
+        frameKey: mail.frame.key,
+        loading: mail.frame.loading,
+        onLoaded: mail.frame.onLoaded,
       }}
     />
   );

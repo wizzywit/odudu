@@ -3,7 +3,6 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { PUBLISHING } from '#/features/branding-editor/services/publishDraft';
 import { NO_OUTCOME } from '#/features/branding-editor/services/publishOutcome';
-import { foldedActions } from '#/features/branding-editor/services/publicationHolds';
 import { NO_DRAFT_TO_DISCARD } from '#/features/branding-editor/services/discardDraft';
 import { TENANT_SCOPE } from '#/features/branding-editor/services/themeScope';
 import { usePublicationBar } from '#/features/branding-editor/use-cases/usePublicationBar';
@@ -34,6 +33,10 @@ function bar(view: ThemeView, tab = 'theme', routes = {}) {
   );
 }
 
+function discardHold(current: ReturnType<typeof usePublicationBar>): string | undefined {
+  return current.bar.menu.actions.find((action) => action.id === 'discard')?.description;
+}
+
 const DRAFTED = draftedView() as ThemeView;
 
 function unsaved(...sections: [string, string][]) {
@@ -45,13 +48,12 @@ function unsaved(...sections: [string, string][]) {
 
 it('holds nothing for a saved draft with something to publish', () => {
   const { result } = bar(DRAFTED);
-  expect(result.current.holds).toEqual({
-    publish: undefined,
-    discard: undefined,
-    revertTheme: undefined,
-    revertPages: 'This tab already matches what is published.',
-  });
   expect(result.current.publication.hold).toBeUndefined();
+  expect(result.current.bar.discard.disabled).toBe(false);
+  expect(result.current.revert.hold).toBeUndefined();
+  expect(bar(DRAFTED, 'pages').result.current.revert.hold).toBe(
+    'This tab already matches what is published.',
+  );
 });
 
 it('refuses to publish while a section has unsaved edits, and names it', () => {
@@ -60,7 +62,7 @@ it('refuses to publish while a section has unsaved edits, and names it', () => {
   expect(result.current.publication.hold).toBe(
     'Save your changes first, in “Colours and font”: publishing uses the saved draft.',
   );
-  expect(result.current.holds.discard).toBe(
+  expect(discardHold(result.current)).toBe(
     'Save or discard your changes first, in “Colours and font”: discarding the draft does not touch them.',
   );
   expect(result.current.revert.hold).toBe(
@@ -79,22 +81,21 @@ it('names every section holding unsaved edits, in the order they sit', () => {
 it('says there is no draft to publish or discard when there is none', () => {
   const { result } = bar(themeView() as ThemeView);
   expect(result.current.publication.hold).toMatch(/no draft to publish/u);
-  expect(result.current.holds.discard).toBe(NO_DRAFT_TO_DISCARD);
+  expect(discardHold(result.current)).toBe(NO_DRAFT_TO_DISCARD);
 });
 
 it('offers a revert on the tabs that have parts to take back, taking the Theme’s for any other', () => {
-  expect(bar(DRAFTED, 'theme').result.current).toMatchObject({
-    revertOffered: true,
-    revertTab: 'theme',
-  });
-  expect(bar(DRAFTED, 'pages').result.current).toMatchObject({
-    revertOffered: true,
-    revertTab: 'pages',
-  });
-  expect(bar(DRAFTED, 'mail').result.current).toMatchObject({
-    revertOffered: false,
-    revertTab: 'theme',
-  });
+  const offered = (tab: string) =>
+    bar(DRAFTED, tab).result.current.bar.menu.actions.map((action) => action.id);
+  expect(offered('theme')).toEqual(['revert', 'discard']);
+  expect(offered('pages')).toEqual(['revert', 'discard']);
+  expect(offered('mail')).toEqual(['discard']);
+  expect(bar(DRAFTED, 'theme').result.current.revert.section).toBe(
+    bar(DRAFTED, 'mail').result.current.revert.section,
+  );
+  expect(bar(DRAFTED, 'pages').result.current.revert.section).not.toBe(
+    bar(DRAFTED, 'theme').result.current.revert.section,
+  );
 });
 
 it('holds every action while the draft is being published', async () => {
@@ -105,22 +106,19 @@ it('holds every action while the draft is being published', async () => {
   await waitFor(() => {
     expect(result.current.publication.busy).toBe(true);
   });
-  expect(result.current.holds).toEqual({
-    publish: PUBLISHING,
-    discard: PUBLISHING,
-    revertTheme: PUBLISHING,
-    revertPages: PUBLISHING,
-  });
+  expect(result.current.publication.hold).toBe(PUBLISHING);
+  expect(discardHold(result.current)).toBe(PUBLISHING);
+  expect(result.current.revert.hold).toBe(PUBLISHING);
 });
 
 it('folds Revert and Discard under the menu, each held with its reason', () => {
   const { result } = bar(DRAFTED, 'pages');
-  const folded = foldedActions({
-    holds: result.current.holds,
-    tab: result.current.revertTab,
-    revertOffered: result.current.revertOffered,
-    reverting: result.current.revert.busy,
-  });
+  const folded = result.current.bar.menu.actions.map((action) => ({
+    id: action.id,
+    label: action.label,
+    isDisabled: action.isDisabled,
+    description: action.description,
+  }));
   expect(folded).toEqual([
     {
       id: 'revert',

@@ -1,7 +1,6 @@
 import type { ThemeView } from '#/features/branding-editor/types/theme';
 import { useThemeWrites } from '#/features/branding-editor/repository/useThemeWrites';
 import type { PublishOutcome } from '#/features/branding-editor/services/publishOutcome';
-import type { PublicationHolds } from '#/features/branding-editor/services/publicationHolds';
 import type { ThemeScope } from '#/features/branding-editor/services/themeScope';
 import {
   barMenu,
@@ -15,7 +14,7 @@ import {
   type OutcomeView,
   type PublicationStatus,
 } from '#/features/branding-editor/services/publicationBar';
-import { revertTarget, type ScopedTab } from '#/features/branding-editor/services/tabs';
+import { revertTarget } from '#/features/branding-editor/services/tabs';
 import {
   usePublication,
   type Publication,
@@ -28,15 +27,7 @@ import type { Removal } from '#/shared/use-cases/useConfirmedChange';
 export interface PublicationBar {
   publication: Publication;
   discard: Removal;
-  // Taking the tab being shown back to published, which the bar offers where
-  // it is too narrow to leave that to the tab's own panel, and only on a tab
-  // that has parts to take back.
   revert: Revert;
-  revertOffered: boolean;
-  // The tab a revert from the bar takes back.
-  revertTab: ScopedTab;
-  // Why each action is held, which a running write does to all of them.
-  holds: PublicationHolds;
   // What the bar reads out of the above.
   bar: {
     status: PublicationStatus;
@@ -84,9 +75,6 @@ export function usePublicationBar({
   const discard = useThemeDiscard(tenant, scope, tag, writes);
   return {
     revert,
-    revertOffered: target.offered,
-    revertTab: target.tab,
-    holds,
     publication,
     discard,
     bar: {

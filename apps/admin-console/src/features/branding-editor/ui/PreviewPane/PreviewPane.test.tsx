@@ -18,7 +18,6 @@ function preview(changes: Partial<Preview> = {}): Preview {
     loading: false,
     onLoaded: () => undefined,
     setKind: () => undefined,
-    setScheme: () => undefined,
     chooseKind: () => undefined,
     chooseScheme: () => undefined,
     ...changes,
