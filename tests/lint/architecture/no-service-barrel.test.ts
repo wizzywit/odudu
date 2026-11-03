@@ -28,7 +28,7 @@ describe('no-service-barrel', () => {
   });
 
   it(
-    'has no services/index outside the inventory',
+    'has no services/index',
     async () => {
       const found = await findBarrels(REPO_ROOT);
       expect(checkRule('no-service-barrel', found).errors).toEqual([]);

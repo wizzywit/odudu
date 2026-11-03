@@ -178,7 +178,7 @@ describe('no-domain-in-shared', () => {
   });
 
   it(
-    'has no breach outside the inventory',
+    'has no breach',
     async () => {
       const found = await findSharedBreaches(REPO_ROOT);
       expect(checkRule('no-domain-in-shared', found).errors).toEqual([]);

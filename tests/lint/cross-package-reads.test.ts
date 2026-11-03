@@ -130,10 +130,7 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
 // A command-line entry no test imports: it reads relative to where it is run,
 // and a test task never runs it. Named as an entry by its own package's `bin`
 // or `scripts`, or by a script in the root `package.json` that invokes it.
-const ENTRY_POINTS: readonly string[] = [
-  'tools/trace/src/index.ts',
-  'tools/segment-rename/src/cli.ts',
-];
+const ENTRY_POINTS: readonly string[] = ['tools/trace/src/index.ts'];
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const BUILDERS = new Set(['join', 'resolve', 'dirname', 'URL']);

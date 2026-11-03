@@ -51,7 +51,7 @@ describe('view-no-service', () => {
   });
 
   it(
-    'has no ui file reaching a service outside the inventory',
+    'has no ui file reaching a service',
     async () => {
       const found = await findViewServiceBreaches(REPO_ROOT);
       expect(checkRule('view-no-service', found).errors).toEqual([]);

@@ -49,7 +49,7 @@ describe('no-adapter-export', () => {
   });
 
   it(
-    'has no slice index exporting an adapter outside the inventory',
+    'has no slice index exporting an adapter',
     async () => {
       const found = await findAdapterExports(REPO_ROOT);
       expect(checkRule('no-adapter-export', found).errors).toEqual([]);

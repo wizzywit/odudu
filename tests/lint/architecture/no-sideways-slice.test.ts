@@ -69,7 +69,7 @@ describe('no-sideways-slice', () => {
   });
 
   it(
-    'has no sideways import outside the inventory',
+    'has no sideways import',
     async () => {
       const { files } = await findSidewaysBreaches(REPO_ROOT);
       expect(checkRule('no-sideways-slice', files).errors).toEqual([]);
