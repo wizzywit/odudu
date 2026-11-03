@@ -8,18 +8,25 @@ import styles from '#/features/overview/ui/OverviewPage/OverviewPage.module.css'
 
 export function OverviewPage({ tenant }: { tenant: string }) {
   const overview = useOverview(tenant);
+  const { words } = overview;
   return (
     <>
-      <PageHeader kicker={tenant} title="Overview" />
+      <PageHeader kicker={tenant} title={overview.title} />
       <div className={styles.grid}>
-        <AttentionPanel attention={overview.attention} />
-        {overview.tiles.length === 0 ? null : <CountsPanel tiles={overview.tiles} />}
+        <AttentionPanel attention={overview.attention} words={words.attention} />
+        {overview.tiles.length === 0 ? null : (
+          <CountsPanel tiles={overview.tiles} words={words.counts} />
+        )}
         <div className={styles.wide}>
-          <DiscoveryPanel discovery={overview.discovery} keys={overview.keys} />
+          <DiscoveryPanel
+            discovery={overview.discovery}
+            keys={overview.keys}
+            words={words.discovery}
+          />
         </div>
         {overview.audit === null ? null : (
           <div className={styles.wide}>
-            <LatestAudit audit={overview.audit} href={overview.auditHref} />
+            <LatestAudit audit={overview.audit} href={overview.auditHref} words={words.audit} />
           </div>
         )}
       </div>

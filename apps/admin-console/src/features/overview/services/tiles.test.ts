@@ -44,13 +44,19 @@ describe('the count tiles', () => {
 
   it('puts the client cap on the clients tile alone, when settings gave a number', () => {
     const tiles = countTiles(asked, undefined, areaOf);
-    expect(tiles.map((t) => t.limit)).toEqual([undefined, 200, undefined, undefined, undefined]);
+    expect(tiles.map((t) => t.allowance)).toEqual([
+      undefined,
+      ' of 200 allowed',
+      undefined,
+      undefined,
+      undefined,
+    ]);
     const none = countTiles(
       reads({ settings: ready<Settings>({ max_clients: null }) }),
       undefined,
       areaOf,
     );
-    expect(none.every((t) => t.limit === undefined)).toBe(true);
+    expect(none.every((t) => t.allowance === undefined)).toBe(true);
   });
 
   it('gates a count the caller does not hold', () => {

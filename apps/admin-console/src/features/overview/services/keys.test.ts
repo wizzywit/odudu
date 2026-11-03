@@ -23,9 +23,33 @@ describe('the published keys', () => {
 
   it('names each key by its lane, matched on kid', () => {
     expect(publishedKeys(jwks, KEYS, RULES.publishedLane)).toEqual([
-      { row: '0', kid: 'kid-a', kty: 'EC', alg: 'ES256', use: 'sig', lane: 'active' },
-      { row: '1', kid: 'kid-r', kty: 'EC', alg: 'ES256', use: 'sig', lane: 'rotating' },
-      { row: '2', kid: 'kid-x', kty: 'RSA', alg: null, use: null, lane: 'unlisted' },
+      {
+        row: '0',
+        kid: 'kid-a',
+        kty: 'EC',
+        alg: 'ES256',
+        use: 'sig',
+        lane: 'active',
+        laneLabel: 'active',
+      },
+      {
+        row: '1',
+        kid: 'kid-r',
+        kty: 'EC',
+        alg: 'ES256',
+        use: 'sig',
+        lane: 'rotating',
+        laneLabel: 'rotating',
+      },
+      {
+        row: '2',
+        kid: 'kid-x',
+        kty: 'RSA',
+        alg: null,
+        use: null,
+        lane: 'unlisted',
+        laneLabel: 'not in the key list',
+      },
     ]);
   });
 

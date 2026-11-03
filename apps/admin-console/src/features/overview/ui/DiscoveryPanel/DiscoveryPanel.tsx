@@ -1,9 +1,8 @@
 import { Fragment, useId, type ReactNode } from 'react';
 import type { PublishedLane } from '#/entities/signing-key';
-import { flagText } from '#/shared/services/format';
 import { type DiscoveryView } from '#/features/overview/services/discovery';
 import { type KeysView, type PublishedKey } from '#/features/overview/services/keys';
-import { laneText, unreadableTitle } from '#/features/overview/services/panelText';
+import type { OverviewWords } from '#/features/overview/services/overviewWords';
 import { type OverviewRead } from '#/features/overview/types/overviewReads';
 import { Panel } from '#/features/overview/ui/Panel';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
@@ -34,40 +33,48 @@ function Part({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Absent() {
-  return <span className={styles.quiet}>none</span>;
+type Words = OverviewWords['discovery'];
+
+function Absent({ words }: { words: Words }) {
+  return <span className={styles.quiet}>{words.none}</span>;
 }
 
-const COLUMNS: readonly Column<PublishedKey>[] = [
-  {
-    id: 'kid',
-    header: 'Key id',
-    isRowHeader: true,
-    cell: (key) =>
-      key.kid === null ? <Absent /> : <CopyValue label="key id" value={key.kid} short />,
-  },
-  { id: 'kty', header: 'Type', cell: (key) => <code>{key.kty}</code> },
-  {
-    id: 'alg',
-    header: 'Algorithm',
-    cell: (key) => (key.alg === null ? <Absent /> : <code>{key.alg}</code>),
-  },
-  {
-    id: 'use',
-    header: 'Use',
-    cell: (key) => (key.use === null ? <Absent /> : <code>{key.use}</code>),
-  },
-  {
-    id: 'lane',
-    header: 'Lane',
-    cell: (key) =>
-      key.lane === 'unknown' ? (
-        <span className={styles.quiet}>not known</span>
-      ) : (
-        <StatusTag tone={TONES[key.lane]}>{laneText(key.lane)}</StatusTag>
-      ),
-  },
-];
+function columns(words: Words): readonly Column<PublishedKey>[] {
+  return [
+    {
+      id: 'kid',
+      header: words.columns.kid,
+      isRowHeader: true,
+      cell: (key) =>
+        key.kid === null ? (
+          <Absent words={words} />
+        ) : (
+          <CopyValue label={words.keyIdCopy} value={key.kid} short />
+        ),
+    },
+    { id: 'kty', header: words.columns.kty, cell: (key) => <code>{key.kty}</code> },
+    {
+      id: 'alg',
+      header: words.columns.alg,
+      cell: (key) => (key.alg === null ? <Absent words={words} /> : <code>{key.alg}</code>),
+    },
+    {
+      id: 'use',
+      header: words.columns.use,
+      cell: (key) => (key.use === null ? <Absent words={words} /> : <code>{key.use}</code>),
+    },
+    {
+      id: 'lane',
+      header: words.columns.lane,
+      cell: (key) =>
+        key.lane === 'unknown' ? (
+          <span className={styles.quiet}>{words.laneUnknown}</span>
+        ) : (
+          <StatusTag tone={TONES[key.lane]}>{key.laneLabel}</StatusTag>
+        ),
+    },
+  ];
+}
 
 // A discovery name is words joined by underscores; it may break after one,
 // never inside a word.
@@ -85,46 +92,55 @@ function Name({ name }: { name: string }) {
   );
 }
 
-function Keys({ keys }: { keys: OverviewRead<KeysView> }) {
+function Keys({ keys, words }: { keys: OverviewRead<KeysView>; words: Words }) {
+  const cols = columns(words);
   switch (keys.status) {
     case 'off':
     case 'loading':
-      return <TableSkeleton label="Loading the published keys" columns={COLUMNS} rows={2} />;
+      return <TableSkeleton label={words.keysLoading} columns={cols} rows={2} />;
     case 'failed':
-      return <LoadFailed title={unreadableTitle('JWKS')} retry={keys.retry} />;
+      return <LoadFailed title={words.keysFailedTitle} retry={keys.retry} />;
     case 'ready':
       return (
         <>
           <DataTable
-            label="Published keys"
-            columns={COLUMNS}
+            label={words.keysTable}
+            columns={cols}
             rows={keys.data.rows}
             rowKey={(key) => key.row}
           />
           {keys.data.lanesNeed === null ? null : (
-            <CapabilityNote capability={keys.data.lanesNeed}>Each key&apos;s lane</CapabilityNote>
+            <CapabilityNote capability={keys.data.lanesNeed}>{words.lanesNote}</CapabilityNote>
           )}
           <details className={styles.raw}>
-            <summary className={styles.summary}>Raw JWKS</summary>
-            <CopyValue label="JWKS" value={keys.data.raw} block />
+            <summary className={styles.summary}>{words.rawKeys}</summary>
+            <CopyValue label={words.rawKeysCopy} value={keys.data.raw} block />
           </details>
         </>
       );
   }
 }
 
-function Document({ view, keys }: { view: DiscoveryView; keys: OverviewRead<KeysView> }) {
+function Document({
+  view,
+  keys,
+  words,
+}: {
+  view: DiscoveryView;
+  keys: OverviewRead<KeysView>;
+  words: Words;
+}) {
   return (
     <>
       <dl className={styles.facts}>
         <div className={styles.fact}>
-          <dt>Issuer</dt>
+          <dt>{words.issuer}</dt>
           <dd>
-            <CopyValue label="issuer" value={view.issuer} />
+            <CopyValue label={words.issuerCopy} value={view.issuer} />
           </dd>
         </div>
         <div className={styles.fact}>
-          <dt>Discovery document</dt>
+          <dt>{words.document}</dt>
           <dd>
             <a href={view.document} className={styles.link}>
               {view.document}
@@ -132,7 +148,7 @@ function Document({ view, keys }: { view: DiscoveryView; keys: OverviewRead<Keys
           </dd>
         </div>
       </dl>
-      <Part title="Endpoints">
+      <Part title={words.endpoints}>
         <dl className={styles.pairs}>
           {view.endpoints.map((endpoint) => (
             <div key={endpoint.name} className={styles.pair}>
@@ -146,7 +162,7 @@ function Document({ view, keys }: { view: DiscoveryView; keys: OverviewRead<Keys
           ))}
         </dl>
       </Part>
-      <Part title="Supported values">
+      <Part title={words.supported}>
         <dl className={styles.pairs}>
           {view.lists.map((list) => (
             <div key={list.name} className={styles.pair}>
@@ -169,17 +185,17 @@ function Document({ view, keys }: { view: DiscoveryView; keys: OverviewRead<Keys
               <dt>
                 <Name name={flag.name} />
               </dt>
-              <dd>{flagText(flag.value, 'yes', 'no')}</dd>
+              <dd>{flag.text}</dd>
             </div>
           ))}
         </dl>
       </Part>
-      <Part title="Published keys">
-        <Keys keys={keys} />
+      <Part title={words.keys}>
+        <Keys keys={keys} words={words} />
       </Part>
       <details className={styles.raw}>
-        <summary className={styles.summary}>Raw discovery document</summary>
-        <CopyValue label="discovery document" value={view.raw} block />
+        <summary className={styles.summary}>{words.rawDocument}</summary>
+        <CopyValue label={words.rawDocumentCopy} value={view.raw} block />
       </details>
     </>
   );
@@ -190,22 +206,24 @@ function Document({ view, keys }: { view: DiscoveryView; keys: OverviewRead<Keys
 export function DiscoveryPanel({
   discovery,
   keys,
+  words,
 }: {
   discovery: OverviewRead<DiscoveryView>;
   keys: OverviewRead<KeysView>;
+  words: Words;
 }) {
   let body: ReactNode;
   switch (discovery.status) {
     case 'off':
     case 'loading':
-      body = <TermsSkeleton label="Loading the discovery document" rows={6} />;
+      body = <TermsSkeleton label={words.loading} rows={6} />;
       break;
     case 'failed':
-      body = <LoadFailed title={unreadableTitle('discovery document')} retry={discovery.retry} />;
+      body = <LoadFailed title={words.failedTitle} retry={discovery.retry} />;
       break;
     case 'ready':
-      body = <Document view={discovery.data} keys={keys} />;
+      body = <Document view={discovery.data} keys={keys} words={words} />;
       break;
   }
-  return <Panel title="Discovery">{body}</Panel>;
+  return <Panel title={words.title}>{body}</Panel>;
 }

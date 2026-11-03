@@ -1,27 +1,30 @@
 import { Link } from 'react-aria-components';
-import { openPlaceLabel, UNCHECKED_LEAD } from '#/features/overview/services/panelText';
-import { isClear, type AttentionState } from '#/features/overview/services/state';
+import type { AttentionState } from '#/features/overview/services/state';
+import type { OverviewWords } from '#/features/overview/services/overviewWords';
 import { Panel } from '#/features/overview/ui/Panel';
 import { Button } from '#/shared/ui/Button';
 import { ListSkeleton } from '#/shared/ui/Skeleton';
 import styles from '#/features/overview/ui/AttentionPanel/AttentionPanel.module.css';
 
-export function AttentionPanel({ attention }: { attention: AttentionState }) {
-  const { status, items, unchecked, failed } = attention;
-  const clear = isClear(attention);
+export function AttentionPanel({
+  attention,
+  words,
+}: {
+  attention: AttentionState;
+  words: OverviewWords['attention'];
+}) {
+  const { status, items, unchecked, failed, clear } = attention;
   return (
-    <Panel title="Needs attention">
-      {status === 'checking' ? (
-        <ListSkeleton label="Checking what needs attention" items={2} />
-      ) : null}
+    <Panel title={words.title}>
+      {status === 'checking' ? <ListSkeleton label={words.checking} items={2} /> : null}
       {items.length > 0 ? (
-        <ul aria-label="Needs attention" className={styles.items}>
+        <ul aria-label={words.title} className={styles.items}>
           {items.map((item) => (
             <li key={item.id} className={styles.item}>
               <p className={styles.title}>{item.title}</p>
               <p className={styles.detail}>{item.detail}</p>
               <Link href={item.href} className={styles.link ?? ''}>
-                {openPlaceLabel(item.place)}
+                {item.linkLabel}
               </Link>
             </li>
           ))}
@@ -32,12 +35,12 @@ export function AttentionPanel({ attention }: { attention: AttentionState }) {
           <span aria-hidden="true" className={styles.check}>
             ✓
           </span>
-          Nothing needs attention.
+          {words.clear}
         </p>
       ) : null}
       {unchecked.length > 0 ? (
         <p role="note" className={styles.note}>
-          {UNCHECKED_LEAD}
+          {words.uncheckedLead}
           {unchecked.map((capability, index) => (
             <span key={capability}>
               {index > 0 ? ', ' : null}
@@ -49,9 +52,9 @@ export function AttentionPanel({ attention }: { attention: AttentionState }) {
       ) : null}
       {failed ? (
         <div className={styles.failed}>
-          <p>Some checks could not run.</p>
+          <p>{words.failed}</p>
           <Button size="small" onPress={attention.retry}>
-            Check again
+            {words.retry}
           </Button>
         </div>
       ) : null}

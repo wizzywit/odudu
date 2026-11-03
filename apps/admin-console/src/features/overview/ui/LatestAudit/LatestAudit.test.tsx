@@ -1,6 +1,7 @@
 import type { AuditEvent } from '#/entities/audit-event';
 import { render, screen, within } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
+import { OVERVIEW_WORDS } from '#/features/overview/services/overviewWords';
 import type { Gated } from '#/features/overview/types/overviewReads';
 import { LatestAudit } from '#/features/overview/ui/LatestAudit';
 import { auditEvent } from '#/testing/auditFixtures';
@@ -18,7 +19,7 @@ const READY: Gated<readonly AuditEvent[]> = {
 const HREF = '/console/acme/audit';
 
 it('lists the latest rows, and links the whole trail', () => {
-  render(<LatestAudit audit={READY} href={HREF} now={NOW} />);
+  render(<LatestAudit words={OVERVIEW_WORDS.audit} audit={READY} href={HREF} now={NOW} />);
   const rows = within(screen.getByRole('grid', { name: 'Latest audit rows' }))
     .getAllByRole('row')
     .slice(1);
@@ -37,7 +38,7 @@ it('tones each outcome as the audit trail does', () => {
       { ...EVENT, id: 'a3', outcome: 'failed' },
     ],
   };
-  render(<LatestAudit audit={audit} href={HREF} now={NOW} />);
+  render(<LatestAudit words={OVERVIEW_WORDS.audit} audit={audit} href={HREF} now={NOW} />);
   const grid = screen.getByRole('grid', { name: 'Latest audit rows' });
   expect(within(grid).getByText('allowed')).toHaveAttribute('data-tone', 'active');
   expect(within(grid).getByText('refused')).toHaveAttribute('data-tone', 'warning');
@@ -52,7 +53,7 @@ it("names each row's actor, and marks a caller from elsewhere", () => {
       { ...EVENT, id: 'a3', actor_origin: 'other-tenant' },
     ],
   };
-  render(<LatestAudit audit={audit} href={HREF} now={NOW} />);
+  render(<LatestAudit words={OVERVIEW_WORDS.audit} audit={audit} href={HREF} now={NOW} />);
   const [named, foreign] = within(screen.getByRole('grid', { name: 'Latest audit rows' }))
     .getAllByRole('row')
     .slice(1);
@@ -63,7 +64,12 @@ it("names each row's actor, and marks a caller from elsewhere", () => {
 
 it('names view-audit and offers no link when the trail is not readable', () => {
   render(
-    <LatestAudit audit={{ status: 'needs', capability: 'view-audit' }} href={HREF} now={NOW} />,
+    <LatestAudit
+      words={OVERVIEW_WORDS.audit}
+      audit={{ status: 'needs', capability: 'view-audit' }}
+      href={HREF}
+      now={NOW}
+    />,
   );
   expect(screen.getByRole('note')).toHaveTextContent(
     'The audit trail needs the view-audit capability.',
@@ -73,7 +79,14 @@ it('names view-audit and offers no link when the trail is not readable', () => {
 });
 
 it('draws the table it will fill while it loads', () => {
-  render(<LatestAudit audit={{ status: 'loading' }} href={HREF} now={NOW} />);
+  render(
+    <LatestAudit
+      words={OVERVIEW_WORDS.audit}
+      audit={{ status: 'loading' }}
+      href={HREF}
+      now={NOW}
+    />,
+  );
   const shape = screen.getByRole('status').querySelector('[data-shape="table"]');
   expect([...(shape?.querySelectorAll('th') ?? [])].map((th) => th.textContent)).toEqual([
     'When',
@@ -84,7 +97,14 @@ it('draws the table it will fill while it loads', () => {
 });
 
 it('says when nothing is recorded yet', () => {
-  render(<LatestAudit audit={{ status: 'ready', data: [] }} href={HREF} now={NOW} />);
+  render(
+    <LatestAudit
+      words={OVERVIEW_WORDS.audit}
+      audit={{ status: 'ready', data: [] }}
+      href={HREF}
+      now={NOW}
+    />,
+  );
   expect(screen.getByRole('heading', { name: 'Nothing recorded yet' })).toBeVisible();
 });
 
@@ -96,7 +116,9 @@ it('passes axe in both themes', async () => {
     { status: 'failed', refused: false, retry: vi.fn() },
   ] as const) {
     expect(
-      await axeInBothThemes(() => <LatestAudit audit={audit} href={HREF} now={NOW} />),
+      await axeInBothThemes(() => (
+        <LatestAudit words={OVERVIEW_WORDS.audit} audit={audit} href={HREF} now={NOW} />
+      )),
     ).toEqual({ light: [], dark: [] });
   }
 });

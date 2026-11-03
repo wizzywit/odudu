@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-aria-components';
+import type { OverviewWords } from '#/features/overview/services/overviewWords';
 import type { Gated } from '#/features/overview/types/overviewReads';
 import { Panel } from '#/features/overview/ui/Panel';
 import { auditSummaryColumns, type AuditEvent } from '#/entities/audit-event';
@@ -13,38 +14,35 @@ import styles from '#/features/overview/ui/LatestAudit/LatestAudit.module.css';
 export function LatestAudit({
   audit,
   href,
+  words,
   now,
 }: {
   audit: Gated<readonly AuditEvent[]>;
   href: string;
+  words: OverviewWords['audit'];
   now?: Date;
 }) {
   let body: ReactNode;
   switch (audit.status) {
     case 'needs':
-      body = <CapabilityNote capability={audit.capability}>The audit trail</CapabilityNote>;
+      body = <CapabilityNote capability={audit.capability}>{words.needs}</CapabilityNote>;
       break;
     case 'off':
     case 'loading':
-      body = (
-        <TableSkeleton
-          label="Loading the latest audit rows"
-          columns={auditSummaryColumns({ now })}
-        />
-      );
+      body = <TableSkeleton label={words.loading} columns={auditSummaryColumns({ now })} />;
       break;
     case 'failed':
-      body = <LoadFailed title="The audit trail could not be read" retry={audit.retry} />;
+      body = <LoadFailed title={words.failedTitle} retry={audit.retry} />;
       break;
     case 'ready':
       body =
         audit.data.length === 0 ? (
-          <EmptyState variant="nothing-yet" title="Nothing recorded yet">
-            Every change made in this tenant, and every change refused, is listed here.
+          <EmptyState variant="nothing-yet" title={words.empty}>
+            {words.emptyText}
           </EmptyState>
         ) : (
           <DataTable
-            label="Latest audit rows"
+            label={words.table}
             columns={auditSummaryColumns({ now })}
             rows={audit.data}
             rowKey={(event) => event.id}
@@ -55,11 +53,11 @@ export function LatestAudit({
   const action =
     audit.status === 'needs' ? undefined : (
       <Link href={href} className={styles.link ?? ''}>
-        Open the audit trail
+        {words.open}
       </Link>
     );
   return (
-    <Panel title="Latest activity" action={action}>
+    <Panel title={words.title} action={action}>
       {body}
     </Panel>
   );

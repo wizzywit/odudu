@@ -2,17 +2,20 @@ import { holds } from '#/shared/services/access';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
 import { type AttentionItem, needsAttention } from '#/features/overview/services/attention';
 import type { EntityRules } from '#/features/overview/services/entityRules';
+import { openPlaceLabel } from '#/features/overview/services/panelText';
 import { readyData } from '#/features/overview/services/readState';
 import type { AreaOf, OverviewReads } from '#/features/overview/types/overviewReads';
 
 export interface AttentionLink extends AttentionItem {
   href: string;
-  // The label of the area the link opens.
-  place: string;
+  // What the link says: it opens the area that fixes the item.
+  linkLabel: string;
 }
 
 export interface AttentionState {
   status: 'checking' | 'ready';
+  // Nothing to say, to check or to retry.
+  clear: boolean;
   items: readonly AttentionLink[];
   // Capabilities a check needed and whoami says are not held.
   unchecked: readonly string[];
@@ -48,21 +51,26 @@ export function attentionState(
     rules,
   }).map((item) => {
     const place = areaOf(item.area);
-    return { ...item, href: place.href, place: place.label };
+    return { ...item, href: place.href, linkLabel: openPlaceLabel(place.label) };
   });
+  const status =
+    authority === undefined || used.some((read) => read.status === 'loading')
+      ? 'checking'
+      : 'ready';
+  const failed = retries.length > 0;
   return {
-    status:
-      authority === undefined || used.some((read) => read.status === 'loading')
-        ? 'checking'
-        : 'ready',
+    status,
+    clear: isClear({ status, items, unchecked, failed }),
     items,
     unchecked,
-    failed: retries.length > 0,
+    failed,
     retries,
   };
 }
 
-export function isClear(attention: Omit<AttentionState, 'retry'>): boolean {
+export function isClear(
+  attention: Pick<AttentionState, 'status' | 'items' | 'unchecked' | 'failed'>,
+): boolean {
   return (
     attention.status === 'ready' &&
     attention.items.length === 0 &&

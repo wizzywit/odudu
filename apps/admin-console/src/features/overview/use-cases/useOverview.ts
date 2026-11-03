@@ -11,12 +11,19 @@ import { keysView, type KeysView } from '#/features/overview/services/keys';
 import { auditView, overviewAsks, readCapability } from '#/features/overview/services/readGate';
 import { mapOverviewRead } from '#/features/overview/services/readState';
 import type { AreaOf, Gated, OverviewRead } from '#/features/overview/types/overviewReads';
+import {
+  OVERVIEW_WORDS,
+  overviewTitle,
+  type OverviewWords,
+} from '#/features/overview/services/overviewWords';
 import { attentionState, type AttentionState } from '#/features/overview/services/state';
 import { countTiles, type CountTile } from '#/features/overview/services/tiles';
 
 const RULES: EntityRules = { readyToPromote, hasRelay, publishedLane };
 
 export interface Overview {
+  title: string;
+  words: OverviewWords;
   discovery: OverviewRead<DiscoveryView>;
   keys: OverviewRead<KeysView>;
   tiles: readonly CountTile[];
@@ -43,6 +50,8 @@ export function useOverview(tenant: string): Overview {
   );
   const { retries, ...attention } = attentionState(reads, authority, areaOf, new Date(), RULES);
   return {
+    title: overviewTitle(),
+    words: OVERVIEW_WORDS,
     discovery: mapOverviewRead(reads.discovery, discoveryView),
     keys: keysView(reads, authority, areaOf, RULES),
     tiles: countTiles(reads, authority, areaOf),

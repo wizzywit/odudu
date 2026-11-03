@@ -1,6 +1,7 @@
 import type { CountResponse } from '@odudu/contracts/admin';
 import { readable } from '#/shared/services/access';
 import type { Authority } from '#/shared/services/principal';
+import { countAgainLabel, limitText } from '#/features/overview/services/panelText';
 import { gate } from '#/features/overview/services/readGate';
 import { readyData } from '#/features/overview/services/readState';
 import type { AreaOf, Gated, OverviewReads } from '#/features/overview/types/overviewReads';
@@ -11,8 +12,9 @@ export interface CountTile {
   href: string;
   noun: { one: string; other: string };
   count: Gated<CountResponse>;
-  // The client cap, when settings could be read.
-  limit?: number | undefined;
+  // The client cap said beside the count, when settings could be read.
+  allowance?: string | undefined;
+  againLabel: string;
 }
 
 const COUNTED = [
@@ -40,7 +42,8 @@ export function countTiles(
         href: place.href,
         noun,
         count: gate(reads.counts[id], authority, place.capability),
-        limit: id === 'clients' && typeof cap === 'number' ? cap : undefined,
+        allowance: id === 'clients' && typeof cap === 'number' ? limitText(cap) : undefined,
+        againLabel: countAgainLabel(noun.other),
       },
     ];
   });

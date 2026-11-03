@@ -1,6 +1,7 @@
 import type { SigningKey } from '@odudu/contracts/admin';
 import type { PublishedLane } from '#/entities/signing-key';
 import type { Authority } from '#/shared/services/principal';
+import { laneText } from '#/features/overview/services/panelText';
 import { rawJson } from '#/features/overview/services/discovery';
 import type { EntityRules } from '#/features/overview/services/entityRules';
 import { type CapabilityOf, gate } from '#/features/overview/services/readGate';
@@ -15,6 +16,7 @@ export interface PublishedKey {
   alg: string | null;
   use: string | null;
   lane: PublishedLane;
+  laneLabel: string;
 }
 
 export function publishedKeys(
@@ -25,13 +27,15 @@ export function publishedKeys(
   return jwks.keys.map((key, index) => {
     const kid = key.kid ?? null;
     const listed = keys?.find((k) => k.kid === kid);
+    const lane = laneOf(listed?.status, keys !== undefined);
     return {
       row: String(index),
       kid,
       kty: key.kty,
       alg: key.alg ?? null,
       use: key.use ?? null,
-      lane: laneOf(listed?.status, keys !== undefined),
+      lane,
+      laneLabel: laneText(lane),
     };
   });
 }

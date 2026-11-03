@@ -39,8 +39,8 @@ describe('the discovery document, as the page lays it out', () => {
       { name: 'scopes_supported', values: ['openid'] },
     ]);
     expect(view.flags).toEqual([
-      { name: 'claims_parameter_supported', value: true },
-      { name: 'frontchannel_logout_supported', value: false },
+      { name: 'claims_parameter_supported', value: true, text: 'yes' },
+      { name: 'frontchannel_logout_supported', value: false, text: 'no' },
     ]);
   });
 });

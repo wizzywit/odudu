@@ -47,7 +47,7 @@ describe('the attention state', () => {
       expect.objectContaining({
         id: 'smtp',
         href: '/console/acme/email',
-        place: 'Email',
+        linkLabel: 'Open Email',
       }),
     ]);
   });
@@ -99,7 +99,7 @@ describe('the attention state', () => {
     expect(
       isClear({
         ...state,
-        items: [{ id: 'x', area: 'keys', title: '', detail: '', href: '', place: '' }],
+        items: [{ id: 'x', area: 'keys', title: '', detail: '', href: '', linkLabel: '' }],
       }),
     ).toBe(false);
   });

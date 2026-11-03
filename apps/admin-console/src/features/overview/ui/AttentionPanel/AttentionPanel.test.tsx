@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
+import { OVERVIEW_WORDS } from '#/features/overview/services/overviewWords';
 import type { AttentionState } from '#/features/overview/services/state';
 import { AttentionPanel } from '#/features/overview/ui/AttentionPanel';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
@@ -8,6 +9,7 @@ import { axeInBothThemes } from '#/testing/axeInBothThemes';
 function state(overrides: Partial<AttentionState> = {}): AttentionState {
   return {
     status: 'ready',
+    clear: false,
     items: [
       {
         id: 'smtp',
@@ -15,7 +17,7 @@ function state(overrides: Partial<AttentionState> = {}): AttentionState {
         title: 'No mail relay',
         detail: 'Mail is only logged.',
         href: '/console/acme/email',
-        place: 'Email',
+        linkLabel: 'Open Email',
       },
     ],
     unchecked: [],
@@ -26,7 +28,7 @@ function state(overrides: Partial<AttentionState> = {}): AttentionState {
 }
 
 it('lists each item with a link to the page that fixes it', () => {
-  render(<AttentionPanel attention={state()} />);
+  render(<AttentionPanel words={OVERVIEW_WORDS.attention} attention={state()} />);
   const list = screen.getByRole('list', { name: 'Needs attention' });
   const item = within(list).getByRole('listitem');
   expect(item).toHaveTextContent('No mail relay');
@@ -38,14 +40,24 @@ it('lists each item with a link to the page that fixes it', () => {
 });
 
 it('says when nothing needs attention', () => {
-  render(<AttentionPanel attention={state({ items: [] })} />);
+  render(
+    <AttentionPanel
+      words={OVERVIEW_WORDS.attention}
+      attention={state({ items: [], clear: true })}
+    />,
+  );
   const line = screen.getByText('Nothing needs attention.');
   expect(line).toBeVisible();
   expect(line.closest('p')?.querySelector('[aria-hidden="true"]')).toHaveTextContent('✓');
 });
 
 it('says it is still checking', () => {
-  render(<AttentionPanel attention={state({ status: 'checking', items: [] })} />);
+  render(
+    <AttentionPanel
+      words={OVERVIEW_WORDS.attention}
+      attention={state({ status: 'checking', items: [] })}
+    />,
+  );
   expect(screen.getByRole('status')).toHaveTextContent('Checking what needs attention');
   expect(screen.getByRole('status').querySelector('[data-shape="list"]')).not.toBeNull();
   expect(screen.queryByText('Nothing needs attention.')).toBeNull();
@@ -54,6 +66,7 @@ it('says it is still checking', () => {
 it('names the capabilities a check could not run without', () => {
   render(
     <AttentionPanel
+      words={OVERVIEW_WORDS.attention}
       attention={state({ items: [], unchecked: ['manage-keys', 'manage-clients'] })}
     />,
   );
@@ -66,7 +79,12 @@ it('names the capabilities a check could not run without', () => {
 it('offers to check again when a read failed', async () => {
   const user = userEvent.setup();
   const retry = vi.fn();
-  render(<AttentionPanel attention={state({ items: [], failed: true, retry })} />);
+  render(
+    <AttentionPanel
+      words={OVERVIEW_WORDS.attention}
+      attention={state({ items: [], failed: true, retry })}
+    />,
+  );
   expect(screen.getByText('Some checks could not run.')).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Check again' }));
   expect(retry).toHaveBeenCalledOnce();
@@ -78,7 +96,11 @@ it('passes axe in both themes', async () => {
     state({ items: [], unchecked: ['manage-keys'], failed: true }),
     state({ status: 'checking' }),
   ]) {
-    expect(await axeInBothThemes(() => <AttentionPanel attention={attention} />)).toEqual({
+    expect(
+      await axeInBothThemes(() => (
+        <AttentionPanel words={OVERVIEW_WORDS.attention} attention={attention} />
+      )),
+    ).toEqual({
       light: [],
       dark: [],
     });

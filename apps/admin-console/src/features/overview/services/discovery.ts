@@ -1,3 +1,4 @@
+import { flagText } from '#/shared/services/format';
 import type { Discovery } from '#/features/overview/types/overviewReads';
 
 export interface DiscoveryView {
@@ -7,7 +8,7 @@ export interface DiscoveryView {
   raw: string;
   endpoints: readonly { name: string; url: string }[];
   lists: readonly { name: string; values: readonly string[] }[];
-  flags: readonly { name: string; value: boolean }[];
+  flags: readonly { name: string; value: boolean; text: string }[];
 }
 
 function isEndpoint(name: string): boolean {
@@ -35,7 +36,9 @@ export function discoveryView(document: Discovery): DiscoveryView {
       name.endsWith('_supported') && isStrings(value) ? [{ name, values: value }] : [],
     ),
     flags: members.flatMap(([name, value]) =>
-      name.endsWith('_supported') && typeof value === 'boolean' ? [{ name, value }] : [],
+      name.endsWith('_supported') && typeof value === 'boolean'
+        ? [{ name, value, text: flagText(value, 'yes', 'no') }]
+        : [],
     ),
   };
 }
