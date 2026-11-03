@@ -8,7 +8,7 @@ import { useOverviewReads } from '#/pages/overview/repository/useOverviewReads';
 import type { EntityRules } from '#/pages/overview/services/entityRules';
 import { discoveryView, type DiscoveryView } from '#/pages/overview/services/discovery';
 import { keysView, type KeysView } from '#/pages/overview/services/keys';
-import { auditView, overviewAsks, readCapability } from '#/pages/overview/services/readGate';
+import { auditView, overviewAsks, refusalReporter } from '#/pages/overview/services/readGate';
 import { mapOverviewRead } from '#/pages/overview/services/readState';
 import type { AreaOf, Gated, OverviewRead } from '#/pages/overview/types/overviewReads';
 import {
@@ -16,7 +16,7 @@ import {
   overviewTitle,
   type OverviewWords,
 } from '#/pages/overview/services/overviewWords';
-import { attentionState, type AttentionState } from '#/pages/overview/services/state';
+import { attentionState, withRetry, type AttentionState } from '#/pages/overview/services/state';
 import { countTiles, type CountTile } from '#/pages/overview/services/tiles';
 
 const RULES: EntityRules = { readyToPromote, hasRelay, publishedLane };
@@ -43,24 +43,15 @@ export function useOverview(tenant: string): Overview {
   const reads = useOverviewReads(
     tenant,
     overviewAsks(authority, missing, areaOf),
-    (name, result) => {
-      const capability = readCapability(name, areaOf);
-      if (capability !== null) refusal.report(result, capability);
-    },
+    refusalReporter(areaOf, refusal.report),
   );
-  const { retries, ...attention } = attentionState(reads, authority, areaOf, new Date(), RULES);
   return {
     title: overviewTitle(),
     words: OVERVIEW_WORDS,
     discovery: mapOverviewRead(reads.discovery, discoveryView),
     keys: keysView(reads, authority, areaOf, RULES),
     tiles: countTiles(reads, authority, areaOf),
-    attention: {
-      ...attention,
-      retry: () => {
-        for (const again of retries) again();
-      },
-    },
+    attention: withRetry(attentionState(reads, authority, areaOf, new Date(), RULES)),
     audit: auditView(auditAccess, reads.audit, authority, areaOf),
     auditHref: areaHref(tenant, auditArea),
   };

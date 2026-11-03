@@ -78,3 +78,13 @@ export function isClear(
     !attention.failed
   );
 }
+
+// One retry that asks again for every read that failed.
+export function withRetry({ retries, ...attention }: AttentionData): AttentionState {
+  return {
+    ...attention,
+    retry: () => {
+      for (const again of retries) again();
+    },
+  };
+}

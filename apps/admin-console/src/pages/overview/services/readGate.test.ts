@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { areaAt } from '#/entities/area';
 import {
   auditView,
   gate,
   overviewAsks,
   readCapability,
+  refusalReporter,
   READ_AREA,
 } from '#/pages/overview/services/readGate';
 import { LOADING, FAILED, REFUSED, ready, authority, areaOf } from '#/testing/overviewFixtures';
@@ -103,5 +104,22 @@ describe('the areas the reads belong to', () => {
     for (const area of Object.values(READ_AREA)) {
       if (area !== null) expect(() => areaAt(area)).not.toThrow();
     }
+  });
+});
+
+describe('the report of a refusal', () => {
+  const answer = { ok: false, kind: 'network' } as const;
+
+  it('names the capability a read needs, once per answer', () => {
+    const report = vi.fn();
+    refusalReporter(areaOf, report)('audit', answer);
+    expect(report).toHaveBeenCalledExactlyOnceWith(answer, 'view-audit');
+  });
+
+  it('reports nothing for the public documents, which need no capability', () => {
+    const report = vi.fn();
+    refusalReporter(areaOf, report)('discovery', answer);
+    refusalReporter(areaOf, report)('jwks', answer);
+    expect(report).not.toHaveBeenCalled();
   });
 });

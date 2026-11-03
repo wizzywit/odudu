@@ -1,6 +1,6 @@
 import type { Settings } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
-import { attentionState, isClear } from '#/pages/overview/services/state';
+import { attentionState, isClear, withRetry } from '#/pages/overview/services/state';
 import {
   OFF,
   LOADING,
@@ -102,5 +102,27 @@ describe('the attention state', () => {
         items: [{ id: 'x', area: 'keys', title: '', detail: '', href: '', linkLabel: '' }],
       }),
     ).toBe(false);
+  });
+});
+
+describe('the one retry of the attention panel', () => {
+  it('asks again for every failed read, and has the other fields as they were', () => {
+    const calls: string[] = [];
+    const data = attentionState(
+      reads({
+        settings: ready<Settings>({ max_clients: 3 }),
+        smtp: { status: 'failed', refused: false, retry: () => calls.push('smtp') },
+        keys: { status: 'failed', refused: false, retry: () => calls.push('keys') },
+      }),
+      authority('manage-tenant', 'manage-keys', 'manage-clients'),
+      areaOf,
+      new Date('2026-09-02T00:30:00Z'),
+      RULES,
+    );
+    const state = withRetry(data);
+    expect(state).not.toHaveProperty('retries');
+    expect(state.failed).toBe(true);
+    state.retry();
+    expect(calls).toEqual(['smtp', 'keys']);
   });
 });

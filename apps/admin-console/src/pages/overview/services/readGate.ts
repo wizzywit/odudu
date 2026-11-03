@@ -1,6 +1,7 @@
 import type { AuditEvent } from '#/entities/audit-event';
 import { holds } from '#/shared/services/access';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
+import type { GatewayResult } from '#/shared/services/result';
 import type {
   Gated,
   OverviewAsks,
@@ -81,4 +82,16 @@ export function auditView(
   areaOf: CapabilityOf,
 ): Gated<readonly AuditEvent[]> | null {
   return access.kind === 'refused' ? null : gate(audit, authority, areaOf('audit').capability);
+}
+
+// Told of each answer as it arrives: a read that has a capability reports it,
+// so a server's refusal of one whoami allowed is noticed once per answer.
+export function refusalReporter(
+  areaOf: CapabilityOf,
+  report: (result: GatewayResult<unknown>, needed: AdminCapability) => void,
+): (name: ReadName, result: GatewayResult<unknown>) => void {
+  return (name, result) => {
+    const capability = readCapability(name, areaOf);
+    if (capability !== null) report(result, capability);
+  };
 }
