@@ -1,7 +1,7 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
 import { useRefusal } from '#/entities/session';
 import { type Creation } from '#/features/tenants/services/creation';
-import { stepRefusal, type StepCall } from '#/features/tenants/services/steps';
+import { stepRefusal, type StepCall } from '#/features/tenants/services/creationCall';
 import { SYSTEM_TENANT } from '#/shared/services/principal';
 import type { GatewayFailure } from '#/shared/transport/gateway';
 

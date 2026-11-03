@@ -9,7 +9,7 @@ import {
   stepRefusal,
   tenantNotCreatedText,
   type StepCall,
-} from '#/features/tenants/services/steps';
+} from '#/features/tenants/services/creationCall';
 
 describe('the guided administrator step', () => {
   const NETWORK = { ok: false, kind: 'network' } as const;

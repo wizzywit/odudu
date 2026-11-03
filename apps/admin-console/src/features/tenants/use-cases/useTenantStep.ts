@@ -6,7 +6,7 @@ import {
   createTenantCall,
   findTenantCall,
   tenantNotCreatedText,
-} from '#/features/tenants/services/steps';
+} from '#/features/tenants/services/creationCall';
 import type { StepFeedback } from '#/features/tenants/use-cases/useStepFeedback';
 import { TENANT_NAME_RULE_TEXT } from '#/shared/services/labels';
 
