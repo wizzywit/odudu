@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useActivityWords } from '#/features/record-activity/use-cases/useActivityWords';
 import { useRecordActivity } from '#/features/record-activity/use-cases/useRecordActivity';
 import { ActivityTab } from '#/features/record-activity/ui/ActivityTab';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
@@ -27,13 +28,14 @@ export function RecordActivity({
   // False where the audit would refuse the read: nothing is asked of it.
   readable: boolean;
 }) {
+  const words = useActivityWords(resource);
   return (
     <div className={recordTab.tab}>
       <p className={recordTab.rule}>{lead}</p>
       {readable ? (
         <Trail resource={resource} tenant={tenant} id={id} />
       ) : (
-        <CapabilityNote capability="view-audit">Activity</CapabilityNote>
+        <CapabilityNote capability="view-audit">{words.refusedNoun}</CapabilityNote>
       )}
     </div>
   );

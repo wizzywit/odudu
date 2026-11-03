@@ -6,7 +6,7 @@ import { DialogFrame } from '#/shared/ui/DialogFrame';
 import { OutcomeTag, StatusTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import type { AuditEvent } from '#/entities/audit-event/types/auditEvent';
-import { resourceHandle } from '#/entities/audit-event/use-cases/auditCell';
+import { resourceHandle } from '#/entities/audit-event/use-cases/resourceHandle';
 import { useAuditTable } from '#/entities/audit-event/use-cases/useAuditTable';
 import { AuditActor } from '#/entities/audit-event/ui/AuditActor';
 import { AuditDetail } from '#/entities/audit-event/ui/AuditDetail';

@@ -9,6 +9,8 @@ const UUID_PROBLEM = 'A subject id is a UUID, such as 0192f7a4-5c1e-7b3a-9d2e-6f
 const LENGTH_PROBLEM = 'At most 256 characters.';
 const RANGE_PROBLEM = 'To is before From. Choose an end after the start.';
 
+// Unlike isAuditInstant it reads a pre-1970 instant, so the form still calls such a
+// range backwards although the address then ignores both ends.
 function isInstant(value: string): boolean {
   return !Number.isNaN(Date.parse(value));
 }

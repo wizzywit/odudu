@@ -26,7 +26,8 @@ them as they come. The one table (`auditColumns`) and its four-cell summary
 Imports `shared` only. The trail's filters, its export and its page are
 `pages/audit`'s; a record's Activity tab is `features/record-activity`.
 
-`use-cases/auditCalls.ts` and `auditCell.ts` only re-export, so other slices
+`use-cases/auditCalls.ts` and `resourceHandle.ts` only re-export, so other slices
 and the views reach the repository and the rules through a use-case, as the
-layering requires. `useAuditTable`, `useAuditDetail` and `auditActorOf` hand
+layering requires. `adapter/fixtures/audit-page-next.json` is a contract example
+with an invented cursor, not a captured response. `useAuditTable`, `useAuditDetail` and `auditActorOf` hand
 each view what it shows.
