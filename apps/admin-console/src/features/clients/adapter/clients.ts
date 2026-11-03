@@ -13,7 +13,7 @@ import { type NewClientKind } from '#/features/clients/services/newClient';
 import { entriesOf } from '#/features/clients/services/listEntries';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { readClientPage } from '#/shared/adapter/directory';
-import { adminCall, countReader, nothing } from '#/shared/adapter/route';
+import { adminCall, countReader, mapResult, nothing } from '#/shared/adapter/route';
 
 export { readClientPage };
 
@@ -177,7 +177,7 @@ export async function findClient(
 ): Promise<GatewayResult<Client | null>> {
   const query = new URLSearchParams({ client_id_exact: clientId, limit: '1' });
   const result = await readClientPage(gateway, tenant, query);
-  return result.ok ? { ...result, data: result.data.items[0] ?? null } : result;
+  return mapResult(result, (data) => data.items[0] ?? null);
 }
 
 // The new secret is in the answer, once; the replaced one keeps working for
