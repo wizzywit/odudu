@@ -1,13 +1,13 @@
 import type { FieldError } from '@odudu/contracts/admin';
 import type { LineIssue } from '#/shared/services/code';
-import { counted } from '#/shared/services/format';
+import { moreCount, shown } from '#/shared/services/format';
 
 // The most refusals marked or listed at once; the server stops at 100.
 export const PROBLEMS_SHOWN = 20;
 
 // How many refusals were left out, as the words that follow "and".
 export function moreProblems(rest: number): string {
-  return counted(rest, 'more problem', 'more problems');
+  return moreCount(rest, 'problem', 'problems');
 }
 
 export interface PlacedProblems {
@@ -35,12 +35,11 @@ export function placedProblems(
 ): PlacedProblems {
   const own = errors.filter((error) => error.path === path);
   if (own.length === 0) return saved === undefined ? NO_PROBLEMS : { lines: [], message: saved };
-  const shown = own.slice(0, PROBLEMS_SHOWN);
-  const placed = shown.filter((error) => typeof error.line === 'number');
-  const rest = own.length - shown.length;
+  const { items, rest } = shown(own, PROBLEMS_SHOWN);
+  const placed = items.filter((error) => typeof error.line === 'number');
   const sentences = [
     refused,
-    ...shown.filter((error) => typeof error.line !== 'number').map(wording),
+    ...items.filter((error) => typeof error.line !== 'number').map(wording),
     ...(rest > 0 ? [`And ${moreProblems(rest)}.`] : []),
   ];
   return {

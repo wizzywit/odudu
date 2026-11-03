@@ -6,7 +6,6 @@ import {
 } from '#/features/branding/services/stylesheet';
 import type { ThemeScope } from '#/features/branding/services/themeScope';
 import {
-  SELECTOR_LIST_LIMIT,
   SELECTORS_FAILED,
   SELECTORS_LABEL,
   SELECTORS_LOADING,
@@ -16,6 +15,7 @@ import {
   VALUES_LOADING,
   VALUES_NOTE,
 } from '#/features/branding/services/selectors';
+import { LIST_LIMIT } from '#/features/branding/services/catalogue';
 import { sourceReading } from '#/features/branding/services/sources';
 import { useDesignValues, useSelectors } from '#/features/branding/use-cases/useSelectors';
 import type { Stylesheet } from '#/features/branding/use-cases/useStylesheet';
@@ -56,14 +56,14 @@ export function StylesheetSection({
             <InsertPicker
               options={selectors}
               wording={WORDING}
-              limit={SELECTOR_LIST_LIMIT}
+              limit={LIST_LIMIT}
               label={SELECTORS_LABEL}
               description={SELECTORS_NOTE}
             />
             <InsertPicker
               options={values}
               wording={VALUES_WORDING}
-              limit={SELECTOR_LIST_LIMIT}
+              limit={LIST_LIMIT}
               label={VALUES_LABEL}
               description={VALUES_NOTE}
             />

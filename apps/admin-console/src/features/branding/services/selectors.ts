@@ -1,5 +1,5 @@
 import type { StylesheetHooksResponse } from '@odudu/contracts/admin';
-import { KEY_LIST_LIMIT } from '#/features/branding/services/catalogue';
+import { LIST_LIMIT } from '#/features/branding/services/catalogue';
 import { PAGE_KIND_LABELS, pageKindOf } from '#/features/branding/services/pageKinds';
 
 export interface SelectorOption {
@@ -8,12 +8,9 @@ export interface SelectorOption {
   detail: string;
 }
 
-// The most selectors the list draws at once; typing narrows it.
-export const SELECTOR_LIST_LIMIT = KEY_LIST_LIMIT;
-
 export const SELECTORS_LABEL = 'Selectors you can use';
 
-export const SELECTORS_NOTE = `Puts the selector you choose where the caret is in the stylesheet. The list shows at most ${String(SELECTOR_LIST_LIMIT)} entries: type part of a name or of what it is to narrow it.`;
+export const SELECTORS_NOTE = `Puts the selector you choose where the caret is in the stylesheet. The list shows at most ${String(LIST_LIMIT)} entries: type part of a name or of what it is to narrow it.`;
 
 export const VALUES_LABEL = 'Design values you can use';
 

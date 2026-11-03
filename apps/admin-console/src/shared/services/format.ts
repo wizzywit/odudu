@@ -90,6 +90,19 @@ export function counted(count: number, one: string, other: string): string {
   return `${String(count)} ${plural(count, one, other)}`;
 }
 
+// The first `limit` of the items, and how many were left out.
+export function shown<T>(
+  items: readonly T[],
+  limit: number,
+): { items: readonly T[]; rest: number } {
+  return { items: items.slice(0, limit), rest: Math.max(0, items.length - limit) };
+}
+
+// How many were left out, as the words that follow "and": "3 more problems".
+export function moreCount(rest: number, one: string, other: string): string {
+  return counted(rest, `more ${one}`, `more ${other}`);
+}
+
 export function attemptsText(attempts: number): string {
   return counted(attempts, 'attempt', 'attempts');
 }

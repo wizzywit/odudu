@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   byteSizeReading,
   limitReading,
+  moreCount,
+  shown,
   nullWhenBlank,
   utf8Length,
   bytesText,
@@ -201,6 +203,21 @@ describe('limitReading', () => {
     expect(limitReading(12000, 10000, 'rows', { overNoun: 'limit' }).text).toBe(
       '2,000 over the limit of 10,000 rows.',
     );
+  });
+});
+
+describe('shown', () => {
+  it('keeps the first of the items and counts the rest', () => {
+    expect(shown([1, 2, 3, 4], 3)).toEqual({ items: [1, 2, 3], rest: 1 });
+    expect(shown([1, 2, 3], 3)).toEqual({ items: [1, 2, 3], rest: 0 });
+    expect(shown([], 3)).toEqual({ items: [], rest: 0 });
+  });
+});
+
+describe('moreCount', () => {
+  it('says how many more in the noun that fits', () => {
+    expect(moreCount(1, 'problem', 'problems')).toBe('1 more problem');
+    expect(moreCount(2, 'problem', 'problems')).toBe('2 more problems');
   });
 });
 

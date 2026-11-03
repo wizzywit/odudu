@@ -1,5 +1,6 @@
 import type { FieldError, PublishThemeResponse } from '@odudu/contracts/admin';
 import { problemSubtype } from '#/shared/services/failure';
+import { shown } from '#/shared/services/format';
 import { moreProblems, PROBLEMS_SHOWN } from '#/features/branding/services/problems';
 import type { Problem } from '#/shared/services/result';
 import { NO_DRAFT_HOLD, NOTHING_TO_PUBLISH } from '#/features/branding/services/publishDraft';
@@ -19,11 +20,9 @@ export interface Issues {
 }
 
 export function issuesOf(errors: readonly FieldError[] | undefined): Issues {
-  const all = errors ?? [];
-  const lines = all.slice(0, PROBLEMS_SHOWN).map(issueLine);
-  const rest = all.length - lines.length;
+  const { items, rest } = shown(errors ?? [], PROBLEMS_SHOWN);
   return {
-    lines,
+    lines: items.map(issueLine),
     more: rest > 0 ? `and ${moreProblems(rest)}` : null,
   };
 }
@@ -62,9 +61,8 @@ export function publishConflict(): string {
 export function limitedIssues(text: string | undefined): string | undefined {
   if (text === undefined) return undefined;
   const parts = text.split('; ');
-  if (parts.length <= PROBLEMS_SHOWN) return text;
-  const rest = parts.length - PROBLEMS_SHOWN;
-  return `${parts.slice(0, PROBLEMS_SHOWN).join('; ')}; and ${moreProblems(rest)}`;
+  const { items, rest } = shown(parts, PROBLEMS_SHOWN);
+  return rest === 0 ? text : `${items.join('; ')}; and ${moreProblems(rest)}`;
 }
 
 export const ISSUES_LABEL = 'What the server refused';
