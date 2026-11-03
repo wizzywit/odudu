@@ -1,7 +1,7 @@
 import { type ImportError, type Tenant } from '@odudu/contracts/admin';
 import { failureTextWith } from '#/shared/services/failure';
 import type { GatewayFailure, Problem } from '#/shared/services/result';
-import { tenantHref } from '#/features/tenants/services/address';
+import { tenantHref } from '#/features/tenants/services/systemAddress';
 
 export interface ImportedSecret {
   clientId: string;

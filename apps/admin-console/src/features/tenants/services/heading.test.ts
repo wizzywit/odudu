@@ -3,7 +3,7 @@ import {
   systemAdminsTrail,
   tenantAdministratorTrail,
   tenantsTrail,
-} from '#/features/tenants/services/address';
+} from '#/features/tenants/services/systemTrail';
 import {
   creationHeading,
   pageOf,

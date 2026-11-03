@@ -1,6 +1,6 @@
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useTenantDeletion } from '#/features/tenants/repository/useTenantDeletion';
-import { TENANTS_HREF } from '#/features/tenants/services/address';
+import { TENANTS_HREF } from '#/features/tenants/services/systemAddress';
 import {
   DELETE_NEEDS,
   deleteConsequence,

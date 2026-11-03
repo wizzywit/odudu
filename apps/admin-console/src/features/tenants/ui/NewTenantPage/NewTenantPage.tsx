@@ -7,7 +7,7 @@ import {
   systemAdminsTrail,
   tenantAdministratorTrail,
   tenantsTrail,
-} from '#/features/tenants/services/address';
+} from '#/features/tenants/services/systemTrail';
 import { type Creation, type CreationFlow } from '#/features/tenants/services/creation';
 import { flowOf } from '#/features/tenants/services/creationDraft';
 import { doneStepOf, type DoneStep } from '#/features/tenants/services/done';

@@ -1,5 +1,5 @@
 import { type TenantRecordAccess } from '#/features/tenants/services/access';
-import { tenantsTrail } from '#/features/tenants/services/address';
+import { tenantsTrail } from '#/features/tenants/services/systemTrail';
 import {
   useTenantRecordAccess,
   useTenantRecordPage,

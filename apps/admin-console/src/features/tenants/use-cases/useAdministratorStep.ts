@@ -1,6 +1,6 @@
 import { useAuthority } from '#/entities/session';
 import { useFindSubject, useFirstAdministrator } from '#/features/tenants/repository/useCreation';
-import { systemAdminsHrefOf } from '#/features/tenants/services/address';
+import { systemAdminsHrefOf } from '#/features/tenants/services/systemAddress';
 import {
   administratorProblem,
   choosesHoldings,

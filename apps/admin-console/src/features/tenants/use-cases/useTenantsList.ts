@@ -3,7 +3,7 @@ import { useAuthority } from '#/entities/session';
 import { useGo } from '#/shared/repository/useGo';
 import { useTenantList } from '#/features/tenants/repository/useTenantList';
 import { recordOpener } from '#/features/tenants/services/access';
-import { tenantHref } from '#/features/tenants/services/address';
+import { tenantHref } from '#/features/tenants/services/systemAddress';
 import { lacking } from '#/shared/services/access';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/services/principal';
 import type { ResourceListState } from '#/shared/services/resourceList';

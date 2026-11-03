@@ -1,7 +1,7 @@
 import { againOf } from '#/features/tenants/services/creationOutcome';
 import { holdsText, systemHoldsText } from '#/features/tenants/services/administratorHoldings';
 import { type Creation, type CreationFlow } from '#/features/tenants/services/creation';
-import { systemAdminsHrefOf, tenantHref } from '#/features/tenants/services/address';
+import { systemAdminsHrefOf, tenantHref } from '#/features/tenants/services/systemAddress';
 import { tenantPage } from '#/shared/services/address';
 
 export interface DoneStep {

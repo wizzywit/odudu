@@ -1,7 +1,7 @@
 import { TENANT_DOCUMENT_MEDIA_TYPE } from '@odudu/contracts/admin';
 import { useId } from 'react';
 import { FileTrigger } from 'react-aria-components';
-import { tenantsTrail } from '#/features/tenants/services/address';
+import { tenantsTrail } from '#/features/tenants/services/systemTrail';
 import {
   useImportTenantPage,
   type ImportTenantPage as ImportState,

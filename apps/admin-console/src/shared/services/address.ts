@@ -4,6 +4,9 @@ import { stringifySearch } from '#/shared/services/search';
 // Where the console starts, before any tenant is named.
 export const CONSOLE_ROOT = '/console/';
 
+// The system area's own address, under which tenants and system administrators sit.
+export const SYSTEM_BASE = '/console/system';
+
 export function tenantPage(tenant: string): string {
   return `/console/${encodeURIComponent(tenant)}`;
 }
