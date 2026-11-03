@@ -129,14 +129,31 @@ export interface SizeReading {
   over: boolean;
 }
 
+// How much of a limit is used, or by how much it is passed. `overNoun` is
+// where the noun sits once the limit is passed: after the amount ("1 bytes
+// over the limit of 2,000.") or after the limit ("3 over the limit of 200 web
+// origins.").
+export function limitReading(
+  used: number,
+  limit: number,
+  noun: string,
+  { overNoun }: { overNoun: 'amount' | 'limit' },
+): SizeReading {
+  const cap = groupedNumber(limit);
+  if (used <= limit) return { text: `${groupedNumber(used)} of ${cap} ${noun}.`, over: false };
+  const by = groupedNumber(used - limit);
+  return {
+    text:
+      overNoun === 'amount'
+        ? `${by} ${noun} over the limit of ${cap}.`
+        : `${by} over the limit of ${cap} ${noun}.`,
+    over: true,
+  };
+}
+
 // How much of a limit in bytes is used, or by how much it is passed.
 export function byteSizeReading(used: number, limit: number): SizeReading {
-  return used > limit
-    ? {
-        text: `${groupedNumber(used - limit)} bytes over the limit of ${groupedNumber(limit)}.`,
-        over: true,
-      }
-    : { text: `${groupedNumber(used)} of ${groupedNumber(limit)} bytes.`, over: false };
+  return limitReading(used, limit, 'bytes', { overNoun: 'amount' });
 }
 
 // The first `limit` characters of `text` and an ellipsis when it is longer.

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   byteSizeReading,
+  limitReading,
   nullWhenBlank,
   utf8Length,
   bytesText,
@@ -175,6 +176,31 @@ describe('byteSizeReading', () => {
       text: '1 bytes over the limit of 2,000.',
       over: true,
     });
+  });
+});
+
+describe('limitReading', () => {
+  it('says what is used of a limit, with the noun after the limit', () => {
+    const reading = (used: number) => limitReading(used, 200, 'web origins', { overNoun: 'limit' });
+    expect(reading(0)).toEqual({ text: '0 of 200 web origins.', over: false });
+    expect(reading(200)).toEqual({ text: '200 of 200 web origins.', over: false });
+    expect(reading(203)).toEqual({ text: '3 over the limit of 200 web origins.', over: true });
+  });
+
+  it('puts the noun after the amount where the option says so', () => {
+    expect(limitReading(2001, 2000, 'bytes', { overNoun: 'amount' })).toEqual({
+      text: '1 bytes over the limit of 2,000.',
+      over: true,
+    });
+    expect(limitReading(1500, 2000, 'bytes', { overNoun: 'amount' }).text).toBe(
+      '1,500 of 2,000 bytes.',
+    );
+  });
+
+  it('groups the thousands of every number it says', () => {
+    expect(limitReading(12000, 10000, 'rows', { overNoun: 'limit' }).text).toBe(
+      '2,000 over the limit of 10,000 rows.',
+    );
   });
 });
 
