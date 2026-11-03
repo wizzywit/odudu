@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import {
   readAdminClients,
   readClientRoles,
-} from '#/pages/system-admins/adapter/administratorClients';
+} from '#/features/grant-administrator/adapter/administratorClients';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 

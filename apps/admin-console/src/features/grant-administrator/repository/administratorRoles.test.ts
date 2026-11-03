@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import {
   grantHoldings,
   grantTenantAdmin,
-} from '#/pages/system-admins/repository/administratorRoles';
+} from '#/features/grant-administrator/repository/administratorRoles';
 import { fakeTransport, json, problem, type Answer } from '#/testing/fakeTransport';
 import { adminClientRole } from '#/testing/roleAnswers';
 import { administratorRoutes } from '#/testing/tenantsFixtures';

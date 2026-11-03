@@ -1,4 +1,7 @@
-import { grantHoldings, type Refused } from '#/pages/system-admins/repository/administratorRoles';
+import {
+  grantHoldings,
+  type Refused,
+} from '#/features/grant-administrator/repository/administratorRoles';
 import { countKey, holdersKey, listKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { SYSTEM_TENANT } from '#/shared/services/principal';

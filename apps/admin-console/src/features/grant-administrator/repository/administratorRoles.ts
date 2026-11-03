@@ -2,7 +2,7 @@ import { readSubjectRoles, setSubjectRoles } from '#/entities/subject';
 import {
   readAdminClients,
   readClientRoles,
-} from '#/pages/system-admins/adapter/administratorClients';
+} from '#/features/grant-administrator/adapter/administratorClients';
 import type { Gateway, GatewayFailure } from '#/shared/transport/gateway';
 import { TENANT_ADMIN } from '#/shared/services/capabilities';
 import {

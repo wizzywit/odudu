@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
-import { useAdministratorGrant } from '#/pages/system-admins/repository/useAdministratorChange';
+import { useAdministratorGrant } from '#/features/grant-administrator';
 import { usePickerHolders } from '#/pages/system-admins/repository/usePickerHolders';
 import { administratorsAccess } from '#/pages/system-admins/services/access';
 import { grantedText, grantFailureText } from '#/pages/system-admins/services/grant';

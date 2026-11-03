@@ -2,7 +2,7 @@ import type { Tenant } from '#/pages/tenants/types/tenant';
 import { findKey } from '#/shared/repository/queryKeys';
 import { createTenant, findTenant } from '#/pages/tenants/adapter/tenants';
 import { createSubject, findSubject, issuePassword, type Subject } from '#/entities/subject';
-import { defect, grantHoldings, refusedAt, type Refused } from '#/pages/system-admins';
+import { defect, grantHoldings, refusedAt, type Refused } from '#/features/grant-administrator';
 import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce';
 import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
 import { useFreshRead } from '#/shared/repository/useFreshRead';

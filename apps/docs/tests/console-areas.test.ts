@@ -36,11 +36,13 @@ const PAGE_OF_FEATURE: Readonly<Record<string, string>> = {
 const DESCRIBED_BY_THE_TOUR = ['console-home', 'failure'];
 
 // Parts of other pages, described on the pages that show them: adding an
-// administrator on Tenants and System administrators, the capability list on
-// those two and on a subject, the Members tab on Groups and Roles; own-roles
-// holds no screen, only what a write on those pages would take from the caller.
+// administrator and giving one capabilities (Tenants, System administrators),
+// the capability list (those two and a subject), the Members tab (Groups and
+// Roles). own-roles holds no screen, only what a write there takes from the
+// caller.
 const DESCRIBED_BY_ITS_PAGES = [
   'begin-administrator',
+  'grant-administrator',
   'own-roles',
   'subject-capabilities',
   'subject-members',
