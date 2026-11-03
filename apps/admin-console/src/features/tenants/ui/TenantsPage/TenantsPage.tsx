@@ -1,5 +1,6 @@
 import type { Tenant } from '@odudu/contracts/admin';
 import { Link } from 'react-aria-components';
+import { areaAt } from '#/entities/area';
 import { IMPORT_TENANT_HREF, NEW_TENANT_HREF } from '#/features/tenants/services/systemAddress';
 import { useTenantsList } from '#/features/tenants/use-cases/useTenantsList';
 import { SystemGate } from '#/features/tenants/ui/SystemGate';
@@ -49,13 +50,15 @@ const SEARCH = [
   { id: 'display_name', label: 'Display name' },
 ];
 
+const TITLE = areaAt('tenants').label;
+
 function List() {
   const { list, open, recordNeeds } = useTenantsList();
   return (
     <ResourceListPage
       list={list}
       kicker="System"
-      title="Tenants"
+      title={TITLE}
       description="Every tenant of this deployment. Open one to see its administrators, change it or export it."
       actions={
         <>
@@ -95,7 +98,7 @@ function List() {
 
 export function TenantsPage({ tenant }: { tenant: string }) {
   return (
-    <SystemGate tenant={tenant} title="Tenants">
+    <SystemGate tenant={tenant} title={TITLE}>
       <List />
     </SystemGate>
   );

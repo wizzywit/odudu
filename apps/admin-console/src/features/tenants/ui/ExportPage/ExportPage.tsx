@@ -9,14 +9,15 @@ import { Skeleton } from '#/shared/ui/Skeleton';
 // A tenant's own export. Importing makes a new tenant, which is a system
 // administrator's to do, under System › Tenants.
 export function ExportPage({ tenant }: { tenant: string }) {
-  const access = useArea(tenant, areaAt('export'));
+  const area = areaAt('export');
+  const access = useArea(tenant, area);
   if (access.kind === 'hidden') return <PageNotFound />;
   return (
     <>
-      <PageHeader kicker={tenant} title="Export" />
+      <PageHeader kicker={tenant} title={area.label} />
       {access.kind === 'checking' ? <Skeleton label="Checking access to Export" /> : null}
       {access.kind === 'refused' ? (
-        <CapabilityNote capability={access.capability}>Export</CapabilityNote>
+        <CapabilityNote capability={access.capability}>{area.label}</CapabilityNote>
       ) : null}
       {access.kind === 'open' ? <ExportPanel tenant={tenant} authority={tenant} /> : null}
     </>
