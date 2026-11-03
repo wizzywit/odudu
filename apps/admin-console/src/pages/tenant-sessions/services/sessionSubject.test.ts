@@ -2,18 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { subjectLinkOf, subjectCell } from '#/pages/tenant-sessions/services/sessionSubject';
 
 describe('the subject of a session', () => {
-  it('is named by its username, with its id kept for the link and the detail', () => {
-    expect(subjectCell({ subjectId: 's1', username: 'ada' })).toEqual({
-      label: 'ada',
-      id: 's1',
-    });
-  });
-
-  it('falls back to the id for a subject that has no username', () => {
-    expect(subjectCell({ subjectId: 's1', username: null })).toEqual({
-      label: 's1',
-      id: 's1',
-    });
+  it('is shown by the label it was given, with its id kept for the link and the detail', () => {
+    expect(subjectCell({ subjectId: 's1' }, 'ada')).toEqual({ label: 'ada', id: 's1' });
   });
 });
 

@@ -1,16 +1,15 @@
 import type { TenantSession } from '#/pages/tenant-sessions/types/tenantSession';
-import { nameOrId } from '#/shared/services/ids';
 
-// A subject is named by its username where it has one; its id is what the
-// link and the detail go by.
-export function subjectCell(session: Pick<TenantSession, 'subjectId' | 'username'>): {
+// A subject is shown by the label it was given; its id is what the link and
+// the detail go by.
+export function subjectCell(
+  session: Pick<TenantSession, 'subjectId'>,
+  label: string,
+): {
   label: string;
   id: string;
 } {
-  return {
-    label: nameOrId({ id: session.subjectId, username: session.username }),
-    id: session.subjectId,
-  };
+  return { label, id: session.subjectId };
 }
 
 // Where a session's subject has its page, for a caller who may read subjects.

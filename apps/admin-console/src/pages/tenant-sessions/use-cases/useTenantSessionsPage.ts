@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { SessionsEnded, TenantSession } from '#/pages/tenant-sessions/types/tenantSession';
 import { useAuthority, usePrincipal, useRefusal, isOwnTenant } from '#/entities/session';
 import { subjectHref } from '#/features/subjects';
+import { nameOrId } from '#/shared/services/ids';
 import {
   useEndTenantSessions,
   useTenantSessionList,
@@ -29,7 +30,7 @@ export interface TenantSessionsPage {
   more: string | null;
   text: { noun: typeof NOUN; rule: string; nothingYet: string };
   // How a session names its subject: a label to read and the id it goes by.
-  subjectOf: typeof subjectCell;
+  subjectOf: (session: TenantSession) => ReturnType<typeof subjectCell>;
 }
 
 export function useTenantSessionsPage(tenant: string): TenantSessionsPage {
@@ -54,6 +55,7 @@ export function useTenantSessionsPage(tenant: string): TenantSessionsPage {
     consequence: endConsequence(tenant, isOwnTenant(principal, tenant)),
     more,
     text: { noun: NOUN, rule: PAGE_RULE, nothingYet: NOTHING_YET },
-    subjectOf: subjectCell,
+    subjectOf: (session) =>
+      subjectCell(session, nameOrId({ id: session.subjectId, username: session.username })),
   };
 }
