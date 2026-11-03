@@ -1,10 +1,10 @@
 import {
   countResponseSchema,
   MAX_LIMIT,
-  type AuditEvent,
   type CountResponse,
   type SigningKey,
 } from '@odudu/contracts/admin';
+import type { AuditEvent } from '#/entities/audit-event';
 import { z } from 'zod';
 import type { Jwks } from '#/features/overview/services/discovery';
 import type { Collection } from '#/features/overview/services/reads';

@@ -1,4 +1,4 @@
-import type { AuditEvent } from '@odudu/contracts/admin';
+import type { AuditEvent } from '#/entities/audit-event';
 export type RecordPages = Readonly<Record<string, (tenant: string, id: string) => string>>;
 
 // The resource types that are a whole area, with no record of their own, and

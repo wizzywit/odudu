@@ -1,4 +1,4 @@
-import type { AuditEvent } from '@odudu/contracts/admin';
+import type { AuditEvent } from '#/entities/audit-event';
 import type { ReactNode } from 'react';
 import { Link } from 'react-aria-components';
 import type { Gated } from '#/features/overview/services/reads';

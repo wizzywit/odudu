@@ -1,4 +1,4 @@
-import type { AuditEvent } from '@odudu/contracts/admin';
+import type { AuditEvent } from '#/entities/audit-event';
 import { useAuthority, useRefusal, useTenantMissing } from '#/entities/session';
 import { areaAt, areaHref } from '#/entities/area';
 import { useArea } from '#/widgets/shell';

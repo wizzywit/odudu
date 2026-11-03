@@ -1,10 +1,5 @@
-import type {
-  AuditEvent,
-  CountResponse,
-  Settings,
-  SigningKey,
-  SmtpConfig,
-} from '@odudu/contracts/admin';
+import type { CountResponse, Settings, SigningKey, SmtpConfig } from '@odudu/contracts/admin';
+import type { AuditEvent } from '#/entities/audit-event';
 import { holds } from '#/shared/services/access';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
 import { mapRead, readOutcome, type Read } from '#/shared/services/read';

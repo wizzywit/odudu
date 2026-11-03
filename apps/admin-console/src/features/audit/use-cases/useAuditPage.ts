@@ -1,4 +1,4 @@
-import type { AuditEvent } from '@odudu/contracts/admin';
+import type { AuditEvent } from '#/entities/audit-event';
 import { useState } from 'react';
 import { useAuthority } from '#/entities/session';
 import { areaAt, areaHref, type Area } from '#/entities/area';

@@ -1,4 +1,4 @@
-import type { AuditEvent } from '@odudu/contracts/admin';
+import type { AuditEvent } from '#/entities/audit-event';
 import { render, screen, within } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import type { Gated } from '#/features/overview/services/reads';

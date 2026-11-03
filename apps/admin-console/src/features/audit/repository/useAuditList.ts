@@ -1,4 +1,4 @@
-import type { AuditEvent } from '@odudu/contracts/admin';
+import type { AuditEvent } from '#/entities/audit-event';
 import { readAuditPage } from '#/shared/adapter/audit';
 import { listKey } from '#/shared/repository/queryKeys';
 import { useListPages } from '#/shared/repository/useResourceList';

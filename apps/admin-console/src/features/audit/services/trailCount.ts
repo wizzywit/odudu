@@ -1,4 +1,4 @@
-import type { AuditEvent } from '@odudu/contracts/admin';
+import type { AuditEvent } from '#/entities/audit-event';
 import { counted } from '#/shared/services/format';
 import { formatInZone } from '#/shared/services/zones';
 

@@ -1,4 +1,4 @@
-import type { AuditEvent } from '@odudu/contracts/admin';
+import type { AuditEvent } from '#/entities/audit-event';
 import { json, type Answer } from '#/testing/fakeTransport';
 import { graceRoutes } from '#/testing/renderConsole';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
