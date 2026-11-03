@@ -1,5 +1,5 @@
 import { SYSTEM_TENANT } from '#/shared/services/principal';
-import type { Creation, CreationFlow } from '#/features/tenants/services/creation';
+import type { Creation, CreationFlow } from '#/entities/creation-draft/types/creation';
 
 export const FRESH_CREATION: Creation = { step: 'tenant', name: '', displayName: '' };
 
@@ -18,9 +18,6 @@ export function administratorOf(
     holdings: ['tenant-admin'],
   };
 }
-
-// Creating a tenant, adding an administrator to one existing tenant, and
-// adding one of system's own: each flow keeps its own progress, so a page
 
 export function flowOf(tenant: string): CreationFlow {
   return tenant === SYSTEM_TENANT ? 'system-administrator' : `administrator/${tenant}`;
@@ -45,8 +42,6 @@ export function belongsTo(flow: CreationFlow, creation: Creation): boolean {
     creation.tenant !== SYSTEM_TENANT && (creation.step === 'done' || creation.origin === 'created')
   );
 }
-
-// Whether the step is the first administrator of a tenant just made, or a
 
 // Resumed when the subject was already created, since a retry would find its
 // username taken and leave it without a role.

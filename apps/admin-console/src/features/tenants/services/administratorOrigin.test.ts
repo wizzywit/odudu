@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { administratorOf, FRESH_CREATION } from '#/features/tenants/services/creationDraft';
+import { FRESH_CREATION, administratorOf } from '#/entities/creation-draft';
 import {
   administratorTitle,
   firstAdministratorNote,

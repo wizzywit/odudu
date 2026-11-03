@@ -1,5 +1,5 @@
+import { storedCreation } from '#/entities/creation-draft';
 import { draftOwner, usePrincipal } from '#/entities/session';
-import { storedCreation } from '#/features/tenants/repository/useCreation';
 import { administratorTitle } from '#/features/tenants/services/administratorOrigin';
 import { titleOrigin } from '#/features/tenants/services/administratorOrigin';
 

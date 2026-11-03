@@ -1,4 +1,4 @@
-import type { Creation } from '#/features/tenants/services/creation';
+import type { Creation } from '#/entities/creation-draft';
 
 // A subject created but not finished, which starting over would drop.
 export interface Unfinished {

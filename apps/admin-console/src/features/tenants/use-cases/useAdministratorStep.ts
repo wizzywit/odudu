@@ -5,7 +5,7 @@ import {
   administratorProblem,
   choosesHoldings,
 } from '#/features/tenants/services/administratorHoldings';
-import { type Creation } from '#/features/tenants/services/creation';
+import type { Creation } from '#/entities/creation-draft';
 import { issuerPreview } from '#/features/tenants/services/tenantName';
 import {
   administratorFailure,

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { administratorOf, FRESH_CREATION } from '#/features/tenants/services/creationDraft';
+import { FRESH_CREATION, administratorOf } from '#/entities/creation-draft';
 import { unfinishedOf } from '#/features/tenants/services/unfinishedCreation';
 
 it('drops a creation only when a subject was already made', () => {

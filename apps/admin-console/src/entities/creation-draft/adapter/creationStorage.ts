@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Creation, CreationFlow } from '#/features/tenants/services/creation';
+import type { Creation, CreationFlow } from '#/entities/creation-draft/types/creation';
 import { browserStorage } from '#/shared/adapter/browserStorage';
 
 // A tenant's administrator flow is named for its tenant, so each has a key.

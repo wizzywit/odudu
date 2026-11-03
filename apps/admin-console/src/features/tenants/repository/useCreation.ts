@@ -1,16 +1,7 @@
 import type { Subject } from '@odudu/contracts/admin';
 import type { Tenant } from '#/features/tenants/types/tenant';
 import { findKey } from '#/shared/repository/queryKeys';
-import { useEffect, useState } from 'react';
-import { loadCreation, storeCreation } from '#/features/tenants/adapter/creationStorage';
 import { createTenant, findTenant } from '#/features/tenants/adapter/tenants';
-import {
-  administratorOf,
-  belongsTo,
-  flowOf,
-  freshCreation,
-} from '#/features/tenants/services/creationDraft';
-import { type Creation, type CreationFlow } from '#/features/tenants/services/creation';
 import { createSubject, findSubject, issuePassword } from '#/shared/adapter/administrators';
 import {
   defect,
@@ -29,51 +20,6 @@ import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/
 import { useFreshRead } from '#/shared/repository/useFreshRead';
 import { useWrite } from '#/shared/repository/useWrite';
 import { useTransport } from '#/shared/transport/useTransport';
-
-export interface CreationProgress {
-  creation: Creation;
-  update: (creation: Creation) => void;
-}
-
-function ownCreation(owner: string, flow: CreationFlow): Creation | null {
-  const stored = loadCreation(owner, flow);
-  return stored !== null && belongsTo(flow, stored) ? stored : null;
-}
-
-// Kept in this tab's storage on every change, so a reload resumes it.
-export function useCreationProgress(owner: string, flow: CreationFlow): CreationProgress {
-  const [creation, setCreation] = useState<Creation>(
-    () => ownCreation(owner, flow) ?? freshCreation(flow),
-  );
-  // A finished creation survives a reload, which runs no cleanup, but not
-  // leaving the page: the next "Create a tenant" starts a new one.
-  useEffect(() => {
-    if (creation.step !== 'done') return undefined;
-    storeCreation(owner, creation, flow);
-    return () => {
-      if (ownCreation(owner, flow)?.step === 'done') storeCreation(owner, null, flow);
-    };
-  }, [owner, flow, creation]);
-  return {
-    creation,
-    update: (next) => {
-      storeCreation(owner, next, flow);
-      setCreation(next);
-    },
-  };
-}
-
-export function storedCreation(owner: string, tenant: string): Creation | null {
-  return ownCreation(owner, flowOf(tenant));
-}
-
-export function beginAdministrator(
-  owner: string,
-  tenant: string,
-  origin: 'created' | 'imported' | 'existing',
-): void {
-  storeCreation(owner, administratorOf(tenant, origin), flowOf(tenant));
-}
 
 export interface TenantCreate {
   busy: boolean;

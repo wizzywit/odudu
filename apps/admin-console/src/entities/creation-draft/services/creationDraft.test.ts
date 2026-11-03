@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Creation } from '#/features/tenants/services/creation';
+import type { Creation } from '#/entities/creation-draft/types/creation';
 import {
   administratorOf,
   belongsTo,
@@ -7,7 +7,7 @@ import {
   FRESH_CREATION,
   freshCreation,
   resumesAdministrator,
-} from '#/features/tenants/services/creationDraft';
+} from '#/entities/creation-draft/services/creationDraft';
 
 describe('the three guided flows', () => {
   it("keeps system's own administrators, and each tenant's, apart from tenant creation", () => {

@@ -1,6 +1,5 @@
 import { useTenantCreate } from '#/features/tenants/repository/useCreation';
-import { administratorOf } from '#/features/tenants/services/creationDraft';
-import { type Creation } from '#/features/tenants/services/creation';
+import { administratorOf, type Creation } from '#/entities/creation-draft';
 import { issuerPreview, nameProblem } from '#/features/tenants/services/tenantName';
 import {
   createTenantCall,

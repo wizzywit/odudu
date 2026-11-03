@@ -8,8 +8,7 @@ import {
   tenantAdministratorTrail,
   tenantsTrail,
 } from '#/features/tenants/services/systemTrail';
-import { type Creation, type CreationFlow } from '#/features/tenants/services/creation';
-import { flowOf } from '#/features/tenants/services/creationDraft';
+import { flowOf, type Creation, type CreationFlow } from '#/entities/creation-draft';
 import { doneStepOf, type DoneStep } from '#/features/tenants/services/creationOutcome';
 import {
   ADD_SYSTEM_ADMIN_TITLE,

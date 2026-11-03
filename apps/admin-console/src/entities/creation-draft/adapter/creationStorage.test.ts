@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { loadCreation, storeCreation } from '#/features/tenants/adapter/creationStorage';
-import type { Creation } from '#/features/tenants/services/creation';
+import { loadCreation, storeCreation } from '#/entities/creation-draft/adapter/creationStorage';
+import type { Creation } from '#/entities/creation-draft/types/creation';
 
 const KEY = 'odudu.console.tenant-creation';
 const HALFWAY: Creation = {

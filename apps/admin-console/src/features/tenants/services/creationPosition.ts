@@ -1,5 +1,5 @@
 import type { Crumb } from '#/shared/services/breadcrumb';
-import { type Creation, type CreationFlow } from '#/features/tenants/services/creation';
+import type { Creation, CreationFlow } from '#/entities/creation-draft';
 import { administratorTitle } from '#/features/tenants/services/administratorOrigin';
 import { systemAdminsHrefOf } from '#/features/tenants/services/systemAddress';
 import {

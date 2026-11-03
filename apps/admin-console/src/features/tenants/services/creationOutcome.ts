@@ -1,6 +1,6 @@
 import { tenantPage } from '#/shared/services/address';
 import { holdsText, systemHoldsText } from '#/features/tenants/services/administratorHoldings';
-import type { Creation, CreationFlow } from '#/features/tenants/services/creation';
+import type { Creation, CreationFlow } from '#/entities/creation-draft';
 import { systemAdminsHrefOf, tenantHref } from '#/features/tenants/services/systemAddress';
 
 // Starting over from a tenant's own administrator adds another to it.

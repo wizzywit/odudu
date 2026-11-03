@@ -1,4 +1,4 @@
-import type { Creation } from '#/features/tenants/services/creation';
+import type { Creation } from '#/entities/creation-draft';
 
 export function titleOrigin(stored: Creation | null): 'created' | 'imported' | 'existing' {
   return stored?.step === 'administrator' ? stored.origin : 'existing';
