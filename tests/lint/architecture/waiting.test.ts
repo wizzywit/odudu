@@ -14,7 +14,10 @@ function waitingSlices(): string[] {
   const from = rule?.from.path;
   const group = /features\/\(\?!\(\?:([^)]*)\)\//u.exec(typeof from === 'string' ? from : '');
   if (group?.[1] === undefined) throw new Error('the widget rule names no waiting slices');
-  return group[1].split('|').sort();
+  return group[1]
+    .split('|')
+    .filter((name) => name !== '')
+    .sort();
 }
 
 describe('console-features-import-no-widget waiting list', () => {

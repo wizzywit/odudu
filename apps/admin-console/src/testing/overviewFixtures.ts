@@ -1,9 +1,9 @@
 import type { SigningKey, SmtpConfig } from '@odudu/contracts/admin';
 import { hasRelay } from '#/entities/mail-relay';
 import { publishedLane, readyToPromote } from '#/entities/signing-key';
-import type { AttentionInputs } from '#/features/overview/services/attention';
-import type { EntityRules } from '#/features/overview/services/entityRules';
-import type { AreaOf, OverviewRead, OverviewReads } from '#/features/overview/types/overviewReads';
+import type { AttentionInputs } from '#/pages/overview/services/attention';
+import type { EntityRules } from '#/pages/overview/services/entityRules';
+import type { AreaOf, OverviewRead, OverviewReads } from '#/pages/overview/types/overviewReads';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
 
 export const retry = (): void => undefined;

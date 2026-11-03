@@ -169,11 +169,12 @@ module.exports = {
       name: 'console-features-import-no-widget',
       severity: 'error',
       comment:
-        'A widget sits above a feature, so a feature never imports one. The slices still named ' +
-        'here are pages in waiting and may; tests/lint/architecture/waiting.test.ts keeps the ' +
-        'list equal to the features that are not migrated.',
+        'A widget sits above a feature, so a feature never imports one. A slice still named in ' +
+        'the empty group below would be a page in waiting and may; ' +
+        'tests/lint/architecture/waiting.test.ts keeps the list equal to the features that are ' +
+        'not migrated.',
       from: {
-        path: '(^|/)apps/admin-console/src/features/(?!(?:' + 'overview)/)',
+        path: '(^|/)apps/admin-console/src/features/(?!(?:' + ')/)',
       },
       to: { path: '(^|/)apps/admin-console/src/widgets/' },
     },

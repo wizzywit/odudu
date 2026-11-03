@@ -566,7 +566,6 @@ describe('boundary rules', { timeout: 60_000 }, () => {
       'widgets/shell/ui/usesEntityIndex.ts',
       'widgets/shell/ui/Shell.ts',
       'pages/home/ui/usesWidgetIndex.ts',
-      'features/overview/usesUpperLayers.ts',
     ];
     for (const file of clean) {
       expect(output.modules.some((m) => m.source.endsWith(file))).toBe(true);
@@ -628,7 +627,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     }
   });
 
-  it('lets a feature slice in waiting import a widget and an entity', async () => {
+  it('does not hold a feature to the rule for entities and shared code', async () => {
     const found = await violations('console-lower-layers-import-no-upper');
     expect(found.some((v) => v.from.includes('/features/'))).toBe(false);
   });
@@ -647,7 +646,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ]);
   });
 
-  it('rejects a migrated feature importing a widget, and not a slice in waiting', async () => {
+  it('rejects a feature importing a widget', async () => {
     const found = await violations('console-features-import-no-widget');
     expect(found.map((v) => v.from.replace(/^.*\/src\//u, ''))).toEqual([
       'features/picked/reachesWidget.ts',

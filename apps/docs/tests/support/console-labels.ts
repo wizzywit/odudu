@@ -163,7 +163,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   OBSERVE: heading('Observe'),
   Overview: several(
     at(AREAS, "area('', 'Overview'"),
-    feature('overview/services/overviewWords.ts', 'OVERVIEW.label'),
+    page('overview/services/overviewWords.ts', 'OVERVIEW.label'),
   ),
   Subjects: rail('subjects', 'Subjects'),
   Groups: several(rail('groups', 'Groups'), subjectTab('groups', 'Groups')),
@@ -694,12 +694,12 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Export these events': page('audit/services/auditPageWords.ts', "'Export these events'"),
 
   // The overview.
-  'Needs attention': feature('overview/services/overviewWords.ts', "title: 'Needs attention'"),
-  Counts: feature('overview/services/overviewWords.ts', "title: 'Counts'"),
-  Discovery: feature('overview/services/overviewWords.ts', "title: 'Discovery'"),
-  Issuer: feature('overview/services/overviewWords.ts', "issuer: 'Issuer'"),
-  'Latest activity': feature('overview/services/overviewWords.ts', "title: 'Latest activity'"),
-  'Open the audit trail': feature(
+  'Needs attention': page('overview/services/overviewWords.ts', "title: 'Needs attention'"),
+  Counts: page('overview/services/overviewWords.ts', "title: 'Counts'"),
+  Discovery: page('overview/services/overviewWords.ts', "title: 'Discovery'"),
+  Issuer: page('overview/services/overviewWords.ts', "issuer: 'Issuer'"),
+  'Latest activity': page('overview/services/overviewWords.ts', "title: 'Latest activity'"),
+  'Open the audit trail': page(
     'overview/services/overviewWords.ts',
     "open: 'Open the audit trail'",
   ),

@@ -21,7 +21,7 @@ vi.mock('#/pages/subjects', async (importOriginal) => {
   };
 });
 
-vi.mock('#/features/overview', async (importOriginal) => {
+vi.mock('#/pages/overview', async (importOriginal) => {
   const { createElement } = await import('react');
   return {
     ...(await importOriginal<Record<string, unknown>>()),

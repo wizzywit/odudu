@@ -73,7 +73,7 @@ const tenant = createRoute({
 });
 
 const Overview = lazyFeatureRoute(
-  () => import('#/features/overview').then((feature) => feature.OverviewPage),
+  () => import('#/pages/overview').then((feature) => feature.OverviewPage),
   'Loading the overview',
 );
 

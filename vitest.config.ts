@@ -147,7 +147,7 @@ export default defineConfig({
           css: {
             include: [
               /\/shared\/ui\/(?:tokens\.css|fonts\.css|[\w/]+\.module\.css\?raw)/u,
-              /\/features\/[\w-]+\/ui\/[\w/]+\.module\.css\?raw/u,
+              /\/(?:features|pages|widgets)\/[\w-]+\/ui\/[\w/]+\.module\.css\?raw/u,
             ],
           },
           setupFiles: [...SETUP, join(REPO_ROOT, CONSOLE, 'tests/setup.ts')],
