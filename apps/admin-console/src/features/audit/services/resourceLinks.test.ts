@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { actorHref, resourceHref, type RecordPages } from '#/features/audit/services/resourceLinks';
+import {
+  actorHref,
+  AREA_RESOURCES,
+  resourceHref,
+  type RecordPages,
+} from '#/features/audit/services/resourceLinks';
 
 const PAGES: RecordPages = {
   subject: (tenant, id) => `/console/${tenant}/subjects/${id}`,
@@ -36,6 +41,11 @@ describe('where a resource id leads', () => {
   });
 
   it('to the area, for a type with a page and no record page', () => {
+    expect(AREA_RESOURCES).toEqual({
+      signing_key: 'keys',
+      flow: 'flow',
+      registration_token: 'registration-tokens',
+    });
     expect(resourceHref('acme', 'signing_key', ID, PAGES, areaPage)).toBe('/console/acme/keys');
     expect(resourceHref('acme', 'flow', ID, PAGES, areaPage)).toBe('/console/acme/flow');
     expect(resourceHref('acme', 'registration_token', ID, PAGES, areaPage)).toBe(

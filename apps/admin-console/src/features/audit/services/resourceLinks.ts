@@ -1,17 +1,22 @@
 import type { AuditEvent } from '@odudu/contracts/admin';
 export type RecordPages = Readonly<Record<string, (tenant: string, id: string) => string>>;
 
-// The area that is the whole of what the audit log names, with no record of its own.
-const AREA_PAGES: Readonly<Record<string, string>> = {
+// The resource types that are a whole area, with no record of their own, and
+// the area each opens.
+export const AREA_RESOURCES: Readonly<Record<string, string>> = {
   signing_key: 'keys',
   flow: 'flow',
   registration_token: 'registration-tokens',
 };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const RECORD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
-// The record a resource id names, or the page its type lives on. A reserved
-// client_id or a session digest is a resource id too, and names no record.
+// A reserved client_id or a session digest is a resource id too, and names no record.
+function isRecordId(id: string): boolean {
+  return RECORD_ID.test(id);
+}
+
+// The record a resource id names, or the page its type lives on.
 export function resourceHref(
   tenant: string,
   type: string | null,
@@ -20,10 +25,10 @@ export function resourceHref(
   areaPage: (area: string) => string,
 ): string | null {
   if (type === null || id === null) return null;
-  const area = AREA_PAGES[type];
+  const area = AREA_RESOURCES[type];
   if (area !== undefined) return areaPage(area);
   const page = pages[type];
-  return page === undefined || !UUID.test(id) ? null : page(tenant, id);
+  return page === undefined || !isRecordId(id) ? null : page(tenant, id);
 }
 
 // An actor links to its subject only where this tenant's subjects are
