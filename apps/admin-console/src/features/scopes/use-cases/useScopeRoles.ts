@@ -55,7 +55,7 @@ export function useScopeRoles({
   const saves = useScopeSaves(tenant, scope.id);
   const known = roleIndex(data.items, picker.options);
   const caller = callerCapabilities(authority);
-  const kept = keptRoles(data.items, caller, tenant);
+  const kept = keptRoles(data.items, caller, tenant, known);
   const save = useSectionSave({
     tenant,
     record: scopeRolesRecord(scope.id),

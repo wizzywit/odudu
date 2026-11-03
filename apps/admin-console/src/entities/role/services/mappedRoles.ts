@@ -55,7 +55,9 @@ export function mappedRoles(
   });
 }
 
-// A mapped role the caller could not give is one it cannot take.
+// A mapped role the caller could not give is one it cannot take. With a
+// `lookup`, the reach is read from that index (a picker's entry may override
+// the item's) and a role the index has no record of is not kept.
 export function keptRoles(
   items: readonly {
     id: string;
@@ -65,9 +67,13 @@ export function keptRoles(
   }[],
   caller: readonly AdminCapability[],
   tenant: string,
+  lookup?: ReadonlyMap<string, IndexedRole>,
 ): string[] {
   return items
-    .filter((role) => roleReachUnavailable(role, caller, tenant) !== null)
+    .filter((role) => {
+      const judged = lookup === undefined ? role : lookup.get(role.id);
+      return judged !== undefined && roleReachUnavailable(judged, caller, tenant) !== null;
+    })
     .map((role) => role.id);
 }
 
