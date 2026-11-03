@@ -1,10 +1,6 @@
-import {
-  againOf,
-  holdsText,
-  systemHoldsText,
-  type Creation,
-  type CreationFlow,
-} from '#/features/tenants/services/creation';
+import { againOf } from '#/features/tenants/services/creationOutcome';
+import { holdsText, systemHoldsText } from '#/features/tenants/services/administratorHoldings';
+import { type Creation, type CreationFlow } from '#/features/tenants/services/creation';
 import { systemAdminsHrefOf, tenantHref } from '#/features/tenants/services/address';
 import { tenantPage } from '#/shared/services/address';
 

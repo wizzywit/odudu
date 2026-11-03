@@ -4,8 +4,8 @@ import { systemAdminsHrefOf } from '#/features/tenants/services/address';
 import {
   administratorProblem,
   choosesHoldings,
-  type Creation,
-} from '#/features/tenants/services/creation';
+} from '#/features/tenants/services/administratorHoldings';
+import { type Creation } from '#/features/tenants/services/creation';
 import { issuerPreview } from '#/features/tenants/services/name';
 import {
   administratorFailure,
