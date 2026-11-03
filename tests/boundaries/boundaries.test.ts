@@ -458,6 +458,13 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     );
   });
 
+  it("permits a widget's service importing the administrator entity index.ts", async () => {
+    const found = await violations('console-service-entity-index-type-only');
+    expect(
+      found.some((v) => v.from.endsWith('widgets/shell/services/usesAdministratorIndex.ts')),
+    ).toBe(false);
+  });
+
   it("permits an entity's service importing its own types", async () => {
     const found = await violations('console-service-imports-only-service');
     expect(found.some((v) => v.from.endsWith('entities/session/services/usesOwnTypes.ts'))).toBe(

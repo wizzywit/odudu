@@ -103,14 +103,14 @@ module.exports = {
       severity: 'error',
       comment:
         'An entity index reaches views and usecases, so a service may import it for types only. ' +
-        'entities/area is the exception: its index publishes the catalogue, which is pure data and ' +
-        'services.',
+        'entities/area and entities/administrator are the exceptions: their indexes publish pure ' +
+        'data and services, and tests/lint/entity-service-index.test.ts holds them to that.',
       from: {
         path: '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
       to: {
-        path: '(^|/)apps/admin-console/src/entities/(?!area/)[^/]+/index\\.ts$',
+        path: '(^|/)apps/admin-console/src/entities/(?!(?:area|administrator)/)[^/]+/index\\.ts$',
         dependencyTypesNot: ['type-only'],
       },
     },
