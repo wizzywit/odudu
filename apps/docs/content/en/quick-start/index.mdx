@@ -29,13 +29,13 @@ You also need `curl`, which macOS, Linux and current Windows ship. Postgres and 
 One command downloads the file that describes the stack and starts it. The first start pulls the images, so it is slower than the starts after it.
 
 ```text
-curl -fsSLO https://github.com/wizzywit/odudu/releases/download/v0.1.0-rc.5/compose.yaml && docker compose up -d
+curl -fsSLO https://github.com/wizzywit/odudu/releases/download/v0.1.0-rc.6/compose.yaml && docker compose up -d
 ```
 
 In Windows PowerShell, `curl` is another command and `&&` is not available. Use `curl.exe`, and start Compose on a second line so it does not run after a failed download:
 
 ```text
-curl.exe -fsSLO https://github.com/wizzywit/odudu/releases/download/v0.1.0-rc.5/compose.yaml
+curl.exe -fsSLO https://github.com/wizzywit/odudu/releases/download/v0.1.0-rc.6/compose.yaml
 docker compose up -d
 ```
 

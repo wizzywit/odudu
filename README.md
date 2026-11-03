@@ -70,14 +70,14 @@ data on their own servers.
 You need Docker with Compose v2 and `curl`.
 
 ```sh
-curl -fsSLO https://github.com/wizzywit/odudu/releases/download/v0.1.0-rc.5/compose.yaml && docker compose up -d
+curl -fsSLO https://github.com/wizzywit/odudu/releases/download/v0.1.0-rc.6/compose.yaml && docker compose up -d
 docker compose logs setup
 ```
 
 In Windows PowerShell, `curl` is another command, so start it like this:
 
 ```powershell
-curl.exe -fsSLO https://github.com/wizzywit/odudu/releases/download/v0.1.0-rc.5/compose.yaml
+curl.exe -fsSLO https://github.com/wizzywit/odudu/releases/download/v0.1.0-rc.6/compose.yaml
 docker compose up -d
 ```
 

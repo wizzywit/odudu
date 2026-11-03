@@ -6,6 +6,10 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.1.0-rc.6] - 2026-11-03
+
+The sixth release candidate. Odudu has had no independent security review.
+
 ### Changed
 
 - The admin console's and the documentation site's source is reorganised into the folder layout the contributor documentation describes, with checks that keep it so. Nothing a person sees or calls changed: no route, request, wording or setting.
@@ -135,7 +139,8 @@ The first release candidate. Odudu is not production ready: it has had no securi
 - Cookies are `Secure` and `__Host-` prefixed under `ODUDU_TLS`, from one setting; before, the session cookie ignored it.
 - Characters that change the direction of text are refused in names and usernames.
 
-[Unreleased]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.5...HEAD
+[Unreleased]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.6...HEAD
+[0.1.0-rc.6]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.5...v0.1.0-rc.6
 [0.1.0-rc.5]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.4...v0.1.0-rc.5
 [0.1.0-rc.4]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.3...v0.1.0-rc.4
 [0.1.0-rc.3]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.2...v0.1.0-rc.3
