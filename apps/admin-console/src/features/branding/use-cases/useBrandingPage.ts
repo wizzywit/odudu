@@ -1,5 +1,5 @@
 import { selectOffered } from '#/features/branding/services/edits';
-import { TENANT_SCOPE } from '#/features/branding/services/scope';
+import { TENANT_SCOPE } from '#/features/branding/services/themeScope';
 import { OFFERED_TABS, showsPreview, type OfferedTab } from '#/features/branding/services/tabs';
 import { useScopeTabReads } from '#/features/branding/use-cases/useScopeTabReads';
 import { useMailTab, type MailTab } from '#/features/branding/use-cases/useMailTab';

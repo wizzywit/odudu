@@ -1,4 +1,7 @@
 import type { ThemeView } from '@odudu/contracts/admin';
+import { refusedBy } from '#/shared/services/failure';
+import type { AdminCapability } from '#/shared/services/principal';
+import type { Problem } from '#/shared/services/result';
 
 // Whose theme a call is about: the tenant's own, or one client's. `below` is
 // what the tenant's published theme supplies, as the client's own read says;
@@ -46,4 +49,14 @@ export function placedOver(scope: ThemeScope, view: ThemeView | undefined): Them
   const below = view?.tenant_sources;
   if (scope.kind === 'tenant' || below === undefined || below === null) return scope;
   return { ...scope, below };
+}
+
+// What a scope's writes need: a client's theme is its own client's to change.
+export function writeCapability(scope: ThemeScope): AdminCapability {
+  return scope.kind === 'tenant' ? 'manage-tenant' : 'manage-clients';
+}
+
+// What a refused section save says of a 403, naming the capability of the scope.
+export function themeRefusal(scope: ThemeScope): (problem: Problem) => string | null {
+  return refusedBy(writeCapability(scope));
 }

@@ -1,11 +1,15 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useRefusal } from '#/entities/session';
 import { stylesheetSave } from '#/features/branding/repository/themeSaves';
-import { type PublishOutcome } from '#/features/branding/services/edits';
+import type { PublishOutcome } from '#/features/branding/services/edits';
 import { stylesheetFields, STYLESHEET_SECTION_TITLE } from '#/features/branding/services/fields';
 import { firstProblems, type PlacedProblems } from '#/features/branding/services/problems';
-import { themeRefusal, writeCapability } from '#/features/branding/services/publication';
-import { themeRecord, type ThemeScope } from '#/features/branding/services/scope';
+import {
+  themeRefusal,
+  writeCapability,
+  themeRecord,
+  type ThemeScope,
+} from '#/features/branding/services/themeScope';
 import {
   publishedStylesheetProblems,
   stylesheetHold,

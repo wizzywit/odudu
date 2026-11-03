@@ -1,8 +1,12 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { NO_OUTCOME } from '#/features/branding/services/edits';
-import { writeCapability } from '#/features/branding/services/publication';
-import { clientScope, NO_DRAFT_TAG, TENANT_SCOPE } from '#/features/branding/services/scope';
+import {
+  writeCapability,
+  clientScope,
+  NO_DRAFT_TAG,
+  TENANT_SCOPE,
+} from '#/features/branding/services/themeScope';
 import { useScopeBranding } from '#/features/branding/use-cases/useScopeBranding';
 import {
   brandingRoutes,

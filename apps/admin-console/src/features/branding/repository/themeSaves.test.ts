@@ -1,7 +1,7 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { expect, it } from 'vitest';
 import { colourSave, imageSave, templateSave } from '#/features/branding/repository/themeSaves';
-import { NO_DRAFT_TAG } from '#/features/branding/services/scope';
+import { NO_DRAFT_TAG } from '#/features/branding/services/themeScope';
 import { templateValues } from '#/features/branding/services/values';
 import { imageValues } from '#/features/branding/services/imageValues';
 import { colourValues } from '#/features/branding/services/colourValues';

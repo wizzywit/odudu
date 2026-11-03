@@ -1,6 +1,6 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { type PublishOutcome } from '#/features/branding/services/edits';
-import { type ThemeScope } from '#/features/branding/services/scope';
+import { type ThemeScope } from '#/features/branding/services/themeScope';
 import { DELETE_BODY, DELETE_TITLE } from '#/features/branding/services/imageRefusals';
 import { DELETE_LABEL } from '#/features/branding/services/imageSection';
 import { useThemeTab } from '#/features/branding/use-cases/useThemeTab';

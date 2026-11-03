@@ -9,7 +9,7 @@ import {
   PAIR_PASSES,
 } from '#/features/branding/services/contrast';
 import { FONT_OPTIONS, PALETTE_LABELS, PALETTE_ORDER } from '#/features/branding/services/palette';
-import { type ThemeScope } from '#/features/branding/services/scope';
+import { type ThemeScope } from '#/features/branding/services/themeScope';
 import { sourceReading } from '#/features/branding/services/sources';
 import { SCHEME_LABELS, SCHEMES, type Scheme } from '#/features/branding/services/colourScheme';
 import { colourProblems, paletteField } from '#/features/branding/services/colourEdits';

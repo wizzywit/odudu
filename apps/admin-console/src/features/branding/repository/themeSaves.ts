@@ -1,6 +1,6 @@
 import type { PutThemeRequest, ThemeView } from '@odudu/contracts/admin';
 import { putTheme } from '#/features/branding/adapter/theme';
-import { type ThemeScope } from '#/features/branding/services/scope';
+import { type ThemeScope } from '#/features/branding/services/themeScope';
 import {
   stylesheetRequest,
   templateRequest,

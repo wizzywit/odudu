@@ -8,7 +8,7 @@ import {
   TENANT_SCOPE,
   themeRecord,
   type ThemeScope,
-} from '#/features/branding/services/scope';
+} from '#/features/branding/services/themeScope';
 import { tabsWithEdits, type OfferedTab } from '#/features/branding/services/tabs';
 import { usePreview, type Preview } from '#/features/branding/use-cases/usePreview';
 import { useDirtySections } from '#/shared/repository/useDirtySections';

@@ -12,10 +12,9 @@ import {
   revertRequest,
   revertSection,
   shownRevertConflicts,
-  writeCapability,
 } from '#/features/branding/services/publication';
-import { type ThemeScope } from '#/features/branding/services/scope';
-import { type ScopedTab } from '#/features/branding/services/tabs';
+import { writeCapability, type ThemeScope } from '#/features/branding/services/themeScope';
+import type { ScopedTab } from '#/features/branding/services/tabs';
 import { usePublicationHolds } from '#/features/branding/use-cases/usePublicationHolds';
 import { useToast } from '#/shared/repository/useToasts';
 import type { Conflict } from '#/shared/services/conflict';

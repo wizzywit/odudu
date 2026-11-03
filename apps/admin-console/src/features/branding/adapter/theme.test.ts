@@ -14,7 +14,7 @@ import {
   restoreVersion,
   uploadAsset,
 } from '#/features/branding/adapter/theme';
-import { NO_DRAFT_TAG } from '#/features/branding/services/scope';
+import { NO_DRAFT_TAG } from '#/features/branding/services/themeScope';
 import {
   draftedView,
   EMPTY,

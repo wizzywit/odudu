@@ -1,16 +1,15 @@
 import type { ThemeBodyRequest, ThemeBodyWire } from '@odudu/contracts';
 import type { ThemeView } from '@odudu/contracts/admin';
 import type { Conflict } from '#/shared/services/conflict';
-import { isStale, refusedBy, writeFailureText } from '#/shared/services/failure';
+import { isStale, writeFailureText } from '#/shared/services/failure';
 import { andList, counted } from '#/shared/services/format';
-import type { AdminCapability } from '#/shared/services/principal';
-import type { GatewayFailure, GatewayResult, Problem } from '#/shared/services/result';
+import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
 import {
   STYLESHEET_SECTION_TITLE,
   TEMPLATES_SECTION_TITLE,
   unsavedSections,
 } from '#/features/branding/services/fields';
-import type { ThemeScope } from '#/features/branding/services/scope';
+import type { ThemeScope } from '#/features/branding/services/themeScope';
 import {
   BRANDING_TAB_SECTIONS,
   OFFERED_TABS,
@@ -286,14 +285,4 @@ export function discardFailure(failure: GatewayFailure): string {
     stale:
       'Somebody saved the draft after you opened it. The page now shows their version: look it over, then discard it if you still want to.',
   });
-}
-
-// What a scope's writes need: a client's theme is its own client's to change.
-export function writeCapability(scope: ThemeScope): AdminCapability {
-  return scope.kind === 'tenant' ? 'manage-tenant' : 'manage-clients';
-}
-
-// What a refused section save says of a 403, naming the capability of the scope.
-export function themeRefusal(scope: ThemeScope): (problem: Problem) => string | null {
-  return refusedBy(writeCapability(scope));
 }

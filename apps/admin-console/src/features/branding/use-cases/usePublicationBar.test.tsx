@@ -4,7 +4,7 @@ import { afterEach, expect, it } from 'vitest';
 import { PUBLISHING } from '#/features/branding/services/copy';
 import { NO_OUTCOME } from '#/features/branding/services/edits';
 import { foldedActions, NO_DRAFT_TO_DISCARD } from '#/features/branding/services/holds';
-import { TENANT_SCOPE } from '#/features/branding/services/scope';
+import { TENANT_SCOPE } from '#/features/branding/services/themeScope';
 import { usePublicationBar } from '#/features/branding/use-cases/usePublicationBar';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
 import { draftedView, TH, themeView } from '#/testing/brandingFixtures';

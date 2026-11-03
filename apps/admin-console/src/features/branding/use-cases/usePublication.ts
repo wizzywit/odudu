@@ -9,8 +9,7 @@ import {
   type PublishOutcome,
 } from '#/features/branding/services/edits';
 import { publishFailure } from '#/features/branding/services/failures';
-import { writeCapability } from '#/features/branding/services/publication';
-import { type ThemeScope } from '#/features/branding/services/scope';
+import { writeCapability, type ThemeScope } from '#/features/branding/services/themeScope';
 import { useToast } from '#/shared/repository/useToasts';
 import { reportFailure } from '#/shared/services/settled';
 

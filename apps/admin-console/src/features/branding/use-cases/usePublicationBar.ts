@@ -2,7 +2,7 @@ import type { ThemeView } from '@odudu/contracts/admin';
 import { useThemeWrites } from '#/features/branding/repository/useThemeWrites';
 import { type PublishOutcome } from '#/features/branding/services/edits';
 import { type PublicationHolds } from '#/features/branding/services/holds';
-import { type ThemeScope } from '#/features/branding/services/scope';
+import { type ThemeScope } from '#/features/branding/services/themeScope';
 import { revertTarget, type ScopedTab } from '#/features/branding/services/tabs';
 import { usePublication, type Publication } from '#/features/branding/use-cases/usePublication';
 import { usePublicationHolds } from '#/features/branding/use-cases/usePublicationHolds';

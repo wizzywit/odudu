@@ -2,8 +2,12 @@ import type { ThemeView } from '@odudu/contracts/admin';
 import { useRefusal } from '#/entities/session';
 import { colourSave } from '#/features/branding/repository/themeSaves';
 import { fontChoice, type PaletteKey } from '#/features/branding/services/palette';
-import { themeRefusal, writeCapability } from '#/features/branding/services/publication';
-import { themeRecord, type ThemeScope } from '#/features/branding/services/scope';
+import {
+  themeRefusal,
+  writeCapability,
+  themeRecord,
+  type ThemeScope,
+} from '#/features/branding/services/themeScope';
 import type { Scheme } from '#/features/branding/services/colourScheme';
 import {
   coloursHold,

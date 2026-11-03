@@ -1,8 +1,7 @@
 import { useRefusal } from '#/entities/session';
 import type { ThemeWrites } from '#/features/branding/repository/useThemeWrites';
 import { resetFailure } from '#/features/branding/services/failures';
-import { writeCapability } from '#/features/branding/services/publication';
-import { type ThemeScope } from '#/features/branding/services/scope';
+import { writeCapability, type ThemeScope } from '#/features/branding/services/themeScope';
 import { RESET_DONE } from '#/features/branding/services/versions';
 import { useToast } from '#/shared/repository/useToasts';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';

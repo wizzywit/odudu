@@ -2,7 +2,7 @@ import type { ThemePreviewInfo } from '@odudu/contracts/admin';
 import { capitalise } from '#/shared/services/format';
 import type { Read } from '#/shared/services/read';
 import { PAGE_KIND_LABELS } from '#/features/branding/services/templates';
-import type { ThemeScope } from '#/features/branding/services/scope';
+import type { ThemeScope } from '#/features/branding/services/themeScope';
 
 type Fault = ThemePreviewInfo['faults'][number];
 type Layer = Fault['layer'];

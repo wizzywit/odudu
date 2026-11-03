@@ -1,6 +1,6 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { STYLESHEET_SECTION_TITLE } from '#/features/branding/services/fields';
-import { type ThemeScope } from '#/features/branding/services/scope';
+import { type ThemeScope } from '#/features/branding/services/themeScope';
 import {
   SELECTOR_LIST_LIMIT,
   SELECTORS_FAILED,

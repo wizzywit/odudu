@@ -7,7 +7,7 @@ import {
   NO_DRAFT_TAG,
   clientScope,
   placedOver,
-} from '#/features/branding/services/scope';
+} from '#/features/branding/services/themeScope';
 import {
   BRANDING_TAB_LABELS,
   BRANDING_TAB_SECTIONS,

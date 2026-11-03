@@ -11,8 +11,8 @@ import {
   REVERTING,
   revertLead,
 } from '#/features/branding/services/publication';
-import { type ThemeScope } from '#/features/branding/services/scope';
-import { type ScopedTab } from '#/features/branding/services/tabs';
+import type { ThemeScope } from '#/features/branding/services/themeScope';
+import type { ScopedTab } from '#/features/branding/services/tabs';
 import {
   NO_VERSIONS,
   RESET_CONFIRM,

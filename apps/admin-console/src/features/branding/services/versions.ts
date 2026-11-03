@@ -1,6 +1,6 @@
 import { THEME_VERSIONS_LIMIT, type ListThemeVersionsResponse } from '@odudu/contracts/admin';
 import { formatAbsolute } from '#/shared/services/format';
-import type { ThemeScope } from '#/features/branding/services/scope';
+import type { ThemeScope } from '#/features/branding/services/themeScope';
 
 type Version = ListThemeVersionsResponse['items'][number];
 

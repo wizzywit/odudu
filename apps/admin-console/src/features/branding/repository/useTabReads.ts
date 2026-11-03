@@ -1,7 +1,7 @@
 import { useMessageCatalogue } from '#/features/branding/repository/useMessageCatalogue';
 import { useStylesheetHooks } from '#/features/branding/repository/useStylesheetHooks';
 import { useThemeVersions } from '#/features/branding/repository/useThemeVersions';
-import type { ThemeScope } from '#/features/branding/services/scope';
+import type { ThemeScope } from '#/features/branding/services/themeScope';
 import type { TabReads } from '#/features/branding/services/tabs';
 import { useTenantSettings } from '#/entities/tenant';
 

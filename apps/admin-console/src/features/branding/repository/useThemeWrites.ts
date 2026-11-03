@@ -9,7 +9,11 @@ import {
 } from '#/features/branding/adapter/theme';
 import { draftMoved } from '#/features/branding/services/failures';
 import { writesRunning, type WritesRunning } from '#/features/branding/services/holds';
-import { scopeKeyPart, themeRecord, type ThemeScope } from '#/features/branding/services/scope';
+import {
+  scopeKeyPart,
+  themeRecord,
+  type ThemeScope,
+} from '#/features/branding/services/themeScope';
 import { useRecordSaving } from '#/shared/repository/useSavingSections';
 import {
   recordKey,

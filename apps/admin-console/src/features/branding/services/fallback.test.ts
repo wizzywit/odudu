@@ -7,7 +7,7 @@ import {
   noticeLines,
   type FallbackNotice,
 } from '#/features/branding/services/fallback';
-import type { ThemeScope } from '#/features/branding/services/scope';
+import type { ThemeScope } from '#/features/branding/services/themeScope';
 
 const TENANT: ThemeScope = { kind: 'tenant' };
 const CLIENT: ThemeScope = { kind: 'client', id: 'c1' };

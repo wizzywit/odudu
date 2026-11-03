@@ -16,7 +16,12 @@ import {
 import { adminCall, nothing, segment } from '#/shared/adapter/route';
 import { staleWhenTagMissing } from '#/shared/services/failure';
 import { GATEWAY_BASE, type Gateway, type GatewayResult } from '#/shared/transport/gateway';
-import { ifMatchOf, tagOf, themeParts, type ThemeScope } from '#/features/branding/services/scope';
+import {
+  ifMatchOf,
+  tagOf,
+  themeParts,
+  type ThemeScope,
+} from '#/features/branding/services/themeScope';
 import { type PageKind } from '#/features/branding/services/values';
 import { imageDataUrl } from '#/features/branding/services/imageThumbnails';
 import type { Scheme } from '#/features/branding/services/colourScheme';

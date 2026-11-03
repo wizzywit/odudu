@@ -4,8 +4,12 @@ import { useRefusal } from '#/entities/session';
 import { useAssetUpload } from '#/features/branding/repository/useThemeAssets';
 import { useSlotImages } from '#/features/branding/repository/useSlotImages';
 import { imageSave } from '#/features/branding/repository/themeSaves';
-import { themeRefusal, writeCapability } from '#/features/branding/services/publication';
-import { themeRecord, type ThemeScope } from '#/features/branding/services/scope';
+import {
+  themeRefusal,
+  writeCapability,
+  themeRecord,
+  type ThemeScope,
+} from '#/features/branding/services/themeScope';
 import { altChanged, imagesHold } from '#/features/branding/services/logoAlt';
 import { slotAssetIds, type Thumbnail } from '#/features/branding/services/imageThumbnails';
 import {

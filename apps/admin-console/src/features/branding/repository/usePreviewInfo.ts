@@ -1,7 +1,7 @@
 import type { ThemePreviewInfo } from '@odudu/contracts/admin';
 import { readPreviewInfo } from '#/features/branding/adapter/theme';
 import { type PreviewChoice } from '#/features/branding/services/preview';
-import { scopeKeyPart, type ThemeScope } from '#/features/branding/services/scope';
+import { scopeKeyPart, type ThemeScope } from '#/features/branding/services/themeScope';
 import { previewInfoKey } from '#/shared/repository/queryKeys';
 import { useRead } from '#/shared/repository/useRead';
 import type { Read } from '#/shared/services/read';

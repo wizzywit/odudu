@@ -3,7 +3,7 @@ import { useId } from 'react';
 import { PAGE_PICKER_LABEL, PAGES_LEAD } from '#/features/branding/services/copy';
 import { type PublishOutcome } from '#/features/branding/services/edits';
 import { TEMPLATES_SECTION_TITLE } from '#/features/branding/services/fields';
-import { type ThemeScope } from '#/features/branding/services/scope';
+import { type ThemeScope } from '#/features/branding/services/themeScope';
 import { sourceReading } from '#/features/branding/services/sources';
 import {
   formNote,
