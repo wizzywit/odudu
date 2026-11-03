@@ -1,5 +1,5 @@
 import type { Client, TenantSession } from '@odudu/contracts/admin';
-import { type Reach } from '#/features/clients/services/ceiling';
+import { type ServiceAccountReach } from '#/features/clients/services/ceiling';
 import {
   NO_SESSIONS,
   REVOKE_HEADING,
@@ -127,7 +127,15 @@ function Revoke({ client, page }: { client: Client; page: ClientSessions }) {
   );
 }
 
-function Sessions({ tenant, client, reach }: { tenant: string; client: Client; reach: Reach }) {
+function Sessions({
+  tenant,
+  client,
+  reach,
+}: {
+  tenant: string;
+  client: Client;
+  reach: ServiceAccountReach;
+}) {
   const page = useClientSessionsTab(tenant, client, reach);
   return (
     <>
@@ -145,7 +153,7 @@ export function SessionsTab({
 }: {
   tenant: string;
   client: Client;
-  reach: Reach;
+  reach: ServiceAccountReach;
 }) {
   const readable = useSessionsReadable(tenant);
   return (

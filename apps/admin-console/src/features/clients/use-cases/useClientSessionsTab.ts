@@ -6,7 +6,7 @@ import {
   useClientSessionList,
   useGrantRevocation,
 } from '#/features/clients/repository/useClientSessions';
-import { canChange, type Reach } from '#/features/clients/services/ceiling';
+import { canChange, type ServiceAccountReach } from '#/features/clients/services/ceiling';
 import { ceilingRefused } from '#/features/clients/services/refusal';
 import {
   revokeConsequence,
@@ -39,7 +39,11 @@ export interface ClientSessions extends Removal {
   result: string | null;
 }
 
-export function useClientSessionsTab(tenant: string, client: Client, reach: Reach): ClientSessions {
+export function useClientSessionsTab(
+  tenant: string,
+  client: Client,
+  reach: ServiceAccountReach,
+): ClientSessions {
   const authority = useAuthority(tenant);
   const refusal = useRefusal(tenant);
   const reread = useRereadClient(tenant, client.id);

@@ -4,7 +4,12 @@ import { useAuthority } from '#/entities/session';
 import { useClientRecord } from '#/features/clients/repository/useClientRecord';
 import { serviceRolesRecordOf } from '#/features/clients/services/serviceAccess';
 import { brandingOffer, type BrandingOffer } from '#/features/clients/services/branding';
-import { canChange, clientReach, reachLine, type Reach } from '#/features/clients/services/ceiling';
+import {
+  canChange,
+  clientReach,
+  reachLine,
+  type ServiceAccountReach,
+} from '#/features/clients/services/ceiling';
 import {
   CLIENT_TABS,
   chosenTab,
@@ -26,7 +31,7 @@ export interface ClientRecordPage {
   selectTab: (tab: string) => void;
   // Tabs with a section holding unsaved edits, for their dots.
   dirty: ReadonlySet<ClientTab>;
-  reach: Reach;
+  reach: ServiceAccountReach;
   // What a write needs that whoami says is missing.
   changeNeeds: readonly AdminCapability[];
   // Whether the Branding tab shows its editor, a refusal or neither yet.

@@ -1,5 +1,5 @@
 import type { Client, ClientScope } from '@odudu/contracts/admin';
-import { type Reach } from '#/features/clients/services/ceiling';
+import { type ServiceAccountReach } from '#/features/clients/services/ceiling';
 import {
   ASSIGN_HEADING,
   ASSIGN_LABEL,
@@ -104,7 +104,7 @@ export function ScopesTab({
 }: {
   tenant: string;
   client: Client;
-  reach: Reach;
+  reach: ServiceAccountReach;
 }) {
   const page = useClientScopeAssignment({ tenant, client, reach });
   return (

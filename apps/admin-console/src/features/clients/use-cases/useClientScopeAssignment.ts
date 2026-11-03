@@ -4,7 +4,7 @@ import { useAuthority, useRefusal } from '#/entities/session';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import { useScopeChanges, useScopePicker } from '#/features/clients/repository/useClientScopes';
 import { scopesFixed } from '#/features/clients/services/builtinFixed';
-import { canChange, type Reach } from '#/features/clients/services/ceiling';
+import { canChange, type ServiceAccountReach } from '#/features/clients/services/ceiling';
 import { ceilingRefused } from '#/features/clients/services/refusal';
 import {
   alreadyAssigned,
@@ -57,7 +57,7 @@ export function useClientScopeAssignment({
 }: {
   tenant: string;
   client: Client;
-  reach: Reach;
+  reach: ServiceAccountReach;
 }): ClientScopes {
   const refusal = useRefusal(tenant);
   const reread = useRereadClient(tenant, client.id);

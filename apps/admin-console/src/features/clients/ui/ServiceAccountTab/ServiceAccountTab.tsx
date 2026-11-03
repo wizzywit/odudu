@@ -1,7 +1,7 @@
 import type { Client, SetRolesResponse } from '@odudu/contracts/admin';
 import { NO_ROLES, assignedCount } from '#/features/clients/services/serviceRoles';
 import { SERVICE_CAPABILITY, SERVICE_RULE } from '#/features/clients/services/serviceAccess';
-import { type Reach } from '#/features/clients/services/ceiling';
+import { type ServiceAccountReach } from '#/features/clients/services/ceiling';
 import { roleOwnerLine } from '#/features/clients/services/clientRoles';
 import {
   useServiceAccess,
@@ -32,7 +32,7 @@ function Editor({
   data: SetRolesResponse;
   etag: string;
   gone: boolean;
-  reach: Reach;
+  reach: ServiceAccountReach;
 }) {
   const page = useServiceRoles({ tenant, client, subjectId, data, etag, gone, reach });
   return (
@@ -59,9 +59,7 @@ function Roles({ client, page }: { client: Client; page: ServiceRoles }) {
               {page.assigned.map((role) => (
                 <li key={role.id}>
                   <code>{role.name}</code>
-                  <span className={recordTab.rule}>
-                    {` · ${roleOwnerLine(role.client)}`}
-                  </span>
+                  <span className={recordTab.rule}>{` · ${roleOwnerLine(role.client)}`}</span>
                 </li>
               ))}
             </ul>
@@ -98,7 +96,7 @@ function Account({
   client: Client;
   subjectId: string;
   gone: boolean;
-  reach: Reach;
+  reach: ServiceAccountReach;
 }) {
   const read = useServiceRolesRead(tenant, subjectId);
   return (
@@ -132,7 +130,7 @@ export function ServiceAccountTab({
   tenant: string;
   client: Client;
   gone: boolean;
-  reach: Reach;
+  reach: ServiceAccountReach;
 }) {
   const access = useServiceAccess(tenant, client);
   return (

@@ -17,7 +17,7 @@ import {
   roleUnavailable,
   splitAssigned,
 } from '#/features/clients/services/serviceRoles';
-import { canChange, type Reach } from '#/features/clients/services/ceiling';
+import { canChange, type ServiceAccountReach } from '#/features/clients/services/ceiling';
 import { ceilingRefused } from '#/features/clients/services/refusal';
 import { SERVICE_SECTION } from '#/features/clients/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
@@ -83,7 +83,7 @@ export function useServiceRoles({
   data: SetRolesResponse;
   etag: string;
   gone: boolean;
-  reach: Reach;
+  reach: ServiceAccountReach;
 }): ServiceRoles {
   const authority = useAuthority(tenant);
   const refusal = useRefusal(tenant);
