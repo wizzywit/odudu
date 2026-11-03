@@ -1,4 +1,5 @@
 import {
+  TENANT_ADMIN,
   TENANT_ROLE_TEXT,
   isAdminRole,
   isHolding,
@@ -28,8 +29,8 @@ export function splitRoles(items: readonly Assigned[]): SplitRoles {
     roleIds: items.filter((role) => !isAdminRole(role)).map((role) => role.id),
     adminIds: admin.map((role) => role.id),
     holdings: [
-      ...holdings.filter((name) => name === 'tenant-admin'),
-      ...holdings.filter((name) => name !== 'tenant-admin'),
+      ...holdings.filter((name) => name === TENANT_ADMIN),
+      ...holdings.filter((name) => name !== TENANT_ADMIN),
     ],
   };
 }

@@ -2,7 +2,9 @@ import { type EffectiveRoleAssignment } from '@odudu/contracts/admin';
 import {
   carriesTenantReach,
   isAdminRole,
+  MANAGE_TENANTS,
   removalConfirmation,
+  TENANT_ADMIN,
   type Confirmation,
 } from '#/shared/services/capabilities';
 import { SYSTEM_TENANT } from '#/shared/services/principal';
@@ -25,7 +27,7 @@ export function takesTenants(
   const otherwise = carriers.some((role) =>
     role.via.some(
       (via) =>
-        via.kind === 'direct' || (via.kind === 'composite' && via.parent_name !== 'tenant-admin'),
+        via.kind === 'direct' || (via.kind === 'composite' && via.parent_name !== TENANT_ADMIN),
     ),
   );
   const mapped = carriers.flatMap((role) =>
@@ -61,7 +63,7 @@ export function groupsSaveConfirmation({
   left: readonly string[];
 }): Confirmation | null {
   const removal = removesTenants
-    ? removalConfirmation({ name, self, removed: ['manage-tenants'], removesTenants: true })
+    ? removalConfirmation({ name, self, removed: [MANAGE_TENANTS], removesTenants: true })
     : null;
   return removal ?? leaveConfirmation(self, left);
 }

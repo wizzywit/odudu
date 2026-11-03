@@ -1,4 +1,5 @@
 import { andList } from '#/shared/services/format';
+import { TENANT_ADMIN } from '#/shared/services/capabilities';
 import { requiredProblem } from '#/shared/services/fieldErrors';
 import { holdingsProblem } from '#/entities/administrator';
 
@@ -20,8 +21,8 @@ export function administratorProblem(step: {
 
 // What they hold, as a sentence fragment.
 export function holdsText(holdings?: readonly string[]): string {
-  if (holdings === undefined || holdings.includes('tenant-admin') || holdings.length === 0) {
-    return 'tenant-admin';
+  if (holdings === undefined || holdings.includes(TENANT_ADMIN) || holdings.length === 0) {
+    return TENANT_ADMIN;
   }
   return andList(holdings);
 }
