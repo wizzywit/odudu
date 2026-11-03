@@ -1,4 +1,6 @@
+import { roleReachUnavailable } from '#/shared/services/capabilities';
 import { sortedIds } from '#/shared/services/ids';
+import type { AdminCapability } from '#/shared/services/principal';
 import type { MappedRole } from '#/entities/role/types/mappedRole';
 
 export type IndexedRole = MappedRole & { admin_reach: readonly string[] };
@@ -51,6 +53,22 @@ export function mappedRoles(
           description: found.description,
         };
   });
+}
+
+// A mapped role the caller could not give is one it cannot take.
+export function keptRoles(
+  items: readonly {
+    id: string;
+    name: string;
+    client_key: string | null;
+    admin_reach: readonly string[];
+  }[],
+  caller: readonly AdminCapability[],
+  tenant: string,
+): string[] {
+  return items
+    .filter((role) => roleReachUnavailable(role, caller, tenant) !== null)
+    .map((role) => role.id);
 }
 
 export function withKept(ids: readonly string[], kept: readonly string[]): string[] {

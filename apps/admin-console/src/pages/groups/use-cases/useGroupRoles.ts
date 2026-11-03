@@ -5,7 +5,7 @@ import { useRefusal, useRereadAuthority } from '#/entities/session';
 import { useOwnRoles } from '#/features/own-roles';
 import { useGroupRolesRecord, useGroupSaves } from '#/pages/groups/repository/useGroupRecord';
 import { defaultingOf } from '#/pages/groups/services/groupReach';
-import { roleUnavailable, keptRoles, reachOfRoles } from '#/pages/groups/services/groupRoles';
+import { roleUnavailable, reachOfRoles } from '#/pages/groups/services/groupRoles';
 import { type GroupCeiling } from '#/pages/groups/services/groupCeiling';
 import { rolesConfirmation } from '#/pages/groups/services/groupConfirmation';
 import { lossOf } from '#/pages/groups/services/groupLoss';
@@ -17,6 +17,7 @@ import {
   type MappedRole,
   mappedRoles,
   roleIndex,
+  keptRoles,
   roleNameOf,
   withKept,
 } from '#/entities/role';

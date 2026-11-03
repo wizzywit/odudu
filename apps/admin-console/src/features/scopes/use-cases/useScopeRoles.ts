@@ -1,12 +1,12 @@
 import type { ClientScope, Role, SetScopeRolesResponse } from '@odudu/contracts/admin';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useScopeRolesRecord, useScopeSaves } from '#/features/scopes/repository/useScopeRecord';
-import { keptRoles } from '#/features/scopes/services/scopeRoles';
 import { scopeRolesRecord } from '#/features/scopes/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
 import {
   useRolePicker,
   type MappedRole,
+  keptRoles,
   mappedRoles,
   roleIndex,
   roleNameOf,
@@ -55,12 +55,7 @@ export function useScopeRoles({
   const saves = useScopeSaves(tenant, scope.id);
   const known = roleIndex(data.items, picker.options);
   const caller = callerCapabilities(authority);
-  const kept = keptRoles(
-    data.items.map((role) => role.id),
-    known,
-    caller,
-    tenant,
-  );
+  const kept = keptRoles(data.items, caller, tenant);
   const save = useSectionSave({
     tenant,
     record: scopeRolesRecord(scope.id),

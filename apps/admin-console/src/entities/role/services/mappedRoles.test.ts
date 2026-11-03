@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import type { AdminCapability } from '#/shared/services/principal';
 import {
   assignedRoles,
   assignmentsOf,
   byNameThenClient,
+  keptRoles,
   knownAssignments,
   mappedRoles,
   roleIndex,
@@ -50,6 +52,38 @@ describe('the roles mapped to a record', () => {
   it('adds the roles it must keep to every choice, sorted and once', () => {
     expect(withKept(['r2', 'r1'], ['r1'])).toEqual(['r1', 'r2']);
     expect(withKept([], ['r1', 'r1'])).toEqual(['r1']);
+  });
+});
+
+describe('the roles kept on a record', () => {
+  const caller = (...capabilities: AdminCapability[]) => capabilities;
+  const MAPPED = [
+    { id: 'r1', name: 'reader', client_key: null, admin_reach: caller() },
+    { id: 'r2', name: 'keeper', client_key: null, admin_reach: caller('manage-keys') },
+    { id: 'r3', name: 'users', client_key: 'k', admin_reach: caller('manage-users') },
+  ];
+
+  it('keeps a mapped role the caller could not give, though the picker has not loaded it', () => {
+    expect(keptRoles(MAPPED, caller('view-users'), 'acme')).toEqual(['r2', 'r3']);
+    expect(keptRoles(MAPPED.slice(0, 2), caller('manage-keys'), 'acme')).toEqual([]);
+  });
+
+  it('selects the same roles from the items of a scope and of a group, for any caller', () => {
+    const items = MAPPED.map((role) => ({ ...role, client_id: null, description: null }));
+    for (const who of [caller(), caller('manage-keys'), caller('manage-keys', 'manage-users')]) {
+      expect(keptRoles(items, who, 'acme')).toEqual(keptRoles(MAPPED, who, 'acme'));
+    }
+    expect(keptRoles(items, caller(), 'acme')).toEqual(['r2', 'r3']);
+    expect(keptRoles(items, caller('manage-keys'), 'acme')).toEqual(['r3']);
+  });
+
+  it('keeps the mapped roles a group caller could not give', () => {
+    const group = [
+      { id: 'r1', name: 'auditor', client_key: 'k', admin_reach: caller('view-audit') },
+      { id: 'r2', name: 'plain', client_key: null, admin_reach: caller() },
+    ];
+    expect(keptRoles(group, caller('manage-users'), 'acme')).toEqual(['r1']);
+    expect(keptRoles(group, caller('view-audit'), 'acme')).toEqual([]);
   });
 });
 

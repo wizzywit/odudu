@@ -9,6 +9,7 @@ export { newRoleHref, roleHref, rolesHref, rolesTrail } from '#/entities/role/se
 export {
   assignedRoles,
   assignmentsOf,
+  keptRoles,
   knownAssignments,
   mappedRoles,
   roleIndex,
