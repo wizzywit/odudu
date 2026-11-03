@@ -75,3 +75,7 @@ export function parentPlace(
 ): string | null {
   return id === null ? null : parentPathOf(group, id, known);
 }
+
+export const PLACE_LABEL = 'Place in the tree';
+
+export const NAME_TAKEN = 'That name is taken there';

@@ -45,3 +45,5 @@ export function defaultingOf(
   if (group.default_for_new_subjects) return 'itself';
   return group.holds_default_group ? 'beneath' : null;
 }
+
+export const DEFAULT_LABEL = 'Joined by every new subject';

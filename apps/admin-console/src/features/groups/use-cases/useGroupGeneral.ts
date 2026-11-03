@@ -23,7 +23,8 @@ import {
   moveConfirmation,
   subtreeDeletedText,
 } from '#/features/groups/services/groupConfirmation';
-import { DEFAULT_LABEL, PLACE_LABEL } from '#/features/groups/services/labels';
+import { DEFAULT_LABEL } from '#/features/groups/services/groupReach';
+import { PLACE_LABEL } from '#/features/groups/services/groupCreation';
 import { lossOf } from '#/features/groups/services/groupLoss';
 import { type Readiness } from '#/features/groups/services/groupCeiling';
 import { groupRecord } from '#/features/groups/services/tabs';
