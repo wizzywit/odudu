@@ -66,7 +66,18 @@ export function moduleReferences(file: string, text: string): ModuleReference[] 
   return found;
 }
 
-export async function scanApps(root: string): Promise<SourceReferences[]> {
+const scans = new Map<string, Promise<SourceReferences[]>>();
+
+// One parse of the sources per root and process, however many rules read it.
+export function scanApps(root: string): Promise<SourceReferences[]> {
+  const known = scans.get(root);
+  if (known !== undefined) return known;
+  const scan = parseApps(root);
+  scans.set(root, scan);
+  return scan;
+}
+
+async function parseApps(root: string): Promise<SourceReferences[]> {
   const files: string[] = [];
   for (const pattern of APP_SOURCES) {
     for await (const entry of glob(pattern, { cwd: root })) {

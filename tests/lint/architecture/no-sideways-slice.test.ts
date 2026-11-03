@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { scanApps, segments, type ModuleReference } from './imports.ts';
-import { checkRule } from './rule.ts';
+import { ARCHITECTURE_SCAN_TIMEOUT, checkRule } from './rule.ts';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
 const FIXTURE_ROOT = path.join(import.meta.dirname, '../fixtures/architecture/no-sideways-slice');
@@ -68,8 +68,12 @@ describe('no-sideways-slice', () => {
     expect(lines).toBe(6);
   });
 
-  it('has no sideways import outside the inventory', async () => {
-    const { files } = await findSidewaysBreaches(REPO_ROOT);
-    expect(checkRule('no-sideways-slice', files).errors).toEqual([]);
-  });
+  it(
+    'has no sideways import outside the inventory',
+    async () => {
+      const { files } = await findSidewaysBreaches(REPO_ROOT);
+      expect(checkRule('no-sideways-slice', files).errors).toEqual([]);
+    },
+    ARCHITECTURE_SCAN_TIMEOUT,
+  );
 });

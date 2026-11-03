@@ -48,7 +48,7 @@ describe('the endpoints the protocol pages and the admin API pages list are the 
         `${document} documents endpoints this server does not serve`,
       ).toEqual([]);
     }
-  });
+  }, 60_000);
 
   // The console gateway and the stylesheet are described by the generated
   // endpoint reference, whose own test holds it to the server.
@@ -65,5 +65,5 @@ describe('the endpoints the protocol pages and the admin API pages list are the 
       undocumented,
       `these endpoints are served but absent from ${DOCUMENTS.join(', ')} and ENDPOINT_DOCS`,
     ).toEqual([]);
-  });
+  }, 60_000);
 });

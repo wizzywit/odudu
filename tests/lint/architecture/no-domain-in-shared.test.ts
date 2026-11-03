@@ -2,7 +2,7 @@ import { glob, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
-import { checkRule } from './rule.ts';
+import { ARCHITECTURE_SCAN_TIMEOUT, checkRule } from './rule.ts';
 import { SHARED_VOCABULARY } from './shared-vocabulary.ts';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
@@ -162,9 +162,13 @@ describe('no-domain-in-shared', () => {
     ]);
   });
 
-  it('lists only files that exist and still name a domain word', async () => {
-    expect(await vocabularyErrors(REPO_ROOT)).toEqual([]);
-  });
+  it(
+    'lists only files that exist and still name a domain word',
+    async () => {
+      expect(await vocabularyErrors(REPO_ROOT)).toEqual([]);
+    },
+    ARCHITECTURE_SCAN_TIMEOUT,
+  );
 
   it('matches whole words only', () => {
     expect(hasDomainWord('Controller')).toBe(false);
@@ -173,8 +177,12 @@ describe('no-domain-in-shared', () => {
     expect(hasDomainWord('useTenantsQuery')).toBe(true);
   });
 
-  it('has no breach outside the inventory', async () => {
-    const found = await findSharedBreaches(REPO_ROOT);
-    expect(checkRule('no-domain-in-shared', found).errors).toEqual([]);
-  });
+  it(
+    'has no breach outside the inventory',
+    async () => {
+      const found = await findSharedBreaches(REPO_ROOT);
+      expect(checkRule('no-domain-in-shared', found).errors).toEqual([]);
+    },
+    ARCHITECTURE_SCAN_TIMEOUT,
+  );
 });

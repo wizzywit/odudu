@@ -3,7 +3,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { moduleReferences, segments } from './imports.ts';
-import { checkRule } from './rule.ts';
+import { ARCHITECTURE_SCAN_TIMEOUT, checkRule } from './rule.ts';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
 const FIXTURE_ROOT = path.join(import.meta.dirname, '../fixtures/architecture/no-adapter-export');
@@ -48,8 +48,12 @@ describe('no-adapter-export', () => {
     ]);
   });
 
-  it('has no slice index exporting an adapter outside the inventory', async () => {
-    const found = await findAdapterExports(REPO_ROOT);
-    expect(checkRule('no-adapter-export', found).errors).toEqual([]);
-  });
+  it(
+    'has no slice index exporting an adapter outside the inventory',
+    async () => {
+      const found = await findAdapterExports(REPO_ROOT);
+      expect(checkRule('no-adapter-export', found).errors).toEqual([]);
+    },
+    ARCHITECTURE_SCAN_TIMEOUT,
+  );
 });

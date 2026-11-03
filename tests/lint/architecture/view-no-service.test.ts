@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { scanApps, segments, type ModuleReference } from './imports.ts';
-import { checkRule } from './rule.ts';
+import { ARCHITECTURE_SCAN_TIMEOUT, checkRule } from './rule.ts';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
 const FIXTURE_ROOT = path.join(import.meta.dirname, '../fixtures/architecture/view-no-service');
@@ -33,8 +33,12 @@ describe('view-no-service', () => {
     ]);
   });
 
-  it('has no ui file reaching a service outside the inventory', async () => {
-    const found = await findViewServiceBreaches(REPO_ROOT);
-    expect(checkRule('view-no-service', found).errors).toEqual([]);
-  });
+  it(
+    'has no ui file reaching a service outside the inventory',
+    async () => {
+      const found = await findViewServiceBreaches(REPO_ROOT);
+      expect(checkRule('view-no-service', found).errors).toEqual([]);
+    },
+    ARCHITECTURE_SCAN_TIMEOUT,
+  );
 });

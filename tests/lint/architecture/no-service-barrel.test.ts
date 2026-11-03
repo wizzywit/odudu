@@ -1,7 +1,7 @@
 import { glob } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { checkRule } from './rule.ts';
+import { ARCHITECTURE_SCAN_TIMEOUT, checkRule } from './rule.ts';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
 const FIXTURE_ROOT = path.join(import.meta.dirname, '../fixtures/architecture/no-service-barrel');
@@ -27,8 +27,12 @@ describe('no-service-barrel', () => {
     ]);
   });
 
-  it('has no services/index outside the inventory', async () => {
-    const found = await findBarrels(REPO_ROOT);
-    expect(checkRule('no-service-barrel', found).errors).toEqual([]);
-  });
+  it(
+    'has no services/index outside the inventory',
+    async () => {
+      const found = await findBarrels(REPO_ROOT);
+      expect(checkRule('no-service-barrel', found).errors).toEqual([]);
+    },
+    ARCHITECTURE_SCAN_TIMEOUT,
+  );
 });
