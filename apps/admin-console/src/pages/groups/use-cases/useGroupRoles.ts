@@ -1,7 +1,7 @@
 import type { GroupRecord } from '#/entities/group';
 import type { GroupRoleList } from '#/pages/groups/types/groupRoles';
 import { useState } from 'react';
-import { useRefusal, useRereadAuthority } from '#/entities/session';
+import { useRereadAuthority } from '#/entities/session';
 import { useOwnRoles } from '#/features/own-roles';
 import { useGroupRolesRecord, useGroupSaves } from '#/pages/groups/repository/useGroupRecord';
 import { defaultingOf } from '#/pages/groups/services/groupReach';
@@ -11,22 +11,10 @@ import { rolesConfirmation } from '#/pages/groups/services/groupConfirmation';
 import { lossOf } from '#/pages/groups/services/groupLoss';
 import { groupRolesRecord } from '#/pages/groups/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
-import {
-  type Role,
-  useRolePicker,
-  type MappedRole,
-  mappedRoles,
-  roleIndex,
-  keptRoles,
-  roleNameOf,
-  withKept,
-} from '#/entities/role';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { type Asked, lossAction, lossBlocked, writeRefusal } from '#/shared/services/capabilities';
-import { describeIds } from '#/shared/services/format';
-import { removedFrom, sortedIds } from '#/shared/services/ids';
-import type { PickerState } from '#/shared/services/picker';
-import type { RoleValues } from '#/shared/services/sectionValues';
+import { type MappedRole, type Role } from '#/entities/role';
+import { useRoleMapping, type RoleMappingModel } from '#/features/role-mapping';
+import { type Asked, lossAction, lossBlocked } from '#/shared/services/capabilities';
+import { removedFrom } from '#/shared/services/ids';
 import { ceilingCaller } from '#/shared/services/access';
 
 export function useGroupRolesRead(tenant: string, id: string): RecordState<GroupRoleList> {
@@ -35,16 +23,7 @@ export function useGroupRolesRead(tenant: string, id: string): RecordState<Group
 
 export type { MappedRole };
 
-export interface GroupRoles {
-  save: SectionSave<RoleValues>;
-  // Whether the picker is offered: what the ceiling needs has been read.
-  offered: boolean;
-  picker: PickerState<Role>;
-  unavailableOf: (role: Role) => string | null;
-  choose: (ids: readonly string[]) => void;
-  mapped: readonly MappedRole[];
-  // Mapped roles this caller may not take away, each kept by every save.
-  kept: readonly string[];
+export interface GroupRoles extends RoleMappingModel {
   asking: Asked | null;
   confirm: () => void;
   cancel: () => void;
@@ -65,42 +44,28 @@ export function useGroupRoles({
   gone: boolean;
   ceiling: GroupCeiling;
 }): GroupRoles {
-  const refusal = useRefusal(tenant);
   const reread = useRereadAuthority(tenant);
   const own = useOwnRoles(tenant);
-  const picker = useRolePicker(tenant);
   const saves = useGroupSaves(tenant, group.id);
   const [asking, setAsking] = useState<Asked | null>(null);
-  const known = roleIndex(data.items, picker.options);
   const caller = ceilingCaller(ceiling);
-  const why = (role: Role): string | null =>
-    roleUnavailable(role, caller, defaultingOf(group), tenant);
-  // A role mapped here that the caller could not give is one it cannot take.
-  const kept = keptRoles(data.items, caller, tenant);
-  const save = useSectionSave({
+  const mapping = useRoleMapping({
     tenant,
     record: groupRolesRecord(group.id),
-    section: 'roles',
-    label: 'Roles',
     etag,
-    capability: 'manage-tenant',
     gone,
-    refusal,
-    explain: writeRefusal,
-    fields: {
-      role_ids: {
-        value: sortedIds(data.items.map((role) => role.id)),
-        label: 'Roles',
-        kind: 'plain',
-        describe: (value) => describeIds(value, roleNameOf(known)),
-      },
-    },
-    save: async (gateway, input) => {
+    items: data.items,
+    caller,
+    offered: ceiling.status === 'ready',
+    unavailableOf: (role: Role) => roleUnavailable(role, caller, defaultingOf(group), tenant),
+    reachFrom: 'entry',
+    saveRoles: async (gateway, input) => {
       const result = await saves.roles(gateway, input);
       if (result.ok) reread();
       return result;
     },
   });
+  const save = mapping.save;
   const removed = removedFrom(
     data.items.map((role) => role.id),
     save.values.role_ids,
@@ -123,14 +88,12 @@ export function useGroupRoles({
         return true;
       },
     },
-    offered: ceiling.status === 'ready',
-    picker,
-    unavailableOf: why,
-    choose: (ids) => {
-      save.edit('role_ids', withKept(ids, kept));
-    },
-    mapped: mappedRoles(save.values.role_ids, known),
-    kept,
+    offered: mapping.offered,
+    picker: mapping.picker,
+    unavailableOf: mapping.unavailableOf,
+    choose: mapping.choose,
+    mapped: mapping.mapped,
+    kept: mapping.kept,
     asking,
     confirm: () => {
       setAsking(null);

@@ -9,6 +9,7 @@ export { newRoleHref, roleHref, rolesHref, rolesTrail } from '#/entities/role/se
 export {
   assignedRoles,
   assignmentsOf,
+  keptMapped,
   keptRoles,
   knownAssignments,
   mappedRoles,
@@ -17,4 +18,5 @@ export {
   withKept,
   type AssignedRole,
   type IndexedRole,
+  type ReachFrom,
 } from '#/entities/role/services/mappedRoles';

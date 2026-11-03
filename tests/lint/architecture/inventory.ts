@@ -285,7 +285,9 @@ export const INVENTORY: Record<RuleId, string[]> = {
     'apps/admin-console/src/features/clients/use-cases/useClientRecordPage.ts',
     'apps/admin-console/src/features/clients/use-cases/useClientScopeAssignment.ts',
     'apps/admin-console/src/features/scopes/ui/ScopeRecordPage/ClientsTab.tsx',
+    'apps/admin-console/src/features/scopes/ui/ScopeRecordPage/RolesTab.tsx',
     'apps/admin-console/src/features/scopes/use-cases/useScopeClientsTab.ts',
+    'apps/admin-console/src/features/scopes/use-cases/useScopeRoles.ts',
   ],
   'view-no-service': [
     'apps/admin-console/src/features/audit/ui/AuditFilters/AuditFilters.tsx',
@@ -337,7 +339,6 @@ export const INVENTORY: Record<RuleId, string[]> = {
     'apps/admin-console/src/features/registration-tokens/ui/RegistrationTokensPage/RegistrationTokensPage.tsx',
     'apps/admin-console/src/features/scopes/ui/NewScopePage/NewScopePage.tsx',
     'apps/admin-console/src/features/scopes/ui/ScopeRecordPage/GeneralTab.tsx',
-    'apps/admin-console/src/features/scopes/ui/ScopeRecordPage/RolesTab.tsx',
     'apps/admin-console/src/features/scopes/ui/ScopeRecordPage/ScopeRecordPage.tsx',
     'apps/admin-console/src/features/scopes/ui/ScopesPage/RestoreScopes.tsx',
     'apps/admin-console/src/features/scopes/ui/ScopesPage/ScopesPage.tsx',

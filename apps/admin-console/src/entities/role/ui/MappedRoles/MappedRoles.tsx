@@ -11,7 +11,7 @@ export function MappedRoles({
   name: string;
   mapped: readonly MappedRole[];
   // What to say when none is mapped, in place of the plain statement.
-  empty?: string;
+  empty?: string | undefined;
 }) {
   if (mapped.length === 0) {
     return <p className={recordTab.rule}>{empty ?? `${name} carries no role.`}</p>;

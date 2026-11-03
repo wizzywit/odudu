@@ -4,40 +4,21 @@ import {
   useScopeRolesRead,
   type ScopeRoles,
 } from '#/features/scopes/use-cases/useScopeRoles';
-import { INCLUDE_ALL_POINTER, NO_ROLES_MAPPED } from '#/features/scopes/services/scopeRoles';
-import { MappedRoles, RolePicker } from '#/entities/role';
+import { RoleMapping } from '#/features/role-mapping';
 import { ReadGate } from '#/shared/ui/ReadGate';
-import { SaveSection } from '#/shared/ui/SaveSection';
 import { recordTab } from '#/shared/ui/RecordTab';
 
 function Roles({ name, roles }: { name: string; roles: ScopeRoles }) {
-  const s = roles.save;
   return (
-    <SaveSection
-      title="Roles"
+    <RoleMapping
+      name={name}
       description={`A token granted ${name} carries these roles' claims.`}
-      save={s}
+      empty={roles.empty}
+      mapping={roles}
+      save={roles.save}
     >
-      <MappedRoles name={name} mapped={roles.mapped} empty={NO_ROLES_MAPPED} />
-      {roles.offered ? (
-        <RolePicker
-          label={`Roles ${name} carries`}
-          picker={roles.picker}
-          selected={s.values.role_ids}
-          unavailableOf={roles.unavailableOf}
-          onChange={roles.choose}
-        />
-      ) : (
-        <p className={recordTab.rule}>Checking what you may give or take here…</p>
-      )}
-      <p className={recordTab.rule}>{INCLUDE_ALL_POINTER}</p>
-      {roles.kept.length === 0 ? null : (
-        <p className={recordTab.rule}>
-          A role you could not give is one you cannot take away either, so it stays whatever else is
-          saved.
-        </p>
-      )}
-    </SaveSection>
+      <p className={recordTab.rule}>{roles.pointer}</p>
+    </RoleMapping>
   );
 }
 

@@ -1,41 +1,23 @@
-import type { Role } from '@odudu/contracts/admin';
 import type { Scope } from '#/entities/scope';
 import type { ScopeRoleList } from '#/features/scopes/types/scopeRoles';
-import { useAuthority, useRefusal } from '#/entities/session';
+import { useAuthority } from '#/entities/session';
 import { useScopeRolesRecord, useScopeSaves } from '#/features/scopes/repository/useScopeRecord';
+import { INCLUDE_ALL_POINTER, NO_ROLES_MAPPED } from '#/features/scopes/services/scopeRoles';
 import { scopeRolesRecord } from '#/features/scopes/services/tabs';
+import { useRoleMapping, type RoleMappingModel } from '#/features/role-mapping';
 import type { RecordState } from '#/shared/repository/useRecord';
-import {
-  useRolePicker,
-  type MappedRole,
-  keptRoles,
-  mappedRoles,
-  roleIndex,
-  roleNameOf,
-  withKept,
-} from '#/entities/role';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { roleReachUnavailable, writeRefusal } from '#/shared/services/capabilities';
-import { describeIds } from '#/shared/services/format';
-import { sortedIds } from '#/shared/services/ids';
-import type { PickerState } from '#/shared/services/picker';
+import { roleReachUnavailable } from '#/shared/services/capabilities';
 import { callerCapabilities } from '#/shared/services/access';
-import type { RoleValues } from '#/shared/services/sectionValues';
 
 export function useScopeRolesRead(tenant: string, id: string): RecordState<ScopeRoleList> {
   return useScopeRolesRecord(tenant, id);
 }
 
-export interface ScopeRoles {
-  save: SectionSave<RoleValues>;
-  // Whether the picker is offered: what the ceiling needs has been read.
-  offered: boolean;
-  picker: PickerState<Role>;
-  unavailableOf: (role: Role) => string | null;
-  choose: (ids: readonly string[]) => void;
-  mapped: readonly MappedRole[];
-  // Mapped roles this caller may not take away, each kept by every save.
-  kept: readonly string[];
+export interface ScopeRoles extends RoleMappingModel {
+  // What to say when no role is mapped.
+  empty: string;
+  // Where the switch for including all roles lives.
+  pointer: string;
 }
 
 export function useScopeRoles({
@@ -51,42 +33,30 @@ export function useScopeRoles({
   etag: string;
   gone: boolean;
 }): ScopeRoles {
-  const refusal = useRefusal(tenant);
   const authority = useAuthority(tenant);
-  const picker = useRolePicker(tenant);
   const saves = useScopeSaves(tenant, scope.id);
-  const known = roleIndex(data.items, picker.options);
   const caller = callerCapabilities(authority);
-  const kept = keptRoles(data.items, caller, tenant, known);
-  const save = useSectionSave({
+  const mapping = useRoleMapping({
     tenant,
     record: scopeRolesRecord(scope.id),
-    section: 'roles',
-    label: 'Roles',
     etag,
-    capability: 'manage-tenant',
     gone,
-    refusal,
-    explain: writeRefusal,
-    fields: {
-      role_ids: {
-        value: sortedIds(data.items.map((role) => role.id)),
-        label: 'Roles',
-        kind: 'plain',
-        describe: (value) => describeIds(value, roleNameOf(known)),
-      },
-    },
-    save: saves.roles,
+    items: data.items,
+    caller,
+    offered: authority !== undefined,
+    unavailableOf: (role) => roleReachUnavailable(role, caller, tenant),
+    reachFrom: 'picker',
+    saveRoles: saves.roles,
   });
   return {
-    save,
-    offered: authority !== undefined,
-    picker,
-    unavailableOf: (role) => roleReachUnavailable(role, caller, tenant),
-    choose: (ids) => {
-      save.edit('role_ids', withKept(ids, kept));
-    },
-    mapped: mappedRoles(save.values.role_ids, known),
-    kept,
+    save: mapping.save,
+    offered: mapping.offered,
+    picker: mapping.picker,
+    unavailableOf: mapping.unavailableOf,
+    choose: mapping.choose,
+    mapped: mapping.mapped,
+    kept: mapping.kept,
+    empty: NO_ROLES_MAPPED,
+    pointer: INCLUDE_ALL_POINTER,
   };
 }

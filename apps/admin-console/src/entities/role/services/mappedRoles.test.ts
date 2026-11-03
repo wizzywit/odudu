@@ -4,6 +4,7 @@ import {
   assignedRoles,
   assignmentsOf,
   byNameThenClient,
+  keptMapped,
   keptRoles,
   knownAssignments,
   mappedRoles,
@@ -109,6 +110,16 @@ describe('the roles kept on a record', () => {
     ];
     expect(keptRoles(group, caller('manage-users'), 'acme')).toEqual(['r1']);
     expect(keptRoles(group, caller('view-audit'), 'acme')).toEqual([]);
+  });
+
+  it('judges by the entry or by the index according to where the reach is read from', () => {
+    const entry = { id: 'r1', name: 'reader', client_key: null, admin_reach: caller() };
+    const index = roleIndex(
+      [{ ...entry, client_id: null }],
+      [{ ...entry, client_id: null, description: null, admin_reach: caller('manage-keys') }],
+    );
+    expect(keptMapped([entry], caller(), 'acme', index, 'entry')).toEqual([]);
+    expect(keptMapped([entry], caller(), 'acme', index, 'picker')).toEqual(['r1']);
   });
 });
 

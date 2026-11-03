@@ -77,6 +77,20 @@ export function keptRoles(
     .map((role) => role.id);
 }
 
+// Where a mapped role's reach is read: from its own entry, or from the
+// index, which a picker's record of the role may override.
+export type ReachFrom = 'entry' | 'picker';
+
+export function keptMapped(
+  items: Parameters<typeof keptRoles>[0],
+  caller: readonly AdminCapability[],
+  tenant: string,
+  index: ReadonlyMap<string, IndexedRole>,
+  reachFrom: ReachFrom,
+): string[] {
+  return keptRoles(items, caller, tenant, reachFrom === 'picker' ? index : undefined);
+}
+
 export function withKept(ids: readonly string[], kept: readonly string[]): string[] {
   return sortedIds([...new Set([...ids, ...kept])]);
 }
