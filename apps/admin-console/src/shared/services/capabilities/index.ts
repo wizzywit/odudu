@@ -25,7 +25,12 @@ export {
   type HoldingOption,
   holdingOptions,
 } from '#/shared/services/capabilities/held';
-export { writeRefusal } from '#/shared/services/capabilities/refusal';
+export {
+  writeRefusal,
+  accessRefusal,
+  subjectRefusal,
+  changeFailureText,
+} from '#/shared/services/capabilities/refusal';
 export {
   adminLoss,
   type OwnAccess,
@@ -37,4 +42,7 @@ export {
   lossText,
   asksFirst,
   lossBlocked,
+  type Confirmation,
+  removalConfirmation,
+  onlyHolderText,
 } from '#/shared/services/capabilities/loss';

@@ -6,7 +6,6 @@ import type {
 } from '@odudu/contracts/admin';
 import { useRefusal } from '#/entities/session';
 import { useEffectiveRoleList, useSaveRoles } from '#/features/subjects/repository/useAccess';
-import { accessRefusal } from '#/features/subjects/services/access';
 import { subjectName } from '#/features/subjects/services/address';
 import { roleUnavailableHere, splitRoles } from '#/features/subjects/services/roles';
 import { rolesRecord } from '#/features/subjects/services/tabs';
@@ -23,6 +22,7 @@ import {
 import type { PickerState } from '#/shared/services/picker';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import type { RoleValues } from '#/shared/services/sectionValues';
+import { accessRefusal } from '#/shared/services/capabilities';
 
 export interface SubjectRoles {
   name: string;

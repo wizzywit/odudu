@@ -7,12 +7,6 @@ import {
   useRolesRecord,
   useSaveRoles,
 } from '#/features/subjects/repository/useAccess';
-import {
-  accessRefusal,
-  offersWrites,
-  removalConfirmation,
-  type Confirmation,
-} from '#/features/subjects/services/access';
 import { subjectName } from '#/features/subjects/services/address';
 import { beyondText, heldOf, subjectBeyond } from '#/features/subjects/services/reach';
 import { roleIdsOf, splitRoles } from '#/features/subjects/services/roles';
@@ -20,7 +14,14 @@ import { rolesRecord, subjectTabHref } from '#/features/subjects/services/tabs';
 import { administratorCapability } from '#/shared/services/administrators';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { holdingsIn, type Holding, type HoldingOption } from '#/shared/services/capabilities';
+import {
+  holdingsIn,
+  type Holding,
+  type HoldingOption,
+  accessRefusal,
+  removalConfirmation,
+  type Confirmation,
+} from '#/shared/services/capabilities';
 import { inOrderOf, removedFrom } from '#/shared/services/ids';
 import type { AdminCapability } from '#/shared/services/principal';
 import { useSaveConfirmation } from '#/shared/use-cases/useSaveConfirmation';
@@ -36,6 +37,7 @@ import {
   type HeldElsewhere,
 } from '#/features/subjects/services/heldElsewhere';
 import { keptOtherwise, onlyHolder } from '#/features/subjects/services/lastHolder';
+import { offersWrites } from '#/shared/services/access';
 
 export function useSubjectRolesRead(tenant: string, id: string): RecordState<SetRolesResponse> {
   return useRolesRecord(tenant, id);

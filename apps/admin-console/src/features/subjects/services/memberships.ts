@@ -1,7 +1,10 @@
 import { type EffectiveRoleAssignment } from '@odudu/contracts/admin';
-import { isAdminRole } from '#/shared/services/capabilities';
+import {
+  isAdminRole,
+  removalConfirmation,
+  type Confirmation,
+} from '#/shared/services/capabilities';
 import { SYSTEM_TENANT } from '#/shared/services/principal';
-import { removalConfirmation, type Confirmation } from '#/features/subjects/services/access';
 import { type Loaded } from '#/shared/services/read';
 
 function under(path: string, mapped: string): boolean {

@@ -1,10 +1,10 @@
 import { useRefusal } from '#/entities/session';
-import { changeFailureText } from '#/features/subjects/services/access';
 import { useToast } from '#/shared/repository/useToasts';
 import type { Write } from '#/shared/repository/useWrite';
 import type { AdminCapability } from '#/shared/services/principal';
 import type { GatewayResult } from '#/shared/transport/gateway';
 import { useConfirmedChange, type Confirming } from '#/shared/use-cases/useConfirmedChange';
+import { changeFailureText } from '#/shared/services/capabilities';
 
 // A change to a subject behind a plain confirmation, its success said in a toast.
 export function useConfirmedSubjectChange<A, R>({

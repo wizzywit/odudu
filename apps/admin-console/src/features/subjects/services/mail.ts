@@ -2,7 +2,7 @@ import { COULD_NOT_FINISH } from '#/shared/services/failure';
 import { fieldErrorsOf, type FieldErrors } from '#/shared/services/fieldErrors';
 import { counted } from '#/shared/services/format';
 import type { GatewayFailure } from '#/shared/services/result';
-import { subjectRefusal } from '#/features/subjects/services/access';
+import { subjectRefusal } from '#/shared/services/capabilities';
 
 export interface MailRefusal {
   text: string;

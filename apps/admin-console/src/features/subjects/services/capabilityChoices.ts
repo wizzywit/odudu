@@ -6,9 +6,9 @@ import {
   type Held,
   type Holding,
   type HoldingOption,
+  onlyHolderText,
 } from '#/shared/services/capabilities';
 import { type AdminCapability } from '#/shared/services/principal';
-import { onlyHolderText } from '#/features/subjects/services/access';
 import type { Choice } from '#/shared/services/choice';
 
 export function capabilityOptions({

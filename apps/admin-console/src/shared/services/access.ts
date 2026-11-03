@@ -67,3 +67,9 @@ export function notLacking(
 ): boolean {
   return lacking(authority, needs).length === 0;
 }
+
+// Whether the page offers changes: it has not ruled every write out, and
+// whoami does not say manage-users is missing.
+export function offersWrites(allowed: boolean, authority: Authority | undefined): boolean {
+  return allowed && notLacking(authority, ['manage-users']);
+}

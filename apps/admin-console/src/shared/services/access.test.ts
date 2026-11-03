@@ -7,6 +7,7 @@ import {
   lacking,
   notLacking,
   readable,
+  offersWrites,
 } from '#/shared/services/access';
 
 const VIEWER = { capabilities: ['view-users'] as const, crossTenant: false };
@@ -101,5 +102,17 @@ describe('readable, as the evaluate, sessions and roles gates use it', () => {
     expect(readable(clients, 'manage-sessions')).toBe(false);
     expect(readable(undefined, 'view-users')).toBe(true);
     expect(readable(undefined, 'manage-sessions')).toBe(true);
+  });
+});
+
+describe('offersWrites', () => {
+  const manager = { capabilities: ['manage-users' as const], crossTenant: false };
+  const viewer = { capabilities: ['view-users' as const], crossTenant: false };
+
+  it('is allowed unless the page ruled it out or whoami says manage-users is missing', () => {
+    expect(offersWrites(true, manager)).toBe(true);
+    expect(offersWrites(true, undefined)).toBe(true);
+    expect(offersWrites(true, viewer)).toBe(false);
+    expect(offersWrites(false, manager)).toBe(false);
   });
 });

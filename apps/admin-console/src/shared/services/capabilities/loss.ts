@@ -1,7 +1,13 @@
 import { type EffectiveRoleAssignment, type RoleProvenance } from '@odudu/contracts/admin';
 import { andList } from '#/shared/services/format';
 import type { AdminCapability } from '#/shared/services/principal';
-import { type Holding, isAdminRole, isHolding } from '#/shared/services/capabilities/holdings';
+import {
+  type Holding,
+  holdingLabel,
+  isAdminRole,
+  isHolding,
+} from '#/shared/services/capabilities/holdings';
+import { type DialogAsk } from '#/shared/services/dialog';
 
 // The admin capabilities a principal stops holding once every way `gone`
 // names is taken away; a role nested in one that goes, goes with it.
@@ -92,4 +98,60 @@ export function asksFirst(loss: Loss): boolean {
 
 export function lossBlocked(loss: Loss): string | undefined {
   return loss.kind === 'checking' ? 'Checking what this takes from you first.' : undefined;
+}
+
+// What this console stops offering once a holding is gone.
+const LOSS: Readonly<Record<Holding, string>> = {
+  'tenant-admin': 'everything Full carries',
+  'view-users': 'reading subjects',
+  'manage-users': 'changing subjects',
+  'manage-clients': 'changing clients',
+  'manage-tenant': "changing this tenant's settings, roles, groups and scopes",
+  'manage-keys': 'managing signing keys',
+  'manage-sessions': 'ending sessions and revoking grants',
+  'view-audit': 'reading the audit trail',
+  'manage-tenants': 'reaching every other tenant',
+};
+
+export interface Confirmation extends DialogAsk {
+  // Typed before it is confirmed, where the change reaches every tenant.
+  typed: string | null;
+}
+
+// Asked before a save that takes admin capabilities from yourself, or takes
+// manage-tenants from anybody: a plain save would land at once (§7.4).
+export function removalConfirmation({
+  name,
+  self,
+  removed,
+  removesTenants,
+}: {
+  name: string;
+  self: boolean;
+  removed: readonly Holding[];
+  removesTenants: boolean;
+}): Confirmation | null {
+  if (removed.length === 0 || (!self && !removesTenants)) return null;
+  const lost = andList(removed.map(holdingLabel));
+  const stops = andList(removed.map((holding) => LOSS[holding]));
+  if (removesTenants) {
+    return {
+      title: self
+        ? 'Revoke your own system administration?'
+        : `Take system administration from ${name}?`,
+      consequence: self
+        ? `You are taking ${lost} from yourself, and with manage-tenants every other tenant. Once it lands this console stops offering ${stops}, and only another system administrator can give it back.`
+        : `${name} loses ${lost}, and with manage-tenants every other tenant. Their other roles are kept; a holding through a group or a role that nests it stays until it is changed there.`,
+      typed: name,
+    };
+  }
+  return {
+    title: 'Remove your own admin capabilities?',
+    consequence: `You are taking ${lost} from yourself. Once it lands this console stops offering ${stops}, unless a group or another role still gives it to you, and you cannot give it back yourself.`,
+    typed: null,
+  };
+}
+
+export function onlyHolderText(name: string, tenant: string, counted: string): string {
+  return `${name} is the only enabled holder of ${counted}, so ${tenant} would be left with nobody holding it. Give it to somebody else first.`;
 }

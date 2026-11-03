@@ -1,4 +1,7 @@
 import { andList } from '#/shared/services/format';
+import { COULD_NOT_FINISH, failureTextWith } from '#/shared/services/failure';
+import { type AdminCapability } from '#/shared/services/principal';
+import { type GatewayFailure } from '#/shared/services/result';
 
 // The capabilities one part of a ceiling refusal's detail names after `lead`.
 function namedAfter(parts: readonly string[], lead: string): string[] {
@@ -37,4 +40,51 @@ export function writeRefusal(
       ? 'none of which you hold yourself'
       : 'which you do not hold yourself';
   return `Refused: it would ${would.join(' and ')}, ${tail}.`;
+}
+
+// What a 403 or the last-administrator 409 means for a change to what a
+// subject holds: a caller gives only what it holds itself, and reaches no
+// subject holding more (ADR 0040). The guard's own detail is kept.
+export function accessRefusal(
+  name: string,
+  what: 'groups' | 'roles' | 'actions',
+  self = false,
+): (problem: { type: string; status: number; detail?: string | undefined }) => string | null {
+  return (problem) => {
+    if (problem.status === 409 && problem.type === 'about:blank#last-administrator') {
+      const who = self ? 'You are' : `${name} is`;
+      const detail = problem.detail === undefined ? '' : ` (${problem.detail})`;
+      return `${who} the last enabled administrator here, and this would take that away, so nothing was changed${detail}. Make somebody else an administrator first.`;
+    }
+    if (problem.status !== 403) return null;
+    const ceiling = `nor can you change a subject who holds a capability you do not. It also needs manage-users.`;
+    switch (what) {
+      case 'groups':
+        return `Refused: a group's roles are granted with it, and you can grant only capabilities you hold yourself; ${ceiling}`;
+      case 'roles':
+        return `Refused: you can give or take only what you hold yourself, nested in a role or not; ${ceiling}`;
+      case 'actions':
+        return `Refused: it needs manage-users, and ${name} may hold a capability you do not.`;
+    }
+  };
+}
+
+// Why a 403 on a subject can mean the caller's own ceiling and not only a missing capability.
+export function subjectRefusal(who: string, capability: AdminCapability): string {
+  return `it needs the ${capability} capability, or ${who} holds an admin capability you do not.`;
+}
+
+export function changeFailureText(failure: GatewayFailure, capability: AdminCapability): string {
+  return failureTextWith({
+    network: () =>
+      'Could not confirm the result. Nothing was sent again; the tab shows what the server holds now.',
+    schema: () =>
+      'It may have happened, but the answer could not be read. The tab shows what the server holds now.',
+    defect: () => COULD_NOT_FINISH,
+    problem: ({ status, detail, title }) => {
+      if (status === 403) return `Refused: ${subjectRefusal('the subject', capability)}`;
+      if (status === 404) return 'It is already gone.';
+      return `Refused: ${detail ?? title}`;
+    },
+  })(failure);
 }

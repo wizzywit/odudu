@@ -6,7 +6,6 @@ import {
   useSaveGroups,
   type GroupValues,
 } from '#/features/subjects/repository/useAccess';
-import { accessRefusal, type Confirmation } from '#/features/subjects/services/access';
 import { subjectName } from '#/features/subjects/services/address';
 import {
   groupsRemoveTenants,
@@ -24,6 +23,7 @@ import { describeIds } from '#/shared/services/format';
 import { indexById, sortedIds } from '#/shared/services/ids';
 import type { PickerState } from '#/shared/services/picker';
 import { useSaveConfirmation } from '#/shared/use-cases/useSaveConfirmation';
+import { accessRefusal, type Confirmation } from '#/shared/services/capabilities';
 
 export function useSubjectGroupsRead(
   tenant: string,

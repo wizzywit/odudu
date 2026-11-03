@@ -3,7 +3,7 @@ import { writeFailureText } from '#/shared/services/failure';
 import { sentence } from '#/shared/services/format';
 import type { Loaded } from '#/shared/services/read';
 import type { GatewayFailure } from '#/shared/services/result';
-import { subjectRefusal } from '#/features/subjects/services/access';
+import { subjectRefusal } from '#/shared/services/capabilities';
 
 export const USERNAME_RULE_TEXT = sentence(USERNAME_RULE);
 
