@@ -431,13 +431,13 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
 
   // Registration tokens.
-  'Mint a registration token': feature(TOKENS_WORDS, "title: 'Mint a registration token'"),
-  'Mint token': feature(TOKENS_WORDS, "submit: 'Mint token'"),
-  Uses: feature(TOKENS_WORDS, "usesLabel: 'Uses'"),
-  Lifetime: feature(TOKENS_WORDS, "lifetimeLabel: 'Lifetime'"),
-  'Uses left': feature(TOKENS_WORDS, "usesLeft: 'Uses left'"),
-  Revoke: feature(TOKENS_WORDS, "revoke: 'Revoke'"),
-  'Revoke token': feature(TOKENS_WORDS, "confirm: 'Revoke token'"),
+  'Mint a registration token': page(TOKENS_WORDS, "title: 'Mint a registration token'"),
+  'Mint token': page(TOKENS_WORDS, "submit: 'Mint token'"),
+  Uses: page(TOKENS_WORDS, "usesLabel: 'Uses'"),
+  Lifetime: page(TOKENS_WORDS, "lifetimeLabel: 'Lifetime'"),
+  'Uses left': page(TOKENS_WORDS, "usesLeft: 'Uses left'"),
+  Revoke: page(TOKENS_WORDS, "revoke: 'Revoke'"),
+  'Revoke token': page(TOKENS_WORDS, "confirm: 'Revoke token'"),
   Policy: page(PLATFORM, "label: 'Policy'"),
   'Closed: only an administrator creates clients': page(
     PLATFORM,
@@ -446,15 +446,15 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'With a registration token': page(PLATFORM, "label: 'With a registration token'"),
 
   // The sign-in flow.
-  Steps: feature(FLOW_WORDS, "title: 'Steps'"),
-  Required: feature(FLOW_REQUIREMENTS, "label: 'Required'"),
-  Alternative: feature(FLOW_REQUIREMENTS, "label: 'Alternative'"),
-  Conditional: feature(FLOW_REQUIREMENTS, "label: 'Conditional'"),
-  Disabled: feature(FLOW_REQUIREMENTS, "label: 'Disabled'"),
-  Up: feature(FLOW_WORDS, "up: 'Up'"),
-  Down: feature(FLOW_WORDS, "down: 'Down'"),
+  Steps: page(FLOW_WORDS, "title: 'Steps'"),
+  Required: page(FLOW_REQUIREMENTS, "label: 'Required'"),
+  Alternative: page(FLOW_REQUIREMENTS, "label: 'Alternative'"),
+  Conditional: page(FLOW_REQUIREMENTS, "label: 'Conditional'"),
+  Disabled: page(FLOW_REQUIREMENTS, "label: 'Disabled'"),
+  Up: page(FLOW_WORDS, "up: 'Up'"),
+  Down: page(FLOW_WORDS, "down: 'Down'"),
   'Requirement for password': template(
-    [inFeature('flow/services/stepRows.ts', '`Requirement for ${step.authenticator}`')],
+    [inPage('flow/services/stepRows.ts', '`Requirement for ${step.authenticator}`')],
     'Requirement for ${step.authenticator}',
     { 'step.authenticator': 'password' },
   ),
@@ -462,14 +462,14 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     [
       { file: `${SHARED}/ui/SaveBar/SaveBar.tsx`, text: '`${verb} ${section}`' },
       { file: `${SHARED}/ui/SaveBar/SaveBar.tsx`, text: "(saveLabel ?? 'Save')" },
-      inFeature(FLOW_WORDS, "title: 'Steps'"),
+      inPage(FLOW_WORDS, "title: 'Steps'"),
     ],
     'Save ${section}',
     { section: 'Steps' },
   ),
   Save: shared('ui/SaveBar/SaveBar.tsx', "(saveLabel ?? 'Save')"),
-  'One-time password': feature('flow/services/otp.ts', "OTP_TITLE = 'One-time password'"),
-  'Ask every subject for a one-time password': feature(
+  'One-time password': page('flow/services/otp.ts', "OTP_TITLE = 'One-time password'"),
+  'Ask every subject for a one-time password': page(
     'flow/services/otp.ts',
     "OTP_LABEL = 'Ask every subject for a one-time password'",
   ),
@@ -896,8 +896,8 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'settings/services/platformSections.ts',
     "label: 'Passwords, keys and codes set or changed'",
   ),
-  'Add a step': feature(FLOW_WORDS, "addLabel: 'Add a step'"),
-  'Requirement of the new step': feature(
+  'Add a step': page(FLOW_WORDS, "addLabel: 'Add a step'"),
+  'Requirement of the new step': page(
     FLOW_WORDS,
     "addRequirementLabel: 'Requirement of the new step'",
   ),

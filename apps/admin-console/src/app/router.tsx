@@ -409,7 +409,7 @@ const scopePages = [
 const scopeRecord = scopePages[2];
 
 const RegistrationTokens = lazyFeatureRoute(
-  () => import('#/features/registration-tokens').then((feature) => feature.RegistrationTokensPage),
+  () => import('#/pages/registration-tokens').then((feature) => feature.RegistrationTokensPage),
   'Loading registration tokens',
 );
 
@@ -423,7 +423,7 @@ const registrationTokens = createRoute({
 });
 
 const Flow = lazyFeatureRoute(
-  () => import('#/features/flow').then((feature) => feature.FlowPage),
+  () => import('#/pages/flow').then((feature) => feature.FlowPage),
   'Loading the sign-in flow',
 );
 
