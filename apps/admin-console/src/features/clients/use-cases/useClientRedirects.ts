@@ -8,7 +8,7 @@ import {
   type RedirectValues,
 } from '#/features/clients/repository/useClientRecord';
 import { listsReadOnly, redirectsFixed } from '#/features/clients/services/blocks';
-import { FIELD, SECTION } from '#/features/clients/services/labels';
+import { FIELD, SECTION } from '#/features/clients/services/clientDetails';
 import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/lists';
 import { clientTabHref } from '#/features/clients/services/tabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';

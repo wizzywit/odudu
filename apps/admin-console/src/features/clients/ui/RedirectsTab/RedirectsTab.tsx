@@ -1,5 +1,9 @@
 import { Link } from 'react-aria-components';
-import { ORIGINS_RULE, POST_LOGOUT_NOTE, REDIRECTS_RULE } from '#/features/clients/services/labels';
+import {
+  ORIGINS_RULE,
+  POST_LOGOUT_NOTE,
+  REDIRECTS_RULE,
+} from '#/features/clients/services/clientRedirects';
 import { useClientRedirects } from '#/features/clients/use-cases/useClientRedirects';
 import type { ClientTabProps } from '#/features/clients/ui/ClientTabProps';
 import { ReadOnlyFields, UrlListField } from '#/shared/ui/Field';

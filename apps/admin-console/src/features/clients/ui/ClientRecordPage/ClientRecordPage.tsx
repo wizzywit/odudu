@@ -5,7 +5,7 @@ import { areaAt } from '#/entities/area';
 import { clientsTrail } from '#/features/clients/services/address';
 import { type BrandingOffer } from '#/features/clients/services/branding';
 import { type Reach } from '#/features/clients/services/ceiling';
-import { ACTIVITY_NOTE } from '#/features/clients/services/labels';
+import { ACTIVITY_NOTE } from '#/features/clients/services/clientDetails';
 import { CLIENT_TAB_LABELS, CLIENT_TABS, type ClientTab } from '#/features/clients/services/tabs';
 import { useClientRecordPage } from '#/features/clients/use-cases/useClientRecordPage';
 import type { ClientTabProps } from '#/features/clients/ui/ClientTabProps';

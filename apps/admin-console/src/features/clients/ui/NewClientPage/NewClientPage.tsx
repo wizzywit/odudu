@@ -3,7 +3,7 @@ import { areaAt } from '#/entities/area';
 import { clientsTrail } from '#/features/clients/services/address';
 import { SECRET_LABEL } from '#/features/clients/services/createdSecret';
 import { KIND_CHOICES } from '#/features/clients/services/newClient';
-import { REDIRECTS_RULE } from '#/features/clients/services/labels';
+import { REDIRECTS_RULE } from '#/features/clients/services/clientRedirects';
 import { useNewClient } from '#/features/clients/use-cases/useNewClient';
 import { CreationActions, CreationForm } from '#/shared/ui/CreationForm';
 import { SelectField, TextAreaField, TextField, UrlListField } from '#/shared/ui/Field';

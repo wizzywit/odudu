@@ -1,12 +1,11 @@
 import type { Client } from '@odudu/contracts/admin';
 import {
   CLIENT_ID_FIXED,
-  PAGES_RULE,
   SECTION,
-  registeredText,
   TYPE_FIXED,
   TYPE_TEXT,
-} from '#/features/clients/services/labels';
+} from '#/features/clients/services/clientDetails';
+import { PAGES_RULE, registeredText } from '#/features/clients/services/clientRedirects';
 import {
   DESCRIPTION_TRANSLATIONS_LABEL,
   DESCRIPTION_TRANSLATIONS_NOTE,

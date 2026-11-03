@@ -15,7 +15,7 @@ import {
 import { clientsHref } from '#/features/clients/services/address';
 import { deleteFixed, enabledFixed } from '#/features/clients/services/blocks';
 import { deleteConsequence } from '#/features/clients/services/confirm';
-import { FIELD, SECTION } from '#/features/clients/services/labels';
+import { FIELD, SECTION } from '#/features/clients/services/clientDetails';
 import { clientRefusal } from '#/features/clients/services/refusal';
 import {
   DESCRIPTION_TRANSLATIONS_FIELD,
