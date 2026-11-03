@@ -324,7 +324,7 @@ const roleRecord = rolePages[2];
 
 function clientsPage(name: 'ClientsPage' | 'NewClientPage') {
   return lazyFeatureRoute(
-    () => import('#/features/clients').then((feature) => feature[name]),
+    () => import('#/pages/clients').then((feature) => feature[name]),
     'Loading clients',
   );
 }
@@ -332,7 +332,7 @@ function clientsPage(name: 'ClientsPage' | 'NewClientPage') {
 const Clients = clientsPage('ClientsPage');
 const NewClient = clientsPage('NewClientPage');
 const ClientRecord = lazyFeatureRoute(
-  () => import('#/features/clients').then((feature) => feature.ClientRecordPage),
+  () => import('#/pages/clients').then((feature) => feature.ClientRecordPage),
   'Loading the client',
 );
 
@@ -367,7 +367,7 @@ const clientRecord = clientPages[2];
 
 function scopesPage(name: 'ScopesPage' | 'NewScopePage') {
   return lazyFeatureRoute(
-    () => import('#/features/scopes').then((feature) => feature[name]),
+    () => import('#/pages/scopes').then((feature) => feature[name]),
     'Loading scopes',
   );
 }
@@ -375,7 +375,7 @@ function scopesPage(name: 'ScopesPage' | 'NewScopePage') {
 const Scopes = scopesPage('ScopesPage');
 const NewScope = scopesPage('NewScopePage');
 const ScopeRecord = lazyFeatureRoute(
-  () => import('#/features/scopes').then((feature) => feature.ScopeRecordPage),
+  () => import('#/pages/scopes').then((feature) => feature.ScopeRecordPage),
   'Loading the scope',
 );
 

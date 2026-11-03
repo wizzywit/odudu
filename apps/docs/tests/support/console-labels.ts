@@ -66,7 +66,7 @@ const tab = (feature_: string, key: string, label: string): Defined =>
 const pageTab = (page_: string, key: string, label: string): Defined =>
   page(`${page_}/services/tabs.ts`, `${key}: '${label}'`);
 const subjectTab = (key: string, label: string): Defined => pageTab('subjects', key, label);
-const clientTab = (key: string, label: string): Defined => tab('clients', key, label);
+const clientTab = (key: string, label: string): Defined => pageTab('clients', key, label);
 
 const FILTERS = 'audit/ui/AuditFilters/AuditFilters.tsx';
 const AUDIT_KINDS = 'audit/services/filters.ts';
@@ -163,10 +163,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     rail('roles', 'Roles'),
     subjectTab('roles', 'Roles'),
     pageTab('groups', 'roles', 'Roles'),
-    tab('scopes', 'roles', 'Roles'),
+    pageTab('scopes', 'roles', 'Roles'),
     clientTab('roles', 'Roles'),
   ),
-  Clients: several(rail('clients', 'Clients'), tab('scopes', 'clients', 'Clients')),
+  Clients: several(rail('clients', 'Clients'), pageTab('scopes', 'clients', 'Clients')),
   Scopes: several(rail('scopes', 'Scopes'), clientTab('scopes', 'Scopes')),
   'Registration tokens': rail('registration-tokens', 'Registration tokens'),
   'Sign-in flow': rail('flow', 'Sign-in flow'),
@@ -203,13 +203,13 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     clientTab('activity', 'Activity'),
     pageTab('groups', 'activity', 'Activity'),
     pageTab('roles', 'activity', 'Activity'),
-    tab('scopes', 'activity', 'Activity'),
+    pageTab('scopes', 'activity', 'Activity'),
   ),
   General: several(
     clientTab('general', 'General'),
     pageTab('groups', 'general', 'General'),
     pageTab('roles', 'general', 'General'),
-    tab('scopes', 'general', 'General'),
+    pageTab('scopes', 'general', 'General'),
     page('tenants/ui/GeneralTab/GeneralTab.tsx', 'title="General"'),
     feature(ACCESS, "title: 'General'"),
   ),
@@ -220,26 +220,26 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Service account': clientTab('service', 'Service account'),
   Members: several(pageTab('groups', 'members', 'Members'), pageTab('roles', 'members', 'Members')),
   Composites: pageTab('roles', 'composites', 'Composites'),
-  'Claim mappers': tab('scopes', 'mappers', 'Claim mappers'),
+  'Claim mappers': pageTab('scopes', 'mappers', 'Claim mappers'),
   Administrators: page('tenants/ui/TenantRecordPage/TenantRecordPage.tsx', "'Administrators'"),
 
   // Creating things.
   'Create a tenant': page('tenants/ui/TenantsPage/TenantsPage.tsx', '> Create a tenant <'),
-  'Create a client': feature('clients/ui/ClientsPage/ClientsPage.tsx', '> Create a client <'),
+  'Create a client': page('clients/ui/ClientsPage/ClientsPage.tsx', '> Create a client <'),
   'Create a subject': page('subjects/ui/SubjectsPage/SubjectsPage.tsx', '> Create a subject <'),
   'Create a group': page('groups/ui/GroupsPage/GroupsPage.tsx', '> Create a group <'),
   'Create a role': page('roles/ui/RolesPage/RolesPage.tsx', '> Create a role <'),
-  'Create a scope': feature('scopes/ui/ScopesPage/ScopesPage.tsx', '> Create a scope <'),
-  'Restore built-in scopes': feature(
+  'Create a scope': page('scopes/ui/ScopesPage/ScopesPage.tsx', '> Create a scope <'),
+  'Restore built-in scopes': page(
     'scopes/ui/ScopesPage/RestoreScopes.tsx',
     '>Restore built-in scopes<',
   ),
-  Restore: feature('scopes/services/restore.ts', "RESTORE_CONFIRM_LABEL = 'Restore'"),
-  'Include all roles in tokens': feature(
+  Restore: page('scopes/services/restore.ts', "RESTORE_CONFIRM_LABEL = 'Restore'"),
+  'Include all roles in tokens': page(
     'clients/services/idTokenPolicy.ts',
     "FULL_SCOPE_LABEL = 'Include all roles in tokens'",
   ),
-  'Used because nothing is bound': feature(
+  'Used because nothing is bound': page(
     'scopes/services/mappers.ts',
     "DEFAULT_MAPPER_NOTE = 'Used because nothing is bound'",
   ),
@@ -249,11 +249,11 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     page('tenants/services/creationPosition.ts', "IMPORT_TITLE = 'Import a tenant'"),
   ),
   'Create tenant': page(TENANT_NEW, "'Create tenant'"),
-  'Create client': createWith('client', CLIENT_NEW),
+  'Create client': createWith('client', CLIENT_NEW, inPage),
   'Create subject': createWith('subject', 'subjects/ui/NewSubjectPage/NewSubjectPage.tsx', inPage),
   'Create group': createWith('group', 'groups/ui/NewGroupPage/NewGroupPage.tsx', inPage),
   'Create role': createWith('role', 'roles/ui/NewRolePage/NewRolePage.tsx', inPage),
-  'Create scope': createWith('scope', 'scopes/ui/NewScopePage/NewScopePage.tsx'),
+  'Create scope': createWith('scope', 'scopes/ui/NewScopePage/NewScopePage.tsx', inPage),
   'Create administrator': page(TENANT_NEW, "'Create administrator'"),
   'Create a new subject as an administrator': page(
     SYSTEM_PAGE,
@@ -262,7 +262,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Name: several(
     page(TENANT_NEW, 'label="Name"'),
     page(TENANT_IMPORT, 'label="Name"'),
-    feature(CLIENT_NEW, 'label="Name"'),
+    page(CLIENT_NEW, 'label="Name"'),
     at(CREATION_FORM, 'label="Name"'),
   ),
   'Display name': several(
@@ -272,18 +272,18 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   Description: several(
     at(CREATION_FORM, 'label="Description"'),
-    feature(CLIENT_NEW, 'label="Description"'),
+    page(CLIENT_NEW, 'label="Description"'),
   ),
-  'Client ID': feature(CLIENT_NEW, 'label="Client ID"'),
-  Kind: feature(CLIENT_NEW, 'label="Kind"'),
-  'Web application': feature('clients/services/newClient.ts', "label: 'Web application'"),
-  Service: feature('clients/services/newClient.ts', "label: 'Service'"),
-  'Public application': feature('clients/services/newClient.ts', "label: 'Public application'"),
+  'Client ID': page(CLIENT_NEW, 'label="Client ID"'),
+  Kind: page(CLIENT_NEW, 'label="Kind"'),
+  'Web application': page('clients/services/newClient.ts', "label: 'Web application'"),
+  Service: page('clients/services/newClient.ts', "label: 'Service'"),
+  'Public application': page('clients/services/newClient.ts', "label: 'Public application'"),
   'Redirect URIs': several(
-    feature(CLIENT_NEW, 'label="Redirect URIs"'),
-    feature('clients/ui/RedirectsTab/RedirectsTab.tsx', 'label="Redirect URIs"'),
+    page(CLIENT_NEW, 'label="Redirect URIs"'),
+    page('clients/ui/RedirectsTab/RedirectsTab.tsx', 'label="Redirect URIs"'),
   ),
-  'Post-logout redirect URIs': feature(
+  'Post-logout redirect URIs': page(
     'clients/ui/LogoutTab/LogoutTab.tsx',
     'label="Post-logout redirect URIs"',
   ),
@@ -391,38 +391,40 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'admin capability': shared('services/capabilities/held.ts', "'admin capability'"),
 
   // Clients.
-  'Delete my-app': deleteNamed('clients/ui/GeneralTab/GeneralTab.tsx', 'my-app'),
+  'Delete my-app': deleteNamed('clients/ui/GeneralTab/GeneralTab.tsx', 'my-app', inPage),
   'Rotate the secret of my-app': template(
-    [inFeature('clients/ui/AdvancedTab/AdvancedTab.tsx', '`Rotate the secret of ${client.name}`')],
+    [inPage('clients/ui/AdvancedTab/AdvancedTab.tsx', '`Rotate the secret of ${client.name}`')],
     'Rotate the secret of ${client.name}',
     { 'client.name': 'my-app' },
   ),
-  'Rotate secret': feature(
-    'clients/ui/AdvancedTab/AdvancedTab.tsx',
-    'confirmLabel="Rotate secret"',
-  ),
-  'Grace period': feature('clients/services/secretRotation.ts', "GRACE_LABEL = 'Grace period'"),
-  'Revoke every token': feature(
+  'Rotate secret': page('clients/ui/AdvancedTab/AdvancedTab.tsx', 'confirmLabel="Rotate secret"'),
+  'Grace period': page('clients/services/secretRotation.ts', "GRACE_LABEL = 'Grace period'"),
+  'Revoke every token': page(
     'clients/services/sessions.ts',
     "REVOKE_HEADING = 'Revoke every token'",
   ),
-  'Evaluate claims': feature('clients/services/evaluate.ts', "'Evaluate claims'"),
+  'Evaluate claims': page('clients/services/evaluate.ts', "'Evaluate claims'"),
 
   // Scopes.
-  'In the ID token': feature(SCOPE_DELIVERY, "'In the ID token'"),
-  'In the access token': feature(SCOPE_DELIVERY, "'In the access token'"),
-  'Consent text': feature(SCOPE_GENERAL, 'label="Consent text"'),
-  'Display order': feature(SCOPE_GENERAL, 'label="Display order"'),
-  'Client to assign': feature(
-    'scopes/ui/ScopeRecordPage/ClientsTab.tsx',
-    'label="Client to assign"',
-  ),
-  'Assign to a client': feature(
+  'In the ID token': page(SCOPE_DELIVERY, "'In the ID token'"),
+  'In the access token': page(SCOPE_DELIVERY, "'In the access token'"),
+  'Consent text': page(SCOPE_GENERAL, 'label="Consent text"'),
+  'Display order': page(SCOPE_GENERAL, 'label="Display order"'),
+  'Client to assign': page('scopes/ui/ScopeRecordPage/ClientsTab.tsx', 'label="Client to assign"'),
+  'Assign to a client': page(
     'scopes/ui/ScopeRecordPage/ClientsTab.tsx',
     'title="Assign to a client"',
   ),
-  'Bound mappers': feature('scopes/ui/ScopeRecordPage/MappersTab.tsx', 'label="Bound mappers"'),
-  'Delete reports:read': deleteNamed('scopes/ui/ScopeRecordPage/GeneralTab.tsx', 'reports:read'),
+  'Assign it as': feature(
+    'scope-assignment/ui/AssignmentControls/AssignmentControls.tsx',
+    'label="Assign it as"',
+  ),
+  'Bound mappers': page('scopes/ui/ScopeRecordPage/MappersTab.tsx', 'label="Bound mappers"'),
+  'Delete reports:read': deleteNamed(
+    'scopes/ui/ScopeRecordPage/GeneralTab.tsx',
+    'reports:read',
+    inPage,
+  ),
 
   // Registration tokens.
   'Mint a registration token': feature(TOKENS_PAGE, 'title="Mint a registration token"'),
@@ -621,12 +623,12 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'branding/services/selectors.ts',
     "VALUES_LABEL = 'Design values you can use'",
   ),
-  Translations: feature('clients/services/clientDetails.ts', "translations: 'Translations'"),
-  'Description by language': feature(
+  Translations: page('clients/services/clientDetails.ts', "translations: 'Translations'"),
+  'Description by language': page(
     'scopes/services/scopeConsent.ts',
     "DESCRIPTION_LANGUAGES_LABEL = 'Description by language'",
   ),
-  'Consent text by language': feature(
+  'Consent text by language': page(
     'scopes/services/scopeConsent.ts',
     "CONSENT_LANGUAGES_LABEL = 'Consent text by language'",
   ),
@@ -693,84 +695,72 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'Change ${holder.name}’s capabilities',
     { 'holder.name': 'admin@odudu.local' },
   ),
-  Availability: feature('clients/services/clientDetails.ts', "'Availability'"),
-  'Consent required': feature('clients/ui/GeneralTab/GeneralTab.tsx', 'label="Consent required"'),
-  'Consent screen links': feature('clients/services/clientDetails.ts', "'Consent screen links'"),
-  'Home page': feature('clients/ui/GeneralTab/GeneralTab.tsx', 'label="Home page"'),
-  'Privacy policy': feature('clients/ui/GeneralTab/GeneralTab.tsx', 'label="Privacy policy"'),
-  'Terms of service': feature('clients/ui/GeneralTab/GeneralTab.tsx', 'label="Terms of service"'),
-  'Client credentials scopes': feature(
+  Availability: page('clients/services/clientDetails.ts', "'Availability'"),
+  'Consent required': page('clients/ui/GeneralTab/GeneralTab.tsx', 'label="Consent required"'),
+  'Consent screen links': page('clients/services/clientDetails.ts', "'Consent screen links'"),
+  'Home page': page('clients/ui/GeneralTab/GeneralTab.tsx', 'label="Home page"'),
+  'Privacy policy': page('clients/ui/GeneralTab/GeneralTab.tsx', 'label="Privacy policy"'),
+  'Terms of service': page('clients/ui/GeneralTab/GeneralTab.tsx', 'label="Terms of service"'),
+  'Client credentials scopes': page(
     'clients/ui/TokensTab/TokensTab.tsx',
     'label="Client credentials scopes"',
   ),
-  'ID token claims': feature('clients/services/evaluate.ts', "label: 'ID token claims'"),
-  'Access token claims': feature('clients/services/evaluate.ts', "label: 'Access token claims'"),
-  'UserInfo claims': feature('clients/services/evaluate.ts', "label: 'UserInfo claims'"),
-  'Skip the sign-out confirmation': feature(
+  'ID token claims': page('clients/services/evaluate.ts', "label: 'ID token claims'"),
+  'Access token claims': page('clients/services/evaluate.ts', "label: 'Access token claims'"),
+  'UserInfo claims': page('clients/services/evaluate.ts', "label: 'UserInfo claims'"),
+  'Skip the sign-out confirmation': page(
     'clients/services/logoutSettings.ts',
     "SKIP_LOGOUT_LABEL = 'Skip the sign-out confirmation'",
   ),
-  'Back-channel logout address': feature(
+  'Back-channel logout address': page(
     'clients/ui/LogoutTab/LogoutTab.tsx',
     'label="Back-channel logout address"',
   ),
-  'Front-channel logout address': feature(
+  'Front-channel logout address': page(
     'clients/ui/LogoutTab/LogoutTab.tsx',
     'label="Front-channel logout address"',
   ),
-  Installation: feature('clients/services/installation.ts', "'Installation'"),
-  'Discovery URL': feature('clients/services/installation.ts', "label: 'Discovery URL'"),
-  'Client type': feature('clients/services/installation.ts', "label: 'Client type'"),
-  'Authentication method': feature(
+  Installation: page('clients/services/installation.ts', "'Installation'"),
+  'Discovery URL': page('clients/services/installation.ts', "label: 'Discovery URL'"),
+  'Client type': page('clients/services/installation.ts', "label: 'Client type'"),
+  'Authentication method': page(
     'clients/ui/AdvancedTab/AdvancedTab.tsx',
     'label="Authentication method"',
   ),
-  'Certificate subject': feature(
+  'Certificate subject': page(
     'clients/ui/AdvancedTab/AdvancedTab.tsx',
     'label="Certificate subject"',
   ),
-  'Key source': feature('clients/ui/AdvancedTab/AdvancedTab.tsx', 'label="Key source"'),
-  'None published': feature('clients/services/clientKeys.ts', "label: 'None published'"),
-  'A JWKS URI': feature('clients/services/clientKeys.ts', "label: 'A JWKS URI'"),
-  'A key set pasted here': feature(
-    'clients/services/clientKeys.ts',
-    "label: 'A key set pasted here'",
-  ),
-  'Signing algorithm': feature(
-    'clients/ui/AdvancedTab/AdvancedTab.tsx',
-    'label="Signing algorithm"',
-  ),
-  'Plain JSON, not signed': feature(
+  'Key source': page('clients/ui/AdvancedTab/AdvancedTab.tsx', 'label="Key source"'),
+  'None published': page('clients/services/clientKeys.ts', "label: 'None published'"),
+  'A JWKS URI': page('clients/services/clientKeys.ts', "label: 'A JWKS URI'"),
+  'A key set pasted here': page('clients/services/clientKeys.ts', "label: 'A key set pasted here'"),
+  'Signing algorithm': page('clients/ui/AdvancedTab/AdvancedTab.tsx', 'label="Signing algorithm"'),
+  'Plain JSON, not signed': page(
     'clients/services/userinfoResponse.ts',
     "label: 'Plain JSON, not signed'",
   ),
-  'Encryption algorithm': feature(
+  'Encryption algorithm': page(
     'clients/ui/AdvancedTab/AdvancedTab.tsx',
     'label="Encryption algorithm"',
   ),
-  'Not encrypted': feature('clients/services/userinfoResponse.ts', "label: 'Not encrypted'"),
-  'Content encryption': feature(
+  'Not encrypted': page('clients/services/userinfoResponse.ts', "label: 'Not encrypted'"),
+  'Content encryption': page(
     'clients/ui/AdvancedTab/AdvancedTab.tsx',
     'label="Content encryption"',
   ),
-  'Response type': feature('clients/services/tokenExchange.ts', "label: 'Response type'"),
-  Audiences: feature('clients/ui/AdvancedTab/AdvancedTab.tsx', 'label="Audiences"'),
-  'Allow impersonation in token exchange': feature(
+  'Response type': page('clients/services/tokenExchange.ts', "label: 'Response type'"),
+  Audiences: page('clients/ui/AdvancedTab/AdvancedTab.tsx', 'label="Audiences"'),
+  'Allow impersonation in token exchange': page(
     'clients/services/tokenExchange.ts',
     "'Allow impersonation in token exchange'",
   ),
   'New subjects': page('roles/use-cases/useRoleGeneral.ts', "label: 'New subjects'"),
   'Tenant or client': page('roles/ui/RolesPage/RolesPage.tsx', "label: 'Tenant or client'"),
-  'New clients': feature('scopes/use-cases/useScopeGeneral.ts', "label: 'New clients'"),
-  'Assigned as default': feature(
-    'scopes/services/scopeDelivery.ts',
-    "label: 'Assigned as default'",
-  ),
-  'Assigned as optional': feature(
-    'scopes/services/scopeDelivery.ts',
-    "label: 'Assigned as optional'",
-  ),
-  'Not assigned': feature('scopes/services/scopeDelivery.ts', "label: 'Not assigned'"),
+  'New clients': page('scopes/use-cases/useScopeGeneral.ts', "label: 'New clients'"),
+  'Assigned as default': page('scopes/services/scopeDelivery.ts', "label: 'Assigned as default'"),
+  'Assigned as optional': page('scopes/services/scopeDelivery.ts', "label: 'Assigned as optional'"),
+  'Not assigned': page('scopes/services/scopeDelivery.ts', "label: 'Not assigned'"),
   'Sessions per browser': feature(
     'settings/services/accessSections.ts',
     "label: 'Sessions per browser'",
@@ -922,7 +912,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'apps/admin-console/src/widgets/session-gate/ui/SignIn/SignIn.tsx',
     'label="Which tenant do you administer?"',
   ),
-  Consent: feature('clients/services/clientDetails.ts', "consent: 'Consent'"),
+  Consent: page('clients/services/clientDetails.ts', "consent: 'Consent'"),
   'Full name': page('subjects/services/claims.ts', "label: 'Full name'"),
   Nickname: page('subjects/services/claims.ts', "label: 'Nickname'"),
   Gender: page('subjects/services/claims.ts', "label: 'Gender'"),

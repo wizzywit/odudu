@@ -1,0 +1,147 @@
+import {
+  AUTH_TIME_LABEL,
+  AUTH_TIME_RULE,
+  FULL_SCOPE_LABEL,
+  FULL_SCOPE_RULE,
+  ID_TOKEN_ALG_LABEL,
+  ID_TOKEN_ALG_RULE,
+  MAX_AGE_LABEL,
+  MAX_AGE_MAX,
+  MAX_AGE_OFF,
+  MAX_AGE_RULE,
+  MAX_AGE_START,
+  REQUIRE_AUTH_TIME_NOTE,
+} from '#/pages/clients/services/idTokenPolicy';
+import { CREDENTIALS_RULE, GRANTS_RULE } from '#/pages/clients/services/grantTypes';
+import {
+  LIFETIMES,
+  lifetimeBounds,
+  lifetimeRule,
+  tenantLifetimeLabel,
+} from '#/pages/clients/services/tokenLifetimes';
+import { SECTIONS_TOKENS } from '#/pages/clients/services/clientSections';
+import { useClientTokens } from '#/pages/clients/use-cases/useClientTokens';
+import { OptionalSecondsField } from '#/pages/clients/ui/OptionalSecondsField';
+import type { ClientTabProps } from '#/pages/clients/ui/ClientTabProps';
+import { SaveSection } from '#/shared/ui/SaveSection';
+import { ChecklistField } from '#/shared/ui/ChecklistField';
+import { ReadOnlyFields, SelectField, TextListField, ToggleField } from '#/shared/ui/Field';
+import { recordTab } from '#/shared/ui/RecordTab';
+
+export function TokensTab({ tenant, client, etag, gone, writable }: ClientTabProps) {
+  const page = useClientTokens({ tenant, client, etag, gone });
+  const { lifetimes, grants, credentials, fullScope, idToken } = page;
+  return (
+    <div className={recordTab.tab}>
+      <ReadOnlyFields when={!writable}>
+        <SaveSection
+          title={SECTIONS_TOKENS.lifetimes}
+          description="How long each token lasts. A client with none of its own takes the tenant's."
+          save={lifetimes}
+        >
+          {LIFETIMES.map((each) => {
+            const { min, max } = lifetimeBounds(each.field);
+            return (
+              <OptionalSecondsField
+                key={each.field}
+                label={each.label}
+                offLabel={tenantLifetimeLabel(each.label)}
+                offText={each.inherits}
+                rule={lifetimeRule(each.field)}
+                value={lifetimes.values[each.field]}
+                start={each.start}
+                min={min}
+                max={max}
+                error={lifetimes.fieldErrors[each.field]}
+                changed={lifetimes.changed.includes(each.field)}
+                onChange={(value) => {
+                  lifetimes.edit(each.field, value);
+                }}
+              />
+            );
+          })}
+        </SaveSection>
+        <SaveSection
+          title={SECTIONS_TOKENS.grants}
+          description={GRANTS_RULE}
+          save={grants}
+          blocked={page.grantsBlocked}
+        >
+          <ChecklistField
+            label="Grant types"
+            options={page.grantOptions}
+            value={grants.values.grant_types}
+            error={grants.fieldErrors.grant_types}
+            changed={grants.changed.includes('grant_types')}
+            onChange={(value) => {
+              grants.edit('grant_types', value);
+            }}
+          />
+        </SaveSection>
+        <SaveSection title={SECTIONS_TOKENS.credentials} save={credentials}>
+          <TextListField
+            label="Client credentials scopes"
+            itemLabel="Scope name"
+            description={`${CREDENTIALS_RULE} ${page.credentialCount}`}
+            error={credentials.fieldErrors.client_credentials_scopes}
+            changed={credentials.changed.includes('client_credentials_scopes')}
+            value={credentials.values.client_credentials_scopes}
+            onChange={(value) => {
+              credentials.edit('client_credentials_scopes', value);
+            }}
+          />
+        </SaveSection>
+        <SaveSection title={SECTIONS_TOKENS.fullScope} save={fullScope}>
+          <ToggleField
+            label={FULL_SCOPE_LABEL}
+            description={FULL_SCOPE_RULE}
+            value={fullScope.values.full_scope_allowed}
+            error={fullScope.fieldErrors.full_scope_allowed}
+            changed={fullScope.changed.includes('full_scope_allowed')}
+            onChange={(value) => {
+              fullScope.edit('full_scope_allowed', value);
+            }}
+          />
+        </SaveSection>
+        <SaveSection title={SECTIONS_TOKENS.idToken} save={idToken}>
+          <SelectField
+            label={ID_TOKEN_ALG_LABEL}
+            description={ID_TOKEN_ALG_RULE}
+            options={page.idTokenAlgs}
+            value={idToken.values.id_token_signed_response_alg}
+            error={idToken.fieldErrors.id_token_signed_response_alg}
+            changed={idToken.changed.includes('id_token_signed_response_alg')}
+            onChange={(value) => {
+              idToken.edit('id_token_signed_response_alg', value);
+            }}
+          />
+          <OptionalSecondsField
+            label={MAX_AGE_LABEL}
+            offLabel="No default"
+            offText={MAX_AGE_OFF}
+            rule={MAX_AGE_RULE}
+            value={idToken.values.default_max_age}
+            start={MAX_AGE_START}
+            min={0}
+            max={MAX_AGE_MAX}
+            error={idToken.fieldErrors.default_max_age}
+            changed={idToken.changed.includes('default_max_age')}
+            onChange={(value) => {
+              idToken.edit('default_max_age', value);
+            }}
+          />
+          <ToggleField
+            label={AUTH_TIME_LABEL}
+            description={`${AUTH_TIME_RULE} ${REQUIRE_AUTH_TIME_NOTE}`}
+            value={idToken.values.require_auth_time}
+            error={idToken.fieldErrors.require_auth_time}
+            changed={idToken.changed.includes('require_auth_time')}
+            onChange={(value) => {
+              idToken.edit('require_auth_time', value);
+            }}
+          />
+        </SaveSection>
+      </ReadOnlyFields>
+    </div>
+  );
+}

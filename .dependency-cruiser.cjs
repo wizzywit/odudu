@@ -174,8 +174,8 @@ module.exports = {
         'list equal to the features that are not migrated.',
       from: {
         path:
-          '(^|/)apps/admin-console/src/features/(?!(?:audit|branding|clients|email|failure|flow|' +
-          'overview|registration-tokens|scopes|settings|signing-keys)/)',
+          '(^|/)apps/admin-console/src/features/(?!(?:audit|branding|email|failure|flow|' +
+          'overview|registration-tokens|settings|signing-keys)/)',
       },
       to: { path: '(^|/)apps/admin-console/src/widgets/' },
     },

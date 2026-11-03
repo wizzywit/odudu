@@ -566,7 +566,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
       'widgets/shell/ui/usesEntityIndex.ts',
       'widgets/shell/ui/Shell.ts',
       'pages/home/ui/usesWidgetIndex.ts',
-      'features/clients/usesUpperLayers.ts',
+      'features/audit/usesUpperLayers.ts',
     ];
     for (const file of clean) {
       expect(output.modules.some((m) => m.source.endsWith(file))).toBe(true);
