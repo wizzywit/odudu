@@ -78,20 +78,26 @@ describe('the roles kept on a record', () => {
   });
 
   it('reads the reach from a lookup when given, and keeps nothing for a role it has no record of', () => {
-    const index = roleIndex(MAPPED, []);
+    const index = roleIndex(
+      MAPPED.map((role) => ({ ...role, client_id: null })),
+      [],
+    );
     expect(keptRoles(MAPPED, caller('view-users'), 'acme', index)).toEqual(['r2', 'r3']);
     expect(keptRoles(MAPPED.slice(0, 2), caller('manage-keys'), 'acme', index)).toEqual([]);
     expect(keptRoles(MAPPED, caller(), 'acme', roleIndex([], []))).toEqual([]);
-    const overridden = roleIndex(MAPPED, [
-      {
-        id: 'r1',
-        name: 'reader',
-        client_key: null,
-        client_id: null,
-        description: null,
-        admin_reach: caller('manage-keys'),
-      },
-    ]);
+    const overridden = roleIndex(
+      MAPPED.map((role) => ({ ...role, client_id: null })),
+      [
+        {
+          id: 'r1',
+          name: 'reader',
+          client_key: null,
+          client_id: null,
+          description: null,
+          admin_reach: caller('manage-keys'),
+        },
+      ],
+    );
     expect(keptRoles(MAPPED.slice(0, 1), caller(), 'acme', overridden)).toEqual(['r1']);
     expect(keptRoles(MAPPED.slice(0, 1), caller(), 'acme')).toEqual([]);
   });
