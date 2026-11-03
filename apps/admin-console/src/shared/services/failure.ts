@@ -1,4 +1,4 @@
-import { writeRefusal } from '#/shared/services/capabilities';
+import { subjectRefusal, writeRefusal } from '#/shared/services/capabilities';
 import { fieldErrorsOf } from '#/shared/services/fieldErrors';
 import { sentence } from '#/shared/services/format';
 import { NAME_TAKEN } from '#/shared/services/labels';
@@ -272,4 +272,19 @@ export function deletedText(name: string): string {
 
 export function enabledText(name: string, enabled: boolean): string {
   return `${name} is ${enabled ? 'enabled' : 'disabled'}.`;
+}
+
+export function changeFailureText(failure: GatewayFailure, capability: AdminCapability): string {
+  return failureTextWith({
+    network: () =>
+      'Could not confirm the result. Nothing was sent again; the tab shows what the server holds now.',
+    schema: () =>
+      'It may have happened, but the answer could not be read. The tab shows what the server holds now.',
+    defect: () => COULD_NOT_FINISH,
+    problem: ({ status, detail, title }) => {
+      if (status === 403) return `Refused: ${subjectRefusal('the subject', capability)}`;
+      if (status === 404) return 'It is already gone.';
+      return `Refused: ${detail ?? title}`;
+    },
+  })(failure);
 }

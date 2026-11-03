@@ -34,7 +34,6 @@ export {
   writeRefusal,
   accessRefusal,
   subjectRefusal,
-  changeFailureText,
 } from '#/shared/services/capabilities/refusal';
 export {
   adminLoss,

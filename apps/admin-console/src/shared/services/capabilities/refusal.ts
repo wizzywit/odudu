@@ -1,7 +1,5 @@
 import { andList } from '#/shared/services/format';
-import { COULD_NOT_FINISH, failureTextWith } from '#/shared/services/failure';
 import { type AdminCapability } from '#/shared/services/principal';
-import { type GatewayFailure } from '#/shared/services/result';
 
 // The capabilities one part of a ceiling refusal's detail names after `lead`.
 function namedAfter(parts: readonly string[], lead: string): string[] {
@@ -72,19 +70,4 @@ export function accessRefusal(
 // Why a 403 on a subject can mean the caller's own ceiling and not only a missing capability.
 export function subjectRefusal(who: string, capability: AdminCapability): string {
   return `it needs the ${capability} capability, or ${who} holds an admin capability you do not.`;
-}
-
-export function changeFailureText(failure: GatewayFailure, capability: AdminCapability): string {
-  return failureTextWith({
-    network: () =>
-      'Could not confirm the result. Nothing was sent again; the tab shows what the server holds now.',
-    schema: () =>
-      'It may have happened, but the answer could not be read. The tab shows what the server holds now.',
-    defect: () => COULD_NOT_FINISH,
-    problem: ({ status, detail, title }) => {
-      if (status === 403) return `Refused: ${subjectRefusal('the subject', capability)}`;
-      if (status === 404) return 'It is already gone.';
-      return `Refused: ${detail ?? title}`;
-    },
-  })(failure);
 }

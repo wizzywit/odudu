@@ -7,7 +7,7 @@ import {
   isAdminRole,
   isHolding,
 } from '#/shared/services/capabilities/holdings';
-import { type DialogAsk } from '#/shared/services/dialog';
+import { type Asked, type DialogAsk } from '#/shared/services/dialog';
 
 // The admin capabilities a principal stops holding once every way `gone`
 // names is taken away; a role nested in one that goes, goes with it.
@@ -57,11 +57,7 @@ export function possibleLoss(
   return caller.filter((capability) => taken.includes(capability));
 }
 
-// A write that takes something from the caller is confirmed first.
-export interface Asked {
-  title: string;
-  consequence: string;
-}
+export type { Asked };
 
 export type Loss =
   | { kind: 'checking' }

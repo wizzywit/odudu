@@ -1,4 +1,8 @@
-import type { Asked } from '#/shared/services/capabilities';
+// A write that takes something from the caller is confirmed first.
+export interface Asked {
+  title: string;
+  consequence: string;
+}
 
 // A choice the confirmation offers beside what it asks, ticked or not by the
 // one asking; what it means is the usecase's, and the dialog only draws it.

@@ -3,7 +3,7 @@ import { END_SESSIONS_NEEDS_MANAGE_SESSIONS } from '@odudu/contracts/admin';
 import type { GatewayFailure } from '#/shared/services/result';
 import { failure, refusal } from '#/testing/failures';
 import { credentialFailureText } from '#/features/subjects/services/credentialOutcome';
-import { changeFailureText } from '#/shared/services/capabilities';
+import { changeFailureText } from '#/shared/services/failure';
 
 describe('changeFailureText', () => {
   const cases: [string, GatewayFailure, string][] = [

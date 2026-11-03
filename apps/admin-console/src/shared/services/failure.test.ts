@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  changeFailureText,
   createdText,
   createFailure,
   deletedText,
@@ -21,6 +22,7 @@ import {
   type WriteCopy,
 } from '#/shared/services/failure';
 import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
+import { failure, refusal } from '#/testing/failures';
 
 function problem(status: number, extra: { detail?: string; type?: string } = {}): GatewayFailure {
   return {
@@ -399,5 +401,27 @@ describe('refusedBy', () => {
     expect(refusedBy()({ type: 'about:blank', title: 'T', status: 403 })).toBe(
       'Refused: it needs the manage-tenant capability, or reaches a capability you do not hold.',
     );
+  });
+});
+
+describe('what a confirmed change says when it fails', () => {
+  it('words each way a change can end, and a missing subject as already gone', () => {
+    expect(changeFailureText(failure('network'), 'manage-users')).toBe(
+      'Could not confirm the result. Nothing was sent again; the tab shows what the server holds now.',
+    );
+    expect(changeFailureText(failure('schema'), 'manage-users')).toBe(
+      'It may have happened, but the answer could not be read. The tab shows what the server holds now.',
+    );
+    expect(changeFailureText(failure('defect'), 'manage-users')).toBe(
+      'The console could not finish. This is a fault in the console, not something you did.',
+    );
+    expect(changeFailureText(refusal(403), 'manage-sessions')).toBe(
+      'Refused: it needs the manage-sessions capability, or the subject holds an admin capability you do not.',
+    );
+    expect(changeFailureText(refusal(404), 'manage-users')).toBe('It is already gone.');
+    expect(changeFailureText(refusal(500, { detail: 'boom' }), 'manage-users')).toBe(
+      'Refused: boom',
+    );
+    expect(changeFailureText(refusal(500), 'manage-users')).toBe('Refused: T500');
   });
 });
