@@ -396,7 +396,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Add a composite': page('roles/ui/RoleRecordPage/CompositesTab.tsx', 'title="Add a composite"'),
   'Take it out': page('roles/ui/RoleRecordPage/CompositesTab.tsx', 'confirmLabel="Take it out"'),
   'Delete reader': deleteNamed('roles/ui/RoleRecordPage/GeneralTab.tsx', 'reader', inPage),
-  'admin capability': shared('services/capabilities/held.ts', "'admin capability'"),
+  'admin capability': shared('lib/services/capabilities/held.ts', "'admin capability'"),
 
   // Clients.
   'Delete my-app': deleteNamed('clients/ui/GeneralTab/GeneralTab.tsx', 'my-app', inPage),
@@ -647,7 +647,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     "PREVIEW_CLOSE_LABEL = 'Close preview'",
   ),
   More: feature('branding-editor/services/changeSummary.ts', "MORE_TRIGGER = 'More'"),
-  'Wrap lines': shared('services/code/tokens.ts', "WRAP_LABEL = 'Wrap lines'"),
+  'Wrap lines': shared('lib/services/code/tokens.ts', "WRAP_LABEL = 'Wrap lines'"),
   'Message key': page('branding/services/overrideForm.ts', "KEY_LABEL = 'Message key'"),
   'Add language': page('branding/services/addedLanguage.ts', "ADD_BUTTON = 'Add language'"),
   'Insert a message': feature(
@@ -720,7 +720,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     page(TENANT_NEW, 'label="What they hold"'),
   ),
   'Give it to the chosen subject': page(SYSTEM_PAGE, "'Give it to the chosen subject'"),
-  'Full (tenant-admin)': at(`${SHARED}/services/capabilities/holdings.ts`, "'Full (tenant-admin)'"),
+  'Full (tenant-admin)': at(
+    `${SHARED}/lib/services/capabilities/holdings.ts`,
+    "'Full (tenant-admin)'",
+  ),
   'Change admin@odudu.local’s capabilities': template(
     [
       inFeature(
