@@ -12,4 +12,7 @@ Who is signed in on this console and what they may do on a tenant.
 - How whoami becomes authority, and when a refusal is a missing tenant.
 - Whether a principal is in their own tenant or is the subject being read.
 
-Imports `shared` only; the sign-in screens that show these rules live above.
+- The words and pages of a session in transition: signing in, ended, and signed in
+  to another tenant. `widgets/shell` and `pages/console-home` both show them.
+
+Imports `shared` only; the sign-in gate and the home screen live above.
