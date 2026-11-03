@@ -479,7 +479,7 @@ const settings = createRoute({
 });
 
 const Email = lazyFeatureRoute(
-  () => import('#/features/email').then((feature) => feature.EmailPage),
+  () => import('#/pages/email').then((feature) => feature.EmailPage),
   'Loading email',
 );
 

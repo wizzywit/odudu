@@ -25,6 +25,7 @@ export const MIGRATED: readonly string[] = [
   'apps/admin-console/src/pages/branding',
   'apps/admin-console/src/pages/clients',
   'apps/admin-console/src/pages/console-home',
+  'apps/admin-console/src/pages/email',
   'apps/admin-console/src/pages/flow',
   'apps/admin-console/src/pages/groups',
   'apps/admin-console/src/pages/registration-tokens',

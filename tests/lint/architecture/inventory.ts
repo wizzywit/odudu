@@ -261,8 +261,6 @@ export const INVENTORY: Record<RuleId, string[]> = {
   ],
   'no-sideways-slice': [],
   'view-no-service': [
-    'apps/admin-console/src/features/email/ui/EmailPage/EmailPage.tsx',
-    'apps/admin-console/src/features/email/ui/MailDelivery/MailDelivery.tsx',
     'apps/admin-console/src/features/failure/ui/MinimalFailure/MinimalFailure.tsx',
     'apps/admin-console/src/features/failure/ui/RootFailure/RootFailure.tsx',
     'apps/admin-console/src/features/failure/ui/RouteFailure/RouteFailure.tsx',

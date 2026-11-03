@@ -73,7 +73,7 @@ const clientTab = (key: string, label: string): Defined => pageTab('clients', ke
 
 const FILTERS = 'audit/services/filterWords.ts';
 const AUDIT_KINDS = 'audit/services/filterOptions.ts';
-const EMAIL_PAGE = 'email/ui/EmailPage/EmailPage.tsx';
+const EMAIL_WORDS = 'email/services/emailWords.ts';
 const EMAIL_RELAY = 'email/services/relay.ts';
 const EMAIL_MAIL = 'email/services/mailWording.ts';
 const EMAIL_MAIL_QUERY = 'email/services/mailQuery.ts';
@@ -126,7 +126,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     at(MESSAGES, "'login.username': 'Username'"),
     page('subjects/ui/NewSubjectPage/NewSubjectPage.tsx', 'label="Username"'),
     page(TENANT_NEW, 'label="Username"'),
-    feature(EMAIL_RELAY, "username: 'Username'"),
+    page(EMAIL_RELAY, "username: 'Username'"),
     feature('subject-capabilities/ui/CapabilityHolders/CapabilityHolders.tsx', "label: 'Username'"),
   ),
   Password: at(MESSAGES, "'login.password': 'Password'"),
@@ -517,35 +517,32 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
 
   // Email.
-  'Mail relay': feature('email/use-cases/useRelaySection.ts', "'Mail relay'"),
-  Host: feature(EMAIL_RELAY, "host: 'Host'"),
-  Port: feature(EMAIL_RELAY, "port: 'Port'"),
-  'Sender address': feature(EMAIL_RELAY, "from_address: 'Sender address'"),
-  'New password': feature(EMAIL_RELAY, "password: 'New password'"),
-  'Require TLS (STARTTLS)': feature(EMAIL_RELAY, "starttls: 'Require TLS (STARTTLS)'"),
-  'Remove the stored password': feature(
-    EMAIL_RELAY,
-    "remove_password: 'Remove the stored password'",
-  ),
-  'Test message': feature(EMAIL_PAGE, 'title="Test message"'),
-  'Send to': feature(EMAIL_PAGE, 'label="Send to"'),
-  'Send test message': feature(EMAIL_PAGE, "'Send test message'"),
-  'Send as client': feature('email/services/testClient.ts', "TEST_AS_LABEL = 'Send as client'"),
-  'Use the tenant’s own look': feature(
+  'Mail relay': page(EMAIL_WORDS, "RELAY_TITLE = 'Mail relay'"),
+  Host: page(EMAIL_RELAY, "host: 'Host'"),
+  Port: page(EMAIL_RELAY, "port: 'Port'"),
+  'Sender address': page(EMAIL_RELAY, "from_address: 'Sender address'"),
+  'New password': page(EMAIL_RELAY, "password: 'New password'"),
+  'Require TLS (STARTTLS)': page(EMAIL_RELAY, "starttls: 'Require TLS (STARTTLS)'"),
+  'Remove the stored password': page(EMAIL_RELAY, "remove_password: 'Remove the stored password'"),
+  'Test message': page(EMAIL_WORDS, "title: 'Test message'"),
+  'Send to': page(EMAIL_WORDS, "to: 'Send to'"),
+  'Send test message': page(EMAIL_WORDS, "submit: 'Send test message'"),
+  'Send as client': page('email/services/testClient.ts', "TEST_AS_LABEL = 'Send as client'"),
+  'Use the tenant’s own look': page(
     'email/services/testClient.ts',
     "TEST_TENANT_OWN = 'Use the tenant’s own look'",
   ),
   'Remove the relay': several(
-    feature(EMAIL_PAGE, 'title="Remove the relay"'),
-    feature(EMAIL_PAGE, 'confirmLabel="Remove the relay"'),
+    page(EMAIL_WORDS, "title: 'Remove the relay'"),
+    page(EMAIL_WORDS, "action: 'Remove the relay'"),
   ),
-  Delivery: feature(EMAIL_MAIL, "'Delivery'"),
-  Show: feature('email/ui/MailDelivery/MailDelivery.tsx', 'label="Show"'),
-  Refresh: feature('email/ui/MailDelivery/MailDelivery.tsx', '>Refresh<'),
-  Queued: feature(EMAIL_MAIL_QUERY, "'Queued'"),
-  Retrying: feature(EMAIL_MAIL_QUERY, "'Retrying'"),
-  Sent: feature(EMAIL_MAIL_QUERY, "'Sent'"),
-  Failed: several(feature(EMAIL_MAIL_QUERY, "'Failed'"), page(AUDIT_KINDS, "'Failed'")),
+  Delivery: page(EMAIL_MAIL, "heading: 'Delivery'"),
+  Show: page(EMAIL_MAIL, "filter: 'Show'"),
+  Refresh: page(EMAIL_MAIL, "refresh: 'Refresh'"),
+  Queued: page(EMAIL_MAIL_QUERY, "'Queued'"),
+  Retrying: page(EMAIL_MAIL_QUERY, "'Retrying'"),
+  Sent: page(EMAIL_MAIL_QUERY, "'Sent'"),
+  Failed: several(page(EMAIL_MAIL_QUERY, "'Failed'"), page(AUDIT_KINDS, "'Failed'")),
   'not sent': entity('mail-relay/services/effective.ts', "return 'not sent'"),
   'deployment sender': entity('mail-relay/services/effective.ts', "return 'deployment sender'"),
   'own relay': entity('mail-relay/services/effective.ts', "return 'own relay'"),
