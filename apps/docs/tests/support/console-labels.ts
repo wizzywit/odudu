@@ -549,98 +549,115 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'own relay': feature('email/services/effective.ts', "return 'own relay'"),
 
   // Branding.
-  Theme: tab('branding', 'theme', 'Theme'),
-  Pages: tab('branding', 'pages', 'Pages'),
-  Mail: tab('branding', 'mail', 'Mail'),
-  Languages: tab('branding', 'languages', 'Languages'),
+  Theme: tab('branding-editor', 'theme', 'Theme'),
+  Pages: tab('branding-editor', 'pages', 'Pages'),
+  Mail: tab('branding-editor', 'mail', 'Mail'),
+  Languages: tab('branding-editor', 'languages', 'Languages'),
   'What the mail inherits': several(
-    feature(
-      'branding/services/mailInheritance.ts',
-      "MAIL_INHERITS_TITLE = 'What the mail inherits'",
-    ),
-    feature('branding/ui/MailTab/MailTab.tsx', '{MAIL_INHERITS_TITLE}'),
+    page('branding/services/mailInheritance.ts', "MAIL_INHERITS_TITLE = 'What the mail inherits'"),
+    page('branding/ui/MailTab/MailTab.tsx', '{MAIL_INHERITS_TITLE}'),
   ),
-  'Preview as client': feature(
+  'Preview as client': page(
     'branding/services/mailPreview.ts',
     "MAIL_AS_LABEL = 'Preview as client'",
   ),
-  'Show the tenant’s own': feature(
+  'Show the tenant’s own': page(
     'branding/services/mailPreview.ts',
     "MAIL_TENANT_OWN = 'Show the tenant’s own'",
   ),
-  'Message background': feature(
-    'branding/services/mailInheritance.ts',
-    "label: 'Message background'",
-  ),
-  'Link box background': feature(
+  'Message background': page('branding/services/mailInheritance.ts', "label: 'Message background'"),
+  'Link box background': page(
     'branding/services/mailInheritance.ts',
     "label: 'Link box background'",
   ),
-  'Quiet text': feature('branding/services/mailInheritance.ts', "label: 'Quiet text'"),
-  'Button text': feature('branding/services/mailInheritance.ts', "label: 'Button text'"),
-  'Supported languages': feature(
+  'Quiet text': page('branding/services/mailInheritance.ts', "label: 'Quiet text'"),
+  'Button text': page('branding/services/mailInheritance.ts', "label: 'Button text'"),
+  'Supported languages': page(
     'branding/services/supportedLanguages.ts',
     "SUPPORTED_LABEL = 'Supported languages'",
   ),
-  'Default language': feature(
+  'Default language': page(
     'branding/services/supportedLanguages.ts',
     "DEFAULT_LABEL = 'Default language'",
   ),
-  'Message overrides': feature(
+  'Message overrides': page(
     'branding/services/overrideForm.ts',
     "OVERRIDES_TITLE = 'Message overrides'",
   ),
-  Edit: feature('branding/ui/LanguagesTab/LanguagesTab.tsx', '> Edit </Button>'),
-  Remove: feature('branding/ui/LanguagesTab/LanguagesTab.tsx', '> Remove </Button>'),
+  Edit: page('branding/ui/LanguagesTab/LanguagesTab.tsx', '> Edit </Button>'),
+  Remove: page('branding/ui/LanguagesTab/LanguagesTab.tsx', '> Remove </Button>'),
   'Colours and font': feature(
-    'branding/services/colourSection.ts',
+    'branding-editor/services/colourSection.ts',
     "COLOURS_TITLE = 'Colours and font'",
   ),
   'Use my own light colours': template(
-    [inFeature('branding/services/colourSection.ts', 'Use my own ${schemeColoursName(scheme)}')],
+    [
+      inFeature(
+        'branding-editor/services/colourSection.ts',
+        'Use my own ${schemeColoursName(scheme)}',
+      ),
+    ],
     'Use my own ${scheme}',
     { scheme: 'light colours' },
   ),
-  Images: feature('branding/services/imageSection.ts', "IMAGES_TITLE = 'Images'"),
-  Stylesheet: feature('branding/services/stylesheet.ts', "STYLESHEET_SECTION_TITLE = 'Stylesheet'"),
-  Contrast: feature('branding/services/contrast.ts', "CONTRAST_TITLE = 'Contrast'"),
-  Publish: feature('branding/services/publishDraft.ts', "PUBLISH_TITLE = 'Publish'"),
-  Versions: feature('branding/services/versions.ts', "VERSIONS_TITLE = 'Versions'"),
-  'Reset to default': feature('branding/services/versions.ts', "RESET_TITLE = 'Reset to default'"),
+  Images: feature('branding-editor/services/imageSection.ts', "IMAGES_TITLE = 'Images'"),
+  Stylesheet: feature(
+    'branding-editor/services/stylesheet.ts',
+    "STYLESHEET_SECTION_TITLE = 'Stylesheet'",
+  ),
+  Contrast: feature('branding-editor/services/contrast.ts', "CONTRAST_TITLE = 'Contrast'"),
+  Publish: feature('branding-editor/services/publishDraft.ts', "PUBLISH_TITLE = 'Publish'"),
+  Versions: feature('branding-editor/services/versions.ts', "VERSIONS_TITLE = 'Versions'"),
+  'Reset to default': feature(
+    'branding-editor/services/versions.ts',
+    "RESET_TITLE = 'Reset to default'",
+  ),
   'Revert to published': feature(
-    'branding/services/revertDraft.ts',
+    'branding-editor/services/revertDraft.ts',
     "REVERT_TITLE = 'Revert to published'",
   ),
   'Revert this tab to published': feature(
-    'branding/services/revertDraft.ts',
+    'branding-editor/services/revertDraft.ts',
     "REVERT_LABEL = 'Revert this tab to published'",
   ),
   'Discard draft': feature(
-    'branding/services/discardDraft.ts',
+    'branding-editor/services/discardDraft.ts',
     "DISCARD_CONFIRM = 'Discard draft'",
   ),
-  'Delete image': feature('branding/services/imageSection.ts', "DELETE_LABEL = 'Delete image'"),
-  Preview: feature('branding/services/preview.ts', "PREVIEW_TITLE = 'Preview'"),
-  'Colour scheme': several(
-    feature('branding/services/colourScheme.ts', "SCHEME_PICKER_LABEL = 'Colour scheme'"),
+  'Delete image': feature(
+    'branding-editor/services/imageSection.ts',
+    "DELETE_LABEL = 'Delete image'",
   ),
-  'Open preview': feature('branding/services/preview.ts', "PREVIEW_OPEN_LABEL = 'Open preview'"),
-  'Page preview': feature('branding/services/preview.ts', "PREVIEW_SHEET_TITLE = 'Page preview'"),
-  'Close preview': feature('branding/services/preview.ts', "PREVIEW_CLOSE_LABEL = 'Close preview'"),
-  More: feature('branding/services/changeSummary.ts', "MORE_TRIGGER = 'More'"),
+  Preview: feature('branding-editor/services/preview.ts', "PREVIEW_TITLE = 'Preview'"),
+  'Colour scheme': several(
+    feature('branding-editor/services/colourScheme.ts', "SCHEME_PICKER_LABEL = 'Colour scheme'"),
+  ),
+  'Open preview': feature(
+    'branding-editor/services/preview.ts',
+    "PREVIEW_OPEN_LABEL = 'Open preview'",
+  ),
+  'Page preview': feature(
+    'branding-editor/services/preview.ts',
+    "PREVIEW_SHEET_TITLE = 'Page preview'",
+  ),
+  'Close preview': feature(
+    'branding-editor/services/preview.ts',
+    "PREVIEW_CLOSE_LABEL = 'Close preview'",
+  ),
+  More: feature('branding-editor/services/changeSummary.ts', "MORE_TRIGGER = 'More'"),
   'Wrap lines': shared('services/code/tokens.ts', "WRAP_LABEL = 'Wrap lines'"),
-  'Message key': feature('branding/services/overrideForm.ts', "KEY_LABEL = 'Message key'"),
-  'Add language': feature('branding/services/addedLanguage.ts', "ADD_BUTTON = 'Add language'"),
+  'Message key': page('branding/services/overrideForm.ts', "KEY_LABEL = 'Message key'"),
+  'Add language': page('branding/services/addedLanguage.ts', "ADD_BUTTON = 'Add language'"),
   'Insert a message': feature(
-    'branding/services/catalogue.ts',
+    'branding-editor/services/catalogue.ts',
     "INSERT_LABEL = 'Insert a message'",
   ),
   'Selectors you can use': feature(
-    'branding/services/selectors.ts',
+    'branding-editor/services/selectors.ts',
     "SELECTORS_LABEL = 'Selectors you can use'",
   ),
   'Design values you can use': feature(
-    'branding/services/selectors.ts',
+    'branding-editor/services/selectors.ts',
     "VALUES_LABEL = 'Design values you can use'",
   ),
   Translations: page('clients/services/clientDetails.ts', "translations: 'Translations'"),

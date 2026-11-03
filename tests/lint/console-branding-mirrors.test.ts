@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 // typed here by what this test uses of them.
 const SERVICE = path.resolve(
   import.meta.dirname,
-  '../../apps/admin-console/src/features/branding/services',
+  '../../apps/admin-console/src/features/branding-editor/services',
 );
 type ServerPalette = NonNullable<Parameters<typeof contrastFailures>[0]['light']>;
 type Palette = ServerPalette;

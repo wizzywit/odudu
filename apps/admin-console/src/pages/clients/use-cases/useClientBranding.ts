@@ -13,7 +13,7 @@ import {
   useScopeTabReads,
   type ScopeBranding,
   type ScopedTab,
-} from '#/features/branding';
+} from '#/features/branding-editor';
 
 export interface ClientBranding {
   lead: string;

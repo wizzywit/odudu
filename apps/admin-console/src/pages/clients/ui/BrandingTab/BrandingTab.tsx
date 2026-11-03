@@ -8,7 +8,7 @@ import {
   SCOPED_TABS,
   ThemePanel,
   type ScopedTab,
-} from '#/features/branding';
+} from '#/features/branding-editor';
 import { type BrandingOffer } from '#/pages/clients/services/branding';
 import { useClientBranding } from '#/pages/clients/use-cases/useClientBranding';
 import { Note, NoteCode } from '#/shared/ui/Note';

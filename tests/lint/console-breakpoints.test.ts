@@ -35,7 +35,8 @@ export function offenders(sheets: Readonly<Record<string, string>>): string[] {
 // The stylesheets that sit inside the editor's frame, found and not listed,
 // so a new one is held to the same width. The bar measures its own width.
 const FRAME_SHEETS = [
-  ...files('features/branding/**/*.module.css'),
+  ...files('features/branding-editor/**/*.module.css'),
+  ...files('pages/branding/**/*.module.css'),
   'shared/ui/CodeField/CodeField.module.css',
 ].filter((file) => !file.endsWith('PublicationBar.module.css'));
 
@@ -57,25 +58,28 @@ describe('the width at which the Branding pages narrow', () => {
       [],
     );
     for (const file of [
-      'features/branding/ui/PreviewFrame/PreviewFrame.module.css',
-      'features/branding/ui/Workspace/Workspace.module.css',
+      'features/branding-editor/ui/PreviewFrame/PreviewFrame.module.css',
+      'features/branding-editor/ui/Workspace/Workspace.module.css',
       'shared/ui/CodeField/CodeField.module.css',
     ]) {
       expect(narrowWidths(read(file)).length, file).toBeGreaterThan(0);
     }
-    expect(read('features/branding/ui/Workspace/Workspace.tsx')).toContain('data-narrow-container');
-    expect(read('features/branding/ui/Workspace/Workspace.module.css')).toContain(
+    expect(read('features/branding-editor/ui/Workspace/Workspace.tsx')).toContain(
+      'data-narrow-container',
+    );
+    expect(read('features/branding-editor/ui/Workspace/Workspace.module.css')).toContain(
       'container: workspace / inline-size',
     );
   });
 
   it('fails for a new stylesheet that asks at another width', () => {
     const sheets = {
-      'features/branding/ui/New/New.module.css': '@container workspace (width < 40rem) { a {} }',
-      'features/branding/ui/Same/Same.module.css':
+      'features/branding-editor/ui/New/New.module.css':
+        '@container workspace (width < 40rem) { a {} }',
+      'features/branding-editor/ui/Same/Same.module.css':
         '@container workspace (inline-size < 48rem) { a {} }',
     };
-    expect(offenders(sheets)).toEqual(['features/branding/ui/New/New.module.css']);
+    expect(offenders(sheets)).toEqual(['features/branding-editor/ui/New/New.module.css']);
   });
 
   it('is the media query of what follows the screen and not the frame', () => {
@@ -88,7 +92,7 @@ describe('the width at which the Branding pages narrow', () => {
 
   it('folds the publication bar 50px of padding and borders later than the frame, so Revert is on one of the two', () => {
     const widths = narrowWidths(
-      read('features/branding/ui/PublicationBar/PublicationBar.module.css'),
+      read('features/branding-editor/ui/PublicationBar/PublicationBar.module.css'),
     );
     expect(widths).toEqual([51.125]);
     expect((widths[0] ?? 0) * 16 - NARROW_REM * 16).toBe(50);

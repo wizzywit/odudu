@@ -493,7 +493,7 @@ const email = createRoute({
 });
 
 const Branding = lazyFeatureRoute(
-  () => import('#/features/branding').then((feature) => feature.BrandingPage),
+  () => import('#/pages/branding').then((feature) => feature.BrandingPage),
   'Loading branding',
 );
 

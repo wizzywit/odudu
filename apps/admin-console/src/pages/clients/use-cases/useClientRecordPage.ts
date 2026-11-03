@@ -1,5 +1,5 @@
 import type { ClientRecord } from '#/pages/clients/types/clientRecord';
-import { clientScope, useScopeEdits } from '#/features/branding';
+import { clientScope, useScopeEdits } from '#/features/branding-editor';
 import { useAuthority } from '#/entities/session';
 import { useClientRecord } from '#/pages/clients/repository/useClientRecord';
 import { serviceRolesRecordOf } from '#/pages/clients/services/serviceAccess';

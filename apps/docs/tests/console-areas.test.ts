@@ -42,8 +42,10 @@ const DESCRIBED_BY_THE_TOUR = ['console-home', 'failure'];
 // caller. record-activity is the Activity tab of a record, described on each
 // record's page. role-mapping is the roles editor of a group and a scope, and
 // scope-assignment the assigned-scopes list of a client and of a scope.
+// branding-editor is the editors the Branding area and a client's tab share.
 const DESCRIBED_BY_ITS_PAGES = [
   'begin-administrator',
+  'branding-editor',
   'grant-administrator',
   'own-roles',
   'record-activity',

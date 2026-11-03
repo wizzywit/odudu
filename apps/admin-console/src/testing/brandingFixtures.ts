@@ -1,5 +1,5 @@
-import type { MailBrandingView } from '#/features/branding/types/mailBranding';
-import type { ThemePreviewInfo } from '#/features/branding/types/theme';
+import type { MailBrandingView } from '#/pages/branding/types/mailBranding';
+import type { ThemePreviewInfo } from '#/features/branding-editor/types/theme';
 import { image, json, type Answer } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 import { C, clientRoutes } from '#/testing/clientsFixtures';
