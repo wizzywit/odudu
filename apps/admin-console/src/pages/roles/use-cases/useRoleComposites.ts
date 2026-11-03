@@ -14,15 +14,14 @@ import {
   childRows,
   childUnavailable,
   compositesFixed,
-} from '#/pages/roles/services/composites';
-import { type RoleCeiling, compositesOffered } from '#/pages/roles/services/roleCeiling';
-import { roleSelfLoss } from '#/pages/roles/services/roleLoss';
-import { ADD_LABEL, NEST_LABEL } from '#/pages/roles/services/composites';
-import {
+  ADD_LABEL,
+  NEST_LABEL,
   compositeRemovalConfirmation,
   compositeRemovalFailureText,
   unnestedText,
 } from '#/pages/roles/services/composites';
+import { type RoleCeiling, compositesOffered } from '#/pages/roles/services/roleCeiling';
+import { roleSelfLoss } from '#/pages/roles/services/roleLoss';
 import { compositesRecord } from '#/pages/roles/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { type Role, useRolePicker, roleNameOf } from '#/entities/role';

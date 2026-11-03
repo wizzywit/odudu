@@ -8,8 +8,11 @@ export interface RolesList extends ListPageState<Role> {
 }
 
 export function useRolesList(tenant: string): RolesList {
+  const page = useListPage(useRoleList(tenant), newRoleHref(tenant), (id) => roleHref(tenant, id));
   return {
-    ...useListPage(useRoleList(tenant), newRoleHref(tenant), (id) => roleHref(tenant, id)),
+    list: page.list,
+    createHref: page.createHref,
+    open: page.open,
     searchFields: NAME_SEARCH,
   };
 }

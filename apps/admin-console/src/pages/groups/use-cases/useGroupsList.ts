@@ -11,8 +11,11 @@ export interface GroupsList extends ListPageState<Group> {
 
 export function useGroupsList(tenant: string): GroupsList {
   const { list, searching } = useGroupList(tenant);
+  const page = useListPage(list, newGroupHref(tenant), (id) => groupHref(tenant, id));
   return {
-    ...useListPage(list, newGroupHref(tenant), (id) => groupHref(tenant, id)),
+    list: page.list,
+    createHref: page.createHref,
+    open: page.open,
     searching,
     searchFields: NAME_SEARCH,
   };

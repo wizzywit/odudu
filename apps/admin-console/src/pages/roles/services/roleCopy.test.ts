@@ -7,6 +7,7 @@ import {
   copyingLine,
   copyingText,
   copyPlan,
+  copySourceOf,
   partialCopy,
   copyHref,
   copyHrefOf,
@@ -30,12 +31,14 @@ describe('copying a role', () => {
       },
     ]);
   });
+
   it('nests everything until the caller is known', () => {
     expect(copyPlan([AUDITOR, USERS], undefined, 'acme')).toEqual({
       nested: [AUDITOR, USERS],
       left: [],
     });
   });
+
   it("reads the source's description, none until it is ready", () => {
     const ready: CopyRead = {
       status: 'ready',
@@ -46,6 +49,7 @@ describe('copying a role', () => {
     expect(sourceDescription({ status: 'ready', role: AUDITOR, children: [] })).toBeNull();
     expect(sourceDescription({ status: 'loading' })).toBeNull();
   });
+
   it('maps the source read to what the page shows', () => {
     const plan = { nested: [AUDITOR], left: [{ name: 'x', why: 'y' }] };
     expect(copyingOf({ status: 'none' }, plan)).toEqual({ status: 'none' });
@@ -58,6 +62,7 @@ describe('copying a role', () => {
       left: [{ name: 'x', why: 'y' }],
     });
   });
+
   it('says what a copy nests', () => {
     expect(copyingText({ name: 'reader', children: [] })).toBe(
       'A copy of reader, nesting nothing.',
@@ -66,6 +71,7 @@ describe('copying a role', () => {
       'A copy of reader, nesting a, b and c.',
     );
   });
+
   it('has a line to say only once the role to copy is read', () => {
     expect(copyingLine({ status: 'loading' })).toBeNull();
     expect(copyingLine({ status: 'failed' })).toBeNull();
@@ -73,6 +79,7 @@ describe('copying a role', () => {
       'A copy of reader, nesting nothing.',
     );
   });
+
   it('keeps a copy missing composites on the page, pointing at where to add them', () => {
     expect(partialCopy('/console/acme/roles/r-read?tab=composites', READER, [])).toBeNull();
     expect(
@@ -83,6 +90,7 @@ describe('copying a role', () => {
       name: 'reader',
     });
   });
+
   it('offers a copy only of a tenant role', () => {
     expect(copyHrefOf('/console/acme/roles/new', READER)).toBe(
       '/console/acme/roles/new?copy=r-read',
@@ -105,5 +113,18 @@ describe('the children of the source a copy is made of', () => {
 describe('the address of a copy', () => {
   it('sits beside a new role, naming the source', () => {
     expect(copyHref('/console/acme/roles/new', 'r-aud')).toBe('/console/acme/roles/new?copy=r-aud');
+  });
+});
+
+describe('what a role copy keeps of its reads', () => {
+  const ok = <T>(data: T) => ({ ok: true as const, status: 200, data, etag: null, next: null });
+
+  it('keeps the role and its children when both were read, and nothing when either failed', () => {
+    expect(copySourceOf(ok(READER), ok({ items: [AUDITOR] }))).toEqual({
+      role: READER,
+      children: [AUDITOR],
+    });
+    expect(copySourceOf({ ok: false, kind: 'network' }, ok({ items: [] }))).toBeNull();
+    expect(copySourceOf(ok(READER), { ok: false, kind: 'network' })).toBeNull();
   });
 });

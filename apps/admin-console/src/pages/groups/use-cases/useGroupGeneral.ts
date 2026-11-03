@@ -8,25 +8,28 @@ import {
   type ParentValues,
 } from '#/pages/groups/repository/useGroupRecord';
 import { type Group, type GroupRecord, groupsHref, useGroupPicker } from '#/entities/group';
-import { defaultBlock } from '#/pages/groups/services/groupReach';
+import { defaultBlock, DEFAULT_LABEL } from '#/pages/groups/services/groupReach';
 import { moveRefusal, parentUnavailable } from '#/pages/groups/services/groupMove';
 import {
   type GroupCeiling,
   ceilingLines,
   ceilingParentReach,
   groupReadiness,
+  type Readiness,
 } from '#/pages/groups/services/groupCeiling';
-import { parentPlace, parentPathOf, placeText } from '#/pages/groups/services/groupCreation';
+import {
+  parentPlace,
+  parentPathOf,
+  placeText,
+  PLACE_LABEL,
+} from '#/pages/groups/services/groupCreation';
 import {
   deleteConsequence,
   moveConfirmation,
   subtreeDeletedText,
 } from '#/pages/groups/services/groupConfirmation';
-import { DEFAULT_LABEL } from '#/pages/groups/services/groupReach';
-import { PLACE_LABEL } from '#/pages/groups/services/groupCreation';
 import { NAME_FIXED } from '#/pages/groups/services/groupPath';
 import { lossOf } from '#/pages/groups/services/groupLoss';
-import { type Readiness } from '#/pages/groups/services/groupCeiling';
 import { groupRecord } from '#/pages/groups/services/tabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';

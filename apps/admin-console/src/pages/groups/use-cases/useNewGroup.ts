@@ -5,8 +5,12 @@ import { useGo } from '#/shared/repository/useGo';
 import { useGroupNamed } from '#/pages/groups/repository/useGroupRecord';
 import { type Group, groupHref, groupsHref, useGroupPicker } from '#/entities/group';
 import { parentUnavailable } from '#/pages/groups/services/groupMove';
-import { createBlocked, createHeld, newGroupPlace } from '#/pages/groups/services/groupCreation';
-import { NAME_TAKEN } from '#/pages/groups/services/groupCreation';
+import {
+  createBlocked,
+  createHeld,
+  newGroupPlace,
+  NAME_TAKEN,
+} from '#/pages/groups/services/groupCreation';
 import { useToast } from '#/shared/repository/useToasts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';
 import { problemAt, requiredProblem } from '#/shared/services/fieldErrors';

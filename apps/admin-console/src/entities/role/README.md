@@ -25,3 +25,7 @@ capability rules and other entities read them as they come.
 Imports `shared` only. Creating, amending, nesting and removing a role are
 `pages/roles`'. `repository/rolesGoneReach` reaches other slices through
 `use-cases/roleCache`.
+
+`use-cases/roleOption` and `roleCache` forward a service or repository
+function: a migrated view may import neither, so it reaches them here.
+`roleDetail` and `roleAccessibleName` stay exported for the service's own test.

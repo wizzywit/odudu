@@ -3,17 +3,19 @@ import { useOwnRoles } from '#/features/own-roles';
 import { useGo } from '#/shared/repository/useGo';
 import { useRoleDeletion, useRoleSaves } from '#/pages/roles/repository/useRoleRecord';
 import { type Role, rolesHref } from '#/entities/role';
-import { defaultBlock } from '#/pages/roles/services/roleDefault';
-import { deletionFixed } from '#/pages/roles/services/roleDeletion';
+import { defaultBlock, DEFAULT_LABEL } from '#/pages/roles/services/roleDefault';
+import {
+  deletionFixed,
+  roleDeleteConsequence,
+  roleDeleteFailureText,
+} from '#/pages/roles/services/roleDeletion';
 import {
   type RoleCeiling,
   defaultsChecking,
   isDeleteHeld,
+  deleteChecking,
 } from '#/pages/roles/services/roleCeiling';
 import { roleSelfLoss } from '#/pages/roles/services/roleLoss';
-import { DEFAULT_LABEL } from '#/pages/roles/services/roleDefault';
-import { deleteChecking } from '#/pages/roles/services/roleCeiling';
-import { roleDeleteConsequence, roleDeleteFailureText } from '#/pages/roles/services/roleDeletion';
 import { NAME_FIXED } from '#/pages/roles/services/roleCopy';
 import { roleRecord } from '#/pages/roles/services/tabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
