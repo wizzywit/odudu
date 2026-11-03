@@ -23,11 +23,9 @@ import {
   editedOverride,
   EMPTY_OVERRIDE,
   filledOverride,
-  overrideFailure,
-  afterSave,
-  removeOutcome,
-  STALE_REMOVAL,
-} from '#/features/branding/services/overrides';
+} from '#/features/branding/services/overrideForm';
+import { overrideFailure, afterSave } from '#/features/branding/services/overrideSaving';
+import { removeOutcome, STALE_REMOVAL } from '#/features/branding/services/overrideRemoval';
 import type { GatewayFailure } from '#/shared/services/result';
 
 const refused = (status: number, type: string): GatewayFailure => ({

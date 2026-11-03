@@ -9,7 +9,7 @@ import {
   supportedChoices,
   SHIPPED_LANGUAGES,
 } from '#/features/branding/services/supportedLanguages';
-import { shownLocale } from '#/features/branding/services/overrides';
+import { shownLocale } from '#/features/branding/services/overrideList';
 
 describe('the shipped languages', () => {
   it('are English and Arabic', () => {

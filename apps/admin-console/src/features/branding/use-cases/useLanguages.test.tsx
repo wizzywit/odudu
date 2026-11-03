@@ -8,7 +8,7 @@ import {
   ALREADY_REMOVED,
   REMOVED_TEXT,
   STALE_REMOVAL,
-} from '#/features/branding/services/overrides';
+} from '#/features/branding/services/overrideRemoval';
 import { useLanguagesSection, useOverrides } from '#/features/branding/use-cases/useLanguages';
 import { brandingRoutes, HELP_OVERRIDE, MO, TITLE_OVERRIDE } from '#/testing/brandingFixtures';
 import { json, problem, type Answer } from '#/testing/fakeTransport';

@@ -1,12 +1,8 @@
 import type { MessageOverride } from '@odudu/contracts/admin';
 import { describeValue, type Conflict } from '#/shared/services/conflict';
 import type { GatewayResult } from '#/shared/services/result';
-import {
-  EMPTY_OVERRIDE,
-  overrideFailure,
-  type OverrideValues,
-  type SentOverride,
-} from '#/features/branding/services/overrides';
+import { EMPTY_OVERRIDE, type OverrideValues } from '#/features/branding/services/overrideForm';
+import { overrideFailure, type SentOverride } from '#/features/branding/services/overrideSaving';
 
 // An edit that met a newer version of the same override: what the person
 // meant to save, and what the server holds now, which is null when it holds

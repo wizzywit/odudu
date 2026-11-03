@@ -26,8 +26,8 @@ import {
   conflictLead,
   conflictSection,
 } from '#/features/branding/services/overrideConflicts';
+import { capText } from '#/features/branding/services/overrideList';
 import {
-  capText,
   EDIT_HINT,
   KEY_LABEL,
   KEY_NOTE,
@@ -40,7 +40,7 @@ import {
   OVERRIDES_DESCRIPTION,
   OVERRIDES_TITLE,
   SAVE_OVERRIDE,
-} from '#/features/branding/services/overrides';
+} from '#/features/branding/services/overrideForm';
 import {
   useLanguagesSection,
   useOverrides,

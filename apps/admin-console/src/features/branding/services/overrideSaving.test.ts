@@ -1,22 +1,17 @@
-import { MESSAGE_OVERRIDE_KEY_MAX_LENGTH, MESSAGE_OVERRIDE_LIMIT } from '@odudu/contracts/admin';
+import { MESSAGE_OVERRIDE_LIMIT } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import {
-  ALREADY_REMOVED,
   afterSave,
   settle,
-  capText,
-  PAGE_SIZE,
-  EMPTY_OVERRIDE,
-  OVERRIDE_KEY_LENGTH,
   overrideAttempt,
-  OVER_BOUND,
   overrideFailure,
-  overrideProblems,
+} from '#/features/branding/services/overrideSaving';
+import {
+  EMPTY_OVERRIDE,
+  OVER_BOUND,
   OVERRIDE_CAP,
-  removeOutcome,
-  saveOutcome,
   UNKNOWN_KEY,
-} from '#/features/branding/services/overrides';
+} from '#/features/branding/services/overrideForm';
 import type { GatewayFailure } from '#/shared/services/result';
 
 const refused = (status: number, type: string, extra: object = {}): GatewayFailure => ({
@@ -62,60 +57,6 @@ describe('a refused override', () => {
 
   it('never claims what a lost answer did', () => {
     expect(overrideFailure({ ok: false, kind: 'network' }).message).toMatch(/Could not confirm/u);
-  });
-});
-
-describe('the form', () => {
-  it('needs a key and a text, within the server’s bounds', () => {
-    expect(overrideProblems(EMPTY_OVERRIDE)).toEqual({
-      key: expect.stringContaining('key') as string,
-      message: expect.stringContaining('text') as string,
-    });
-    expect(overrideProblems({ key: 'login.title', message: 'x', etag: null })).toEqual({});
-    expect(OVERRIDE_KEY_LENGTH).toBe(MESSAGE_OVERRIDE_KEY_MAX_LENGTH);
-    expect(
-      overrideProblems({ key: 'k'.repeat(OVERRIDE_KEY_LENGTH + 1), message: 'x', etag: null }).key,
-    ).toContain(String(OVERRIDE_KEY_LENGTH));
-    expect(overrideProblems({ key: 'k', message: 'x'.repeat(2001), etag: null }).message).toMatch(
-      /2000/u,
-    );
-  });
-
-  it('empties once saved, and is as it was when refused', () => {
-    const values = { key: 'login.title', message: 'Hello', etag: null };
-    const saved = saveOutcome(
-      { ok: true, status: 200, data: {}, etag: null, next: null },
-      { locale: 'en', key: 'login.title' },
-      values,
-    );
-    expect(saved.values).toEqual(EMPTY_OVERRIDE);
-    expect(saved.toast).toContain('login.title');
-    const failed = saveOutcome(
-      { ok: false, kind: 'network' },
-      { locale: 'en', key: 'login.title' },
-      values,
-    );
-    expect(failed.values).toBe(values);
-    expect(failed.toast).toBeNull();
-  });
-});
-
-describe('removing an override', () => {
-  it('counts one that is already gone as done', () => {
-    const outcome = removeOutcome(refused(404, 'about:blank'));
-    expect(outcome).toEqual({ done: true, text: ALREADY_REMOVED });
-  });
-});
-
-describe('the count above the table', () => {
-  it('is read fifty overrides at a time', () => {
-    expect(PAGE_SIZE).toBe(50);
-  });
-
-  it('is a total only once nothing is left to load', () => {
-    expect(capText(1, false)).toContain('1 override in this language');
-    expect(capText(50, true)).toContain('50 overrides loaded so far; more follow');
-    expect(capText(50, true)).not.toContain('in this language');
   });
 });
 

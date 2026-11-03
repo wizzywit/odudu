@@ -587,7 +587,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     "DEFAULT_LABEL = 'Default language'",
   ),
   'Message overrides': feature(
-    'branding/services/overrides.ts',
+    'branding/services/overrideForm.ts',
     "OVERRIDES_TITLE = 'Message overrides'",
   ),
   Edit: feature('branding/ui/LanguagesTab/LanguagesTab.tsx', '> Edit </Button>'),
@@ -630,7 +630,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Close preview': feature('branding/services/preview.ts', "PREVIEW_CLOSE_LABEL = 'Close preview'"),
   More: feature('branding/services/changeSummary.ts', "MORE_TRIGGER = 'More'"),
   'Wrap lines': shared('services/code/tokens.ts', "WRAP_LABEL = 'Wrap lines'"),
-  'Message key': feature('branding/services/overrides.ts', "KEY_LABEL = 'Message key'"),
+  'Message key': feature('branding/services/overrideForm.ts', "KEY_LABEL = 'Message key'"),
   'Add language': feature('branding/services/addedLanguage.ts', "ADD_BUTTON = 'Add language'"),
   'Insert a message': feature(
     'branding/services/catalogue.ts',
