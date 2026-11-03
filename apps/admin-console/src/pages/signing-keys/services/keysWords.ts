@@ -1,4 +1,4 @@
-import { areaAt, type Area } from '#/entities/area';
+import { areaTitled, type Area } from '#/entities/area';
 import { LANE_WORDS } from '#/pages/signing-keys/services/laneWording';
 import { ALG_OPTIONS, STAGE_RULE } from '#/pages/signing-keys/services/stage';
 
@@ -32,6 +32,5 @@ export const KEYS_WORDS = {
 export type KeysWords = typeof KEYS_WORDS;
 
 export function keysArea(): { area: Area; title: string } {
-  const area = areaAt('keys');
-  return { area, title: area.label };
+  return areaTitled('keys');
 }

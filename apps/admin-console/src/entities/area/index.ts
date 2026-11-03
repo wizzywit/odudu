@@ -1,5 +1,6 @@
 export {
   areaAt,
+  areaTitled,
   EVERY_AREA,
   OVERVIEW,
   SYSTEM_AREAS,

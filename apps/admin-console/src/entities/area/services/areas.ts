@@ -86,3 +86,9 @@ export function areaAt(path: string): Area {
   if (found === undefined) throw new Error(`no area is at "${path}"`);
   return found;
 }
+
+// An area with the title its page carries, which is its menu label.
+export function areaTitled(path: string): { area: Area; title: string } {
+  const area = areaAt(path);
+  return { area, title: area.label };
+}

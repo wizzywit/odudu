@@ -1,4 +1,4 @@
-import { areaAt, type Area } from '#/entities/area';
+import { areaTitled, type Area } from '#/entities/area';
 
 export const TOKENS_RULE =
   'A registration token lets a client register itself, within its number of uses and until it expires. Only live tokens are listed: one that is used up or has expired disappears from this list. The Audit trail holds the history.';
@@ -44,6 +44,5 @@ export function revokeLabel(id: string): string {
 }
 
 export function tokensArea(): { area: Area; title: string } {
-  const area = areaAt('registration-tokens');
-  return { area, title: area.label };
+  return areaTitled('registration-tokens');
 }

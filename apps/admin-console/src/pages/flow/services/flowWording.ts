@@ -1,4 +1,4 @@
-import { areaAt, type Area } from '#/entities/area';
+import { areaTitled, type Area } from '#/entities/area';
 import { NO_OTP_STEP, OTP_LABEL, OTP_RULE, OTP_TITLE, OTP_UNREAD } from '#/pages/flow/services/otp';
 import { REQUIREMENT_OPTIONS } from '#/pages/flow/services/requirement';
 
@@ -19,8 +19,7 @@ export const FLOW_RULE =
   'The steps run in this order at every sign-in. Alternatives that sit next to each other are one run: passing any of them is enough. The whole list is replaced when you save.';
 
 export function flowArea(): { area: Area; title: string } {
-  const area = areaAt('flow');
-  return { area, title: area.label };
+  return areaTitled('flow');
 }
 
 export const FLOW_WORDS = {

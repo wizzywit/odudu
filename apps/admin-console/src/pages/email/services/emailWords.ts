@@ -1,4 +1,4 @@
-import { areaAt, type Area } from '#/entities/area';
+import { areaTitled, type Area } from '#/entities/area';
 import { PORT_RULE, RELAY_LABELS } from '#/pages/email/services/relay';
 import { removeConsequence } from '#/pages/email/services/remove';
 import { TEST_AS_LABEL, TEST_AS_RULE, TEST_TENANT_OWN } from '#/pages/email/services/testClient';
@@ -50,6 +50,5 @@ export function testRule(unsaved: boolean): string {
 }
 
 export function emailArea(): { area: Area; title: string } {
-  const area = areaAt('email');
-  return { area, title: area.label };
+  return areaTitled('email');
 }

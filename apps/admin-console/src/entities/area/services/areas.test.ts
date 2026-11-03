@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { areaAt, OVERVIEW } from '#/entities/area/services/areas';
+import { areaAt, areaTitled, OVERVIEW } from '#/entities/area/services/areas';
 
 it('finds an area by its path, and refuses one no area has', () => {
   expect(areaAt('audit')).toMatchObject({ label: 'Audit trail', capability: 'view-audit' });
   expect(areaAt('')).toBe(OVERVIEW);
   expect(() => areaAt('nowhere')).toThrow('no area is at "nowhere"');
+});
+
+it('titles a page by the menu label of its area, and carries the area', () => {
+  const titled = areaTitled('registration-tokens');
+  expect(titled.area).toBe(areaAt('registration-tokens'));
+  expect(titled.title).toBe('Registration tokens');
 });
 
 describe('the areas', () => {
