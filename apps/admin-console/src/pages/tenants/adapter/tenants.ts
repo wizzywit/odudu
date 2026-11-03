@@ -6,11 +6,11 @@ import {
   type CountResponse,
   type Tenant as WireTenant,
 } from '@odudu/contracts/admin';
+import { readDiscovery } from '#/entities/tenant';
 import type { ImportedSecret } from '#/pages/tenants/services/import';
 import type { Tenant } from '#/pages/tenants/types/tenant';
 import type { ListPage } from '#/shared/services/resourceList';
 import type { Gateway, GatewayResult, RawBody } from '#/shared/transport/gateway';
-import { readDiscovery } from '#/shared/adapter/discovery';
 import { adminRootCall, firstMatch, mapResult, nothing, segment } from '#/shared/adapter/route';
 import { SYSTEM_TENANT } from '#/shared/services/principal';
 

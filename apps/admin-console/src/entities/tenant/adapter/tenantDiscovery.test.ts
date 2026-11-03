@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { discoverySchema, readDiscovery } from '#/shared/adapter/discovery';
+import { discoverySchema, readDiscovery } from '#/entities/tenant/adapter/tenantDiscovery';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 import { TRANSCRIPT_DISCOVERY } from '#/testing/overviewFixtures';
 

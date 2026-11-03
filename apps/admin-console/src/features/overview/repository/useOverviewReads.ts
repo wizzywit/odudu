@@ -3,9 +3,8 @@ import { readCount, readJwks, readLatestAudit } from '#/features/overview/adapte
 import { readKeys } from '#/entities/signing-key';
 import { overviewKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { readDiscovery } from '#/shared/adapter/discovery';
 import { readSmtp } from '#/entities/mail-relay';
-import { readTenantSettings } from '#/entities/tenant';
+import { readDiscovery, readTenantSettings } from '#/entities/tenant';
 import { overviewOutcome } from '#/features/overview/services/readState';
 import type {
   Collection,

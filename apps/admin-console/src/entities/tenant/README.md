@@ -1,7 +1,8 @@
 # tenant
 
 What more than one area reads of a tenant: its settings record, whether it
-may be disabled, and which languages it offers.
+may be disabled, which languages it offers, and the discovery document it
+publishes (read through the gateway's mirror of it).
 
 ## Rules owned
 
