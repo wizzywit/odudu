@@ -37,6 +37,14 @@ describe('promotionOf', () => {
     });
   });
 
+  it('is young at exactly the lifetime and margin and ready a second after', () => {
+    const at = new Date(NOW.getTime() - (3600 + 300) * 1000);
+    const edge = key({ created_at: at.toISOString() });
+    const over = key({ created_at: new Date(at.getTime() - 1000).toISOString() });
+    expect(promotionOf(edge, [ACTIVE], NOW, true)).toEqual({ kind: 'young', at: NOW });
+    expect(promotionOf(over, [ACTIVE], NOW, true)).toEqual({ kind: 'ready' });
+  });
+
   it('says why a key of another algorithm than the active one is not offered', () => {
     expect(promotionOf(key({ alg: 'RS256' }), [ACTIVE], NOW, true)).toEqual({
       kind: 'algorithm',
