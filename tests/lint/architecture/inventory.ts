@@ -265,8 +265,8 @@ export const INVENTORY: Record<RuleId, string[]> = {
   ],
   'no-sideways-slice': [],
   'view-no-service': [
-    'apps/admin-console/src/features/audit/ui/AuditFilters/AuditFilters.tsx',
-    'apps/admin-console/src/features/audit/ui/AuditPage/AuditPage.tsx',
+    'apps/admin-console/src/pages/audit/ui/AuditFilters/AuditFilters.tsx',
+    'apps/admin-console/src/pages/audit/ui/AuditPage/AuditPage.tsx',
     'apps/admin-console/src/features/branding/ui/BrandingPage/BrandingPage.tsx',
     'apps/admin-console/src/features/branding/ui/ColourField/ColourField.tsx',
     'apps/admin-console/src/features/branding/ui/ColoursSection/ColoursSection.tsx',

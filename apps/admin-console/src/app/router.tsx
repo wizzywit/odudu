@@ -507,7 +507,7 @@ const branding = createRoute({
 });
 
 const Audit = lazyFeatureRoute(
-  () => import('#/features/audit').then((feature) => feature.AuditPage),
+  () => import('#/pages/audit').then((feature) => feature.AuditPage),
   'Loading the audit trail',
 );
 
