@@ -1,25 +1,11 @@
 import type { Client } from '#/entities/client';
 import {
-  CLIENT_ID_FIXED,
-  SECTION,
-  TYPE_FIXED,
-  TYPE_TEXT,
-} from '#/pages/clients/services/clientDetails';
-import { PAGES_RULE, registeredText } from '#/pages/clients/services/clientRedirects';
-import {
-  DESCRIPTION_TRANSLATIONS_LABEL,
-  DESCRIPTION_TRANSLATIONS_NOTE,
-  NAME_TRANSLATIONS_LABEL,
-  NAME_TRANSLATIONS_NOTE,
-  TRANSLATIONS_LEAD,
-} from '#/pages/clients/services/translations';
-import {
   useClientGeneral,
   type ClientGeneral,
   type Deletion,
+  type GeneralText,
 } from '#/pages/clients/use-cases/useClientGeneral';
 import type { ClientTabProps } from '#/pages/clients/ui/ClientTabProps';
-import { DESCRIPTION_MAX } from '#/shared/services/labels';
 import { DeleteZone } from '#/shared/ui/DeleteZone';
 import { DescriptionField } from '#/shared/ui/DescriptionField';
 import { LocalisedTextField } from '#/shared/ui/LocalisedTextField';
@@ -31,7 +17,7 @@ import { SaveSection } from '#/shared/ui/SaveSection';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
 
-function Fixed({ client }: { client: Client }) {
+function Fixed({ client, text }: { client: Client; text: GeneralText }) {
   return (
     <Panel title="Identity">
       <dl className={recordTab.fixed}>
@@ -43,11 +29,11 @@ function Fixed({ client }: { client: Client }) {
         </div>
         <div>
           <dt>Type</dt>
-          <dd>{TYPE_TEXT[client.type] ?? client.type}</dd>
+          <dd>{text.type}</dd>
         </div>
         <div>
           <dt>Registered</dt>
-          <dd>{registeredText(client.registration_origin)}</dd>
+          <dd>{text.registered}</dd>
         </div>
         <div>
           <dt>Created</dt>
@@ -56,7 +42,7 @@ function Fixed({ client }: { client: Client }) {
           </dd>
         </div>
       </dl>
-      <p className={recordTab.rule}>{`${CLIENT_ID_FIXED} ${TYPE_FIXED}`}</p>
+      <p className={recordTab.rule}>{text.identityFixed}</p>
     </Panel>
   );
 }
@@ -87,10 +73,14 @@ function Details({ general }: { general: ClientGeneral }) {
 function Translations({ general }: { general: ClientGeneral }) {
   const s = general.translations;
   return (
-    <SaveSection title={SECTION.translations} description={TRANSLATIONS_LEAD} save={s}>
+    <SaveSection
+      title={general.text.translationsTitle}
+      description={general.text.translationsLead}
+      save={s}
+    >
       <LocalisedTextField
-        label={NAME_TRANSLATIONS_LABEL}
-        description={NAME_TRANSLATIONS_NOTE}
+        label={general.text.nameTranslationsLabel}
+        description={general.text.nameTranslationsNote}
         languages={general.languages}
         value={s.values.name_i18n}
         error={s.fieldErrors.name_i18n}
@@ -100,11 +90,11 @@ function Translations({ general }: { general: ClientGeneral }) {
         }}
       />
       <LocalisedTextField
-        label={DESCRIPTION_TRANSLATIONS_LABEL}
-        description={DESCRIPTION_TRANSLATIONS_NOTE}
+        label={general.text.descriptionTranslationsLabel}
+        description={general.text.descriptionTranslationsNote}
         languages={general.languages}
         value={s.values.description_i18n}
-        limit={DESCRIPTION_MAX}
+        limit={general.descriptionLimit}
         multiline
         error={s.fieldErrors.description_i18n}
         changed={s.changed.includes('description_i18n')}
@@ -119,7 +109,7 @@ function Translations({ general }: { general: ClientGeneral }) {
 function Pages({ general }: { general: ClientGeneral }) {
   const s = general.pages;
   return (
-    <SaveSection title="Consent screen links" description={PAGES_RULE} save={s}>
+    <SaveSection title="Consent screen links" description={general.text.pagesRule} save={s}>
       <FieldGrid>
         <GridCell span="full">
           <UrlField
@@ -236,7 +226,7 @@ export function GeneralTab({ tenant, client, etag, gone, writable }: ClientTabPr
   const general = useClientGeneral({ tenant, client, etag, gone });
   return (
     <div className={recordTab.tab}>
-      <Fixed client={client} />
+      <Fixed client={client} text={general.text} />
       <Details general={general} />
       <Translations general={general} />
       <Pages general={general} />

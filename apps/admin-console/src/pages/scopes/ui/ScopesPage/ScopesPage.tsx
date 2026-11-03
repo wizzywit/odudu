@@ -8,7 +8,6 @@ import type { Column } from '#/shared/ui/DataTable';
 import { ResourceListPage } from '#/shared/ui/ResourceListPage';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import styles from '#/pages/scopes/ui/ScopesPage/ScopesPage.module.css';
-import { NAME_SEARCH } from '#/shared/services/filters';
 
 const AREA = areaAt('scopes');
 
@@ -45,7 +44,7 @@ function List({ tenant }: { tenant: string }) {
         </>
       }
       noun={{ one: 'scope', other: 'scopes' }}
-      searchFields={NAME_SEARCH}
+      searchFields={page.searchFields}
       columns={COLUMNS}
       rowKey={(scope) => scope.id}
       onRowAction={page.open}

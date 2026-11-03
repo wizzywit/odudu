@@ -8,16 +8,19 @@ import {
   NEW_CLIENT_FIELDS,
   newClientKind,
   asksRedirects,
+  KIND_CHOICES,
   type NewClientField,
   type NewClientKind,
 } from '#/pages/clients/services/newClient';
 import {
   afterCreation,
+  SECRET_LABEL,
   secretNote,
   secretName,
   secretTitle,
 } from '#/pages/clients/services/createdSecret';
 import { CLIENT_ID_TAKEN } from '#/pages/clients/services/clientDetails';
+import { REDIRECTS_RULE } from '#/pages/clients/services/clientRedirects';
 import { CLIENT_LIST_LIMIT, listCount } from '#/pages/clients/services/listEntries';
 import { CLIENT_CAPABILITY } from '#/pages/clients/services/refusal';
 import { useToast } from '#/shared/repository/useToasts';
@@ -36,10 +39,15 @@ export interface NewClientPage {
   name: string;
   description: string;
   kind: NewClientKind;
+  kindOptions: readonly { id: string; label: string }[];
+  // What the chosen kind means.
+  kindDescription: string | undefined;
   // Whether the form asks for redirect URIs, which a service has no use for.
   asksRedirects: boolean;
   redirectUris: readonly string[];
   redirectCount: string;
+  // The rule for redirect URIs, with how many are listed.
+  redirectsDescription: string;
   errors: Errors;
   message: string | null;
   // The POST's answer was lost: offer to look for the client rather than send it again.
@@ -54,6 +62,7 @@ export interface NewClientPage {
   check: () => void;
   // The secret of a confidential client, for its dialog and nothing else.
   secret: string | null;
+  secretLabel: string;
   secretTitle: string;
   secretNote: string;
   closeSecret: () => void;
@@ -77,6 +86,7 @@ export function useNewClient(tenant: string): NewClientPage {
     go(clientHref(tenant, client.id), { replace: true });
   };
 
+  const redirectCount = listCount(redirectUris, CLIENT_LIST_LIMIT, 'redirect URIs');
   const looked = lookupText('client', clientId, 'there');
 
   const creation = useCreateClient(tenant, {
@@ -103,9 +113,12 @@ export function useNewClient(tenant: string): NewClientPage {
     name,
     description,
     kind,
+    kindOptions: KIND_CHOICES.map((choice) => ({ id: choice.id, label: choice.label })),
+    kindDescription: KIND_CHOICES.find((choice) => choice.id === kind)?.description,
     asksRedirects: asksRedirects(kind),
     redirectUris,
-    redirectCount: listCount(redirectUris, CLIENT_LIST_LIMIT, 'redirect URIs'),
+    redirectCount,
+    redirectsDescription: `${REDIRECTS_RULE} ${redirectCount}`,
     errors: flow.errors,
     message: flow.message,
     unconfirmed: flow.unconfirmed,
@@ -143,6 +156,7 @@ export function useNewClient(tenant: string): NewClientPage {
       flow.check({ busy: creation.busy, find: () => creation.find(clientId), made: land, looked });
     },
     secret: creation.secret,
+    secretLabel: SECRET_LABEL,
     secretTitle: secretTitle(secretName(made, clientId)),
     secretNote: secretNote(secretName(made, clientId)),
     closeSecret: () => {

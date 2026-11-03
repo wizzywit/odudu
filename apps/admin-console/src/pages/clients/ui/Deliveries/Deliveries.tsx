@@ -1,17 +1,9 @@
 import type { Client } from '#/entities/client';
-import type { LogoutDelivery } from '#/pages/clients/types/logoutDelivery';
-import {
-  DELIVERIES_HEADING,
-  DELIVERIES_RULE,
-  deliveryTone,
-  NO_DELIVERIES,
-  STATUS_OPTIONS,
-} from '#/pages/clients/services/deliveries';
+import type { DeliveryRow } from '#/pages/clients/services/deliveries';
 import {
   useClientDeliveries,
   type ClientDeliveries,
 } from '#/pages/clients/use-cases/useClientDeliveries';
-import { attemptsText } from '#/shared/services/format';
 import { DataTable, type Column } from '#/shared/ui/DataTable';
 import { SelectField } from '#/shared/ui/Field';
 import { ListGate } from '#/shared/ui/ListGate';
@@ -22,7 +14,7 @@ import { StatusTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
 
-const COLUMNS: readonly Column<LogoutDelivery>[] = [
+const COLUMNS: readonly Column<DeliveryRow>[] = [
   {
     id: 'endpoint',
     header: 'Address',
@@ -32,22 +24,20 @@ const COLUMNS: readonly Column<LogoutDelivery>[] = [
   {
     id: 'status',
     header: 'Status',
-    cell: (delivery) => (
-      <StatusTag tone={deliveryTone(delivery.status)}>{delivery.status}</StatusTag>
-    ),
+    cell: (delivery) => <StatusTag tone={delivery.tone}>{delivery.status}</StatusTag>,
   },
-  { id: 'attempts', header: 'Attempts', cell: (delivery) => attemptsText(delivery.attempts) },
+  { id: 'attempts', header: 'Attempts', cell: (delivery) => delivery.attempts },
   {
     id: 'last_error',
     header: 'Last error',
     secondary: true,
-    cell: (delivery) => delivery.last_error ?? '—',
+    cell: (delivery) => delivery.lastError ?? '—',
   },
   {
     id: 'created_at',
     header: 'Queued',
     secondary: true,
-    cell: (delivery) => <Timestamp value={delivery.created_at} />,
+    cell: (delivery) => <Timestamp value={delivery.createdAt} />,
   },
 ];
 
@@ -61,7 +51,7 @@ function Rows({ client, page }: { client: Client; page: ClientDeliveries }) {
     >
       {() =>
         list.rows.length === 0 ? (
-          <p className={recordTab.rule}>{NO_DELIVERIES}</p>
+          <p className={recordTab.rule}>{page.empty}</p>
         ) : (
           <>
             <DataTable
@@ -90,11 +80,11 @@ function Rows({ client, page }: { client: Client; page: ClientDeliveries }) {
 export function Deliveries({ tenant, client }: { tenant: string; client: Client }) {
   const page = useClientDeliveries(tenant, client);
   return (
-    <Panel title={DELIVERIES_HEADING}>
-      <p className={recordTab.rule}>{DELIVERIES_RULE}</p>
+    <Panel title={page.heading}>
+      <p className={recordTab.rule}>{page.rule}</p>
       <SelectField
         label="Show"
-        options={STATUS_OPTIONS}
+        options={page.statusOptions}
         value={page.status}
         onChange={page.setStatus}
       />

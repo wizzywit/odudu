@@ -55,6 +55,11 @@ export function copyHrefOf(newHref: string, id: string): string {
   return withSearch(newHref, { copy: id });
 }
 
+// The page that makes a copy of a scope, once the scope is read.
+export function scopeCopyHref(newHref: string, scope: { id: string } | undefined): string | null {
+  return scope === undefined ? null : copyHrefOf(newHref, scope.id);
+}
+
 // A copy maps the roles a caller could give. Until the caller is known every
 // role is taken to be mappable.
 export function copyPlan(

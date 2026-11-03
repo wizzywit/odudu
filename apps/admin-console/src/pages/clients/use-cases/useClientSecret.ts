@@ -2,8 +2,14 @@ import type { Client } from '#/entities/client';
 import { useState } from 'react';
 import { useNow } from '#/shared/use-cases/useNow';
 import { useRotateSecret } from '#/pages/clients/repository/useRotateSecret';
+import { SECTIONS_ADVANCED } from '#/pages/clients/services/clientSections';
 import {
+  GRACE_LABEL,
+  GRACE_MAX,
+  GRACE_RULE,
   previousSecretLine,
+  SECRET_RULE,
+  secretFixedNote,
   type PreviousSecret,
   rotatedNote,
   rotatedTitle,
@@ -12,6 +18,13 @@ import {
 } from '#/pages/clients/services/secretRotation';
 
 export interface ClientSecret {
+  title: string;
+  rule: string;
+  // Why the secret cannot be rotated on this client, or null.
+  fixed: string | null;
+  graceLabel: string;
+  graceRule: string;
+  graceMax: number;
   // What became of the secret the last rotation replaced, or null.
   previous: PreviousSecret | null;
   grace: number;
@@ -40,6 +53,12 @@ export function useClientSecret(tenant: string, client: Client): ClientSecret {
   const [grace, setGrace] = useState(0);
   const [confirming, setConfirming] = useState(false);
   return {
+    title: SECTIONS_ADVANCED.secret,
+    rule: SECRET_RULE,
+    fixed: secretFixedNote(client),
+    graceLabel: GRACE_LABEL,
+    graceRule: GRACE_RULE,
+    graceMax: GRACE_MAX,
     previous: previousSecretLine(client.previous_secret_expires_at, now),
     grace,
     setGrace,

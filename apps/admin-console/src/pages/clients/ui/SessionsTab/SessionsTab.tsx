@@ -2,16 +2,8 @@ import type { Client } from '#/entities/client';
 import type { ClientSession } from '#/pages/clients/types/clientSession';
 import { type ServiceAccountReach } from '#/pages/clients/services/ceiling';
 import {
-  NO_SESSIONS,
-  REVOKE_HEADING,
-  REVOKE_RULE,
-  SESSIONS_CAPABILITY,
-  SESSIONS_NOUN,
-  SESSIONS_RULE,
-} from '#/pages/clients/services/sessions';
-import {
   useClientSessionsTab,
-  useSessionsReadable,
+  useSessionsPanel,
   type ClientSessions,
 } from '#/pages/clients/use-cases/useClientSessionsTab';
 import { Button } from '#/shared/ui/Button';
@@ -65,18 +57,18 @@ function List({ client, page }: { client: Client; page: ClientSessions }) {
     <>
       {list.count === null ? null : (
         <div className={recordTab.actions}>
-          <Count count={list.count.count} capped={list.count.capped} noun={SESSIONS_NOUN} />
+          <Count count={list.count.count} capped={list.count.capped} noun={page.noun} />
         </div>
       )}
       <ListGate
         list={list}
         loading={<TableSkeleton label="Loading sessions" columns={columns} rows={2} />}
-        refused={{ capability: SESSIONS_CAPABILITY, noun: 'Sessions' }}
+        refused={{ capability: page.capability, noun: 'Sessions' }}
         failed="The sessions could not be loaded"
       >
         {() =>
           list.rows.length === 0 ? (
-            <p className={recordTab.rule}>{NO_SESSIONS}</p>
+            <p className={recordTab.rule}>{page.empty}</p>
           ) : (
             <>
               <DataTable
@@ -100,8 +92,8 @@ function List({ client, page }: { client: Client; page: ClientSessions }) {
 
 function Revoke({ client, page }: { client: Client; page: ClientSessions }) {
   return (
-    <Panel title={REVOKE_HEADING}>
-      <p className={recordTab.rule}>{REVOKE_RULE}</p>
+    <Panel title={page.revokeHeading}>
+      <p className={recordTab.rule}>{page.revokeRule}</p>
       {page.result === null ? null : (
         <p role="status" className={recordTab.text}>
           {page.result}
@@ -140,7 +132,7 @@ function Sessions({
   const page = useClientSessionsTab(tenant, client, reach);
   return (
     <>
-      <p className={recordTab.rule}>{SESSIONS_RULE}</p>
+      <p className={recordTab.rule}>{page.rule}</p>
       <List client={client} page={page} />
       {page.offered ? <Revoke client={client} page={page} /> : null}
     </>
@@ -156,13 +148,13 @@ export function SessionsTab({
   client: Client;
   reach: ServiceAccountReach;
 }) {
-  const readable = useSessionsReadable(tenant);
+  const panel = useSessionsPanel(tenant);
   return (
     <div className={recordTab.tab}>
-      {readable ? (
+      {panel.readable ? (
         <Sessions tenant={tenant} client={client} reach={reach} />
       ) : (
-        <CapabilityNote capability={SESSIONS_CAPABILITY}>Sessions</CapabilityNote>
+        <CapabilityNote capability={panel.capability}>Sessions</CapabilityNote>
       )}
     </div>
   );

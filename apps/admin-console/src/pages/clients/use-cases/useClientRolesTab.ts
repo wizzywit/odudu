@@ -6,9 +6,15 @@ import { useAuthority, useRefusal } from '#/entities/session';
 import { useClientRoleList, useCreateClientRole } from '#/pages/clients/repository/useClientRoles';
 import {
   clientRolesListHref,
+  CLIENT_ROLES_RULE,
   NAME_REQUIRED,
+  NEW_ROLE_HEADING,
+  NEW_ROLE_NAME_LABEL,
+  NEW_ROLE_RULE,
+  NO_CLIENT_ROLES,
   ROLE_NAME_TAKEN,
   ROLES_CAPABILITY,
+  ROLES_OPEN_LABEL,
   rolesReadable,
 } from '#/pages/clients/services/clientRoles';
 import { useGo } from '#/shared/repository/useGo';
@@ -24,12 +30,24 @@ import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/services/labels';
 type Field = 'name' | 'description';
 type Errors = Partial<Record<Field, string>>;
 
-// Whether whoami admits the caller to the role list.
-export function useRolesReadable(tenant: string): boolean {
-  return rolesReadable(useAuthority(tenant));
+export interface RolesPanel {
+  // Whether whoami admits the caller to the role list.
+  readable: boolean;
+  capability: AdminCapability;
+}
+
+export function useRolesPanel(tenant: string): RolesPanel {
+  return { readable: rolesReadable(useAuthority(tenant)), capability: ROLES_CAPABILITY };
 }
 
 export interface ClientRoles {
+  rule: string;
+  capability: AdminCapability;
+  openLabel: string;
+  empty: string;
+  newRoleHeading: string;
+  newRoleRule: string;
+  newRoleNameLabel: string;
   list: ResourceListState<Role>;
   listHref: string;
   open: (id: string) => void;
@@ -73,6 +91,13 @@ export function useClientRolesTab(tenant: string, client: Client): ClientRoles {
   };
 
   return {
+    rule: CLIENT_ROLES_RULE,
+    capability: ROLES_CAPABILITY,
+    openLabel: ROLES_OPEN_LABEL,
+    empty: NO_CLIENT_ROLES,
+    newRoleHeading: NEW_ROLE_HEADING,
+    newRoleRule: NEW_ROLE_RULE,
+    newRoleNameLabel: NEW_ROLE_NAME_LABEL,
     list,
     listHref: clientRolesListHref(rolesHref(tenant), client.id),
     open: (id) => {

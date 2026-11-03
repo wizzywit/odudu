@@ -12,6 +12,7 @@ import {
   copySourceOf,
   partMissed,
   partialCopy,
+  scopeCopyHref,
   sourceBound,
   sourceRoles,
 } from '#/pages/scopes/services/scopeCopy';
@@ -177,5 +178,14 @@ describe('a part of a copy', () => {
     expect(partMissed('roles', ok)).toEqual([]);
     expect(partMissed('roles', { ok: false })).toEqual(['roles']);
     expect(partMissed('mappers', null)).toEqual(['mappers']);
+  });
+});
+
+describe('the page that makes a copy', () => {
+  it('names the scope to copy, and is offered only once the scope is read', () => {
+    expect(scopeCopyHref('/console/acme/scopes/new', { id: 's1' })).toBe(
+      '/console/acme/scopes/new?copy=s1',
+    );
+    expect(scopeCopyHref('/console/acme/scopes/new', undefined)).toBeNull();
   });
 });

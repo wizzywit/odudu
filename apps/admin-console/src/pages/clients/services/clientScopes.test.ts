@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   alreadyAssigned,
+  assignButtonText,
   moreScopes,
   scopeCount,
   scopeRefusal,
@@ -43,5 +44,12 @@ describe('assigning', () => {
     expect(
       scopeRefusal({ type: 'about:blank', title: 'Conflict', status: 409, detail: 'no' }),
     ).toBeNull();
+  });
+});
+
+describe('the assign button', () => {
+  it('names the scope chosen, once there is one', () => {
+    expect(assignButtonText(null)).toBe('Assign scope');
+    expect(assignButtonText('billing')).toBe('Assign scope billing');
   });
 });

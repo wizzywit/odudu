@@ -3,6 +3,7 @@ import {
   LIFETIMES,
   lifetimeBounds,
   lifetimeRule,
+  secondsReading,
   tenantLifetimeLabel,
 } from '#/pages/clients/services/tokenLifetimes';
 
@@ -36,5 +37,12 @@ describe('tenantLifetimeLabel', () => {
     expect(tenantLifetimeLabel('Access token lifetime')).toBe(
       "Use the tenant's access token lifetime",
     );
+  });
+});
+
+describe('secondsReading', () => {
+  it('says where the default comes from when there is no value, else the duration', () => {
+    expect(secondsReading(null, "Takes the tenant's.")).toBe("Takes the tenant's.");
+    expect(secondsReading(600, "Takes the tenant's.")).toBe('600 s · 10 minutes');
   });
 });

@@ -3,14 +3,20 @@ import { clientScope, useScopeEdits } from '#/features/branding';
 import { useAuthority } from '#/entities/session';
 import { useClientRecord } from '#/pages/clients/repository/useClientRecord';
 import { serviceRolesRecordOf } from '#/pages/clients/services/serviceAccess';
-import { brandingOffer, type BrandingOffer } from '#/pages/clients/services/branding';
+import {
+  BRANDING_HELD,
+  brandingOffer,
+  type BrandingOffer,
+} from '#/pages/clients/services/branding';
 import {
   canChange,
   clientReach,
   reachLine,
   type ServiceAccountReach,
 } from '#/pages/clients/services/ceiling';
+import { ACTIVITY_NOTE, CLIENT_TITLE } from '#/pages/clients/services/clientDetails';
 import {
+  CLIENT_TAB_LABELS,
   CLIENT_TABS,
   chosenTab,
   clientRecord,
@@ -20,8 +26,9 @@ import {
 import { useDirtySections } from '#/shared/repository/useDirtySections';
 import { useRecordTab } from '#/shared/repository/useRecordTab';
 import { lacking } from '#/shared/services/access';
+import { andList } from '#/shared/services/format';
 import type { AdminCapability } from '#/shared/services/principal';
-import type { RecordView } from '#/shared/services/record';
+import { type RecordView, tabEntries, type TabEntry } from '#/shared/services/record';
 
 export interface ClientRecordPage {
   record: RecordView;
@@ -29,13 +36,18 @@ export interface ClientRecordPage {
   etag: string | null;
   tab: ClientTab;
   selectTab: (tab: string) => void;
-  // Tabs with a section holding unsaved edits, for their dots.
-  dirty: ReadonlySet<ClientTab>;
+  // The tabs in order, each with whether a section holds unsaved edits.
+  tabList: readonly TabEntry<ClientTab>[];
+  title: string;
+  // What the Activity tab says before its list.
+  activityNote: string;
   reach: ServiceAccountReach;
   // What a write needs that whoami says is missing.
   changeNeeds: readonly AdminCapability[];
   // Whether the Branding tab shows its editor, a refusal or neither yet.
   branding: BrandingOffer;
+  // What the Branding tab says while it is held back, and for what.
+  brandingHeld: { lead: string; needs: string };
   // Whether any write is offered: the ceiling on the client's service
   // account has been judged from the record and holds nothing back.
   writable: boolean;
@@ -61,10 +73,17 @@ export function useClientRecordPage(tenant: string, id: string): ClientRecordPag
       const chosen = chosenTab(next);
       if (chosen !== undefined) selectTab(chosen);
     },
-    dirty: tabsWithEdits(dirty, serviceDirty, brandingEdits),
+    tabList: tabEntries(
+      CLIENT_TABS,
+      CLIENT_TAB_LABELS,
+      tabsWithEdits(dirty, serviceDirty, brandingEdits),
+    ),
+    title: record.data?.name ?? CLIENT_TITLE,
+    activityNote: ACTIVITY_NOTE,
     reach,
     changeNeeds,
     branding: brandingOffer(authority?.capabilities, changeNeeds),
+    brandingHeld: { lead: BRANDING_HELD, needs: andList(changeNeeds) },
     writable: canChange(reach, changeNeeds),
     line: reachLine(reach, record.data?.name),
   };

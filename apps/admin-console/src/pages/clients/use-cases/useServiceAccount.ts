@@ -11,10 +11,14 @@ import {
   serviceAccess,
   serviceRolesRecord,
   SERVICE_CAPABILITY,
+  SERVICE_RULE,
   type ServiceAccess,
 } from '#/pages/clients/services/serviceAccess';
+import { roleOwnerLine } from '#/pages/clients/services/clientRoles';
 import {
+  assignedCount,
   heldCapabilitiesText,
+  NO_ROLES,
   roleUnavailable,
   splitAssigned,
 } from '#/pages/clients/services/serviceRoles';
@@ -22,13 +26,7 @@ import { canChange, type ServiceAccountReach } from '#/pages/clients/services/ce
 import { ceilingRefused } from '#/pages/clients/services/refusal';
 import { SERVICE_SECTION } from '#/pages/clients/services/tabs';
 import type { RecordState } from '#/shared/repository/useRecord';
-import {
-  assignedRoles,
-  knownAssignments,
-  roleNameOf,
-  useRolePicker,
-  type AssignedRole,
-} from '#/entities/role';
+import { assignedRoles, knownAssignments, roleNameOf, useRolePicker } from '#/entities/role';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { callerCapabilities, lacking } from '#/shared/services/access';
 import { writeRefusal } from '#/shared/services/capabilities';
@@ -43,8 +41,12 @@ import { subjectHref } from '#/entities/subject';
 export function useServiceAccess(
   tenant: string,
   client: Client,
-): ServiceAccess & { idle: string | null } {
-  return { ...serviceAccess(client, useAuthority(tenant)), idle: accountIdleNote(client) };
+): ServiceAccess & { idle: string | null; capability: AdminCapability } {
+  return {
+    ...serviceAccess(client, useAuthority(tenant)),
+    idle: accountIdleNote(client),
+    capability: SERVICE_CAPABILITY,
+  };
 }
 
 export function useServiceRolesRead(
@@ -54,7 +56,18 @@ export function useServiceRolesRead(
   return useServiceRolesRecord(tenant, subjectId);
 }
 
+// An assigned role as the list shows it.
+export interface AssignedRow {
+  id: string;
+  name: string;
+  owner: string;
+}
+
 export interface ServiceRoles {
+  rule: string;
+  noRoles: string;
+  // How many roles are assigned.
+  assignedLine: string;
   // Whether the roles can be changed: the ceiling on the account is judged
   // and holds nothing back.
   offered: boolean;
@@ -64,7 +77,7 @@ export interface ServiceRoles {
   picker: PickerState<Role>;
   unavailableOf: (role: Role) => string | null;
   choose: (ids: readonly string[]) => void;
-  assigned: readonly AssignedRole[];
+  assigned: readonly AssignedRow[];
   // The admin capabilities it holds, which a save here keeps.
   kept: string | null;
 }
@@ -119,7 +132,11 @@ export function useServiceRoles({
     save: (gateway, { values, ifMatch }) =>
       saveRoles(gateway, [...values.role_ids, ...split.adminIds], ifMatch),
   });
+  const assigned = assignedRoles(save.values.role_ids, known);
   return {
+    rule: SERVICE_RULE,
+    noRoles: NO_ROLES,
+    assignedLine: assignedCount(assigned.length),
     offered: canChange(reach, needs),
     needs,
     accountHref: subjectHref(tenant, subjectId),
@@ -129,7 +146,11 @@ export function useServiceRoles({
     choose: (ids) => {
       save.edit('role_ids', sortedIds(ids));
     },
-    assigned: assignedRoles(save.values.role_ids, known),
+    assigned: assigned.map((role) => ({
+      id: role.id,
+      name: role.name,
+      owner: roleOwnerLine(role.client),
+    })),
     kept: heldCapabilitiesText(data.items),
   };
 }

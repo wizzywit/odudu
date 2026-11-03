@@ -1,5 +1,7 @@
 import { useBuiltinScopes, useRestoreBuiltins } from '#/pages/scopes/repository/useScopeRecord';
 import {
+  RESTORE_CONFIRM_LABEL,
+  RESTORE_DIALOG_TITLE,
   restoredText,
   restoreFailureText,
   restoreHeld,
@@ -11,6 +13,8 @@ import { useToast } from '#/shared/repository/useToasts';
 import { useConfirmedRemoval } from '#/shared/use-cases/useConfirmedChange';
 
 export interface RestoreScopes {
+  title: string;
+  confirmLabel: string;
   open: boolean;
   busy: boolean;
   problem: string | null;
@@ -38,6 +42,8 @@ export function useRestoreScopes(tenant: string): RestoreScopes {
   });
   const offer = restoreOffer(useBuiltinScopes(tenant, asking.confirming));
   return {
+    title: RESTORE_DIALOG_TITLE,
+    confirmLabel: RESTORE_CONFIRM_LABEL,
     open: asking.confirming,
     busy: asking.busy,
     problem: asking.problem,

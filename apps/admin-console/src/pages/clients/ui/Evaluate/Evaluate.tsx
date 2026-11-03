@@ -1,19 +1,9 @@
 import { useId } from 'react';
 import type { Client } from '#/entities/client';
-import {
-  type Artefact,
-  EVALUATE_CAPABILITY,
-  EVALUATE_HEADING,
-  EVALUATE_LABEL,
-  EVALUATE_RULE,
-  NO_ID_TOKEN,
-  SCOPE_LABEL,
-  SCOPE_RULE,
-  SUBJECT_PICKER_LABEL,
-} from '#/pages/clients/services/evaluate';
+import type { Artefact } from '#/pages/clients/services/evaluate';
 import {
   useClientEvaluate,
-  useEvaluateAllowed,
+  useEvaluatePanel,
   type ClientEvaluate,
 } from '#/pages/clients/use-cases/useClientEvaluate';
 import { Button } from '#/shared/ui/Button';
@@ -27,7 +17,7 @@ import { recordTab } from '#/shared/ui/RecordTab';
 import { type Subject } from '#/entities/subject';
 import styles from '#/pages/clients/ui/Evaluate/Evaluate.module.css';
 
-function Box({ artefact }: { artefact: Artefact }) {
+function Box({ artefact, empty }: { artefact: Artefact; empty: string }) {
   const heading = useId();
   return (
     <div className={styles.artefact}>
@@ -35,7 +25,7 @@ function Box({ artefact }: { artefact: Artefact }) {
         {artefact.heading}
       </h3>
       {artefact.text === null ? (
-        <p className={recordTab.rule}>{NO_ID_TOKEN}</p>
+        <p className={recordTab.rule}>{empty}</p>
       ) : (
         <CopyValue label={artefact.label} value={artefact.text} block labelledBy={heading} />
       )}
@@ -47,21 +37,21 @@ function Form({ page }: { page: ClientEvaluate }) {
   return (
     <>
       <Picker<Subject>
-        label={SUBJECT_PICKER_LABEL}
+        label={page.subjectPickerLabel}
         noun={{ one: 'subject', other: 'subjects' }}
         picker={page.picker}
         idOf={(subject) => subject.id}
         nameOf={page.subjectLabel}
         detailOf={(subject) => subject.email ?? subject.type}
         searchBy="username"
-        capability={EVALUATE_CAPABILITY}
+        capability={page.capability}
         selected={page.chosen === null ? [] : [page.chosen.id]}
         selectionMode="single"
         onChange={page.choose}
       />
       <TextField
-        label={SCOPE_LABEL}
-        description={SCOPE_RULE}
+        label={page.scopeLabel}
+        description={page.scopeRule}
         mono
         value={page.scope}
         onChange={page.setScope}
@@ -72,7 +62,7 @@ function Form({ page }: { page: ClientEvaluate }) {
           isDisabled={page.chosen === null || page.busy}
           onPress={page.evaluate}
         >
-          {EVALUATE_LABEL}
+          {page.evaluateLabel}
         </Button>
       </div>
       <Problem>{page.problem}</Problem>
@@ -80,7 +70,7 @@ function Form({ page }: { page: ClientEvaluate }) {
         <div className={styles.claims}>
           <p role="status" className={recordTab.text}>{`Claims for ${page.worked}.`}</p>
           {page.artefacts.map((artefact) => (
-            <Box key={artefact.label} artefact={artefact} />
+            <Box key={artefact.label} artefact={artefact} empty={page.noIdToken} />
           ))}
         </div>
       )}
@@ -93,14 +83,14 @@ function Asked({ tenant, client }: { tenant: string; client: Client }) {
 }
 
 export function Evaluate({ tenant, client }: { tenant: string; client: Client }) {
-  const allowed = useEvaluateAllowed(tenant);
+  const panel = useEvaluatePanel(tenant);
   return (
-    <Panel title={EVALUATE_HEADING}>
-      <p className={recordTab.rule}>{EVALUATE_RULE}</p>
-      {allowed ? (
+    <Panel title={panel.heading}>
+      <p className={recordTab.rule}>{panel.rule}</p>
+      {panel.allowed ? (
         <Asked tenant={tenant} client={client} />
       ) : (
-        <CapabilityNote capability={EVALUATE_CAPABILITY}>Evaluating a subject</CapabilityNote>
+        <CapabilityNote capability={panel.capability}>Evaluating a subject</CapabilityNote>
       )}
     </Panel>
   );

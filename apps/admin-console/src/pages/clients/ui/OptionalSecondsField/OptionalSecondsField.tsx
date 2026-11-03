@@ -6,8 +6,6 @@ import {
   ReadOnlyValue,
   ToggleField,
 } from '#/shared/ui/Field';
-import { formatDuration } from '#/shared/services/format';
-import { numberKept } from '#/shared/services/numbers';
 import { recordTab } from '#/shared/ui/RecordTab';
 
 // A duration a client may leave to a default: off, it takes the default and
@@ -16,6 +14,7 @@ export function OptionalSecondsField({
   label,
   offLabel,
   offText,
+  readText,
   rule,
   value,
   start,
@@ -29,6 +28,8 @@ export function OptionalSecondsField({
   // The toggle's label, and what the default is, said while it is off.
   offLabel: string;
   offText: string;
+  // The value as a read-only page says it.
+  readText: string;
   rule: string;
   value: number | null;
   // What a duration starts from when it is first given.
@@ -43,7 +44,7 @@ export function OptionalSecondsField({
     return (
       <ReadOnlyValue
         label={label}
-        value={value === null ? offText : formatDuration(value)}
+        value={readText}
         description={rule}
         changed={changed}
         mono={value !== null}
@@ -69,7 +70,7 @@ export function OptionalSecondsField({
           {...(max === undefined ? {} : { maxValue: max })}
           value={value}
           onChange={(entered) => {
-            onChange(numberKept(entered, value));
+            if (!Number.isNaN(entered)) onChange(entered);
           }}
         />
       )}

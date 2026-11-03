@@ -1,9 +1,4 @@
-import {
-  INSTALLATION_HEADING,
-  INSTALLATION_RULE,
-  NONE,
-  type InstallationRow,
-} from '#/pages/clients/services/installation';
+import type { InstallationRow } from '#/pages/clients/services/installation';
 import { useInstallationPanel } from '#/pages/clients/use-cases/useClientInstallationPanel';
 import { Button } from '#/shared/ui/Button';
 import { CopyValue } from '#/shared/ui/CopyValue';
@@ -12,8 +7,8 @@ import { FormSkeleton } from '#/shared/ui/Skeleton';
 import { recordTab } from '#/shared/ui/RecordTab';
 import styles from '#/pages/clients/ui/Installation/Installation.module.css';
 
-function Value({ row }: { row: InstallationRow }) {
-  if (row.values.length === 0) return <span className={recordTab.rule}>{NONE}</span>;
+function Value({ row, none }: { row: InstallationRow; none: string }) {
+  if (row.values.length === 0) return <span className={recordTab.rule}>{none}</span>;
   if (row.copy) {
     return (
       <>
@@ -35,10 +30,11 @@ function Value({ row }: { row: InstallationRow }) {
 }
 
 export function Installation({ tenant, clientDbId }: { tenant: string; clientDbId: string }) {
-  const panel = useInstallationPanel(tenant, clientDbId);
+  const page = useInstallationPanel(tenant, clientDbId);
+  const panel = page.read;
   return (
-    <Panel title={INSTALLATION_HEADING}>
-      <p className={recordTab.rule}>{INSTALLATION_RULE}</p>
+    <Panel title={page.heading}>
+      <p className={recordTab.rule}>{page.rule}</p>
       {panel.status === 'loading' ? (
         <FormSkeleton label="Loading the installation" fields={3} />
       ) : null}
@@ -54,7 +50,7 @@ export function Installation({ tenant, clientDbId }: { tenant: string; clientDbI
             <div key={row.label}>
               <dt>{row.label}</dt>
               <dd>
-                <Value row={row} />
+                <Value row={row} none={page.none} />
               </dd>
             </div>
           ))}

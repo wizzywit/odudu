@@ -8,12 +8,19 @@ import {
 import { skipLogoutFixed } from '#/pages/clients/services/builtinFixed';
 import { CLIENT_LIST_LIMIT, listCount } from '#/pages/clients/services/listEntries';
 import {
+  BACKCHANNEL_RULE,
   BACKCHANNEL_SESSION_LABEL,
+  BACKCHANNEL_SESSION_RULE,
+  FRONTCHANNEL_RULE,
   FRONTCHANNEL_SESSION_LABEL,
+  FRONTCHANNEL_SESSION_RULE,
   LOGOUT_FIELD,
   POST_LOGOUT_NOUN,
+  POST_LOGOUT_RULE,
   skipLogoutHint,
   SKIP_LOGOUT_LABEL,
+  SKIP_LOGOUT_WARNING,
+  SKIP_LOGOUT_WARNING_ID,
 } from '#/pages/clients/services/logoutSettings';
 import { SECTIONS_LOGOUT } from '#/pages/clients/services/clientSections';
 import {
@@ -24,8 +31,20 @@ import { useSectionSave, type SectionSave } from '#/shared/repository/useSection
 import { orBlank } from '#/shared/services/format';
 
 export interface ClientLogout {
+  sections: typeof SECTIONS_LOGOUT;
   postLogout: SectionSave<PostLogoutValues>;
-  postLogoutCount: string;
+  // The rule for post-logout redirect URIs, with how many are listed.
+  postLogoutDescription: string;
+  skipLogoutLabel: string;
+  // The id of the warning the toggle is described by, and the warning.
+  skipLogoutWarningId: string;
+  skipLogoutWarning: string;
+  backchannelRule: string;
+  backchannelSessionLabel: string;
+  backchannelSessionRule: string;
+  frontchannelRule: string;
+  frontchannelSessionLabel: string;
+  frontchannelSessionRule: string;
   confirmation: SectionSave<ConfirmationValues>;
   // Why the setting cannot be changed on this client, or null where it can.
   confirmationFixed: string | null;
@@ -101,12 +120,22 @@ export function useClientLogout(args: ClientRecordRead): ClientLogout {
     save: saves.frontchannel,
   });
   return {
+    sections: SECTIONS_LOGOUT,
     postLogout,
-    postLogoutCount: listCount(
+    postLogoutDescription: `${POST_LOGOUT_RULE} ${listCount(
       postLogout.values.post_logout_redirect_uris,
       CLIENT_LIST_LIMIT,
       POST_LOGOUT_NOUN,
-    ),
+    )}`,
+    skipLogoutLabel: SKIP_LOGOUT_LABEL,
+    skipLogoutWarningId: SKIP_LOGOUT_WARNING_ID,
+    skipLogoutWarning: SKIP_LOGOUT_WARNING,
+    backchannelRule: BACKCHANNEL_RULE,
+    backchannelSessionLabel: BACKCHANNEL_SESSION_LABEL,
+    backchannelSessionRule: BACKCHANNEL_SESSION_RULE,
+    frontchannelRule: FRONTCHANNEL_RULE,
+    frontchannelSessionLabel: FRONTCHANNEL_SESSION_LABEL,
+    frontchannelSessionRule: FRONTCHANNEL_SESSION_RULE,
     confirmation,
     confirmationFixed: skipLogoutFixed(client),
     confirmationHint: skipLogoutHint(

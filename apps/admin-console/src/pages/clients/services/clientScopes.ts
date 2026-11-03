@@ -48,6 +48,11 @@ export const PICKER_LABEL = 'Scope to assign';
 export const ASSIGNED_HEADING = 'Assigned scopes';
 export const ASSIGN_HEADING = 'Assign a scope';
 
+// The assign button names the scope chosen, once there is one.
+export function assignButtonText(chosen: string | null): string {
+  return chosen === null ? ASSIGN_LABEL : `${ASSIGN_LABEL} ${chosen}`;
+}
+
 // A lost answer is never sent again; the assigned list says whether it took.
 export function scopeFailureText(
   failure: GatewayFailure,

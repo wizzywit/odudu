@@ -5,8 +5,8 @@ import { areaAt } from '#/entities/area';
 import { clientsTrail } from '#/entities/client';
 import { type BrandingOffer } from '#/pages/clients/services/branding';
 import { type ServiceAccountReach } from '#/pages/clients/services/ceiling';
-import { ACTIVITY_NOTE, CLIENT_TITLE } from '#/pages/clients/services/clientDetails';
-import { CLIENT_TAB_LABELS, CLIENT_TABS, type ClientTab } from '#/pages/clients/services/tabs';
+import type { ClientTab } from '#/pages/clients/services/tabs';
+import { useClientFrame } from '#/pages/clients/use-cases/useClientFrame';
 import { useClientRecordPage } from '#/pages/clients/use-cases/useClientRecordPage';
 import type { ClientTabProps } from '#/pages/clients/ui/ClientTabProps';
 import { AdvancedTab } from '#/pages/clients/ui/AdvancedTab';
@@ -19,7 +19,6 @@ import { ScopesTab } from '#/pages/clients/ui/ScopesTab';
 import { SessionsTab } from '#/pages/clients/ui/SessionsTab';
 import { ServiceAccountTab } from '#/pages/clients/ui/ServiceAccountTab';
 import { TokensTab } from '#/pages/clients/ui/TokensTab';
-import type { AdminCapability } from '#/shared/services/principal';
 import { Note } from '#/shared/ui/Note';
 import { RecordActivity } from '#/shared/ui/RecordActivity';
 import { RecordPage } from '#/shared/ui/RecordPage';
@@ -29,19 +28,14 @@ import { ViewOnlyNote } from '#/shared/ui/ViewOnlyNote';
 interface PanelProps extends ClientTabProps {
   reach: ServiceAccountReach;
   branding: BrandingOffer;
-  needs: readonly AdminCapability[];
+  brandingHeld: { lead: string; needs: string };
+  activityNote: string;
 }
 
-function Activity({ tenant, id }: { tenant: string; id: string }) {
+function Activity({ tenant, id, lead }: { tenant: string; id: string; lead: string }) {
   const readable = useAuditReadable(tenant);
   return (
-    <RecordActivity
-      resource="client"
-      tenant={tenant}
-      id={id}
-      lead={ACTIVITY_NOTE}
-      readable={readable}
-    />
+    <RecordActivity resource="client" tenant={tenant} id={id} lead={lead} readable={readable} />
   );
 }
 
@@ -70,7 +64,7 @@ const PANELS: Readonly<Record<ClientTab, (props: PanelProps) => ReactNode>> = {
       tenant={props.tenant}
       client={props.client}
       offer={props.branding}
-      needs={props.needs}
+      held={props.brandingHeld}
     />
   ),
   advanced: (props) => <AdvancedTab {...writes(props)} />,
@@ -86,13 +80,15 @@ const PANELS: Readonly<Record<ClientTab, (props: PanelProps) => ReactNode>> = {
   sessions: (props) => (
     <SessionsTab tenant={props.tenant} client={props.client} reach={props.reach} />
   ),
-  activity: (props) => <Activity tenant={props.tenant} id={props.client.id} />,
+  activity: (props) => (
+    <Activity tenant={props.tenant} id={props.client.id} lead={props.activityNote} />
+  ),
 };
 
 function Record({ tenant, id }: { tenant: string; id: string }) {
   const page = useClientRecordPage(tenant, id);
   const { client, etag } = page;
-  const title = client?.name ?? CLIENT_TITLE;
+  const { title } = page;
   const props: PanelProps | null =
     client === undefined || etag === null
       ? null
@@ -104,7 +100,8 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
           writable: page.writable,
           reach: page.reach,
           branding: page.branding,
-          needs: page.changeNeeds,
+          brandingHeld: page.brandingHeld,
+          activityNote: page.activityNote,
         };
   return (
     <RecordPage
@@ -130,23 +127,24 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
       label="Client sections"
       tab={page.tab}
       onTabChange={page.selectTab}
-      tabs={CLIENT_TABS.map((tab) => ({
-        id: tab,
-        label: CLIENT_TAB_LABELS[tab],
-        dirty: page.dirty.has(tab),
-        panel: props === null ? null : PANELS[tab](props),
+      tabs={page.tabList.map(({ id, label, dirty }) => ({
+        id,
+        label,
+        dirty,
+        panel: props === null ? null : PANELS[id](props),
       }))}
     />
   );
 }
 
 export function ClientRecordPage({ tenant, id }: { tenant: string; id: string }) {
+  const { record } = useClientFrame(tenant);
   return (
     <AreaGate
       tenant={tenant}
       area={areaAt('clients')}
-      title={CLIENT_TITLE}
-      breadcrumb={clientsTrail(tenant, CLIENT_TITLE)}
+      title={record.title}
+      breadcrumb={record.breadcrumb}
     >
       <Record tenant={tenant} id={id} />
     </AreaGate>

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { expect, it, vi } from 'vitest';
 import { OptionalSecondsField } from '#/pages/clients/ui/OptionalSecondsField';
 import { ReadOnlyFields } from '#/shared/ui/Field';
+import { secondsReading } from '#/pages/clients/services/tokenLifetimes';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 
 function Field({
@@ -19,6 +20,7 @@ function Field({
       label="Access token lifetime"
       offLabel="Use the tenant's access token lifetime"
       offText="Takes the tenant's."
+      readText={secondsReading(value, "Takes the tenant's.")}
       rule="Between 1 s and 3600 s · 1 hour."
       value={value}
       start={300}

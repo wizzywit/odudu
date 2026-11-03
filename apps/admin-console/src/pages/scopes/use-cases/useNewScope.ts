@@ -7,6 +7,7 @@ import {
   createBodyOf,
   type Copying,
   copyingOf,
+  copyingText,
   copyPlan,
   partialCopy,
   sourceBound,
@@ -19,7 +20,13 @@ import { problemAt, requiredProblem } from '#/shared/services/fieldErrors';
 import { createdText, lookupText, namedCreation } from '#/shared/services/failure';
 import { DESCRIPTION_RULE } from '#/shared/services/labels';
 import { useCreationFlow } from '#/shared/use-cases/useCreationFlow';
-import { copiedDescription, copyBlocked, copyBusy, type PartialCopy } from '#/shared/services/copy';
+import {
+  copiedDescription,
+  copyBlocked,
+  copyBusy,
+  copyingLineOf,
+  type PartialCopy,
+} from '#/shared/services/copy';
 
 type Field = 'name' | 'description';
 type Errors = Partial<Record<Field, string>>;
@@ -30,6 +37,8 @@ export interface NewScope {
   listHref: string;
   descriptionRule: string;
   copying: Copying;
+  // What the copy carries, once that is known.
+  copyingLine: string | null;
   name: string;
   description: string;
   errors: Errors;
@@ -60,6 +69,7 @@ export function useNewScope(tenant: string): NewScope {
   const shown = copiedDescription(description, sourceDescription(source));
   const plan = copyPlan(sourceRoles(source), caller, tenant);
   const mappers = sourceBound(source);
+  const copying = copyingOf(source, plan);
   const looked = lookupText('scope', name);
 
   const land = (scope: Scope, missed: Parameters<typeof partialCopy>[2]): void => {
@@ -90,7 +100,8 @@ export function useNewScope(tenant: string): NewScope {
   return {
     listHref: scopesHref(tenant),
     descriptionRule: DESCRIPTION_RULE,
-    copying: copyingOf(source, plan),
+    copying,
+    copyingLine: copyingLineOf(copying, copyingText),
     name,
     description: shown,
     errors: flow.errors,

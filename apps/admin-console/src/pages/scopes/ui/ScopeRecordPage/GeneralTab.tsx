@@ -1,23 +1,9 @@
 import type { Scope } from '#/entities/scope';
 import {
-  ACCESS_TOKEN_LABEL,
-  ID_TOKEN_LABEL,
-  NEW_CLIENT_LABEL,
-} from '#/pages/scopes/services/scopeDelivery';
-import {
-  CONSENT_LANGUAGES_LABEL,
-  CONSENT_LANGUAGES_NOTE,
-  CONSENT_LIMIT,
-  DESCRIPTION_LANGUAGES_LABEL,
-  DESCRIPTION_LANGUAGES_NOTE,
-} from '#/pages/scopes/services/scopeConsent';
-import { NAME_FIXED } from '#/pages/scopes/services/scopeDetails';
-import {
   useScopeGeneral,
   type Deletion,
   type ScopeGeneral,
 } from '#/pages/scopes/use-cases/useScopeGeneral';
-import { DESCRIPTION_MAX } from '#/shared/services/labels';
 import { DeleteZone } from '#/shared/ui/DeleteZone';
 import { DescriptionField } from '#/shared/ui/DescriptionField';
 import { SelectField, TextAreaField, TextField, ToggleField } from '#/shared/ui/Field';
@@ -27,7 +13,7 @@ import { SaveSection } from '#/shared/ui/SaveSection';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
 
-function Fixed({ scope }: { scope: Scope }) {
+function Fixed({ scope, nameFixed }: { scope: Scope; nameFixed: string }) {
   return (
     <Panel title="Name">
       <dl className={recordTab.fixed}>
@@ -44,7 +30,7 @@ function Fixed({ scope }: { scope: Scope }) {
           </dd>
         </div>
       </dl>
-      <p className={recordTab.rule}>{NAME_FIXED}</p>
+      <p className={recordTab.rule}>{nameFixed}</p>
     </Panel>
   );
 }
@@ -59,11 +45,11 @@ function Description({ general }: { general: ScopeGeneral }) {
     >
       <DescriptionField save={s} rule={general.descriptionRule} />
       <LocalisedTextField
-        label={DESCRIPTION_LANGUAGES_LABEL}
-        description={DESCRIPTION_LANGUAGES_NOTE}
+        label={general.text.descriptionLanguagesLabel}
+        description={general.text.descriptionLanguagesNote}
         languages={general.languages}
         value={s.values.description_i18n}
-        limit={DESCRIPTION_MAX}
+        limit={general.text.descriptionLimit}
         multiline
         error={s.fieldErrors.description_i18n}
         changed={s.changed.includes('description_i18n')}
@@ -84,7 +70,7 @@ function Tokens({ general }: { general: ScopeGeneral }) {
       save={s}
     >
       <ToggleField
-        label={ID_TOKEN_LABEL}
+        label={general.text.idTokenLabel}
         value={s.values.include_in_id_token}
         error={s.fieldErrors.include_in_id_token}
         changed={s.changed.includes('include_in_id_token')}
@@ -93,7 +79,7 @@ function Tokens({ general }: { general: ScopeGeneral }) {
         }}
       />
       <ToggleField
-        label={ACCESS_TOKEN_LABEL}
+        label={general.text.accessTokenLabel}
         value={s.values.include_in_access_token}
         error={s.fieldErrors.include_in_access_token}
         changed={s.changed.includes('include_in_access_token')}
@@ -114,7 +100,7 @@ function NewClients({ general }: { general: ScopeGeneral }) {
       save={s}
     >
       <SelectField
-        label={NEW_CLIENT_LABEL}
+        label={general.text.newClientLabel}
         options={general.assignmentChoices}
         value={s.values.default_client_assignment}
         error={s.fieldErrors.default_client_assignment}
@@ -146,11 +132,11 @@ function Consent({ general }: { general: ScopeGeneral }) {
         }}
       />
       <LocalisedTextField
-        label={CONSENT_LANGUAGES_LABEL}
-        description={CONSENT_LANGUAGES_NOTE}
+        label={general.text.consentLanguagesLabel}
+        description={general.text.consentLanguagesNote}
         languages={general.languages}
         value={s.values.consent_text_i18n}
-        limit={CONSENT_LIMIT}
+        limit={general.text.consentLimit}
         multiline
         error={s.fieldErrors.consent_text_i18n}
         changed={s.changed.includes('consent_text_i18n')}
@@ -206,7 +192,7 @@ export function GeneralTab({
   const general = useScopeGeneral({ tenant, scope, etag, gone });
   return (
     <div className={recordTab.tab}>
-      <Fixed scope={scope} />
+      <Fixed scope={scope} nameFixed={general.text.nameFixed} />
       <Description general={general} />
       <Tokens general={general} />
       <NewClients general={general} />

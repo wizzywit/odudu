@@ -1,5 +1,10 @@
 import { useState } from 'react';
 import {
+  BRANDING_FAILED,
+  BRANDING_LEAD,
+  BRANDING_LOADING,
+} from '#/pages/clients/services/branding';
+import {
   clientScope,
   selectScopedTab,
   showsPreview,
@@ -11,6 +16,9 @@ import {
 } from '#/features/branding';
 
 export interface ClientBranding {
+  lead: string;
+  loading: string;
+  failed: string;
   branding: ScopeBranding;
   tab: ScopedTab;
   selectTab: (tab: string) => void;
@@ -25,6 +33,9 @@ export function useClientBranding(tenant: string, id: string): ClientBranding {
   useScopeTabReads(tenant, scope, tab);
   const branding = useScopeBranding(tenant, scope, showsPreview(tab));
   return {
+    lead: BRANDING_LEAD,
+    loading: BRANDING_LOADING,
+    failed: BRANDING_FAILED,
     branding,
     tab,
     selectTab: (next) => {

@@ -2,7 +2,7 @@ import type { Composites } from '#/pages/roles/types/composite';
 import type { RoleCopySource } from '#/pages/roles/types/roleCopySource';
 import { withSearch } from '#/shared/services/address';
 import type { Role } from '#/entities/role';
-import { type LeftOut, type PartialCopy } from '#/shared/services/copy';
+import { copyingLineOf, type LeftOut, type PartialCopy } from '#/shared/services/copy';
 import { andList } from '#/shared/services/format';
 import { type AdminCapability } from '#/shared/services/principal';
 import { type GatewayResult } from '#/shared/services/result';
@@ -77,7 +77,7 @@ export function copyingText(copying: { name: string; children: readonly string[]
 }
 
 export function copyingLine(copying: Copying): string | null {
-  return copying.status === 'ready' ? copyingText(copying) : null;
+  return copyingLineOf(copying, copyingText);
 }
 
 // The role with its children, or nothing when either read failed.

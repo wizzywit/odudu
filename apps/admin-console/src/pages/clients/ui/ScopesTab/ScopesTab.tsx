@@ -2,13 +2,6 @@ import type { Client } from '#/entities/client';
 import type { Scope } from '#/entities/scope';
 import { type ServiceAccountReach } from '#/pages/clients/services/ceiling';
 import {
-  ASSIGN_HEADING,
-  ASSIGN_LABEL,
-  ASSIGNED_HEADING,
-  NO_SCOPES,
-  PICKER_LABEL,
-} from '#/pages/clients/services/clientScopes';
-import {
   useClientScopeAssignment,
   type ClientScopes,
 } from '#/pages/clients/use-cases/useClientScopeAssignment';
@@ -24,11 +17,11 @@ import { recordTab } from '#/shared/ui/RecordTab';
 function Assigned({ client, page }: { client: Client; page: ClientScopes }) {
   const { heading, afterRemoval } = useHeadingFocus();
   return (
-    <Panel title={ASSIGNED_HEADING} headingRef={heading}>
+    <Panel title={page.assignedHeading} headingRef={heading}>
       <p className={recordTab.rule}>{page.rule}</p>
       {page.fixed === null ? null : <p className={recordTab.rule}>{page.fixed}</p>}
       {page.shown.length === 0 ? (
-        <p className={recordTab.text}>{NO_SCOPES}</p>
+        <p className={recordTab.text}>{page.noScopes}</p>
       ) : (
         <AssignedList label={`Scopes assigned to ${client.name}`}>
           {page.shown.map((scope) => (
@@ -74,16 +67,16 @@ function Assigned({ client, page }: { client: Client; page: ClientScopes }) {
 function Assign({ page }: { page: ClientScopes }) {
   return (
     <AssignPanel
-      title={ASSIGN_HEADING}
+      title={page.assignHeading}
       assignment={page.assignment}
       choices={page.choices}
       onAssignment={page.setAssignment}
-      label={page.chosen === null ? ASSIGN_LABEL : `${ASSIGN_LABEL} ${page.chosen.name}`}
+      label={page.assignLabel}
       disabled={page.chosen === null || page.working !== null}
       onAssign={page.assign}
     >
       <Picker<Scope>
-        label={PICKER_LABEL}
+        label={page.pickerLabel}
         noun={{ one: 'scope', other: 'scopes' }}
         picker={page.picker}
         idOf={(scope) => scope.id}

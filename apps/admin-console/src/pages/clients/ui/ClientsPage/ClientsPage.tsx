@@ -1,7 +1,6 @@
 import type { Client } from '#/entities/client';
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
-import { TYPE_TEXT } from '#/pages/clients/services/clientDetails';
 import { useClientsList } from '#/pages/clients/use-cases/useClientsList';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
 import type { Column } from '#/shared/ui/DataTable';
@@ -10,35 +9,36 @@ import { ResourceListPage } from '#/shared/ui/ResourceListPage';
 import { EnabledTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import styles from '#/pages/clients/ui/ClientsPage/ClientsPage.module.css';
-import { STATUS_FILTER } from '#/shared/services/filters';
 
 const AREA = areaAt('clients');
 
-const COLUMNS: readonly Column<Client>[] = [
-  {
-    id: 'name',
-    header: 'Client',
-    isRowHeader: true,
-    cell: (client) => (
-      <span className={styles.name}>
-        <span>{client.name}</span>
-        <code className={styles.clientId}>{client.client_id}</code>
-      </span>
-    ),
-  },
-  { id: 'type', header: 'Type', cell: (client) => TYPE_TEXT[client.type] ?? client.type },
-  {
-    id: 'enabled',
-    header: 'Status',
-    cell: (client) => <EnabledTag enabled={client.enabled} />,
-  },
-  {
-    id: 'created_at',
-    header: 'Created',
-    secondary: true,
-    cell: (client) => <Timestamp value={client.created_at} />,
-  },
-];
+function columnsOf(typeText: Readonly<Record<string, string>>): readonly Column<Client>[] {
+  return [
+    {
+      id: 'name',
+      header: 'Client',
+      isRowHeader: true,
+      cell: (client) => (
+        <span className={styles.name}>
+          <span>{client.name}</span>
+          <code className={styles.clientId}>{client.client_id}</code>
+        </span>
+      ),
+    },
+    { id: 'type', header: 'Type', cell: (client) => typeText[client.type] ?? client.type },
+    {
+      id: 'enabled',
+      header: 'Status',
+      cell: (client) => <EnabledTag enabled={client.enabled} />,
+    },
+    {
+      id: 'created_at',
+      header: 'Created',
+      secondary: true,
+      cell: (client) => <Timestamp value={client.created_at} />,
+    },
+  ];
+}
 
 const SEARCH = [
   { id: 'name', label: 'Name' },
@@ -79,7 +79,7 @@ function List({ tenant }: { tenant: string }) {
           />
           <SelectField
             label="Status"
-            options={STATUS_FILTER}
+            options={page.statusFilter}
             value={list.filters.enabled ?? 'any'}
             onChange={(value) => {
               list.setFilter('enabled', value === 'any' ? null : value);
@@ -87,7 +87,7 @@ function List({ tenant }: { tenant: string }) {
           />
         </>
       }
-      columns={COLUMNS}
+      columns={columnsOf(page.typeText)}
       rowKey={(client) => client.id}
       onRowAction={page.open}
       capability="manage-clients"

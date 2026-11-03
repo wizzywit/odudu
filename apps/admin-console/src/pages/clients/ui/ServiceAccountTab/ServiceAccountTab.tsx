@@ -1,9 +1,6 @@
 import type { SetRolesResponse } from '@odudu/contracts/admin';
 import type { Client } from '#/entities/client';
-import { NO_ROLES, assignedCount } from '#/pages/clients/services/serviceRoles';
-import { SERVICE_CAPABILITY, SERVICE_RULE } from '#/pages/clients/services/serviceAccess';
 import { type ServiceAccountReach } from '#/pages/clients/services/ceiling';
-import { roleOwnerLine } from '#/pages/clients/services/clientRoles';
 import {
   useServiceAccess,
   useServiceRoles,
@@ -47,12 +44,12 @@ function Roles({ client, page }: { client: Client; page: ServiceRoles }) {
   const s = page.save;
   return (
     <>
-      <SaveSection title="Roles" description={SERVICE_RULE} save={s}>
+      <SaveSection title="Roles" description={page.rule} save={s}>
         {page.assigned.length === 0 ? (
-          <p className={recordTab.rule}>{NO_ROLES}</p>
+          <p className={recordTab.rule}>{page.noRoles}</p>
         ) : (
           <>
-            <p className={recordTab.rule}>{assignedCount(page.assigned.length)}</p>
+            <p className={recordTab.rule}>{page.assignedLine}</p>
             <ul
               aria-label={`Assigned to ${client.name}'s service account`}
               className={recordTab.list}
@@ -60,7 +57,7 @@ function Roles({ client, page }: { client: Client; page: ServiceRoles }) {
               {page.assigned.map((role) => (
                 <li key={role.id}>
                   <code>{role.name}</code>
-                  <span className={recordTab.rule}>{` · ${roleOwnerLine(role.client)}`}</span>
+                  <span className={recordTab.rule}>{` · ${role.owner}`}</span>
                 </li>
               ))}
             </ul>
@@ -139,7 +136,7 @@ export function ServiceAccountTab({
       {access.idle === null ? null : <p className={recordTab.rule}>{access.idle}</p>}
       {access.status === 'none' ? <p className={recordTab.rule}>{access.note}</p> : null}
       {access.status === 'denied' ? (
-        <CapabilityNote capability={SERVICE_CAPABILITY}>The service account's roles</CapabilityNote>
+        <CapabilityNote capability={access.capability}>The service account's roles</CapabilityNote>
       ) : null}
       {access.status === 'ready' ? (
         <Account

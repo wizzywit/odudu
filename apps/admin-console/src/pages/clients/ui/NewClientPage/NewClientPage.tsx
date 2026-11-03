@@ -1,9 +1,6 @@
 import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
-import { clientsTrail } from '#/entities/client';
-import { SECRET_LABEL } from '#/pages/clients/services/createdSecret';
-import { KIND_CHOICES, NEW_CLIENT_TITLE } from '#/pages/clients/services/newClient';
-import { REDIRECTS_RULE } from '#/pages/clients/services/clientRedirects';
+import { useClientFrame } from '#/pages/clients/use-cases/useClientFrame';
 import { useNewClient } from '#/pages/clients/use-cases/useNewClient';
 import { CreationActions, CreationForm } from '#/shared/ui/CreationForm';
 import { SelectField, TextAreaField, TextField, UrlListField } from '#/shared/ui/Field';
@@ -12,7 +9,6 @@ import { SecretDialog } from '#/shared/ui/SecretDialog';
 
 function Form({ tenant }: { tenant: string }) {
   const page = useNewClient(tenant);
-  const chosen = KIND_CHOICES.find((choice) => choice.id === page.kind);
   return (
     <>
       <CreationForm submit={page.submit}>
@@ -42,8 +38,8 @@ function Form({ tenant }: { tenant: string }) {
         />
         <SelectField
           label="Kind"
-          description={chosen?.description}
-          options={KIND_CHOICES.map((choice) => ({ id: choice.id, label: choice.label }))}
+          description={page.kindDescription}
+          options={page.kindOptions}
           value={page.kind}
           onChange={page.editKind}
         />
@@ -51,7 +47,7 @@ function Form({ tenant }: { tenant: string }) {
           <UrlListField
             label="Redirect URIs"
             itemLabel="Redirect URI"
-            description={`${REDIRECTS_RULE} ${page.redirectCount}`}
+            description={page.redirectsDescription}
             error={page.errors.redirect_uris}
             value={page.redirectUris}
             onChange={page.editRedirectUris}
@@ -70,7 +66,7 @@ function Form({ tenant }: { tenant: string }) {
       <SecretDialog
         secret={page.secret}
         title={page.secretTitle}
-        label={SECRET_LABEL}
+        label={page.secretLabel}
         onClose={page.closeSecret}
       >
         {page.secretNote}
@@ -80,12 +76,17 @@ function Form({ tenant }: { tenant: string }) {
 }
 
 export function NewClientPage({ tenant }: { tenant: string }) {
-  const trail = clientsTrail(tenant, NEW_CLIENT_TITLE);
+  const { creation } = useClientFrame(tenant);
   return (
-    <AreaGate tenant={tenant} area={areaAt('clients')} title={NEW_CLIENT_TITLE} breadcrumb={trail}>
+    <AreaGate
+      tenant={tenant}
+      area={areaAt('clients')}
+      title={creation.title}
+      breadcrumb={creation.breadcrumb}
+    >
       <PageHeader
-        breadcrumb={trail}
-        title={NEW_CLIENT_TITLE}
+        breadcrumb={creation.breadcrumb}
+        title={creation.title}
         description="A client starts with the default scopes and no roles. Everything else about it is set from its own page."
       />
       <Form tenant={tenant} />

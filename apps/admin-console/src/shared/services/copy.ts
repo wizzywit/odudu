@@ -50,3 +50,17 @@ export function copyReadOf<S extends object & { status?: never }>(
 export function copiedDescription(edited: string | null, source: string | null): string {
   return edited ?? source ?? '';
 }
+
+// The line a copy in progress opens with, once what it copies is known.
+export function copyingLineOf<C extends { status: string }>(
+  copying: C,
+  say: (ready: Extract<C, { status: 'ready' }>) => string,
+): string | null {
+  return isReady(copying) ? say(copying) : null;
+}
+
+function isReady<C extends { status: string }>(
+  copying: C,
+): copying is Extract<C, { status: 'ready' }> {
+  return copying.status === 'ready';
+}

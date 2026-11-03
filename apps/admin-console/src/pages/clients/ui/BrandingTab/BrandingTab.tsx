@@ -9,16 +9,8 @@ import {
   ThemePanel,
   type ScopedTab,
 } from '#/features/branding';
-import {
-  BRANDING_FAILED,
-  BRANDING_HELD,
-  type BrandingOffer,
-  BRANDING_LEAD,
-  BRANDING_LOADING,
-} from '#/pages/clients/services/branding';
+import { type BrandingOffer } from '#/pages/clients/services/branding';
 import { useClientBranding } from '#/pages/clients/use-cases/useClientBranding';
-import { andList } from '#/shared/services/format';
-import type { AdminCapability } from '#/shared/services/principal';
 import { Note, NoteCode } from '#/shared/ui/Note';
 import { ReadGate } from '#/shared/ui/ReadGate';
 import { recordTab } from '#/shared/ui/RecordTab';
@@ -30,8 +22,8 @@ function Editing({ tenant, id }: { tenant: string; id: string }) {
   const { branding } = page;
   return (
     <div className={recordTab.tab}>
-      <p className={recordTab.rule}>{BRANDING_LEAD}</p>
-      <ReadGate read={branding.record} label={BRANDING_LOADING} fields={4} failed={BRANDING_FAILED}>
+      <p className={recordTab.rule}>{page.lead}</p>
+      <ReadGate read={branding.record} label={page.loading} fields={4} failed={page.failed}>
         {(view, tag) => {
           const panels: Readonly<Record<ScopedTab, ReactNode>> = {
             theme: <ThemePanel tenant={tenant} branding={branding} view={view} tag={tag} />,
@@ -73,20 +65,20 @@ export function BrandingTab({
   tenant,
   client,
   offer,
-  needs,
+  held,
 }: {
   tenant: string;
   client: ClientRecord;
   offer: BrandingOffer;
-  needs: readonly AdminCapability[];
+  held: { lead: string; needs: string };
 }) {
   if (offer === 'checking') return null;
   if (offer === 'held') {
     return (
       <div className={recordTab.tab}>
         <Note>
-          {`${BRANDING_HELD} `}
-          <NoteCode>{andList(needs)}</NoteCode>.
+          {`${held.lead} `}
+          <NoteCode>{held.needs}</NoteCode>.
         </Note>
       </div>
     );

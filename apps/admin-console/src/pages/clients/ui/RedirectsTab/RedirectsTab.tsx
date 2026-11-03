@@ -1,9 +1,4 @@
 import { Link } from 'react-aria-components';
-import {
-  ORIGINS_RULE,
-  POST_LOGOUT_NOTE,
-  REDIRECTS_RULE,
-} from '#/pages/clients/services/clientRedirects';
 import { useClientRedirects } from '#/pages/clients/use-cases/useClientRedirects';
 import type { ClientTabProps } from '#/pages/clients/ui/ClientTabProps';
 import { ReadOnlyFields, UrlListField } from '#/shared/ui/Field';
@@ -22,7 +17,7 @@ export function RedirectsTab({ tenant, client, etag, gone, writable }: ClientTab
           <UrlListField
             label="Redirect URIs"
             itemLabel="Redirect URI"
-            description={`${REDIRECTS_RULE} ${page.redirectCount}`}
+            description={page.redirectsDescription}
             error={redirects.fieldErrors.redirect_uris}
             changed={redirects.changed.includes('redirect_uris')}
             value={redirects.values.redirect_uris}
@@ -35,7 +30,7 @@ export function RedirectsTab({ tenant, client, etag, gone, writable }: ClientTab
           <UrlListField
             label="Web origins"
             itemLabel="Web origin"
-            description={`${ORIGINS_RULE} ${page.originCount}`}
+            description={page.originsDescription}
             error={origins.fieldErrors.web_origins}
             changed={origins.changed.includes('web_origins')}
             value={origins.values.web_origins}
@@ -46,7 +41,7 @@ export function RedirectsTab({ tenant, client, etag, gone, writable }: ClientTab
         </SaveSection>
       </ReadOnlyFields>
       <p className={recordTab.rule}>
-        {`${POST_LOGOUT_NOTE} `}
+        {`${page.logoutNote} `}
         <Link href={page.logoutHref}>Open Logout</Link>
       </p>
     </div>

@@ -6,16 +6,32 @@ import {
   type KeyValues,
   type UserinfoValues,
 } from '#/pages/clients/repository/useClientConfigSaves';
-import { authOptions, needsSubjectDn } from '#/pages/clients/services/clientAuthentication';
-import { EXCHANGE_LABEL } from '#/pages/clients/services/tokenExchange';
 import {
+  authNote,
+  authOptions,
+  needsSubjectDn,
+  PUBLIC_AUTH_FIXED,
+  SUBJECT_DN_RULE,
+} from '#/pages/clients/services/clientAuthentication';
+import {
+  AUDIENCES_RULE,
+  EXCHANGE_LABEL,
+  EXCHANGE_RULE,
+  FIXED_BY_DESIGN,
+} from '#/pages/clients/services/tokenExchange';
+import {
+  JWKS_URI_RULE,
   jwksText,
+  keysBlockedBy,
+  KEYS_RULE,
+  KEY_SOURCES,
   keysProblem,
   keySourceOf,
   type KeysProblem,
 } from '#/pages/clients/services/clientKeys';
 import { SECTIONS_ADVANCED } from '#/pages/clients/services/clientSections';
 import {
+  USERINFO_RULE,
   userinfoContentOptions,
   userinfoEncryptionOptions,
   userinfoSigningOptions,
@@ -32,6 +48,23 @@ import type { Choice } from '#/shared/services/choice';
 import { namesOrNone, orBlank } from '#/shared/services/format';
 
 export interface ClientAdvanced {
+  sections: typeof SECTIONS_ADVANCED;
+  // Why a public client's authentication cannot be chosen.
+  publicAuthFixed: string;
+  // What the chosen authentication method means.
+  authNote: string | undefined;
+  subjectDnRule: string;
+  keySources: readonly Choice[];
+  keysRule: string;
+  // Why Save is held while the key source lacks something.
+  keysBlocked: string | undefined;
+  jwksUriRule: string;
+  userinfoRule: string;
+  audiencesDescription: string;
+  exchangeLabel: string;
+  exchangeRule: string;
+  // What cannot be changed, each with its value and why.
+  fixedByDesign: typeof FIXED_BY_DESIGN;
   auth: SectionSave<AuthValues>;
   authMethods: Choice[];
   // Whether the method chosen reads a certificate subject.
@@ -46,7 +79,6 @@ export interface ClientAdvanced {
   // Whether an encryption algorithm is chosen, which the content encryption goes with.
   encrypted: boolean;
   audiences: SectionSave<AudienceValues>;
-  audienceCount: string;
   exchange: SectionSave<ExchangeValues>;
 }
 
@@ -133,19 +165,32 @@ export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
     },
     save: saves.exchange,
   });
+  const problem = keysProblem(keys.values, keys.dirty);
   return {
+    sections: SECTIONS_ADVANCED,
+    publicAuthFixed: PUBLIC_AUTH_FIXED,
+    authNote: authNote(auth.values.token_endpoint_auth_method),
+    subjectDnRule: SUBJECT_DN_RULE,
+    keySources: KEY_SOURCES,
+    keysRule: KEYS_RULE,
+    keysBlocked: keysBlockedBy(problem),
+    jwksUriRule: JWKS_URI_RULE,
+    userinfoRule: USERINFO_RULE,
+    audiencesDescription: `${AUDIENCES_RULE} ${listCount(audiences.values.audiences, CLIENT_LIST_LIMIT, 'audiences')}`,
+    exchangeLabel: EXCHANGE_LABEL,
+    exchangeRule: EXCHANGE_RULE,
+    fixedByDesign: FIXED_BY_DESIGN,
     auth,
     authMethods: authOptions(client),
     asksSubject: needsSubjectDn(auth.values.token_endpoint_auth_method),
     keys,
-    keysProblem: keysProblem(keys.values, keys.dirty),
+    keysProblem: problem,
     userinfo,
     signingOptions: userinfoSigningOptions(),
     encryptionOptions: userinfoEncryptionOptions(),
     contentOptions: userinfoContentOptions(),
     encrypted: encryptsUserinfo(userinfo.values.userinfo_encrypted_response_alg),
     audiences,
-    audienceCount: listCount(audiences.values.audiences, CLIENT_LIST_LIMIT, 'audiences'),
     exchange,
   };
 }

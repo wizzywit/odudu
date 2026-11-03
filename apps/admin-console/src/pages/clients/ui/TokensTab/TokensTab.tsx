@@ -1,25 +1,3 @@
-import {
-  AUTH_TIME_LABEL,
-  AUTH_TIME_RULE,
-  FULL_SCOPE_LABEL,
-  FULL_SCOPE_RULE,
-  ID_TOKEN_ALG_LABEL,
-  ID_TOKEN_ALG_RULE,
-  MAX_AGE_LABEL,
-  MAX_AGE_MAX,
-  MAX_AGE_OFF,
-  MAX_AGE_RULE,
-  MAX_AGE_START,
-  REQUIRE_AUTH_TIME_NOTE,
-} from '#/pages/clients/services/idTokenPolicy';
-import { CREDENTIALS_RULE, GRANTS_RULE } from '#/pages/clients/services/grantTypes';
-import {
-  LIFETIMES,
-  lifetimeBounds,
-  lifetimeRule,
-  tenantLifetimeLabel,
-} from '#/pages/clients/services/tokenLifetimes';
-import { SECTIONS_TOKENS } from '#/pages/clients/services/clientSections';
 import { useClientTokens } from '#/pages/clients/use-cases/useClientTokens';
 import { OptionalSecondsField } from '#/pages/clients/ui/OptionalSecondsField';
 import type { ClientTabProps } from '#/pages/clients/ui/ClientTabProps';
@@ -35,35 +13,33 @@ export function TokensTab({ tenant, client, etag, gone, writable }: ClientTabPro
     <div className={recordTab.tab}>
       <ReadOnlyFields when={!writable}>
         <SaveSection
-          title={SECTIONS_TOKENS.lifetimes}
+          title={page.sections.lifetimes}
           description="How long each token lasts. A client with none of its own takes the tenant's."
           save={lifetimes}
         >
-          {LIFETIMES.map((each) => {
-            const { min, max } = lifetimeBounds(each.field);
-            return (
-              <OptionalSecondsField
-                key={each.field}
-                label={each.label}
-                offLabel={tenantLifetimeLabel(each.label)}
-                offText={each.inherits}
-                rule={lifetimeRule(each.field)}
-                value={lifetimes.values[each.field]}
-                start={each.start}
-                min={min}
-                max={max}
-                error={lifetimes.fieldErrors[each.field]}
-                changed={lifetimes.changed.includes(each.field)}
-                onChange={(value) => {
-                  lifetimes.edit(each.field, value);
-                }}
-              />
-            );
-          })}
+          {page.lifetimeFields.map((each) => (
+            <OptionalSecondsField
+              key={each.field}
+              label={each.label}
+              offLabel={each.offLabel}
+              offText={each.offText}
+              readText={each.readText}
+              rule={each.rule}
+              value={lifetimes.values[each.field]}
+              start={each.start}
+              min={each.min}
+              max={each.max}
+              error={lifetimes.fieldErrors[each.field]}
+              changed={lifetimes.changed.includes(each.field)}
+              onChange={(value) => {
+                lifetimes.edit(each.field, value);
+              }}
+            />
+          ))}
         </SaveSection>
         <SaveSection
-          title={SECTIONS_TOKENS.grants}
-          description={GRANTS_RULE}
+          title={page.sections.grants}
+          description={page.grantsRule}
           save={grants}
           blocked={page.grantsBlocked}
         >
@@ -78,11 +54,11 @@ export function TokensTab({ tenant, client, etag, gone, writable }: ClientTabPro
             }}
           />
         </SaveSection>
-        <SaveSection title={SECTIONS_TOKENS.credentials} save={credentials}>
+        <SaveSection title={page.sections.credentials} save={credentials}>
           <TextListField
             label="Client credentials scopes"
             itemLabel="Scope name"
-            description={`${CREDENTIALS_RULE} ${page.credentialCount}`}
+            description={page.credentialsDescription}
             error={credentials.fieldErrors.client_credentials_scopes}
             changed={credentials.changed.includes('client_credentials_scopes')}
             value={credentials.values.client_credentials_scopes}
@@ -91,10 +67,10 @@ export function TokensTab({ tenant, client, etag, gone, writable }: ClientTabPro
             }}
           />
         </SaveSection>
-        <SaveSection title={SECTIONS_TOKENS.fullScope} save={fullScope}>
+        <SaveSection title={page.sections.fullScope} save={fullScope}>
           <ToggleField
-            label={FULL_SCOPE_LABEL}
-            description={FULL_SCOPE_RULE}
+            label={page.fullScopeLabel}
+            description={page.fullScopeRule}
             value={fullScope.values.full_scope_allowed}
             error={fullScope.fieldErrors.full_scope_allowed}
             changed={fullScope.changed.includes('full_scope_allowed')}
@@ -103,10 +79,10 @@ export function TokensTab({ tenant, client, etag, gone, writable }: ClientTabPro
             }}
           />
         </SaveSection>
-        <SaveSection title={SECTIONS_TOKENS.idToken} save={idToken}>
+        <SaveSection title={page.sections.idToken} save={idToken}>
           <SelectField
-            label={ID_TOKEN_ALG_LABEL}
-            description={ID_TOKEN_ALG_RULE}
+            label={page.idTokenAlgLabel}
+            description={page.idTokenAlgRule}
             options={page.idTokenAlgs}
             value={idToken.values.id_token_signed_response_alg}
             error={idToken.fieldErrors.id_token_signed_response_alg}
@@ -116,14 +92,15 @@ export function TokensTab({ tenant, client, etag, gone, writable }: ClientTabPro
             }}
           />
           <OptionalSecondsField
-            label={MAX_AGE_LABEL}
-            offLabel="No default"
-            offText={MAX_AGE_OFF}
-            rule={MAX_AGE_RULE}
+            label={page.maxAge.label}
+            offLabel={page.maxAge.offLabel}
+            offText={page.maxAge.offText}
+            readText={page.maxAge.readText}
+            rule={page.maxAge.rule}
             value={idToken.values.default_max_age}
-            start={MAX_AGE_START}
-            min={0}
-            max={MAX_AGE_MAX}
+            start={page.maxAge.start}
+            min={page.maxAge.min}
+            max={page.maxAge.max}
             error={idToken.fieldErrors.default_max_age}
             changed={idToken.changed.includes('default_max_age')}
             onChange={(value) => {
@@ -131,8 +108,8 @@ export function TokensTab({ tenant, client, etag, gone, writable }: ClientTabPro
             }}
           />
           <ToggleField
-            label={AUTH_TIME_LABEL}
-            description={`${AUTH_TIME_RULE} ${REQUIRE_AUTH_TIME_NOTE}`}
+            label={page.authTimeLabel}
+            description={page.authTimeDescription}
             value={idToken.values.require_auth_time}
             error={idToken.fieldErrors.require_auth_time}
             changed={idToken.changed.includes('require_auth_time')}

@@ -2,17 +2,8 @@ import type { Role } from '@odudu/contracts/admin';
 import type { Client } from '#/entities/client';
 import { type SubmitEvent } from 'react';
 import {
-  CLIENT_ROLES_RULE,
-  NEW_ROLE_HEADING,
-  NEW_ROLE_NAME_LABEL,
-  NEW_ROLE_RULE,
-  NO_CLIENT_ROLES,
-  ROLES_CAPABILITY,
-  ROLES_OPEN_LABEL,
-} from '#/pages/clients/services/clientRoles';
-import {
   useClientRolesTab,
-  useRolesReadable,
+  useRolesPanel,
   type ClientRoles,
 } from '#/pages/clients/use-cases/useClientRolesTab';
 import { Button } from '#/shared/ui/Button';
@@ -53,19 +44,19 @@ function List({ client, page }: { client: Client; page: ClientRoles }) {
             <Count count={list.count.count} capped={list.count.capped} noun={NOUN} />
           )}
           <ButtonLink href={page.listHref} size="small" variant="quiet">
-            {ROLES_OPEN_LABEL}
+            {page.openLabel}
           </ButtonLink>
         </div>
       )}
       <ListGate
         list={list}
         loading={<TableSkeleton label="Loading roles" columns={COLUMNS} rows={2} />}
-        refused={{ capability: ROLES_CAPABILITY, noun: 'Roles' }}
+        refused={{ capability: page.capability, noun: 'Roles' }}
         failed="The roles could not be loaded"
       >
         {() =>
           list.rows.length === 0 ? (
-            <p className={recordTab.rule}>{NO_CLIENT_ROLES}</p>
+            <p className={recordTab.rule}>{page.empty}</p>
           ) : (
             <>
               <DataTable
@@ -90,11 +81,11 @@ function NewRole({ page }: { page: ClientRoles }) {
     page.submit();
   };
   return (
-    <Panel title={NEW_ROLE_HEADING}>
-      <p className={recordTab.rule}>{NEW_ROLE_RULE}</p>
+    <Panel title={page.newRoleHeading}>
+      <p className={recordTab.rule}>{page.newRoleRule}</p>
       <form noValidate onSubmit={submit} className={recordTab.form}>
         <TextField
-          label={NEW_ROLE_NAME_LABEL}
+          label={page.newRoleNameLabel}
           mono
           value={page.name}
           error={page.errors.name}
@@ -123,7 +114,7 @@ function Roles({ tenant, client }: { tenant: string; client: Client }) {
   const page = useClientRolesTab(tenant, client);
   return (
     <>
-      <p className={recordTab.rule}>{CLIENT_ROLES_RULE}</p>
+      <p className={recordTab.rule}>{page.rule}</p>
       <List client={client} page={page} />
       {page.needs.length === 0 ? (
         <NewRole page={page} />
@@ -135,13 +126,13 @@ function Roles({ tenant, client }: { tenant: string; client: Client }) {
 }
 
 export function RolesTab({ tenant, client }: { tenant: string; client: Client }) {
-  const readable = useRolesReadable(tenant);
+  const panel = useRolesPanel(tenant);
   return (
     <div className={recordTab.tab}>
-      {readable ? (
+      {panel.readable ? (
         <Roles tenant={tenant} client={client} />
       ) : (
-        <CapabilityNote capability={ROLES_CAPABILITY}>Roles</CapabilityNote>
+        <CapabilityNote capability={panel.capability}>Roles</CapabilityNote>
       )}
     </div>
   );

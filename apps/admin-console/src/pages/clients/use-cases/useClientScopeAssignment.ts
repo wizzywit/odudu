@@ -10,6 +10,11 @@ import { canChange, type ServiceAccountReach } from '#/pages/clients/services/ce
 import { ceilingRefused } from '#/pages/clients/services/refusal';
 import {
   alreadyAssigned,
+  ASSIGN_HEADING,
+  ASSIGNED_HEADING,
+  assignButtonText,
+  NO_SCOPES,
+  PICKER_LABEL,
   moreScopes,
   scopeCount,
   scopeFailureText,
@@ -33,6 +38,12 @@ import {
 type Assigned = Client['scopes'][number];
 
 export interface ClientScopes {
+  assignedHeading: string;
+  assignHeading: string;
+  // What the assign button says, naming the scope chosen.
+  assignLabel: string;
+  pickerLabel: string;
+  noScopes: string;
   // Whether assigning and removing are offered: the caller holds what they
   // need, and the client's service account is within its reach.
   offered: boolean;
@@ -97,6 +108,11 @@ export function useClientScopeAssignment({
 
   const chosen = picker.options.find((scope) => scope.id === flow.chosenId) ?? null;
   return {
+    assignedHeading: ASSIGNED_HEADING,
+    assignHeading: ASSIGN_HEADING,
+    assignLabel: assignButtonText(chosen?.name ?? null),
+    pickerLabel: PICKER_LABEL,
+    noScopes: NO_SCOPES,
     offered: canChange(reach, needs),
     needs,
     fixed: scopesFixed(client),

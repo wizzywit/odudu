@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { copiedDescription, copyBlocked, copyBusy, copyReadOf } from '#/shared/services/copy';
+import {
+  copiedDescription,
+  copyBlocked,
+  copyBusy,
+  copyingLineOf,
+  copyReadOf,
+} from '#/shared/services/copy';
 
 it('shows the description edited, else the source one', () => {
   expect(copiedDescription('mine', 'Reads')).toBe('mine');
@@ -36,5 +42,16 @@ describe('what a copy is read as', () => {
     expect(copyReadOf('s1', undefined, true)).toEqual({ status: 'failed' });
     expect(copyReadOf('s1', null, false)).toEqual({ status: 'failed' });
     expect(copyReadOf('s1', source, false)).toEqual({ status: 'ready', name: 'billing' });
+  });
+});
+
+describe('the line a copy in progress opens with', () => {
+  const say = (ready: { status: 'ready'; name: string }) => `A copy of ${ready.name}.`;
+
+  it('is said once what is copied is known, and not before', () => {
+    expect(copyingLineOf({ status: 'ready', name: 'billing' }, say)).toBe('A copy of billing.');
+    expect(copyingLineOf({ status: 'loading' }, say)).toBeNull();
+    expect(copyingLineOf({ status: 'failed' }, say)).toBeNull();
+    expect(copyingLineOf({ status: 'none' }, say)).toBeNull();
   });
 });

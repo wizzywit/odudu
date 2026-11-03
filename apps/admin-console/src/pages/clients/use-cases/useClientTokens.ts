@@ -10,37 +10,85 @@ import { choiceOf } from '#/pages/clients/services/choices';
 import { CLIENT_LIST_LIMIT, listCount } from '#/pages/clients/services/listEntries';
 import {
   AUTH_TIME_LABEL,
+  AUTH_TIME_RULE,
+  FULL_SCOPE_LABEL,
+  FULL_SCOPE_RULE,
   ID_TOKEN_ALG_LABEL,
+  ID_TOKEN_ALG_RULE,
   idTokenAlgOptions,
   MAX_AGE_LABEL,
+  MAX_AGE_MAX,
+  MAX_AGE_OFF,
+  MAX_AGE_RULE,
+  MAX_AGE_START,
   maxAgeText,
+  REQUIRE_AUTH_TIME_NOTE,
 } from '#/pages/clients/services/idTokenPolicy';
 import {
   CREDENTIALS_NOUN,
+  CREDENTIALS_RULE,
+  GRANTS_RULE,
   grantOptions,
   grantsBlock,
   GRANT_LABELS,
 } from '#/pages/clients/services/grantTypes';
-import { lifetimeText, LIFETIME_LABELS } from '#/pages/clients/services/tokenLifetimes';
+import {
+  lifetimeBounds,
+  lifetimeRule,
+  LIFETIMES,
+  lifetimeText,
+  LIFETIME_LABELS,
+  secondsReading,
+  tenantLifetimeLabel,
+} from '#/pages/clients/services/tokenLifetimes';
 import { SECTIONS_TOKENS, TOKEN_FIELD } from '#/pages/clients/services/clientSections';
 import {
   useClientSection,
   type ClientRecordRead,
 } from '#/pages/clients/use-cases/useClientSection';
+import type { ClientTokenTtlField } from '@odudu/contracts/admin';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { describeIds, namesOrNone } from '#/shared/services/format';
 import type { ChecklistOption } from '#/shared/ui/ChecklistField';
 import type { Choice } from '#/shared/services/choice';
 
+// A duration the client may leave to a default, as the tab shows it.
+export interface SecondsFieldView {
+  label: string;
+  offLabel: string;
+  // What the default is, said while the duration is left to it.
+  offText: string;
+  rule: string;
+  start: number;
+  min: number;
+  max: number | undefined;
+  // The value as a read-only page says it.
+  readText: string;
+}
+
+export interface LifetimeFieldView extends SecondsFieldView {
+  field: ClientTokenTtlField;
+}
+
 export interface ClientTokens {
+  sections: typeof SECTIONS_TOKENS;
+  lifetimeFields: readonly LifetimeFieldView[];
+  grantsRule: string;
+  credentialsDescription: string;
+  fullScope: SectionSave<FullScopeValues>;
+  fullScopeLabel: string;
+  fullScopeRule: string;
+  idTokenAlgLabel: string;
+  idTokenAlgRule: string;
+  maxAge: SecondsFieldView;
+  authTimeLabel: string;
+  authTimeDescription: string;
   lifetimes: SectionSave<LifetimeValues>;
   grants: SectionSave<GrantValues>;
   grantOptions: ChecklistOption[];
   // Why the grants cannot be saved as chosen, or undefined.
   grantsBlocked: string | undefined;
   credentials: SectionSave<CredentialValues>;
-  credentialCount: string;
-  fullScope: SectionSave<FullScopeValues>;
   idToken: SectionSave<IdTokenValues>;
   idTokenAlgs: Choice[];
 }
@@ -142,18 +190,47 @@ export function useClientTokens(args: ClientRecordRead): ClientTokens {
     save: saves.idToken,
   });
 
+  const credentialCount = listCount(
+    credentials.values.client_credentials_scopes,
+    CLIENT_LIST_LIMIT,
+    CREDENTIALS_NOUN,
+  );
   return {
+    sections: SECTIONS_TOKENS,
+    lifetimeFields: LIFETIMES.map((each) => ({
+      field: each.field,
+      label: each.label,
+      offLabel: tenantLifetimeLabel(each.label),
+      offText: each.inherits,
+      rule: lifetimeRule(each.field),
+      start: each.start,
+      ...lifetimeBounds(each.field),
+      readText: secondsReading(lifetimes.values[each.field], each.inherits),
+    })),
+    grantsRule: GRANTS_RULE,
+    credentialsDescription: `${CREDENTIALS_RULE} ${credentialCount}`,
+    fullScopeLabel: FULL_SCOPE_LABEL,
+    fullScopeRule: FULL_SCOPE_RULE,
+    idTokenAlgLabel: ID_TOKEN_ALG_LABEL,
+    idTokenAlgRule: ID_TOKEN_ALG_RULE,
+    maxAge: {
+      label: MAX_AGE_LABEL,
+      offLabel: 'No default',
+      offText: MAX_AGE_OFF,
+      rule: MAX_AGE_RULE,
+      start: MAX_AGE_START,
+      min: 0,
+      max: MAX_AGE_MAX,
+      readText: secondsReading(idToken.values.default_max_age, MAX_AGE_OFF),
+    },
+    authTimeLabel: AUTH_TIME_LABEL,
+    authTimeDescription: `${AUTH_TIME_RULE} ${REQUIRE_AUTH_TIME_NOTE}`,
     lifetimes,
     grants,
     grantOptions: grantOptions(client),
     grantsBlocked:
       grantsBlock(grants.values.grant_types, client.redirect_uris.length) ?? grants.blocked,
     credentials,
-    credentialCount: listCount(
-      credentials.values.client_credentials_scopes,
-      CLIENT_LIST_LIMIT,
-      CREDENTIALS_NOUN,
-    ),
     fullScope,
     idToken,
     idTokenAlgs: idTokenAlgOptions(),

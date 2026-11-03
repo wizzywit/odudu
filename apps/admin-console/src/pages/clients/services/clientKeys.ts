@@ -47,6 +47,11 @@ export function parseJwks(text: string): Jwks {
 
 export const KEYS_BLOCKED = 'Correct the key source above before saving.';
 
+// Why Save is held while the key source lacks something.
+export function keysBlockedBy(problem: KeysProblem | undefined): string | undefined {
+  return problem === undefined ? undefined : KEYS_BLOCKED;
+}
+
 export interface KeysProblem {
   field: 'jwks' | 'jwks_uri';
   message: string;

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  KEYS_BLOCKED,
+  keysBlockedBy,
   keysProblem,
   jwksText,
   keySourceOf,
@@ -68,5 +70,12 @@ describe('key sources', () => {
       jwks: null,
       jwks_uri: null,
     });
+  });
+});
+
+describe('keysBlockedBy', () => {
+  it('holds Save back only while the key source lacks something', () => {
+    expect(keysBlockedBy(undefined)).toBeUndefined();
+    expect(keysBlockedBy({ field: 'jwks_uri', message: 'Enter the address.' })).toBe(KEYS_BLOCKED);
   });
 });

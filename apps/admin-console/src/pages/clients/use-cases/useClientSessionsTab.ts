@@ -10,24 +10,44 @@ import {
 import { canChange, type ServiceAccountReach } from '#/pages/clients/services/ceiling';
 import { ceilingRefused } from '#/pages/clients/services/refusal';
 import {
+  NO_SESSIONS,
+  REVOKE_HEADING,
+  REVOKE_RULE,
   revokeConsequence,
   revokedText,
   revokeFailureText,
   SESSIONS_CAPABILITY,
+  SESSIONS_NOUN,
+  SESSIONS_RULE,
 } from '#/pages/clients/services/sessions';
 import { useGo } from '#/shared/repository/useGo';
 import { lacking, readable } from '#/shared/services/access';
+import type { AdminCapability } from '#/shared/services/principal';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
 import { subjectHref, usernameOrId } from '#/entities/subject';
 
-// Whether the caller may read them: whoami says manage-sessions is held,
-// or has not yet answered.
-export function useSessionsReadable(tenant: string): boolean {
-  return readable(useAuthority(tenant), SESSIONS_CAPABILITY);
+export interface SessionsPanel {
+  // Whether the caller may read them: whoami says manage-sessions is held,
+  // or has not yet answered.
+  readable: boolean;
+  capability: AdminCapability;
+}
+
+export function useSessionsPanel(tenant: string): SessionsPanel {
+  return {
+    readable: readable(useAuthority(tenant), SESSIONS_CAPABILITY),
+    capability: SESSIONS_CAPABILITY,
+  };
 }
 
 export interface ClientSessions extends Removal {
+  rule: string;
+  empty: string;
+  noun: { one: string; other: string };
+  capability: AdminCapability;
+  revokeHeading: string;
+  revokeRule: string;
   list: ResourceListState<ClientSession>;
   open: (subjectId: string) => void;
   // How a session names its subject: the username, or the ID when it has none.
@@ -67,6 +87,12 @@ export function useClientSessionsTab(
   });
 
   return {
+    rule: SESSIONS_RULE,
+    empty: NO_SESSIONS,
+    noun: SESSIONS_NOUN,
+    capability: SESSIONS_CAPABILITY,
+    revokeHeading: REVOKE_HEADING,
+    revokeRule: REVOKE_RULE,
     list,
     open: (subjectId) => {
       go(subjectHref(tenant, subjectId));

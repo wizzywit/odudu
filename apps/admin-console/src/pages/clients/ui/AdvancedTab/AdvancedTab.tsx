@@ -1,26 +1,8 @@
 import type { Client } from '#/entities/client';
 import {
-  AUDIENCES_RULE,
-  EXCHANGE_LABEL,
-  EXCHANGE_RULE,
-  FIXED_BY_DESIGN,
-} from '#/pages/clients/services/tokenExchange';
-import {
-  authNote,
-  PUBLIC_AUTH_FIXED,
-  SUBJECT_DN_RULE,
-} from '#/pages/clients/services/clientAuthentication';
-import {
-  JWKS_URI_RULE,
-  KEY_SOURCES,
-  KEYS_BLOCKED,
-  KEYS_RULE,
-} from '#/pages/clients/services/clientKeys';
-import { secretFixedNote, SECRET_RULE } from '#/pages/clients/services/secretRotation';
-import { SECTIONS_ADVANCED } from '#/pages/clients/services/clientSections';
-import { USERINFO_RULE } from '#/pages/clients/services/userinfoResponse';
-import { GRACE_LABEL, GRACE_MAX, GRACE_RULE } from '#/pages/clients/services/secretRotation';
-import { useClientAdvanced } from '#/pages/clients/use-cases/useClientAdvanced';
+  useClientAdvanced,
+  type ClientAdvanced,
+} from '#/pages/clients/use-cases/useClientAdvanced';
 import { useClientSecret, type ClientSecret } from '#/pages/clients/use-cases/useClientSecret';
 import { Installation } from '#/pages/clients/ui/Installation';
 import type { ClientTabProps } from '#/pages/clients/ui/ClientTabProps';
@@ -45,19 +27,19 @@ import { recordTab } from '#/shared/ui/RecordTab';
 
 function Rotation({ client, secret }: { client: Client; secret: ClientSecret }) {
   return (
-    <Panel title={SECTIONS_ADVANCED.secret}>
-      <p className={recordTab.rule}>{SECRET_RULE}</p>
+    <Panel title={secret.title}>
+      <p className={recordTab.rule}>{secret.rule}</p>
       {secret.previous === null ? null : (
         <p className={recordTab.text}>
           {secret.previous.lead} <Timestamp value={secret.previous.at} />.
         </p>
       )}
       <NumberWithUnitField
-        label={GRACE_LABEL}
-        description={GRACE_RULE}
+        label={secret.graceLabel}
+        description={secret.graceRule}
         unit="seconds"
         minValue={0}
-        maxValue={GRACE_MAX}
+        maxValue={secret.graceMax}
         value={secret.grace}
         onChange={secret.setGrace}
       />
@@ -90,11 +72,11 @@ function Rotation({ client, secret }: { client: Client; secret: ClientSecret }) 
   );
 }
 
-function Fixed() {
+function Fixed({ title, items }: { title: string; items: ClientAdvanced['fixedByDesign'] }) {
   return (
-    <Panel title={SECTIONS_ADVANCED.fixed}>
+    <Panel title={title}>
       <dl className={recordTab.fixed}>
-        {FIXED_BY_DESIGN.map((item) => (
+        {items.map((item) => (
           <div key={item.label}>
             <dt>{item.label}</dt>
             <dd>
@@ -114,19 +96,18 @@ export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabP
   const { auth, keys, userinfo, audiences, exchange } = page;
   const method = auth.values.token_endpoint_auth_method;
   const source = keys.values.key_source;
-  const secretFixed = secretFixedNote(client);
   return (
     <div className={recordTab.tab}>
       <Installation tenant={tenant} clientDbId={client.id} />
       <ReadOnlyFields when={!writable}>
-        <SaveSection title={SECTIONS_ADVANCED.auth} save={auth}>
+        <SaveSection title={page.sections.auth} save={auth}>
           {client.type === 'public' ? (
-            <p className={recordTab.rule}>{PUBLIC_AUTH_FIXED}</p>
+            <p className={recordTab.rule}>{page.publicAuthFixed}</p>
           ) : (
             <>
               <SelectField
                 label="Authentication method"
-                description={authNote(method)}
+                description={page.authNote}
                 options={page.authMethods}
                 value={method}
                 error={auth.fieldErrors.token_endpoint_auth_method}
@@ -138,7 +119,7 @@ export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabP
               {page.asksSubject ? (
                 <TextField
                   label="Certificate subject"
-                  description={SUBJECT_DN_RULE}
+                  description={page.subjectDnRule}
                   mono
                   value={auth.values.tls_client_auth_subject_dn}
                   error={auth.fieldErrors.tls_client_auth_subject_dn}
@@ -152,14 +133,14 @@ export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabP
           )}
         </SaveSection>
         <SaveSection
-          title={SECTIONS_ADVANCED.keys}
-          description={KEYS_RULE}
+          title={page.sections.keys}
+          description={page.keysRule}
           save={keys}
-          blocked={page.keysProblem === undefined ? undefined : KEYS_BLOCKED}
+          blocked={page.keysBlocked}
         >
           <SelectField
             label="Key source"
-            options={KEY_SOURCES}
+            options={page.keySources}
             value={source}
             changed={keys.changed.includes('key_source')}
             onChange={(value) => {
@@ -169,7 +150,7 @@ export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabP
           {source === 'uri' ? (
             <UrlField
               label="JWKS URI"
-              description={JWKS_URI_RULE}
+              description={page.jwksUriRule}
               autoComplete="off"
               value={keys.values.jwks_uri}
               error={
@@ -199,7 +180,7 @@ export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabP
             />
           ) : null}
         </SaveSection>
-        <SaveSection title={SECTIONS_ADVANCED.userinfo} description={USERINFO_RULE} save={userinfo}>
+        <SaveSection title={page.sections.userinfo} description={page.userinfoRule} save={userinfo}>
           <SelectField
             label="Signing algorithm"
             options={page.signingOptions}
@@ -233,11 +214,11 @@ export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabP
             />
           ) : null}
         </SaveSection>
-        <SaveSection title={SECTIONS_ADVANCED.audiences} save={audiences}>
+        <SaveSection title={page.sections.audiences} save={audiences}>
           <TextListField
             label="Audiences"
             itemLabel="Audience"
-            description={`${AUDIENCES_RULE} ${page.audienceCount}`}
+            description={page.audiencesDescription}
             error={audiences.fieldErrors.audiences}
             changed={audiences.changed.includes('audiences')}
             value={audiences.values.audiences}
@@ -246,10 +227,10 @@ export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabP
             }}
           />
         </SaveSection>
-        <SaveSection title={SECTIONS_ADVANCED.exchange} save={exchange}>
+        <SaveSection title={page.sections.exchange} save={exchange}>
           <ToggleField
-            label={EXCHANGE_LABEL}
-            description={EXCHANGE_RULE}
+            label={page.exchangeLabel}
+            description={page.exchangeRule}
             value={exchange.values.token_exchange_impersonation_allowed}
             error={exchange.fieldErrors.token_exchange_impersonation_allowed}
             changed={exchange.changed.includes('token_exchange_impersonation_allowed')}
@@ -259,12 +240,12 @@ export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabP
           />
         </SaveSection>
       </ReadOnlyFields>
-      {secretFixed !== null ? (
-        <p className={recordTab.rule}>{secretFixed}</p>
+      {secret.fixed !== null ? (
+        <p className={recordTab.rule}>{secret.fixed}</p>
       ) : writable ? (
         <Rotation client={client} secret={secret} />
       ) : null}
-      <Fixed />
+      <Fixed title={page.sections.fixed} items={page.fixedByDesign} />
     </div>
   );
 }

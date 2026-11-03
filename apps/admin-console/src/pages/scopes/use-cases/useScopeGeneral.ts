@@ -27,8 +27,11 @@ import {
 } from '#/pages/scopes/services/scopeDelivery';
 import {
   CONSENT_LANGUAGES_LABEL,
+  CONSENT_LANGUAGES_NOTE,
+  CONSENT_LIMIT,
   CONSENT_RULE,
   DESCRIPTION_LANGUAGES_LABEL,
+  DESCRIPTION_LANGUAGES_NOTE,
   guardedConsent,
 } from '#/pages/scopes/services/scopeConsent';
 import {
@@ -36,6 +39,7 @@ import {
   scopeDeleteConsequence,
   scopeDeleteFailureText,
 } from '#/pages/scopes/services/scopeDeletion';
+import { NAME_FIXED } from '#/pages/scopes/services/scopeDetails';
 import { scopeRecord } from '#/pages/scopes/services/tabs';
 import { useGo } from '#/shared/repository/useGo';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
@@ -43,7 +47,7 @@ import { useToast } from '#/shared/repository/useToasts';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
 import { writeRefusal } from '#/shared/services/capabilities';
 import { deletedText } from '#/shared/services/failure';
-import { DESCRIPTION_RULE } from '#/shared/services/labels';
+import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/services/labels';
 import { describeTranslations } from '#/shared/services/localised';
 import type { Read } from '#/shared/services/read';
 import { useOfferedLocales } from '#/entities/tenant';
@@ -64,7 +68,23 @@ export interface Deletion extends Removal {
   retry: ImpactRetry | null;
 }
 
+// What the tab says beside its fields.
+export interface GeneralText {
+  // Why the name cannot change.
+  nameFixed: string;
+  descriptionLanguagesLabel: string;
+  descriptionLanguagesNote: string;
+  descriptionLimit: number;
+  idTokenLabel: string;
+  accessTokenLabel: string;
+  newClientLabel: string;
+  consentLanguagesLabel: string;
+  consentLanguagesNote: string;
+  consentLimit: number;
+}
+
 export interface ScopeGeneral {
+  text: GeneralText;
   description: SectionSave<DescriptionSectionValues>;
   // The languages the tenant offers, which the translations are written in.
   languages: Read<string[]>;
@@ -182,6 +202,18 @@ export function useScopeGeneral({
     save: saves.general,
   });
   return {
+    text: {
+      nameFixed: NAME_FIXED,
+      descriptionLanguagesLabel: DESCRIPTION_LANGUAGES_LABEL,
+      descriptionLanguagesNote: DESCRIPTION_LANGUAGES_NOTE,
+      descriptionLimit: DESCRIPTION_MAX,
+      idTokenLabel: ID_TOKEN_LABEL,
+      accessTokenLabel: ACCESS_TOKEN_LABEL,
+      newClientLabel: NEW_CLIENT_LABEL,
+      consentLanguagesLabel: CONSENT_LANGUAGES_LABEL,
+      consentLanguagesNote: CONSENT_LANGUAGES_NOTE,
+      consentLimit: CONSENT_LIMIT,
+    },
     description,
     languages: useOfferedLocales(tenant),
     descriptionRule: DESCRIPTION_RULE,

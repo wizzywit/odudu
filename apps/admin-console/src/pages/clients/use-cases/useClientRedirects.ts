@@ -9,6 +9,11 @@ import {
 } from '#/pages/clients/repository/useClientRecord';
 import { listsReadOnly, redirectsFixed } from '#/pages/clients/services/builtinFixed';
 import { FIELD, SECTION } from '#/pages/clients/services/clientDetails';
+import {
+  ORIGINS_RULE,
+  POST_LOGOUT_NOTE,
+  REDIRECTS_RULE,
+} from '#/pages/clients/services/clientRedirects';
 import { CLIENT_LIST_LIMIT, listCount } from '#/pages/clients/services/listEntries';
 import { clientHref } from '#/entities/client';
 import { clientTabHrefOf } from '#/pages/clients/services/tabs';
@@ -16,14 +21,16 @@ import { useSectionSave, type SectionSave } from '#/shared/repository/useSection
 
 export interface ClientRedirects {
   redirects: SectionSave<RedirectValues>;
-  redirectCount: string;
+  // The rule for redirect URIs, with how many are listed.
+  redirectsDescription: string;
   origins: SectionSave<OriginValues>;
-  originCount: string;
+  originsDescription: string;
   // Why neither list can be changed, said in place of both.
   fixed: string | null;
   readOnly: boolean;
   // The post-logout URIs belong to the Logout tab.
   logoutHref: string;
+  logoutNote: string;
 }
 
 export function useClientRedirects({
@@ -57,11 +64,12 @@ export function useClientRedirects({
 
   return {
     redirects,
-    redirectCount: listCount(redirects.values.redirect_uris, CLIENT_LIST_LIMIT, 'redirect URIs'),
+    redirectsDescription: `${REDIRECTS_RULE} ${listCount(redirects.values.redirect_uris, CLIENT_LIST_LIMIT, 'redirect URIs')}`,
     origins,
-    originCount: listCount(origins.values.web_origins, CLIENT_LIST_LIMIT, 'web origins'),
+    originsDescription: `${ORIGINS_RULE} ${listCount(origins.values.web_origins, CLIENT_LIST_LIMIT, 'web origins')}`,
     fixed: redirectsFixed(client),
     readOnly: listsReadOnly(client, writable),
     logoutHref: clientTabHrefOf(clientHref)(tenant, client.id, 'logout'),
+    logoutNote: POST_LOGOUT_NOTE,
   };
 }

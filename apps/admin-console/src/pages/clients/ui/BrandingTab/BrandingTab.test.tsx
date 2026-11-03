@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ClientRecord } from '#/pages/clients/types/clientRecord';
 import { afterEach, describe, expect, it } from 'vitest';
+import { BRANDING_HELD } from '#/pages/clients/services/branding';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import {
   clientBrandingRoutes,
@@ -364,7 +365,14 @@ describe('the tab held back for a missing capability', () => {
   const client = { ...BILLING, id: 'c-bill' } as ClientRecord;
 
   it('names the capability and offers no editor', () => {
-    render(<BrandingTab tenant="acme" client={client} offer="held" needs={['manage-clients']} />);
+    render(
+      <BrandingTab
+        tenant="acme"
+        client={client}
+        offer="held"
+        held={{ lead: BRANDING_HELD, needs: 'manage-clients' }}
+      />,
+    );
     expect(screen.getByRole('note')).toHaveTextContent(
       'The client’s branding is read and changed with manage-clients.',
     );
@@ -373,7 +381,12 @@ describe('the tab held back for a missing capability', () => {
 
   it('shows neither the note nor the editor while the caller’s capabilities are unknown', () => {
     const { container } = render(
-      <BrandingTab tenant="acme" client={client} offer="checking" needs={[]} />,
+      <BrandingTab
+        tenant="acme"
+        client={client}
+        offer="checking"
+        held={{ lead: BRANDING_HELD, needs: '' }}
+      />,
     );
     expect(container).toBeEmptyDOMElement();
   });

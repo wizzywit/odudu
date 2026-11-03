@@ -1,16 +1,3 @@
-import {
-  BACKCHANNEL_RULE,
-  BACKCHANNEL_SESSION_LABEL,
-  BACKCHANNEL_SESSION_RULE,
-  FRONTCHANNEL_RULE,
-  FRONTCHANNEL_SESSION_LABEL,
-  FRONTCHANNEL_SESSION_RULE,
-  POST_LOGOUT_RULE,
-  SKIP_LOGOUT_LABEL,
-  SKIP_LOGOUT_WARNING,
-  SKIP_LOGOUT_WARNING_ID,
-} from '#/pages/clients/services/logoutSettings';
-import { SECTIONS_LOGOUT } from '#/pages/clients/services/clientSections';
 import { useClientLogout } from '#/pages/clients/use-cases/useClientLogout';
 import { Deliveries } from '#/pages/clients/ui/Deliveries';
 import type { ClientTabProps } from '#/pages/clients/ui/ClientTabProps';
@@ -25,11 +12,11 @@ export function LogoutTab({ tenant, client, etag, gone, writable }: ClientTabPro
   return (
     <div className={recordTab.tab}>
       <ReadOnlyFields when={!writable}>
-        <SaveSection title={SECTIONS_LOGOUT.postLogout} save={postLogout}>
+        <SaveSection title={page.sections.postLogout} save={postLogout}>
           <UrlListField
             label="Post-logout redirect URIs"
             itemLabel="Post-logout redirect URI"
-            description={`${POST_LOGOUT_RULE} ${page.postLogoutCount}`}
+            description={page.postLogoutDescription}
             error={postLogout.fieldErrors.post_logout_redirect_uris}
             changed={postLogout.changed.includes('post_logout_redirect_uris')}
             value={postLogout.values.post_logout_redirect_uris}
@@ -40,14 +27,14 @@ export function LogoutTab({ tenant, client, etag, gone, writable }: ClientTabPro
         </SaveSection>
       </ReadOnlyFields>
       <ReadOnlyFields when={!writable || page.confirmationFixed !== null}>
-        <SaveSection title={SECTIONS_LOGOUT.confirmation} save={confirmation}>
+        <SaveSection title={page.sections.confirmation} save={confirmation}>
           {page.confirmationFixed === null ? null : (
             <p className={recordTab.rule}>{page.confirmationFixed}</p>
           )}
           <ToggleField
-            label={SKIP_LOGOUT_LABEL}
+            label={page.skipLogoutLabel}
             description={page.confirmationHint}
-            describedBy={SKIP_LOGOUT_WARNING_ID}
+            describedBy={page.skipLogoutWarningId}
             value={confirmation.values.skip_logout_confirmation}
             changed={confirmation.changed.includes('skip_logout_confirmation')}
             onChange={(value) => {
@@ -55,21 +42,21 @@ export function LogoutTab({ tenant, client, etag, gone, writable }: ClientTabPro
             }}
           />
           <Note
-            id={SKIP_LOGOUT_WARNING_ID}
+            id={page.skipLogoutWarningId}
             tone={
               confirmation.values.skip_logout_confirmation && page.confirmationFixed === null
                 ? 'warning'
                 : undefined
             }
           >
-            {SKIP_LOGOUT_WARNING}
+            {page.skipLogoutWarning}
           </Note>
         </SaveSection>
       </ReadOnlyFields>
       <ReadOnlyFields when={!writable}>
         <SaveSection
-          title={SECTIONS_LOGOUT.backchannel}
-          description={BACKCHANNEL_RULE}
+          title={page.sections.backchannel}
+          description={page.backchannelRule}
           save={backchannel}
         >
           <UrlField
@@ -83,8 +70,8 @@ export function LogoutTab({ tenant, client, etag, gone, writable }: ClientTabPro
             }}
           />
           <ToggleField
-            label={BACKCHANNEL_SESSION_LABEL}
-            description={BACKCHANNEL_SESSION_RULE}
+            label={page.backchannelSessionLabel}
+            description={page.backchannelSessionRule}
             value={backchannel.values.backchannel_logout_session_required}
             changed={backchannel.changed.includes('backchannel_logout_session_required')}
             onChange={(value) => {
@@ -93,8 +80,8 @@ export function LogoutTab({ tenant, client, etag, gone, writable }: ClientTabPro
           />
         </SaveSection>
         <SaveSection
-          title={SECTIONS_LOGOUT.frontchannel}
-          description={FRONTCHANNEL_RULE}
+          title={page.sections.frontchannel}
+          description={page.frontchannelRule}
           save={frontchannel}
         >
           <UrlField
@@ -108,8 +95,8 @@ export function LogoutTab({ tenant, client, etag, gone, writable }: ClientTabPro
             }}
           />
           <ToggleField
-            label={FRONTCHANNEL_SESSION_LABEL}
-            description={FRONTCHANNEL_SESSION_RULE}
+            label={page.frontchannelSessionLabel}
+            description={page.frontchannelSessionRule}
             value={frontchannel.values.frontchannel_logout_session_required}
             changed={frontchannel.changed.includes('frontchannel_logout_session_required')}
             onChange={(value) => {

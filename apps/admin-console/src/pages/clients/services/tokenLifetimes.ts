@@ -60,3 +60,8 @@ export function tenantLifetimeLabel(label: string): string {
 export function lifetimeText(value: unknown): string {
   return typeof value === 'number' ? formatDuration(value) : "the tenant's lifetime";
 }
+
+// A duration a client may leave to a default, as a read-only page says it.
+export function secondsReading(value: number | null, offText: string): string {
+  return value === null ? offText : formatDuration(value);
+}

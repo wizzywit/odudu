@@ -16,12 +16,24 @@ import { clientsHref } from '#/entities/client';
 import { deleteFixed } from '#/pages/clients/services/clientDeletion';
 import { enabledFixed } from '#/pages/clients/services/builtinFixed';
 import { deleteConsequence } from '#/pages/clients/services/clientDeletion';
-import { FIELD, SECTION } from '#/pages/clients/services/clientDetails';
+import {
+  CLIENT_ID_FIXED,
+  FIELD,
+  SECTION,
+  TYPE_FIXED,
+  TYPE_TEXT,
+} from '#/pages/clients/services/clientDetails';
+import { PAGES_RULE, registeredText } from '#/pages/clients/services/clientRedirects';
 import { clientRefusal } from '#/pages/clients/services/refusal';
 import {
   DESCRIPTION_TRANSLATIONS_FIELD,
+  DESCRIPTION_TRANSLATIONS_LABEL,
+  DESCRIPTION_TRANSLATIONS_NOTE,
   NAME_TRANSLATIONS_FIELD,
+  NAME_TRANSLATIONS_LABEL,
+  NAME_TRANSLATIONS_NOTE,
   offeredBy,
+  TRANSLATIONS_LEAD,
 } from '#/pages/clients/services/translations';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';
@@ -38,7 +50,23 @@ export interface Deletion extends Removal {
   consequence: string;
 }
 
+// What the tab says about the client and its sections.
+export interface GeneralText {
+  type: string;
+  registered: string;
+  // Why the client ID and the type cannot change.
+  identityFixed: string;
+  translationsTitle: string;
+  translationsLead: string;
+  nameTranslationsLabel: string;
+  nameTranslationsNote: string;
+  descriptionTranslationsLabel: string;
+  descriptionTranslationsNote: string;
+  pagesRule: string;
+}
+
 export interface ClientGeneral {
+  text: GeneralText;
   details: SectionSave<DetailValues>;
   translations: SectionSave<TranslationSectionValues>;
   // The languages the tenant offers, which the translations are written in.
@@ -148,6 +176,18 @@ export function useClientGeneral({ tenant, client, etag, gone }: ClientRecordRea
   });
 
   return {
+    text: {
+      type: TYPE_TEXT[client.type] ?? client.type,
+      registered: registeredText(client.registration_origin),
+      identityFixed: `${CLIENT_ID_FIXED} ${TYPE_FIXED}`,
+      translationsTitle: SECTION.translations,
+      translationsLead: TRANSLATIONS_LEAD,
+      nameTranslationsLabel: NAME_TRANSLATIONS_LABEL,
+      nameTranslationsNote: NAME_TRANSLATIONS_NOTE,
+      descriptionTranslationsLabel: DESCRIPTION_TRANSLATIONS_LABEL,
+      descriptionTranslationsNote: DESCRIPTION_TRANSLATIONS_NOTE,
+      pagesRule: PAGES_RULE,
+    },
     details,
     translations,
     languages: offeredBy(client),
