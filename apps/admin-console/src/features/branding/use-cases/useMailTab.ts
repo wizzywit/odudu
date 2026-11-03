@@ -10,7 +10,7 @@ import {
   mailFrameKey,
   type MailChoice,
   type MailClient,
-} from '#/features/branding/services/mail';
+} from '#/features/branding/services/mailChoice';
 import type { Scheme } from '#/features/branding/services/colourScheme';
 import { useClientPicker } from '#/entities/client';
 import type { PickerState } from '#/shared/services/picker';

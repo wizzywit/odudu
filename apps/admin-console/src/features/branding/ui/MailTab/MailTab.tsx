@@ -1,28 +1,30 @@
 import { useId } from 'react';
 import type { MailBrandingView } from '@odudu/contracts/admin';
+import { logoViews, LOGO_ELSEWHERE, LOGO_TITLE } from '#/features/branding/services/mailLogos';
 import {
-  logoViews,
   MAIL_CLIENTS_NOTE,
-  MAIL_FAILED,
-  MAIL_FRAME_TITLE,
-  mailClientName,
   mailInheritsLead,
   MAIL_INHERITS_TITLE,
-  MAIL_LOADING_BRANDING,
-  MAIL_LOCALE_LABEL,
-  MAIL_LOCALE_OPTIONS,
-  mailPreviewNote,
-  MAIL_PREVIEW_TITLE,
-  MAIL_SCHEME_LABEL,
-  LOGO_ELSEWHERE,
-  LOGO_TITLE,
-  mailLocaleLabel,
-  mailLocaleOf,
-  MAIL_SUMMARY_NAME,
   paletteRows,
   schemeTitle,
   sourceText,
-} from '#/features/branding/services/mail';
+} from '#/features/branding/services/mailInheritance';
+import {
+  MAIL_FAILED,
+  MAIL_FRAME_TITLE,
+  MAIL_LOADING_BRANDING,
+  mailPreviewNote,
+  MAIL_PREVIEW_TITLE,
+  MAIL_SCHEME_LABEL,
+} from '#/features/branding/services/mailPreview';
+import { mailClientName } from '#/features/branding/services/mailChoice';
+import {
+  MAIL_LOCALE_LABEL,
+  MAIL_LOCALE_OPTIONS,
+  mailLocaleLabel,
+  mailLocaleOf,
+  MAIL_SUMMARY_NAME,
+} from '#/features/branding/services/mailLocale';
 import { previewSummary, SCHEME_OPTIONS } from '#/features/branding/services/preview';
 import { SCHEME_LABELS, schemeOf, type Scheme } from '#/features/branding/services/colourScheme';
 import type { MailTab as Mail } from '#/features/branding/use-cases/useMailTab';

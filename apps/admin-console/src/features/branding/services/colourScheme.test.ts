@@ -1,7 +1,8 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import { pairRows, rowText } from '#/features/branding/services/contrast';
-import { MAIL_SCHEME_LABEL, schemeTitle } from '#/features/branding/services/mail';
+import { MAIL_SCHEME_LABEL } from '#/features/branding/services/mailPreview';
+import { schemeTitle } from '#/features/branding/services/mailInheritance';
 import { DEFAULT_PALETTES } from '#/features/branding/services/palette';
 import { SCHEME_LABELS, SCHEMES, schemeOf } from '#/features/branding/services/colourScheme';
 import { PREVIEW_SCHEME_LABEL, SCHEME_OPTIONS } from '#/features/branding/services/preview';

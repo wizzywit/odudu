@@ -554,18 +554,30 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Mail: tab('branding', 'mail', 'Mail'),
   Languages: tab('branding', 'languages', 'Languages'),
   'What the mail inherits': several(
-    feature('branding/services/mail.ts', "MAIL_INHERITS_TITLE = 'What the mail inherits'"),
+    feature(
+      'branding/services/mailInheritance.ts',
+      "MAIL_INHERITS_TITLE = 'What the mail inherits'",
+    ),
     feature('branding/ui/MailTab/MailTab.tsx', '{MAIL_INHERITS_TITLE}'),
   ),
-  'Preview as client': feature('branding/services/mail.ts', "MAIL_AS_LABEL = 'Preview as client'"),
+  'Preview as client': feature(
+    'branding/services/mailPreview.ts',
+    "MAIL_AS_LABEL = 'Preview as client'",
+  ),
   'Show the tenant’s own': feature(
-    'branding/services/mail.ts',
+    'branding/services/mailPreview.ts',
     "MAIL_TENANT_OWN = 'Show the tenant’s own'",
   ),
-  'Message background': feature('branding/services/mail.ts', "label: 'Message background'"),
-  'Link box background': feature('branding/services/mail.ts', "label: 'Link box background'"),
-  'Quiet text': feature('branding/services/mail.ts', "label: 'Quiet text'"),
-  'Button text': feature('branding/services/mail.ts', "label: 'Button text'"),
+  'Message background': feature(
+    'branding/services/mailInheritance.ts',
+    "label: 'Message background'",
+  ),
+  'Link box background': feature(
+    'branding/services/mailInheritance.ts',
+    "label: 'Link box background'",
+  ),
+  'Quiet text': feature('branding/services/mailInheritance.ts', "label: 'Quiet text'"),
+  'Button text': feature('branding/services/mailInheritance.ts', "label: 'Button text'"),
   'Supported languages': feature(
     'branding/services/languages.ts',
     "SUPPORTED_LABEL = 'Supported languages'",
@@ -611,7 +623,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Preview: feature('branding/services/preview.ts', "PREVIEW_TITLE = 'Preview'"),
   'Colour scheme': several(
     feature('branding/services/preview.ts', "PREVIEW_SCHEME_LABEL = 'Colour scheme'"),
-    feature('branding/services/mail.ts', "MAIL_SCHEME_LABEL = 'Colour scheme'"),
+    feature('branding/services/mailPreview.ts', "MAIL_SCHEME_LABEL = 'Colour scheme'"),
   ),
   'Open preview': feature('branding/services/preview.ts', "PREVIEW_OPEN_LABEL = 'Open preview'"),
   'Page preview': feature('branding/services/preview.ts', "PREVIEW_SHEET_TITLE = 'Page preview'"),

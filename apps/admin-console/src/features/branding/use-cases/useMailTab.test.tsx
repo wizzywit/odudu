@@ -1,7 +1,7 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { expect, it } from 'vitest';
-import { paletteRows } from '#/features/branding/services/mail';
+import { paletteRows } from '#/features/branding/services/mailInheritance';
 import { useMailTab } from '#/features/branding/use-cases/useMailTab';
 import { draftedView, mailBranding, ML } from '#/testing/brandingFixtures';
 import { BILLING, C, CLIENTS } from '#/testing/clientsFixtures';

@@ -1,8 +1,5 @@
-import {
-  MAIL_AS_LABEL,
-  MAIL_TENANT_OWN,
-  mailClientSelection,
-} from '#/features/branding/services/mail';
+import { MAIL_AS_LABEL, MAIL_TENANT_OWN } from '#/features/branding/services/mailPreview';
+import { mailClientSelection } from '#/features/branding/services/mailChoice';
 import type { MailTab } from '#/features/branding/use-cases/useMailTab';
 import { Button } from '#/shared/ui/Button';
 import { ClientPicker } from '#/entities/client';
