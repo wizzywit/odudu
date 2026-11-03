@@ -1,24 +1,25 @@
 import {
   AUTH_TIME_LABEL,
   AUTH_TIME_RULE,
-  CREDENTIALS_RULE,
   FULL_SCOPE_LABEL,
   FULL_SCOPE_RULE,
-  GRANTS_RULE,
   ID_TOKEN_ALG_LABEL,
   ID_TOKEN_ALG_RULE,
-  LIFETIMES,
-  lifetimeBounds,
-  lifetimeRule,
   MAX_AGE_LABEL,
   MAX_AGE_MAX,
   MAX_AGE_OFF,
   MAX_AGE_RULE,
   MAX_AGE_START,
   REQUIRE_AUTH_TIME_NOTE,
-  SECTIONS_TOKENS,
+} from '#/features/clients/services/idTokenPolicy';
+import { CREDENTIALS_RULE, GRANTS_RULE } from '#/features/clients/services/grantTypes';
+import {
+  LIFETIMES,
+  lifetimeBounds,
+  lifetimeRule,
   tenantLifetimeLabel,
-} from '#/features/clients/services/tokens';
+} from '#/features/clients/services/tokenLifetimes';
+import { SECTIONS_TOKENS } from '#/features/clients/services/clientSections';
 import { useClientTokens } from '#/features/clients/use-cases/useClientTokens';
 import { OptionalSecondsField } from '#/features/clients/ui/OptionalSecondsField';
 import type { ClientTabProps } from '#/features/clients/ui/ClientTabProps';

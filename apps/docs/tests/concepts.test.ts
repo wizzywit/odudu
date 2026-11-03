@@ -293,7 +293,7 @@ const MORE_FACTS: readonly Fact[] = [
   {
     page: 'scopes',
     says: 'Include all roles in tokens',
-    file: 'apps/admin-console/src/features/clients/services/tokens.ts',
+    file: 'apps/admin-console/src/features/clients/services/idTokenPolicy.ts',
     holds: /FULL_SCOPE_LABEL = 'Include all roles in tokens'/u,
   },
   {

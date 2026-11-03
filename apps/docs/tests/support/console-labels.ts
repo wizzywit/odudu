@@ -236,7 +236,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   Restore: feature('scopes/services/restore.ts', "RESTORE_CONFIRM_LABEL = 'Restore'"),
   'Include all roles in tokens': feature(
-    'clients/services/tokens.ts',
+    'clients/services/idTokenPolicy.ts',
     "FULL_SCOPE_LABEL = 'Include all roles in tokens'",
   ),
   'Used because nothing is bound': feature(

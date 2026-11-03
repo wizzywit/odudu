@@ -10,19 +10,19 @@ import { choiceOf } from '#/features/clients/services/choices';
 import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/lists';
 import {
   AUTH_TIME_LABEL,
+  ID_TOKEN_ALG_LABEL,
+  idTokenAlgOptions,
+  MAX_AGE_LABEL,
+  maxAgeText,
+} from '#/features/clients/services/idTokenPolicy';
+import {
   CREDENTIALS_NOUN,
   grantOptions,
   grantsBlock,
   GRANT_LABELS,
-  ID_TOKEN_ALG_LABEL,
-  idTokenAlgOptions,
-  lifetimeText,
-  LIFETIME_LABELS,
-  MAX_AGE_LABEL,
-  maxAgeText,
-  SECTIONS_TOKENS,
-  TOKEN_FIELD,
-} from '#/features/clients/services/tokens';
+} from '#/features/clients/services/grantTypes';
+import { lifetimeText, LIFETIME_LABELS } from '#/features/clients/services/tokenLifetimes';
+import { SECTIONS_TOKENS, TOKEN_FIELD } from '#/features/clients/services/clientSections';
 import {
   useClientSection,
   type ClientRecordRead,
