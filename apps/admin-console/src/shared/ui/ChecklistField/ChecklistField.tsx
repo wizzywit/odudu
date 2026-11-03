@@ -1,6 +1,6 @@
 import { use, useId } from 'react';
 import { CheckboxButton, CheckboxField } from 'react-aria-components';
-import { FieldGroup, FieldsReadOnly, ReadOnlyValue, type Chrome } from '#/shared/ui/Field';
+import { FieldCluster, FieldsReadOnly, ReadOnlyValue, type Chrome } from '#/shared/ui/Field';
 import styles from '#/shared/ui/ChecklistField/ChecklistField.module.css';
 
 export interface ChecklistOption {
@@ -78,7 +78,7 @@ export function ChecklistField({
     );
   }
   return (
-    <FieldGroup {...chrome}>
+    <FieldCluster {...chrome}>
       <div className={styles.options}>
         {options.map((option) => (
           <Option
@@ -95,6 +95,6 @@ export function ChecklistField({
           />
         ))}
       </div>
-    </FieldGroup>
+    </FieldCluster>
   );
 }

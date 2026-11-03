@@ -15,7 +15,7 @@ import { shortened } from '#/shared/services/format';
 import { narrowOptions, OPTION_DETAIL_LIMIT } from '#/shared/services/options';
 import {
   Description,
-  FieldGroupIds,
+  FieldClusterIds,
   FieldsReadOnly,
   Header,
   invalid,
@@ -26,7 +26,7 @@ import {
   ReadOnlyValue,
   VALIDATION,
   type Chrome,
-  type GroupPart,
+  type ClusterPart,
   type PartLabel,
 } from '#/shared/ui/Field/Field';
 import styles from '#/shared/ui/Field/Field.module.css';
@@ -108,7 +108,7 @@ export function ComboBoxField({
   hideLabel,
   placeholder,
 }: Chrome &
-  GroupPart &
+  ClusterPart &
   PartLabel & {
     options: readonly ComboOption[];
     value: string;
@@ -128,7 +128,7 @@ export function ComboBoxField({
   const labelOf = (id: string): string => options.find((o) => o.id === id)?.label ?? id;
   const [shown, setShown] = useState<Shown>(() => ({ value, text: labelOf(value) }));
   const readOnly = use(FieldsReadOnly);
-  const group = use(FieldGroupIds);
+  const group = use(FieldClusterIds);
   const own = use(OwnData);
   const [closes, setCloses] = useState(0);
   let current = shown;

@@ -1,11 +1,11 @@
 import { render, screen, within } from '@testing-library/react';
 import { expect, it } from 'vitest';
-import { Rail, type RailGroup } from '#/shared/ui/Rail/Rail';
+import { Rail, type RailSection } from '#/shared/ui/Rail/Rail';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import shellCss from '#/shared/ui/AppShell/AppShell.module.css?raw';
 import railCss from '#/shared/ui/Rail/Rail.module.css?raw';
 
-const GROUPS: readonly RailGroup[] = [
+const GROUPS: readonly RailSection[] = [
   { items: [{ href: '/console/acme', label: 'Overview' }] },
   {
     heading: 'Identity',

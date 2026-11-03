@@ -20,8 +20,8 @@ import {
   type BirthdateForm,
 } from '#/shared/services/birthdate';
 import {
-  FieldGroup,
-  FieldGroupIds,
+  FieldCluster,
+  FieldClusterIds,
   FieldsReadOnly,
   OwnData,
   ownToken,
@@ -86,7 +86,7 @@ function FullDate({
   isDisabled: boolean;
   invalid: boolean;
 }) {
-  const group = use(FieldGroupIds);
+  const group = use(FieldClusterIds);
   const own = use(OwnData);
   const value =
     birthdate.kind === 'date'
@@ -246,7 +246,7 @@ export function BirthdateField({
       ? `Stored as ${birthdate.raw}, which names no day that exists.`
       : null;
   return (
-    <FieldGroup
+    <FieldCluster
       label={label}
       description={
         stray === null && description === undefined ? undefined : (
@@ -299,6 +299,6 @@ export function BirthdateField({
           />
         ) : null}
       </div>
-    </FieldGroup>
+    </FieldCluster>
   );
 }

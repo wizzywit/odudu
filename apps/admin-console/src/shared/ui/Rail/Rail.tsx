@@ -7,12 +7,12 @@ export interface RailItem {
   label: string;
 }
 
-export interface RailGroup {
+export interface RailSection {
   heading?: string;
   items: readonly RailItem[];
 }
 
-function Group({ group, currentHref }: { group: RailGroup; currentHref?: string }) {
+function Group({ group, currentHref }: { group: RailSection; currentHref?: string }) {
   const id = useId();
   const named = group.heading !== undefined;
   return (
@@ -48,7 +48,7 @@ export function Rail({
   checking = false,
 }: {
   label: string;
-  groups: readonly RailGroup[];
+  groups: readonly RailSection[];
   currentHref?: string;
   // Whether the areas it may list are still being asked about.
   checking?: boolean;

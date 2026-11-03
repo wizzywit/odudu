@@ -48,7 +48,7 @@ export function invalid(error: string | undefined): { isInvalid: boolean } {
   return { isInvalid: error !== undefined };
 }
 
-// Inside a FieldGroup, the group's description and error ids: each control
+// Inside a FieldCluster, the group's description and error ids: each control
 // is described by the description, and the one a problem is about by the
 // error as well, so a screen reader hears it on that control.
 interface GroupIds {
@@ -56,10 +56,10 @@ interface GroupIds {
   error: string | undefined;
 }
 
-export const FieldGroupIds = createContext<GroupIds | null>(null);
+export const FieldClusterIds = createContext<GroupIds | null>(null);
 
 // A control inside a group that the group's error is about.
-export interface GroupPart {
+export interface ClusterPart {
   invalid?: boolean;
 }
 
@@ -208,7 +208,7 @@ export function TextField({
   hideLabel,
   placeholder,
 }: Chrome &
-  GroupPart &
+  ClusterPart &
   PartLabel & {
     value: string;
     onChange: (value: string) => void;
@@ -219,7 +219,7 @@ export function TextField({
     autoComplete?: string;
     autoFocus?: boolean;
   }) {
-  const group = use(FieldGroupIds);
+  const group = use(FieldClusterIds);
   const own = use(OwnData);
   if (use(FieldsReadOnly)) {
     return (
@@ -428,7 +428,7 @@ export function SelectField({
   hideLabel,
   placeholder,
 }: Chrome &
-  GroupPart &
+  ClusterPart &
   PartLabel & {
     options: readonly Choice[];
     value: string;
@@ -437,7 +437,7 @@ export function SelectField({
   }) {
   const inline = use(Inline);
   const readOnly = use(FieldsReadOnly);
-  const group = use(FieldGroupIds);
+  const group = use(FieldClusterIds);
   const own = use(OwnData);
   const native = use(NativeSelects);
   if (readOnly && !inline) {
@@ -614,7 +614,7 @@ function useRowIds(count: number) {
 
 // Several controls standing for one value: a fieldset whose legend reads as
 // any field's label, carrying the description and the error for the whole.
-export function FieldGroup({
+export function FieldCluster({
   label,
   description,
   error,
@@ -636,7 +636,7 @@ export function FieldGroup({
     >
       <legend className={styles.label}>{label}</legend>
       {changed === true ? <Changed /> : null}
-      <FieldGroupIds
+      <FieldClusterIds
         value={{
           description:
             description === undefined || description === null ? undefined : descriptionId,
@@ -644,7 +644,7 @@ export function FieldGroup({
         }}
       >
         {children}
-      </FieldGroupIds>
+      </FieldClusterIds>
       {description === undefined || description === null ? null : (
         <p id={descriptionId} className={styles.description}>
           {description}

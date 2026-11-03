@@ -13,7 +13,7 @@ import {
 import { countryOptions } from '#/shared/services/regions';
 import { ComboBoxField, type ComboOption } from '#/shared/ui/Field/ComboBoxField';
 import {
-  FieldGroup,
+  FieldCluster,
   FieldsReadOnly,
   ReadOnlyValue,
   TextField,
@@ -84,7 +84,7 @@ export function PhoneField({
       ? `Stored as ${value}, which reads ${formatPhone(value)}.`
       : null;
   return (
-    <FieldGroup
+    <FieldCluster
       label={label}
       description={
         preview === null && description === undefined ? undefined : (
@@ -140,6 +140,6 @@ export function PhoneField({
           }}
         />
       </div>
-    </FieldGroup>
+    </FieldCluster>
   );
 }

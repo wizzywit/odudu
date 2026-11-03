@@ -206,8 +206,6 @@ export const INVENTORY: Record<RuleId, string[]> = {
     'apps/admin-console/src/shared/transport/transport.test.ts',
     'apps/admin-console/src/shared/transport/transport.ts',
     'apps/admin-console/src/shared/transport/useTransport.ts',
-    'apps/admin-console/src/shared/ui/Field/Field.tsx',
-    'apps/admin-console/src/shared/ui/Rail/Rail.tsx',
     'apps/admin-console/src/shared/use-cases/useAnnouncedAction.test.tsx',
     'apps/admin-console/src/shared/use-cases/useAnnouncedAction.ts',
     'apps/admin-console/src/shared/use-cases/useCodeHistory.ts',

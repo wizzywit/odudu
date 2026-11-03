@@ -13,7 +13,7 @@ import {
 } from '#/shared/services/localised';
 import type { Read } from '#/shared/services/read';
 import { InlineFailed } from '#/shared/ui/InlineFailed';
-import { FieldGroup, TextAreaField, TextField } from '#/shared/ui/Field';
+import { FieldCluster, TextAreaField, TextField } from '#/shared/ui/Field';
 import { Note } from '#/shared/ui/Note';
 import { recordTab } from '#/shared/ui/RecordTab';
 import { Tabs } from '#/shared/ui/Tabs';
@@ -70,7 +70,7 @@ export function LocalisedTextField({
     };
   });
   return (
-    <FieldGroup
+    <FieldCluster
       label={label}
       {...(description === undefined ? {} : { description })}
       error={error}
@@ -83,6 +83,6 @@ export function LocalisedTextField({
       )}
       {tabs.length === 0 ? null : <Tabs label={`${label}, by language`} tabs={tabs} />}
       <p className={recordTab.rule}>{translatedSummary(value)}</p>
-    </FieldGroup>
+    </FieldCluster>
   );
 }

@@ -4,7 +4,7 @@ import { granularityOf, localText, readLocal } from '#/shared/services/dateTime'
 import { localZone, offsetOf } from '#/shared/services/zones';
 import {
   Description,
-  FieldGroupIds,
+  FieldClusterIds,
   Header,
   invalid,
   Message,
@@ -39,7 +39,7 @@ export function DateTimeField({
   // Told why what is typed reads as no instant, or null once it does.
   onProblem?: (message: string | null) => void;
 }) {
-  const group = use(FieldGroupIds);
+  const group = use(FieldClusterIds);
   const precision = value === '' ? 'minute' : granularityOf(value, edge);
   const [text, setText] = useState(() => (value === '' ? '' : localText(value, zone, precision)));
   const [badInput, setBadInput] = useState(false);

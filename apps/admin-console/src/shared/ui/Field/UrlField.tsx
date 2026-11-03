@@ -2,7 +2,7 @@ import { use, useId } from 'react';
 import { Link } from 'react-aria-components';
 import { previewable, typingScheme, urlProblem } from '#/shared/services/profileUrl';
 import {
-  FieldGroupIds,
+  FieldClusterIds,
   FieldsReadOnly,
   ReadOnlyValue,
   TextField,
@@ -59,11 +59,11 @@ export function PictureField(props: UrlFieldProps) {
     return <ReadOnlyValue label={props.label} value={props.value} mono changed={props.changed} />;
   return (
     <div className={styles.pictureField}>
-      <FieldGroupIds
+      <FieldClusterIds
         value={{ description: noted(props.value) ? noteId : undefined, error: undefined }}
       >
         <UrlField autoComplete="photo" {...props} />
-      </FieldGroupIds>
+      </FieldClusterIds>
       <Preview value={props.value} noteId={noteId} />
     </div>
   );

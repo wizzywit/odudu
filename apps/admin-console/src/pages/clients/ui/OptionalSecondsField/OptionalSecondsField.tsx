@@ -1,6 +1,6 @@
 import { use } from 'react';
 import {
-  FieldGroup,
+  FieldCluster,
   FieldsReadOnly,
   NumberWithUnitField,
   ReadOnlyValue,
@@ -52,7 +52,7 @@ export function OptionalSecondsField({
     );
   }
   return (
-    <FieldGroup label={label} description={rule} error={error} changed={changed}>
+    <FieldCluster label={label} description={rule} error={error} changed={changed}>
       <ToggleField
         label={offLabel}
         value={value === null}
@@ -74,6 +74,6 @@ export function OptionalSecondsField({
           }}
         />
       )}
-    </FieldGroup>
+    </FieldCluster>
   );
 }

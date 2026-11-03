@@ -4,7 +4,7 @@ import type { SchemeView } from '#/features/branding-editor/services/colourSecti
 import type { Colours } from '#/features/branding-editor/use-cases/useColours';
 import { ColourField } from '#/features/branding-editor/ui/ColourField';
 import { Button } from '#/shared/ui/Button';
-import { FieldGroup, SelectField, ToggleField } from '#/shared/ui/Field';
+import { FieldCluster, SelectField, ToggleField } from '#/shared/ui/Field';
 import { FieldGrid, GridCell } from '#/shared/ui/FieldGrid';
 import { Panel } from '#/shared/ui/Panel';
 import { VisuallyHidden } from '#/shared/ui/VisuallyHidden';
@@ -31,7 +31,7 @@ function SchemeGroup({ group, colours }: { group: SchemeView; colours: Colours }
         </Button>
       </div>
       <div id={body} className={styles.body} data-collapsed={!group.open || undefined}>
-        <FieldGroup label={group.legend}>
+        <FieldCluster label={group.legend}>
           <ToggleField
             label={group.customLabel}
             description={group.description}
@@ -63,7 +63,7 @@ function SchemeGroup({ group, colours }: { group: SchemeView; colours: Colours }
               </FieldGrid>
             </div>
           ) : null}
-        </FieldGroup>
+        </FieldCluster>
       </div>
     </div>
   );

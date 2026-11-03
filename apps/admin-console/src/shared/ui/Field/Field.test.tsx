@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  FieldGroup,
+  FieldCluster,
   KeyValueField,
   NativeSelectFields,
   OwnDataFields,
@@ -416,12 +416,12 @@ describe('ReadOnlyFields', () => {
   });
 });
 
-describe('FieldGroup', () => {
+describe('FieldCluster', () => {
   it('labels and describes its controls as one field', () => {
     render(
-      <FieldGroup label="Phone number" description="With its country." error="Too long.">
+      <FieldCluster label="Phone number" description="With its country." error="Too long.">
         <TextField label="Number" value="" onChange={vi.fn()} />
-      </FieldGroup>,
+      </FieldCluster>,
     );
     const group = screen.getByRole('group', { name: 'Phone number' });
     expect(describedBy(group)).toBe('With its country. | Too long.');
@@ -429,9 +429,9 @@ describe('FieldGroup', () => {
 
   it('is a fieldset its legend names, marked changed beside the legend', () => {
     render(
-      <FieldGroup label="Phone number" changed>
+      <FieldCluster label="Phone number" changed>
         <TextField label="Number" value="" onChange={vi.fn()} />
-      </FieldGroup>,
+      </FieldCluster>,
     );
     const group = screen.getByRole('group', { name: 'Phone number' });
     expect(group.tagName).toBe('FIELDSET');
@@ -441,9 +441,9 @@ describe('FieldGroup', () => {
 
   it('keeps a part’s label for the screen reader when it is hidden from sight', () => {
     render(
-      <FieldGroup label="Phone number">
+      <FieldCluster label="Phone number">
         <TextField label="Extension" hideLabel value="" onChange={vi.fn()} />
-      </FieldGroup>,
+      </FieldCluster>,
     );
     const extension = screen.getByRole('textbox', { name: 'Extension' });
     const label = screen.getByText('Extension');
