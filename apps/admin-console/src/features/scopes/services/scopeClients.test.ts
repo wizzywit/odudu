@@ -4,9 +4,7 @@ import {
   clientAssignmentFailure,
   clientsOffered,
   clientsCount,
-  withoutScope,
-  withScopes,
-} from '#/features/scopes/services/assignment';
+} from '#/features/scopes/services/scopeClients';
 
 it('counts what is loaded', () => {
   expect(clientsCount(1, false)).toBe('1 client.');
@@ -31,19 +29,6 @@ it('names the bound a client holds when the server refuses over it', () => {
       'assigned',
     ),
   ).toMatch(/a client carries at most 200 scopes/u);
-});
-
-it('rebases a cached client on what an assignment answered', () => {
-  interface Held {
-    id: string;
-    name: string;
-    assignment: 'default' | 'optional';
-  }
-  const client = { id: 'c1', scopes: [{ id: 's1', name: 'a', assignment: 'default' } as Held] };
-  const answered: Held[] = [{ id: 's2', name: 'b', assignment: 'optional' }];
-  expect(withScopes(client, answered)).toEqual({ id: 'c1', scopes: answered });
-  expect(withoutScope(client, 's1')).toEqual({ id: 'c1', scopes: [] });
-  expect(withoutScope(client, 'nope')).toEqual(client);
 });
 
 it('offers the client search once whoami has answered and names nothing missing', () => {

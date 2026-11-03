@@ -10,7 +10,7 @@ import {
   clientAssignmentFailure,
   clientsCount,
   clientsOffered,
-} from '#/features/scopes/services/assignment';
+} from '#/features/scopes/services/scopeClients';
 import { useClientPicker } from '#/shared/repository/useClientPicker';
 import { lacking } from '#/shared/services/access';
 import type { PickerState } from '#/shared/services/picker';
