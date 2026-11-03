@@ -1,4 +1,3 @@
-import { SUBJECT_CAPABILITY_FILTER } from '@odudu/contracts/admin';
 import { useSubjectsList } from '#/pages/subjects/use-cases/useSubjectsList';
 import { SubjectsGate } from '#/pages/subjects/ui/SubjectsGate';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
@@ -38,15 +37,6 @@ const SEARCH = [
   { id: 'email', label: 'Email' },
 ];
 
-// `any` is the server's own value, the holders of at least one capability.
-const CAPABILITY = [
-  { id: 'all', label: 'Holding anything or nothing' },
-  ...SUBJECT_CAPABILITY_FILTER.map((capability) => ({
-    id: capability,
-    label: capability === 'any' ? 'Any capability' : capability,
-  })),
-];
-
 // Set from a role's or a group's own page; the id is all the list knows.
 const NARROWING = [
   { filter: 'role', phrase: 'Only subjects holding the role', all: 'Show every role' },
@@ -54,7 +44,8 @@ const NARROWING = [
 ] as const;
 
 function List({ tenant }: { tenant: string }) {
-  const { list, createHref, changeNeeds, open, statusFilter } = useSubjectsList(tenant);
+  const { list, createHref, changeNeeds, open, statusFilter, capabilityFilter } =
+    useSubjectsList(tenant);
   return (
     <ResourceListPage
       list={list}
@@ -88,7 +79,7 @@ function List({ tenant }: { tenant: string }) {
           <SelectField
             label="Capability"
             description="Held directly, through a group or nested in another role."
-            options={CAPABILITY}
+            options={capabilityFilter}
             value={list.filters.capability ?? 'all'}
             onChange={(value) => {
               list.setFilter('capability', value === 'all' ? null : value);
