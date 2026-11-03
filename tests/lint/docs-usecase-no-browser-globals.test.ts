@@ -46,6 +46,7 @@ function isReference(node: ts.Identifier): boolean {
   const parent = node.parent;
   if (ts.isShorthandPropertyAssignment(parent)) return true;
   if (ts.isPropertyAccessExpression(parent)) return parent.expression === node;
+  if (ts.isBindingElement(parent) && parent.propertyName === node) return false;
   return !('name' in parent && parent.name === node);
 }
 
