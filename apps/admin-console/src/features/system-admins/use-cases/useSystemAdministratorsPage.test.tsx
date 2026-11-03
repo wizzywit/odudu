@@ -16,7 +16,7 @@ const S = `${ADMIN}/system`;
 const ROOT = { tenant: 'system', subjectId: 's0', username: 'root' };
 const GRACE = {
   id: 's-grace',
-  type: 'user',
+  type: 'user' as const,
   username: 'grace',
   email: null,
   enabled: true,
