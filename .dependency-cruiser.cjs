@@ -115,7 +115,7 @@ module.exports = {
       },
     },
     {
-      name: 'console-index-exports-view-usecase-service',
+      name: 'console-index-exports-ui-use-cases-services',
       severity: 'error',
       comment:
         "A console slice's index.ts (a feature, widget, entity or page) publishes its own views, " +
@@ -264,7 +264,7 @@ module.exports = {
       },
     },
     {
-      name: 'docs-usecase-imports-no-view',
+      name: 'docs-use-cases-import-no-ui',
       severity: 'error',
       comment:
         'A docs use case orchestrates for a view and is called by it; a use case that reached ' +
@@ -276,7 +276,7 @@ module.exports = {
       to: { path: '(^|/)apps/docs/src/(?:ui|.*/ui)(?:/|\\.tsx?$)' },
     },
     {
-      name: 'docs-index-exports-view-usecase-service',
+      name: 'docs-index-exports-ui-use-cases-services',
       severity: 'error',
       comment:
         "A docs feature's index.ts publishes its own ui, use cases and services; a type-only " +

@@ -281,7 +281,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
   });
 
   it('rejects a docs usecase importing a view', async () => {
-    const found = await violations('docs-usecase-imports-no-view');
+    const found = await violations('docs-use-cases-import-no-ui');
     expect(found.some((v) => v.from.endsWith('features/alpha/use-cases/useBack.ts'))).toBe(true);
   });
 
@@ -305,7 +305,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
   });
 
   it('rejects a docs feature index publishing something outside ui, use-cases and services', async () => {
-    const found = await violations('docs-index-exports-view-usecase-service');
+    const found = await violations('docs-index-exports-ui-use-cases-services');
     expect(
       found.some(
         (v) => v.from.endsWith('features/gamma/index.ts') && v.to.endsWith('helpers/tool.ts'),
@@ -508,7 +508,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
   });
 
   it("rejects a console feature's index.ts re-exporting its repository, adapter or shared code", async () => {
-    const found = await violations('console-index-exports-view-usecase-service');
+    const found = await violations('console-index-exports-ui-use-cases-services');
     const from = found.filter((v) => v.from.endsWith('features/audit/index.ts'));
     expect(from.map((v) => v.to.replace(/^.*\/src\//u, '')).sort()).toEqual([
       'features/audit/adapter.ts',
@@ -576,7 +576,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
   });
 
   it('rejects a widget, entity or page index.ts publishing an adapter or a helper', async () => {
-    const found = await violations('console-index-exports-view-usecase-service');
+    const found = await violations('console-index-exports-ui-use-cases-services');
     expect(
       found.some(
         (v) => v.from.endsWith('entities/odd/index.ts') && v.to.endsWith('adapter/wire.ts'),
@@ -593,7 +593,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
   });
 
   it('permits a widget, entity or page index.ts publishing its own services and views', async () => {
-    const found = await violations('console-index-exports-view-usecase-service');
+    const found = await violations('console-index-exports-ui-use-cases-services');
     for (const file of [
       'entities/session/index.ts',
       'widgets/shell/index.ts',
