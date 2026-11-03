@@ -1,12 +1,12 @@
-import {
-  ADMINISTRATOR_REQUEST_NEEDS,
-  type AdministratorCall,
-  type AdministratorRequest,
-} from '#/shared/services/administrators';
 import { type AdminCapability } from '#/shared/services/principal';
 import { fieldErrorsOf } from '#/shared/services/fieldErrors';
 import { CONSOLE_FAULT, failureTextWith } from '#/shared/services/failure';
 import type { GatewayFailure } from '#/shared/services/result';
+import {
+  ADMINISTRATOR_REQUEST_NEEDS,
+  type AdministratorCall,
+  type AdministratorRequest,
+} from '#/entities/administrator';
 
 // A request of a step: what it names when it fails, which fields a refusal
 // is placed under, and the capability a 403 says is missing.

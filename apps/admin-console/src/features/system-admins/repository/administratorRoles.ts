@@ -3,14 +3,14 @@ import {
   readAdminClients,
   readClientRoles,
 } from '#/features/system-admins/adapter/administratorClients';
+import type { Gateway, GatewayFailure } from '#/shared/transport/gateway';
+import { TENANT_ADMIN } from '#/shared/services/capabilities';
 import {
   builtinAdminClient,
   clientRole,
   withRole,
   type AdministratorRequest,
-} from '#/shared/services/administrators';
-import type { Gateway, GatewayFailure } from '#/shared/transport/gateway';
-import { TENANT_ADMIN } from '#/shared/services/capabilities';
+} from '#/entities/administrator';
 
 export function defect(message: string): GatewayFailure {
   console.error(message);

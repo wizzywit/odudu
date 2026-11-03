@@ -1,10 +1,7 @@
-import {
-  ADMINISTRATOR_REQUEST_NEEDS,
-  type AdministratorRequest,
-} from '#/shared/services/administrators';
 import { failureTextWith } from '#/shared/services/failure';
 import { holdingLabel, isHolding } from '#/shared/services/capabilities';
 import type { GatewayFailure } from '#/shared/services/result';
+import { ADMINISTRATOR_REQUEST_NEEDS, type AdministratorRequest } from '#/entities/administrator';
 
 export function grantFailureText(
   name: string,

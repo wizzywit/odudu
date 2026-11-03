@@ -1,6 +1,6 @@
-import { holdingsProblem } from '#/shared/services/administrators';
 import { andList } from '#/shared/services/format';
 import { requiredProblem } from '#/shared/services/fieldErrors';
+import { holdingsProblem } from '#/entities/administrator';
 
 // further one to a tenant that has some.
 export function choosesHoldings(step: { origin: string; granted: boolean }): boolean {

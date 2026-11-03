@@ -8,7 +8,6 @@ import { choosable, pickerUnavailable } from '#/features/system-admins/services/
 import { useBeginAdministrator, type BeginAdministrator } from '#/features/begin-administrator';
 import { useToast } from '#/shared/repository/useToasts';
 import type { Change } from '#/shared/services/access';
-import { ADMINISTRATOR_REQUEST_NEEDS, holdingsProblem } from '#/shared/services/administrators';
 import {
   holdingOptions,
   holdingsIn,
@@ -19,6 +18,7 @@ import { inOrderOf } from '#/shared/services/ids';
 import type { PickerState } from '#/shared/services/picker';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/services/principal';
 import { useSubjectPicker, type Subject, usernameOrId } from '#/entities/subject';
+import { ADMINISTRATOR_REQUEST_NEEDS, holdingsProblem } from '#/entities/administrator';
 
 export interface SystemAdministrators {
   createNeeds: readonly AdminCapability[];

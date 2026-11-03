@@ -1,6 +1,6 @@
 import { blockedChanges, lacking, type Change } from '#/shared/services/access';
-import { administratorNeeds, GRANT_NEEDS } from '#/shared/services/administrators';
 import { SYSTEM_TENANT, type AdminCapability, type Authority } from '#/shared/services/principal';
+import { administratorNeeds, GRANT_NEEDS } from '#/entities/administrator';
 
 const CREATING = administratorNeeds(SYSTEM_TENANT, { subjectId: null, granted: false });
 

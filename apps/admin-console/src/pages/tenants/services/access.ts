@@ -1,6 +1,6 @@
 import { blockedChanges, lacking, type Change } from '#/shared/services/access';
-import { administratorNeeds } from '#/shared/services/administrators';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
+import { administratorNeeds } from '#/entities/administrator';
 
 // A row opens a tenant's record only when whoami says reading one is allowed.
 export function recordOpener(

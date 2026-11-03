@@ -3,17 +3,17 @@ import { findKey } from '#/shared/repository/queryKeys';
 import { createTenant, findTenant } from '#/pages/tenants/adapter/tenants';
 import { createSubject, findSubject, issuePassword, type Subject } from '#/entities/subject';
 import { defect, grantHoldings, refusedAt, type Refused } from '#/features/system-admins';
-import {
-  administratorCalls,
-  subjectlessRequest,
-  type AdministratorCall,
-  type AdministratorRequest,
-} from '#/shared/services/administrators';
 import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce';
 import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
 import { useFreshRead } from '#/shared/repository/useFreshRead';
 import { useWrite } from '#/shared/repository/useWrite';
 import { useTransport } from '#/shared/transport/useTransport';
+import {
+  administratorCalls,
+  subjectlessRequest,
+  type AdministratorCall,
+  type AdministratorRequest,
+} from '#/entities/administrator';
 
 export interface TenantCreate {
   busy: boolean;

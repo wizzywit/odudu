@@ -15,11 +15,11 @@ import {
 } from '#/pages/tenants/services/creationCall';
 import type { StepFeedback } from '#/pages/tenants/use-cases/useStepFeedback';
 import { lacking } from '#/shared/services/access';
-import { administratorNeeds } from '#/shared/services/administrators';
 import { holdingOptions, holdingsIn, type HoldingOption } from '#/shared/services/capabilities';
 import { withoutField } from '#/shared/services/fieldErrors';
 import { inOrderOf } from '#/shared/services/ids';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/services/principal';
+import { administratorNeeds } from '#/entities/administrator';
 
 export interface AdministratorStep {
   step: 'administrator';

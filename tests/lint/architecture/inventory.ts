@@ -86,8 +86,6 @@ export const INVENTORY: Record<RuleId, string[]> = {
     'apps/admin-console/src/shared/services/access.ts',
     'apps/admin-console/src/shared/services/address.test.ts',
     'apps/admin-console/src/shared/services/address.ts',
-    'apps/admin-console/src/shared/services/administrators.test.ts',
-    'apps/admin-console/src/shared/services/administrators.ts',
     'apps/admin-console/src/shared/services/assignment.test.ts',
     'apps/admin-console/src/shared/services/assignment.ts',
     'apps/admin-console/src/shared/services/auditEvents.test.ts',
