@@ -3,6 +3,9 @@ import {
   contrastHold,
   contrastRatio,
   contrastReport,
+  CONTRAST_TITLE,
+  PAIR_FAILS,
+  PAIR_PASSES,
   PAIRS,
   pairRows,
   ratioText,
@@ -62,5 +65,12 @@ describe('contrastReport', () => {
     expect(report.hold).toBeUndefined();
     expect(report.summary).toBe('All 36 pairs meet their requirement.');
     expect(contrastHold([])).toBeUndefined();
+  });
+});
+
+describe('the words of the contrast list', () => {
+  it('title it and say whether a pair passes', () => {
+    expect(CONTRAST_TITLE).toBe('Contrast');
+    expect([PAIR_PASSES, PAIR_FAILS]).toEqual(['passes', 'fails']);
   });
 });

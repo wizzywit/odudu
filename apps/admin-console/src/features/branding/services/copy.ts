@@ -5,15 +5,6 @@ export const BRANDING_SECTIONS_LABEL = 'Branding sections';
 
 export const BRANDING_NOUN = 'theme';
 
-export const CONTRAST_TITLE = 'Contrast';
-
-export const CONTRAST_LEAD =
-  'Text must reach 4.5:1 against what it sits on, and borders and the focus ring 3:1. Publishing is refused while a pair falls short. This is checked as you type.';
-
-export const PAIR_PASSES = 'passes';
-
-export const PAIR_FAILS = 'fails';
-
 export const PUBLISH_LABEL = 'Publish the draft';
 
 export const PUBLISHING = 'Publishing…';

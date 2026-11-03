@@ -1,12 +1,13 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useId } from 'react';
-import { rowText, type ContrastReport } from '#/features/branding/services/contrast';
 import {
+  rowText,
+  type ContrastReport,
   CONTRAST_LEAD,
   CONTRAST_TITLE,
   PAIR_FAILS,
   PAIR_PASSES,
-} from '#/features/branding/services/copy';
+} from '#/features/branding/services/contrast';
 import { FONT_OPTIONS, PALETTE_LABELS, PALETTE_ORDER } from '#/features/branding/services/palette';
 import { type ThemeScope } from '#/features/branding/services/scope';
 import { sourceReading } from '#/features/branding/services/sources';

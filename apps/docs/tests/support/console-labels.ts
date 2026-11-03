@@ -591,7 +591,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   Images: feature('branding/services/imageSection.ts', "IMAGES_TITLE = 'Images'"),
   Stylesheet: feature('branding/services/fields.ts', "STYLESHEET_SECTION_TITLE = 'Stylesheet'"),
-  Contrast: feature('branding/services/copy.ts', "CONTRAST_TITLE = 'Contrast'"),
+  Contrast: feature('branding/services/contrast.ts', "CONTRAST_TITLE = 'Contrast'"),
   Publish: feature('branding/services/publish.ts', "PUBLISH_TITLE = 'Publish'"),
   Versions: feature('branding/services/versions.ts', "VERSIONS_TITLE = 'Versions'"),
   'Reset to default': feature('branding/services/versions.ts', "RESET_TITLE = 'Reset to default'"),

@@ -8,7 +8,17 @@ import { SCHEME_LABELS, type Scheme } from '#/features/branding/services/colourS
 import { isHexColour } from '#/features/branding/services/colourEdits';
 import type { ColourValues } from '#/features/branding/services/colourValues';
 
+export const CONTRAST_TITLE = 'Contrast';
+
+export const CONTRAST_LEAD =
+  'Text must reach 4.5:1 against what it sits on, and borders and the focus ring 3:1. Publishing is refused while a pair falls short. This is checked as you type.';
+
+export const PAIR_PASSES = 'passes';
+
+export const PAIR_FAILS = 'fails';
+
 const TEXT = 4.5;
+
 const UI = 3;
 
 export interface Pair {
@@ -125,6 +135,7 @@ export function contrastHold(failing: readonly PairRow[]): string | undefined {
 }
 
 export const CONTRAST_PASSES = 'Contrast passes.';
+
 export const CONTRAST_FAILS = 'Contrast fails: see the pairs listed.';
 
 export interface ContrastReport {
