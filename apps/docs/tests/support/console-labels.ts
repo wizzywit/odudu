@@ -71,7 +71,7 @@ const pageTab = (page_: string, key: string, label: string): Defined =>
 const subjectTab = (key: string, label: string): Defined => pageTab('subjects', key, label);
 const clientTab = (key: string, label: string): Defined => pageTab('clients', key, label);
 
-const FILTERS = 'audit/ui/AuditFilters/AuditFilters.tsx';
+const FILTERS = 'audit/services/filterWords.ts';
 const AUDIT_KINDS = 'audit/services/filterOptions.ts';
 const EMAIL_PAGE = 'email/ui/EmailPage/EmailPage.tsx';
 const EMAIL_RELAY = 'email/services/relay.ts';
@@ -637,15 +637,15 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
 
   // The audit trail.
-  'Event type': page(FILTERS, 'label="Event type"'),
-  Outcome: page(FILTERS, 'label="Outcome"'),
-  Action: page(FILTERS, 'label="Action"'),
-  'Resource type': page(FILTERS, 'label="Resource type"'),
-  'Resource id': page(FILTERS, 'label="Resource id"'),
-  'Actor (subject id)': page(FILTERS, 'label="Actor (subject id)"'),
-  From: page(FILTERS, 'label="From"'),
-  To: page(FILTERS, 'label="To"'),
-  'Apply filters': page(FILTERS, '> Apply filters <'),
+  'Event type': page(FILTERS, "label: 'Event type'"),
+  Outcome: page(FILTERS, "label: 'Outcome'"),
+  Action: page(FILTERS, "label: 'Action'"),
+  'Resource type': page(FILTERS, "label: 'Resource type'"),
+  'Resource id': page(FILTERS, "label: 'Resource id'"),
+  'Actor (subject id)': page(FILTERS, "label: 'Actor (subject id)'"),
+  From: page(FILTERS, "label: 'From'"),
+  To: page(FILTERS, "label: 'To'"),
+  'Apply filters': page(FILTERS, "apply: 'Apply filters'"),
   'Admin change': page(AUDIT_KINDS, "'Admin change'"),
   'Admin access': page(AUDIT_KINDS, "'Admin access'"),
   Authentication: page(AUDIT_KINDS, "'Authentication'"),
@@ -655,7 +655,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Allowed: page(AUDIT_KINDS, "'Allowed'"),
   Refused: page(AUDIT_KINDS, "'Refused'"),
   Details: entity('audit-event/ui/AuditTable/AuditTable.tsx', '> Details <'),
-  'Export these events': page('audit/ui/AuditPage/AuditPage.tsx', "'Export these events'"),
+  'Export these events': page('audit/services/pageWords.ts', "'Export these events'"),
 
   // The overview.
   'Needs attention': feature(

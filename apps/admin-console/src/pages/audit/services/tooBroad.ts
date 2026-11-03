@@ -5,6 +5,7 @@ import type { GatewayFailure } from '#/shared/services/result';
 import { FILTER_LABELS, type AuditFilters } from '#/pages/audit/services/auditFilters';
 
 export const TOO_BROAD_TITLE = 'These filters are too broad to search';
+export const SEARCH_LAST_DAY = 'Search the last 24 hours';
 
 // The server stops an audit read that outlives its time bound, and says so
 // with this type; narrowing the filters, above all by time, is the way out.

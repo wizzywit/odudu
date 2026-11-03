@@ -1,8 +1,5 @@
 import { useId } from 'react';
 import type { AuditFilterForm } from '#/pages/audit/use-cases/useAuditPage';
-import { choiceOf, hasResourceType } from '#/pages/audit/services/filterDraft';
-import { EVENT_TYPE_OPTIONS, OUTCOME_OPTIONS } from '#/pages/audit/services/filterOptions';
-import { NOT_FILTERS } from '#/pages/audit/services/auditFilters';
 import { Button } from '#/shared/ui/Button';
 import { DateTimeField, SelectField, TextField } from '#/shared/ui/Field';
 import { FieldGrid, GridCell } from '#/shared/ui/FieldGrid';
@@ -11,13 +8,12 @@ import styles from '#/pages/audit/ui/AuditFilters/AuditFilters.module.css';
 // The form holds a draft: nothing is asked of the server until it is applied,
 // and an applied filter lives in the address.
 export function AuditFilters({ form }: { form: AuditFilterForm }) {
-  const { draft, problems, set } = form;
-  const hasType = hasResourceType(draft);
+  const { draft, problems, set, words } = form;
   const blockedId = useId();
   return (
     <form
       role="search"
-      aria-label="Filter the audit trail"
+      aria-label={words.formLabel}
       noValidate
       className={styles.form}
       onSubmit={(event) => {
@@ -35,9 +31,9 @@ export function AuditFilters({ form }: { form: AuditFilterForm }) {
       <FieldGrid>
         <GridCell>
           <SelectField
-            label="Event type"
-            options={EVENT_TYPE_OPTIONS}
-            value={choiceOf(draft, 'event_type')}
+            label={words.eventType.label}
+            options={words.eventType.options}
+            value={form.choice('event_type')}
             onChange={(value) => {
               set('event_type', value);
             }}
@@ -45,9 +41,9 @@ export function AuditFilters({ form }: { form: AuditFilterForm }) {
         </GridCell>
         <GridCell>
           <SelectField
-            label="Outcome"
-            options={OUTCOME_OPTIONS}
-            value={choiceOf(draft, 'outcome')}
+            label={words.outcome.label}
+            options={words.outcome.options}
+            value={form.choice('outcome')}
             onChange={(value) => {
               set('outcome', value);
             }}
@@ -55,8 +51,8 @@ export function AuditFilters({ form }: { form: AuditFilterForm }) {
         </GridCell>
         <GridCell>
           <TextField
-            label="Action"
-            description="Exactly as logged, such as client.update."
+            label={words.action.label}
+            description={words.action.description}
             mono
             value={draft.action}
             error={problems.action}
@@ -67,8 +63,8 @@ export function AuditFilters({ form }: { form: AuditFilterForm }) {
         </GridCell>
         <GridCell>
           <TextField
-            label="Resource type"
-            description="Such as client, subject, role, group or scope."
+            label={words.resourceType.label}
+            description={words.resourceType.description}
             mono
             value={draft.resource_type}
             error={problems.resource_type}
@@ -79,10 +75,10 @@ export function AuditFilters({ form }: { form: AuditFilterForm }) {
         </GridCell>
         <GridCell>
           <TextField
-            label="Resource id"
-            description={hasType ? undefined : 'Choose a resource type first.'}
+            label={words.resourceId.label}
+            description={form.hasType ? undefined : words.resourceId.needsType}
             mono
-            isDisabled={!hasType}
+            isDisabled={!form.hasType}
             value={draft.resource_id}
             error={problems.resource_id}
             onChange={(value) => {
@@ -92,8 +88,8 @@ export function AuditFilters({ form }: { form: AuditFilterForm }) {
         </GridCell>
         <GridCell>
           <TextField
-            label="Actor (subject id)"
-            description="The subject that acted, by its id."
+            label={words.actor.label}
+            description={words.actor.description}
             mono
             value={draft.actor_subject_id}
             error={problems.actor_subject_id}
@@ -104,8 +100,8 @@ export function AuditFilters({ form }: { form: AuditFilterForm }) {
         </GridCell>
         <GridCell>
           <DateTimeField
-            label="From"
-            description="Events at or after this minute."
+            label={words.from.label}
+            description={words.from.description}
             edge="start"
             value={draft.from}
             error={problems.from}
@@ -119,8 +115,8 @@ export function AuditFilters({ form }: { form: AuditFilterForm }) {
         </GridCell>
         <GridCell>
           <DateTimeField
-            label="To"
-            description="Events up to the end of this minute."
+            label={words.to.label}
+            description={words.to.description}
             edge="end"
             value={draft.to}
             error={problems.to}
@@ -133,7 +129,7 @@ export function AuditFilters({ form }: { form: AuditFilterForm }) {
           />
         </GridCell>
       </FieldGrid>
-      <p className={styles.hint}>{NOT_FILTERS}</p>
+      <p className={styles.hint}>{words.notFilters}</p>
       <div className={styles.actions}>
         <Button
           type="submit"
@@ -141,7 +137,7 @@ export function AuditFilters({ form }: { form: AuditFilterForm }) {
           isDisabled={form.blocked !== null}
           {...(form.blocked === null ? {} : { 'aria-describedby': blockedId })}
         >
-          Apply filters
+          {words.apply}
         </Button>
         {form.blocked === null ? null : (
           <p id={blockedId} className={styles.blocked}>
@@ -150,7 +146,7 @@ export function AuditFilters({ form }: { form: AuditFilterForm }) {
         )}
         {form.filtered ? (
           <Button variant="quiet" onPress={form.clear}>
-            Clear filters
+            {words.clear}
           </Button>
         ) : null}
       </div>

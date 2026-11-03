@@ -2,13 +2,19 @@ import type { AuditEvent } from '#/entities/audit-event';
 import { useState } from 'react';
 import { useAuthority } from '#/entities/session';
 import { areaAt, areaHref, type Area } from '#/entities/area';
+import { CORRELATION_NOTE } from '#/entities/audit-event';
 import { clientHref } from '#/entities/client';
 import { groupHref } from '#/entities/group';
 import { roleHref } from '#/entities/role';
 import { scopeHref } from '#/entities/scope';
 import { useAuditList, type AuditList } from '#/pages/audit/repository/useAuditList';
 import { useExportEvents, type ExportEvents } from '#/pages/audit/use-cases/useExportEvents';
-import { lastDay, tooBroadAdvice } from '#/pages/audit/services/tooBroad';
+import {
+  lastDay,
+  SEARCH_LAST_DAY,
+  TOO_BROAD_TITLE,
+  tooBroadAdvice,
+} from '#/pages/audit/services/tooBroad';
 import { auditQuery } from '#/pages/audit/services/auditAddress';
 import {
   applyBlocked,
@@ -20,16 +26,37 @@ import {
   type Unreadable,
 } from '#/pages/audit/services/draftValidation';
 import {
+  choiceOf,
   draftOf,
   EMPTY_DRAFT,
   filtersOf,
+  hasResourceType,
   withField,
   type Draft,
 } from '#/pages/audit/services/filterDraft';
 import { isFiltered, type FilterName } from '#/pages/audit/services/auditFilters';
 import { actorHref, resourceHref, type RecordPages } from '#/pages/audit/services/resourceLinks';
-import { loadedRange, TRAIL_LABEL } from '#/pages/audit/services/trailCount';
-import { NOTHING_YET_TITLE } from '#/pages/audit/services/emptyTrail';
+import { loadedRange, NO_COUNT, TRAIL_LABEL } from '#/pages/audit/services/trailCount';
+import {
+  NOTHING_MATCHES,
+  NOTHING_MATCHES_TITLE,
+  NOTHING_YET,
+  NOTHING_YET_TITLE,
+  SHOW_EVERY_EVENT,
+} from '#/pages/audit/services/emptyTrail';
+import { STALE_TEXT, STALE_TITLE, START_AGAIN } from '#/pages/audit/services/staleTrail';
+import { EXPORT_NOTE } from '#/pages/audit/services/auditExport';
+import { FILTER_WORDS, type FilterWords } from '#/pages/audit/services/filterWords';
+import { auditArea } from '#/pages/audit/services/auditArea';
+import {
+  EXPORT_LABEL,
+  EXPORTING_LABEL,
+  LAST_EXPORT_LABEL,
+  LOAD_FAILED,
+  LOAD_MORE_NOUN,
+  LOADING_LABEL,
+  PAGE_DESCRIPTION,
+} from '#/pages/audit/services/pageWords';
 import { holds } from '#/shared/services/access';
 import { useNow } from '#/shared/use-cases/useNow';
 import { localZone } from '#/shared/services/zones';
@@ -57,10 +84,17 @@ export interface AuditFilterForm {
   clear: () => void;
   // Whether there is anything to clear: a filter held, or typed.
   filtered: boolean;
+  // What a select shows for a draft field, and whether the draft names a
+  // resource type, which a resource id needs.
+  choice: (name: FilterName) => string;
+  hasType: boolean;
+  words: FilterWords;
 }
 
 export interface TooBroad {
+  title: string;
   advice: string;
+  searchLastDayLabel: string;
   // Reads again with the day up to now added to the filters held.
   searchLastDay: () => void;
 }
@@ -70,7 +104,17 @@ export interface AuditPageState {
   title: string;
   // What the table and the pager are called.
   trailLabel: string;
-  nothingYetTitle: string;
+  header: { description: string; exportLabel: string; exportingLabel: string };
+  notes: { noCount: string; correlation: string; export: string; lastExport: string };
+  load: { loading: string; failed: string; moreFailedNoun: string };
+  empty: {
+    yetTitle: string;
+    yetText: string;
+    matchesTitle: string;
+    matchesText: string;
+    showEvery: string;
+  };
+  stale: { title: string; text: string; startAgain: string };
   list: AuditList;
   form: AuditFilterForm;
   hrefs: AuditHrefs;
@@ -116,16 +160,18 @@ function useFilterForm(list: AuditList): AuditFilterForm {
       list.apply({});
     },
     filtered: isFiltered(list.filters) || isFiltered(filtersOf(draft)),
+    choice: (name) => choiceOf(draft, name),
+    hasType: hasResourceType(draft),
+    words: FILTER_WORDS,
   };
 }
 
 export function useAuditArea(): { area: Area; title: string } {
-  const area = areaAt('audit');
-  return { area, title: area.label };
+  return auditArea();
 }
 
 export function useAuditPage(tenant: string): AuditPageState {
-  const { title } = useAuditArea();
+  const { title } = auditArea();
   const list = useAuditList(tenant);
   const form = useFilterForm(list);
   const exporting = useExportEvents(tenant, list.filters);
@@ -134,11 +180,32 @@ export function useAuditPage(tenant: string): AuditPageState {
   return {
     title,
     trailLabel: TRAIL_LABEL,
-    nothingYetTitle: NOTHING_YET_TITLE,
+    header: {
+      description: PAGE_DESCRIPTION,
+      exportLabel: EXPORT_LABEL,
+      exportingLabel: EXPORTING_LABEL,
+    },
+    notes: {
+      noCount: NO_COUNT,
+      correlation: CORRELATION_NOTE,
+      export: EXPORT_NOTE,
+      lastExport: LAST_EXPORT_LABEL,
+    },
+    load: { loading: LOADING_LABEL, failed: LOAD_FAILED, moreFailedNoun: LOAD_MORE_NOUN },
+    empty: {
+      yetTitle: NOTHING_YET_TITLE,
+      yetText: NOTHING_YET,
+      matchesTitle: NOTHING_MATCHES_TITLE,
+      matchesText: NOTHING_MATCHES,
+      showEvery: SHOW_EVERY_EVENT,
+    },
+    stale: { title: STALE_TITLE, text: STALE_TEXT, startAgain: START_AGAIN },
     list,
     form,
     exporting,
     tooBroad: {
+      title: TOO_BROAD_TITLE,
+      searchLastDayLabel: SEARCH_LAST_DAY,
       advice: tooBroadAdvice(list.filters),
       searchLastDay: () => {
         list.apply({ ...list.filters, ...lastDay(now) });

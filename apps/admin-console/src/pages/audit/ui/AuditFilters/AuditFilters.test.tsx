@@ -1,14 +1,16 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import { EMPTY_DRAFT } from '#/pages/audit/services/filterDraft';
+import { choiceOf, EMPTY_DRAFT, hasResourceType } from '#/pages/audit/services/filterDraft';
+import { FILTER_WORDS } from '#/pages/audit/services/filterWords';
 import type { AuditFilterForm } from '#/pages/audit/use-cases/useAuditPage';
 import { AuditFilters } from '#/pages/audit/ui/AuditFilters/AuditFilters';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 
 function form(overrides: Partial<AuditFilterForm> = {}): AuditFilterForm {
+  const draft = overrides.draft ?? EMPTY_DRAFT;
   return {
-    draft: EMPTY_DRAFT,
+    draft,
     problems: {},
     set: vi.fn(),
     report: vi.fn(),
@@ -16,6 +18,9 @@ function form(overrides: Partial<AuditFilterForm> = {}): AuditFilterForm {
     submit: vi.fn(),
     clear: vi.fn(),
     filtered: false,
+    choice: (name) => choiceOf(draft, name),
+    hasType: hasResourceType(draft),
+    words: FILTER_WORDS,
     ...overrides,
   };
 }
