@@ -2,19 +2,12 @@ import { useParams, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 import { focusPageMain } from '#/features/failure/repository/failureReport';
 import { routeTemplate } from '#/features/failure/services/routeTemplate';
-import { useFailureReport, type FailureShown } from '#/features/failure/use-cases/useFailureReport';
+import { routeFailureView } from '#/features/failure/services/failureView';
+import { useFailureReport } from '#/features/failure/use-cases/useFailureReport';
 import { overviewHref } from '#/entities/area';
 import { useReloadConsole } from '#/entities/session';
 
-export interface RouteFailureShown extends FailureShown {
-  overviewHref: string;
-  // Reloading asks the unsaved-changes guard first; trying again leaves
-  // nothing, so it does not.
-  reload: () => void;
-  tryAgain: () => void;
-}
-
-export function useRouteFailure(error: unknown, reset: () => void): RouteFailureShown {
+export function useRouteFailure(error: unknown, reset: () => void, standalone: boolean) {
   const route = useRouterState({
     select: (state) => routeTemplate(state.matches),
   });
@@ -31,11 +24,10 @@ export function useRouteFailure(error: unknown, reset: () => void): RouteFailure
     [],
   );
   return {
-    report: shown.report,
-    details: shown.details,
-    message: shown.message,
-    messageLabel: shown.messageLabel,
+    view: routeFailureView(standalone, shown),
     overviewHref: overviewHref(tenant),
+    // Reloading asks the unsaved-changes guard first; trying again leaves
+    // nothing, so it does not.
     reload,
     tryAgain: () => {
       retried.current = true;

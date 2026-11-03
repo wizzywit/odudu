@@ -1,15 +1,6 @@
 import type { ErrorComponentProps } from '@tanstack/react-router';
-import {
-  PANEL_WORDING,
-  BACK_TO_OVERVIEW_LABEL,
-  RELOAD_LABEL,
-  ROUTE_FAILURE_TEXT,
-  SHELL_FAILURE_TEXT,
-  TRY_AGAIN_LABEL,
-} from '#/features/failure/services/wording';
 import styles from '#/features/failure/ui/RouteFailure/RouteFailure.module.css';
 import { useRouteFailure } from '#/features/failure/use-cases/useRouteFailure';
-import { PRODUCT_NAME } from '#/shared/services/product';
 import { Button } from '#/shared/ui/Button';
 import { FailurePanel } from '#/shared/ui/FailurePanel';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
@@ -22,27 +13,24 @@ export function RouteFailure({
   reset,
   standalone = false,
 }: ErrorComponentProps & { standalone?: boolean }) {
-  const failure = useRouteFailure(error, reset);
+  const failure = useRouteFailure(error, reset, standalone);
+  const { view } = failure;
   const panel = (
     <FailurePanel
-      {...PANEL_WORDING}
-      text={standalone ? SHELL_FAILURE_TEXT : ROUTE_FAILURE_TEXT}
-      message={failure.message}
-      messageLabel={failure.messageLabel}
-      details={failure.details}
+      {...view.panel}
       actions={
         <>
           <Button variant="primary" onPress={failure.tryAgain}>
-            {TRY_AGAIN_LABEL}
+            {view.tryAgain}
           </Button>
-          <ButtonLink href={failure.overviewHref}>{BACK_TO_OVERVIEW_LABEL}</ButtonLink>
-          <Button onPress={failure.reload}>{RELOAD_LABEL}</Button>
+          <ButtonLink href={failure.overviewHref}>{view.backToOverview}</ButtonLink>
+          <Button onPress={failure.reload}>{view.reload}</Button>
         </>
       }
     />
   );
   return standalone ? (
-    <LostFrame brand={PRODUCT_NAME}>{panel}</LostFrame>
+    <LostFrame brand={view.brand}>{panel}</LostFrame>
   ) : (
     <div className={styles.inShell}>{panel}</div>
   );
