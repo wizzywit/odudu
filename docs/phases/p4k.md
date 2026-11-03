@@ -125,7 +125,9 @@ argument (the overview's `EntityRules`).
 
 Where two copies of a rule disagreed, the variant stayed as a named option of
 one owner, pinned by a test, and is listed here for a later and separate
-decision (spec D2). None changed a word a person reads.
+decision (spec D2). One changed a word: the unsaved-changes dialog now lists
+three or more sections through the shared `andList` (en-GB, no serial comma);
+it used `en` and wrote one. Two sections read as before.
 
 - **`listOrNone` and / comma.** `join: 'and'` writes "a, b and c", `join:
 'comma'` writes "a, b, c". The comma form serves `describeHoldings`,
