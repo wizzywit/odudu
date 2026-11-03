@@ -9,7 +9,8 @@ import {
   type ParentValues,
 } from '#/features/groups/repository/useGroupRecord';
 import { groupsHref } from '#/features/groups/services/address';
-import { defaultBlock, moveRefusal, parentUnavailable } from '#/features/groups/services/blocks';
+import { defaultBlock } from '#/features/groups/services/groupReach';
+import { moveRefusal, parentUnavailable } from '#/features/groups/services/groupMove';
 import {
   type Ceiling,
   ceilingLines,

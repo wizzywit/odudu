@@ -7,7 +7,7 @@ import {
   type OwnAccessRead,
 } from '#/shared/services/capabilities';
 import type { AdminCapability } from '#/shared/services/principal';
-import { within } from '#/features/groups/services/blocks';
+import { within } from '#/features/groups/services/groupPath';
 
 export type Change =
   | { kind: 'delete'; path: string }

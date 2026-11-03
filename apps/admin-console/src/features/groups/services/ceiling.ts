@@ -3,7 +3,7 @@ import { beyondCaller, type Loss } from '#/shared/services/capabilities';
 import { andList, capitalise } from '#/shared/services/format';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
 import type { Loaded } from '#/shared/services/read';
-import { type ReachLines, reachLines } from '#/features/groups/services/blocks';
+import { type ReachLines, reachLines } from '#/features/groups/services/groupReach';
 import { newGroupHref } from '#/features/groups/services/address';
 import { type Readiness } from '#/features/groups/services/loss';
 
