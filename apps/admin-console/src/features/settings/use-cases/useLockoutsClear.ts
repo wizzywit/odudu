@@ -7,9 +7,9 @@ import {
   clearMoreText,
   clearFailure,
   lockoutClearState,
-  LOCKOUTS_NEEDS,
   type LockoutClearState,
-} from '#/features/settings/services/lockouts';
+} from '#/features/settings/services/lockoutClear';
+import { LOCKOUTS_NEEDS } from '#/features/settings/services/lockouts';
 import { useToast } from '#/shared/repository/useToasts';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
 

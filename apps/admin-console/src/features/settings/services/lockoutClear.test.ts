@@ -5,7 +5,7 @@ import {
   clearedText,
   clearMoreText,
   lockoutClearState,
-} from '#/features/settings/services/lockouts';
+} from '#/features/settings/services/lockoutClear';
 import type { GatewayFailure } from '#/shared/services/result';
 
 const refused = (status: number): GatewayFailure => ({
