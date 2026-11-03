@@ -1,12 +1,12 @@
 import {
   listMessageOverridesResponseSchema,
   messageCatalogueResponseSchema,
-  type MessageCatalogueResponse,
   messageOverrideSchema,
-  type MessageOverride,
 } from '@odudu/contracts/admin';
 import { adminCall, nothing } from '#/shared/adapter/route';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+import type { MessageCatalogue } from '#/features/branding/types/messageCatalogue';
+import type { MessageOverride } from '#/features/branding/types/messageOverride';
 
 // One page of a language's overrides, in key order, from the cursor in `query`.
 export function readOverridePage(
@@ -75,7 +75,7 @@ export function deleteOverride(
 export function readMessageCatalogue(
   gateway: Gateway,
   tenant: string,
-): Promise<GatewayResult<MessageCatalogueResponse>> {
+): Promise<GatewayResult<MessageCatalogue>> {
   return adminCall(gateway, 'GET', tenant, ['message-catalogue'], {
     schema: messageCatalogueResponseSchema,
   });

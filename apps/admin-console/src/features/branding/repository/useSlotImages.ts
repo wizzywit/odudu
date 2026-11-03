@@ -1,4 +1,4 @@
-import { readAssetImage } from '#/features/branding/adapter/theme';
+import { readAssetImage } from '#/features/branding/adapter/themeAssets';
 import {
   slotThumbnail,
   type SlotAsk,

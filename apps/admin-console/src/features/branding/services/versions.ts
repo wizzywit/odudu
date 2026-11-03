@@ -1,8 +1,9 @@
-import { THEME_VERSIONS_LIMIT, type ListThemeVersionsResponse } from '@odudu/contracts/admin';
+import type { ThemeVersions } from '#/features/branding/types/themeVersion';
+import { THEME_VERSIONS_LIMIT } from '@odudu/contracts/admin';
 import { formatAbsolute } from '#/shared/services/format';
 import type { ThemeScope } from '#/features/branding/services/themeScope';
 
-type Version = ListThemeVersionsResponse['items'][number];
+type Version = ThemeVersions['items'][number];
 
 export const VERSIONS_TITLE = 'Versions';
 

@@ -1,5 +1,5 @@
-import type { StylesheetHooksResponse } from '@odudu/contracts/admin';
-import { readStylesheetHooks } from '#/features/branding/adapter/theme';
+import type { StylesheetHooksResponse } from '#/features/branding/types/theme';
+import { readStylesheetHooks } from '#/features/branding/adapter/themePreview';
 import { stylesheetHooksKey } from '#/shared/repository/queryKeys';
 import { useRead } from '#/shared/repository/useRead';
 import type { Read } from '#/shared/services/read';

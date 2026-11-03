@@ -1,4 +1,4 @@
-import type { ListThemeVersionsResponse } from '@odudu/contracts/admin';
+import type { ThemeVersions } from '#/features/branding/types/themeVersion';
 import { useRefusal } from '#/entities/session';
 import { useThemeVersions } from '#/features/branding/repository/useThemeVersions';
 import type { ThemeWrites } from '#/features/branding/repository/useThemeWrites';
@@ -10,7 +10,7 @@ import type { Read } from '#/shared/services/read';
 import { useConfirmedChange, type Confirming } from '#/shared/use-cases/useConfirmedChange';
 
 export interface Versions {
-  read: Read<ListThemeVersionsResponse>;
+  read: Read<ThemeVersions>;
   restoring: Confirming<VersionRow>;
 }
 

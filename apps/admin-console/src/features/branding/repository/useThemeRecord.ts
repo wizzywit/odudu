@@ -1,5 +1,5 @@
-import type { ThemeView } from '@odudu/contracts/admin';
-import { readTheme } from '#/features/branding/adapter/theme';
+import type { ThemeView } from '#/features/branding/types/theme';
+import { readTheme } from '#/features/branding/adapter/themeDraft';
 import { themeRecord, type ThemeScope } from '#/features/branding/services/themeScope';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord';
 

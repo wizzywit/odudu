@@ -1,4 +1,5 @@
-import type { MessageOverride, Settings } from '@odudu/contracts/admin';
+import type { MessageOverride } from '#/features/branding/types/messageOverride';
+import type { Settings } from '@odudu/contracts/admin';
 import { useRef, useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { languagesSave } from '#/features/branding/repository/languagesSave';

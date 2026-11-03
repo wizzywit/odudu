@@ -1,4 +1,4 @@
-import type { ThemePreviewInfo } from '@odudu/contracts/admin';
+import type { ThemePreviewInfo } from '#/features/branding/types/theme';
 import { describe, expect, it } from 'vitest';
 import {
   FALLBACK_REASONS,

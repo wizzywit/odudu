@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { refusedBy } from '#/shared/services/failure';
 import type { AdminCapability } from '#/shared/services/principal';
 import type { Problem } from '#/shared/services/result';

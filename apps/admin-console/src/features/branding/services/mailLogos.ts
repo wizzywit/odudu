@@ -1,4 +1,4 @@
-import type { MailBrandingView } from '@odudu/contracts/admin';
+import type { MailBrandingView } from '#/features/branding/types/mailBranding';
 import { previewable } from '#/shared/services/profileUrl';
 
 export const LOGO_TITLE = 'Logo';

@@ -1,4 +1,4 @@
-import type { MessageCatalogueResponse } from '@odudu/contracts/admin';
+import type { MessageCatalogue } from '#/features/branding/types/messageCatalogue';
 import { sortedIds } from '#/shared/services/ids';
 import type { PageKind } from '#/features/branding/services/pageKinds';
 
@@ -25,17 +25,14 @@ export const KEY_FAILED = 'The list of messages could not be loaded.';
 
 // The messages the template of a kind may name: those of the section that
 // fills the kind.
-export function messagesForKind(
-  catalogue: MessageCatalogueResponse,
-  kind: PageKind,
-): MessageEntry[] {
+export function messagesForKind(catalogue: MessageCatalogue, kind: PageKind): MessageEntry[] {
   const section = catalogue.sections.find((entry) => entry.kinds.includes(kind));
   return section === undefined ? [] : section.messages.map(({ key, en }) => ({ key, text: en }));
 }
 
 // The messages an override may be set under: every key of every section once,
 // in key order, a key two sections share showing the first one's text.
-export function allMessages(catalogue: MessageCatalogueResponse): MessageEntry[] {
+export function allMessages(catalogue: MessageCatalogue): MessageEntry[] {
   const byKey = new Map<string, MessageEntry>();
   for (const section of catalogue.sections) {
     // A section filling no page kind is the mail messages.
@@ -69,9 +66,6 @@ export function messageOptions(
 
 // The messages to offer: those a template of `kind` may name, or with no kind
 // every message an override may be set under.
-export function messagesOf(
-  catalogue: MessageCatalogueResponse,
-  kind: PageKind | null,
-): MessageEntry[] {
+export function messagesOf(catalogue: MessageCatalogue, kind: PageKind | null): MessageEntry[] {
   return kind === null ? allMessages(catalogue) : messagesForKind(catalogue, kind);
 }

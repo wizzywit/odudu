@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { useId } from 'react';
 import {
   rowText,

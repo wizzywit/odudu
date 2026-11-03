@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { counted } from '#/shared/services/format';
 import { STYLESHEET_SECTION_TITLE } from '#/features/branding/services/stylesheet';
 import { TEMPLATES_SECTION_TITLE } from '#/features/branding/services/templateParts';

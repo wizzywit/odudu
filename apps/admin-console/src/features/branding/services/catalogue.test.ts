@@ -1,4 +1,4 @@
-import type { MessageCatalogueResponse } from '@odudu/contracts/admin';
+import type { MessageCatalogue } from '#/features/branding/types/messageCatalogue';
 import { describe, expect, it } from 'vitest';
 import {
   allMessages,
@@ -9,7 +9,7 @@ import {
   templateReference,
 } from '#/features/branding/services/catalogue';
 
-const CATALOGUE: MessageCatalogueResponse = {
+const CATALOGUE: MessageCatalogue = {
   sections: [
     {
       kinds: ['sign-in', 'consent'],
@@ -56,7 +56,7 @@ describe('allMessages', () => {
 });
 
 describe('the mail section', () => {
-  const WITH_MAIL: MessageCatalogueResponse = {
+  const WITH_MAIL: MessageCatalogue = {
     sections: [
       ...CATALOGUE.sections,
       { kinds: [], messages: [{ key: 'reset.subject', en: 'Reset your {tenant} password' }] },

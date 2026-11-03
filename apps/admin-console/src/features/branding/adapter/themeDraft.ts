@@ -1,30 +1,15 @@
 import {
-  listThemeVersionsResponseSchema,
-  themePreviewInfoSchema,
-  stylesheetHooksResponseSchema,
-  type StylesheetHooksResponse,
-  type ThemePreviewInfo,
   publishThemeResponseSchema,
-  themeAssetSchema,
   themeViewSchema,
-  type ListThemeVersionsResponse,
-  type PublishThemeResponse,
+  listThemeVersionsResponseSchema,
   type PutThemeRequest,
-  type ThemeAsset,
-  type ThemeView,
 } from '@odudu/contracts/admin';
-import { adminCall, nothing, segment } from '#/shared/adapter/route';
+import { adminCall } from '#/shared/adapter/route';
 import { staleWhenTagMissing } from '#/shared/services/failure';
-import { GATEWAY_BASE, type Gateway, type GatewayResult } from '#/shared/transport/gateway';
-import {
-  ifMatchOf,
-  tagOf,
-  themeParts,
-  type ThemeScope,
-} from '#/features/branding/services/themeScope';
-import type { PageKind } from '#/features/branding/services/pageKinds';
-import { imageDataUrl } from '#/features/branding/services/imageThumbnails';
-import type { Scheme } from '#/features/branding/services/colourScheme';
+import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+import { ifMatchOf, tagOf, type ThemeScope } from '#/features/branding/services/themeScope';
+import type { PublishThemeResponse, ThemeView } from '#/features/branding/types/theme';
+import type { ThemeVersions } from '#/features/branding/types/themeVersion';
 
 // A theme with no draft has no ETag; every answer that carries a view says so
 // the same way, so a section can always save against what it was read with.
@@ -133,7 +118,7 @@ export function readVersions(
   gateway: Gateway,
   tenant: string,
   scope: ThemeScope,
-): Promise<GatewayResult<ListThemeVersionsResponse>> {
+): Promise<GatewayResult<ThemeVersions>> {
   const schema = listThemeVersionsResponseSchema;
   return scope.kind === 'tenant'
     ? adminCall(gateway, 'GET', tenant, ['theme', 'versions'], { schema })
@@ -160,78 +145,4 @@ export async function restoreVersion(
           { schema },
         ),
   );
-}
-
-// The image is the request body, and `kind` says which slot it is for.
-export function uploadAsset(
-  gateway: Gateway,
-  tenant: string,
-  kind: string,
-  file: Blob,
-): Promise<GatewayResult<ThemeAsset>> {
-  return adminCall(gateway, 'POST', tenant, ['theme', 'assets'], {
-    query: new URLSearchParams({ kind }),
-    file,
-    schema: themeAssetSchema,
-  });
-}
-
-// What the admin sees of an uploaded image before any public address serves
-// it: its bytes, as a data address a page under this console's policy may show.
-export async function readAssetImage(
-  gateway: Gateway,
-  tenant: string,
-  assetId: string,
-): Promise<GatewayResult<string>> {
-  const result = await gateway.bytes(
-    'GET',
-    `admin/tenants/${segment(tenant)}/theme/assets/${segment(assetId)}/content`,
-  );
-  if (!result.ok) return result;
-  const url = imageDataUrl(result.data.bytes, result.data.contentType);
-  return url === null ? { ok: false, kind: 'schema' } : { ...result, data: url };
-}
-
-export function deleteAsset(
-  gateway: Gateway,
-  tenant: string,
-  assetId: string,
-): Promise<GatewayResult<undefined>> {
-  return adminCall(gateway, 'DELETE', tenant, ['theme', 'assets', assetId], { schema: nothing });
-}
-
-// The page the frame shows: the real renderer's answer for the saved draft,
-// fetched by the frame itself under the session cookie.
-export function previewSource(
-  tenant: string,
-  scope: ThemeScope,
-  choice: { kind: PageKind; scheme: Scheme },
-): string {
-  const path = ['admin', 'tenants', tenant, ...themeParts(scope), 'preview'].map(segment).join('/');
-  return `${GATEWAY_BASE}${path}?${new URLSearchParams(choice).toString()}`;
-}
-
-// What a stylesheet's rules may name, which is the tenant's one list whether
-// the stylesheet being edited is the tenant's or a client's.
-export function readStylesheetHooks(
-  gateway: Gateway,
-  tenant: string,
-): Promise<GatewayResult<StylesheetHooksResponse>> {
-  return adminCall(gateway, 'GET', tenant, ['theme', 'stylesheet-hooks'], {
-    schema: stylesheetHooksResponseSchema,
-  });
-}
-
-// What the preview of the same request shows and why, which a frame cannot
-// say itself: its headers are not readable from the page that frames it.
-export function readPreviewInfo(
-  gateway: Gateway,
-  tenant: string,
-  scope: ThemeScope,
-  choice: { kind: PageKind; scheme: Scheme },
-): Promise<GatewayResult<ThemePreviewInfo>> {
-  const options = { query: new URLSearchParams(choice), schema: themePreviewInfoSchema };
-  return scope.kind === 'tenant'
-    ? adminCall(gateway, 'GET', tenant, ['theme', 'preview', 'info'], options)
-    : adminCall(gateway, 'GET', tenant, ['clients', scope.id, 'theme', 'preview', 'info'], options);
 }

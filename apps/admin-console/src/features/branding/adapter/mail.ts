@@ -1,6 +1,7 @@
-import { mailBrandingViewSchema, type MailBrandingView } from '@odudu/contracts/admin';
+import { mailBrandingViewSchema } from '@odudu/contracts/admin';
 import { adminCall, segment } from '#/shared/adapter/route';
 import { GATEWAY_BASE, type Gateway, type GatewayResult } from '#/shared/transport/gateway';
+import type { MailBrandingView } from '#/features/branding/types/mailBranding';
 import type { MailChoice } from '#/features/branding/services/mailChoice';
 
 // The tenant's own, or that of the client whose row id is given.

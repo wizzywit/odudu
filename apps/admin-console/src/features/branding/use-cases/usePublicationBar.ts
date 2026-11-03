@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { useThemeWrites } from '#/features/branding/repository/useThemeWrites';
 import type { PublishOutcome } from '#/features/branding/services/publishOutcome';
 import type { PublicationHolds } from '#/features/branding/services/publicationHolds';

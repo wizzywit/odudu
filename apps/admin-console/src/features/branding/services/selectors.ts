@@ -1,4 +1,4 @@
-import type { StylesheetHooksResponse } from '@odudu/contracts/admin';
+import type { StylesheetHooksResponse } from '#/features/branding/types/theme';
 import { LIST_LIMIT } from '#/features/branding/services/catalogue';
 import { PAGE_KIND_LABELS, pageKindOf } from '#/features/branding/services/pageKinds';
 

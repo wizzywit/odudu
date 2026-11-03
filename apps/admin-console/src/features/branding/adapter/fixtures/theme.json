@@ -1,0 +1,82 @@
+{
+  "scope": "tenant",
+  "draft": {
+    "assets": {},
+    "tokens": {
+      "light": {
+        "inkMuted": "#555555",
+        "focusRing": "#0044aa",
+        "inkPrimary": "#111111",
+        "surfacePage": "#fff4e0",
+        "borderStrong": "#777777",
+        "signalActive": "#ddeedd",
+        "signalDanger": "#fde0d0",
+        "surfacePanel": "#fffaf0",
+        "surfaceSunken": "#f0e6d0",
+        "signalActiveInk": "#004400",
+        "signalDangerInk": "#802000"
+      }
+    },
+    "templates": {
+      "sign-in": "<div class=\"page-sign-in\"><h1>{{t \"login.title\"}}</h1>{{error}}{{form.open}}{{fields}}{{submit}}{{form.close}}</div>"
+    },
+    "stylesheet": ".page-sign-in h1 { border-top: 4px solid #0044aa; }"
+  },
+  "published": null,
+  "sources": {
+    "tokens.light": "default",
+    "tokens.dark": "default",
+    "tokens.font": "default",
+    "stylesheet": "default",
+    "templates.sign-in": "default",
+    "templates.consent": "default",
+    "templates.select-account": "default",
+    "templates.logout-confirm": "default",
+    "templates.totp-enrolment": "default",
+    "templates.passkey-enrolment": "default",
+    "templates.recovery-codes": "default",
+    "templates.update-password": "default",
+    "templates.required-action": "default",
+    "templates.registration": "default",
+    "templates.reset": "default",
+    "templates.verification": "default",
+    "templates.required-actions": "default",
+    "templates.authorize-error": "default",
+    "templates.email-unverified": "default",
+    "templates.logged-out": "default",
+    "templates.notice": "default",
+    "assets.logo": "default",
+    "assets.darkLogo": "default",
+    "assets.favicon": "default",
+    "assets.background": "default"
+  },
+  "draft_sources": {
+    "tokens.light": "tenant",
+    "tokens.dark": "default",
+    "tokens.font": "default",
+    "stylesheet": "tenant",
+    "templates.sign-in": "tenant",
+    "templates.consent": "default",
+    "templates.select-account": "default",
+    "templates.logout-confirm": "default",
+    "templates.totp-enrolment": "default",
+    "templates.passkey-enrolment": "default",
+    "templates.recovery-codes": "default",
+    "templates.update-password": "default",
+    "templates.required-action": "default",
+    "templates.registration": "default",
+    "templates.reset": "default",
+    "templates.verification": "default",
+    "templates.required-actions": "default",
+    "templates.authorize-error": "default",
+    "templates.email-unverified": "default",
+    "templates.logged-out": "default",
+    "templates.notice": "default",
+    "assets.logo": "default",
+    "assets.darkLogo": "default",
+    "assets.favicon": "default",
+    "assets.background": "default"
+  },
+  "tenant_sources": null,
+  "changed": ["tokens", "stylesheet", "templates"]
+}

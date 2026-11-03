@@ -1,4 +1,5 @@
-import { PALETTE_KEYS, type FontChoice } from '@odudu/contracts';
+import type { FontChoice } from '#/features/branding/types/theme';
+import { PALETTE_KEYS } from '@odudu/contracts';
 import type { Scheme } from '#/features/branding/services/colourScheme';
 
 export type PaletteKey = (typeof PALETTE_KEYS)[number];

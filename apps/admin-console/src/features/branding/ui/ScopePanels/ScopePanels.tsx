@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import type { ScopeBranding } from '#/features/branding/use-cases/useScopeBranding';
 import { PagesTab } from '#/features/branding/ui/PagesTab';
 import { PreviewPane } from '#/features/branding/ui/PreviewPane';

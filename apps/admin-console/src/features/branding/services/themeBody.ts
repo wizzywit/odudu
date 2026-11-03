@@ -1,7 +1,6 @@
-import type { ThemeBodyWire } from '@odudu/contracts';
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeBody, ThemeView } from '#/features/branding/types/theme';
 
-export const EMPTY_BODY: ThemeBodyWire = {
+export const EMPTY_BODY: ThemeBody = {
   tokens: {},
   stylesheet: null,
   templates: {},
@@ -10,6 +9,6 @@ export const EMPTY_BODY: ThemeBodyWire = {
 
 // What a save of the theme starts from: the draft, or with none the published
 // theme it would be made from.
-export function baseBody(view: ThemeView): ThemeBodyWire {
+export function baseBody(view: ThemeView): ThemeBody {
   return view.draft ?? view.published?.body ?? EMPTY_BODY;
 }

@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { useState } from 'react';
 import { useThemeRecord } from '#/features/branding/repository/useThemeRecord';
 import { NO_OUTCOME, type PublishOutcome } from '#/features/branding/services/publishOutcome';

@@ -1,4 +1,4 @@
-import type { MessageOverride } from '@odudu/contracts/admin';
+import type { MessageOverride } from '#/features/branding/types/messageOverride';
 import {
   deleteOverride,
   putOverride,

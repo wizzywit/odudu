@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { unsavedBlock } from '#/features/branding/services/unsavedBlock';
 
 export const PUBLISH_TITLE = 'Publish';

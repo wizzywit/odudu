@@ -1,5 +1,5 @@
-import type { ListThemeVersionsResponse } from '@odudu/contracts/admin';
-import { readVersions } from '#/features/branding/adapter/theme';
+import type { ThemeVersions } from '#/features/branding/types/themeVersion';
+import { readVersions } from '#/features/branding/adapter/themeDraft';
 import { scopeKeyPart, type ThemeScope } from '#/features/branding/services/themeScope';
 import { themeVersionsKey } from '#/shared/repository/queryKeys';
 import { useRead } from '#/shared/repository/useRead';
@@ -10,7 +10,7 @@ export function useThemeVersions(
   tenant: string,
   scope: ThemeScope,
   asked: boolean,
-): Read<ListThemeVersionsResponse> {
+): Read<ThemeVersions> {
   const { gateway } = useTransport();
   return useRead(
     themeVersionsKey(tenant, scopeKeyPart(scope)),

@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { useAssetUpload } from '#/features/branding/repository/useThemeAssets';

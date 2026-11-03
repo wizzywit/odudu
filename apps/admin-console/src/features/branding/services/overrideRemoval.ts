@@ -1,4 +1,4 @@
-import type { MessageOverride } from '@odudu/contracts/admin';
+import type { MessageOverride } from '#/features/branding/types/messageOverride';
 import { type RemovalOutcome, isStale, refusedBy, removalOutcome } from '#/shared/services/failure';
 import type { GatewayResult } from '#/shared/services/result';
 

@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { useState } from 'react';
 import { previewSource } from '#/features/branding/repository/preview';
 import { usePreviewInfo } from '#/features/branding/repository/usePreviewInfo';

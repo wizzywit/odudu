@@ -1,5 +1,5 @@
+import type { MailBrandingView } from '#/features/branding/types/mailBranding';
 import { useId } from 'react';
-import type { MailBrandingView } from '@odudu/contracts/admin';
 import { logoViews, LOGO_ELSEWHERE, LOGO_TITLE } from '#/features/branding/services/mailLogos';
 import {
   MAIL_CLIENTS_NOTE,

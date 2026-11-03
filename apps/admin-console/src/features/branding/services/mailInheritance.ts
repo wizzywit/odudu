@@ -1,4 +1,4 @@
-import type { MailColoursView } from '@odudu/contracts/admin';
+import type { MailColoursView } from '#/features/branding/types/mailBranding';
 
 export const MAIL_INHERITS_TITLE = 'What the mail inherits';
 

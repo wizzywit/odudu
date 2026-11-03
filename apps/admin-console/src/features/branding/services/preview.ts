@@ -1,7 +1,7 @@
+import type { ThemeView } from '#/features/branding/types/theme';
 import type { Read } from '#/shared/services/read';
 import type { PageKind } from '#/features/branding/services/pageKinds';
 import type { Scheme } from '#/features/branding/services/colourScheme';
-import type { ThemeView } from '@odudu/contracts/admin';
 
 export interface PreviewChoice {
   kind: PageKind;

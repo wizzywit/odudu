@@ -1,4 +1,5 @@
-import type { PublishThemeResponse, PutThemeRequest, ThemeView } from '@odudu/contracts/admin';
+import type { PublishThemeResponse, ThemeView } from '#/features/branding/types/theme';
+import type { PutThemeRequest } from '@odudu/contracts/admin';
 import { useIsMutating, useQueryClient } from '@tanstack/react-query';
 import {
   discardThemeDraft,
@@ -6,7 +7,7 @@ import {
   putTheme,
   resetTheme,
   restoreVersion,
-} from '#/features/branding/adapter/theme';
+} from '#/features/branding/adapter/themeDraft';
 import { draftMoved } from '#/features/branding/services/writeFailures';
 import { writesRunning, type WritesRunning } from '#/features/branding/services/publicationHolds';
 import {

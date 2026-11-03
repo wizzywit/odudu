@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import type { PublishOutcome } from '#/features/branding/services/publishOutcome';
 import type { ThemeScope } from '#/features/branding/services/themeScope';
 import { DELETE_BODY, DELETE_TITLE } from '#/features/branding/services/imageRefusals';

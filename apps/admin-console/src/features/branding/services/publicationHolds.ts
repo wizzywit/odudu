@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { PUBLISHING, publishHold } from '#/features/branding/services/publishDraft';
 import { REVERT_LABEL, REVERTING, revertHold } from '#/features/branding/services/revertDraft';
 import {

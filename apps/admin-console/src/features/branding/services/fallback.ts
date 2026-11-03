@@ -1,4 +1,4 @@
-import type { ThemePreviewInfo } from '@odudu/contracts/admin';
+import type { ThemePreviewInfo } from '#/features/branding/types/theme';
 import { capitalise } from '#/shared/services/format';
 import type { Read } from '#/shared/services/read';
 import { PAGE_KIND_LABELS } from '#/features/branding/services/pageKinds';

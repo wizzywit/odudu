@@ -1,5 +1,5 @@
-import type { FontChoice, ThemeBodyRequest } from '@odudu/contracts';
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { FontChoice, ThemeView } from '#/features/branding/types/theme';
+import type { ThemeBodyRequest } from '@odudu/contracts';
 import type { Palette } from '#/features/branding/services/palette';
 import { baseBody } from '#/features/branding/services/themeBody';
 

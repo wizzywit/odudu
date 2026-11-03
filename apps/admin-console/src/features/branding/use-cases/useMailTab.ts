@@ -1,4 +1,6 @@
-import type { Client, MailBrandingView, ThemeView } from '@odudu/contracts/admin';
+import type { Client } from '#/entities/client';
+import type { MailBrandingView } from '#/features/branding/types/mailBranding';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { useState } from 'react';
 import { mailPreviewSource, pageOrigin } from '#/features/branding/repository/mailPreview';
 import { useMailBranding } from '#/features/branding/repository/useMailBranding';

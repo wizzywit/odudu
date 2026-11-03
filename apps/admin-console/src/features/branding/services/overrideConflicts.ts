@@ -1,4 +1,4 @@
-import type { MessageOverride } from '@odudu/contracts/admin';
+import type { MessageOverride } from '#/features/branding/types/messageOverride';
 import { describeValue, type Conflict } from '#/shared/services/conflict';
 import type { GatewayResult } from '#/shared/services/result';
 import { EMPTY_OVERRIDE, type OverrideValues } from '#/features/branding/services/overrideForm';

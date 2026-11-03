@@ -1,5 +1,5 @@
-import type { ThemeBodyRequest, ThemeBodyWire } from '@odudu/contracts';
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeBody, ThemeView } from '#/features/branding/types/theme';
+import type { ThemeBodyRequest } from '@odudu/contracts';
 import type { Conflict } from '#/shared/services/conflict';
 import { isStale, writeFailureText } from '#/shared/services/failure';
 import { counted } from '#/shared/services/format';
@@ -64,7 +64,7 @@ export function revertHold({
   return holds ? undefined : TAB_MATCHES;
 }
 
-const PIECE_OF: Readonly<Record<ChangedPiece, (body: ThemeBodyWire) => Partial<ThemeBodyWire>>> = {
+const PIECE_OF: Readonly<Record<ChangedPiece, (body: ThemeBody) => Partial<ThemeBody>>> = {
   tokens: (body) => ({ tokens: body.tokens }),
   assets: (body) => ({ assets: body.assets }),
   stylesheet: (body) => ({ stylesheet: body.stylesheet }),

@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { act, renderHook } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { useThemeWrites } from '#/features/branding/repository/useThemeWrites';

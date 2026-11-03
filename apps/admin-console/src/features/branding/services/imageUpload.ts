@@ -1,7 +1,7 @@
+import type { SlotImage } from '#/features/branding/types/slotImage';
 import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
 import { failureTextWith } from '#/shared/services/failure';
 import { reportFailure } from '#/shared/services/settled';
-import type { ThemeAsset } from '@odudu/contracts/admin';
 import { altEdited, logoOf } from '#/features/branding/services/logoAlt';
 import {
   uploadRefusal,
@@ -85,7 +85,7 @@ export function startUpload(
 export function slotAfterUpload(
   slots: SlotStates,
   slot: ImageSlot,
-  result: GatewayResult<ThemeAsset>,
+  result: GatewayResult<SlotImage>,
 ): SlotStates {
   return result.ok ? slotDone(slots, slot) : slotFailed(slots, slot, uploadFailureOf(slot, result));
 }
@@ -93,7 +93,7 @@ export function slotAfterUpload(
 // What an answered upload puts in its slot, nothing when it was refused.
 export function uploadedImage(
   slot: ImageSlot,
-  result: GatewayResult<ThemeAsset>,
+  result: GatewayResult<SlotImage>,
   values: ImageValues,
 ): Logo | Plain | null {
   return result.ok ? imageAfterUpload(slot, result.data.id, values) : null;
@@ -108,7 +108,7 @@ export interface UploadAnswer {
 // Settles the slot, fills it when the file landed and reports a refusal.
 export function finishUpload(
   slot: ImageSlot,
-  result: GatewayResult<ThemeAsset>,
+  result: GatewayResult<SlotImage>,
   values: ImageValues,
   to: UploadAnswer,
 ): void {

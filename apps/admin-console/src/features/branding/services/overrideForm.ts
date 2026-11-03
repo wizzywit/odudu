@@ -1,8 +1,8 @@
+import type { MessageOverride } from '#/features/branding/types/messageOverride';
 import {
   MESSAGE_OVERRIDE_KEY_MAX_LENGTH,
   MESSAGE_OVERRIDE_LIMIT,
   MESSAGE_OVERRIDE_MAX_LENGTH,
-  type MessageOverride,
 } from '@odudu/contracts/admin';
 
 export const OVERRIDES_TITLE = 'Message overrides';

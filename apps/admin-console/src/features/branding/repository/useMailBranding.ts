@@ -1,4 +1,4 @@
-import type { MailBrandingView } from '@odudu/contracts/admin';
+import type { MailBrandingView } from '#/features/branding/types/mailBranding';
 import { readMailBranding } from '#/features/branding/adapter/mail';
 import { mailBrandingKey } from '#/shared/repository/queryKeys';
 import { useRead } from '#/shared/repository/useRead';

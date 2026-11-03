@@ -1,5 +1,5 @@
+import type { ThemeView } from '#/features/branding/types/theme';
 import { FileTrigger } from 'react-aria-components';
-import type { ThemeView } from '@odudu/contracts/admin';
 import { type ThemeScope } from '#/features/branding/services/themeScope';
 import { sourceReading } from '#/features/branding/services/sources';
 import { ACCEPTED_TYPES, limitText, SLOT_RULES } from '#/features/branding/services/imageSlots';

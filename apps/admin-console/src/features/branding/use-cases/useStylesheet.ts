@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { useRefusal } from '#/entities/session';
 import { stylesheetSave } from '#/features/branding/repository/themeSaves';
 import type { PublishOutcome } from '#/features/branding/services/publishOutcome';

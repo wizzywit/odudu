@@ -1,1 +1,1 @@
-export { previewSource } from '#/features/branding/adapter/theme';
+export { previewSource } from '#/features/branding/adapter/themePreview';

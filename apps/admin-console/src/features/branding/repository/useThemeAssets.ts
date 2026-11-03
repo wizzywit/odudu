@@ -1,5 +1,5 @@
-import type { ThemeAsset } from '@odudu/contracts/admin';
-import { deleteAsset, uploadAsset } from '#/features/branding/adapter/theme';
+import type { SlotImage } from '#/features/branding/types/slotImage';
+import { deleteAsset, uploadAsset } from '#/features/branding/adapter/themeAssets';
 import { TENANT_WIDE_WRITES } from '#/features/branding/services/themeScope';
 import { themeWriteKey } from '#/shared/repository/queryKeys';
 import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
@@ -11,7 +11,7 @@ export interface Upload {
 }
 
 // Neither is repeated if the answer is lost: an upload may have landed.
-export function useAssetUpload(tenant: string): Write<Upload, GatewayResult<ThemeAsset>> {
+export function useAssetUpload(tenant: string): Write<Upload, GatewayResult<SlotImage>> {
   return useGatewayWrite({
     mutationKey: themeWriteKey(tenant, TENANT_WIDE_WRITES, 'upload'),
     send: (gateway, { kind, file }: Upload) => uploadAsset(gateway, tenant, kind, file),

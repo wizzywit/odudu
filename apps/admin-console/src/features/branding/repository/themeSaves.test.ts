@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { expect, it } from 'vitest';
 import { colourSave, imageSave, templateSave } from '#/features/branding/repository/themeSaves';
 import { NO_DRAFT_TAG } from '#/features/branding/services/themeScope';

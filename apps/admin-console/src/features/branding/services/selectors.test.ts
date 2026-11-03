@@ -1,4 +1,4 @@
-import type { StylesheetHooksResponse } from '@odudu/contracts/admin';
+import type { StylesheetHooksResponse } from '#/features/branding/types/theme';
 import { describe, expect, it } from 'vitest';
 import {
   SELECTOR_GROUPS,

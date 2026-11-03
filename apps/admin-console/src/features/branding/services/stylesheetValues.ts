@@ -1,5 +1,5 @@
+import type { ThemeView } from '#/features/branding/types/theme';
 import type { ThemeBodyRequest } from '@odudu/contracts';
-import type { ThemeView } from '@odudu/contracts/admin';
 import { nullWhenBlank } from '#/shared/services/format';
 import { baseBody } from '#/features/branding/services/themeBody';
 

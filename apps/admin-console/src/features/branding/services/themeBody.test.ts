@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { describe, expect, it } from 'vitest';
 import { baseBody } from '#/features/branding/services/themeBody';
 import { EMPTY, themeView } from '#/testing/brandingFixtures';

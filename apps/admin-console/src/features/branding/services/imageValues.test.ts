@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { describe, expect, it } from 'vitest';
 import { imageRequest, imageValues } from '#/features/branding/services/imageValues';
 import { draftedView } from '#/testing/brandingFixtures';

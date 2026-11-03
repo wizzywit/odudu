@@ -1,4 +1,4 @@
-import type { ThemeView } from '@odudu/contracts/admin';
+import type { ThemeView } from '#/features/branding/types/theme';
 import { capitalise } from '#/shared/services/format';
 import { schemeColoursName } from '#/features/branding/services/colourScheme';
 import type { ThemeScope } from '#/features/branding/services/themeScope';

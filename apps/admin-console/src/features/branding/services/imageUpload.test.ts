@@ -1,3 +1,4 @@
+import type { SlotImage } from '#/features/branding/types/slotImage';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 import {
   imageAfterUpload,
@@ -13,7 +14,6 @@ import {
   type UploadStart,
 } from '#/features/branding/services/imageUpload';
 import type { ImageValues } from '#/features/branding/services/imageValues';
-import type { ThemeAsset } from '@odudu/contracts/admin';
 import type { GatewayResult } from '#/shared/services/result';
 
 const none: ImageValues = {
@@ -23,9 +23,9 @@ const none: ImageValues = {
   'assets.background': null,
 };
 
-const asset = { id: 'a1', kind: 'logo' } as ThemeAsset;
+const asset = { id: 'a1', kind: 'logo' } as SlotImage;
 
-const uploaded: GatewayResult<ThemeAsset> = {
+const uploaded: GatewayResult<SlotImage> = {
   ok: true,
   status: 201,
   data: asset,
@@ -33,7 +33,7 @@ const uploaded: GatewayResult<ThemeAsset> = {
   next: null,
 };
 
-const refused: GatewayResult<ThemeAsset> = {
+const refused: GatewayResult<SlotImage> = {
   ok: false,
   kind: 'problem',
   problem: { type: 'about:blank#asset-animated', title: 't', status: 422 },
