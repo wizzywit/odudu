@@ -15,7 +15,7 @@ import { sessionKey } from '#/entities/session/repository/queryKeys';
 import { useDrafts } from '#/shared/lib/repository/useDrafts';
 import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 import type { Gateway } from '#/shared/api/transport/gateway';
-import type { AuthEvents } from '#/shared/lib/services/authEvents';
+import type { AuthEvents } from '#/shared/api/transport/authEvents';
 import { useTransport } from '#/shared/api/transport/useTransport';
 
 const KEY = sessionKey();

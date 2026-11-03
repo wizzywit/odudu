@@ -1,4 +1,4 @@
-import { createAuthEvents, type AuthEvents } from '#/shared/lib/services/authEvents';
+import { createAuthEvents, type AuthEvents } from '#/shared/api/transport/authEvents';
 import { createAuth, type Auth } from '#/shared/api/transport/auth';
 import { createGateway, type Gateway } from '#/shared/api/transport/gateway';
 

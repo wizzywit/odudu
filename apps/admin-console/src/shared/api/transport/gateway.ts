@@ -1,6 +1,6 @@
 import type { ZodType } from 'zod';
 import { isPrincipalChanged, isAuthEnded } from '#/shared/lib/services/authEnded';
-import { createAuthEvents, type AuthEvents } from '#/shared/lib/services/authEvents';
+import { createAuthEvents, type AuthEvents } from '#/shared/api/transport/authEvents';
 import { nextCursor } from '#/shared/api/transport/cursor';
 import { readEtag } from '#/shared/api/transport/etag';
 import { readProblem } from '#/shared/api/transport/problem';

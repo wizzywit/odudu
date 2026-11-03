@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAuthEvents } from '#/shared/lib/services/authEvents';
+import { createAuthEvents } from '#/shared/api/transport/authEvents';
 
 describe('sessionEvents', () => {
   it('calls every subscriber to authEnded when it is emitted', () => {
