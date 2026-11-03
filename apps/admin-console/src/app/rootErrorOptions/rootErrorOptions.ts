@@ -1,6 +1,6 @@
 import { CatchBoundary } from '@tanstack/react-router';
 import type { RootOptions } from 'react-dom/client';
-import { caughtIsLogged, RootBoundary, recordFailure, type CaughtBy } from '#/features/failure';
+import { caughtIsLogged, RootBoundary, recordFailure, type CaughtBy } from '#/widgets/failure';
 import { ChunkLoadError } from '#/shared/services/chunkLoad';
 import { ChunkBoundary } from '#/shared/ui/ChunkBoundary';
 

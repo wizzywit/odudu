@@ -21,6 +21,7 @@ export interface Defined {
 
 const FEATURES = 'apps/admin-console/src/features';
 const PAGES = 'apps/admin-console/src/pages';
+const WIDGETS = 'apps/admin-console/src/widgets';
 const ENTITIES = 'apps/admin-console/src/entities';
 const SHARED = 'apps/admin-console/src/shared';
 const MESSAGES = 'packages/protocol-oidc/src/view/messages.ts';
@@ -37,6 +38,8 @@ const feature = (path: string, ...texts: readonly string[]): Defined =>
   at(`${FEATURES}/${path}`, ...texts);
 const page = (path: string, ...texts: readonly string[]): Defined =>
   at(`${PAGES}/${path}`, ...texts);
+const widget = (path: string, ...texts: readonly string[]): Defined =>
+  at(`${WIDGETS}/${path}`, ...texts);
 const entity = (path: string, ...texts: readonly string[]): Defined =>
   at(`${ENTITIES}/${path}`, ...texts);
 const shared = (path: string, ...texts: readonly string[]): Defined =>
@@ -132,20 +135,20 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Password: at(MESSAGES, "'login.password': 'Password'"),
   'Sign out': at('apps/admin-console/src/widgets/shell/ui/RailFooter/RailFooter.tsx', 'Sign out'),
   // The panel a failed page is replaced by.
-  'Something went wrong': feature(
+  'Something went wrong': widget(
     'failure/services/wording.ts',
     "FAILURE_TITLE = 'Something went wrong'",
   ),
-  'Try again': feature('failure/services/wording.ts', "TRY_AGAIN_LABEL = 'Try again'"),
-  'Back to overview': feature(
+  'Try again': widget('failure/services/wording.ts', "TRY_AGAIN_LABEL = 'Try again'"),
+  'Back to overview': widget(
     'failure/services/wording.ts',
     "BACK_TO_OVERVIEW_LABEL = 'Back to overview'",
   ),
-  'Reload the console': feature(
+  'Reload the console': widget(
     'failure/services/wording.ts',
     "RELOAD_LABEL = 'Reload the console'",
   ),
-  'Error ID': feature('failure/services/failureReport.ts', '`Error ID: ${report.id}`'),
+  'Error ID': widget('failure/services/failureReport.ts', '`Error ID: ${report.id}`'),
   Copy: shared('ui/CopyValue/CopyValue.tsx', 'Copy'),
   'Keep mine': shared('ui/ConflictPanel/ConflictPanel.tsx', 'Keep mine'),
   'Take theirs': shared('ui/ConflictPanel/ConflictPanel.tsx', 'Take theirs'),

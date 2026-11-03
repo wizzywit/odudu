@@ -30,10 +30,10 @@ const PAGE_OF_FEATURE: Readonly<Record<string, string>> = {
   'system-admins': 'system-administrators',
 };
 
-// The screen shown when a page fails is not an area: the tour walks through it.
-// Sign-in and the menu live in widgets, not among the features; the console's
-// home is a page of its own that the tour opens with.
-const DESCRIBED_BY_THE_TOUR = ['console-home', 'failure'];
+// Sign-in, the menu and the screen shown when a page fails live in widgets,
+// not among the features; the console's home is a page of its own that the
+// tour opens with.
+const DESCRIBED_BY_THE_TOUR = ['console-home'];
 
 // Parts of other pages, described on the pages that show them: adding an
 // administrator and giving one capabilities (Tenants, System administrators),

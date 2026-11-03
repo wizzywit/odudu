@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from '#/app/App';
 import { createConsoleRouter } from '#/app/router';
 import { rootErrorOptions } from '#/app/rootErrorOptions';
-import { routeTemplate } from '#/features/failure';
+import { routeTemplate } from '#/widgets/failure';
 import { applyRememberedTheme } from '#/shared/repository/themeChoice';
 
 applyRememberedTheme();

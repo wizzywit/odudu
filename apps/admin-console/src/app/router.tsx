@@ -11,7 +11,7 @@ import {
 import { RouterProvider as AriaRouterProvider } from 'react-aria-components';
 import { lazyFeatureRoute } from '#/app/lazyFeatureRoute';
 import { NavigationGuard } from '#/app/NavigationGuard';
-import { RouteFailure, ShellFailure } from '#/features/failure';
+import { RouteFailure, ShellFailure } from '#/widgets/failure';
 import { ConsoleHome } from '#/pages/console-home';
 import { SessionGate } from '#/widgets/session-gate';
 import { pendingPage, PendingFrame, TenantShell } from '#/widgets/shell';

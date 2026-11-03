@@ -173,7 +173,7 @@ module.exports = {
         'here are pages in waiting and may; tests/lint/architecture/waiting.test.ts keeps the ' +
         'list equal to the features that are not migrated.',
       from: {
-        path: '(^|/)apps/admin-console/src/features/(?!(?:failure|' + 'overview)/)',
+        path: '(^|/)apps/admin-console/src/features/(?!(?:' + 'overview)/)',
       },
       to: { path: '(^|/)apps/admin-console/src/widgets/' },
     },

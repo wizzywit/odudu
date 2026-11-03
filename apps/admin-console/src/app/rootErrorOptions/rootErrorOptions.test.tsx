@@ -2,7 +2,7 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { rootErrorOptions } from '#/app/rootErrorOptions/rootErrorOptions';
-import { RootBoundary } from '#/features/failure';
+import { RootBoundary } from '#/widgets/failure';
 import { ChunkLoadError } from '#/shared/services/chunkLoad';
 import { ChunkBoundary } from '#/shared/ui/ChunkBoundary';
 import { failingAt } from '#/testing/mountFailing';

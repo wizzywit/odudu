@@ -8,7 +8,7 @@ import {
   type RouteComponent,
 } from '@tanstack/react-router';
 import type { ReactElement, ReactNode } from 'react';
-import { RouteFailure, ShellFailure } from '#/features/failure';
+import { RouteFailure, ShellFailure } from '#/widgets/failure';
 import { createQueryClient } from '#/shared/repository/queryClient';
 import { TransportContext } from '#/shared/transport/useTransport';
 import { fakeTransport } from '#/testing/fakeTransport';

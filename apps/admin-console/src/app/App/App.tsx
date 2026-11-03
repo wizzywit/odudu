@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
-import { recordFailure, RootBoundary, routeTemplate } from '#/features/failure';
+import { recordFailure, RootBoundary, routeTemplate } from '#/widgets/failure';
 import { Providers } from '#/app/Providers';
 import type { ConsoleRouter } from '#/app/router';
 import { ToastLayer } from '#/app/ToastLayer';
