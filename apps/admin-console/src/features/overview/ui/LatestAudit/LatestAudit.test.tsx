@@ -1,7 +1,7 @@
 import type { AuditEvent } from '#/entities/audit-event';
 import { render, screen, within } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
-import type { Gated } from '#/features/overview/services/reads';
+import type { Gated } from '#/features/overview/types/overviewReads';
 import { LatestAudit } from '#/features/overview/ui/LatestAudit';
 import { auditEvent } from '#/testing/auditFixtures';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';

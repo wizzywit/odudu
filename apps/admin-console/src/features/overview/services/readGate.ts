@@ -1,61 +1,12 @@
-import type { CountResponse, Settings, SigningKey, SmtpConfig } from '@odudu/contracts/admin';
 import type { AuditEvent } from '#/entities/audit-event';
 import { holds } from '#/shared/services/access';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
-import { mapRead, readOutcome, type Read } from '#/shared/services/read';
-import type { GatewayResult } from '#/shared/services/result';
-import { type Discovery, type Jwks } from '#/features/overview/services/discovery';
-
-// One of the page's reads: `off` is one it did not make, because whoami has
-// not answered or says the capability it needs is not held.
-export type OverviewRead<T> = { status: 'off' } | Read<T>;
-
-// A read the page may not make at all, because whoami says the capability
-// it needs is not held.
-export type Gated<T> = OverviewRead<T> | { status: 'needs'; capability: string };
-
-export type Collection = 'subjects' | 'clients' | 'groups' | 'roles' | 'scopes';
-
-export interface OverviewAsks {
-  discovery: boolean;
-  subjects: boolean;
-  clients: boolean;
-  groups: boolean;
-  roles: boolean;
-  scopes: boolean;
-  settings: boolean;
-  smtp: boolean;
-  keys: boolean;
-  audit: boolean;
-}
-
-export type ReadName = keyof OverviewAsks | 'jwks';
-
-export interface OverviewReads {
-  discovery: OverviewRead<Discovery>;
-  jwks: OverviewRead<Jwks>;
-  counts: Readonly<Record<Collection, OverviewRead<CountResponse>>>;
-  settings: OverviewRead<Settings>;
-  smtp: OverviewRead<SmtpConfig>;
-  keys: OverviewRead<readonly SigningKey[]>;
-  audit: OverviewRead<readonly AuditEvent[]>;
-}
-
-export function overviewOutcome<T>(
-  asked: boolean,
-  result: GatewayResult<T> | undefined,
-  retry: () => void,
-): OverviewRead<T> {
-  return asked ? readOutcome(result, retry) : { status: 'off' };
-}
-
-export function mapOverviewRead<T, U>(read: OverviewRead<T>, map: (data: T) => U): OverviewRead<U> {
-  return read.status === 'off' ? read : mapRead(read, map);
-}
-
-export function readyData<T>(read: OverviewRead<T>): T | undefined {
-  return read.status === 'ready' ? read.data : undefined;
-}
+import type {
+  Gated,
+  OverviewAsks,
+  OverviewRead,
+  ReadName,
+} from '#/features/overview/types/overviewReads';
 
 // Before whoami answers a read is `off` and shows as loading; after, one
 // whose capability is not held, or that the server refused, names it.
@@ -77,7 +28,7 @@ export type CapabilityOf = (path: string) => { capability: AdminCapability | nul
 
 // The area each read belongs to, whose capability it needs; the tenant's
 // public documents belong to none.
-const READ_AREA: Readonly<Record<ReadName, string | null>> = {
+export const READ_AREA: Readonly<Record<ReadName, string | null>> = {
   discovery: null,
   jwks: null,
   subjects: 'subjects',

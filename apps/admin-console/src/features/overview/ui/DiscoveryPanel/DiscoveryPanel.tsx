@@ -4,7 +4,7 @@ import { flagText } from '#/shared/services/format';
 import { type DiscoveryView } from '#/features/overview/services/discovery';
 import { type KeysView, type PublishedKey } from '#/features/overview/services/keys';
 import { laneText, unreadableTitle } from '#/features/overview/services/panelText';
-import { type OverviewRead } from '#/features/overview/services/reads';
+import { type OverviewRead } from '#/features/overview/types/overviewReads';
 import { Panel } from '#/features/overview/ui/Panel';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { CopyValue } from '#/shared/ui/CopyValue';

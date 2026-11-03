@@ -1,8 +1,7 @@
 import { countResponseSchema, type CountResponse } from '@odudu/contracts/admin';
 import type { AuditEvent } from '#/entities/audit-event';
 import { z } from 'zod';
-import type { Jwks } from '#/features/overview/services/discovery';
-import type { Collection } from '#/features/overview/services/reads';
+import type { Collection, Jwks } from '#/features/overview/types/overviewReads';
 import { readAuditPage } from '#/entities/audit-event';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { adminCall, segment } from '#/shared/adapter/route';

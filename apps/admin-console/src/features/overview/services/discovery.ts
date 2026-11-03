@@ -1,20 +1,4 @@
-export interface Discovery {
-  issuer: string;
-  [member: string]: unknown;
-}
-
-export interface PublicKey {
-  kty: string;
-  kid?: string | undefined;
-  alg?: string | undefined;
-  use?: string | undefined;
-  [member: string]: unknown;
-}
-
-export interface Jwks {
-  keys: readonly PublicKey[];
-  [member: string]: unknown;
-}
+import type { Discovery } from '#/features/overview/types/overviewReads';
 
 export interface DiscoveryView {
   issuer: string;

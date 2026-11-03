@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-aria-components';
-import type { Gated } from '#/features/overview/services/reads';
+import type { Gated } from '#/features/overview/types/overviewReads';
 import { Panel } from '#/features/overview/ui/Panel';
 import { auditSummaryColumns, type AuditEvent } from '#/entities/audit-event';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';

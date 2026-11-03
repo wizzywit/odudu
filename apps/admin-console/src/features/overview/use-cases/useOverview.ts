@@ -2,22 +2,17 @@ import type { AuditEvent } from '#/entities/audit-event';
 import { hasRelay } from '#/entities/mail-relay';
 import { publishedLane, readyToPromote } from '#/entities/signing-key';
 import { useAuthority, useRefusal, useTenantMissing } from '#/entities/session';
-import { areaAt, areaHref } from '#/entities/area';
+import { areaAt, areaHref, placeOf } from '#/entities/area';
 import { useArea } from '#/widgets/shell';
 import { useOverviewReads } from '#/features/overview/repository/useOverviewReads';
 import type { EntityRules } from '#/features/overview/services/entityRules';
 import { discoveryView, type DiscoveryView } from '#/features/overview/services/discovery';
 import { keysView, type KeysView } from '#/features/overview/services/keys';
-import {
-  auditView,
-  mapOverviewRead,
-  overviewAsks,
-  readCapability,
-  type Gated,
-  type OverviewRead,
-} from '#/features/overview/services/reads';
+import { auditView, overviewAsks, readCapability } from '#/features/overview/services/readGate';
+import { mapOverviewRead } from '#/features/overview/services/readState';
+import type { AreaOf, Gated, OverviewRead } from '#/features/overview/types/overviewReads';
 import { attentionState, type AttentionState } from '#/features/overview/services/state';
-import { countTiles, type AreaOf, type CountTile } from '#/features/overview/services/tiles';
+import { countTiles, type CountTile } from '#/features/overview/services/tiles';
 
 const RULES: EntityRules = { readyToPromote, hasRelay, publishedLane };
 
@@ -37,10 +32,7 @@ export function useOverview(tenant: string): Overview {
   const auditArea = areaAt('audit');
   const auditAccess = useArea(tenant, auditArea);
   const refusal = useRefusal(tenant);
-  const areaOf: AreaOf = (path) => {
-    const area = areaAt(path);
-    return { label: area.label, capability: area.capability, href: areaHref(tenant, area) };
-  };
+  const areaOf: AreaOf = (path) => placeOf(tenant, path);
   const reads = useOverviewReads(
     tenant,
     overviewAsks(authority, missing, areaOf),

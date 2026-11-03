@@ -6,14 +6,14 @@ import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { readDiscovery } from '#/shared/adapter/discovery';
 import { readSmtp } from '#/entities/mail-relay';
 import { readTenantSettings } from '#/entities/tenant';
-import {
-  overviewOutcome,
-  type Collection,
-  type OverviewAsks,
-  type OverviewReads,
-  type OverviewRead,
-  type ReadName,
-} from '#/features/overview/services/reads';
+import { overviewOutcome } from '#/features/overview/services/readState';
+import type {
+  Collection,
+  OverviewAsks,
+  OverviewRead,
+  OverviewReads,
+  ReadName,
+} from '#/features/overview/types/overviewReads';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
 

@@ -8,3 +8,4 @@ export {
   type AreaGroup,
 } from '#/entities/area/services/areas';
 export { areaHref, overviewHref } from '#/entities/area/services/areaHref';
+export { placeOf, type Place } from '#/entities/area/services/place';

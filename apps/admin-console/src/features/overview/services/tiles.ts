@@ -1,12 +1,9 @@
 import type { CountResponse } from '@odudu/contracts/admin';
 import { readable } from '#/shared/services/access';
-import type { AdminCapability, Authority } from '#/shared/services/principal';
-import {
-  type Gated,
-  type OverviewReads,
-  gate,
-  readyData,
-} from '#/features/overview/services/reads';
+import type { Authority } from '#/shared/services/principal';
+import { gate } from '#/features/overview/services/readGate';
+import { readyData } from '#/features/overview/services/readState';
+import type { AreaOf, Gated, OverviewReads } from '#/features/overview/types/overviewReads';
 
 export interface CountTile {
   id: string;
@@ -17,16 +14,6 @@ export interface CountTile {
   // The client cap, when settings could be read.
   limit?: number | undefined;
 }
-
-// What an area is called, needs and is addressed by; the overview links to
-// areas it does not own.
-export interface Place {
-  label: string;
-  capability: AdminCapability | null;
-  href: string;
-}
-
-export type AreaOf = (path: string) => Place;
 
 const COUNTED = [
   { id: 'subjects', noun: { one: 'subject', other: 'subjects' } },

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { discoveryView } from '#/features/overview/services/discovery';
 import { type KeysView } from '#/features/overview/services/keys';
-import { type OverviewRead } from '#/features/overview/services/reads';
+import { type OverviewRead } from '#/features/overview/types/overviewReads';
 import { DiscoveryPanel } from '#/features/overview/ui/DiscoveryPanel';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 

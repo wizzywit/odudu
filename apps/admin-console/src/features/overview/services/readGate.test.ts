@@ -1,23 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { GatewayResult } from '#/shared/services/result';
+import { areaAt } from '#/entities/area';
 import {
   auditView,
   gate,
   overviewAsks,
   readCapability,
-  mapOverviewRead,
-  overviewOutcome,
-  type OverviewRead,
-} from '#/features/overview/services/reads';
-import {
-  retry,
-  LOADING,
-  FAILED,
-  REFUSED,
-  ready,
-  authority,
-  areaOf,
-} from '#/testing/overviewFixtures';
+  READ_AREA,
+} from '#/features/overview/services/readGate';
+import { LOADING, FAILED, REFUSED, ready, authority, areaOf } from '#/testing/overviewFixtures';
 
 describe('a read gated by a capability', () => {
   const read = ready(1);
@@ -44,32 +34,6 @@ describe('a read gated by a capability', () => {
       capability: 'view-audit',
     });
     expect(gate(FAILED, authority('view-audit'), 'view-audit')).toBe(FAILED);
-  });
-});
-
-describe('a read as a gateway answer reads, for the overview', () => {
-  const answered = (data: number): GatewayResult<number> => ({
-    ok: true,
-    status: 200,
-    data,
-    etag: null,
-    next: null,
-  });
-
-  it('is off when it was not asked, however it was answered', () => {
-    expect(overviewOutcome(false, answered(1), retry)).toEqual({ status: 'off' });
-  });
-
-  it('is what the read says once it was asked', () => {
-    expect(overviewOutcome(true, undefined, retry)).toEqual({ status: 'loading' });
-    expect(overviewOutcome(true, answered(7), retry)).toEqual({ status: 'ready', data: 7 });
-  });
-
-  it('maps what is ready and passes every other state through', () => {
-    expect(mapOverviewRead(ready(2), (n) => n * 2)).toEqual({ status: 'ready', data: 4 });
-    const off: OverviewRead<number> = { status: 'off' };
-    expect(mapOverviewRead<number, number>(off, (n) => n * 2)).toBe(off);
-    expect(mapOverviewRead(FAILED, (n: number) => n * 2)).toBe(FAILED);
   });
 });
 
@@ -131,5 +95,13 @@ describe('the latest activity', () => {
   it('is gated by view-audit otherwise', () => {
     expect(auditView({ kind: 'open' }, events, authority('view-audit'), areaOf)).toBe(events);
     expect(auditView({ kind: 'checking' }, events, undefined, areaOf)).toBe(events);
+  });
+});
+
+describe('the areas the reads belong to', () => {
+  it('are all areas the console has, so a read never asks a capability of nothing', () => {
+    for (const area of Object.values(READ_AREA)) {
+      if (area !== null) expect(() => areaAt(area)).not.toThrow();
+    }
   });
 });

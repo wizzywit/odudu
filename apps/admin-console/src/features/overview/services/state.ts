@@ -2,8 +2,8 @@ import { holds } from '#/shared/services/access';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
 import { type AttentionItem, needsAttention } from '#/features/overview/services/attention';
 import type { EntityRules } from '#/features/overview/services/entityRules';
-import { type OverviewReads, readyData } from '#/features/overview/services/reads';
-import { type AreaOf } from '#/features/overview/services/tiles';
+import { readyData } from '#/features/overview/services/readState';
+import type { AreaOf, OverviewReads } from '#/features/overview/types/overviewReads';
 
 export interface AttentionLink extends AttentionItem {
   href: string;

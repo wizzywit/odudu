@@ -3,8 +3,7 @@ import { hasRelay } from '#/entities/mail-relay';
 import { publishedLane, readyToPromote } from '#/entities/signing-key';
 import type { AttentionInputs } from '#/features/overview/services/attention';
 import type { EntityRules } from '#/features/overview/services/entityRules';
-import type { OverviewRead, OverviewReads } from '#/features/overview/services/reads';
-import type { AreaOf } from '#/features/overview/services/tiles';
+import type { AreaOf, OverviewRead, OverviewReads } from '#/features/overview/types/overviewReads';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
 
 export const retry = (): void => undefined;

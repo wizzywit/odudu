@@ -1,5 +1,6 @@
 import type { Settings } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
+import { placeOf } from '#/entities/area';
 import { countTiles } from '#/features/overview/services/tiles';
 import { OFF, LOADING, REFUSED, ready, authority, areaOf, reads } from '#/testing/overviewFixtures';
 
@@ -62,4 +63,15 @@ describe('the count tiles', () => {
     );
     expect(all.map((t) => t.count.status)).toEqual(['needs', 'off', 'off']);
   });
+});
+
+it('links only areas the console has, so a tile never names a missing one', () => {
+  const tiles = countTiles(reads(), undefined, (path) => placeOf('acme', path));
+  expect(tiles.map((tile) => tile.href)).toEqual([
+    '/console/acme/subjects',
+    '/console/acme/clients',
+    '/console/acme/groups',
+    '/console/acme/roles',
+    '/console/acme/scopes',
+  ]);
 });
