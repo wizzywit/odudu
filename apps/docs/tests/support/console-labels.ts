@@ -586,7 +586,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'Use my own ${scheme} colours',
     { scheme: 'light' },
   ),
-  Images: feature('branding/services/fields.ts', "IMAGES_TITLE = 'Images'"),
+  Images: feature('branding/services/imageSection.ts', "IMAGES_TITLE = 'Images'"),
   Stylesheet: feature('branding/services/fields.ts', "STYLESHEET_SECTION_TITLE = 'Stylesheet'"),
   Contrast: feature('branding/services/copy.ts', "CONTRAST_TITLE = 'Contrast'"),
   Publish: feature('branding/services/publish.ts', "PUBLISH_TITLE = 'Publish'"),
@@ -601,7 +601,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     "REVERT_LABEL = 'Revert this tab to published'",
   ),
   'Discard draft': feature('branding/services/publication.ts', "DISCARD_CONFIRM = 'Discard draft'"),
-  'Delete image': feature('branding/services/copy.ts', "DELETE_LABEL = 'Delete image'"),
+  'Delete image': feature('branding/services/imageSection.ts', "DELETE_LABEL = 'Delete image'"),
   Preview: feature('branding/services/preview.ts', "PREVIEW_TITLE = 'Preview'"),
   'Colour scheme': several(
     feature('branding/services/preview.ts', "PREVIEW_SCHEME_LABEL = 'Colour scheme'"),

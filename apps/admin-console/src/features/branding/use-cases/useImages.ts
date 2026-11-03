@@ -4,7 +4,6 @@ import { useRefusal } from '#/entities/session';
 import { useAssetUpload } from '#/features/branding/repository/useThemeAssets';
 import { useSlotImages } from '#/features/branding/repository/useSlotImages';
 import { imageSave } from '#/features/branding/repository/themeSaves';
-import { imageFields, IMAGES_TITLE } from '#/features/branding/services/fields';
 import { themeRefusal, writeCapability } from '#/features/branding/services/publication';
 import { themeRecord, type ThemeScope } from '#/features/branding/services/scope';
 import { altChanged, imagesHold } from '#/features/branding/services/logoAlt';
@@ -24,6 +23,7 @@ import {
   type ImageValues,
   type ImageSlot,
 } from '#/features/branding/services/imageValues';
+import { imageFields, IMAGES_TITLE } from '#/features/branding/services/imageSection';
 import { useSectionHold } from '#/features/branding/use-cases/useSectionHold';
 import { useLatest } from '#/shared/repository/useLatest';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';

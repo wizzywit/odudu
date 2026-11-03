@@ -1,4 +1,10 @@
 import type { Read } from '#/shared/services/read';
+import { SLOT_RULES, ACCEPTED_TYPE_LIST } from '#/features/branding/services/imageSlots';
+import {
+  imageField,
+  type ImageSlot,
+  type ImageValues,
+} from '#/features/branding/services/imageValues';
 import {
   DELETE_LABEL,
   imageNote,
@@ -6,13 +12,7 @@ import {
   REMOVE_LABEL,
   REPLACE_LABEL,
   UPLOAD_LABEL,
-} from '#/features/branding/services/copy';
-import { SLOT_RULES, ACCEPTED_TYPE_LIST } from '#/features/branding/services/imageSlots';
-import {
-  imageField,
-  type ImageSlot,
-  type ImageValues,
-} from '#/features/branding/services/imageValues';
+} from '#/features/branding/services/imageSection';
 
 const UPLOADING_NAME = 'Uploading';
 

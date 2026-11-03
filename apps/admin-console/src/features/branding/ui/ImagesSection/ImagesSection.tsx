@@ -1,18 +1,18 @@
 import { FileTrigger } from 'react-aria-components';
 import type { ThemeView } from '@odudu/contracts/admin';
-import {
-  DELETE_LABEL,
-  IMAGES_LEAD,
-  REMOVE_LABEL,
-  UPLOADING,
-} from '#/features/branding/services/copy';
-import { IMAGES_TITLE } from '#/features/branding/services/fields';
 import { type ThemeScope } from '#/features/branding/services/scope';
 import { sourceReading } from '#/features/branding/services/sources';
 import { ACCEPTED_TYPES, limitText, SLOT_RULES } from '#/features/branding/services/imageSlots';
 import { ALT_LABEL, ALT_RULE, altProblem } from '#/features/branding/services/logoAlt';
 import { slotView } from '#/features/branding/services/imageThumbnails';
 import { IMAGE_SLOTS, imageField, type ImageSlot } from '#/features/branding/services/imageValues';
+import {
+  DELETE_LABEL,
+  IMAGES_LEAD,
+  REMOVE_LABEL,
+  UPLOADING,
+  IMAGES_TITLE,
+} from '#/features/branding/services/imageSection';
 import type { Images } from '#/features/branding/use-cases/useImages';
 import type { ImageAsk } from '#/features/branding/use-cases/useImageDeletion';
 import { Button } from '#/shared/ui/Button';

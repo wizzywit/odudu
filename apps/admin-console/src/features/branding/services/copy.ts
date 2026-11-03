@@ -37,25 +37,6 @@ export const PAIR_PASSES = 'passes';
 
 export const PAIR_FAILS = 'fails';
 
-export const IMAGES_LEAD =
-  'Images are stored as soon as they are uploaded, and used only once the draft that names them is published.';
-
-export const UPLOAD_LABEL = 'Upload';
-
-export const REPLACE_LABEL = 'Replace';
-
-export const REMOVE_LABEL = 'Remove from theme';
-
-export const DELETE_LABEL = 'Delete image';
-
-export const UPLOADING = 'Uploading…';
-
-export const NO_IMAGE = 'No image: the layer below supplies it.';
-
-export function imageNote(assetId: string): string {
-  return `An image is set (${assetId.slice(0, 8)}).`;
-}
-
 export const PUBLISH_LABEL = 'Publish the draft';
 
 export const PUBLISHING = 'Publishing…';

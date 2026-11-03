@@ -7,21 +7,17 @@ import {
   type StylesheetValues,
   type TemplateValues,
 } from '#/features/branding/services/values';
-import { SLOT_RULES } from '#/features/branding/services/imageSlots';
-import type { ImageSlot, ImageValues } from '#/features/branding/services/imageValues';
 import { THEME_PAGE_KINDS } from '@odudu/contracts';
+import { IMAGES_TITLE } from '#/features/branding/services/imageSection';
 
 export const COLOURS_TITLE = 'Colours and font';
-export const IMAGES_TITLE = 'Images';
+
 export const TEMPLATES_SECTION_TITLE = 'Page templates';
+
 export const STYLESHEET_SECTION_TITLE = 'Stylesheet';
 
 function describePalette(value: unknown): string {
   return value === null ? 'Instrument’s own colours' : 'custom colours';
-}
-
-function describeImage(value: unknown): string {
-  return value === null ? 'no image' : 'an uploaded image';
 }
 
 const SHOWN_TEMPLATE = 60;
@@ -47,19 +43,6 @@ export function colourFields(now: ColourValues): SectionFields<ColourValues> {
       describe: describePalette,
     },
     'tokens.font': { value: now['tokens.font'], label: 'Font', kind: 'plain' },
-  };
-}
-
-function imageEntry<V>(slot: ImageSlot, value: V) {
-  return { value, label: SLOT_RULES[slot].label, kind: 'plain' as const, describe: describeImage };
-}
-
-export function imageFields(now: ImageValues): SectionFields<ImageValues> {
-  return {
-    'assets.logo': imageEntry('logo', now['assets.logo']),
-    'assets.darkLogo': imageEntry('darkLogo', now['assets.darkLogo']),
-    'assets.favicon': imageEntry('favicon', now['assets.favicon']),
-    'assets.background': imageEntry('background', now['assets.background']),
   };
 }
 
