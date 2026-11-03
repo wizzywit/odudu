@@ -3,17 +3,17 @@ import { describe, expect, it } from 'vitest';
 import {
   applyBlocked,
   draftProblems,
-  isClean,
   withUnreadable,
 } from '#/pages/audit/services/draftValidation';
+import { isEmptyRecord } from '#/shared/services/fieldErrors';
 import { EMPTY_DRAFT } from '#/pages/audit/services/filterDraft';
 
 const ACTOR = '0192f7a4-5c1e-7b3a-9d2e-6f8a1b2c3d4e';
 
 describe('the form as a draft of the filters', () => {
   it('is clean when no problem is held', () => {
-    expect(isClean({})).toBe(true);
-    expect(isClean({ to: 'x' })).toBe(false);
+    expect(isEmptyRecord({})).toBe(true);
+    expect(isEmptyRecord({ to: 'x' })).toBe(false);
   });
 
   it('is refused for a subject id that is not a UUID, with the reason beside it', () => {
@@ -63,7 +63,7 @@ describe('a date typed that no instant reads from', () => {
   it('is a problem under its field, so the draft cannot be applied as if it were not there', () => {
     const problems = draftProblems(EMPTY_DRAFT, { from: 'That day does not exist.' });
     expect(problems.from).toBe('That day does not exist.');
-    expect(isClean(problems)).toBe(false);
+    expect(isEmptyRecord(problems)).toBe(false);
   });
 
   it('blocks Apply with one line that says the trail is not narrowed by it', () => {

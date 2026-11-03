@@ -8,14 +8,13 @@ import {
 } from '#/features/registration-tokens/repository/useTokenWrites';
 import {
   DEFAULT_MINT,
-  isValid,
   mintProblems,
   type MintErrors,
 } from '#/features/registration-tokens/services/mint';
 import { mintedText, mintFailure } from '#/features/registration-tokens/services/mintOutcome';
 import { askedConsequence, revokeOutcome } from '#/features/registration-tokens/services/revoke';
 import { useToast } from '#/shared/repository/useToasts';
-import { withoutField } from '#/shared/services/fieldErrors';
+import { isEmptyRecord, withoutField } from '#/shared/services/fieldErrors';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import { useAnnouncedAction } from '#/shared/use-cases/useAnnouncedAction';
 
@@ -90,7 +89,7 @@ export function useRegistrationTokensPage(tenant: string): RegistrationTokensPag
       const problems = mintProblems({ uses, ttl_seconds: lifetime });
       setErrors(problems);
       setMessage(null);
-      if (isValid(problems)) minting.start({ uses, ttl_seconds: lifetime });
+      if (isEmptyRecord(problems)) minting.start({ uses, ttl_seconds: lifetime });
     },
     secret: minting.secret,
     closeSecret: minting.close,

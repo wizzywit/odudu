@@ -29,7 +29,3 @@ export function mintProblems(values: MintValues): MintErrors {
     ...(inRange(values.ttl_seconds, MINT_LIMITS.ttl_seconds) ? {} : { ttl_seconds: TTL_RULE }),
   };
 }
-
-export function isValid(errors: MintErrors): boolean {
-  return Object.keys(errors).length === 0;
-}

@@ -1,4 +1,4 @@
-import { withoutField } from '#/shared/services/fieldErrors';
+import { isEmptyRecord, withoutField } from '#/shared/services/fieldErrors';
 import { endsBefore, FILTER_SHAPE, type FilterName } from '#/pages/audit/services/auditFilters';
 import { filtersOf, type Draft } from '#/pages/audit/services/filterDraft';
 
@@ -20,10 +20,6 @@ export function shownProblems(problems: DraftProblems, attempted: boolean): Draf
   return attempted ? problems : {};
 }
 
-export function isClean(problems: DraftProblems): boolean {
-  return Object.keys(problems).length === 0;
-}
-
 export function withUnreadable(
   held: Unreadable,
   name: 'from' | 'to',
@@ -36,7 +32,7 @@ export function withUnreadable(
 // A date that is typed and reads as no instant narrows nothing, so applying
 // would leave the trail looking bounded by it when it is not.
 export function applyBlocked(unreadable: Unreadable): string | null {
-  return Object.keys(unreadable).length === 0
+  return isEmptyRecord(unreadable)
     ? null
     : 'Correct or clear the date and time marked invalid before applying: the trail is not narrowed by it until then.';
 }

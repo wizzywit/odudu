@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   fieldErrorsOf,
+  isEmptyRecord,
   onlyField,
   problemAt,
   requiredProblem,
@@ -152,4 +153,9 @@ it('drops one field of a form whose errors are all strings, as the mint form nee
   const errors: Partial<Record<'uses' | 'ttl_seconds', string>> = { uses: 'a', ttl_seconds: 'b' };
   expect(withoutField(errors, 'uses')).toEqual({ ttl_seconds: 'b' });
   expect(withoutField({}, 'uses')).toEqual({});
+});
+
+it('holds a record of errors empty only while it names no field', () => {
+  expect(isEmptyRecord({})).toBe(true);
+  expect(isEmptyRecord({ uses: 'no' })).toBe(false);
 });

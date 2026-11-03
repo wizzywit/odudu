@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MINT,
-  isValid,
   mintProblems,
   MINT_LIMITS,
 } from '#/features/registration-tokens/services/mint';
@@ -46,12 +45,5 @@ describe('mintProblems', () => {
       uses: { min: 1, max: 2_147_483_647 },
       ttl_seconds: { min: 60, max: 31_536_000 },
     });
-  });
-});
-
-describe('isValid', () => {
-  it('holds only for no error at all', () => {
-    expect(isValid({})).toBe(true);
-    expect(isValid({ uses: 'no' })).toBe(false);
   });
 });

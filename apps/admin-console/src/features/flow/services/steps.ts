@@ -1,4 +1,5 @@
 import type { ExecutionRequirement, ExecutionStep } from '@odudu/contracts/admin';
+import { listOrNone } from '#/shared/services/format';
 import { isRecord } from '#/shared/services/json';
 
 export interface Step {
@@ -70,10 +71,10 @@ function isStep(value: unknown): value is Step {
 // A conflict's way of showing the order, one step after another.
 export function describeSteps(value: unknown): string {
   const steps = Array.isArray(value) ? value.filter(isStep) : [];
-  if (steps.length === 0) return 'none';
-  return steps
-    .map((step, at) => `${String(at + 1)} ${step.authenticator} (${step.requirement})`)
-    .join(', ');
+  return listOrNone(
+    steps.map((step, at) => `${String(at + 1)} ${step.authenticator} (${step.requirement})`),
+    { join: 'comma' },
+  );
 }
 
 // What the picker shows chosen: the pick while it is still offered, else the first.

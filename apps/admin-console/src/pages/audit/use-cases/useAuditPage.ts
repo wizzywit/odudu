@@ -13,7 +13,6 @@ import { auditQuery } from '#/pages/audit/services/auditAddress';
 import {
   applyBlocked,
   draftProblems,
-  isClean,
   shownProblems,
   withUnreadable,
   type DraftProblems,
@@ -35,6 +34,7 @@ import { FILTER_WORDS, type FilterWords } from '#/pages/audit/services/filterWor
 import { auditArea } from '#/pages/audit/services/auditArea';
 import { AUDIT_PAGE_WORDS, type AuditPageWords } from '#/pages/audit/services/auditPageWords';
 import { holds } from '#/shared/services/access';
+import { isEmptyRecord } from '#/shared/services/fieldErrors';
 import { useNow } from '#/shared/use-cases/useNow';
 import { localZone } from '#/shared/services/zones';
 import { subjectHref } from '#/entities/subject';
@@ -115,7 +115,7 @@ function useFilterForm(list: AuditList): AuditFilterForm {
     },
     submit: () => {
       setAttempted(true);
-      if (blocked === null && isClean(problems)) list.apply(filtersOf(draft));
+      if (blocked === null && isEmptyRecord(problems)) list.apply(filtersOf(draft));
     },
     clear: () => {
       setDraft(EMPTY_DRAFT);
