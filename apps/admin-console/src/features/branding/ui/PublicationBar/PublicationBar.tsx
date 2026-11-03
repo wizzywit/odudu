@@ -13,7 +13,7 @@ import {
   PUBLISH_SHORT,
   publishedText,
 } from '#/features/branding/services/publishDraft';
-import { foldedActions, discardNote } from '#/features/branding/services/holds';
+import { foldedActions, discardNote } from '#/features/branding/services/publicationHolds';
 import {
   DISCARD_CONFIRM,
   DISCARD_LABEL,

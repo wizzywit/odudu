@@ -61,3 +61,20 @@ export const RESET_CONFIRM = 'Reset to default';
 export const RESET_DONE = 'Reset to the default theme';
 
 export const VERSIONS_FAILED = 'The versions could not be loaded';
+
+export const RESTORE_LABEL = 'Restore';
+
+export const RESET_LABEL = 'Reset to default…';
+
+export function restoreName(version: string): string {
+  return `Restore ${version}`;
+}
+
+export const VERSIONS_COLUMNS = {
+  version: 'Version',
+  state: 'State',
+  when: 'Published',
+  action: 'Action',
+} as const;
+
+export const VERSIONS_TABLE_LABEL = 'Theme versions';

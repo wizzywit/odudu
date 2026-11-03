@@ -2,7 +2,7 @@ import type { ListThemeVersionsResponse } from '@odudu/contracts/admin';
 import { useRefusal } from '#/entities/session';
 import { useThemeVersions } from '#/features/branding/repository/useThemeVersions';
 import type { ThemeWrites } from '#/features/branding/repository/useThemeWrites';
-import { restoreFailure } from '#/features/branding/services/failures';
+import { restoreFailure } from '#/features/branding/services/writeFailures';
 import { writeCapability, type ThemeScope } from '#/features/branding/services/themeScope';
 import { RESTORED_TOAST, type VersionRow } from '#/features/branding/services/versions';
 import { useToast } from '#/shared/repository/useToasts';

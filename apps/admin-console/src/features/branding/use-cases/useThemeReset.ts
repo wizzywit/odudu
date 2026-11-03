@@ -1,6 +1,6 @@
 import { useRefusal } from '#/entities/session';
 import type { ThemeWrites } from '#/features/branding/repository/useThemeWrites';
-import { resetFailure } from '#/features/branding/services/failures';
+import { resetFailure } from '#/features/branding/services/writeFailures';
 import { writeCapability, type ThemeScope } from '#/features/branding/services/themeScope';
 import { RESET_DONE } from '#/features/branding/services/versions';
 import { useToast } from '#/shared/repository/useToasts';

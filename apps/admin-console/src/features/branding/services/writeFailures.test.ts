@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { draftMoved } from '#/features/branding/services/failures';
+import { draftMoved } from '#/features/branding/services/writeFailures';
 
 const problem = (status: number, type = 'about:blank') => ({
   ok: false as const,

@@ -9,7 +9,7 @@ import {
   writesRunning,
   type WritesRunning,
   discardNote,
-} from '#/features/branding/services/holds';
+} from '#/features/branding/services/publicationHolds';
 import { DISCARDING } from '#/features/branding/services/discardDraft';
 import { PUBLISHING } from '#/features/branding/services/publishDraft';
 import { REVERTING } from '#/features/branding/services/revertDraft';

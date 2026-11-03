@@ -4,16 +4,6 @@ import {
   restoreName,
   VERSIONS_COLUMNS,
   VERSIONS_TABLE_LABEL,
-} from '#/features/branding/services/copy';
-import {
-  REVERT_LABEL,
-  REVERT_TITLE,
-  REVERTING,
-  revertLead,
-} from '#/features/branding/services/revertDraft';
-import type { ThemeScope } from '#/features/branding/services/themeScope';
-import type { ScopedTab } from '#/features/branding/services/tabs';
-import {
   NO_VERSIONS,
   RESET_CONFIRM,
   RESET_TITLE,
@@ -27,6 +17,14 @@ import {
   versionsLead,
   type VersionRow,
 } from '#/features/branding/services/versions';
+import {
+  REVERT_LABEL,
+  REVERT_TITLE,
+  REVERTING,
+  revertLead,
+} from '#/features/branding/services/revertDraft';
+import type { ThemeScope } from '#/features/branding/services/themeScope';
+import type { ScopedTab } from '#/features/branding/services/tabs';
 import type { Revert } from '#/features/branding/use-cases/useRevert';
 import type { Versions } from '#/features/branding/use-cases/useVersions';
 import type { Removal } from '#/shared/use-cases/useConfirmedChange';

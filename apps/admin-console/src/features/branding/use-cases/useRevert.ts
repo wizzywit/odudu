@@ -2,7 +2,7 @@ import type { ThemeView } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { useThemeWrites } from '#/features/branding/repository/useThemeWrites';
-import { revertHoldOf } from '#/features/branding/services/holds';
+import { revertHoldOf } from '#/features/branding/services/publicationHolds';
 import {
   announceRevert,
   revertAnswered,

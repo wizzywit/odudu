@@ -7,8 +7,8 @@ import {
   resetTheme,
   restoreVersion,
 } from '#/features/branding/adapter/theme';
-import { draftMoved } from '#/features/branding/services/failures';
-import { writesRunning, type WritesRunning } from '#/features/branding/services/holds';
+import { draftMoved } from '#/features/branding/services/writeFailures';
+import { writesRunning, type WritesRunning } from '#/features/branding/services/publicationHolds';
 import {
   scopeKeyPart,
   themeRecord,

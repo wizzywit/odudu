@@ -8,7 +8,7 @@ import {
   NO_OUTCOME,
   type PublishOutcome,
 } from '#/features/branding/services/publishOutcome';
-import { publishFailure } from '#/features/branding/services/failures';
+import { publishFailure } from '#/features/branding/services/writeFailures';
 import { writeCapability, type ThemeScope } from '#/features/branding/services/themeScope';
 import { useToast } from '#/shared/repository/useToasts';
 import { reportFailure } from '#/shared/services/settled';
