@@ -1,4 +1,4 @@
-import { AreaGate } from '#/features/shell';
+import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { groupsTrail } from '#/features/groups/services/address';
 import { useNewGroup } from '#/features/groups/use-cases/useNewGroup';

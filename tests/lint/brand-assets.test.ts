@@ -765,8 +765,8 @@ describe('the console names the product through its constants', () => {
 
   it.each([
     'apps/admin-console/src/shared/ui/AppShell/AppShell.tsx',
-    'apps/admin-console/src/features/session/ui/SessionGate/SessionGate.tsx',
-    'apps/admin-console/src/features/session/ui/SessionStatus/SessionStatus.tsx',
+    'apps/admin-console/src/widgets/session-gate/ui/SessionGate/SessionGate.tsx',
+    'apps/admin-console/src/entities/session/ui/SessionStatus/SessionStatus.tsx',
   ])('has no product name typed in the markup of %s', (file) => {
     const source = withoutComments(readFileSync(path.join(REPO_ROOT, file), 'utf8'));
     expect(source).not.toMatch(/['"`>]\s*odudu/iu);

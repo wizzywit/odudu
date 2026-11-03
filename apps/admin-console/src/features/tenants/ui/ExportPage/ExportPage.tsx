@@ -1,5 +1,5 @@
 import { areaAt } from '#/entities/area';
-import { useArea } from '#/features/shell';
+import { useArea } from '#/widgets/shell';
 import { ExportPanel } from '#/features/tenants/ui/ExportPanel';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { PageNotFound } from '#/shared/ui/PageNotFound';

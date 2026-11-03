@@ -1,4 +1,4 @@
-import { AreaGate } from '#/features/shell';
+import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { TOO_BROAD_TITLE } from '#/features/audit/services/broad';
 import { EXPORT_NOTE } from '#/features/audit/services/export';

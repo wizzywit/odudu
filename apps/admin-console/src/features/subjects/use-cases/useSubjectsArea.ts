@@ -1,5 +1,5 @@
 import { areaAt } from '#/entities/area';
-import { useArea, type AreaAccess } from '#/features/shell';
+import { useArea, type AreaAccess } from '#/widgets/shell';
 
 export function useSubjectsArea(tenant: string): AreaAccess {
   return useArea(tenant, areaAt('subjects'));

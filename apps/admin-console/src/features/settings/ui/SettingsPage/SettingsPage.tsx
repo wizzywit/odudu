@@ -1,6 +1,6 @@
 import type { Settings } from '@odudu/contracts/admin';
 import { Fragment } from 'react';
-import { AreaGate } from '#/features/shell';
+import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { fieldDescription } from '#/features/settings/services/notes';
 import {

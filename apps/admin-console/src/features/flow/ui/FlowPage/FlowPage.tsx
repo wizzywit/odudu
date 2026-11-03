@@ -1,6 +1,6 @@
 import type { ListExecutionsResponse, Settings } from '@odudu/contracts/admin';
 import { useEffect, useRef } from 'react';
-import { AreaGate } from '#/features/shell';
+import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import {
   hasOtpStep,

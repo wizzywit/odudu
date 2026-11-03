@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AreaGate } from '#/features/shell';
+import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import {
   BRANDING_DESCRIPTION,

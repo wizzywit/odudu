@@ -96,7 +96,10 @@ const deleteNamed = (page: string, subject: string): Defined =>
 
 export const DEFINED: Readonly<Record<string, Defined>> = {
   // Sign-in, as the console and Odudu's own page word it.
-  'Continue to sign-in': feature('session/services/signInText.ts', "return 'Continue to sign-in'"),
+  'Continue to sign-in': at(
+    'apps/admin-console/src/widgets/session-gate/services/signInText.ts',
+    "return 'Continue to sign-in'",
+  ),
   Username: several(
     at(MESSAGES, "'login.username': 'Username'"),
     feature('subjects/ui/NewSubjectPage/NewSubjectPage.tsx', 'label="Username"'),
@@ -105,7 +108,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     feature('subjects/ui/CapabilityHolders/CapabilityHolders.tsx', "label: 'Username'"),
   ),
   Password: at(MESSAGES, "'login.password': 'Password'"),
-  'Sign out': feature('shell/ui/RailFooter/RailFooter.tsx', 'Sign out'),
+  'Sign out': at('apps/admin-console/src/widgets/shell/ui/RailFooter/RailFooter.tsx', 'Sign out'),
   // The panel a failed page is replaced by.
   'Something went wrong': feature(
     'failure/services/wording.ts',
@@ -895,8 +898,8 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'subjects/ui/CapabilityHolders/CapabilityHolders.tsx',
     'label="Filter administrators"',
   ),
-  'Which tenant do you administer?': feature(
-    'session/ui/SignIn/SignIn.tsx',
+  'Which tenant do you administer?': at(
+    'apps/admin-console/src/widgets/session-gate/ui/SignIn/SignIn.tsx',
     'label="Which tenant do you administer?"',
   ),
   Consent: feature('clients/services/labels.ts', "consent: 'Consent'"),

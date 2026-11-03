@@ -36,7 +36,7 @@ vi.mock('#/app/ToastLayer', () => ({
   },
 }));
 
-vi.mock('#/features/shell', async (importOriginal) => {
+vi.mock('#/widgets/shell', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   const Real = actual.TenantShell as (props: { tenant: string; children: unknown }) => unknown;
   return {

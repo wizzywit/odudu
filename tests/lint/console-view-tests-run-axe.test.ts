@@ -13,10 +13,14 @@ const CONSOLE_SRC = 'apps/admin-console/src';
 // A view layer is a folder, or a single ui.tsx beside the feature's other layers.
 const VIEW_TESTS = [
   'shared/ui/**/*.test.tsx',
-  'features/*/ui/**/*.test.tsx',
-  'features/*/ui.test.tsx',
+  '{features,widgets,pages,entities}/*/ui/**/*.test.tsx',
+  '{features,widgets,pages,entities}/*/ui.test.tsx',
 ];
-const VIEWS = ['shared/ui/**/*.tsx', 'features/*/ui/**/*.tsx', 'features/*/ui.tsx'];
+const VIEWS = [
+  'shared/ui/**/*.tsx',
+  '{features,widgets,pages,entities}/*/ui/**/*.tsx',
+  '{features,widgets,pages,entities}/*/ui.tsx',
+];
 const COMPONENT = /^(?:[A-Z][A-Za-z0-9]*|ui)\.tsx$/u;
 const FIXTURES = 'tests/lint/fixtures/console-view-axe';
 const AXE_MODULE = '#/testing/axeInBothThemes';
@@ -101,7 +105,7 @@ describe("the console's view tests", { timeout: 60_000 }, () => {
 
   it('exist beside every view', async () => {
     const views = await read(CONSOLE_SRC, VIEWS);
-    expect([...views.keys()]).toContain('features/session/ui/SignIn/SignIn.tsx');
+    expect([...views.keys()]).toContain('widgets/session-gate/ui/SignIn/SignIn.tsx');
     expect(await untested(CONSOLE_SRC)).toEqual([]);
   });
 

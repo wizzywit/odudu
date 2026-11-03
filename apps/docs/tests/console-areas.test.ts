@@ -29,9 +29,9 @@ const PAGE_OF_FEATURE: Readonly<Record<string, string>> = {
   'system-admins': 'system-administrators',
 };
 
-// Sign-in, the menu and the screen shown when a page fails are not areas: the
-// tour walks through each.
-const DESCRIBED_BY_THE_TOUR = ['failure', 'session', 'shell'];
+// The screen shown when a page fails is not an area: the tour walks through it.
+// Sign-in and the menu live in widgets, not among the features.
+const DESCRIBED_BY_THE_TOUR = ['failure'];
 
 // The area each menu entry opens, by the path areas.ts gives it, and the page
 // that covers it. The Export entry is a tenant's export, on the Tenants page.

@@ -19,7 +19,7 @@ const FIXTURES = 'tests/lint/fixtures/console-folder-imports';
 const COMPONENT_FOLDER = new RegExp(
   '^#/(' +
     [
-      '(?:shared|features/[^/]+)/ui/[A-Z][A-Za-z0-9]*',
+      '(?:shared|(?:features|widgets|pages|entities)/[^/]+)/ui/[A-Z][A-Za-z0-9]*',
       'app/[A-Za-z][A-Za-z0-9]*',
       'shared/services/[a-z][A-Za-z0-9]*',
     ].join('|') +

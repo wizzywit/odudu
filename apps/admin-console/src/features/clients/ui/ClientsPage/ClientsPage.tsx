@@ -1,5 +1,5 @@
 import type { Client } from '@odudu/contracts/admin';
-import { AreaGate } from '#/features/shell';
+import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { TYPE_TEXT } from '#/features/clients/services/labels';
 import { useClientsList } from '#/features/clients/use-cases/useClientsList';

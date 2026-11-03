@@ -1,5 +1,5 @@
 import type { SmtpConfig } from '@odudu/contracts/admin';
-import { AreaGate } from '#/features/shell';
+import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { useEmailPage } from '#/features/email/use-cases/useEmailPage';
 import {

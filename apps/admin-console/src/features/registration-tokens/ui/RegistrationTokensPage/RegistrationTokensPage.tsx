@@ -1,5 +1,5 @@
 import type { RegistrationToken } from '@odudu/contracts/admin';
-import { AreaGate } from '#/features/shell';
+import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { NOTHING_YET, NOUN, TOKENS_RULE } from '#/features/registration-tokens/services/page';
 import {

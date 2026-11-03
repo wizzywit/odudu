@@ -1,5 +1,5 @@
 import type { Group } from '@odudu/contracts/admin';
-import { AreaGate } from '#/features/shell';
+import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { useGroupsList } from '#/features/groups/use-cases/useGroupsList';
 import { GroupTree } from '#/features/groups/ui/GroupsPage/GroupTree';
