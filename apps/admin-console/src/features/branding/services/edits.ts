@@ -2,9 +2,7 @@ import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
 import { failureTextWith } from '#/shared/services/failure';
 import { reportFailure } from '#/shared/services/settled';
 import {
-  altEdited,
   slotNames,
-  logoOf,
   uploadRefusal,
   uploadFailureText,
   UPLOAD_FAULT,
@@ -41,6 +39,7 @@ import type {
 } from '@odudu/contracts/admin';
 import { tabNamed } from '#/shared/services/record';
 import { OFFERED_TABS, type OfferedTab } from '#/features/branding/services/tabs';
+import { altEdited, logoOf } from '#/features/branding/services/logoAlt';
 
 export function paletteField(scheme: Scheme): 'tokens.light' | 'tokens.dark' {
   return `tokens.${scheme}`;
