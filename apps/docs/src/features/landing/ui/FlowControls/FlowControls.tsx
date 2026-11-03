@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import type { Step } from '@site/src/features/landing/services/signInBeats';
-import type { StepperButton } from '@site/src/features/landing/services/playback';
+import type { StepperButton } from '@site/src/features/landing/services/flowView';
 import styles from '@site/src/features/landing/ui/FlowControls/FlowControls.module.css';
 
 interface Props {

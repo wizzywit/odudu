@@ -1,6 +1,6 @@
 import { DocsLink } from '@site/src/shared/ui/DocsLink/DocsLink';
 import type { ReactElement } from 'react';
-import { captions } from '@site/src/features/landing/services/playback';
+import { captions } from '@site/src/features/landing/services/flowView';
 import { useSignInFlow } from '@site/src/features/landing/use-cases/useSignInFlow';
 import { FlowControls } from '@site/src/features/landing/ui/FlowControls/FlowControls';
 import { Scene } from '@site/src/features/landing/ui/Scene/Scene';

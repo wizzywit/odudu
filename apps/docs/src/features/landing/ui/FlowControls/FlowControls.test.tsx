@@ -1,13 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
+import { FLOW_START, stepOf, waitFor } from '@site/src/features/landing/services/flowMachine';
 import {
-  FLOW_START,
   liveText,
-  widestLive,
-  stepOf,
   stepper,
   viewOf,
-  waitFor,
-} from '@site/src/features/landing/services/playback';
+  widestLive,
+} from '@site/src/features/landing/services/flowView';
 import { FlowControls } from '@site/src/features/landing/ui/FlowControls/FlowControls';
 import { markupOf } from '@site/tests/support/markup';
 

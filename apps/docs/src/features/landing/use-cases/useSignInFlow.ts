@@ -4,11 +4,9 @@ import {
   FLOW_START,
   flowReducer,
   playing,
-  stepper,
-  viewOf,
   waitFor,
-  type StepperButton,
-} from '@site/src/features/landing/services/playback';
+} from '@site/src/features/landing/services/flowMachine';
+import { stepper, viewOf, type StepperButton } from '@site/src/features/landing/services/flowView';
 import { HAND_OVER_MS } from '@site/src/features/landing/services/timing';
 import { usePrefersReducedMotion } from '@site/src/shared/use-cases/usePrefersReducedMotion';
 import { canObserve, watchVisible } from '@site/src/shared/platform/observe';

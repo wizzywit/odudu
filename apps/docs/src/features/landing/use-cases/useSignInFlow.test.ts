@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { REST_NOTE } from '@site/src/features/landing/services/playback';
+import { REST_NOTE } from '@site/src/features/landing/services/flowView';
 import { useSignInFlow } from '@site/src/features/landing/use-cases/useSignInFlow';
 import { resultOf } from '@site/tests/support/hook';
 
