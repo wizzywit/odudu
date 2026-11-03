@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { areaAt, areaHref } from '#/entities/area';
 import { useMailSend, type MailRequest } from '#/features/subjects/repository/useMail';
-import { actionsMailProblem, requiredActionsInOrder } from '#/features/subjects/services/actions';
 import {
   mailFailure,
   mailKindState,
@@ -15,6 +14,10 @@ import {
 import { withoutField } from '#/shared/services/fieldErrors';
 import { subjectName } from '#/features/subjects/services/subjectName';
 import { subjectTabHref } from '#/features/subjects/services/subjectAddress';
+import {
+  actionsMailProblem,
+  requiredActionsInOrder,
+} from '#/features/subjects/services/requiredActions';
 
 export type { MailOutcome };
 

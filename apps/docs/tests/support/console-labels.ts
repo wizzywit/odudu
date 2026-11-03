@@ -885,16 +885,19 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     "label: 'Ask for a new set at next sign-in'",
   ),
   'Choose a new password': feature(
-    'subjects/services/actions.ts',
+    'subjects/services/requiredActions.ts',
     "label: 'Choose a new password'",
   ),
   'Set up an authenticator app': feature(
-    'subjects/services/actions.ts',
+    'subjects/services/requiredActions.ts',
     "label: 'Set up an authenticator app'",
   ),
-  'Register a passkey': feature('subjects/services/actions.ts', "label: 'Register a passkey'"),
+  'Register a passkey': feature(
+    'subjects/services/requiredActions.ts',
+    "label: 'Register a passkey'",
+  ),
   'Generate recovery codes': feature(
-    'subjects/services/actions.ts',
+    'subjects/services/requiredActions.ts',
     "label: 'Generate recovery codes'",
   ),
   'Required actions to email': feature(

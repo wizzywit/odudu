@@ -7,8 +7,6 @@ import {
   useRolesRecord,
   useSaveRoles,
 } from '#/features/subjects/repository/useAccess';
-import { beyondText, heldOf, subjectBeyond } from '#/features/subjects/services/reach';
-import { roleIdsOf, splitRoles } from '#/features/subjects/services/roles';
 import { administratorCapability } from '#/shared/services/administrators';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
@@ -39,6 +37,8 @@ import { offersWrites } from '#/shared/services/access';
 import { subjectName } from '#/features/subjects/services/subjectName';
 import { rolesRecord } from '#/features/subjects/services/subjectRecords';
 import { subjectTabHref } from '#/features/subjects/services/subjectAddress';
+import { roleIdsOf, splitRoles } from '#/features/subjects/services/subjectRoles';
+import { beyondText, heldOf, subjectBeyond } from '#/features/subjects/services/subjectReach';
 
 export function useSubjectRolesRead(tenant: string, id: string): RecordState<SetRolesResponse> {
   return useRolesRecord(tenant, id);

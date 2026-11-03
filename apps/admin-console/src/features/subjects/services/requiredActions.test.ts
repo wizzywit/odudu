@@ -3,7 +3,7 @@ import {
   describeActions,
   requiredActionsInOrder,
   REQUIRED_ACTIONS,
-} from '#/features/subjects/services/actions';
+} from '#/features/subjects/services/requiredActions';
 
 describe('required actions', () => {
   it('words each action the way the mailed link does', () => {

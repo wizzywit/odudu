@@ -1,5 +1,4 @@
 import type { Subject } from '@odudu/contracts/admin';
-import { REQUIRED_ACTIONS } from '#/features/subjects/services/actions';
 import {
   useRequiredActions,
   useRequiredActionsRead,
@@ -10,6 +9,7 @@ import { ReadGate } from '#/shared/ui/ReadGate';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { recordTab } from '#/shared/ui/RecordTab';
 import { signsInAsItself } from '#/features/subjects/services/subjectAccount';
+import { REQUIRED_ACTIONS } from '#/features/subjects/services/requiredActions';
 
 const OPTIONS = REQUIRED_ACTIONS.map(({ action, label, description }) => ({
   id: action,

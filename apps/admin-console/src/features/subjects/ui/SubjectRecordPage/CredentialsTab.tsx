@@ -1,5 +1,4 @@
 import { Link } from 'react-aria-components';
-import { REQUIRED_ACTIONS } from '#/features/subjects/services/actions';
 import {
   useSubjectCredentials,
   type SubjectCredentials,
@@ -34,6 +33,7 @@ import {
   type Lockout,
   type Subject,
 } from '#/features/subjects/services/subjectName';
+import { REQUIRED_ACTIONS } from '#/features/subjects/services/requiredActions';
 
 interface TabProps {
   tenant: string;

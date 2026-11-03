@@ -5,12 +5,15 @@ import {
   useActionsRecord,
   type ActionValues,
 } from '#/features/subjects/repository/useAccess';
-import { describeActions, requiredActionsInOrder } from '#/features/subjects/services/actions';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { accessRefusal } from '#/shared/services/capabilities';
 import { subjectName } from '#/features/subjects/services/subjectName';
 import { actionsRecord } from '#/features/subjects/services/subjectRecords';
+import {
+  describeActions,
+  requiredActionsInOrder,
+} from '#/features/subjects/services/requiredActions';
 
 export function useRequiredActionsRead(
   tenant: string,

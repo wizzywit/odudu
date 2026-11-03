@@ -1,14 +1,9 @@
-import { type EffectiveRoleAssignment, type HeldAdminCapability } from '@odudu/contracts/admin';
-import { holds } from '#/shared/services/access';
 import {
-  holdingLabel,
   TENANT_ROLE_TEXT,
-  includedBy,
   isAdminRole,
   isHolding,
   type Holding,
 } from '#/shared/services/capabilities';
-import { type Authority } from '#/shared/services/principal';
 import { loadedData, type Loaded } from '#/shared/services/read';
 
 interface Assigned {
@@ -36,59 +31,6 @@ export function splitRoles(items: readonly Assigned[]): SplitRoles {
       ...holdings.filter((name) => name === 'tenant-admin'),
       ...holdings.filter((name) => name !== 'tenant-admin'),
     ],
-  };
-}
-
-export interface HeldLine {
-  holding: string;
-  label: string;
-  how: string;
-}
-
-// What a listed holder holds: Full collapses what it carries, and
-// manage-users view-users; which group or role carries the rest is the
-// open editor's to say.
-export function heldLines(held: readonly HeldAdminCapability[]): HeldLine[] {
-  const names = held.map((each) => each.name);
-  return held
-    .filter((each) => includedBy(each.name, names) === null)
-    .map((each) => ({
-      holding: each.name,
-      label: holdingLabel(each.name),
-      how: each.direct ? 'directly' : 'through a group or role',
-    }));
-}
-
-export type OwnRoles =
-  | { status: 'loading' }
-  | {
-      status: 'ready';
-      roles: readonly EffectiveRoleAssignment[];
-      // The paths of the groups it belongs to directly.
-      groups: readonly string[];
-    }
-  | { status: 'unknown' };
-
-export function ownRolesOf({
-  member,
-  authority,
-  roles,
-  groups,
-}: {
-  member: boolean;
-  authority: Authority | undefined;
-  roles: Loaded<{ items: readonly EffectiveRoleAssignment[] }>;
-  groups: Loaded<{ items: readonly { path: string }[] }>;
-}): OwnRoles {
-  if (!member) return { status: 'ready', roles: [], groups: [] };
-  if (authority === undefined) return { status: 'loading' };
-  if (!holds(authority, 'view-users')) return { status: 'unknown' };
-  if (roles.status === 'failed' || groups.status === 'failed') return { status: 'unknown' };
-  if (roles.status === 'loading' || groups.status === 'loading') return { status: 'loading' };
-  return {
-    status: 'ready',
-    roles: roles.data.items,
-    groups: groups.data.items.map((group) => group.path),
   };
 }
 
