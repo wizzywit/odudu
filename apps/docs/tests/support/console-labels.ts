@@ -178,7 +178,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     rail('sessions', 'Sessions'),
     subjectTab('sessions', 'Sessions'),
     clientTab('sessions', 'Sessions'),
-    feature(ACCESS, "title: 'Sessions'"),
+    page(ACCESS, "title: 'Sessions'"),
   ),
   Settings: rail('settings', 'Settings'),
   Branding: rail('branding', 'Branding'),
@@ -214,7 +214,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     pageTab('roles', 'general', 'General'),
     pageTab('scopes', 'general', 'General'),
     page('tenants/ui/GeneralTab/GeneralTab.tsx', 'title="General"'),
-    feature(ACCESS, "title: 'General'"),
+    page(ACCESS, "title: 'General'"),
   ),
   'Redirects & origins': clientTab('redirects', 'Redirects & origins'),
   Tokens: clientTab('tokens', 'Tokens'),
@@ -437,12 +437,12 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Uses left': feature(TOKENS_PAGE, "header: 'Uses left'"),
   Revoke: feature(TOKENS_PAGE, '> Revoke <'),
   'Revoke token': feature(TOKENS_PAGE, 'confirmLabel="Revoke token"'),
-  Policy: feature(PLATFORM, "label: 'Policy'"),
-  'Closed: only an administrator creates clients': feature(
+  Policy: page(PLATFORM, "label: 'Policy'"),
+  'Closed: only an administrator creates clients': page(
     PLATFORM,
     "label: 'Closed: only an administrator creates clients'",
   ),
-  'With a registration token': feature(PLATFORM, "label: 'With a registration token'"),
+  'With a registration token': page(PLATFORM, "label: 'With a registration token'"),
 
   // The sign-in flow.
   Steps: feature('flow/ui/FlowPage/FlowPage.tsx', 'title="Steps"'),
@@ -490,24 +490,24 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Changes algorithm': feature('signing-keys/services/promotion.ts', "return 'Changes algorithm'"),
 
   // Settings.
-  'Registration and recovery': feature(ACCESS, "title: 'Registration and recovery'"),
-  'Remember me': feature(ACCESS, "title: 'Remember me'"),
-  Usernames: feature(ACCESS, "title: 'Usernames'"),
-  'Password policy': feature(ACCESS, "title: 'Password policy'"),
-  'Brute force': feature(ACCESS, "title: 'Brute force'"),
-  'Token lifetimes': feature(PLATFORM, "title: 'Token lifetimes'"),
-  'Dynamic client registration': feature(PLATFORM, "title: 'Dynamic client registration'"),
-  'Audit retention': feature(PLATFORM, "title: 'Audit retention'"),
-  'Idle timeout': feature(ACCESS, "label: 'Idle timeout'"),
-  'Maximum lifetime': feature(ACCESS, "label: 'Maximum lifetime'"),
-  'Self-registration': feature(ACCESS, "label: 'Self-registration'"),
-  'Verify email addresses': feature(ACCESS, "label: 'Verify email addresses'"),
-  'Minimum length': feature(ACCESS, "label: 'Minimum length'"),
-  'Password lifetime': feature(ACCESS, "label: 'Password lifetime'"),
-  'Failures before a lockout': feature(ACCESS, "label: 'Failures before a lockout'"),
-  'Keep events for': feature(PLATFORM, "label: 'Keep events for'"),
-  Enabled: feature(ACCESS, "label: 'Enabled'"),
-  'Clear all lockouts': feature('settings/services/lockouts.ts', "'Clear all lockouts'"),
+  'Registration and recovery': page(ACCESS, "title: 'Registration and recovery'"),
+  'Remember me': page(ACCESS, "title: 'Remember me'"),
+  Usernames: page(ACCESS, "title: 'Usernames'"),
+  'Password policy': page(ACCESS, "title: 'Password policy'"),
+  'Brute force': page(ACCESS, "title: 'Brute force'"),
+  'Token lifetimes': page(PLATFORM, "title: 'Token lifetimes'"),
+  'Dynamic client registration': page(PLATFORM, "title: 'Dynamic client registration'"),
+  'Audit retention': page(PLATFORM, "title: 'Audit retention'"),
+  'Idle timeout': page(ACCESS, "label: 'Idle timeout'"),
+  'Maximum lifetime': page(ACCESS, "label: 'Maximum lifetime'"),
+  'Self-registration': page(ACCESS, "label: 'Self-registration'"),
+  'Verify email addresses': page(ACCESS, "label: 'Verify email addresses'"),
+  'Minimum length': page(ACCESS, "label: 'Minimum length'"),
+  'Password lifetime': page(ACCESS, "label: 'Password lifetime'"),
+  'Failures before a lockout': page(ACCESS, "label: 'Failures before a lockout'"),
+  'Keep events for': page(PLATFORM, "label: 'Keep events for'"),
+  Enabled: page(ACCESS, "label: 'Enabled'"),
+  'Clear all lockouts': page('settings/services/lockouts.ts', "'Clear all lockouts'"),
   'Disable demo': template(
     [inPage('tenants/ui/GeneralTab/GeneralTab.tsx', 'confirmLabel={`Disable ${name}`}')],
     'Disable ${name}',
@@ -798,100 +798,100 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Assigned as default': page('scopes/services/scopeDelivery.ts', "label: 'Assigned as default'"),
   'Assigned as optional': page('scopes/services/scopeDelivery.ts', "label: 'Assigned as optional'"),
   'Not assigned': page('scopes/services/scopeDelivery.ts', "label: 'Not assigned'"),
-  'Sessions per browser': feature(
+  'Sessions per browser': page(
     'settings/services/accessSections.ts',
     "label: 'Sessions per browser'",
   ),
-  'Time to finish a sign-in': feature(
+  'Time to finish a sign-in': page(
     'settings/services/accessSections.ts',
     "label: 'Time to finish a sign-in'",
   ),
-  'Offer remember me': feature('settings/services/accessSections.ts', "label: 'Offer remember me'"),
-  'Verification link lifetime': feature(
+  'Offer remember me': page('settings/services/accessSections.ts', "label: 'Offer remember me'"),
+  'Verification link lifetime': page(
     'settings/services/accessSections.ts',
     "label: 'Verification link lifetime'",
   ),
-  'Password reset by mail': feature(
+  'Password reset by mail': page(
     'settings/services/accessSections.ts',
     "label: 'Password reset by mail'",
   ),
-  'Reset link lifetime': feature(
+  'Reset link lifetime': page(
     'settings/services/accessSections.ts',
     "label: 'Reset link lifetime'",
   ),
-  'Usernames can be renamed': feature(
+  'Usernames can be renamed': page(
     'settings/services/accessSections.ts',
     "label: 'Usernames can be renamed'",
   ),
-  'Sign in with a verified email address': feature(
+  'Sign in with a verified email address': page(
     'settings/services/accessSections.ts',
     "label: 'Sign in with a verified email address'",
   ),
-  'Require a digit': feature('settings/services/accessSections.ts', "label: 'Require a digit'"),
-  'Require an uppercase letter': feature(
+  'Require a digit': page('settings/services/accessSections.ts', "label: 'Require a digit'"),
+  'Require an uppercase letter': page(
     'settings/services/accessSections.ts',
     "label: 'Require an uppercase letter'",
   ),
-  'Require a lowercase letter': feature(
+  'Require a lowercase letter': page(
     'settings/services/accessSections.ts',
     "label: 'Require a lowercase letter'",
   ),
-  'Require a special character': feature(
+  'Require a special character': page(
     'settings/services/accessSections.ts',
     "label: 'Require a special character'",
   ),
-  'Refuse the username': feature(
+  'Refuse the username': page(
     'settings/services/accessSections.ts',
     "label: 'Refuse the username'",
   ),
-  'Refuse the email address': feature(
+  'Refuse the email address': page(
     'settings/services/accessSections.ts',
     "label: 'Refuse the email address'",
   ),
-  'Passwords remembered': feature(
+  'Passwords remembered': page(
     'settings/services/accessSections.ts',
     "label: 'Passwords remembered'",
   ),
-  'First lockout': feature('settings/services/accessSections.ts', "label: 'First lockout'"),
-  'Longest lockout': feature('settings/services/accessSections.ts', "label: 'Longest lockout'"),
-  'Failures forgotten after': feature(
+  'First lockout': page('settings/services/accessSections.ts', "label: 'First lockout'"),
+  'Longest lockout': page('settings/services/accessSections.ts', "label: 'Longest lockout'"),
+  'Failures forgotten after': page(
     'settings/services/accessSections.ts',
     "label: 'Failures forgotten after'",
   ),
-  'Access token': feature('settings/services/platformSections.ts', "label: 'Access token'"),
-  'ID token': feature('settings/services/platformSections.ts', "label: 'ID token'"),
-  'Refresh token': feature('settings/services/platformSections.ts', "label: 'Refresh token'"),
-  'Authorization code': feature(
+  'Access token': page('settings/services/platformSections.ts', "label: 'Access token'"),
+  'ID token': page('settings/services/platformSections.ts', "label: 'ID token'"),
+  'Refresh token': page('settings/services/platformSections.ts', "label: 'Refresh token'"),
+  'Authorization code': page(
     'settings/services/platformSections.ts',
     "label: 'Authorization code'",
   ),
-  'Open: any application may register': feature(
+  'Open: any application may register': page(
     'settings/services/platformSections.ts',
     "label: 'Open: any application may register'",
   ),
-  'Most clients': feature('settings/services/platformSections.ts', "label: 'Most clients'"),
-  'Events recorded': feature('settings/services/platformSections.ts', "label: 'Events recorded'"),
-  'Changes by administrators': feature(
+  'Most clients': page('settings/services/platformSections.ts', "label: 'Most clients'"),
+  'Events recorded': page('settings/services/platformSections.ts', "label: 'Events recorded'"),
+  'Changes by administrators': page(
     'settings/services/platformSections.ts',
     "label: 'Changes by administrators'",
   ),
-  'Reads by administrators': feature(
+  'Reads by administrators': page(
     'settings/services/platformSections.ts',
     "label: 'Reads by administrators'",
   ),
-  'Sign-ins and refused sign-ins': feature(
+  'Sign-ins and refused sign-ins': page(
     'settings/services/platformSections.ts',
     "label: 'Sign-ins and refused sign-ins'",
   ),
-  'Sessions starting and ending': feature(
+  'Sessions starting and ending': page(
     'settings/services/platformSections.ts',
     "label: 'Sessions starting and ending'",
   ),
-  'Tokens issued and revoked': feature(
+  'Tokens issued and revoked': page(
     'settings/services/platformSections.ts',
     "label: 'Tokens issued and revoked'",
   ),
-  'Passwords, keys and codes set or changed': feature(
+  'Passwords, keys and codes set or changed': page(
     'settings/services/platformSections.ts',
     "label: 'Passwords, keys and codes set or changed'",
   ),

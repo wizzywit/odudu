@@ -2,8 +2,8 @@ import { renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { SignedInContext } from '#/entities/session';
 import { useTenantSettingsRead } from '#/entities/tenant';
-import { SETTINGS_SECTIONS, type SettingsSection } from '#/features/settings/services/sections';
-import type { useSettingsSection } from '#/features/settings/use-cases/useSettingsSection';
+import { SETTINGS_SECTIONS, type SettingsSection } from '#/pages/settings/services/sections';
+import type { useSettingsSection } from '#/pages/settings/use-cases/useSettingsSection';
 import { hookHarness } from '#/testing/hookHarness';
 import { settingsRoutes } from '#/testing/settingsFixtures';
 

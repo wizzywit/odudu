@@ -175,7 +175,7 @@ module.exports = {
       from: {
         path:
           '(^|/)apps/admin-console/src/features/(?!(?:email|failure|flow|' +
-          'overview|registration-tokens|settings|signing-keys)/)',
+          'overview|registration-tokens|signing-keys)/)',
       },
       to: { path: '(^|/)apps/admin-console/src/widgets/' },
     },

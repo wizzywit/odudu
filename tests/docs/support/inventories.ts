@@ -145,7 +145,7 @@ function contractFields(): Item[] {
 function settingLabels(): Map<string, string> {
   const labels = new Map<string, string>();
   for (const file of ['accessSections.ts', 'platformSections.ts']) {
-    const source = readFileSync(path.join(CONSOLE_SRC, 'features/settings/services', file), 'utf8');
+    const source = readFileSync(path.join(CONSOLE_SRC, 'pages/settings/services', file), 'utf8');
     for (const m of source.matchAll(/name:\s*'([a-z_]+)',\s*label:\s*'([^'\n]+)'/gu)) {
       labels.set(m[1] ?? '', m[2] ?? '');
     }

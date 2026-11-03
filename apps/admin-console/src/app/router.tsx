@@ -465,7 +465,7 @@ const tenantSessions = createRoute({
 });
 
 const Settings = lazyFeatureRoute(
-  () => import('#/features/settings').then((feature) => feature.SettingsPage),
+  () => import('#/pages/settings').then((feature) => feature.SettingsPage),
   'Loading the settings',
 );
 
