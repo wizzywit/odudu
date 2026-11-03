@@ -1,5 +1,4 @@
 import { Link } from 'react-aria-components';
-import { type Profile, type Subject } from '#/features/subjects/services/address';
 import {
   useSubjectAccount,
   type SubjectAccount,
@@ -27,6 +26,7 @@ import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
 import { DESCRIPTION_RULE } from '#/shared/services/labels';
 import { deletionRefusal, signsInAsItself } from '#/features/subjects/services/subjectAccount';
+import { type Profile, type Subject } from '#/features/subjects/services/subjectName';
 
 interface TabProps {
   tenant: string;

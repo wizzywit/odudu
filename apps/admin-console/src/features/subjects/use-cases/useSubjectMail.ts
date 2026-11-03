@@ -4,7 +4,6 @@ import { useRefusal } from '#/entities/session';
 import { areaAt, areaHref } from '#/entities/area';
 import { useMailSend, type MailRequest } from '#/features/subjects/repository/useMail';
 import { actionsMailProblem, requiredActionsInOrder } from '#/features/subjects/services/actions';
-import { subjectName } from '#/features/subjects/services/address';
 import {
   mailFailure,
   mailKindState,
@@ -13,8 +12,9 @@ import {
   withOutcome,
   type MailOutcome,
 } from '#/features/subjects/services/mail';
-import { subjectTabHref } from '#/features/subjects/services/tabs';
 import { withoutField } from '#/shared/services/fieldErrors';
+import { subjectName } from '#/features/subjects/services/subjectName';
+import { subjectTabHref } from '#/features/subjects/services/subjectAddress';
 
 export type { MailOutcome };
 

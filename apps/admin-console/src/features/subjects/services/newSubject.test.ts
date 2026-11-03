@@ -1,13 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { createFailure } from '#/shared/services/failure';
 import {
+  createSubjectHref,
   manageUsersRefusal,
   newSubjectSpec,
   subjectCreatedText,
-} from '#/features/subjects/services/create';
+} from '#/features/subjects/services/newSubject';
+import { createFailure } from '#/shared/services/failure';
 import { failure, refusal } from '#/testing/failures';
 
 describe('creating a subject', () => {
+  it('offers creating only while nothing rules it out', () => {
+    expect(createSubjectHref('acme', [])).toBe('/console/acme/subjects/new');
+    expect(createSubjectHref('acme', ['manage-users'])).toBeNull();
+  });
+});
+
+describe('the words of creating a subject', () => {
   it('says where the password comes from', () => {
     expect(subjectCreatedText('ada')).toBe(
       'ada was created. It has no password yet: issue a one-time password from its Credentials tab.',

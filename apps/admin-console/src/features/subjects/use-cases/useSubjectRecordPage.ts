@@ -3,11 +3,12 @@ import { useAuthority, usePrincipal, isSelf } from '#/entities/session';
 import { useHeldCapabilities } from '#/features/subjects/repository/useAccess';
 import { useSubjectRecord } from '#/features/subjects/repository/useSubjectRecord';
 import { canManageSubject, reachOf, subjectBeyond } from '#/features/subjects/services/reach';
-import { SUBJECT_TABS, TAB_RECORDS, type SubjectTab } from '#/features/subjects/services/tabs';
+import { TAB_RECORDS } from '#/features/subjects/services/tabs';
 import { lacking } from '#/shared/services/access';
 import { type AdminCapability } from '#/shared/services/principal';
 import type { RecordView } from '#/shared/services/record';
 import { useRecordTabs } from '#/shared/use-cases/useRecordTabs';
+import { SUBJECT_TABS, type SubjectTab } from '#/features/subjects/services/subjectAddress';
 
 export interface SubjectRecordPage {
   record: RecordView;

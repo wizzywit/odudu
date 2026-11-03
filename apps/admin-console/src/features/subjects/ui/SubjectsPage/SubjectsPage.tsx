@@ -1,5 +1,4 @@
 import { SUBJECT_CAPABILITY_FILTER, type Subject } from '@odudu/contracts/admin';
-import { subjectName } from '#/features/subjects/services/address';
 import { useSubjectsList } from '#/features/subjects/use-cases/useSubjectsList';
 import { SubjectsGate } from '#/features/subjects/ui/SubjectsGate';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
@@ -12,6 +11,7 @@ import { Timestamp } from '#/shared/ui/Timestamp';
 import { ViewOnlyNote } from '#/shared/ui/ViewOnlyNote';
 import styles from '#/features/subjects/ui/SubjectsPage/SubjectsPage.module.css';
 import { STATUS_FILTER } from '#/shared/services/filters';
+import { subjectName } from '#/features/subjects/services/subjectName';
 
 const COLUMNS: readonly Column<Subject>[] = [
   {

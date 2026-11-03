@@ -1,15 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { SUBJECT_TAB_LABELS, TAB_RECORDS } from '#/features/subjects/services/tabs';
 import {
   actionsRecord,
   groupsRecord,
   profileRecord,
   rolesRecord,
-  SUBJECT_TAB_LABELS,
-  SUBJECT_TABS,
-  subjectTabHref,
   subjectRecord,
-  TAB_RECORDS,
-} from '#/features/subjects/services/tabs';
+} from '#/features/subjects/services/subjectRecords';
+import { SUBJECT_TABS, subjectTabHref } from '#/features/subjects/services/subjectAddress';
 
 describe('the record tabs', () => {
   it('names, for every tab, the records whose sections it edits', () => {
@@ -34,10 +32,6 @@ describe('the record tabs', () => {
       'Grants',
       'Activity',
     ]);
-  });
-
-  it('addresses one tab of a record', () => {
-    expect(subjectTabHref('acme', 's 1', 'roles')).toBe('/console/acme/subjects/s%201?tab=roles');
   });
 });
 

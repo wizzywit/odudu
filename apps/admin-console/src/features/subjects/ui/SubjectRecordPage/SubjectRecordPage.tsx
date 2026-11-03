@@ -1,10 +1,5 @@
 import type { ReactNode } from 'react';
-import { subjectName, subjectsTrail, type Subject } from '#/features/subjects/services/address';
-import {
-  SUBJECT_TAB_LABELS,
-  SUBJECT_TABS,
-  type SubjectTab,
-} from '#/features/subjects/services/tabs';
+import { SUBJECT_TAB_LABELS } from '#/features/subjects/services/tabs';
 import { useSubjectRecordPage } from '#/features/subjects/use-cases/useSubjectRecordPage';
 import { ActivityPanel } from '#/features/subjects/ui/SubjectRecordPage/ActivityPanel';
 import { ConsentsTab } from '#/features/subjects/ui/SubjectRecordPage/ConsentsTab';
@@ -20,6 +15,12 @@ import { RecordPage } from '#/shared/ui/RecordPage';
 import { EnabledTag } from '#/shared/ui/StatusTag';
 import { ViewOnlyNote } from '#/shared/ui/ViewOnlyNote';
 import { BeyondNote, ReachFailed } from '#/features/subjects/ui/BeyondNote';
+import { subjectName, type Subject } from '#/features/subjects/services/subjectName';
+import {
+  subjectsTrail,
+  SUBJECT_TABS,
+  type SubjectTab,
+} from '#/features/subjects/services/subjectAddress';
 
 interface PanelProps {
   tenant: string;

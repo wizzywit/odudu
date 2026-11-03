@@ -6,8 +6,6 @@ import {
   useSaveGroups,
   type GroupValues,
 } from '#/features/subjects/repository/useAccess';
-import { subjectName } from '#/features/subjects/services/address';
-import { groupsRecord } from '#/features/subjects/services/tabs';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
@@ -26,6 +24,8 @@ import {
   membershipsOf,
   type Membership,
 } from '#/features/subjects/services/groupMembership';
+import { subjectName } from '#/features/subjects/services/subjectName';
+import { groupsRecord } from '#/features/subjects/services/subjectRecords';
 
 export function useSubjectGroupsRead(
   tenant: string,

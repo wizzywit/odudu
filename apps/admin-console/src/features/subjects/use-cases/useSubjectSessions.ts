@@ -17,7 +17,6 @@ import {
   useRevokeGrants,
   useSessionList,
 } from '#/features/subjects/repository/useSessions';
-import { subjectName } from '#/features/subjects/services/address';
 import {
   consentRevokedText,
   grantClients,
@@ -30,6 +29,7 @@ import { useConfirmedSubjectChange } from '#/features/subjects/use-cases/useConf
 import { notLacking } from '#/shared/services/access';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import type { Confirming } from '#/shared/use-cases/useConfirmedChange';
+import { subjectName } from '#/features/subjects/services/subjectName';
 
 // Sessions and grants are read and changed with manage-sessions alone:
 // there is no view-sessions.

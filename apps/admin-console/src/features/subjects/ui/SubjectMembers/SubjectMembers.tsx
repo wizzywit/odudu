@@ -1,5 +1,4 @@
 import type { Subject } from '@odudu/contracts/admin';
-import { subjectName } from '#/features/subjects/services/address';
 import { useMembers, useMembersReadable } from '#/features/subjects/use-cases/useMembers';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
 import { Count } from '#/shared/ui/Count';
@@ -10,6 +9,7 @@ import { Pager } from '#/shared/ui/Pager';
 import { TableSkeleton } from '#/shared/ui/Skeleton';
 import { EnabledTag } from '#/shared/ui/StatusTag';
 import { recordTab } from '#/shared/ui/RecordTab';
+import { subjectName } from '#/features/subjects/services/subjectName';
 
 const COLUMNS: readonly Column<Subject>[] = [
   {

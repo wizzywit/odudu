@@ -2,9 +2,10 @@ import type { Subject } from '@odudu/contracts/admin';
 import { useAuthority } from '#/entities/session';
 import { useGo } from '#/shared/repository/useGo';
 import { useMemberList } from '#/features/subjects/repository/useMemberList';
-import { membersListHref, subjectHref } from '#/features/subjects/services/address';
 import { notLacking } from '#/shared/services/access';
 import type { ResourceListState } from '#/shared/services/resourceList';
+import { membersListHref } from '#/features/subjects/services/memberListAddress';
+import { subjectHref } from '#/features/subjects/services/subjectAddress';
 
 // whoami is advice: a caller it says cannot read subjects is told so, rather
 // than sent a read the server would refuse.

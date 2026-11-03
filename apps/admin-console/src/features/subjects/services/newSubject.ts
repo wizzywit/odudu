@@ -1,6 +1,14 @@
+import { type AdminCapability, type Authority } from '#/shared/services/principal';
+import { newSubjectHref } from '#/features/subjects/services/subjectAddress';
 import { lacking } from '#/shared/services/access';
 import { createdText, type CreateSpec } from '#/shared/services/failure';
-import { type Authority } from '#/shared/services/principal';
+
+export function createSubjectHref(
+  tenant: string,
+  lacking: readonly AdminCapability[],
+): string | null {
+  return lacking.length === 0 ? newSubjectHref(tenant) : null;
+}
 
 export function subjectCreatedText(name: string): string {
   return `${createdText(name)} It has no password yet: issue a one-time password from its Credentials tab.`;

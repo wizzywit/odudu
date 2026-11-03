@@ -1,10 +1,11 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { useAuthority } from '#/entities/session';
 import { useSubjectList } from '#/features/subjects/repository/useSubjectList';
-import { createSubjectHref, subjectHref } from '#/features/subjects/services/address';
 import { lacking } from '#/shared/services/access';
 import type { AdminCapability } from '#/shared/services/principal';
 import { useListPage, type ListPageState } from '#/shared/use-cases/useListPage';
+import { createSubjectHref } from '#/features/subjects/services/newSubject';
+import { subjectHref } from '#/features/subjects/services/subjectAddress';
 
 // `createHref` is null while whoami says creating would be refused.
 export interface SubjectsList extends ListPageState<Subject, string | null> {

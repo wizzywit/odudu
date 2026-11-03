@@ -27,7 +27,6 @@ import {
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useRead } from '#/shared/repository/useRead';
 import type { Read } from '#/shared/services/read';
-import { actionsRecord, groupsRecord, rolesRecord } from '#/features/subjects/services/tabs';
 import { readSubjectRoles, setSubjectRoles } from '#/shared/adapter/administrators';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord';
 import { useResourceList } from '#/shared/repository/useResourceList';
@@ -37,6 +36,11 @@ import { uniqueIds } from '#/shared/services/ids';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
+import {
+  actionsRecord,
+  groupsRecord,
+  rolesRecord,
+} from '#/features/subjects/services/subjectRecords';
 
 export function useGroupsRecord(tenant: string, id: string): RecordState<SetSubjectGroupsResponse> {
   return useRecord({

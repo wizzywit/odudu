@@ -1,6 +1,5 @@
 import { Link } from 'react-aria-components';
 import { REQUIRED_ACTIONS } from '#/features/subjects/services/actions';
-import { type Credential, type Lockout, type Subject } from '#/features/subjects/services/address';
 import {
   useSubjectCredentials,
   type SubjectCredentials,
@@ -30,6 +29,11 @@ import {
 } from '#/features/subjects/services/credentialList';
 import { lockoutSummary } from '#/features/subjects/services/lockout';
 import { recoveryCodesText } from '#/features/subjects/services/credentialOutcome';
+import {
+  type Credential,
+  type Lockout,
+  type Subject,
+} from '#/features/subjects/services/subjectName';
 
 interface TabProps {
   tenant: string;

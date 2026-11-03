@@ -35,6 +35,13 @@ export function dirtyTabs<T extends string>(
   return new Set(tabs.filter((tab) => recordsOf(tab).some((record) => dirty.has(record))));
 }
 
+// The address of one tab of a record, built on the record's own.
+export function tabHrefOf(
+  address: (tenant: string, id: string) => string,
+): (tenant: string, id: string, tab: string) => string {
+  return (tenant, id, tab) => withSearch(address(tenant, id), { [TAB_PARAM]: tab });
+}
+
 export interface TabSpec<T extends string> {
   tabs: readonly [T, ...T[]];
   labels: Readonly<Record<T, string>>;
@@ -65,7 +72,7 @@ export function recordTabs<T extends string>(spec: TabSpec<T>): RecordTabModel<T
     tabs,
     labels,
     named: (name) => tabNamed(tabs, name),
-    hrefOf: (address) => (tenant, id, tab) => withSearch(address(tenant, id), { [TAB_PARAM]: tab }),
+    hrefOf: tabHrefOf,
     holds: (tab, dirty) => sections?.[tab].some((section) => dirty?.has(section) === true) === true,
     edited: (isEdited) => new Set(tabs.filter(isEdited)),
   };

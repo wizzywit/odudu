@@ -1,10 +1,10 @@
-import { subjectsTrail } from '#/features/subjects/services/address';
 import { useNewSubject } from '#/features/subjects/use-cases/useNewSubject';
 import { SubjectsGate } from '#/features/subjects/ui/SubjectsGate';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { CreationActions, CreationForm } from '#/shared/ui/CreationForm';
 import { TextField } from '#/shared/ui/Field';
 import { PageHeader } from '#/shared/ui/PageHeader';
+import { subjectsTrail } from '#/features/subjects/services/subjectAddress';
 
 function Form({ tenant }: { tenant: string }) {
   const page = useNewSubject(tenant);
