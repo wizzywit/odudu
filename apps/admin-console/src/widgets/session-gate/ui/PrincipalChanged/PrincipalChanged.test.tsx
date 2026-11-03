@@ -9,7 +9,14 @@ const ROOT = { tenant: 'system', subjectId: 's0', username: 'root' };
 
 function page(onCarryOn = () => undefined, onSignInAgain = () => undefined) {
   return (
-    <PrincipalChanged was={GRACE} now={ROOT} onCarryOn={onCarryOn} onSignInAgain={onSignInAgain} />
+    <PrincipalChanged
+      was={GRACE}
+      now={ROOT}
+      signInAgainLabel="Sign in as grace again"
+      continueAsLabel="Continue as root"
+      onCarryOn={onCarryOn}
+      onSignInAgain={onSignInAgain}
+    />
   );
 }
 

@@ -1,15 +1,22 @@
 import { useEffect, useRef } from 'react';
 import { type Principal } from '#/entities/session/types/principal';
 import { signInHome, tenantEntry } from '#/entities/session/services/entry';
+import {
+  signedInElsewhereWords,
+  signingInWords,
+  type SignedInElsewhereWords,
+  type SigningInWords,
+} from '#/entities/session/services/sessionStatusText';
 import { useSignedIn } from '#/entities/session/use-cases/useSignedIn';
 import { useSignIn } from '#/entities/session/use-cases/useSignIn';
 
 export type TenantAccess =
   | { kind: 'allowed'; principal: Principal }
-  | { kind: 'signing-in'; tenant: string; ended: boolean }
+  | { kind: 'signing-in'; ended: boolean; words: SigningInWords }
   | {
       kind: 'elsewhere';
       principal: Principal;
+      words: SignedInElsewhereWords;
       signIn: () => void;
     };
 
@@ -32,9 +39,17 @@ export function useTenantAccess(tenant: string): TenantAccess {
   if (entry.kind === 'elsewhere') {
     return {
       ...entry,
+      words: signedInElsewhereWords(entry.principal.tenant, tenant),
       signIn: () => {
         signIn(tenant);
       },
+    };
+  }
+  if (entry.kind === 'signing-in') {
+    return {
+      kind: 'signing-in',
+      ended: entry.ended,
+      words: signingInWords(entry.tenant, entry.ended),
     };
   }
   return entry;

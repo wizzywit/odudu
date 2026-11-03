@@ -98,6 +98,7 @@ export function useResourceList<T>({
   defaults = {},
   read,
   count,
+  enabled = true,
 }: {
   tenant: string;
   // Names the list in the query cache, e.g. `clients`.
@@ -112,6 +113,8 @@ export function useResourceList<T>({
   defaults?: Readonly<Record<string, string>>;
   read: ReadPage<T>;
   count?: ReadCount;
+  // False where the read would be refused: nothing is asked of the server.
+  enabled?: boolean;
 }): ResourceListState<T> {
   const { gateway } = useTransport();
   const { invalidate } = useInvalidate();
@@ -121,10 +124,10 @@ export function useResourceList<T>({
   const trail = trailFromSearch(params);
   const query = apiQuery(withDefaults(narrowing, defaults), fixed);
   const key = listKey(tenant, resource);
-  const pages = useListPages({ key, query, cursor: currentCursor(trail), read });
+  const pages = useListPages({ key, query, cursor: currentCursor(trail), read, enabled });
   const counted = useQuery({
     queryKey: countKey(tenant, resource, query.toString()),
-    enabled: count !== undefined,
+    enabled: enabled && count !== undefined,
     queryFn: () =>
       count === undefined ? Promise.resolve(null) : count(gateway, new URLSearchParams(query)),
   });

@@ -1,6 +1,6 @@
 import { Link } from 'react-aria-components';
 import { type Principal } from '#/entities/session/types/principal';
-import { useSignedInElsewhereText } from '#/entities/session/use-cases/useSignedInElsewhereText';
+import type { SignedInElsewhereWords } from '#/entities/session/services/sessionStatusText';
 import { SessionStatus } from '#/entities/session/ui/SessionStatus';
 import { Button } from '#/shared/ui/Button';
 import styles from '#/entities/session/ui/SignedInElsewhere/SignedInElsewhere.module.css';
@@ -9,14 +9,13 @@ import styles from '#/entities/session/ui/SignedInElsewhere/SignedInElsewhere.mo
 // going back sends nothing.
 export function SignedInElsewhere({
   principal,
-  tenant,
+  words,
   onSignIn,
 }: {
   principal: Principal;
-  tenant: string;
+  words: SignedInElsewhereWords;
   onSignIn: () => void;
 }) {
-  const words = useSignedInElsewhereText(principal.tenant, tenant);
   return (
     <SessionStatus title={words.title}>
       <p>

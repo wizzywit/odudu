@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { type Area } from '#/entities/area';
-import { useShellText } from '#/widgets/shell/use-cases/useShellText';
-import { useArea } from '#/widgets/shell/use-cases/useArea';
+import { useAreaGate } from '#/widgets/shell/use-cases/useAreaGate';
 import { AccessGate } from '#/shared/ui/AccessGate';
 import type { Crumb } from '#/shared/ui/Breadcrumb';
 
@@ -19,15 +18,14 @@ export function AreaGate({
   breadcrumb?: readonly Crumb[];
   children: ReactNode;
 }) {
-  const access = useArea(tenant, area);
-  const { checkingText } = useShellText();
+  const { access, checking } = useAreaGate(tenant, area);
   return (
     <AccessGate
       access={access}
       title={title}
       kicker={tenant}
       {...(breadcrumb === undefined ? {} : { breadcrumb })}
-      checking={checkingText(area)}
+      checking={checking}
     >
       {children}
     </AccessGate>

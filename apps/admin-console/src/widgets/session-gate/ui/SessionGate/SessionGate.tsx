@@ -50,6 +50,8 @@ export function SessionGate({ pending, children }: { pending?: ReactNode; childr
       <PrincipalChanged
         was={boot.was}
         now={boot.now}
+        signInAgainLabel={boot.signInAgainLabel}
+        continueAsLabel={boot.continueAsLabel}
         onCarryOn={boot.carryOn}
         onSignInAgain={boot.signInAgain}
       />

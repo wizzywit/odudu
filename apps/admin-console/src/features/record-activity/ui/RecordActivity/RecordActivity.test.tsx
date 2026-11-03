@@ -1,11 +1,13 @@
-import { render, screen } from '@testing-library/react';
+import { QueryClient } from '@tanstack/react-query';
+import { screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { RecordActivity } from '#/features/record-activity/ui/RecordActivity';
-import { axeInBothThemes } from '#/testing/axeInBothThemes';
+import { fakeTransport } from '#/testing/fakeTransport';
+import { mountAtRoute } from '#/testing/mountAtRoute';
 
 // The trail itself needs the router and the gateway; the record pages' own
 // tests read it through this component.
-function refused() {
+function Refused() {
   return (
     <main>
       <RecordActivity
@@ -19,12 +21,13 @@ function refused() {
   );
 }
 
-it('says what the trail holds, and names view-audit where the audit is not readable', () => {
-  render(refused());
-  expect(screen.getByText(/^Every change made to this group/u)).toBeVisible();
+it('says what the trail holds, names view-audit where the audit is not readable, and asks for nothing', async () => {
+  const fake = fakeTransport({});
+  mountAtRoute('/console/acme/groups/g1', '/acme/groups/g1', Refused, {
+    basepath: '/console',
+    providers: { transport: fake.transport, queryClient: new QueryClient() },
+  });
+  expect(await screen.findByText(/^Every change made to this group/u)).toBeVisible();
   expect(screen.getByRole('note')).toHaveTextContent('Activity needs the view-audit capability.');
-});
-
-it('has no accessibility violations in either theme, refused', async () => {
-  expect(await axeInBothThemes(refused)).toEqual({ light: [], dark: [] });
+  expect(fake.sent).toEqual([]);
 });

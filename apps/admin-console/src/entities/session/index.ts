@@ -30,7 +30,13 @@ export {
 } from '#/entities/session/services/entry';
 export { LOGIN_ERROR, loginNotice, switchFailedText } from '#/entities/session/services/loginError';
 export { namedTenant, tenantProblem } from '#/entities/session/services/tenant';
-export { signInToLabel } from '#/entities/session/services/sessionStatusText';
+export {
+  signInToLabel,
+  signedInElsewhereWords,
+  signingInWords,
+  type SignedInElsewhereWords,
+  type SigningInWords,
+} from '#/entities/session/services/sessionStatusText';
 export { SessionStatus } from '#/entities/session/ui/SessionStatus';
 export { SigningIn } from '#/entities/session/ui/SigningIn';
 export { SignedInElsewhere } from '#/entities/session/ui/SignedInElsewhere';

@@ -3,6 +3,10 @@ import {
   rememberedTenant,
   CHOOSE_TENANT,
   type Principal,
+  type SignedInElsewhereWords,
+  type SigningInWords,
+  signedInElsewhereWords,
+  signingInWords,
   entersDirectly,
   homeTarget,
   isSystemPrincipal,
@@ -21,11 +25,11 @@ import { useUrlSearch } from '#/shared/lib/repository/useUrlSearch';
 import { tenantPage } from '#/shared/lib/services/address';
 
 export type Home =
-  | { kind: 'leaving'; tenant: string | null }
+  | { kind: 'leaving'; words: SigningInWords }
   | {
       kind: 'elsewhere';
       principal: Principal;
-      tenant: string;
+      words: SignedInElsewhereWords;
       signIn: () => void;
     }
   | {
@@ -86,13 +90,14 @@ export function useConsoleHome(): Home {
     return {
       kind: 'elsewhere',
       principal: target.principal,
-      tenant,
+      words: signedInElsewhereWords(target.principal.tenant, tenant),
       signIn: () => {
         signIn(tenant, tenantPage(tenant));
       },
     };
   }
-  if (target.kind === 'leaving') return { kind: 'leaving', tenant: target.tenant };
+  if (target.kind === 'leaving')
+    return { kind: 'leaving', words: signingInWords(target.tenant, false) };
   return {
     kind: 'choose',
     remembered: rememberedTenant({ named, signedIn: principal !== null }),

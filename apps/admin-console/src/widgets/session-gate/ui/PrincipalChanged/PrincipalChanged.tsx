@@ -1,5 +1,4 @@
 import { SessionStatus, type Principal } from '#/entities/session';
-import { useSignInText } from '#/widgets/session-gate/use-cases/useSignInText';
 import { Button } from '#/shared/ui/Button';
 import styles from '#/widgets/session-gate/ui/PrincipalChanged/PrincipalChanged.module.css';
 
@@ -8,15 +7,18 @@ import styles from '#/widgets/session-gate/ui/PrincipalChanged/PrincipalChanged.
 export function PrincipalChanged({
   was,
   now,
+  signInAgainLabel,
+  continueAsLabel,
   onCarryOn,
   onSignInAgain,
 }: {
   was: Principal;
   now: Principal;
+  signInAgainLabel: string;
+  continueAsLabel: string;
   onCarryOn: () => void;
   onSignInAgain: () => void;
 }) {
-  const { continueAsLabel, signInAgainLabel } = useSignInText();
   return (
     <SessionStatus title="Signed in as somebody else">
       <p>
@@ -29,10 +31,10 @@ export function PrincipalChanged({
       </p>
       <div className={styles.actions}>
         <Button variant="primary" onPress={onSignInAgain}>
-          {signInAgainLabel(was)}
+          {signInAgainLabel}
         </Button>
         <Button variant="quiet" onPress={onCarryOn}>
-          {continueAsLabel(now)}
+          {continueAsLabel}
         </Button>
       </div>
     </SessionStatus>

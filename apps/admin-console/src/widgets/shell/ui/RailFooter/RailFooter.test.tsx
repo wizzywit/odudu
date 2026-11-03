@@ -2,24 +2,31 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { RailFooter } from '#/widgets/shell/ui/RailFooter';
+import type { ThemeSetting } from '#/widgets/shell/types/themeSetting';
+import { THEME_CHOICES, themeChoice } from '#/shared/lib/services/theme';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 
-function footer(signedInTo: string, onSignOut = () => undefined) {
+const THEME: ThemeSetting = {
+  choice: 'system',
+  options: THEME_CHOICES,
+  parse: themeChoice,
+  choose: () => undefined,
+};
+
+function footer(from: string | null, onSignOut = () => undefined) {
   return (
     <RailFooter
       username="grace"
-      signedInTo={signedInTo}
-      tenant="acme"
+      from={from}
       switchHref="/console/?choose"
-      theme="system"
-      onChooseTheme={() => undefined}
+      theme={THEME}
       onSignOut={onSignOut}
     />
   );
 }
 
 it('names who is signed in, and where from when that is another tenant', () => {
-  const { rerender } = render(footer('acme'));
+  const { rerender } = render(footer(null));
   expect(screen.getByText(/Signed in as/u)).toHaveTextContent('Signed in as grace');
   rerender(footer('system'));
   expect(screen.getByText(/Signed in as/u)).toHaveTextContent('Signed in as grace from system');

@@ -1,6 +1,5 @@
-import { useState, type SubmitEvent } from 'react';
 import { SessionStatus, type Principal } from '#/entities/session';
-import { useSignInText } from '#/widgets/session-gate/use-cases/useSignInText';
+import { useSignInForm } from '#/widgets/session-gate/use-cases/useSignInForm';
 import { Button } from '#/shared/ui/Button';
 import { TextField } from '#/shared/ui/Field';
 import styles from '#/widgets/session-gate/ui/SignIn/SignIn.module.css';
@@ -22,17 +21,7 @@ export function SignIn({
   onSignIn: (tenant: string) => void;
   check: (tenant: string) => string | undefined;
 }) {
-  const { enteredTenant, signInLabel, signInToLabel } = useSignInText();
-  const [asking, setAsking] = useState(remembered === null);
-  const [tenant, setTenant] = useState('');
-  const [error, setError] = useState<string | undefined>(undefined);
-  const submit = (event: SubmitEvent<HTMLFormElement>): void => {
-    event.preventDefault();
-    const name = enteredTenant(tenant);
-    const problem = check(name);
-    setError(problem);
-    if (problem === undefined) onSignIn(name);
-  };
+  const form = useSignInForm({ remembered, enters, onSignIn, check });
   return (
     <SessionStatus title="Sign in">
       {notice === null ? null : (
@@ -40,32 +29,22 @@ export function SignIn({
           {notice}
         </p>
       )}
-      {remembered !== null && !asking ? (
+      {remembered !== null && !form.asking ? (
         <div className={styles.remembered}>
           <p>
             You last signed in to <strong>{remembered}</strong> in this browser.
           </p>
           <div className={styles.actions}>
-            <Button
-              variant="primary"
-              onPress={() => {
-                onSignIn(remembered);
-              }}
-            >
-              {signInToLabel(remembered)}
+            <Button variant="primary" onPress={form.signInRemembered}>
+              {form.rememberedLabel}
             </Button>
-            <Button
-              variant="quiet"
-              onPress={() => {
-                setAsking(true);
-              }}
-            >
+            <Button variant="quiet" onPress={form.ask}>
               A different tenant
             </Button>
           </div>
         </div>
       ) : (
-        <form noValidate onSubmit={submit} className={styles.form}>
+        <form noValidate onSubmit={form.submit} className={styles.form}>
           {replacing === null ? null : (
             <p>
               You&apos;re signed in to <strong>{replacing.tenant}</strong> as{' '}
@@ -76,15 +55,15 @@ export function SignIn({
           <TextField
             label="Which tenant do you administer?"
             description="Its name, as it appears in the tenant's issuer URL."
-            value={tenant}
-            onChange={setTenant}
-            error={error}
+            value={form.tenant}
+            onChange={form.setTenant}
+            error={form.error}
             mono
             autoFocus
           />
           <div className={styles.actions}>
             <Button type="submit" variant="primary">
-              {signInLabel(enters, enteredTenant(tenant))}
+              {form.submitLabel}
             </Button>
           </div>
         </form>

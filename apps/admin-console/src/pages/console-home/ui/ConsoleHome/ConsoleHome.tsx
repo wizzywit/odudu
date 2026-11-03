@@ -4,10 +4,10 @@ import { SignIn } from '#/widgets/session-gate';
 
 export function ConsoleHome() {
   const home = useConsoleHome();
-  if (home.kind === 'leaving') return <SigningIn tenant={home.tenant} ended={false} />;
+  if (home.kind === 'leaving') return <SigningIn words={home.words} ended={false} />;
   if (home.kind === 'elsewhere') {
     return (
-      <SignedInElsewhere principal={home.principal} tenant={home.tenant} onSignIn={home.signIn} />
+      <SignedInElsewhere principal={home.principal} words={home.words} onSignIn={home.signIn} />
     );
   }
   return (

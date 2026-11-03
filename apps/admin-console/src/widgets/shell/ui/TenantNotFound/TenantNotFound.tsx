@@ -1,11 +1,9 @@
 import { Link } from 'react-aria-components';
-import { useShellText } from '#/widgets/shell/use-cases/useShellText';
 import { EmptyState } from '#/shared/ui/EmptyState';
 import { PageHeader } from '#/shared/ui/PageHeader';
 import styles from '#/widgets/shell/ui/TenantNotFound/TenantNotFound.module.css';
 
-export function TenantNotFound({ tenant, chooseHref }: { tenant: string; chooseHref: string }) {
-  const { tenantNotFoundText } = useShellText();
+export function TenantNotFound({ message, chooseHref }: { message: string; chooseHref: string }) {
   return (
     <>
       <PageHeader title="Tenant not found" />
@@ -18,7 +16,7 @@ export function TenantNotFound({ tenant, chooseHref }: { tenant: string; chooseH
           </Link>
         }
       >
-        {tenantNotFoundText(tenant)}
+        {message}
       </EmptyState>
     </>
   );

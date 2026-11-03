@@ -7,7 +7,6 @@ import {
   type Principal,
 } from '#/entities/session';
 import { useShell } from '#/widgets/shell/use-cases/useShell';
-import { useShellText } from '#/widgets/shell/use-cases/useShellText';
 import { useTenantFrame } from '#/widgets/shell/use-cases/useTenantFrame';
 import { RailFooter } from '#/widgets/shell/ui/RailFooter';
 import { TenantNotFound } from '#/widgets/shell/ui/TenantNotFound';
@@ -29,19 +28,18 @@ function SignedInShell({
   children: ReactNode;
 }) {
   const shell = useShell(tenant, principal);
-  const { areasLabel, brandText } = useShellText();
   const { productName } = useTenantFrame(tenant);
   const missing = useTenantMissing(tenant);
   if (missing === true) {
     return (
       <LostFrame brand={productName}>
-        <TenantNotFound tenant={tenant} chooseHref={shell.switchHref} />
+        <TenantNotFound message={shell.notFoundText} chooseHref={shell.switchHref} />
       </LostFrame>
     );
   }
   return (
     <AppShell
-      brand={brandText(tenant)}
+      brand={shell.brand}
       collapsed={shell.collapsed}
       onCollapsedChange={shell.setCollapsed}
       shortcutsPaused={shell.dialogOpen}
@@ -52,23 +50,21 @@ function SignedInShell({
       }
       rail={
         <Rail
-          label={areasLabel(tenant)}
+          label={shell.areasLabel}
           groups={shell.groups}
           checking={shell.checking}
           {...(shell.currentHref === undefined ? {} : { currentHref: shell.currentHref })}
           header={
             <strong className={styles.brand}>
-              <BrandLine>{brandText(tenant)}</BrandLine>
+              <BrandLine>{shell.brand}</BrandLine>
             </strong>
           }
           footer={
             <RailFooter
               username={shell.username}
-              signedInTo={shell.signedInTo}
-              tenant={tenant}
+              from={shell.signedInFrom}
               switchHref={shell.switchHref}
               theme={shell.theme}
-              onChooseTheme={shell.chooseTheme}
               onSignOut={shell.signOut}
             />
           }
@@ -83,11 +79,15 @@ function SignedInShell({
 function Access({ tenant, children }: { tenant: string; children: ReactNode }) {
   const access = useTenantAccess(tenant);
   if (access.kind === 'signing-in') {
-    return <SigningIn tenant={access.tenant} ended={access.ended} />;
+    return <SigningIn words={access.words} ended={access.ended} />;
   }
   if (access.kind === 'elsewhere') {
     return (
-      <SignedInElsewhere principal={access.principal} tenant={tenant} onSignIn={access.signIn} />
+      <SignedInElsewhere
+        principal={access.principal}
+        words={access.words}
+        onSignIn={access.signIn}
+      />
     );
   }
   return (

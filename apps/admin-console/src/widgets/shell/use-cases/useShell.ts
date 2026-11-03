@@ -13,7 +13,14 @@ import { actsWithSystemAuthority, showsSystemArea } from '#/widgets/shell/servic
 import { useDialogHost } from '#/shared/lib/repository/useDialogHost';
 import { useRailCollapsed } from '#/widgets/shell/repository/useRailCollapsed';
 import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
-import type { ThemeChoice } from '#/shared/lib/services/theme';
+import { THEME_CHOICES, themeChoice } from '#/shared/lib/services/theme';
+import type { ThemeSetting } from '#/widgets/shell/types/themeSetting';
+import {
+  areasLabel,
+  brandText,
+  signedInFrom,
+  tenantNotFoundText,
+} from '#/widgets/shell/services/shellText';
 import { useTheme } from '#/shared/lib/repository/useTheme';
 
 export interface Shell {
@@ -24,13 +31,16 @@ export interface Shell {
   systemAuthority: boolean;
   systemRecordHref: string;
   username: string;
-  signedInTo: string;
   switchHref: string;
   collapsed: boolean;
   dialogOpen: boolean;
   setCollapsed: (collapsed: boolean) => void;
-  theme: ThemeChoice;
-  chooseTheme: (choice: ThemeChoice) => void;
+  brand: string;
+  areasLabel: string;
+  notFoundText: string;
+  // Whose tenant the session was issued by, when that is not this one.
+  signedInFrom: string | null;
+  theme: ThemeSetting;
   signOut: () => void;
 }
 
@@ -59,13 +69,20 @@ export function useShell(tenant: string, principal: Principal): Shell {
     systemAuthority: actsWithSystemAuthority(principal, tenant, authority),
     systemRecordHref: systemRecordHref(tenant),
     username: principal.username,
-    signedInTo: principal.tenant,
     switchHref: SWITCH_HREF,
     collapsed,
     dialogOpen: dialogOpen(openDialogs, asking),
     setCollapsed,
-    theme: theme.choice,
-    chooseTheme: theme.choose,
+    brand: brandText(tenant),
+    areasLabel: areasLabel(tenant),
+    notFoundText: tenantNotFoundText(tenant),
+    signedInFrom: signedInFrom(principal.tenant, tenant),
+    theme: {
+      choice: theme.choice,
+      options: THEME_CHOICES,
+      parse: themeChoice,
+      choose: theme.choose,
+    },
     signOut,
   };
 }

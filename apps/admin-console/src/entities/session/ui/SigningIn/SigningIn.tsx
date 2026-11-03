@@ -1,8 +1,7 @@
-import { useSigningInText } from '#/entities/session/use-cases/useSigningInText';
+import type { SigningInWords } from '#/entities/session/services/sessionStatusText';
 import { SessionStatus } from '#/entities/session/ui/SessionStatus';
 
-export function SigningIn({ tenant, ended }: { tenant: string | null; ended: boolean }) {
-  const words = useSigningInText(tenant, ended);
+export function SigningIn({ words, ended }: { words: SigningInWords; ended: boolean }) {
   return (
     <SessionStatus title={words.title}>
       <p role="status">{words.text}</p>

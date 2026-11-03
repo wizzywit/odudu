@@ -4,7 +4,7 @@ import { TenantNotFound } from '#/widgets/shell/ui/TenantNotFound';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 
 it('names the tenant nobody has, and offers the tenant chooser', () => {
-  render(<TenantNotFound tenant="no-such" chooseHref="/console/?choose" />);
+  render(<TenantNotFound message="No tenant is named no-such." chooseHref="/console/?choose" />);
   expect(screen.getByRole('heading', { level: 1, name: 'Tenant not found' })).toBeVisible();
   expect(screen.getByText('No tenant is named no-such.')).toBeVisible();
   expect(screen.getByRole('link', { name: 'Choose a tenant' })).toHaveAttribute(
@@ -15,6 +15,8 @@ it('names the tenant nobody has, and offers the tenant chooser', () => {
 
 it('passes axe in both themes', async () => {
   expect(
-    await axeInBothThemes(() => <TenantNotFound tenant="no-such" chooseHref="/console/?choose" />),
+    await axeInBothThemes(() => (
+      <TenantNotFound message="No tenant is named no-such." chooseHref="/console/?choose" />
+    )),
   ).toEqual({ light: [], dark: [] });
 });

@@ -1,16 +1,10 @@
 import type { ReactNode } from 'react';
-import { useActivityWords } from '#/features/record-activity/use-cases/useActivityWords';
 import { useRecordActivity } from '#/features/record-activity/use-cases/useRecordActivity';
 import { ActivityTab } from '#/features/record-activity/ui/ActivityTab';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { recordTab } from '#/shared/ui/RecordTab';
 
 type Resource = 'client' | 'group' | 'role' | 'scope' | 'subject';
-
-function Trail({ resource, tenant, id }: { resource: Resource; tenant: string; id: string }) {
-  const { list, words } = useRecordActivity(resource, tenant, id);
-  return <ActivityTab list={list} words={words} />;
-}
 
 // A record's Activity tab: what the trail holds, and the trail itself.
 export function RecordActivity({
@@ -28,12 +22,12 @@ export function RecordActivity({
   // False where the audit would refuse the read: nothing is asked of it.
   readable: boolean;
 }) {
-  const words = useActivityWords(resource);
+  const { list, words } = useRecordActivity(resource, tenant, id, readable);
   return (
     <div className={recordTab.tab}>
       <p className={recordTab.rule}>{lead}</p>
       {readable ? (
-        <Trail resource={resource} tenant={tenant} id={id} />
+        <ActivityTab list={list} words={words} />
       ) : (
         <CapabilityNote capability="view-audit">{words.refusedNoun}</CapabilityNote>
       )}

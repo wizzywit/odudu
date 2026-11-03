@@ -1,3 +1,4 @@
+import { continueAsLabel, signInAgainLabel } from '#/entities/session/services/sessionStatusText';
 import { useSessionEvent, useSessionQuery } from '#/entities/session/repository/useSessionQuery';
 import { type Principal } from '#/entities/session/types/principal';
 import { bootOf, draftOwner, shownPrincipal } from '#/entities/session/services/boot';
@@ -14,6 +15,8 @@ export type Boot =
       now: Principal;
       carryOn: () => void;
       signInAgain: () => void;
+      signInAgainLabel: string;
+      continueAsLabel: string;
     }
   | {
       kind: 'ready';
@@ -48,5 +51,7 @@ export function useSession(): Boot {
     signInAgain: () => {
       signIn(boot.was.tenant);
     },
+    signInAgainLabel: signInAgainLabel(boot.was),
+    continueAsLabel: continueAsLabel(boot.now),
   };
 }

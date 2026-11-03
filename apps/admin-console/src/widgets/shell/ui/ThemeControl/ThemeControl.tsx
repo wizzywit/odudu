@@ -1,29 +1,21 @@
 import { Label, RadioButton, RadioField, RadioGroup } from 'react-aria-components';
-import type { ThemeChoice } from '#/shared/lib/services/theme';
-import { useThemeChoices } from '#/widgets/shell/use-cases/useThemeChoices';
+import type { ThemeSetting } from '#/widgets/shell/types/themeSetting';
 import styles from '#/widgets/shell/ui/ThemeControl/ThemeControl.module.css';
 
-export function ThemeControl({
-  choice,
-  onChoose,
-}: {
-  choice: ThemeChoice;
-  onChoose: (choice: ThemeChoice) => void;
-}) {
-  const { choices, themeChoice } = useThemeChoices();
+export function ThemeControl({ theme }: { theme: ThemeSetting }) {
   return (
     <RadioGroup
-      value={choice}
+      value={theme.choice}
       orientation="horizontal"
       onChange={(value) => {
-        const chosen = themeChoice(value);
-        if (chosen !== undefined) onChoose(chosen);
+        const chosen = theme.parse(value);
+        if (chosen !== undefined) theme.choose(chosen);
       }}
       className={styles.group ?? ''}
     >
       <Label className={styles.label ?? ''}>Theme</Label>
       <div className={styles.options}>
-        {choices.map((c) => (
+        {theme.options.map((c) => (
           <RadioField key={c.id} value={c.id} className={styles.field ?? ''}>
             <RadioButton className={styles.option ?? ''}>{c.label}</RadioButton>
           </RadioField>
