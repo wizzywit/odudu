@@ -110,7 +110,8 @@ boundaries`): the segment boundaries, which layer may import which, and the
   rule at all and has no inventory entry. The rules are `no-service-barrel`,
   `no-domain-in-shared`, `no-sideways-slice`, `view-no-service` and
   `no-adapter-export`. A sixth, `contracts-only-in-adapter`, was planned for
-  the first contract moved and was never built (see Consequences).
+  the first contract moved, built after the inventory closed, and holds every
+  console source from the start (see Consequences).
 
 ## Consequences
 
@@ -118,8 +119,8 @@ boundaries`): the segment boundaries, which layer may import which, and the
   every inventory reached zero, so `inventory.ts`, `inventory.baseline.json`,
   `migrated.ts`, the baseline check and the `segment-rename` codemod are
   deleted. The five rules now apply to every slice with no exemption, like
-  every other test in `tests/lint`; `contracts-only-in-adapter` was never
-  built and its identifier is gone.
+  every other test in `tests/lint`. `contracts-only-in-adapter` came after
+  the inventory closed and has none: it fails on any breach.
 - Some platform vocabulary stays in `shared` although it names a domain word:
   the tenant vocabulary (`SYSTEM_TENANT`, `isTenantName`, `tenantPage`,
   `isUnknownTenant`), the capability rules under `shared/lib/services/capabilities`,
@@ -199,7 +200,10 @@ The check `console-lower-layers-import-no-upper` holds the layers below
 `features` out of the layers above, and `console-features-import-no-page` and
 `console-features-import-no-widget` close the gap that sideways-slice leaves.
 
-`contracts-only-in-adapter` was not built, and the spec's aim that a contracts
-type appear only in an adapter holds for the entities and not for the pages:
-145 non-test files above the adapters import `@odudu/contracts`. It is a
-decision still open in `docs/NEXT.md`.
+`contracts-only-in-adapter` was built after the close. A contracts type is
+allowed only under `adapter/` and `types/`; a contracts value is also allowed
+in `services/`, `shared/api` and a shared `config/`, and never in a view, use
+case or repository. Test files and `testing/` are outside it. A slice's types
+file re-exports what the slice reads, so the rule fixes where a wire shape is
+named, not that it is mapped: camelCase domain types are a later pass
+(`docs/NEXT.md`).

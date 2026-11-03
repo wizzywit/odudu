@@ -164,14 +164,25 @@ decision (spec D2). None changed a word a person reads.
 
 ## Left, and where it went
 
-- **Contract types outside adapters.** The spec's aim that a contracts type
-  appears only in an `adapter` was reached for the entities and the adapters
-  with fixtures and not for the pages: 145 non-test files above the adapters
-  still import `@odudu/contracts`, most in `features/branding-editor/services`
-  (16), `shared/lib/services` (10) and `pages/clients/services` (9), some for a
-  runtime rule or limit that belongs to contracts and some for a shape the
-  adapter returns unmapped. `contracts-only-in-adapter` was never built.
-  Placed in `docs/NEXT.md`, "Decisions still open".
+- **Contract types outside adapters, closed afterwards.** The spec's aim that a
+  contracts type appear only in an `adapter` was first reached for the entities
+  and not for the pages: 145 non-test files above the adapters imported
+  `@odudu/contracts`. `contracts-only-in-adapter` now exists
+  (`tests/lint/architecture/contracts-only-in-adapter.test.ts`, with fixtures)
+  and holds every console source with no inventory: a contracts type, in an
+  `import type`, an `{ type X }` specifier or an `export type … from`, is
+  allowed only under `adapter/` and `types/`; a contracts value (a limit, a
+  kind list, a schema) also under `services/`, `shared/api` and a shared
+  `config/`, never in a view, use case or repository. Each slice's
+  `types/<concept>.ts` re-exports what it reads; what two slices read lives
+  once, in `shared/lib/types/` (wire shapes with no domain word) or in the
+  owning entity's index. What stays outside the rule: test files and the
+  `testing/` doubles, and the docs app, which has no contracts import. Still
+  open, and named: the domain types keep the wire's field names
+  (`admin_reach`, `client_key`), and a re-export is not a mapping, so most
+  `types/` files hand the wire shape on unchanged; mapping them to camelCase
+  domain types is in `docs/NEXT.md`, "Decisions still open", with the other
+  cleanup.
 - **Console literals, for P4h.** The console has no lint for typed text yet.
   `AuditDetail`, `AuditTable` and `RecordActivity` still hold literals ("Event
   id", "Details", "Close", "no subject", "from elsewhere"), and

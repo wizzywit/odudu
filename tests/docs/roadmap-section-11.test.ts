@@ -336,7 +336,7 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     ['Accounts that differ only by the case', ['P4f'], ['differ only by case']],
     ['The Node major moves by hand', ['P12'], ['even-numbered node lts']],
     [
-      'Contract types still appear above the adapters',
+      'The cleanup P4k left in branding and clients',
       ['P4h'],
       'console source cleanup left by the closed P4k, no product behaviour',
     ],
