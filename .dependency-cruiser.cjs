@@ -99,6 +99,22 @@ module.exports = {
       },
     },
     {
+      name: 'console-service-entity-index-type-only',
+      severity: 'error',
+      comment:
+        'An entity index reaches views and usecases, so a service may import it for types only. ' +
+        'entities/area is the exception: its index publishes the catalogue, which is pure data and ' +
+        'services.',
+      from: {
+        path: '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)',
+        pathNot: '\\.test\\.tsx?$',
+      },
+      to: {
+        path: '(^|/)apps/admin-console/src/entities/(?!area/)[^/]+/index\\.ts$',
+        dependencyTypesNot: ['type-only'],
+      },
+    },
+    {
       name: 'console-index-exports-view-usecase-service',
       severity: 'error',
       comment:

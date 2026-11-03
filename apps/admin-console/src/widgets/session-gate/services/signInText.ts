@@ -1,4 +1,4 @@
-import { type Principal } from '#/entities/session';
+import type { Principal } from '#/entities/session';
 
 export function signInLabel(enters: boolean, tenant: string): string {
   if (!enters) return 'Continue to sign-in';

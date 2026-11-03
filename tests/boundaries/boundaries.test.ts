@@ -433,9 +433,27 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ).toBe(true);
   });
 
-  it("permits a widget's service importing an entity index.ts", async () => {
-    const found = await violations('console-service-imports-only-service');
-    expect(found.some((v) => v.from.endsWith('widgets/shell/services/usesEntityIndex.ts'))).toBe(
+  it("rejects a widget's service importing an entity index.ts for a value", async () => {
+    const found = await violations('console-service-entity-index-type-only');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('widgets/shell/services/usesEntityIndex.ts') &&
+          v.to.endsWith('entities/session/index.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it("permits a widget's service importing an entity index.ts for a type", async () => {
+    const found = await violations('console-service-entity-index-type-only');
+    expect(found.some((v) => v.from.endsWith('widgets/shell/services/usesEntityType.ts'))).toBe(
+      false,
+    );
+  });
+
+  it("permits a widget's service importing the area entity index.ts", async () => {
+    const found = await violations('console-service-entity-index-type-only');
+    expect(found.some((v) => v.from.endsWith('widgets/shell/services/usesAreaIndex.ts'))).toBe(
       false,
     );
   });
