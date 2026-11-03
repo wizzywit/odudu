@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { tenantAdminCarries } from '#/shared/services/administrators';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
 import { recordOpener, tenantRecordAccess } from '#/pages/tenants/services/access';
+import { tenantAdminCarries } from '#/shared/services/capabilities';
 
 describe('the tenant record page', () => {
   const caller = (...capabilities: AdminCapability[]): Authority => ({

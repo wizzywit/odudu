@@ -1,9 +1,10 @@
 import { useAuthority } from '#/entities/session';
 import { systemAdminsHrefOf } from '#/pages/tenants/services/systemAddress';
-import { administratorCapability, administratorNeeds } from '#/shared/services/administrators';
+import { administratorNeeds } from '#/shared/services/administrators';
 import { lacking, notLacking } from '#/shared/services/access';
 import { SYSTEM_TENANT } from '#/shared/services/principal';
 import { useBeginAdministrator, type BeginAdministrator } from '#/features/begin-administrator';
+import { administratorCapability } from '#/shared/services/capabilities';
 
 export interface TenantAdministrators {
   // The capability or role the guard counts, and for `system` where its

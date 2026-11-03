@@ -6,6 +6,8 @@ import {
   holdingRoleIds,
   includedBy,
   isAdminRole,
+  administratorCapability,
+  tenantAdminCarries,
 } from '#/shared/services/capabilities/holdings';
 
 describe('grantableIn', () => {
@@ -58,5 +60,20 @@ describe('the built-in admin client in a role list', () => {
       ['tenant-admin', 'r2'],
       ['manage-keys', 'r3'],
     ]);
+  });
+});
+
+describe('the tenant-admin role', () => {
+  it('carries every capability of the tenant, and in system manage-tenants as well', () => {
+    expect(tenantAdminCarries('acme')).not.toContain('manage-tenants');
+    expect(tenantAdminCarries('acme')).toContain('manage-keys');
+    expect(tenantAdminCarries('system')).toContain('manage-tenants');
+  });
+});
+
+describe('what the guard counts', () => {
+  it('is manage-tenants in system and tenant-admin anywhere else', () => {
+    expect(administratorCapability('system')).toBe('manage-tenants');
+    expect(administratorCapability('acme')).toBe('tenant-admin');
   });
 });

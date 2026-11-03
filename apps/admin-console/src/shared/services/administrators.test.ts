@@ -1,17 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   administratorCalls,
-  administratorCapability,
   administratorNeeds,
   builtinAdminClient,
   GRANT_NEEDS,
   HOLDINGS_REQUIRED,
   holdingsProblem,
   subjectlessRequest,
-  tenantAdminCarries,
   tenantAdminRole,
   withRole,
 } from '#/shared/services/administrators';
+import { tenantAdminCarries } from '#/shared/services/capabilities/holdings';
 
 describe('the first administrator', () => {
   it('makes only the calls not yet made, the password last', () => {
@@ -46,21 +45,7 @@ describe('the tenant-admin role', () => {
     expect(withRole(['r1'], 'r-admin')).toEqual(['r1', 'r-admin']);
     expect(withRole(['r-admin', 'r1'], 'r-admin')).toEqual(['r-admin', 'r1']);
   });
-
-  it('carries every capability of the tenant, and in system manage-tenants as well', () => {
-    expect(tenantAdminCarries('acme')).not.toContain('manage-tenants');
-    expect(tenantAdminCarries('acme')).toContain('manage-keys');
-    expect(tenantAdminCarries('system')).toContain('manage-tenants');
-  });
 });
-
-describe('what the guard counts', () => {
-  it('is manage-tenants in system and tenant-admin anywhere else', () => {
-    expect(administratorCapability('system')).toBe('manage-tenants');
-    expect(administratorCapability('acme')).toBe('tenant-admin');
-  });
-});
-
 describe('what adding an administrator needs', () => {
   it('is what each call still to make needs, and for the grant all that tenant-admin carries', () => {
     const fresh = administratorNeeds('acme', { subjectId: null, granted: false });

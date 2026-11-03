@@ -1,6 +1,5 @@
 import { ADMIN_CAPABILITIES } from '@odudu/contracts/admin';
-import { tenantAdminCarries, TENANT_ADMIN } from '#/shared/services/administrators';
-import type { AdminCapability } from '#/shared/services/principal';
+import { SYSTEM_TENANT, type AdminCapability } from '#/shared/services/principal';
 
 // The built-in client every capability role hangs off; its client_id is
 // fixed, so a tenant role of the same name is never mistaken for one.
@@ -80,4 +79,21 @@ export function includedBy(holding: Holding, chosen: readonly string[]): Holding
   if (chosen.includes(TENANT_ADMIN)) return TENANT_ADMIN;
   const parent = NESTED[holding];
   return parent !== undefined && chosen.includes(parent) ? parent : null;
+}
+
+export const TENANT_ADMIN = 'tenant-admin';
+
+export const MANAGE_TENANTS = 'manage-tenants';
+
+// What the last-administrator guard counts: system's administrators are
+// those who can reach every tenant, which is manage-tenants.
+export function administratorCapability(tenant: string): 'tenant-admin' | 'manage-tenants' {
+  return tenant === SYSTEM_TENANT ? MANAGE_TENANTS : TENANT_ADMIN;
+}
+
+// tenant-admin nests every capability role, and in system manage-tenants too.
+export function tenantAdminCarries(tenant: string): readonly AdminCapability[] {
+  return tenant === SYSTEM_TENANT
+    ? ADMIN_CAPABILITIES
+    : ADMIN_CAPABILITIES.filter((capability) => capability !== MANAGE_TENANTS);
 }

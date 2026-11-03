@@ -1,21 +1,5 @@
-import { ADMIN_CAPABILITIES } from '@odudu/contracts/admin';
-import { SYSTEM_TENANT, type AdminCapability } from '#/shared/services/principal';
-
-export const TENANT_ADMIN = 'tenant-admin';
-export const MANAGE_TENANTS = 'manage-tenants';
-
-// What the last-administrator guard counts: system's administrators are
-// those who can reach every tenant, which is manage-tenants.
-export function administratorCapability(tenant: string): 'tenant-admin' | 'manage-tenants' {
-  return tenant === SYSTEM_TENANT ? MANAGE_TENANTS : TENANT_ADMIN;
-}
-
-// tenant-admin nests every capability role, and in system manage-tenants too.
-export function tenantAdminCarries(tenant: string): readonly AdminCapability[] {
-  return tenant === SYSTEM_TENANT
-    ? ADMIN_CAPABILITIES
-    : ADMIN_CAPABILITIES.filter((capability) => capability !== MANAGE_TENANTS);
-}
+import { type AdminCapability } from '#/shared/services/principal';
+import { TENANT_ADMIN, tenantAdminCarries } from '#/shared/services/capabilities/holdings';
 
 export type AdministratorCall = 'create' | 'grant' | 'password';
 

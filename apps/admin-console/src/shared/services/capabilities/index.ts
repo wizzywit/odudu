@@ -11,6 +11,10 @@ export {
   holdingRoleIds,
   isAdminRole,
   includedBy,
+  TENANT_ADMIN,
+  MANAGE_TENANTS,
+  administratorCapability,
+  tenantAdminCarries,
 } from '#/shared/services/capabilities/holdings';
 export {
   provenanceText,

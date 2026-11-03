@@ -10,12 +10,13 @@ import { choosable, pickerUnavailable } from '#/features/system-admins/services/
 import { useBeginAdministrator, type BeginAdministrator } from '#/features/begin-administrator';
 import { useToast } from '#/shared/repository/useToasts';
 import type { Change } from '#/shared/services/access';
+import { ADMINISTRATOR_REQUEST_NEEDS, holdingsProblem } from '#/shared/services/administrators';
 import {
-  ADMINISTRATOR_REQUEST_NEEDS,
-  holdingsProblem,
+  holdingOptions,
+  holdingsIn,
+  type HoldingOption,
   TENANT_ADMIN,
-} from '#/shared/services/administrators';
-import { holdingOptions, holdingsIn, type HoldingOption } from '#/shared/services/capabilities';
+} from '#/shared/services/capabilities';
 import { inOrderOf, nameOrId } from '#/shared/services/ids';
 import type { PickerState } from '#/shared/services/picker';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/services/principal';

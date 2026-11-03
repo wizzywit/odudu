@@ -6,12 +6,12 @@ import {
 } from '#/shared/adapter/administrators';
 import {
   builtinAdminClient,
-  TENANT_ADMIN,
   clientRole,
   withRole,
   type AdministratorRequest,
 } from '#/shared/services/administrators';
 import type { Gateway, GatewayFailure } from '#/shared/transport/gateway';
+import { TENANT_ADMIN } from '#/shared/services/capabilities';
 
 export function defect(message: string): GatewayFailure {
   console.error(message);

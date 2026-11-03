@@ -1,6 +1,6 @@
 import { type HeldAdminCapability } from '@odudu/contracts/admin';
-import { MANAGE_TENANTS, TENANT_ADMIN } from '#/shared/services/administrators';
 import { SYSTEM_TENANT } from '#/shared/services/principal';
+import { MANAGE_TENANTS, TENANT_ADMIN } from '#/shared/services/capabilities';
 
 export function capabilitiesRemoveTenants(
   tenant: string,

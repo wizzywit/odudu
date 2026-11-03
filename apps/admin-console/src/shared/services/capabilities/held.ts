@@ -1,10 +1,10 @@
 import { type EffectiveRoleAssignment, type RoleProvenance } from '@odudu/contracts/admin';
 import { andList } from '#/shared/services/format';
-import { TENANT_ADMIN } from '#/shared/services/administrators';
 import type { AdminCapability } from '#/shared/services/principal';
 import {
   ADMIN_CLIENT_KEY,
   CAPABILITY_TEXT,
+  TENANT_ADMIN,
   type Holding,
   fullText,
   grantableIn,

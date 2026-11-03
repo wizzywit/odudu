@@ -7,7 +7,6 @@ import {
   useRolesRecord,
   useSaveRoles,
 } from '#/features/subjects/repository/useAccess';
-import { administratorCapability } from '#/shared/services/administrators';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import {
@@ -17,6 +16,7 @@ import {
   accessRefusal,
   removalConfirmation,
   type Confirmation,
+  administratorCapability,
 } from '#/shared/services/capabilities';
 import { inOrderOf, removedFrom } from '#/shared/services/ids';
 import type { AdminCapability } from '#/shared/services/principal';
