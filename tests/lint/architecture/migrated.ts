@@ -1,6 +1,7 @@
 export const MIGRATED: readonly string[] = [
   'apps/admin-console/src/entities/administrator',
   'apps/admin-console/src/entities/area',
+  'apps/admin-console/src/entities/audit-event',
   'apps/admin-console/src/entities/client',
   'apps/admin-console/src/entities/creation-draft',
   'apps/admin-console/src/entities/group',
@@ -17,6 +18,7 @@ export const MIGRATED: readonly string[] = [
   'apps/admin-console/src/features/scope-assignment',
   'apps/admin-console/src/features/subject-capabilities',
   'apps/admin-console/src/features/subject-members',
+  'apps/admin-console/src/pages/audit',
   'apps/admin-console/src/pages/clients',
   'apps/admin-console/src/pages/console-home',
   'apps/admin-console/src/pages/groups',
