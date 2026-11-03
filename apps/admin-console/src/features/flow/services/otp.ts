@@ -33,3 +33,8 @@ export const NO_OTP_STEP =
 
 export const OTP_UNREAD =
   'The one-time password setting could not be loaded, so it is not offered here. The steps above can still be saved.';
+
+// Whom the step asks, once the settings are read; nothing before.
+export function readingOf(settings: Readonly<Record<string, unknown>> | undefined): string | null {
+  return settings === undefined ? null : otpReading(otpRequired(settings));
+}

@@ -1,4 +1,12 @@
 import { areaAt, type Area } from '#/entities/area';
+import {
+  NO_OTP_STEP,
+  OTP_LABEL,
+  OTP_RULE,
+  OTP_TITLE,
+  OTP_UNREAD,
+} from '#/features/flow/services/otp';
+import { REQUIREMENT_OPTIONS } from '#/features/flow/services/requirement';
 
 const AUTHENTICATOR_TEXT: Readonly<Record<string, string>> = {
   password: "The subject's password.",
@@ -19,4 +27,31 @@ export const FLOW_RULE =
 export function flowArea(): { area: Area; title: string } {
   const area = areaAt('flow');
   return { area, title: area.label };
+}
+
+export const FLOW_WORDS = {
+  description: 'What a subject is asked, in what order, to sign in to this tenant.',
+  loading: 'Loading the flow',
+  failed: 'The sign-in flow could not be loaded',
+  unread: OTP_UNREAD,
+  steps: {
+    title: 'Steps',
+    noticeTitle: flowArea().title,
+    listLabel: 'Sign-in steps',
+    rule: FLOW_RULE,
+    up: 'Up',
+    down: 'Down',
+    requirements: REQUIREMENT_OPTIONS,
+    allAdded: 'Every authenticator the server has is already a step.',
+    addLabel: 'Add a step',
+    addRequirementLabel: 'Requirement of the new step',
+    addButton: 'Add step',
+  },
+  otp: { title: OTP_TITLE, rule: OTP_RULE, label: OTP_LABEL, noStep: NO_OTP_STEP },
+} as const;
+
+export type FlowWords = typeof FLOW_WORDS;
+
+export function flowPage(): { area: Area; title: string; words: FlowWords } {
+  return { ...flowArea(), words: FLOW_WORDS };
 }

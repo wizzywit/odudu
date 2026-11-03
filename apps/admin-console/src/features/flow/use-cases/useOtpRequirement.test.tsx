@@ -30,6 +30,7 @@ function otp(extra: Parameters<typeof flowRoutes>[1] = {}) {
         data: read.data ?? {},
         etag: read.etag ?? '',
         gone: read.gone,
+        steps: [],
       });
       return { ready: read.status === 'ready', requirement };
     },
@@ -82,4 +83,10 @@ it('names manage-tenant when the server refuses the save', async () => {
   await waitFor(() => {
     expect(result.current.requirement.save.message).toContain('manage-tenant');
   });
+});
+
+it('says whether the flow has the step the setting is about', async () => {
+  const { result } = otp();
+  await ready(result);
+  expect(result.current.requirement.hasStep).toBe(false);
 });

@@ -1,26 +1,15 @@
 import type { ListExecutionsResponse, Settings } from '@odudu/contracts/admin';
 import { useEffect, useRef } from 'react';
 import { AreaGate } from '#/widgets/shell';
-import {
-  hasOtpStep,
-  NO_OTP_STEP,
-  OTP_LABEL,
-  OTP_RULE,
-  OTP_TITLE,
-  OTP_UNREAD,
-  otpReading,
-  otpRequired,
-} from '#/features/flow/services/otp';
-import { authenticatorText, FLOW_RULE, flowArea } from '#/features/flow/services/flowWording';
-import { OTP, REQUIREMENT_OPTIONS, requirementText } from '#/features/flow/services/requirement';
-import { type Direction } from '#/features/flow/services/steps';
+import type { FlowWords } from '#/features/flow/services/flowWording';
+import type { Direction } from '#/features/flow/services/steps';
+import { useFlowPage } from '#/features/flow/use-cases/useFlowPage';
+import { useFlowSections } from '#/features/flow/use-cases/useFlowSections';
 import { useFlowSteps, type FlowSteps } from '#/features/flow/use-cases/useFlowSteps';
 import {
   useOtpRequirement,
   type OtpRequirement,
 } from '#/features/flow/use-cases/useOtpRequirement';
-import { useFlowRead } from '#/features/flow/use-cases/useFlowPage';
-import { useTenantSettingsRead } from '#/entities/tenant';
 import { Button } from '#/shared/ui/Button';
 import { InlineFields, SelectField, ToggleField } from '#/shared/ui/Field';
 import { PageHeader } from '#/shared/ui/PageHeader';
@@ -28,30 +17,30 @@ import { ReadGate } from '#/shared/ui/ReadGate';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import styles from '#/features/flow/ui/FlowPage/FlowPage.module.css';
 
-function Add({ flow }: { flow: FlowSteps }) {
+function Add({ flow, words }: { flow: FlowSteps; words: FlowWords['steps'] }) {
   if (flow.offered.length === 0) {
-    return <p className={styles.rule}>Every authenticator the server has is already a step.</p>;
+    return <p className={styles.rule}>{words.allAdded}</p>;
   }
   return (
     <div className={styles.add}>
       <SelectField
-        label="Add a step"
-        options={flow.offered.map((name) => ({ id: name, label: name }))}
+        label={words.addLabel}
+        options={flow.offered}
         value={flow.adding}
         onChange={flow.chooseAddition}
       />
       <SelectField
-        label="Requirement of the new step"
-        options={REQUIREMENT_OPTIONS}
+        label={words.addRequirementLabel}
+        options={words.requirements}
         value={flow.addingRequirement}
         onChange={flow.chooseAdditionRequirement}
       />
-      <Button onPress={flow.add}>Add step</Button>
+      <Button onPress={flow.add}>{words.addButton}</Button>
     </div>
   );
 }
 
-function Steps({ flow, reading }: { flow: FlowSteps; reading: string | null }) {
+function Steps({ flow, words }: { flow: FlowSteps; words: FlowWords['steps'] }) {
   const s = flow.save;
   const list = useRef<HTMLOListElement>(null);
   const moving = useRef<{ authenticator: string; direction: Direction } | null>(null);
@@ -61,12 +50,13 @@ function Steps({ flow, reading }: { flow: FlowSteps; reading: string | null }) {
     const target = moving.current;
     moving.current = null;
     if (target === null) return;
-    const press = (direction: Direction): HTMLButtonElement | null =>
-      list.current?.querySelector<HTMLButtonElement>(
-        `button[aria-label="Move ${CSS.escape(target.authenticator)} ${direction}"]`,
-      ) ?? null;
-    const same = press(target.direction);
-    const back = press(target.direction === 'up' ? 'down' : 'up');
+    const row = flow.rows.find((each) => each.authenticator === target.authenticator);
+    if (row === undefined) return;
+    const press = (label: string): HTMLButtonElement | null =>
+      list.current?.querySelector<HTMLButtonElement>(`button[aria-label="${CSS.escape(label)}"]`) ??
+      null;
+    const same = press(target.direction === 'up' ? row.up.label : row.down.label);
+    const back = press(target.direction === 'up' ? row.down.label : row.up.label);
     (same?.disabled === false ? same : back)?.focus();
   });
   const move = (authenticator: string, direction: Direction): void => {
@@ -74,33 +64,38 @@ function Steps({ flow, reading }: { flow: FlowSteps; reading: string | null }) {
     flow.move(authenticator, direction);
   };
   return (
-    <SaveSection title="Steps" description={FLOW_RULE} noticeTitle={flowArea().title} save={s}>
-      <ol ref={list} aria-label="Sign-in steps" className={styles.steps}>
-        {flow.steps.map((step, at) => (
+    <SaveSection
+      title={words.title}
+      description={words.rule}
+      noticeTitle={words.noticeTitle}
+      save={s}
+    >
+      <ol ref={list} aria-label={words.listLabel} className={styles.steps}>
+        {flow.rows.map((row) => (
           <li
-            key={step.authenticator}
+            key={row.authenticator}
             className={styles.step}
-            {...(step.requirement === 'disabled' ? { 'data-disabled': '' } : {})}
+            {...(row.disabled ? { 'data-disabled': '' } : {})}
           >
             <span className={styles.position} aria-hidden="true">
-              {at + 1}
+              {row.position}
             </span>
             <div className={styles.name}>
-              <code>{step.authenticator}</code>
-              <span className={styles.what}>{authenticatorText(step.authenticator)}</span>
-              <span className={styles.what}>{requirementText(step.requirement)}</span>
-              {step.authenticator === OTP && reading !== null ? (
-                <span className={styles.otp}>{reading}</span>
-              ) : null}
+              <code>{row.authenticator}</code>
+              <span className={styles.what}>{row.what}</span>
+              <span className={styles.what}>{row.requirementWhat}</span>
+              {row.otpReading === null ? null : (
+                <span className={styles.otp}>{row.otpReading}</span>
+              )}
             </div>
             <InlineFields>
               <SelectField
-                label={`Requirement for ${step.authenticator}`}
+                label={row.requirementLabel}
                 hideLabel
-                options={REQUIREMENT_OPTIONS}
-                value={step.requirement}
+                options={words.requirements}
+                value={row.requirement}
                 onChange={(value) => {
-                  flow.setRequirement(step.authenticator, value);
+                  flow.setRequirement(row.authenticator, value);
                 }}
               />
             </InlineFields>
@@ -108,30 +103,30 @@ function Steps({ flow, reading }: { flow: FlowSteps; reading: string | null }) {
               <Button
                 size="small"
                 variant="quiet"
-                aria-label={`Move ${step.authenticator} up`}
-                isDisabled={!flow.canMove(step.authenticator, 'up')}
+                aria-label={row.up.label}
+                isDisabled={!row.up.enabled}
                 onPress={() => {
-                  move(step.authenticator, 'up');
+                  move(row.authenticator, 'up');
                 }}
               >
-                Up
+                {words.up}
               </Button>
               <Button
                 size="small"
                 variant="quiet"
-                aria-label={`Move ${step.authenticator} down`}
-                isDisabled={!flow.canMove(step.authenticator, 'down')}
+                aria-label={row.down.label}
+                isDisabled={!row.down.enabled}
                 onPress={() => {
-                  move(step.authenticator, 'down');
+                  move(row.authenticator, 'down');
                 }}
               >
-                Down
+                {words.down}
               </Button>
             </div>
           </li>
         ))}
       </ol>
-      <Add flow={flow} />
+      <Add flow={flow} words={words} />
       {s.fieldErrors.steps === undefined ? null : (
         <p role="alert" className={styles.error}>
           {s.fieldErrors.steps}
@@ -141,12 +136,12 @@ function Steps({ flow, reading }: { flow: FlowSteps; reading: string | null }) {
   );
 }
 
-function Otp({ otp, hasStep }: { otp: OtpRequirement; hasStep: boolean }) {
+function Otp({ otp, words }: { otp: OtpRequirement; words: FlowWords['otp'] }) {
   const s = otp.save;
   return (
-    <SaveSection title={OTP_TITLE} description={OTP_RULE} save={s}>
+    <SaveSection title={words.title} description={words.rule} save={s}>
       <ToggleField
-        label={OTP_LABEL}
+        label={words.label}
         value={s.values.otp_required}
         error={s.fieldErrors.otp_required}
         changed={s.changed.includes('otp_required')}
@@ -154,7 +149,7 @@ function Otp({ otp, hasStep }: { otp: OtpRequirement; hasStep: boolean }) {
           s.edit('otp_required', value);
         }}
       />
-      {hasStep ? null : <p className={styles.rule}>{NO_OTP_STEP}</p>}
+      {otp.hasStep ? null : <p className={styles.rule}>{words.noStep}</p>}
     </SaveSection>
   );
 }
@@ -165,15 +160,17 @@ function StepsReady({
   etag,
   gone,
   reading,
+  words,
 }: {
   tenant: string;
   data: ListExecutionsResponse;
   etag: string;
   gone: boolean;
   reading: string | null;
+  words: FlowWords['steps'];
 }) {
-  const flow = useFlowSteps({ tenant, data, etag, gone });
-  return <Steps flow={flow} reading={reading} />;
+  const flow = useFlowSteps({ tenant, data, etag, gone, reading });
+  return <Steps flow={flow} words={words} />;
 }
 
 function OtpReady({
@@ -181,28 +178,24 @@ function OtpReady({
   data,
   etag,
   gone,
-  hasStep,
+  steps,
+  words,
 }: {
   tenant: string;
   data: Settings;
   etag: string;
   gone: boolean;
-  hasStep: boolean;
+  steps: ListExecutionsResponse['items'];
+  words: FlowWords['otp'];
 }) {
-  const otp = useOtpRequirement({ tenant, data, etag, gone });
-  return <Otp otp={otp} hasStep={hasStep} />;
+  const otp = useOtpRequirement({ tenant, data, etag, gone, steps });
+  return <Otp otp={otp} words={words} />;
 }
 
 function Flow({ tenant }: { tenant: string }) {
-  const flow = useFlowRead(tenant);
-  const settings = useTenantSettingsRead(tenant);
+  const { flow, words, reading, unread, otp } = useFlowSections(tenant);
   return (
-    <ReadGate
-      read={flow}
-      label="Loading the flow"
-      fields={3}
-      failed="The sign-in flow could not be loaded"
-    >
+    <ReadGate read={flow} label={words.loading} fields={3} failed={words.failed}>
       {(data, etag) => (
         <div className={styles.page}>
           <StepsReady
@@ -210,16 +203,18 @@ function Flow({ tenant }: { tenant: string }) {
             data={data}
             etag={etag}
             gone={flow.gone}
-            reading={settings.data === undefined ? null : otpReading(otpRequired(settings.data))}
+            reading={reading}
+            words={words.steps}
           />
-          {settings.status === 'failed' ? <p className={styles.rule}>{OTP_UNREAD}</p> : null}
-          {settings.data === undefined || settings.etag === null ? null : (
+          {unread ? <p className={styles.rule}>{words.unread}</p> : null}
+          {otp === null ? null : (
             <OtpReady
               tenant={tenant}
-              data={settings.data}
-              etag={settings.etag}
-              gone={settings.gone}
-              hasStep={hasOtpStep(data.items)}
+              data={otp.data}
+              etag={otp.etag}
+              gone={otp.gone}
+              steps={data.items}
+              words={words.otp}
             />
           )}
         </div>
@@ -229,14 +224,10 @@ function Flow({ tenant }: { tenant: string }) {
 }
 
 export function FlowPage({ tenant }: { tenant: string }) {
-  const { area, title } = flowArea();
+  const { area, title, words } = useFlowPage();
   return (
     <AreaGate tenant={tenant} area={area} title={title}>
-      <PageHeader
-        kicker={tenant}
-        title={title}
-        description="What a subject is asked, in what order, to sign in to this tenant."
-      />
+      <PageHeader kicker={tenant} title={title} description={words.description} />
       <Flow tenant={tenant} />
     </AreaGate>
   );

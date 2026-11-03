@@ -3,11 +3,13 @@ import { useRefusal } from '#/entities/session';
 import { flowSaves, type OtpValues } from '#/features/flow/repository/useFlowRecord';
 import {
   describeOtp,
+  hasOtpStep,
   OTP_FIELD_LABEL,
   OTP_TITLE,
   otpReading,
   otpRequired,
 } from '#/features/flow/services/otp';
+import type { Step } from '#/features/flow/services/steps';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { writeRefusal } from '#/shared/services/capabilities';
 import { TENANT_SETTINGS_RECORD } from '#/entities/tenant';
@@ -16,6 +18,8 @@ export interface OtpRequirement {
   save: SectionSave<OtpValues>;
   // Whom the step asks, as the saved setting has it.
   reading: string;
+  // The flow has a one-time password step, so the setting has an effect.
+  hasStep: boolean;
 }
 
 export function useOtpRequirement({
@@ -23,9 +27,11 @@ export function useOtpRequirement({
   data,
   etag,
   gone,
+  steps,
 }: {
   tenant: string;
   data: Settings;
+  steps: readonly Step[];
   etag: string;
   gone: boolean;
 }): OtpRequirement {
@@ -51,5 +57,5 @@ export function useOtpRequirement({
     },
     save: saves.otp,
   });
-  return { save, reading: otpReading(otpRequired(data)) };
+  return { save, reading: otpReading(otpRequired(data)), hasStep: hasOtpStep(steps) };
 }

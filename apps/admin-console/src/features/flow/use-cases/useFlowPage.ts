@@ -1,7 +1,8 @@
-import type { ListExecutionsResponse } from '@odudu/contracts/admin';
-import { useFlowRecord } from '#/features/flow/repository/useFlowRecord';
-import type { RecordState } from '#/shared/repository/useRecord';
+import type { Area } from '#/entities/area';
+import { flowPage, type FlowWords } from '#/features/flow/services/flowWording';
 
-export function useFlowRead(tenant: string): RecordState<ListExecutionsResponse> {
-  return useFlowRecord(tenant);
+// The gate wraps the page, so it takes the area and the title here, before
+// anything is read.
+export function useFlowPage(): { area: Area; title: string; words: FlowWords } {
+  return flowPage();
 }

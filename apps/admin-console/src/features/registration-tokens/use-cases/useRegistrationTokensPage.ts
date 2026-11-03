@@ -1,5 +1,6 @@
 import type { RegistrationToken } from '@odudu/contracts/admin';
 import { useState } from 'react';
+import type { Area } from '#/entities/area';
 import { useRefusal } from '#/entities/session';
 import { useTokenList } from '#/features/registration-tokens/repository/useTokenList';
 import {
@@ -12,13 +13,27 @@ import {
   type MintErrors,
 } from '#/features/registration-tokens/services/mint';
 import { mintedText, mintFailure } from '#/features/registration-tokens/services/mintOutcome';
+import {
+  revokeLabel,
+  tokensArea,
+  TOKEN_WORDS,
+  type TokenWords,
+} from '#/features/registration-tokens/services/tokenWording';
 import { askedConsequence, revokeOutcome } from '#/features/registration-tokens/services/revoke';
 import { useToast } from '#/shared/repository/useToasts';
 import { isEmptyRecord, withoutField } from '#/shared/services/fieldErrors';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import { useAnnouncedAction } from '#/shared/use-cases/useAnnouncedAction';
 
+// The gate wraps the page, so it takes the area and the title here.
+export function useTokensArea(): { area: Area; title: string } {
+  return tokensArea();
+}
+
 export interface RegistrationTokensPage {
+  title: string;
+  words: TokenWords;
+  revokeLabel: (token: RegistrationToken) => string;
   list: ResourceListState<RegistrationToken>;
   uses: number;
   lifetime: number;
@@ -71,6 +86,9 @@ export function useRegistrationTokensPage(tenant: string): RegistrationTokensPag
     },
   });
   return {
+    title: tokensArea().title,
+    words: TOKEN_WORDS,
+    revokeLabel: (token) => revokeLabel(token.id),
     list,
     uses,
     lifetime,

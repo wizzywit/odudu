@@ -1,13 +1,8 @@
 import type { RegistrationToken } from '@odudu/contracts/admin';
 import { AreaGate } from '#/widgets/shell';
-import { areaAt } from '#/entities/area';
-import {
-  NOTHING_YET,
-  NOUN,
-  TOKENS_RULE,
-} from '#/features/registration-tokens/services/tokenWording';
 import {
   useRegistrationTokensPage,
+  useTokensArea,
   type RegistrationTokensPage as Page,
 } from '#/features/registration-tokens/use-cases/useRegistrationTokensPage';
 import { Button } from '#/shared/ui/Button';
@@ -25,41 +20,40 @@ import { Panel } from '#/shared/ui/Panel';
 import { recordTab } from '#/shared/ui/RecordTab';
 import styles from '#/features/registration-tokens/ui/RegistrationTokensPage/RegistrationTokensPage.module.css';
 
-const AREA = areaAt('registration-tokens');
-
 function columns(page: Page): readonly Column<RegistrationToken>[] {
+  const { columns: header } = page.words;
   return [
     {
       id: 'id',
-      header: 'Token',
+      header: header.token,
       isRowHeader: true,
       cell: (token) => <code className={styles.id}>{token.id}</code>,
     },
-    { id: 'remaining_uses', header: 'Uses left', cell: (token) => token.remaining_uses },
+    { id: 'remaining_uses', header: header.usesLeft, cell: (token) => token.remaining_uses },
     {
       id: 'created_at',
-      header: 'Minted',
+      header: header.minted,
       secondary: true,
       cell: (token) => <Timestamp value={token.created_at} />,
     },
     {
       id: 'expires_at',
-      header: 'Expires',
+      header: header.expires,
       cell: (token) => <Timestamp value={token.expires_at} />,
     },
     {
       id: 'revoke',
-      header: 'Revoke',
+      header: header.revoke,
       cell: (token) => (
         <Button
           size="small"
           variant="quiet"
-          aria-label={`Revoke ${token.id}`}
+          aria-label={page.revokeLabel(token)}
           onPress={() => {
             page.ask(token);
           }}
         >
-          Revoke
+          {header.revoke}
         </Button>
       ),
     },
@@ -67,16 +61,17 @@ function columns(page: Page): readonly Column<RegistrationToken>[] {
 }
 
 function Mint({ page }: { page: Page }) {
+  const { mint } = page.words;
   return (
-    <Panel title="Mint a registration token">
-      <p className={recordTab.rule}>{TOKENS_RULE}</p>
+    <Panel title={mint.title}>
+      <p className={recordTab.rule}>{mint.rule}</p>
       <CreationForm submit={page.mint}>
         <FieldGrid>
           <GridCell>
             <NumberWithUnitField
-              label="Uses"
-              description="How many clients may register with it."
-              unit="uses"
+              label={mint.usesLabel}
+              description={mint.usesDescription}
+              unit={mint.usesUnit}
               value={page.uses}
               error={page.errors.uses}
               onChange={page.editUses}
@@ -84,9 +79,9 @@ function Mint({ page }: { page: Page }) {
           </GridCell>
           <GridCell>
             <NumberWithUnitField
-              label="Lifetime"
-              description="How long it stays live."
-              unit="seconds"
+              label={mint.lifetimeLabel}
+              description={mint.lifetimeDescription}
+              unit={mint.lifetimeUnit}
               value={page.lifetime}
               error={page.errors.ttl_seconds}
               onChange={page.editLifetime}
@@ -95,10 +90,10 @@ function Mint({ page }: { page: Page }) {
         </FieldGrid>
         <div className={styles.actions}>
           <Button type="submit" variant="primary" isDisabled={page.minting}>
-            {page.minting ? 'Minting…' : 'Mint token'}
+            {page.minting ? mint.minting : mint.submit}
           </Button>
         </div>
-        <LiveMessage label="Last mint">{page.message}</LiveMessage>
+        <LiveMessage label={mint.last}>{page.message}</LiveMessage>
       </CreationForm>
     </Panel>
   );
@@ -106,38 +101,39 @@ function Mint({ page }: { page: Page }) {
 
 function List({ tenant }: { tenant: string }) {
   const page = useRegistrationTokensPage(tenant);
+  const { words } = page;
   return (
     <>
       <ResourceListPage
         list={page.list}
         kicker={tenant}
-        title={AREA.label}
-        description="Initial access tokens for dynamic client registration."
+        title={page.title}
+        description={words.description}
         lead={<Mint page={page} />}
-        noun={NOUN}
+        noun={words.noun}
         columns={columns(page)}
         rowKey={(token) => token.id}
         capability="manage-clients"
-        nothingYet={NOTHING_YET}
+        nothingYet={words.nothingYet}
         notice={
-          <LastAction label="Last revoke" count={page.revoked}>
+          <LastAction label={words.lastRevoke} count={page.revoked}>
             {page.notice}
           </LastAction>
         }
       />
       <SecretDialog
         secret={page.secret}
-        title="New registration token"
-        label="registration token"
+        title={words.secret.title}
+        label={words.secret.label}
         onClose={page.closeSecret}
       >
-        A client presents it to register itself.
+        {words.secret.note}
       </SecretDialog>
       <ConfirmDialog
         isOpen={page.revoking !== null}
-        title="Revoke this token?"
+        title={words.revoke.title}
         consequence={page.consequence}
-        confirmLabel="Revoke token"
+        confirmLabel={words.revoke.confirm}
         tone="danger"
         busy={page.revokeBusy}
         problem={page.revokeProblem}
@@ -151,8 +147,9 @@ function List({ tenant }: { tenant: string }) {
 }
 
 export function RegistrationTokensPage({ tenant }: { tenant: string }) {
+  const { area, title } = useTokensArea();
   return (
-    <AreaGate tenant={tenant} area={AREA} title={AREA.label}>
+    <AreaGate tenant={tenant} area={area} title={title}>
       <List tenant={tenant} />
     </AreaGate>
   );

@@ -128,3 +128,11 @@ it('says the token is already gone when the server no longer has it', async () =
   });
   expect(result.current.notice).toContain('already gone');
 });
+
+it('names the page, its words and the label of a token’s revoke', async () => {
+  const { result } = page();
+  await listed(result);
+  expect(result.current.title).toBe('Registration tokens');
+  expect(result.current.words.mint.title).toBe('Mint a registration token');
+  expect(result.current.revokeLabel(TOKEN_ONE)).toBe('Revoke t-one');
+});

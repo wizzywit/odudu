@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, expect, it } from 'vitest';
 import { SignedInContext } from '#/entities/session';
-import { useFlowRead } from '#/features/flow/use-cases/useFlowPage';
+import { useFlowRecord } from '#/features/flow/repository/useFlowRecord';
 import { useFlowSteps } from '#/features/flow/use-cases/useFlowSteps';
 import { problem } from '#/testing/fakeTransport';
 import { flowAnswer, flowRoutes, FL, step } from '#/testing/flowFixtures';
@@ -24,12 +24,13 @@ function steps(extra: Parameters<typeof flowRoutes>[1] = {}) {
   );
   const view = renderHook(
     () => {
-      const read = useFlowRead('acme');
+      const read = useFlowRecord('acme');
       const flow = useFlowSteps({
         tenant: 'acme',
         data: read.data ?? { items: [], available: [] },
         etag: read.etag ?? '',
         gone: read.gone,
+        reading: null,
       });
       return { ready: read.status === 'ready', flow };
     },
@@ -38,8 +39,8 @@ function steps(extra: Parameters<typeof flowRoutes>[1] = {}) {
   return { ...harness, ...view };
 }
 
-const order = (result: { current: { flow: { steps: readonly { authenticator: string }[] } } }) =>
-  result.current.flow.steps.map((each) => each.authenticator);
+const order = (result: { current: { flow: { rows: readonly { authenticator: string }[] } } }) =>
+  result.current.flow.rows.map((each) => each.authenticator);
 
 async function ready(result: { current: { ready: boolean } }) {
   await waitFor(() => {
@@ -61,8 +62,8 @@ it('starts from the flow as read, in the order of its indexes', async () => {
 it('moves a step down and up, and the first cannot move up nor the last down', async () => {
   const { result } = steps();
   await ready(result);
-  expect(result.current.flow.canMove('passkey', 'up')).toBe(false);
-  expect(result.current.flow.canMove('otp', 'down')).toBe(false);
+  expect(result.current.flow.rows[0]?.up.enabled).toBe(false);
+  expect(result.current.flow.rows.at(-1)?.down.enabled).toBe(false);
   act(() => {
     result.current.flow.move('passkey', 'down');
   });
@@ -80,13 +81,13 @@ it('moves a step down and up, and the first cannot move up nor the last down', a
 it('adds an authenticator the registry offers as a step that starts conditional', async () => {
   const { result } = steps();
   await ready(result);
-  expect(result.current.flow.offered).toEqual(['recovery-code']);
+  expect(result.current.flow.offered).toEqual([{ id: 'recovery-code', label: 'recovery-code' }]);
   expect(result.current.flow.adding).toBe('recovery-code');
   expect(result.current.flow.addingRequirement).toBe('conditional');
   act(() => {
     result.current.flow.add();
   });
-  expect(result.current.flow.steps.at(-1)).toEqual({
+  expect(result.current.flow.rows.at(-1)).toMatchObject({
     authenticator: 'recovery-code',
     requirement: 'conditional',
   });
@@ -99,15 +100,15 @@ it('sets the requirement of a step, and a requirement it does not know as the on
   act(() => {
     result.current.flow.setRequirement('password', 'required');
   });
-  expect(result.current.flow.steps.find((each) => each.authenticator === 'password')).toMatchObject(
-    { requirement: 'required' },
-  );
+  expect(result.current.flow.rows.find((each) => each.authenticator === 'password')).toMatchObject({
+    requirement: 'required',
+  });
   act(() => {
     result.current.flow.setRequirement('password', 'nonesuch');
   });
-  expect(result.current.flow.steps.find((each) => each.authenticator === 'password')).toMatchObject(
-    { requirement: 'conditional' },
-  );
+  expect(result.current.flow.rows.find((each) => each.authenticator === 'password')).toMatchObject({
+    requirement: 'conditional',
+  });
 });
 
 it('saves the steps as they stand, in the order shown and without an index, on the ETag read', async () => {
