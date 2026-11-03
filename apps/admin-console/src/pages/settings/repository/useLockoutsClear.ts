@@ -1,6 +1,7 @@
 import type { ClearLockoutsResponse } from '@odudu/contracts/admin';
 import { clearTenantLockouts } from '#/pages/settings/adapter/lockouts';
-import { listKey, subjectReadKey } from '#/shared/repository/queryKeys';
+import { listKey } from '#/shared/repository/queryKeys';
+import { subjectReadKey } from '#/entities/subject';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
 import type { GatewayResult } from '#/shared/services/result';

@@ -1,6 +1,6 @@
 import type { MailBrandingView } from '#/pages/branding/types/mailBranding';
 import { readMailBranding } from '#/pages/branding/adapter/mail';
-import { mailBrandingKey } from '#/shared/repository/queryKeys';
+import { mailBrandingKey } from '#/pages/branding/repository/queryKeys';
 import { useRead } from '#/shared/repository/useRead';
 import type { Read } from '#/shared/services/read';
 import { useTransport } from '#/shared/transport/useTransport';

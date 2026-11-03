@@ -8,7 +8,7 @@ import {
   useSessionQuery,
 } from '#/entities/session/repository/useSessionQuery';
 import { createReadCache } from '#/shared/repository/readCache';
-import { sessionKey } from '#/shared/repository/queryKeys';
+import { sessionKey } from '#/entities/session/repository/queryKeys';
 import { TransportContext } from '#/shared/transport/useTransport';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 

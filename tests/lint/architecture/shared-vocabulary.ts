@@ -10,6 +10,8 @@ export const SHARED_VOCABULARY: Readonly<Record<string, string>> = {
     'tenantPage: the root every tenant-scoped address is built from',
   'apps/admin-console/src/shared/services/failure.ts':
     'isUnknownTenant: how a failure is worded for the session and the tenants slices alike',
+  'apps/admin-console/src/shared/repository/queryKeys.ts':
+    'GROUP_KIND and groupKey: the role entity invalidates the group reads, which an entity may not import from the group entity',
   'apps/admin-console/src/shared/services/capabilities/holdings.ts':
     'the capability rules over the roles a principal holds, read by six entities and pages',
   'apps/admin-console/src/shared/services/capabilities/held.ts':

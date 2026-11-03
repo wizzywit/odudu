@@ -2,7 +2,7 @@ import { AUDIT_EXPORT_MEDIA_TYPE } from '@odudu/contracts/admin';
 import { exportAuditEvents } from '#/pages/audit/adapter/auditExport';
 import { currentTime } from '#/shared/adapter/clock';
 import { saveFile } from '#/shared/adapter/files';
-import { auditExportKey } from '#/shared/repository/queryKeys';
+import { auditExportKey } from '#/pages/audit/repository/queryKeys';
 import { useFreshRead } from '#/shared/repository/useFreshRead';
 import { auditFileName, eventsIn } from '#/pages/audit/services/auditExport';
 import { auditQuery } from '#/pages/audit/services/auditAddress';

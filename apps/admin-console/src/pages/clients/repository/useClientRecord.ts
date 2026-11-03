@@ -8,7 +8,8 @@ import {
 import { clientRecord } from '#/pages/clients/services/tabs';
 import { translationsPatch } from '#/pages/clients/services/translations';
 import type { Translations } from '#/shared/services/localised';
-import { countKey, listKey, recordKey, scopeClientsKey } from '#/shared/repository/queryKeys';
+import { countKey, listKey, recordKey } from '#/shared/repository/queryKeys';
+import { scopeClientsKey } from '#/entities/scope';
 import { rolesGoneReach } from '#/entities/role';
 import { useAfterChange } from '#/shared/repository/useAfterChange';
 import { useInvalidate } from '#/shared/repository/useInvalidate';

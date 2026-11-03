@@ -49,20 +49,6 @@ export function membershipsKey(tenant: string, subject: string) {
   return ['memberships', tenant, subject] as const;
 }
 
-export function scopeClientsKey(tenant: string, ...scope: readonly string[]) {
-  return ['scope-clients', tenant, ...scope] as const;
-}
-
-// What deleting one scope would take with it, read again each time it is asked.
-export function scopeImpactKey(tenant: string, scope: string) {
-  return ['scope-impact', tenant, scope] as const;
-}
-
-// Which built-in scopes a tenant has, read again each time the restore is asked.
-export function builtinScopesKey(tenant: string) {
-  return ['builtin-scopes', tenant] as const;
-}
-
 export function evaluateKey(
   tenant: string,
   client: string,
@@ -87,10 +73,6 @@ export function installationKey(tenant: string, client: string) {
   return ['installation', tenant, client] as const;
 }
 
-export function adminRolesKey(tenant: string) {
-  return ['admin-roles', tenant] as const;
-}
-
 export function usernamePolicyKey(tenant: string) {
   return ['username-policy', tenant] as const;
 }
@@ -104,15 +86,6 @@ export function findKey(...what: readonly string[]) {
   return ['find', ...what] as const;
 }
 
-// The reads of one subject's sign-in state, each made stale by its own change.
-export function subjectReadKey(
-  read: 'credentials' | 'lockout',
-  tenant: string,
-  ...id: readonly string[]
-) {
-  return [read, tenant, ...id] as const;
-}
-
 // The ETag a copy's write waits on, read once and dropped.
 export function copyEtagKey(tenant: string, id: string, part: string) {
   return ['copy-etag', tenant, id, part] as const;
@@ -120,14 +93,6 @@ export function copyEtagKey(tenant: string, id: string, part: string) {
 
 export function exportKey(tenant: string, includeSubjects: boolean) {
   return ['export', tenant, includeSubjects] as const;
-}
-
-export function auditExportKey(tenant: string, query: string) {
-  return ['audit-export', tenant, query] as const;
-}
-
-export function sessionKey() {
-  return ['session'] as const;
 }
 
 export function overviewKey(tenant: string, ...read: readonly string[]) {
@@ -154,13 +119,6 @@ export function overrideReadKey(tenant: string, locale: string, key: string) {
 // Every write to a tenant's theme while it runs, whichever scope or part.
 export function themeWritesKey(tenant: string) {
   return ['theme-write', tenant] as const;
-}
-
-// What a tenant's mail inherits from its published theme, read again once
-// a newer version is published.
-// A client's own mail is a different read; an empty `client` is the tenant's.
-export function mailBrandingKey(tenant: string, publishedVersion: number, client = '') {
-  return ['mail-branding', tenant, publishedVersion, client] as const;
 }
 
 // The messages a tenant's pages are filled from: the same for every tenant and

@@ -5,6 +5,7 @@ export type {
   SubjectChanges,
   SubjectType,
 } from '#/entities/subject/types/subject';
+export { subjectReadKey } from '#/entities/subject/use-cases/subjectKeys';
 export { useSubjectPicker } from '#/entities/subject/use-cases/subjectPicker';
 export {
   saveActions,

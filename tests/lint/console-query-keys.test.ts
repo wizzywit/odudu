@@ -4,18 +4,19 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 // A hand-typed cache key drifts from the function that builds it elsewhere, so
-// an invalidation misses it silently. Keys come from queryKeys.ts. Found in
-// non-test source: an array literal in a key position (`queryKey`, `mutationKey`,
-// a call's `key`, the first argument of a cache call, `read` or `invalidate`),
-// direct or via a same-file variable, ternary or function; a `*Key` function
-// returning an array outside queryKeys; any reach for `invalidateQueries`; an
-// array opening with a produced kind and a non-literal. Not seen: a key built in
-// another file by a function not named `*Key`, or passed as a parameter.
+// an invalidation misses it silently. Keys come from a queryKeys.ts, shared or
+// its owner's. Found in non-test source: an array literal in a key position
+// (`queryKey`, `mutationKey`, a call's `key`, the first argument of a cache
+// call, `read` or `invalidate`), direct or via a same-file variable, ternary or
+// function; a `*Key` function returning an array outside a queryKeys; any reach
+// for `invalidateQueries`; an array opening with a produced kind and a
+// non-literal. Not seen: a key built by a function not named `*Key`, or passed in.
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const CONSOLE = 'apps/admin-console';
 const FIXTURES = 'tests/lint/fixtures/console-query-keys';
-const KEYS_FILE = 'src/shared/repository/queryKeys.ts';
+const SHARED_KEYS_FILE = 'src/shared/repository/queryKeys.ts';
+const OWNER_KEYS_FILE = /^src\/(?:entities|features|pages)\/[^/]+\/repository\/queryKeys\.ts$/u;
 const INVALIDATORS = new Set([
   'src/shared/repository/useInvalidate.ts',
   'src/shared/repository/useAfterChange.ts',
@@ -39,7 +40,11 @@ const KEY_CALLS = new Set([
 ]);
 const PROBE = '\u0000probe';
 
-// The kinds `queryKeys.ts` produces, each with the function that builds it.
+function isKeysFile(file: string): boolean {
+  return file === SHARED_KEYS_FILE || OWNER_KEYS_FILE.test(file);
+}
+
+// The kinds a `queryKeys.ts` produces, each with the function that builds it.
 export async function kindsOf(file: string): Promise<Map<string, string>> {
   const loaded: unknown = await import(file);
   const kinds = new Map<string, string>();
@@ -188,7 +193,7 @@ function isScanned(file: string): boolean {
     !/\.test\.[cm]?tsx?$/u.test(file) &&
     !file.endsWith('.d.ts') &&
     !file.startsWith('src/testing/') &&
-    file !== KEYS_FILE
+    !isKeysFile(file)
   );
 }
 
@@ -231,8 +236,8 @@ export function violations(files: Map<string, string>, kinds: Map<string, string
       report(
         array,
         builder === undefined
-          ? `a hand-typed query key, ${where}; add a function for it to shared/repository/queryKeys`
-          : `a hand-typed query key, ${where}; build it with ${builder} from shared/repository/queryKeys`,
+          ? `a hand-typed query key, ${where}; add a function for it to a queryKeys.ts`
+          : `a hand-typed query key, ${where}; build it with ${builder} from queryKeys.ts`,
       );
     };
     const visit = (node: ts.Node): void => {
@@ -261,7 +266,7 @@ export function violations(files: Map<string, string>, kinds: Map<string, string
       }
       if (ts.isArrayLiteralExpression(node)) openings.push(node);
       if (isKeyFunction(node)) {
-        report(node, 'a key function outside shared/repository/queryKeys; move it there');
+        report(node, 'a key function outside a queryKeys.ts; move it there');
       }
       const name =
         ts.isIdentifier(node) && node.text === 'invalidateQueries'
@@ -305,12 +310,20 @@ const FIXTURE_KINDS = new Map([
 describe('console cache keys', { timeout: 60_000 }, () => {
   it('are built by queryKeys, and invalidated through its wrappers', async () => {
     const files = await read(CONSOLE);
-    const kinds = await kindsOf(path.join(REPO_ROOT, CONSOLE, KEYS_FILE));
+    const kinds = new Map<string, string>();
+    for (const file of files.keys()) {
+      if (!isKeysFile(file)) continue;
+      for (const [kind, builder] of await kindsOf(path.join(REPO_ROOT, CONSOLE, file))) {
+        kinds.set(kind, builder);
+      }
+    }
     expect(kinds.get('list')).toBe('listKey');
     expect(kinds.get('record')).toBe('recordKey');
     expect(kinds.get('held-capabilities')).toBe('heldCapabilitiesKey');
     expect(kinds.get('evaluate')).toBe('evaluateKey');
     expect(kinds.has('system-issuer')).toBe(true);
+    expect(kinds.get('scope-clients')).toBe('scopeClientsKey');
+    expect(kinds.get('session')).toBe('sessionKey');
     expect([...files.keys()]).toContain('src/shared/repository/useInvalidate.ts');
     expect(violations(files, kinds)).toEqual([]);
   });
@@ -324,34 +337,34 @@ describe('console cache keys', { timeout: 60_000 }, () => {
   it('fail every non-conforming fixture, naming the file and the line', async () => {
     const files = await read(`${FIXTURES}/fail`);
     expect(files.size).toBeGreaterThan(3);
-    const keys = 'add a function for it to shared/repository/queryKeys';
+    const keys = 'add a function for it to a queryKeys.ts';
     const R = 'src/features/roles/repository';
     const typed = (how: string, rest: string): string => `a hand-typed query key, ${how}; ${rest}`;
     expect(violations(files, FIXTURE_KINDS)).toEqual([
-      `${R}/privateKey.ts:1: a key function outside shared/repository/queryKeys; move it there`,
-      `${R}/privateKey.ts:5: a key function outside shared/repository/queryKeys; move it there`,
+      `${R}/privateKey.ts:1: a key function outside a queryKeys.ts; move it there`,
+      `${R}/privateKey.ts:5: a key function outside a queryKeys.ts; move it there`,
       `${R}/useAfter.ts:6: an array starting with 'list', which listKey builds`,
       `${R}/useAfter.ts:7: invalidateQueries reached directly; use useInvalidate or useAfterChange`,
       `${R}/useDestructured.ts:4: invalidateQueries reached directly; use useInvalidate or useAfterChange`,
       `${R}/useDestructured.ts:5: invalidateQueries reached directly; use useInvalidate or useAfterChange`,
       `${R}/useDestructured.ts:6: invalidateQueries reached directly; use useInvalidate or useAfterChange`,
       `${R}/useFresh.ts:8: ${typed('typed in place', keys)}`,
-      `${R}/useFresh.ts:9: ${typed('typed in place', 'build it with listKey from shared/repository/queryKeys')}`,
+      `${R}/useFresh.ts:9: ${typed('typed in place', 'build it with listKey from queryKeys.ts')}`,
       `${R}/useFresh.ts:10: ${typed('typed in place', keys)}`,
       `${R}/useFresh.ts:11: ${typed('typed in place', keys)}`,
-      `${R}/useIdentifier.ts:4: a key function outside shared/repository/queryKeys; move it there`,
+      `${R}/useIdentifier.ts:4: a key function outside a queryKeys.ts; move it there`,
       `${R}/useIdentifier.ts:15: ${typed('held in a variable', keys)}`,
       `${R}/useIdentifier.ts:16: ${typed('held in a variable', keys)}`,
       `${R}/useIdentifier.ts:17: ${typed('held in a variable', keys)}`,
       `${R}/useIdentifier.ts:20: ${typed('typed in place', keys)}`,
       `${R}/useIdentifier.ts:21: a query key built by a function of this file; move it to queryKeys`,
       `${R}/useIdentifier.ts:22: a query key built by a function of this file; move it to queryKeys`,
-      `${R}/useKeys.ts:6: ${typed('typed in place', 'build it with listKey from shared/repository/queryKeys')}`,
+      `${R}/useKeys.ts:6: ${typed('typed in place', 'build it with listKey from queryKeys.ts')}`,
       `${R}/useKeys.ts:7: ${typed('typed in place', keys)}`,
-      `${R}/useKeys.ts:8: ${typed('typed in place', 'build it with recordKey from shared/repository/queryKeys')}`,
+      `${R}/useKeys.ts:8: ${typed('typed in place', 'build it with recordKey from queryKeys.ts')}`,
       `${R}/useKeys.ts:9: ${typed('typed in place', keys)}`,
       `${R}/useKeys.ts:10: ${typed('typed in place', keys)}`,
-      `${R}/useReads.ts:4: ${typed('typed in place', 'build it with recordKey from shared/repository/queryKeys')}`,
+      `${R}/useReads.ts:4: ${typed('typed in place', 'build it with recordKey from queryKeys.ts')}`,
     ]);
   });
 });

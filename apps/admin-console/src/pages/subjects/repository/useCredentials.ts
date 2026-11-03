@@ -1,6 +1,6 @@
 import type { Credential } from '#/pages/subjects/types/credential';
 import type { IssuedPassword } from '#/entities/subject';
-import { subjectReadKey } from '#/shared/repository/queryKeys';
+import { subjectReadKey } from '#/entities/subject';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useRead } from '#/shared/repository/useRead';
 import type { Read } from '#/shared/services/read';

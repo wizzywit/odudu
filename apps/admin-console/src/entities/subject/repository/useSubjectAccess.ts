@@ -8,12 +8,12 @@ import type {
   SetSubjectGroupsResponse,
 } from '@odudu/contracts/admin';
 import {
-  adminRolesKey,
   heldCapabilitiesKey,
   holdersKey,
   listKey,
   membershipsKey,
 } from '#/shared/repository/queryKeys';
+import { adminRolesKey } from '#/entities/subject/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useRead } from '#/shared/repository/useRead';
 import type { Read } from '#/shared/services/read';

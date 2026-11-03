@@ -11,7 +11,7 @@ import {
   type SessionRead,
 } from '#/entities/session/services/boot';
 import { remembers } from '#/entities/session/services/tenant';
-import { sessionKey } from '#/shared/repository/queryKeys';
+import { sessionKey } from '#/entities/session/repository/queryKeys';
 import { useDrafts } from '#/shared/repository/useDrafts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
 import type { Gateway } from '#/shared/transport/gateway';
@@ -92,10 +92,7 @@ export function useSessionQuery(): {
 
 // Called when the gateway reports this session over, or replaced by another
 // sign-in, from whichever request found out.
-export function useSessionEvent(
-  name: Parameters<AuthEvents['on']>[0],
-  listener: () => void,
-): void {
+export function useSessionEvent(name: Parameters<AuthEvents['on']>[0], listener: () => void): void {
   const { events } = useTransport();
   const heard = useEffectEvent(listener);
   useEffect(

@@ -18,13 +18,8 @@ import {
 import { generalPatch, type GeneralValues } from '#/pages/scopes/services/scopeDetails';
 import { scopeMappersRecord, scopeRecord, scopeRolesRecord } from '#/pages/scopes/services/tabs';
 import { uniqueIds } from '#/shared/services/ids';
-import {
-  builtinScopesKey,
-  countKey,
-  listKey,
-  pickerKey,
-  scopeImpactKey,
-} from '#/shared/repository/queryKeys';
+import { countKey, listKey, pickerKey } from '#/shared/repository/queryKeys';
+import { builtinScopesKey, scopeImpactKey } from '#/pages/scopes/repository/queryKeys';
 import { useAfterChange } from '#/shared/repository/useAfterChange';
 import { useRead } from '#/shared/repository/useRead';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord';
