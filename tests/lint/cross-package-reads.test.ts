@@ -69,7 +69,7 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
   },
   {
     file: 'apps/docs/tests/logo-swap.browser.test.ts',
-    targets: ['apps/admin-console/src/shared/view/tokens.css', 'packages/instrument/src/pages.css'],
+    targets: ['apps/admin-console/src/shared/ui/tokens.css', 'packages/instrument/src/pages.css'],
   },
   {
     file: 'apps/docs/scripts/workspace-sources.test.ts',
@@ -82,12 +82,12 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
   { file: 'tools/ci/src/cli.test.ts', targets: ['tools/ci/src/**'] },
   { file: 'packages/db/src/migrate.ts', targets: ['packages/db/drizzle/**'] },
   {
-    file: 'apps/admin-console/src/shared/view/shadows.test.ts',
-    targets: ['apps/admin-console/src/shared/view/**'],
+    file: 'apps/admin-console/src/shared/ui/shadows.test.ts',
+    targets: ['apps/admin-console/src/shared/ui/**'],
   },
   {
     file: 'apps/admin-console/src/gallery/Gallery.test.tsx',
-    targets: ['apps/admin-console/src/shared/view/**', 'apps/admin-console/src/gallery/**'],
+    targets: ['apps/admin-console/src/shared/ui/**', 'apps/admin-console/src/gallery/**'],
   },
   {
     file: 'packages/protocol-admin/src/view/routes/admin-tx.test.ts',
@@ -111,11 +111,11 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
   },
   {
     file: 'packages/instrument/src/service/build.test.ts',
-    targets: ['apps/admin-console/src/shared/view/*.css'],
+    targets: ['apps/admin-console/src/shared/ui/*.css'],
   },
   {
     file: 'packages/email/src/service/palette.test.ts',
-    targets: ['apps/admin-console/src/shared/view/tokens.css'],
+    targets: ['apps/admin-console/src/shared/ui/tokens.css'],
   },
   {
     file: 'packages/email/src/service/mark-png.test.ts',

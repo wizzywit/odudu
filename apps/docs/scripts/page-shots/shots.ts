@@ -20,8 +20,8 @@ export type Theme = (typeof THEMES)[number];
 
 const REPOSITORY = path.resolve(import.meta.dirname, '../../../..');
 const STYLESHEET_SOURCES = [
-  'apps/admin-console/src/shared/view/tokens.css',
-  'apps/admin-console/src/shared/view/fonts.css',
+  'apps/admin-console/src/shared/ui/tokens.css',
+  'apps/admin-console/src/shared/ui/fonts.css',
   'packages/instrument/src/pages.css',
 ];
 

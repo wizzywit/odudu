@@ -200,14 +200,14 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     const output = await cruiseFixtures();
     const composing = [
       'domain-example/src/service/composed-service.ts',
-      'admin-console/src/features/clients/service.ts',
+      'admin-console/src/features/clients/services.ts',
     ];
     for (const file of composing) {
       const importsService = output.modules.some(
         (m) =>
           m.source.endsWith(file) &&
           m.dependencies.some(
-            (d) => !d.couldNotResolve && /\/service(?:\/|\.tsx?$)/u.test(d.resolved),
+            (d) => !d.couldNotResolve && /\/services?(?:\/|\.tsx?$)/u.test(d.resolved),
           ),
       );
       expect(importsService).toBe(true);
@@ -220,7 +220,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('admin-console/src/features/clients/view.tsx') &&
+          v.from.endsWith('admin-console/src/features/clients/ui.tsx') &&
           v.to.endsWith('admin-console/src/features/clients/adapter.ts'),
       ),
     ).toBe(true);
@@ -231,8 +231,8 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/subjects/usecase/reachesIn.ts') &&
-          v.to.endsWith('features/clients/service.ts'),
+          v.from.endsWith('features/subjects/use-cases/reachesIn.ts') &&
+          v.to.endsWith('features/clients/services.ts'),
       ),
     ).toBe(true);
   });
@@ -240,8 +240,11 @@ describe('boundary rules', { timeout: 60_000 }, () => {
   it("permits a console feature importing another feature's index.ts", async () => {
     const output = await cruiseFixtures();
     expect(
+      output.modules.some((m) => m.source.endsWith('features/subjects/use-cases/usesIndex.ts')),
+    ).toBe(true);
+    expect(
       output.summary.violations.filter((v) =>
-        v.from.endsWith('features/subjects/usecase/usesIndex.ts'),
+        v.from.endsWith('features/subjects/use-cases/usesIndex.ts'),
       ),
     ).toHaveLength(0);
   });
@@ -251,58 +254,58 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/alpha/view/crossFeature.ts') &&
-          v.to.endsWith('features/beta/service/rules.ts'),
+          v.from.endsWith('features/alpha/ui/crossFeature.ts') &&
+          v.to.endsWith('features/beta/services/rules.ts'),
       ),
     ).toBe(true);
   });
 
   it("rejects a docs route importing a feature's internals, and permits its index", async () => {
     const found = await violations('docs-feature-imports-only-index');
-    expect(
-      found.some((v) => v.from.endsWith('pages/index.tsx') && v.to.endsWith('view/B.tsx')),
-    ).toBe(true);
+    expect(found.some((v) => v.from.endsWith('pages/index.tsx') && v.to.endsWith('ui/B.tsx'))).toBe(
+      true,
+    );
     expect(found.some((v) => v.from.endsWith('image-pages/index.tsx'))).toBe(false);
   });
 
   it("permits a docs feature using its own internals and another feature's index", async () => {
     const output = await cruiseFixtures();
     expect(
-      output.summary.violations.filter((v) => v.from.endsWith('features/alpha/view/usesIndex.ts')),
+      output.summary.violations.filter((v) => v.from.endsWith('features/alpha/ui/usesIndex.ts')),
     ).toHaveLength(0);
   });
 
   it('rejects a docs service importing a view', async () => {
     const found = await violations('docs-service-imports-only-service');
-    expect(found.some((v) => v.from.endsWith('features/alpha/service/reachesView.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('features/alpha/services/reachesView.ts'))).toBe(true);
   });
 
   it('rejects a docs usecase importing a view', async () => {
-    const found = await violations('docs-usecase-imports-no-view');
-    expect(found.some((v) => v.from.endsWith('features/alpha/usecase/useBack.ts'))).toBe(true);
+    const found = await violations('docs-use-cases-import-no-ui');
+    expect(found.some((v) => v.from.endsWith('features/alpha/use-cases/useBack.ts'))).toBe(true);
   });
 
   it('rejects docs shared code importing a feature', async () => {
     const found = await violations('docs-shared-imports-no-feature');
-    expect(found.some((v) => v.from.endsWith('shared/view/Leaky.tsx'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('shared/ui/Leaky.tsx'))).toBe(true);
   });
 
-  it('rejects a docs view importing shared/platform, and permits a usecase', async () => {
+  it('rejects a docs view importing shared/lib/platform, and permits a usecase', async () => {
     const found = await violations('docs-view-imports-no-platform');
-    expect(found.some((v) => v.from.endsWith('features/alpha/view/UsesPlatform.ts'))).toBe(true);
-    expect(found.some((v) => v.from.endsWith('features/alpha/view/UsesFeaturePlatform.ts'))).toBe(
+    expect(found.some((v) => v.from.endsWith('features/alpha/ui/UsesPlatform.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('features/alpha/ui/UsesFeaturePlatform.ts'))).toBe(
       true,
     );
-    expect(found.some((v) => v.from.endsWith('features/alpha/usecase/useWatch.ts'))).toBe(false);
+    expect(found.some((v) => v.from.endsWith('features/alpha/use-cases/useWatch.ts'))).toBe(false);
   });
 
   it('rejects a docs feature importing a route', async () => {
     const found = await violations('docs-nothing-imports-routes');
-    expect(found.some((v) => v.from.endsWith('features/beta/view/routeLeak.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('features/beta/ui/routeLeak.ts'))).toBe(true);
   });
 
-  it('rejects a docs feature index publishing something outside view, usecase and service', async () => {
-    const found = await violations('docs-index-exports-view-usecase-service');
+  it('rejects a docs feature index publishing something outside ui, use-cases and services', async () => {
+    const found = await violations('docs-index-exports-ui-use-cases-services');
     expect(
       found.some(
         (v) => v.from.endsWith('features/gamma/index.ts') && v.to.endsWith('helpers/tool.ts'),
@@ -312,75 +315,77 @@ describe('boundary rules', { timeout: 60_000 }, () => {
 
   it('rejects console shared code importing a feature', async () => {
     const found = await violations('console-shared-imports-no-feature');
-    expect(found.some((v) => v.from.endsWith('shared/repository/featureLeak.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('shared/lib/repository/featureLeak.ts'))).toBe(true);
   });
 
   it('rejects a console feature importing app/', async () => {
     const found = await violations('console-nothing-imports-app');
-    expect(found.some((v) => v.from.endsWith('features/subjects/usecase/appLeak.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('features/subjects/use-cases/appLeak.ts'))).toBe(true);
   });
 
-  it('rejects a console view importing shared/transport', async () => {
+  it('rejects a console view importing shared/api/transport', async () => {
     const found = await violations('console-view-no-transport');
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/subjects/view/SubjectList.tsx') &&
-          v.to.endsWith('shared/transport/client.ts'),
+          v.from.endsWith('features/subjects/ui/SubjectList.tsx') &&
+          v.to.endsWith('shared/api/transport/client.ts'),
       ),
     ).toBe(true);
   });
 
-  it('rejects a console view importing shared/adapter', async () => {
+  it('rejects a console view importing shared/api/adapter', async () => {
     const found = await violations('no-view-to-adapter');
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/subjects/view/ReadsStorage.tsx') &&
-          v.to.endsWith('shared/adapter/storage.ts'),
+          v.from.endsWith('features/subjects/ui/ReadsStorage.tsx') &&
+          v.to.endsWith('shared/api/adapter/storage.ts'),
       ),
     ).toBe(true);
   });
 
-  it('rejects a console usecase importing shared/adapter', async () => {
+  it('rejects a console usecase importing shared/api/adapter', async () => {
     const found = await violations('no-usecase-to-adapter');
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/subjects/usecase/readsStorage.ts') &&
-          v.to.endsWith('shared/adapter/storage.ts'),
+          v.from.endsWith('features/subjects/use-cases/readsStorage.ts') &&
+          v.to.endsWith('shared/api/adapter/storage.ts'),
       ),
     ).toBe(true);
   });
 
-  it('rejects console shared/adapter importing a feature', async () => {
+  it('rejects console shared/api/adapter importing a feature', async () => {
     const found = await violations('console-shared-imports-no-feature');
-    expect(found.some((v) => v.from.endsWith('shared/adapter/featureLeak.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('shared/api/adapter/featureLeak.ts'))).toBe(true);
   });
 
-  it('permits a console repository importing shared/adapter', async () => {
+  it('permits a console repository importing shared/api/adapter', async () => {
     const output = await cruiseFixtures();
     const remembers = output.modules.find((m) =>
-      m.source.endsWith('shared/repository/remembers.ts'),
+      m.source.endsWith('shared/lib/repository/remembers.ts'),
     );
     expect(remembers?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(1);
     expect(
-      output.summary.violations.filter((v) => v.from.endsWith('shared/repository/remembers.ts')),
+      output.summary.violations.filter((v) =>
+        v.from.endsWith('shared/lib/repository/remembers.ts'),
+      ),
     ).toHaveLength(0);
   });
 
-  it('rejects a console usecase reaching shared/transport', async () => {
+  it('rejects a console usecase reaching shared/api/transport', async () => {
     const found = await violations('console-usecase-no-transport');
-    expect(found.some((v) => v.from.endsWith('features/subjects/usecase/readsTransport.ts'))).toBe(
-      true,
-    );
+    expect(
+      found.some((v) => v.from.endsWith('features/subjects/use-cases/readsTransport.ts')),
+    ).toBe(true);
   });
 
   it('rejects the transport context read outside a repository', async () => {
     const found = await violations('console-transport-context-in-repository');
-    expect(found.some((v) => v.from.endsWith('features/subjects/usecase/readsTransport.ts'))).toBe(
-      true,
-    );
+    expect(
+      found.some((v) => v.from.endsWith('features/subjects/use-cases/readsTransport.ts')),
+    ).toBe(true);
     expect(found.some((v) => v.from.endsWith('repository/readsTransport.ts'))).toBe(false);
   });
 
@@ -392,14 +397,14 @@ describe('boundary rules', { timeout: 60_000 }, () => {
 
   it('permits a type-only import of the transport anywhere', async () => {
     const output = await cruiseFixtures();
-    const typed = output.modules.find((m) => m.source.endsWith('usecase/typesTransport.ts'));
+    const typed = output.modules.find((m) => m.source.endsWith('use-cases/typesTransport.ts'));
     expect(typed?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(2);
     expect(
-      output.summary.violations.filter((v) => v.from.endsWith('usecase/typesTransport.ts')),
+      output.summary.violations.filter((v) => v.from.endsWith('use-cases/typesTransport.ts')),
     ).toHaveLength(0);
   });
 
-  it('permits the gallery importing shared/view and shared/service', async () => {
+  it('permits the gallery importing shared/ui and shared/lib/services', async () => {
     const output = await cruiseFixtures();
     const gallery = output.modules.find((m) => m.source.endsWith('src/gallery/Gallery.ts'));
     expect(gallery?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(2);
@@ -414,7 +419,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
       found.some(
         (v) =>
           v.from.endsWith('src/gallery/reachesTransport.ts') &&
-          v.to.endsWith('shared/transport/client.ts'),
+          v.to.endsWith('shared/api/transport/client.ts'),
       ),
     ).toBe(true);
   });
@@ -424,8 +429,58 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/subjects/service.ts') &&
+          v.from.endsWith('features/subjects/services.ts') &&
           v.to.endsWith('features/clients/index.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a widget's service importing an entity index.ts for a value", async () => {
+    const found = await violations('console-service-entity-index-type-only');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('widgets/shell/services/usesEntityIndex.ts') &&
+          v.to.endsWith('entities/session/index.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it("permits a widget's service importing an entity index.ts for a type", async () => {
+    const found = await violations('console-service-entity-index-type-only');
+    expect(found.some((v) => v.from.endsWith('widgets/shell/services/usesEntityType.ts'))).toBe(
+      false,
+    );
+  });
+
+  it("permits a widget's service importing the area entity index.ts", async () => {
+    const found = await violations('console-service-entity-index-type-only');
+    expect(found.some((v) => v.from.endsWith('widgets/shell/services/usesAreaIndex.ts'))).toBe(
+      false,
+    );
+  });
+
+  it("permits a widget's service importing the administrator entity index.ts", async () => {
+    const found = await violations('console-service-entity-index-type-only');
+    expect(
+      found.some((v) => v.from.endsWith('widgets/shell/services/usesAdministratorIndex.ts')),
+    ).toBe(false);
+  });
+
+  it("permits an entity's service importing its own types", async () => {
+    const found = await violations('console-service-imports-only-service');
+    expect(found.some((v) => v.from.endsWith('entities/session/services/usesOwnTypes.ts'))).toBe(
+      false,
+    );
+  });
+
+  it("rejects a widget's service importing another widget's index.ts", async () => {
+    const found = await violations('console-service-imports-only-service');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('widgets/shell/services/usesWidgetIndex.ts') &&
+          v.to.endsWith('widgets/odd/index.ts'),
       ),
     ).toBe(true);
   });
@@ -435,7 +490,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/subjects/service/crossFeature.ts') &&
+          v.from.endsWith('features/subjects/services/crossFeature.ts') &&
           v.to.endsWith('features/clients/index.ts'),
       ),
     ).toBe(true);
@@ -446,19 +501,19 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('features/subjects/service/crossFeature.ts') &&
-          v.to.endsWith('features/clients/service/topic.ts'),
+          v.from.endsWith('features/subjects/services/crossFeature.ts') &&
+          v.to.endsWith('features/clients/services/topic.ts'),
       ),
     ).toBe(true);
   });
 
   it("rejects a console feature's index.ts re-exporting its repository, adapter or shared code", async () => {
-    const found = await violations('console-index-exports-view-usecase-service');
+    const found = await violations('console-index-exports-ui-use-cases-services');
     const from = found.filter((v) => v.from.endsWith('features/audit/index.ts'));
     expect(from.map((v) => v.to.replace(/^.*\/src\//u, '')).sort()).toEqual([
       'features/audit/adapter.ts',
       'features/audit/repository.ts',
-      'shared/service/capabilities.ts',
+      'shared/lib/services/capabilities.ts',
     ]);
   });
 
@@ -482,7 +537,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(
       found.some(
         (v) =>
-          v.from.endsWith('src/app/reachesIn.ts') && v.to.endsWith('features/clients/service.ts'),
+          v.from.endsWith('src/app/reachesIn.ts') && v.to.endsWith('features/clients/services.ts'),
       ),
     ).toBe(true);
   });
@@ -496,8 +551,112 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ).toHaveLength(0);
   });
 
+  it("rejects a widget, entity or page importing another slice's internals", async () => {
+    const found = await violations('console-feature-imports-only-index');
+    const pairs: [string, string][] = [
+      ['widgets/shell/ui/reachesEntityInternals.ts', 'entities/session/services/principal.ts'],
+      ['pages/home/ui/reachesWidgetInternals.ts', 'widgets/shell/ui/own.ts'],
+    ];
+    for (const [from, to] of pairs) {
+      expect(found.some((v) => v.from.endsWith(from) && v.to.endsWith(to))).toBe(true);
+    }
+  });
+
+  it("permits a slice importing another layer's index.ts and its own internals", async () => {
+    const output = await cruiseFixtures();
+    const clean = [
+      'widgets/shell/ui/usesEntityIndex.ts',
+      'widgets/shell/ui/Shell.ts',
+      'pages/home/ui/usesWidgetIndex.ts',
+    ];
+    for (const file of clean) {
+      expect(output.modules.some((m) => m.source.endsWith(file))).toBe(true);
+      expect(output.summary.violations.filter((v) => v.from.endsWith(file))).toHaveLength(0);
+    }
+  });
+
+  it('rejects a widget, entity or page index.ts publishing an adapter or a helper', async () => {
+    const found = await violations('console-index-exports-ui-use-cases-services');
+    expect(
+      found.some(
+        (v) => v.from.endsWith('entities/odd/index.ts') && v.to.endsWith('adapter/wire.ts'),
+      ),
+    ).toBe(true);
+    expect(
+      found.some(
+        (v) => v.from.endsWith('widgets/odd/index.ts') && v.to.endsWith('helpers/tool.ts'),
+      ),
+    ).toBe(true);
+    expect(
+      found.some((v) => v.from.endsWith('pages/odd/index.ts') && v.to.endsWith('helpers/tool.ts')),
+    ).toBe(true);
+  });
+
+  it('permits a widget, entity or page index.ts publishing its own services and views', async () => {
+    const found = await violations('console-index-exports-ui-use-cases-services');
+    for (const file of [
+      'entities/session/index.ts',
+      'widgets/shell/index.ts',
+      'pages/home/index.ts',
+    ]) {
+      expect(found.some((v) => v.from.endsWith(file))).toBe(false);
+    }
+  });
+
+  it('rejects console shared code importing a widget', async () => {
+    const found = await violations('console-shared-imports-no-feature');
+    expect(found.some((v) => v.from.endsWith('shared/lib/services/reachesWidget.ts'))).toBe(true);
+  });
+
+  it('rejects an entity, widget or page importing app/', async () => {
+    const found = await violations('console-nothing-imports-app');
+    for (const file of ['entities/session/services/reachesApp.ts', 'pages/home/ui/reachesApp.ts']) {
+      expect(found.some((v) => v.from.endsWith(file))).toBe(true);
+    }
+  });
+
+  it('rejects an entity or shared code importing a layer above it', async () => {
+    const found = await violations('console-lower-layers-import-no-upper');
+    const pairs: [string, string][] = [
+      ['entities/session/services/reachesWidget.ts', 'widgets/shell/index.ts'],
+      ['entities/session/services/reachesPage.ts', 'pages/home/index.ts'],
+      ['entities/session/services/reachesFeature.ts', 'features/clients/index.ts'],
+      ['entities/session/services/reachesApp.ts', 'app/router.ts'],
+      ['shared/lib/services/reachesWidget.ts', 'widgets/shell/index.ts'],
+    ];
+    for (const [from, to] of pairs) {
+      expect(found.some((v) => v.from.endsWith(from) && v.to.endsWith(to))).toBe(true);
+    }
+  });
+
+  it('does not hold a feature to the rule for entities and shared code', async () => {
+    const found = await violations('console-lower-layers-import-no-upper');
+    expect(found.some((v) => v.from.includes('/features/'))).toBe(false);
+  });
+
+  it('rejects a widget importing a page, and only a widget', async () => {
+    const found = await violations('console-widgets-import-no-page');
+    expect(found.map((v) => v.from.replace(/^.*\/src\//u, ''))).toEqual([
+      'widgets/shell/ui/reachesPage.ts',
+    ]);
+  });
+
+  it('rejects a feature importing a page', async () => {
+    const found = await violations('console-features-import-no-page');
+    expect(found.map((v) => v.from.replace(/^.*\/src\//u, ''))).toEqual([
+      'features/picked/reachesPage.ts',
+    ]);
+  });
+
+  it('rejects a feature importing a widget', async () => {
+    const found = await violations('console-features-import-no-widget');
+    expect(found.map((v) => v.from.replace(/^.*\/src\//u, ''))).toEqual([
+      'features/picked/reachesWidget.ts',
+    ]);
+  });
+
   it('rejects console code importing the gallery', async () => {
     const found = await violations('console-nothing-imports-gallery');
-    expect(found.some((v) => v.from.endsWith('shared/repository/galleryLeak.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('shared/lib/repository/galleryLeak.ts'))).toBe(true);
   });
 });

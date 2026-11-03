@@ -4,7 +4,7 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 // A docs service is pure: it is handed what the browser knows, so nothing in it can depend on a
-// page. Flagged in every non-test file under a `service` folder: a browser global (window,
+// page. Flagged in every non-test file under a `services` folder: a browser global (window,
 // document, navigator, storage, matchMedia, observers, frame, idle and timer functions), a DOM
 // method by name (getBoundingClientRect, querySelector(All), add/removeEventListener, set/
 // removeAttribute, observe, disconnect), a DOM type (Document, Window, Element, HTMLElement, Node,
@@ -102,7 +102,7 @@ export function violations(files: Map<string, string>): string[] {
 
 async function read(root: string): Promise<Map<string, string>> {
   const files = new Map<string, string>();
-  for await (const file of glob('src/**/service/**/*.{ts,tsx}', {
+  for await (const file of glob('src/**/services/**/*.{ts,tsx}', {
     cwd: path.join(REPO_ROOT, root),
   })) {
     if (/\.test\.tsx?$/u.test(file)) continue;
@@ -116,8 +116,8 @@ describe('services in the docs app', { timeout: 60_000 }, () => {
   it('touch no browser global, DOM method or DOM type', async () => {
     const files = await read(DOCS);
     const names = [...files.keys()];
-    expect(names).toContain('src/features/landing/service/reveal.ts');
-    expect(names).toContain('src/features/landing/service/typewriter.ts');
+    expect(names).toContain('src/features/landing/services/reveal.ts');
+    expect(names).toContain('src/features/landing/services/typewriter.ts');
     expect(violations(files)).toEqual([]);
   });
 
@@ -131,21 +131,21 @@ describe('services in the docs app', { timeout: 60_000 }, () => {
     const files = await read(`${FIXTURES}/fail`);
     expect(files.size).toBe(3);
     expect(violations(files)).toEqual([
-      'src/features/a/service/Globals.ts:1: the browser global window',
-      'src/features/a/service/Globals.ts:2: the browser global document',
-      'src/features/a/service/Globals.ts:3: the browser global navigator',
-      'src/features/a/service/Globals.ts:4: the browser global setTimeout',
-      'src/features/a/service/Globals.ts:5: the browser global IntersectionObserver',
-      'src/features/a/service/Globals.ts:6: the browser global requestAnimationFrame',
-      'src/features/a/service/Globals.ts:7: the browser global window',
-      'src/features/a/service/Members.ts:10: the DOM method getBoundingClientRect',
-      'src/features/a/service/Members.ts:8: the DOM method addEventListener',
-      'src/features/a/service/Members.ts:9: the DOM method querySelectorAll',
-      'src/shared/service/Types.ts:1: the DOM type Document',
-      'src/shared/service/Types.ts:1: the DOM type Element',
-      'src/shared/service/Types.ts:1: the DOM type HTMLElement',
-      'src/shared/service/Types.ts:1: the DOM type Window',
-      'src/shared/service/Types.ts:2: the DOM type HTMLElement',
+      'src/features/a/services/Globals.ts:1: the browser global window',
+      'src/features/a/services/Globals.ts:2: the browser global document',
+      'src/features/a/services/Globals.ts:3: the browser global navigator',
+      'src/features/a/services/Globals.ts:4: the browser global setTimeout',
+      'src/features/a/services/Globals.ts:5: the browser global IntersectionObserver',
+      'src/features/a/services/Globals.ts:6: the browser global requestAnimationFrame',
+      'src/features/a/services/Globals.ts:7: the browser global window',
+      'src/features/a/services/Members.ts:10: the DOM method getBoundingClientRect',
+      'src/features/a/services/Members.ts:8: the DOM method addEventListener',
+      'src/features/a/services/Members.ts:9: the DOM method querySelectorAll',
+      'src/shared/lib/services/Types.ts:1: the DOM type Document',
+      'src/shared/lib/services/Types.ts:1: the DOM type Element',
+      'src/shared/lib/services/Types.ts:1: the DOM type HTMLElement',
+      'src/shared/lib/services/Types.ts:1: the DOM type Window',
+      'src/shared/lib/services/Types.ts:2: the DOM type HTMLElement',
     ]);
   });
 });

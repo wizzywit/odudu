@@ -1,0 +1,43 @@
+import { AUDIT_EXPORT_CAP, AUDIT_EXPORT_MEDIA_TYPE } from '@odudu/contracts/admin';
+import { utcDay } from '#/shared/lib/services/dateTime';
+import { failureTextWith } from '#/shared/lib/services/failure';
+import { groupedNumber, plural } from '#/shared/lib/services/format';
+import { isTooBroad } from '#/pages/audit/services/tooBroad';
+import type { GatewayFailure } from '#/shared/lib/services/result';
+
+export { AUDIT_EXPORT_MEDIA_TYPE };
+
+export const EXPORT_NOTE = `Exports the events the applied filters match, newest first, one JSON object per line, up to ${groupedNumber(AUDIT_EXPORT_CAP)}. Past that the export is refused rather than cut short. The export is itself recorded in the trail.`;
+
+// The UTC day, so one export taken twice in an evening is named the same
+// wherever the person is.
+export function auditFileName(tenant: string, now: Date): string {
+  return `${tenant}-audit-${utcDay(now)}.ndjson`;
+}
+
+export function eventsIn(text: string): number {
+  return text.split('\n').filter((line) => line.trim() !== '').length;
+}
+
+export function savedText(fileName: string, events: number): string {
+  return `Saved ${fileName}, ${groupedNumber(events)} ${plural(events, 'event', 'events')}.`;
+}
+
+export function exportFailureText(failure: GatewayFailure, refused: boolean): string {
+  if (refused) return 'Exporting the trail needs view-audit.';
+  const unreadable = () => 'The export could not be read. Nothing was saved; try again.';
+  return failureTextWith({
+    network: unreadable,
+    schema: unreadable,
+    defect: unreadable,
+    problem: ({ status, detail, title }) => {
+      if (isTooBroad(failure)) {
+        return 'These filters could not be exported in time. Choose a time range, then export again.';
+      }
+      if (status === 413) {
+        return `These filters match more than ${groupedNumber(AUDIT_EXPORT_CAP)} events, the most an export holds. Narrow the filters and export again.`;
+      }
+      return detail ?? title;
+    },
+  })(failure);
+}

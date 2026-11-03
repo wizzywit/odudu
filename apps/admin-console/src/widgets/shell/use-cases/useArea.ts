@@ -1,0 +1,13 @@
+import { useAuthority, useAuthorityAnswered, usePrincipal } from '#/entities/session';
+import { type Area } from '#/entities/area';
+import { areaAccess, type AreaAccess } from '#/widgets/shell/services/pending';
+
+export function useArea(tenant: string, area: Area): AreaAccess {
+  return areaAccess(
+    usePrincipal(),
+    tenant,
+    useAuthority(tenant),
+    area,
+    useAuthorityAnswered(tenant),
+  );
+}

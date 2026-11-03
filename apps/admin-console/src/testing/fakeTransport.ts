@@ -1,8 +1,8 @@
 import { vi } from 'vitest';
-import { createSessionEvents } from '#/shared/service/sessionEvents';
-import { createAuth } from '#/shared/transport/auth';
-import { createGateway, type Fetch } from '#/shared/transport/gateway';
-import type { Transport } from '#/shared/transport/transport';
+import { createAuthEvents } from '#/shared/api/transport/authEvents';
+import { createAuth } from '#/shared/api/transport/auth';
+import { createGateway, type Fetch } from '#/shared/api/transport/gateway';
+import type { Transport } from '#/shared/api/transport/transport';
 
 // Given what was sent, for an answer that depends on the query or the body.
 export type Answer = (request: Sent) => Response | Promise<Response>;
@@ -107,7 +107,7 @@ export function fakeTransport(routes: Record<string, Answer>) {
       return Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }
   };
-  const events = createSessionEvents();
+  const events = createAuthEvents();
   const leavePage = vi.fn<(url: string) => void>();
   const log = (): void => undefined;
   const transport: Transport = {

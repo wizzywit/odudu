@@ -4,17 +4,17 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 // A docs view renders what it is given; decisions are a service function or a usecase result.
-// Flagged in non-test .tsx under a `view` folder: a comparison, arithmetic or concatenation, a
+// Flagged in non-test .tsx under a `ui` folder: a comparison, arithmetic or concatenation, a
 // unary minus (a written-out negative number is a literal), `||`, `??`, `if`, `switch`, a ternary
 // not choosing between markup and null, `&&` not rendering markup. Allowed: `x ? <A /> : null`,
 // `x && <A />`, a lookup like `LOOKS[tone]`. Not seen: a decision made inside a call
-// (`list.filter(...)`) or imported from elsewhere. Not covered: shared/view/Diagram and the
+// (`list.filter(...)`) or imported from elsewhere. Not covered: shared/ui/Diagram and the
 // Diagram* parts, whose arithmetic is the drawing's geometry. Nothing else is waived.
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const DOCS = 'apps/docs';
 const FIXTURES = 'tests/lint/fixtures/docs-view-no-logic';
-const DRAWINGS = /(^|\/)shared\/view\/Diagram[A-Za-z]*\//u;
+const DRAWINGS = /(^|\/)shared\/ui\/Diagram[A-Za-z]*\//u;
 
 const COMPARISON = new Set([
   ts.SyntaxKind.EqualsEqualsToken,
@@ -96,7 +96,7 @@ export function violations(files: Map<string, string>): string[] {
 
 async function read(root: string): Promise<Map<string, string>> {
   const files = new Map<string, string>();
-  for await (const file of glob('src/**/view/**/*.tsx', { cwd: path.join(REPO_ROOT, root) })) {
+  for await (const file of glob('src/**/ui/**/*.tsx', { cwd: path.join(REPO_ROOT, root) })) {
     if (file.endsWith('.test.tsx')) continue;
     const posix = file.split(path.sep).join('/');
     files.set(posix, await readFile(path.join(REPO_ROOT, root, file), 'utf8'));
@@ -108,8 +108,8 @@ describe('views in the docs app', { timeout: 60_000 }, () => {
   it('hold no decision beyond a conditional render', async () => {
     const files = await read(DOCS);
     const names = [...files.keys()];
-    expect(names).toContain('src/features/landing/view/Install/Install.tsx');
-    expect(names).toContain('src/shared/view/Diagram/diagrams.tsx');
+    expect(names).toContain('src/features/landing/ui/Install/Install.tsx');
+    expect(names).toContain('src/shared/ui/Diagram/diagrams.tsx');
     expect(violations(files)).toEqual([]);
   });
 
@@ -123,21 +123,21 @@ describe('views in the docs app', { timeout: 60_000 }, () => {
     const files = await read(`${FIXTURES}/fail`);
     expect(files.size).toBe(4);
     expect(violations(files)).toEqual([
-      'src/features/a/view/Arithmetic.tsx:4: arithmetic or concatenation',
-      'src/features/a/view/Arithmetic.tsx:5: arithmetic or concatenation',
-      'src/features/a/view/Arithmetic.tsx:7: arithmetic or concatenation',
-      'src/features/a/view/Arithmetic.tsx:7: arithmetic or concatenation',
-      'src/features/a/view/Arithmetic.tsx:8: arithmetic or concatenation',
-      'src/features/a/view/Branches.tsx:4: a ternary that chooses a value',
-      'src/features/a/view/Branches.tsx:5: a default chosen with ??',
-      'src/features/a/view/Branches.tsx:6: a default chosen with ||',
-      'src/features/a/view/Branches.tsx:7: an if statement',
-      'src/features/a/view/Branches.tsx:8: a switch statement',
-      'src/features/a/view/Compares.tsx:5: a comparison',
-      'src/features/a/view/Compares.tsx:5: a comparison',
-      'src/features/a/view/Compares.tsx:5: a ternary that chooses a value',
-      'src/features/a/view/Compares.tsx:6: a comparison',
-      'src/features/a/view/Gate.tsx:4: && that does not render markup',
+      'src/features/a/ui/Arithmetic.tsx:4: arithmetic or concatenation',
+      'src/features/a/ui/Arithmetic.tsx:5: arithmetic or concatenation',
+      'src/features/a/ui/Arithmetic.tsx:7: arithmetic or concatenation',
+      'src/features/a/ui/Arithmetic.tsx:7: arithmetic or concatenation',
+      'src/features/a/ui/Arithmetic.tsx:8: arithmetic or concatenation',
+      'src/features/a/ui/Branches.tsx:4: a ternary that chooses a value',
+      'src/features/a/ui/Branches.tsx:5: a default chosen with ??',
+      'src/features/a/ui/Branches.tsx:6: a default chosen with ||',
+      'src/features/a/ui/Branches.tsx:7: an if statement',
+      'src/features/a/ui/Branches.tsx:8: a switch statement',
+      'src/features/a/ui/Compares.tsx:5: a comparison',
+      'src/features/a/ui/Compares.tsx:5: a comparison',
+      'src/features/a/ui/Compares.tsx:5: a ternary that chooses a value',
+      'src/features/a/ui/Compares.tsx:6: a comparison',
+      'src/features/a/ui/Gate.tsx:4: && that does not render markup',
     ]);
   });
 });

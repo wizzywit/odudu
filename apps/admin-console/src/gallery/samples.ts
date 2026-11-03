@@ -1,7 +1,6 @@
-import type { AuditEvent, Group, Role } from '@odudu/contracts/admin';
-import type { Conflict } from '#/shared/service/conflict';
-import { formatDuration } from '#/shared/service/format';
-import type { KeyValuePair } from '#/shared/view/Field';
+import type { Conflict } from '#/shared/lib/services/conflict';
+import { formatDuration } from '#/shared/lib/services/format';
+import type { KeyValuePair } from '#/shared/ui/Field';
 
 export const TENANT = 'acme';
 
@@ -125,90 +124,6 @@ export const CONFLICTS: readonly Conflict[] = [
     yours: 600,
     secret: false,
     describe: (value) => formatDuration(Number(value)),
-  },
-];
-
-const EVENT: AuditEvent = {
-  id: 'a1',
-  occurred_at: '2026-09-28T13:41:05Z',
-  event_type: 'admin_mutation',
-  action: 'client.update',
-  outcome: 'allowed',
-  actor_tenant_id: 't1',
-  actor_subject_id: '0192f7a4-9e21-7d40-8c3b-5a6f1e2d3c4b',
-  actor_client_id: null,
-  actor_name: null,
-  actor_origin: 'tenant',
-  resource_type: 'client',
-  resource_id: '0192f7a4-5c1e-7b3a-9d2e-6f8a1b2c3d4e',
-  request_id: '7f3a9c1e-2b4d-4e6f-8a0b-1c2d3e4f5a6b',
-  ip: '203.0.113.9',
-  detail: {},
-};
-
-export const DETAILED_EVENT: AuditEvent = {
-  ...EVENT,
-  actor_name: 'grace',
-  detail: { enabled: { before: true, after: false }, denied: ['manage-clients'] },
-};
-
-export const EVENTS: readonly AuditEvent[] = [
-  { ...EVENT, actor_name: 'grace' },
-  {
-    ...EVENT,
-    id: 'a2',
-    occurred_at: '2026-09-28T12:02:40Z',
-    outcome: 'refused',
-    actor_origin: 'system',
-  },
-  {
-    ...EVENT,
-    id: 'a3',
-    occurred_at: '2026-09-21T08:12:44Z',
-    action: 'client.create',
-    request_id: null,
-  },
-];
-
-function role(id: string, name: string, clientKey: string | null, description: string): Role {
-  return {
-    id,
-    name,
-    description,
-    client_id: clientKey === null ? null : '0192f7a4-5c1e-7b3a-9d2e-6f8a1b2c3d4e',
-    client_key: clientKey,
-    default_for_new_subjects: false,
-    created_at: '2026-09-28T13:41:05Z',
-    admin_reach: [],
-  };
-}
-
-export const ROLES: readonly Role[] = [
-  role('r1', 'auditor', null, 'Reads the audit trail'),
-  role('r2', 'admin', 'billing-portal', 'Administers billing'),
-  role('r3', 'admin', null, 'Administers the tenant'),
-];
-
-export const GROUPS: readonly Group[] = [
-  {
-    id: 'g1',
-    name: 'engineering',
-    description: null,
-    parent_id: null,
-    default_for_new_subjects: false,
-    path: '/engineering',
-    created_at: '2026-09-28T13:41:05Z',
-    admin_reach: [],
-  },
-  {
-    id: 'g2',
-    name: 'platform',
-    description: null,
-    parent_id: 'g1',
-    default_for_new_subjects: false,
-    path: '/engineering/platform',
-    created_at: '2026-09-28T13:41:05Z',
-    admin_reach: [],
   },
 ];
 

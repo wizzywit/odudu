@@ -878,17 +878,17 @@ describe('console source', { timeout: 60_000 }, () => {
   it('keeps no mutable state at module scope, tests and testing/ excepted', async () => {
     const files = await read(CONSOLE);
     const names = [...files.keys()];
-    expect(names).toContain('src/shared/repository/useDrafts.ts');
+    expect(names).toContain('src/shared/lib/repository/useDrafts.ts');
     expect(names).toContain('src/app/lazyFeatureRoute/lazyFeatureRoute.tsx');
-    expect(names).toContain('src/shared/transport/gateway.ts');
+    expect(names).toContain('src/shared/api/transport/gateway.ts');
     expect(violations(files)).toEqual([]);
   });
 
   it('holds the docs app to the same rule, tests excepted', async () => {
     const files = await read(DOCS);
     const names = [...files.keys()];
-    expect(names).toContain('src/features/landing/usecase/useSignInFlow.ts');
-    expect(names).toContain('src/shared/view/Diagram/diagrams.tsx');
+    expect(names).toContain('src/features/landing/use-cases/useSignInFlow.ts');
+    expect(names).toContain('src/shared/ui/Diagram/diagrams.tsx');
     expect(violations(files)).toEqual([]);
   });
 
@@ -904,40 +904,40 @@ describe('console source', { timeout: 60_000 }, () => {
     expect(violations(files)).toEqual([
       'src/app/counter.ts:9: createCounter() at module scope keeps count (src/app/counter.ts:2) alive for every caller',
       'src/app/flag.ts:6: makeLatch() at module scope keeps open (src/app/flag.ts:2) alive for every caller',
-      'src/shared/repository/counter.ts:1: top-level let issued',
-      'src/shared/repository/registry.ts:1: top-level sources is mutated at line 8',
-      'src/shared/repository/registry.ts:2: top-level queue is mutated at line 9',
-      'src/shared/repository/registry.ts:3: top-level state is mutated at line 10',
-      'src/shared/repository/registry.ts:4: top-level seen is mutated at line 12',
-      'src/shared/repository/registry.ts:5: top-level options is mutated at line 13',
-      'src/shared/repository/ticks.ts:1: top-level clock is mutated at line 4',
-      'src/shared/service/alias.ts:1: top-level seen is mutated at line 14',
-      'src/shared/service/alias.ts:3: top-level pending is mutated at line 15',
-      'src/shared/service/alias.ts:5: top-level names is mutated at line 16',
-      'src/shared/service/alias.ts:6: top-level typed is mutated at line 17',
-      'src/shared/service/alias.ts:7: top-level fresh is mutated at line 18',
-      'src/shared/service/alias.ts:8: top-level copy is mutated at line 19',
-      'src/shared/service/alias.ts:9: top-level pushed is mutated at line 20',
-      'src/shared/service/alias.ts:10: top-level quiet is mutated at line 21',
-      'src/shared/service/alias.ts:11: top-level target is mutated at line 22',
-      'src/shared/service/cache.ts:1: top-level cache is mutated at src/shared/service/put.ts:4',
-      'src/shared/service/cache.ts:2: top-level log is mutated at src/shared/service/put.ts:5',
-      'src/shared/service/cache.ts:3: top-level settings is mutated at src/shared/service/put.ts:6',
-      'src/shared/service/classes.ts:2: class Counter holds static state count',
-      'src/shared/service/classes.ts:18: new Bus() at module scope: Bus changes this in push',
-      'src/shared/service/classes.ts:19: top-level tally is mutated at line 22',
-      'src/shared/service/globals.ts:2: an assignment to window.lastSeen, state outside any module',
-      'src/shared/service/globals.ts:3: an assignment to globalThis.seen, state outside any module',
-      'src/shared/service/iife.ts:1: an immediately called function keeps n (line 2) alive for every caller',
-      'src/shared/service/members.ts:4: createEvents() at module scope keeps listeners (src/shared/transport/events.ts:2) alive for every caller',
-      'src/shared/service/members.ts:5: createEvents() at module scope keeps listeners (src/shared/transport/events.ts:2) alive for every caller',
-      'src/shared/service/members.ts:6: default() at module scope keeps listeners (src/shared/transport/events.ts:12) alive for every caller',
-      'src/shared/service/memo.ts:37: counter() at module scope keeps n (src/shared/service/memo.ts:2) alive for every caller',
-      'src/shared/service/memo.ts:38: twoSlots() at module scope keeps a (src/shared/service/memo.ts:10) alive for every caller',
-      'src/shared/service/memo.ts:39: collects() at module scope keeps seen (src/shared/service/memo.ts:20) alive for every caller',
-      'src/shared/service/memo.ts:40: holder() at module scope keeps current (src/shared/service/memo.ts:28) alive for every caller',
-      'src/shared/service/var.ts:1: top-level var visits',
-      'src/shared/transport/gateway.ts:3: createEvents() at module scope keeps listeners (src/shared/transport/events.ts:2) alive for every caller',
+      'src/shared/api/transport/gateway.ts:3: createEvents() at module scope keeps listeners (src/shared/api/transport/events.ts:2) alive for every caller',
+      'src/shared/lib/repository/counter.ts:1: top-level let issued',
+      'src/shared/lib/repository/registry.ts:1: top-level sources is mutated at line 8',
+      'src/shared/lib/repository/registry.ts:2: top-level queue is mutated at line 9',
+      'src/shared/lib/repository/registry.ts:3: top-level state is mutated at line 10',
+      'src/shared/lib/repository/registry.ts:4: top-level seen is mutated at line 12',
+      'src/shared/lib/repository/registry.ts:5: top-level options is mutated at line 13',
+      'src/shared/lib/repository/ticks.ts:1: top-level clock is mutated at line 4',
+      'src/shared/lib/services/alias.ts:1: top-level seen is mutated at line 14',
+      'src/shared/lib/services/alias.ts:3: top-level pending is mutated at line 15',
+      'src/shared/lib/services/alias.ts:5: top-level names is mutated at line 16',
+      'src/shared/lib/services/alias.ts:6: top-level typed is mutated at line 17',
+      'src/shared/lib/services/alias.ts:7: top-level fresh is mutated at line 18',
+      'src/shared/lib/services/alias.ts:8: top-level copy is mutated at line 19',
+      'src/shared/lib/services/alias.ts:9: top-level pushed is mutated at line 20',
+      'src/shared/lib/services/alias.ts:10: top-level quiet is mutated at line 21',
+      'src/shared/lib/services/alias.ts:11: top-level target is mutated at line 22',
+      'src/shared/lib/services/cache.ts:1: top-level cache is mutated at src/shared/lib/services/put.ts:4',
+      'src/shared/lib/services/cache.ts:2: top-level log is mutated at src/shared/lib/services/put.ts:5',
+      'src/shared/lib/services/cache.ts:3: top-level settings is mutated at src/shared/lib/services/put.ts:6',
+      'src/shared/lib/services/classes.ts:2: class Counter holds static state count',
+      'src/shared/lib/services/classes.ts:18: new Bus() at module scope: Bus changes this in push',
+      'src/shared/lib/services/classes.ts:19: top-level tally is mutated at line 22',
+      'src/shared/lib/services/globals.ts:2: an assignment to window.lastSeen, state outside any module',
+      'src/shared/lib/services/globals.ts:3: an assignment to globalThis.seen, state outside any module',
+      'src/shared/lib/services/iife.ts:1: an immediately called function keeps n (line 2) alive for every caller',
+      'src/shared/lib/services/members.ts:4: createEvents() at module scope keeps listeners (src/shared/api/transport/events.ts:2) alive for every caller',
+      'src/shared/lib/services/members.ts:5: createEvents() at module scope keeps listeners (src/shared/api/transport/events.ts:2) alive for every caller',
+      'src/shared/lib/services/members.ts:6: default() at module scope keeps listeners (src/shared/api/transport/events.ts:12) alive for every caller',
+      'src/shared/lib/services/memo.ts:37: counter() at module scope keeps n (src/shared/lib/services/memo.ts:2) alive for every caller',
+      'src/shared/lib/services/memo.ts:38: twoSlots() at module scope keeps a (src/shared/lib/services/memo.ts:10) alive for every caller',
+      'src/shared/lib/services/memo.ts:39: collects() at module scope keeps seen (src/shared/lib/services/memo.ts:20) alive for every caller',
+      'src/shared/lib/services/memo.ts:40: holder() at module scope keeps current (src/shared/lib/services/memo.ts:28) alive for every caller',
+      'src/shared/lib/services/var.ts:1: top-level var visits',
     ]);
   });
 });

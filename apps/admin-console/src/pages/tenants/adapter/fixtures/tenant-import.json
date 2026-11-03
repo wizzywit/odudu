@@ -1,0 +1,12 @@
+{
+  "tenant": {
+    "id": "01a18b59-f194-7a57-81d6-48055e174ac1",
+    "name": "import-demo2",
+    "display_name": "Import demo",
+    "enabled": true,
+    "created_at": "2026-10-30T05:48:10.004Z"
+  },
+  "client_secrets": [
+    { "client_id": "billing-app", "secret": "RJo6qks28wWjVF8IQNXpPE4Xt23vwllHvad1B8u0XE8" }
+  ]
+}

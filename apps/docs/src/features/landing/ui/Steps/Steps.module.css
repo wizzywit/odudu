@@ -1,0 +1,46 @@
+.cardTitle {
+  composes: cardTitle from '@site/src/features/landing/ui/Section/Section.module.css';
+}
+
+.cardBody {
+  composes: cardBody from '@site/src/features/landing/ui/Section/Section.module.css';
+}
+
+.after {
+  composes: after from '@site/src/features/landing/ui/Section/Section.module.css';
+}
+
+.inline {
+  composes: inline from '@site/src/features/landing/ui/Section/Section.module.css';
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.step {
+  padding-inline-start: var(--space-4);
+  border-inline-start: 2px solid var(--rail-accent);
+  counter-increment: step;
+}
+
+.step::before {
+  content: counter(step, decimal-leading-zero);
+  display: block;
+  margin-block-end: var(--space-1);
+  color: var(--signal-active-ink);
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+}
+
+@media (min-width: 800px) {
+  .steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

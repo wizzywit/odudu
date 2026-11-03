@@ -7,7 +7,7 @@ Until the first stable release, the README and the quick start use the
 newest candidate tag, now `v0.1.0-rc.5`, in the download address. When `0.1.0` is out, switch
 them to `releases/latest/download`: edit `README.md`,
 `apps/docs/content/en/quick-start/index.mdx`,
-`apps/docs/src/features/landing/service/content.ts` and the caveats beside them.
+`apps/docs/src/features/landing/services/release.ts` and the caveats beside them.
 
 ## Versions
 

@@ -9,7 +9,7 @@ import { renderLoginForm } from '../../../../packages/protocol-oidc/src/view/aut
 import { THEME_BODY, brandFiles, brandOutcome, png, storedZlib } from './brand.ts';
 
 const tokens = readFileSync(
-  path.resolve(import.meta.dirname, '../../../admin-console/src/shared/view/tokens.css'),
+  path.resolve(import.meta.dirname, '../../../admin-console/src/shared/ui/tokens.css'),
   'utf8',
 );
 

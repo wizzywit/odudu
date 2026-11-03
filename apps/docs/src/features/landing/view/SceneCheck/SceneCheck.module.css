@@ -1,7 +1,0 @@
-.pass {
-  composes: pass from '@site/src/features/landing/view/Scene/Scene.module.css';
-}
-
-.check {
-  composes: check from '@site/src/features/landing/view/Scene/Scene.module.css';
-}

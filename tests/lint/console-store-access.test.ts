@@ -315,7 +315,7 @@ describe('console source', { timeout: 60_000 }, () => {
   it('reaches stores through selectors, tests and testing/ excepted', async () => {
     const files = await read(CONSOLE);
     const names = [...files.keys()];
-    expect(names).toContain('src/shared/repository/useUnsavedGuard.ts');
+    expect(names).toContain('src/shared/lib/repository/useUnsavedGuard.ts');
     expect(names).toContain('src/app/NavigationGuard/NavigationGuard.tsx');
     expect(violations(files)).toEqual([]);
   });

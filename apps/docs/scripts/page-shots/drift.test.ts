@@ -36,7 +36,7 @@ describe('the pages strip on the landing', () => {
 
   it('cuts the pictures of a group to one size, and the frames are that shape', () => {
     const css = readFileSync(
-      path.resolve(import.meta.dirname, '../../src/features/landing/view/Frame/Frame.module.css'),
+      path.resolve(import.meta.dirname, '../../src/features/landing/ui/Frame/Frame.module.css'),
       'utf8',
     );
     const ratio = (kind: string): string =>

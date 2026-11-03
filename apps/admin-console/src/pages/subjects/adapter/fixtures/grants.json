@@ -1,0 +1,24 @@
+{
+  "items": [
+    {
+      "id": "01a0ee8b-2736-7d56-a78d-5d0c22330e0b",
+      "client_id": "01a0ee8a-d1a7-7c3c-a05b-903a2d8fa123",
+      "client_key": "ops-app",
+      "scope": "openid profile email offline_access",
+      "created_at": "2026-09-29T19:01:32.013Z",
+      "session_id": null,
+      "offline": true,
+      "refresh_expires_at": "2026-10-13T19:01:32.073Z"
+    },
+    {
+      "id": "01a0ee8b-2871-7378-912a-5d2f335a483d",
+      "client_id": "01a0ee8a-d1a7-7c3c-a05b-903a2d8fa123",
+      "client_key": "ops-app",
+      "scope": "openid profile email",
+      "created_at": "2026-09-29T19:01:32.338Z",
+      "session_id": "01a0ee8b-27fa-7271-bb21-8bf1dec2d0fa",
+      "offline": false,
+      "refresh_expires_at": "2026-10-13T19:01:32.391Z"
+    }
+  ]
+}

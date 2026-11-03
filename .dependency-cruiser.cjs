@@ -65,51 +65,110 @@ module.exports = {
       name: 'console-feature-imports-only-index',
       severity: 'error',
       comment:
-        "A console feature's index.ts is its only importable surface, to other features and to " +
-        'app/ alike; everything else in it can change without anything outside noticing.',
-      // From app/ the group is empty, so no feature is exempt; from a feature
-      // it is that feature, which may reach its own internals.
-      from: { path: '(^|/)apps/admin-console/src/(?:app/|features/([^/]+)/)' },
+        "A console slice's index.ts (a feature, widget, entity or page) is its only importable " +
+        'surface, to other slices and to app/ alike; everything else in it can change without ' +
+        'anything outside noticing.',
+      // From app/ the group is empty, so no slice is exempt; from a slice it is
+      // that slice's layer and name, which may reach its own internals.
+      from: {
+        path: '(^|/)apps/admin-console/src/(?:app/|((?:features|widgets|entities|pages)/[^/]+)/)',
+      },
       // $2 is substituted unescaped; tests/lint/console-feature-names.test.ts keeps it regex-safe.
-      to: { path: '(^|/)apps/admin-console/src/features/(?!$2/)[^/]+/(?!index\\.ts$)' },
+      to: {
+        path: '(^|/)apps/admin-console/src/(?!$2/)(?:features|widgets|entities|pages)/[^/]+/(?!index\\.ts$)',
+      },
     },
     {
       name: 'console-service-imports-only-service',
       severity: 'error',
       comment:
-        'A console service is pure: it imports other services, its own or shared/service, and ' +
+        'A console service is pure: it imports other services, its own or shared/lib/services, and ' +
         '@odudu/contracts, and nothing else. A feature index.ts is refused too, since it ' +
-        'reaches views and usecases, and through them the stores. libphonenumber-js is admitted ' +
-        'as the one pure library a service computes with: numbering plans are data, not I/O.',
+        'reaches views and usecases, and through them the stores; an entity index is the one ' +
+        'index admitted, since a service in a higher layer computes from the domain it owns, and ' +
+        "a slice's types/ folder and shared/lib/types are admitted, since they hold declarations only. " +
+        'libphonenumber-js is admitted as the one pure library a service computes with: ' +
+        'numbering plans are data, not I/O.',
       from: {
-        path: '(^|/)apps/admin-console/src/(?:service|.*/service)(?:/|\\.tsx?$)',
+        path: '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
       to: {
         pathNot:
-          '(^|/)apps/admin-console/src/(?:service|.*/service)(?:/|\\.tsx?$)|(^|/)packages/contracts/|/node_modules/libphonenumber-js/',
+          '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)|(^|/)apps/admin-console/src/entities/[^/]+/index\\.ts$|(^|/)apps/admin-console/src/(?:entities|features|pages)/[^/]+/types/|(^|/)apps/admin-console/src/shared/lib/types/|(^|/)packages/contracts/|/node_modules/libphonenumber-js/',
       },
     },
     {
-      name: 'console-index-exports-view-usecase-service',
+      name: 'console-service-entity-index-type-only',
       severity: 'error',
       comment:
-        "A console feature's index.ts publishes its own views, usecases and services. A " +
-        'repository or adapter published there would hand another feature the store or the ' +
-        'wire past every layer rule; a type-only export of anything is allowed.',
-      from: { path: '(^|/)apps/admin-console/src/features/([^/]+)/index\\.ts$' },
+        'An entity index reaches views and usecases, so a service may import it for types only. ' +
+        'entities/area and entities/administrator are the exceptions: their indexes publish pure ' +
+        'data and services, and tests/lint/entity-service-index.test.ts holds them to that.',
+      from: {
+        path: '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)',
+        pathNot: '\\.test\\.tsx?$',
+      },
+      to: {
+        path: '(^|/)apps/admin-console/src/entities/(?!(?:area|administrator)/)[^/]+/index\\.ts$',
+        dependencyTypesNot: ['type-only'],
+      },
+    },
+    {
+      name: 'console-index-exports-ui-use-cases-services',
+      severity: 'error',
+      comment:
+        "A console slice's index.ts (a feature, widget, entity or page) publishes its own views, " +
+        'usecases and services. A repository or adapter published there would hand another ' +
+        'slice the store or the wire past every layer rule; a type-only export of anything is ' +
+        'allowed.',
+      from: {
+        path: '(^|/)apps/admin-console/src/((?:features|widgets|entities|pages)/[^/]+)/index\\.ts$',
+      },
       // $2 is substituted unescaped; tests/lint/console-feature-names.test.ts keeps it regex-safe.
       to: {
-        pathNot: '(^|/)apps/admin-console/src/features/$2/(?:view|usecase|service)(?:/|\\.tsx?$)',
+        pathNot: '(^|/)apps/admin-console/src/$2/(?:ui|use-cases|services)(?:/|\\.tsx?$)',
         dependencyTypesNot: ['type-only'],
       },
     },
     {
       name: 'console-shared-imports-no-feature',
       severity: 'error',
-      comment: 'shared/ holds only what two or more features use, so it depends on none of them.',
+      comment:
+        'shared/ holds only what two or more slices use, so it depends on no feature, widget, ' +
+        'entity or page.',
       from: { path: '(^|/)apps/admin-console/src/shared/' },
-      to: { path: '(^|/)apps/admin-console/src/features/' },
+      to: { path: '(^|/)apps/admin-console/src/(?:features|widgets|entities|pages)/' },
+    },
+    {
+      name: 'console-lower-layers-import-no-upper',
+      severity: 'error',
+      comment:
+        'Imports run down the layers: app, pages, widgets, features, entities, shared. ' +
+        'entities/ and shared/ import none of widgets, pages, features or app.',
+      from: { path: '(^|/)apps/admin-console/src/(?:entities|shared)/' },
+      to: { path: '(^|/)apps/admin-console/src/(?:widgets|pages|features|app)/' },
+    },
+    {
+      name: 'console-widgets-import-no-page',
+      severity: 'error',
+      comment: 'A widget is composed into a page, so it never imports one.',
+      from: { path: '(^|/)apps/admin-console/src/widgets/' },
+      to: { path: '(^|/)apps/admin-console/src/pages/' },
+    },
+    {
+      name: 'console-features-import-no-page',
+      severity: 'error',
+      comment: 'A feature is composed into a page, so it never imports one.',
+      from: { path: '(^|/)apps/admin-console/src/features/' },
+      to: { path: '(^|/)apps/admin-console/src/pages/' },
+    },
+    {
+      name: 'console-features-import-no-widget',
+      severity: 'error',
+      comment: 'A widget sits above a feature, so a feature never imports one.',
+      from: { path: '(^|/)apps/admin-console/src/features/' },
+      to: { path: '(^|/)apps/admin-console/src/widgets/' },
     },
     {
       name: 'console-nothing-imports-app',
@@ -117,7 +176,7 @@ module.exports = {
       comment:
         'app/ is the composition root. With console-feature-imports-only-index it is the one ' +
         "place that sees every feature's index.ts together, and nothing below it sees app/.",
-      from: { path: '(^|/)apps/admin-console/src/(?:shared|features)/' },
+      from: { path: '(^|/)apps/admin-console/src/(?:shared|features|widgets|entities|pages)/' },
       to: { path: '(^|/)apps/admin-console/src/app/' },
     },
     {
@@ -125,8 +184,8 @@ module.exports = {
       severity: 'error',
       comment:
         'A console view reaches the gateway and the cross-feature stores only through a usecase.',
-      from: { path: '(^|/)apps/admin-console/src/(?:view|.*/view)(?:/|\\.tsx?$)' },
-      to: { path: '(^|/)apps/admin-console/src/shared/(?:transport|repository)/' },
+      from: { path: '(^|/)apps/admin-console/src/(?:ui|.*/ui)(?:/|\\.tsx?$)' },
+      to: { path: '(^|/)apps/admin-console/src/shared/(?:api/transport|lib/repository)/' },
     },
     {
       name: 'console-usecase-no-transport',
@@ -135,11 +194,11 @@ module.exports = {
         'A console usecase orchestrates; it reaches the gateway, the page and the session ' +
         'events through a repository. A type-only import names a shape and is allowed.',
       from: {
-        path: '(^|/)apps/admin-console/src/(?:usecase|.*/usecase)(?:/|\\.tsx?$)',
+        path: '(^|/)apps/admin-console/src/(?:use-cases|.*/use-cases)(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
       to: {
-        path: '(^|/)apps/admin-console/src/shared/transport/',
+        path: '(^|/)apps/admin-console/src/shared/api/transport/',
         dependencyTypesNot: ['type-only'],
       },
     },
@@ -155,7 +214,7 @@ module.exports = {
           '(^|/)apps/admin-console/src/(?:app/|testing/|(?:repository|.*/repository)(?:/|\\.tsx?$))|\\.test\\.tsx?$',
       },
       to: {
-        path: '(^|/)apps/admin-console/src/shared/transport/useTransport\\.ts$',
+        path: '(^|/)apps/admin-console/src/shared/api/transport/useTransport\\.ts$',
         dependencyTypesNot: ['type-only'],
       },
     },
@@ -168,10 +227,10 @@ module.exports = {
       from: {
         path: '(^|/)apps/admin-console/src/',
         pathNot:
-          '(^|/)apps/admin-console/src/(?:app/|testing/|shared/transport/|(?:adapter|.*/adapter)(?:/|\\.tsx?$))|\\.test\\.tsx?$',
+          '(^|/)apps/admin-console/src/(?:app/|testing/|shared/api/transport/|(?:adapter|.*/adapter)(?:/|\\.tsx?$))|\\.test\\.tsx?$',
       },
       to: {
-        path: '(^|/)apps/admin-console/src/shared/transport/(?:gateway|auth|transport)\\.ts$',
+        path: '(^|/)apps/admin-console/src/shared/api/transport/(?:gateway|auth|transport)\\.ts$',
         dependencyTypesNot: ['type-only'],
       },
     },
@@ -192,40 +251,40 @@ module.exports = {
       name: 'docs-service-imports-only-service',
       severity: 'error',
       comment:
-        'A docs service is pure: it imports other services, its own or shared/service, the ' +
+        'A docs service is pure: it imports other services, its own or shared/lib/services, the ' +
         "site's nav.ts and the picture manifests, and nothing else. A feature index.ts " +
         'is refused too, since it reaches views and usecases.',
       from: {
-        path: '(^|/)apps/docs/src/(?:service|.*/service)(?:/|\\.tsx?$)',
+        path: '(^|/)apps/docs/src/(?:services|.*/services)(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
       to: {
         pathNot:
-          '(^|/)apps/docs/src/(?:service|.*/service)(?:/|\\.tsx?$)|(^|/)apps/docs/nav\\.ts$|(^|/)apps/docs/static/(?:console|server-pages)/manifest\\.json$',
+          '(^|/)apps/docs/src/(?:services|.*/services)(?:/|\\.tsx?$)|(^|/)apps/docs/nav\\.ts$|(^|/)apps/docs/static/(?:console|server-pages)/manifest\\.json$',
       },
     },
     {
-      name: 'docs-usecase-imports-no-view',
+      name: 'docs-use-cases-import-no-ui',
       severity: 'error',
       comment:
-        'A docs usecase orchestrates for a view and is called by it; a usecase that reached ' +
+        'A docs use case orchestrates for a view and is called by it; a use case that reached ' +
         'back into a view would make the two one thing.',
       from: {
-        path: '(^|/)apps/docs/src/(?:usecase|.*/usecase)(?:/|\\.tsx?$)',
+        path: '(^|/)apps/docs/src/(?:use-cases|.*/use-cases)(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
-      to: { path: '(^|/)apps/docs/src/(?:view|.*/view)(?:/|\\.tsx?$)' },
+      to: { path: '(^|/)apps/docs/src/(?:ui|.*/ui)(?:/|\\.tsx?$)' },
     },
     {
-      name: 'docs-index-exports-view-usecase-service',
+      name: 'docs-index-exports-ui-use-cases-services',
       severity: 'error',
       comment:
-        "A docs feature's index.ts publishes its own views, usecases and services; a type-only " +
+        "A docs feature's index.ts publishes its own ui, use cases and services; a type-only " +
         'export of anything is allowed.',
       from: { path: '(^|/)apps/docs/src/features/([^/]+)/index\\.ts$' },
       // $2 is substituted unescaped; tests/lint/console-feature-names.test.ts keeps it regex-safe.
       to: {
-        pathNot: '(^|/)apps/docs/src/features/$2/(?:view|usecase|service)(?:/|\\.tsx?$)',
+        pathNot: '(^|/)apps/docs/src/features/$2/(?:ui|use-cases|services)(?:/|\\.tsx?$)',
         dependencyTypesNot: ['type-only'],
       },
     },
@@ -245,10 +304,10 @@ module.exports = {
         'visibility). A view reaches it through its usecase, so markup never decides anything ' +
         'from the DOM.',
       from: {
-        path: '(^|/)apps/docs/src/(?:view|.*/view)(?:/|\\.tsx?$)',
+        path: '(^|/)apps/docs/src/(?:ui|.*/ui)(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
-      to: { path: '(^|/)apps/docs/src/(?:shared|features/[^/]+)/platform/' },
+      to: { path: '(^|/)apps/docs/src/(?:shared/lib|features/[^/]+)/platform/' },
     },
     {
       name: 'docs-nothing-imports-routes',
@@ -284,12 +343,12 @@ module.exports = {
       name: 'console-gallery-shows-only-view',
       severity: 'error',
       comment:
-        'The gallery renders the design system with sample data, so it needs shared/view and ' +
-        'the pure rules in shared/service, and never a store, the transport or a feature.',
+        'The gallery renders the design system with sample data, so it needs shared/ui and ' +
+        'the pure rules in shared/lib/services, and never a store, the transport or a feature.',
       from: { path: '(^|/)apps/admin-console/src/gallery/' },
       to: {
         path: '(^|/)apps/admin-console/src/',
-        pathNot: '(^|/)apps/admin-console/src/(?:gallery|shared/view|shared/service)/',
+        pathNot: '(^|/)apps/admin-console/src/(?:gallery|shared/ui|shared/lib/services)/',
       },
     },
     {
@@ -339,7 +398,7 @@ module.exports = {
     {
       name: 'no-view-to-repository',
       severity: 'error',
-      from: { path: '/src/(?:view|.*/view)(?:/|\\.tsx?$)' },
+      from: { path: '/src/(?:view|ui|.*/(?:view|ui))(?:/|\\.tsx?$)' },
       to: { path: '/src/(?:repository|.*/repository)(?:/|\\.tsx?$)' },
     },
     {
@@ -348,27 +407,29 @@ module.exports = {
       comment:
         'repository holds state and refetch decisions; it depends on adapter and service only.',
       from: { path: '/src/(?:repository|.*/repository)(?:/|\\.tsx?$)', pathNot: '\\.test\\.tsx?$' },
-      to: { path: '/src/(?:usecase|view|.*/(?:usecase|view))(?:/|\\.tsx?$)' },
+      to: {
+        path: '/src/(?:usecase|use-cases|view|ui|.*/(?:usecase|use-cases|view|ui))(?:/|\\.tsx?$)',
+      },
     },
     {
       name: 'no-view-to-adapter',
       severity: 'error',
-      from: { path: '/src/(?:view|.*/view)(?:/|\\.tsx?$)' },
+      from: { path: '/src/(?:view|ui|.*/(?:view|ui))(?:/|\\.tsx?$)' },
       to: { path: '/src/(?:adapter|.*/adapter)(?:/|\\.tsx?$)' },
     },
     {
       name: 'no-usecase-to-adapter',
       severity: 'error',
-      from: { path: '/src/(?:usecase|.*/usecase)(?:/|\\.tsx?$)' },
+      from: { path: '/src/(?:usecase|use-cases|.*/(?:usecase|use-cases))(?:/|\\.tsx?$)' },
       to: { path: '/src/(?:adapter|.*/adapter)(?:/|\\.tsx?$)' },
     },
     {
       name: 'service-is-a-leaf',
       severity: 'error',
       comment: 'service holds domain logic and depends on no other layer.',
-      from: { path: '/src/(?:service|.*/service)(?:/|\\.tsx?$)' },
+      from: { path: '/src/(?:service|services|.*/(?:service|services))(?:/|\\.tsx?$)' },
       to: {
-        path: '/src/(?:(?:view|usecase|repository|adapter)|.*/(?:view|usecase|repository|adapter))(?:/|\\.tsx?$)',
+        path: '/src/(?:(?:view|ui|usecase|use-cases|repository|adapter)|.*/(?:view|ui|usecase|use-cases|repository|adapter))(?:/|\\.tsx?$)',
       },
     },
     {
@@ -380,7 +441,7 @@ module.exports = {
         '`./src/*.ts` (see packages/protocol-oidc/src/testing/). None of the five layers has a ' +
         'legitimate reason to depend on test-only code; a test beside one is not layer code.',
       from: {
-        path: '/src/(?:(?:view|usecase|repository|adapter|service)|.*/(?:view|usecase|repository|adapter|service))(?:/|\\.tsx?$)',
+        path: '/src/(?:(?:view|ui|usecase|use-cases|repository|adapter|service|services)|.*/(?:view|ui|usecase|use-cases|repository|adapter|service|services))(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
       to: { path: '/src/(?:testing|.*/testing)/' },

@@ -1,0 +1,11 @@
+{
+  "items": [
+    {
+      "locale": "fr",
+      "key": "login.title",
+      "message": "Connexion",
+      "updated_at": "2026-10-30T05:47:48.182Z",
+      "etag": "\"4cd2aae063c6903268ffbe05e2274ffa87204bd66dd2bc575c725b258b28b8d9\""
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+import type { Role } from '#/entities/role';
+import type { SetRolesResponse } from '#/entities/subject';
+import type { EffectiveRoleAssignment } from '#/shared/lib/types/capabilities';
+import { useRefusal } from '#/entities/session';
+import {
+  useRolePicker,
+  assignmentsOf,
+  knownAssignments,
+  roleNameOf,
+  type AssignedRole,
+  type RoleValues,
+} from '#/entities/role';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { describeIds } from '#/shared/lib/services/format';
+import { sortedIds } from '#/shared/lib/services/ids';
+import type { PickerState } from '#/shared/lib/services/picker';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
+import {
+  accessRefusal,
+  provenanceListText,
+  roleOwnerShort,
+} from '#/shared/lib/services/capabilities';
+import {
+  type Subject,
+  useEffectiveRoleList,
+  useSaveRoles,
+  subjectName,
+  rolesRecord,
+  roleUnavailableHere,
+  splitRoles,
+} from '#/entities/subject';
+
+export interface SubjectRoles {
+  name: string;
+  canManage: boolean;
+  save: SectionSave<RoleValues>;
+  choose: (ids: readonly string[]) => void;
+  picker: PickerState<Role>;
+  // Why a role is not chosen here: an admin capability has its own section.
+  unavailableOf: (role: Role) => string | null;
+  assigned: readonly AssignedRole[];
+  effective: ResourceListState<EffectiveRoleAssignment>;
+  // Whose a role is, and how it is held, as the lists say them.
+  ownerOf: (client: string | null) => string;
+  heldBy: (role: EffectiveRoleAssignment) => string;
+}
+
+export function useSubjectRoles(
+  tenant: string,
+  subject: Subject,
+  data: SetRolesResponse,
+  etag: string,
+  gone: boolean,
+  canManage: boolean,
+): SubjectRoles {
+  const name = subjectName(subject);
+  const refusal = useRefusal(tenant);
+  const picker = useRolePicker(tenant);
+  const effective = useEffectiveRoleList(tenant, subject.id);
+  const saveRoles = useSaveRoles(tenant, subject.id);
+  const split = splitRoles(data.items);
+  const known = knownAssignments(data.items, picker.options);
+  const save = useSectionSave({
+    tenant,
+    record: rolesRecord(subject.id),
+    section: 'roles',
+    label: 'Roles',
+    etag,
+    capability: 'manage-users',
+    gone,
+    refusal,
+    explain: accessRefusal(name, 'roles'),
+    fields: {
+      role_ids: {
+        value: sortedIds(split.roleIds),
+        label: 'Roles',
+        kind: 'plain',
+        describe: (value) => describeIds(value, roleNameOf(known)),
+      },
+    },
+    save: (gateway, { values, ifMatch }) =>
+      saveRoles(gateway, [...values.role_ids, ...split.adminIds], ifMatch),
+  });
+  return {
+    name,
+    canManage,
+    save,
+    choose: (value) => {
+      save.edit('role_ids', sortedIds(value));
+    },
+    picker,
+    unavailableOf: roleUnavailableHere,
+    assigned: assignmentsOf(save.values.role_ids, known),
+    effective,
+    ownerOf: roleOwnerShort,
+    heldBy: (role) => provenanceListText(role.via),
+  };
+}

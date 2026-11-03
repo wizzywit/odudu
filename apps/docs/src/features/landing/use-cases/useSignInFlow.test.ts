@@ -1,0 +1,20 @@
+import { describe, expect, it } from 'vitest';
+import { REST_NOTE, captions } from '@site/src/features/landing/services/flowView';
+import { buildScene } from '@site/src/features/landing/services/sceneModel';
+import { useSignInFlow } from '@site/src/features/landing/use-cases/useSignInFlow';
+import { resultOf } from '@site/tests/support/hook';
+
+describe('useSignInFlow', () => {
+  it('starts at rest, not playing, with the rest note to say', () => {
+    const flow = resultOf(useSignInFlow);
+    expect(flow.step).toBe(0);
+    expect(flow.wantsPlay).toBe(false);
+    expect(flow.view.label).toBe('Play');
+    expect(flow.buttons).toHaveLength(7);
+    expect(flow.view.live).toBe(REST_NOTE);
+    expect(flow.scenes.wide).toEqual(buildScene('wide', 0));
+    expect(flow.scenes.tall).toEqual(buildScene('tall', 0));
+    expect(flow.captions).toEqual(captions());
+    expect(flow.uid).not.toContain(':');
+  });
+});

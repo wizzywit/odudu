@@ -4,7 +4,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-// shared/transport/ is the console's one HTTP client to the gateway: it sets
+// shared/api/transport/ is the console's one HTTP client to the gateway: it sets
 // the CSRF header and the credentials mode, so a request made anywhere else,
 // by fetch, XMLHttpRequest, EventSource, WebSocket or a beacon, would go out
 // without them.
@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const CONSOLE_SRC = 'apps/admin-console/src';
 const FIXTURES = 'tests/lint/fixtures/console-fetch';
-const TRANSPORT = 'shared/transport/';
+const TRANSPORT = 'shared/api/transport/';
 
 const GLOBALS = new Set(['globalThis', 'window', 'self']);
 // Each sends a request of its own, so each would leave the page without them.
@@ -95,13 +95,13 @@ function offenders(files: Map<string, string>): string[] {
 }
 
 describe('requests in the console', { timeout: 60_000 }, () => {
-  it('are made only from shared/transport/', async () => {
+  it('are made only from shared/api/transport/', async () => {
     const files = await read(CONSOLE_SRC);
     expect([...files.keys()]).toContain('app/App/App.tsx');
     expect(offenders(files)).toEqual([]);
   });
 
-  it('are found by reference, not by text, outside shared/transport/ in the fixtures', async () => {
+  it('are found by reference, not by text, outside shared/api/transport/ in the fixtures', async () => {
     const files = await read(FIXTURES);
     expect([...files.keys()]).toContain(`${TRANSPORT}client.ts`);
     expect(offenders(files)).toEqual([

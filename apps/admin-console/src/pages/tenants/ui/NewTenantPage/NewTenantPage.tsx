@@ -1,0 +1,307 @@
+import { VisuallyHidden } from 'react-aria-components';
+import { useNewTenant } from '#/pages/tenants/use-cases/useNewTenant';
+import { useAdministratorStep } from '#/pages/tenants/use-cases/useAdministratorStep';
+import { type StepFeedback } from '#/pages/tenants/use-cases/useStepFeedback';
+import { useTenantStep } from '#/pages/tenants/use-cases/useTenantStep';
+import { flowOf, type Creation, type CreationFlow } from '#/entities/creation-draft';
+import type { DoneStep } from '#/pages/tenants/services/creationOutcome';
+import {
+  useAddAdministratorGate,
+  useAddSystemAdministratorGate,
+  useCreateTenantGate,
+} from '#/pages/tenants/use-cases/useCreationGate';
+import { ReplaceUnfinished } from '#/pages/tenants/ui/ReplaceUnfinished';
+import { SystemGate } from '#/widgets/shell';
+import { Button } from '#/shared/ui/Button';
+import { ButtonLink } from '#/shared/ui/ButtonLink';
+import { ChecklistField } from '#/shared/ui/ChecklistField';
+import { CapabilityNote } from '#/shared/ui/CapabilityNote';
+import { TextField } from '#/shared/ui/Field';
+import { CreationForm, creationForm } from '#/shared/ui/CreationForm';
+import { PageHeader } from '#/shared/ui/PageHeader';
+import { SecretDialog } from '#/shared/ui/SecretDialog';
+import { recordTab } from '#/shared/ui/RecordTab';
+import styles from '#/pages/tenants/ui/NewTenantPage/NewTenantPage.module.css';
+
+const STEPS = ['The tenant', 'Its first administrator', 'Done'] as const;
+
+function Steps({ at }: { at: number }) {
+  return (
+    <ol aria-label="Steps" className={styles.steps}>
+      {STEPS.map((label, index) => (
+        <li
+          key={label}
+          className={styles.step}
+          data-state={index < at ? 'done' : index === at ? 'current' : 'next'}
+          {...(index === at ? { 'aria-current': 'step' } : {})}
+        >
+          <span className={styles.number} aria-hidden="true">
+            {index + 1}
+          </span>
+          {label}
+          {index < at ? <VisuallyHidden elementType="span">, done</VisuallyHidden> : null}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function Message({ text }: { text: string | null }) {
+  return (
+    <p role="status" className={styles.message}>
+      {text}
+    </p>
+  );
+}
+
+interface StepProps<S extends Creation['step']> {
+  creation: Extract<Creation, { step: S }>;
+  feedback: StepFeedback;
+  update: (creation: Creation) => void;
+  systemIssuer: string | undefined;
+}
+
+function Tenant({ creation, feedback, update, systemIssuer }: StepProps<'tenant'>) {
+  const step = useTenantStep(creation, feedback, update, systemIssuer);
+  return (
+    <CreationForm submit={step.submit}>
+      <TextField
+        label="Name"
+        description={step.rule}
+        value={step.name}
+        error={step.nameError}
+        onChange={step.editName}
+        mono
+        autoFocus
+      />
+      <div className={styles.preview}>
+        <span className={styles.previewLabel}>Issuer</span>
+        <code className={styles.previewValue}>
+          {step.issuer ?? 'Shown once the name follows the rule.'}
+        </code>
+      </div>
+      <TextField
+        label="Display name"
+        description="Optional. What the console and the tenant's pages call it."
+        value={step.displayName}
+        error={step.displayNameError}
+        onChange={step.editDisplayName}
+      />
+      <Message text={step.message} />
+      <div className={styles.actions}>
+        {step.unconfirmed ? (
+          <Button variant="primary" isDisabled={step.busy} onPress={step.check}>
+            {`Check whether ${step.name} was created`}
+          </Button>
+        ) : (
+          <Button type="submit" variant="primary" isDisabled={step.busy}>
+            {step.busy ? 'Creating…' : 'Create tenant'}
+          </Button>
+        )}
+      </div>
+    </CreationForm>
+  );
+}
+
+function Administrator({ creation, feedback, update, systemIssuer }: StepProps<'administrator'>) {
+  const step = useAdministratorStep(creation, feedback, update, systemIssuer);
+  return (
+    <>
+      <p className={styles.lead}>
+        {step.systemAdminsHref === null ? (
+          <>
+            <code>{step.tenant}</code> {step.originText}
+          </>
+        ) : (
+          <>
+            A system administrator holds tenant-admin in <code>system</code>, which carries every
+            capability and reaches every tenant.
+          </>
+        )}{' '}
+        The administrator is created with a one-time password, shown once, and is asked to change it
+        at their first sign-in.
+      </p>
+      <CreationForm submit={step.submit}>
+        {step.created ? (
+          <dl className={recordTab.fixed}>
+            <dt>Username</dt>
+            <dd>
+              <code>{step.username}</code>, created. What is left is what they hold and the one-time
+              password.
+            </dd>
+          </dl>
+        ) : (
+          <>
+            <TextField
+              label="Username"
+              value={step.username}
+              error={step.usernameError}
+              onChange={step.editUsername}
+              mono
+              autoFocus
+            />
+            <TextField
+              label="Email"
+              description="Optional."
+              type="email"
+              value={step.email}
+              error={step.emailError}
+              onChange={step.editEmail}
+            />
+          </>
+        )}
+        {step.note === null ? null : <p className={styles.lead}>{step.note}</p>}
+        {step.choosing ? (
+          <ChecklistField
+            label="What they hold"
+            description="Full is every capability. A part of it is any set of capabilities, each changeable later from the tenant's Administrators tab. You can give only what you hold."
+            options={step.holdingOptions}
+            value={step.holdings}
+            error={step.holdingsError}
+            onChange={step.chooseHoldings}
+          />
+        ) : null}
+        {step.needs.map((capability) => (
+          <CapabilityNote key={capability} capability={capability}>
+            Creating the administrator
+          </CapabilityNote>
+        ))}
+        <Message text={step.message} />
+        <div className={styles.actions}>
+          {step.unconfirmed ? (
+            <Button variant="primary" isDisabled={step.busy} onPress={step.check}>
+              {`Check whether ${step.username} was created`}
+            </Button>
+          ) : (
+            <Button type="submit" variant="primary" isDisabled={step.busy || step.needs.length > 0}>
+              {step.busy ? 'Working…' : step.created ? 'Continue' : 'Create administrator'}
+            </Button>
+          )}
+        </div>
+      </CreationForm>
+      <SecretDialog
+        secret={step.secret}
+        title={`${step.username}'s one-time password`}
+        label="one-time password"
+        onClose={step.closeSecret}
+      >
+        {`${step.username} signs in to ${step.tenant} with it once${step.issuer === null ? '' : `, at ${step.issuer}`}, and then chooses a password of their own.`}
+      </SecretDialog>
+    </>
+  );
+}
+
+function Done({ step, onStartOver }: { step: DoneStep; onStartOver: () => void }) {
+  if (step.systemAdminsHref !== null) {
+    return (
+      <div className={creationForm.form}>
+        <p className={styles.lead}>
+          <code>{step.username}</code> {step.systemHolds} <code>system</code>, and changes the
+          one-time password at their first sign-in.
+        </p>
+        <div className={styles.actions}>
+          <ButtonLink href={step.systemAdminsHref} variant="primary">
+            Back to System administrators
+          </ButtonLink>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className={creationForm.form}>
+      <p className={styles.lead}>
+        <code>{step.tenant}</code> has an administrator, <code>{step.username}</code>, who holds{' '}
+        {step.holds} and changes the one-time password at their first sign-in.
+      </p>
+      <div className={styles.actions}>
+        <ButtonLink href={step.recordHref} variant="primary">
+          {`Open ${step.tenant}`}
+        </ButtonLink>
+        <ButtonLink href={step.enterHref}>{`Enter ${step.tenant}`}</ButtonLink>
+        <Button variant="quiet" onPress={onStartOver}>
+          {step.again === 'tenant' ? 'Create another tenant' : 'Add another administrator'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function Creation({ flow }: { flow: CreationFlow }) {
+  const {
+    creation,
+    update,
+    feedback,
+    systemIssuer,
+    heading,
+    done,
+    startOver,
+    replacing,
+    replace,
+    keep,
+  } = useNewTenant(flow);
+  const { at, title, breadcrumb } = heading;
+  return (
+    <>
+      <PageHeader
+        breadcrumb={breadcrumb}
+        title={title}
+        description="Where it has got to is kept in this tab, so a reload carries on from the last request that landed."
+        {...(creation.step === 'administrator'
+          ? {
+              actions: (
+                <Button variant="quiet" onPress={startOver}>
+                  Start over
+                </Button>
+              ),
+            }
+          : {})}
+      />
+      {flow === 'tenant' ? <Steps at={at} /> : null}
+      {creation.step === 'tenant' ? (
+        <Tenant
+          creation={creation}
+          feedback={feedback}
+          update={update}
+          systemIssuer={systemIssuer}
+        />
+      ) : null}
+      {creation.step === 'administrator' ? (
+        <Administrator
+          creation={creation}
+          feedback={feedback}
+          update={update}
+          systemIssuer={systemIssuer}
+        />
+      ) : null}
+      {done === null ? null : <Done step={done} onStartOver={startOver} />}
+      <ReplaceUnfinished unfinished={replacing} onReplace={replace} onKeep={keep} />
+    </>
+  );
+}
+
+export function NewTenantPage({ tenant }: { tenant: string }) {
+  const { title, breadcrumb } = useCreateTenantGate();
+  return (
+    <SystemGate tenant={tenant} title={title} breadcrumb={breadcrumb}>
+      <Creation flow="tenant" />
+    </SystemGate>
+  );
+}
+
+export function NewSystemAdministratorPage({ tenant }: { tenant: string }) {
+  const { title, breadcrumb } = useAddSystemAdministratorGate();
+  return (
+    <SystemGate tenant={tenant} title={title} breadcrumb={breadcrumb}>
+      <Creation flow="system-administrator" />
+    </SystemGate>
+  );
+}
+
+export function NewAdministratorPage({ tenant, name }: { tenant: string; name: string }) {
+  const { title, breadcrumb } = useAddAdministratorGate(name);
+  return (
+    <SystemGate tenant={tenant} title={title} breadcrumb={breadcrumb}>
+      <Creation flow={flowOf(name)} />
+    </SystemGate>
+  );
+}

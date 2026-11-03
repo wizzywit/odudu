@@ -1,4 +1,4 @@
-import { useDrafts } from '#/shared/repository/useDrafts';
+import { useDrafts } from '#/shared/lib/repository/useDrafts';
 
 export function Parts() {
   const { count } = useDrafts.getState();

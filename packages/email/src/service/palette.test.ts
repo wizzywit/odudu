@@ -6,7 +6,7 @@ import { contrastRatio, mailPalette, MAIL_ROLES, readTokenPalette } from '#/serv
 
 const TOKENS = path.resolve(
   import.meta.dirname,
-  '../../../../apps/admin-console/src/shared/view/tokens.css',
+  '../../../../apps/admin-console/src/shared/ui/tokens.css',
 );
 
 describe('readTokenPalette', () => {

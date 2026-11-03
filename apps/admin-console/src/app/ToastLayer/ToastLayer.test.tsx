@@ -1,8 +1,8 @@
 import { act, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ToastLayer } from '#/app/ToastLayer/ToastLayer';
-import { useToasts } from '#/shared/repository/useToasts';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
+import { useToasts } from '#/shared/lib/repository/useToasts';
+import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
 import { resetConsole } from '#/testing/resetConsole';
 
 afterEach(() => {

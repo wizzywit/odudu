@@ -1,0 +1,5 @@
+{
+  "available": ["sub", "profile", "email", "roles", "groups", "address", "phone"],
+  "bound": ["sub"],
+  "declared": ["email"]
+}

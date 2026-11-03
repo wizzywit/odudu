@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "id": "0192f5c4-1d4e-7a3b-9c11-5a2f0e6b7c01",
+      "occurred_at": "2026-10-19T09:30:00.000Z",
+      "event_type": "admin_mutation",
+      "action": "client.create",
+      "outcome": "allowed",
+      "actor_tenant_id": "0192f5c4-0000-7000-8000-000000000001",
+      "actor_subject_id": "0192f5c4-0000-7000-8000-000000000002",
+      "actor_client_id": "0192f5c4-0000-7000-8000-000000000003",
+      "actor_name": "ada",
+      "actor_origin": "tenant",
+      "resource_type": "client",
+      "resource_id": "0192f5c4-0000-7000-8000-000000000004",
+      "request_id": "0192f5c4-0000-7000-8000-000000000005",
+      "ip": "203.0.113.7",
+      "detail": {}
+    }
+  ],
+  "next": "eyJ0IjoiMjAyNi0xMC0xOVQwOTozMDowMC4wMDBaIn0.sig"
+}

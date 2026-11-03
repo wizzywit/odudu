@@ -1,8 +1,8 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { vi } from 'vitest';
 import type { ReactNode } from 'react';
-import { createQueryClient } from '#/shared/repository/queryClient';
-import { TransportContext } from '#/shared/transport/useTransport';
+import { createReadCache } from '#/shared/lib/repository/readCache';
+import { TransportContext } from '#/shared/api/transport/useTransport';
 import { fakeTransport, type Answer } from '#/testing/fakeTransport';
 
 // The wrapper a repository hook needs: a fake transport answering `routes`
@@ -13,7 +13,7 @@ export function hookHarness(
   transport?: ReturnType<typeof fakeTransport>['transport'],
 ) {
   const fake = fakeTransport(routes);
-  const queryClient = createQueryClient();
+  const queryClient = createReadCache();
   const invalidated = vi.spyOn(queryClient, 'invalidateQueries');
   const wrapper = ({ children }: { children: ReactNode }) => (
     <TransportContext value={transport ?? fake.transport}>

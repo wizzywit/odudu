@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PAGES_DOCS_BASE } from '#docs/site.config.ts';
-import { AGENT_ITEMS, type Planned } from '#docs/src/features/landing/service/content.ts';
+import { AGENT_ITEMS, type Planned } from '#docs/src/features/landing/services/plannedClaims.ts';
 import { DOCS_ROOT, distDir, load } from '#docs/tests/support/dist.ts';
 
 // A "Planned" claim on the landing page is held to the roadmap's words: each

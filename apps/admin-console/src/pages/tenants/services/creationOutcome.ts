@@ -1,0 +1,46 @@
+import { tenantPage } from '#/shared/lib/services/address';
+import { holdsText, systemHoldsText } from '#/pages/tenants/services/administratorHoldings';
+import type { Creation, CreationFlow } from '#/entities/creation-draft';
+import { systemAdminsHrefOf, tenantHref } from '#/pages/tenants/services/systemAddress';
+
+// Starting over from a tenant's own administrator adds another to it.
+export function againOf(flow: CreationFlow): 'tenant' | 'administrator' {
+  return flow === 'tenant' ? 'tenant' : 'administrator';
+}
+
+export interface DoneStep {
+  step: 'done';
+  tenant: string;
+  username: string;
+  // What they were given, as a sentence fragment: "tenant-admin".
+  holds: string;
+  // What a system administrator is said to hold, around "in system".
+  systemHolds: string;
+  // Starting over from a tenant's own administrator adds another to it.
+  again: 'tenant' | 'administrator';
+  systemAdminsHref: string | null;
+  recordHref: string;
+  enterHref: string;
+}
+
+export function doneStepOf(
+  creation: Extract<Creation, { step: 'done' }>,
+  flow: CreationFlow,
+): DoneStep {
+  const holds = holdsText(creation.holdings);
+  return {
+    step: 'done',
+    tenant: creation.tenant,
+    username: creation.username,
+    holds,
+    systemHolds: systemHoldsText(holds),
+    again: againOf(flow),
+    systemAdminsHref: systemAdminsHrefOf(creation.tenant),
+    recordHref: tenantHref(creation.tenant),
+    enterHref: tenantPage(creation.tenant),
+  };
+}
+
+export function doneOf(creation: Creation, flow: CreationFlow): DoneStep | null {
+  return creation.step === 'done' ? doneStepOf(creation, flow) : null;
+}

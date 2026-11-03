@@ -5,7 +5,7 @@ import { DOCS_ROOT, docsDir, load } from '#docs/tests/support/dist.ts';
 
 const REPO = path.resolve(DOCS_ROOT, '../..');
 const CONTENT = path.join(DOCS_ROOT, 'content/en/concepts');
-const COMPONENT = path.join(DOCS_ROOT, 'src/shared/view/Diagram');
+const COMPONENT = path.join(DOCS_ROOT, 'src/shared/ui/Diagram');
 
 const PAGES = [
   'tenants',
@@ -90,7 +90,7 @@ describe('each concept page embeds its diagrams', () => {
       expect(inWords).toBe(desc);
     }
     expect(body(page)).not.toMatch(/<img\b|!\[/u);
-    expect(body(page)).toContain("import { Diagram } from '@site/src/shared/view/Diagram';");
+    expect(body(page)).toContain("import { Diagram } from '@site/src/shared/ui/Diagram';");
   });
 
   it.each(PAGES)('the built %s page carries each described svg inline', (page) => {
@@ -293,7 +293,7 @@ const MORE_FACTS: readonly Fact[] = [
   {
     page: 'scopes',
     says: 'Include all roles in tokens',
-    file: 'apps/admin-console/src/features/clients/service/tokens.ts',
+    file: 'apps/admin-console/src/pages/clients/services/idTokenPolicy.ts',
     holds: /FULL_SCOPE_LABEL = 'Include all roles in tokens'/u,
   },
   {

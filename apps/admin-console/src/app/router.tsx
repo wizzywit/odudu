@@ -11,13 +11,14 @@ import {
 import { RouterProvider as AriaRouterProvider } from 'react-aria-components';
 import { lazyFeatureRoute } from '#/app/lazyFeatureRoute';
 import { NavigationGuard } from '#/app/NavigationGuard';
-import { RouteFailure, ShellFailure } from '#/features/failure';
-import { ConsoleHome, SessionGate } from '#/features/session';
-import { pendingPage, PendingFrame, TenantShell } from '#/features/shell';
-import { PRODUCT_NAME } from '#/shared/service/product';
-import { parseSearch, stringifySearch } from '#/shared/service/search';
-import { LostFrame } from '#/shared/view/LostFrame';
-import { PageNotFound } from '#/shared/view/PageNotFound';
+import { RouteFailure, ShellFailure } from '#/widgets/failure';
+import { ConsoleHome } from '#/pages/console-home';
+import { SessionGate } from '#/widgets/session-gate';
+import { pendingPage, PendingFrame, TenantShell } from '#/widgets/shell';
+import { PRODUCT_NAME } from '#/shared/lib/services/product';
+import { parseSearch, stringifySearch } from '#/shared/lib/services/search';
+import { LostFrame } from '#/shared/ui/LostFrame';
+import { PageNotFound } from '#/shared/ui/PageNotFound';
 
 // React Aria's links navigate through the router, so a rail link is still a
 // real href for a new tab while an ordinary click waits on the guard.
@@ -72,7 +73,7 @@ const tenant = createRoute({
 });
 
 const Overview = lazyFeatureRoute(
-  () => import('#/features/overview').then((feature) => feature.OverviewPage),
+  () => import('#/pages/overview').then((feature) => feature.OverviewPage),
   'Loading the overview',
 );
 
@@ -94,7 +95,7 @@ function tenantsPage(
     | 'ExportPage',
 ) {
   return lazyFeatureRoute(
-    () => import('#/features/tenants').then((feature) => feature[name]),
+    () => import('#/pages/tenants').then((feature) => feature[name]),
     'Loading tenants',
   );
 }
@@ -103,13 +104,13 @@ const Tenants = tenantsPage('TenantsPage');
 const NewTenant = tenantsPage('NewTenantPage');
 const NewSystemAdministrator = tenantsPage('NewSystemAdministratorPage');
 const NewAdministrator = lazyFeatureRoute(
-  () => import('#/features/tenants').then((feature) => feature.NewAdministratorPage),
+  () => import('#/pages/tenants').then((feature) => feature.NewAdministratorPage),
   'Loading tenants',
 );
 const ImportTenant = tenantsPage('ImportTenantPage');
 const Export = tenantsPage('ExportPage');
 const TenantRecord = lazyFeatureRoute(
-  () => import('#/features/tenants').then((feature) => feature.TenantRecordPage),
+  () => import('#/pages/tenants').then((feature) => feature.TenantRecordPage),
   'Loading the tenant',
 );
 
@@ -170,7 +171,7 @@ const tenantRecord = tenantPages[1];
 const tenantAdministrator = tenantPages[2];
 
 const SystemAdministrators = lazyFeatureRoute(
-  () => import('#/features/system-admins').then((feature) => feature.SystemAdministratorsPage),
+  () => import('#/pages/system-admins').then((feature) => feature.SystemAdministratorsPage),
   'Loading system administrators',
 );
 
@@ -194,7 +195,7 @@ const newSystemAdmin = createRoute({
 
 function subjectsPage(name: 'SubjectsPage' | 'NewSubjectPage') {
   return lazyFeatureRoute(
-    () => import('#/features/subjects').then((feature) => feature[name]),
+    () => import('#/pages/subjects').then((feature) => feature[name]),
     'Loading subjects',
   );
 }
@@ -202,7 +203,7 @@ function subjectsPage(name: 'SubjectsPage' | 'NewSubjectPage') {
 const Subjects = subjectsPage('SubjectsPage');
 const NewSubject = subjectsPage('NewSubjectPage');
 const SubjectRecord = lazyFeatureRoute(
-  () => import('#/features/subjects').then((feature) => feature.SubjectRecordPage),
+  () => import('#/pages/subjects').then((feature) => feature.SubjectRecordPage),
   'Loading the subject',
 );
 
@@ -237,7 +238,7 @@ const subjectRecord = subjectPages[2];
 
 function groupsPage(name: 'GroupsPage' | 'NewGroupPage') {
   return lazyFeatureRoute(
-    () => import('#/features/groups').then((feature) => feature[name]),
+    () => import('#/pages/groups').then((feature) => feature[name]),
     'Loading groups',
   );
 }
@@ -245,7 +246,7 @@ function groupsPage(name: 'GroupsPage' | 'NewGroupPage') {
 const Groups = groupsPage('GroupsPage');
 const NewGroup = groupsPage('NewGroupPage');
 const GroupRecord = lazyFeatureRoute(
-  () => import('#/features/groups').then((feature) => feature.GroupRecordPage),
+  () => import('#/pages/groups').then((feature) => feature.GroupRecordPage),
   'Loading the group',
 );
 
@@ -280,7 +281,7 @@ const groupRecord = groupPages[2];
 
 function rolesPage(name: 'RolesPage' | 'NewRolePage') {
   return lazyFeatureRoute(
-    () => import('#/features/roles').then((feature) => feature[name]),
+    () => import('#/pages/roles').then((feature) => feature[name]),
     'Loading roles',
   );
 }
@@ -288,7 +289,7 @@ function rolesPage(name: 'RolesPage' | 'NewRolePage') {
 const Roles = rolesPage('RolesPage');
 const NewRole = rolesPage('NewRolePage');
 const RoleRecord = lazyFeatureRoute(
-  () => import('#/features/roles').then((feature) => feature.RoleRecordPage),
+  () => import('#/pages/roles').then((feature) => feature.RoleRecordPage),
   'Loading the role',
 );
 
@@ -323,7 +324,7 @@ const roleRecord = rolePages[2];
 
 function clientsPage(name: 'ClientsPage' | 'NewClientPage') {
   return lazyFeatureRoute(
-    () => import('#/features/clients').then((feature) => feature[name]),
+    () => import('#/pages/clients').then((feature) => feature[name]),
     'Loading clients',
   );
 }
@@ -331,7 +332,7 @@ function clientsPage(name: 'ClientsPage' | 'NewClientPage') {
 const Clients = clientsPage('ClientsPage');
 const NewClient = clientsPage('NewClientPage');
 const ClientRecord = lazyFeatureRoute(
-  () => import('#/features/clients').then((feature) => feature.ClientRecordPage),
+  () => import('#/pages/clients').then((feature) => feature.ClientRecordPage),
   'Loading the client',
 );
 
@@ -366,7 +367,7 @@ const clientRecord = clientPages[2];
 
 function scopesPage(name: 'ScopesPage' | 'NewScopePage') {
   return lazyFeatureRoute(
-    () => import('#/features/scopes').then((feature) => feature[name]),
+    () => import('#/pages/scopes').then((feature) => feature[name]),
     'Loading scopes',
   );
 }
@@ -374,7 +375,7 @@ function scopesPage(name: 'ScopesPage' | 'NewScopePage') {
 const Scopes = scopesPage('ScopesPage');
 const NewScope = scopesPage('NewScopePage');
 const ScopeRecord = lazyFeatureRoute(
-  () => import('#/features/scopes').then((feature) => feature.ScopeRecordPage),
+  () => import('#/pages/scopes').then((feature) => feature.ScopeRecordPage),
   'Loading the scope',
 );
 
@@ -408,7 +409,7 @@ const scopePages = [
 const scopeRecord = scopePages[2];
 
 const RegistrationTokens = lazyFeatureRoute(
-  () => import('#/features/registration-tokens').then((feature) => feature.RegistrationTokensPage),
+  () => import('#/pages/registration-tokens').then((feature) => feature.RegistrationTokensPage),
   'Loading registration tokens',
 );
 
@@ -422,7 +423,7 @@ const registrationTokens = createRoute({
 });
 
 const Flow = lazyFeatureRoute(
-  () => import('#/features/flow').then((feature) => feature.FlowPage),
+  () => import('#/pages/flow').then((feature) => feature.FlowPage),
   'Loading the sign-in flow',
 );
 
@@ -436,7 +437,7 @@ const flow = createRoute({
 });
 
 const SigningKeys = lazyFeatureRoute(
-  () => import('#/features/signing-keys').then((feature) => feature.SigningKeysPage),
+  () => import('#/pages/signing-keys').then((feature) => feature.SigningKeysPage),
   'Loading signing keys',
 );
 
@@ -450,7 +451,7 @@ const signingKeys = createRoute({
 });
 
 const TenantSessions = lazyFeatureRoute(
-  () => import('#/features/tenant-sessions').then((feature) => feature.TenantSessionsPage),
+  () => import('#/pages/tenant-sessions').then((feature) => feature.TenantSessionsPage),
   'Loading sessions',
 );
 
@@ -464,7 +465,7 @@ const tenantSessions = createRoute({
 });
 
 const Settings = lazyFeatureRoute(
-  () => import('#/features/settings').then((feature) => feature.SettingsPage),
+  () => import('#/pages/settings').then((feature) => feature.SettingsPage),
   'Loading the settings',
 );
 
@@ -478,7 +479,7 @@ const settings = createRoute({
 });
 
 const Email = lazyFeatureRoute(
-  () => import('#/features/email').then((feature) => feature.EmailPage),
+  () => import('#/pages/email').then((feature) => feature.EmailPage),
   'Loading email',
 );
 
@@ -492,7 +493,7 @@ const email = createRoute({
 });
 
 const Branding = lazyFeatureRoute(
-  () => import('#/features/branding').then((feature) => feature.BrandingPage),
+  () => import('#/pages/branding').then((feature) => feature.BrandingPage),
   'Loading branding',
 );
 
@@ -506,7 +507,7 @@ const branding = createRoute({
 });
 
 const Audit = lazyFeatureRoute(
-  () => import('#/features/audit').then((feature) => feature.AuditPage),
+  () => import('#/pages/audit').then((feature) => feature.AuditPage),
   'Loading the audit trail',
 );
 

@@ -38,7 +38,7 @@ beforeAll(async () => {
 });
 
 async function built(file: string): Promise<string> {
-  const filename = path.join(APP, 'src/shared/view', file);
+  const filename = path.join(APP, 'src/shared/ui', file);
   return (await vite.preprocessCSS(await readFile(filename, 'utf8'), filename, config)).code;
 }
 

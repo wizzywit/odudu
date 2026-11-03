@@ -1,0 +1,5 @@
+.tab {
+  display: grid;
+  gap: var(--space-6);
+  min-inline-size: 0;
+}

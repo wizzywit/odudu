@@ -1,0 +1,13 @@
+{
+  "items": [
+    {
+      "id": "01a109b9-c2f2-795b-9df3-36c34e89980e",
+      "name": "support",
+      "description": null,
+      "parent_id": null,
+      "default_for_new_subjects": false,
+      "path": "/support",
+      "created_at": "2026-10-05T01:42:11.441Z"
+    }
+  ]
+}

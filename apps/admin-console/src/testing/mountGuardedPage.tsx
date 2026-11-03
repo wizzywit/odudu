@@ -11,10 +11,10 @@ import { render } from '@testing-library/react';
 import { NavigationGuard } from '#/app/NavigationGuard';
 import { Providers } from '#/app/Providers';
 import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer';
-import { SessionGate } from '#/features/session';
-import { TenantShell } from '#/features/shell';
-import { createQueryClient } from '#/shared/repository/queryClient';
-import { parseSearch, stringifySearch } from '#/shared/service/search';
+import { SessionGate } from '#/widgets/session-gate';
+import { TenantShell } from '#/widgets/shell';
+import { createReadCache } from '#/shared/lib/repository/readCache';
+import { parseSearch, stringifySearch } from '#/shared/lib/services/search';
 import { fakeTransport, type Answer } from '#/testing/fakeTransport';
 
 // A section on acme's client c1, inside the session gate, the tenant shell and
@@ -51,7 +51,7 @@ export function mountGuardedPage(routes: Record<string, Answer>, page: RouteComp
     stringifySearch,
   });
   const view = render(
-    <Providers transport={fake.transport} queryClient={createQueryClient()}>
+    <Providers transport={fake.transport} queryClient={createReadCache()}>
       <RouterProvider router={router} />
       <UnsavedGuardLayer />
     </Providers>,

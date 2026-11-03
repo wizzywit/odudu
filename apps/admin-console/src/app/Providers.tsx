@@ -1,15 +1,15 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { StrictMode, useState, type ReactNode } from 'react';
 import { I18nProvider } from 'react-aria-components';
-import { createQueryClient } from '#/shared/repository/queryClient';
-import { loadThemeChoice } from '#/shared/adapter/themeChoice';
-import { rememberThemeChoice } from '#/shared/repository/themeChoice';
-import { useDialogHost } from '#/shared/repository/useDialogHost';
-import { ThemeContext } from '#/shared/repository/useTheme';
-import { createBrowserTransport, type Transport } from '#/shared/transport/transport';
-import { TransportContext } from '#/shared/transport/useTransport';
-import type { ThemeChoice } from '#/shared/service/theme';
-import { DialogPresence } from '#/shared/view/dialogPresence';
+import { createReadCache } from '#/shared/lib/repository/readCache';
+import { loadThemeChoice } from '#/shared/api/adapter/themeChoice';
+import { rememberThemeChoice } from '#/shared/lib/repository/themeChoice';
+import { useDialogHost } from '#/shared/lib/repository/useDialogHost';
+import { ThemeContext } from '#/shared/lib/repository/useTheme';
+import { createBrowserTransport, type Transport } from '#/shared/api/transport/transport';
+import { TransportContext } from '#/shared/api/transport/useTransport';
+import type { ThemeChoice } from '#/shared/lib/services/theme';
+import { DialogPresence } from '#/shared/ui/dialogPresence';
 
 // What the console keeps in Context rather than a store: the transport, the
 // theme, and the query client the repositories read through. Dates, names
@@ -24,7 +24,7 @@ export function Providers({
   children: ReactNode;
 }) {
   const [transport] = useState(() => given ?? createBrowserTransport());
-  const [queryClient] = useState(() => givenClient ?? createQueryClient());
+  const [queryClient] = useState(() => givenClient ?? createReadCache());
   const [choice, setChoice] = useState<ThemeChoice>(loadThemeChoice);
   const [theme] = useState(() => ({
     choose: (next: ThemeChoice) => {

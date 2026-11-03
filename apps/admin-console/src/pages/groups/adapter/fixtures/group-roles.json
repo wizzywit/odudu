@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "id": "01a10bd5-de26-730e-a24d-632a39dce6d1",
+      "name": "auditor",
+      "client_id": null,
+      "client_key": null,
+      "admin_reach": ["view-audit"]
+    },
+    {
+      "id": "01a10bd5-de6e-7d18-9b8b-a05afda127f4",
+      "name": "billing-viewer",
+      "client_id": null,
+      "client_key": null,
+      "admin_reach": []
+    }
+  ]
+}

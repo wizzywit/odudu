@@ -284,13 +284,14 @@ where to read the page again rather than trust a green build.
     for the header a screenshot shows.
 - **A capability the landing page or `README.md` shows as planned**
   - Update: when a phase ships what the landing page marks "Planned"
-    (`apps/docs/src/features/landing/service/content.ts`: `AGENT_ITEMS`,
-    `BRANDING` and any later item), turn the item into a shipped one with a
-    real picture, its claim, alt text and tests, or remove it; correct the
+    (`apps/docs/src/features/landing/services/`: `plannedClaims.ts` for
+    `AGENT_ITEMS`, `brandingClaim.ts` for `BRANDING` and any later item),
+    turn the item into a shipped one with a real picture, its claim, alt
+    text and tests, or remove it; correct the
     feature list in `README.md` and any "Planned (P…)" line in
     `tests/docs/questions.md`.
   - Checked by: the landing feature's tests, which pin the planned items
-    (`apps/docs/src/features/landing/view/Agents/Agents.test.tsx`). That a
+    (`apps/docs/src/features/landing/ui/Agents/Agents.test.tsx`). That a
     planned item is removed when its phase ships: no check, so the closing pass
     greps for it.
 - **A change a user or operator can see** (a feature, a changed behaviour, a
@@ -546,71 +547,103 @@ then it is a rule somebody has to follow.
 
 ## Layering
 
-Five functional layers, in the consoles, on the server and, with three of them, in the docs app:
+Five functional layers, in the consoles, on the server and, with three of them, in the docs app. The server's packages keep the folders `view`, `usecase`, `repository`, `adapter` and `service`; the consoles name the same layers by the segments `ui`, `use-cases`, `repository`, `adapter` and `services`:
 
-| Layer      | Contains                                | Business logic    |
-| ---------- | --------------------------------------- | ----------------- |
-| view       | rendering, integration code             | no                |
-| usecase    | orchestration of one journey            | no                |
-| repository | state, refetch decisions                | no                |
-| adapter    | wire contract: endpoints, DTOs, mapping | API-contract only |
-| service    | domain and application logic            | yes               |
+| Layer      | Console segment | Contains                                | Business logic    |
+| ---------- | --------------- | --------------------------------------- | ----------------- |
+| view       | `ui`            | rendering, integration code             | no                |
+| usecase    | `use-cases`     | orchestration of one journey            | no                |
+| repository | `repository`    | state, refetch decisions                | no                |
+| adapter    | `adapter`       | wire contract: endpoints, DTOs, mapping | API-contract only |
+| service    | `services`      | domain and application logic            | yes               |
 
-Permitted imports:
+Permitted imports (the layer names stand for the segments in a console):
 
-- `view` → own model, `shared/view`. Never repository or adapter.
+- `view` → own model, `shared/ui`. Never repository or adapter. A console view
+  never imports a service either; it takes what a use case hands it. The one
+  exception is a file in `shared/ui`, which may import `shared/lib/services`,
+  the pure helpers the design system formats with.
 - `usecase` → repository, service, view models. Never adapter.
 - `repository` → adapter, service.
 - `adapter` → transport, service.
-- `service` → nothing.
+- `service` → other services and its slice's `types`; in a console, an entity's
+  index for types alone.
 
-**The docs app** (`apps/docs/src`) has no remote data, so only `view`, `usecase`
-and `service` apply, laid out as the console lays them out:
-`features/<name>/{view,usecase,service}` with one `index.ts` each, and
-`shared/{view,usecase,service}` for what more than one feature, or MDX
-content, uses. A component is a
+**Where code lives in a console** (`apps/admin-console/src`) is Feature-Sliced
+Design, with the five layers inside each slice. Slices sit in layers, and a
+slice imports only from a layer below it, through that slice's `index.ts`:
+
+`app` → `pages` → `widgets` → `features` → `entities` → `shared`
+
+- `pages/<route>`: one slice per route screen.
+- `widgets/<name>`: a large block composed of other slices (the shell, the
+  session gate, the failure screen).
+- `features/<name>`: a reusable user action used by two or more pages.
+- `entities/<name>`: a domain concept two or more slices use. It owns the
+  concept's `types`, `adapter`, `repository` and `services`, and carries
+  `use-cases` and `ui` where the slices above consume them as hooks and
+  components, since an entity cannot import a feature (ADR 0048's amendment).
+  Its `index.ts` exports only `ui`, `use-cases` and `services`, never the
+  adapter or the repository; an entity imports no entity.
+- `shared`: `ui`, `api` (`adapter`, `transport`) and `lib` (`services`,
+  `repository`, `use-cases`) and no business knowledge. The few platform words
+  that must stay (the tenant and capability vocabulary) are the closed list in
+  `tests/lint/architecture/shared-vocabulary.ts`.
+
+A slice holds only the segments `ui`, `use-cases`, `repository`, `services`,
+`adapter` and `types`. A `services/index.ts` re-exporting anything is refused,
+as is a slice reaching into another's internals, a sibling slice of the same
+layer, or a layer above. `tests/lint/architecture` and the `console-*`
+dependency-cruiser rules hold it, with no allowlist.
+
+**The docs app** (`apps/docs/src`) has no remote data, so only `ui`,
+`use-cases` and `services` apply, laid out as the console lays them out:
+`features/<name>/{ui,use-cases,services}` with one `index.ts` each, and
+`shared/ui` and `shared/lib/{services,use-cases,platform}` for what more than
+one feature, or MDX content, uses. A component is a
 folder with `Component.tsx`, `Component.module.css` and `Component.test.tsx`;
 no type in the docs app carries `readonly` (no `readonly` modifier, tuple or
 array, no `ReadonlyArray`, `ReadonlyMap`, `ReadonlySet` or `Readonly<…>`;
 immutable constants use `as const`), and if a compiler or library forces one,
 raise it rather than suppressing the rule; the console keeps its readonly
-props; hooks live in `usecase` and views render. Browser
+props; hooks live in `use-cases` and views render. Browser
 access a service needs (a clock, an observer, a random source) is handed to it
-by the usecase, so the service stays a pure function a test can drive.
+by the use case, so the service stays a pure function a test can drive.
 Docusaurus pins `src/pages`, `src/image-pages` and `src/css`; the
 route files there are thin views over a feature's `index.ts`. Imports use
 `@site/src/…`, never a relative path and never a `.ts` or `.tsx` extension.
 The dependency rules (`docs-*` in `.dependency-cruiser.cjs`), the
-`complexity: 8` cap on usecases, the react-hooks rules and
+`complexity: 8` cap on use cases, the react-hooks rules and
 `tests/lint/docs-no-readonly.test.ts` hold it; the console's lints for
 duplicate exports, module state, manual memoisation, custom properties, CSS
-module classes, file extensions and usecase logic read the docs app too.
+module classes, file extensions and use-case logic read the docs app too.
 
-Features expose one `index.ts`. No feature reaches into another's
+Every slice exposes one `index.ts`. No slice reaches into another's
 internals.
 
 In the consoles an import never carries a `.ts` or `.tsx` extension:
-`'#/shared/service/chunkLoad'`, not `'…/chunkLoad.ts'`.
+`'#/shared/lib/services/chunkLoad'`, not `'…/chunkLoad.ts'`.
 `tests/lint/console-imports-no-extension.test.ts` fails the build on one.
 
 **Reuse before writing.** Before adding a function, hook, adapter, view or
-wording constant to a console feature, search `shared/` and the sibling
-features for an equivalent by behaviour, not only by name. If one exists,
-import it; a feature reaches another only through its `index.ts`. If two
-features need the same thing, move it to `shared/` (any layer) in its own
-commit and repoint both. A task's report carries a "Reuse scan" that lists
+wording constant to a console slice, search `shared/`, the entities and the
+sibling slices for an equivalent by behaviour, not only by name. If one exists,
+import it; a slice reaches another only through its `index.ts`. If two
+slices need the same thing, move it to an entity or feature both may import,
+or to `shared/` when it holds no business knowledge, in its own commit, and
+repoint both. A task's report carries a "Reuse scan" that lists
 the searches run, the candidates each one turned up and what became of
 each. The searches go by behaviour words and synonyms across `shared/` and
-every sibling feature (for a byte formatter: `KiB`, `MiB`, `toFixed`,
+every sibling slice (for a byte formatter: `KiB`, `MiB`, `toFixed`,
 `formatBytes`), and cover what the lints below cannot see: a copy under
 another name, a nested declaration, the same behaviour written differently.
 A report that names only what was reused is returned, and a reviewer re-runs
 a sample of the searches rather than trusting the list. Do not merge things that merely look alike and change for
-different reasons: feature-specific wording stays in its feature. Each
+different reasons: slice-specific wording stays in its slice. Each
 of these is a lint with no allowlist, so resolving a finding means changing the
 code, and each header lists the forms it cannot see, so a green
 lint speaks only for the rest: `console-no-duplicate-exports` fails a
-declaration copied between features, `shared`, `app` or the e2e files;
+declaration copied between slices, `shared`, `app` or the e2e files;
 `console-no-module-state` module-scope state (a `let`, a mutated collection, a
 class's statics, a counter or setter kept by a factory); `console-store-access`
 a store action called through `getState()` in a hook or component, a
@@ -623,7 +656,8 @@ it looks.** A usecase wires hooks, state and calls together; a repository
 holds queries, mutations and cache keys. Neither decides anything, and
 neither phrases or formats anything. A rule, a message, a failure-to-copy
 mapping and a formatter are each a pure `service` function, and one shared
-by two features lives once in `shared/service`. ADR 0010's amendment has
+by two slices lives once in the entity that owns the concept, or in
+`shared/lib/services`. ADR 0010's amendment has
 the reasoning, and `tests/lint/console-usecase-integration-only.test.ts`
 fails the build on the constructs it can see, a ternary in a hook's returned
 object and a spread merging two objects among them, as ESLint's `complexity`

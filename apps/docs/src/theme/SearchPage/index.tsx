@@ -1,6 +1,6 @@
 import SearchPage from '@theme-original/SearchPage';
 import type { ReactElement } from 'react';
-import { LandmarkProvider } from '@site/src/shared/usecase/useLandmark';
+import { LandmarkProvider } from '@site/src/shared/lib/use-cases/useLandmark';
 
 // The search plugin's page puts its content straight in the layout with no main landmark.
 export default function SearchPageWithLandmark(): ReactElement {

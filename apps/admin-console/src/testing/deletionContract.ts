@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { Write } from '#/shared/repository/useWrite';
-import type { GatewayResult } from '#/shared/service/result';
+import type { Write } from '#/shared/lib/repository/useWrite';
+import type { GatewayResult } from '#/shared/lib/services/result';
 import { pending, problem } from '#/testing/fakeTransport';
 import { hookHarness } from '#/testing/hookHarness';
 import { ACME_ADMIN } from '#/testing/tenantPaths';

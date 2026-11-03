@@ -1,0 +1,42 @@
+{
+  "light": {
+    "source": "client",
+    "colours": {
+      "page": "#e8f0ff",
+      "panel": "#f4f8ff",
+      "sunken": "#d8e4f8",
+      "border": "#777777",
+      "ink": "#111111",
+      "muted": "#555555",
+      "link": "#004400",
+      "button": "#ddeedd",
+      "button_ink": "#004400"
+    }
+  },
+  "dark": {
+    "source": "tenant",
+    "colours": {
+      "page": "#101010",
+      "panel": "#181818",
+      "sunken": "#0c0c0c",
+      "border": "#999999",
+      "ink": "#f0f0f0",
+      "muted": "#b0b0b0",
+      "link": "#aaffaa",
+      "button": "#223322",
+      "button_ink": "#aaffaa"
+    }
+  },
+  "logo": {
+    "src": "http://localhost:3000/tenants/mail-demo/brand/265ffac882aa7e2f48610beb6b4c66bddd27ccddc52715b5857754914e5ab27e.png",
+    "alt": "Portal",
+    "width": 96,
+    "height": 32
+  },
+  "dark_logo": {
+    "src": "http://localhost:3000/tenants/mail-demo/brand/be9b189df624ec78263911c1ad44cff7bcdf97e5c50ba104002c664d2dc701a4.png",
+    "alt": "Mail Demo",
+    "width": 96,
+    "height": 32
+  }
+}

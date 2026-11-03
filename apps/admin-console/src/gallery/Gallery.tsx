@@ -1,49 +1,42 @@
 import { useState, type ReactNode } from 'react';
-import { advance, type CursorTrail } from '#/shared/service/cursorTrail';
-import type { Read } from '#/shared/service/read';
-import type { Translations } from '#/shared/service/localised';
-import type { PickerState } from '#/shared/service/picker';
-import type { ListSearch, ResourceListState } from '#/shared/service/resourceList';
-import { current, dirtyFields, discard, edit, startDraft } from '#/shared/service/dirty';
-import type { Toast } from '#/shared/service/toast';
-import { AccessGate } from '#/shared/view/AccessGate';
-import { ActivityTab } from '#/shared/view/ActivityTab';
-import { ChecklistField } from '#/shared/view/ChecklistField';
-import { CodeField } from '#/shared/view/CodeField';
-import { LocalisedTextField } from '#/shared/view/LocalisedTextField';
-import { AuditActor } from '#/shared/view/AuditActor';
-import { ActionMenu } from '#/shared/view/ActionMenu';
-import { AuditDetail } from '#/shared/view/AuditDetail';
-import { AuditTable } from '#/shared/view/AuditTable';
-import { AppShell } from '#/shared/view/AppShell';
-import { Breadcrumb } from '#/shared/view/Breadcrumb';
-import { BrandLine } from '#/shared/view/BrandLine';
-import { Button } from '#/shared/view/Button';
-import { CreationActions, CreationForm } from '#/shared/view/CreationForm';
-import { DeleteZone } from '#/shared/view/DeleteZone';
-import { DescriptionField } from '#/shared/view/DescriptionField';
-import { KeyHint, PlatformContext } from '#/shared/view/KeyHint';
-import { ButtonLink } from '#/shared/view/ButtonLink';
-import { CapabilityNote } from '#/shared/view/CapabilityNote';
-import { InlineFailed } from '#/shared/view/InlineFailed';
-import { LastAction } from '#/shared/view/LastAction';
-import { ListGate } from '#/shared/view/ListGate';
-import { AssignedList, AssignedRow, AssignPanel } from '#/shared/view/AssignmentControls';
-import { LoadFailed } from '#/shared/view/LoadFailed';
-import { LoadMore, LoadMoreFailed } from '#/shared/view/LoadMore';
-import { LiveMessage, Problem } from '#/shared/view/Message';
-import { MappedRoles } from '#/shared/view/MappedRoles';
-import { NarrowedNote } from '#/shared/view/NarrowedNote';
-import { Note, NoteCode } from '#/shared/view/Note';
-import { ChunkFailed } from '#/shared/view/ChunkBoundary';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
-import { ConflictPanel } from '#/shared/view/ConflictPanel';
-import { ContextBar } from '#/shared/view/ContextBar';
-import { CopyValue } from '#/shared/view/CopyValue';
-import { Count } from '#/shared/view/Count';
-import { DataTable, type Column } from '#/shared/view/DataTable';
-import { Duration } from '#/shared/view/Duration';
-import { EmptyState } from '#/shared/view/EmptyState';
+import { advance, type CursorTrail } from '#/shared/lib/services/cursorTrail';
+import type { Read } from '#/shared/lib/services/read';
+import type { Translations } from '#/shared/lib/services/localised';
+import type { ListSearch, ResourceListState } from '#/shared/lib/services/resourceList';
+import { current, dirtyFields, discard, edit, startDraft } from '#/shared/lib/services/dirty';
+import type { Toast } from '#/shared/lib/services/toast';
+import { AccessGate } from '#/shared/ui/AccessGate';
+import { ChecklistField } from '#/shared/ui/ChecklistField';
+import { CodeField } from '#/shared/ui/CodeField';
+import { LocalisedTextField } from '#/shared/ui/LocalisedTextField';
+import { ActionMenu } from '#/shared/ui/ActionMenu';
+import { AppShell } from '#/shared/ui/AppShell';
+import { Breadcrumb } from '#/shared/ui/Breadcrumb';
+import { BrandLine } from '#/shared/ui/BrandLine';
+import { Button } from '#/shared/ui/Button';
+import { CreationActions, CreationForm } from '#/shared/ui/CreationForm';
+import { DeleteZone } from '#/shared/ui/DeleteZone';
+import { DescriptionField } from '#/shared/ui/DescriptionField';
+import { KeyHint, PlatformContext } from '#/shared/ui/KeyHint';
+import { ButtonLink } from '#/shared/ui/ButtonLink';
+import { CapabilityNote } from '#/shared/ui/CapabilityNote';
+import { InlineFailed } from '#/shared/ui/InlineFailed';
+import { LastAction } from '#/shared/ui/LastAction';
+import { ListGate } from '#/shared/ui/ListGate';
+import { LoadFailed } from '#/shared/ui/LoadFailed';
+import { LoadMore, LoadMoreFailed } from '#/shared/ui/LoadMore';
+import { LiveMessage, Problem } from '#/shared/ui/Message';
+import { NarrowedNote } from '#/shared/ui/NarrowedNote';
+import { Note, NoteCode } from '#/shared/ui/Note';
+import { ChunkFailed } from '#/shared/ui/ChunkBoundary';
+import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
+import { ConflictPanel } from '#/shared/ui/ConflictPanel';
+import { ContextBar } from '#/shared/ui/ContextBar';
+import { CopyValue } from '#/shared/ui/CopyValue';
+import { Count } from '#/shared/ui/Count';
+import { DataTable, type Column } from '#/shared/ui/DataTable';
+import { Duration } from '#/shared/ui/Duration';
+import { EmptyState } from '#/shared/ui/EmptyState';
 import {
   BirthdateField,
   ComboBoxField,
@@ -62,29 +55,24 @@ import {
   ToggleField,
   UrlField,
   UrlListField,
-} from '#/shared/view/Field';
-import { FieldGrid, GridCell } from '#/shared/view/FieldGrid';
-import { FilterBar } from '#/shared/view/FilterBar';
-import { GroupPicker } from '#/shared/view/GroupPicker';
-import { PageHeader } from '#/shared/view/PageHeader';
-import { FailurePanel } from '#/shared/view/FailurePanel';
-import { PageNotFound } from '#/shared/view/PageNotFound';
-import { Pager } from '#/shared/view/Pager';
-import { Panel } from '#/shared/view/Panel';
-import { Rail } from '#/shared/view/Rail';
-import { ReadGate } from '#/shared/view/ReadGate';
-import { RecordActivity } from '#/shared/view/RecordActivity';
-import { RecordPage } from '#/shared/view/RecordPage';
-import { recordTab } from '#/shared/view/RecordTab';
-import { ResourceListPage } from '#/shared/view/ResourceListPage';
-import { RoleOwner } from '#/shared/view/RoleOwner';
-import { ClientPicker } from '#/shared/view/ClientPicker';
-import { RolePicker } from '#/shared/view/RolePicker';
-import { SaveBar } from '#/shared/view/SaveBar';
-import { SaveSection } from '#/shared/view/SaveSection';
-import { SecretDialog } from '#/shared/view/SecretDialog';
-import { Section } from '#/shared/view/Section';
-import { SectionNotice } from '#/shared/view/SectionNotice';
+} from '#/shared/ui/Field';
+import { FieldGrid, GridCell } from '#/shared/ui/FieldGrid';
+import { FilterBar } from '#/shared/ui/FilterBar';
+import { PageHeader } from '#/shared/ui/PageHeader';
+import { FailurePanel } from '#/shared/ui/FailurePanel';
+import { PageNotFound } from '#/shared/ui/PageNotFound';
+import { Pager } from '#/shared/ui/Pager';
+import { Panel } from '#/shared/ui/Panel';
+import { Rail } from '#/shared/ui/Rail';
+import { ReadGate } from '#/shared/ui/ReadGate';
+import { RecordPage } from '#/shared/ui/RecordPage';
+import { recordTab } from '#/shared/ui/RecordTab';
+import { ResourceListPage } from '#/shared/ui/ResourceListPage';
+import { SaveBar } from '#/shared/ui/SaveBar';
+import { SaveSection } from '#/shared/ui/SaveSection';
+import { SecretDialog } from '#/shared/ui/SecretDialog';
+import { Section } from '#/shared/ui/Section';
+import { SectionNotice } from '#/shared/ui/SectionNotice';
 import {
   FormSkeleton,
   ListSkeleton,
@@ -92,14 +80,14 @@ import {
   Skeleton,
   TableSkeleton,
   TermsSkeleton,
-} from '#/shared/view/Skeleton';
-import { StatusTag } from '#/shared/view/StatusTag';
-import { Tabs } from '#/shared/view/Tabs';
-import { TouchTargets } from '#/shared/view/TouchTargets';
-import { Timestamp } from '#/shared/view/Timestamp';
-import { Toasts } from '#/shared/view/Toasts';
-import { UnsavedChangesDialog } from '#/shared/view/UnsavedChangesDialog';
-import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
+} from '#/shared/ui/Skeleton';
+import { StatusTag } from '#/shared/ui/StatusTag';
+import { Tabs } from '#/shared/ui/Tabs';
+import { TouchTargets } from '#/shared/ui/TouchTargets';
+import { Timestamp } from '#/shared/ui/Timestamp';
+import { Toasts } from '#/shared/ui/Toasts';
+import { UnsavedChangesDialog } from '#/shared/ui/UnsavedChangesDialog';
+import { ViewOnlyNote } from '#/shared/ui/ViewOnlyNote';
 import styles from '#/gallery/Gallery.module.css';
 import {
   CLAIM_VALUES,
@@ -107,14 +95,10 @@ import {
   CLIENT_FIELDS,
   CLIENTS,
   CONFLICTS,
-  DETAILED_EVENT,
-  EVENTS,
-  GROUPS,
   JWKS_SAMPLE,
   NOW,
   RAIL_GROUPS,
   REDIRECT_URIS,
-  ROLES,
   STEP_REQUIREMENTS,
   SUBJECT_FIELDS,
   TENANT,
@@ -413,80 +397,10 @@ function SubjectRecord() {
         {
           id: 'activity',
           label: 'Activity',
-          panel: <ActivityTab list={listOf(EVENTS, 'c2')} noun="subject" now={NOW} />,
+          panel: <p>Activity on this subject</p>,
         },
       ]}
     />
-  );
-}
-
-function listOf<T>(rows: readonly T[], next: string | null): ResourceListState<T> {
-  return {
-    status: 'ready',
-    rows,
-    count: null,
-    search: null,
-    filters: {},
-    narrowed: false,
-    trail: [],
-    next,
-    loadingMore: false,
-    loadLimited: false,
-    loadMoreFailed: false,
-    setSearch: NOTHING,
-    setFilter: NOTHING,
-    clear: NOTHING,
-    setTrail: NOTHING,
-    loadMore: NOTHING,
-    retry: NOTHING,
-  };
-}
-
-function pickerOf<T>(options: readonly T[], more: boolean): PickerState<T> {
-  return {
-    status: 'ready',
-    options,
-    query: '',
-    search: NOTHING,
-    more,
-    loadingMore: false,
-    loadLimited: false,
-    loadMore: NOTHING,
-    retry: NOTHING,
-  };
-}
-
-const CLIENT_OPTIONS = [
-  { id: 'c1', name: 'Billing', client_id: 'billing', type: 'confidential' as const },
-  { id: 'c2', name: 'Portal', client_id: 'portal', type: 'public' as const },
-];
-
-function Pickers() {
-  const [roles, setRoles] = useState<readonly string[]>(['r2']);
-  const [clients, setClients] = useState<readonly string[]>([]);
-  const [groups, setGroups] = useState<readonly string[]>([]);
-  return (
-    <div className={styles.grid}>
-      <RolePicker
-        label="Roles"
-        picker={pickerOf(ROLES, true)}
-        selected={roles}
-        onChange={setRoles}
-      />
-      <GroupPicker
-        label="Groups"
-        picker={pickerOf(GROUPS, false)}
-        selected={groups}
-        onChange={setGroups}
-      />
-      <ClientPicker
-        label="Clients"
-        picker={pickerOf(CLIENT_OPTIONS, false)}
-        selected={clients}
-        onChange={setClients}
-        selectionMode="single"
-      />
-    </div>
   );
 }
 
@@ -882,9 +796,6 @@ function RecordPieces() {
           <Button>A control that grows</Button>
         </TouchTargets>
       </Specimen>
-      <Specimen label="MappedRoles: what a group or a scope hands on">
-        <MappedRoles name="billing" mapped={ROLES} />
-      </Specimen>
       <Specimen label="NarrowedNote: a list narrowed to one record">
         <NarrowedNote all="Show every role" onClear={NOTHING}>
           Only the roles of client <code>billing-portal</code>.
@@ -930,42 +841,6 @@ function RecordPieces() {
             Revoked the token created Oct 12.
           </LastAction>
         </Specimen>
-        <Specimen label="AssignPanel, and an assignment that can be changed, one that cannot">
-          <div className={styles.stack}>
-            <AssignPanel
-              title="Assign to a client"
-              assignment="default"
-              onAssignment={NOTHING}
-              label="Assign to Billing"
-              disabled={false}
-              onAssign={() => Promise.resolve(true)}
-            >
-              <p>The picker goes here.</p>
-            </AssignPanel>
-            <AssignedList label="Scopes assigned to Billing">
-              <AssignedRow
-                name={<code>billing</code>}
-                assignment={{
-                  label: 'Assignment of billing',
-                  value: 'optional',
-                  onChange: () => Promise.resolve(true),
-                }}
-                working={false}
-                remove={{
-                  verb: 'Remove',
-                  target: 'billing',
-                  onRemove: () => Promise.resolve(true),
-                }}
-              />
-              <AssignedRow
-                name={<code>openid</code>}
-                assignment="default"
-                working={false}
-                remove={null}
-              />
-            </AssignedList>
-          </div>
-        </Specimen>
         <Specimen label="ReadGate: loading, failed, and the record">
           <div className={styles.stack}>
             {(
@@ -988,15 +863,6 @@ function RecordPieces() {
           </div>
         </Specimen>
       </div>
-      <Specimen label="RecordActivity: a tab that needs view-audit">
-        <RecordActivity
-          resource="client"
-          tenant={TENANT}
-          id="c1"
-          lead="Every change made to this client, and every change refused."
-          readable={false}
-        />
-      </Specimen>
       <Specimen label="CreationForm: the form a record is made on, and what it ends in">
         <CreationForm submit={NOTHING}>
           <TextField label="Name" value="" onChange={NOTHING} />
@@ -1142,13 +1008,6 @@ export function Gallery({
               <StatusTag tone="system-authority">system</StatusTag>
             </div>
           </Specimen>
-          <Specimen label="RoleOwner">
-            <div className={styles.row}>
-              <RoleOwner role={{ client_id: null, client_key: null }} />
-              <RoleOwner role={{ client_id: 'c-portal', client_key: 'portal' }} />
-              <RoleOwner role={{ client_id: 'c-admin', client_key: 'odudu-admin' }} />
-            </div>
-          </Specimen>
           <Specimen label="CopyValue">
             <div className={styles.stack}>
               <CopyValue label="issuer" value="https://id.acme.example/acme" />
@@ -1170,13 +1029,6 @@ export function Gallery({
           </Specimen>
           <Specimen label="CapabilityNote">
             <CapabilityNote capability="manage-clients">Rotating a secret</CapabilityNote>
-          </Specimen>
-          <Specimen label="AuditActor: named, unnamed, and a caller from elsewhere">
-            <div className={styles.stack}>
-              {EVENTS.map((event) => (
-                <AuditActor key={event.id} event={event} />
-              ))}
-            </div>
           </Specimen>
         </Group>
 
@@ -1223,12 +1075,6 @@ export function Gallery({
               />
             </Section>
           </Specimen>
-          <Specimen label="AuditTable: audit rows, a row opening to every field">
-            <AuditTable label="Audit events" rows={EVENTS} now={NOW} withResource />
-          </Specimen>
-          <Specimen label="AuditDetail: every field of one audit event">
-            <AuditDetail event={DETAILED_EVENT} zone="UTC" />
-          </Specimen>
           <Specimen label="DateTimeField: a minute in the reader's zone, kept in UTC">
             <DateTimeField
               label="From"
@@ -1237,9 +1083,6 @@ export function Gallery({
               value="2026-10-12T09:03:00.000Z"
               onChange={NOTHING}
             />
-          </Specimen>
-          <Specimen label="ActivityTab: the audit trail for one record">
-            <ActivityTab list={listOf(EVENTS, 'c2')} noun="client" now={NOW} />
           </Specimen>
           <Specimen label="ConflictPanel: kept edits meeting a newer record">
             <ConflictPanel
@@ -1261,9 +1104,6 @@ export function Gallery({
               onChange={() => undefined}
               error="The only required step of the flow cannot be disabled."
             />
-          </Specimen>
-          <Specimen label="RolePicker, GroupPicker and ClientPicker: searched, paged, each role's owner named">
-            <Pickers />
           </Specimen>
           <Specimen label="ChecklistField: a set from a short list, each held back with its reason">
             <ChecklistField

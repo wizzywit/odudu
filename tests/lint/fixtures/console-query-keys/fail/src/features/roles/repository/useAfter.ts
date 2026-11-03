@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { listKey } from '#/shared/repository/queryKeys';
+import { listKey } from '#/shared/lib/repository/queryKeys';
 
 export function useAfter(tenant: string) {
   const client = useQueryClient();

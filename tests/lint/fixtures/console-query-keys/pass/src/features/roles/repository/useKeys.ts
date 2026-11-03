@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { listKey, recordKey } from '#/shared/repository/queryKeys';
-import { useRead } from '#/shared/repository/useRead';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
+import { listKey, recordKey } from '#/shared/lib/repository/queryKeys';
+import { useRead } from '#/shared/lib/repository/useRead';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
 
 const ORDER = ['read', 'write'];
 const LABELS = ['name', 'list'];

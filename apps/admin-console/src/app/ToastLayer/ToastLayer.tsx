@@ -1,8 +1,8 @@
-import { useToasts } from '#/shared/repository/useToasts';
-import { Toasts } from '#/shared/view/Toasts';
+import { useToasts } from '#/shared/lib/repository/useToasts';
+import { Toasts } from '#/shared/ui/Toasts';
 
 // The one reader of the toast queue: the view renders what it is given, so it
-// stays clear of the store (a view never imports shared/repository).
+// stays clear of the store (a view never imports shared/lib/repository).
 export function ToastLayer() {
   const toasts = useToasts((queue) => queue.toasts);
   const dismiss = useToasts((queue) => queue.dismiss);

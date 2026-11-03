@@ -5,10 +5,10 @@ import axe from 'axe-core';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { App } from '#/app/App/App';
 import { createConsoleRouter } from '#/app/router';
-import { createQueryClient } from '#/shared/repository/queryClient';
-import { useDialogHost } from '#/shared/repository/useDialogHost';
-import { useToasts } from '#/shared/repository/useToasts';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
+import { createReadCache } from '#/shared/lib/repository/readCache';
+import { useDialogHost } from '#/shared/lib/repository/useDialogHost';
+import { useToasts } from '#/shared/lib/repository/useToasts';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 import {
   fakeTransport,
   json,
@@ -41,7 +41,7 @@ function renderAt(path: string, routes: Record<string, Answer>) {
   const fake = fakeTransport(routes);
   const router = createConsoleRouter(createMemoryHistory({ initialEntries: [path] }));
   const view = render(
-    <App router={router} transport={fake.transport} queryClient={createQueryClient()} />,
+    <App router={router} transport={fake.transport} queryClient={createReadCache()} />,
   );
   return { ...fake, router, unmount: view.unmount };
 }
@@ -61,7 +61,7 @@ function loginParams(url: string | undefined): URLSearchParams {
 // find; loading the routed features here keeps that out of every test's
 // timer, and the routes still reach them through import().
 beforeAll(async () => {
-  await Promise.all([import('#/features/overview'), import('#/features/tenants')]);
+  await Promise.all([import('#/pages/overview'), import('#/pages/tenants')]);
 }, 60_000);
 
 beforeEach(() => {

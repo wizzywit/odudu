@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { useDrafts } from '#/shared/repository/useDrafts';
-import { useToasts } from '#/shared/repository/useToasts';
+import { useDrafts } from '#/shared/lib/repository/useDrafts';
+import { useToasts } from '#/shared/lib/repository/useToasts';
 
 export function Guard() {
   const keep = useDrafts((drafts) => drafts.keep);

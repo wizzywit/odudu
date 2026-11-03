@@ -110,7 +110,9 @@ function ownerOf(file: string): string | null {
   if (file.startsWith('e2e/')) return file;
   const parts = file.split('/');
   if (parts[0] !== 'src') return null;
-  if (parts[1] === 'features') return `features/${parts[2] ?? ''}`;
+  if (['features', 'entities', 'widgets', 'pages'].includes(parts[1] ?? '')) {
+    return `${parts[1] ?? ''}/${parts[2] ?? ''}`;
+  }
   if (parts[1] === 'shared' || parts[1] === 'app') return parts[1];
   if (parts[1] === 'gallery' || parts[1] === 'testing') return null;
   return file;
@@ -178,10 +180,10 @@ describe('declarations in the console', { timeout: 60_000 }, () => {
   it('are not copied between features, shared, app and the e2e files', async () => {
     const files = await read(CONSOLE, TREE);
     const names = [...files.keys()];
-    expect(names).toContain('src/shared/service/failure.ts');
-    expect(names.filter((file) => file.startsWith('src/features/groups/'))).not.toEqual([]);
-    expect(names.filter((file) => file.startsWith('src/features/roles/'))).not.toEqual([]);
-    expect(names.filter((file) => file.startsWith('src/features/clients/'))).not.toEqual([]);
+    expect(names).toContain('src/shared/lib/services/failure.ts');
+    expect(names.filter((file) => file.startsWith('src/pages/groups/'))).not.toEqual([]);
+    expect(names.filter((file) => file.startsWith('src/pages/roles/'))).not.toEqual([]);
+    expect(names.filter((file) => file.startsWith('src/pages/clients/'))).not.toEqual([]);
     expect(names).toContain('e2e/stack.ts');
     expect(violations(files)).toEqual([]);
   });
@@ -204,13 +206,13 @@ describe('declarations in the console', { timeout: 60_000 }, () => {
     [
       'function',
       [
-        'copyPlan is declared identically in src/features/groups/service/copy.ts:1 and src/features/roles/service/copy.ts:1',
+        'copyPlan is declared identically in src/features/groups/services/copy.ts:1 and src/features/roles/services/copy.ts:1',
       ],
     ],
     [
       'shared',
       [
-        'DESCRIPTION_RULE is declared identically in src/features/clients/service/labels.ts:2 and src/shared/service/labels.ts:1',
+        'DESCRIPTION_RULE is declared identically in src/features/clients/services/labels.ts:2 and src/shared/lib/services/labels.ts:1',
       ],
     ],
     [
@@ -222,26 +224,26 @@ describe('declarations in the console', { timeout: 60_000 }, () => {
     [
       'type',
       [
-        'RoleValues is declared identically in src/features/groups/service/values.ts:1, src/features/roles/service/values.ts:1 and src/features/scopes/service/values.ts:1',
+        'RoleValues is declared identically in src/features/groups/services/values.ts:1, src/features/roles/services/values.ts:1 and src/features/scopes/services/values.ts:1',
       ],
     ],
     ['e2e', ['tabTo is declared identically in e2e/groups.spec.ts:1 and e2e/roles.spec.ts:1']],
     [
       'default',
       [
-        'default is declared identically in src/features/groups/view/Page.tsx:1 and src/features/roles/view/Page.tsx:1',
+        'default is declared identically in src/features/groups/ui/Page.tsx:1 and src/features/roles/ui/Page.tsx:1',
       ],
     ],
     [
       'destructured',
       [
-        'a,b is declared identically in src/features/groups/service/things.mts:1 and src/features/roles/service/things.mts:1',
+        'a,b is declared identically in src/features/groups/services/things.mts:1 and src/features/roles/services/things.mts:1',
       ],
     ],
     [
       'tsx',
       [
-        'Empty is declared identically in src/features/groups/view/Empty.tsx:1 and src/features/roles/view/Empty.tsx:1',
+        'Empty is declared identically in src/features/groups/ui/Empty.tsx:1 and src/features/roles/ui/Empty.tsx:1',
       ],
     ],
   ];

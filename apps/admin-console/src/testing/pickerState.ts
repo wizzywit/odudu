@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { PickerState } from '#/shared/service/picker';
+import type { PickerState } from '#/shared/lib/services/picker';
 
 // A picker with its options loaded and nothing typed, its callbacks spies.
 export function pickerState<T>(

@@ -1,0 +1,11 @@
+{
+  "issuer": "http://localhost:3082/tenants/ops-demo",
+  "discovery_url": "http://localhost:3082/tenants/ops-demo/.well-known/openid-configuration",
+  "client_id": "ops-app",
+  "client_type": "confidential",
+  "token_endpoint_auth_method": "client_secret_basic",
+  "redirect_uris": ["https://app.example/callback"],
+  "post_logout_redirect_uris": [],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "default_scope": "openid profile email address phone roles groups"
+}

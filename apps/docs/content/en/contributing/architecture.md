@@ -9,15 +9,15 @@ You will learn how the code is organised so you can put a new piece in the right
 
 ## The five layers
 
-| Layer      | What it holds                                                  | Business logic    |
-| ---------- | -------------------------------------------------------------- | ----------------- |
-| view       | Rendering, and the glue that connects a screen or route        | no                |
-| usecase    | Orchestration of one journey, from request to result           | no                |
-| repository | State, and the decision of when to read it again               | no                |
-| adapter    | The wire contract: endpoints, data shapes and their mapping    | API-contract only |
-| service    | The domain and application logic: the rules, in pure functions | yes               |
+| Layer      | What it holds                                                  | Business logic    | In a console |
+| ---------- | -------------------------------------------------------------- | ----------------- | ------------ |
+| view       | Rendering, and the glue that connects a screen or route        | no                | `ui`         |
+| usecase    | Orchestration of one journey, from request to result           | no                | `use-cases`  |
+| repository | State, and the decision of when to read it again               | no                | `repository` |
+| adapter    | The wire contract: endpoints, data shapes and their mapping    | API-contract only | `adapter`    |
+| service    | The domain and application logic: the rules, in pure functions | yes               | `services`   |
 
-Read the last column as a rule about where decisions live. A rule, a message, the mapping of a failure to words and a formatter are each a function in a service. A usecase wires hooks, state and calls together and decides nothing. A repository holds queries, mutations and cache keys and decides nothing. That keeps the rules testable without a database or a screen.
+Read the business-logic column as a rule about where decisions live. A rule, a message, the mapping of a failure to words and a formatter are each a function in a service. A usecase wires hooks, state and calls together and decides nothing. A repository holds queries, mutations and cache keys and decides nothing. That keeps the rules testable without a database or a screen.
 
 ## Who may import whom
 
@@ -29,9 +29,11 @@ Read the last column as a rule about where decisions live. A rule, a message, th
 | adapter    | The transport, service              | view, usecase, repository |
 | service    | nothing                             | everything else           |
 
-A feature exposes one `index.ts`, and no feature reaches into another's internals. Domain packages never import protocol packages, and protocol packages never import each other. `pnpm boundaries` checks these rules and fails the build on a breach, because a convention that nothing checks decays within weeks.
+A slice exposes one `index.ts`, and no slice reaches into another's internals. Domain packages never import protocol packages, and protocol packages never import each other. `pnpm boundaries` checks these rules and fails the build on a breach, because a convention that nothing checks decays within weeks.
 
-The documentation site has no remote data, so it has only `view`, `usecase` and `service`. Each feature under `apps/docs/src/features` holds those three folders and one `index.ts`; what more than one feature or MDX content uses is under `shared`. Each component is a folder with its markup, its CSS module and its test, no type carries `readonly` (immutable constants use `as const`), and anything the browser provides that a service needs, such as a clock or an observer, is passed in by the usecase. The build holds this by the same kinds of checks.
+In the admin console the layers sit inside slices, and the slices sit in layers of their own: `app`, `pages` (one per route screen), `widgets` (large blocks such as the shell), `features` (a user action two or more pages share), `entities` (a domain concept two or more slices use) and `shared` (`ui`, `api` and `lib`, with no business knowledge). A slice imports only from a layer below it, through that slice's `index.ts`, never from a sibling of its own layer. The server's packages keep the folders `view`, `usecase` and `service`.
+
+The documentation site has no remote data, so it has only `ui`, `use-cases` and `services`. Each feature under `apps/docs/src/features` holds those three folders and one `index.ts`; what more than one feature or MDX content uses is under `shared`. Each component is a folder with its markup, its CSS module and its test, no type carries `readonly` (immutable constants use `as const`), and anything the browser provides that a service needs, such as a clock or an observer, is passed in by the usecase. The build holds this by the same kinds of checks.
 
 Inside a package, imports use `#/` and never a relative path. Across packages they use the package name, such as `@odudu/kernel`, and resolve only through that package's `index.ts`. In the console an import never carries a `.ts` or `.tsx` extension.
 

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "classes": ["alert", "brand", "choice", "context"],
+  "page_kind_classes": ["page-sign-in", "page-consent", "page-select-account"],
+  "elements": ["main", "button"],
+  "pseudo_classes": [
+    "hover",
+    "focus",
+    "focus-visible",
+    "active",
+    "disabled",
+    "checked",
+    "first-child",
+    "last-child"
+  ],
+  "pseudo_elements": ["before", "after", "placeholder"],
+  "tokens": ["--border-strong", "--control-height", "--ease"]
+}

@@ -8,15 +8,15 @@ import {
   type RouteComponent,
 } from '@tanstack/react-router';
 import type { ReactElement, ReactNode } from 'react';
-import { RouteFailure, ShellFailure } from '#/features/failure';
-import { createQueryClient } from '#/shared/repository/queryClient';
-import { TransportContext } from '#/shared/transport/useTransport';
+import { RouteFailure, ShellFailure } from '#/widgets/failure';
+import { createReadCache } from '#/shared/lib/repository/readCache';
+import { TransportContext } from '#/shared/api/transport/useTransport';
 import { fakeTransport } from '#/testing/fakeTransport';
 
 function withProviders(routed: ReactElement): ReactElement {
   return (
     <TransportContext value={fakeTransport({}).transport}>
-      <QueryClientProvider client={createQueryClient()}>{routed}</QueryClientProvider>
+      <QueryClientProvider client={createReadCache()}>{routed}</QueryClientProvider>
     </TransportContext>
   );
 }

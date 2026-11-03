@@ -1,11 +1,11 @@
 import { cleanup, render } from '@testing-library/react';
 import { useEffect } from 'react';
 import { expect, it, vi } from 'vitest';
-import { loadDrafts } from '#/shared/adapter/draftStorage';
-import { useDialogHost } from '#/shared/repository/useDialogHost';
-import { useDrafts } from '#/shared/repository/useDrafts';
-import { useToasts } from '#/shared/repository/useToasts';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
+import { loadDrafts } from '#/shared/api/adapter/draftStorage';
+import { useDialogHost } from '#/shared/lib/repository/useDialogHost';
+import { useDrafts } from '#/shared/lib/repository/useDrafts';
+import { useToasts } from '#/shared/lib/repository/useToasts';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 import { resetConsole } from '#/testing/resetConsole';
 
 const dirtySource = {

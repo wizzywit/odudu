@@ -3,14 +3,14 @@ import userEvent from '@testing-library/user-event';
 import axe from 'axe-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { lazyFeatureRoute } from '#/app/lazyFeatureRoute';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 import { resetConsole } from '#/testing/resetConsole';
 import { failingAt } from '#/testing/mountFailing';
 import { graceRoutes, renderConsoleAt } from '#/testing/renderConsole';
 
 const broken = vi.hoisted(() => ({ page: true, shell: false, toasts: false }));
 
-vi.mock('#/features/subjects', async (importOriginal) => {
+vi.mock('#/pages/subjects', async (importOriginal) => {
   const { createElement } = await import('react');
   return {
     ...(await importOriginal<Record<string, unknown>>()),
@@ -21,7 +21,7 @@ vi.mock('#/features/subjects', async (importOriginal) => {
   };
 });
 
-vi.mock('#/features/overview', async (importOriginal) => {
+vi.mock('#/pages/overview', async (importOriginal) => {
   const { createElement } = await import('react');
   return {
     ...(await importOriginal<Record<string, unknown>>()),
@@ -36,7 +36,7 @@ vi.mock('#/app/ToastLayer', () => ({
   },
 }));
 
-vi.mock('#/features/shell', async (importOriginal) => {
+vi.mock('#/widgets/shell', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   const Real = actual.TenantShell as (props: { tenant: string; children: unknown }) => unknown;
   return {

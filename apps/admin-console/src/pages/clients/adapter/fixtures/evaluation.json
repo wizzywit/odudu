@@ -1,0 +1,24 @@
+{
+  "scope": "openid profile email roles",
+  "id_token": {
+    "sub": "01a0ee8a-c58a-716c-96a6-edcab4ca1a70",
+    "name": "Grace Hopper",
+    "given_name": "Grace",
+    "family_name": "Hopper",
+    "preferred_username": "grace",
+    "updated_at": 1790708493,
+    "email": "grace@navy.example",
+    "email_verified": false
+  },
+  "access_token": {},
+  "userinfo": {
+    "sub": "01a0ee8a-c58a-716c-96a6-edcab4ca1a70",
+    "name": "Grace Hopper",
+    "given_name": "Grace",
+    "family_name": "Hopper",
+    "preferred_username": "grace",
+    "updated_at": 1790708493,
+    "email": "grace@navy.example",
+    "email_verified": false
+  }
+}

@@ -1,0 +1,163 @@
+import type { SigningKey } from '@odudu/contracts/admin';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { afterEach, expect, it } from 'vitest';
+import { SignedInContext } from '#/entities/session';
+import { useSigningKeysPage } from '#/pages/signing-keys/use-cases/useSigningKeysPage';
+import { json, problem } from '#/testing/fakeTransport';
+import { hookHarness } from '#/testing/hookHarness';
+import {
+  ACTIVE_KEY,
+  KEYS,
+  keyRoutes,
+  READY_KEY,
+  RETIRED_KEY,
+  YOUNG_KEY,
+} from '#/testing/keysFixtures';
+import { resetConsole } from '#/testing/resetConsole';
+
+afterEach(() => {
+  resetConsole();
+});
+
+const READY: SigningKey = {
+  id: 'k-ready',
+  status: 'rotating',
+  kid: 'kid-k-ready',
+  alg: 'ES256',
+  created_at: '2026-10-01T00:00:00.000Z',
+  not_after: null,
+};
+
+const GRACE = { tenant: 'acme', subjectId: 's1', username: 'grace' };
+
+function page(extra: Parameters<typeof keyRoutes>[1] = {}, keys?: Parameters<typeof keyRoutes>[2]) {
+  const harness = hookHarness(keyRoutes(undefined, extra, keys));
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <SignedInContext value={{ principal: GRACE, ended: null }}>
+      <harness.wrapper>{children}</harness.wrapper>
+    </SignedInContext>
+  );
+  return { ...harness, ...renderHook(() => useSigningKeysPage('acme'), { wrapper }) };
+}
+
+async function listed(result: { current: ReturnType<typeof useSigningKeysPage> }) {
+  await waitFor(() => {
+    expect(result.current.lanes.retired.status).toBe('ready');
+    expect(result.current.lanes.active.status).toBe('ready');
+    expect(result.current.lanes.rotating.status).toBe('ready');
+  });
+}
+
+it('lists each status in its own lane, with readiness only on the rotating one', async () => {
+  const { result } = page({}, [READY_KEY, YOUNG_KEY, ACTIVE_KEY, RETIRED_KEY]);
+  await listed(result);
+  expect(result.current.lanes.rotating.rows.map((row) => row.key.id)).toEqual([
+    'k-ready',
+    'k-young',
+  ]);
+  expect(result.current.lanes.rotating.rows.map((row) => row.readiness?.ready)).toEqual([
+    true,
+    false,
+  ]);
+  expect(result.current.lanes.active.rows.map((row) => row.readiness)).toEqual([null]);
+  expect(result.current.lanes.retired.rows.map((row) => row.readiness)).toEqual([null]);
+});
+
+it('asks before promoting and names the active key the promotion replaces', async () => {
+  const { result, sent } = page();
+  await listed(result);
+  act(() => {
+    result.current.action.ask('promote', READY);
+  });
+  expect(result.current.action.asking?.dialog.title).toBe('Promote this key?');
+  expect(result.current.action.asking?.dialog.consequence).toContain('kid-k-active');
+  expect(sent.some((call) => call.method === 'POST')).toBe(false);
+  act(() => {
+    result.current.action.cancel();
+  });
+  expect(result.current.action.asking).toBeNull();
+});
+
+it('promotes on confirm, with no body, and says what it came to', async () => {
+  const promoted = { ...READY_KEY, status: 'active' };
+  const { result, sent } = page({ [`POST ${KEYS}/k-ready/promote`]: json(promoted) });
+  await listed(result);
+  act(() => {
+    result.current.action.ask('promote', READY);
+  });
+  await act(async () => {
+    await result.current.action.confirm();
+  });
+  expect(sent.find((call) => call.method === 'POST')).toMatchObject({
+    path: `${KEYS}/k-ready/promote`,
+    body: undefined,
+  });
+  expect(result.current.action.notice).toBe('The ES256 key kid-k-ready is now the active key.');
+});
+
+it('stages the algorithm shown, which starts as the active key’s', async () => {
+  const staged = { ...READY_KEY, id: 'k-new', alg: 'ES256' };
+  const { result, sent } = page({ [`POST ${KEYS}`]: json(staged, 201) });
+  await listed(result);
+  expect(result.current.stage.alg).toBe('ES256');
+  act(() => {
+    result.current.stage.choose('RS256');
+  });
+  expect(result.current.stage.alg).toBe('RS256');
+  act(() => {
+    result.current.stage.start();
+  });
+  await waitFor(() => {
+    expect(sent.some((call) => call.method === 'POST')).toBe(true);
+  });
+  expect(sent.find((call) => call.method === 'POST')?.body).toEqual({ alg: 'RS256' });
+});
+
+it('names the capability a refused stage needed, beside the stage button', async () => {
+  const { result } = page({ [`POST ${KEYS}`]: problem(403, 'about:blank', 'Forbidden') });
+  await listed(result);
+  act(() => {
+    result.current.stage.start();
+  });
+  await waitFor(() => {
+    expect(result.current.stage.message).not.toBeNull();
+  });
+  expect(result.current.stage.message).toContain('manage-keys');
+});
+
+it('puts a refusal of the algorithm field alone on the algorithm', async () => {
+  const { result, sent } = page({
+    [`POST ${KEYS}`]: problem(400, 'about:blank', 'Bad Request', {
+      detail: 'alg must be one of the algorithms this server signs with',
+      errors: [{ path: 'alg', message: 'must be one of the algorithms this server signs with' }],
+    }),
+  });
+  await listed(result);
+  act(() => {
+    result.current.stage.start();
+  });
+  await waitFor(() => {
+    expect(sent.some((call) => call.method === 'POST')).toBe(true);
+  });
+  await waitFor(() => {
+    expect(result.current.stage.busy).toBe(false);
+  });
+  expect(result.current.stage.algError).toBe(
+    'must be one of the algorithms this server signs with',
+  );
+  expect(result.current.stage.message).toBeNull();
+});
+
+it('carries the title and the words the view shows', async () => {
+  const { result } = page();
+  await listed(result);
+  expect(result.current.title).toBe('Signing keys');
+  expect(result.current.words.lanes.map((lane) => lane.title)).toEqual([
+    'Rotating',
+    'Active',
+    'Retired',
+  ]);
+  expect(result.current.words.stage.submit).toBe('Stage key');
+  expect(result.current.lanes.rotating.rows[0]?.labels.promote).toBe('Promote kid-k-ready');
+});

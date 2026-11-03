@@ -1,13 +1,13 @@
 import {
   observeIntersections,
   type IntersectionConstructor,
-} from '@site/src/shared/platform/observe';
+} from '@site/src/shared/lib/platform/observe';
 import {
   startReveal,
   REVEAL_MARGIN,
   type RevealHost,
   type RevealItem,
-} from '@site/src/features/landing/service/reveal';
+} from '@site/src/features/landing/services/reveal';
 
 // The parts of a browser the reveal needs, handed in by whoever runs it.
 export interface RevealEnv {
@@ -66,4 +66,9 @@ export function startDomReveal(env: RevealEnv): (() => void) | undefined {
     },
   };
   return startReveal(host);
+}
+
+// The reveal over the page the browser is showing.
+export function startPageReveal(): (() => void) | undefined {
+  return startDomReveal({ document, window, Observer: IntersectionObserver });
 }

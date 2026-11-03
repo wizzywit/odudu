@@ -16,9 +16,9 @@ import { ADMIN_ROUTES } from '../../packages/protocol-admin/src/index.js';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const ADAPTERS = [
-  'apps/admin-console/src/features/*/adapter/**/*.{ts,tsx}',
+  'apps/admin-console/src/{features,entities,widgets,pages}/*/adapter/**/*.{ts,tsx}',
   'apps/admin-console/src/features/*/adapter.{ts,tsx}',
-  'apps/admin-console/src/shared/adapter/**/*.{ts,tsx}',
+  'apps/admin-console/src/shared/api/adapter/**/*.{ts,tsx}',
 ];
 const TEST = /\.test\.tsx?$/u;
 const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);

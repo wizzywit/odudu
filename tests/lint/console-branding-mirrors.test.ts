@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 // typed here by what this test uses of them.
 const SERVICE = path.resolve(
   import.meta.dirname,
-  '../../apps/admin-console/src/features/branding/service',
+  '../../apps/admin-console/src/features/branding-editor/services',
 );
 type ServerPalette = NonNullable<Parameters<typeof contrastFailures>[0]['light']>;
 type Palette = ServerPalette;
@@ -21,12 +21,12 @@ interface Mirrors {
   pairRows: (scheme: 'light', palette: Palette) => { id: string; passes: boolean }[];
 }
 async function load(): Promise<Mirrors> {
-  const [assets, palette, templates, contrast] = await Promise.all(
-    ['assets', 'palette', 'templates', 'contrast'].map(
+  const [slots, palette, pageKinds, contrast] = await Promise.all(
+    ['imageSlots', 'palette', 'pageKinds', 'contrast'].map(
       (name) => import(path.join(SERVICE, `${name}.ts`)) as Promise<Record<string, unknown>>,
     ),
   );
-  return { ...assets, ...palette, ...templates, ...contrast } as unknown as Mirrors;
+  return { ...slots, ...palette, ...pageKinds, ...contrast } as unknown as Mirrors;
 }
 
 // The Branding screens may not import the server's packages, so three things
@@ -91,7 +91,7 @@ describe('what the Branding screens show of the server', () => {
   });
 
   it('words “more themes than listed” as the server’s detail does', async () => {
-    const { IN_USE_MORE } = (await import(path.join(SERVICE, 'assets.ts'))) as {
+    const { IN_USE_MORE } = (await import(path.join(SERVICE, 'imageRefusals.ts'))) as {
       IN_USE_MORE: string;
     };
     const server = readFileSync(

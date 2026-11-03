@@ -1,0 +1,8 @@
+{
+  "name": "@site/src",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./features/landing/services/*": "./*.ts"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "items": [
+    {
+      "id": "01a10f7e-1815-797f-8beb-a15490ebc8b1",
+      "name": "role-reader",
+      "client_id": null,
+      "client_key": null,
+      "via": [{ "kind": "direct" }]
+    },
+    {
+      "id": "01a10f7e-1849-7640-bfd6-19a8fdf7c045",
+      "name": "role-writer",
+      "client_id": null,
+      "client_key": null,
+      "via": [{ "kind": "direct" }]
+    }
+  ],
+  "next": "eyJhZnRlciI6IjAxYTEwZjdlLTE4NDktNzY0MC1iZmQ2LTE5YThmZGY3YzA0NSIsImNvbGxlY3Rpb24iOiJlZmZlY3RpdmUtcm9sZXMiLCJ0ZW5hbnRJZCI6IjAxYTEwZjdkLWJiMGEtN2NhNy1iNGE1LTFmMTczNjA5YmZmNSIsImZpbHRlcnMiOiIyeXlYUlcwTFVqWkdra19nR29HdGVrLThCbTJ5RnoyT0lmb1lITUxRRVV3In0.CbEhjt6kfAHKMMl3V9_y4nRH3orhNcgZDKYzJT7wwN4"
+}

@@ -3,8 +3,10 @@ import path from 'node:path';
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import { describe, expect, it } from 'vitest';
 import { JOURNEYS, SECTIONS } from '#docs/nav.ts';
-import { FOLLOW_UP, RELEASE_CAVEAT } from '#docs/src/features/landing/service/content.ts';
-import { LAYOUTS, travelKeyframes } from '#docs/src/features/landing/service/geometry.ts';
+import { FOLLOW_UP } from '#docs/src/features/landing/services/installCommands.ts';
+import { RELEASE_CAVEAT } from '#docs/src/features/landing/services/release.ts';
+import { LAYOUTS } from '#docs/src/features/landing/services/sceneLayouts.ts';
+import { travelKeyframes } from '#docs/src/features/landing/services/sceneMotion.ts';
 import { PAGES_BASE, PAGES_DOCS_BASE } from '#docs/site.config.ts';
 import { TIME_CLAIM, TIME_CLAIM_EXAMPLES } from '#docs/tests/support/claims.ts';
 import { DOCS_ROOT, distDir, fileOf, load, walk } from '#docs/tests/support/dist.ts';
@@ -360,7 +362,7 @@ describe('the landing page keeps its promises small', () => {
 
   it('ships the travelling-signal keyframes once, in the stylesheet, and not in the markup or the script', () => {
     const generated = readFileSync(
-      path.join(DOCS_ROOT, 'src/features/landing/view/Scene/travel.css'),
+      path.join(DOCS_ROOT, 'src/features/landing/ui/Scene/travel.css'),
       'utf8',
     );
     expect(generated.trim(), 'run: node scripts/landing-keyframes.ts').toBe(travelKeyframes());

@@ -1,0 +1,73 @@
+{
+  "scope": "tenant",
+  "draft": null,
+  "published": {
+    "id": "01a18b55-adf8-7cad-b164-a3f0f04d5e25",
+    "version": 1,
+    "published_at": "2026-10-30T05:43:31.024Z",
+    "body": {
+      "assets": {},
+      "tokens": {
+        "light": {
+          "inkMuted": "#555555",
+          "focusRing": "#0044aa",
+          "inkPrimary": "#111111",
+          "surfacePage": "#fff4e0",
+          "borderStrong": "#777777",
+          "signalActive": "#ddeedd",
+          "signalDanger": "#fde0d0",
+          "surfacePanel": "#fffaf0",
+          "surfaceSunken": "#f0e6d0",
+          "signalActiveInk": "#004400",
+          "signalDangerInk": "#802000"
+        }
+      },
+      "templates": {
+        "sign-in": "<div class=\"page-sign-in\"><h1>{{t \"login.title\"}}</h1>{{error}}{{form.open}}{{fields}}{{submit}}{{form.close}}</div>"
+      },
+      "stylesheet": ".page-sign-in h1 { border-top: 4px solid #0044aa; }"
+    }
+  },
+  "sources": {
+    "tokens.light": "tenant",
+    "tokens.dark": "default",
+    "tokens.font": "default",
+    "stylesheet": "tenant",
+    "templates.sign-in": "tenant",
+    "templates.consent": "default",
+    "templates.select-account": "default",
+    "templates.logout-confirm": "default",
+    "templates.totp-enrolment": "default",
+    "templates.passkey-enrolment": "default",
+    "templates.recovery-codes": "default",
+    "templates.update-password": "default",
+    "templates.required-action": "default",
+    "templates.registration": "default",
+    "templates.reset": "default",
+    "templates.verification": "default",
+    "templates.required-actions": "default",
+    "templates.authorize-error": "default",
+    "templates.email-unverified": "default",
+    "templates.logged-out": "default",
+    "templates.notice": "default",
+    "assets.logo": "default",
+    "assets.darkLogo": "default",
+    "assets.favicon": "default",
+    "assets.background": "default"
+  },
+  "draft_sources": null,
+  "tenant_sources": null,
+  "changed": [],
+  "warnings": [
+    {
+      "piece": "stylesheet",
+      "code": "stylesheet-unverified",
+      "message": "A stylesheet can change any colour or hide any element, so its contrast and legibility are not checked; keeping it accessible is the tenant’s responsibility."
+    },
+    {
+      "piece": "templates.sign-in",
+      "code": "template-unverified",
+      "message": "A template places the page’s parts as its author chose, so its reading order and layout are not checked; keeping it accessible is the tenant’s responsibility."
+    }
+  ]
+}

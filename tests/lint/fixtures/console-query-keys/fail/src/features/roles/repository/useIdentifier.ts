@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
 
 function localKey(tenant: string) {
   return ['local', tenant] as const;

@@ -1,0 +1,8 @@
+{
+  "kind": "sign-in",
+  "from": "draft",
+  "shown": "tenant",
+  "faults": [],
+  "refused": [],
+  "unfilled": false
+}

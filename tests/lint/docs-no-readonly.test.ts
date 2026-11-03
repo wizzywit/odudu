@@ -64,8 +64,8 @@ describe('types in the docs app', { timeout: 60_000 }, () => {
   it('carry no readonly in any form', async () => {
     const files = await read(DOCS);
     const names = [...files.keys()];
-    expect(names).toContain('src/features/landing/view/Scene/Scene.tsx');
-    expect(names).toContain('src/features/landing/service/geometry.ts');
+    expect(names).toContain('src/features/landing/ui/Scene/Scene.tsx');
+    expect(names).toContain('src/features/landing/services/sceneLayouts.ts');
     expect(violations(files)).toEqual([]);
   });
 

@@ -1,0 +1,34 @@
+{
+  "sections": [
+    {
+      "kinds": [
+        "sign-in",
+        "consent",
+        "select-account",
+        "logout-confirm",
+        "authorize-error",
+        "email-unverified",
+        "logged-out"
+      ],
+      "messages": [
+        {
+          "key": "login.title",
+          "en": "Sign in"
+        }
+      ]
+    },
+    {
+      "kinds": [],
+      "messages": [
+        {
+          "key": "login.otp.title",
+          "en": "Enter your authentication code"
+        },
+        {
+          "key": "login.recoveryCode.title",
+          "en": "Enter a recovery code"
+        }
+      ]
+    }
+  ]
+}

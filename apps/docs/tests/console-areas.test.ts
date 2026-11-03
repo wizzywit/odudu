@@ -6,6 +6,7 @@ import { DOCS_ROOT } from '#docs/tests/support/dist.ts';
 const REPO = path.resolve(DOCS_ROOT, '../..');
 const CONTENT = path.join(DOCS_ROOT, 'content/en');
 const CONSOLE = path.join(REPO, 'apps/admin-console/src/features');
+const CONSOLE_PAGES = path.join(REPO, 'apps/admin-console/src/pages');
 const PAGES = path.join(CONTENT, 'admin-console');
 
 // The page that describes each directory of console features. A directory with
@@ -29,9 +30,30 @@ const PAGE_OF_FEATURE: Readonly<Record<string, string>> = {
   'system-admins': 'system-administrators',
 };
 
-// Sign-in, the menu and the screen shown when a page fails are not areas: the
-// tour walks through each.
-const DESCRIBED_BY_THE_TOUR = ['failure', 'session', 'shell'];
+// Sign-in, the menu and the screen shown when a page fails live in widgets,
+// not among the features; the console's home is a page of its own that the
+// tour opens with.
+const DESCRIBED_BY_THE_TOUR = ['console-home'];
+
+// Parts of other pages, described on the pages that show them: adding an
+// administrator and giving one capabilities (Tenants, System administrators),
+// the capability list (those two and a subject), the Members tab (Groups and
+// Roles). own-roles holds no screen, only what a write there takes from the
+// caller. record-activity is the Activity tab of a record, described on each
+// record's page. role-mapping is the roles editor of a group and a scope, and
+// scope-assignment the assigned-scopes list of a client and of a scope.
+// branding-editor is the editors the Branding area and a client's tab share.
+const DESCRIBED_BY_ITS_PAGES = [
+  'begin-administrator',
+  'branding-editor',
+  'grant-administrator',
+  'own-roles',
+  'record-activity',
+  'role-mapping',
+  'scope-assignment',
+  'subject-capabilities',
+  'subject-members',
+];
 
 // The area each menu entry opens, by the path areas.ts gives it, and the page
 // that covers it. The Export entry is a tenant's export, on the Tenants page.
@@ -57,12 +79,12 @@ const PAGE_OF_AREA: Readonly<Record<string, string>> = {
 
 // The tabs of a record, by the file that names them; the tenant's are the
 // three its record page opens.
-const TAB_LABELS: Readonly<Record<string, { file: string; map: string } | readonly string[]>> = {
-  subjects: { file: 'subjects/service/tabs.ts', map: 'SUBJECT_TAB_LABELS' },
-  clients: { file: 'clients/service/tabs.ts', map: 'CLIENT_TAB_LABELS' },
-  groups: { file: 'groups/service/tabs.ts', map: 'GROUP_TAB_LABELS' },
-  roles: { file: 'roles/service/tabs.ts', map: 'ROLE_TAB_LABELS' },
-  scopes: { file: 'scopes/service/tabs.ts', map: 'SCOPE_TAB_LABELS' },
+const TAB_LABELS: Readonly<Record<string, TabSource | readonly string[]>> = {
+  subjects: { file: 'subjects/services/tabs.ts', map: 'labels: {', root: CONSOLE_PAGES },
+  clients: { file: 'clients/services/tabs.ts', map: 'labels: {', root: CONSOLE_PAGES },
+  groups: { file: 'groups/services/tabs.ts', map: 'labels: {', root: CONSOLE_PAGES },
+  roles: { file: 'roles/services/tabs.ts', map: 'labels: {', root: CONSOLE_PAGES },
+  scopes: { file: 'scopes/services/tabs.ts', map: 'labels: {', root: CONSOLE_PAGES },
   tenants: ['General', 'Administrators', 'Export'],
 };
 
@@ -78,7 +100,7 @@ interface Area {
 }
 
 function areas(): Area[] {
-  const source = text(path.join(CONSOLE, 'shell/service/areas.ts'));
+  const source = text(path.join(CONSOLE, '../entities/area/services/areas.ts'));
   return [...source.matchAll(/area\(\s*'([^']*)',\s*'([^']*)',\s*(null|'[^']*')/gu)].map(
     (match) => ({
       path: match[1] ?? '',
@@ -91,6 +113,7 @@ function areas(): Area[] {
 interface TabSource {
   file: string;
   map: string;
+  root: string;
 }
 
 const fromFile = (entry: TabSource | readonly string[]): entry is TabSource =>
@@ -98,11 +121,11 @@ const fromFile = (entry: TabSource | readonly string[]): entry is TabSource =>
 
 function tabLabels(entry: TabSource | readonly string[]): string[] {
   if (!fromFile(entry)) return [...entry];
-  const { file, map } = entry;
-  const source = text(path.join(CONSOLE, file));
+  const { file, map, root } = entry;
+  const source = text(path.join(root, file));
   const start = source.indexOf(map);
-  const body = source.slice(start, source.indexOf('};', start));
-  return [...body.matchAll(/:\s*'([^']+)',/gu)].map((match) => match[1] ?? '');
+  const body = source.slice(start, source.indexOf('}', start));
+  return [...body.matchAll(/:\s*'([^']+)'/gu)].map((match) => match[1] ?? '');
 }
 
 // A page for a tab of a feature that is big enough to be a page of its own. It is
@@ -113,11 +136,16 @@ const SLUGS = [...Object.values(PAGE_OF_FEATURE), ...PAGES_OF_TABS];
 
 describe('the admin console section', () => {
   it('has a page for every feature directory of the console', () => {
-    const directories = readdirSync(CONSOLE, { withFileTypes: true })
+    const directories = [CONSOLE, CONSOLE_PAGES]
+      .flatMap((root) => readdirSync(root, { withFileTypes: true }))
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
       .sort();
-    const known = [...Object.keys(PAGE_OF_FEATURE), ...DESCRIBED_BY_THE_TOUR].sort();
+    const known = [
+      ...Object.keys(PAGE_OF_FEATURE),
+      ...DESCRIBED_BY_THE_TOUR,
+      ...DESCRIBED_BY_ITS_PAGES,
+    ].sort();
     expect(directories).toEqual(known);
     for (const slug of SLUGS) expect(existsSync(path.join(PAGES, `${slug}.mdx`)), slug).toBe(true);
     expect(existsSync(path.join(PAGES, 'tour.mdx'))).toBe(true);

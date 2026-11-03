@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Providers } from '#/app/Providers';
 import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer/UnsavedGuardLayer';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
+import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
 import { resetConsole } from '#/testing/resetConsole';
 
 afterEach(() => {

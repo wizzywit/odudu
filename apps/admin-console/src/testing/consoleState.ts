@@ -1,9 +1,9 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { loadDrafts } from '#/shared/adapter/draftStorage';
-import { useDrafts } from '#/shared/repository/useDrafts';
-import { recordKey } from '#/shared/repository/queryKeys';
-import type { RecordEntry } from '#/shared/repository/useRecord';
-import { TENANT_SETTINGS_RECORD } from '#/shared/service/tenantSettings';
+import { loadDrafts } from '#/shared/api/adapter/draftStorage';
+import { useDrafts } from '#/shared/lib/repository/useDrafts';
+import { recordKey } from '#/shared/lib/repository/queryKeys';
+import type { RecordEntry } from '#/shared/lib/repository/useRecord';
+import { TENANT_SETTINGS_RECORD } from '#/entities/tenant';
 
 // What a session ending mid-edit would keep in the browser, as text.
 export function draftsKept(owner: string): { sections: number; stored: string } {

@@ -1,0 +1,118 @@
+import { useState } from 'react';
+import { useAuthority, useRefusal } from '#/entities/session';
+import { useAdministratorGrant } from '#/features/grant-administrator';
+import { usePickerHolders } from '#/pages/system-admins/repository/usePickerHolders';
+import { administratorsAccess } from '#/pages/system-admins/services/access';
+import { grantedText, grantFailureText } from '#/pages/system-admins/services/grant';
+import { choosable, pickerUnavailable } from '#/pages/system-admins/services/picker';
+import { useBeginAdministrator, type BeginAdministrator } from '#/features/begin-administrator';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import type { Change } from '#/shared/lib/services/access';
+import {
+  holdingOptions,
+  holdingsIn,
+  type HoldingOption,
+  TENANT_ADMIN,
+} from '#/shared/lib/services/capabilities';
+import { inOrderOf } from '#/shared/lib/services/ids';
+import { firstChosen, type PickerState } from '#/shared/lib/services/picker';
+import { SYSTEM_TENANT, type AdminCapability } from '#/shared/lib/services/principal';
+import { useSubjectPicker, type Subject, usernameOrId } from '#/entities/subject';
+import { ADMINISTRATOR_REQUEST_NEEDS, holdingsProblem } from '#/entities/administrator';
+
+export interface SystemAdministrators {
+  // The tenant whose administrators these are.
+  tenant: string;
+  createNeeds: readonly AdminCapability[];
+  // What changing anybody's capabilities needs that whoami says is missing.
+  changeNeeds: readonly AdminCapability[];
+  // The changes whoami rules out, for the page's one line.
+  blocked: Change | null;
+  begin: BeginAdministrator;
+  picker: PickerState<Subject>;
+  // Why a subject is not offered: it already holds something, changed in the list.
+  unavailableOf: (subject: Subject) => string | null;
+  nameOf: (subject: Subject) => string;
+  chosen: Subject | null;
+  // The picker's own selection, of which one subject is kept.
+  pick: (ids: readonly string[]) => void;
+  holdings: readonly string[];
+  holdingOptions: readonly HoldingOption[];
+  chooseHoldings: (holdings: readonly string[]) => void;
+  holdingsError: string | undefined;
+  grant: () => void;
+  busy: boolean;
+  // Why the last grant did not happen, said beside the Grant button.
+  grantMessage: string | null;
+}
+
+export function useSystemAdministratorsPage(): SystemAdministrators {
+  const authority = useAuthority(SYSTEM_TENANT);
+  const refusal = useRefusal(SYSTEM_TENANT);
+  const picker = useSubjectPicker(SYSTEM_TENANT);
+  const change = useAdministratorGrant();
+  const begin = useBeginAdministrator(SYSTEM_TENANT, 'existing');
+  const toast = useToast();
+  const [chosen, setChosen] = useState<Subject | null>(null);
+  const [holdings, setHoldings] = useState<readonly string[]>([TENANT_ADMIN]);
+  const [holdingsError, setHoldingsError] = useState<string | undefined>(undefined);
+  const [grantMessage, setGrantMessage] = useState<string | null>(null);
+
+  const { createNeeds, changeNeeds, blocked } = administratorsAccess(authority);
+  const holders = usePickerHolders(picker.query);
+  const caller = authority?.capabilities;
+  const choose = (id: string | null): void => {
+    setChosen(choosable(id, holders, picker.options));
+  };
+
+  return {
+    tenant: SYSTEM_TENANT,
+    createNeeds,
+    changeNeeds,
+    blocked,
+    begin: {
+      ...begin,
+      start: () => {
+        if (createNeeds.length === 0) begin.start();
+      },
+    },
+    picker,
+    unavailableOf: (subject) => pickerUnavailable(holders, subject),
+    nameOf: usernameOrId,
+    chosen,
+    pick: (ids) => {
+      choose(firstChosen(ids));
+    },
+    holdings,
+    holdingOptions: holdingOptions(SYSTEM_TENANT, holdings, caller),
+    chooseHoldings: (next) => {
+      setHoldingsError(undefined);
+      setHoldings(inOrderOf(holdingsIn(SYSTEM_TENANT), next));
+    },
+    holdingsError,
+    grant: () => {
+      if (chosen === null || change.busy) return;
+      const problem = holdingsProblem(holdings);
+      if (problem !== null) {
+        setHoldingsError(problem);
+        return;
+      }
+      const name = usernameOrId(chosen);
+      setGrantMessage(null);
+      change
+        .grant(chosen.id, holdings)
+        .then((outcome) => {
+          if (outcome !== null) {
+            refusal.report(outcome.failure, ADMINISTRATOR_REQUEST_NEEDS[outcome.request]);
+            setGrantMessage(grantFailureText(name, outcome));
+            return;
+          }
+          setChosen(null);
+          toast.succeeded(grantedText(name, holdings));
+        })
+        .catch(() => undefined);
+    },
+    busy: change.busy,
+    grantMessage,
+  };
+}

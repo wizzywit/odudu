@@ -1,1 +1,1 @@
-export { DocsHome } from '@site/src/features/docs-home/view/DocsHome/DocsHome';
+export { DocsHome } from '@site/src/features/docs-home/ui/DocsHome/DocsHome';

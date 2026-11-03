@@ -12,7 +12,6 @@ const DIALOGS = ['typed', 'secret', 'unsaved'] as const;
 const PATTERNS = {
   conflict: 'A save refused with 412: theirs beside yours',
   record: 'RecordPage: updated since you opened it',
-  activity: 'ActivityTab: the audit trail for one record',
   pickers: "RolePicker and GroupPicker: searched, paged, each role's owner named",
   list: 'ResourceListPage: a whole list, searched, counted and paged',
   copy: 'CopyValue',

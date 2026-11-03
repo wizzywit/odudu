@@ -5,7 +5,7 @@ import { chromium, type Browser, type Page } from '@playwright/test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PAGES_BASE, PAGES_DOCS_BASE } from '#docs/site.config.ts';
 import { declaredTexts } from '#docs/tests/support/diagram-markup.ts';
-import type { DiagramName } from '#docs/src/shared/view/Diagram/diagrams.tsx';
+import type { DiagramName } from '#docs/src/shared/ui/Diagram/diagrams.tsx';
 import { DOCS_ROOT, distDir } from '#docs/tests/support/dist.ts';
 
 const PAGES = [

@@ -8,7 +8,7 @@ import { FAVICON_INSET, TOUCH_INSET, insetTransform } from '../../brand/geometry
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const BRAND = path.join(REPO_ROOT, 'brand');
-const TOKENS = path.join(REPO_ROOT, 'apps/admin-console/src/shared/view/tokens.css');
+const TOKENS = path.join(REPO_ROOT, 'apps/admin-console/src/shared/ui/tokens.css');
 
 function read(file: string): string {
   return readFileSync(path.join(BRAND, file), 'utf8');
@@ -703,7 +703,7 @@ describe('the copies every page and the console link', () => {
 
   it('is drawn by the console from the same three shapes as mark.svg', () => {
     const source = readFileSync(
-      path.join(REPO_ROOT, 'apps/admin-console/src/shared/view/BrandLine/BrandLine.tsx'),
+      path.join(REPO_ROOT, 'apps/admin-console/src/shared/ui/BrandLine/BrandLine.tsx'),
       'utf8',
     );
     const own = parseMark(read('mark.svg'));
@@ -764,9 +764,9 @@ describe('the console names the product through its constants', () => {
     source.replaceAll(/\/\/.*$/gmu, '').replaceAll(/\/\*[\s\S]*?\*\//gu, '');
 
   it.each([
-    'apps/admin-console/src/shared/view/AppShell/AppShell.tsx',
-    'apps/admin-console/src/features/session/view/SessionGate/SessionGate.tsx',
-    'apps/admin-console/src/features/session/view/SessionStatus/SessionStatus.tsx',
+    'apps/admin-console/src/shared/ui/AppShell/AppShell.tsx',
+    'apps/admin-console/src/widgets/session-gate/ui/SessionGate/SessionGate.tsx',
+    'apps/admin-console/src/entities/session/ui/SessionStatus/SessionStatus.tsx',
   ])('has no product name typed in the markup of %s', (file) => {
     const source = withoutComments(readFileSync(path.join(REPO_ROOT, file), 'utf8'));
     expect(source).not.toMatch(/['"`>]\s*odudu/iu);

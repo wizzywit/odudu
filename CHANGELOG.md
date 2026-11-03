@@ -6,6 +6,14 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The admin console's and the documentation site's source is reorganised into the folder layout the contributor documentation describes, with checks that keep it so. Nothing a person sees or calls changed: no route, request, wording or setting.
+
+### Fixed
+
+- Staging a signing key that the server refuses for the algorithm alone now shows the server's reason under the Algorithm control; before, nothing appeared beside the button.
+
 ## [0.1.0-rc.5] - 2026-11-01
 
 The fifth release candidate. Odudu has had no independent security review.

@@ -4,7 +4,7 @@ description: Create a scope, decide which clients get it, write the text people 
 sidebar_position: 7
 ---
 
-import { ConsoleShot } from '@site/src/shared/view/ConsoleShot';
+import { ConsoleShot } from '@site/src/shared/ui/ConsoleShot';
 
 # Scopes in the console
 
@@ -33,7 +33,7 @@ Still on the **General** tab, **Consent text** is what the consent screen says i
 A scope does nothing until a client is assigned it. There are two ways.
 
 1. For clients made from now on, set **New clients** on the **General** tab to **Assigned as default** or **Assigned as optional**. **Not assigned** leaves the scope out. Clients that already exist are not changed.
-2. For a client that exists, open the scope's **Clients** tab, pick the client under **Client to assign** and choose **Assign to a client**. Or open the client and use its **Scopes** tab, which is the same assignment seen from the other side.
+2. For a client that exists, open the scope's **Clients** tab, pick the client under **Client to assign**, choose how it is assigned under **Assign it as**, and choose **Assign to a client**. Or open the client and use its **Scopes** tab, which is the same assignment seen from the other side.
 
 A default scope goes to a request that names no scope. An optional scope goes only to a request that names it.
 

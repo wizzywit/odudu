@@ -1,0 +1,108 @@
+import type { Composites } from '#/pages/roles/types/composite';
+import {
+  addComposite,
+  amendRole,
+  deleteRole,
+  readComposites,
+  readRole,
+  removeComposite,
+  setRoleDefault,
+} from '#/pages/roles/adapter/roles';
+import { compositesRecord, roleRecord } from '#/pages/roles/services/tabs';
+import { isStale } from '#/shared/lib/services/failure';
+import { useAfterChange } from '#/shared/lib/repository/useAfterChange';
+import { recordKey } from '#/shared/lib/repository/queryKeys';
+import { type Role, rolesGoneReach } from '#/entities/role';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { useRecord, type RecordState } from '#/shared/lib/repository/useRecord';
+import type { SaveInput } from '#/shared/lib/repository/useSectionSave';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { useWrite, type Write } from '#/shared/lib/repository/useWrite';
+import type { DescriptionValues, DefaultValues } from '#/shared/lib/services/sectionValues';
+
+export function useRoleRecord(tenant: string, id: string): RecordState<Role> {
+  return useRecord({
+    tenant,
+    record: roleRecord(id),
+    read: (gateway) => readRole(gateway, tenant, id),
+  });
+}
+
+export function useCompositesRecord(tenant: string, id: string): RecordState<Composites> {
+  return useRecord({
+    tenant,
+    record: compositesRecord(id),
+    read: (gateway) => readComposites(gateway, tenant, id),
+  });
+}
+
+// What a role nests changes what its holders hold, what every role and group
+// above it reaches, and what the lists show; a deleted role's own reads are
+// left to lapse, since reading them again would only find it gone.
+function useAfterRoleChange(tenant: string, deleted: string | null = null) {
+  return useAfterChange(tenant, deleted, { ...rolesGoneReach(tenant), recordOf: roleRecord });
+}
+
+export function useRoleSaves(tenant: string, id: string) {
+  const after = useAfterRoleChange(tenant);
+  return {
+    description: async (gateway: Gateway, { values, ifMatch }: SaveInput<DescriptionValues>) =>
+      after(await amendRole(gateway, tenant, id, { description: values.description }, ifMatch)),
+    default: async (gateway: Gateway, { values, ifMatch }: SaveInput<DefaultValues>) =>
+      after(await setRoleDefault(gateway, tenant, id, values.default_for_new_subjects, ifMatch)),
+  };
+}
+
+export interface Edge {
+  child: string;
+  ifMatch: string;
+}
+
+export interface CompositeRemoval {
+  busy: boolean;
+  remove: (edge: Edge) => Promise<GatewayResult<undefined>>;
+}
+
+// One edge at a time, on the ETag the list was read with; the list is read
+// again afterwards, since the write does not answer it.
+export function useCompositeRemoval(tenant: string, id: string): CompositeRemoval {
+  const { invalidateExact } = useInvalidate();
+  const after = useAfterRoleChange(tenant);
+  const reread = <R>(result: GatewayResult<R>): GatewayResult<R> => {
+    if (result.ok || isStale(result)) invalidateExact(recordKey(tenant, compositesRecord(id)));
+    return after(result);
+  };
+  const remove = useWrite({
+    send: async (gateway, { child, ifMatch }: Edge) =>
+      reread(await removeComposite(gateway, tenant, id, child, ifMatch)),
+  });
+  return { busy: remove.busy, remove: remove.run };
+}
+
+export function useRoleDeletion(tenant: string, id: string): Write<void, GatewayResult<undefined>> {
+  const after = useAfterRoleChange(tenant, id);
+  // The record's own entries are left to lapse: removing them while its page
+  // is still mounted would read them again, and find nothing.
+  return useWrite({
+    send: async (gateway) => after(await deleteRole(gateway, tenant, id)),
+  });
+}
+
+export interface AddValues extends Readonly<Record<string, unknown>> {
+  child_role_id: string | null;
+}
+
+// Nests one role, then answers the list as its read does, so the section's
+// record is the list it was saved against.
+export function useAddComposite(tenant: string, id: string) {
+  const after = useAfterRoleChange(tenant);
+  return async (
+    gateway: Gateway,
+    { values, ifMatch }: SaveInput<AddValues>,
+  ): Promise<GatewayResult<Composites>> => {
+    if (values.child_role_id === null) return { ok: false, kind: 'defect' };
+    const added = after(await addComposite(gateway, tenant, id, values.child_role_id, ifMatch));
+    if (!added.ok) return added;
+    return readComposites(gateway, tenant, id);
+  };
+}

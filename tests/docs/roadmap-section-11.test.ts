@@ -269,7 +269,7 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     const missing: string[] = [];
     let seen = 0;
     // A phase that has shipped leaves "Next" and "Later" for "Shipped".
-    const shipped = new Set(['P4b']);
+    const shipped = new Set(['P4b', 'P4k']);
     for (const [phase, row] of criteria()) {
       const at = row.indexOf(MARKER);
       if (at === -1) continue;
@@ -335,6 +335,11 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     ['A person who confirms a "finish registration"', ['P4f'], ['more than one click']],
     ['Accounts that differ only by the case', ['P4f'], ['differ only by case']],
     ['The Node major moves by hand', ['P12'], ['even-numbered node lts']],
+    [
+      'The cleanup P4k left in branding and clients',
+      ['P4h'],
+      'console source cleanup left by the closed P4k, no product behaviour',
+    ],
   ];
 
   function nextPlacements(): { start: string; phases: string[] }[] {

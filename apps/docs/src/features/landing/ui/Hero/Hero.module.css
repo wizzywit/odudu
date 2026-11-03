@@ -1,0 +1,218 @@
+.hero {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  background: var(--surface-page);
+  border-block-end: var(--hairline);
+  padding-block: var(--space-8) 3rem;
+}
+
+/* Instrument's grid, drawn behind the page and faded out toward the content. */
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(var(--surface-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--surface-grid) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(to bottom, #000 35%, transparent);
+}
+
+.heroGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: center;
+}
+
+.heroText {
+  min-inline-size: 0;
+}
+
+/* The brand file as a mask, so the ink follows the colour mode with one drawing. */
+.lockup {
+  display: block;
+  inline-size: 6.875rem;
+  block-size: 2rem;
+  margin-block-end: var(--space-6);
+  background-color: var(--ink-primary);
+  mask: url('../../../../../static/brand/lockup.svg') center / contain no-repeat;
+}
+
+/* A mask is not painted on paper by every browser; the file itself is. */
+@media print {
+  .lockup {
+    background: url('../../../../../static/brand/lockup.svg') center / contain no-repeat;
+    mask: none;
+    print-color-adjust: exact;
+  }
+}
+
+@media (forced-colors: active) {
+  .lockup {
+    background-color: CanvasText;
+    forced-color-adjust: none;
+  }
+}
+
+.title {
+  margin: 0 0 var(--space-4);
+  font-size: clamp(2rem, 1.4rem + 2.4vw, 3.25rem);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.lede {
+  max-inline-size: 38rem;
+  margin: 0 0 var(--space-6);
+  color: var(--ink-muted);
+  font-size: 1.0625rem;
+  line-height: 1.55;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: var(--space-6) 0 0;
+}
+
+.primary {
+  composes: lift from '@site/src/shared/ui/lift.module.css';
+}
+
+.secondary {
+  composes: lift from '@site/src/shared/ui/lift.module.css';
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+  padding-inline: 1.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-m);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.primary,
+.primary:hover {
+  background: var(--signal-active-ink);
+  color: var(--surface-panel);
+  text-decoration: none;
+}
+
+.primary:hover {
+  background: color-mix(in srgb, var(--signal-active-ink) 88%, var(--ink-primary));
+}
+
+.secondary,
+.secondary:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-panel);
+  color: var(--ink-primary);
+  text-decoration: none;
+}
+
+.secondary:hover {
+  border-color: var(--ink-muted);
+}
+
+.heroShot {
+  min-inline-size: 0;
+}
+
+.heroShot figure {
+  margin: 0;
+}
+
+.heroShot img {
+  border-radius: 8px;
+  box-shadow: var(--shadow-overlay);
+}
+
+@media (min-width: 997px) {
+  .hero {
+    padding-block: 4.5rem 5rem;
+  }
+
+  .heroGrid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 3.5rem;
+  }
+
+  .lede {
+    font-size: 1.125rem;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .primary:hover,
+  .secondary:hover {
+    translate: 0 -2px;
+  }
+
+  .primary:active,
+  .secondary:active {
+    scale: 0.97;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) and (scripting: enabled) and (min-width: 997px) {
+  .lockup {
+    animation: enterFade 500ms var(--ease) both;
+  }
+
+  .actions {
+    animation: enter 600ms var(--ease) 160ms both;
+  }
+
+  .heroShot {
+    animation: enter 800ms var(--ease) 120ms both;
+  }
+
+  .heroShot figure {
+    animation: float 9s ease-in-out 1.5s infinite;
+    will-change: transform;
+  }
+}
+
+@keyframes enter {
+  from {
+    transform: translateY(12px);
+  }
+
+  to {
+    transform: none;
+  }
+}
+
+@keyframes enterFade {
+  from {
+    opacity: 0.4;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes float {
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.early {
+  margin: var(--space-3) 0 0;
+  color: var(--ink-muted);
+  font-size: var(--type-13);
+}

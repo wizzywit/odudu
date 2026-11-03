@@ -1,0 +1,15 @@
+export {
+  saveActions,
+  useActionsRecord,
+  useAdminRoleIds,
+  useEffectiveRoleList,
+  useEnabledHolderCount,
+  useGroupsRecord,
+  useHeldCapabilities,
+  useMemberships,
+  useRolesRecord,
+  useSaveGroups,
+  useSaveRoles,
+  type ActionValues,
+  type GroupValues,
+} from '#/entities/subject/repository/useSubjectAccess';

@@ -1,5 +1,5 @@
 import { isValidElement, type ReactNode } from 'react';
-import { DRAWINGS, type DiagramName } from '#docs/src/shared/view/Diagram/diagrams.tsx';
+import { DRAWINGS, type DiagramName } from '#docs/src/shared/ui/Diagram/diagrams.tsx';
 
 // The elements a node draws, components expanded, as markup. No renderer is
 // needed: a drawing is only function components over SVG tags.

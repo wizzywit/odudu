@@ -1,0 +1,34 @@
+{
+  "items": [
+    {
+      "id": "01a10bd4-d6f3-7ca9-ab57-830ede1e570b",
+      "name": "Billing-Admin",
+      "description": null,
+      "client_id": null,
+      "client_key": null,
+      "default_for_new_subjects": false,
+      "created_at": "2026-10-05T11:31:00.467Z",
+      "admin_reach": []
+    },
+    {
+      "id": "01a10bd4-d727-7bbc-b05f-a238bd2d00d2",
+      "name": "billing-spa",
+      "description": null,
+      "client_id": "01a10bd4-d668-7670-afe0-844b224421c5",
+      "client_key": "demo-spa",
+      "default_for_new_subjects": false,
+      "created_at": "2026-10-05T11:31:00.518Z",
+      "admin_reach": []
+    },
+    {
+      "id": "01a10bd4-d6d8-73f1-b60b-11d57d6bb686",
+      "name": "billing-viewer",
+      "description": null,
+      "client_id": null,
+      "client_key": null,
+      "default_for_new_subjects": false,
+      "created_at": "2026-10-05T11:31:00.438Z",
+      "admin_reach": []
+    }
+  ]
+}
