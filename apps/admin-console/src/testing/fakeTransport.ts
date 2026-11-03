@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { createSessionEvents } from '#/shared/services/sessionEvents';
+import { createAuthEvents } from '#/shared/services/authEvents';
 import { createAuth } from '#/shared/transport/auth';
 import { createGateway, type Fetch } from '#/shared/transport/gateway';
 import type { Transport } from '#/shared/transport/transport';
@@ -107,7 +107,7 @@ export function fakeTransport(routes: Record<string, Answer>) {
       return Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }
   };
-  const events = createSessionEvents();
+  const events = createAuthEvents();
   const leavePage = vi.fn<(url: string) => void>();
   const log = (): void => undefined;
   const transport: Transport = {

@@ -15,7 +15,7 @@ import { sessionKey } from '#/shared/repository/queryKeys';
 import { useDrafts } from '#/shared/repository/useDrafts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
 import type { Gateway } from '#/shared/transport/gateway';
-import type { SessionEvents } from '#/shared/services/sessionEvents';
+import type { AuthEvents } from '#/shared/services/authEvents';
 import { useTransport } from '#/shared/transport/useTransport';
 
 const KEY = sessionKey();
@@ -93,7 +93,7 @@ export function useSessionQuery(): {
 // Called when the gateway reports this session over, or replaced by another
 // sign-in, from whichever request found out.
 export function useSessionEvent(
-  name: Parameters<SessionEvents['on']>[0],
+  name: Parameters<AuthEvents['on']>[0],
   listener: () => void,
 ): void {
   const { events } = useTransport();

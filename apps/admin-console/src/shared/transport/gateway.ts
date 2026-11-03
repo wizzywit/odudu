@@ -1,6 +1,6 @@
 import type { ZodType } from 'zod';
-import { isPrincipalChanged, isSessionEnded } from '#/shared/services/sessionEnded';
-import { createSessionEvents, type SessionEvents } from '#/shared/services/sessionEvents';
+import { isPrincipalChanged, isAuthEnded } from '#/shared/services/authEnded';
+import { createAuthEvents, type AuthEvents } from '#/shared/services/authEvents';
 import { nextCursor } from '#/shared/transport/cursor';
 import { readEtag } from '#/shared/transport/etag';
 import { readProblem } from '#/shared/transport/problem';
@@ -51,7 +51,7 @@ export interface GatewayDependencies {
   fetch?: Fetch;
   sleep?: (ms: number) => Promise<void>;
   log?: (message: string) => void;
-  events?: SessionEvents;
+  events?: AuthEvents;
   timeoutMs?: number;
 }
 
@@ -126,11 +126,11 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
     ((message: string) => {
       console.error(message);
     });
-  const events = dependencies.events ?? createSessionEvents();
+  const events = dependencies.events ?? createAuthEvents();
   const timeoutMs = dependencies.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   let believed: string | null = null;
 
-  function emit(name: 'sessionEnded' | 'principalChanged'): void {
+  function emit(name: 'authEnded' | 'principalChanged'): void {
     try {
       events.emit(name);
     } catch (error) {
@@ -222,7 +222,7 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
         return { ok: false, kind: 'defect' };
       }
       const problem = readProblem(response.status, response.headers.get('content-type'), text);
-      if (isSessionEnded(problem)) emit('sessionEnded');
+      if (isAuthEnded(problem)) emit('authEnded');
       if (isPrincipalChanged(problem)) emit('principalChanged');
       return { ok: false, kind: 'problem', problem };
     }

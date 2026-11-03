@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { readAuthority, readSession } from '#/entities/session/adapter/session';
-import { createSessionEvents } from '#/shared/services/sessionEvents';
+import { createAuthEvents } from '#/shared/services/authEvents';
 import { createGateway, type Fetch } from '#/shared/transport/gateway';
 
 function gatewayAnswering(body: unknown, urls: string[] = []) {
@@ -10,7 +10,7 @@ function gatewayAnswering(body: unknown, urls: string[] = []) {
       new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }),
     );
   };
-  return createGateway({ fetch: answer, events: createSessionEvents(), log: () => undefined });
+  return createGateway({ fetch: answer, events: createAuthEvents(), log: () => undefined });
 }
 
 it('reads the session the gateway reports, as the principal', async () => {

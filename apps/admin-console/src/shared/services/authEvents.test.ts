@@ -1,25 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createSessionEvents } from '#/shared/services/sessionEvents';
+import { createAuthEvents } from '#/shared/services/authEvents';
 
 describe('sessionEvents', () => {
-  it('calls every subscriber to sessionEnded when it is emitted', () => {
-    const events = createSessionEvents();
+  it('calls every subscriber to authEnded when it is emitted', () => {
+    const events = createAuthEvents();
     const first = vi.fn();
     const second = vi.fn();
-    events.on('sessionEnded', first);
-    events.on('sessionEnded', second);
+    events.on('authEnded', first);
+    events.on('authEnded', second);
 
-    events.emit('sessionEnded');
+    events.emit('authEnded');
 
     expect(first).toHaveBeenCalledOnce();
     expect(second).toHaveBeenCalledOnce();
   });
 
-  it('keeps principalChanged subscribers apart from sessionEnded ones', () => {
-    const events = createSessionEvents();
+  it('keeps principalChanged subscribers apart from authEnded ones', () => {
+    const events = createAuthEvents();
     const ended = vi.fn();
     const changed = vi.fn();
-    events.on('sessionEnded', ended);
+    events.on('authEnded', ended);
     events.on('principalChanged', changed);
 
     events.emit('principalChanged');
@@ -29,26 +29,26 @@ describe('sessionEvents', () => {
   });
 
   it('stops calling a subscriber once it unsubscribes', () => {
-    const events = createSessionEvents();
+    const events = createAuthEvents();
     const listener = vi.fn();
-    const off = events.on('sessionEnded', listener);
+    const off = events.on('authEnded', listener);
 
     off();
-    events.emit('sessionEnded');
+    events.emit('authEnded');
 
     expect(listener).not.toHaveBeenCalled();
   });
 
   it('keeps calling the others when one subscriber throws', () => {
-    const events = createSessionEvents();
+    const events = createAuthEvents();
     const after = vi.fn();
-    events.on('sessionEnded', () => {
+    events.on('authEnded', () => {
       throw new Error('a broken subscriber');
     });
-    events.on('sessionEnded', after);
+    events.on('authEnded', after);
 
     expect(() => {
-      events.emit('sessionEnded');
+      events.emit('authEnded');
     }).toThrow('a broken subscriber');
     expect(after).toHaveBeenCalledOnce();
   });

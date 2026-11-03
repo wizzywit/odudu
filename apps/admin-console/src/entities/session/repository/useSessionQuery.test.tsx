@@ -66,15 +66,15 @@ it('tells the listener of the latest render, and stops once unmounted', () => {
   const second = vi.fn();
   const { rerender, unmount } = renderHook(
     ({ listener }) => {
-      useSessionEvent('sessionEnded', listener);
+      useSessionEvent('authEnded', listener);
     },
     { wrapper, initialProps: { listener: first } },
   );
   rerender({ listener: second });
-  events.emit('sessionEnded');
+  events.emit('authEnded');
   expect(first).not.toHaveBeenCalled();
   expect(second).toHaveBeenCalledOnce();
   unmount();
-  events.emit('sessionEnded');
+  events.emit('authEnded');
   expect(second).toHaveBeenCalledOnce();
 });

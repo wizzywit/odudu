@@ -1,6 +1,6 @@
 import { type Principal } from '#/entities/session/types/principal';
 import type { GatewayResult, Problem } from '#/shared/services/result';
-import { SESSION_ENDED_TYPE, isSessionEnded } from '#/shared/services/sessionEnded';
+import { AUTH_ENDED_TYPE, isAuthEnded } from '#/shared/services/authEnded';
 
 export function draftOwner(principal: Principal): string {
   return `${principal.tenant}/${principal.subjectId}`;
@@ -39,7 +39,7 @@ export function bootOf(read: SessionRead | undefined): BootState {
       ? { kind: 'ready', principal: result.data, ended: null }
       : { kind: 'replaced', was, now: result.data };
   }
-  if (result.kind === 'problem' && isSessionEnded(result.problem)) {
+  if (result.kind === 'problem' && isAuthEnded(result.problem)) {
     return { kind: 'ready', principal: null, ended: was };
   }
   return { kind: 'failed' };
@@ -62,7 +62,7 @@ export function sessionGone(result: SignOutAnswer): boolean {
   return (
     result.ok ||
     result.kind === 'schema' ||
-    (result.kind === 'problem' && isSessionEnded(result.problem))
+    (result.kind === 'problem' && isAuthEnded(result.problem))
   );
 }
 
@@ -71,6 +71,6 @@ export function sessionEndedRead(): GatewayResult<Principal> {
   return {
     ok: false,
     kind: 'problem',
-    problem: { type: SESSION_ENDED_TYPE, title: 'Unauthorized', status: 401 },
+    problem: { type: AUTH_ENDED_TYPE, title: 'Unauthorized', status: 401 },
   };
 }

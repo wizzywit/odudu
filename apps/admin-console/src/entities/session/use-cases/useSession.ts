@@ -32,7 +32,7 @@ export function useSession(): Boot {
   const keepDirty = useDrafts((drafts) => drafts.keepDirty);
   const reset = useUnsavedGuard((guard) => guard.reset);
   const principal = shownPrincipal(read);
-  useSessionEvent('sessionEnded', () => {
+  useSessionEvent('authEnded', () => {
     if (principal !== null) keepDirty(draftOwner(principal));
     reset();
     markEnded(principal);

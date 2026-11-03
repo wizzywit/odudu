@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isSessionEnded } from '#/shared/services/sessionEnded';
+import { isAuthEnded } from '#/shared/services/authEnded';
 
-describe('isSessionEnded', () => {
+describe('isAuthEnded', () => {
   it('is true for the gateway session-ended type', () => {
     expect(
-      isSessionEnded({
+      isAuthEnded({
         type: 'about:blank#console-session-ended',
         status: 401,
       }),
@@ -12,6 +12,6 @@ describe('isSessionEnded', () => {
   });
 
   it('is false for a plain 401 the admin API passes back', () => {
-    expect(isSessionEnded({ type: 'about:blank', status: 401 })).toBe(false);
+    expect(isAuthEnded({ type: 'about:blank', status: 401 })).toBe(false);
   });
 });

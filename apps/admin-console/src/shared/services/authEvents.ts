@@ -1,22 +1,22 @@
-interface SessionEventMap {
-  sessionEnded: [];
+interface AuthEventMap {
+  authEnded: [];
   // Another sign-in in this browser replaced the session this tab shows.
   principalChanged: [];
 }
-type SessionEventName = keyof SessionEventMap;
-type Listener<N extends SessionEventName> = (...args: SessionEventMap[N]) => void;
+type AuthEventName = keyof AuthEventMap;
+type Listener<N extends AuthEventName> = (...args: AuthEventMap[N]) => void;
 
-export interface SessionEvents {
-  on<N extends SessionEventName>(name: N, listener: Listener<N>): () => void;
-  emit<N extends SessionEventName>(name: N, ...args: SessionEventMap[N]): void;
+export interface AuthEvents {
+  on<N extends AuthEventName>(name: N, listener: Listener<N>): () => void;
+  emit<N extends AuthEventName>(name: N, ...args: AuthEventMap[N]): void;
 }
 
 // Every listener runs even when an earlier one throws; the first error is
 // rethrown afterwards, so one broken subscriber neither hides the event from
 // the rest nor goes unseen.
-export function createSessionEvents(): SessionEvents {
-  const listeners: { [N in SessionEventName]: Set<Listener<N>> } = {
-    sessionEnded: new Set(),
+export function createAuthEvents(): AuthEvents {
+  const listeners: { [N in AuthEventName]: Set<Listener<N>> } = {
+    authEnded: new Set(),
     principalChanged: new Set(),
   };
   return {

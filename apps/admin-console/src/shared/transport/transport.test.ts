@@ -5,9 +5,9 @@ it('gives each transport its own session events, so a listener of one never hear
   const first = createBrowserTransport();
   const second = createBrowserTransport();
   const heard = vi.fn();
-  first.events.on('sessionEnded', heard);
-  second.events.emit('sessionEnded');
+  first.events.on('authEnded', heard);
+  second.events.emit('authEnded');
   expect(heard).not.toHaveBeenCalled();
-  first.events.emit('sessionEnded');
+  first.events.emit('authEnded');
   expect(heard).toHaveBeenCalledOnce();
 });

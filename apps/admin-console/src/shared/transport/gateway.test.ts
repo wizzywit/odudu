@@ -1,7 +1,7 @@
 import { listSubjectsResponseSchema, subjectSchema } from '@odudu/contracts/admin';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { createSessionEvents } from '#/shared/services/sessionEvents';
+import { createAuthEvents } from '#/shared/services/authEvents';
 import { createGateway, type Fetch, type Method } from '#/shared/transport/gateway';
 
 const SUBJECT = {
@@ -44,7 +44,7 @@ function harness(...answers: Answer[]) {
   };
   const sleep = vi.fn<(ms: number) => Promise<void>>(() => Promise.resolve());
   const log = vi.fn<(message: string) => void>();
-  const events = createSessionEvents();
+  const events = createAuthEvents();
   const gateway = createGateway({ fetch, sleep, log, events });
   return { gateway, calls, sleep, log, events };
 }
@@ -249,12 +249,12 @@ describe('gateway.request, a refusal', () => {
     });
   });
 
-  it('emits sessionEnded on a 401 console-session-ended', async () => {
+  it('emits authEnded on a 401 console-session-ended', async () => {
     const { gateway, events } = harness(
       problem(401, 'about:blank#console-session-ended', 'Unauthorized'),
     );
     const ended = vi.fn();
-    events.on('sessionEnded', ended);
+    events.on('authEnded', ended);
 
     const result = await gateway.request('GET', SUBJECT_PATH, { schema: subjectSchema });
 
@@ -262,21 +262,21 @@ describe('gateway.request, a refusal', () => {
     expect(!result.ok && result.kind).toBe('problem');
   });
 
-  it('does not emit sessionEnded on a plain 401', async () => {
+  it('does not emit authEnded on a plain 401', async () => {
     const { gateway, events } = harness(problem(401, 'about:blank', 'Unauthorized'));
     const ended = vi.fn();
-    events.on('sessionEnded', ended);
+    events.on('authEnded', ended);
 
     await gateway.request('GET', SUBJECT_PATH, { schema: subjectSchema });
 
     expect(ended).not.toHaveBeenCalled();
   });
 
-  it('still answers when a sessionEnded subscriber throws', async () => {
+  it('still answers when a authEnded subscriber throws', async () => {
     const { gateway, events, log } = harness(
       problem(401, 'about:blank#console-session-ended', 'Unauthorized'),
     );
-    events.on('sessionEnded', () => {
+    events.on('authEnded', () => {
       throw new Error('subscriber broke');
     });
 
@@ -488,7 +488,7 @@ describe('gateway.request, a request that never answers', () => {
       fetch,
       sleep: () => Promise.resolve(),
       log: () => undefined,
-      events: createSessionEvents(),
+      events: createAuthEvents(),
       timeoutMs: 1000,
     });
 
@@ -518,7 +518,7 @@ describe('gateway.request, a request that never answers', () => {
       fetch,
       sleep: () => Promise.resolve(),
       log: () => undefined,
-      events: createSessionEvents(),
+      events: createAuthEvents(),
       timeoutMs: 1000,
     });
 
@@ -561,12 +561,12 @@ describe('gateway.download, a body kept as the bytes the server sent', () => {
     expect(headersOf(calls[0]).get('x-odudu-console-subject')).toBe('s1');
   });
 
-  it('emits sessionEnded on a 401 console-session-ended, and answers the problem', async () => {
+  it('emits authEnded on a 401 console-session-ended, and answers the problem', async () => {
     const { gateway, events } = harness(
       problem(401, 'about:blank#console-session-ended', 'Unauthorized'),
     );
     const ended = vi.fn();
-    events.on('sessionEnded', ended);
+    events.on('authEnded', ended);
 
     const result = await gateway.download('GET', EXPORT_PATH);
 
@@ -637,12 +637,12 @@ describe('gateway.bytes, a body kept as the bytes the server sent', () => {
     });
   });
 
-  it('emits sessionEnded on a 401 console-session-ended', async () => {
+  it('emits authEnded on a 401 console-session-ended', async () => {
     const { gateway, events } = harness(
       problem(401, 'about:blank#console-session-ended', 'Unauthorized'),
     );
     const ended = vi.fn();
-    events.on('sessionEnded', ended);
+    events.on('authEnded', ended);
 
     await gateway.bytes('GET', IMAGE_PATH);
 
