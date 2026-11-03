@@ -11,7 +11,7 @@ import {
   type MailChoice,
   type MailClient,
 } from '#/features/branding/services/mail';
-import { type Scheme } from '#/features/branding/services/palette';
+import type { Scheme } from '#/features/branding/services/colourScheme';
 import { useClientPicker } from '#/entities/client';
 import type { PickerState } from '#/shared/services/picker';
 import type { Read } from '#/shared/services/read';

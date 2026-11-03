@@ -1,5 +1,4 @@
 import { FALLBACK_TITLE } from '#/features/branding/services/fallback';
-import { SCHEME_LABELS, schemeOf } from '#/features/branding/services/palette';
 import {
   PREVIEW_DIFFERS,
   PREVIEW_FRAME_TITLE,
@@ -15,6 +14,7 @@ import {
   PAGE_KIND_OPTIONS,
   pageKindOf,
 } from '#/features/branding/services/templates';
+import { SCHEME_LABELS, schemeOf } from '#/features/branding/services/colourScheme';
 import type { Preview } from '#/features/branding/use-cases/usePreview';
 import { PreviewShell } from '#/features/branding/ui/PreviewShell';
 import { InlineFields, SelectField } from '#/shared/ui/Field';

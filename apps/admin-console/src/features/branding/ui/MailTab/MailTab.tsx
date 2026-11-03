@@ -23,8 +23,8 @@ import {
   schemeTitle,
   sourceText,
 } from '#/features/branding/services/mail';
-import { SCHEME_LABELS, schemeOf, type Scheme } from '#/features/branding/services/palette';
 import { previewSummary, SCHEME_OPTIONS } from '#/features/branding/services/preview';
+import { SCHEME_LABELS, schemeOf, type Scheme } from '#/features/branding/services/colourScheme';
 import type { MailTab as Mail } from '#/features/branding/use-cases/useMailTab';
 import { MailClientChoice } from '#/features/branding/ui/MailClientChoice';
 import { PreviewShell } from '#/features/branding/ui/PreviewShell';

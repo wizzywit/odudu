@@ -4,7 +4,6 @@ import { previewSource } from '#/features/branding/repository/preview';
 import { usePreviewInfo } from '#/features/branding/repository/usePreviewInfo';
 import { previewKey, previewWith } from '#/features/branding/services/edits';
 import { noticeLines } from '#/features/branding/services/fallback';
-import { type Scheme } from '#/features/branding/services/palette';
 import {
   DEFAULT_PREVIEW,
   previewAsked,
@@ -14,6 +13,7 @@ import {
 import { type ThemeScope } from '#/features/branding/services/scope';
 import { omissionNote } from '#/features/branding/services/templates';
 import { type PageKind } from '#/features/branding/services/values';
+import type { Scheme } from '#/features/branding/services/colourScheme';
 
 export interface Preview {
   choice: PreviewChoice;

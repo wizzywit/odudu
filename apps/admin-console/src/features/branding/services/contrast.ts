@@ -3,11 +3,10 @@ import type { ColourValues } from '#/features/branding/services/values';
 import {
   isHexColour,
   PALETTE_LABELS,
-  SCHEME_LABELS,
   type Palette,
   type PaletteKey,
-  type Scheme,
 } from '#/features/branding/services/palette';
+import { SCHEME_LABELS, type Scheme } from '#/features/branding/services/colourScheme';
 
 const TEXT = 4.5;
 const UI = 3;

@@ -1,6 +1,6 @@
-import type { Scheme } from '#/features/branding/services/palette';
 import type { Read } from '#/shared/services/read';
 import type { PageKind } from '#/features/branding/services/values';
+import type { Scheme } from '#/features/branding/services/colourScheme';
 export interface PreviewChoice {
   kind: PageKind;
   scheme: Scheme;

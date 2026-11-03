@@ -5,7 +5,6 @@ import {
   withColour,
   type Palette,
   type PaletteKey,
-  type Scheme,
 } from '#/features/branding/services/palette';
 import {
   NO_ISSUES,
@@ -19,6 +18,7 @@ import type { ColourValues } from '#/features/branding/services/values';
 import type { FieldError, PublishThemeResponse, ThemeView } from '@odudu/contracts/admin';
 import { tabNamed } from '#/shared/services/record';
 import { OFFERED_TABS, type OfferedTab } from '#/features/branding/services/tabs';
+import type { Scheme } from '#/features/branding/services/colourScheme';
 
 export function paletteField(scheme: Scheme): 'tokens.light' | 'tokens.dark' {
   return `tokens.${scheme}`;

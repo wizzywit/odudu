@@ -4,7 +4,7 @@ import {
   type MailColoursView,
 } from '@odudu/contracts/admin';
 import type { Choice } from '#/shared/services/choice';
-import type { Scheme } from '#/features/branding/services/palette';
+import type { Scheme } from '#/features/branding/services/colourScheme';
 import { previewable } from '#/shared/services/profileUrl';
 import { languageChoices } from '#/shared/services/locales';
 

@@ -8,7 +8,6 @@ import {
   fontChoice,
   isHexColour,
   paletteProblems,
-  schemeOf,
   swatchOf,
   typedColour,
   withColour,
@@ -78,13 +77,5 @@ describe('the font', () => {
     expect(fontChoice('')).toBeNull();
     expect(fontChoice('Comic Sans')).toBeNull();
     expect(fontChoice('IBM Plex Mono')).toBe('IBM Plex Mono');
-  });
-});
-
-describe('schemeOf', () => {
-  it('names a scheme for light and dark, and nothing for another id', () => {
-    expect(schemeOf('dark')).toBe('dark');
-    expect(schemeOf('light')).toBe('light');
-    expect(schemeOf('sepia')).toBeUndefined();
   });
 });

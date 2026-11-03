@@ -1,19 +1,11 @@
 import { PALETTE_KEYS, type FontChoice } from '@odudu/contracts';
+import type { Scheme } from '#/features/branding/services/colourScheme';
 
 export type PaletteKey = (typeof PALETTE_KEYS)[number];
+
 export type Palette = Record<PaletteKey, string>;
-export type Scheme = 'light' | 'dark';
 
 export const PALETTE_ORDER: readonly PaletteKey[] = PALETTE_KEYS;
-
-export const SCHEMES: readonly Scheme[] = ['light', 'dark'];
-
-// The scheme a control's id names, or nothing for any other.
-export function schemeOf(id: string): Scheme | undefined {
-  return SCHEMES.find((scheme) => scheme === id);
-}
-
-export const SCHEME_LABELS: Readonly<Record<Scheme, string>> = { light: 'Light', dark: 'Dark' };
 
 export interface PaletteLabel {
   label: string;

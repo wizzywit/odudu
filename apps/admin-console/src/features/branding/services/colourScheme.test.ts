@@ -4,7 +4,8 @@ import { customLabel, paletteLegend } from '#/features/branding/services/copy';
 import { pairRows, rowText } from '#/features/branding/services/contrast';
 import { colourFields } from '#/features/branding/services/fields';
 import { MAIL_SCHEME_LABEL, schemeTitle } from '#/features/branding/services/mail';
-import { DEFAULT_PALETTES, SCHEME_LABELS, SCHEMES } from '#/features/branding/services/palette';
+import { DEFAULT_PALETTES } from '#/features/branding/services/palette';
+import { SCHEME_LABELS, SCHEMES, schemeOf } from '#/features/branding/services/colourScheme';
 import { PREVIEW_SCHEME_LABEL, SCHEME_OPTIONS } from '#/features/branding/services/preview';
 import { sourceReading } from '#/features/branding/services/sources';
 import { themeView } from '#/testing/brandingFixtures';
@@ -48,5 +49,13 @@ describe('how a colour scheme is spelled', () => {
   it('names the picker the same in the preview and in the mail', () => {
     expect(PREVIEW_SCHEME_LABEL).toBe('Colour scheme');
     expect(MAIL_SCHEME_LABEL).toBe('Colour scheme');
+  });
+});
+
+describe('schemeOf', () => {
+  it('names a scheme for light and dark, and nothing for another id', () => {
+    expect(schemeOf('dark')).toBe('dark');
+    expect(schemeOf('light')).toBe('light');
+    expect(schemeOf('sepia')).toBeUndefined();
   });
 });

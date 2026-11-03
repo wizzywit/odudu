@@ -14,16 +14,10 @@ import {
 } from '#/features/branding/services/copy';
 import { colourProblems, paletteField } from '#/features/branding/services/edits';
 import { COLOURS_TITLE } from '#/features/branding/services/fields';
-import {
-  FONT_OPTIONS,
-  PALETTE_LABELS,
-  PALETTE_ORDER,
-  SCHEME_LABELS,
-  SCHEMES,
-  type Scheme,
-} from '#/features/branding/services/palette';
+import { FONT_OPTIONS, PALETTE_LABELS, PALETTE_ORDER } from '#/features/branding/services/palette';
 import { type ThemeScope } from '#/features/branding/services/scope';
 import { sourceReading } from '#/features/branding/services/sources';
+import { SCHEME_LABELS, SCHEMES, type Scheme } from '#/features/branding/services/colourScheme';
 import type { Colours } from '#/features/branding/use-cases/useColours';
 import { ColourField } from '#/features/branding/ui/ColourField';
 import { useFolds, type Folds } from '#/shared/use-cases/useFolds';
