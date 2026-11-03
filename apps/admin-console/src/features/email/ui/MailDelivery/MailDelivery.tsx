@@ -1,13 +1,12 @@
 import type { MailMessage } from '@odudu/contracts/admin';
+import { mailOutcome, mailTone } from '#/features/email/services/mailDelivery';
 import {
-  mailOutcome,
-  mailTone,
   MAIL_HEADING,
   MAIL_RULE,
-  MAIL_STATUS_OPTIONS,
   MASKED_NOTE,
   NO_MAIL,
-} from '#/features/email/services/mail';
+} from '#/features/email/services/mailWording';
+import { MAIL_STATUS_OPTIONS } from '#/features/email/services/mailQuery';
 import {
   useMailDelivery,
   type MailDelivery as Delivery,

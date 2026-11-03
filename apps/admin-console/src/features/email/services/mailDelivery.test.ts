@@ -4,12 +4,9 @@ import { describe, expect, it } from 'vitest';
 import {
   anyMasked,
   mailOutcome,
-  mailQuery,
   mailTone,
-  MAIL_PAGE_SIZE,
-  MAIL_STATUS_OPTIONS,
   oldestWaiting,
-} from '#/features/email/services/mail';
+} from '#/features/email/services/mailDelivery';
 
 function message(id: string, status: MailMessage['status'], extra: Partial<MailMessage> = {}) {
   return {
@@ -26,24 +23,6 @@ function message(id: string, status: MailMessage['status'], extra: Partial<MailM
     ...extra,
   } satisfies MailMessage;
 }
-
-describe('the request the panel makes', () => {
-  it('asks for one bounded page, narrowed to a status only when one is chosen', () => {
-    expect(mailQuery(null)).toEqual({ limit: String(MAIL_PAGE_SIZE) });
-    expect(mailQuery('failed')).toEqual({ limit: String(MAIL_PAGE_SIZE), status: 'failed' });
-    expect(MAIL_PAGE_SIZE).toBeLessThanOrEqual(50);
-  });
-
-  it('offers every status the server reports, and any', () => {
-    expect(MAIL_STATUS_OPTIONS.map((option) => option.id)).toEqual([
-      'any',
-      'queued',
-      'retrying',
-      'failed',
-      'sent',
-    ]);
-  });
-});
 
 describe('how a status is drawn', () => {
   it('shows a failed message as danger, one still being tried as a warning and one sent as active', () => {

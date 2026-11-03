@@ -7,7 +7,7 @@ import {
   testOutcome,
   testSendable,
   type TestOutcome,
-} from '#/features/email/services/test';
+} from '#/features/email/services/testSend';
 import {
   chosenTestClient,
   DEFAULT_TEST_CLIENT,

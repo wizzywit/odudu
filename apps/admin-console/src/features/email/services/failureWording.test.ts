@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { testOutcome } from '#/features/email/services/test';
+import { testOutcome } from '#/features/email/services/testSend';
 import type { GatewayFailure } from '#/shared/services/result';
 import { failure, refusal } from '#/testing/failures';
 

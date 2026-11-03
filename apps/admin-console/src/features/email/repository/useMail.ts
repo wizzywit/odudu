@@ -1,5 +1,5 @@
 import { readMailPage } from '#/features/email/adapter/mail';
-import { mailQuery } from '#/features/email/services/mail';
+import { mailQuery } from '#/features/email/services/mailQuery';
 import { listKey } from '#/shared/repository/queryKeys';
 import { useListPages } from '#/shared/repository/useResourceList';
 

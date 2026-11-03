@@ -4,7 +4,7 @@ import {
   testBlocked,
   testOutcome,
   testSendable,
-} from '#/features/email/services/test';
+} from '#/features/email/services/testSend';
 import type { GatewayResult } from '#/shared/services/result';
 
 function problem(status: number, detail: string): GatewayResult<{ sent: boolean }> {

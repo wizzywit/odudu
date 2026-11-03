@@ -75,7 +75,8 @@ const FILTERS = 'audit/services/filterWords.ts';
 const AUDIT_KINDS = 'audit/services/filterOptions.ts';
 const EMAIL_PAGE = 'email/ui/EmailPage/EmailPage.tsx';
 const EMAIL_RELAY = 'email/services/relay.ts';
-const EMAIL_MAIL = 'email/services/mail.ts';
+const EMAIL_MAIL = 'email/services/mailWording.ts';
+const EMAIL_MAIL_QUERY = 'email/services/mailQuery.ts';
 const ACCESS = 'settings/services/accessSections.ts';
 const PLATFORM = 'settings/services/platformSections.ts';
 const KEYS_WORDS = 'signing-keys/services/keysWords.ts';
@@ -541,10 +542,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Delivery: feature(EMAIL_MAIL, "'Delivery'"),
   Show: feature('email/ui/MailDelivery/MailDelivery.tsx', 'label="Show"'),
   Refresh: feature('email/ui/MailDelivery/MailDelivery.tsx', '>Refresh<'),
-  Queued: feature(EMAIL_MAIL, "'Queued'"),
-  Retrying: feature(EMAIL_MAIL, "'Retrying'"),
-  Sent: feature(EMAIL_MAIL, "'Sent'"),
-  Failed: several(feature(EMAIL_MAIL, "'Failed'"), page(AUDIT_KINDS, "'Failed'")),
+  Queued: feature(EMAIL_MAIL_QUERY, "'Queued'"),
+  Retrying: feature(EMAIL_MAIL_QUERY, "'Retrying'"),
+  Sent: feature(EMAIL_MAIL_QUERY, "'Sent'"),
+  Failed: several(feature(EMAIL_MAIL_QUERY, "'Failed'"), page(AUDIT_KINDS, "'Failed'")),
   'not sent': feature('email/services/effective.ts', "return 'not sent'"),
   'deployment sender': feature('email/services/effective.ts', "return 'deployment sender'"),
   'own relay': feature('email/services/effective.ts', "return 'own relay'"),
