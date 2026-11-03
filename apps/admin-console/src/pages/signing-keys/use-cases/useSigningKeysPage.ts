@@ -48,6 +48,7 @@ export interface SigningKeysPage {
   staging: boolean;
   stage: () => void;
   stageMessage: string | null;
+  algError: string | undefined;
   asking: Asking | null;
   busy: boolean;
   problem: string | null;
@@ -73,6 +74,7 @@ export function useSigningKeysPage(tenant: string): SigningKeysPage {
   const remove = useDeleteKey(tenant);
   const [chosen, setChosen] = useState<SigningKeyAlg | null>(null);
   const [stageMessage, setStageMessage] = useState<string | null>(null);
+  const [stageErrors, setStageErrors] = useState<Partial<Record<string, string>>>({});
   const writes = { promote: promote.run, retire: retire.run, delete: remove.run };
   const acting = useAnnouncedAction<{ action: KeyAction; key: SigningKey }>({
     refusal,
@@ -104,6 +106,7 @@ export function useSigningKeysPage(tenant: string): SigningKeysPage {
     staging: staging.busy,
     stage: () => {
       setStageMessage(null);
+      setStageErrors({});
       staging
         .run(alg)
         .then((result) => {
@@ -113,11 +116,13 @@ export function useSigningKeysPage(tenant: string): SigningKeysPage {
           }
           const outcome = stageFailure(result);
           setStageMessage(outcome.message);
+          setStageErrors(outcome.errors);
           if (outcome.report) refusal.report(result, 'manage-keys');
         })
         .catch(() => undefined);
     },
     stageMessage,
+    algError: stageErrors.alg,
     asking: askingOf(acting.asked, current, promotionFor),
     busy: promote.busy || retire.busy || remove.busy,
     problem: acting.problem,

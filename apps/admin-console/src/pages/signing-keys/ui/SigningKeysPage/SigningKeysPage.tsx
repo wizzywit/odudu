@@ -164,6 +164,7 @@ function Stage({ page }: { page: Page }) {
       <div className={styles.stage}>
         <SelectField
           label={stage.algorithm}
+          error={page.algError}
           options={stage.options}
           value={page.alg}
           onChange={page.chooseAlg}

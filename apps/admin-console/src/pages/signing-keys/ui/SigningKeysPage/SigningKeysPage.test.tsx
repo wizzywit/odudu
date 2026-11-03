@@ -103,6 +103,25 @@ it('starts the algorithm from the active key’s', async () => {
   expect(await screen.findByRole('button', { name: /RS256 \(RSA\)/u })).toBeVisible();
 });
 
+it('shows the refusal of the algorithm beside its control, described by it', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    keyRoutes(undefined, {
+      [`POST ${KEYS}`]: problem(400, 'about:blank', 'Bad Request', {
+        detail: 'alg must be one of the algorithms this server signs with',
+        errors: [{ path: 'alg', message: 'must be one of the algorithms this server signs with' }],
+      }),
+    }),
+  );
+  await user.click(await screen.findByRole('button', { name: 'Stage key' }));
+  const message = await screen.findByText('must be one of the algorithms this server signs with');
+  expect(message).toBeVisible();
+  expect(screen.getByRole('button', { name: /Algorithm/u })).toHaveAccessibleDescription(
+    'must be one of the algorithms this server signs with',
+  );
+});
+
 it('says beside the button that a lost stage was not sent again', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(AT, keyRoutes(undefined, { [`POST ${KEYS}`]: offline() }));

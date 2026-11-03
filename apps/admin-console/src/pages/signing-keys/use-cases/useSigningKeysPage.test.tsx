@@ -120,9 +120,7 @@ it('names the capability a refused stage needed, beside the stage button', async
   expect(result.current.stageMessage).toContain('manage-keys');
 });
 
-// The one field the stage form has is not drawn, so a 400 that names only it
-// leaves nothing to say: kept as it is, a stale rule if the form gains an error line.
-it('says nothing when the server refuses the algorithm field alone', async () => {
+it('puts a refusal of the algorithm field alone on the algorithm', async () => {
   const { result, sent } = page({
     [`POST ${KEYS}`]: problem(400, 'about:blank', 'Bad Request', {
       detail: 'alg must be one of the algorithms this server signs with',
@@ -139,6 +137,7 @@ it('says nothing when the server refuses the algorithm field alone', async () =>
   await waitFor(() => {
     expect(result.current.staging).toBe(false);
   });
+  expect(result.current.algError).toBe('must be one of the algorithms this server signs with');
   expect(result.current.stageMessage).toBeNull();
 });
 
