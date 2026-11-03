@@ -31,3 +31,26 @@ it('sends a number that was cleared as nothing at all', async () => {
   });
   expect(sent[0]?.body).toEqual({});
 });
+
+// The request and the answer of the PATCH in `get-settings-and-patch-settings.md`.
+it('answers the whole object as it now reads, with the fresh ETag of the transcript', async () => {
+  const etag = '"1de2b99ffd716e07c8e28fec21cb5c7562f2bc13b2ca5eec9e506acf774885b8"';
+  const { transport, sent } = fakeTransport({
+    [`PATCH ${ST}`]: json(
+      { display_name: 'Settings Demo', verify_email: true, password_min_length: 14 },
+      200,
+      { etag },
+    ),
+  });
+  const result = await settingsSave('acme')(transport.gateway, {
+    changes: { verify_email: true, password_min_length: 14 },
+    values: { verify_email: true, password_min_length: 14 },
+    ifMatch: '"fd9972c6ca4296014c10131d8baea2b85aae944d7eae3fd59a95fd12a8891093"',
+  });
+  expect(sent[0]?.body).toEqual({ verify_email: true, password_min_length: 14 });
+  expect(result).toMatchObject({
+    ok: true,
+    etag,
+    data: { verify_email: true, password_min_length: 14 },
+  });
+});
