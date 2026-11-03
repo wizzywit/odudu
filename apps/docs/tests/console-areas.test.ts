@@ -6,6 +6,7 @@ import { DOCS_ROOT } from '#docs/tests/support/dist.ts';
 const REPO = path.resolve(DOCS_ROOT, '../..');
 const CONTENT = path.join(DOCS_ROOT, 'content/en');
 const CONSOLE = path.join(REPO, 'apps/admin-console/src/features');
+const CONSOLE_PAGES = path.join(REPO, 'apps/admin-console/src/pages');
 const PAGES = path.join(CONTENT, 'admin-console');
 
 // The page that describes each directory of console features. A directory with
@@ -30,8 +31,13 @@ const PAGE_OF_FEATURE: Readonly<Record<string, string>> = {
 };
 
 // The screen shown when a page fails is not an area: the tour walks through it.
-// Sign-in and the menu live in widgets, not among the features.
-const DESCRIBED_BY_THE_TOUR = ['failure'];
+// Sign-in and the menu live in widgets, not among the features; the console's
+// home is a page of its own that the tour opens with.
+const DESCRIBED_BY_THE_TOUR = ['console-home', 'failure'];
+
+// An action of other pages, described on the pages that offer it: adding an
+// administrator, on Tenants and System administrators.
+const DESCRIBED_BY_ITS_PAGES = ['begin-administrator'];
 
 // The area each menu entry opens, by the path areas.ts gives it, and the page
 // that covers it. The Export entry is a tenant's export, on the Tenants page.
@@ -113,11 +119,16 @@ const SLUGS = [...Object.values(PAGE_OF_FEATURE), ...PAGES_OF_TABS];
 
 describe('the admin console section', () => {
   it('has a page for every feature directory of the console', () => {
-    const directories = readdirSync(CONSOLE, { withFileTypes: true })
+    const directories = [CONSOLE, CONSOLE_PAGES]
+      .flatMap((root) => readdirSync(root, { withFileTypes: true }))
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
       .sort();
-    const known = [...Object.keys(PAGE_OF_FEATURE), ...DESCRIBED_BY_THE_TOUR].sort();
+    const known = [
+      ...Object.keys(PAGE_OF_FEATURE),
+      ...DESCRIBED_BY_THE_TOUR,
+      ...DESCRIBED_BY_ITS_PAGES,
+    ].sort();
     expect(directories).toEqual(known);
     for (const slug of SLUGS) expect(existsSync(path.join(PAGES, `${slug}.mdx`)), slug).toBe(true);
     expect(existsSync(path.join(PAGES, 'tour.mdx'))).toBe(true);

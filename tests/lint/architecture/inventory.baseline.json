@@ -1,8 +1,8 @@
 {
   "no-service-barrel": 0,
   "no-domain-in-shared": 310,
-  "no-sideways-slice": 17,
-  "view-no-service": 131,
+  "no-sideways-slice": 15,
+  "view-no-service": 124,
   "no-adapter-export": 0,
   "contracts-only-in-adapter": 0
 }

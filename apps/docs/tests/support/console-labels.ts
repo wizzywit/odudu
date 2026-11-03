@@ -20,6 +20,7 @@ export interface Defined {
 }
 
 const FEATURES = 'apps/admin-console/src/features';
+const PAGES = 'apps/admin-console/src/pages';
 const SHARED = 'apps/admin-console/src/shared';
 const MESSAGES = 'packages/protocol-oidc/src/view/messages.ts';
 
@@ -33,6 +34,8 @@ const several = (...parts: readonly Defined[]): Defined => ({
 
 const feature = (path: string, ...texts: readonly string[]): Defined =>
   at(`${FEATURES}/${path}`, ...texts);
+const page = (path: string, ...texts: readonly string[]): Defined =>
+  at(`${PAGES}/${path}`, ...texts);
 const shared = (path: string, ...texts: readonly string[]): Defined =>
   at(`${SHARED}/${path}`, ...texts);
 
@@ -46,6 +49,10 @@ function template(
 
 const inFeature = (path: string, text: string): Evidence => ({
   file: `${FEATURES}/${path}`,
+  text,
+});
+const inPage = (path: string, text: string): Evidence => ({
+  file: `${PAGES}/${path}`,
   text,
 });
 
@@ -103,7 +110,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Username: several(
     at(MESSAGES, "'login.username': 'Username'"),
     feature('subjects/ui/NewSubjectPage/NewSubjectPage.tsx', 'label="Username"'),
-    feature(TENANT_NEW, 'label="Username"'),
+    page(TENANT_NEW, 'label="Username"'),
     feature(EMAIL_RELAY, "username: 'Username'"),
     feature('subjects/ui/CapabilityHolders/CapabilityHolders.tsx', "label: 'Username'"),
   ),
@@ -165,11 +172,11 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Email: several(
     rail('email', 'Email'),
     feature('subjects/ui/NewSubjectPage/NewSubjectPage.tsx', 'label="Email"'),
-    feature(TENANT_NEW, 'label="Email"'),
+    page(TENANT_NEW, 'label="Email"'),
   ),
   Export: several(
     rail('export', 'Export'),
-    feature('tenants/ui/TenantRecordPage/TenantRecordPage.tsx', "'Export'"),
+    page('tenants/ui/TenantRecordPage/TenantRecordPage.tsx', "'Export'"),
   ),
   'Audit trail': rail('audit', 'Audit trail'),
   Tenants: rail('tenants', 'Tenants'),
@@ -196,7 +203,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     tab('groups', 'general', 'General'),
     tab('roles', 'general', 'General'),
     tab('scopes', 'general', 'General'),
-    feature('tenants/ui/GeneralTab/GeneralTab.tsx', 'title="General"'),
+    page('tenants/ui/GeneralTab/GeneralTab.tsx', 'title="General"'),
     feature(ACCESS, "title: 'General'"),
   ),
   'Redirects & origins': clientTab('redirects', 'Redirects & origins'),
@@ -207,10 +214,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Members: several(tab('groups', 'members', 'Members'), tab('roles', 'members', 'Members')),
   Composites: tab('roles', 'composites', 'Composites'),
   'Claim mappers': tab('scopes', 'mappers', 'Claim mappers'),
-  Administrators: feature('tenants/ui/TenantRecordPage/TenantRecordPage.tsx', "'Administrators'"),
+  Administrators: page('tenants/ui/TenantRecordPage/TenantRecordPage.tsx', "'Administrators'"),
 
   // Creating things.
-  'Create a tenant': feature('tenants/ui/TenantsPage/TenantsPage.tsx', '> Create a tenant <'),
+  'Create a tenant': page('tenants/ui/TenantsPage/TenantsPage.tsx', '> Create a tenant <'),
   'Create a client': feature('clients/ui/ClientsPage/ClientsPage.tsx', '> Create a client <'),
   'Create a subject': feature('subjects/ui/SubjectsPage/SubjectsPage.tsx', '> Create a subject <'),
   'Create a group': feature('groups/ui/GroupsPage/GroupsPage.tsx', '> Create a group <'),
@@ -231,30 +238,30 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   'Create a copy': feature('roles/ui/RoleRecordPage/RoleRecordPage.tsx', '> Create a copy <'),
   'Import a tenant': several(
-    feature('tenants/ui/TenantsPage/TenantsPage.tsx', '>Import a tenant<'),
-    feature(TENANT_IMPORT, 'title="Import a tenant"'),
+    page('tenants/ui/TenantsPage/TenantsPage.tsx', '>Import a tenant<'),
+    page('tenants/use-cases/useImportTenantPage.ts', "IMPORT_TITLE = 'Import a tenant'"),
   ),
-  'Create tenant': feature(TENANT_NEW, "'Create tenant'"),
+  'Create tenant': page(TENANT_NEW, "'Create tenant'"),
   'Create client': createWith('client', CLIENT_NEW),
   'Create subject': createWith('subject', 'subjects/ui/NewSubjectPage/NewSubjectPage.tsx'),
   'Create group': createWith('group', 'groups/ui/NewGroupPage/NewGroupPage.tsx'),
   'Create role': createWith('role', 'roles/ui/NewRolePage/NewRolePage.tsx'),
   'Create scope': createWith('scope', 'scopes/ui/NewScopePage/NewScopePage.tsx'),
-  'Create administrator': feature(TENANT_NEW, "'Create administrator'"),
+  'Create administrator': page(TENANT_NEW, "'Create administrator'"),
   'Create a new subject as an administrator': feature(
     SYSTEM_PAGE,
     '>Create a new subject as an administrator<',
   ),
   Name: several(
-    feature(TENANT_NEW, 'label="Name"'),
-    feature(TENANT_IMPORT, 'label="Name"'),
+    page(TENANT_NEW, 'label="Name"'),
+    page(TENANT_IMPORT, 'label="Name"'),
     feature(CLIENT_NEW, 'label="Name"'),
     at(CREATION_FORM, 'label="Name"'),
   ),
   'Display name': several(
-    feature(TENANT_NEW, 'label="Display name"'),
-    feature(TENANT_IMPORT, 'label="Display name"'),
-    feature('tenants/use-cases/useTenantGeneral.ts', "label: 'Display name'"),
+    page(TENANT_NEW, 'label="Display name"'),
+    page(TENANT_IMPORT, 'label="Display name"'),
+    page('tenants/use-cases/useTenantGeneral.ts', "label: 'Display name'"),
   ),
   Description: several(
     at(CREATION_FORM, 'label="Description"'),
@@ -275,11 +282,11 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   Parent: feature('groups/ui/NewGroupPage/NewGroupPage.tsx', 'label="Parent"'),
   'Enter demo': template(
-    [inFeature('tenants/ui/TenantsPage/TenantsPage.tsx', '`Enter ${tenant.name}`')],
+    [inPage('tenants/ui/TenantsPage/TenantsPage.tsx', '`Enter ${tenant.name}`')],
     'Enter ${tenant.name}',
     { 'tenant.name': 'demo' },
   ),
-  'Open demo': template([inFeature(TENANT_NEW, '`Open ${step.tenant}`')], 'Open ${step.tenant}', {
+  'Open demo': template([inPage(TENANT_NEW, '`Open ${step.tenant}`')], 'Open ${step.tenant}', {
     'step.tenant': 'demo',
   }),
 
@@ -287,7 +294,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Capability: feature('subjects/ui/SubjectsPage/SubjectsPage.tsx', 'label="Capability"'),
   Status: several(
     feature('subjects/ui/SubjectsPage/SubjectsPage.tsx', 'label="Status"'),
-    feature('tenants/ui/TenantsPage/TenantsPage.tsx', 'label="Status"'),
+    page('tenants/ui/TenantsPage/TenantsPage.tsx', 'label="Status"'),
     feature('subjects/ui/CapabilityHolders/CapabilityHolders.tsx', 'label="Status"'),
   ),
   Holds: feature('subjects/ui/CapabilityHolders/CapabilityHolders.tsx', 'label="Holds"'),
@@ -319,7 +326,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   'End every session': several(
     feature('subjects/ui/SubjectRecordPage/SessionsTab.tsx', 'confirmLabel="End every session"'),
-    feature(
+    page(
       'tenant-sessions/ui/TenantSessionsPage/TenantSessionsPage.tsx',
       'confirmLabel="End every session"',
     ),
@@ -490,7 +497,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Enabled: feature(ACCESS, "label: 'Enabled'"),
   'Clear all lockouts': feature('settings/services/lockouts.ts', "'Clear all lockouts'"),
   'Disable demo': template(
-    [inFeature('tenants/ui/GeneralTab/GeneralTab.tsx', 'confirmLabel={`Disable ${name}`}')],
+    [inPage('tenants/ui/GeneralTab/GeneralTab.tsx', 'confirmLabel={`Disable ${name}`}')],
     'Disable ${name}',
     { name: 'demo' },
   ),
@@ -653,19 +660,19 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
 
   // Tenants and their administrators.
-  'Export to a file': feature('tenants/ui/ExportPanel/ExportPanel.tsx', "'Export to a file'"),
-  'Include subjects': feature('tenants/ui/ExportPanel/ExportPanel.tsx', 'label="Include subjects"'),
-  Import: feature(TENANT_IMPORT, "'Import'"),
-  'Choose a file…': feature(TENANT_IMPORT, '> Choose a file… <'),
-  'Tenant document': feature(TENANT_IMPORT, '> Tenant document <'),
+  'Export to a file': page('tenants/ui/ExportPanel/ExportPanel.tsx', "'Export to a file'"),
+  'Include subjects': page('tenants/ui/ExportPanel/ExportPanel.tsx', 'label="Include subjects"'),
+  Import: page(TENANT_IMPORT, "'Import'"),
+  'Choose a file…': page(TENANT_IMPORT, '> Choose a file… <'),
+  'Tenant document': page(TENANT_IMPORT, '> Tenant document <'),
   'Add an administrator': several(
     feature(SYSTEM_PAGE, '> Add an administrator <'),
-    feature('tenants/ui/AdministratorsTab/AdministratorsTab.tsx', '>Add an administrator<'),
+    page('tenants/ui/AdministratorsTab/AdministratorsTab.tsx', '>Add an administrator<'),
   ),
   'Subject in system': feature(SYSTEM_PAGE, 'label="Subject in system"'),
   'What they hold': several(
     feature(SYSTEM_PAGE, 'label="What they hold"'),
-    feature(TENANT_NEW, 'label="What they hold"'),
+    page(TENANT_NEW, 'label="What they hold"'),
   ),
   'Give it to the chosen subject': feature(SYSTEM_PAGE, "'Give it to the chosen subject'"),
   'Full (tenant-admin)': at(`${SHARED}/services/capabilities/holdings.ts`, "'Full (tenant-admin)'"),

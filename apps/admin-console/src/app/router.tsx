@@ -95,7 +95,7 @@ function tenantsPage(
     | 'ExportPage',
 ) {
   return lazyFeatureRoute(
-    () => import('#/features/tenants').then((feature) => feature[name]),
+    () => import('#/pages/tenants').then((feature) => feature[name]),
     'Loading tenants',
   );
 }
@@ -104,13 +104,13 @@ const Tenants = tenantsPage('TenantsPage');
 const NewTenant = tenantsPage('NewTenantPage');
 const NewSystemAdministrator = tenantsPage('NewSystemAdministratorPage');
 const NewAdministrator = lazyFeatureRoute(
-  () => import('#/features/tenants').then((feature) => feature.NewAdministratorPage),
+  () => import('#/pages/tenants').then((feature) => feature.NewAdministratorPage),
   'Loading tenants',
 );
 const ImportTenant = tenantsPage('ImportTenantPage');
 const Export = tenantsPage('ExportPage');
 const TenantRecord = lazyFeatureRoute(
-  () => import('#/features/tenants').then((feature) => feature.TenantRecordPage),
+  () => import('#/pages/tenants').then((feature) => feature.TenantRecordPage),
   'Loading the tenant',
 );
 
@@ -451,7 +451,7 @@ const signingKeys = createRoute({
 });
 
 const TenantSessions = lazyFeatureRoute(
-  () => import('#/features/tenant-sessions').then((feature) => feature.TenantSessionsPage),
+  () => import('#/pages/tenant-sessions').then((feature) => feature.TenantSessionsPage),
   'Loading sessions',
 );
 

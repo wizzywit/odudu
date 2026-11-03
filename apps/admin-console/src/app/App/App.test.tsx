@@ -61,7 +61,7 @@ function loginParams(url: string | undefined): URLSearchParams {
 // find; loading the routed features here keeps that out of every test's
 // timer, and the routes still reach them through import().
 beforeAll(async () => {
-  await Promise.all([import('#/features/overview'), import('#/features/tenants')]);
+  await Promise.all([import('#/features/overview'), import('#/pages/tenants')]);
 }, 60_000);
 
 beforeEach(() => {

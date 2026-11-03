@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
-import { createTenant } from '#/features/tenants/adapter/tenants';
-import { readFileText } from '#/features/tenants/adapter/files';
+import { createTenant } from '#/pages/tenants/adapter/tenants';
+import { readFileText } from '#/pages/tenants/adapter/files';
 
 export function useCreate(gateway: unknown) {
   return useMutation({
