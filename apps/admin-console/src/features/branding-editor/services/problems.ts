@@ -28,7 +28,7 @@ export function detailed(text: string, error: FieldError): string {
 // a line are marked on it and the rest are said in the message; `saved` is
 // the save's own sentence, which stands when the refusal has none of its own
 // to read, and with neither there is nothing to say.
-export function placedProblems(
+function placedProblems(
   errors: readonly FieldError[],
   saved: string | undefined,
   { path, refused, wording }: { path: string; refused: string; wording: (e: FieldError) => string },

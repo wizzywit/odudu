@@ -43,7 +43,7 @@ export function formNote(manifest: Manifest): string | null {
     : `Between ${slot(FORM[0] ?? '')} and ${slot(FORM[1] ?? '')}: ${inside}.`;
 }
 
-export const SCRIPT_NOTE =
+const SCRIPT_NOTE =
   'This page uses a script, which the preview leaves out. The real page runs it.';
 
 // What the preview of a kind leaves out, when it leaves anything.

@@ -13,7 +13,7 @@ export const NOTHING_TO_PUBLISH = 'Nothing to publish: the draft matches what pe
 
 export const NO_DRAFT_HOLD = 'There is no draft to publish. Save a change first.';
 
-export function unsavedHold(sections: readonly string[]): string {
+function unsavedHold(sections: readonly string[]): string {
   return unsavedBlock(sections, 'publishing uses the saved draft');
 }
 

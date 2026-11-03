@@ -64,11 +64,11 @@ export function thumbnailAlt(slot: ImageSlot, alt: string | null): string {
   return alt !== null && alt.trim() !== '' ? alt : SLOT_RULES[slot].label;
 }
 
-export const THUMBNAIL_LOADING = 'Loading the image…';
+const THUMBNAIL_LOADING = 'Loading the image…';
 
-export const THUMBNAIL_FAILED = 'The image could not be shown.';
+const THUMBNAIL_FAILED = 'The image could not be shown.';
 
-export const THUMBNAIL_RETRY = 'Try again';
+const THUMBNAIL_RETRY = 'Try again';
 
 export interface ThumbnailWords {
   loading: string;

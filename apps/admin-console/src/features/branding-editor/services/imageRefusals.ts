@@ -70,7 +70,7 @@ function referenceLine(error: FieldError): string {
 
 // What the server's detail says when more themes name the image than it lists;
 // the mirror test holds this to the server's own sentence.
-export const IN_USE_MORE = 'more than errors lists';
+const IN_USE_MORE = 'more than errors lists';
 
 export function inUse(problem: Problem): InUse | null {
   if (!problemSubtype(problem).startsWith('asset-in-use')) return null;

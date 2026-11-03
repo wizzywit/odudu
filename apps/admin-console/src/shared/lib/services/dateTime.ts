@@ -52,7 +52,7 @@ function instantsOf(parts: readonly number[], zone: string): number[] {
   return [...new Set(found)].sort((a, b) => a - b);
 }
 
-export const NOT_COMPLETE =
+const NOT_COMPLETE =
   'That is not a complete date and time. Fill in every part, with a day the month has, or clear it.';
 
 export type LocalReading =

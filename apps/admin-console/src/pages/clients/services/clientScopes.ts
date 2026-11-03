@@ -12,7 +12,7 @@ type Assignment = Client['scopes'][number];
 // How many assigned scopes the tab draws at once from a list it already holds; no request is made.
 export const SCOPES_PAGE = 50;
 
-export function assignedScopes(scopes: readonly Assignment[]): readonly Assignment[] {
+function assignedScopes(scopes: readonly Assignment[]): readonly Assignment[] {
   return [...scopes].sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -39,7 +39,7 @@ export function scopeRefusal(problem: Problem): string | null {
   return writeRefusal(problem, SCOPES_CAPABILITY);
 }
 
-export const ASSIGN_LABEL = 'Assign scope';
+const ASSIGN_LABEL = 'Assign scope';
 export const PICKER_LABEL = 'Scope to assign';
 export const ASSIGNED_HEADING = 'Assigned scopes';
 export const ASSIGN_HEADING = 'Assign a scope';

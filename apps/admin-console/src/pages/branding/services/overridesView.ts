@@ -78,7 +78,7 @@ export interface TableWords {
   remove: string;
 }
 
-export const TABLE_WORDS: TableWords = {
+const TABLE_WORDS: TableWords = {
   label: OVERRIDES_TITLE,
   loading: 'Loading the overrides',
   failed: 'The overrides could not be loaded',

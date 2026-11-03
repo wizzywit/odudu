@@ -21,29 +21,29 @@ export interface PreviewChoice {
 
 export const DEFAULT_PREVIEW: PreviewChoice = { kind: 'sign-in', scheme: 'light' };
 
-export const PREVIEW_TITLE = 'Preview';
+const PREVIEW_TITLE = 'Preview';
 
-export const PREVIEW_KIND_LABEL = 'Page';
+const PREVIEW_KIND_LABEL = 'Page';
 
-export const PREVIEW_NOTE =
+const PREVIEW_NOTE =
   'The saved draft, drawn by the real page. Unsaved changes appear after you save them.';
 
-export const PREVIEW_FRAME_TITLE = 'Preview of the page';
+const PREVIEW_FRAME_TITLE = 'Preview of the page';
 
-export const PREVIEW_LOADING = 'Loading the preview';
+const PREVIEW_LOADING = 'Loading the preview';
 
-export const PREVIEW_FAILED = 'The preview could not be shown.';
+const PREVIEW_FAILED = 'The preview could not be shown.';
 
 // On a narrow screen the preview is a strip beside the editor; this opens it
 // to a page of its own.
-export const PREVIEW_OPEN_LABEL = 'Open preview';
+const PREVIEW_OPEN_LABEL = 'Open preview';
 
-export const PREVIEW_SHEET_TITLE = 'Page preview';
+const PREVIEW_SHEET_TITLE = 'Page preview';
 
-export const PREVIEW_CLOSE_LABEL = 'Close preview';
+const PREVIEW_CLOSE_LABEL = 'Close preview';
 
 // Said in the strip when the preview shows something other than the saved draft.
-export const PREVIEW_DIFFERS = 'not the saved draft';
+const PREVIEW_DIFFERS = 'not the saved draft';
 
 // The sheet's frame is the same page drawn large, so it is named apart from
 // the strip's, and is not announced as a second preview of the same thing.

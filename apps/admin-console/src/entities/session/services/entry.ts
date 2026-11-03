@@ -3,7 +3,7 @@ import { type Principal } from '#/entities/session/types/principal';
 
 // A tenant administrator opening another tenant's console is asked first:
 // signing in there replaces this session. A system administrator enters.
-export function signedInElsewhere(principal: Principal | null, tenant: string): boolean {
+function signedInElsewhere(principal: Principal | null, tenant: string): boolean {
   return principal !== null && principal.tenant !== tenant && principal.tenant !== SYSTEM_TENANT;
 }
 

@@ -1,7 +1,7 @@
 import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
 import type { Creation, CreationFlow } from '#/entities/creation-draft/types/creation';
 
-export const FRESH_CREATION: Creation = { step: 'tenant', name: '', displayName: '' };
+const FRESH_CREATION: Creation = { step: 'tenant', name: '', displayName: '' };
 
 export function administratorOf(
   tenant: string,

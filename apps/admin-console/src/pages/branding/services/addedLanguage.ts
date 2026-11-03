@@ -12,7 +12,7 @@ export const ADD_NEEDED = 'Choose a language, or type a tag such as fr-CA.';
 
 export const ADD_DUPLICATE = 'That language is already offered.';
 
-export const ADD_FULL = `A tenant offers at most ${String(LOCALISED_TEXT_ENTRIES_MAX)} languages.`;
+const ADD_FULL = `A tenant offers at most ${String(LOCALISED_TEXT_ENTRIES_MAX)} languages.`;
 
 export interface Added {
   // The supported languages with the new one, or null when it is refused.

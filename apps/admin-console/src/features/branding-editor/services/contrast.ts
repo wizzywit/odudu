@@ -10,7 +10,7 @@ import type { ColourValues } from '#/features/branding-editor/services/colourVal
 
 export const CONTRAST_TITLE = 'Contrast';
 
-export const CONTRAST_LEAD =
+const CONTRAST_LEAD =
   'Text must reach 4.5:1 against what it sits on, and borders and the focus ring 3:1. Publishing is refused while a pair falls short. This is checked as you type.';
 
 export const PAIR_PASSES = 'passes';
@@ -78,7 +78,7 @@ export interface PairRow {
   passes: boolean;
 }
 
-export function pairName(pair: Pair): string {
+function pairName(pair: Pair): string {
   const text = `${PALETTE_LABELS[pair.foreground].short} on ${PALETTE_LABELS[pair.background].short}`;
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -103,7 +103,7 @@ export function pairRows(scheme: Scheme, palette: Palette | null): readonly Pair
   return palette === null ? [] : PAIRS.map((pair) => rowOf(scheme, palette, pair));
 }
 
-export function failingRows(rows: readonly PairRow[]): readonly PairRow[] {
+function failingRows(rows: readonly PairRow[]): readonly PairRow[] {
   return rows.filter((row) => !row.passes);
 }
 
@@ -120,7 +120,7 @@ export function rowText(row: PairRow): string {
   return `${SCHEME_LABELS[row.scheme]}: ${row.name}, ${ratioText(row.ratio)}, ${requirementText(row.required)}`;
 }
 
-export function contrastSummary(failing: readonly PairRow[], shown: number): string {
+function contrastSummary(failing: readonly PairRow[], shown: number): string {
   if (shown === 0) return 'Instrument’s own colours are used, and they meet every requirement.';
   if (failing.length === 0) return `All ${counted(shown, 'pair', 'pairs')} meet their requirement.`;
   return `${counted(failing.length, 'pair fails', 'pairs fail')} its requirement.`;
@@ -134,9 +134,9 @@ export function contrastHold(failing: readonly PairRow[]): string | undefined {
   return `Fix the contrast before publishing: ${rowText(first)}${more > 0 ? `, and ${counted(more, 'more pair', 'more pairs')}` : ''}.`;
 }
 
-export const CONTRAST_PASSES = 'Contrast passes.';
+const CONTRAST_PASSES = 'Contrast passes.';
 
-export const CONTRAST_FAILS = 'Contrast fails: see the pairs listed.';
+const CONTRAST_FAILS = 'Contrast fails: see the pairs listed.';
 
 export interface ContrastReport {
   rows: readonly PairRow[];

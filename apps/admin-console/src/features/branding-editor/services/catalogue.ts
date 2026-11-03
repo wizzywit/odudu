@@ -15,13 +15,13 @@ export const MAIL_GROUP_LABEL = 'Mail';
 // The most a list of messages or of selectors draws at once; typing narrows it.
 export const LIST_LIMIT = 50;
 
-export const INSERT_LABEL = 'Insert a message';
+const INSERT_LABEL = 'Insert a message';
 
-export const INSERT_NOTE = `Puts a reference to the message you choose where the caret is. The list shows at most ${String(LIST_LIMIT)} messages: type part of a key or of its text to narrow it.`;
+const INSERT_NOTE = `Puts a reference to the message you choose where the caret is. The list shows at most ${String(LIST_LIMIT)} messages: type part of a key or of its text to narrow it.`;
 
-export const KEY_LOADING = 'Loading the list of messages.';
+const KEY_LOADING = 'Loading the list of messages.';
 
-export const KEY_FAILED = 'The list of messages could not be loaded.';
+const KEY_FAILED = 'The list of messages could not be loaded.';
 
 // The messages the template of a kind may name: those of the section that
 // fills the kind.

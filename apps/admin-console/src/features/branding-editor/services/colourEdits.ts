@@ -18,7 +18,7 @@ export function typedColour(text: string): string {
   return text.trim().toLowerCase();
 }
 
-export const COLOUR_RULE = 'A colour as #rrggbb.';
+const COLOUR_RULE = 'A colour as #rrggbb.';
 
 export function colourProblem(value: string): string | undefined {
   return isHexColour(value) ? undefined : COLOUR_RULE;
@@ -75,7 +75,7 @@ export function colourProblems(palette: Palette | null): Partial<Record<PaletteK
   );
 }
 
-export const COLOURS_HOLD = 'Finish each colour as #rrggbb before saving.';
+const COLOURS_HOLD = 'Finish each colour as #rrggbb before saving.';
 
 export function coloursHold(values: ColourValues): string | undefined {
   const bad = (['light', 'dark'] as const).some(

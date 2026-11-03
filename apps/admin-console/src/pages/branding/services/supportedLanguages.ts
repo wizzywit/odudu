@@ -17,7 +17,7 @@ export const DEFAULT_LABEL = 'Default language';
 export const DEFAULT_NOTE =
   'Used ahead of the browser’s preference, when the request names no language.';
 
-export const BROWSER_DECIDES = 'The browser decides';
+const BROWSER_DECIDES = 'The browser decides';
 
 export interface LanguageValues extends Readonly<Record<string, unknown>> {
   supported_locales: readonly string[];
@@ -51,7 +51,7 @@ export function languagesOf(settings: LanguageSettings): LanguageValues {
 
 // The shipped languages, then every other the tenant offers or is adding,
 // each once.
-export function languageTags(...offered: readonly (readonly string[])[]): string[] {
+function languageTags(...offered: readonly (readonly string[])[]): string[] {
   return uniqueIds([...SHIPPED_LANGUAGES, ...offered.flat()]);
 }
 
@@ -65,9 +65,9 @@ export function defaultChoices(supported: readonly string[]): Choice[] {
   return [{ id: '', label: BROWSER_DECIDES }, ...languageChoices(supported)];
 }
 
-export const NONE_SUPPORTED = 'Offer at least one language.';
+const NONE_SUPPORTED = 'Offer at least one language.';
 
-export const DEFAULT_NOT_SUPPORTED = 'The default language must be one of the supported languages.';
+const DEFAULT_NOT_SUPPORTED = 'The default language must be one of the supported languages.';
 
 // Why the section cannot be saved, or undefined when it can.
 export function languagesHold(values: LanguageValues): string | undefined {

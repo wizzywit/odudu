@@ -6,7 +6,7 @@ export function isAuthEnded(problem: { status: number; type: string }): boolean 
   return problem.status === 401 && problem.type === AUTH_ENDED_TYPE;
 }
 
-export const PRINCIPAL_CHANGED_TYPE = 'about:blank#console-principal-changed';
+const PRINCIPAL_CHANGED_TYPE = 'about:blank#console-principal-changed';
 
 // The gateway's 409 for a request naming a subject the session is not.
 export function isPrincipalChanged(problem: { status: number; type: string }): boolean {

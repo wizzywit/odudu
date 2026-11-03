@@ -20,10 +20,10 @@ import {
 import { sourceReading } from '#/features/branding-editor/services/sources';
 import type { ThemeScope } from '#/features/branding-editor/services/themeScope';
 
-export const COLOURS_LEAD =
+const COLOURS_LEAD =
   'Light and dark are two palettes, each used whole: customise one and every colour in it is yours, so a colour can never be left to clash. A scheme you leave alone keeps Instrument’s own colours.';
 
-export const FONT_LABEL = 'Font';
+const FONT_LABEL = 'Font';
 
 export function customLabel(scheme: Scheme): string {
   return `Use my own ${schemeColoursName(scheme)}`;

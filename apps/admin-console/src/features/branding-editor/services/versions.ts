@@ -6,13 +6,13 @@ import type { ThemeScope } from '#/features/branding-editor/services/themeScope'
 
 type Version = ThemeVersions['items'][number];
 
-export const VERSIONS_TITLE = 'Versions';
+const VERSIONS_TITLE = 'Versions';
 
 export function versionsLead(): string {
   return `The published version and the ${String(THEME_VERSIONS_LIMIT - 1)} before it, newest first. Restoring one publishes a copy of it as the next version and leaves your draft alone.`;
 }
 
-export const NO_VERSIONS = 'Nothing has been published yet.';
+const NO_VERSIONS = 'Nothing has been published yet.';
 
 export interface VersionRow {
   id: string;
@@ -45,9 +45,9 @@ export function restoreBody(row: VersionRow): string {
 
 export const RESTORED_TOAST = 'Version restored';
 
-export const RESET_TITLE = 'Reset to default';
+const RESET_TITLE = 'Reset to default';
 
-export function resetLead(scope: ThemeScope): string {
+function resetLead(scope: ThemeScope): string {
   return scope.kind === 'tenant'
     ? 'Returns the tenant to Instrument’s own look.'
     : 'Returns the client to its tenant’s look.';
@@ -58,28 +58,28 @@ export function resetBody(scope: ThemeScope): string {
   return `Deletes the draft and unpublishes the theme, so people see ${back} again. The version that was published stays in Versions, and you can restore it.`;
 }
 
-export const RESET_CONFIRM = 'Reset to default';
+const RESET_CONFIRM = 'Reset to default';
 
 export const RESET_DONE = 'Reset to the default theme';
 
-export const VERSIONS_FAILED = 'The versions could not be loaded';
+const VERSIONS_FAILED = 'The versions could not be loaded';
 
-export const RESTORE_LABEL = 'Restore';
+const RESTORE_LABEL = 'Restore';
 
-export const RESET_LABEL = 'Reset to default…';
+const RESET_LABEL = 'Reset to default…';
 
 export function restoreName(version: string): string {
   return `Restore ${version}`;
 }
 
-export const VERSIONS_COLUMNS = {
+const VERSIONS_COLUMNS = {
   version: 'Version',
   state: 'State',
   when: 'Published',
   action: 'Action',
 } as const;
 
-export const VERSIONS_TABLE_LABEL = 'Theme versions';
+const VERSIONS_TABLE_LABEL = 'Theme versions';
 
 export interface VersionLine extends VersionRow {
   restoreName: string;

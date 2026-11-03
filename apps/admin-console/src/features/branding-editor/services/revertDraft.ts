@@ -19,13 +19,13 @@ import {
   PIECE_TITLES,
 } from '#/features/branding-editor/services/changeSummary';
 
-export const REVERT_TITLE = 'Revert to published';
+const REVERT_TITLE = 'Revert to published';
 
 export const REVERT_LABEL = 'Revert this tab to published';
 
 export const REVERTING = 'Reverting…';
 
-export const REVERT_DONE = 'Tab reverted to published';
+const REVERT_DONE = 'Tab reverted to published';
 
 const TAB_PARTS: Readonly<Record<ScopedTab, string>> = {
   theme: 'the colours and font, the images and the stylesheet',
@@ -37,7 +37,7 @@ export function revertLead(scope: ThemeScope, tab: ScopedTab): string {
   return `Writes the draft again with ${TAB_PARTS[tab]} as published, all together; a part with nothing published ${under}. The other tabs keep their changes, and nothing is published.`;
 }
 
-export const TAB_MATCHES = 'This tab already matches what is published.';
+const TAB_MATCHES = 'This tab already matches what is published.';
 
 export function revertUnsaved(sections: readonly string[]): string {
   return unsavedBlock(sections, 'reverting works on the saved draft');
@@ -81,7 +81,7 @@ export function revertRequest(view: ThemeView, tab: ScopedTab): ThemeBodyRequest
   );
 }
 
-export function revertFailure(failure: GatewayFailure): string {
+function revertFailure(failure: GatewayFailure): string {
   return writeFailureText(failure, {
     name: 'The tab',
     verb: 'reverted',

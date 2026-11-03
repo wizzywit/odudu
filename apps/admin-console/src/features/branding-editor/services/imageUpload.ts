@@ -45,15 +45,15 @@ export const IDLE_SLOTS: SlotStates = {
   background: QUIET,
 };
 
-export function slotBusy(slots: SlotStates, slot: ImageSlot): SlotStates {
+function slotBusy(slots: SlotStates, slot: ImageSlot): SlotStates {
   return { ...slots, [slot]: { busy: true, error: null } };
 }
 
-export function slotFailed(slots: SlotStates, slot: ImageSlot, error: string): SlotStates {
+function slotFailed(slots: SlotStates, slot: ImageSlot, error: string): SlotStates {
   return { ...slots, [slot]: { busy: false, error } };
 }
 
-export function slotDone(slots: SlotStates, slot: ImageSlot): SlotStates {
+function slotDone(slots: SlotStates, slot: ImageSlot): SlotStates {
   return { ...slots, [slot]: QUIET };
 }
 

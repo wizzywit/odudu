@@ -20,12 +20,12 @@ export function serviceRolesRecordOf(
 export const SERVICE_RULE =
   'The roles the client holds when it signs in as itself with the client credentials grant. A token it is given carries these, mapped through the scopes it asks for.';
 
-export const MISSING_ACCOUNT = 'This client has no service account.';
-export const PUBLIC_NO_ACCOUNT = 'A public client has no service account.';
-export const SIGN_IN_NO_ACCOUNT =
+const MISSING_ACCOUNT = 'This client has no service account.';
+const PUBLIC_NO_ACCOUNT = 'A public client has no service account.';
+const SIGN_IN_NO_ACCOUNT =
   "No service account. This client signs people in; it doesn't sign in as itself.";
 
-export const IDLE_ACCOUNT =
+const IDLE_ACCOUNT =
   'Not in use: the client credentials grant is off. The account keeps its roles.';
 
 // An account outlives the grant that uses it, so turning the grant off leaves it idle.

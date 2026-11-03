@@ -44,9 +44,9 @@ export const UNKNOWN_KEY =
 
 export const OVER_BOUND = `The tenant already has ${String(OVERRIDE_CAP)} message overrides, the most it may hold. Remove one first; changing an override that exists is always allowed.`;
 
-export const KEY_REQUIRED = 'Enter the key of the message to override.';
+const KEY_REQUIRED = 'Enter the key of the message to override.';
 
-export const MESSAGE_REQUIRED = 'Enter the text to show instead.';
+const MESSAGE_REQUIRED = 'Enter the text to show instead.';
 
 // What the form holds. `etag` is the version of the override the form was
 // filled from, or null for one typed from nothing, which is a create.

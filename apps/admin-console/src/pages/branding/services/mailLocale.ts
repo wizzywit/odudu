@@ -4,7 +4,7 @@ import { languageChoices } from '#/shared/lib/services/locales';
 
 export const MAIL_LOCALE_LABEL = 'Language';
 
-export const TENANT_DEFAULT_LANGUAGE = 'The tenant’s default';
+const TENANT_DEFAULT_LANGUAGE = 'The tenant’s default';
 
 export const MAIL_LOCALE_OPTIONS: readonly Choice[] = [
   { id: '', label: TENANT_DEFAULT_LANGUAGE },

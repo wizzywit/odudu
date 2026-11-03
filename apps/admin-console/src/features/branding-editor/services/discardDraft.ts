@@ -14,7 +14,7 @@ export const DISCARD_DONE = 'Draft discarded';
 export const DISCARD_BODY_TENANT =
   'Deletes the saved draft and nothing else: what is published stays, and people keep seeing it. Unlike Reset to default, nothing is unpublished.';
 
-export const DISCARD_BODY_CLIENT =
+const DISCARD_BODY_CLIENT =
   'Deletes the client’s saved draft and nothing else: what is published for the client stays, and people keep seeing it. Unlike Reset to default, nothing is unpublished.';
 
 export function discardBody(scope: ThemeScope): string {

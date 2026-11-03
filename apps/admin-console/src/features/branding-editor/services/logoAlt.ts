@@ -31,7 +31,7 @@ export function logoOf(assetId: string, previous: Logo | null): Logo {
   return { assetId, alt: previous?.alt ?? '' };
 }
 
-export const ALT_HOLD = 'Describe each logo before saving: alt text is required.';
+const ALT_HOLD = 'Describe each logo before saving: alt text is required.';
 
 export function imagesHold(values: ImageValues): string | undefined {
   const logos = [values['assets.logo'], values['assets.darkLogo']];

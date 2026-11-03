@@ -3,13 +3,13 @@ import { previewable } from '#/shared/lib/services/profileUrl';
 
 export const LOGO_TITLE = 'Logo';
 
-export const NO_LOGO = 'None set. The mail shows Odudu’s own mark.';
+const NO_LOGO = 'None set. The mail shows Odudu’s own mark.';
 
-export const NO_DARK_LOGO = 'None set. The light logo is shown in both schemes.';
+const NO_DARK_LOGO = 'None set. The light logo is shown in both schemes.';
 
-export const LOGO_LABEL = 'Logo';
+const LOGO_LABEL = 'Logo';
 
-export const DARK_LOGO_LABEL = 'Logo for the dark scheme';
+const DARK_LOGO_LABEL = 'Logo for the dark scheme';
 
 export const LOGO_ELSEWHERE =
   'Not drawn here: this page loads pictures only from its own address. It is shown in the preview above.';

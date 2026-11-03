@@ -11,7 +11,7 @@ import { SaveSection } from '#/shared/ui/SaveSection';
 import { recordTab } from '#/shared/ui/RecordTab';
 import { type Subject } from '#/entities/subject';
 
-export function Memberships({ name, members }: { name: string; members: readonly Membership[] }) {
+function Memberships({ name, members }: { name: string; members: readonly Membership[] }) {
   if (members.length === 0)
     return <p className={recordTab.rule}>{`${name} belongs to no group.`}</p>;
   return (
