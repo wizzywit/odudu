@@ -1,3 +1,4 @@
+import type { ActivityWords } from '#/features/record-activity/services/activityWords';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import { auditColumns, AuditTable, type AuditEvent } from '#/entities/audit-event';
 import { EmptyState } from '#/shared/ui/EmptyState';
@@ -11,39 +12,35 @@ import styles from '#/features/record-activity/ui/ActivityTab/ActivityTab.module
 // shows, never a second account of them.
 export function ActivityTab({
   list,
-  noun,
+  words,
   now,
 }: {
   list: ResourceListState<AuditEvent>;
-  // What the record is: "client".
-  noun: string;
+  words: ActivityWords;
   now?: Date;
 }) {
   return (
     <ListGate
       list={list}
-      loading={<TableSkeleton label="Loading activity" columns={auditColumns({ now })} />}
-      refused={{ capability: 'view-audit', noun: 'Activity' }}
-      failed="Activity could not be loaded"
+      loading={<TableSkeleton label={words.loading} columns={auditColumns({ now })} />}
+      refused={{ capability: 'view-audit', noun: words.refusedNoun }}
+      failed={words.failed}
     >
       {() =>
         list.rows.length === 0 ? (
-          <EmptyState variant="nothing-yet" title={`No activity on this ${noun} yet`}>
-            Every change made to it, and every change refused, is listed here.
+          <EmptyState variant="nothing-yet" title={words.emptyTitle}>
+            {words.emptyText}
           </EmptyState>
         ) : (
           <div className={styles.activity}>
-            <p className={styles.note}>
-              A correlation id links rows written for one request. The caller can set it, so it is a
-              correlation, not evidence.
-            </p>
+            <p className={styles.note}>{words.note}</p>
             <AuditTable
-              label={`Activity on this ${noun}`}
+              label={words.tableLabel}
               rows={list.rows}
               {...(now === undefined ? {} : { now })}
             />
-            <Pager label="Activity" list={list} />
-            {list.loadMoreFailed ? <LoadMoreFailed noun="activity" /> : null}
+            <Pager label={words.pagerLabel} list={list} />
+            {list.loadMoreFailed ? <LoadMoreFailed noun={words.moreFailedNoun} /> : null}
           </div>
         )
       }

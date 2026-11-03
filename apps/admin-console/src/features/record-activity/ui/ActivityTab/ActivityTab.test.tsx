@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import { ActivityTab } from '#/features/record-activity/ui/ActivityTab/ActivityTab';
+import { activityWords } from '#/features/record-activity/services/activityWords';
 import { auditEvent } from '#/testing/auditFixtures';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 
@@ -46,7 +47,7 @@ function state(overrides: Partial<ResourceListState<AuditEvent>> = {}) {
 }
 
 it("lists the record's audit rows, newest first as the API sends them", () => {
-  render(<ActivityTab list={state()} noun="client" now={NOW} />);
+  render(<ActivityTab list={state()} words={activityWords('client')} now={NOW} />);
   const table = screen.getByRole('grid', { name: 'Activity on this client' });
   const rows = within(table).getAllByRole('row').slice(1);
   expect(rows).toHaveLength(2);
@@ -61,7 +62,7 @@ it("names each row's actor, and marks a caller from elsewhere", () => {
     { ...EVENT, actor_name: 'grace' },
     { ...EVENT, id: 'a3', actor_origin: 'system' as const },
   ];
-  render(<ActivityTab list={state({ rows })} noun="client" now={NOW} />);
+  render(<ActivityTab list={state({ rows })} words={activityWords('client')} now={NOW} />);
   const table = screen.getByRole('grid', { name: 'Activity on this client' });
   const [named, system] = within(table).getAllByRole('row').slice(1);
   expect(within(named ?? table).getByText('grace')).toHaveAttribute(
@@ -73,7 +74,7 @@ it("names each row's actor, and marks a caller from elsewhere", () => {
 });
 
 it('labels the request id a correlation, not evidence', () => {
-  render(<ActivityTab list={state()} noun="client" now={NOW} />);
+  render(<ActivityTab list={state()} words={activityWords('client')} now={NOW} />);
   expect(screen.getByRole('columnheader', { name: 'Correlation id' })).toBeVisible();
   expect(
     screen.getByText(
@@ -83,31 +84,49 @@ it('labels the request id a correlation, not evidence', () => {
 });
 
 it('draws the trail it will fill while it loads', () => {
-  render(<ActivityTab list={state({ status: 'loading', rows: [] })} noun="client" now={NOW} />);
+  render(
+    <ActivityTab
+      list={state({ status: 'loading', rows: [] })}
+      words={activityWords('client')}
+      now={NOW}
+    />,
+  );
   const shape = screen.getByRole('status').querySelector('[data-shape="table"]');
   expect(shape).toHaveTextContent('Correlation id');
 });
 
 it('names view-audit when the trail is refused', () => {
-  render(<ActivityTab list={state({ status: 'refused', rows: [] })} noun="client" now={NOW} />);
+  render(
+    <ActivityTab
+      list={state({ status: 'refused', rows: [] })}
+      words={activityWords('client')}
+      now={NOW}
+    />,
+  );
   expect(screen.getByRole('note')).toHaveTextContent('Activity needs the view-audit capability.');
 });
 
 it('says when nothing has happened to the record yet', () => {
-  render(<ActivityTab list={state({ rows: [] })} noun="client" now={NOW} />);
+  render(<ActivityTab list={state({ rows: [] })} words={activityWords('client')} now={NOW} />);
   expect(screen.getByRole('heading', { name: 'No activity on this client yet' })).toBeVisible();
 });
 
 it('pages on through older rows', async () => {
   const user = userEvent.setup();
   const list = state({ next: 'b2Zmc2V0LTE.dGFnMQ' });
-  render(<ActivityTab list={list} noun="client" now={NOW} />);
+  render(<ActivityTab list={list} words={activityWords('client')} now={NOW} />);
   await user.click(screen.getByRole('button', { name: 'Load more activity' }));
   expect(list.loadMore).toHaveBeenCalledOnce();
 });
 
 it('says a further page of activity failed', () => {
-  render(<ActivityTab list={state({ loadMoreFailed: true })} noun="client" now={NOW} />);
+  render(
+    <ActivityTab
+      list={state({ loadMoreFailed: true })}
+      words={activityWords('client')}
+      now={NOW}
+    />,
+  );
   expect(screen.getByRole('alert')).toHaveTextContent(
     'More activity could not be loaded. Load more tries again.',
   );
@@ -116,7 +135,11 @@ it('says a further page of activity failed', () => {
 it('passes axe in both themes', async () => {
   expect(
     await axeInBothThemes(() => (
-      <ActivityTab list={state({ next: 'b2Zmc2V0LTE.dGFnMQ' })} noun="client" now={NOW} />
+      <ActivityTab
+        list={state({ next: 'b2Zmc2V0LTE.dGFnMQ' })}
+        words={activityWords('client')}
+        now={NOW}
+      />
     )),
   ).toEqual({ light: [], dark: [] });
 });

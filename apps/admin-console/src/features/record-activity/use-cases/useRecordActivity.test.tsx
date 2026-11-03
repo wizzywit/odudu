@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { createQueryClient } from '#/shared/repository/queryClient';
-import { useActivity } from '#/features/record-activity/repository/useActivity';
+import { useRecordActivity } from '#/features/record-activity/use-cases/useRecordActivity';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 import { mountAtRoute } from '#/testing/mountAtRoute';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
@@ -9,7 +9,7 @@ import { ACME_ADMIN } from '#/testing/tenantPaths';
 const AUDIT = `GET ${ACME_ADMIN}/audit`;
 
 function Activity() {
-  const list = useActivity({ tenant: 'acme', resourceType: 'client', resourceId: 'c1' });
+  const { list } = useRecordActivity('client', 'acme', 'c1');
   return <p>{`rows ${String(list.rows.length)}`}</p>;
 }
 

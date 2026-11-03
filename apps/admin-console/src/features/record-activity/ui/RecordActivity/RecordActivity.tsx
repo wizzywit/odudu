@@ -7,7 +7,8 @@ import { recordTab } from '#/shared/ui/RecordTab';
 type Resource = 'client' | 'group' | 'role' | 'scope' | 'subject';
 
 function Trail({ resource, tenant, id }: { resource: Resource; tenant: string; id: string }) {
-  return <ActivityTab list={useRecordActivity(resource, tenant, id)} noun={resource} />;
+  const { list, words } = useRecordActivity(resource, tenant, id);
+  return <ActivityTab list={list} words={words} />;
 }
 
 // A record's Activity tab: what the trail holds, and the trail itself.
