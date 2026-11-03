@@ -8,7 +8,7 @@ import type { RoleTab } from '#/pages/roles/services/tabs';
 import { useRoleRecordPage, type RoleCeiling } from '#/pages/roles/use-cases/useRoleRecordPage';
 import { CompositesTab } from '#/pages/roles/ui/RoleRecordPage/CompositesTab';
 import { GeneralTab } from '#/pages/roles/ui/RoleRecordPage/GeneralTab';
-import { RecordActivity } from '#/shared/ui/RecordActivity';
+import { RecordActivity } from '#/features/record-activity';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
 import { RecordPage, type RecordPanelProps } from '#/shared/ui/RecordPage';
 import { StatusTag } from '#/shared/ui/StatusTag';

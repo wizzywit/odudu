@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { useRecordActivity } from '#/shared/use-cases/useRecordActivity';
-import { ActivityTab } from '#/shared/ui/ActivityTab';
+import { useRecordActivity } from '#/features/record-activity/use-cases/useRecordActivity';
+import { ActivityTab } from '#/features/record-activity/ui/ActivityTab';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { recordTab } from '#/shared/ui/RecordTab';
 

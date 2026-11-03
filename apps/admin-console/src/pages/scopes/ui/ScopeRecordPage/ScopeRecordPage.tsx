@@ -11,7 +11,7 @@ import { GeneralTab } from '#/pages/scopes/ui/ScopeRecordPage/GeneralTab';
 import { MappersTab } from '#/pages/scopes/ui/ScopeRecordPage/MappersTab';
 import { RolesTab } from '#/pages/scopes/ui/ScopeRecordPage/RolesTab';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
-import { RecordActivity } from '#/shared/ui/RecordActivity';
+import { RecordActivity } from '#/features/record-activity';
 import { RecordPage, type RecordPanelProps } from '#/shared/ui/RecordPage';
 
 type PanelProps = RecordPanelProps<'scope', Scope>;

@@ -6,7 +6,7 @@ import { ListGate } from '#/shared/ui/ListGate';
 import { LoadMoreFailed } from '#/shared/ui/LoadMore';
 import { Pager } from '#/shared/ui/Pager';
 import { TableSkeleton } from '#/shared/ui/Skeleton';
-import styles from '#/shared/ui/ActivityTab/ActivityTab.module.css';
+import styles from '#/features/record-activity/ui/ActivityTab/ActivityTab.module.css';
 
 // The audit trail narrowed to one record: the same rows the Audit trail
 // shows, never a second account of them.

@@ -6,16 +6,15 @@ import type { ListSearch, ResourceListState } from '#/shared/services/resourceLi
 import { current, dirtyFields, discard, edit, startDraft } from '#/shared/services/dirty';
 import type { Toast } from '#/shared/services/toast';
 import { AccessGate } from '#/shared/ui/AccessGate';
-import { ActivityTab } from '#/shared/ui/ActivityTab';
 import { ChecklistField } from '#/shared/ui/ChecklistField';
 import { CodeField } from '#/shared/ui/CodeField';
 import { LocalisedTextField } from '#/shared/ui/LocalisedTextField';
-import { AuditActor } from '#/shared/ui/AuditActor';
 import { ActionMenu } from '#/shared/ui/ActionMenu';
-import { AuditDetail } from '#/shared/ui/AuditDetail';
-import { AuditTable } from '#/shared/ui/AuditTable';
 import { AppShell } from '#/shared/ui/AppShell';
 import { Breadcrumb } from '#/shared/ui/Breadcrumb';
+import { AuditActor } from '#/shared/ui/AuditActor';
+import { AuditDetail } from '#/shared/ui/AuditDetail';
+import { AuditTable } from '#/shared/ui/AuditTable';
 import { BrandLine } from '#/shared/ui/BrandLine';
 import { Button } from '#/shared/ui/Button';
 import { CreationActions, CreationForm } from '#/shared/ui/CreationForm';
@@ -69,7 +68,6 @@ import { Pager } from '#/shared/ui/Pager';
 import { Panel } from '#/shared/ui/Panel';
 import { Rail } from '#/shared/ui/Rail';
 import { ReadGate } from '#/shared/ui/ReadGate';
-import { RecordActivity } from '#/shared/ui/RecordActivity';
 import { RecordPage } from '#/shared/ui/RecordPage';
 import { recordTab } from '#/shared/ui/RecordTab';
 import { ResourceListPage } from '#/shared/ui/ResourceListPage';
@@ -404,33 +402,11 @@ function SubjectRecord() {
         {
           id: 'activity',
           label: 'Activity',
-          panel: <ActivityTab list={listOf(EVENTS, 'c2')} noun="subject" now={NOW} />,
+          panel: <p>Activity on this subject</p>,
         },
       ]}
     />
   );
-}
-
-function listOf<T>(rows: readonly T[], next: string | null): ResourceListState<T> {
-  return {
-    status: 'ready',
-    rows,
-    count: null,
-    search: null,
-    filters: {},
-    narrowed: false,
-    trail: [],
-    next,
-    loadingMore: false,
-    loadLimited: false,
-    loadMoreFailed: false,
-    setSearch: NOTHING,
-    setFilter: NOTHING,
-    clear: NOTHING,
-    setTrail: NOTHING,
-    loadMore: NOTHING,
-    retry: NOTHING,
-  };
 }
 
 const GRANT_TYPES = [
@@ -892,15 +868,6 @@ function RecordPieces() {
           </div>
         </Specimen>
       </div>
-      <Specimen label="RecordActivity: a tab that needs view-audit">
-        <RecordActivity
-          resource="client"
-          tenant={TENANT}
-          id="c1"
-          lead="Every change made to this client, and every change refused."
-          readable={false}
-        />
-      </Specimen>
       <Specimen label="CreationForm: the form a record is made on, and what it ends in">
         <CreationForm submit={NOTHING}>
           <TextField label="Name" value="" onChange={NOTHING} />
@@ -1120,12 +1087,6 @@ export function Gallery({
               />
             </Section>
           </Specimen>
-          <Specimen label="AuditTable: audit rows, a row opening to every field">
-            <AuditTable label="Audit events" rows={EVENTS} now={NOW} withResource />
-          </Specimen>
-          <Specimen label="AuditDetail: every field of one audit event">
-            <AuditDetail event={DETAILED_EVENT} zone="UTC" />
-          </Specimen>
           <Specimen label="DateTimeField: a minute in the reader's zone, kept in UTC">
             <DateTimeField
               label="From"
@@ -1134,9 +1095,6 @@ export function Gallery({
               value="2026-10-12T09:03:00.000Z"
               onChange={NOTHING}
             />
-          </Specimen>
-          <Specimen label="ActivityTab: the audit trail for one record">
-            <ActivityTab list={listOf(EVENTS, 'c2')} noun="client" now={NOW} />
           </Specimen>
           <Specimen label="ConflictPanel: kept edits meeting a newer record">
             <ConflictPanel
@@ -1186,6 +1144,12 @@ export function Gallery({
           </Specimen>
           <Specimen label="SaveBar on its own">
             <SaveBar section="Tokens" saving={false} onDiscard={() => undefined} />
+          </Specimen>
+          <Specimen label="AuditTable: audit rows, a row opening to every field">
+            <AuditTable label="Audit events" rows={EVENTS} now={NOW} withResource />
+          </Specimen>
+          <Specimen label="AuditDetail: every field of one audit event">
+            <AuditDetail event={DETAILED_EVENT} zone="UTC" />
           </Specimen>
         </Group>
 

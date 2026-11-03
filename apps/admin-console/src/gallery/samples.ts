@@ -1,4 +1,4 @@
-import type { AuditEvent } from '#/entities/audit-event';
+import type { AuditEvent } from '@odudu/contracts/admin';
 import type { Conflict } from '#/shared/services/conflict';
 import { formatDuration } from '#/shared/services/format';
 import type { KeyValuePair } from '#/shared/ui/Field';

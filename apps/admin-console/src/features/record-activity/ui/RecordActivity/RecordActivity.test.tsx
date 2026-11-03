@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
-import { RecordActivity } from '#/shared/ui/RecordActivity';
+import { RecordActivity } from '#/features/record-activity/ui/RecordActivity';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 
 // The trail itself needs the router and the gateway; the record pages' own

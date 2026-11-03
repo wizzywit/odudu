@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import type { ResourceListState } from '#/shared/services/resourceList';
-import { ActivityTab } from '#/shared/ui/ActivityTab/ActivityTab';
+import { ActivityTab } from '#/features/record-activity/ui/ActivityTab/ActivityTab';
 import { auditEvent } from '#/testing/auditFixtures';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 

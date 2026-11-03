@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { createQueryClient } from '#/shared/repository/queryClient';
-import { useActivity } from '#/shared/repository/useActivity';
+import { useActivity } from '#/features/record-activity/repository/useActivity';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 import { mountAtRoute } from '#/testing/mountAtRoute';
 import { ACME_ADMIN } from '#/testing/tenantPaths';

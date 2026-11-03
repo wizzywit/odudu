@@ -1,4 +1,4 @@
-import { RecordActivity } from '#/shared/ui/RecordActivity';
+import { RecordActivity } from '#/features/record-activity';
 
 export function ActivityPanel({ tenant, id }: { tenant: string; id: string }) {
   return (

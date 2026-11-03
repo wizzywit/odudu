@@ -10,7 +10,7 @@ import { GeneralTab } from '#/pages/groups/ui/GroupRecordPage/GeneralTab';
 import { RolesTab } from '#/pages/groups/ui/GroupRecordPage/RolesTab';
 import { Button } from '#/shared/ui/Button';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
-import { RecordActivity } from '#/shared/ui/RecordActivity';
+import { RecordActivity } from '#/features/record-activity';
 import { RecordPage, type RecordPanelProps } from '#/shared/ui/RecordPage';
 import { StatusTag } from '#/shared/ui/StatusTag';
 import { Note } from '#/shared/ui/Note';

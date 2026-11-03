@@ -20,7 +20,7 @@ import { SessionsTab } from '#/pages/clients/ui/SessionsTab';
 import { ServiceAccountTab } from '#/pages/clients/ui/ServiceAccountTab';
 import { TokensTab } from '#/pages/clients/ui/TokensTab';
 import { Note } from '#/shared/ui/Note';
-import { RecordActivity } from '#/shared/ui/RecordActivity';
+import { RecordActivity } from '#/features/record-activity';
 import { RecordPage } from '#/shared/ui/RecordPage';
 import { EnabledTag } from '#/shared/ui/StatusTag';
 import { ViewOnlyNote } from '#/shared/ui/ViewOnlyNote';
