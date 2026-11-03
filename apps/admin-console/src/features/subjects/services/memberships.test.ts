@@ -34,6 +34,12 @@ describe('whether leaving groups takes manage-tenants', () => {
     ).toBe(false);
     expect(takesTenants([byGroup], ['/ops'], [])).toBe(false);
   });
+
+  it('takes manage-tenants itself held by a group, but never a lesser holding', () => {
+    const group = [{ kind: 'group', group_id: 'g', group_path: '/admins' }];
+    expect(takesTenants([{ ...full(group), name: 'manage-tenants' }], ['/admins'], [])).toBe(true);
+    expect(takesTenants([{ ...full(group), name: 'view-audit' }], ['/admins'], [])).toBe(false);
+  });
 });
 
 describe('group memberships', () => {

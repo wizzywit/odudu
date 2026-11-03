@@ -19,6 +19,7 @@ describe('the username', () => {
 
   it('asks for one before sending anything', () => {
     expect(usernameProblem('')).toBe('Enter a username.');
+    expect(usernameProblem('   ')).toBeNull();
     expect(usernameProblem('ada')).toBeNull();
   });
 });
