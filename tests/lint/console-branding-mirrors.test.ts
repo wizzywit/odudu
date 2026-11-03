@@ -91,7 +91,7 @@ describe('what the Branding screens show of the server', () => {
   });
 
   it('words “more themes than listed” as the server’s detail does', async () => {
-    const { IN_USE_MORE } = (await import(path.join(SERVICE, 'assets.ts'))) as {
+    const { IN_USE_MORE } = (await import(path.join(SERVICE, 'imageRefusals.ts'))) as {
       IN_USE_MORE: string;
     };
     const server = readFileSync(

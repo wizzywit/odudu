@@ -1,13 +1,7 @@
 import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
 import { failureTextWith } from '#/shared/services/failure';
 import { reportFailure } from '#/shared/services/settled';
-import {
-  slotNames,
-  uploadRefusal,
-  uploadFailureText,
-  UPLOAD_FAULT,
-  UPLOAD_LOST,
-} from '#/features/branding/services/assets';
+import { slotNames } from '#/features/branding/services/assets';
 import {
   colourProblem,
   DEFAULT_PALETTES,
@@ -40,6 +34,12 @@ import type {
 import { tabNamed } from '#/shared/services/record';
 import { OFFERED_TABS, type OfferedTab } from '#/features/branding/services/tabs';
 import { altEdited, logoOf } from '#/features/branding/services/logoAlt';
+import {
+  uploadRefusal,
+  uploadFailureText,
+  UPLOAD_FAULT,
+  UPLOAD_LOST,
+} from '#/features/branding/services/imageRefusals';
 
 export function paletteField(scheme: Scheme): 'tokens.light' | 'tokens.dark' {
   return `tokens.${scheme}`;
