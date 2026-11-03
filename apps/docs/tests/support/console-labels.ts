@@ -655,7 +655,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Allowed: page(AUDIT_KINDS, "'Allowed'"),
   Refused: page(AUDIT_KINDS, "'Refused'"),
   Details: entity('audit-event/ui/AuditTable/AuditTable.tsx', '> Details <'),
-  'Export these events': page('audit/services/pageWords.ts', "'Export these events'"),
+  'Export these events': page('audit/services/auditPageWords.ts', "'Export these events'"),
 
   // The overview.
   'Needs attention': feature(

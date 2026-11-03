@@ -5,7 +5,7 @@ import {
   type AuditPageState,
 } from '#/pages/audit/use-cases/useAuditPage';
 import { AuditFilters } from '#/pages/audit/ui/AuditFilters';
-import { auditColumns, AuditTable } from '#/entities/audit-event';
+import { auditColumns, AuditTable, CORRELATION_NOTE } from '#/entities/audit-event';
 import { Button } from '#/shared/ui/Button';
 import { EmptyState } from '#/shared/ui/EmptyState';
 import { ListGate } from '#/shared/ui/ListGate';
@@ -18,7 +18,8 @@ import { TableSkeleton } from '#/shared/ui/Skeleton';
 import styles from '#/pages/audit/ui/AuditPage/AuditPage.module.css';
 
 function Rows({ page }: { page: AuditPageState }) {
-  const { list, hrefs, narrowed, empty } = page;
+  const { list, hrefs, narrowed } = page;
+  const { empty } = page.words;
   if (list.rows.length === 0 && narrowed) {
     return (
       <EmptyState
@@ -39,9 +40,9 @@ function Rows({ page }: { page: AuditPageState }) {
   }
   return (
     <>
-      <AuditTable label={page.trailLabel} rows={list.rows} withResource hrefs={hrefs} />
-      <Pager label={page.trailLabel} list={list} />
-      {list.loadMoreFailed ? <LoadMoreFailed noun={page.load.moreFailedNoun} /> : null}
+      <AuditTable label={page.words.trailLabel} rows={list.rows} withResource hrefs={hrefs} />
+      <Pager label={page.words.trailLabel} list={list} />
+      {list.loadMoreFailed ? <LoadMoreFailed noun={page.words.load.moreFailedNoun} /> : null}
     </>
   );
 }
@@ -52,10 +53,10 @@ function Body({ page }: { page: AuditPageState }) {
     return (
       <EmptyState
         variant="failed"
-        title={page.stale.title}
-        action={<Button onPress={list.startAgain}>{page.stale.startAgain}</Button>}
+        title={page.words.stale.title}
+        action={<Button onPress={list.startAgain}>{page.words.stale.startAgain}</Button>}
       >
-        {page.stale.text}
+        {page.words.stale.text}
       </EmptyState>
     );
   }
@@ -63,9 +64,9 @@ function Body({ page }: { page: AuditPageState }) {
     return (
       <EmptyState
         variant="failed"
-        title={page.tooBroad.title}
+        title={page.words.tooBroad.title}
         action={
-          <Button onPress={page.tooBroad.searchLastDay}>{page.tooBroad.searchLastDayLabel}</Button>
+          <Button onPress={page.tooBroad.searchLastDay}>{page.words.tooBroad.searchLastDay}</Button>
         }
       >
         {page.tooBroad.advice}
@@ -76,10 +77,13 @@ function Body({ page }: { page: AuditPageState }) {
     <ListGate
       list={list}
       loading={
-        <TableSkeleton label={page.load.loading} columns={auditColumns({ withResource: true })} />
+        <TableSkeleton
+          label={page.words.load.loading}
+          columns={auditColumns({ withResource: true })}
+        />
       }
       refused={{ capability: 'view-audit', noun: page.title }}
-      failed={page.load.failed}
+      failed={page.words.load.failed}
       unchanged
     >
       {() => <Rows page={page} />}
@@ -95,13 +99,15 @@ function Trail({ tenant }: { tenant: string }) {
       <PageHeader
         title={page.title}
         kicker={tenant}
-        description={page.header.description}
+        description={page.words.header.description}
         {...(refused
           ? {}
           : {
               actions: (
                 <Button isDisabled={page.exporting.busy} onPress={page.exporting.start}>
-                  {page.exporting.busy ? page.header.exportingLabel : page.header.exportLabel}
+                  {page.exporting.busy
+                    ? page.words.header.exportingLabel
+                    : page.words.header.exportLabel}
                 </Button>
               ),
             })}
@@ -113,13 +119,13 @@ function Trail({ tenant }: { tenant: string }) {
         ))}
         <div className={styles.meta}>
           <p>
-            {page.notes.noCount}
+            {page.words.notes.noCount}
             {page.range === null ? null : ` ${page.range}`}
           </p>
-          <p>{page.notes.correlation}</p>
-          <p>{page.notes.export}</p>
+          <p>{CORRELATION_NOTE}</p>
+          <p>{page.words.notes.export}</p>
         </div>
-        <LiveMessage label={page.notes.lastExport}>{page.exporting.message}</LiveMessage>
+        <LiveMessage label={page.words.notes.lastExport}>{page.exporting.message}</LiveMessage>
         <Body page={page} />
       </div>
     </>

@@ -140,8 +140,8 @@ it('supplies the titles the page shows: the area name, the table name and the em
     expect(result.current.list.status).toBe('ready');
   });
   expect(result.current.title).toBe('Audit trail');
-  expect(result.current.trailLabel).toBe('Audit events');
-  expect(result.current.empty.yetTitle).toBe('No audit events yet');
+  expect(result.current.words.trailLabel).toBe('Audit events');
+  expect(result.current.words.empty.yetTitle).toBe('No audit events yet');
 });
 
 it('supplies the words of the header, the notes, the empty and stale trail and the too-broad read', async () => {
@@ -149,13 +149,13 @@ it('supplies the words of the header, the notes, the empty and stale trail and t
   await waitFor(() => {
     expect(result.current.list.status).toBe('ready');
   });
-  const { header, notes, empty, stale, tooBroad } = result.current;
+  const { header, notes, empty, stale, tooBroad } = result.current.words;
   expect(header.exportLabel).toBe('Export these events');
-  expect(notes.correlation).toMatch(/correlation, not evidence/u);
+  expect(notes.noCount).toMatch(/has no count/u);
   expect(empty.matchesTitle).toBe('No event matches these filters');
   expect(stale.startAgain).toBe('Start again');
   expect(tooBroad.title).toBe('These filters are too broad to search');
-  expect(tooBroad.searchLastDayLabel).toBe('Search the last 24 hours');
+  expect(tooBroad.searchLastDay).toBe('Search the last 24 hours');
 });
 
 it('tells the form which choice a select shows and whether a resource id may be typed', async () => {

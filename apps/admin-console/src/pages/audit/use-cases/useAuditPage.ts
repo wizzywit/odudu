@@ -1,20 +1,14 @@
-import type { AuditEvent } from '#/entities/audit-event';
 import { useState } from 'react';
 import { useAuthority } from '#/entities/session';
 import { areaAt, areaHref, type Area } from '#/entities/area';
-import { CORRELATION_NOTE } from '#/entities/audit-event';
+import type { AuditEvent, AuditHrefs } from '#/entities/audit-event';
 import { clientHref } from '#/entities/client';
 import { groupHref } from '#/entities/group';
 import { roleHref } from '#/entities/role';
 import { scopeHref } from '#/entities/scope';
 import { useAuditList, type AuditList } from '#/pages/audit/repository/useAuditList';
 import { useExportEvents, type ExportEvents } from '#/pages/audit/use-cases/useExportEvents';
-import {
-  lastDay,
-  SEARCH_LAST_DAY,
-  TOO_BROAD_TITLE,
-  tooBroadAdvice,
-} from '#/pages/audit/services/tooBroad';
+import { lastDay, tooBroadAdvice } from '#/pages/audit/services/tooBroad';
 import { auditQuery } from '#/pages/audit/services/auditAddress';
 import {
   applyBlocked,
@@ -36,31 +30,13 @@ import {
 } from '#/pages/audit/services/filterDraft';
 import { isFiltered, type FilterName } from '#/pages/audit/services/auditFilters';
 import { actorHref, resourceHref, type RecordPages } from '#/pages/audit/services/resourceLinks';
-import { loadedRange, NO_COUNT, TRAIL_LABEL } from '#/pages/audit/services/trailCount';
-import {
-  NOTHING_MATCHES,
-  NOTHING_MATCHES_TITLE,
-  NOTHING_YET,
-  NOTHING_YET_TITLE,
-  SHOW_EVERY_EVENT,
-} from '#/pages/audit/services/emptyTrail';
-import { STALE_TEXT, STALE_TITLE, START_AGAIN } from '#/pages/audit/services/staleTrail';
-import { EXPORT_NOTE } from '#/pages/audit/services/auditExport';
+import { loadedRange } from '#/pages/audit/services/trailCount';
 import { FILTER_WORDS, type FilterWords } from '#/pages/audit/services/filterWords';
 import { auditArea } from '#/pages/audit/services/auditArea';
-import {
-  EXPORT_LABEL,
-  EXPORTING_LABEL,
-  LAST_EXPORT_LABEL,
-  LOAD_FAILED,
-  LOAD_MORE_NOUN,
-  LOADING_LABEL,
-  PAGE_DESCRIPTION,
-} from '#/pages/audit/services/pageWords';
+import { AUDIT_PAGE_WORDS, type AuditPageWords } from '#/pages/audit/services/auditPageWords';
 import { holds } from '#/shared/services/access';
 import { useNow } from '#/shared/use-cases/useNow';
 import { localZone } from '#/shared/services/zones';
-import type { AuditHrefs } from '#/entities/audit-event';
 import { subjectHref } from '#/entities/subject';
 
 const RECORD_PAGES: RecordPages = {
@@ -92,9 +68,7 @@ export interface AuditFilterForm {
 }
 
 export interface TooBroad {
-  title: string;
   advice: string;
-  searchLastDayLabel: string;
   // Reads again with the day up to now added to the filters held.
   searchLastDay: () => void;
 }
@@ -102,19 +76,8 @@ export interface TooBroad {
 export interface AuditPageState {
   // What the area is called, for the heading and for a refusal to name.
   title: string;
-  // What the table and the pager are called.
-  trailLabel: string;
-  header: { description: string; exportLabel: string; exportingLabel: string };
-  notes: { noCount: string; correlation: string; export: string; lastExport: string };
-  load: { loading: string; failed: string; moreFailedNoun: string };
-  empty: {
-    yetTitle: string;
-    yetText: string;
-    matchesTitle: string;
-    matchesText: string;
-    showEvery: string;
-  };
-  stale: { title: string; text: string; startAgain: string };
+  // Every fixed sentence and label the page shows, by section.
+  words: AuditPageWords;
   list: AuditList;
   form: AuditFilterForm;
   hrefs: AuditHrefs;
@@ -166,6 +129,7 @@ function useFilterForm(list: AuditList): AuditFilterForm {
   };
 }
 
+// The gate wraps the page, so it cannot read the page hook: it takes the area here.
 export function useAuditArea(): { area: Area; title: string } {
   return auditArea();
 }
@@ -179,33 +143,11 @@ export function useAuditPage(tenant: string): AuditPageState {
   const mayReadSubjects = holds(useAuthority(tenant), 'view-users');
   return {
     title,
-    trailLabel: TRAIL_LABEL,
-    header: {
-      description: PAGE_DESCRIPTION,
-      exportLabel: EXPORT_LABEL,
-      exportingLabel: EXPORTING_LABEL,
-    },
-    notes: {
-      noCount: NO_COUNT,
-      correlation: CORRELATION_NOTE,
-      export: EXPORT_NOTE,
-      lastExport: LAST_EXPORT_LABEL,
-    },
-    load: { loading: LOADING_LABEL, failed: LOAD_FAILED, moreFailedNoun: LOAD_MORE_NOUN },
-    empty: {
-      yetTitle: NOTHING_YET_TITLE,
-      yetText: NOTHING_YET,
-      matchesTitle: NOTHING_MATCHES_TITLE,
-      matchesText: NOTHING_MATCHES,
-      showEvery: SHOW_EVERY_EVENT,
-    },
-    stale: { title: STALE_TITLE, text: STALE_TEXT, startAgain: START_AGAIN },
+    words: AUDIT_PAGE_WORDS,
     list,
     form,
     exporting,
     tooBroad: {
-      title: TOO_BROAD_TITLE,
-      searchLastDayLabel: SEARCH_LAST_DAY,
       advice: tooBroadAdvice(list.filters),
       searchLastDay: () => {
         list.apply({ ...list.filters, ...lastDay(now) });
