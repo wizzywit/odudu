@@ -9,7 +9,7 @@ import {
   selectOffered,
 } from '#/features/branding/services/edits';
 import { unsavedSections } from '#/features/branding/services/fields';
-import { changedColours, DEFAULT_PALETTES } from '#/features/branding/services/palette';
+import { DEFAULT_PALETTES } from '#/features/branding/services/palette';
 
 describe('a publish answer', () => {
   it('toasts only when it asks to', () => {
@@ -22,13 +22,6 @@ describe('a publish answer', () => {
 });
 
 describe('what is marked changed', () => {
-  it('is each colour that differs from the saved palette, none for a scheme left alone', () => {
-    const now = { ...DEFAULT_PALETTES.light, inkPrimary: '#000000' };
-    expect(changedColours(DEFAULT_PALETTES.light, now)).toEqual(['inkPrimary']);
-    expect(changedColours(null, null)).toEqual([]);
-    expect(changedColours(null, now)).toHaveLength(11);
-  });
-
   it('names the sections with unsaved edits, in the order they sit', () => {
     expect(unsavedSections(new Set(['templates', 'stylesheet', 'colours']))).toEqual([
       'Colours and font',

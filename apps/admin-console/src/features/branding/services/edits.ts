@@ -1,12 +1,5 @@
 import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
 import {
-  colourProblem,
-  DEFAULT_PALETTES,
-  withColour,
-  type Palette,
-  type PaletteKey,
-} from '#/features/branding/services/palette';
-import {
   NO_ISSUES,
   issuesOf,
   PUBLISHED_TOAST,
@@ -14,49 +7,9 @@ import {
   type Issues,
 } from '#/features/branding/services/publish';
 import type { PreviewChoice } from '#/features/branding/services/preview';
-import type { ColourValues } from '#/features/branding/services/values';
 import type { FieldError, PublishThemeResponse, ThemeView } from '@odudu/contracts/admin';
 import { tabNamed } from '#/shared/services/record';
 import { OFFERED_TABS, type OfferedTab } from '#/features/branding/services/tabs';
-import type { Scheme } from '#/features/branding/services/colourScheme';
-
-export function paletteField(scheme: Scheme): 'tokens.light' | 'tokens.dark' {
-  return `tokens.${scheme}`;
-}
-
-// A scheme is Instrument's own, or a complete palette of the tenant's that
-// starts from Instrument's colours.
-export function customisedPalette(scheme: Scheme, custom: boolean): Palette | null {
-  return custom ? DEFAULT_PALETTES[scheme] : null;
-}
-
-export function editedPalette(
-  values: ColourValues,
-  scheme: Scheme,
-  key: PaletteKey,
-  text: string,
-): Palette {
-  return withColour(values[paletteField(scheme)] ?? DEFAULT_PALETTES[scheme], key, text);
-}
-
-// The colour fields still not a finished #rrggbb, by palette key.
-export function colourProblems(palette: Palette | null): Partial<Record<PaletteKey, string>> {
-  if (palette === null) return {};
-  return Object.fromEntries(
-    (Object.keys(palette) as PaletteKey[])
-      .map((key) => [key, colourProblem(palette[key])] as const)
-      .filter(([, problem]) => problem !== undefined),
-  );
-}
-
-export const COLOURS_HOLD = 'Finish each colour as #rrggbb before saving.';
-
-export function coloursHold(values: ColourValues): string | undefined {
-  const bad = (['light', 'dark'] as const).some(
-    (scheme) => Object.keys(colourProblems(values[paletteField(scheme)])).length > 0,
-  );
-  return bad ? COLOURS_HOLD : undefined;
-}
 
 export interface PublishOutcome {
   issues: Issues;

@@ -1,12 +1,12 @@
 import { counted } from '#/shared/services/format';
 import type { ColourValues } from '#/features/branding/services/values';
 import {
-  isHexColour,
   PALETTE_LABELS,
   type Palette,
   type PaletteKey,
 } from '#/features/branding/services/palette';
 import { SCHEME_LABELS, type Scheme } from '#/features/branding/services/colourScheme';
+import { isHexColour } from '#/features/branding/services/colourEdits';
 
 const TEXT = 4.5;
 const UI = 3;

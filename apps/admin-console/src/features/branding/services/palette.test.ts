@@ -2,16 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { PALETTE_KEYS } from '@odudu/contracts';
 import { describe, expect, it } from 'vitest';
-import {
-  colourProblem,
-  DEFAULT_PALETTES,
-  fontChoice,
-  isHexColour,
-  paletteProblems,
-  swatchOf,
-  typedColour,
-  withColour,
-} from '#/features/branding/services/palette';
+import { DEFAULT_PALETTES, fontChoice } from '#/features/branding/services/palette';
 
 const PROPERTY: Record<(typeof PALETTE_KEYS)[number], string> = {
   surfacePage: '--surface-page',
@@ -45,30 +36,6 @@ describe('the palettes customising starts from', () => {
     const [light, dark] = pair(PROPERTY[key]);
     expect(DEFAULT_PALETTES.light[key]).toBe(light);
     expect(DEFAULT_PALETTES.dark[key]).toBe(dark);
-  });
-});
-
-describe('a colour as typed', () => {
-  it('is lowercased and trimmed, and finished only as #rrggbb', () => {
-    expect(typedColour('  #A0B1C2 ')).toBe('#a0b1c2');
-    expect(isHexColour('#a0b1c2')).toBe(true);
-    expect(isHexColour('#a0b1c')).toBe(false);
-    expect(isHexColour('a0b1c2')).toBe(false);
-    expect(colourProblem('#zzz')).toBe('A colour as #rrggbb.');
-    expect(colourProblem('#000000')).toBeUndefined();
-  });
-
-  it('shows black in the picker until it is finished', () => {
-    expect(swatchOf('#1')).toBe('#000000');
-    expect(swatchOf('#123456')).toBe('#123456');
-  });
-
-  it('changes one colour of a palette and leaves the rest', () => {
-    const changed = withColour(DEFAULT_PALETTES.light, 'inkPrimary', '#000000');
-    expect(changed.inkPrimary).toBe('#000000');
-    expect(changed.surfacePage).toBe(DEFAULT_PALETTES.light.surfacePage);
-    expect(paletteProblems({ ...changed, focusRing: '#1' })).toEqual(['focusRing']);
-    expect(paletteProblems(null)).toEqual([]);
   });
 });
 
