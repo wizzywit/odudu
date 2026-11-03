@@ -7,7 +7,10 @@ import { describe, expect, it } from 'vitest';
 // siblings of the same service folder, never allowed past the limit.
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
-const CONSOLE_SERVICES = 'apps/admin-console/src/**/services/**/*.{ts,tsx}';
+const APP_SERVICES = [
+  'apps/admin-console/src/**/services/**/*.{ts,tsx}',
+  'apps/docs/src/**/services/**/*.{ts,tsx}',
+];
 const FIXTURES = 'tests/lint/fixtures/console-service-length';
 const LIMIT = 300;
 
@@ -24,35 +27,38 @@ export function violation(file: string, source: string): string | null {
     : null;
 }
 
-async function read(pattern: string): Promise<Map<string, string>> {
+async function read(...patterns: string[]): Promise<Map<string, string>> {
   const files = new Map<string, string>();
-  for await (const file of glob(pattern, { cwd: REPO_ROOT })) {
-    const posix = file.split(path.sep).join('/');
-    files.set(posix, await readFile(path.join(REPO_ROOT, file), 'utf8'));
+  for (const pattern of patterns) {
+    for await (const file of glob(pattern, { cwd: REPO_ROOT })) {
+      const posix = file.split(path.sep).join('/');
+      files.set(posix, await readFile(path.join(REPO_ROOT, file), 'utf8'));
+    }
   }
   return files;
 }
 
-describe("the console's service files", { timeout: 60_000 }, () => {
+describe("the console's and the docs app's service files", { timeout: 60_000 }, () => {
   it('stay within the length limit, tests excepted', async () => {
-    const files = await read(CONSOLE_SERVICES);
+    const files = await read(...APP_SERVICES);
     expect([...files.keys()]).toContain(
       'apps/admin-console/src/pages/subjects/services/credentialAsk.ts',
     );
     expect([...files.keys()]).toContain('apps/admin-console/src/shared/lib/services/dirty.ts');
+    expect([...files.keys()]).toContain('apps/docs/src/features/code-block/services/lines.ts');
     const offenders = [...files].flatMap(([file, source]) => violation(file, source) ?? []);
     expect(offenders).toEqual([]);
   });
 
   it('pass every conforming fixture, a test file of any length among them', async () => {
     const files = await read(`${FIXTURES}/pass/**/services/**/*.{ts,tsx}`);
-    expect(files.size).toBe(3);
+    expect(files.size).toBe(4);
     for (const [file, source] of files) expect(violation(file, source), file).toBeNull();
   });
 
   it('fail every non-conforming fixture, naming the file and its length', async () => {
     const files = await read(`${FIXTURES}/fail/**/services/**/*.{ts,tsx}`);
-    expect(files.size).toBe(3);
+    expect(files.size).toBe(4);
     for (const [file, source] of files) {
       expect(violation(file, source), file).toBe(
         `${file} is ${String(lengthOf(source))} lines, over the 300 a service file may hold`,
