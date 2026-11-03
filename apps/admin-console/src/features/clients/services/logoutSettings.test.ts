@@ -1,13 +1,13 @@
 import { expect, it } from 'vitest';
 import { skipLogoutFixed } from '#/features/clients/services/builtinFixed';
+import { SECTIONS_LOGOUT } from '#/features/clients/services/clientSections';
 import {
-  SECTIONS_LOGOUT,
   SKIP_LOGOUT_HINT,
   SKIP_LOGOUT_HINT_ON,
   skipLogoutHint,
   SKIP_LOGOUT_LABEL,
   SKIP_LOGOUT_WARNING,
-} from '#/features/clients/services/logout';
+} from '#/features/clients/services/logoutSettings';
 
 it('warns in plain words that an ID token the application holds can sign its users out', () => {
   expect(SKIP_LOGOUT_WARNING).toBe(

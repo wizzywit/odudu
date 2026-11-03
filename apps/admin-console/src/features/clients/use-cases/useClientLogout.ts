@@ -12,10 +12,10 @@ import {
   FRONTCHANNEL_SESSION_LABEL,
   LOGOUT_FIELD,
   POST_LOGOUT_NOUN,
-  SECTIONS_LOGOUT,
   skipLogoutHint,
   SKIP_LOGOUT_LABEL,
-} from '#/features/clients/services/logout';
+} from '#/features/clients/services/logoutSettings';
+import { SECTIONS_LOGOUT } from '#/features/clients/services/clientSections';
 import {
   useClientSection,
   type ClientRecordRead,

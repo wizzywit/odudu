@@ -7,7 +7,7 @@ const squeezed = (text: string): string => text.replace(/\s+/gu, ' ');
 
 it("quotes the sign-out confirmation warning exactly as the console's Logout tab shows it", () => {
   const source = readFileSync(
-    path.resolve(DOCS_ROOT, '../admin-console/src/features/clients/services/logout.ts'),
+    path.resolve(DOCS_ROOT, '../admin-console/src/features/clients/services/logoutSettings.ts'),
     'utf8',
   );
   const warning = /SKIP_LOGOUT_WARNING =\s*'([^']+)'/u.exec(source)?.[1];

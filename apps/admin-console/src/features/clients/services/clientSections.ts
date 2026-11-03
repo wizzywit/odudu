@@ -23,3 +23,10 @@ export const TOKEN_FIELD = {
   fullScope: FULL_SCOPE_LABEL,
   grants: 'Grant types',
 } as const;
+
+export const SECTIONS_LOGOUT = {
+  postLogout: 'After sign-out',
+  confirmation: 'Sign-out confirmation',
+  backchannel: 'Back-channel logout',
+  frontchannel: 'Front-channel logout',
+} as const;

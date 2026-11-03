@@ -707,7 +707,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Access token claims': feature('clients/services/evaluate.ts', "label: 'Access token claims'"),
   'UserInfo claims': feature('clients/services/evaluate.ts', "label: 'UserInfo claims'"),
   'Skip the sign-out confirmation': feature(
-    'clients/services/logout.ts',
+    'clients/services/logoutSettings.ts',
     "SKIP_LOGOUT_LABEL = 'Skip the sign-out confirmation'",
   ),
   'Back-channel logout address': feature(

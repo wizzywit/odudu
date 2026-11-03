@@ -6,11 +6,11 @@ import {
   FRONTCHANNEL_SESSION_LABEL,
   FRONTCHANNEL_SESSION_RULE,
   POST_LOGOUT_RULE,
-  SECTIONS_LOGOUT,
   SKIP_LOGOUT_LABEL,
   SKIP_LOGOUT_WARNING,
   SKIP_LOGOUT_WARNING_ID,
-} from '#/features/clients/services/logout';
+} from '#/features/clients/services/logoutSettings';
+import { SECTIONS_LOGOUT } from '#/features/clients/services/clientSections';
 import { useClientLogout } from '#/features/clients/use-cases/useClientLogout';
 import { Deliveries } from '#/features/clients/ui/Deliveries';
 import type { ClientTabProps } from '#/features/clients/ui/ClientTabProps';

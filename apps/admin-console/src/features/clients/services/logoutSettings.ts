@@ -1,10 +1,3 @@
-export const SECTIONS_LOGOUT = {
-  postLogout: 'After sign-out',
-  confirmation: 'Sign-out confirmation',
-  backchannel: 'Back-channel logout',
-  frontchannel: 'Front-channel logout',
-} as const;
-
 export const POST_LOGOUT_RULE =
   'Where a sign-out may send the browser back to. A request names one exactly; no other is followed.';
 
