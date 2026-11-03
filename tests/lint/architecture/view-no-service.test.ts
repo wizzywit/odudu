@@ -6,10 +6,21 @@ import { ARCHITECTURE_SCAN_TIMEOUT, checkRule } from './rule.ts';
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
 const FIXTURE_ROOT = path.join(import.meta.dirname, '../fixtures/architecture/view-no-service');
 
-function reachesServices(file: string, reference: ModuleReference): boolean {
-  const resolved = reference.specifier.startsWith('.')
+function resolve(file: string, reference: ModuleReference): string {
+  return reference.specifier.startsWith('.')
     ? path.posix.join(path.posix.dirname(file), reference.specifier)
     : reference.specifier;
+}
+
+const SHARED_SERVICES = /^(?:#\/|apps\/admin-console\/src\/)shared\/lib\/services(?:\/|$)/;
+
+// The design system formats with the pure helpers in shared/lib/services; a
+// slice's services stay out of every view, shared/ui included (ADR 0048).
+function reachesServices(file: string, reference: ModuleReference): boolean {
+  const resolved = resolve(file, reference);
+  if (file.startsWith('apps/admin-console/src/shared/ui/') && SHARED_SERVICES.test(resolved)) {
+    return false;
+  }
   return segments(resolved).includes('services');
 }
 
@@ -25,10 +36,12 @@ export async function findViewServiceBreaches(root: string): Promise<string[]> {
 }
 
 describe('view-no-service', () => {
-  it('flags a ui file importing a service value, not a type-only import nor a test file', async () => {
+  it('flags a ui file importing a service value, not a type-only import, a test file nor shared/ui reading shared/lib/services', async () => {
     expect(await findViewServiceBreaches(FIXTURE_ROOT)).toEqual([
       'apps/admin-console/src/features/alpha/ui/Reaches.tsx',
+      'apps/admin-console/src/features/alpha/ui/ReachesShared.tsx',
       'apps/admin-console/src/shared/ui/Relative.tsx',
+      'apps/admin-console/src/shared/ui/Slice.tsx',
       'apps/docs/src/features/alpha/ui/Dynamic.tsx',
     ]);
   });

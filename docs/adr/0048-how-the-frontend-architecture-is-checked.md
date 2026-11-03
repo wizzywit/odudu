@@ -130,6 +130,12 @@ boundaries`): the segment boundaries, which layer may import which, and the
   each, and `no-domain-in-shared` excuses a listed file its domain word and
   nothing else. The list is closed, and a test fails on an entry whose file is
   gone or no longer names a domain word, so it can only shrink.
+- The console's `shared` holds `ui`, `api` (`adapter`, `transport`) and `lib`
+  (`services`, `repository`, `use-cases`); the sub-folders keep the purity and
+  layer rules readable. `view-no-service` makes one stated exemption: a file
+  in `shared/ui` may import `shared/lib/services`, the pure helpers the design
+  system formats with. A slice's services stay out of every view, `shared/ui`
+  included, and a feature view reading `shared/lib/services` is still flagged.
 - dependency-cruiser does resolve the console's `#/` specifiers: it reads
   them through the `imports` map of `apps/admin-console/package.json`, which
   the repository's `tsconfig` does not need (verified: `npx depcruise --config
