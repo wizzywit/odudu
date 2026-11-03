@@ -1,5 +1,4 @@
 import { Link } from 'react-aria-components';
-import { holderFilterOptions } from '#/features/subjects/services/holdings';
 import {
   useCapabilityHolders,
   type Holder,
@@ -18,6 +17,7 @@ import { StatusTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import styles from '#/features/subjects/ui/CapabilityHolders/CapabilityHolders.module.css';
 import { STATUS_FILTER } from '#/shared/services/filters';
+import { holderFilterOptions } from '#/features/subjects/services/capabilityChoices';
 
 const NOUN = { one: 'administrator', other: 'administrators' };
 const SEARCH = [{ id: 'username', label: 'Username' }];

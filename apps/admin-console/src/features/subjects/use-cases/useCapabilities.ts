@@ -14,18 +14,6 @@ import {
   type Confirmation,
 } from '#/features/subjects/services/access';
 import { subjectName } from '#/features/subjects/services/address';
-import {
-  adminRolesBlocked,
-  rolesFailure,
-  capabilitiesRemoveTenants,
-  capabilityOptions,
-  describeHoldings,
-  elsewhereText,
-  heldElsewhere,
-  keptOtherwise,
-  onlyHolder,
-  type HeldElsewhere,
-} from '#/features/subjects/services/holdings';
 import { beyondText, heldOf, subjectBeyond } from '#/features/subjects/services/reach';
 import { roleIdsOf, splitRoles } from '#/features/subjects/services/roles';
 import { rolesRecord, subjectTabHref } from '#/features/subjects/services/tabs';
@@ -36,6 +24,18 @@ import { holdingsIn, type Holding, type HoldingOption } from '#/shared/services/
 import { inOrderOf, removedFrom } from '#/shared/services/ids';
 import type { AdminCapability } from '#/shared/services/principal';
 import { useSaveConfirmation } from '#/shared/use-cases/useSaveConfirmation';
+import { adminRolesBlocked, rolesFailure } from '#/features/subjects/services/adminRolesRead';
+import { capabilitiesRemoveTenants } from '#/features/subjects/services/tenantReach';
+import {
+  capabilityOptions,
+  describeHoldings,
+} from '#/features/subjects/services/capabilityChoices';
+import {
+  elsewhereText,
+  heldElsewhere,
+  type HeldElsewhere,
+} from '#/features/subjects/services/heldElsewhere';
+import { keptOtherwise, onlyHolder } from '#/features/subjects/services/lastHolder';
 
 export function useSubjectRolesRead(tenant: string, id: string): RecordState<SetRolesResponse> {
   return useRolesRecord(tenant, id);

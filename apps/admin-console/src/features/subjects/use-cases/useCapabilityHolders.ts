@@ -3,10 +3,10 @@ import { useState } from 'react';
 import { usePrincipal, isSelf } from '#/entities/session';
 import { useHolderList } from '#/features/subjects/repository/useHolders';
 import { subjectHref, subjectName } from '#/features/subjects/services/address';
-import { reachesEveryTenant } from '#/features/subjects/services/holdings';
 import { heldLines, type HeldLine } from '#/features/subjects/services/roles';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
 import type { ResourceListState } from '#/shared/services/resourceList';
+import { reachesEveryTenant } from '#/features/subjects/services/tenantReach';
 
 export interface Holder {
   subject: ListedSubject;
