@@ -1,3 +1,4 @@
+import { isEmptyRecord } from '#/shared/services/fieldErrors';
 import type { Conflict } from '#/shared/services/conflict';
 import { edit as editDraft, rebase, sameValue, type Values } from '#/shared/services/dirty';
 import type { KeptDraft } from '#/shared/services/drafts';
@@ -39,7 +40,7 @@ export function initialSection<T extends Values>(
 }
 
 export function hasEdits(edits: object): boolean {
-  return Object.keys(edits).length > 0;
+  return !isEmptyRecord(edits);
 }
 
 // The state a section shows for a read: the first one, then the same one

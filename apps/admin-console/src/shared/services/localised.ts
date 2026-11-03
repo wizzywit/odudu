@@ -1,5 +1,5 @@
 import { languageLabel } from '#/shared/services/locales';
-import { andList } from '#/shared/services/format';
+import { andList, listOrNone } from '#/shared/services/format';
 import { uniqueIds } from '#/shared/services/ids';
 import type { Read } from '#/shared/services/read';
 
@@ -61,6 +61,5 @@ export function offersTag(read: Read<string[]>, tag: string): boolean {
 // A map as a conflict panel names it: the languages it holds text for.
 export function describeTranslations(value: unknown): string {
   if (typeof value !== 'object' || value === null) return 'none';
-  const tags = Object.keys(value);
-  return tags.length === 0 ? 'none' : tags.join(', ');
+  return listOrNone(Object.keys(value), { join: 'comma' });
 }

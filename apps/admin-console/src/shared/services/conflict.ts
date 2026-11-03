@@ -1,3 +1,5 @@
+import { listOrNone } from '#/shared/services/format';
+
 // One field that another administrator changed while this one was editing
 // it: their value is what the record holds now, yours is the unsaved edit.
 export interface Conflict {
@@ -18,7 +20,10 @@ export function describeValue(value: unknown): string {
   if (typeof value === 'boolean') return value ? 'on' : 'off';
   if (typeof value === 'number' || typeof value === 'bigint') return String(value);
   if (Array.isArray(value)) {
-    return value.length === 0 ? 'none' : value.map((item) => describeValue(item)).join(', ');
+    return listOrNone(
+      value.map((item) => describeValue(item)),
+      { join: 'comma' },
+    );
   }
   return JSON.stringify(value);
 }

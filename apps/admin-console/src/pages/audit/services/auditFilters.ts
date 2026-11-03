@@ -1,3 +1,4 @@
+import { isEmptyRecord } from '#/shared/services/fieldErrors';
 import { listAuditQuerySchema } from '@odudu/contracts/admin';
 
 export const FILTER_NAMES = [
@@ -33,7 +34,7 @@ export const NOT_FILTERS =
   'The request id, the address a request came from, and the caller’s tenant and client are not filters: the server does not search by them.';
 
 export function isFiltered(filters: AuditFilters): boolean {
-  return Object.keys(filters).length > 0;
+  return !isEmptyRecord(filters);
 }
 
 export function endsBefore(filters: AuditFilters): boolean {

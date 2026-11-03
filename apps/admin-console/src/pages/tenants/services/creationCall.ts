@@ -1,5 +1,5 @@
 import { type AdminCapability } from '#/shared/services/principal';
-import { fieldErrorsOf } from '#/shared/services/fieldErrors';
+import { fieldErrorsOf, isEmptyRecord } from '#/shared/services/fieldErrors';
 import { CONSOLE_FAULT, failureTextWith } from '#/shared/services/failure';
 import type { GatewayFailure } from '#/shared/services/result';
 import {
@@ -70,7 +70,7 @@ export function stepRefusal(failure: GatewayFailure, call: StepCall): StepRefusa
   const placed = fieldErrorsOf(failure.problem, call.fields);
   const [first] = call.fields;
   const other = placed.other.join(' ');
-  if (Object.keys(placed.fields).length > 0) {
+  if (!isEmptyRecord(placed.fields)) {
     return { errors: placed.fields, message: null, unconfirmed };
   }
   if (first !== undefined && other !== '') {

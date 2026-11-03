@@ -71,7 +71,7 @@ export function fieldErrorsOf(
 }
 
 // Whether a form's errors name no field: the form may be sent.
-export function isEmptyRecord(record: Readonly<Record<string, unknown>>): boolean {
+export function isEmptyRecord(record: object): boolean {
   return Object.keys(record).length === 0;
 }
 

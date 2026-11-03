@@ -1,3 +1,4 @@
+import { isEmptyRecord } from '#/shared/services/fieldErrors';
 import type { ThemeView } from '#/features/branding-editor/types/theme';
 import type { SectionFields } from '#/shared/services/sectionSave';
 import {
@@ -35,7 +36,7 @@ export function paletteFoldOpen(
   fieldError: string | undefined,
   colourProblems: Readonly<Record<string, string | undefined>>,
 ): boolean {
-  return opened || fieldError !== undefined || Object.keys(colourProblems).length > 0;
+  return opened || fieldError !== undefined || !isEmptyRecord(colourProblems);
 }
 
 export const COLOURS_TITLE = 'Colours and font';

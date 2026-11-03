@@ -1,3 +1,4 @@
+import { isEmptyRecord } from '#/shared/services/fieldErrors';
 import type { MessageOverride } from '#/pages/branding/types/messageOverride';
 import {
   MESSAGE_OVERRIDE_KEY_MAX_LENGTH,
@@ -91,5 +92,5 @@ export function overrideProblems(values: OverrideValues): OverrideErrors {
 }
 
 export function hasProblems(errors: OverrideErrors): boolean {
-  return Object.keys(errors).length > 0;
+  return !isEmptyRecord(errors);
 }

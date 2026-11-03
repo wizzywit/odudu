@@ -1,3 +1,4 @@
+import { isEmptyRecord } from '#/shared/services/fieldErrors';
 import type { CountResponse } from '@odudu/contracts/admin';
 import type { CursorTrail } from '#/shared/services/cursorTrail';
 import { isRefused, isStaleCursor } from '#/shared/services/failure';
@@ -107,7 +108,7 @@ export function listStatusOf(failure: GatewayFailure | null): ListStatus {
 }
 
 export function isNarrowed(narrowing: ListNarrowing): boolean {
-  return narrowing.search !== null || Object.keys(narrowing.filters).length > 0;
+  return narrowing.search !== null || !isEmptyRecord(narrowing.filters);
 }
 
 export function withFilter(
