@@ -3,16 +3,18 @@ import { useEffect, useState } from 'react';
 import type { Shell } from '@site/src/features/landing/services/content';
 import {
   COPIED_FOR_MS,
+  copyStatusOf,
+  type CopyStatus,
+} from '@site/src/features/landing/services/copyStatus';
+import {
   TYPED_COMMAND,
   TYPING_SEED,
   commandOf,
-  copyStatusOf,
   effectiveTyping,
   followUpLines,
   typingAfterChoice,
-  type CopyStatus,
   type Typing,
-} from '@site/src/features/landing/services/terminal';
+} from '@site/src/features/landing/services/installTyping';
 import type { Timers } from '@site/src/features/landing/services/typewriter';
 import { usePrefersReducedMotion } from '@site/src/shared/use-cases/usePrefersReducedMotion';
 import { copyText } from '@site/src/shared/platform/clipboard';

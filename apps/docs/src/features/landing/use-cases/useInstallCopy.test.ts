@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { COPIED_FOR_MS, commandOf } from '@site/src/features/landing/services/terminal';
+import { COPIED_FOR_MS } from '@site/src/features/landing/services/copyStatus';
+import { commandOf } from '@site/src/features/landing/services/installTyping';
 import { useInstall } from '@site/src/features/landing/use-cases/useInstall';
 import { mount } from '@site/tests/support/hookRunner';
 

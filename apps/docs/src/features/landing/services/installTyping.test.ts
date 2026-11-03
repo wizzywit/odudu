@@ -1,13 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { COMMANDS, RELEASE_CAVEAT } from '@site/src/features/landing/services/content';
+import { COMMANDS } from '@site/src/features/landing/services/content';
 import {
   commandOf,
-  copyLabel,
-  copyStatusOf,
   lineVisible,
   TYPED_COMMAND,
   followUpLines,
-  noteFor,
   panelTyping,
   pieces,
   shellChoices,
@@ -15,7 +12,7 @@ import {
   segments,
   typedSegments,
   typingAfterChoice,
-} from '@site/src/features/landing/services/terminal';
+} from '@site/src/features/landing/services/installTyping';
 
 const COMMAND = COMMANDS[0]?.command ?? '';
 
@@ -41,6 +38,11 @@ describe('the hero terminal', () => {
     expect(lineVisible('windows', 'on', 0, 2)).toBe(true);
   });
 
+  it('names the command of each shell', () => {
+    expect(commandOf('unix')).toBe(COMMAND);
+    expect(commandOf('windows')).toContain('curl.exe');
+  });
+
   it('overlays only the first shell, only while it types', () => {
     expect(overlayShown('unix', 'unix', 'on')).toBe(true);
     expect(overlayShown('unix', 'windows', 'on')).toBe(false);
@@ -48,21 +50,6 @@ describe('the hero terminal', () => {
     expect(overlayShown('unix', 'unix', 'after')).toBe(false);
     expect(typingAfterChoice('on')).toBe('after');
     expect(typingAfterChoice('done')).toBe('done');
-  });
-
-  it('says whether the copy worked', () => {
-    expect(copyStatusOf(true)).toBe('copied');
-    expect(copyStatusOf(false)).toBe('failed');
-  });
-
-  it('words the note and the button for each state', () => {
-    expect(noteFor('idle')).toContain(RELEASE_CAVEAT);
-    expect(noteFor('copied')).toContain('clipboard');
-    expect(noteFor('failed')).toContain('by hand');
-    expect(copyLabel('copied')).toBe('Copied');
-    expect(copyLabel('idle')).toBe('Copy');
-    expect(commandOf('unix')).toBe(COMMAND);
-    expect(commandOf('windows')).toContain('curl.exe');
   });
 });
 

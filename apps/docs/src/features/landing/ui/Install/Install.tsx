@@ -1,16 +1,15 @@
 import { Fragment, type ReactElement } from 'react';
+import { copyLabel, noteFor } from '@site/src/features/landing/services/copyStatus';
 import {
   TYPED_COMMAND,
-  copyLabel,
   followUpLines,
   lineVisible,
-  noteFor,
   overlayShown,
   panelTyping,
   pieces,
   shellChoices,
   typedSegments,
-} from '@site/src/features/landing/services/terminal';
+} from '@site/src/features/landing/services/installTyping';
 import { useInstall } from '@site/src/features/landing/use-cases/useInstall';
 import styles from '@site/src/features/landing/ui/Install/Install.module.css';
 

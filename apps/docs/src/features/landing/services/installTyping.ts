@@ -1,31 +1,10 @@
-import {
-  COMMANDS,
-  FOLLOW_UP,
-  RELEASE_CAVEAT,
-  type Shell,
-} from '@site/src/features/landing/services/content';
+import { COMMANDS, FOLLOW_UP, type Shell } from '@site/src/features/landing/services/content';
 
-export type CopyStatus = 'idle' | 'copied' | 'failed';
 // How far the hero's terminal has got: not started, typing the command, past
 // it, finished, or skipped for a reader who asked for less motion.
 export type Typing = 'off' | 'on' | 'after' | 'done' | 'skip';
 
-export const COPIED_FOR_MS = 2000;
 export const TYPING_SEED = 7;
-
-const NOTES: Record<CopyStatus, string> = {
-  idle: `${RELEASE_CAVEAT}. Needs Docker with Compose v2.`,
-  copied: 'Copied to your clipboard.',
-  failed: 'Your browser would not copy it. Select the command and copy it by hand.',
-};
-
-export function noteFor(status: CopyStatus): string {
-  return NOTES[status];
-}
-
-export function copyLabel(status: CopyStatus): 'Copied' | 'Copy' {
-  return status === 'copied' ? 'Copied' : 'Copy';
-}
 
 export function commandOf(shell: Shell): string {
   return COMMANDS.find((entry) => entry.shell === shell)?.command ?? '';
@@ -116,8 +95,4 @@ export interface ShellChoice {
 // Every shell with its command, and which one the reader has chosen.
 export function shellChoices(chosen: Shell): ShellChoice[] {
   return COMMANDS.map((entry) => ({ ...entry, checked: entry.shell === chosen }));
-}
-
-export function copyStatusOf(copied: boolean): CopyStatus {
-  return copied ? 'copied' : 'failed';
 }
