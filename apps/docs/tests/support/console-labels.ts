@@ -871,7 +871,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   'RS256 (RSA)': feature('signing-keys/services/stage.ts', "label: 'RS256 (RSA)'"),
   'Holding anything or nothing': page(
-    'subjects/ui/SubjectsPage/SubjectsPage.tsx',
+    'subjects/services/subjectFilters.ts',
     "label: 'Holding anything or nothing'",
   ),
   'Given name': page('subjects/services/claims.ts', "label: 'Given name'"),

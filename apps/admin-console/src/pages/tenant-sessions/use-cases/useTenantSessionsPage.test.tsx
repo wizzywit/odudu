@@ -2,6 +2,7 @@ import { renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { expect, it, vi } from 'vitest';
 import { SignedInContext } from '#/entities/session';
+import type * as repository from '#/pages/tenant-sessions/repository/useTenantSessions';
 import { useTenantSessionsPage } from '#/pages/tenant-sessions/use-cases/useTenantSessionsPage';
 import type { TenantSession } from '#/pages/tenant-sessions/types/tenantSession';
 import { hookHarness } from '#/testing/hookHarness';
@@ -10,9 +11,7 @@ vi.mock('#/shared/repository/useGo', () => ({ useGo: () => vi.fn() }));
 
 // The list reads the router's location; only the naming is under test here.
 vi.mock('#/pages/tenant-sessions/repository/useTenantSessions', async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import('#/pages/tenant-sessions/repository/useTenantSessions')
-  >()),
+  ...(await importOriginal<typeof repository>()),
   useTenantSessionList: () => ({ status: 'loading', rows: [] }),
 }));
 
