@@ -60,7 +60,7 @@ async function choosingGrace(extra: Record<string, Answer> = {}) {
     expect(view.result.current.unavailableOf(GRACE)).toBeNull();
   });
   act(() => {
-    view.result.current.choose('s-grace');
+    view.result.current.pick(['s-grace']);
   });
   expect(view.result.current.chosen?.id).toBe('s-grace');
   return view;

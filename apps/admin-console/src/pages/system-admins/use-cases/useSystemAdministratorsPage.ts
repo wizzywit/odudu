@@ -34,7 +34,6 @@ export interface SystemAdministrators {
   unavailableOf: (subject: Subject) => string | null;
   nameOf: (subject: Subject) => string;
   chosen: Subject | null;
-  choose: (id: string | null) => void;
   // The picker's own selection, of which one subject is kept.
   pick: (ids: readonly string[]) => void;
   holdings: readonly string[];
@@ -81,7 +80,6 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
     unavailableOf: (subject) => pickerUnavailable(holders, subject),
     nameOf: usernameOrId,
     chosen,
-    choose,
     pick: (ids) => {
       choose(firstChosen(ids));
     },
