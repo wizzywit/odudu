@@ -2,7 +2,7 @@ import { AUDIT_QUERY_TOO_BROAD } from '@odudu/contracts/admin';
 import { andList } from '#/shared/services/format';
 import { edgeOfMinute } from '#/shared/services/dateTime';
 import type { GatewayFailure } from '#/shared/services/result';
-import { FILTER_LABELS, type AuditFilters } from '#/features/audit/services/filters';
+import { FILTER_LABELS, type AuditFilters } from '#/features/audit/services/auditFilters';
 
 export const TOO_BROAD_TITLE = 'These filters are too broad to search';
 

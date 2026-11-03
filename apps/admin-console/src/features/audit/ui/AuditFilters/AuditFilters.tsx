@@ -1,12 +1,8 @@
 import { useId } from 'react';
 import type { AuditFilterForm } from '#/features/audit/use-cases/useAuditPage';
-import {
-  choiceOf,
-  EVENT_TYPE_OPTIONS,
-  hasResourceType,
-  OUTCOME_OPTIONS,
-} from '#/features/audit/services/filters';
-import { NOT_FILTERS } from '#/features/audit/services/page';
+import { choiceOf, hasResourceType } from '#/features/audit/services/filterDraft';
+import { EVENT_TYPE_OPTIONS, OUTCOME_OPTIONS } from '#/features/audit/services/filterOptions';
+import { NOT_FILTERS } from '#/features/audit/services/auditFilters';
 import { Button } from '#/shared/ui/Button';
 import { DateTimeField, SelectField, TextField } from '#/shared/ui/Field';
 import { FieldGrid, GridCell } from '#/shared/ui/FieldGrid';

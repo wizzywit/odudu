@@ -69,7 +69,7 @@ const subjectTab = (key: string, label: string): Defined => pageTab('subjects', 
 const clientTab = (key: string, label: string): Defined => pageTab('clients', key, label);
 
 const FILTERS = 'audit/ui/AuditFilters/AuditFilters.tsx';
-const AUDIT_KINDS = 'audit/services/filters.ts';
+const AUDIT_KINDS = 'audit/services/filterOptions.ts';
 const EMAIL_PAGE = 'email/ui/EmailPage/EmailPage.tsx';
 const EMAIL_RELAY = 'email/services/relay.ts';
 const EMAIL_MAIL = 'email/services/mail.ts';

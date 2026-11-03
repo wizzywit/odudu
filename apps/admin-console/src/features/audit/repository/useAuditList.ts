@@ -4,12 +4,8 @@ import { listKey } from '#/shared/repository/queryKeys';
 import { useListPages } from '#/shared/repository/useResourceList';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';
 import { isTooBroad } from '#/features/audit/services/broad';
-import {
-  auditQuery,
-  filtersToSearch,
-  readFilters,
-  type AuditFilters,
-} from '#/features/audit/services/filters';
+import { auditQuery, filtersToSearch, readFilters } from '#/features/audit/services/auditAddress';
+import { type AuditFilters } from '#/features/audit/services/auditFilters';
 import {
   currentCursor,
   trailFromSearch,

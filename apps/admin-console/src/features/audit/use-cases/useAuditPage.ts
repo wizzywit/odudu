@@ -9,23 +9,24 @@ import { scopeHref } from '#/entities/scope';
 import { useAuditList, type AuditList } from '#/features/audit/repository/useAuditList';
 import { useExportEvents, type ExportEvents } from '#/features/audit/use-cases/useExportEvents';
 import { lastDay, tooBroadAdvice } from '#/features/audit/services/broad';
+import { auditQuery } from '#/features/audit/services/auditAddress';
 import {
-  auditQuery,
   applyBlocked,
-  draftOf,
   draftProblems,
+  isClean,
+  shownProblems,
+  withUnreadable,
+  type DraftProblems,
+  type Unreadable,
+} from '#/features/audit/services/draftValidation';
+import {
+  draftOf,
   EMPTY_DRAFT,
   filtersOf,
-  isClean,
-  isFiltered,
-  shownProblems,
   withField,
-  withUnreadable,
   type Draft,
-  type DraftProblems,
-  type FilterName,
-  type Unreadable,
-} from '#/features/audit/services/filters';
+} from '#/features/audit/services/filterDraft';
+import { isFiltered, type FilterName } from '#/features/audit/services/auditFilters';
 import { actorHref, resourceHref, type RecordPages } from '#/features/audit/services/links';
 import { loadedRange } from '#/features/audit/services/range';
 import { holds } from '#/shared/services/access';

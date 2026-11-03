@@ -5,7 +5,8 @@ import { saveFile } from '#/shared/adapter/files';
 import { auditExportKey } from '#/shared/repository/queryKeys';
 import { useFreshRead } from '#/shared/repository/useFreshRead';
 import { auditFileName, eventsIn } from '#/features/audit/services/export';
-import { auditQuery, type AuditFilters } from '#/features/audit/services/filters';
+import { auditQuery } from '#/features/audit/services/auditAddress';
+import { type AuditFilters } from '#/features/audit/services/auditFilters';
 import type { GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
 
