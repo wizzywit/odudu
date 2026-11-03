@@ -11,6 +11,7 @@ import {
   partialCopy,
   copyHref,
   copyHrefOf,
+  NAME_FIXED,
 } from '#/pages/roles/services/roleCopy';
 import { role } from '#/testing/roleAnswers';
 
@@ -127,4 +128,10 @@ describe('what a role copy keeps of its reads', () => {
     expect(copySourceOf({ ok: false, kind: 'network' }, ok({ items: [] }))).toBeNull();
     expect(copySourceOf(ok(READER), { ok: false, kind: 'network' })).toBeNull();
   });
+});
+
+it('says a role name is fixed because tokens carry it in their roles claim', () => {
+  expect(NAME_FIXED).toBe(
+    "A role's name is fixed once it is made: tokens carry it in their roles claim, and a relying party that matches on it would otherwise pass or fail by a token's age. A tenant role can be copied under another name instead.",
+  );
 });

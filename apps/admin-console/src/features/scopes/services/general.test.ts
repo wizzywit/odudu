@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   CONSENT_RULE,
+  NAME_FIXED,
   guardedConsent,
   displayOrderProblem,
   generalPatch,
@@ -77,5 +78,11 @@ it('holds the consent save, and says why under the field, once the order is edit
   expect(guardedConsent(section('x', [], {}, undefined)).fieldErrors).toEqual({});
   expect(guardedConsent(section('3', [], {}, 'Keep yours or take theirs.')).blocked).toBe(
     'Keep yours or take theirs.',
+  );
+});
+
+it('says a scope name is fixed because a client asks for it and a token carries it', () => {
+  expect(NAME_FIXED).toBe(
+    "A scope's name is the token a client asks for and a token carries, so it is fixed once the scope is made. Make a new scope and assign it instead.",
   );
 });

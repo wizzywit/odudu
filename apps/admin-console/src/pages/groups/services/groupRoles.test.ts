@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { defaultingOf } from '#/pages/groups/services/groupReach';
 import { roleUnavailable, keptRoles, reachOfRoles } from '#/pages/groups/services/groupRoles';
+import { roleIndex } from '#/entities/role';
+import { keptRoles as scopeKeptRoles } from '#/features/scopes/services/roles';
 import { reach } from '#/testing/roleAnswers';
 
 describe('what a group hands out', () => {
@@ -68,5 +70,40 @@ describe('the roles of a group', () => {
   });
   it('adds up what the removed roles hand out', () => {
     expect(reachOfRoles(items, ['r1', 'r2', 'gone'])).toEqual(['view-audit']);
+  });
+});
+
+describe('the roles kept on a scope and on a group', () => {
+  const items = [
+    {
+      id: 'r1',
+      name: 'keeper',
+      client_id: null,
+      client_key: null,
+      admin_reach: reach('manage-keys'),
+    },
+    { id: 'r2', name: 'reader', client_id: null, client_key: null, admin_reach: reach() },
+    {
+      id: 'r3',
+      name: 'users',
+      client_id: 'c',
+      client_key: 'k',
+      admin_reach: reach('manage-users'),
+    },
+  ];
+  const ofScope = (caller: ReturnType<typeof reach>) =>
+    scopeKeptRoles(
+      items.map((role) => role.id),
+      roleIndex(items, []),
+      caller,
+      'acme',
+    );
+
+  it('select the same roles from the same mapping, for any caller', () => {
+    for (const caller of [reach(), reach('manage-keys'), reach('manage-keys', 'manage-users')]) {
+      expect(keptRoles(items, caller, 'acme')).toEqual(ofScope(caller));
+    }
+    expect(keptRoles(items, reach(), 'acme')).toEqual(['r1', 'r3']);
+    expect(keptRoles(items, reach('manage-keys'), 'acme')).toEqual(['r3']);
   });
 });
