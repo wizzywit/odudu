@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 import {
   roleAccessibleName,
   roleDetail,
+  roleOption,
   roleOwnerTag,
 } from '#/entities/role/services/rolePickerText';
 import { roleOwnerShort } from '#/shared/services/capabilities';
@@ -35,4 +36,11 @@ it('tags a role as the capabilities owner does', () => {
   expect(roleOwnerTag({ client_id: 'c-admin', client_key: 'odudu-admin' })).toBe(
     'admin capability',
   );
+});
+
+it('gives a role the detail and the accessible name it is picked by', () => {
+  expect(roleOption(CLIENT)).toEqual({
+    detail: roleDetail(CLIENT),
+    accessibleName: roleAccessibleName(CLIENT),
+  });
 });

@@ -1,5 +1,1 @@
-export {
-  roleAccessibleName,
-  roleDetail,
-  roleOwnerTag,
-} from '#/entities/role/services/rolePickerText';
+export { roleOption, roleOwnerTag, type RoleOption } from '#/entities/role/services/rolePickerText';

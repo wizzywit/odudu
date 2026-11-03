@@ -35,6 +35,21 @@ export function dirtyTabs<T extends string>(
   return new Set(tabs.filter((tab) => recordsOf(tab).some((record) => dirty.has(record))));
 }
 
+export interface TabEntry<T extends string> {
+  id: T;
+  label: string;
+  // The tab holds a section with unsaved edits.
+  dirty: boolean;
+}
+
+export function tabEntries<T extends string>(
+  tabs: readonly T[],
+  labels: Readonly<Record<T, string>>,
+  dirty: ReadonlySet<T>,
+): TabEntry<T>[] {
+  return tabs.map((id) => ({ id, label: labels[id], dirty: dirty.has(id) }));
+}
+
 // The address of one tab of a record, built on the record's own.
 export function tabHrefOf(
   address: (tenant: string, id: string) => string,

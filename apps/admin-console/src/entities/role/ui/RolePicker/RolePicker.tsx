@@ -1,5 +1,5 @@
 import { Picker, type PickerFieldProps } from '#/shared/ui/Picker';
-import { roleAccessibleName, roleDetail } from '#/entities/role/use-cases/roleOption';
+import { roleOption } from '#/entities/role/use-cases/roleOption';
 import type { Role } from '#/entities/role/types/role';
 
 export function RolePicker({
@@ -17,8 +17,8 @@ export function RolePicker({
       picker={picker}
       idOf={(role) => role.id}
       nameOf={(role) => role.name}
-      detailOf={roleDetail}
-      accessibleNameOf={roleAccessibleName}
+      detailOf={(role) => roleOption(role).detail}
+      accessibleNameOf={(role) => roleOption(role).accessibleName}
       capability="view-users"
       selected={selected}
       onChange={onChange}

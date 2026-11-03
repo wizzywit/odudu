@@ -10,6 +10,7 @@ import {
   sectionKey,
   sectionsOf,
   shownFailure,
+  tabEntries,
   tabNamed,
 } from '#/shared/services/record';
 
@@ -20,6 +21,17 @@ describe('tabNamed', () => {
     expect(tabNamed(TABS, 'roles')).toBe('roles');
     expect(tabNamed(TABS, 'nope')).toBeUndefined();
     expect(tabNamed(TABS, null)).toBeUndefined();
+  });
+});
+
+describe('tabEntries', () => {
+  it('lists each tab in order with its label and whether it holds unsaved edits', () => {
+    const labels = { general: 'General', roles: 'Roles', activity: 'Activity' };
+    expect(tabEntries(TABS, labels, new Set(['roles']))).toEqual([
+      { id: 'general', label: 'General', dirty: false },
+      { id: 'roles', label: 'Roles', dirty: true },
+      { id: 'activity', label: 'Activity', dirty: false },
+    ]);
   });
 });
 

@@ -23,3 +23,14 @@ export function roleAccessibleName(role: Pick<Role, 'name' | 'client_id' | 'clie
 export function roleOwnerTag(role: Pick<Role, 'client_id' | 'client_key'>): string {
   return roleOwnerText(role);
 }
+
+export interface RoleOption {
+  detail: string;
+  accessibleName: string;
+}
+
+export function roleOption(
+  role: Pick<Role, 'name' | 'client_id' | 'client_key' | 'description'>,
+): RoleOption {
+  return { detail: roleDetail(role), accessibleName: roleAccessibleName(role) };
+}
