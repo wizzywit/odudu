@@ -1,15 +1,12 @@
 import { expect, it } from 'vitest';
+import { secretTitle } from '#/features/clients/services/createdSecret';
 import {
-  afterCreation,
   asksRedirects,
   clientIdProblem,
   KIND_CHOICES,
   NEW_CLIENT_FIELDS,
   newClientKind,
-  secretName,
-  secretTitle,
-  splitSecret,
-} from '#/features/clients/services/create';
+} from '#/features/clients/services/newClient';
 
 it('offers a web application, a service and a public client, saying which holds a secret', () => {
   expect(KIND_CHOICES.map((choice) => choice.id)).toEqual(['confidential', 'service', 'public']);
@@ -35,21 +32,4 @@ it('narrows what a select hands back to a kind, confidential for anything else',
   expect(newClientKind('public')).toBe('public');
   expect(newClientKind('service')).toBe('service');
   expect(newClientKind('nonsense')).toBe('confidential');
-});
-
-it('splits a secret off an answer, leaving the client without it', () => {
-  const answer: { id: string; client_secret?: string } = { id: 'c', client_secret: 's3' };
-  expect(splitSecret(answer)).toEqual({ secret: 's3', rest: { id: 'c' } });
-  const bare: { id: string; client_secret?: string } = { id: 'c' };
-  expect(splitSecret(bare)).toEqual({ secret: null, rest: { id: 'c' } });
-});
-
-it('waits for a secret to be acknowledged before the page moves on, and moves on at once without one', () => {
-  expect(afterCreation('s3')).toBe('acknowledge');
-  expect(afterCreation(null)).toBe('land');
-});
-
-it('names the secret for the client made, else for the ID being typed', () => {
-  expect(secretName({ name: 'Billing' }, 'billing-web')).toBe('Billing');
-  expect(secretName(null, 'billing-web')).toBe('billing-web');
 });

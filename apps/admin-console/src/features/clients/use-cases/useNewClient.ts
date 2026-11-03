@@ -8,14 +8,16 @@ import {
   clientIdProblem,
   NEW_CLIENT_FIELDS,
   newClientKind,
-  afterCreation,
   asksRedirects,
+  type NewClientField,
+  type NewClientKind,
+} from '#/features/clients/services/newClient';
+import {
+  afterCreation,
   secretNote,
   secretName,
   secretTitle,
-  type NewClientField,
-  type NewClientKind,
-} from '#/features/clients/services/create';
+} from '#/features/clients/services/createdSecret';
 import { CLIENT_ID_TAKEN } from '#/features/clients/services/labels';
 import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/lists';
 import { CLIENT_CAPABILITY } from '#/features/clients/services/refusal';

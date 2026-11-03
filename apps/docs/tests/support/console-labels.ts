@@ -276,9 +276,9 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   'Client ID': feature(CLIENT_NEW, 'label="Client ID"'),
   Kind: feature(CLIENT_NEW, 'label="Kind"'),
-  'Web application': feature('clients/services/create.ts', "label: 'Web application'"),
-  Service: feature('clients/services/create.ts', "label: 'Service'"),
-  'Public application': feature('clients/services/create.ts', "label: 'Public application'"),
+  'Web application': feature('clients/services/newClient.ts', "label: 'Web application'"),
+  Service: feature('clients/services/newClient.ts', "label: 'Service'"),
+  'Public application': feature('clients/services/newClient.ts', "label: 'Public application'"),
   'Redirect URIs': several(
     feature(CLIENT_NEW, 'label="Redirect URIs"'),
     feature('clients/ui/RedirectsTab/RedirectsTab.tsx', 'label="Redirect URIs"'),

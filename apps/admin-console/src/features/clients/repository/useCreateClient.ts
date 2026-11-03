@@ -2,7 +2,7 @@ import type { Client } from '@odudu/contracts/admin';
 import { findKey } from '#/shared/repository/queryKeys';
 import { createClient, findClient, type NewClient } from '#/features/clients/adapter/clients';
 import { useAfterClientChange } from '#/features/clients/repository/useClientRecord';
-import { splitSecret } from '#/features/clients/services/create';
+import { splitSecret } from '#/features/clients/services/createdSecret';
 import { useFreshRead } from '#/shared/repository/useFreshRead';
 import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce';
 import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
