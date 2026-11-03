@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ADMIN_CLIENT_KEY,
+  carriesTenantReach,
   grantableIn,
   adminClientOfRoles,
   holdingRoleIds,
@@ -64,6 +65,13 @@ describe('the built-in admin client in a role list', () => {
 });
 
 describe('the tenant-admin role', () => {
+  it('reaches every tenant from system as manage-tenants or Full, and as nothing lesser', () => {
+    expect(carriesTenantReach('manage-tenants')).toBe(true);
+    expect(carriesTenantReach('tenant-admin')).toBe(true);
+    expect(carriesTenantReach('manage-tenant')).toBe(false);
+    expect(carriesTenantReach('view-audit')).toBe(false);
+  });
+
   it('carries every capability of the tenant, and in system manage-tenants as well', () => {
     expect(tenantAdminCarries('acme')).not.toContain('manage-tenants');
     expect(tenantAdminCarries('acme')).toContain('manage-keys');

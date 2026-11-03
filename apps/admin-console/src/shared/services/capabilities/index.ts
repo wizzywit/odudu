@@ -13,6 +13,7 @@ export {
   includedBy,
   TENANT_ADMIN,
   MANAGE_TENANTS,
+  carriesTenantReach,
   administratorCapability,
   tenantAdminCarries,
 } from '#/shared/services/capabilities/holdings';

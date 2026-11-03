@@ -85,6 +85,12 @@ export const TENANT_ADMIN = 'tenant-admin';
 
 export const MANAGE_TENANTS = 'manage-tenants';
 
+// Held in system, these reach every other tenant: manage-tenants itself, and
+// Full, which carries it.
+export function carriesTenantReach(name: string): boolean {
+  return name === TENANT_ADMIN || name === MANAGE_TENANTS;
+}
+
 // What the last-administrator guard counts: system's administrators are
 // those who can reach every tenant, which is manage-tenants.
 export function administratorCapability(tenant: string): 'tenant-admin' | 'manage-tenants' {

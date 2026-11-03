@@ -1,5 +1,6 @@
 import { type EffectiveRoleAssignment } from '@odudu/contracts/admin';
 import {
+  carriesTenantReach,
   isAdminRole,
   removalConfirmation,
   type Confirmation,
@@ -20,9 +21,7 @@ export function takesTenants(
   before: readonly string[],
   after: readonly string[],
 ): boolean {
-  const carriers = effective.filter(
-    (role) => isAdminRole(role) && (role.name === 'manage-tenants' || role.name === 'tenant-admin'),
-  );
+  const carriers = effective.filter((role) => isAdminRole(role) && carriesTenantReach(role.name));
   const otherwise = carriers.some((role) =>
     role.via.some(
       (via) =>
