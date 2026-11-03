@@ -1,5 +1,5 @@
 import type { Client } from '@odudu/contracts/admin';
-import { lacking } from '#/shared/services/access';
+import { notLacking } from '#/shared/services/access';
 import type { AdminCapability, Authority } from '#/shared/services/principal';
 
 export const SERVICE_CAPABILITY: AdminCapability = 'manage-users';
@@ -53,6 +53,6 @@ export function serviceAccess(
   authority: Authority | undefined,
 ): ServiceAccess {
   if (client.service_subject_id === null) return { status: 'none', note: noAccountNote(client) };
-  if (lacking(authority, [SERVICE_CAPABILITY]).length > 0) return { status: 'denied' };
+  if (!notLacking(authority, [SERVICE_CAPABILITY])) return { status: 'denied' };
   return { status: 'ready', subjectId: client.service_subject_id };
 }
