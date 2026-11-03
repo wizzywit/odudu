@@ -59,8 +59,7 @@ export function firstMatch<T>(
   result: GatewayResult<{ items: readonly T[] }>,
   matches: (item: T) => boolean,
 ): GatewayResult<T | null> {
-  if (!result.ok) return result;
-  return { ...result, data: result.data.items.find(matches) ?? null };
+  return mapResult(result, (data) => data.items.find(matches) ?? null);
 }
 
 // The answer with its data mapped, a failure passed through as it is.

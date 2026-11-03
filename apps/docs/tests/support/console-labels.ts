@@ -239,7 +239,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Create a copy': feature('roles/ui/RoleRecordPage/RoleRecordPage.tsx', '> Create a copy <'),
   'Import a tenant': several(
     page('tenants/ui/TenantsPage/TenantsPage.tsx', '>Import a tenant<'),
-    page('tenants/use-cases/useImportTenantPage.ts', "IMPORT_TITLE = 'Import a tenant'"),
+    page('tenants/services/creationPosition.ts', "IMPORT_TITLE = 'Import a tenant'"),
   ),
   'Create tenant': page(TENANT_NEW, "'Create tenant'"),
   'Create client': createWith('client', CLIENT_NEW),

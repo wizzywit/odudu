@@ -8,6 +8,8 @@ import {
   tenantsTrail,
 } from '#/pages/tenants/services/systemTrail';
 
+export const IMPORT_TITLE = 'Import a tenant';
+
 export const CREATE_TENANT_TITLE = 'Create a tenant';
 
 export const ADD_SYSTEM_ADMIN_TITLE = 'Add a system administrator';

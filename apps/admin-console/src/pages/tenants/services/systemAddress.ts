@@ -11,8 +11,6 @@ export const IMPORT_TENANT_HREF = `${SYSTEM_BASE}/import-tenant`;
 
 export const SYSTEM_ADMINS_HREF = `${SYSTEM_BASE}/system-admins`;
 
-export const NEW_SYSTEM_ADMIN_HREF = `${SYSTEM_ADMINS_HREF}/new`;
-
 export function systemAdminsHrefOf(tenant: string): string | null {
   return tenant === SYSTEM_TENANT ? SYSTEM_ADMINS_HREF : null;
 }

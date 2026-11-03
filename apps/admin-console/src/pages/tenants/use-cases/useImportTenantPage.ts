@@ -22,6 +22,7 @@ import {
   type Found,
   type ImportedSecret,
 } from '#/pages/tenants/services/import';
+import { IMPORT_TITLE } from '#/pages/tenants/services/creationPosition';
 import { tenantsTrail } from '#/pages/tenants/services/systemTrail';
 import type { Crumb } from '#/shared/services/breadcrumb';
 import { nameProblem } from '#/pages/tenants/services/tenantName';
@@ -54,8 +55,6 @@ export interface ImportTenantPage {
   // The first administrator's step, for the tenant just imported.
   begin: BeginAdministrator;
 }
-
-const IMPORT_TITLE = 'Import a tenant';
 
 // What the page is called and the way back, named before access is checked.
 export function useImportHeading(): { title: string; breadcrumb: readonly Crumb[] } {
