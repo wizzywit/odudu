@@ -9,9 +9,7 @@ import {
   pageOf,
   ADD_SYSTEM_ADMIN_TITLE,
   CREATE_TENANT_TITLE,
-  firstAdministratorNote,
-  originText,
-} from '#/features/tenants/services/heading';
+} from '#/features/tenants/services/creationPosition';
 
 describe('the heading of the creation page', () => {
   it('is the tenant step, first under Tenants', () => {
@@ -79,29 +77,9 @@ describe('the heading of the creation page', () => {
   });
 });
 
-describe('the administrator step copy', () => {
-  it('says where the tenant came from, after its name', () => {
-    expect(originText('created')).toBe(
-      'was created. It has no administrator yet, so nobody can sign in to its console.',
-    );
-    expect(originText('imported')).toBe(
-      'was imported. An import creates no administrator, so nobody can sign in to its console yet.',
-    );
-    expect(originText('existing')).toBe('gets another administrator.');
-  });
-
-  it('says a first administrator holds Full, and nothing for a further one', () => {
-    expect(firstAdministratorNote('created', 'acme')).toBe(
-      'The first administrator holds Full, so somebody in acme can give every capability; narrow it afterwards under Administrators.',
-    );
-    expect(firstAdministratorNote('imported', 'acme')).not.toBeNull();
-    expect(firstAdministratorNote('existing', 'acme')).toBeNull();
-  });
-
-  it('keeps the page titles in one place', () => {
-    expect(CREATE_TENANT_TITLE).toBe('Create a tenant');
-    expect(ADD_SYSTEM_ADMIN_TITLE).toBe('Add a system administrator');
-  });
+it('keeps the page titles in one place', () => {
+  expect(CREATE_TENANT_TITLE).toBe('Create a tenant');
+  expect(ADD_SYSTEM_ADMIN_TITLE).toBe('Add a system administrator');
 });
 
 describe('pageOf', () => {

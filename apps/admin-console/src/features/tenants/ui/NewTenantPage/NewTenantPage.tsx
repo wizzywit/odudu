@@ -16,9 +16,11 @@ import {
   CREATE_TENANT_TITLE,
   creationHeading,
   pageOf,
+} from '#/features/tenants/services/creationPosition';
+import {
   firstAdministratorNote,
   originText,
-} from '#/features/tenants/services/heading';
+} from '#/features/tenants/services/administratorOrigin';
 import { useAdministratorTitle } from '#/features/tenants/use-cases/useAdministratorTitle';
 import { ReplaceUnfinished } from '#/features/tenants/ui/ReplaceUnfinished';
 import { SystemGate } from '#/features/tenants/ui/SystemGate';
