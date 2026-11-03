@@ -3,6 +3,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { checkRule } from './rule.ts';
+import { SHARED_VOCABULARY } from './shared-vocabulary.ts';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
 const FIXTURE_ROOT = path.join(import.meta.dirname, '../fixtures/architecture/no-domain-in-shared');
@@ -71,8 +72,14 @@ function exportedNames(source: ts.SourceFile): string[] {
   return names;
 }
 
-export async function findSharedBreaches(root: string): Promise<string[]> {
-  const breaches = new Set<string>();
+interface SharedFile {
+  file: string;
+  foreignSegment: boolean;
+  domainWord: boolean;
+}
+
+async function scanShared(root: string): Promise<SharedFile[]> {
+  const scanned: SharedFile[] = [];
   for (const pattern of SHARED_GLOBS) {
     for await (const entry of glob(pattern, { cwd: root })) {
       const file = entry.split(path.sep).join('/');
@@ -80,26 +87,83 @@ export async function findSharedBreaches(root: string): Promise<string[]> {
       const segment = afterShared.split('/')[0] ?? '';
       const text = await readFile(path.join(root, file), 'utf8');
       const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false);
-      if (
-        !ALLOWED_SEGMENTS.has(segment) ||
-        hasDomainWord(afterShared) ||
-        exportedNames(source).some(hasDomainWord)
-      ) {
-        breaches.add(file);
-      }
+      scanned.push({
+        file,
+        foreignSegment: !ALLOWED_SEGMENTS.has(segment),
+        domainWord: hasDomainWord(afterShared) || exportedNames(source).some(hasDomainWord),
+      });
     }
   }
-  return [...breaches].sort();
+  return scanned.sort((a, b) => a.file.localeCompare(b.file));
+}
+
+// A file on the vocabulary list is excused its domain word and nothing else.
+export async function findSharedBreaches(
+  root: string,
+  vocabulary: readonly string[] = Object.keys(SHARED_VOCABULARY),
+): Promise<string[]> {
+  const excused = new Set(vocabulary);
+  return (await scanShared(root))
+    .filter(({ file, foreignSegment, domainWord }) => {
+      return foreignSegment || (domainWord && !excused.has(file));
+    })
+    .map(({ file }) => file);
+}
+
+export async function vocabularyErrors(
+  root: string,
+  vocabulary: readonly string[] = Object.keys(SHARED_VOCABULARY),
+): Promise<string[]> {
+  const scanned = new Map((await scanShared(root)).map((entry) => [entry.file, entry]));
+  return vocabulary.flatMap((file) => {
+    const entry = scanned.get(file);
+    if (entry === undefined) return [`${file} is on the shared vocabulary list and does not exist`];
+    return entry.domainWord
+      ? []
+      : [`${file} names no domain word; remove it from the shared vocabulary list`];
+  });
 }
 
 describe('no-domain-in-shared', () => {
   it('flags a domain word in a path, a domain word in an export and a foreign segment', async () => {
     const base = 'apps/admin-console/src/shared';
-    expect(await findSharedBreaches(FIXTURE_ROOT)).toEqual([
+    expect(await findSharedBreaches(FIXTURE_ROOT, [])).toEqual([
       `${base}/lib/format.ts`,
+      `${base}/lib/platform.ts`,
       `${base}/services/helper.ts`,
       `${base}/ui/TenantPicker.ts`,
     ]);
+  });
+
+  it('excuses a listed file its domain word and leaves its segment checked', async () => {
+    const base = 'apps/admin-console/src/shared';
+    const listed = [
+      `${base}/lib/platform.ts`,
+      `${base}/ui/TenantPicker.ts`,
+      `${base}/services/helper.ts`,
+    ];
+    expect(await findSharedBreaches(FIXTURE_ROOT, listed)).toEqual([
+      `${base}/lib/format.ts`,
+      `${base}/services/helper.ts`,
+    ]);
+  });
+
+  it('fails a listed file that is gone or names no domain word', async () => {
+    const base = 'apps/admin-console/src/shared';
+    expect(
+      await vocabularyErrors(FIXTURE_ROOT, [
+        `${base}/lib/platform.ts`,
+        `${base}/ui/Button.ts`,
+        `${base}/lib/gone.ts`,
+      ]),
+    ).toEqual([
+      `${base}/ui/Button.ts names no domain word; remove it from the shared vocabulary list`,
+      `${base}/lib/gone.ts is on the shared vocabulary list and does not exist`,
+    ]);
+  });
+
+  it('lists only files that exist and still name a domain word', async () => {
+    expect(await vocabularyErrors(REPO_ROOT)).toEqual([]);
   });
 
   it('matches whole words only', () => {

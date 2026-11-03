@@ -119,6 +119,16 @@ boundaries`): the segment boundaries, which layer may import which, and the
   migration ends and every rule has an empty inventory. What remains is the
   rules, which then run with no exemption, like every other test in
   `tests/lint`.
+- Some platform vocabulary stays in `shared` although it names a domain word:
+  the tenant vocabulary (`SYSTEM_TENANT`, `isTenantName`, `tenantPage`,
+  `isUnknownTenant`), the capability rules under `shared/services/capabilities`
+  and what the failure wording reads from them. Several slices read each, an
+  entity imports no entity, and an `@x` file per symbol would be the ten
+  cross-imports the architecture document calls a wrong boundary. They are
+  named in `tests/lint/architecture/shared-vocabulary.ts`, one line of reason
+  each, and `no-domain-in-shared` excuses a listed file its domain word and
+  nothing else. The list is closed, and a test fails on an entry whose file is
+  gone or no longer names a domain word, so it can only shrink.
 - dependency-cruiser does resolve the console's `#/` specifiers: it reads
   them through the `imports` map of `apps/admin-console/package.json`, which
   the repository's `tsconfig` does not need (verified: `npx depcruise --config
