@@ -5,6 +5,8 @@ import { TENANT_NAME_RULE_TEXT } from '#/shared/services/labels';
 describe('the tenant name', () => {
   it('asks for a name, refuses one the rule refuses, and passes a good one', () => {
     expect(nameProblem('')).toBe('Enter a name for the tenant.');
+    expect(nameProblem('   ')).toBe(TENANT_NAME_RULE_TEXT);
+    expect(nameProblem('A')).toBe(TENANT_NAME_RULE_TEXT);
     expect(nameProblem('Acme')).toBe(TENANT_NAME_RULE_TEXT);
     expect(nameProblem('-acme')).toBe(TENANT_NAME_RULE_TEXT);
     expect(nameProblem('acme-eu')).toBeNull();
