@@ -11,10 +11,10 @@ import {
   type Profile,
   type Subject,
 } from '@odudu/contracts/admin';
-import type { CredentialChange } from '#/features/subjects/services/credentials';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { readSubjectCount, readSubjectPage } from '#/shared/adapter/directory';
 import { adminCall, nothing } from '#/shared/adapter/route';
+import { type CredentialChange } from '#/features/subjects/services/credentialChange';
 
 export { readSubjectCount, readSubjectPage };
 

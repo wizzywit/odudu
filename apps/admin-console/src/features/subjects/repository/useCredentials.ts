@@ -12,12 +12,12 @@ import {
   readCredentials,
   readLockout,
 } from '#/features/subjects/adapter/subjects';
-import { staleReadOf, type CredentialChange } from '#/features/subjects/services/credentials';
 import { issuePassword } from '#/shared/adapter/administrators';
 import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
 import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
+import { staleReadOf, type CredentialChange } from '#/features/subjects/services/credentialChange';
 
 export function useCredentials(
   tenant: string,

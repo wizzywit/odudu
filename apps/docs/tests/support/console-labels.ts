@@ -307,13 +307,13 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'subjects/ui/SubjectRecordPage/CredentialsTab.tsx',
     'Issue a one-time password',
   ),
-  'Issue password': feature('subjects/services/credentials.ts', "confirmLabel: 'Issue password'"),
+  'Issue password': feature('subjects/services/credentialAsk.ts', "confirmLabel: 'Issue password'"),
   'Send a password reset email': feature(
     'subjects/ui/SubjectRecordPage/CredentialsTab.tsx',
     '> Send a password reset email <',
   ),
   'Revoke recovery codes': feature(
-    'subjects/services/credentials.ts',
+    'subjects/services/credentialAsk.ts',
     "confirmLabel: 'Revoke recovery codes'",
   ),
   'Revoke grants': feature(
@@ -881,7 +881,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Region: feature('subjects/services/claims.ts', "label: 'Region'"),
   'Postal code': feature('subjects/services/claims.ts', "label: 'Postal code'"),
   'Ask for a new set at next sign-in': feature(
-    'subjects/services/credentials.ts',
+    'subjects/services/credentialAsk.ts',
     "label: 'Ask for a new set at next sign-in'",
   ),
   'Choose a new password': feature(

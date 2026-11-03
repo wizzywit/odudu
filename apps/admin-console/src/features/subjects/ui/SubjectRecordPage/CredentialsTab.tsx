@@ -2,15 +2,6 @@ import { Link } from 'react-aria-components';
 import { REQUIRED_ACTIONS } from '#/features/subjects/services/actions';
 import { type Credential, type Lockout, type Subject } from '#/features/subjects/services/address';
 import {
-  askToRemove,
-  askToRevoke,
-  credentialsOf,
-  factorLabel,
-  lockoutSummary,
-  recoveryCodesText,
-  removeFactorLabel,
-} from '#/features/subjects/services/credentials';
-import {
   useSubjectCredentials,
   type SubjectCredentials,
 } from '#/features/subjects/use-cases/useSubjectCredentials';
@@ -31,6 +22,14 @@ import { FormSkeleton } from '#/shared/ui/Skeleton';
 import { StatusTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
+import { askToRemove, askToRevoke } from '#/features/subjects/services/credentialAsk';
+import {
+  credentialsOf,
+  factorLabel,
+  removeFactorLabel,
+} from '#/features/subjects/services/credentialList';
+import { lockoutSummary } from '#/features/subjects/services/lockout';
+import { recoveryCodesText } from '#/features/subjects/services/credentialOutcome';
 
 interface TabProps {
   tenant: string;
