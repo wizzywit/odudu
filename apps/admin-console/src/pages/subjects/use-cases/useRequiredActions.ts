@@ -3,7 +3,12 @@ import { useRefusal } from '#/entities/session';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { accessRefusal } from '#/shared/services/capabilities';
-import { describeActions, requiredActionsInOrder } from '#/pages/subjects/services/requiredActions';
+import {
+  describeActions,
+  REQUIRED_ACTION_OPTIONS,
+  requiredActionsInOrder,
+} from '#/pages/subjects/services/requiredActions';
+import { signsInAsItself } from '#/pages/subjects/services/subjectAccount';
 import {
   type Subject,
   saveActions,
@@ -23,6 +28,7 @@ export function useRequiredActionsRead(
 export interface SubjectActions {
   name: string;
   canManage: boolean;
+  options: typeof REQUIRED_ACTION_OPTIONS;
   save: SectionSave<ActionValues>;
   choose: (actions: readonly string[]) => void;
 }
@@ -60,9 +66,15 @@ export function useRequiredActions(
   return {
     name,
     canManage,
+    options: REQUIRED_ACTION_OPTIONS,
     save,
     choose: (value) => {
       save.edit('actions', requiredActionsInOrder(value));
     },
   };
+}
+
+// A service subject signs in as itself, so it is asked for nothing at sign-in.
+export function useRequiredActionsTab(subject: Subject): { itself: boolean } {
+  return { itself: signsInAsItself(subject) };
 }

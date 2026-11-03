@@ -6,8 +6,6 @@ import {
   type SystemAdministrators,
 } from '#/pages/system-admins/use-cases/useSystemAdministratorsPage';
 import { SystemGate } from '#/widgets/shell';
-import { firstChosen } from '#/shared/services/picker';
-import { SYSTEM_TENANT } from '#/shared/services/principal';
 import { Button } from '#/shared/ui/Button';
 import { ChecklistField } from '#/shared/ui/ChecklistField';
 import { LiveMessage } from '#/shared/ui/Message';
@@ -42,7 +40,7 @@ function Add({ page }: { page: SystemAdministrators }) {
         searchBy="username"
         selected={chosen === null ? [] : [chosen.id]}
         onChange={(ids) => {
-          page.choose(firstChosen(ids));
+          page.pick(ids);
         }}
         selectionMode="single"
       />
@@ -84,7 +82,7 @@ function Administrators() {
             needs={page.blocked.needs}
           />
         )}
-        <CapabilityHolders tenant={SYSTEM_TENANT} canChange={page.changeNeeds.length === 0} />
+        <CapabilityHolders tenant={page.tenant} canChange={page.changeNeeds.length === 0} />
         {page.changeNeeds.length === 0 ? <Add page={page} /> : null}
       </div>
     </>

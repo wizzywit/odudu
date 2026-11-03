@@ -16,8 +16,6 @@ import { ListSkeleton } from '#/shared/ui/Skeleton';
 import { StatusTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import styles from '#/features/subject-capabilities/ui/CapabilityHolders/CapabilityHolders.module.css';
-import { STATUS_FILTER } from '#/shared/services/filters';
-import { holderFilterOptions } from '#/features/subject-capabilities/services/capabilityChoices';
 
 const NOUN = { one: 'administrator', other: 'administrators' };
 const SEARCH = [{ id: 'username', label: 'Username' }];
@@ -155,7 +153,7 @@ export function CapabilityHolders({
       >
         <SelectField
           label="Status"
-          options={STATUS_FILTER}
+          options={page.statusFilter}
           value={list.filters.enabled ?? 'any'}
           onChange={(value) => {
             list.setFilter('enabled', value === 'any' ? null : value);
@@ -163,7 +161,7 @@ export function CapabilityHolders({
         />
         <SelectField
           label="Holds"
-          options={holderFilterOptions(tenant)}
+          options={page.capabilityFilter}
           value={list.filters.capability ?? 'any'}
           onChange={(value) => {
             list.setFilter('capability', value === 'any' ? null : value);

@@ -7,18 +7,17 @@ import {
 import { useSubjectRoles, type SubjectRoles } from '#/pages/subjects/use-cases/useSubjectRoles';
 import { Panel } from '#/shared/ui/Panel';
 import { PagedList } from '#/pages/subjects/ui/SubjectRecordPage/SessionsTab';
-import { provenanceText } from '#/shared/services/capabilities';
 import type { Column } from '#/shared/ui/DataTable';
 import { ReadGate } from '#/shared/ui/ReadGate';
 import { RolePicker } from '#/shared/ui/RolePicker';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { recordTab } from '#/shared/ui/RecordTab';
-import { type Subject, roleOwnerOf } from '#/entities/subject';
+import { type Subject } from '#/entities/subject';
 
-const EFFECTIVE: readonly Column<EffectiveRoleAssignment>[] = [
+const effectiveColumns = (roles: SubjectRoles): readonly Column<EffectiveRoleAssignment>[] => [
   { id: 'name', header: 'Role', isRowHeader: true, cell: (role) => <code>{role.name}</code> },
-  { id: 'owner', header: 'Belongs to', cell: (role) => roleOwnerOf(role.client_key) },
-  { id: 'how', header: 'Held', cell: (role) => role.via.map(provenanceText).join(', ') },
+  { id: 'owner', header: 'Belongs to', cell: (role) => roles.ownerOf(role.client_key) },
+  { id: 'how', header: 'Held', cell: roles.heldBy },
 ];
 
 function Effective({ roles }: { roles: SubjectRoles }) {
@@ -27,7 +26,7 @@ function Effective({ roles }: { roles: SubjectRoles }) {
       list={roles.effective}
       label={`Every role ${roles.name} holds`}
       noun="roles held"
-      columns={EFFECTIVE}
+      columns={effectiveColumns(roles)}
       rowKey={(role) => role.id}
       empty={`${roles.name} holds no role, directly or otherwise.`}
     />
@@ -58,7 +57,7 @@ function Roles({ roles }: { roles: SubjectRoles }) {
           {roles.assigned.map((role) => (
             <li key={role.id}>
               <code>{role.name}</code>
-              <span className={recordTab.rule}>{` · ${roleOwnerOf(role.client)}`}</span>
+              <span className={recordTab.rule}>{` · ${roles.ownerOf(role.client)}`}</span>
             </li>
           ))}
         </ul>

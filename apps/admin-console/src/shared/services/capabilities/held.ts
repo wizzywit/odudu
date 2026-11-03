@@ -27,6 +27,10 @@ export function provenanceText(via: RoleProvenance): string {
   }
 }
 
+export function provenanceListText(via: readonly RoleProvenance[]): string {
+  return via.map(provenanceText).join(', ');
+}
+
 export interface Held {
   // Assigned to the subject itself, which is what an edit here changes.
   direct: boolean;

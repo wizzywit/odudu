@@ -3,6 +3,7 @@ import { useSubjectRecord } from '#/pages/subjects/repository/useSubjectRecord';
 import { lacking } from '#/shared/services/access';
 import { type AdminCapability } from '#/shared/services/principal';
 import type { RecordView } from '#/shared/services/record';
+import { subjectTabEntries, type SubjectTabEntry } from '#/pages/subjects/services/tabs';
 import { useRecordTabs } from '#/shared/use-cases/useRecordTabs';
 import {
   type Subject,
@@ -21,8 +22,8 @@ export interface SubjectRecordPage {
   etag: string | null;
   tab: SubjectTab;
   selectTab: (tab: string) => void;
-  // Tabs with a section holding unsaved edits, for their dots.
-  dirty: ReadonlySet<SubjectTab>;
+  // Every tab, labelled, with a dot for one holding unsaved edits.
+  tabList: readonly SubjectTabEntry[];
   // False once whoami says a change would be refused; true until it answers.
   canManage: boolean;
   // What changing the subject needs that whoami says is missing.
@@ -50,6 +51,7 @@ export function useSubjectRecordPage(tenant: string, id: string): SubjectRecordP
     subject: record.data,
     etag: record.etag,
     ...tabs,
+    tabList: subjectTabEntries(SUBJECT_TABS, tabs.dirty),
     canManage: canManageSubject(changeNeeds, effective.status, beyond),
     changeNeeds,
     beyond,

@@ -13,13 +13,14 @@ import {
 import type { PickerState } from '#/shared/services/picker';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import type { RoleValues } from '#/shared/services/sectionValues';
-import { accessRefusal } from '#/shared/services/capabilities';
+import { accessRefusal, provenanceListText } from '#/shared/services/capabilities';
 import {
   type Subject,
   useEffectiveRoleList,
   useSaveRoles,
   subjectName,
   rolesRecord,
+  roleOwnerOf,
   roleUnavailableHere,
   splitRoles,
 } from '#/entities/subject';
@@ -34,6 +35,9 @@ export interface SubjectRoles {
   unavailableOf: (role: Role) => string | null;
   assigned: readonly AssignedRole[];
   effective: ResourceListState<EffectiveRoleAssignment>;
+  // Whose a role is, and how it is held, as the lists say them.
+  ownerOf: (client: string | null) => string;
+  heldBy: (role: EffectiveRoleAssignment) => string;
 }
 
 export function useSubjectRoles(
@@ -83,5 +87,7 @@ export function useSubjectRoles(
     unavailableOf: roleUnavailableHere,
     assigned: assignmentsOf(save.values.role_ids, known),
     effective,
+    ownerOf: roleOwnerOf,
+    heldBy: (role) => provenanceListText(role.via),
   };
 }

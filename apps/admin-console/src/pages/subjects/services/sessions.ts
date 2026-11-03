@@ -1,7 +1,13 @@
-import { counted } from '#/shared/services/format';
+import { counted, formatAbsolute } from '#/shared/services/format';
+import type { SubjectSession } from '#/pages/subjects/types/subjectSession';
 
 export function sessionEndedText(name: string): string {
   return `The session of ${name} ended.`;
+}
+
+// Two sessions can look alike, so each End names when its own started.
+export function endSessionLabel(session: SubjectSession): string {
+  return `End the session started ${formatAbsolute(new Date(session.createdAt))}`;
 }
 
 export function sessionsEndedText(name: string, count: number): string {

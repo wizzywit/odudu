@@ -24,8 +24,6 @@ import { SaveSection } from '#/shared/ui/SaveSection';
 import { EnabledTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
-import { DESCRIPTION_RULE } from '#/shared/services/labels';
-import { deletionRefusal, signsInAsItself } from '#/pages/subjects/services/subjectAccount';
 import type { Profile } from '@odudu/contracts/admin';
 import { type Subject } from '#/entities/subject';
 
@@ -91,7 +89,7 @@ function Account({ account }: { account: SubjectAccount }) {
       <Username account={account} />
       <TextField
         label="Email"
-        description={DESCRIPTION_RULE}
+        description={account.descriptionRule}
         type="email"
         value={s.values.email}
         error={s.fieldErrors.email}
@@ -323,12 +321,11 @@ function ProfilePanel({ tenant, id }: { tenant: string; id: string }) {
 
 export function ProfileTab({ tenant, subject, etag, gone, canManage, self }: TabProps) {
   const account = useSubjectAccount(tenant, subject, etag, gone, self);
-  const itself = signsInAsItself(subject);
   // The tokens describe the operator, so only their own record carries them.
   return (
     <OwnDataFields when={self}>
       <div className={recordTab.tab}>
-        {itself ? (
+        {account.itself ? (
           <p className={recordTab.text}>
             {`A ${subject.type} subject has no username, email or profile: it signs in as itself, with its client's credentials.`}
           </p>
@@ -341,7 +338,7 @@ export function ProfileTab({ tenant, subject, etag, gone, canManage, self }: Tab
         {canManage ? (
           <>
             <Status account={account} self={self} />
-            <Deletion account={account} self={self} refusal={deletionRefusal(subject)} />
+            <Deletion account={account} self={self} refusal={account.deletionRefusal} />
           </>
         ) : null}
       </div>

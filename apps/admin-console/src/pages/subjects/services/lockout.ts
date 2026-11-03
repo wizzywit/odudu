@@ -1,4 +1,5 @@
 import { counted } from '#/shared/services/format';
+import type { Read } from '#/shared/services/read';
 import { type Lockout } from '#/pages/subjects/types/lockout';
 
 export interface LockoutSummary {
@@ -29,4 +30,16 @@ export function lockoutSummary(lockout: Lockout): LockoutSummary {
     state: 'not locked',
     text: `${failures(lockout.failureCount)} on record. The next failure counts on from them, until a quiet spell or the right password ends the run.`,
   };
+}
+
+export interface LockoutView {
+  lockout: Lockout;
+  summary: LockoutSummary;
+}
+
+// The lockout and what to say of it, or null until it has been read.
+export function lockoutViewOf(read: Read<Lockout>): LockoutView | null {
+  return read.status === 'ready'
+    ? { lockout: read.data, summary: lockoutSummary(read.data) }
+    : null;
 }

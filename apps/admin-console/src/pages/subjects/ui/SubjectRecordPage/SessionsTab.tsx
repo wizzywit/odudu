@@ -5,7 +5,6 @@ import {
   type SubjectSessions,
 } from '#/pages/subjects/use-cases/useSubjectSessions';
 import type { AdminCapability } from '#/shared/services/principal';
-import { formatAbsolute } from '#/shared/services/format';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import { Button } from '#/shared/ui/Button';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
@@ -59,10 +58,6 @@ export function PagedList<T>({
   );
 }
 
-function started(session: SubjectSession): string {
-  return formatAbsolute(new Date(session.createdAt));
-}
-
 function columns(page: SubjectSessions, withinReach: boolean): readonly Column<SubjectSession>[] {
   const shown: Column<SubjectSession>[] = [
     {
@@ -103,7 +98,7 @@ function columns(page: SubjectSessions, withinReach: boolean): readonly Column<S
         <Button
           size="small"
           variant="quiet"
-          aria-label={`End the session started ${started(session)}`}
+          aria-label={page.endLabel(session)}
           onPress={() => {
             page.end.ask(session);
           }}

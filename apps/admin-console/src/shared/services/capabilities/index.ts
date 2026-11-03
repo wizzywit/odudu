@@ -18,6 +18,7 @@ export {
   tenantAdminCarries,
 } from '#/shared/services/capabilities/holdings';
 export {
+  provenanceListText,
   provenanceText,
   type Held,
   heldCapabilities,

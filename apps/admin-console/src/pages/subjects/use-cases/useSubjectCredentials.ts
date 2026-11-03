@@ -22,6 +22,8 @@ import {
   type ChoiceControl,
 } from '#/pages/subjects/services/credentialChoices';
 import { credentialChangeOf } from '#/pages/subjects/services/credentialChange';
+import { heldCredentials, type HeldCredentials } from '#/pages/subjects/services/credentialView';
+import { lockoutViewOf, type LockoutView } from '#/pages/subjects/services/lockout';
 import {
   credentialDoneText,
   credentialFailureText,
@@ -38,6 +40,9 @@ export interface SubjectCredentials {
   itself: boolean;
   credentials: Read<Credential[]>;
   lockout: Read<Lockout>;
+  // What the tab shows once each has been read, and null until then.
+  held: HeldCredentials | null;
+  lockoutView: LockoutView | null;
   asking: Asking | null;
   // The choice the confirmation offers, when it offers one.
   choice: ChoiceControl | null;
@@ -87,6 +92,8 @@ export function useSubjectCredentials(
     itself,
     credentials,
     lockout,
+    held: heldCredentials(credentials, name),
+    lockoutView: lockoutViewOf(lockout),
     asking,
     choice: choiceControl(asking, choices, setChoices),
     dialog: credentialDialogOf(asking, name, self),

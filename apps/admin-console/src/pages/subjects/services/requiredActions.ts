@@ -29,6 +29,13 @@ export const REQUIRED_ACTIONS: readonly {
   },
 ];
 
+// The same four, as a checklist offers them.
+export const REQUIRED_ACTION_OPTIONS = REQUIRED_ACTIONS.map(({ action, label, description }) => ({
+  id: action,
+  label,
+  description,
+}));
+
 const REQUIRED_ACTION_ORDER = REQUIRED_ACTIONS.map((each) => each.action);
 
 export function requiredActionsInOrder(actions: readonly string[]): RequiredAction[] {

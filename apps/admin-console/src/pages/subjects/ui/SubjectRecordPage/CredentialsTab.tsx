@@ -20,18 +20,10 @@ import { FormSkeleton } from '#/shared/ui/Skeleton';
 import { StatusTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
-import { askToRemove, askToRevoke } from '#/pages/subjects/services/credentialAsk';
-import {
-  credentialsOf,
-  factorLabel,
-  removeFactorLabel,
-} from '#/pages/subjects/services/credentialList';
-import { lockoutSummary } from '#/pages/subjects/services/lockout';
-import { recoveryCodesText } from '#/pages/subjects/services/credentialOutcome';
+import type { FactorRow, HeldCredentials } from '#/pages/subjects/services/credentialView';
+import type { LockoutView } from '#/pages/subjects/services/lockout';
 import { type Subject } from '#/entities/subject';
 import { type Credential } from '#/pages/subjects/types/credential';
-import { type Lockout } from '#/pages/subjects/types/lockout';
-import { REQUIRED_ACTIONS } from '#/pages/subjects/services/requiredActions';
 
 interface TabProps {
   tenant: string;
@@ -126,34 +118,34 @@ function Factors({
   page,
   canManage,
 }: {
-  factors: readonly Credential[];
+  factors: readonly FactorRow[];
   page: SubjectCredentials;
   canManage: boolean;
 }) {
-  const columns: Column<Credential>[] = [
+  const columns: Column<FactorRow>[] = [
     {
       id: 'type',
       header: 'Factor',
       isRowHeader: true,
-      cell: (credential) => factorLabel(credential.type),
+      cell: (factor) => factor.label,
     },
     {
       id: 'created_at',
       header: 'Enrolled',
-      cell: (credential) => <Timestamp value={credential.createdAt} />,
+      cell: (factor) => <Timestamp value={factor.credential.createdAt} />,
     },
   ];
   if (canManage) {
     columns.push({
       id: 'remove',
       header: 'Action',
-      cell: (credential) => (
+      cell: (factor) => (
         <Button
           size="small"
           variant="quiet"
-          aria-label={removeFactorLabel(credential)}
+          aria-label={factor.removeLabel}
           onPress={() => {
-            page.ask(askToRemove(factors, credential));
+            page.ask(factor.remove);
           }}
         >
           Remove
@@ -167,7 +159,7 @@ function Factors({
         label={`Second factors of ${page.name}`}
         columns={columns}
         rows={factors}
-        rowKey={(credential) => credential.id ?? credential.type}
+        rowKey={(factor) => factor.credential.id ?? factor.credential.type}
         empty={`${page.name} has no authenticator app or passkey enrolled.`}
       />
       <p className={recordTab.rule}>
@@ -180,19 +172,18 @@ function Factors({
 }
 
 function RecoveryCodes({
-  count,
-  factors,
+  held,
   page,
   canManage,
 }: {
-  count: number | null;
-  factors: readonly Credential[];
+  held: HeldCredentials;
   page: SubjectCredentials;
   canManage: boolean;
 }) {
+  const count = held.recoveryCodes;
   return (
     <Panel title="Recovery codes">
-      <p className={recordTab.text}>{recoveryCodesText(page.name, count)}</p>
+      <p className={recordTab.text}>{held.recoveryText}</p>
       <p className={recordTab.rule}>
         Codes are shown only to the subject, once, and carry no id of their own, so the set is
         revoked whole or not at all.
@@ -202,7 +193,7 @@ function RecoveryCodes({
           <Button
             variant="danger"
             onPress={() => {
-              page.ask(askToRevoke(factors));
+              page.ask(held.revoke);
             }}
           >
             Revoke every recovery code
@@ -214,15 +205,14 @@ function RecoveryCodes({
 }
 
 function LockoutPanel({
-  lockout,
+  view: { lockout, summary },
   page,
   canManage,
 }: {
-  lockout: Lockout;
+  view: LockoutView;
   page: SubjectCredentials;
   canManage: boolean;
 }) {
-  const summary = lockoutSummary(lockout);
   return (
     <Panel title="Lockout">
       <p className={recordTab.text}>
@@ -263,12 +253,6 @@ function LockoutPanel({
   );
 }
 
-const ACTION_OPTIONS = REQUIRED_ACTIONS.map(({ action, label, description }) => ({
-  id: action,
-  label,
-  description,
-}));
-
 function Email({ name, mail }: { name: string; mail: SubjectMail }) {
   const { actions } = mail;
   if (mail.email === null) {
@@ -302,7 +286,7 @@ function Email({ name, mail }: { name: string; mail: SubjectMail }) {
         <ChecklistField
           label="Required actions to email"
           description="The link takes the subject through these in order. A password is set from the link itself; a factor is enrolled only after signing in."
-          options={ACTION_OPTIONS}
+          options={actions.options}
           value={actions.actions}
           error={actions.errors.actions}
           onChange={actions.choose}
@@ -327,36 +311,26 @@ function Held({
   mail: SubjectMail;
   canManage: boolean;
 }) {
-  const { credentials, lockout } = page;
+  const { credentials, lockout, held, lockoutView } = page;
   return (
     <>
-      {credentials.status === 'loading' ? (
-        <FormSkeleton label="Loading credentials" />
+      {held !== null ? (
+        <>
+          <Password password={held.password} page={page} mail={mail} canManage={canManage} />
+          <Factors factors={held.factors} page={page} canManage={canManage} />
+          <RecoveryCodes held={held} page={page} canManage={canManage} />
+        </>
       ) : credentials.status === 'failed' ? (
         <LoadFailed title="The credentials could not be loaded" retry={credentials.retry} />
       ) : (
-        (() => {
-          const held = credentialsOf(credentials.data);
-          return (
-            <>
-              <Password password={held.password} page={page} mail={mail} canManage={canManage} />
-              <Factors factors={held.factors} page={page} canManage={canManage} />
-              <RecoveryCodes
-                count={held.recoveryCodes}
-                factors={held.factors}
-                page={page}
-                canManage={canManage}
-              />
-            </>
-          );
-        })()
+        <FormSkeleton label="Loading credentials" />
       )}
-      {lockout.status === 'loading' ? (
-        <FormSkeleton label="Loading the lockout" fields={2} />
+      {lockoutView !== null ? (
+        <LockoutPanel view={lockoutView} page={page} canManage={canManage} />
       ) : lockout.status === 'failed' ? (
         <LoadFailed title="The lockout could not be loaded" retry={lockout.retry} />
       ) : (
-        <LockoutPanel lockout={lockout.data} page={page} canManage={canManage} />
+        <FormSkeleton label="Loading the lockout" fields={2} />
       )}
       {canManage ? <Email name={page.name} mail={mail} /> : null}
     </>

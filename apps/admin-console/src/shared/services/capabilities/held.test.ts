@@ -7,6 +7,7 @@ import {
   roleReachUnavailable,
   ceilingOf,
   heldCapabilities,
+  provenanceListText,
   provenanceText,
   roleOwnerText,
 } from '#/shared/services/capabilities/held';
@@ -28,6 +29,14 @@ describe('heldCapabilities', () => {
       through: ['within tenant-admin', 'through group /ops'],
     });
     expect([...held.keys()]).toEqual(['tenant-admin', 'manage-users']);
+  });
+});
+
+describe('provenanceListText', () => {
+  it('says every way a role is held, in order', () => {
+    expect(
+      provenanceListText([{ kind: 'direct' }, { kind: 'group', group_id: 'g', group_path: '/a' }]),
+    ).toBe('directly, through group /a');
   });
 });
 

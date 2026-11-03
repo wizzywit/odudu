@@ -15,12 +15,14 @@ import {
   TENANT_ADMIN,
 } from '#/shared/services/capabilities';
 import { inOrderOf } from '#/shared/services/ids';
-import type { PickerState } from '#/shared/services/picker';
+import { firstChosen, type PickerState } from '#/shared/services/picker';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/services/principal';
 import { useSubjectPicker, type Subject, usernameOrId } from '#/entities/subject';
 import { ADMINISTRATOR_REQUEST_NEEDS, holdingsProblem } from '#/entities/administrator';
 
 export interface SystemAdministrators {
+  // The tenant whose administrators these are.
+  tenant: string;
   createNeeds: readonly AdminCapability[];
   // What changing anybody's capabilities needs that whoami says is missing.
   changeNeeds: readonly AdminCapability[];
@@ -33,6 +35,8 @@ export interface SystemAdministrators {
   nameOf: (subject: Subject) => string;
   chosen: Subject | null;
   choose: (id: string | null) => void;
+  // The picker's own selection, of which one subject is kept.
+  pick: (ids: readonly string[]) => void;
   holdings: readonly string[];
   holdingOptions: readonly HoldingOption[];
   chooseHoldings: (holdings: readonly string[]) => void;
@@ -58,8 +62,12 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
   const { createNeeds, changeNeeds, blocked } = administratorsAccess(authority);
   const holders = usePickerHolders(picker.query);
   const caller = authority?.capabilities;
+  const choose = (id: string | null): void => {
+    setChosen(choosable(id, holders, picker.options));
+  };
 
   return {
+    tenant: SYSTEM_TENANT,
     createNeeds,
     changeNeeds,
     blocked,
@@ -73,8 +81,9 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
     unavailableOf: (subject) => pickerUnavailable(holders, subject),
     nameOf: usernameOrId,
     chosen,
-    choose: (id) => {
-      setChosen(choosable(id, holders, picker.options));
+    choose,
+    pick: (ids) => {
+      choose(firstChosen(ids));
     },
     holdings,
     holdingOptions: holdingOptions(SYSTEM_TENANT, holdings, caller),

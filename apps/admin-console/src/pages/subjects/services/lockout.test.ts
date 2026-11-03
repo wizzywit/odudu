@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lockoutSummary } from '#/pages/subjects/services/lockout';
+import { lockoutSummary, lockoutViewOf } from '#/pages/subjects/services/lockout';
 
 describe('the lockout', () => {
   it('says a subject with nothing on record has no failed sign-ins', () => {
@@ -33,5 +33,20 @@ describe('the lockout', () => {
         lastFailureAt: '2026-09-29T09:59:00.000Z',
       }),
     ).toMatchObject({ tone: 'danger', state: 'locked', text: /after 6 failed sign-ins/u });
+  });
+});
+
+describe('lockoutViewOf', () => {
+  const unlocked = { locked: false, lockedUntil: null, failureCount: 0, lastFailureAt: null };
+
+  it('is null until the lockout has been read', () => {
+    expect(lockoutViewOf({ status: 'loading' })).toBeNull();
+  });
+
+  it('carries the lockout with what to say of it', () => {
+    expect(lockoutViewOf({ status: 'ready', data: unlocked })).toEqual({
+      lockout: unlocked,
+      summary: lockoutSummary(unlocked),
+    });
   });
 });

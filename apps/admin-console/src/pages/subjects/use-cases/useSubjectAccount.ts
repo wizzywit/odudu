@@ -13,9 +13,12 @@ import { useSectionSave, type SectionSave } from '#/shared/repository/useSection
 import { useToast } from '#/shared/repository/useToasts';
 import { deletedText, enabledText } from '#/shared/services/failure';
 import { orBlank } from '#/shared/services/format';
+import { DESCRIPTION_RULE } from '#/shared/services/labels';
 import {
   confirmationOf,
+  deletionRefusal,
   enabledVerb,
+  signsInAsItself,
   subjectWriteFailure,
 } from '#/pages/subjects/services/subjectAccount';
 import { usernameMode, type UsernameMode } from '#/pages/subjects/services/username';
@@ -35,6 +38,12 @@ export interface Confirmable {
 
 export interface SubjectAccount {
   name: string;
+  // A service subject has no username, email or profile.
+  itself: boolean;
+  // What is said under the email field.
+  descriptionRule: string;
+  // Why the subject cannot be deleted here, when it cannot.
+  deletionRefusal: string | null;
   section: SectionSave<AccountValues>;
   username: UsernameMode;
   enabled: boolean;
@@ -139,6 +148,9 @@ export function useSubjectAccount(
   };
   return {
     name,
+    itself: signsInAsItself(subject),
+    descriptionRule: DESCRIPTION_RULE,
+    deletionRefusal: deletionRefusal(subject),
     section,
     username,
     enabled: subject.enabled,

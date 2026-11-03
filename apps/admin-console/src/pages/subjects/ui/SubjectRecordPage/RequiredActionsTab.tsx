@@ -1,21 +1,14 @@
 import {
   useRequiredActions,
   useRequiredActionsRead,
+  useRequiredActionsTab,
 } from '#/pages/subjects/use-cases/useRequiredActions';
 import { ChecklistField } from '#/shared/ui/ChecklistField';
 import { ReadOnlyFields } from '#/shared/ui/Field';
 import { ReadGate } from '#/shared/ui/ReadGate';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { recordTab } from '#/shared/ui/RecordTab';
-import { signsInAsItself } from '#/pages/subjects/services/subjectAccount';
-import { REQUIRED_ACTIONS } from '#/pages/subjects/services/requiredActions';
 import { type Subject } from '#/entities/subject';
-
-const OPTIONS = REQUIRED_ACTIONS.map(({ action, label, description }) => ({
-  id: action,
-  label,
-  description,
-}));
 
 function Ready({
   tenant,
@@ -33,6 +26,7 @@ function Ready({
   const {
     name,
     canManage,
+    options,
     save: s,
     choose,
   } = useRequiredActions(tenant, subject, read.data, read.etag, read.gone, allowed);
@@ -45,7 +39,7 @@ function Ready({
       <ReadOnlyFields when={!canManage}>
         <ChecklistField
           label={`Asked of ${name}`}
-          options={OPTIONS}
+          options={options}
           value={s.values.actions}
           changed={s.changed.includes('actions')}
           onChange={choose}
@@ -95,9 +89,10 @@ export function RequiredActionsTab({
   subject: Subject;
   canManage: boolean;
 }) {
+  const { itself } = useRequiredActionsTab(subject);
   return (
     <div className={recordTab.tab}>
-      {signsInAsItself(subject) ? (
+      {itself ? (
         <p className={recordTab.text}>
           {`A ${subject.type} subject signs in as itself, with its client's credentials, so it is asked for nothing at sign-in.`}
         </p>

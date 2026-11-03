@@ -11,6 +11,7 @@ import {
 } from '#/pages/subjects/repository/useSessions';
 import {
   consentRevokedText,
+  endSessionLabel,
   grantClients,
   grantsRevokedText,
   sessionEndedText,
@@ -35,6 +36,7 @@ export function useHolds(tenant: string, capability: AdminCapability): boolean {
 export interface SubjectSessions {
   name: string;
   list: ResourceListState<SubjectSession>;
+  endLabel: (session: SubjectSession) => string;
   end: Confirming<SubjectSession>;
   endAll: Confirming<'all'>;
 }
@@ -44,6 +46,7 @@ export function useSubjectSessions(tenant: string, subject: Subject): SubjectSes
   return {
     name,
     list: useSessionList(tenant, subject.id),
+    endLabel: endSessionLabel,
     end: useConfirmedSubjectChange({
       tenant,
       capability: 'manage-sessions',

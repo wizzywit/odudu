@@ -10,7 +10,6 @@ import { EnabledTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import { ViewOnlyNote } from '#/shared/ui/ViewOnlyNote';
 import styles from '#/pages/subjects/ui/SubjectsPage/SubjectsPage.module.css';
-import { STATUS_FILTER } from '#/shared/services/filters';
 import { type Subject, subjectName } from '#/entities/subject';
 
 const COLUMNS: readonly Column<Subject>[] = [
@@ -55,7 +54,7 @@ const NARROWING = [
 ] as const;
 
 function List({ tenant }: { tenant: string }) {
-  const { list, createHref, changeNeeds, open } = useSubjectsList(tenant);
+  const { list, createHref, changeNeeds, open, statusFilter } = useSubjectsList(tenant);
   return (
     <ResourceListPage
       list={list}
@@ -80,7 +79,7 @@ function List({ tenant }: { tenant: string }) {
         <>
           <SelectField
             label="Status"
-            options={STATUS_FILTER}
+            options={statusFilter}
             value={list.filters.enabled ?? 'any'}
             onChange={(value) => {
               list.setFilter('enabled', value === 'any' ? null : value);

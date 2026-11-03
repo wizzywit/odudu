@@ -3,6 +3,7 @@ import {
   describeActions,
   requiredActionsInOrder,
   REQUIRED_ACTIONS,
+  REQUIRED_ACTION_OPTIONS,
 } from '#/pages/subjects/services/requiredActions';
 
 describe('required actions', () => {
@@ -13,6 +14,18 @@ describe('required actions', () => {
       'Register a passkey',
       'Generate recovery codes',
     ]);
+  });
+});
+
+describe('required action options', () => {
+  it('offers each action by its id with its label and description', () => {
+    expect(REQUIRED_ACTION_OPTIONS).toEqual(
+      REQUIRED_ACTIONS.map(({ action, label, description }) => ({
+        id: action,
+        label,
+        description,
+      })),
+    );
   });
 });
 

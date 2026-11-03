@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SUBJECT_TAB_LABELS } from '#/pages/subjects/services/tabs';
+import { SUBJECT_TAB_LABELS, subjectTabEntries } from '#/pages/subjects/services/tabs';
 import { SUBJECT_TABS } from '#/entities/subject';
 
 describe('the record tabs', () => {
@@ -31,5 +31,14 @@ describe('characterisation: the subject tab labels', () => {
     ['activity', 'Activity'],
   ] as const)('%s is labelled %s', (tab, label) => {
     expect(SUBJECT_TAB_LABELS[tab]).toBe(label);
+  });
+});
+
+describe('subjectTabEntries', () => {
+  it('labels each tab in the order given and marks the ones holding unsaved edits', () => {
+    expect(subjectTabEntries(['profile', 'roles'], new Set(['roles']))).toEqual([
+      { id: 'profile', label: 'Profile', dirty: false },
+      { id: 'roles', label: 'Roles', dirty: true },
+    ]);
   });
 });

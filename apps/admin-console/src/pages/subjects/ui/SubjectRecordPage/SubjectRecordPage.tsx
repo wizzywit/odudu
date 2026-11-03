@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { SUBJECT_TAB_LABELS } from '#/pages/subjects/services/tabs';
 import { useSubjectRecordPage } from '#/pages/subjects/use-cases/useSubjectRecordPage';
 import { ActivityPanel } from '#/pages/subjects/ui/SubjectRecordPage/ActivityPanel';
 import { ConsentsTab } from '#/pages/subjects/ui/SubjectRecordPage/ConsentsTab';
@@ -15,13 +14,7 @@ import { RecordPage } from '#/shared/ui/RecordPage';
 import { EnabledTag } from '#/shared/ui/StatusTag';
 import { ViewOnlyNote } from '#/shared/ui/ViewOnlyNote';
 import { BeyondNote, ReachFailed } from '#/pages/subjects/ui/BeyondNote';
-import {
-  subjectName,
-  subjectsTrail,
-  SUBJECT_TABS,
-  type Subject,
-  type SubjectTab,
-} from '#/entities/subject';
+import { subjectName, subjectsTrail, type Subject, type SubjectTab } from '#/entities/subject';
 
 interface PanelProps {
   tenant: string;
@@ -127,11 +120,11 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
       label="Subject sections"
       tab={page.tab}
       onTabChange={page.selectTab}
-      tabs={SUBJECT_TABS.map((tab) => ({
-        id: tab,
-        label: SUBJECT_TAB_LABELS[tab],
-        dirty: page.dirty.has(tab),
-        panel: props === null ? null : PANELS[tab](props),
+      tabs={page.tabList.map(({ id, label, dirty }) => ({
+        id,
+        label,
+        dirty,
+        panel: props === null ? null : PANELS[id](props),
       }))}
     />
   );

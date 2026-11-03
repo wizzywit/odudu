@@ -14,6 +14,7 @@ import {
 import { withoutField } from '#/shared/services/fieldErrors';
 import {
   actionsMailProblem,
+  REQUIRED_ACTION_OPTIONS,
   requiredActionsInOrder,
 } from '#/pages/subjects/services/requiredActions';
 import { type Subject, subjectName, subjectTabHref } from '#/entities/subject';
@@ -28,6 +29,7 @@ export interface Mail {
 
 export interface ActionsMail extends Mail {
   actions: readonly RequiredAction[];
+  options: typeof REQUIRED_ACTION_OPTIONS;
   errors: Readonly<Partial<Record<'actions', string>>>;
   choose: (actions: readonly string[]) => void;
 }
@@ -103,6 +105,7 @@ export function useSubjectMail(tenant: string, subject: Subject): SubjectMail {
     actions: {
       ...mailKindState('actions', running, outcomes),
       actions,
+      options: REQUIRED_ACTION_OPTIONS,
       errors,
       choose: (next) => {
         setErrors((was) => withoutField(was, 'actions'));
