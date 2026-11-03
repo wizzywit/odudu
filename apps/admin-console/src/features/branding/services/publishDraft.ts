@@ -1,5 +1,5 @@
 import type { ThemeView } from '@odudu/contracts/admin';
-import { andList } from '#/shared/services/format';
+import { unsavedBlock } from '#/features/branding/services/sectionTitles';
 
 export const PUBLISH_TITLE = 'Publish';
 
@@ -14,7 +14,7 @@ export const NOTHING_TO_PUBLISH = 'Nothing to publish: the draft matches what pe
 export const NO_DRAFT_HOLD = 'There is no draft to publish. Save a change first.';
 
 export function unsavedHold(sections: readonly string[]): string {
-  return `Save your changes first, in ${andList(sections.map((title) => `“${title}”`))}: publishing uses the saved draft.`;
+  return unsavedBlock(sections, 'publishing uses the saved draft');
 }
 
 export function publishHold({

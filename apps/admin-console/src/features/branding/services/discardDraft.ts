@@ -1,5 +1,5 @@
 import { writeFailureText } from '#/shared/services/failure';
-import { andList } from '#/shared/services/format';
+import { unsavedBlock } from '#/features/branding/services/sectionTitles';
 import type { GatewayFailure } from '#/shared/services/result';
 import type { ThemeScope } from '#/features/branding/services/themeScope';
 
@@ -36,5 +36,5 @@ export const DISCARDING = 'Discarding…';
 export const NO_DRAFT_TO_DISCARD = 'There is no draft to discard.';
 
 export function discardUnsaved(sections: readonly string[]): string {
-  return `Save or discard your changes first, in ${andList(sections.map((title) => `“${title}”`))}: discarding the draft does not touch them.`;
+  return unsavedBlock(sections, 'discarding the draft does not touch them', 'save-or-discard');
 }

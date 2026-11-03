@@ -2,9 +2,9 @@ import type { ThemeBodyRequest, ThemeBodyWire } from '@odudu/contracts';
 import type { ThemeView } from '@odudu/contracts/admin';
 import type { Conflict } from '#/shared/services/conflict';
 import { isStale, writeFailureText } from '#/shared/services/failure';
-import { andList, counted } from '#/shared/services/format';
+import { counted } from '#/shared/services/format';
 import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
-import { unsavedSections } from '#/features/branding/services/sectionTitles';
+import { unsavedBlock, unsavedSections } from '#/features/branding/services/sectionTitles';
 import type { ThemeScope } from '#/features/branding/services/themeScope';
 import {
   BRANDING_TAB_SECTIONS,
@@ -39,7 +39,7 @@ export function revertLead(scope: ThemeScope, tab: ScopedTab): string {
 export const TAB_MATCHES = 'This tab already matches what is published.';
 
 export function revertUnsaved(sections: readonly string[]): string {
-  return `Save your changes first, in ${andList(sections.map((title) => `“${title}”`))}: reverting works on the saved draft.`;
+  return unsavedBlock(sections, 'reverting works on the saved draft');
 }
 
 // The sections of one tab holding unsaved edits.
