@@ -12,7 +12,7 @@ import {
   isDeleteHeld,
 } from '#/features/roles/services/roleCeiling';
 import { roleSelfLoss } from '#/features/roles/services/roleLoss';
-import { DEFAULT_LABEL } from '#/features/roles/services/labels';
+import { DEFAULT_LABEL } from '#/features/roles/services/roleDefault';
 import { deleteChecking } from '#/features/roles/services/roleCeiling';
 import {
   roleDeleteConsequence,

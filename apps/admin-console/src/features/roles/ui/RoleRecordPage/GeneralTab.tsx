@@ -1,5 +1,5 @@
 import type { Role } from '@odudu/contracts/admin';
-import { NAME_FIXED } from '#/features/roles/services/labels';
+import { NAME_FIXED } from '#/features/roles/services/roleCopy';
 import {
   useRoleGeneral,
   type Defaults,

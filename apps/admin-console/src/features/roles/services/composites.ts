@@ -92,3 +92,7 @@ export function compositeRemovalFailureText(
     },
   )(failure);
 }
+
+export const ADD_LABEL = 'Add a composite';
+
+export const NEST_LABEL = 'Role to nest';

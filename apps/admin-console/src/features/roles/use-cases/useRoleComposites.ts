@@ -17,7 +17,7 @@ import {
 } from '#/features/roles/services/composites';
 import { type Ceiling, compositesOffered } from '#/features/roles/services/roleCeiling';
 import { roleSelfLoss } from '#/features/roles/services/roleLoss';
-import { ADD_LABEL, NEST_LABEL } from '#/features/roles/services/labels';
+import { ADD_LABEL, NEST_LABEL } from '#/features/roles/services/composites';
 import {
   compositeRemovalConfirmation,
   compositeRemovalFailureText,

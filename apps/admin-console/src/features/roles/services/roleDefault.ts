@@ -9,3 +9,5 @@ export function defaultBlock(role: Role): string | null {
   if (role.default_for_new_subjects || role.admin_reach.length === 0) return null;
   return `It reaches ${andList(role.admin_reach)}, and a role every new subject receives may reach no admin capability. Take those composites out of it first.`;
 }
+
+export const DEFAULT_LABEL = 'Given to every new subject';
