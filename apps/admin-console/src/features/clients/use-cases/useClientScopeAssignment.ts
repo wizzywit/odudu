@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import { useScopeChanges, useScopePicker } from '#/features/clients/repository/useClientScopes';
-import { scopesFixed } from '#/features/clients/services/blocks';
+import { scopesFixed } from '#/features/clients/services/builtinFixed';
 import { canChange, type Reach } from '#/features/clients/services/ceiling';
 import { ceilingRefused } from '#/features/clients/services/refusal';
 import {

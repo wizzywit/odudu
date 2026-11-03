@@ -13,8 +13,9 @@ import {
   type TranslationSectionValues,
 } from '#/features/clients/repository/useClientRecord';
 import { clientsHref } from '#/features/clients/services/address';
-import { deleteFixed, enabledFixed } from '#/features/clients/services/blocks';
-import { deleteConsequence } from '#/features/clients/services/confirm';
+import { deleteFixed } from '#/features/clients/services/clientDeletion';
+import { enabledFixed } from '#/features/clients/services/builtinFixed';
+import { deleteConsequence } from '#/features/clients/services/clientDeletion';
 import { FIELD, SECTION } from '#/features/clients/services/clientDetails';
 import { clientRefusal } from '#/features/clients/services/refusal';
 import {

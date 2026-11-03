@@ -1,12 +1,13 @@
 import { expect, it } from 'vitest';
+import { deleteFixed } from '#/features/clients/services/clientDeletion';
 import {
-  deleteFixed,
   enabledFixed,
   listsReadOnly,
   redirectsFixed,
-} from '#/features/clients/services/blocks';
+} from '#/features/clients/services/builtinFixed';
 
 const ADMIN = { builtin_admin: true, client_id: 'odudu-admin' };
+
 const OTHER = { builtin_admin: false, client_id: 'billing' };
 
 it('fixes what could lock every administrator out, on the built-in admin client alone', () => {

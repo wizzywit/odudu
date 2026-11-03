@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { skipLogoutFixed } from '#/features/clients/services/blocks';
+import { skipLogoutFixed } from '#/features/clients/services/builtinFixed';
 import {
   SECTIONS_LOGOUT,
   SKIP_LOGOUT_HINT,

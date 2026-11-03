@@ -15,10 +15,6 @@ export function redirectsFixed(client: Fixable): string | null {
     : null;
 }
 
-export function deleteFixed(client: Fixable): string | null {
-  return client.builtin_admin ? `${client.client_id} cannot be deleted. ${BUILTIN_FIXED}` : null;
-}
-
 // Shown as text where nothing on the client may be changed, or where these
 // two lists, which decide how an administrator signs in, are fixed.
 export function listsReadOnly(client: Fixable, writable: boolean): boolean {

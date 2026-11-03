@@ -7,7 +7,7 @@ import {
   type OriginValues,
   type RedirectValues,
 } from '#/features/clients/repository/useClientRecord';
-import { listsReadOnly, redirectsFixed } from '#/features/clients/services/blocks';
+import { listsReadOnly, redirectsFixed } from '#/features/clients/services/builtinFixed';
 import { FIELD, SECTION } from '#/features/clients/services/clientDetails';
 import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/lists';
 import { clientTabHref } from '#/features/clients/services/tabs';
