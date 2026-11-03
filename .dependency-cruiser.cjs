@@ -145,9 +145,7 @@ module.exports = {
       severity: 'error',
       comment:
         'Imports run down the layers: app, pages, widgets, features, entities, shared. ' +
-        'entities/ and shared/ import none of widgets, pages, features or app. The area ' +
-        'slices still in features/ are pages in waiting and are not a source here, so they may ' +
-        'import a widget or an entity.',
+        'entities/ and shared/ import none of widgets, pages, features or app.',
       from: { path: '(^|/)apps/admin-console/src/(?:entities|shared)/' },
       to: { path: '(^|/)apps/admin-console/src/(?:widgets|pages|features|app)/' },
     },
@@ -168,14 +166,8 @@ module.exports = {
     {
       name: 'console-features-import-no-widget',
       severity: 'error',
-      comment:
-        'A widget sits above a feature, so a feature never imports one. A slice still named in ' +
-        'the empty group below would be a page in waiting and may; ' +
-        'tests/lint/architecture/waiting.test.ts keeps the list equal to the features that are ' +
-        'not migrated.',
-      from: {
-        path: '(^|/)apps/admin-console/src/features/(?!(?:' + ')/)',
-      },
+      comment: 'A widget sits above a feature, so a feature never imports one.',
+      from: { path: '(^|/)apps/admin-console/src/features/' },
       to: { path: '(^|/)apps/admin-console/src/widgets/' },
     },
     {

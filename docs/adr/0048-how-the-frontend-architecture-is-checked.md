@@ -131,10 +131,9 @@ boundaries`): the segment boundaries, which layer may import which, and the
   A feature importing a page broke that order unflagged in domain 3, when
   `features/groups` and `features/roles` imported `pages/subjects` between two
   commits with every check green. `console-features-import-no-page` and
-  `console-features-import-no-widget` close the gap. The widget rule exempts
-  the slices not yet migrated, which are pages in waiting;
-  `tests/lint/architecture/waiting.test.ts` keeps that list equal to the
-  features outside `migrated.ts`, so a slice that migrates must leave it.
+  `console-features-import-no-widget` close the gap. While slices were being
+  migrated the widget rule exempted the ones not yet migrated, which were
+  pages in waiting; every slice has migrated and the rule has no exemption.
 - Steiger's findings are not a gap in coverage we are accepting: the two
   checks it makes are made here, and it makes no check we lack except
   `insignificant-slice` and the naming rules, which are advice about FSD and
