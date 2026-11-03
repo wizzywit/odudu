@@ -11,10 +11,7 @@ export {
   useTenantEdits,
   type ScopeBranding,
 } from '#/features/branding-editor/use-cases/useScopeBranding';
-export {
-  BRANDING_PAGE_WORDS,
-  BRANDING_SECTIONS_LABEL,
-} from '#/features/branding-editor/services/brandingArea';
+export { BRANDING_SECTIONS_LABEL } from '#/features/branding-editor/services/brandingArea';
 export {
   clientScope,
   TENANT_SCOPE,

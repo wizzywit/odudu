@@ -1,3 +1,7 @@
+import {
+  pickerWording,
+  type PickerWording,
+} from '#/features/branding-editor/services/pickerWording';
 import type { ThemeView } from '#/features/branding-editor/types/theme';
 import type { Read } from '#/shared/services/read';
 import { LIST_LIMIT } from '#/features/branding-editor/services/catalogue';
@@ -39,7 +43,7 @@ export function stylesheetWords(scope: ThemeScope, view: ThemeView): StylesheetW
 
 export interface InsertList {
   options: Read<SelectorOption[]>;
-  wording: { loading: string; failed: string };
+  wording: PickerWording;
   limit: number;
   label: string;
   description: string;
@@ -48,7 +52,7 @@ export interface InsertList {
 export function selectorList(options: Read<SelectorOption[]>): InsertList {
   return {
     options,
-    wording: { loading: SELECTORS_LOADING, failed: SELECTORS_FAILED },
+    wording: pickerWording(SELECTORS_LOADING, SELECTORS_FAILED),
     limit: LIST_LIMIT,
     label: SELECTORS_LABEL,
     description: SELECTORS_NOTE,
@@ -58,7 +62,7 @@ export function selectorList(options: Read<SelectorOption[]>): InsertList {
 export function valueList(options: Read<SelectorOption[]>): InsertList {
   return {
     options,
-    wording: { loading: VALUES_LOADING, failed: VALUES_FAILED },
+    wording: pickerWording(VALUES_LOADING, VALUES_FAILED),
     limit: LIST_LIMIT,
     label: VALUES_LABEL,
     description: VALUES_NOTE,

@@ -39,7 +39,7 @@ function Branding({ tenant }: { tenant: string }) {
         title={AREA.label}
         description={page.words.description}
         noun={page.words.noun}
-        label={page.words.sectionsLabel}
+        label={page.sectionsLabel}
         banner={
           view === undefined || tag === null ? null : (
             <PublicationBar

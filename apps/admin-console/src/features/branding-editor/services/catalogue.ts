@@ -1,3 +1,7 @@
+import {
+  pickerWording,
+  type PickerWording,
+} from '#/features/branding-editor/services/pickerWording';
 import type {
   MessageCatalogue,
   MessageEntry,
@@ -73,7 +77,7 @@ export interface MessageOption {
 // The messages to choose from, with the words a picker of them says.
 export interface MessageKeys {
   options: Read<MessageOption[]>;
-  wording: { loading: string; failed: string };
+  wording: PickerWording;
   limit: number;
   insert: { label: string; description: string; text: (key: string) => string };
 }
@@ -81,7 +85,7 @@ export interface MessageKeys {
 export function messageKeys(entries: Read<MessageEntry[]>): MessageKeys {
   return {
     options: mapRead(entries, messageOptions),
-    wording: { loading: KEY_LOADING, failed: KEY_FAILED },
+    wording: pickerWording(KEY_LOADING, KEY_FAILED),
     limit: LIST_LIMIT,
     insert: { label: INSERT_LABEL, description: INSERT_NOTE, text: templateReference },
   };

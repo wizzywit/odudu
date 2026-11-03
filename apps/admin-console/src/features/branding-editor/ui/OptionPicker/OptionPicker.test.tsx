@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import { pickerWording } from '#/features/branding-editor/services/pickerWording';
 import { InsertPicker, OptionPicker } from '#/features/branding-editor/ui/OptionPicker';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { CodeField } from '#/shared/ui/CodeField';
@@ -13,7 +14,7 @@ const OPTIONS: ComboOption[] = [
   { id: 'two', label: 'two', detail: 'Second' },
   { id: 'three', label: 'three', detail: 'Third' },
 ];
-const WORDING = { loading: 'Reading.', failed: 'Could not read.' };
+const WORDING = pickerWording('Reading.', 'Could not read.');
 const ready: Read<ComboOption[]> = { status: 'ready', data: OPTIONS };
 
 function Picked({

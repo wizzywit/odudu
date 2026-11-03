@@ -1,17 +1,11 @@
 import { use } from 'react';
+import type { PickerWording } from '#/features/branding-editor/services/pickerWording';
 import type { Read } from '#/shared/services/read';
 import { CodeInsert } from '#/shared/ui/CodeField';
 import { ComboBoxField, type ComboOption } from '#/shared/ui/Field';
 import { InlineFailed } from '#/shared/ui/InlineFailed';
 
 const NONE: ComboOption[] = [];
-
-export interface PickerWording {
-  // Said under the field's description while the list is being read.
-  loading: string;
-  // Said, with another try, when it could not be read.
-  failed: string;
-}
 
 // An option chosen from a list the server owns, at most `limit` drawn at a
 // time and narrowed by typing part of an option's name or of its detail. With
@@ -48,9 +42,7 @@ export function OptionPicker({
     <>
       <ComboBoxField
         label={label}
-        description={
-          options.status === 'loading' ? `${description} ${wording.loading}` : description
-        }
+        description={options.status === 'loading' ? wording.whileLoading(description) : description}
         options={options.status === 'ready' ? options.data : NONE}
         limit={limit}
         value={value}
