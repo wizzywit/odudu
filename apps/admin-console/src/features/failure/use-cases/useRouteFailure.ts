@@ -1,9 +1,9 @@
 import { useParams, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 import { focusPageMain } from '#/features/failure/repository/failureReport';
-import { overviewAddress } from '#/features/failure/services/address';
-import { routeTemplate } from '#/features/failure/services/report';
+import { routeTemplate } from '#/features/failure/services/routeTemplate';
 import { useFailureReport, type FailureShown } from '#/features/failure/use-cases/useFailureReport';
+import { overviewHref } from '#/entities/area';
 import { useReloadConsole } from '#/entities/session';
 
 export interface RouteFailureShown extends FailureShown {
@@ -35,7 +35,7 @@ export function useRouteFailure(error: unknown, reset: () => void): RouteFailure
     details: shown.details,
     message: shown.message,
     messageLabel: shown.messageLabel,
-    overviewHref: overviewAddress(tenant),
+    overviewHref: overviewHref(tenant),
     reload,
     tryAgain: () => {
       retried.current = true;

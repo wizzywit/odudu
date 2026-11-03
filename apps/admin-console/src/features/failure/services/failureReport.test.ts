@@ -1,14 +1,11 @@
 import { expect, it } from 'vitest';
 import {
   buildFailureReport,
-  caughtIsLogged,
   failureDetails,
   failureIdFrom,
-  failureLogLine,
   FAILURE_ID_LENGTH,
-  routeTemplate,
   shownMessage,
-} from '#/features/failure/services/report';
+} from '#/features/failure/services/failureReport';
 
 const NOW = new Date('2026-10-22T09:30:15.123Z');
 
@@ -47,36 +44,10 @@ it('copies exactly the id, the page template and the time', () => {
   );
 });
 
-it('names a route by the template of the last route matched, never an address', () => {
-  const matches = [
-    { routeId: '__root__' },
-    { routeId: '/$tenant' },
-    { routeId: '/$tenant/clients/$id' },
-  ];
-  expect(routeTemplate(matches)).toBe('/$tenant/clients/$id');
-  expect(routeTemplate(matches.slice(0, 1))).toBe('/');
-  expect(routeTemplate([])).toBe('(none)');
-});
-
 it('shows a message only in development, and only of an error that has one', () => {
   expect(shownMessage(new Error('secret detail'), true)).toBe('secret detail');
   expect(shownMessage(new Error('secret detail'), false)).toBeNull();
   expect(shownMessage('a thrown string', true)).toBe('a thrown string');
   expect(shownMessage(undefined, true)).toBeNull();
   expect(shownMessage(new Error(''), true)).toBeNull();
-});
-
-it('puts the id, how it was met and the route on one line to match the error against', () => {
-  const report = { id: 'ABCD2345', route: '/$tenant', time: NOW.toISOString() };
-  expect(failureLogLine(report, 'rendering')).toBe(
-    'odudu console failure ABCD2345 (rendering) at /$tenant',
-  );
-});
-
-it('logs a caught error only where no panel shows the id already', () => {
-  expect(caughtIsLogged('shows-id', false)).toBe(false);
-  expect(caughtIsLogged('chunk', true)).toBe(true);
-  // A chunk boundary throws any other error on, to a boundary that shows an id.
-  expect(caughtIsLogged('chunk', false)).toBe(false);
-  expect(caughtIsLogged('other', false)).toBe(true);
 });

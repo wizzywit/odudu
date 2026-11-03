@@ -1,4 +1,4 @@
-import { type FailureReport } from '#/features/failure/services/report';
+import { type FailureReport } from '#/features/failure/services/failureReport';
 import {
   FAILURE_TITLE,
   RELOAD_LABEL,

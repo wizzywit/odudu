@@ -7,4 +7,4 @@ export {
   type Area,
   type AreaGroup,
 } from '#/entities/area/services/areas';
-export { areaHref } from '#/entities/area/services/areaHref';
+export { areaHref, overviewHref } from '#/entities/area/services/areaHref';

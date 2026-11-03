@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { areaHref } from '#/entities/area/services/areaHref';
+import { areaHref, overviewHref } from '#/entities/area/services/areaHref';
 import { areaAt, OVERVIEW } from '#/entities/area/services/areas';
 
 describe('where an area lives', () => {
@@ -14,5 +14,16 @@ describe('where an area lives', () => {
     ['tenants', '/console/a%20b/tenants'],
   ] as const)('%s is under the tenant, its name encoded', (path, href) => {
     expect(areaHref('a b', areaAt(path))).toBe(href);
+  });
+});
+
+describe('where the overview is', () => {
+  it('goes to the overview of the tenant in the address', () => {
+    expect(overviewHref('acme')).toBe('/console/acme');
+  });
+
+  it('goes to the console root where there is no tenant, or no tenant by that name', () => {
+    expect(overviewHref(undefined)).toBe('/console/');
+    expect(overviewHref('Not A Tenant!')).toBe('/console/');
   });
 });

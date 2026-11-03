@@ -9,7 +9,7 @@ import {
   failureDetails,
   shownMessage,
   type FailureReport,
-} from '#/features/failure/services/report';
+} from '#/features/failure/services/failureReport';
 
 export interface FailureShown {
   report: FailureReport;

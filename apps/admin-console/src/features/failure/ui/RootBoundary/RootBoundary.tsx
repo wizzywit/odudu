@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from 'react';
-import type { FailureReport } from '#/features/failure/services/report';
+import type { FailureReport } from '#/features/failure/services/failureReport';
 import { FallbackBoundary } from '#/features/failure/ui/FallbackBoundary';
 import { RootFailure } from '#/features/failure/ui/RootFailure';
 

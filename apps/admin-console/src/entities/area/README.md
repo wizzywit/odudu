@@ -9,6 +9,7 @@ under a tenant.
 - Which areas exist, in what groups, and which of them only a system
   administrator sees (`SYSTEM_AREAS`).
 - What capability an area's first read needs.
-- An area's address under a tenant, its name encoded (`areaHref`).
+- An area's address under a tenant, its name encoded (`areaHref`), and where a failed page sends a person back to: the
+  tenant's overview, or the console root (`overviewHref`).
 
 Imports `shared` only. Whether a principal sees an area is not decided here.

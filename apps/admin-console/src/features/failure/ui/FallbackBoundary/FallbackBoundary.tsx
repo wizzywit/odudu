@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import type { FailureReport } from '#/features/failure/services/report';
+import type { FailureReport } from '#/features/failure/services/failureReport';
 import { MinimalFailure } from '#/features/failure/ui/MinimalFailure';
 
 interface FallbackBoundaryProps {

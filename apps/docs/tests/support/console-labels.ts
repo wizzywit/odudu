@@ -145,7 +145,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'failure/services/wording.ts',
     "RELOAD_LABEL = 'Reload the console'",
   ),
-  'Error ID': feature('failure/services/report.ts', '`Error ID: ${report.id}`'),
+  'Error ID': feature('failure/services/failureReport.ts', '`Error ID: ${report.id}`'),
   Copy: shared('ui/CopyValue/CopyValue.tsx', 'Copy'),
   'Keep mine': shared('ui/ConflictPanel/ConflictPanel.tsx', 'Keep mine'),
   'Take theirs': shared('ui/ConflictPanel/ConflictPanel.tsx', 'Take theirs'),

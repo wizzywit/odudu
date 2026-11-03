@@ -9,10 +9,9 @@ import {
 import {
   buildFailureReport,
   FAILURE_ID_LENGTH,
-  failureLogLine,
   type FailureReport,
-  type FailureSource,
-} from '#/features/failure/services/report';
+} from '#/features/failure/services/failureReport';
+import { failureLogLine, type FailureSource } from '#/features/failure/services/failureLogging';
 import { currentTime } from '#/shared/adapter/clock';
 
 export function newFailureReport(route: string): FailureReport {
