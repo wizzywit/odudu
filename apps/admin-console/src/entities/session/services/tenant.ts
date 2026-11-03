@@ -1,4 +1,4 @@
-import { TENANT_NAME_RULE_TEXT } from '#/shared/services/labels';
+import { TENANT_NAME_RULE_TEXT } from '#/shared/services/principal';
 import { isTenantName, SYSTEM_TENANT } from '#/shared/services/principal';
 import { type Principal } from '#/entities/session/types/principal';
 

@@ -27,7 +27,7 @@ import { tenantsTrail } from '#/pages/tenants/services/systemTrail';
 import type { Crumb } from '#/shared/services/breadcrumb';
 import { nameProblem } from '#/pages/tenants/services/tenantName';
 import { useBeginAdministrator, type BeginAdministrator } from '#/features/begin-administrator';
-import { TENANT_NAME_RULE_TEXT } from '#/shared/services/labels';
+import { TENANT_NAME_RULE_TEXT } from '#/shared/services/principal';
 import { SYSTEM_TENANT } from '#/shared/services/principal';
 
 export interface ImportTenantPage {

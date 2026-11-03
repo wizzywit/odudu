@@ -7,7 +7,7 @@ import {
   tenantMissing,
   tenantProblem,
 } from '#/entities/session/services/tenant';
-import { TENANT_NAME_RULE_TEXT } from '#/shared/services/labels';
+import { TENANT_NAME_RULE_TEXT } from '#/shared/services/principal';
 
 const grace: Principal = { tenant: 'acme', subjectId: 's1', username: 'grace' };
 

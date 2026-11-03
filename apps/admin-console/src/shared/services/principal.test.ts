@@ -1,6 +1,6 @@
 import { TENANT_NAME_RULE } from '@odudu/contracts';
 import { describe, expect, it } from 'vitest';
-import { TENANT_NAME_RULE_TEXT } from '#/shared/services/labels';
+import { TENANT_NAME_RULE_TEXT } from '#/shared/services/principal';
 
 describe('the tenant name rule', () => {
   it("states the contract's own rule, as a sentence", () => {

@@ -7,7 +7,7 @@ import {
   tenantNotCreatedText,
 } from '#/pages/tenants/services/creationCall';
 import type { StepFeedback } from '#/pages/tenants/use-cases/useStepFeedback';
-import { TENANT_NAME_RULE_TEXT } from '#/shared/services/labels';
+import { TENANT_NAME_RULE_TEXT } from '#/shared/services/principal';
 
 export interface TenantStep {
   step: 'tenant';

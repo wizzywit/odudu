@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { issuerPreview, nameProblem } from '#/pages/tenants/services/tenantName';
-import { TENANT_NAME_RULE_TEXT } from '#/shared/services/labels';
+import { TENANT_NAME_RULE_TEXT } from '#/shared/services/principal';
 
 describe('the tenant name', () => {
   it('asks for a name, refuses one the rule refuses, and passes a good one', () => {

@@ -5,7 +5,7 @@
 // decision against ADR 0048, not a way to quiet the rule.
 export const SHARED_VOCABULARY: Readonly<Record<string, string>> = {
   'apps/admin-console/src/shared/services/principal.ts':
-    'SYSTEM_TENANT and isTenantName: what every slice reads to tell the system tenant and a tenant name',
+    'SYSTEM_TENANT, isTenantName and TENANT_NAME_RULE_TEXT: read by the session and tenants slices and the shell',
   'apps/admin-console/src/shared/services/address.ts':
     'tenantPage: the root every tenant-scoped address is built from',
   'apps/admin-console/src/shared/services/failure.ts':
