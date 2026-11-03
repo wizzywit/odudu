@@ -60,7 +60,7 @@ function Roles({ client, page }: { client: Client; page: ServiceRoles }) {
                 <li key={role.id}>
                   <code>{role.name}</code>
                   <span className={recordTab.rule}>
-                    {role.client === null ? ' · tenant role' : ` · ${roleOwnerLine(role.client)}`}
+                    {` · ${roleOwnerLine(role.client)}`}
                   </span>
                 </li>
               ))}

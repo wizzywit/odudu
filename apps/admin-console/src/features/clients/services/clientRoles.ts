@@ -1,5 +1,6 @@
 import { readable } from '#/shared/services/access';
 import { withSearch } from '#/shared/services/address';
+import { TENANT_ROLE_TEXT } from '#/shared/services/capabilities';
 import type { Authority } from '#/shared/services/principal';
 
 export const ROLES_CAPABILITY = 'manage-tenant';
@@ -31,6 +32,7 @@ export const ROLE_NAME_TAKEN = 'This client already has a role of that name.';
 
 export const NAME_REQUIRED = 'Enter a name.';
 
-export function roleOwnerLine(client: string): string {
-  return `Scoped to ${client}.`;
+// Whose a role is beside the account's roles: the tenant's, or a client's by its key.
+export function roleOwnerLine(client: string | null): string {
+  return client === null ? TENANT_ROLE_TEXT : `Scoped to ${client}.`;
 }

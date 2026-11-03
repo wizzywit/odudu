@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clientRolesListHref, rolesReadable } from '#/features/clients/services/clientRoles';
+import { clientRolesListHref, roleOwnerLine, rolesReadable } from '#/features/clients/services/clientRoles';
 
 describe('rolesReadable', () => {
   it('admits manage-tenant, and view-users that manage-users carries', () => {
@@ -15,4 +15,9 @@ describe('rolesReadable', () => {
 
 it("narrows the roles list to the client's own by its row id", () => {
   expect(clientRolesListHref('/console/acme/roles', 'c1')).toBe('/console/acme/roles?client=c1');
+});
+
+it('says whose a role is, a tenant role by that name and a client role by its key', () => {
+  expect(roleOwnerLine(null)).toBe('tenant role');
+  expect(roleOwnerLine('portal')).toBe('Scoped to portal.');
 });
