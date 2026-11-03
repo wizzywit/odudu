@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import trail from '#/entities/audit-event/adapter/fixtures/audit-page.json';
 import nextPage from '#/entities/audit-event/adapter/fixtures/audit-page-next.json';
-import { readAuditPage } from '#/shared/adapter/audit';
+import { readAuditPage } from '#/entities/audit-event/adapter/auditPage';
 import { AUDIT } from '#/testing/auditFixtures';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 

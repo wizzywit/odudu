@@ -1,5 +1,4 @@
-import type { AuditEvent } from '@odudu/contracts/admin';
-import { readAuditPage } from '#/shared/adapter/audit';
+import { readAuditPage, type AuditEvent } from '#/entities/audit-event';
 import { useResourceList } from '#/shared/repository/useResourceList';
 import type { ResourceListState } from '#/shared/services/resourceList';
 

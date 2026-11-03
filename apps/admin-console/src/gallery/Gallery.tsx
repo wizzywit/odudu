@@ -12,9 +12,6 @@ import { LocalisedTextField } from '#/shared/ui/LocalisedTextField';
 import { ActionMenu } from '#/shared/ui/ActionMenu';
 import { AppShell } from '#/shared/ui/AppShell';
 import { Breadcrumb } from '#/shared/ui/Breadcrumb';
-import { AuditActor } from '#/shared/ui/AuditActor';
-import { AuditDetail } from '#/shared/ui/AuditDetail';
-import { AuditTable } from '#/shared/ui/AuditTable';
 import { BrandLine } from '#/shared/ui/BrandLine';
 import { Button } from '#/shared/ui/Button';
 import { CreationActions, CreationForm } from '#/shared/ui/CreationForm';
@@ -98,8 +95,6 @@ import {
   CLIENT_FIELDS,
   CLIENTS,
   CONFLICTS,
-  DETAILED_EVENT,
-  EVENTS,
   JWKS_SAMPLE,
   NOW,
   RAIL_GROUPS,
@@ -1035,13 +1030,6 @@ export function Gallery({
           <Specimen label="CapabilityNote">
             <CapabilityNote capability="manage-clients">Rotating a secret</CapabilityNote>
           </Specimen>
-          <Specimen label="AuditActor: named, unnamed, and a caller from elsewhere">
-            <div className={styles.stack}>
-              {EVENTS.map((event) => (
-                <AuditActor key={event.id} event={event} />
-              ))}
-            </div>
-          </Specimen>
         </Group>
 
         <Group id="editing" title="Editing">
@@ -1144,12 +1132,6 @@ export function Gallery({
           </Specimen>
           <Specimen label="SaveBar on its own">
             <SaveBar section="Tokens" saving={false} onDiscard={() => undefined} />
-          </Specimen>
-          <Specimen label="AuditTable: audit rows, a row opening to every field">
-            <AuditTable label="Audit events" rows={EVENTS} now={NOW} withResource />
-          </Specimen>
-          <Specimen label="AuditDetail: every field of one audit event">
-            <AuditDetail event={DETAILED_EVENT} zone="UTC" />
           </Specimen>
         </Group>
 

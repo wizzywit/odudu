@@ -1,7 +1,11 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it } from 'vitest';
-import { auditColumns, auditSummaryColumns, AuditTable } from '#/shared/ui/AuditTable/AuditTable';
+import {
+  auditColumns,
+  auditSummaryColumns,
+  AuditTable,
+} from '#/entities/audit-event/ui/AuditTable/AuditTable';
 import { auditEvent } from '#/testing/auditFixtures';
 import { at } from '#/testing/at';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';

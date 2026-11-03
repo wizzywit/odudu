@@ -33,7 +33,7 @@ import { NOTHING_YET_TITLE } from '#/features/audit/services/emptyTrail';
 import { holds } from '#/shared/services/access';
 import { useNow } from '#/shared/use-cases/useNow';
 import { localZone } from '#/shared/services/zones';
-import type { AuditHrefs } from '#/shared/ui/AuditTable';
+import type { AuditHrefs } from '#/entities/audit-event';
 import { subjectHref } from '#/entities/subject';
 
 const RECORD_PAGES: RecordPages = {

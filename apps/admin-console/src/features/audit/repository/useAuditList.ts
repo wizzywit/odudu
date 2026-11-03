@@ -1,5 +1,5 @@
 import type { AuditEvent } from '#/entities/audit-event';
-import { readAuditPage } from '#/shared/adapter/audit';
+import { readAuditPage } from '#/entities/audit-event';
 import { listKey } from '#/shared/repository/queryKeys';
 import { useListPages } from '#/shared/repository/useResourceList';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch';

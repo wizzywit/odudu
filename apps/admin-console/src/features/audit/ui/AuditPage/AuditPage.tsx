@@ -10,8 +10,7 @@ import {
   type AuditPageState,
 } from '#/features/audit/use-cases/useAuditPage';
 import { AuditFilters } from '#/features/audit/ui/AuditFilters';
-import { CORRELATION_NOTE } from '#/shared/services/auditEvents';
-import { auditColumns, AuditTable } from '#/shared/ui/AuditTable';
+import { auditColumns, AuditTable, CORRELATION_NOTE } from '#/entities/audit-event';
 import { Button } from '#/shared/ui/Button';
 import { EmptyState } from '#/shared/ui/EmptyState';
 import { ListGate } from '#/shared/ui/ListGate';

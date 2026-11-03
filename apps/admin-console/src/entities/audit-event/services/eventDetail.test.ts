@@ -1,66 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { auditEvent } from '#/testing/auditFixtures';
 import {
-  actorName,
-  actorNote,
+  AUDIT_EVENT_TITLE,
   detailEntries,
-  elsewhereReason,
-  isElsewhere,
-  previewOf,
-  requestLabel,
-  requestRowCounts,
+  eventDescription,
+  eventTimes,
+  hasChange,
   MAX_DETAIL_ENTRIES,
+  omittedNote,
   PREVIEW_LENGTH,
-} from '#/shared/services/auditEvents';
-
-describe('a caller from elsewhere', () => {
-  it('is a system administrator or a token another tenant issued', () => {
-    expect(isElsewhere('system')).toBe(true);
-    expect(isElsewhere('other-tenant')).toBe(true);
-    expect(isElsewhere('tenant')).toBe(false);
-    expect(isElsewhere(null)).toBe(false);
-  });
-
-  it('says why no name is shown, for each kind', () => {
-    expect(elsewhereReason('system')).toMatch(/system administrator/u);
-    expect(elsewhereReason('other-tenant')).toMatch(/another tenant/u);
-    expect(elsewhereReason('tenant')).toBeNull();
-    expect(elsewhereReason(null)).toBeNull();
-  });
-});
-
-describe('the name an actor is shown under', () => {
-  it('is what a caller from elsewhere is, whatever name the row carries', () => {
-    expect(actorName({ actor_name: 'ada', actor_origin: 'system' })).toBe('a system administrator');
-    expect(actorName({ actor_name: null, actor_origin: 'other-tenant' })).toBe(
-      "another tenant's caller",
-    );
-  });
-
-  it('is the name the API resolved for a caller of this tenant, or none', () => {
-    expect(actorName({ actor_name: 'grace', actor_origin: 'tenant' })).toBe('grace');
-    expect(actorName({ actor_name: null, actor_origin: 'tenant' })).toBeNull();
-    expect(actorName({ actor_name: null, actor_origin: null })).toBeNull();
-  });
-});
-
-describe('request labels', () => {
-  it('is short and the same every time for the same id', () => {
-    expect(requestLabel('01a0ee8c-69b5-7e9b-a23c-621c22a3eb69')).toBe('request a3eb69');
-    expect(requestLabel('req-7f3a9c')).toBe(requestLabel('req-7f3a9c'));
-  });
-
-  it('counts only the ids that more than one loaded row shares', () => {
-    const rows = [
-      auditEvent({ id: '1', request_id: 'r1' }),
-      auditEvent({ id: '2', request_id: 'r1' }),
-      auditEvent({ id: '3', request_id: 'r2' }),
-      auditEvent({ id: '4', request_id: null }),
-      auditEvent({ id: '5', request_id: null }),
-    ];
-    expect([...requestRowCounts(rows)]).toEqual([['r1', 2]]);
-  });
-});
+  previewOf,
+  resourceHandle,
+  valueShown,
+} from '#/entities/audit-event/services/eventDetail';
 
 describe('the detail as readable entries', () => {
   it('shows scalars as text, with null as none and an empty string named', () => {
@@ -152,23 +103,37 @@ describe('a long value', () => {
   });
 });
 
-describe('what is said of an actor beside its id', () => {
-  it('explains a caller from elsewhere', () => {
-    expect(actorNote({ actor_subject_id: 's', actor_name: null, actor_origin: 'system' })).toBe(
-      elsewhereReason('system'),
+describe('what the dialog and a table cell say of a row', () => {
+  it('names the dialog and describes the row it opens, or nothing while it is shut', () => {
+    expect(AUDIT_EVENT_TITLE).toBe('Audit event');
+    expect(eventDescription({ action: 'client.update', outcome: 'refused' })).toBe(
+      'client.update, refused',
     );
+    expect(eventDescription(null)).toBe('');
   });
 
-  it('explains a missing name for an actor of this tenant', () => {
-    expect(actorNote({ actor_subject_id: 's', actor_name: null, actor_origin: 'tenant' })).toMatch(
-      /view-users/u,
-    );
+  it("gives the time in the reader's zone and in UTC", () => {
+    const { local, utc } = eventTimes('2026-09-28T13:41:05.250Z', 'Europe/Berlin');
+    expect(local).not.toBe(utc);
+    expect(utc).toBe(eventTimes('2026-09-28T13:41:05.250Z', 'UTC').local);
   });
 
-  it('says nothing where the name is shown, or no subject acted', () => {
-    expect(
-      actorNote({ actor_subject_id: 's', actor_name: 'grace', actor_origin: 'tenant' }),
-    ).toBeNull();
-    expect(actorNote({ actor_subject_id: null, actor_name: null, actor_origin: null })).toBeNull();
+  it('says whether a change is among the entries and how many were left out', () => {
+    expect(hasChange(detailEntries({ a: { before: 1, after: 2 } }).entries)).toBe(true);
+    expect(hasChange(detailEntries({ a: 1 }).entries)).toBe(false);
+    expect(omittedNote(0)).toBeNull();
+    expect(omittedNote(5)).toBe('5 more not shown.');
+  });
+
+  it('shows a long value cut until it is asked for whole', () => {
+    const long = 'x'.repeat(PREVIEW_LENGTH + 10);
+    expect(valueShown(long, false)).toEqual({ shown: previewOf(long).shown, truncated: true });
+    expect(valueShown(long, true)).toEqual({ shown: long, truncated: true });
+    expect(valueShown('short', true)).toEqual({ shown: 'short', truncated: false });
+  });
+
+  it('shortens a resource id to eight characters and an ellipsis', () => {
+    expect(resourceHandle('0192f7a4-5c1e-7b3a')).toBe('0192f7a4…');
+    expect(resourceHandle('c1')).toBe('c1');
   });
 });

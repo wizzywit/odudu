@@ -39,12 +39,14 @@ const DESCRIBED_BY_THE_TOUR = ['console-home', 'failure'];
 // administrator and giving one capabilities (Tenants, System administrators),
 // the capability list (those two and a subject), the Members tab (Groups and
 // Roles). own-roles holds no screen, only what a write there takes from the
-// caller. role-mapping is the roles editor of a group and a scope, and
+// caller. record-activity is the Activity tab of a record, described on each
+// record's page. role-mapping is the roles editor of a group and a scope, and
 // scope-assignment the assigned-scopes list of a client and of a scope.
 const DESCRIBED_BY_ITS_PAGES = [
   'begin-administrator',
   'grant-administrator',
   'own-roles',
+  'record-activity',
   'role-mapping',
   'scope-assignment',
   'subject-capabilities',

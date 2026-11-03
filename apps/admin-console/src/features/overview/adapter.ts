@@ -8,7 +8,7 @@ import type { AuditEvent } from '#/entities/audit-event';
 import { z } from 'zod';
 import type { Jwks } from '#/features/overview/services/discovery';
 import type { Collection } from '#/features/overview/services/reads';
-import { readAuditPage } from '#/shared/adapter/audit';
+import { readAuditPage } from '#/entities/audit-event';
 import { readKeyPage } from '#/shared/adapter/directory';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { adminCall, segment } from '#/shared/adapter/route';

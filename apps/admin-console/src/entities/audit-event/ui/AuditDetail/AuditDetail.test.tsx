@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it } from 'vitest';
-import { AuditDetail } from '#/shared/ui/AuditDetail/AuditDetail';
+import { AuditDetail } from '#/entities/audit-event/ui/AuditDetail/AuditDetail';
 import { auditEvent } from '#/testing/auditFixtures';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 

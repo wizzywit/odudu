@@ -1,5 +1,5 @@
 import { AUDIT_EXPORT_MEDIA_TYPE } from '@odudu/contracts/admin';
-import { exportAuditEvents } from '#/shared/adapter/audit';
+import { exportAuditEvents } from '#/features/audit/adapter/auditExport';
 import { currentTime } from '#/shared/adapter/clock';
 import { saveFile } from '#/shared/adapter/files';
 import { auditExportKey } from '#/shared/repository/queryKeys';

@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import exported from '#/features/audit/adapter/fixtures/audit-export.ndjson?raw';
-import { exportAuditEvents } from '#/shared/adapter/audit';
+import { exportAuditEvents } from '#/features/audit/adapter/auditExport';
 import { AUDIT } from '#/testing/auditFixtures';
 import { fakeTransport } from '#/testing/fakeTransport';
 

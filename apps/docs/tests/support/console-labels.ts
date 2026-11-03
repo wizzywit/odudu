@@ -21,6 +21,7 @@ export interface Defined {
 
 const FEATURES = 'apps/admin-console/src/features';
 const PAGES = 'apps/admin-console/src/pages';
+const ENTITIES = 'apps/admin-console/src/entities';
 const SHARED = 'apps/admin-console/src/shared';
 const MESSAGES = 'packages/protocol-oidc/src/view/messages.ts';
 
@@ -36,6 +37,8 @@ const feature = (path: string, ...texts: readonly string[]): Defined =>
   at(`${FEATURES}/${path}`, ...texts);
 const page = (path: string, ...texts: readonly string[]): Defined =>
   at(`${PAGES}/${path}`, ...texts);
+const entity = (path: string, ...texts: readonly string[]): Defined =>
+  at(`${ENTITIES}/${path}`, ...texts);
 const shared = (path: string, ...texts: readonly string[]): Defined =>
   at(`${SHARED}/${path}`, ...texts);
 
@@ -651,7 +654,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Credential: feature(AUDIT_KINDS, "'Credential'"),
   Allowed: feature(AUDIT_KINDS, "'Allowed'"),
   Refused: feature(AUDIT_KINDS, "'Refused'"),
-  Details: shared('ui/AuditTable/AuditTable.tsx', '> Details <'),
+  Details: entity('audit-event/ui/AuditTable/AuditTable.tsx', '> Details <'),
   'Export these events': feature('audit/ui/AuditPage/AuditPage.tsx', "'Export these events'"),
 
   // The overview.

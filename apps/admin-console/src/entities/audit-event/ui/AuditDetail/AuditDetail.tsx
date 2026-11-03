@@ -1,19 +1,13 @@
-import type { AuditEvent } from '@odudu/contracts/admin';
-import { useId, useState, type ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { Link } from 'react-aria-components';
-import {
-  actorNote,
-  detailEntries,
-  previewOf,
-  requestLabel,
-  type DetailEntry,
-} from '#/shared/services/auditEvents';
-import { formatInZone, localZone } from '#/shared/services/zones';
-import { AuditActor } from '#/shared/ui/AuditActor';
 import { Button } from '#/shared/ui/Button';
 import { CopyValue } from '#/shared/ui/CopyValue';
 import { OutcomeTag } from '#/shared/ui/StatusTag';
-import styles from '#/shared/ui/AuditDetail/AuditDetail.module.css';
+import type { DetailEntry } from '#/entities/audit-event/services/eventDetail';
+import type { AuditEvent } from '#/entities/audit-event/types/auditEvent';
+import { useAuditDetail, useDetailValue } from '#/entities/audit-event/use-cases/useAuditDetail';
+import { AuditActor } from '#/entities/audit-event/ui/AuditActor';
+import styles from '#/entities/audit-event/ui/AuditDetail/AuditDetail.module.css';
 
 function Row({ term, children }: { term: string; children: ReactNode }) {
   return (
@@ -30,19 +24,16 @@ function Id({ label, value }: { label: string; value: string | null }) {
 }
 
 function Long({ entry }: { entry: DetailEntry }) {
-  const [whole, setWhole] = useState(false);
-  const { shown, truncated } = previewOf(entry.text);
+  const { shown, truncated, whole, toggle } = useDetailValue(entry.text);
   return (
     <>
-      <span className={styles.text}>{whole ? entry.text : shown}</span>
+      <span className={styles.text}>{shown}</span>
       {truncated ? (
         <Button
           size="small"
           variant="quiet"
           aria-label={`${whole ? 'Show less of' : 'Show the whole value of'} ${entry.path}`}
-          onPress={() => {
-            setWhole(!whole);
-          }}
+          onPress={toggle}
         >
           {whole ? 'Show less' : 'Show the whole value'}
         </Button>
@@ -51,9 +42,16 @@ function Long({ entry }: { entry: DetailEntry }) {
   );
 }
 
-function Detail({ detail }: { detail: AuditEvent['detail'] }) {
+function Detail({
+  entries,
+  changed,
+  omittedNote,
+}: {
+  entries: readonly DetailEntry[];
+  changed: boolean;
+  omittedNote: string | null;
+}) {
   const heading = useId();
-  const { entries, omitted } = detailEntries(detail);
   return (
     <section aria-labelledby={heading} className={styles.detail}>
       <h3 id={heading} className={styles.heading}>
@@ -63,9 +61,7 @@ function Detail({ detail }: { detail: AuditEvent['detail'] }) {
         <p className={styles.none}>No further detail was recorded for this event.</p>
       ) : (
         <>
-          {entries.some((entry) => entry.change) ? (
-            <p className={styles.hint}>A change reads before → after.</p>
-          ) : null}
+          {changed ? <p className={styles.hint}>A change reads before → after.</p> : null}
           <dl className={styles.entries}>
             {entries.map((entry) => (
               <div key={entry.path} className={styles.entry}>
@@ -76,9 +72,7 @@ function Detail({ detail }: { detail: AuditEvent['detail'] }) {
               </div>
             ))}
           </dl>
-          {omitted === 0 ? null : (
-            <p className={styles.hint}>{`${String(omitted)} more not shown.`}</p>
-          )}
+          {omittedNote === null ? null : <p className={styles.hint}>{omittedNote}</p>}
         </>
       )}
     </section>
@@ -89,7 +83,7 @@ function Detail({ detail }: { detail: AuditEvent['detail'] }) {
 // zone and in UTC, and the redacted detail as keys and values.
 export function AuditDetail({
   event,
-  zone = localZone(),
+  zone,
   resourceHref = null,
   actorHref = null,
 }: {
@@ -98,8 +92,10 @@ export function AuditDetail({
   resourceHref?: string | null;
   actorHref?: string | null;
 }) {
-  const at = new Date(event.occurred_at);
-  const note = actorNote(event);
+  const { times, actorNote, requestNote, entries, changed, omittedNote } = useAuditDetail(
+    event,
+    zone,
+  );
   return (
     <div className={styles.detailView}>
       <dl className={styles.fields}>
@@ -107,8 +103,8 @@ export function AuditDetail({
           <Id label="event id" value={event.id} />
         </Row>
         <Row term="When">
-          <span className={styles.text}>{formatInZone(at, zone)}</span>
-          <span className={styles.text}>{formatInZone(at, 'UTC')}</span>
+          <span className={styles.text}>{times.local}</span>
+          <span className={styles.text}>{times.utc}</span>
         </Row>
         <Row term="Event type">{event.event_type}</Row>
         <Row term="Action">
@@ -119,7 +115,7 @@ export function AuditDetail({
         </Row>
         <Row term="Actor">
           <AuditActor event={event} />
-          {note === null ? null : <p className={styles.hint}>{note}</p>}
+          {actorNote === null ? null : <p className={styles.hint}>{actorNote}</p>}
           {actorHref === null ? null : (
             <Link href={actorHref} className={styles.link ?? ''}>
               Open the actor
@@ -149,15 +145,13 @@ export function AuditDetail({
           ) : (
             <>
               <CopyValue label="request id" value={event.request_id} />
-              <p className={styles.hint}>
-                {`Label ${requestLabel(event.request_id)}. The caller can set it, so it is a correlation, not evidence.`}
-              </p>
+              <p className={styles.hint}>{requestNote}</p>
             </>
           )}
         </Row>
         <Row term="Address">{event.ip ?? <span className={styles.none}>none</span>}</Row>
       </dl>
-      <Detail detail={event.detail} />
+      <Detail entries={entries} changed={changed} omittedNote={omittedNote} />
     </div>
   );
 }

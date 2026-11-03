@@ -1,10 +1,5 @@
-import { listAuditResponseSchema } from '@odudu/contracts/admin';
-import { listReader, segment } from '#/shared/adapter/route';
+import { segment } from '#/shared/adapter/route';
 import type { Gateway, GatewayResult, RawBody } from '#/shared/transport/gateway';
-
-// Shared by the Audit trail and every record's Activity tab, which is the
-// same list narrowed to one resource.
-export const readAuditPage = listReader('audit', listAuditResponseSchema);
 
 // The events a listing's filters match, as the NDJSON the server wrote.
 export function exportAuditEvents(

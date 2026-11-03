@@ -1,4 +1,4 @@
-import type { AuditEvent } from '@odudu/contracts/admin';
+import type { AuditEvent } from '#/entities/audit-event';
 import { useActivity } from '#/features/record-activity/repository/useActivity';
 import type { ResourceListState } from '#/shared/services/resourceList';
 

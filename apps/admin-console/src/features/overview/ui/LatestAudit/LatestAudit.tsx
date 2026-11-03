@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-aria-components';
 import type { Gated } from '#/features/overview/services/reads';
 import { Panel } from '#/features/overview/ui/Panel';
-import { auditSummaryColumns } from '#/shared/ui/AuditTable';
+import { auditSummaryColumns } from '#/entities/audit-event';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { DataTable } from '#/shared/ui/DataTable';
 import { EmptyState } from '#/shared/ui/EmptyState';

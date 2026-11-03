@@ -1,6 +1,5 @@
-import type { AuditEvent } from '@odudu/contracts/admin';
 import type { ResourceListState } from '#/shared/services/resourceList';
-import { auditColumns, AuditTable } from '#/shared/ui/AuditTable';
+import { auditColumns, AuditTable, type AuditEvent } from '#/entities/audit-event';
 import { EmptyState } from '#/shared/ui/EmptyState';
 import { ListGate } from '#/shared/ui/ListGate';
 import { LoadMoreFailed } from '#/shared/ui/LoadMore';
