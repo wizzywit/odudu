@@ -25,38 +25,41 @@ import { TableSkeleton } from '#/shared/ui/Skeleton';
 import { StatusTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
-import { usernameOrId } from '#/entities/subject';
 
-const COLUMNS: readonly Column<TenantSession>[] = [
-  {
-    id: 'subject',
-    header: 'Subject',
-    isRowHeader: true,
-    cell: (session) => (
-      <code>{usernameOrId({ id: session.subject_id, username: session.username })}</code>
-    ),
-  },
-  {
-    id: 'created_at',
-    header: 'Signed in',
-    cell: (session) => <Timestamp value={session.created_at} />,
-  },
-  {
-    id: 'last_active_at',
-    header: 'Last active',
-    secondary: true,
-    cell: (session) => <Timestamp value={session.last_active_at} />,
-  },
-  {
-    id: 'remembered',
-    header: 'Remembered',
-    secondary: true,
-    cell: (session) => (session.remembered ? <StatusTag tone="active">remembered</StatusTag> : '—'),
-  },
-];
+function columnsOf(
+  subjectLabel: (session: TenantSession) => string,
+): readonly Column<TenantSession>[] {
+  return [
+    {
+      id: 'subject',
+      header: 'Subject',
+      isRowHeader: true,
+      cell: (session) => <code>{subjectLabel(session)}</code>,
+    },
+    {
+      id: 'created_at',
+      header: 'Signed in',
+      cell: (session) => <Timestamp value={session.created_at} />,
+    },
+    {
+      id: 'last_active_at',
+      header: 'Last active',
+      secondary: true,
+      cell: (session) => <Timestamp value={session.last_active_at} />,
+    },
+    {
+      id: 'remembered',
+      header: 'Remembered',
+      secondary: true,
+      cell: (session) =>
+        session.remembered ? <StatusTag tone="active">remembered</StatusTag> : '—',
+    },
+  ];
+}
 
 function List({ client, page }: { client: Client; page: ClientSessions }) {
   const { list } = page;
+  const columns = columnsOf(page.subjectLabel);
   return (
     <>
       {list.count === null ? null : (
@@ -66,7 +69,7 @@ function List({ client, page }: { client: Client; page: ClientSessions }) {
       )}
       <ListGate
         list={list}
-        loading={<TableSkeleton label="Loading sessions" columns={COLUMNS} rows={2} />}
+        loading={<TableSkeleton label="Loading sessions" columns={columns} rows={2} />}
         refused={{ capability: SESSIONS_CAPABILITY, noun: 'Sessions' }}
         failed="The sessions could not be loaded"
       >
@@ -77,7 +80,7 @@ function List({ client, page }: { client: Client; page: ClientSessions }) {
             <>
               <DataTable
                 label={`Sessions through ${client.name}`}
-                columns={COLUMNS}
+                columns={columns}
                 rows={list.rows}
                 rowKey={(session) => session.id}
                 onRowAction={(id) => {

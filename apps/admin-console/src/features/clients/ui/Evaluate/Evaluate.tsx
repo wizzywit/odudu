@@ -24,7 +24,7 @@ import { Problem } from '#/shared/ui/Message';
 import { Panel } from '#/shared/ui/Panel';
 import { Picker } from '#/shared/ui/Picker';
 import { recordTab } from '#/shared/ui/RecordTab';
-import { type Subject, usernameOrId } from '#/entities/subject';
+import { type Subject } from '#/entities/subject';
 import styles from '#/features/clients/ui/Evaluate/Evaluate.module.css';
 
 function Box({ artefact }: { artefact: Artefact }) {
@@ -51,7 +51,7 @@ function Form({ page }: { page: ClientEvaluate }) {
         noun={{ one: 'subject', other: 'subjects' }}
         picker={page.picker}
         idOf={(subject) => subject.id}
-        nameOf={(subject) => usernameOrId(subject)}
+        nameOf={page.subjectLabel}
         detailOf={(subject) => subject.email ?? subject.type}
         searchBy="username"
         capability={EVALUATE_CAPABILITY}

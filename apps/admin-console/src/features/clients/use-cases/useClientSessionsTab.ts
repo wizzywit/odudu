@@ -18,7 +18,7 @@ import { useGo } from '#/shared/repository/useGo';
 import { lacking, readable } from '#/shared/services/access';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
-import { subjectHref } from '#/entities/subject';
+import { subjectHref, usernameOrId } from '#/entities/subject';
 
 // Whether the caller may read them: whoami says manage-sessions is held,
 // or has not yet answered.
@@ -29,6 +29,8 @@ export function useSessionsReadable(tenant: string): boolean {
 export interface ClientSessions extends Removal {
   list: ResourceListState<TenantSession>;
   open: (subjectId: string) => void;
+  // How a session names its subject: the username, or the ID when it has none.
+  subjectLabel: (session: TenantSession) => string;
   // Whether revoking is offered: the capability is held and the client's
   // service account is within the caller's reach.
   offered: boolean;
@@ -64,6 +66,7 @@ export function useClientSessionsTab(tenant: string, client: Client, reach: Reac
     open: (subjectId) => {
       go(subjectHref(tenant, subjectId));
     },
+    subjectLabel: (session) => usernameOrId({ id: session.subject_id, username: session.username }),
     ...removal,
     offered: canChange(reach, needs),
     consequence: revokeConsequence(client.name, client.builtin_admin),

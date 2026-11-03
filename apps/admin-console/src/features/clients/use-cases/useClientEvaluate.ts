@@ -11,7 +11,7 @@ import {
 } from '#/features/clients/services/evaluate';
 import { readable } from '#/shared/services/access';
 import { lastChosen, type PickerState } from '#/shared/services/picker';
-import { useSubjectPicker, type Subject } from '#/entities/subject';
+import { useSubjectPicker, usernameOrId, type Subject } from '#/entities/subject';
 
 // Whether the caller may look at a subject's claims: whoami says view-users
 // is held, or has not yet answered.
@@ -21,6 +21,8 @@ export function useEvaluateAllowed(tenant: string): boolean {
 
 export interface ClientEvaluate {
   picker: PickerState<Subject>;
+  // How a subject is named in the picker: the username, or the ID when it has none.
+  subjectLabel: (subject: Subject) => string;
   chosen: Subject | null;
   choose: (ids: readonly string[]) => void;
   scope: string;
@@ -41,6 +43,7 @@ export function useClientEvaluate(tenant: string, client: Client): ClientEvaluat
   const evaluation = useEvaluation(tenant, client.id, asked);
   return {
     picker,
+    subjectLabel: usernameOrId,
     chosen: picker.options.find((subject) => subject.id === chosenId) ?? null,
     choose: (ids) => {
       setChosenId(lastChosen(ids));
