@@ -3,14 +3,13 @@ import { putTheme } from '#/features/branding/adapter/theme';
 import { type ThemeScope } from '#/features/branding/services/scope';
 import {
   colourRequest,
-  imageRequest,
   stylesheetRequest,
   templateRequest,
   type ColourValues,
-  type ImageValues,
   type StylesheetValues,
   type TemplateValues,
 } from '#/features/branding/services/values';
+import { imageRequest, type ImageValues } from '#/features/branding/services/imageValues';
 import type { SaveInput } from '#/shared/repository/useSectionSave';
 import type { Values } from '#/shared/services/dirty';
 import type { Gateway } from '#/shared/transport/gateway';

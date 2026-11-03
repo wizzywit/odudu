@@ -4,7 +4,7 @@ import {
   type ImageSlot,
   type ImageValues,
   type Logo,
-} from '#/features/branding/services/values';
+} from '#/features/branding/services/imageValues';
 
 export const ALT_LABEL = 'Alt text';
 

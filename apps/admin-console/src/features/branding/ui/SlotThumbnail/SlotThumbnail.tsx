@@ -1,4 +1,3 @@
-import { type ImageSlot } from '#/features/branding/services/values';
 import {
   THUMBNAIL_FAILED,
   THUMBNAIL_LOADING,
@@ -6,6 +5,7 @@ import {
   thumbnailAlt,
   type Thumbnail,
 } from '#/features/branding/services/imageThumbnails';
+import type { ImageSlot } from '#/features/branding/services/imageValues';
 import { Button } from '#/shared/ui/Button';
 import styles from '#/features/branding/ui/SlotThumbnail/SlotThumbnail.module.css';
 

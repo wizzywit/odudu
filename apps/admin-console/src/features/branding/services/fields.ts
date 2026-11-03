@@ -2,14 +2,13 @@ import { shortened } from '#/shared/services/format';
 import type { SectionFields } from '#/shared/services/sectionSave';
 import { PAGE_KIND_LABELS } from '#/features/branding/services/templates';
 import {
-  type ImageSlot,
   templateField,
   type ColourValues,
-  type ImageValues,
   type StylesheetValues,
   type TemplateValues,
 } from '#/features/branding/services/values';
 import { SLOT_RULES } from '#/features/branding/services/imageSlots';
+import type { ImageSlot, ImageValues } from '#/features/branding/services/imageValues';
 import { THEME_PAGE_KINDS } from '@odudu/contracts';
 
 export const COLOURS_TITLE = 'Colours and font';

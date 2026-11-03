@@ -7,8 +7,12 @@ import {
   REPLACE_LABEL,
   UPLOAD_LABEL,
 } from '#/features/branding/services/copy';
-import { imageField, type ImageSlot, type ImageValues } from '#/features/branding/services/values';
 import { SLOT_RULES, ACCEPTED_TYPE_LIST } from '#/features/branding/services/imageSlots';
+import {
+  imageField,
+  type ImageSlot,
+  type ImageValues,
+} from '#/features/branding/services/imageValues';
 
 const UPLOADING_NAME = 'Uploading';
 

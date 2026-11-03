@@ -1,5 +1,5 @@
 import { bytesText, KIB } from '#/shared/services/format';
-import type { ImageSlot } from '#/features/branding/services/values';
+import type { ImageSlot } from '#/features/branding/services/imageValues';
 
 export interface SlotRule {
   label: string;

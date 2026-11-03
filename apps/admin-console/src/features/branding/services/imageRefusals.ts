@@ -2,12 +2,12 @@ import type { FieldError } from '@odudu/contracts/admin';
 import type { Problem } from '#/shared/services/result';
 import { problemSubtype } from '#/shared/services/failure';
 import { bytesText, counted } from '#/shared/services/format';
-import type { ImageSlot } from '#/features/branding/services/values';
 import {
   SLOT_RULES,
   TENANT_IMAGE_CAP,
   ACCEPTED_TYPE_LIST,
 } from '#/features/branding/services/imageSlots';
+import type { ImageSlot } from '#/features/branding/services/imageValues';
 
 // A file the server would refuse by its size or type, said before it is sent.
 // The bytes and the decoded size are the server's to judge.

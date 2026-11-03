@@ -5,8 +5,6 @@ import {
   baseBody,
   colourRequest,
   colourValues,
-  imageRequest,
-  imageValues,
   templateRequest,
   templateValues,
 } from '#/features/branding/services/values';
@@ -53,18 +51,13 @@ describe('a section’s request', () => {
     expect(request.tokens).toEqual({ dark: DEFAULT_PALETTES.dark });
   });
 
-  it('leaves a part out when it is null, so the layer below supplies it', () => {
+  it('leaves a colour out when it is null, so the layer below supplies it', () => {
     const request = colourRequest(drafted, {
       'tokens.light': null,
       'tokens.dark': null,
       'tokens.font': null,
     });
     expect(request.tokens).toEqual({});
-    const images = imageRequest(drafted, {
-      ...imageValues(drafted),
-      'assets.logo': null,
-    });
-    expect(images.assets).toEqual({});
   });
 
   it('keeps only templates that hold something', () => {
@@ -81,7 +74,6 @@ describe('a section’s request', () => {
   it('reads a theme back into the same values it was made from', () => {
     expect(colourValues(drafted)['tokens.light']).not.toBeNull();
     expect(colourValues(drafted)['tokens.font']).toBeNull();
-    expect(imageValues(drafted)['assets.logo']).toMatchObject({ alt: 'Acme' });
     expect(Object.keys(templateValues(drafted))).toHaveLength(17);
   });
 });

@@ -1,10 +1,10 @@
 import { readAssetImage } from '#/features/branding/adapter/theme';
-import { type ImageSlot } from '#/features/branding/services/values';
 import {
   slotThumbnail,
   type SlotAsk,
   type Thumbnail,
 } from '#/features/branding/services/imageThumbnails';
+import type { ImageSlot } from '#/features/branding/services/imageValues';
 import { assetImageKey } from '#/shared/repository/queryKeys';
 import { useRead } from '#/shared/repository/useRead';
 import { useTransport } from '#/shared/transport/useTransport';

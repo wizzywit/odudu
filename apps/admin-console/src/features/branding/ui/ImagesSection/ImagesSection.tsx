@@ -9,10 +9,10 @@ import {
 import { IMAGES_TITLE } from '#/features/branding/services/fields';
 import { type ThemeScope } from '#/features/branding/services/scope';
 import { sourceReading } from '#/features/branding/services/sources';
-import { IMAGE_SLOTS, imageField, type ImageSlot } from '#/features/branding/services/values';
 import { ACCEPTED_TYPES, limitText, SLOT_RULES } from '#/features/branding/services/imageSlots';
 import { ALT_LABEL, ALT_RULE, altProblem } from '#/features/branding/services/logoAlt';
 import { slotView } from '#/features/branding/services/imageThumbnails';
+import { IMAGE_SLOTS, imageField, type ImageSlot } from '#/features/branding/services/imageValues';
 import type { Images } from '#/features/branding/use-cases/useImages';
 import type { ImageAsk } from '#/features/branding/use-cases/useImageDeletion';
 import { Button } from '#/shared/ui/Button';

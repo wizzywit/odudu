@@ -1,7 +1,6 @@
 import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
 import { failureTextWith } from '#/shared/services/failure';
 import { reportFailure } from '#/shared/services/settled';
-import type { ImageSlot, ImageValues, Logo, Plain } from '#/features/branding/services/values';
 import type { ThemeAsset } from '@odudu/contracts/admin';
 import { altEdited, logoOf } from '#/features/branding/services/logoAlt';
 import {
@@ -11,6 +10,7 @@ import {
   UPLOAD_LOST,
 } from '#/features/branding/services/imageRefusals';
 import { slotNames } from '#/features/branding/services/imageThumbnails';
+import type { ImageSlot, ImageValues, Logo, Plain } from '#/features/branding/services/imageValues';
 
 // What an uploaded image fills its slot with: a logo keeps the alt text it
 // had, and starts without one.

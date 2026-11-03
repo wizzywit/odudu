@@ -7,7 +7,7 @@ import {
   thumbnailAlt,
   slotNames,
 } from '#/features/branding/services/imageThumbnails';
-import type { ImageValues } from '#/features/branding/services/values';
+import type { ImageValues } from '#/features/branding/services/imageValues';
 
 const none: ImageValues = {
   'assets.logo': null,

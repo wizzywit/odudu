@@ -12,7 +12,7 @@ import {
   type SlotStates,
   type UploadStart,
 } from '#/features/branding/services/imageUpload';
-import type { ImageValues } from '#/features/branding/services/values';
+import type { ImageValues } from '#/features/branding/services/imageValues';
 import type { ThemeAsset } from '@odudu/contracts/admin';
 import type { GatewayResult } from '#/shared/services/result';
 
