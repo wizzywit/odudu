@@ -4,7 +4,7 @@ import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { CreationActions, CreationForm } from '#/shared/ui/CreationForm';
 import { TextField } from '#/shared/ui/Field';
 import { PageHeader } from '#/shared/ui/PageHeader';
-import { subjectsTrail } from '#/features/subjects/services/subjectAddress';
+import { subjectsTrail } from '#/entities/subject';
 
 function Form({ tenant }: { tenant: string }) {
   const page = useNewSubject(tenant);

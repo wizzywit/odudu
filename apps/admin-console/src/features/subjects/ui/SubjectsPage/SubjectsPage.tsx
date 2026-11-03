@@ -11,8 +11,7 @@ import { Timestamp } from '#/shared/ui/Timestamp';
 import { ViewOnlyNote } from '#/shared/ui/ViewOnlyNote';
 import styles from '#/features/subjects/ui/SubjectsPage/SubjectsPage.module.css';
 import { STATUS_FILTER } from '#/shared/services/filters';
-import { subjectName } from '#/features/subjects/services/subjectName';
-import { type Subject } from '#/entities/subject';
+import { type Subject, subjectName } from '#/entities/subject';
 
 const COLUMNS: readonly Column<Subject>[] = [
   {

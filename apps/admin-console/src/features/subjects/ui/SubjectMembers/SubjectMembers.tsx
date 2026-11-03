@@ -8,8 +8,7 @@ import { Pager } from '#/shared/ui/Pager';
 import { TableSkeleton } from '#/shared/ui/Skeleton';
 import { EnabledTag } from '#/shared/ui/StatusTag';
 import { recordTab } from '#/shared/ui/RecordTab';
-import { subjectName } from '#/features/subjects/services/subjectName';
-import { type Subject } from '#/entities/subject';
+import { type Subject, subjectName } from '#/entities/subject';
 
 const COLUMNS: readonly Column<Subject>[] = [
   {

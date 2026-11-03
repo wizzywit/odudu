@@ -21,11 +21,10 @@ import { useConfirmedSubjectChange } from '#/features/subjects/use-cases/useConf
 import { notLacking } from '#/shared/services/access';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import type { Confirming } from '#/shared/use-cases/useConfirmedChange';
-import { subjectName } from '#/features/subjects/services/subjectName';
 import { type Consent } from '#/features/subjects/types/consent';
 import { type Grant, type GrantsRevoked } from '#/features/subjects/types/grant';
 import type { SessionsEnded, SubjectSession } from '#/features/subjects/types/subjectSession';
-import { type Subject } from '#/entities/subject';
+import { type Subject, subjectName } from '#/entities/subject';
 
 // Sessions and grants are read and changed with manage-sessions alone:
 // there is no view-sessions.

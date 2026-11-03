@@ -4,7 +4,7 @@ import {
   roleOwnerOf,
   roleUnavailableHere,
   splitRoles,
-} from '#/features/subjects/services/subjectRoles';
+} from '#/entities/subject/services/subjectRoles';
 
 describe('roles', () => {
   const assigned = (id: string, name: string, key: string | null) => ({

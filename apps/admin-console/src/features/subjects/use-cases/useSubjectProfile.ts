@@ -16,7 +16,7 @@ import {
 } from '#/features/subjects/services/claims';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import type { RecordState } from '#/shared/repository/useRecord';
-import { profileRecord } from '#/features/subjects/services/subjectRecords';
+import { profileRecord } from '#/entities/subject';
 
 export type { SectionSave };
 

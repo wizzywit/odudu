@@ -5,7 +5,7 @@ import {
   subjectsHref,
   subjectsTrail,
   subjectTabHref,
-} from '#/features/subjects/services/subjectAddress';
+} from '#/entities/subject/services/subjectAddress';
 
 describe('addresses', () => {
   it('puts a subject under its tenant, each part escaped', () => {

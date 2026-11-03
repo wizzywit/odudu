@@ -15,8 +15,14 @@ import { isStale } from '#/shared/services/failure';
 import type { Read } from '#/shared/services/read';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
-import { profileRecord, subjectRecord } from '#/features/subjects/services/subjectRecords';
-import { amendSubject, deleteSubject, readSubject, type Subject } from '#/entities/subject';
+import {
+  amendSubject,
+  deleteSubject,
+  readSubject,
+  type Subject,
+  profileRecord,
+  subjectRecord,
+} from '#/entities/subject';
 
 export function useSubjectRecord(tenant: string, id: string): RecordState<Subject> {
   return useRecord({

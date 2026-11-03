@@ -1,6 +1,5 @@
 import type { Client, TenantSession } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { subjectHref } from '#/features/subjects';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import {
@@ -19,6 +18,7 @@ import { useGo } from '#/shared/repository/useGo';
 import { lacking, readable } from '#/shared/services/access';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
+import { subjectHref } from '#/entities/subject';
 
 // Whether the caller may read them: whoami says manage-sessions is held,
 // or has not yet answered.

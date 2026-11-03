@@ -1,12 +1,5 @@
 import type { SetRolesResponse } from '@odudu/contracts/admin';
 import { useAuthority, useRefusal, useRereadAuthority } from '#/entities/session';
-import {
-  useAdminRoleIds,
-  useHeldCapabilities,
-  useEnabledHolderCount,
-  useRolesRecord,
-  useSaveRoles,
-} from '#/features/subjects/repository/useAccess';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import {
@@ -34,12 +27,22 @@ import {
 } from '#/features/subjects/services/heldElsewhere';
 import { keptOtherwise, onlyHolder } from '#/features/subjects/services/lastHolder';
 import { offersWrites } from '#/shared/services/access';
-import { subjectName } from '#/features/subjects/services/subjectName';
-import { rolesRecord } from '#/features/subjects/services/subjectRecords';
-import { subjectTabHref } from '#/features/subjects/services/subjectAddress';
-import { roleIdsOf, splitRoles } from '#/features/subjects/services/subjectRoles';
-import { beyondText, heldOf, subjectBeyond } from '#/features/subjects/services/subjectReach';
-import { type Subject } from '#/entities/subject';
+import {
+  type Subject,
+  useAdminRoleIds,
+  useHeldCapabilities,
+  useEnabledHolderCount,
+  useRolesRecord,
+  useSaveRoles,
+  subjectName,
+  rolesRecord,
+  subjectTabHref,
+  roleIdsOf,
+  splitRoles,
+  beyondText,
+  heldOf,
+  subjectBeyond,
+} from '#/entities/subject';
 
 export function useSubjectRolesRead(tenant: string, id: string): RecordState<SetRolesResponse> {
   return useRolesRecord(tenant, id);

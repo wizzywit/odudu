@@ -1,7 +1,7 @@
 import { useAuthority, usePrincipal, isOwnTenant } from '#/entities/session';
-import { useHeldCapabilities, useMemberships } from '#/features/subjects/repository/useAccess';
 import { holds } from '#/shared/services/access';
 import { ownRolesOf, type OwnRoles } from '#/features/subjects/services/ownRoles';
+import { useHeldCapabilities, useMemberships } from '#/entities/subject';
 
 export type { OwnRoles };
 

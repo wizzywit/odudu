@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import type { SessionsEnded, TenantSession } from '#/pages/tenant-sessions/types/tenantSession';
 import { useAuthority, usePrincipal, useRefusal, isOwnTenant } from '#/entities/session';
-import { subjectHref } from '#/features/subjects';
-import { nameOrId } from '#/shared/services/ids';
 import {
   useEndTenantSessions,
   useTenantSessionList,
@@ -19,6 +17,7 @@ import { useToast } from '#/shared/repository/useToasts';
 import { holds } from '#/shared/services/access';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import { useConfirmedChange, type Confirming } from '#/shared/use-cases/useConfirmedChange';
+import { usernameOrId, subjectHref } from '#/entities/subject';
 
 export interface TenantSessionsPage {
   list: ResourceListState<TenantSession>;
@@ -56,6 +55,6 @@ export function useTenantSessionsPage(tenant: string): TenantSessionsPage {
     more,
     text: { noun: NOUN, rule: PAGE_RULE, nothingYet: NOTHING_YET },
     subjectOf: (session) =>
-      subjectCell(session, nameOrId({ id: session.subjectId, username: session.username })),
+      subjectCell(session, usernameOrId({ id: session.subjectId, username: session.username })),
   };
 }

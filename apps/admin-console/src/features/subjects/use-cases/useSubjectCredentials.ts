@@ -27,9 +27,8 @@ import {
   credentialFailureText,
 } from '#/features/subjects/services/credentialOutcome';
 import { signsInAsItself } from '#/features/subjects/services/subjectAccount';
-import { subjectName } from '#/features/subjects/services/subjectName';
 import { type Lockout } from '#/features/subjects/types/lockout';
-import { type Subject } from '#/entities/subject';
+import { type Subject, subjectName } from '#/entities/subject';
 
 export type { Asking };
 

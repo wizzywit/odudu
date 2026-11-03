@@ -19,10 +19,7 @@ import {
   subjectWriteFailure,
 } from '#/features/subjects/services/subjectAccount';
 import { usernameMode, type UsernameMode } from '#/features/subjects/services/username';
-import { subjectName } from '#/features/subjects/services/subjectName';
-import { subjectsHref } from '#/features/subjects/services/subjectAddress';
-import { subjectRecord } from '#/features/subjects/services/subjectRecords';
-import { type Subject } from '#/entities/subject';
+import { type Subject, subjectName, subjectsHref, subjectRecord } from '#/entities/subject';
 
 export type { UsernameMode };
 

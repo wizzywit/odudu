@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { expect, it } from 'vitest';
-import { useSaveGroups } from '#/features/subjects/repository/useAccess';
+import { useSaveGroups } from '#/entities/subject/repository/useSubjectAccess';
 import { json } from '#/testing/fakeTransport';
 import { hookHarness } from '#/testing/hookHarness';
 import { useTransport } from '#/shared/transport/useTransport';

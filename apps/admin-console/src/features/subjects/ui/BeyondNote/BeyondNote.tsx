@@ -1,6 +1,6 @@
 import { Button } from '#/shared/ui/Button';
 import { Note } from '#/shared/ui/Note';
-import { beyondText } from '#/features/subjects/services/subjectReach';
+import { beyondText } from '#/entities/subject';
 
 // The one line a record carries when its subject holds more than the caller,
 // in place of every write the server would refuse.

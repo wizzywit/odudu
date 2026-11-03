@@ -6,7 +6,6 @@ import { clientHref } from '#/features/clients';
 import { groupHref } from '#/features/groups';
 import { roleHref } from '#/features/roles';
 import { scopeHref } from '#/features/scopes';
-import { subjectHref } from '#/features/subjects';
 import { useAuditList, type AuditList } from '#/features/audit/repository/useAuditList';
 import { useExportEvents, type ExportEvents } from '#/features/audit/use-cases/useExportEvents';
 import { lastDay, tooBroadAdvice } from '#/features/audit/services/broad';
@@ -33,6 +32,7 @@ import { holds } from '#/shared/services/access';
 import { useNow } from '#/shared/use-cases/useNow';
 import { localZone } from '#/shared/services/zones';
 import type { AuditHrefs } from '#/shared/ui/AuditTable';
+import { subjectHref } from '#/entities/subject';
 
 const RECORD_PAGES: RecordPages = {
   subject: subjectHref,

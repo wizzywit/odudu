@@ -13,8 +13,7 @@ import { ReadGate } from '#/shared/ui/ReadGate';
 import { RolePicker } from '#/shared/ui/RolePicker';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { recordTab } from '#/shared/ui/RecordTab';
-import { roleOwnerOf } from '#/features/subjects/services/subjectRoles';
-import { type Subject } from '#/entities/subject';
+import { type Subject, roleOwnerOf } from '#/entities/subject';
 
 const EFFECTIVE: readonly Column<EffectiveRoleAssignment>[] = [
   { id: 'name', header: 'Role', isRowHeader: true, cell: (role) => <code>{role.name}</code> },

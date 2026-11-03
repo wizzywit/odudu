@@ -4,8 +4,7 @@ import { useMemberList } from '#/features/subjects/repository/useMemberList';
 import { notLacking } from '#/shared/services/access';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import { membersListHref } from '#/features/subjects/services/memberListAddress';
-import { subjectHref } from '#/features/subjects/services/subjectAddress';
-import { type Subject } from '#/entities/subject';
+import { type Subject, subjectHref, subjectsHref } from '#/entities/subject';
 
 // whoami is advice: a caller it says cannot read subjects is told so, rather
 // than sent a read the server would refuse.
@@ -25,7 +24,7 @@ export function useMembers(tenant: string, by: 'group' | 'role', id: string): Me
   const go = useGo();
   return {
     list,
-    listHref: membersListHref(tenant, by, id),
+    listHref: membersListHref(subjectsHref(tenant), by, id),
     open: (subject) => {
       go(subjectHref(tenant, subject));
     },

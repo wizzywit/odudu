@@ -26,7 +26,8 @@ import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
 import { DESCRIPTION_RULE } from '#/shared/services/labels';
 import { deletionRefusal, signsInAsItself } from '#/features/subjects/services/subjectAccount';
-import { type Profile, type Subject } from '#/features/subjects/services/subjectName';
+import type { Profile } from '@odudu/contracts/admin';
+import { type Subject } from '#/entities/subject';
 
 interface TabProps {
   tenant: string;

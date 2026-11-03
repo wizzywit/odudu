@@ -22,10 +22,3 @@ export function removedFrom<T extends string>(before: readonly T[], after: reado
 export function uniqueIds(ids: readonly string[]): string[] {
   return [...new Set(ids)];
 }
-
-// What a person-or-thing with an optional username is called: the username,
-// else its id. `label` names the id when no username exists ("service s2").
-export function nameOrId(named: { id: string; username: string | null }, label?: string): string {
-  if (named.username !== null) return named.username;
-  return label === undefined ? named.id : `${label} ${named.id}`;
-}

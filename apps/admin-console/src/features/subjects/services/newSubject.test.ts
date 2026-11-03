@@ -8,15 +8,15 @@ import {
 import { createFailure } from '#/shared/services/failure';
 import { failure, refusal } from '#/testing/failures';
 
+const NEW = '/console/acme/subjects/new';
+
 describe('creating a subject', () => {
   it('offers creating only while nothing rules it out', () => {
-    expect(createSubjectHref('acme', undefined)).toBe('/console/acme/subjects/new');
-    expect(createSubjectHref('acme', { capabilities: ['manage-users'], crossTenant: false })).toBe(
+    expect(createSubjectHref(NEW, undefined)).toBe('/console/acme/subjects/new');
+    expect(createSubjectHref(NEW, { capabilities: ['manage-users'], crossTenant: false })).toBe(
       '/console/acme/subjects/new',
     );
-    expect(
-      createSubjectHref('acme', { capabilities: ['view-users'], crossTenant: false }),
-    ).toBeNull();
+    expect(createSubjectHref(NEW, { capabilities: ['view-users'], crossTenant: false })).toBeNull();
   });
 });
 

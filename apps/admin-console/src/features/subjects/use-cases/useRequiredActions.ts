@@ -1,20 +1,20 @@
 import type { SetRequiredActionsResponse } from '@odudu/contracts/admin';
 import { useRefusal } from '#/entities/session';
-import {
-  saveActions,
-  useActionsRecord,
-  type ActionValues,
-} from '#/features/subjects/repository/useAccess';
 import type { RecordState } from '#/shared/repository/useRecord';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { accessRefusal } from '#/shared/services/capabilities';
-import { subjectName } from '#/features/subjects/services/subjectName';
-import { actionsRecord } from '#/features/subjects/services/subjectRecords';
 import {
   describeActions,
   requiredActionsInOrder,
 } from '#/features/subjects/services/requiredActions';
-import { type Subject } from '#/entities/subject';
+import {
+  type Subject,
+  saveActions,
+  useActionsRecord,
+  type ActionValues,
+  subjectName,
+  actionsRecord,
+} from '#/entities/subject';
 
 export function useRequiredActionsRead(
   tenant: string,

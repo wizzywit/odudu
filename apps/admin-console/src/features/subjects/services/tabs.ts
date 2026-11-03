@@ -1,15 +1,6 @@
-import { recordTabs } from '#/shared/services/record';
-import { SUBJECT_TABS, type SubjectTab } from '#/features/subjects/services/subjectAddress';
-import {
-  subjectRecord,
-  profileRecord,
-  groupsRecord,
-  rolesRecord,
-  actionsRecord,
-} from '#/features/subjects/services/subjectRecords';
+import type { SubjectTab } from '#/entities/subject';
 
-const model = recordTabs({
-  tabs: SUBJECT_TABS,
+const model: { labels: Readonly<Record<SubjectTab, string>> } = {
   labels: {
     profile: 'Profile',
     credentials: 'Credentials',
@@ -21,19 +12,6 @@ const model = recordTabs({
     grants: 'Grants',
     activity: 'Activity',
   },
-});
+};
 
 export const SUBJECT_TAB_LABELS = model.labels;
-
-// The records whose sections each tab edits, so its dot follows them.
-export const TAB_RECORDS: Readonly<Record<SubjectTab, (id: string) => readonly string[]>> = {
-  profile: (id) => [subjectRecord(id), profileRecord(id)],
-  credentials: () => [],
-  groups: (id) => [groupsRecord(id)],
-  roles: (id) => [rolesRecord(id)],
-  'required-actions': (id) => [actionsRecord(id)],
-  sessions: () => [],
-  consents: () => [],
-  grants: () => [],
-  activity: () => [],
-};

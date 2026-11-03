@@ -1,11 +1,13 @@
 import { type Authority } from '#/shared/services/principal';
-import { newSubjectHref } from '#/features/subjects/services/subjectAddress';
 import { notLacking } from '#/shared/services/access';
 import { createdText, type CreateSpec } from '#/shared/services/failure';
 
 // Offered only while whoami says nothing rules creating out.
-export function createSubjectHref(tenant: string, authority: Authority | undefined): string | null {
-  return notLacking(authority, ['manage-users']) ? newSubjectHref(tenant) : null;
+export function createSubjectHref(
+  newHref: string,
+  authority: Authority | undefined,
+): string | null {
+  return notLacking(authority, ['manage-users']) ? newHref : null;
 }
 
 export function subjectCreatedText(name: string): string {

@@ -15,12 +15,13 @@ import { RecordPage } from '#/shared/ui/RecordPage';
 import { EnabledTag } from '#/shared/ui/StatusTag';
 import { ViewOnlyNote } from '#/shared/ui/ViewOnlyNote';
 import { BeyondNote, ReachFailed } from '#/features/subjects/ui/BeyondNote';
-import { subjectName, type Subject } from '#/features/subjects/services/subjectName';
 import {
+  subjectName,
   subjectsTrail,
   SUBJECT_TABS,
+  type Subject,
   type SubjectTab,
-} from '#/features/subjects/services/subjectAddress';
+} from '#/entities/subject';
 
 interface PanelProps {
   tenant: string;

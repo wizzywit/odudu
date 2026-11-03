@@ -28,11 +28,9 @@ import {
 } from '#/features/subjects/services/credentialList';
 import { lockoutSummary } from '#/features/subjects/services/lockout';
 import { recoveryCodesText } from '#/features/subjects/services/credentialOutcome';
-import {
-  type Credential,
-  type Lockout,
-  type Subject,
-} from '#/features/subjects/services/subjectName';
+import { type Subject } from '#/entities/subject';
+import { type Credential } from '#/features/subjects/types/credential';
+import { type Lockout } from '#/features/subjects/types/lockout';
 import { REQUIRED_ACTIONS } from '#/features/subjects/services/requiredActions';
 
 interface TabProps {

@@ -1,5 +1,4 @@
 import type { Client, Role, SetRolesResponse } from '@odudu/contracts/admin';
-import { subjectHref } from '#/features/subjects';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import {
@@ -31,6 +30,7 @@ import { sortedIds } from '#/shared/services/ids';
 import type { PickerState } from '#/shared/services/picker';
 import type { AdminCapability } from '#/shared/services/principal';
 import type { RoleValues } from '#/shared/services/sectionValues';
+import { subjectHref } from '#/entities/subject';
 
 // The tab's access, and the note for an account the client no longer uses.
 export function useServiceAccess(

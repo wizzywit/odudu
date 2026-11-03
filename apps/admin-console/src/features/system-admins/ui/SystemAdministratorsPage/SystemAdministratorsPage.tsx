@@ -6,7 +6,6 @@ import {
   type SystemAdministrators,
 } from '#/features/system-admins/use-cases/useSystemAdministratorsPage';
 import { SystemGate } from '#/widgets/shell';
-import { nameOrId } from '#/shared/services/ids';
 import { firstChosen } from '#/shared/services/picker';
 import { SYSTEM_TENANT } from '#/shared/services/principal';
 import { Button } from '#/shared/ui/Button';
@@ -36,7 +35,7 @@ function Add({ page }: { page: SystemAdministrators }) {
         noun={{ one: 'subject', other: 'subjects' }}
         picker={page.picker}
         idOf={(subject) => subject.id}
-        nameOf={nameOrId}
+        nameOf={page.nameOf}
         detailOf={(subject) => subject.email ?? subject.type}
         unavailableOf={page.unavailableOf}
         capability="view-users"
@@ -57,7 +56,7 @@ function Add({ page }: { page: SystemAdministrators }) {
       />
       <div className={styles.actions}>
         <Button variant="primary" isDisabled={chosen === null || page.busy} onPress={page.grant}>
-          {chosen === null ? 'Give it to the chosen subject' : `Give it to ${nameOrId(chosen)}`}
+          {chosen === null ? 'Give it to the chosen subject' : `Give it to ${page.nameOf(chosen)}`}
         </Button>
         {page.createNeeds.length > 0 ? null : (
           <Button onPress={page.begin.start}>Create a new subject as an administrator</Button>

@@ -13,7 +13,6 @@ import {
   useSessionsReadable,
   type ClientSessions,
 } from '#/features/clients/use-cases/useClientSessionsTab';
-import { nameOrId } from '#/shared/services/ids';
 import { Button } from '#/shared/ui/Button';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
 import { Count } from '#/shared/ui/Count';
@@ -26,6 +25,7 @@ import { TableSkeleton } from '#/shared/ui/Skeleton';
 import { StatusTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
+import { usernameOrId } from '#/entities/subject';
 
 const COLUMNS: readonly Column<TenantSession>[] = [
   {
@@ -33,7 +33,7 @@ const COLUMNS: readonly Column<TenantSession>[] = [
     header: 'Subject',
     isRowHeader: true,
     cell: (session) => (
-      <code>{nameOrId({ id: session.subject_id, username: session.username })}</code>
+      <code>{usernameOrId({ id: session.subject_id, username: session.username })}</code>
     ),
   },
   {

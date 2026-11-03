@@ -1,11 +1,11 @@
-import { areaAt } from '#/entities/area';
 import { resourceAddress } from '#/shared/services/address';
 import { tabHrefOf } from '#/shared/services/record';
 
 const subjects = resourceAddress({
   segment: 'subjects',
   group: 'Identity',
-  label: areaAt('subjects').label,
+  // The area's own title: an entity imports no other entity, so it is not read from the catalogue.
+  label: 'Subjects',
 });
 
 export const {

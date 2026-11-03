@@ -1,18 +1,19 @@
 import { useAuthority, usePrincipal, isSelf } from '#/entities/session';
-import { useHeldCapabilities } from '#/features/subjects/repository/useAccess';
 import { useSubjectRecord } from '#/features/subjects/repository/useSubjectRecord';
-import { TAB_RECORDS } from '#/features/subjects/services/tabs';
 import { lacking } from '#/shared/services/access';
 import { type AdminCapability } from '#/shared/services/principal';
 import type { RecordView } from '#/shared/services/record';
 import { useRecordTabs } from '#/shared/use-cases/useRecordTabs';
-import { SUBJECT_TABS, type SubjectTab } from '#/features/subjects/services/subjectAddress';
 import {
+  type Subject,
+  useHeldCapabilities,
+  SUBJECT_TABS,
+  SUBJECT_TAB_RECORDS,
+  type SubjectTab,
   canManageSubject,
   reachOf,
   subjectBeyond,
-} from '#/features/subjects/services/subjectReach';
-import { type Subject } from '#/entities/subject';
+} from '#/entities/subject';
 
 export interface SubjectRecordPage {
   record: RecordView;
@@ -40,7 +41,7 @@ export function useSubjectRecordPage(tenant: string, id: string): SubjectRecordP
   const record = useSubjectRecord(tenant, id);
   const principal = usePrincipal();
   const authority = useAuthority(tenant);
-  const tabs = useRecordTabs(SUBJECT_TABS, TAB_RECORDS, tenant, id);
+  const tabs = useRecordTabs(SUBJECT_TABS, SUBJECT_TAB_RECORDS, tenant, id);
   const changeNeeds = lacking(authority, ['manage-users']);
   const effective = useHeldCapabilities(tenant, id);
   const beyond = subjectBeyond(effective, authority?.capabilities);

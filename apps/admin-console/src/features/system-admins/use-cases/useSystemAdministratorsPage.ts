@@ -15,10 +15,10 @@ import {
   type HoldingOption,
   TENANT_ADMIN,
 } from '#/shared/services/capabilities';
-import { inOrderOf, nameOrId } from '#/shared/services/ids';
+import { inOrderOf } from '#/shared/services/ids';
 import type { PickerState } from '#/shared/services/picker';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/services/principal';
-import { useSubjectPicker, type Subject } from '#/entities/subject';
+import { useSubjectPicker, type Subject, usernameOrId } from '#/entities/subject';
 
 export interface SystemAdministrators {
   createNeeds: readonly AdminCapability[];
@@ -30,6 +30,7 @@ export interface SystemAdministrators {
   picker: PickerState<Subject>;
   // Why a subject is not offered: it already holds something, changed in the list.
   unavailableOf: (subject: Subject) => string | null;
+  nameOf: (subject: Subject) => string;
   chosen: Subject | null;
   choose: (id: string | null) => void;
   holdings: readonly string[];
@@ -70,6 +71,7 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
     },
     picker,
     unavailableOf: (subject) => pickerUnavailable(holders, subject),
+    nameOf: usernameOrId,
     chosen,
     choose: (id) => {
       setChosen(choosable(id, holders, picker.options));
@@ -88,7 +90,7 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
         setHoldingsError(problem);
         return;
       }
-      const name = nameOrId(chosen);
+      const name = usernameOrId(chosen);
       setGrantMessage(null);
       change
         .grant(chosen.id, holdings)

@@ -7,12 +7,12 @@ import { lookupText } from '#/shared/services/failure';
 import { problemAt } from '#/shared/services/fieldErrors';
 import { useCreationFlow } from '#/shared/use-cases/useCreationFlow';
 import { USERNAME_RULE_TEXT, usernameProblem } from '#/features/subjects/services/username';
-import { subjectHref, subjectsHref } from '#/features/subjects/services/subjectAddress';
 import {
   manageUsersRefusal,
   newSubjectSpec,
   subjectCreatedText,
 } from '#/features/subjects/services/newSubject';
+import { subjectHref, subjectsHref } from '#/entities/subject';
 
 export interface NewSubject {
   // Why creating would be refused, named before anything is sent.

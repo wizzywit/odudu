@@ -12,13 +12,11 @@ import {
   type MailOutcome,
 } from '#/features/subjects/services/mail';
 import { withoutField } from '#/shared/services/fieldErrors';
-import { subjectName } from '#/features/subjects/services/subjectName';
-import { subjectTabHref } from '#/features/subjects/services/subjectAddress';
 import {
   actionsMailProblem,
   requiredActionsInOrder,
 } from '#/features/subjects/services/requiredActions';
-import { type Subject } from '#/entities/subject';
+import { type Subject, subjectName, subjectTabHref } from '#/entities/subject';
 
 export type { MailOutcome };
 

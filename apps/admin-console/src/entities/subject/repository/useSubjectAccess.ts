@@ -29,19 +29,19 @@ import {
   actionsRecord,
   groupsRecord,
   rolesRecord,
-} from '#/features/subjects/services/subjectRecords';
+} from '#/entities/subject/services/subjectRecords';
 import {
-  readSubjectCount,
-  readSubjectRoles,
-  setSubjectRoles,
   readAdminCapabilities,
   readAdminRoles,
   readEffectiveRoles,
   readRequiredActions,
+  readSubjectCount,
   readSubjectGroups,
+  readSubjectRoles,
   setRequiredActions,
   setSubjectGroups,
-} from '#/entities/subject';
+  setSubjectRoles,
+} from '#/entities/subject/repository/subjectCalls';
 
 export function useGroupsRecord(tenant: string, id: string): RecordState<SetSubjectGroupsResponse> {
   return useRecord({
