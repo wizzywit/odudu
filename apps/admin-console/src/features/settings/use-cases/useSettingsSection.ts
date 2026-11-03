@@ -1,7 +1,6 @@
 import type { Settings } from '@odudu/contracts/admin';
 import { usePrincipal, useRefusal, isOwnTenant } from '#/entities/session';
 import { settingsSave, type SectionValues } from '#/features/settings/repository/settingsSave';
-import { disablesTenant } from '#/features/settings/services/general';
 import { type SettingsSection } from '#/features/settings/services/sections';
 import { settingEntries } from '#/features/settings/services/values';
 import {
@@ -10,7 +9,7 @@ import {
   type SectionSave,
 } from '#/shared/repository/useSectionSave';
 import { writeRefusal } from '#/shared/services/capabilities';
-import { disableConsequence, TENANT_SETTINGS_RECORD } from '#/entities/tenant';
+import { disableAsk, disableConsequence, TENANT_SETTINGS_RECORD } from '#/entities/tenant';
 import { useSaveConfirmation } from '#/shared/use-cases/useSaveConfirmation';
 
 export type SettingsSave = SectionSave<SectionValues>;
@@ -70,13 +69,10 @@ export function useGeneralSection(input: SectionInput): GeneralSection {
     save,
     confirming: asking.confirming !== null,
     consequence: disableConsequence(input.tenant, isOwnTenant(principal, input.tenant)),
-    submit: () => {
-      if (disablesTenant(input.data.enabled, save.values.enabled)) {
-        asking.ask(true);
-        return false;
-      }
-      return save.submit();
-    },
+    submit: () =>
+      asking.submitOrAsk(disableAsk(input.data.enabled, save.values.enabled), {
+        whenAsked: false,
+      }),
     confirm: asking.confirm,
     cancel: asking.cancel,
   };

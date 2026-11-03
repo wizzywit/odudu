@@ -1,4 +1,4 @@
-import { formatDuration } from '#/shared/services/format';
+import { formatDuration, listOrNone } from '#/shared/services/format';
 import type { SettingField } from '#/features/settings/services/sections';
 
 export type SettingValue = boolean | number | string | readonly string[];
@@ -55,7 +55,7 @@ export function describeSetting(field: SettingField): (value: unknown) => string
         const labels = (field.options ?? [])
           .filter((option) => chosen.includes(option.id))
           .map((option) => option.label);
-        return labels.length === 0 ? 'none' : labels.join(', ');
+        return listOrNone(labels, { join: 'comma' });
       }
     }
   };

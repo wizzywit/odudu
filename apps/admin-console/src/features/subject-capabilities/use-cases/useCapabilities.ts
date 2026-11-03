@@ -187,10 +187,9 @@ export function useCapabilityEditor({
       blocked,
       submit: () => {
         if (blocked !== undefined) return false;
-        const asked = removalConfirmation({ name, self, removed, removesTenants });
-        if (asked === null) return save.submit();
-        asking.ask(asked);
-        return true;
+        return asking.submitOrAsk(removalConfirmation({ name, self, removed, removesTenants }), {
+          whenAsked: true,
+        });
       },
     },
     choose: (value) => {

@@ -1,4 +1,5 @@
 import { type RequiredAction } from '@odudu/contracts/admin';
+import { listOrNone } from '#/shared/services/format';
 import { inOrderOf } from '#/shared/services/ids';
 
 // In the order the next sign-in asks for them.
@@ -46,7 +47,7 @@ export function describeActions(value: unknown): string {
   const labels = requiredActionsInOrder(Array.isArray(value) ? value.map(String) : []).map(
     (action) => REQUIRED_ACTIONS.find((each) => each.action === action)?.label ?? action,
   );
-  return labels.length === 0 ? 'none' : labels.join(', ');
+  return listOrNone(labels, { join: 'comma' });
 }
 
 export function actionsMailProblem(actions: readonly RequiredAction[]): { actions: string } | null {

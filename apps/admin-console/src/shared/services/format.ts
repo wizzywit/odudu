@@ -59,9 +59,15 @@ export function andList(items: readonly string[]): string {
   return AND.format(items);
 }
 
+// Names read aloud, or "none": "a, b and c" for `and`, "a, b, c" for `comma`.
+export function listOrNone(items: readonly string[], { join }: { join: 'and' | 'comma' }): string {
+  if (items.length === 0) return 'none';
+  return join === 'and' ? andList(items) : items.join(', ');
+}
+
 // A list a form held, as the names it holds read aloud, or "none".
 export function namesOrNone(value: unknown): string {
-  return Array.isArray(value) && value.length > 0 ? andList(value.map(String)) : 'none';
+  return listOrNone(Array.isArray(value) ? value.map(String) : [], { join: 'and' });
 }
 
 export function capitalise(text: string): string {
@@ -134,7 +140,7 @@ export function describeId(value: unknown, nameOf: (id: string) => string): stri
 // A conflict's way of showing a list of ids: by name where one is known.
 export function describeIds(value: unknown, nameOf: (id: string) => string): string {
   const ids = Array.isArray(value) ? value.map(String) : [];
-  return ids.length === 0 ? 'none' : ids.map(nameOf).join(', ');
+  return listOrNone(ids.map(nameOf), { join: 'comma' });
 }
 
 export interface SizeReading {

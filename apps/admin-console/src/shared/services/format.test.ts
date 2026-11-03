@@ -12,6 +12,7 @@ import {
   groupedNumber,
   andList,
   namesOrNone,
+  listOrNone,
   attemptsText,
   capitalise,
   counted,
@@ -271,6 +272,25 @@ it('groups the small and the large figures callers used to group inline', () => 
 it('counts a KiB as 1024 bytes, so the limits written in KiB read back as they were', () => {
   expect(bytesText(256 * KIB)).toBe('256 KiB');
   expect(bytesText(1024 * KIB)).toBe('1 MiB');
+});
+
+describe('listOrNone', () => {
+  it('joins as an and-list for `and`, with the commas and the last "and" of namesOrNone', () => {
+    expect(listOrNone(['a', 'b', 'c'], { join: 'and' })).toBe('a, b and c');
+    expect(listOrNone(['a', 'b'], { join: 'and' })).toBe('a and b');
+    expect(listOrNone(['a'], { join: 'and' })).toBe('a');
+  });
+
+  it('joins with commas only for `comma`, as a conflict reads a list, never with an "and"', () => {
+    expect(listOrNone(['a', 'b', 'c'], { join: 'comma' })).toBe('a, b, c');
+    expect(listOrNone(['a', 'b'], { join: 'comma' })).toBe('a, b');
+    expect(listOrNone(['a'], { join: 'comma' })).toBe('a');
+  });
+
+  it('says none for an empty list in either form', () => {
+    expect(listOrNone([], { join: 'and' })).toBe('none');
+    expect(listOrNone([], { join: 'comma' })).toBe('none');
+  });
 });
 
 describe('namesOrNone', () => {

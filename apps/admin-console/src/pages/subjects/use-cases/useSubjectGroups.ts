@@ -107,10 +107,9 @@ export function useSubjectGroups(
     save: {
       ...save,
       submit: () => {
-        const confirmation = groupsSaveConfirmation({ name, self, removesTenants, left });
-        if (confirmation === null) return save.submit();
-        asking.ask(confirmation);
-        return true;
+        return asking.submitOrAsk(groupsSaveConfirmation({ name, self, removesTenants, left }), {
+          whenAsked: true,
+        });
       },
     },
     confirming: asking.confirming,

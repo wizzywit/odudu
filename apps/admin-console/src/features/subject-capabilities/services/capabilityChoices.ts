@@ -8,6 +8,7 @@ import {
   type HoldingOption,
   onlyHolderText,
 } from '#/shared/services/capabilities';
+import { listOrNone } from '#/shared/services/format';
 import { type AdminCapability } from '#/shared/services/principal';
 import type { Choice } from '#/shared/services/choice';
 
@@ -36,7 +37,7 @@ export function capabilityOptions({
 
 export function describeHoldings(value: unknown): string {
   const named = Array.isArray(value) ? value.map(String).filter(isHolding) : [];
-  return named.length === 0 ? 'none' : named.map(holdingLabel).join(', ');
+  return listOrNone(named.map(holdingLabel), { join: 'comma' });
 }
 
 export function holderFilterOptions(tenant: string): Choice[] {
