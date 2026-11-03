@@ -114,11 +114,12 @@ boundaries`): the segment boundaries, which layer may import which, and the
 
 ## Consequences
 
-- The inventory mechanism (`inventory.ts`, `inventory.baseline.json`,
-  `migrated.ts` and the baseline check in `rule.test.ts`) is deleted when the
-  migration ends and every rule has an empty inventory. What remains is the
-  rules, which then run with no exemption, like every other test in
-  `tests/lint`.
+- The inventory mechanism ran and closed. Every slice of both apps moved and
+  every inventory reached zero, so `inventory.ts`, `inventory.baseline.json`,
+  `migrated.ts`, the baseline check and the `segment-rename` codemod are
+  deleted. The five rules now apply to every slice with no exemption, like
+  every other test in `tests/lint`; `contracts-only-in-adapter` was never
+  built and its identifier is gone.
 - Some platform vocabulary stays in `shared` although it names a domain word:
   the tenant vocabulary (`SYSTEM_TENANT`, `isTenantName`, `tenantPage`,
   `isUnknownTenant`), the capability rules under `shared/lib/services/capabilities`,

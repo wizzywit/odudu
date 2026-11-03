@@ -95,7 +95,6 @@ Every directory of the workspace, grouped by what it is for.
 - `tools/commit-message` checks commit messages.
 - `tools/docs-run` runs the commands in the guides against a live stack.
 - `tools/release` works out a release's version and image tags, and writes its notes and its compose file.
-- `tools/segment-rename` is a throwaway codemod for the layer-folder rename.
 - `tools/trace` checks every requirement in a protocol note has a test.
 - `tools/turbo-cache` prunes the build cache.
 
