@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  blockClass,
   linesFor,
+  lineProps,
   parseLines,
   plainLines,
   tokenClass,
+  tokenProps,
 } from '@site/src/features/code-block/services/lines';
 
 describe('the lines a build wrote into a code block', () => {
@@ -37,5 +40,26 @@ describe('the lines a build wrote into a code block', () => {
   it('name a token by its classes and leave plain text unclassed', () => {
     expect(tokenClass(['string', 'attr-value'])).toBe('tok-string tok-attr-value');
     expect(tokenClass(['plain'])).toBeUndefined();
+  });
+
+  it('put the token-line class first and keep an extra one the theme asks for', () => {
+    expect(lineProps(undefined)).toEqual({ className: 'token-line' });
+    expect(lineProps('')).toEqual({ className: 'token-line' });
+    expect(lineProps('highlight')).toEqual({ className: 'token-line highlight' });
+  });
+
+  it('give a token its classes and its text', () => {
+    expect(tokenProps({ types: ['keyword'], content: 'select' })).toEqual({
+      className: 'tok-keyword',
+      children: 'select',
+    });
+    expect(tokenProps({ types: ['plain'], content: 'x' })).toEqual({
+      className: undefined,
+      children: 'x',
+    });
+  });
+
+  it('name the block by its language', () => {
+    expect(blockClass('json')).toBe('prism-code language-json');
   });
 });

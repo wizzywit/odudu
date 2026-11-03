@@ -1,5 +1,8 @@
 export const MIGRATED: readonly string[] = [
+  'apps/docs/src/features/code-block',
+  'apps/docs/src/features/docs-home',
   'apps/docs/src/features/landing',
+  'apps/docs/src/features/not-found',
   'apps/docs/src/shared',
   'apps/admin-console/src/entities/administrator',
   'apps/admin-console/src/entities/area',

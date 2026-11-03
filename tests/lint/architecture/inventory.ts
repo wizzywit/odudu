@@ -4,10 +4,7 @@ export const INVENTORY: Record<RuleId, string[]> = {
   'no-service-barrel': [],
   'no-domain-in-shared': [],
   'no-sideways-slice': [],
-  'view-no-service': [
-    'apps/docs/src/features/code-block/ui/Highlight/Highlight.tsx',
-    'apps/docs/src/features/not-found/ui/NotFoundPage/NotFoundPage.tsx',
-  ],
+  'view-no-service': [],
   'no-adapter-export': [],
   'contracts-only-in-adapter': [],
 };

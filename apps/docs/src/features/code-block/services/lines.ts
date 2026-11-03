@@ -57,3 +57,15 @@ export function tokenClass(types: string[]): string | undefined {
   const names = types.filter((type) => type !== 'plain').map((type) => `tok-${type}`);
   return names.length === 0 ? undefined : names.join(' ');
 }
+
+export function lineProps(extra: string | undefined): { className: string } {
+  return { className: extra === undefined || extra === '' ? 'token-line' : `token-line ${extra}` };
+}
+
+export function tokenProps(token: CodeToken): { className: string | undefined; children: string } {
+  return { className: tokenClass(token.types), children: token.content };
+}
+
+export function blockClass(language: string): string {
+  return `prism-code language-${language}`;
+}
