@@ -1,5 +1,7 @@
 import { requiredProblem } from '#/shared/services/fieldErrors';
 
+export const NEW_CLIENT_TITLE = 'Create a client';
+
 export type NewClientKind = 'confidential' | 'service' | 'public';
 
 export interface KindChoice {

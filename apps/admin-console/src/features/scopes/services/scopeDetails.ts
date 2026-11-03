@@ -1,6 +1,11 @@
 import { nullWhenBlank } from '#/shared/services/format';
 import type { Translations } from '#/shared/services/localised';
 
+export const NEW_SCOPE_TITLE = 'Create a scope';
+
+// Names a scope's page before its record is read, and the area's trail.
+export const SCOPE_TITLE = 'Scope';
+
 export const NAME_FIXED =
   "A scope's name is the token a client asks for and a token carries, so it is fixed once the scope is made. Make a new scope and assign it instead.";
 

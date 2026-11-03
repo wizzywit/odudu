@@ -5,6 +5,7 @@ import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { scopesTrail } from '#/features/scopes/services/address';
 import { copyHrefOf } from '#/features/scopes/services/scopeCopy';
+import { SCOPE_TITLE } from '#/features/scopes/services/scopeDetails';
 import { SCOPE_TAB_LABELS, SCOPE_TABS, type ScopeTab } from '#/features/scopes/services/tabs';
 import { useScopeRecordPage } from '#/features/scopes/use-cases/useScopeRecordPage';
 import { ClientsTab } from '#/features/scopes/ui/ScopeRecordPage/ClientsTab';
@@ -42,7 +43,7 @@ const PANELS: Readonly<Record<ScopeTab, (props: PanelProps) => ReactNode>> = {
 function Record({ tenant, id }: { tenant: string; id: string }) {
   const page = useScopeRecordPage(tenant, id);
   const { scope, etag } = page;
-  const title = scope?.name ?? 'Scope';
+  const title = scope?.name ?? SCOPE_TITLE;
   const props: PanelProps | null =
     scope === undefined || etag === null ? null : { tenant, scope, etag, gone: page.record.gone };
   return (
@@ -80,8 +81,8 @@ export function ScopeRecordPage({ tenant, id }: { tenant: string; id: string }) 
     <AreaGate
       tenant={tenant}
       area={areaAt('scopes')}
-      title="Scope"
-      breadcrumb={scopesTrail(tenant, 'Scope')}
+      title={SCOPE_TITLE}
+      breadcrumb={scopesTrail(tenant, SCOPE_TITLE)}
     >
       <Record tenant={tenant} id={id} />
     </AreaGate>

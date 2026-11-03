@@ -2,7 +2,7 @@ import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { clientsTrail } from '#/features/clients/services/address';
 import { SECRET_LABEL } from '#/features/clients/services/createdSecret';
-import { KIND_CHOICES } from '#/features/clients/services/newClient';
+import { KIND_CHOICES, NEW_CLIENT_TITLE } from '#/features/clients/services/newClient';
 import { REDIRECTS_RULE } from '#/features/clients/services/clientRedirects';
 import { useNewClient } from '#/features/clients/use-cases/useNewClient';
 import { CreationActions, CreationForm } from '#/shared/ui/CreationForm';
@@ -80,12 +80,12 @@ function Form({ tenant }: { tenant: string }) {
 }
 
 export function NewClientPage({ tenant }: { tenant: string }) {
-  const trail = clientsTrail(tenant, 'Create a client');
+  const trail = clientsTrail(tenant, NEW_CLIENT_TITLE);
   return (
-    <AreaGate tenant={tenant} area={areaAt('clients')} title="Create a client" breadcrumb={trail}>
+    <AreaGate tenant={tenant} area={areaAt('clients')} title={NEW_CLIENT_TITLE} breadcrumb={trail}>
       <PageHeader
         breadcrumb={trail}
-        title="Create a client"
+        title={NEW_CLIENT_TITLE}
         description="A client starts with the default scopes and no roles. Everything else about it is set from its own page."
       />
       <Form tenant={tenant} />

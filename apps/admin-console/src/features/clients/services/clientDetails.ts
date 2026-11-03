@@ -5,6 +5,9 @@ export const CLIENT_ID_FIXED =
 export const TYPE_FIXED =
   "A client's type is fixed once it is made: changing it would silently change the security model of a client already in use.";
 
+// Names a client's page before its record is read, and the area's trail.
+export const CLIENT_TITLE = 'Client';
+
 export const CLIENT_ID_TAKEN = 'That client ID is taken';
 
 export const BUILTIN_FIXED =

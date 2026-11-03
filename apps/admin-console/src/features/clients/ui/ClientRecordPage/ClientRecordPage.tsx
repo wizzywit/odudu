@@ -5,7 +5,7 @@ import { areaAt } from '#/entities/area';
 import { clientsTrail } from '#/features/clients/services/address';
 import { type BrandingOffer } from '#/features/clients/services/branding';
 import { type Reach } from '#/features/clients/services/ceiling';
-import { ACTIVITY_NOTE } from '#/features/clients/services/clientDetails';
+import { ACTIVITY_NOTE, CLIENT_TITLE } from '#/features/clients/services/clientDetails';
 import { CLIENT_TAB_LABELS, CLIENT_TABS, type ClientTab } from '#/features/clients/services/tabs';
 import { useClientRecordPage } from '#/features/clients/use-cases/useClientRecordPage';
 import type { ClientTabProps } from '#/features/clients/ui/ClientTabProps';
@@ -92,7 +92,7 @@ const PANELS: Readonly<Record<ClientTab, (props: PanelProps) => ReactNode>> = {
 function Record({ tenant, id }: { tenant: string; id: string }) {
   const page = useClientRecordPage(tenant, id);
   const { client, etag } = page;
-  const title = client?.name ?? 'Client';
+  const title = client?.name ?? CLIENT_TITLE;
   const props: PanelProps | null =
     client === undefined || etag === null
       ? null
@@ -145,8 +145,8 @@ export function ClientRecordPage({ tenant, id }: { tenant: string; id: string })
     <AreaGate
       tenant={tenant}
       area={areaAt('clients')}
-      title="Client"
-      breadcrumb={clientsTrail(tenant, 'Client')}
+      title={CLIENT_TITLE}
+      breadcrumb={clientsTrail(tenant, CLIENT_TITLE)}
     >
       <Record tenant={tenant} id={id} />
     </AreaGate>

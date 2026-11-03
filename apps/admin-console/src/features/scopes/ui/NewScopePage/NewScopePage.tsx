@@ -2,6 +2,7 @@ import { AreaGate } from '#/widgets/shell';
 import { areaAt } from '#/entities/area';
 import { scopesTrail } from '#/features/scopes/services/address';
 import { copyingText } from '#/features/scopes/services/scopeCopy';
+import { NEW_SCOPE_TITLE } from '#/features/scopes/services/scopeDetails';
 import { useNewScope, type Copying } from '#/features/scopes/use-cases/useNewScope';
 import {
   CreationActions,
@@ -79,12 +80,12 @@ function Form({ tenant }: { tenant: string }) {
 }
 
 export function NewScopePage({ tenant }: { tenant: string }) {
-  const trail = scopesTrail(tenant, 'Create a scope');
+  const trail = scopesTrail(tenant, NEW_SCOPE_TITLE);
   return (
-    <AreaGate tenant={tenant} area={areaAt('scopes')} title="Create a scope" breadcrumb={trail}>
+    <AreaGate tenant={tenant} area={areaAt('scopes')} title={NEW_SCOPE_TITLE} breadcrumb={trail}>
       <PageHeader
         breadcrumb={trail}
-        title="Create a scope"
+        title={NEW_SCOPE_TITLE}
         description="Its token flags, consent text and roles are set on its page once it is made."
       />
       <Form tenant={tenant} />
