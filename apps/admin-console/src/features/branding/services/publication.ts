@@ -6,7 +6,6 @@ import { andList, counted } from '#/shared/services/format';
 import type { AdminCapability } from '#/shared/services/principal';
 import type { GatewayFailure, GatewayResult, Problem } from '#/shared/services/result';
 import {
-  COLOURS_TITLE,
   STYLESHEET_SECTION_TITLE,
   TEMPLATES_SECTION_TITLE,
   unsavedSections,
@@ -21,6 +20,7 @@ import {
 } from '#/features/branding/services/tabs';
 import { EMPTY_BODY, baseBody } from '#/features/branding/services/values';
 import { IMAGES_TITLE } from '#/features/branding/services/imageSection';
+import { COLOURS_TITLE } from '#/features/branding/services/colourSection';
 
 export type ChangedPiece = ThemeView['changed'][number];
 

@@ -1,7 +1,6 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { useRefusal } from '#/entities/session';
 import { colourSave } from '#/features/branding/repository/themeSaves';
-import { colourFields, COLOURS_TITLE } from '#/features/branding/services/fields';
 import { fontChoice, type PaletteKey } from '#/features/branding/services/palette';
 import { themeRefusal, writeCapability } from '#/features/branding/services/publication';
 import { themeRecord, type ThemeScope } from '#/features/branding/services/scope';
@@ -14,6 +13,7 @@ import {
   changedColours,
 } from '#/features/branding/services/colourEdits';
 import { colourValues, type ColourValues } from '#/features/branding/services/colourValues';
+import { colourFields, COLOURS_TITLE } from '#/features/branding/services/colourSection';
 import { useSectionHold } from '#/features/branding/use-cases/useSectionHold';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 

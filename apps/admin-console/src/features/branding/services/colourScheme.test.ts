@@ -1,13 +1,16 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
-import { customLabel, paletteLegend } from '#/features/branding/services/copy';
 import { pairRows, rowText } from '#/features/branding/services/contrast';
-import { colourFields } from '#/features/branding/services/fields';
 import { MAIL_SCHEME_LABEL, schemeTitle } from '#/features/branding/services/mail';
 import { DEFAULT_PALETTES } from '#/features/branding/services/palette';
 import { SCHEME_LABELS, SCHEMES, schemeOf } from '#/features/branding/services/colourScheme';
 import { PREVIEW_SCHEME_LABEL, SCHEME_OPTIONS } from '#/features/branding/services/preview';
 import { sourceReading } from '#/features/branding/services/sources';
+import {
+  customLabel,
+  paletteLegend,
+  colourFields,
+} from '#/features/branding/services/colourSection';
 import { themeView } from '#/testing/brandingFixtures';
 
 const NAMES = { light: 'Light', dark: 'Dark' } as const;

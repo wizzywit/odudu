@@ -8,42 +8,17 @@ import {
 } from '#/features/branding/services/values';
 import { THEME_PAGE_KINDS } from '@odudu/contracts';
 import { IMAGES_TITLE } from '#/features/branding/services/imageSection';
-import type { ColourValues } from '#/features/branding/services/colourValues';
-
-export const COLOURS_TITLE = 'Colours and font';
+import { COLOURS_TITLE } from '#/features/branding/services/colourSection';
 
 export const TEMPLATES_SECTION_TITLE = 'Page templates';
 
 export const STYLESHEET_SECTION_TITLE = 'Stylesheet';
-
-function describePalette(value: unknown): string {
-  return value === null ? 'Instrument’s own colours' : 'custom colours';
-}
 
 const SHOWN_TEMPLATE = 60;
 
 function describeTemplate(value: unknown): string {
   if (typeof value !== 'string' || value.trim() === '') return 'none';
   return shortened(value, SHOWN_TEMPLATE);
-}
-
-// A theme is saved whole, so each section names its own pieces.
-export function colourFields(now: ColourValues): SectionFields<ColourValues> {
-  return {
-    'tokens.light': {
-      value: now['tokens.light'],
-      label: 'Light colours',
-      kind: 'plain',
-      describe: describePalette,
-    },
-    'tokens.dark': {
-      value: now['tokens.dark'],
-      label: 'Dark colours',
-      kind: 'plain',
-      describe: describePalette,
-    },
-    'tokens.font': { value: now['tokens.font'], label: 'Font', kind: 'plain' },
-  };
 }
 
 export function stylesheetFields(now: StylesheetValues): SectionFields<StylesheetValues> {

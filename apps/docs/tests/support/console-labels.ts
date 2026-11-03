@@ -580,9 +580,12 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   Edit: feature('branding/ui/LanguagesTab/LanguagesTab.tsx', '> Edit </Button>'),
   Remove: feature('branding/ui/LanguagesTab/LanguagesTab.tsx', '> Remove </Button>'),
-  'Colours and font': feature('branding/services/fields.ts', "COLOURS_TITLE = 'Colours and font'"),
+  'Colours and font': feature(
+    'branding/services/colourSection.ts',
+    "COLOURS_TITLE = 'Colours and font'",
+  ),
   'Use my own light colours': template(
-    [inFeature('branding/services/copy.ts', 'Use my own ${scheme} colours')],
+    [inFeature('branding/services/colourSection.ts', 'Use my own ${scheme} colours')],
     'Use my own ${scheme} colours',
     { scheme: 'light' },
   ),
