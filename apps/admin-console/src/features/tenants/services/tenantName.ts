@@ -17,8 +17,3 @@ export function issuerPreview(systemIssuer: string | undefined, name: string): s
   if (systemIssuer?.endsWith(SYSTEM_ISSUER_TAIL) !== true || !isTenantName(name)) return null;
   return `${systemIssuer.slice(0, -SYSTEM_ISSUER_TAIL.length)}/tenants/${name}`;
 }
-
-// What a save of the general section sends: only the fields that changed.
-export function generalPatch(changes: { display_name?: string }): { display_name?: string } {
-  return changes.display_name === undefined ? {} : { display_name: changes.display_name };
-}

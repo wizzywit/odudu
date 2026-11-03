@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { importMessage } from '#/features/tenants/services/import';
 import { exportFailureText } from '#/features/tenants/services/export';
-import { tenantChangeFailure } from '#/features/tenants/services/failure';
+import { tenantChangeFailure } from '#/features/tenants/services/tenantChange';
 import { stepFailureText } from '#/features/tenants/services/creationCall';
 import type { GatewayFailure } from '#/shared/services/result';
 import { failure, refusal } from '#/testing/failures';

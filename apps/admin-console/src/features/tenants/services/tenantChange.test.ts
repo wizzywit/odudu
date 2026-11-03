@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tenantChangeFailure } from '#/features/tenants/services/failure';
+import { generalPatch, tenantChangeFailure } from '#/features/tenants/services/tenantChange';
 
 describe('enabling and disabling a tenant', () => {
   it('words each way the change fails', () => {
@@ -26,4 +26,10 @@ describe('enabling and disabling a tenant', () => {
       );
     }
   });
+});
+
+it('sends the display name only when it changed', () => {
+  expect(generalPatch({})).toEqual({});
+  expect(generalPatch({ display_name: 'Acme' })).toEqual({ display_name: 'Acme' });
+  expect(generalPatch({ display_name: '' })).toEqual({ display_name: '' });
 });

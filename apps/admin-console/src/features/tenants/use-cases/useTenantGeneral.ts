@@ -6,7 +6,7 @@ import {
   useTenantEnabled,
   type GeneralValues,
 } from '#/features/tenants/repository/useTenantRecord';
-import { tenantChangeFailure } from '#/features/tenants/services/failure';
+import { tenantChangeFailure } from '#/features/tenants/services/tenantChange';
 import { tenantRecord } from '#/features/tenants/services/tabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 import { useToast } from '#/shared/repository/useToasts';

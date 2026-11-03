@@ -21,7 +21,7 @@ import {
   type Found,
   type ImportedSecret,
 } from '#/features/tenants/services/import';
-import { nameProblem } from '#/features/tenants/services/name';
+import { nameProblem } from '#/features/tenants/services/tenantName';
 import {
   useBeginAdministrator,
   type BeginAdministrator,

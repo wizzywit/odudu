@@ -17,3 +17,8 @@ export function tenantChangeFailure(name: string, failure: GatewayFailure): stri
     },
   })(failure);
 }
+
+// What a save of the general section sends: only the fields that changed.
+export function generalPatch(changes: { display_name?: string }): { display_name?: string } {
+  return changes.display_name === undefined ? {} : { display_name: changes.display_name };
+}

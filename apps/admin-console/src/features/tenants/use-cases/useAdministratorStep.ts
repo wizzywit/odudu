@@ -6,7 +6,7 @@ import {
   choosesHoldings,
 } from '#/features/tenants/services/administratorHoldings';
 import { type Creation } from '#/features/tenants/services/creation';
-import { issuerPreview } from '#/features/tenants/services/name';
+import { issuerPreview } from '#/features/tenants/services/tenantName';
 import {
   administratorFailure,
   administratorLookupText,

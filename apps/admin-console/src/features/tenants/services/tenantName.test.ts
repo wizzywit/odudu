@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generalPatch, issuerPreview, nameProblem } from '#/features/tenants/services/name';
+import { issuerPreview, nameProblem } from '#/features/tenants/services/tenantName';
 import { TENANT_NAME_RULE_TEXT } from '#/shared/services/labels';
 
 describe('the tenant name', () => {
@@ -26,10 +26,4 @@ describe('the issuer preview', () => {
     expect(issuerPreview('https://id.example/issuers/system', 'acme')).toBeNull();
     expect(issuerPreview(undefined, 'acme')).toBeNull();
   });
-});
-
-it('sends the display name only when it changed', () => {
-  expect(generalPatch({})).toEqual({});
-  expect(generalPatch({ display_name: 'Acme' })).toEqual({ display_name: 'Acme' });
-  expect(generalPatch({ display_name: '' })).toEqual({ display_name: '' });
 });
