@@ -25,7 +25,7 @@ export function retireConsequence(key: SigningKey): string {
   return `The ${key.alg} key ${key.kid} is no longer published, so a token it signed stops verifying at once. Retire it only when no token it signed can still be in use. The token this console holds for you may be one of them. If it is, this console session ends and you are signed in again, or asked to sign in; the confirmation of this retire may then not be shown.`;
 }
 
-export function deleteConsequence(key: SigningKey): string {
+export function deleteKeyConsequence(key: SigningKey): string {
   return `The record of the ${key.alg} key ${key.kid} is removed for good. It is published nowhere and signs nothing, so no token depends on it. This cannot be undone.`;
 }
 
@@ -54,7 +54,7 @@ export function dialogOf(
     case 'delete':
       return {
         title: 'Delete this key?',
-        consequence: deleteConsequence(key),
+        consequence: deleteKeyConsequence(key),
         confirmLabel: 'Delete key',
         tone: 'danger',
       };

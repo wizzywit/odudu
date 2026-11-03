@@ -1,7 +1,7 @@
 import type { SigningKey } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import {
-  deleteConsequence,
+  deleteKeyConsequence,
   dialogOf,
   promoteConsequence,
   retireConsequence,
@@ -58,7 +58,7 @@ describe('retire and delete', () => {
   });
 
   it('says deleting a retired key is for good', () => {
-    expect(deleteConsequence(key({ status: 'retired' }))).toContain('cannot be undone');
+    expect(deleteKeyConsequence(key({ status: 'retired' }))).toContain('cannot be undone');
   });
 });
 

@@ -1,7 +1,5 @@
 import type { SigningKeyStatus } from '@odudu/contracts/admin';
 
-export const NOUN = { one: 'key', other: 'keys' } as const;
-
 export interface Lane {
   status: SigningKeyStatus;
   title: string;

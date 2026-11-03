@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LANES } from '#/features/signing-keys/services/lanes';
+import { LANES } from '#/features/signing-keys/services/laneWording';
 
 describe('lanes', () => {
   it('are the three stored statuses, in the order a key moves through them', () => {
