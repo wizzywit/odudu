@@ -14,7 +14,7 @@ import {
   SCOPES_CAPABILITY,
   SCOPES_PAGE,
   shownScopes,
-} from '#/features/clients/services/scopes';
+} from '#/features/clients/services/clientScopes';
 import { lacking } from '#/shared/services/access';
 import type { AdminCapability } from '#/shared/services/principal';
 import type { PickerState } from '#/shared/services/picker';

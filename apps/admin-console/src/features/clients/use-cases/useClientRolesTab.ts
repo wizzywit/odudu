@@ -12,7 +12,7 @@ import {
   ROLE_NAME_TAKEN,
   ROLES_CAPABILITY,
   rolesReadable,
-} from '#/features/clients/services/roles';
+} from '#/features/clients/services/clientRoles';
 import { useGo } from '#/shared/repository/useGo';
 import { useToast } from '#/shared/repository/useToasts';
 import { lacking } from '#/shared/services/access';

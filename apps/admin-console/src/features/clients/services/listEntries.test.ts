@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { CLIENT_LIST_LIMIT, entriesOf, listCount } from '#/features/clients/services/lists';
+import { CLIENT_LIST_LIMIT, entriesOf, listCount } from '#/features/clients/services/listEntries';
 
 const rows = (count: number): string[] =>
   Array.from({ length: count }, (_, i) => `row ${String(i)}`);

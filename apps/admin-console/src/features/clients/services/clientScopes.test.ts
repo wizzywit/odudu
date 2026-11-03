@@ -6,7 +6,7 @@ import {
   scopeRefusal,
   SCOPES_PAGE,
   shownScopes,
-} from '#/features/clients/services/scopes';
+} from '#/features/clients/services/clientScopes';
 
 const SCOPES = [
   { id: 's2', name: 'profile', assignment: 'default' as const },

@@ -6,7 +6,7 @@ import {
   type PostLogoutValues,
 } from '#/features/clients/repository/useClientConfigSaves';
 import { skipLogoutFixed } from '#/features/clients/services/builtinFixed';
-import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/lists';
+import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/listEntries';
 import {
   BACKCHANNEL_SESSION_LABEL,
   FRONTCHANNEL_SESSION_LABEL,

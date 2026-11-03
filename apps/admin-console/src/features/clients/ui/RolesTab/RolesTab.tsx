@@ -8,7 +8,7 @@ import {
   NO_CLIENT_ROLES,
   ROLES_CAPABILITY,
   ROLES_OPEN_LABEL,
-} from '#/features/clients/services/roles';
+} from '#/features/clients/services/clientRoles';
 import {
   useClientRolesTab,
   useRolesReadable,

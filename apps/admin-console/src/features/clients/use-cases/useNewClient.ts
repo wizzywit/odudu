@@ -19,7 +19,7 @@ import {
   secretTitle,
 } from '#/features/clients/services/createdSecret';
 import { CLIENT_ID_TAKEN } from '#/features/clients/services/clientDetails';
-import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/lists';
+import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/listEntries';
 import { CLIENT_CAPABILITY } from '#/features/clients/services/refusal';
 import { useToast } from '#/shared/repository/useToasts';
 import { problemAt } from '#/shared/services/fieldErrors';

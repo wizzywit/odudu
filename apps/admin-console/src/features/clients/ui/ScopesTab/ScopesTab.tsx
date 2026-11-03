@@ -6,7 +6,7 @@ import {
   ASSIGNED_HEADING,
   NO_SCOPES,
   PICKER_LABEL,
-} from '#/features/clients/services/scopes';
+} from '#/features/clients/services/clientScopes';
 import {
   useClientScopeAssignment,
   type ClientScopes,

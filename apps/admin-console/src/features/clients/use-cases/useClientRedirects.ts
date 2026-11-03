@@ -9,7 +9,7 @@ import {
 } from '#/features/clients/repository/useClientRecord';
 import { listsReadOnly, redirectsFixed } from '#/features/clients/services/builtinFixed';
 import { FIELD, SECTION } from '#/features/clients/services/clientDetails';
-import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/lists';
+import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/listEntries';
 import { clientTabHref } from '#/features/clients/services/tabs';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 

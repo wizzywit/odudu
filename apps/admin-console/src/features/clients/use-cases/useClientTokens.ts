@@ -7,7 +7,7 @@ import {
   type LifetimeValues,
 } from '#/features/clients/repository/useClientConfigSaves';
 import { choiceOf } from '#/features/clients/services/choices';
-import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/lists';
+import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/listEntries';
 import {
   AUTH_TIME_LABEL,
   ID_TOKEN_ALG_LABEL,

@@ -22,7 +22,7 @@ import {
   encryptsUserinfo,
 } from '#/features/clients/services/userinfoResponse';
 import { choiceOf } from '#/features/clients/services/choices';
-import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/lists';
+import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/services/listEntries';
 import {
   useClientSection,
   type ClientRecordRead,
