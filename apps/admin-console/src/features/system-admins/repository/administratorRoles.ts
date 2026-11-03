@@ -1,9 +1,8 @@
+import { readSubjectRoles, setSubjectRoles } from '#/entities/subject';
 import {
   readAdminClients,
   readClientRoles,
-  readSubjectRoles,
-  setSubjectRoles,
-} from '#/shared/adapter/administrators';
+} from '#/features/system-admins/adapter/administratorClients';
 import {
   builtinAdminClient,
   clientRole,

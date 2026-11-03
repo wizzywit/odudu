@@ -1,11 +1,10 @@
-import type { Subject } from '@odudu/contracts/admin';
 import { findKey, listKey } from '#/shared/repository/queryKeys';
 import { useFreshRead } from '#/shared/repository/useFreshRead';
-import { createSubject, findSubject } from '#/shared/adapter/administrators';
 import type { GatewayResult } from '#/shared/transport/gateway';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useWrite } from '#/shared/repository/useWrite';
 import { useTransport } from '#/shared/transport/useTransport';
+import { createSubject, findSubject, type Subject } from '#/entities/subject';
 
 export interface CreateSubject {
   busy: boolean;

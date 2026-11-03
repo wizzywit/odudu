@@ -1,4 +1,3 @@
-import type { Grant, Subject } from '@odudu/contracts/admin';
 import { useSubjectGrants } from '#/features/subjects/use-cases/useSubjectSessions';
 import { HeldTab, PagedList } from '#/features/subjects/ui/SubjectRecordPage/SessionsTab';
 import { Button } from '#/shared/ui/Button';
@@ -8,18 +7,20 @@ import { Panel } from '#/shared/ui/Panel';
 import { StatusTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
+import { type Grant } from '#/features/subjects/types/grant';
+import { type Subject } from '#/entities/subject';
 
 const COLUMNS: readonly Column<Grant>[] = [
-  { id: 'client', header: 'Client', isRowHeader: true, cell: (g) => <code>{g.client_key}</code> },
+  { id: 'client', header: 'Client', isRowHeader: true, cell: (g) => <code>{g.clientKey}</code> },
   { id: 'scope', header: 'Scope', cell: (g) => g.scope },
-  { id: 'created_at', header: 'Issued', cell: (g) => <Timestamp value={g.created_at} /> },
+  { id: 'created_at', header: 'Issued', cell: (g) => <Timestamp value={g.createdAt} /> },
   {
     id: 'bound',
     header: 'Bound to',
     cell: (g) =>
       g.offline ? (
         <StatusTag tone="warning">offline</StatusTag>
-      ) : g.session_id === null ? (
+      ) : g.sessionId === null ? (
         'no session'
       ) : (
         'a session'
@@ -30,10 +31,10 @@ const COLUMNS: readonly Column<Grant>[] = [
     header: 'Refresh until',
     secondary: true,
     cell: (g) =>
-      g.refresh_expires_at === null ? (
+      g.refreshExpiresAt === null ? (
         <span className={recordTab.rule}>no refresh token</span>
       ) : (
-        <Timestamp value={g.refresh_expires_at} />
+        <Timestamp value={g.refreshExpiresAt} />
       ),
   },
 ];

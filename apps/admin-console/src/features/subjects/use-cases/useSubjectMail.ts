@@ -1,4 +1,4 @@
-import type { RequiredAction, Subject } from '@odudu/contracts/admin';
+import type { RequiredAction } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { areaAt, areaHref } from '#/entities/area';
@@ -18,6 +18,7 @@ import {
   actionsMailProblem,
   requiredActionsInOrder,
 } from '#/features/subjects/services/requiredActions';
+import { type Subject } from '#/entities/subject';
 
 export type { MailOutcome };
 

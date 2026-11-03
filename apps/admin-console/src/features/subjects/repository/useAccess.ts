@@ -8,16 +8,6 @@ import type {
   SetSubjectGroupsResponse,
 } from '@odudu/contracts/admin';
 import {
-  readAdminCapabilities,
-  readAdminRoles,
-  readEffectiveRoles,
-  readRequiredActions,
-  readSubjectGroups,
-  setRequiredActions,
-  setSubjectGroups,
-} from '#/features/subjects/adapter/access';
-import { readSubjectCount } from '#/features/subjects/adapter/subjects';
-import {
   adminRolesKey,
   heldCapabilitiesKey,
   holdersKey,
@@ -27,7 +17,6 @@ import {
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useRead } from '#/shared/repository/useRead';
 import type { Read } from '#/shared/services/read';
-import { readSubjectRoles, setSubjectRoles } from '#/shared/adapter/administrators';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord';
 import { useResourceList } from '#/shared/repository/useResourceList';
 import type { SaveInput } from '#/shared/repository/useSectionSave';
@@ -41,6 +30,18 @@ import {
   groupsRecord,
   rolesRecord,
 } from '#/features/subjects/services/subjectRecords';
+import {
+  readSubjectCount,
+  readSubjectRoles,
+  setSubjectRoles,
+  readAdminCapabilities,
+  readAdminRoles,
+  readEffectiveRoles,
+  readRequiredActions,
+  readSubjectGroups,
+  setRequiredActions,
+  setSubjectGroups,
+} from '#/entities/subject';
 
 export function useGroupsRecord(tenant: string, id: string): RecordState<SetSubjectGroupsResponse> {
   return useRecord({

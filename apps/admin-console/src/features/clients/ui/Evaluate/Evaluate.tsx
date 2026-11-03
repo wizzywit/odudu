@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import type { Client, Subject } from '@odudu/contracts/admin';
+import type { Client } from '@odudu/contracts/admin';
 import {
   type Artefact,
   EVALUATE_CAPABILITY,
@@ -25,6 +25,7 @@ import { Problem } from '#/shared/ui/Message';
 import { Panel } from '#/shared/ui/Panel';
 import { Picker } from '#/shared/ui/Picker';
 import { recordTab } from '#/shared/ui/RecordTab';
+import { type Subject } from '#/entities/subject';
 import styles from '#/features/clients/ui/Evaluate/Evaluate.module.css';
 
 function Box({ artefact }: { artefact: Artefact }) {

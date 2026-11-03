@@ -9,7 +9,7 @@ import {
 describe('credential choices', () => {
   const factor = {
     kind: 'factor',
-    credential: { id: 'c1', type: 'totp', created_at: 'x' },
+    credential: { id: 'c1', type: 'totp', createdAt: 'x' },
     last: false,
   } as const;
   const lastFactor = { ...factor, last: true } as const;

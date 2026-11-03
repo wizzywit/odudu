@@ -1,5 +1,8 @@
 import { expect, it } from 'vitest';
-import { grantHoldings, grantTenantAdmin } from '#/shared/repository/administratorRoles';
+import {
+  grantHoldings,
+  grantTenantAdmin,
+} from '#/features/system-admins/repository/administratorRoles';
 import { fakeTransport, json, problem, type Answer } from '#/testing/fakeTransport';
 import { adminClientRole } from '#/testing/roleAnswers';
 import { administratorRoutes } from '#/testing/tenantsFixtures';

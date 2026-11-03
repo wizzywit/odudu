@@ -1,4 +1,3 @@
-import type { Consent, Subject } from '@odudu/contracts/admin';
 import {
   useSubjectConsents,
   type SubjectConsents,
@@ -10,12 +9,14 @@ import type { Column } from '#/shared/ui/DataTable';
 import { Panel } from '#/shared/ui/Panel';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
+import { type Consent } from '#/features/subjects/types/consent';
+import { type Subject } from '#/entities/subject';
 
 function columns(page: SubjectConsents): readonly Column<Consent>[] {
   const base: Column<Consent>[] = [
-    { id: 'client', header: 'Client', isRowHeader: true, cell: (c) => <code>{c.client_key}</code> },
-    { id: 'scopes', header: 'Scopes', cell: (c) => c.scope_names.join(' ') },
-    { id: 'granted', header: 'Granted', cell: (c) => <Timestamp value={c.granted_at} /> },
+    { id: 'client', header: 'Client', isRowHeader: true, cell: (c) => <code>{c.clientKey}</code> },
+    { id: 'scopes', header: 'Scopes', cell: (c) => c.scopeNames.join(' ') },
+    { id: 'granted', header: 'Granted', cell: (c) => <Timestamp value={c.grantedAt} /> },
   ];
   if (!page.canManage) return base;
   return [
@@ -27,7 +28,7 @@ function columns(page: SubjectConsents): readonly Column<Consent>[] {
         <Button
           size="small"
           variant="quiet"
-          aria-label={`Revoke the consent to ${consent.client_key}`}
+          aria-label={`Revoke the consent to ${consent.clientKey}`}
           onPress={() => {
             page.revoke.ask(consent);
           }}
@@ -57,7 +58,7 @@ export function ConsentsTab({
       label={`Consents ${name} has given`}
       noun="consents"
       columns={shape}
-      rowKey={(consent) => consent.client_id}
+      rowKey={(consent) => consent.clientId}
       empty={`${name} has given no consent to any client.`}
     />
   );
@@ -73,8 +74,8 @@ export function ConsentsTab({
       </Panel>
       <ConfirmDialog
         isOpen={asked !== null}
-        title={`Revoke ${name}’s consent to ${asked?.client_key ?? ''}?`}
-        consequence={`The consent goes, and every grant issued under it is revoked too, offline ones included, so ${asked?.client_key ?? 'the client'} holds no token for ${name} that still works. The next sign-in through it asks again.`}
+        title={`Revoke ${name}’s consent to ${asked?.clientKey ?? ''}?`}
+        consequence={`The consent goes, and every grant issued under it is revoked too, offline ones included, so ${asked?.clientKey ?? 'the client'} holds no token for ${name} that still works. The next sign-in through it asks again.`}
         confirmLabel="Revoke consent"
         tone="danger"
         busy={revoke.busy}

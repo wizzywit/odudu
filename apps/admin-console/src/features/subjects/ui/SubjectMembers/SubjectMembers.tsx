@@ -1,4 +1,3 @@
-import type { Subject } from '@odudu/contracts/admin';
 import { useMembers, useMembersReadable } from '#/features/subjects/use-cases/useMembers';
 import { ButtonLink } from '#/shared/ui/ButtonLink';
 import { Count } from '#/shared/ui/Count';
@@ -10,6 +9,7 @@ import { TableSkeleton } from '#/shared/ui/Skeleton';
 import { EnabledTag } from '#/shared/ui/StatusTag';
 import { recordTab } from '#/shared/ui/RecordTab';
 import { subjectName } from '#/features/subjects/services/subjectName';
+import { type Subject } from '#/entities/subject';
 
 const COLUMNS: readonly Column<Subject>[] = [
   {

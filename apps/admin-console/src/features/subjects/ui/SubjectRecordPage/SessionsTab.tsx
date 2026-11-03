@@ -1,4 +1,3 @@
-import type { Session, Subject } from '@odudu/contracts/admin';
 import type { ReactNode } from 'react';
 import {
   useHolds,
@@ -18,6 +17,8 @@ import { Panel } from '#/shared/ui/Panel';
 import { TableSkeleton } from '#/shared/ui/Skeleton';
 import { Timestamp } from '#/shared/ui/Timestamp';
 import { recordTab } from '#/shared/ui/RecordTab';
+import { type Subject } from '#/entities/subject';
+import type { SubjectSession } from '#/features/subjects/types/subjectSession';
 
 // A list a tab pages through: its loading, failure and emptiness said the
 // way every list in the console says them.
@@ -58,22 +59,22 @@ export function PagedList<T>({
   );
 }
 
-function started(session: Session): string {
-  return formatAbsolute(new Date(session.created_at));
+function started(session: SubjectSession): string {
+  return formatAbsolute(new Date(session.createdAt));
 }
 
-function columns(page: SubjectSessions, withinReach: boolean): readonly Column<Session>[] {
-  const shown: Column<Session>[] = [
+function columns(page: SubjectSessions, withinReach: boolean): readonly Column<SubjectSession>[] {
+  const shown: Column<SubjectSession>[] = [
     {
       id: 'created_at',
       header: 'Started',
       isRowHeader: true,
-      cell: (session) => <Timestamp value={session.created_at} />,
+      cell: (session) => <Timestamp value={session.createdAt} />,
     },
     {
       id: 'last_active_at',
       header: 'Last active',
-      cell: (session) => <Timestamp value={session.last_active_at} />,
+      cell: (session) => <Timestamp value={session.lastActiveAt} />,
     },
     {
       id: 'remembered',
@@ -85,10 +86,10 @@ function columns(page: SubjectSessions, withinReach: boolean): readonly Column<S
       id: 'clients',
       header: 'Clients',
       cell: (session) =>
-        session.client_ids.length === 0 ? (
+        session.clientIds.length === 0 ? (
           <span className={recordTab.rule}>none</span>
         ) : (
-          session.client_ids.join(', ')
+          session.clientIds.join(', ')
         ),
     },
   ];

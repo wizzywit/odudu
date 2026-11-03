@@ -1,4 +1,3 @@
-import type { ListedSubject } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { usePrincipal, isSelf } from '#/entities/session';
 import { useHolderList } from '#/features/subjects/repository/useHolders';
@@ -8,6 +7,7 @@ import { reachesEveryTenant } from '#/features/subjects/services/tenantReach';
 import { subjectHref } from '#/features/subjects/services/subjectAddress';
 import { subjectName } from '#/features/subjects/services/subjectName';
 import { heldLines, type HeldLine } from '#/features/subjects/services/heldLines';
+import { type ListedSubject } from '#/entities/subject';
 
 export interface Holder {
   subject: ListedSubject;
@@ -36,7 +36,7 @@ export function useCapabilityHolders(tenant: string): CapabilityHolders {
   return {
     list,
     holders: list.rows.map((subject) => {
-      const held = subject.admin_capabilities ?? [];
+      const held = subject.adminCapabilities ?? [];
       return {
         subject,
         name: subjectName(subject),

@@ -1,9 +1,4 @@
-import type {
-  EffectiveRoleAssignment,
-  Role,
-  SetRolesResponse,
-  Subject,
-} from '@odudu/contracts/admin';
+import type { EffectiveRoleAssignment, Role, SetRolesResponse } from '@odudu/contracts/admin';
 import { useRefusal } from '#/entities/session';
 import { useEffectiveRoleList, useSaveRoles } from '#/features/subjects/repository/useAccess';
 import { useRolePicker } from '#/shared/repository/useRolePicker';
@@ -23,6 +18,7 @@ import { accessRefusal } from '#/shared/services/capabilities';
 import { subjectName } from '#/features/subjects/services/subjectName';
 import { rolesRecord } from '#/features/subjects/services/subjectRecords';
 import { roleUnavailableHere, splitRoles } from '#/features/subjects/services/subjectRoles';
+import { type Subject } from '#/entities/subject';
 
 export interface SubjectRoles {
   name: string;

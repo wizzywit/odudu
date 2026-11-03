@@ -1,10 +1,10 @@
 import type { SetRolesResponse } from '@odudu/contracts/admin';
 import { useRereadClient } from '#/features/clients/repository/useClientRecord';
 import { serviceRolesRecord } from '#/features/clients/services/account';
-import { readSubjectRoles, setSubjectRoles } from '#/shared/adapter/administrators';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord';
 import { uniqueIds } from '#/shared/services/ids';
 import type { Gateway } from '#/shared/transport/gateway';
+import { readSubjectRoles, setSubjectRoles } from '#/entities/subject';
 
 export function useServiceRolesRecord(
   tenant: string,

@@ -2,51 +2,35 @@ import {
   listCredentialsResponseSchema,
   lockoutSchema,
   profileSchema,
-  subjectSchema,
   usernamePolicySchema,
   type AmendProfileRequest,
-  type AmendSubjectRequest,
-  type ListCredentialsResponse,
-  type Lockout,
+  type Credential as WireCredential,
+  type Lockout as WireLockout,
   type Profile,
-  type Subject,
 } from '@odudu/contracts/admin';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { readSubjectCount, readSubjectPage } from '#/shared/adapter/directory';
-import { adminCall, nothing } from '#/shared/adapter/route';
+import { adminCall, mapResult, nothing } from '#/shared/adapter/route';
 import { type CredentialChange } from '#/features/subjects/services/credentialChange';
+import type { Credential } from '#/features/subjects/types/credential';
+import type { Lockout } from '#/features/subjects/types/lockout';
 
-export { readSubjectCount, readSubjectPage };
-
-export function readSubject(
-  gateway: Gateway,
-  tenant: string,
-  subjectId: string,
-): Promise<GatewayResult<Subject>> {
-  return adminCall(gateway, 'GET', tenant, ['subjects', subjectId], { schema: subjectSchema });
+function credentialOf(wire: WireCredential): Credential {
+  return {
+    id: wire.id,
+    type: wire.type,
+    createdAt: wire.created_at,
+    expired: wire.expired,
+    recoveryCodeCount: wire.recovery_code_count,
+  };
 }
 
-export function amendSubject(
-  gateway: Gateway,
-  tenant: string,
-  subjectId: string,
-  changes: AmendSubjectRequest,
-  ifMatch: string,
-): Promise<GatewayResult<Subject>> {
-  return adminCall(gateway, 'PATCH', tenant, ['subjects', subjectId], {
-    // The server keeps no empty email, so an emptied one is cleared.
-    body: changes.email === '' ? { ...changes, email: null } : changes,
-    ifMatch,
-    schema: subjectSchema,
-  });
-}
-
-export function deleteSubject(
-  gateway: Gateway,
-  tenant: string,
-  subjectId: string,
-): Promise<GatewayResult<undefined>> {
-  return adminCall(gateway, 'DELETE', tenant, ['subjects', subjectId], { schema: nothing });
+function lockoutOf(wire: WireLockout): Lockout {
+  return {
+    locked: wire.locked,
+    lockedUntil: wire.locked_until,
+    failureCount: wire.failure_count,
+    lastFailureAt: wire.last_failure_at,
+  };
 }
 
 export function readProfile(
@@ -76,14 +60,15 @@ export function amendProfile(
   });
 }
 
-export function readCredentials(
+export async function readCredentials(
   gateway: Gateway,
   tenant: string,
   subjectId: string,
-): Promise<GatewayResult<ListCredentialsResponse>> {
-  return adminCall(gateway, 'GET', tenant, ['subjects', subjectId, 'credentials'], {
+): Promise<GatewayResult<Credential[]>> {
+  const result = await adminCall(gateway, 'GET', tenant, ['subjects', subjectId, 'credentials'], {
     schema: listCredentialsResponseSchema,
   });
+  return mapResult(result, ({ items }) => items.map(credentialOf));
 }
 
 export function deleteCredential(
@@ -117,14 +102,15 @@ export function revokeRecoveryCodes(
   });
 }
 
-export function readLockout(
+export async function readLockout(
   gateway: Gateway,
   tenant: string,
   subjectId: string,
 ): Promise<GatewayResult<Lockout>> {
-  return adminCall(gateway, 'GET', tenant, ['subjects', subjectId, 'lockout'], {
+  const result = await adminCall(gateway, 'GET', tenant, ['subjects', subjectId, 'lockout'], {
     schema: lockoutSchema,
   });
+  return mapResult(result, lockoutOf);
 }
 
 export function clearLockout(
@@ -144,7 +130,7 @@ export async function readUsernameEditable(
   const result = await adminCall(gateway, 'GET', tenant, ['subjects', 'username-policy'], {
     schema: usernamePolicySchema,
   });
-  return result.ok ? { ...result, data: result.data.username_editable } : result;
+  return mapResult(result, (policy) => policy.username_editable);
 }
 
 // One request in every case: ending the sessions is the server's part of the

@@ -23,8 +23,8 @@ export interface GrantClient {
 
 // Each client a listed grant was issued through, once: a revoke takes them all.
 export function grantClients(
-  grants: readonly { client_id: string; client_key: string }[],
+  grants: readonly { clientId: string; clientKey: string }[],
 ): GrantClient[] {
-  const clients = new Map(grants.map((grant) => [grant.client_id, grant.client_key]));
+  const clients = new Map(grants.map((grant) => [grant.clientId, grant.clientKey]));
   return [...clients].map(([id, key]) => ({ id, key }));
 }

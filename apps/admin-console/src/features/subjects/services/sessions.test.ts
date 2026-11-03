@@ -20,10 +20,10 @@ describe('the toasts and groupings of sessions and grants', () => {
   it('lists each client a grant was issued through once, in the order first met', () => {
     expect(
       grantClients([
-        { client_id: 'c1', client_key: 'web' },
-        { client_id: 'c2', client_key: 'app' },
-        { client_id: 'c1', client_key: 'web' },
-      ] as never),
+        { clientId: 'c1', clientKey: 'web' },
+        { clientId: 'c2', clientKey: 'app' },
+        { clientId: 'c1', clientKey: 'web' },
+      ]),
     ).toEqual([
       { id: 'c1', key: 'web' },
       { id: 'c2', key: 'app' },

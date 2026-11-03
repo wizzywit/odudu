@@ -5,7 +5,7 @@ import { credentialChangeOf, staleReadOf } from '#/features/subjects/services/cr
 describe('credential changes', () => {
   const factor = {
     kind: 'factor',
-    credential: { id: 'c1', type: 'totp', created_at: 'x' },
+    credential: { id: 'c1', type: 'totp', createdAt: 'x' },
     last: false,
   } as const;
   const lastFactor = { ...factor, last: true } as const;
@@ -19,7 +19,7 @@ describe('credential changes', () => {
     });
     expect(
       credentialChangeOf(
-        { kind: 'factor', credential: { type: 'totp', created_at: 'x' }, last: false },
+        { kind: 'factor', credential: { type: 'totp', createdAt: 'x' }, last: false },
         keep,
       ),
     ).toBeNull();

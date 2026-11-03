@@ -81,7 +81,7 @@ function Password({
         ) : (
           <>
             {`Set `}
-            <Timestamp value={password.created_at} />
+            <Timestamp value={password.createdAt} />
             {password.expired === true ? (
               <>
                 {' '}
@@ -142,7 +142,7 @@ function Factors({
     {
       id: 'created_at',
       header: 'Enrolled',
-      cell: (credential) => <Timestamp value={credential.created_at} />,
+      cell: (credential) => <Timestamp value={credential.createdAt} />,
     },
   ];
   if (canManage) {
@@ -230,27 +230,27 @@ function LockoutPanel({
       <p className={recordTab.text}>
         <StatusTag tone={summary.tone}>{summary.state}</StatusTag> {summary.text}
       </p>
-      {lockout.locked_until === null && lockout.last_failure_at === null ? null : (
+      {lockout.lockedUntil === null && lockout.lastFailureAt === null ? null : (
         <dl className={recordTab.fixed}>
-          {lockout.locked_until === null ? null : (
+          {lockout.lockedUntil === null ? null : (
             <>
               <dt>{lockout.locked ? 'Locked until' : 'Last lock ended'}</dt>
               <dd>
-                <Timestamp value={lockout.locked_until} />
+                <Timestamp value={lockout.lockedUntil} />
               </dd>
             </>
           )}
-          {lockout.last_failure_at === null ? null : (
+          {lockout.lastFailureAt === null ? null : (
             <>
               <dt>Last failed sign-in</dt>
               <dd>
-                <Timestamp value={lockout.last_failure_at} />
+                <Timestamp value={lockout.lastFailureAt} />
               </dd>
             </>
           )}
         </dl>
       )}
-      {canManage && lockout.failure_count > 0 ? (
+      {canManage && lockout.failureCount > 0 ? (
         <div className={recordTab.actions}>
           <Button
             onPress={() => {
@@ -338,7 +338,7 @@ function Held({
         <LoadFailed title="The credentials could not be loaded" retry={credentials.retry} />
       ) : (
         (() => {
-          const held = credentialsOf(credentials.data.items);
+          const held = credentialsOf(credentials.data);
           return (
             <>
               <Password password={held.password} page={page} mail={mail} canManage={canManage} />

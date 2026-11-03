@@ -48,7 +48,7 @@ function Row({
           <StatusTag tone="system-authority">reaches every tenant</StatusTag>
         ) : null}
         <span className={styles.how}>
-          Created <Timestamp value={holder.subject.created_at} />
+          Created <Timestamp value={holder.subject.createdAt} />
         </span>
       </div>
       <ul aria-label={`What ${holder.name} holds`} className={styles.held}>

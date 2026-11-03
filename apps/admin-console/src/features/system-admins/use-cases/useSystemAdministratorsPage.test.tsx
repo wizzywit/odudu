@@ -14,7 +14,7 @@ vi.mock('#/shared/repository/useGo', () => ({ useGo: () => vi.fn() }));
 
 const S = `${ADMIN}/system`;
 const ROOT = { tenant: 'system', subjectId: 's0', username: 'root' };
-const GRACE = {
+const GRACE_WIRE = {
   id: 's-grace',
   type: 'user' as const,
   username: 'grace',
@@ -22,6 +22,7 @@ const GRACE = {
   enabled: true,
   created_at: '2026-09-28T08:41:53.858Z',
 };
+const GRACE = { ...GRACE_WIRE, createdAt: GRACE_WIRE.created_at };
 
 function routes(extra: Record<string, Answer> = {}): Record<string, Answer> {
   const base = administratorRoutes('system', 'unused', 'unused');
@@ -30,7 +31,7 @@ function routes(extra: Record<string, Answer> = {}): Record<string, Answer> {
     [`GET ${S}/clients`]: base[`GET ${S}/clients`] ?? json({ items: [] }),
     [`GET ${S}/roles`]: json({ items: [adminClientRole('r-admin', 'tenant-admin')] }),
     [`GET ${S}/subjects`]: (request) =>
-      json({ items: request.search.get('capability') === null ? [GRACE] : [] })(request),
+      json({ items: request.search.get('capability') === null ? [GRACE_WIRE] : [] })(request),
     [`GET ${S}/subjects/s-grace/roles`]: json(
       { items: [{ id: 'reader', name: 'reader', client_id: null, client_key: null }] },
       200,

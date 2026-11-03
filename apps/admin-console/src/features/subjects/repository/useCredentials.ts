@@ -1,8 +1,5 @@
-import type {
-  IssuePasswordResponse,
-  ListCredentialsResponse,
-  Lockout,
-} from '@odudu/contracts/admin';
+import type { Credential } from '#/features/subjects/types/credential';
+import type { IssuedPassword } from '#/entities/subject';
 import { subjectReadKey } from '#/shared/repository/queryKeys';
 import { useInvalidate } from '#/shared/repository/useInvalidate';
 import { useRead } from '#/shared/repository/useRead';
@@ -12,18 +9,15 @@ import {
   readCredentials,
   readLockout,
 } from '#/features/subjects/adapter/subjects';
-import { issuePassword } from '#/shared/adapter/administrators';
 import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
 import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
 import { staleReadOf, type CredentialChange } from '#/features/subjects/services/credentialChange';
+import { issuePassword } from '#/entities/subject';
+import { type Lockout } from '#/features/subjects/types/lockout';
 
-export function useCredentials(
-  tenant: string,
-  id: string,
-  asked: boolean,
-): Read<ListCredentialsResponse> {
+export function useCredentials(tenant: string, id: string, asked: boolean): Read<Credential[]> {
   const { gateway } = useTransport();
   return useRead(subjectReadKey('credentials', tenant, id), asked, () =>
     readCredentials(gateway, tenant, id),
@@ -66,7 +60,7 @@ export function useIssuePassword(
   const { invalidateExact } = useInvalidate();
   return useSecretOnce({
     run: async (gateway) => {
-      let result: GatewayResult<IssuePasswordResponse>;
+      let result: GatewayResult<IssuedPassword>;
       try {
         result = await issuePassword(gateway, tenant, id);
       } catch (error) {

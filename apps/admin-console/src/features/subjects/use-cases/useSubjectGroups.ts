@@ -1,4 +1,4 @@
-import type { Group, GroupFields, SetSubjectGroupsResponse, Subject } from '@odudu/contracts/admin';
+import type { Group, GroupFields, SetSubjectGroupsResponse } from '@odudu/contracts/admin';
 import { useRefusal, useRereadAuthority } from '#/entities/session';
 import {
   useHeldCapabilities,
@@ -26,6 +26,7 @@ import {
 } from '#/features/subjects/services/groupMembership';
 import { subjectName } from '#/features/subjects/services/subjectName';
 import { groupsRecord } from '#/features/subjects/services/subjectRecords';
+import { type Subject } from '#/entities/subject';
 
 export function useSubjectGroupsRead(
   tenant: string,

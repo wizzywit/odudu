@@ -6,9 +6,9 @@ describe('the lockout', () => {
     expect(
       lockoutSummary({
         locked: false,
-        locked_until: null,
-        failure_count: 0,
-        last_failure_at: null,
+        lockedUntil: null,
+        failureCount: 0,
+        lastFailureAt: null,
       }),
     ).toEqual({ tone: 'neutral', state: 'not locked', text: 'No failed sign-ins on record.' });
   });
@@ -17,9 +17,9 @@ describe('the lockout', () => {
     expect(
       lockoutSummary({
         locked: false,
-        locked_until: null,
-        failure_count: 1,
-        last_failure_at: '2026-09-29T09:58:00.000Z',
+        lockedUntil: null,
+        failureCount: 1,
+        lastFailureAt: '2026-09-29T09:58:00.000Z',
       }),
     ).toMatchObject({ tone: 'neutral', state: 'not locked', text: /^1 failed sign-in on record/u });
   });
@@ -28,9 +28,9 @@ describe('the lockout', () => {
     expect(
       lockoutSummary({
         locked: true,
-        locked_until: '2026-09-29T10:02:00.000Z',
-        failure_count: 6,
-        last_failure_at: '2026-09-29T09:59:00.000Z',
+        lockedUntil: '2026-09-29T10:02:00.000Z',
+        failureCount: 6,
+        lastFailureAt: '2026-09-29T09:59:00.000Z',
       }),
     ).toMatchObject({ tone: 'danger', state: 'locked', text: /after 6 failed sign-ins/u });
   });

@@ -1,4 +1,3 @@
-import type { Subject } from '@odudu/contracts/admin';
 import { useAuthority, usePrincipal, isSelf } from '#/entities/session';
 import { useHeldCapabilities } from '#/features/subjects/repository/useAccess';
 import { useSubjectRecord } from '#/features/subjects/repository/useSubjectRecord';
@@ -13,6 +12,7 @@ import {
   reachOf,
   subjectBeyond,
 } from '#/features/subjects/services/subjectReach';
+import { type Subject } from '#/entities/subject';
 
 export interface SubjectRecordPage {
   record: RecordView;

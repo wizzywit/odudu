@@ -1,5 +1,5 @@
-import { type Lockout } from '@odudu/contracts/admin';
 import { counted } from '#/shared/services/format';
+import { type Lockout } from '#/features/subjects/types/lockout';
 
 export interface LockoutSummary {
   tone: 'neutral' | 'danger';
@@ -18,15 +18,15 @@ export function lockoutSummary(lockout: Lockout): LockoutSummary {
     return {
       tone: 'danger',
       state: 'locked',
-      text: `Locked after ${failures(lockout.failure_count)} in a row. Every sign-in is refused, the right password too, until the lock lifts or is cleared.`,
+      text: `Locked after ${failures(lockout.failureCount)} in a row. Every sign-in is refused, the right password too, until the lock lifts or is cleared.`,
     };
   }
-  if (lockout.failure_count === 0) {
+  if (lockout.failureCount === 0) {
     return { tone: 'neutral', state: 'not locked', text: 'No failed sign-ins on record.' };
   }
   return {
     tone: 'neutral',
     state: 'not locked',
-    text: `${failures(lockout.failure_count)} on record. The next failure counts on from them, until a quiet spell or the right password ends the run.`,
+    text: `${failures(lockout.failureCount)} on record. The next failure counts on from them, until a quiet spell or the right password ends the run.`,
   };
 }

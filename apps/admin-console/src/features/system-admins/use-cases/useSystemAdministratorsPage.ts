@@ -1,9 +1,7 @@
-import type { Subject } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useAdministratorGrant } from '#/features/system-admins/repository/useAdministratorChange';
 import { usePickerHolders } from '#/features/system-admins/repository/usePickerHolders';
-import { useSubjectPicker } from '#/shared/repository/useSubjectPicker';
 import { administratorsAccess } from '#/features/system-admins/services/access';
 import { grantedText, grantFailureText } from '#/features/system-admins/services/grant';
 import { choosable, pickerUnavailable } from '#/features/system-admins/services/picker';
@@ -20,6 +18,7 @@ import {
 import { inOrderOf, nameOrId } from '#/shared/services/ids';
 import type { PickerState } from '#/shared/services/picker';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/services/principal';
+import { useSubjectPicker, type Subject } from '#/entities/subject';
 
 export interface SystemAdministrators {
   createNeeds: readonly AdminCapability[];

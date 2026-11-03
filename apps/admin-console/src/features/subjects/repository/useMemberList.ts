@@ -1,7 +1,6 @@
-import type { Subject } from '@odudu/contracts/admin';
-import { readSubjectCount, readSubjectPage } from '#/features/subjects/adapter/subjects';
 import { useResourceList } from '#/shared/repository/useResourceList';
 import type { ResourceListState } from '#/shared/services/resourceList';
+import { readSubjectCount, readSubjectPage, type Subject } from '#/entities/subject';
 
 // The subjects a group or a role names directly, by the subjects list's own filter.
 export function useMemberList(

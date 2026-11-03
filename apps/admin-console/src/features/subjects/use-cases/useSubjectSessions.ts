@@ -1,11 +1,3 @@
-import type {
-  Consent,
-  EndSessionsResponse,
-  Grant,
-  RevokeGrantsResponse,
-  Session,
-  Subject,
-} from '@odudu/contracts/admin';
 import type { AdminCapability } from '#/shared/services/principal';
 import { useAuthority } from '#/entities/session';
 import {
@@ -30,6 +22,10 @@ import { notLacking } from '#/shared/services/access';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import type { Confirming } from '#/shared/use-cases/useConfirmedChange';
 import { subjectName } from '#/features/subjects/services/subjectName';
+import { type Consent } from '#/features/subjects/types/consent';
+import { type Grant, type GrantsRevoked } from '#/features/subjects/types/grant';
+import type { SessionsEnded, SubjectSession } from '#/features/subjects/types/subjectSession';
+import { type Subject } from '#/entities/subject';
 
 // Sessions and grants are read and changed with manage-sessions alone:
 // there is no view-sessions.
@@ -39,8 +35,8 @@ export function useHolds(tenant: string, capability: AdminCapability): boolean {
 
 export interface SubjectSessions {
   name: string;
-  list: ResourceListState<Session>;
-  end: Confirming<Session>;
+  list: ResourceListState<SubjectSession>;
+  end: Confirming<SubjectSession>;
   endAll: Confirming<'all'>;
 }
 
@@ -59,7 +55,7 @@ export function useSubjectSessions(tenant: string, subject: Subject): SubjectSes
       tenant,
       capability: 'manage-sessions',
       change: useEndAllSessions(tenant, subject.id),
-      done: (_all, data: EndSessionsResponse) => sessionsEndedText(name, data.ended),
+      done: (_all, data: SessionsEnded) => sessionsEndedText(name, data.ended),
     }),
   };
 }
@@ -85,7 +81,7 @@ export function useSubjectConsents(
       tenant,
       capability: 'manage-users',
       change: useRevokeConsent(tenant, subject.id),
-      done: (consent) => consentRevokedText(name, consent.client_key),
+      done: (consent) => consentRevokedText(name, consent.clientKey),
     }),
   };
 }
@@ -111,8 +107,7 @@ export function useSubjectGrants(tenant: string, subject: Subject): SubjectGrant
       tenant,
       capability: 'manage-sessions',
       change: useRevokeGrants(tenant, subject.id),
-      done: (client, data: RevokeGrantsResponse) =>
-        grantsRevokedText(name, data.revoked, client.key),
+      done: (client, data: GrantsRevoked) => grantsRevokedText(name, data.revoked, client.key),
     }),
   };
 }

@@ -1,4 +1,4 @@
-import type { Consent, EndSessionsResponse, Grant, Session } from '@odudu/contracts/admin';
+import type { SessionsEnded, SubjectSession } from '#/features/subjects/types/subjectSession';
 import {
   endAllSessions,
   endSession,
@@ -14,6 +14,8 @@ import { useResourceList } from '#/shared/repository/useResourceList';
 import { useWrite, type Write } from '#/shared/repository/useWrite';
 import type { ResourceListState } from '#/shared/services/resourceList';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+import { type Consent } from '#/features/subjects/types/consent';
+import { type Grant } from '#/features/subjects/types/grant';
 
 function sessionsResource(id: string): string {
   return `subjects/${id}/sessions`;
@@ -27,7 +29,7 @@ function grantsResource(id: string): string {
   return `subjects/${id}/grants`;
 }
 
-export function useSessionList(tenant: string, id: string): ResourceListState<Session> {
+export function useSessionList(tenant: string, id: string): ResourceListState<SubjectSession> {
   return useResourceList({
     tenant,
     resource: sessionsResource(id),
@@ -72,20 +74,20 @@ function useSubjectChange<A, R>(
 }
 
 export function useEndSession(tenant: string, id: string) {
-  return useSubjectChange(tenant, id, (gateway, session: Session) =>
+  return useSubjectChange(tenant, id, (gateway, session: SubjectSession) =>
     endSession(gateway, tenant, id, session.id),
   );
 }
 
 export function useEndAllSessions(tenant: string, id: string) {
-  return useSubjectChange<'all', EndSessionsResponse>(tenant, id, (gateway) =>
+  return useSubjectChange<'all', SessionsEnded>(tenant, id, (gateway) =>
     endAllSessions(gateway, tenant, id),
   );
 }
 
 export function useRevokeConsent(tenant: string, id: string) {
   return useSubjectChange(tenant, id, (gateway, consent: Consent) =>
-    revokeConsent(gateway, tenant, id, consent.client_id),
+    revokeConsent(gateway, tenant, id, consent.clientId),
   );
 }
 

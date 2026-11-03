@@ -1,8 +1,8 @@
-import { type Credential, type ListCredentialsResponse } from '@odudu/contracts/admin';
 import type { Read } from '#/shared/services/read';
 import type { NamedDialog } from '#/shared/services/dialog';
 import { lowerFirst } from '#/shared/services/format';
 import { credentialsOf, factorLabel } from '#/features/subjects/services/credentialList';
+import { type Credential } from '#/features/subjects/types/credential';
 
 export type Asking =
   | { kind: 'password' }
@@ -27,10 +27,10 @@ export function askToRevoke(factors: readonly Credential[]): Asking {
 // change, or one in another tab, moves what is the last factor.
 export function askingAgainst(
   asking: Asking | null,
-  credentials: Read<ListCredentialsResponse>,
+  credentials: Read<Credential[]>,
 ): Asking | null {
   if (asking === null || credentials.status !== 'ready') return asking;
-  const { factors } = credentialsOf(credentials.data.items);
+  const { factors } = credentialsOf(credentials.data);
   if (asking.kind === 'factor') return { ...asking, last: factors.length <= 1 };
   if (asking.kind === 'recovery-codes') return { ...asking, hasFactor: factors.length > 0 };
   return asking;

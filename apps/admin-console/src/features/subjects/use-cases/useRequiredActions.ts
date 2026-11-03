@@ -1,4 +1,4 @@
-import type { SetRequiredActionsResponse, Subject } from '@odudu/contracts/admin';
+import type { SetRequiredActionsResponse } from '@odudu/contracts/admin';
 import { useRefusal } from '#/entities/session';
 import {
   saveActions,
@@ -14,6 +14,7 @@ import {
   describeActions,
   requiredActionsInOrder,
 } from '#/features/subjects/services/requiredActions';
+import { type Subject } from '#/entities/subject';
 
 export function useRequiredActionsRead(
   tenant: string,

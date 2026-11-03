@@ -1,4 +1,3 @@
-import type { Subject } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useEndOwnSession, useRefusal } from '#/entities/session';
 import { areaAt, areaHref } from '#/entities/area';
@@ -23,6 +22,7 @@ import { usernameMode, type UsernameMode } from '#/features/subjects/services/us
 import { subjectName } from '#/features/subjects/services/subjectName';
 import { subjectsHref } from '#/features/subjects/services/subjectAddress';
 import { subjectRecord } from '#/features/subjects/services/subjectRecords';
+import { type Subject } from '#/entities/subject';
 
 export type { UsernameMode };
 

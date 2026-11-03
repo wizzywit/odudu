@@ -1,4 +1,8 @@
 import { expect, it, vi } from 'vitest';
+import capabilities from '#/entities/subject/adapter/fixtures/admin-capabilities.json';
+import effectiveRoles from '#/entities/subject/adapter/fixtures/effective-roles.json';
+import groups from '#/entities/subject/adapter/fixtures/groups.json';
+import requiredActions from '#/entities/subject/adapter/fixtures/required-actions.json';
 import {
   readAdminCapabilities,
   readAdminRoles,
@@ -7,21 +11,11 @@ import {
   readSubjectGroups,
   setRequiredActions,
   setSubjectGroups,
-} from '#/features/subjects/adapter/access';
+} from '#/entities/subject/adapter/subjectAccess';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 
 const S = `${ACME_ADMIN}/subjects/s1`;
-const GROUP = {
-  id: 'g1',
-  name: 'ops',
-  description: null,
-  parent_id: null,
-  default_for_new_subjects: false,
-  path: '/ops',
-  created_at: '2026-09-28T08:41:53.858Z',
-};
-
 function role(id: string, name: string, clientKey: string | null, clientId: string | null) {
   return {
     id,
@@ -37,13 +31,13 @@ function role(id: string, name: string, clientKey: string | null, clientId: stri
 
 it("reads and replaces a subject's groups on the ETag it read", async () => {
   const fake = fakeTransport({
-    [`GET ${S}/groups`]: json({ items: [GROUP] }, 200, { etag: '"g1"' }),
+    [`GET ${S}/groups`]: json(groups, 200, { etag: '"g1"' }),
     [`PUT ${S}/groups`]: json({ items: [] }, 200, { etag: '"g2"' }),
   });
   expect(await readSubjectGroups(fake.transport.gateway, 'acme', 's1')).toMatchObject({
     ok: true,
     etag: '"g1"',
-    data: { items: [GROUP] },
+    data: groups,
   });
   await setSubjectGroups(fake.transport.gateway, 'acme', 's1', [], '"g1"');
   expect(fake.sent.at(-1)).toMatchObject({ body: { group_ids: [] }, ifMatch: '"g1"' });
@@ -51,13 +45,13 @@ it("reads and replaces a subject's groups on the ETag it read", async () => {
 
 it("reads and replaces a subject's required actions on the ETag it read", async () => {
   const fake = fakeTransport({
-    [`GET ${S}/required-actions`]: json({ actions: ['configure-totp'] }, 200, { etag: '"a1"' }),
+    [`GET ${S}/required-actions`]: json(requiredActions, 200, { etag: '"a1"' }),
     [`PUT ${S}/required-actions`]: json({ actions: [] }, 200, { etag: '"a2"' }),
   });
   expect(await readRequiredActions(fake.transport.gateway, 'acme', 's1')).toMatchObject({
     ok: true,
     etag: '"a1"',
-    data: { actions: ['configure-totp'] },
+    data: { actions: ['update-password'] },
   });
   await setRequiredActions(fake.transport.gateway, 'acme', 's1', ['update-password'], '"a1"');
   expect(fake.sent.at(-1)).toMatchObject({
@@ -67,15 +61,7 @@ it("reads and replaces a subject's required actions on the ETag it read", async 
 });
 
 it('reads a page of the roles a subject holds, with how, from the cursor it is given', async () => {
-  const fake = fakeTransport({
-    [`GET ${S}/effective-roles`]: (request) =>
-      json({
-        items: [
-          { id: 'r1', name: 'x', client_id: null, client_key: null, via: [{ kind: 'direct' }] },
-        ],
-        next: request.search.get('cursor') === 'c1' ? undefined : 'c1',
-      })(request),
-  });
+  const fake = fakeTransport({ [`GET ${S}/effective-roles`]: json(effectiveRoles) });
   const first = await readEffectiveRoles(
     fake.transport.gateway,
     'acme',
@@ -84,7 +70,10 @@ it('reads a page of the roles a subject holds, with how, from the cursor it is g
   );
   expect(first).toMatchObject({
     ok: true,
-    data: { items: [{ id: 'r1', via: [{ kind: 'direct' }] }], next: 'c1' },
+    data: {
+      items: [{ name: 'role-reader', via: [{ kind: 'direct' }] }, {}],
+      next: effectiveRoles.next,
+    },
   });
   await readEffectiveRoles(
     fake.transport.gateway,
@@ -96,24 +85,16 @@ it('reads a page of the roles a subject holds, with how, from the cursor it is g
 });
 
 it('reads the admin capabilities a subject holds, whole', async () => {
-  const fake = fakeTransport({
-    [`GET ${S}/admin-capabilities`]: json({
-      items: [
-        {
-          id: 'r1',
-          name: 'manage-users',
-          client_id: 'c1',
-          client_key: 'odudu-admin',
-          via: [{ kind: 'direct' }],
-        },
-      ],
-      complete: true,
-    }),
-  });
-  expect(await readAdminCapabilities(fake.transport.gateway, 'acme', 's1')).toMatchObject({
-    ok: true,
-    data: { items: [{ name: 'manage-users', client_key: 'odudu-admin' }] },
-  });
+  const fake = fakeTransport({ [`GET ${S}/admin-capabilities`]: json(capabilities) });
+  const read = await readAdminCapabilities(fake.transport.gateway, 'acme', 's1');
+  expect(read).toMatchObject({ ok: true, data: { complete: true } });
+  expect(read.ok && read.data.items.map((item) => item.name)).toEqual([
+    'view-users',
+    'manage-users',
+    'manage-keys',
+    'view-audit',
+    'key-keepers',
+  ]);
 });
 
 it("finds the built-in admin client's roles through the role list, by name", async () => {

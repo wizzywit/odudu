@@ -1,5 +1,8 @@
-import { type Credential, type Lockout, type Profile, type Subject } from '@odudu/contracts/admin';
+import { type Profile } from '@odudu/contracts/admin';
 import { nameOrId } from '#/shared/services/ids';
+import { type Credential } from '#/features/subjects/types/credential';
+import { type Lockout } from '#/features/subjects/types/lockout';
+import { type Subject } from '#/entities/subject';
 
 export type { Credential, Lockout, Profile, Subject };
 

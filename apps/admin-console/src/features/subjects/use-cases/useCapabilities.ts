@@ -1,4 +1,4 @@
-import type { SetRolesResponse, Subject } from '@odudu/contracts/admin';
+import type { SetRolesResponse } from '@odudu/contracts/admin';
 import { useAuthority, useRefusal, useRereadAuthority } from '#/entities/session';
 import {
   useAdminRoleIds,
@@ -39,6 +39,7 @@ import { rolesRecord } from '#/features/subjects/services/subjectRecords';
 import { subjectTabHref } from '#/features/subjects/services/subjectAddress';
 import { roleIdsOf, splitRoles } from '#/features/subjects/services/subjectRoles';
 import { beyondText, heldOf, subjectBeyond } from '#/features/subjects/services/subjectReach';
+import { type Subject } from '#/entities/subject';
 
 export function useSubjectRolesRead(tenant: string, id: string): RecordState<SetRolesResponse> {
   return useRolesRecord(tenant, id);

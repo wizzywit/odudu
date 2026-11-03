@@ -1,11 +1,8 @@
-import type { Profile, Subject } from '@odudu/contracts/admin';
+import type { Profile } from '@odudu/contracts/admin';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   amendProfile,
-  amendSubject,
-  deleteSubject,
   readProfile,
-  readSubject,
   readUsernameEditable,
 } from '#/features/subjects/adapter/subjects';
 import { listKey, recordKey, usernamePolicyKey } from '#/shared/repository/queryKeys';
@@ -19,6 +16,7 @@ import type { Read } from '#/shared/services/read';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
 import { useTransport } from '#/shared/transport/useTransport';
 import { profileRecord, subjectRecord } from '#/features/subjects/services/subjectRecords';
+import { amendSubject, deleteSubject, readSubject, type Subject } from '#/entities/subject';
 
 export function useSubjectRecord(tenant: string, id: string): RecordState<Subject> {
   return useRecord({

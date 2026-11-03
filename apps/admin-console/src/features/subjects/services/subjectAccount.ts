@@ -1,7 +1,7 @@
-import { type Subject } from '@odudu/contracts/admin';
 import { writeFailureText } from '#/shared/services/failure';
 import type { GatewayFailure } from '#/shared/services/result';
 import { subjectRefusal } from '#/shared/services/capabilities';
+import { type Subject } from '#/entities/subject';
 
 // A service subject has no `users` row: no username, email,
 // profile, password or lockout, since it signs in as itself.

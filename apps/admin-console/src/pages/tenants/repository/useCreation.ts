@@ -1,14 +1,8 @@
-import type { Subject } from '@odudu/contracts/admin';
 import type { Tenant } from '#/pages/tenants/types/tenant';
 import { findKey } from '#/shared/repository/queryKeys';
 import { createTenant, findTenant } from '#/pages/tenants/adapter/tenants';
-import { createSubject, findSubject, issuePassword } from '#/shared/adapter/administrators';
-import {
-  defect,
-  grantHoldings,
-  refusedAt,
-  type Refused,
-} from '#/shared/repository/administratorRoles';
+import { createSubject, findSubject, issuePassword, type Subject } from '#/entities/subject';
+import { defect, grantHoldings, refusedAt, type Refused } from '#/features/system-admins';
 import {
   administratorCalls,
   subjectlessRequest,

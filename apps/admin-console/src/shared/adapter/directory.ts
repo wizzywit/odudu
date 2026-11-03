@@ -4,7 +4,6 @@ import {
   listKeysResponseSchema,
   listRolesResponseSchema,
   listScopesResponseSchema,
-  listSubjectsResponseSchema,
   roleSchema,
   type Role,
 } from '@odudu/contracts/admin';
@@ -18,8 +17,6 @@ export const readRoleCount = countReader('roles');
 export const readGroupPage = listReader('groups', listGroupsResponseSchema);
 export const readScopePage = listReader('scopes', listScopesResponseSchema);
 export const readClientPage = listReader('clients', listClientsResponseSchema);
-export const readSubjectPage = listReader('subjects', listSubjectsResponseSchema);
-export const readSubjectCount = countReader('subjects');
 export const readKeyPage = listReader('keys', listKeysResponseSchema);
 
 // One role with what it reaches, for a list that names a role by id alone.

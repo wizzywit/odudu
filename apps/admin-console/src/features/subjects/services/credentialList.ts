@@ -1,5 +1,5 @@
-import { type Credential } from '@odudu/contracts/admin';
 import { formatAbsolute } from '#/shared/services/format';
+import { type Credential } from '#/features/subjects/types/credential';
 
 export interface Credentials {
   password: Credential | null;
@@ -14,7 +14,7 @@ export function credentialsOf(items: readonly Credential[]): Credentials {
   return {
     password: items.find((item) => item.type === 'password') ?? null,
     factors: items.filter((item) => item.type === 'totp' || item.type === 'webauthn'),
-    recoveryCodes: codes === undefined ? null : (codes.recovery_code_count ?? 0),
+    recoveryCodes: codes === undefined ? null : (codes.recoveryCodeCount ?? 0),
   };
 }
 
@@ -24,5 +24,5 @@ export function factorLabel(type: Credential['type']): string {
 
 // Two passkeys share a label, so each Remove names when its own was enrolled.
 export function removeFactorLabel(credential: Credential): string {
-  return `Remove ${factorLabel(credential.type)} enrolled ${formatAbsolute(new Date(credential.created_at))}`;
+  return `Remove ${factorLabel(credential.type)} enrolled ${formatAbsolute(new Date(credential.createdAt))}`;
 }

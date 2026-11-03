@@ -1,4 +1,4 @@
-import type { ListCredentialsResponse, Lockout, Subject } from '@odudu/contracts/admin';
+import type { Credential } from '#/features/subjects/types/credential';
 import { useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import {
@@ -28,6 +28,8 @@ import {
 } from '#/features/subjects/services/credentialOutcome';
 import { signsInAsItself } from '#/features/subjects/services/subjectAccount';
 import { subjectName } from '#/features/subjects/services/subjectName';
+import { type Lockout } from '#/features/subjects/types/lockout';
+import { type Subject } from '#/entities/subject';
 
 export type { Asking };
 
@@ -35,7 +37,7 @@ export interface SubjectCredentials {
   name: string;
   // A service subject, which holds none of this.
   itself: boolean;
-  credentials: Read<ListCredentialsResponse>;
+  credentials: Read<Credential[]>;
   lockout: Read<Lockout>;
   asking: Asking | null;
   // The choice the confirmation offers, when it offers one.

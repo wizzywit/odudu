@@ -1,4 +1,3 @@
-import type { Subject } from '@odudu/contracts/admin';
 import {
   useCapabilityEditor,
   useSubjectRolesRead,
@@ -12,6 +11,7 @@ import { ReadOnlyFields } from '#/shared/ui/Field';
 import { ReadGate } from '#/shared/ui/ReadGate';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { recordTab } from '#/shared/ui/RecordTab';
+import { type Subject } from '#/entities/subject';
 
 export function CapabilitySection({ editing }: { editing: CapabilityEditing }) {
   const s = editing.save;

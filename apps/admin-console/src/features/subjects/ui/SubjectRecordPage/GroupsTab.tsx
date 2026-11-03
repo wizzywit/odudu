@@ -1,4 +1,3 @@
-import type { Subject } from '@odudu/contracts/admin';
 import {
   useSubjectGroups,
   useSubjectGroupsRead,
@@ -10,6 +9,7 @@ import { GroupPicker } from '#/shared/ui/GroupPicker';
 import { ReadGate } from '#/shared/ui/ReadGate';
 import { SaveSection } from '#/shared/ui/SaveSection';
 import { recordTab } from '#/shared/ui/RecordTab';
+import { type Subject } from '#/entities/subject';
 
 export function Memberships({ name, members }: { name: string; members: readonly Membership[] }) {
   if (members.length === 0)

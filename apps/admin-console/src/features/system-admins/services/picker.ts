@@ -1,4 +1,4 @@
-import type { Subject } from '@odudu/contracts/admin';
+import { type Subject } from '#/entities/subject';
 
 export type { Subject };
 

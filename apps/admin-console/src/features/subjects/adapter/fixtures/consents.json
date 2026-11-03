@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "client_id": "01a10f7d-edbc-792a-b693-f9abee8b7a7e",
+      "client_key": "alpha-app",
+      "scope_names": ["openid"],
+      "granted_at": "2026-10-06T04:34:33.829Z"
+    },
+    {
+      "client_id": "01a10f7d-edff-7361-b906-289b7b5f7ef3",
+      "client_key": "beta-app",
+      "scope_names": ["openid"],
+      "granted_at": "2026-10-06T04:34:33.829Z"
+    }
+  ],
+  "next": "eyJhZnRlciI6ImJldGEtYXBwIiwiY29sbGVjdGlvbiI6ImNvbnNlbnRzIiwidGVuYW50SWQiOiIwMWExMGY3ZC1iYjBhLTdjYTctYjRhNS0xZjE3MzYwOWJmZjUiLCJmaWx0ZXJzIjoiMnl5WFJXMExValpHa2tfZ0dvR3Rlay04Qm0yeUZ6Mk9JZm9ZSE1MUUVVdyJ9.8a7ijDgE6fTMcaoWF-jKtQYjWaIOU58H3jE-WAI4mDc"
+}

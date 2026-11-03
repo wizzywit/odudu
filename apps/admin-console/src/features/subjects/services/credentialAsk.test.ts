@@ -10,14 +10,14 @@ import {
 describe('credential asks', () => {
   const factor = {
     kind: 'factor',
-    credential: { id: 'c1', type: 'totp', created_at: 'x' },
+    credential: { id: 'c1', type: 'totp', createdAt: 'x' },
     last: false,
   } as const;
   const lastFactor = { ...factor, last: true } as const;
 
   it('knows which asks hold a last factor, from the factors the subject has', () => {
-    const totp = { id: 't', type: 'totp', created_at: 'x' } as const;
-    const key = { id: 'w', type: 'webauthn', created_at: 'x' } as const;
+    const totp = { id: 't', type: 'totp', createdAt: 'x' } as const;
+    const key = { id: 'w', type: 'webauthn', createdAt: 'x' } as const;
     expect(askToRemove([totp], totp)).toEqual({ kind: 'factor', credential: totp, last: true });
     expect(askToRemove([totp, key], totp)).toMatchObject({ last: false });
     expect(askToRevoke([totp])).toEqual({ kind: 'recovery-codes', hasFactor: true });
@@ -66,10 +66,10 @@ describe('credential asks', () => {
 });
 
 describe('askingAgainst', () => {
-  const totp = { id: 't', type: 'totp', created_at: 'x' } as const;
-  const key = { id: 'w', type: 'webauthn', created_at: 'x' } as const;
+  const totp = { id: 't', type: 'totp', createdAt: 'x' } as const;
+  const key = { id: 'w', type: 'webauthn', createdAt: 'x' } as const;
   const ready = (items: (typeof totp | typeof key)[]) =>
-    ({ status: 'ready', data: { items } }) as const;
+    ({ status: 'ready', data: items }) as const;
 
   it('says the ask against the list as it stands now, not as it stood', () => {
     const asked = askToRemove([totp, key], totp);
