@@ -555,7 +555,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Languages: tab('branding-editor', 'languages', 'Languages'),
   'What the mail inherits': several(
     page('branding/services/mailInheritance.ts', "MAIL_INHERITS_TITLE = 'What the mail inherits'"),
-    page('branding/ui/MailTab/MailTab.tsx', '{MAIL_INHERITS_TITLE}'),
+    page('branding/services/mailTabView.ts', 'title: MAIL_INHERITS_TITLE'),
   ),
   'Preview as client': page(
     'branding/services/mailPreview.ts',
@@ -584,8 +584,8 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'branding/services/overrideForm.ts',
     "OVERRIDES_TITLE = 'Message overrides'",
   ),
-  Edit: page('branding/ui/LanguagesTab/LanguagesTab.tsx', '> Edit </Button>'),
-  Remove: page('branding/ui/LanguagesTab/LanguagesTab.tsx', '> Remove </Button>'),
+  Edit: page('branding/services/overridesView.ts', "edit: 'Edit'"),
+  Remove: page('branding/services/overridesView.ts', "remove: 'Remove'"),
   'Colours and font': feature(
     'branding-editor/services/colourSection.ts',
     "COLOURS_TITLE = 'Colours and font'",

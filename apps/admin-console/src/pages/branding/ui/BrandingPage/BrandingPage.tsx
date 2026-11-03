@@ -1,9 +1,4 @@
 import {
-  BRANDING_DESCRIPTION,
-  BRANDING_NOUN,
-  BRANDING_SECTIONS_LABEL,
-  BRANDING_TAB_LABELS,
-  OFFERED_TABS,
   type OfferedTab,
   PagesPanel,
   PublicationBar,
@@ -42,9 +37,9 @@ function Branding({ tenant }: { tenant: string }) {
         record={branding.record}
         kicker={tenant}
         title={AREA.label}
-        description={BRANDING_DESCRIPTION}
-        noun={BRANDING_NOUN}
-        label={BRANDING_SECTIONS_LABEL}
+        description={page.words.description}
+        noun={page.words.noun}
+        label={page.words.sectionsLabel}
         banner={
           view === undefined || tag === null ? null : (
             <PublicationBar
@@ -58,12 +53,9 @@ function Branding({ tenant }: { tenant: string }) {
         }
         tab={page.tab}
         onTabChange={page.selectTab}
-        tabs={OFFERED_TABS.map((tab) => ({
-          id: tab,
-          label: BRANDING_TAB_LABELS[tab],
-          dirty: page.dirty.has(tab),
-          changed: branding.changed.has(tab),
-          panel: panels === null ? null : panels[tab],
+        tabs={page.tabs.map((tab) => ({
+          ...tab,
+          panel: panels === null ? null : panels[tab.id],
         }))}
       />
     </TouchTargets>

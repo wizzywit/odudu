@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import type { MailTab } from '#/pages/branding/use-cases/useMailTab';
+import { mailClientChoice } from '#/pages/branding/services/mailTabView';
 import { MailClientChoice } from '#/pages/branding/ui/MailClientChoice/MailClientChoice';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { pickerState } from '#/testing/pickerState';
@@ -17,6 +18,7 @@ function mailWith(changes: Partial<MailTab> = {}): MailTab {
   // Only what the choice reads; the rest of the tab is its frame and lists.
   return {
     client: null,
+    clientChoice: mailClientChoice(changes.client ?? null),
     picker: pickerState([BILLING]),
     chooseClient: vi.fn(),
     showTenantOwn: vi.fn(),

@@ -1,5 +1,3 @@
-import { MAIL_AS_LABEL, MAIL_TENANT_OWN } from '#/pages/branding/services/mailPreview';
-import { mailClientSelection } from '#/pages/branding/services/mailChoice';
 import type { MailTab } from '#/pages/branding/use-cases/useMailTab';
 import { Button } from '#/shared/ui/Button';
 import { ClientPicker } from '#/entities/client';
@@ -8,20 +6,21 @@ import styles from '#/pages/branding/ui/MailClientChoice/MailClientChoice.module
 // Which look the preview shows: the tenant's own, or the mail a sign-in of one
 // of its clients sends. A client is chosen the way a scope's clients are.
 export function MailClientChoice({ mail }: { mail: MailTab }) {
+  const { clientChoice } = mail;
   return (
     <div className={styles.choice}>
       <div className={styles.picker}>
         <ClientPicker
-          label={MAIL_AS_LABEL}
+          label={clientChoice.label}
           picker={mail.picker}
-          selected={mailClientSelection(mail.client)}
+          selected={clientChoice.selected}
           selectionMode="single"
           onChange={mail.chooseClient}
         />
       </div>
-      {mail.client === null ? null : (
+      {clientChoice.tenantOwn === null ? null : (
         <Button size="small" onPress={mail.showTenantOwn}>
-          {MAIL_TENANT_OWN}
+          {clientChoice.tenantOwn}
         </Button>
       )}
     </div>

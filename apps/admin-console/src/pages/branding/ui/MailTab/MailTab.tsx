@@ -1,38 +1,6 @@
-import {
-  PreviewShell,
-  previewSummary,
-  type Scheme,
-  SCHEME_LABELS,
-  SCHEME_PICKER_LABEL,
-  schemeColoursTitle,
-  schemeOf,
-  schemeOptions,
-} from '#/features/branding-editor';
-import type { MailBrandingView } from '#/pages/branding/types/mailBranding';
+import { PreviewShell } from '#/features/branding-editor';
+import type { InheritsView, PaletteView } from '#/pages/branding/services/mailTabView';
 import { useId } from 'react';
-import { logoViews, LOGO_ELSEWHERE, LOGO_TITLE } from '#/pages/branding/services/mailLogos';
-import {
-  MAIL_CLIENTS_NOTE,
-  mailInheritsLead,
-  MAIL_INHERITS_TITLE,
-  paletteRows,
-  sourceText,
-} from '#/pages/branding/services/mailInheritance';
-import {
-  MAIL_FAILED,
-  MAIL_FRAME_TITLE,
-  MAIL_LOADING_BRANDING,
-  mailPreviewNote,
-  MAIL_PREVIEW_TITLE,
-} from '#/pages/branding/services/mailPreview';
-import { mailClientName } from '#/pages/branding/services/mailChoice';
-import {
-  MAIL_LOCALE_LABEL,
-  MAIL_LOCALE_OPTIONS,
-  mailLocaleLabel,
-  mailLocaleOf,
-  MAIL_SUMMARY_NAME,
-} from '#/pages/branding/services/mailLocale';
 import type { MailTab as Mail } from '#/pages/branding/use-cases/useMailTab';
 import { MailClientChoice } from '#/pages/branding/ui/MailClientChoice';
 import { InlineFields, SelectField } from '#/shared/ui/Field';
@@ -43,43 +11,33 @@ import { FormSkeleton } from '#/shared/ui/Skeleton';
 import styles from '#/pages/branding/ui/MailTab/MailTab.module.css';
 
 export function MailPreview({ mail }: { mail: Mail }) {
+  const { preview } = mail;
   return (
     <PreviewShell
-      title={MAIL_PREVIEW_TITLE}
-      summary={previewSummary(
-        MAIL_SUMMARY_NAME,
-        SCHEME_LABELS[mail.choice.scheme],
-        mailLocaleLabel(mail.choice.locale),
-        mailClientName(mail.client) ?? '',
-      )}
-      lead={mailPreviewNote(mailClientName(mail.client))}
+      title={preview.title}
+      summary={preview.summary}
+      lead={preview.lead}
       controls={
         <>
           <InlineFields>
             <SelectField
-              label={SCHEME_PICKER_LABEL}
-              options={schemeOptions}
-              value={mail.choice.scheme}
-              onChange={(id) => {
-                const scheme = schemeOf(id);
-                if (scheme !== undefined) mail.setScheme(scheme);
-              }}
+              label={preview.scheme.label}
+              options={preview.scheme.options}
+              value={preview.scheme.value}
+              onChange={mail.chooseScheme}
             />
             <SelectField
-              label={MAIL_LOCALE_LABEL}
-              options={MAIL_LOCALE_OPTIONS}
-              value={mail.choice.locale}
-              onChange={(id) => {
-                const locale = mailLocaleOf(id);
-                if (locale !== undefined) mail.setLocale(locale);
-              }}
+              label={preview.locale.label}
+              options={preview.locale.options}
+              value={preview.locale.value}
+              onChange={mail.chooseLocale}
             />
           </InlineFields>
           <MailClientChoice mail={mail} />
         </>
       }
       frame={{
-        title: MAIL_FRAME_TITLE,
+        title: preview.frameTitle,
         src: mail.src,
         frameKey: mail.frameKey,
         loading: mail.loading,
@@ -89,11 +47,11 @@ export function MailPreview({ mail }: { mail: Mail }) {
   );
 }
 
-function Logos({ branding, origin }: { branding: MailBrandingView; origin: string }) {
+function Logos({ logos }: { logos: InheritsView['logos'] }) {
   return (
-    <Panel title={LOGO_TITLE}>
+    <Panel title={logos.title}>
       <dl className={styles.facts}>
-        {logoViews(branding, origin).map((logo) => (
+        {logos.items.map((logo) => (
           <div key={logo.label} className={styles.fact}>
             <dt>{logo.label}</dt>
             <dd>
@@ -109,7 +67,7 @@ function Logos({ branding, origin }: { branding: MailBrandingView; origin: strin
                   <span className={styles.size}>{logo.size}</span>
                   <code className={styles.address}>{logo.src}</code>
                   {logo.picture === null ? (
-                    <span className={styles.size}>{LOGO_ELSEWHERE}</span>
+                    <span className={styles.size}>{logos.elsewhere}</span>
                   ) : null}
                 </>
               )}
@@ -121,21 +79,22 @@ function Logos({ branding, origin }: { branding: MailBrandingView; origin: strin
   );
 }
 
-function Palette({ scheme, view }: { scheme: Scheme; view: MailBrandingView['light'] }) {
+function Palette({ palette }: { palette: PaletteView }) {
+  const { columns } = palette;
   return (
-    <Panel title={schemeColoursTitle(scheme)}>
-      <p className={recordTab.rule}>{sourceText(view.source)}</p>
+    <Panel title={palette.legend}>
+      <p className={recordTab.rule}>{palette.source}</p>
       <table className={styles.table}>
-        <caption className={styles.caption}>{schemeColoursTitle(scheme)}</caption>
+        <caption className={styles.caption}>{palette.legend}</caption>
         <thead>
           <tr>
-            <th scope="col">Colour</th>
-            <th scope="col">Value</th>
-            <th scope="col">Used for</th>
+            <th scope="col">{columns.colour}</th>
+            <th scope="col">{columns.value}</th>
+            <th scope="col">{columns.used}</th>
           </tr>
         </thead>
         <tbody>
-          {paletteRows(view.colours).map((row) => (
+          {palette.rows.map((row) => (
             <tr key={row.role}>
               <th scope="row">{row.label}</th>
               <td>
@@ -156,26 +115,28 @@ function Palette({ scheme, view }: { scheme: Scheme; view: MailBrandingView['lig
 }
 
 export function MailInherits({ mail }: { mail: Mail }) {
-  const { branding } = mail;
+  const { words, read } = mail.inherits;
   const heading = useId();
-  if (branding.status === 'loading') {
-    return <FormSkeleton label={MAIL_LOADING_BRANDING} fields={3} />;
+  if (read.status === 'loading') {
+    return <FormSkeleton label={words.loading} fields={3} />;
   }
-  if (branding.status === 'failed') {
-    return <LoadFailed title={MAIL_FAILED} retry={branding.retry} />;
+  if (read.status === 'failed') {
+    return <LoadFailed title={words.failed} retry={read.retry} />;
   }
+  const inherits = read.data;
   return (
     <div className={styles.inherits}>
       <section aria-labelledby={heading} className={styles.lead}>
         <h2 id={heading} className={styles.heading}>
-          {MAIL_INHERITS_TITLE}
+          {inherits.title}
         </h2>
-        <p className={recordTab.rule}>{mailInheritsLead(mailClientName(mail.client))}</p>
-        <p className={recordTab.rule}>{MAIL_CLIENTS_NOTE}</p>
+        <p className={recordTab.rule}>{inherits.lead}</p>
+        <p className={recordTab.rule}>{inherits.note}</p>
       </section>
-      <Logos branding={branding.data} origin={mail.origin} />
-      <Palette scheme="light" view={branding.data.light} />
-      <Palette scheme="dark" view={branding.data.dark} />
+      <Logos logos={inherits.logos} />
+      {inherits.palettes.map((palette) => (
+        <Palette key={palette.scheme} palette={palette} />
+      ))}
     </div>
   );
 }

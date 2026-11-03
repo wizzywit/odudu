@@ -44,31 +44,31 @@ function section() {
 it('adds a typed language to the supported ones and clears what was typed', () => {
   const { result } = section();
   act(() => {
-    result.current.typeAdding('fr');
+    result.current.add.type('fr');
   });
-  expect(result.current.adding).toBe('fr');
+  expect(result.current.add.value).toBe('fr');
   act(() => {
-    result.current.add();
+    result.current.add.press();
   });
   expect(result.current.save.values.supported_locales).toEqual(['en', 'ar', 'fr']);
-  expect(result.current.adding).toBe('');
-  expect(result.current.addProblem).toBeUndefined();
+  expect(result.current.add.value).toBe('');
+  expect(result.current.add.problem).toBeUndefined();
 });
 
 it('says why a language cannot be added, and lets go of that when typing goes on', () => {
   const { result } = section();
   act(() => {
-    result.current.add();
+    result.current.add.press();
   });
-  expect(result.current.addProblem).toBe(ADD_NEEDED);
+  expect(result.current.add.problem).toBe(ADD_NEEDED);
   act(() => {
-    result.current.typeAdding('AR');
+    result.current.add.type('AR');
   });
-  expect(result.current.addProblem).toBeUndefined();
+  expect(result.current.add.problem).toBeUndefined();
   act(() => {
-    result.current.add();
+    result.current.add.press();
   });
-  expect(result.current.addProblem).toBe(ADD_DUPLICATE);
+  expect(result.current.add.problem).toBe(ADD_DUPLICATE);
   expect(result.current.save.values.supported_locales).toEqual(['en', 'ar']);
 });
 
@@ -85,9 +85,9 @@ const REMOVED = { locale: 'en', key: 'login.title', etag: TITLE_OVERRIDE.etag };
 
 it('opens on the first supported language and reads its overrides', async () => {
   const { result } = overrides({});
-  expect(result.current.locale).toBe('en');
+  expect(result.current.locale.value).toBe('en');
   await waitFor(() => {
-    expect(result.current.list.rows).toHaveLength(2);
+    expect(result.current.table.list.rows).toHaveLength(2);
   });
 });
 
@@ -96,20 +96,22 @@ it('removes an override after it is asked for, and says so', async () => {
     [`DELETE ${MO}/en/login.title`]: () => new Response(null, { status: 204 }),
   });
   await waitFor(() => {
-    expect(result.current.list.rows).toHaveLength(2);
+    expect(result.current.table.list.rows).toHaveLength(2);
   });
   act(() => {
-    result.current.ask(REMOVED);
+    result.current.removal.ask(REMOVED);
   });
-  expect(result.current.consequence).toMatch(/en show the catalogue’s text for login\.title/u);
+  expect(result.current.removal.consequence).toMatch(
+    /en show the catalogue’s text for login\.title/u,
+  );
   await act(async () => {
-    await result.current.confirm();
+    await result.current.removal.confirm();
   });
   expect(sent.find((request) => request.method === 'DELETE')).toMatchObject({
     ifMatch: TITLE_OVERRIDE.etag,
   });
-  expect(result.current.removing).toBeNull();
-  expect(result.current.notice).toBe(REMOVED_TEXT);
+  expect(result.current.removal.removing).toBeNull();
+  expect(result.current.removal.notice).toBe(REMOVED_TEXT);
 });
 
 it('closes the dialog on an override that changed after it was seen, and says to look at the list', async () => {
@@ -117,18 +119,18 @@ it('closes the dialog on an override that changed after it was seen, and says to
     [`DELETE ${MO}/en/login.title`]: problem(412, 'about:blank', 'Precondition Failed'),
   });
   await waitFor(() => {
-    expect(result.current.list.rows).toHaveLength(2);
+    expect(result.current.table.list.rows).toHaveLength(2);
   });
   act(() => {
-    result.current.ask(REMOVED);
+    result.current.removal.ask(REMOVED);
   });
   await act(async () => {
-    await result.current.confirm();
+    await result.current.removal.confirm();
   });
-  expect(result.current.removing).toBeNull();
-  expect(result.current.notice).toBe(STALE_REMOVAL);
-  expect(result.current.removeProblem).toBeNull();
-  expect(result.current.removed).toBe(1);
+  expect(result.current.removal.removing).toBeNull();
+  expect(result.current.removal.notice).toBe(STALE_REMOVAL);
+  expect(result.current.removal.problem).toBeNull();
+  expect(result.current.removal.count).toBe(1);
 });
 
 it('counts an override that is already gone as removed', async () => {
@@ -136,13 +138,13 @@ it('counts an override that is already gone as removed', async () => {
     [`DELETE ${MO}/en/login.title`]: problem(404, 'about:blank', 'Not Found'),
   });
   await waitFor(() => {
-    expect(result.current.list.rows).toHaveLength(2);
+    expect(result.current.table.list.rows).toHaveLength(2);
   });
   act(() => {
-    result.current.ask(REMOVED);
+    result.current.removal.ask(REMOVED);
   });
   await act(async () => {
-    await result.current.confirm();
+    await result.current.removal.confirm();
   });
-  expect(result.current.notice).toBe(ALREADY_REMOVED);
+  expect(result.current.removal.notice).toBe(ALREADY_REMOVED);
 });

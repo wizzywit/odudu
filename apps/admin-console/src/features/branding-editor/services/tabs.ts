@@ -27,6 +27,27 @@ export const OFFERED_TABS = BRANDING_TABS;
 
 export type OfferedTab = (typeof OFFERED_TABS)[number];
 
+export interface TabView {
+  id: OfferedTab;
+  label: string;
+  dirty: boolean;
+  changed: boolean;
+}
+
+// The tabs as the Branding page lists them, with the dot of unsaved edits and
+// the mark of what a publish would change.
+export function tabViews(
+  dirty: ReadonlySet<OfferedTab>,
+  changed: ReadonlySet<OfferedTab>,
+): TabView[] {
+  return OFFERED_TABS.map((id) => ({
+    id,
+    label: BRANDING_TAB_LABELS[id],
+    dirty: dirty.has(id),
+    changed: changed.has(id),
+  }));
+}
+
 // The record each tab's sections are saved to: the theme's, or the tenant's
 // settings, which the languages go to.
 export type TabRecord = 'theme' | 'settings';

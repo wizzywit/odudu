@@ -5,7 +5,27 @@ import { useRef, useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { languagesSave } from '#/pages/branding/repository/languagesSave';
 import { useOverrideList, useOverrideWrites } from '#/pages/branding/repository/useOverrides';
-import { addLanguage } from '#/pages/branding/services/addedLanguage';
+import { addLanguage, addsOnKey } from '#/pages/branding/services/addedLanguage';
+import {
+  ADD_WORDS,
+  defaultView,
+  LANGUAGES_WORDS,
+  supportedView,
+  type DefaultView,
+  type SupportedView,
+} from '#/pages/branding/services/languagesView';
+import {
+  conflictViews,
+  formWords,
+  localeView,
+  OVERRIDES_WORDS,
+  REMOVAL_WORDS,
+  tableView,
+  type ConflictView,
+  type FormWords,
+  type LocaleView,
+  type TableView,
+} from '#/pages/branding/services/overridesView';
 import {
   languageFields,
   LANGUAGES_SECTION,
@@ -64,11 +84,19 @@ export interface LanguagesInput {
 export interface LanguagesSection {
   save: SectionSave<LanguageValues>;
   hold: string | undefined;
+  words: typeof LANGUAGES_WORDS;
+  supported: { view: SupportedView; edit: (next: string[]) => void };
   // The language being typed or chosen to be added to the supported ones.
-  adding: string;
-  addProblem: string | undefined;
-  typeAdding: (text: string) => void;
-  add: () => void;
+  add: {
+    words: typeof ADD_WORDS;
+    value: string;
+    problem: string | undefined;
+    type: (text: string) => void;
+    press: () => void;
+    // Whether a key press adds what was typed.
+    keyAdds: (key: string, choosing: boolean) => boolean;
+  };
+  fallback: { view: DefaultView; edit: (next: string) => void };
 }
 
 // The tenant's supported and default languages, saved as settings.
@@ -79,6 +107,7 @@ export function useLanguagesSection({
   gone,
 }: LanguagesInput): LanguagesSection {
   const refusal = useRefusal(tenant);
+  const saved = languageSettingsOf(data, offeredLocales(data));
   const save = useSectionSave({
     tenant,
     record: TENANT_SETTINGS_RECORD,
@@ -89,28 +118,57 @@ export function useLanguagesSection({
     gone,
     refusal,
     explain: writeRefusal,
-    fields: languageFields(languagesOf(languageSettingsOf(data, offeredLocales(data)))),
+    fields: languageFields(languagesOf(saved)),
     save: languagesSave(tenant),
   });
   const [adding, setAdding] = useState('');
   const [addProblem, setAddProblem] = useState<string | undefined>(undefined);
+  const edit = {
+    saved: saved.supported_locales,
+    values: save.values,
+    errors: {
+      supported: save.fieldErrors.supported_locales,
+      fallback: save.fieldErrors.default_locale,
+    },
+    changed: {
+      supported: save.changed.includes('supported_locales'),
+      fallback: save.changed.includes('default_locale'),
+    },
+  };
   return {
     save,
     hold: languagesHold(save.values),
-    adding,
-    addProblem,
-    typeAdding: (text) => {
-      setAdding(text);
-      setAddProblem(undefined);
+    words: LANGUAGES_WORDS,
+    supported: {
+      view: supportedView(edit),
+      edit: (next) => {
+        save.edit('supported_locales', next);
+      },
     },
-    add: () => {
-      addLanguage(save.values.supported_locales, adding, {
-        problem: setAddProblem,
-        accepted: (supported) => {
-          save.edit('supported_locales', supported);
-          setAdding('');
-        },
-      });
+    add: {
+      words: ADD_WORDS,
+      value: adding,
+      problem: addProblem,
+      type: (text) => {
+        setAdding(text);
+        setAddProblem(undefined);
+      },
+      press: () => {
+        addLanguage(save.values.supported_locales, adding, {
+          problem: setAddProblem,
+          accepted: (supported) => {
+            save.edit('supported_locales', supported);
+            setAdding('');
+          },
+        });
+      },
+      keyAdds: addsOnKey,
+    },
+    fallback: {
+      view: defaultView(edit),
+      edit: (next) => {
+        save.edit('default_locale', next);
+      },
     },
   };
 }
@@ -118,32 +176,43 @@ export function useLanguagesSection({
 export type RemovedOverride = Pick<MessageOverride, 'locale' | 'key' | 'etag'>;
 
 export interface Overrides {
-  locale: string;
-  pick: (locale: string) => void;
-  list: ReturnType<typeof useOverrideList>;
-  // Every message an override may be set under, for the key field.
-  keys: MessageKeys;
-  values: OverrideValues;
-  errors: OverrideErrors;
-  message: string | null;
-  edit: (field: OverrideField, value: string) => void;
-  fill: (override: Pick<MessageOverride, 'key' | 'message' | 'etag'>) => void;
+  words: typeof OVERRIDES_WORDS;
+  locale: LocaleView & { pick: (locale: string) => void };
+  form: {
+    words: FormWords;
+    // Every message an override may be set under, for the key field.
+    keys: MessageKeys;
+    values: OverrideValues;
+    errors: OverrideErrors;
+    message: string | null;
+    saving: boolean;
+    edit: (field: OverrideField, value: string) => void;
+    save: () => void;
+  };
+  table: {
+    list: ReturnType<typeof useOverrideList>;
+    view: TableView;
+    fill: (override: Pick<MessageOverride, 'key' | 'message' | 'etag'>) => void;
+  };
   // Overrides of the language shown whose save met a newer version.
-  conflicts: OverrideConflict[];
-  resolving: boolean;
-  keepMine: (conflict: OverrideConflict) => void;
-  takeTheirs: (conflict: OverrideConflict) => void;
-  saving: boolean;
-  save: () => void;
-  removing: RemovedOverride | null;
-  consequence: string;
-  removeBusy: boolean;
-  removeProblem: string | null;
-  notice: string | null;
-  removed: number;
-  ask: (override: RemovedOverride) => void;
-  cancel: () => void;
-  confirm: () => Promise<boolean>;
+  conflicts: {
+    items: ConflictView[];
+    resolving: boolean;
+    keepMine: (conflict: OverrideConflict) => void;
+    takeTheirs: (conflict: OverrideConflict) => void;
+  };
+  removal: {
+    words: typeof REMOVAL_WORDS;
+    removing: RemovedOverride | null;
+    consequence: string;
+    busy: boolean;
+    problem: string | null;
+    notice: string | null;
+    count: number;
+    ask: (override: RemovedOverride) => void;
+    cancel: () => void;
+    confirm: () => Promise<boolean>;
+  };
 }
 
 // The overrides of one language: the table, the form that sets one, and the
@@ -205,47 +274,59 @@ export function useOverrides(tenant: string, data: Settings): Overrides {
         setSubmitting(false);
       });
   };
+  const saving = writes.put.busy || submitting;
   return {
-    locale,
-    pick: setPicked,
-    list,
-    keys,
-    values,
-    errors,
-    message,
-    edit: (field, value) => {
-      setValues((was) => editedOverride(was, field, value));
-      setErrors((was) => withoutField(was, field));
+    words: OVERRIDES_WORDS,
+    locale: { ...localeView(languages.supported_locales, locale), pick: setPicked },
+    form: {
+      words: formWords(saving),
+      keys,
+      values,
+      errors,
+      message,
+      saving,
+      edit: (field, value) => {
+        setValues((was) => editedOverride(was, field, value));
+        setErrors((was) => withoutField(was, field));
+      },
+      save: () => {
+        const attempt = overrideAttempt(locale, values);
+        setErrors(attempt.errors);
+        setMessage(null);
+        if (attempt.sent !== null) submit(attempt.sent);
+      },
     },
-    fill: (override) => {
-      setValues(filledOverride(override));
-      setErrors({});
-      setMessage(null);
+    table: {
+      list,
+      view: tableView(list.rows, list.next !== null),
+      fill: (override) => {
+        setValues(filledOverride(override));
+        setErrors({});
+        setMessage(null);
+      },
     },
-    saving: writes.put.busy || submitting,
-    save: () => {
-      const attempt = overrideAttempt(locale, values);
-      setErrors(attempt.errors);
-      setMessage(null);
-      if (attempt.sent !== null) submit(attempt.sent);
+    conflicts: {
+      items: conflictViews(conflictsIn(conflicts, locale)),
+      resolving: saving,
+      keepMine: (conflict) => {
+        submit(keepMine(conflict));
+      },
+      takeTheirs: (conflict) => {
+        setConflicts((held) => withoutConflict(held, conflict));
+        setValues((was) => formAfterTakingTheirs(was, conflict));
+      },
     },
-    conflicts: conflictsIn(conflicts, locale),
-    resolving: writes.put.busy || submitting,
-    keepMine: (conflict) => {
-      submit(keepMine(conflict));
+    removal: {
+      words: REMOVAL_WORDS,
+      removing: action.asked,
+      consequence: askedRemoval(action.asked),
+      busy: writes.remove.busy,
+      problem: action.problem,
+      notice: action.notice,
+      count: action.done,
+      ask: action.ask,
+      cancel: action.cancel,
+      confirm: action.confirm,
     },
-    takeTheirs: (conflict) => {
-      setConflicts((held) => withoutConflict(held, conflict));
-      setValues((was) => formAfterTakingTheirs(was, conflict));
-    },
-    removing: action.asked,
-    consequence: askedRemoval(action.asked),
-    removeBusy: writes.remove.busy,
-    removeProblem: action.problem,
-    notice: action.notice,
-    removed: action.done,
-    ask: action.ask,
-    cancel: action.cancel,
-    confirm: action.confirm,
   };
 }

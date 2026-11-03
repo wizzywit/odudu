@@ -12,8 +12,7 @@ export {
   type ScopeBranding,
 } from '#/features/branding-editor/use-cases/useScopeBranding';
 export {
-  BRANDING_DESCRIPTION,
-  BRANDING_NOUN,
+  BRANDING_PAGE_WORDS,
   BRANDING_SECTIONS_LABEL,
 } from '#/features/branding-editor/services/brandingArea';
 export {
@@ -29,17 +28,12 @@ export {
   selectOffered,
   selectScopedTab,
   showsPreview,
+  tabViews,
   type OfferedTab,
   type ScopedTab,
+  type TabView,
 } from '#/features/branding-editor/services/tabs';
-export {
-  SCHEME_LABELS,
-  SCHEME_PICKER_LABEL,
-  schemeColoursTitle,
-  schemeOf,
-  schemeOptions,
-  type Scheme,
-} from '#/features/branding-editor/services/colourScheme';
-export { previewSummary } from '#/features/branding-editor/services/preview';
+export { chooseScheme, type Scheme } from '#/features/branding-editor/services/colourScheme';
+export { SCHEME_PREVIEW_WORDS } from '#/features/branding-editor/services/preview';
 export type { MessageKeys } from '#/features/branding-editor/services/catalogue';
 export type { ThemeView } from '#/features/branding-editor/types/theme';

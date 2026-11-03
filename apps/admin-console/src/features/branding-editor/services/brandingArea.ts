@@ -4,3 +4,9 @@ export const BRANDING_DESCRIPTION =
 export const BRANDING_SECTIONS_LABEL = 'Branding sections';
 
 export const BRANDING_NOUN = 'theme';
+
+export const BRANDING_PAGE_WORDS = {
+  description: BRANDING_DESCRIPTION,
+  noun: BRANDING_NOUN,
+  sectionsLabel: BRANDING_SECTIONS_LABEL,
+} as const;

@@ -9,6 +9,7 @@ import {
 import {
   SCHEME_LABELS,
   SCHEME_PICKER_LABEL,
+  schemeColoursTitle,
   schemeOptions,
   type Scheme,
 } from '#/features/branding-editor/services/colourScheme';
@@ -137,3 +138,12 @@ export function pageSummary(choice: PreviewChoice, fallback: readonly string[]):
     fallback.length === 0 ? '' : PREVIEW_DIFFERS,
   );
 }
+
+// What a preview of another page, the mail's, says of the colour scheme.
+export const SCHEME_PREVIEW_WORDS = {
+  pickerLabel: SCHEME_PICKER_LABEL,
+  options: schemeOptions,
+  label: (scheme: Scheme): string => SCHEME_LABELS[scheme],
+  coloursTitle: schemeColoursTitle,
+  summary: previewSummary,
+};

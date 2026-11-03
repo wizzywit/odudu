@@ -1,54 +1,13 @@
 import { MessageKeyField } from '#/features/branding-editor';
-import type { MessageOverride } from '#/pages/branding/types/messageOverride';
+import type { OverrideLine } from '#/pages/branding/services/overridesView';
 import type { Settings } from '@odudu/contracts/admin';
 import { useRef } from 'react';
-import {
-  ADD_BUTTON,
-  addsOnKey,
-  ADD_LABEL,
-  ADD_NOTE,
-} from '#/pages/branding/services/addedLanguage';
-import {
-  defaultChoices,
-  DEFAULT_LABEL,
-  DEFAULT_NOTE,
-  languageSettingsOf,
-  overrideLocales,
-  SUPPORTED_LABEL,
-  SUPPORTED_NOTE,
-  supportedChoices,
-} from '#/pages/branding/services/supportedLanguages';
-import {
-  LANGUAGES_DESCRIPTION,
-  LANGUAGES_SECTION,
-  LANGUAGES_TITLE,
-} from '#/pages/branding/services/languagesSection';
-import {
-  conflictFields,
-  conflictLead,
-  conflictSection,
-} from '#/pages/branding/services/overrideConflicts';
-import { capText } from '#/pages/branding/services/overrideList';
-import {
-  EDIT_HINT,
-  KEY_LABEL,
-  KEY_NOTE,
-  MESSAGE_LABEL,
-  NOTHING_YET,
-  NOUN,
-  OVERRIDE_LENGTH,
-  OVERRIDE_LOCALE_LABEL,
-  OVERRIDE_MESSAGE_NOTE,
-  OVERRIDES_DESCRIPTION,
-  OVERRIDES_TITLE,
-  SAVE_OVERRIDE,
-} from '#/pages/branding/services/overrideForm';
 import {
   useLanguagesSection,
   useOverrides,
   type Overrides,
 } from '#/pages/branding/use-cases/useLanguages';
-import { offeredLocales, useTenantSettingsRead } from '#/entities/tenant';
+import { useLanguagesTab } from '#/pages/branding/use-cases/useLanguagesTab';
 import { Button } from '#/shared/ui/Button';
 import { ConflictPanel } from '#/shared/ui/ConflictPanel';
 import { ChecklistField } from '#/shared/ui/ChecklistField';
@@ -77,39 +36,36 @@ interface Props {
 }
 
 function LanguagesSection({ tenant, data, etag, gone }: Props) {
-  const { save, hold, adding, addProblem, typeAdding, add } = useLanguagesSection({
+  const { save, hold, words, supported, add, fallback } = useLanguagesSection({
     tenant,
     data,
     etag,
     gone,
   });
-  const saved = languageSettingsOf(data, offeredLocales(data));
   return (
     <SaveSection
-      title={LANGUAGES_TITLE}
-      headingId={`branding-${LANGUAGES_SECTION}`}
-      description={LANGUAGES_DESCRIPTION}
+      title={words.title}
+      headingId={words.headingId}
+      description={words.lead}
       save={save}
       blocked={hold}
     >
       <FieldGrid>
         <GridCell span="full">
           <ChecklistField
-            label={SUPPORTED_LABEL}
-            description={SUPPORTED_NOTE}
-            error={save.fieldErrors.supported_locales}
-            changed={save.changed.includes('supported_locales')}
-            options={supportedChoices(saved.supported_locales, save.values.supported_locales)}
-            value={save.values.supported_locales}
-            onChange={(next) => {
-              save.edit('supported_locales', next);
-            }}
+            label={supported.view.label}
+            description={supported.view.description}
+            error={supported.view.error}
+            changed={supported.view.changed}
+            options={supported.view.options}
+            value={supported.view.value}
+            onChange={supported.edit}
           />
         </GridCell>
         <GridCell span="wide">
           <div
             role="group"
-            aria-label={ADD_LABEL}
+            aria-label={add.words.label}
             onKeyDown={(event) => {
               const pointed =
                 event.target instanceof HTMLElement
@@ -118,34 +74,32 @@ function LanguagesSection({ tenant, data, etag, gone }: Props) {
               const choosing =
                 pointed !== null &&
                 document.getElementById(pointed)?.getAttribute('aria-selected') !== 'true';
-              if (!addsOnKey(event.key, choosing)) return;
+              if (!add.keyAdds(event.key, choosing)) return;
               event.preventDefault();
-              add();
+              add.press();
             }}
           >
             <LocaleField
-              label={ADD_LABEL}
-              description={ADD_NOTE}
-              error={addProblem}
-              value={adding}
-              onChange={typeAdding}
+              label={add.words.label}
+              description={add.words.description}
+              error={add.problem}
+              value={add.value}
+              onChange={add.type}
             />
-            <Button variant="quiet" onPress={add}>
-              {ADD_BUTTON}
+            <Button variant="quiet" onPress={add.press}>
+              {add.words.button}
             </Button>
           </div>
         </GridCell>
         <GridCell span="wide">
           <SelectField
-            label={DEFAULT_LABEL}
-            description={DEFAULT_NOTE}
-            error={save.fieldErrors.default_locale}
-            changed={save.changed.includes('default_locale')}
-            options={defaultChoices(save.values.supported_locales)}
-            value={save.values.default_locale}
-            onChange={(next) => {
-              save.edit('default_locale', next);
-            }}
+            label={fallback.view.label}
+            description={fallback.view.description}
+            error={fallback.view.error}
+            changed={fallback.view.changed}
+            options={fallback.view.options}
+            value={fallback.view.value}
+            onChange={fallback.edit}
           />
         </GridCell>
       </FieldGrid>
@@ -155,50 +109,51 @@ function LanguagesSection({ tenant, data, etag, gone }: Props) {
 
 function columns(
   page: Overrides,
-  edit: (override: MessageOverride) => void,
-): readonly Column<MessageOverride>[] {
+  edit: (override: OverrideLine) => void,
+): readonly Column<OverrideLine>[] {
+  const { words } = page.table.view;
   return [
     {
       id: 'key',
-      header: 'Key',
+      header: words.columns.key,
       isRowHeader: true,
       cell: (row) => <code className={styles.key}>{row.key}</code>,
     },
     {
       id: 'message',
-      header: 'Text',
+      header: words.columns.text,
       cell: (row) => <span className={styles.text}>{row.message}</span>,
     },
     {
       id: 'updated_at',
-      header: 'Changed',
+      header: words.columns.changed,
       secondary: true,
       cell: (row) => <Timestamp value={row.updated_at} />,
     },
     {
       id: 'actions',
-      header: 'Actions',
+      header: words.columns.actions,
       cell: (row) => (
         <span className={styles.actions}>
           <Button
             size="small"
             variant="quiet"
-            aria-label={`Edit ${row.key}`}
+            aria-label={row.editName}
             onPress={() => {
               edit(row);
             }}
           >
-            Edit
+            {words.edit}
           </Button>
           <Button
             size="small"
             variant="quiet"
-            aria-label={`Remove ${row.key}`}
+            aria-label={row.removeName}
             onPress={() => {
-              page.ask(row);
+              page.removal.ask(row);
             }}
           >
-            Remove
+            {words.remove}
           </Button>
         </span>
       ),
@@ -207,49 +162,51 @@ function columns(
 }
 
 function Form({ page }: { page: Overrides }) {
+  const { form } = page;
+  const { words } = form;
   return (
     <form
       className={styles.form}
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        page.save();
+        form.save();
       }}
     >
       <FieldGrid>
         <GridCell span="wide">
           <MessageKeyField
-            keys={page.keys}
-            label={KEY_LABEL}
-            description={KEY_NOTE}
+            keys={form.keys}
+            label={words.keyLabel}
+            description={words.keyNote}
             mono
             custom
-            value={page.values.key}
-            error={page.errors.key}
+            value={form.values.key}
+            error={form.errors.key}
             onChange={(next) => {
-              page.edit('key', next);
+              form.edit('key', next);
             }}
           />
         </GridCell>
         <GridCell span="full">
           <TextAreaField
-            label={MESSAGE_LABEL}
-            description={`${OVERRIDE_MESSAGE_NOTE} ${EDIT_HINT}`}
-            limit={OVERRIDE_LENGTH}
-            value={page.values.message}
-            error={page.errors.message}
+            label={words.messageLabel}
+            description={words.messageNote}
+            limit={words.messageLimit}
+            value={form.values.message}
+            error={form.errors.message}
             onChange={(next) => {
-              page.edit('message', next);
+              form.edit('message', next);
             }}
           />
         </GridCell>
       </FieldGrid>
       <div className={styles.submit}>
-        <Button type="submit" variant="primary" isDisabled={page.saving}>
-          {page.saving ? 'Saving…' : SAVE_OVERRIDE}
+        <Button type="submit" variant="primary" isDisabled={form.saving}>
+          {words.save}
         </Button>
       </div>
-      <LiveMessage label="Last override">{page.message}</LiveMessage>
+      <LiveMessage label={words.lastLabel}>{form.message}</LiveMessage>
     </form>
   );
 }
@@ -257,66 +214,64 @@ function Form({ page }: { page: Overrides }) {
 function OverridesSection({ tenant, data }: { tenant: string; data: Settings }) {
   const page = useOverrides(tenant, data);
   const heading = useRef<HTMLHeadingElement>(null);
-  const { list } = page;
+  const { locale, table, conflicts, removal } = page;
+  const { list } = table;
+  const { words } = table.view;
   return (
     <>
-      <Panel title={OVERRIDES_TITLE} headingRef={heading}>
-        <p className={recordTab.rule}>{OVERRIDES_DESCRIPTION}</p>
+      <Panel title={page.words.title} headingRef={heading}>
+        <p className={recordTab.rule}>{page.words.lead}</p>
         <SelectField
-          label={OVERRIDE_LOCALE_LABEL}
-          options={overrideLocales(
-            languageSettingsOf(data, offeredLocales(data)).supported_locales,
-          )}
-          value={page.locale}
-          onChange={page.pick}
+          label={locale.label}
+          options={locale.options}
+          value={locale.value}
+          onChange={locale.pick}
         />
         <Form page={page} />
-        <LastAction label="Last removal" count={page.removed}>
-          {page.notice}
+        <LastAction label={removal.words.lastLabel} count={removal.count}>
+          {removal.notice}
         </LastAction>
-        {page.conflicts.map((conflict) => (
+        {conflicts.items.map((conflict) => (
           <ConflictPanel
-            key={`${conflict.locale}/${conflict.key}`}
-            section={conflictSection(conflict)}
-            conflicts={conflictFields(conflict)}
-            lead={conflictLead(conflict)}
-            busy={page.resolving}
+            key={conflict.id}
+            section={conflict.section}
+            conflicts={conflict.fields}
+            lead={conflict.lead}
+            busy={conflicts.resolving}
             onKeepMine={() => {
-              page.keepMine(conflict);
+              conflicts.keepMine(conflict.source);
             }}
             onTakeTheirs={() => {
-              page.takeTheirs(conflict);
+              conflicts.takeTheirs(conflict.source);
             }}
           />
         ))}
         <ListGate
           list={list}
-          loading={
-            <TableSkeleton label="Loading the overrides" columns={columns(page, () => undefined)} />
-          }
-          refused={{ capability: 'manage-tenant', noun: OVERRIDES_TITLE }}
-          failed="The overrides could not be loaded"
+          loading={<TableSkeleton label={words.loading} columns={columns(page, () => undefined)} />}
+          refused={words.refused}
+          failed={words.failed}
         >
           {() =>
-            list.rows.length === 0 ? (
-              <EmptyState variant="nothing-yet" title="No overrides yet">
-                {NOTHING_YET}
+            table.view.lines.length === 0 ? (
+              <EmptyState variant="nothing-yet" title={words.emptyTitle}>
+                {words.empty}
               </EmptyState>
             ) : (
               <>
-                <p className={recordTab.rule}>{capText(list.rows.length, list.next !== null)}</p>
+                <p className={recordTab.rule}>{table.view.cap}</p>
                 <DataTable
-                  label={OVERRIDES_TITLE}
+                  label={words.label}
                   columns={columns(page, (row) => {
-                    page.fill(row);
+                    table.fill(row);
                     heading.current?.focus();
                   })}
-                  rows={list.rows}
+                  rows={table.view.lines}
                   rowKey={(row) => row.key}
                 />
                 {list.next === null ? null : (
                   <LoadMore
-                    noun={NOUN.other}
+                    noun={words.noun}
                     loading={list.loadingMore}
                     limited={list.loadLimited}
                     onPress={list.loadMore}
@@ -328,34 +283,29 @@ function OverridesSection({ tenant, data }: { tenant: string; data: Settings }) 
         </ListGate>
       </Panel>
       <ConfirmDialog
-        isOpen={page.removing !== null}
-        title="Remove this override?"
-        consequence={page.consequence}
-        confirmLabel="Remove override"
+        isOpen={removal.removing !== null}
+        title={removal.words.title}
+        consequence={removal.consequence}
+        confirmLabel={removal.words.confirmLabel}
         tone="danger"
-        busy={page.removeBusy}
-        problem={page.removeProblem}
+        busy={removal.busy}
+        problem={removal.problem}
         onConfirm={() => {
-          page.confirm().catch(() => undefined);
+          removal.confirm().catch(() => undefined);
         }}
-        onCancel={page.cancel}
+        onCancel={removal.cancel}
       />
     </>
   );
 }
 
 export function LanguagesTab({ tenant }: { tenant: string }) {
-  const settings = useTenantSettingsRead(tenant, true);
+  const { read, words } = useLanguagesTab(tenant);
   return (
-    <ReadGate
-      read={settings}
-      label="Loading the languages"
-      fields={3}
-      failed="The languages could not be loaded"
-    >
+    <ReadGate read={read} label={words.loading} fields={words.fields} failed={words.failed}>
       {(data, etag) => (
         <div className={styles.tab}>
-          <LanguagesSection tenant={tenant} data={data} etag={etag} gone={settings.gone} />
+          <LanguagesSection tenant={tenant} data={data} etag={etag} gone={read.gone} />
           <OverridesSection tenant={tenant} data={data} />
         </div>
       )}
