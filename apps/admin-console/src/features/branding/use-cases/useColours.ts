@@ -5,7 +5,6 @@ import { colourFields, COLOURS_TITLE } from '#/features/branding/services/fields
 import { fontChoice, type PaletteKey } from '#/features/branding/services/palette';
 import { themeRefusal, writeCapability } from '#/features/branding/services/publication';
 import { themeRecord, type ThemeScope } from '#/features/branding/services/scope';
-import { colourValues, type ColourValues } from '#/features/branding/services/values';
 import type { Scheme } from '#/features/branding/services/colourScheme';
 import {
   coloursHold,
@@ -14,6 +13,7 @@ import {
   paletteField,
   changedColours,
 } from '#/features/branding/services/colourEdits';
+import { colourValues, type ColourValues } from '#/features/branding/services/colourValues';
 import { useSectionHold } from '#/features/branding/use-cases/useSectionHold';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
 

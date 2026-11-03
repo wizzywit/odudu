@@ -5,7 +5,7 @@ import {
   type Palette,
   type PaletteKey,
 } from '#/features/branding/services/palette';
-import type { ColourValues } from '#/features/branding/services/values';
+import type { ColourValues } from '#/features/branding/services/colourValues';
 
 const HEX = /^#[0-9a-f]{6}$/u;
 

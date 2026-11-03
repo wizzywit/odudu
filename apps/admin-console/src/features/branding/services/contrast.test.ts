@@ -8,7 +8,7 @@ import {
   ratioText,
 } from '#/features/branding/services/contrast';
 import { DEFAULT_PALETTES } from '#/features/branding/services/palette';
-import { type ColourValues } from '#/features/branding/services/values';
+import type { ColourValues } from '#/features/branding/services/colourValues';
 
 const values = (light: ColourValues['tokens.light'], dark: ColourValues['tokens.dark'] = null) =>
   ({ 'tokens.light': light, 'tokens.dark': dark, 'tokens.font': null }) satisfies ColourValues;

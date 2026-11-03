@@ -3,12 +3,12 @@ import type { SectionFields } from '#/shared/services/sectionSave';
 import { PAGE_KIND_LABELS } from '#/features/branding/services/templates';
 import {
   templateField,
-  type ColourValues,
   type StylesheetValues,
   type TemplateValues,
 } from '#/features/branding/services/values';
 import { THEME_PAGE_KINDS } from '@odudu/contracts';
 import { IMAGES_TITLE } from '#/features/branding/services/imageSection';
+import type { ColourValues } from '#/features/branding/services/colourValues';
 
 export const COLOURS_TITLE = 'Colours and font';
 

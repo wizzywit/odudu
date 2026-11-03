@@ -2,14 +2,13 @@ import type { PutThemeRequest, ThemeView } from '@odudu/contracts/admin';
 import { putTheme } from '#/features/branding/adapter/theme';
 import { type ThemeScope } from '#/features/branding/services/scope';
 import {
-  colourRequest,
   stylesheetRequest,
   templateRequest,
-  type ColourValues,
   type StylesheetValues,
   type TemplateValues,
 } from '#/features/branding/services/values';
 import { imageRequest, type ImageValues } from '#/features/branding/services/imageValues';
+import { colourRequest, type ColourValues } from '#/features/branding/services/colourValues';
 import type { SaveInput } from '#/shared/repository/useSectionSave';
 import type { Values } from '#/shared/services/dirty';
 import type { Gateway } from '#/shared/transport/gateway';

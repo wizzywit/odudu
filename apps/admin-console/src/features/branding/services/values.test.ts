@@ -1,13 +1,6 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_PALETTES } from '#/features/branding/services/palette';
-import {
-  baseBody,
-  colourRequest,
-  colourValues,
-  templateRequest,
-  templateValues,
-} from '#/features/branding/services/values';
+import { baseBody, templateRequest, templateValues } from '#/features/branding/services/values';
 import { draftedView, EMPTY, themeView } from '#/testing/brandingFixtures';
 
 const view = (changes: Record<string, unknown> = {}) => themeView(changes) as ThemeView;
@@ -31,35 +24,6 @@ describe('what a save starts from', () => {
 describe('a section’s request', () => {
   const drafted = draftedView() as ThemeView;
 
-  it('replaces its own part and carries the rest of the draft, stylesheet included', () => {
-    const withSheet = {
-      ...drafted,
-      draft: {
-        ...EMPTY,
-        stylesheet: 'a{}',
-        templates: { notice: '{{message}}' },
-        assets: { favicon: { assetId: 'f' } },
-      },
-    } as ThemeView;
-    const request = colourRequest(withSheet, {
-      ...colourValues(withSheet),
-      'tokens.dark': DEFAULT_PALETTES.dark,
-    });
-    expect(request.stylesheet).toBe('a{}');
-    expect(request.templates).toEqual({ notice: '{{message}}' });
-    expect(request.assets).toEqual({ favicon: { assetId: 'f' } });
-    expect(request.tokens).toEqual({ dark: DEFAULT_PALETTES.dark });
-  });
-
-  it('leaves a colour out when it is null, so the layer below supplies it', () => {
-    const request = colourRequest(drafted, {
-      'tokens.light': null,
-      'tokens.dark': null,
-      'tokens.font': null,
-    });
-    expect(request.tokens).toEqual({});
-  });
-
   it('keeps only templates that hold something', () => {
     const values = {
       ...templateValues(drafted),
@@ -71,9 +35,7 @@ describe('a section’s request', () => {
     });
   });
 
-  it('reads a theme back into the same values it was made from', () => {
-    expect(colourValues(drafted)['tokens.light']).not.toBeNull();
-    expect(colourValues(drafted)['tokens.font']).toBeNull();
+  it('reads a theme back into the same template values it was made from', () => {
     expect(Object.keys(templateValues(drafted))).toHaveLength(17);
   });
 });
