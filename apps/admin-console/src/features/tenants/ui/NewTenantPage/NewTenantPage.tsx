@@ -10,7 +10,7 @@ import {
 } from '#/features/tenants/services/systemTrail';
 import { type Creation, type CreationFlow } from '#/features/tenants/services/creation';
 import { flowOf } from '#/features/tenants/services/creationDraft';
-import { doneStepOf, type DoneStep } from '#/features/tenants/services/done';
+import { doneStepOf, type DoneStep } from '#/features/tenants/services/creationOutcome';
 import {
   ADD_SYSTEM_ADMIN_TITLE,
   CREATE_TENANT_TITLE,
