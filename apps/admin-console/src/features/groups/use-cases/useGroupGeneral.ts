@@ -22,7 +22,7 @@ import {
   deleteConsequence,
   moveConfirmation,
   subtreeDeletedText,
-} from '#/features/groups/services/confirm';
+} from '#/features/groups/services/groupConfirmation';
 import { DEFAULT_LABEL, PLACE_LABEL } from '#/features/groups/services/labels';
 import { lossOf } from '#/features/groups/services/groupLoss';
 import { type Readiness } from '#/features/groups/services/groupCeiling';

@@ -6,7 +6,7 @@ import { useGroupRolesRecord, useGroupSaves } from '#/features/groups/repository
 import { defaultingOf } from '#/features/groups/services/groupReach';
 import { roleUnavailable } from '#/features/groups/services/groupRoles';
 import { type Ceiling } from '#/features/groups/services/groupCeiling';
-import { rolesConfirmation } from '#/features/groups/services/confirm';
+import { rolesConfirmation } from '#/features/groups/services/groupConfirmation';
 import { lossOf } from '#/features/groups/services/groupLoss';
 import { keptRoles, reachOfRoles } from '#/features/groups/services/groupRoles';
 import { groupRolesRecord } from '#/features/groups/services/tabs';
