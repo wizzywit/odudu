@@ -1,6 +1,6 @@
 import type { AuditEvent } from '@odudu/contracts/admin';
 import { Link } from 'react-aria-components';
-import { isElsewhere } from '#/shared/services/auditEvents';
+import { actorName, isElsewhere } from '#/shared/services/auditEvents';
 import { CopyValue } from '#/shared/ui/CopyValue';
 import { StatusTag } from '#/shared/ui/StatusTag';
 import styles from '#/shared/ui/AuditActor/AuditActor.module.css';
@@ -14,9 +14,7 @@ export function AuditActor({ event, href = null }: { event: Actor; href?: string
   const id = event.actor_subject_id;
   if (id === null) return <span className={styles.none}>no subject</span>;
   const elsewhere = isElsewhere(event.actor_origin);
-  let name = event.actor_name;
-  if (event.actor_origin === 'system') name = 'a system administrator';
-  if (event.actor_origin === 'other-tenant') name = "another tenant's caller";
+  const name = actorName(event);
   return (
     <span className={styles.actor}>
       <span className={styles.who}>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { auditEvent } from '#/testing/auditFixtures';
 import {
+  actorName,
   actorNote,
   detailEntries,
   elsewhereReason,
@@ -25,6 +26,21 @@ describe('a caller from elsewhere', () => {
     expect(elsewhereReason('other-tenant')).toMatch(/another tenant/u);
     expect(elsewhereReason('tenant')).toBeNull();
     expect(elsewhereReason(null)).toBeNull();
+  });
+});
+
+describe('the name an actor is shown under', () => {
+  it('is what a caller from elsewhere is, whatever name the row carries', () => {
+    expect(actorName({ actor_name: 'ada', actor_origin: 'system' })).toBe('a system administrator');
+    expect(actorName({ actor_name: null, actor_origin: 'other-tenant' })).toBe(
+      "another tenant's caller",
+    );
+  });
+
+  it('is the name the API resolved for a caller of this tenant, or none', () => {
+    expect(actorName({ actor_name: 'grace', actor_origin: 'tenant' })).toBe('grace');
+    expect(actorName({ actor_name: null, actor_origin: 'tenant' })).toBeNull();
+    expect(actorName({ actor_name: null, actor_origin: null })).toBeNull();
   });
 });
 

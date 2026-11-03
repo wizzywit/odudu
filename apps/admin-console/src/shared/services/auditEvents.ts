@@ -19,6 +19,14 @@ export function elsewhereReason(origin: Origin): string | null {
   return null;
 }
 
+// The name an actor is shown under: a caller from elsewhere is what they are,
+// since this tenant cannot name them; any other is the name the API resolved.
+export function actorName(event: Pick<AuditEvent, 'actor_name' | 'actor_origin'>): string | null {
+  if (event.actor_origin === 'system') return 'a system administrator';
+  if (event.actor_origin === 'other-tenant') return "another tenant's caller";
+  return event.actor_name;
+}
+
 const NAME_NOT_SHOWN =
   'A name is shown only to a caller who holds view-users, and only while the subject still exists; the id is always here.';
 
