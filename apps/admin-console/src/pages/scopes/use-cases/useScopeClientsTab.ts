@@ -13,9 +13,9 @@ import {
   clientsOffered,
 } from '#/pages/scopes/services/scopeClients';
 import { type Client, useClientPicker } from '#/entities/client';
-import { lacking } from '#/shared/services/access';
-import type { PickerState } from '#/shared/services/picker';
-import type { AdminCapability } from '#/shared/services/principal';
+import { lacking } from '#/shared/lib/services/access';
+import type { PickerState } from '#/shared/lib/services/picker';
+import type { AdminCapability } from '#/shared/lib/services/principal';
 import {
   assignedText,
   ASSIGNMENT_RULE,
@@ -25,7 +25,7 @@ import {
   unassignedText,
   useAssignmentFlow,
 } from '#/features/scope-assignment';
-import { spaced } from '#/shared/services/format';
+import { spaced } from '#/shared/lib/services/format';
 
 export interface ScopeClientsTab {
   list: ScopeClients;

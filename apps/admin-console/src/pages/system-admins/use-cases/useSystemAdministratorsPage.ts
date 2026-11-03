@@ -6,17 +6,17 @@ import { administratorsAccess } from '#/pages/system-admins/services/access';
 import { grantedText, grantFailureText } from '#/pages/system-admins/services/grant';
 import { choosable, pickerUnavailable } from '#/pages/system-admins/services/picker';
 import { useBeginAdministrator, type BeginAdministrator } from '#/features/begin-administrator';
-import { useToast } from '#/shared/repository/useToasts';
-import type { Change } from '#/shared/services/access';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import type { Change } from '#/shared/lib/services/access';
 import {
   holdingOptions,
   holdingsIn,
   type HoldingOption,
   TENANT_ADMIN,
-} from '#/shared/services/capabilities';
-import { inOrderOf } from '#/shared/services/ids';
-import { firstChosen, type PickerState } from '#/shared/services/picker';
-import { SYSTEM_TENANT, type AdminCapability } from '#/shared/services/principal';
+} from '#/shared/lib/services/capabilities';
+import { inOrderOf } from '#/shared/lib/services/ids';
+import { firstChosen, type PickerState } from '#/shared/lib/services/picker';
+import { SYSTEM_TENANT, type AdminCapability } from '#/shared/lib/services/principal';
 import { useSubjectPicker, type Subject, usernameOrId } from '#/entities/subject';
 import { ADMINISTRATOR_REQUEST_NEEDS, holdingsProblem } from '#/entities/administrator';
 

@@ -14,8 +14,8 @@ import {
 } from '#/features/branding-editor/services/themeScope';
 import { tabsWithEdits, type OfferedTab } from '#/features/branding-editor/services/tabs';
 import { usePreview, type Preview } from '#/features/branding-editor/use-cases/usePreview';
-import { useDirtySections } from '#/shared/repository/useDirtySections';
-import type { RecordState } from '#/shared/repository/useRecord';
+import { useDirtySections } from '#/shared/lib/repository/useDirtySections';
+import type { RecordState } from '#/shared/lib/repository/useRecord';
 import { TENANT_SETTINGS_RECORD } from '#/entities/tenant';
 
 export interface ScopeBranding {

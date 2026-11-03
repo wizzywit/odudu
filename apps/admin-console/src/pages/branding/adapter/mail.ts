@@ -1,6 +1,6 @@
 import { mailBrandingViewSchema } from '@odudu/contracts/admin';
-import { adminCall, segment } from '#/shared/adapter/route';
-import { GATEWAY_BASE, type Gateway, type GatewayResult } from '#/shared/transport/gateway';
+import { adminCall, segment } from '#/shared/api/adapter/route';
+import { GATEWAY_BASE, type Gateway, type GatewayResult } from '#/shared/api/transport/gateway';
 import type { MailBrandingView } from '#/pages/branding/types/mailBranding';
 import type { MailChoice } from '#/pages/branding/services/mailChoice';
 

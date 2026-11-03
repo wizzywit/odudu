@@ -3,8 +3,8 @@ import {
   readAdminClients,
   readClientRoles,
 } from '#/features/grant-administrator/adapter/administratorClients';
-import type { Gateway, GatewayFailure } from '#/shared/transport/gateway';
-import { TENANT_ADMIN } from '#/shared/services/capabilities';
+import type { Gateway, GatewayFailure } from '#/shared/api/transport/gateway';
+import { TENANT_ADMIN } from '#/shared/lib/services/capabilities';
 import {
   builtinAdminClient,
   clientRole,

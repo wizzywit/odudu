@@ -8,13 +8,13 @@ import {
 } from '#/pages/tenants/repository/useTenantRecord';
 import { tenantChangeFailure } from '#/pages/tenants/services/tenantChange';
 import { tenantRecord } from '#/pages/tenants/services/tenantRecordTabs';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { useToast } from '#/shared/repository/useToasts';
-import { enabledText } from '#/shared/services/failure';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { enabledText } from '#/shared/lib/services/failure';
 import { disableConsequence, disableFixed } from '#/entities/tenant';
-import { SYSTEM_TENANT } from '#/shared/services/principal';
-import { orBlank } from '#/shared/services/format';
-import { DESCRIPTION_RULE } from '#/shared/services/labels';
+import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
+import { orBlank } from '#/shared/lib/services/format';
+import { DESCRIPTION_RULE } from '#/shared/lib/services/labels';
 
 export interface EnabledControl {
   // Why it cannot be changed, shown as fixed text instead of a control.

@@ -4,7 +4,7 @@ import {
   valueOptions,
   type SelectorOption,
 } from '#/features/branding-editor/services/selectors';
-import { mapRead, type Read } from '#/shared/services/read';
+import { mapRead, type Read } from '#/shared/lib/services/read';
 
 // What a rule of a stylesheet may name, as the entries to choose from.
 export function useSelectors(tenant: string): Read<SelectorOption[]> {

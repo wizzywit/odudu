@@ -1,4 +1,4 @@
-import type { SectionFields } from '#/shared/services/sectionSave';
+import type { SectionFields } from '#/shared/lib/services/sectionSave';
 import { SLOT_RULES } from '#/features/branding-editor/services/imageSlots';
 import type { ImageSlot, ImageValues } from '#/features/branding-editor/services/imageValues';
 

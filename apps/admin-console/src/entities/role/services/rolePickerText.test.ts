@@ -5,7 +5,7 @@ import {
   roleOption,
   roleOwnerTag,
 } from '#/entities/role/services/rolePickerText';
-import { roleOwnerShort } from '#/shared/services/capabilities';
+import { roleOwnerShort } from '#/shared/lib/services/capabilities';
 
 const TENANT = { name: 'auditor', client_id: null, client_key: null, description: null };
 const CLIENT = { name: 'admin', client_id: 'c-1', client_key: 'portal', description: null };

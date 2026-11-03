@@ -1,9 +1,9 @@
 import { logOut } from '#/entities/session/adapter/logout';
 import { signOutDestination } from '#/entities/session/services/loginUrl';
 import { sessionGone } from '#/entities/session/services/boot';
-import { useDrafts } from '#/shared/repository/useDrafts';
+import { useDrafts } from '#/shared/lib/repository/useDrafts';
 import { useLeaveConsole } from '#/entities/session/repository/useLeaveConsole';
-import { useTransport } from '#/shared/transport/useTransport';
+import { useTransport } from '#/shared/api/transport/useTransport';
 
 // Once the session is gone this tab's drafts are dropped and the page left;
 // true if it was.

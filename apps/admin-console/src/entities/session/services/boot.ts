@@ -1,6 +1,6 @@
 import { type Principal } from '#/entities/session/types/principal';
-import type { GatewayResult, Problem } from '#/shared/services/result';
-import { AUTH_ENDED_TYPE, isAuthEnded } from '#/shared/services/authEnded';
+import type { GatewayResult, Problem } from '#/shared/lib/services/result';
+import { AUTH_ENDED_TYPE, isAuthEnded } from '#/shared/lib/services/authEnded';
 
 export function draftOwner(principal: Principal): string {
   return `${principal.tenant}/${principal.subjectId}`;

@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from 'react';
-import { advance, type CursorTrail } from '#/shared/services/cursorTrail';
-import type { Read } from '#/shared/services/read';
-import type { Translations } from '#/shared/services/localised';
-import type { ListSearch, ResourceListState } from '#/shared/services/resourceList';
-import { current, dirtyFields, discard, edit, startDraft } from '#/shared/services/dirty';
-import type { Toast } from '#/shared/services/toast';
+import { advance, type CursorTrail } from '#/shared/lib/services/cursorTrail';
+import type { Read } from '#/shared/lib/services/read';
+import type { Translations } from '#/shared/lib/services/localised';
+import type { ListSearch, ResourceListState } from '#/shared/lib/services/resourceList';
+import { current, dirtyFields, discard, edit, startDraft } from '#/shared/lib/services/dirty';
+import type { Toast } from '#/shared/lib/services/toast';
 import { AccessGate } from '#/shared/ui/AccessGate';
 import { ChecklistField } from '#/shared/ui/ChecklistField';
 import { CodeField } from '#/shared/ui/CodeField';

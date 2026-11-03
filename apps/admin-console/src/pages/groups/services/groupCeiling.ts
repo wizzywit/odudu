@@ -1,8 +1,8 @@
 import type { GroupRecord } from '#/entities/group';
-import { type Loss } from '#/shared/services/capabilities';
-import { type Ceiling } from '#/shared/services/access';
-import { type Authority } from '#/shared/services/principal';
-import { type Loaded } from '#/shared/services/read';
+import { type Loss } from '#/shared/lib/services/capabilities';
+import { type Ceiling } from '#/shared/lib/services/access';
+import { type Authority } from '#/shared/lib/services/principal';
+import { type Loaded } from '#/shared/lib/services/read';
 import { type ReachLines, reachLines } from '#/pages/groups/services/groupReach';
 
 export type GroupRead = { status: 'none' } | Loaded<GroupRecord>;

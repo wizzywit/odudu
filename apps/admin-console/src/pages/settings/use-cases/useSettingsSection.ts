@@ -7,8 +7,8 @@ import {
   useSectionSave,
   type SectionFields,
   type SectionSave,
-} from '#/shared/repository/useSectionSave';
-import { writeRefusal } from '#/shared/services/capabilities';
+} from '#/shared/lib/repository/useSectionSave';
+import { writeRefusal } from '#/shared/lib/services/capabilities';
 import {
   disableAsk,
   disableConsequence,
@@ -20,7 +20,7 @@ import {
   fixedSettings,
   type DisableDialog,
 } from '#/pages/settings/services/generalSection';
-import { useSaveConfirmation } from '#/shared/use-cases/useSaveConfirmation';
+import { useSaveConfirmation } from '#/shared/lib/use-cases/useSaveConfirmation';
 
 export type SettingsSave = SectionSave<SectionValues>;
 

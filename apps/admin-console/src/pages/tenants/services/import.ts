@@ -1,8 +1,8 @@
 import { type ImportError } from '@odudu/contracts/admin';
 import type { Tenant } from '#/pages/tenants/types/tenant';
-import { counted } from '#/shared/services/format';
-import { failureTextWith } from '#/shared/services/failure';
-import type { GatewayFailure, Problem } from '#/shared/services/result';
+import { counted } from '#/shared/lib/services/format';
+import { failureTextWith } from '#/shared/lib/services/failure';
+import type { GatewayFailure, Problem } from '#/shared/lib/services/result';
 import { tenantHref } from '#/pages/tenants/services/systemAddress';
 
 export interface ImportedSecret {

@@ -1,5 +1,5 @@
 import { UNSAFE_RETURN_TO } from '@odudu/contracts';
-import { CONSOLE_ROOT } from '#/shared/services/address';
+import { CONSOLE_ROOT } from '#/shared/lib/services/address';
 
 const ROOT = CONSOLE_ROOT;
 

@@ -1,6 +1,6 @@
 import { Button, Link } from 'react-aria-components';
 import { useShellText } from '#/widgets/shell/use-cases/useShellText';
-import type { ThemeChoice } from '#/shared/services/theme';
+import type { ThemeChoice } from '#/shared/lib/services/theme';
 import { ThemeControl } from '#/widgets/shell/ui/ThemeControl';
 import styles from '#/widgets/shell/ui/RailFooter/RailFooter.module.css';
 

@@ -9,8 +9,8 @@ import {
   type GroupTab,
   TAB_RECORDS,
 } from '#/pages/groups/services/tabs';
-import { type RecordView, tabEntries, type TabEntry } from '#/shared/services/record';
-import { useRecordTabs } from '#/shared/use-cases/useRecordTabs';
+import { type RecordView, tabEntries, type TabEntry } from '#/shared/lib/services/record';
+import { useRecordTabs } from '#/shared/lib/use-cases/useRecordTabs';
 
 export type { GroupCeiling };
 

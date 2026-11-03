@@ -7,7 +7,7 @@ import { hookHarness } from '#/testing/hookHarness';
 
 const address = vi.hoisted(() => ({ search: '', go: vi.fn<(params: URLSearchParams) => void>() }));
 
-vi.mock('#/shared/repository/useUrlSearch', () => ({
+vi.mock('#/shared/lib/repository/useUrlSearch', () => ({
   useUrlSearch: () => ({
     params: new URLSearchParams(address.search),
     go: address.go,

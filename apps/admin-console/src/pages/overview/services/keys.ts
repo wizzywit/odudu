@@ -1,6 +1,6 @@
 import type { SigningKey } from '@odudu/contracts/admin';
 import type { PublishedLane } from '#/entities/signing-key';
-import type { Authority } from '#/shared/services/principal';
+import type { Authority } from '#/shared/lib/services/principal';
 import { laneText } from '#/pages/overview/services/panelText';
 import { rawJson } from '#/pages/overview/services/discovery';
 import type { EntityRules } from '#/pages/overview/services/entityRules';

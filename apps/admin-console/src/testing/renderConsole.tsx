@@ -3,7 +3,7 @@ import { render } from '@testing-library/react';
 import { App } from '#/app/App';
 import { beforeAll } from 'vitest';
 import { createConsoleRouter, preloadFeatures } from '#/app/router';
-import { createReadCache } from '#/shared/repository/readCache';
+import { createReadCache } from '#/shared/lib/repository/readCache';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 import { fakeTransport, json, type Answer } from '#/testing/fakeTransport';
 

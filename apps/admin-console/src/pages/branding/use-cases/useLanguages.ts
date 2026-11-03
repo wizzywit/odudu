@@ -22,8 +22,8 @@ import {
   languagesHold,
   type LanguageValues,
 } from '#/pages/branding/services/supportedLanguages';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { writeRefusal } from '#/shared/services/capabilities';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { writeRefusal } from '#/shared/lib/services/capabilities';
 import { offeredLocales, TENANT_SETTINGS_RECORD } from '#/entities/tenant';
 
 export interface LanguagesInput {

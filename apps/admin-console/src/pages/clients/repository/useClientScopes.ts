@@ -1,7 +1,7 @@
 import { assignScope, unassignScope, type AssignedScopes } from '#/entities/scope';
 import { useRereadClient } from '#/pages/clients/repository/useClientRecord';
-import type { GatewayResult } from '#/shared/transport/gateway';
-import { useWrite, type Write } from '#/shared/repository/useWrite';
+import type { GatewayResult } from '#/shared/api/transport/gateway';
+import { useWrite, type Write } from '#/shared/lib/repository/useWrite';
 
 export interface ScopeChanges {
   assign: Write<

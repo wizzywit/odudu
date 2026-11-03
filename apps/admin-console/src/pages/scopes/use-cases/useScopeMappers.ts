@@ -13,11 +13,11 @@ import {
   type MapperOption,
 } from '#/pages/scopes/services/mappers';
 import { scopeMappersRecord } from '#/pages/scopes/services/tabs';
-import type { RecordState } from '#/shared/repository/useRecord';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { writeRefusal } from '#/shared/services/capabilities';
-import { namesOrNone } from '#/shared/services/format';
-import { inOrderOf } from '#/shared/services/ids';
+import type { RecordState } from '#/shared/lib/repository/useRecord';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { writeRefusal } from '#/shared/lib/services/capabilities';
+import { namesOrNone } from '#/shared/lib/services/format';
+import { inOrderOf } from '#/shared/lib/services/ids';
 
 export function useScopeMappersRead(tenant: string, id: string): RecordState<ScopeMappers> {
   return useScopeMappersRecord(tenant, id);

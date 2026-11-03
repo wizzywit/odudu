@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { removeConsequence, removeOutcome } from '#/pages/email/services/remove';
-import type { GatewayResult } from '#/shared/services/result';
+import type { GatewayResult } from '#/shared/lib/services/result';
 
 describe('removeConsequence', () => {
   it('says where the tenant’s mail goes instead', () => {

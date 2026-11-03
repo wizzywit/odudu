@@ -28,8 +28,8 @@ import {
   type SchemeView,
 } from '#/features/branding-editor/services/colourSection';
 import { useSectionHold } from '#/features/branding-editor/use-cases/useSectionHold';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { useFolds } from '#/shared/use-cases/useFolds';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { useFolds } from '#/shared/lib/use-cases/useFolds';
 
 export interface Colours {
   save: SectionSave<ColourValues>;

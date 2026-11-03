@@ -1,7 +1,7 @@
 import { assignScopeToClientResponseSchema } from '@odudu/contracts/admin';
 import type { AssignedScopes } from '#/entities/scope/types/scope';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall, nothing } from '#/shared/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { adminCall, nothing } from '#/shared/api/adapter/route';
 
 // Answers the client's scopes alone, which is all `manage-tenant` may be told of it.
 export function assignScope(

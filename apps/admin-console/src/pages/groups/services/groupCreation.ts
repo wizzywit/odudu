@@ -1,6 +1,6 @@
-import { beyondCaller } from '#/shared/services/capabilities';
-import { andList, capitalise } from '#/shared/services/format';
-import { type AdminCapability } from '#/shared/services/principal';
+import { beyondCaller } from '#/shared/lib/services/capabilities';
+import { andList, capitalise } from '#/shared/lib/services/format';
+import { type AdminCapability } from '#/shared/lib/services/principal';
 import type { Group, GroupRecord } from '#/entities/group';
 import { type GroupCeiling } from '#/pages/groups/services/groupCeiling';
 

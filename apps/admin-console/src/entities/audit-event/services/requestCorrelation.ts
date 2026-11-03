@@ -1,5 +1,5 @@
 import type { AuditEvent } from '#/entities/audit-event/types/auditEvent';
-import { counted } from '#/shared/services/format';
+import { counted } from '#/shared/lib/services/format';
 
 const LABEL_LENGTH = 6;
 

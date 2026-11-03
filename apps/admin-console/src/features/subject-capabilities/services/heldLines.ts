@@ -1,5 +1,5 @@
 import { type HeldAdminCapability } from '@odudu/contracts/admin';
-import { holdingLabel, includedBy } from '#/shared/services/capabilities';
+import { holdingLabel, includedBy } from '#/shared/lib/services/capabilities';
 
 export interface HeldLine {
   holding: string;

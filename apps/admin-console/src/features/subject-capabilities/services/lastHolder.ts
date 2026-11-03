@@ -1,5 +1,5 @@
-import { type Held, type Holding, TENANT_ADMIN } from '#/shared/services/capabilities';
-import { type Loaded } from '#/shared/services/read';
+import { type Held, type Holding, TENANT_ADMIN } from '#/shared/lib/services/capabilities';
+import { type Loaded } from '#/shared/lib/services/read';
 
 // What else, beyond the boxes, keeps the counted capability with them. Full
 // counts too when a group or another role carries it, since the box only

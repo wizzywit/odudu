@@ -1,8 +1,8 @@
 import type { AuditEvent } from '#/entities/audit-event';
 import { readAuditPage } from '#/entities/audit-event';
-import { listKey } from '#/shared/repository/queryKeys';
-import { useListPages } from '#/shared/repository/useResourceList';
-import { useUrlSearch } from '#/shared/repository/useUrlSearch';
+import { listKey } from '#/shared/lib/repository/queryKeys';
+import { useListPages } from '#/shared/lib/repository/useResourceList';
+import { useUrlSearch } from '#/shared/lib/repository/useUrlSearch';
 import { isTooBroad } from '#/pages/audit/services/tooBroad';
 import { auditQuery, filtersToSearch, readFilters } from '#/pages/audit/services/auditAddress';
 import { type AuditFilters } from '#/pages/audit/services/auditFilters';
@@ -11,8 +11,8 @@ import {
   trailFromSearch,
   trailToSearch,
   type CursorTrail,
-} from '#/shared/services/cursorTrail';
-import type { ListStatus } from '#/shared/services/resourceList';
+} from '#/shared/lib/services/cursorTrail';
+import type { ListStatus } from '#/shared/lib/services/resourceList';
 
 export interface AuditList {
   status: ListStatus;

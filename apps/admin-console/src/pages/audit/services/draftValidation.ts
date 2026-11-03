@@ -1,4 +1,4 @@
-import { isEmptyRecord, withoutField } from '#/shared/services/fieldErrors';
+import { isEmptyRecord, withoutField } from '#/shared/lib/services/fieldErrors';
 import { endsBefore, FILTER_SHAPE, type FilterName } from '#/pages/audit/services/auditFilters';
 import { filtersOf, type Draft } from '#/pages/audit/services/filterDraft';
 

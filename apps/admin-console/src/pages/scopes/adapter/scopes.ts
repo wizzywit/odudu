@@ -14,8 +14,8 @@ import type { ScopeClientList } from '#/pages/scopes/types/scopeClient';
 import type { ScopeImpact } from '#/pages/scopes/types/scopeImpact';
 import type { ScopeMappers } from '#/pages/scopes/types/scopeMappers';
 import type { ScopeRoleList } from '#/pages/scopes/types/scopeRoles';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall, countReader, firstMatch, nothing } from '#/shared/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { adminCall, countReader, firstMatch, nothing } from '#/shared/api/adapter/route';
 
 export { readScopePage };
 

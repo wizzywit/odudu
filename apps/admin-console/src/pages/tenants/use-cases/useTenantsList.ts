@@ -1,6 +1,6 @@
 import type { Tenant } from '#/pages/tenants/types/tenant';
 import { useAuthority } from '#/entities/session';
-import { useGo } from '#/shared/repository/useGo';
+import { useGo } from '#/shared/lib/repository/useGo';
 import { useTenantList } from '#/pages/tenants/repository/useTenantList';
 import { recordOpener } from '#/pages/tenants/services/access';
 import {
@@ -8,11 +8,11 @@ import {
   NEW_TENANT_HREF,
   tenantHref,
 } from '#/pages/tenants/services/systemAddress';
-import { tenantPage } from '#/shared/services/address';
-import { STATUS_FILTER } from '#/shared/services/filters';
-import { lacking } from '#/shared/services/access';
-import { SYSTEM_TENANT, type AdminCapability } from '#/shared/services/principal';
-import type { ResourceListState } from '#/shared/services/resourceList';
+import { tenantPage } from '#/shared/lib/services/address';
+import { STATUS_FILTER } from '#/shared/lib/services/filters';
+import { lacking } from '#/shared/lib/services/access';
+import { SYSTEM_TENANT, type AdminCapability } from '#/shared/lib/services/principal';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
 
 export interface TenantsList {
   list: ResourceListState<Tenant>;

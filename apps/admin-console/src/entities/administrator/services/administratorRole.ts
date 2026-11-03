@@ -1,4 +1,4 @@
-import { TENANT_ADMIN } from '#/shared/services/capabilities';
+import { TENANT_ADMIN } from '#/shared/lib/services/capabilities';
 
 // A tenant may make a client role of its own named `tenant-admin`, so the
 // one that grants the console is found through the built-in client.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { testOutcome } from '#/pages/email/services/testSend';
-import type { GatewayFailure } from '#/shared/services/result';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 import { failure, refusal } from '#/testing/failures';
 
 describe('testOutcome', () => {

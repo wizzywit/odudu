@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, type ComponentType } from 'react';
 import { useReloadConsole } from '#/entities/session';
-import { ChunkLoadError } from '#/shared/services/chunkLoad';
+import { ChunkLoadError } from '#/shared/lib/services/chunkLoad';
 import { ChunkBoundary } from '#/shared/ui/ChunkBoundary';
 import { Skeleton } from '#/shared/ui/Skeleton';
 

@@ -1,5 +1,5 @@
-import { resourceAddress } from '#/shared/services/address';
-import { tabHrefOf } from '#/shared/services/record';
+import { resourceAddress } from '#/shared/lib/services/address';
+import { tabHrefOf } from '#/shared/lib/services/record';
 
 const subjects = resourceAddress({
   segment: 'subjects',

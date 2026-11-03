@@ -18,9 +18,9 @@ import {
 import { writeCapability, type ThemeScope } from '#/features/branding-editor/services/themeScope';
 import type { ScopedTab } from '#/features/branding-editor/services/tabs';
 import { usePublicationHolds } from '#/features/branding-editor/use-cases/usePublicationHolds';
-import { useToast } from '#/shared/repository/useToasts';
-import type { Conflict } from '#/shared/services/conflict';
-import { reportFailure } from '#/shared/services/settled';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import type { Conflict } from '#/shared/lib/services/conflict';
+import { reportFailure } from '#/shared/lib/services/settled';
 
 export interface Revert {
   busy: boolean;

@@ -5,7 +5,7 @@ import {
   USERINFO_SIGNING_ALGS,
 } from '@odudu/contracts/admin';
 import { AUTO, sentOf } from '#/pages/clients/services/choices';
-import type { Choice } from '#/shared/services/choice';
+import type { Choice } from '#/shared/lib/services/choice';
 
 export const USERINFO_RULE =
   'How UserInfo answers this client: signed, and then encrypted to a key it publishes above. Left alone it answers plain JSON.';

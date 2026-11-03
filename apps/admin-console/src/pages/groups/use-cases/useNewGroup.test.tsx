@@ -3,15 +3,15 @@ import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { SignedInContext } from '#/entities/session';
 import { useNewGroup } from '#/pages/groups/use-cases/useNewGroup';
-import { useToasts } from '#/shared/repository/useToasts';
+import { useToasts } from '#/shared/lib/repository/useToasts';
 import { json, problem, type Answer } from '#/testing/fakeTransport';
 import { G } from '#/testing/groupsFixtures';
 import { hookHarness } from '#/testing/hookHarness';
 import { whoami } from '#/testing/renderConsole';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 
-vi.mock('#/shared/repository/useGo', () => ({ useGo: () => vi.fn() }));
-vi.mock('#/shared/repository/useUrlSearch', () => ({
+vi.mock('#/shared/lib/repository/useGo', () => ({ useGo: () => vi.fn() }));
+vi.mock('#/shared/lib/repository/useUrlSearch', () => ({
   useUrlSearch: () => ({ params: new URLSearchParams(), go: vi.fn(), drop: vi.fn() }),
 }));
 

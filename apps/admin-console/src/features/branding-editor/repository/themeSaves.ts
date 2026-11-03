@@ -12,9 +12,9 @@ import {
 } from '#/features/branding-editor/services/stylesheetValues';
 import { imageRequest, type ImageValues } from '#/features/branding-editor/services/imageValues';
 import { colourRequest, type ColourValues } from '#/features/branding-editor/services/colourValues';
-import type { SaveInput } from '#/shared/repository/useSectionSave';
-import type { Values } from '#/shared/services/dirty';
-import type { Gateway } from '#/shared/transport/gateway';
+import type { SaveInput } from '#/shared/lib/repository/useSectionSave';
+import type { Values } from '#/shared/lib/services/dirty';
+import type { Gateway } from '#/shared/api/transport/gateway';
 
 // Each section saves the whole draft: its own part as edited, the rest as the
 // record last held it.

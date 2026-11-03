@@ -315,7 +315,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
 
   it('rejects console shared code importing a feature', async () => {
     const found = await violations('console-shared-imports-no-feature');
-    expect(found.some((v) => v.from.endsWith('shared/repository/featureLeak.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('shared/lib/repository/featureLeak.ts'))).toBe(true);
   });
 
   it('rejects a console feature importing app/', async () => {
@@ -323,56 +323,58 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(found.some((v) => v.from.endsWith('features/subjects/use-cases/appLeak.ts'))).toBe(true);
   });
 
-  it('rejects a console view importing shared/transport', async () => {
+  it('rejects a console view importing shared/api/transport', async () => {
     const found = await violations('console-view-no-transport');
     expect(
       found.some(
         (v) =>
           v.from.endsWith('features/subjects/ui/SubjectList.tsx') &&
-          v.to.endsWith('shared/transport/client.ts'),
+          v.to.endsWith('shared/api/transport/client.ts'),
       ),
     ).toBe(true);
   });
 
-  it('rejects a console view importing shared/adapter', async () => {
+  it('rejects a console view importing shared/api/adapter', async () => {
     const found = await violations('no-view-to-adapter');
     expect(
       found.some(
         (v) =>
           v.from.endsWith('features/subjects/ui/ReadsStorage.tsx') &&
-          v.to.endsWith('shared/adapter/storage.ts'),
+          v.to.endsWith('shared/api/adapter/storage.ts'),
       ),
     ).toBe(true);
   });
 
-  it('rejects a console usecase importing shared/adapter', async () => {
+  it('rejects a console usecase importing shared/api/adapter', async () => {
     const found = await violations('no-usecase-to-adapter');
     expect(
       found.some(
         (v) =>
           v.from.endsWith('features/subjects/use-cases/readsStorage.ts') &&
-          v.to.endsWith('shared/adapter/storage.ts'),
+          v.to.endsWith('shared/api/adapter/storage.ts'),
       ),
     ).toBe(true);
   });
 
-  it('rejects console shared/adapter importing a feature', async () => {
+  it('rejects console shared/api/adapter importing a feature', async () => {
     const found = await violations('console-shared-imports-no-feature');
-    expect(found.some((v) => v.from.endsWith('shared/adapter/featureLeak.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('shared/api/adapter/featureLeak.ts'))).toBe(true);
   });
 
-  it('permits a console repository importing shared/adapter', async () => {
+  it('permits a console repository importing shared/api/adapter', async () => {
     const output = await cruiseFixtures();
     const remembers = output.modules.find((m) =>
-      m.source.endsWith('shared/repository/remembers.ts'),
+      m.source.endsWith('shared/lib/repository/remembers.ts'),
     );
     expect(remembers?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(1);
     expect(
-      output.summary.violations.filter((v) => v.from.endsWith('shared/repository/remembers.ts')),
+      output.summary.violations.filter((v) =>
+        v.from.endsWith('shared/lib/repository/remembers.ts'),
+      ),
     ).toHaveLength(0);
   });
 
-  it('rejects a console usecase reaching shared/transport', async () => {
+  it('rejects a console usecase reaching shared/api/transport', async () => {
     const found = await violations('console-usecase-no-transport');
     expect(
       found.some((v) => v.from.endsWith('features/subjects/use-cases/readsTransport.ts')),
@@ -402,7 +404,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ).toHaveLength(0);
   });
 
-  it('permits the gallery importing shared/ui and shared/services', async () => {
+  it('permits the gallery importing shared/ui and shared/lib/services', async () => {
     const output = await cruiseFixtures();
     const gallery = output.modules.find((m) => m.source.endsWith('src/gallery/Gallery.ts'));
     expect(gallery?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(2);
@@ -417,7 +419,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
       found.some(
         (v) =>
           v.from.endsWith('src/gallery/reachesTransport.ts') &&
-          v.to.endsWith('shared/transport/client.ts'),
+          v.to.endsWith('shared/api/transport/client.ts'),
       ),
     ).toBe(true);
   });
@@ -511,7 +513,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(from.map((v) => v.to.replace(/^.*\/src\//u, '')).sort()).toEqual([
       'features/audit/adapter.ts',
       'features/audit/repository.ts',
-      'shared/services/capabilities.ts',
+      'shared/lib/services/capabilities.ts',
     ]);
   });
 
@@ -603,7 +605,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
 
   it('rejects console shared code importing a widget', async () => {
     const found = await violations('console-shared-imports-no-feature');
-    expect(found.some((v) => v.from.endsWith('shared/services/reachesWidget.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('shared/lib/services/reachesWidget.ts'))).toBe(true);
   });
 
   it('rejects an entity, widget or page importing app/', async () => {
@@ -620,7 +622,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
       ['entities/session/services/reachesPage.ts', 'pages/home/index.ts'],
       ['entities/session/services/reachesFeature.ts', 'features/clients/index.ts'],
       ['entities/session/services/reachesApp.ts', 'app/router.ts'],
-      ['shared/services/reachesWidget.ts', 'widgets/shell/index.ts'],
+      ['shared/lib/services/reachesWidget.ts', 'widgets/shell/index.ts'],
     ];
     for (const [from, to] of pairs) {
       expect(found.some((v) => v.from.endsWith(from) && v.to.endsWith(to))).toBe(true);
@@ -655,6 +657,6 @@ describe('boundary rules', { timeout: 60_000 }, () => {
 
   it('rejects console code importing the gallery', async () => {
     const found = await violations('console-nothing-imports-gallery');
-    expect(found.some((v) => v.from.endsWith('shared/repository/galleryLeak.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('shared/lib/repository/galleryLeak.ts'))).toBe(true);
   });
 });

@@ -1,5 +1,10 @@
-import { TENANT_ADMIN, isAdminRole, isHolding, type Holding } from '#/shared/services/capabilities';
-import { loadedData, type Loaded } from '#/shared/services/read';
+import {
+  TENANT_ADMIN,
+  isAdminRole,
+  isHolding,
+  type Holding,
+} from '#/shared/lib/services/capabilities';
+import { loadedData, type Loaded } from '#/shared/lib/services/read';
 
 interface Assigned {
   id: string;

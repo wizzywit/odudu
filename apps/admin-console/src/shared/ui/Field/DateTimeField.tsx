@@ -1,7 +1,7 @@
 import { use, useState } from 'react';
 import { Input, TextField as AriaTextField } from 'react-aria-components';
-import { granularityOf, localText, readLocal } from '#/shared/services/dateTime';
-import { localZone, offsetOf } from '#/shared/services/zones';
+import { granularityOf, localText, readLocal } from '#/shared/lib/services/dateTime';
+import { localZone, offsetOf } from '#/shared/lib/services/zones';
 import {
   Description,
   FieldClusterIds,

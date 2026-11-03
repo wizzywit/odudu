@@ -8,7 +8,7 @@ import {
   type ListBoxItemProps,
   type Selection,
 } from 'react-aria-components';
-import type { PickerState } from '#/shared/services/picker';
+import type { PickerState } from '#/shared/lib/services/picker';
 import { Button } from '#/shared/ui/Button';
 import { InlineFailed } from '#/shared/ui/InlineFailed';
 import { LoadMore } from '#/shared/ui/LoadMore';

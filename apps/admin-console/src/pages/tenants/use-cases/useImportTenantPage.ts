@@ -24,11 +24,11 @@ import {
 } from '#/pages/tenants/services/import';
 import { IMPORT_TITLE } from '#/pages/tenants/services/creationPosition';
 import { tenantsTrail } from '#/pages/tenants/services/systemTrail';
-import type { Crumb } from '#/shared/services/breadcrumb';
+import type { Crumb } from '#/shared/lib/services/breadcrumb';
 import { nameProblem } from '#/pages/tenants/services/tenantName';
 import { useBeginAdministrator, type BeginAdministrator } from '#/features/begin-administrator';
-import { TENANT_NAME_RULE_TEXT } from '#/shared/services/principal';
-import { SYSTEM_TENANT } from '#/shared/services/principal';
+import { TENANT_NAME_RULE_TEXT } from '#/shared/lib/services/principal';
+import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
 
 export interface ImportTenantPage {
   name: string;

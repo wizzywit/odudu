@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import axe from 'axe-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { lazyFeatureRoute } from '#/app/lazyFeatureRoute';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 import { resetConsole } from '#/testing/resetConsole';
 import { failingAt } from '#/testing/mountFailing';
 import { graceRoutes, renderConsoleAt } from '#/testing/renderConsole';

@@ -1,4 +1,4 @@
-import { flagText } from '#/shared/services/format';
+import { flagText } from '#/shared/lib/services/format';
 import type { Discovery } from '#/pages/overview/types/overviewReads';
 
 export interface DiscoveryView {

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { SignedInContext, useAuthorityAnswered } from '#/entities/session';
 import { useAuditPage } from '#/pages/audit/use-cases/useAuditPage';
 import { AUDIT, auditEvent } from '#/testing/auditFixtures';
-import { ANY_STATUS } from '#/shared/services/filters';
+import { ANY_STATUS } from '#/shared/lib/services/filters';
 import { json } from '#/testing/fakeTransport';
 import { hookHarness } from '#/testing/hookHarness';
 import { whoami } from '#/testing/renderConsole';
@@ -12,7 +12,7 @@ import { ACME_ADMIN } from '#/testing/tenantPaths';
 
 const address = vi.hoisted(() => ({ search: '', go: vi.fn<(params: URLSearchParams) => void>() }));
 
-vi.mock('#/shared/repository/useUrlSearch', () => ({
+vi.mock('#/shared/lib/repository/useUrlSearch', () => ({
   useUrlSearch: () => ({
     params: new URLSearchParams(address.search),
     go: address.go,

@@ -1,12 +1,12 @@
 import { TENANT_DOCUMENT_MEDIA_TYPE } from '@odudu/contracts/admin';
-import { currentTime } from '#/shared/adapter/clock';
-import { saveFile } from '#/shared/adapter/files';
-import { exportKey } from '#/shared/repository/queryKeys';
+import { currentTime } from '#/shared/api/adapter/clock';
+import { saveFile } from '#/shared/api/adapter/files';
+import { exportKey } from '#/shared/lib/repository/queryKeys';
 import { readExport } from '#/pages/tenants/adapter/tenants';
 import { exportedOf, exportFileName, type Exported } from '#/pages/tenants/services/export';
-import { useFreshRead } from '#/shared/repository/useFreshRead';
-import type { GatewayResult } from '#/shared/transport/gateway';
-import { useTransport } from '#/shared/transport/useTransport';
+import { useFreshRead } from '#/shared/lib/repository/useFreshRead';
+import type { GatewayResult } from '#/shared/api/transport/gateway';
+import { useTransport } from '#/shared/api/transport/useTransport';
 
 export interface TenantExport {
   busy: boolean;

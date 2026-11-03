@@ -1,6 +1,6 @@
-import { failureTextWith } from '#/shared/services/failure';
-import { holdingLabel, isHolding } from '#/shared/services/capabilities';
-import type { GatewayFailure } from '#/shared/services/result';
+import { failureTextWith } from '#/shared/lib/services/failure';
+import { holdingLabel, isHolding } from '#/shared/lib/services/capabilities';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 import { ADMINISTRATOR_REQUEST_NEEDS, type AdministratorRequest } from '#/entities/administrator';
 
 export function grantFailureText(

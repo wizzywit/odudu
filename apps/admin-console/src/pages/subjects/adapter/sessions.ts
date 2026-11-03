@@ -8,9 +8,9 @@ import {
   type Grant as WireGrant,
   type Session as WireSession,
 } from '@odudu/contracts/admin';
-import type { ListPage } from '#/shared/services/resourceList';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall, mapResult, nothing } from '#/shared/adapter/route';
+import type { ListPage } from '#/shared/lib/services/resourceList';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { adminCall, mapResult, nothing } from '#/shared/api/adapter/route';
 import type { Consent } from '#/pages/subjects/types/consent';
 import type { Grant, GrantsRevoked } from '#/pages/subjects/types/grant';
 import type { SessionsEnded, SubjectSession } from '#/pages/subjects/types/subjectSession';

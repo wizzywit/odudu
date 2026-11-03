@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { GatewayResult, Problem } from '#/shared/services/result';
+import type { GatewayResult, Problem } from '#/shared/lib/services/result';
 import {
   bootOf,
   draftOwner,

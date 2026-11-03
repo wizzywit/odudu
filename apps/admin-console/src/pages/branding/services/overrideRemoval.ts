@@ -1,6 +1,11 @@
 import type { MessageOverride } from '#/pages/branding/types/messageOverride';
-import { type RemovalOutcome, isStale, refusedBy, removalOutcome } from '#/shared/services/failure';
-import type { GatewayResult } from '#/shared/services/result';
+import {
+  type RemovalOutcome,
+  isStale,
+  refusedBy,
+  removalOutcome,
+} from '#/shared/lib/services/failure';
+import type { GatewayResult } from '#/shared/lib/services/result';
 
 export const REMOVED_TEXT =
   'The override was removed. The page or mail shows the catalogue’s text again.';

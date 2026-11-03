@@ -1,6 +1,6 @@
 import { CLIENT_AUTH_METHODS } from '@odudu/contracts/admin';
 import type { Client } from '#/entities/client';
-import type { Choice } from '#/shared/services/choice';
+import type { Choice } from '#/shared/lib/services/choice';
 
 const AUTH_LABELS: Readonly<Record<string, string>> = {
   client_secret_basic: 'Secret in a Basic header',

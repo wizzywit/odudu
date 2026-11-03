@@ -5,7 +5,7 @@ import {
   testOutcome,
   testSendable,
 } from '#/pages/email/services/testSend';
-import type { GatewayResult } from '#/shared/services/result';
+import type { GatewayResult } from '#/shared/lib/services/result';
 
 function problem(status: number, detail: string): GatewayResult<{ sent: boolean }> {
   return {

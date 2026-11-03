@@ -1,6 +1,6 @@
 import { stylesheetHooksResponseSchema, themePreviewInfoSchema } from '@odudu/contracts/admin';
-import { adminCall, segment } from '#/shared/adapter/route';
-import { GATEWAY_BASE, type Gateway, type GatewayResult } from '#/shared/transport/gateway';
+import { adminCall, segment } from '#/shared/api/adapter/route';
+import { GATEWAY_BASE, type Gateway, type GatewayResult } from '#/shared/api/transport/gateway';
 import { themeParts, type ThemeScope } from '#/features/branding-editor/services/themeScope';
 import type { PageKind } from '#/features/branding-editor/services/pageKinds';
 import type { Scheme } from '#/features/branding-editor/services/colourScheme';

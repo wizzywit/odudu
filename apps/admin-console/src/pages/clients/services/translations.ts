@@ -1,7 +1,7 @@
 import { CLIENT_NAME_MAX } from '@odudu/contracts/admin';
-import { DESCRIPTION_MAX } from '#/shared/services/labels';
-import type { Translations } from '#/shared/services/localised';
-import type { Read } from '#/shared/services/read';
+import { DESCRIPTION_MAX } from '#/shared/lib/services/labels';
+import type { Translations } from '#/shared/lib/services/localised';
+import type { Read } from '#/shared/lib/services/read';
 
 export const TRANSLATIONS_LEAD =
   'How the client is named in another language, on the consent screen and wherever else a person meets it. A language left empty shows the name and description above.';

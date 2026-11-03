@@ -3,7 +3,7 @@ import { useRefusal } from '#/entities/session';
 import { useAuditExport } from '#/pages/audit/repository/useAuditExport';
 import { exportFailureText, savedText } from '#/pages/audit/services/auditExport';
 import { type AuditFilters } from '#/pages/audit/services/auditFilters';
-import { useToast } from '#/shared/repository/useToasts';
+import { useToast } from '#/shared/lib/repository/useToasts';
 
 export interface ExportEvents {
   busy: boolean;

@@ -1,6 +1,6 @@
 import { listKeysResponseSchema, MAX_LIMIT } from '@odudu/contracts/admin';
-import { listReader } from '#/shared/adapter/route';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+import { listReader } from '#/shared/api/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 import type { SigningKey } from '#/entities/signing-key/types/signingKey';
 
 // One page of a tenant's keys, as the lanes read them (a status filter) and

@@ -17,8 +17,8 @@ import {
 import { CLIENT_LIST_LIMIT, listCount } from '#/pages/clients/services/listEntries';
 import { clientHref } from '#/entities/client';
 import { clientTabHrefOf } from '#/pages/clients/services/tabs';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { spaced } from '#/shared/services/format';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { spaced } from '#/shared/lib/services/format';
 
 export interface ClientRedirects {
   redirects: SectionSave<RedirectValues>;

@@ -4,15 +4,15 @@ import { amendTenant, readTenant } from '#/pages/tenants/adapter/tenants';
 import { missingIfUnknown } from '#/pages/tenants/services/deletion';
 import { generalPatch } from '#/pages/tenants/services/tenantChange';
 import { tenantRecord } from '#/pages/tenants/services/tenantRecordTabs';
-import { recordKey } from '#/shared/repository/queryKeys';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { useRecord, type RecordEntry, type RecordState } from '#/shared/repository/useRecord';
-import type { SaveInput } from '#/shared/repository/useSectionSave';
-import { isStale } from '#/shared/services/failure';
-import { SYSTEM_TENANT } from '#/shared/services/principal';
-import { failureOf } from '#/shared/services/settled';
-import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
-import { useTransport } from '#/shared/transport/useTransport';
+import { recordKey } from '#/shared/lib/repository/queryKeys';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { useRecord, type RecordEntry, type RecordState } from '#/shared/lib/repository/useRecord';
+import type { SaveInput } from '#/shared/lib/repository/useSectionSave';
+import { isStale } from '#/shared/lib/services/failure';
+import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
+import { failureOf } from '#/shared/lib/services/settled';
+import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/api/transport/gateway';
+import { useTransport } from '#/shared/api/transport/useTransport';
 
 export function useTenantRecord(name: string): RecordState<Tenant> {
   return useRecord({

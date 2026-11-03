@@ -5,7 +5,7 @@ import {
   endTenantSessions,
   readTenantSessionPage,
 } from '#/pages/tenant-sessions/adapter/tenantSessions';
-import type { GatewayResult } from '#/shared/transport/gateway';
+import type { GatewayResult } from '#/shared/api/transport/gateway';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 
 function dataOf<T>(result: GatewayResult<T>): T | undefined {

@@ -18,17 +18,17 @@ import {
   themeRecord,
   type ThemeScope,
 } from '#/features/branding-editor/services/themeScope';
-import { useRecordSaving } from '#/shared/repository/useSavingSections';
+import { useRecordSaving } from '#/shared/lib/repository/useSavingSections';
 import {
   recordKey,
   themeVersionsKey,
   themeWriteKey,
   themeWritesKey,
-} from '#/shared/repository/queryKeys';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import type { RecordEntry } from '#/shared/repository/useRecord';
-import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
-import type { GatewayResult, GatewaySuccess } from '#/shared/transport/gateway';
+} from '#/shared/lib/repository/queryKeys';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import type { RecordEntry } from '#/shared/lib/repository/useRecord';
+import { useGatewayWrite, type Write } from '#/shared/lib/repository/useWrite';
+import type { GatewayResult, GatewaySuccess } from '#/shared/api/transport/gateway';
 
 // The draft written again whole, on the tag it was read with.
 export interface Revert {

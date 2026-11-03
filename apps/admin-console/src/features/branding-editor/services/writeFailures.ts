@@ -1,5 +1,10 @@
-import { isMissing, isStale, problemSubtype, writeFailureText } from '#/shared/services/failure';
-import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
+import {
+  isMissing,
+  isStale,
+  problemSubtype,
+  writeFailureText,
+} from '#/shared/lib/services/failure';
+import type { GatewayFailure, GatewayResult } from '#/shared/lib/services/result';
 import { publishConflict, refusalText } from '#/features/branding-editor/services/publishIssues';
 import { inUse, inUseTitle } from '#/features/branding-editor/services/imageRefusals';
 

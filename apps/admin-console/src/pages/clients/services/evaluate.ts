@@ -1,6 +1,6 @@
 import type { EvaluatedClaims } from '#/pages/clients/types/evaluation';
-import { writeFailureText } from '#/shared/services/failure';
-import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
+import { writeFailureText } from '#/shared/lib/services/failure';
+import type { GatewayFailure, GatewayResult } from '#/shared/lib/services/result';
 
 export const EVALUATE_HEADING = 'Evaluate';
 export const EVALUATE_RULE =

@@ -41,19 +41,19 @@ import {
 } from '#/pages/scopes/services/scopeDeletion';
 import { NAME_FIXED } from '#/pages/scopes/services/scopeDetails';
 import { scopeRecord } from '#/pages/scopes/services/tabs';
-import { useGo } from '#/shared/repository/useGo';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { useToast } from '#/shared/repository/useToasts';
-import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
-import { writeRefusal } from '#/shared/services/capabilities';
-import { deletedText } from '#/shared/services/failure';
-import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/services/labels';
-import { describeTranslations } from '#/shared/services/localised';
-import type { Read } from '#/shared/services/read';
+import { useGo } from '#/shared/lib/repository/useGo';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { useConfirmedRemoval, type Removal } from '#/shared/lib/use-cases/useConfirmedChange';
+import { writeRefusal } from '#/shared/lib/services/capabilities';
+import { deletedText } from '#/shared/lib/services/failure';
+import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/lib/services/labels';
+import { describeTranslations } from '#/shared/lib/services/localised';
+import type { Read } from '#/shared/lib/services/read';
 import { useOfferedLocales } from '#/entities/tenant';
-import type { Choice } from '#/shared/services/choice';
-import type { AdminCapability } from '#/shared/services/principal';
-import { orBlank } from '#/shared/services/format';
+import type { Choice } from '#/shared/lib/services/choice';
+import type { AdminCapability } from '#/shared/lib/services/principal';
+import { orBlank } from '#/shared/lib/services/format';
 
 const MANAGE: AdminCapability = 'manage-tenant';
 

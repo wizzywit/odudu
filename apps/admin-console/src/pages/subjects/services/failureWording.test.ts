@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { END_SESSIONS_NEEDS_MANAGE_SESSIONS } from '@odudu/contracts/admin';
-import type { GatewayFailure } from '#/shared/services/result';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 import { failure, refusal } from '#/testing/failures';
 import { credentialFailureText } from '#/pages/subjects/services/credentialOutcome';
-import { changeFailureText } from '#/shared/services/failure';
+import { changeFailureText } from '#/shared/lib/services/failure';
 
 describe('changeFailureText', () => {
   const cases: [string, GatewayFailure, string][] = [

@@ -1,8 +1,8 @@
 import type { SetRequiredActionsResponse } from '@odudu/contracts/admin';
 import { useRefusal } from '#/entities/session';
-import type { RecordState } from '#/shared/repository/useRecord';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { accessRefusal } from '#/shared/services/capabilities';
+import type { RecordState } from '#/shared/lib/repository/useRecord';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { accessRefusal } from '#/shared/lib/services/capabilities';
 import {
   describeActions,
   REQUIRED_ACTION_OPTIONS,

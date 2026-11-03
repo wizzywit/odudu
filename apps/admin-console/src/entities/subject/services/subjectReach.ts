@@ -4,10 +4,10 @@ import {
   heldCapabilities,
   type Held,
   type Holding,
-} from '#/shared/services/capabilities';
-import { andList } from '#/shared/services/format';
-import { type AdminCapability } from '#/shared/services/principal';
-import { type Loaded } from '#/shared/services/read';
+} from '#/shared/lib/services/capabilities';
+import { andList } from '#/shared/lib/services/format';
+import { type AdminCapability } from '#/shared/lib/services/principal';
+import { type Loaded } from '#/shared/lib/services/read';
 
 export function heldOf(
   effective: Loaded<{ items: readonly EffectiveRoleAssignment[] }>,

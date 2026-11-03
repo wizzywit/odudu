@@ -8,7 +8,7 @@ import { hookHarness } from '#/testing/hookHarness';
 import { resetConsole } from '#/testing/resetConsole';
 import { MINTED, MINTED_SECRET, RT, TOKEN_ONE, tokenRoutes } from '#/testing/tokensFixtures';
 
-vi.mock('#/shared/repository/useUrlSearch', () => ({
+vi.mock('#/shared/lib/repository/useUrlSearch', () => ({
   useUrlSearch: () => ({ params: new URLSearchParams(), go: vi.fn(), drop: vi.fn() }),
 }));
 

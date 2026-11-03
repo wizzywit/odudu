@@ -1,4 +1,4 @@
-import { formatDuration, listOrNone } from '#/shared/services/format';
+import { formatDuration, listOrNone } from '#/shared/lib/services/format';
 import type { SettingField } from '#/pages/settings/services/sections';
 
 export type SettingValue = boolean | number | string | readonly string[];

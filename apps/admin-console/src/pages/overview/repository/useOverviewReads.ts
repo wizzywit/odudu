@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { readCount, readJwks, readLatestAudit } from '#/pages/overview/adapter';
 import { readKeys } from '#/entities/signing-key';
-import { overviewKey } from '#/shared/repository/queryKeys';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
+import { overviewKey } from '#/shared/lib/repository/queryKeys';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
 import { readSmtp } from '#/entities/mail-relay';
 import { readDiscovery, readTenantSettings } from '#/entities/tenant';
 import { overviewOutcome } from '#/pages/overview/services/readState';
@@ -13,8 +13,8 @@ import type {
   OverviewReads,
   ReadName,
 } from '#/pages/overview/types/overviewReads';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { useTransport } from '#/shared/transport/useTransport';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { useTransport } from '#/shared/api/transport/useTransport';
 
 // Told of every answer as it arrives, so a refusal can be reported once per
 // answer rather than once per render.

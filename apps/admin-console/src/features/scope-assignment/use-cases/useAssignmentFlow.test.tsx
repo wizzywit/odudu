@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { useToasts } from '#/shared/repository/useToasts';
-import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
+import { useToasts } from '#/shared/lib/repository/useToasts';
+import type { GatewayFailure, GatewayResult } from '#/shared/api/transport/gateway';
 import { useAssignmentFlow } from '#/features/scope-assignment/use-cases/useAssignmentFlow';
 import { resetConsole } from '#/testing/resetConsole';
 

@@ -1,4 +1,4 @@
-import type { Crumb } from '#/shared/services/breadcrumb';
+import type { Crumb } from '#/shared/lib/services/breadcrumb';
 import type { Creation, CreationFlow } from '#/entities/creation-draft';
 import { administratorTitle } from '#/pages/tenants/services/administratorOrigin';
 import { systemAdminsHrefOf } from '#/pages/tenants/services/systemAddress';

@@ -18,7 +18,7 @@ import {
   readBirthdate,
   type Birthdate,
   type BirthdateForm,
-} from '#/shared/services/birthdate';
+} from '#/shared/lib/services/birthdate';
 import {
   FieldCluster,
   FieldClusterIds,

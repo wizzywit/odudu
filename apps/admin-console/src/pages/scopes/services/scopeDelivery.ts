@@ -1,4 +1,4 @@
-import type { Choice } from '#/shared/services/choice';
+import type { Choice } from '#/shared/lib/services/choice';
 
 export const ID_TOKEN_LABEL = 'In the ID token';
 export const ACCESS_TOKEN_LABEL = 'In the access token';

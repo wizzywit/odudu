@@ -12,13 +12,13 @@ import {
 import type { PlacedProblems } from '#/features/branding-editor/services/problems';
 import type { PublishOutcome } from '#/features/branding-editor/services/publishOutcome';
 import type { ThemeScope } from '#/features/branding-editor/services/themeScope';
-import type { SizeReading } from '#/shared/services/format';
+import type { SizeReading } from '#/shared/lib/services/format';
 import { useMessageKeys } from '#/features/branding-editor/use-cases/useMessageKeys';
 import { useRevert, type Revert } from '#/features/branding-editor/use-cases/useRevert';
 import { useTemplates } from '#/features/branding-editor/use-cases/useTemplates';
-import type { SectionSave } from '#/shared/repository/useSectionSave';
+import type { SectionSave } from '#/shared/lib/repository/useSectionSave';
 import type { TemplateValues } from '#/features/branding-editor/services/templateValues';
-import { useFolds } from '#/shared/use-cases/useFolds';
+import { useFolds } from '#/shared/lib/use-cases/useFolds';
 
 export interface PagesTab {
   section: { save: SectionSave<TemplateValues>; blocked: string | undefined };

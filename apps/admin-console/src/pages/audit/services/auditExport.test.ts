@@ -5,7 +5,7 @@ import {
   exportFailureText,
   savedText,
 } from '#/pages/audit/services/auditExport';
-import type { GatewayFailure } from '#/shared/services/result';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 
 describe('the file an export is saved as', () => {
   it('is named for the tenant and the UTC day', () => {

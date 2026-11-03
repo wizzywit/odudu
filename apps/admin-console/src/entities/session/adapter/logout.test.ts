@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { logOut } from '#/entities/session/adapter/logout';
-import type { Auth, LogoutResult } from '#/shared/transport/auth';
+import type { Auth, LogoutResult } from '#/shared/api/transport/auth';
 
 function authAnswering(result: LogoutResult, calls: string[] = []): Auth {
   return {

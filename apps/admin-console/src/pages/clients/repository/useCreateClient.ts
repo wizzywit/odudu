@@ -1,12 +1,12 @@
 import type { Client } from '#/entities/client';
-import { findKey } from '#/shared/repository/queryKeys';
+import { findKey } from '#/shared/lib/repository/queryKeys';
 import { createClient, findClient, type NewClient } from '#/pages/clients/adapter/clients';
 import { useAfterClientChange } from '#/pages/clients/repository/useClientRecord';
 import { splitSecret } from '#/pages/clients/services/createdSecret';
-import { useFreshRead } from '#/shared/repository/useFreshRead';
-import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce';
-import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
-import { useTransport } from '#/shared/transport/useTransport';
+import { useFreshRead } from '#/shared/lib/repository/useFreshRead';
+import { useSecretOnce, type SecretOnce } from '#/shared/lib/repository/useSecretOnce';
+import type { GatewayFailure, GatewayResult } from '#/shared/api/transport/gateway';
+import { useTransport } from '#/shared/api/transport/useTransport';
 
 export interface CreateClient {
   // Creating, or looking for a client whose creation was not confirmed.

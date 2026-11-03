@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import type { ListStatus } from '#/shared/services/resourceList';
+import type { ListStatus } from '#/shared/lib/services/resourceList';
 import { ListGate } from '#/shared/ui/ListGate';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 

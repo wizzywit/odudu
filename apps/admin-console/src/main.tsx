@@ -7,7 +7,7 @@ import { App } from '#/app/App';
 import { createConsoleRouter } from '#/app/router';
 import { rootErrorOptions } from '#/app/rootErrorOptions';
 import { routeTemplate } from '#/widgets/failure';
-import { applyRememberedTheme } from '#/shared/repository/themeChoice';
+import { applyRememberedTheme } from '#/shared/lib/repository/themeChoice';
 
 applyRememberedTheme();
 

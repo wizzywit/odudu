@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { useLeaveConsole } from '#/entities/session/repository/useLeaveConsole';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 import { hookHarness } from '#/testing/hookHarness';
 import { resetConsole } from '#/testing/resetConsole';
 

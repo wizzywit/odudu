@@ -1,5 +1,5 @@
-import type { Choice } from '#/shared/services/choice';
-import { ANY_STATUS } from '#/shared/services/filters';
+import type { Choice } from '#/shared/lib/services/choice';
+import { ANY_STATUS } from '#/shared/lib/services/filters';
 
 export const EVENT_TYPE_OPTIONS: readonly Choice[] = [
   { id: ANY_STATUS, label: 'Any event type' },

@@ -1,8 +1,8 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { vi } from 'vitest';
 import type { ReactNode } from 'react';
-import { createReadCache } from '#/shared/repository/readCache';
-import { TransportContext } from '#/shared/transport/useTransport';
+import { createReadCache } from '#/shared/lib/repository/readCache';
+import { TransportContext } from '#/shared/api/transport/useTransport';
 import { fakeTransport, type Answer } from '#/testing/fakeTransport';
 
 // The wrapper a repository hook needs: a fake transport answering `routes`

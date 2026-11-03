@@ -5,7 +5,7 @@ import {
   tooBroadAdvice,
   TOO_BROAD_TITLE,
 } from '#/pages/audit/services/tooBroad';
-import type { GatewayFailure } from '#/shared/services/result';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 
 function problem(status: number, type: string): GatewayFailure {
   return { ok: false, kind: 'problem', problem: { type, title: 'Bad Request', status } };

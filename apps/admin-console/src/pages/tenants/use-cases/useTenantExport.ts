@@ -9,9 +9,9 @@ import {
   savedText,
   type Exported,
 } from '#/pages/tenants/services/export';
-import { bytesText } from '#/shared/services/format';
-import { useToast } from '#/shared/repository/useToasts';
-import type { AdminCapability } from '#/shared/services/principal';
+import { bytesText } from '#/shared/lib/services/format';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import type { AdminCapability } from '#/shared/lib/services/principal';
 
 export interface TenantExportState {
   // The capabilities whoami says are missing, each named rather than refused.

@@ -4,8 +4,8 @@ import { useRoleRecord } from '#/pages/roles/repository/useRoleRecord';
 import { copyHrefOf } from '#/pages/roles/services/roleCopy';
 import { type RoleCeiling, roleCeiling } from '#/pages/roles/services/roleCeiling';
 import { ROLE_TAB_LABELS, ROLE_TABS, type RoleTab, TAB_RECORDS } from '#/pages/roles/services/tabs';
-import { type RecordView, tabEntries, type TabEntry } from '#/shared/services/record';
-import { useRecordTabs } from '#/shared/use-cases/useRecordTabs';
+import { type RecordView, tabEntries, type TabEntry } from '#/shared/lib/services/record';
+import { useRecordTabs } from '#/shared/lib/use-cases/useRecordTabs';
 
 export type { RoleCeiling };
 

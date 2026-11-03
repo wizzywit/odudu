@@ -2,8 +2,8 @@ import { useState, type Dispatch, type SetStateAction } from 'react';
 import { useRefusal } from '#/entities/session';
 import type { Creation } from '#/entities/creation-draft';
 import { stepRefusal, type StepCall } from '#/pages/tenants/services/creationCall';
-import { SYSTEM_TENANT } from '#/shared/services/principal';
-import type { GatewayFailure } from '#/shared/transport/gateway';
+import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
+import type { GatewayFailure } from '#/shared/api/transport/gateway';
 
 type Errors = Partial<Record<string, string>>;
 

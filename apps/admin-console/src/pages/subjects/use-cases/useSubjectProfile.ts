@@ -14,8 +14,8 @@ import {
   verificationFields,
   type ProfileSection,
 } from '#/pages/subjects/services/claims';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import type { RecordState } from '#/shared/repository/useRecord';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import type { RecordState } from '#/shared/lib/repository/useRecord';
 import { profileRecord } from '#/entities/subject';
 
 export type { SectionSave };

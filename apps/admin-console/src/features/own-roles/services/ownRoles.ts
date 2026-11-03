@@ -1,7 +1,7 @@
 import { type EffectiveRoleAssignment } from '@odudu/contracts/admin';
-import { holds } from '#/shared/services/access';
-import { type Authority } from '#/shared/services/principal';
-import { type Loaded } from '#/shared/services/read';
+import { holds } from '#/shared/lib/services/access';
+import { type Authority } from '#/shared/lib/services/principal';
+import { type Loaded } from '#/shared/lib/services/read';
 
 export type OwnRoles =
   | { status: 'loading' }

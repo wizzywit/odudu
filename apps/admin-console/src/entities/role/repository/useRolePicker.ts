@@ -1,7 +1,7 @@
 import { readRolePage } from '#/entities/role/adapter/rolePage';
-import { usePicker } from '#/shared/repository/usePicker';
-import { optionalFilter } from '#/shared/services/filters';
-import type { PickerState } from '#/shared/services/picker';
+import { usePicker } from '#/shared/lib/repository/usePicker';
+import { optionalFilter } from '#/shared/lib/services/filters';
+import type { PickerState } from '#/shared/lib/services/picker';
 import type { Role } from '#/entities/role/types/role';
 
 // `client` narrows to one owner: `tenant` for the tenant's own roles, or a

@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { RolePicker } from '#/entities/role/ui/RolePicker/RolePicker';
-import { roleOwnerShort } from '#/shared/services/capabilities';
+import { roleOwnerShort } from '#/shared/lib/services/capabilities';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { pickerState } from '#/testing/pickerState';
 

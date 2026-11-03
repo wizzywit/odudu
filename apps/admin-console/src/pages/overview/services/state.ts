@@ -1,5 +1,5 @@
-import { holds } from '#/shared/services/access';
-import type { AdminCapability, Authority } from '#/shared/services/principal';
+import { holds } from '#/shared/lib/services/access';
+import type { AdminCapability, Authority } from '#/shared/lib/services/principal';
 import { type AttentionItem, needsAttention } from '#/pages/overview/services/attention';
 import type { EntityRules } from '#/pages/overview/services/entityRules';
 import { openPlaceLabel } from '#/pages/overview/services/panelText';

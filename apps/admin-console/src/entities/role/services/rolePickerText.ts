@@ -1,4 +1,4 @@
-import { roleOwnerShort, roleOwnerText } from '#/shared/services/capabilities';
+import { roleOwnerShort, roleOwnerText } from '#/shared/lib/services/capabilities';
 import type { Role } from '#/entities/role/types/role';
 
 // A client role is carried in a token under its client's name, so two roles

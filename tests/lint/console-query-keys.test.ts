@@ -15,11 +15,11 @@ import { describe, expect, it } from 'vitest';
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const CONSOLE = 'apps/admin-console';
 const FIXTURES = 'tests/lint/fixtures/console-query-keys';
-const SHARED_KEYS_FILE = 'src/shared/repository/queryKeys.ts';
+const SHARED_KEYS_FILE = 'src/shared/lib/repository/queryKeys.ts';
 const OWNER_KEYS_FILE = /^src\/(?:entities|features|pages)\/[^/]+\/repository\/queryKeys\.ts$/u;
 const INVALIDATORS = new Set([
-  'src/shared/repository/useInvalidate.ts',
-  'src/shared/repository/useAfterChange.ts',
+  'src/shared/lib/repository/useInvalidate.ts',
+  'src/shared/lib/repository/useAfterChange.ts',
 ]);
 const KEY_PROPERTIES = new Set(['queryKey', 'mutationKey']);
 const KEY_CALLS = new Set([
@@ -324,7 +324,7 @@ describe('console cache keys', { timeout: 60_000 }, () => {
     expect(kinds.has('system-issuer')).toBe(true);
     expect(kinds.get('scope-clients')).toBe('scopeClientsKey');
     expect(kinds.get('session')).toBe('sessionKey');
-    expect([...files.keys()]).toContain('src/shared/repository/useInvalidate.ts');
+    expect([...files.keys()]).toContain('src/shared/lib/repository/useInvalidate.ts');
     expect(violations(files, kinds)).toEqual([]);
   });
 

@@ -18,7 +18,7 @@ import { useStylesheet, type Stylesheet } from '#/features/branding-editor/use-c
 import { useRevert, type Revert } from '#/features/branding-editor/use-cases/useRevert';
 import { useThemeReset, type ThemeReset } from '#/features/branding-editor/use-cases/useThemeReset';
 import { useVersions, type Versions } from '#/features/branding-editor/use-cases/useVersions';
-import type { Confirming } from '#/shared/use-cases/useConfirmedChange';
+import type { Confirming } from '#/shared/lib/use-cases/useConfirmedChange';
 
 export interface ThemeTab {
   colours: Colours;

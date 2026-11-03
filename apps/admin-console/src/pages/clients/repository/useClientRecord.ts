@@ -7,16 +7,16 @@ import {
 } from '#/pages/clients/adapter/clients';
 import { clientRecord } from '#/pages/clients/services/tabs';
 import { translationsPatch } from '#/pages/clients/services/translations';
-import type { Translations } from '#/shared/services/localised';
-import { countKey, listKey, recordKey } from '#/shared/repository/queryKeys';
+import type { Translations } from '#/shared/lib/services/localised';
+import { countKey, listKey, recordKey } from '#/shared/lib/repository/queryKeys';
 import { scopeClientsKey } from '#/entities/scope';
 import { rolesGoneReach } from '#/entities/role';
-import { useAfterChange } from '#/shared/repository/useAfterChange';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { useRecord, type RecordState } from '#/shared/repository/useRecord';
-import type { SaveInput } from '#/shared/repository/useSectionSave';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { useWrite, type Write } from '#/shared/repository/useWrite';
+import { useAfterChange } from '#/shared/lib/repository/useAfterChange';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { useRecord, type RecordState } from '#/shared/lib/repository/useRecord';
+import type { SaveInput } from '#/shared/lib/repository/useSectionSave';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { useWrite, type Write } from '#/shared/lib/repository/useWrite';
 
 export function useClientRecord(tenant: string, id: string): RecordState<ClientRecord> {
   return useRecord({

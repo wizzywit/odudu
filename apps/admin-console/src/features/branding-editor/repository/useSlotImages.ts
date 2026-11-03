@@ -5,9 +5,9 @@ import {
   type Thumbnail,
 } from '#/features/branding-editor/services/imageThumbnails';
 import type { ImageSlot } from '#/features/branding-editor/services/imageValues';
-import { assetImageKey } from '#/shared/repository/queryKeys';
-import { useRead } from '#/shared/repository/useRead';
-import { useTransport } from '#/shared/transport/useTransport';
+import { assetImageKey } from '#/shared/lib/repository/queryKeys';
+import { useRead } from '#/shared/lib/repository/useRead';
+import { useTransport } from '#/shared/api/transport/useTransport';
 
 function useThumbnail(tenant: string, { id, asked }: SlotAsk): Thumbnail {
   const { gateway } = useTransport();

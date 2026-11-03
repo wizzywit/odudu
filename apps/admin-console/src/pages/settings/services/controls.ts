@@ -7,7 +7,7 @@ import {
   textOf,
   type SettingValue,
 } from '#/pages/settings/services/values';
-import { numberKept } from '#/shared/services/numbers';
+import { numberKept } from '#/shared/lib/services/numbers';
 
 interface Shared {
   name: string;

@@ -1,4 +1,4 @@
-import { requiredProblem } from '#/shared/services/fieldErrors';
+import { requiredProblem } from '#/shared/lib/services/fieldErrors';
 
 export const NEW_CLIENT_TITLE = 'Create a client';
 

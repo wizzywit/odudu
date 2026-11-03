@@ -1,5 +1,10 @@
-import { holdingLabel, includedBy, type Held, type Holding } from '#/shared/services/capabilities';
-import { andList } from '#/shared/services/format';
+import {
+  holdingLabel,
+  includedBy,
+  type Held,
+  type Holding,
+} from '#/shared/lib/services/capabilities';
+import { andList } from '#/shared/lib/services/format';
 
 export interface HeldElsewhere {
   label: string;

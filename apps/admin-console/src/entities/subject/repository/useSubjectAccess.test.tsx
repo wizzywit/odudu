@@ -3,7 +3,7 @@ import { expect, it } from 'vitest';
 import { useSaveGroups } from '#/entities/subject/repository/useSubjectAccess';
 import { json } from '#/testing/fakeTransport';
 import { hookHarness } from '#/testing/hookHarness';
-import { useTransport } from '#/shared/transport/useTransport';
+import { useTransport } from '#/shared/api/transport/useTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 
 const PATH = `PUT ${ACME_ADMIN}/subjects/s1/groups`;

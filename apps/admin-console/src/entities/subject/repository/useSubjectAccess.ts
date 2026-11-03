@@ -12,19 +12,19 @@ import {
   holdersKey,
   listKey,
   membershipsKey,
-} from '#/shared/repository/queryKeys';
+} from '#/shared/lib/repository/queryKeys';
 import { adminRolesKey } from '#/entities/subject/repository/queryKeys';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { useRead } from '#/shared/repository/useRead';
-import type { Read } from '#/shared/services/read';
-import { useRecord, type RecordState } from '#/shared/repository/useRecord';
-import { useResourceList } from '#/shared/repository/useResourceList';
-import type { SaveInput } from '#/shared/repository/useSectionSave';
-import type { Holding } from '#/shared/services/capabilities';
-import { uniqueIds } from '#/shared/services/ids';
-import type { ResourceListState } from '#/shared/services/resourceList';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { useTransport } from '#/shared/transport/useTransport';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { useRead } from '#/shared/lib/repository/useRead';
+import type { Read } from '#/shared/lib/services/read';
+import { useRecord, type RecordState } from '#/shared/lib/repository/useRecord';
+import { useResourceList } from '#/shared/lib/repository/useResourceList';
+import type { SaveInput } from '#/shared/lib/repository/useSectionSave';
+import type { Holding } from '#/shared/lib/services/capabilities';
+import { uniqueIds } from '#/shared/lib/services/ids';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { useTransport } from '#/shared/api/transport/useTransport';
 import {
   actionsRecord,
   groupsRecord,

@@ -1,5 +1,5 @@
 import { useLeaveConsole } from '#/entities/session/repository/useLeaveConsole';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 
 // Reloads the page once the unsaved-changes guard lets it go, asking in the
 // console's own dialog rather than the browser's.

@@ -1,5 +1,5 @@
-import type { Conflict } from '#/shared/services/conflict';
-import { formatDuration } from '#/shared/services/format';
+import type { Conflict } from '#/shared/lib/services/conflict';
+import { formatDuration } from '#/shared/lib/services/format';
 import type { KeyValuePair } from '#/shared/ui/Field';
 
 export const TENANT = 'acme';

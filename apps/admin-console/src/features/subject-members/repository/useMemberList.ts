@@ -1,5 +1,5 @@
-import { useResourceList } from '#/shared/repository/useResourceList';
-import type { ResourceListState } from '#/shared/services/resourceList';
+import { useResourceList } from '#/shared/lib/repository/useResourceList';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
 import { readSubjectCount, readSubjectPage, type Subject } from '#/entities/subject';
 
 // The subjects a group or a role names directly, by the subjects list's own filter.

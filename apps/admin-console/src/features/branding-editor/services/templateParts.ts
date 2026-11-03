@@ -1,5 +1,5 @@
 import { MAX_TEMPLATE_BYTES, THEME_PAGE_KINDS } from '@odudu/contracts';
-import { bytesText, shortened } from '#/shared/services/format';
+import { bytesText, shortened } from '#/shared/lib/services/format';
 import {
   templateField,
   type TemplateValues,
@@ -11,7 +11,7 @@ import {
   MANIFESTS,
   PAGE_KIND_LABELS,
 } from '#/features/branding-editor/services/pageKinds';
-import type { SectionFields } from '#/shared/services/sectionSave';
+import type { SectionFields } from '#/shared/lib/services/sectionSave';
 
 const FORM = ['form.open', 'form.close'];
 

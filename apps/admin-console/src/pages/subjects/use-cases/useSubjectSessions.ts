@@ -1,4 +1,4 @@
-import type { AdminCapability } from '#/shared/services/principal';
+import type { AdminCapability } from '#/shared/lib/services/principal';
 import { useAuthority } from '#/entities/session';
 import {
   useConsentList,
@@ -19,9 +19,9 @@ import {
   type GrantClient,
 } from '#/pages/subjects/services/sessions';
 import { useConfirmedSubjectChange } from '#/pages/subjects/use-cases/useConfirmedSubjectChange';
-import { notLacking } from '#/shared/services/access';
-import type { ResourceListState } from '#/shared/services/resourceList';
-import type { Confirming } from '#/shared/use-cases/useConfirmedChange';
+import { notLacking } from '#/shared/lib/services/access';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
+import type { Confirming } from '#/shared/lib/use-cases/useConfirmedChange';
 import { type Consent } from '#/pages/subjects/types/consent';
 import { type Grant, type GrantsRevoked } from '#/pages/subjects/types/grant';
 import type { SessionsEnded, SubjectSession } from '#/pages/subjects/types/subjectSession';

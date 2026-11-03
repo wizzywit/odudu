@@ -3,14 +3,14 @@ import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { SignedInContext } from '#/entities/session';
 import { useSystemAdministratorsPage } from '#/pages/system-admins/use-cases/useSystemAdministratorsPage';
-import { useToasts } from '#/shared/repository/useToasts';
+import { useToasts } from '#/shared/lib/repository/useToasts';
 import { json, problem, whoamiReads, type Answer } from '#/testing/fakeTransport';
 import { hookHarness } from '#/testing/hookHarness';
 import { adminClientRole } from '#/testing/roleAnswers';
 import { whoami } from '#/testing/renderConsole';
 import { administratorRoutes, ADMIN, EVERY_CAPABILITY } from '#/testing/tenantsFixtures';
 
-vi.mock('#/shared/repository/useGo', () => ({ useGo: () => vi.fn() }));
+vi.mock('#/shared/lib/repository/useGo', () => ({ useGo: () => vi.fn() }));
 
 const S = `${ADMIN}/system`;
 const ROOT = { tenant: 'system', subjectId: 's0', username: 'root' };

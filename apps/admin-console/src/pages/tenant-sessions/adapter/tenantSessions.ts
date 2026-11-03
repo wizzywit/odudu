@@ -4,9 +4,9 @@ import {
   type ListTenantSessionsResponse,
   type TenantSession as WireSession,
 } from '@odudu/contracts/admin';
-import { adminCall, listReader, mapResult } from '#/shared/adapter/route';
-import type { ListPage } from '#/shared/services/resourceList';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+import { adminCall, listReader, mapResult } from '#/shared/api/adapter/route';
+import type { ListPage } from '#/shared/lib/services/resourceList';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 import type { SessionsEnded, TenantSession } from '#/pages/tenant-sessions/types/tenantSession';
 
 const readWirePage = listReader('sessions', listTenantSessionsResponseSchema);

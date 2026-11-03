@@ -1,5 +1,5 @@
 import type { MailBrandingView, MailSchemeName } from '#/pages/branding/types/mailBranding';
-import type { Choice } from '#/shared/services/choice';
+import type { Choice } from '#/shared/lib/services/choice';
 import {
   mailClientName,
   mailClientSelection,

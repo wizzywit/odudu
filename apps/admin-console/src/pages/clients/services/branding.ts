@@ -1,4 +1,4 @@
-import type { AdminCapability } from '#/shared/services/principal';
+import type { AdminCapability } from '#/shared/lib/services/principal';
 
 export const BRANDING_LEAD =
   'The client’s own pages. A piece set here replaces the tenant’s for sign-ins that start from this client; a piece left unset follows the tenant’s theme, then Instrument’s.';

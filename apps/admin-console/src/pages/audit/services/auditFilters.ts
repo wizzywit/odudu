@@ -1,4 +1,4 @@
-import { isEmptyRecord } from '#/shared/services/fieldErrors';
+import { isEmptyRecord } from '#/shared/lib/services/fieldErrors';
 import { listAuditQuerySchema } from '@odudu/contracts/admin';
 
 export const FILTER_NAMES = [

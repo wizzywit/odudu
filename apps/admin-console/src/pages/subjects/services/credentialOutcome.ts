@@ -1,10 +1,10 @@
 import type { AskedChange } from '#/pages/subjects/services/credentialAsk';
 import { END_SESSIONS_NEEDS_MANAGE_SESSIONS } from '@odudu/contracts/admin';
-import { COULD_NOT_FINISH, failureTextWith } from '#/shared/services/failure';
-import { counted } from '#/shared/services/format';
-import type { GatewayFailure } from '#/shared/services/result';
+import { COULD_NOT_FINISH, failureTextWith } from '#/shared/lib/services/failure';
+import { counted } from '#/shared/lib/services/format';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 import { factorLabel } from '#/pages/subjects/services/credentialList';
-import { subjectRefusal } from '#/shared/services/capabilities';
+import { subjectRefusal } from '#/shared/lib/services/capabilities';
 
 export function credentialDoneText(name: string, asking: AskedChange): string {
   switch (asking.kind) {

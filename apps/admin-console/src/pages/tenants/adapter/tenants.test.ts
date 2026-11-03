@@ -14,7 +14,7 @@ import {
 import tenantList from '#/pages/tenants/adapter/fixtures/tenant-list.json';
 import tenantImport from '#/pages/tenants/adapter/fixtures/tenant-import.json';
 import tenantRecord from '#/pages/tenants/adapter/fixtures/tenant.json';
-import type { GatewayResult } from '#/shared/transport/gateway';
+import type { GatewayResult } from '#/shared/api/transport/gateway';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 
 const SYSTEM = {

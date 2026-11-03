@@ -8,12 +8,16 @@ import {
   type AssignedRole,
   type RoleValues,
 } from '#/entities/role';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { describeIds } from '#/shared/services/format';
-import { sortedIds } from '#/shared/services/ids';
-import type { PickerState } from '#/shared/services/picker';
-import type { ResourceListState } from '#/shared/services/resourceList';
-import { accessRefusal, provenanceListText, roleOwnerShort } from '#/shared/services/capabilities';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { describeIds } from '#/shared/lib/services/format';
+import { sortedIds } from '#/shared/lib/services/ids';
+import type { PickerState } from '#/shared/lib/services/picker';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
+import {
+  accessRefusal,
+  provenanceListText,
+  roleOwnerShort,
+} from '#/shared/lib/services/capabilities';
 import {
   type Subject,
   useEffectiveRoleList,

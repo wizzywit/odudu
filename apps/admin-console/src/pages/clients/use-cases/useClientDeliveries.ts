@@ -9,9 +9,9 @@ import {
 } from '#/pages/clients/services/deliveries';
 import { useState } from 'react';
 import { useLogoutDeliveries } from '#/pages/clients/repository/useLogoutDeliveries';
-import { ANY_STATUS, statusFilter } from '#/shared/services/filters';
-import type { Choice } from '#/shared/services/choice';
-import type { ListStatus } from '#/shared/services/resourceList';
+import { ANY_STATUS, statusFilter } from '#/shared/lib/services/filters';
+import type { Choice } from '#/shared/lib/services/choice';
+import type { ListStatus } from '#/shared/lib/services/resourceList';
 
 export interface ClientDeliveries {
   heading: string;

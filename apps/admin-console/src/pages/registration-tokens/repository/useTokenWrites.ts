@@ -1,10 +1,10 @@
 import type { MintRegistrationTokenResponse } from '@odudu/contracts/admin';
 import { mintToken, revokeToken } from '#/pages/registration-tokens/adapter/registrationTokens';
-import { listKey } from '#/shared/repository/queryKeys';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce';
-import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
-import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
+import { listKey } from '#/shared/lib/repository/queryKeys';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { useSecretOnce, type SecretOnce } from '#/shared/lib/repository/useSecretOnce';
+import type { GatewayFailure, GatewayResult } from '#/shared/api/transport/gateway';
+import { useGatewayWrite, type Write } from '#/shared/lib/repository/useWrite';
 
 type Minted = Omit<MintRegistrationTokenResponse, 'token'>;
 

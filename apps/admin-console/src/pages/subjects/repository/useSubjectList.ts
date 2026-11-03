@@ -1,5 +1,5 @@
-import { useResourceList } from '#/shared/repository/useResourceList';
-import type { ResourceListState } from '#/shared/services/resourceList';
+import { useResourceList } from '#/shared/lib/repository/useResourceList';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
 import { readSubjectCount, readSubjectPage, type Subject } from '#/entities/subject';
 
 export function useSubjectList(tenant: string): ResourceListState<Subject> {

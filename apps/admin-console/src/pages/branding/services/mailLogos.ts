@@ -1,5 +1,5 @@
 import type { MailBrandingView } from '#/pages/branding/types/mailBranding';
-import { previewable } from '#/shared/services/profileUrl';
+import { previewable } from '#/shared/lib/services/profileUrl';
 
 export const LOGO_TITLE = 'Logo';
 

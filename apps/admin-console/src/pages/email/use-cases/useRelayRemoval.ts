@@ -3,7 +3,7 @@ import { useRefusal } from '#/entities/session';
 import { useSmtpRemove } from '#/pages/email/repository/useSmtpWrites';
 import { EMAIL_WORDS, type EmailWords } from '#/pages/email/services/emailWords';
 import { removeOutcome } from '#/pages/email/services/remove';
-import { useToast } from '#/shared/repository/useToasts';
+import { useToast } from '#/shared/lib/repository/useToasts';
 
 export interface RelayRemoval {
   words: EmailWords['remove'];

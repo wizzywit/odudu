@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useGroupChildren, useGroupList } from '#/pages/groups/repository/useGroupList';
 import { type Group, groupHref, newGroupHref } from '#/entities/group';
-import { NAME_SEARCH } from '#/shared/services/filters';
-import { useListPage, type ListPageState } from '#/shared/use-cases/useListPage';
+import { NAME_SEARCH } from '#/shared/lib/services/filters';
+import { useListPage, type ListPageState } from '#/shared/lib/use-cases/useListPage';
 
 export interface GroupsList extends ListPageState<Group> {
   searching: boolean;

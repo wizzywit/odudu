@@ -2,10 +2,10 @@ import {
   grantHoldings,
   type Refused,
 } from '#/features/grant-administrator/repository/administratorRoles';
-import { countKey, holdersKey, listKey } from '#/shared/repository/queryKeys';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { SYSTEM_TENANT } from '#/shared/services/principal';
-import { useWrite } from '#/shared/repository/useWrite';
+import { countKey, holdersKey, listKey } from '#/shared/lib/repository/queryKeys';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
+import { useWrite } from '#/shared/lib/repository/useWrite';
 
 export interface AdministratorGrant {
   busy: boolean;

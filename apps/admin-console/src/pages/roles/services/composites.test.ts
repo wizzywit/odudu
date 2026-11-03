@@ -9,9 +9,9 @@ import {
   compositeRefusal,
 } from '#/pages/roles/services/composites';
 import { role } from '#/testing/roleAnswers';
-import { roleReachUnavailable } from '#/shared/services/capabilities';
+import { roleReachUnavailable } from '#/shared/lib/services/capabilities';
 import { refusedWith, failure, refusal } from '#/testing/failures';
-import { type GatewayFailure } from '#/shared/services/result';
+import { type GatewayFailure } from '#/shared/lib/services/result';
 
 const READER = role('r-read', 'reader');
 

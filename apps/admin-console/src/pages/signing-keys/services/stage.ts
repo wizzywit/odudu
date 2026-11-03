@@ -1,6 +1,6 @@
 import { signingKeyAlgSchema, type SigningKeyAlg } from '@odudu/contracts/admin';
-import { createFailure, type CreateOutcome } from '#/shared/services/failure';
-import type { GatewayFailure } from '#/shared/services/result';
+import { createFailure, type CreateOutcome } from '#/shared/lib/services/failure';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 
 export const DEFAULT_ALG: SigningKeyAlg = 'ES256';
 

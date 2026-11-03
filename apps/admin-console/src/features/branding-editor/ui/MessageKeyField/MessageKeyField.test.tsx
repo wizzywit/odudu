@@ -7,7 +7,7 @@ import type { MessageEntry } from '#/features/branding-editor/types/messageCatal
 import { InsertMessage, MessageKeyField } from '#/features/branding-editor/ui/MessageKeyField';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { CodeField } from '#/shared/ui/CodeField';
-import type { Read } from '#/shared/services/read';
+import type { Read } from '#/shared/lib/services/read';
 
 const ENTRIES: MessageEntry[] = [
   { key: 'login.title', text: 'Sign in' },

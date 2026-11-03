@@ -1,4 +1,4 @@
-import { ANY_STATUS } from '#/shared/services/filters';
+import { ANY_STATUS } from '#/shared/lib/services/filters';
 import {
   FILTER_NAMES,
   type AuditFilters,

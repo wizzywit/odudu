@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { listKey, recordKey } from '#/shared/repository/queryKeys';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
+import { listKey, recordKey } from '#/shared/lib/repository/queryKeys';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
 
 export function useResolved(tenant: string, id: string, given: readonly unknown[]) {
   const { invalidate } = useInvalidate();

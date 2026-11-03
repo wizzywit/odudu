@@ -6,8 +6,8 @@ import type {
   MessageCatalogue,
   MessageEntry,
 } from '#/features/branding-editor/types/messageCatalogue';
-import { sortedIds } from '#/shared/services/ids';
-import { mapRead, type Read } from '#/shared/services/read';
+import { sortedIds } from '#/shared/lib/services/ids';
+import { mapRead, type Read } from '#/shared/lib/services/read';
 import type { PageKind } from '#/features/branding-editor/services/pageKinds';
 
 export const MAIL_GROUP_LABEL = 'Mail';

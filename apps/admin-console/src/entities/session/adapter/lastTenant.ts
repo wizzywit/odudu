@@ -1,5 +1,5 @@
-import { isTenantName } from '#/shared/services/principal';
-import { browserStorage } from '#/shared/adapter/browserStorage';
+import { isTenantName } from '#/shared/lib/services/principal';
+import { browserStorage } from '#/shared/api/adapter/browserStorage';
 
 const KEY = 'odudu.console.tenant';
 

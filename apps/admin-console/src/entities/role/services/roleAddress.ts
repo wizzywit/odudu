@@ -1,4 +1,4 @@
-import { resourceAddress } from '#/shared/services/address';
+import { resourceAddress } from '#/shared/lib/services/address';
 
 const roles = resourceAddress({ segment: 'roles', group: 'Identity', label: 'Roles' });
 

@@ -13,10 +13,10 @@ import {
 } from '#/pages/tenant-sessions/services/endSessions';
 import { NOTHING_YET, NOUN, PAGE_RULE } from '#/pages/tenant-sessions/services/sessionListText';
 import { subjectCell, subjectLinkOf } from '#/pages/tenant-sessions/services/sessionSubject';
-import { useToast } from '#/shared/repository/useToasts';
-import { holds } from '#/shared/services/access';
-import type { ResourceListState } from '#/shared/services/resourceList';
-import { useConfirmedChange, type Confirming } from '#/shared/use-cases/useConfirmedChange';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { holds } from '#/shared/lib/services/access';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
+import { useConfirmedChange, type Confirming } from '#/shared/lib/use-cases/useConfirmedChange';
 import { usernameOrId, subjectHref } from '#/entities/subject';
 
 export interface TenantSessionsPage {

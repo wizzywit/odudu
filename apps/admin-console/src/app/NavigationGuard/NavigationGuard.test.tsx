@@ -14,9 +14,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { NavigationGuard } from '#/app/NavigationGuard/NavigationGuard';
 import { Providers } from '#/app/Providers';
 import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer';
-import { useDirtySection } from '#/shared/repository/useDirtySection';
-import { useRecordTab } from '#/shared/repository/useRecordTab';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
+import { useDirtySection } from '#/shared/lib/repository/useDirtySection';
+import { useRecordTab } from '#/shared/lib/repository/useRecordTab';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 import { Tabs } from '#/shared/ui/Tabs';
 import { resetConsole } from '#/testing/resetConsole';
 

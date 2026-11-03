@@ -1,4 +1,4 @@
-import { spaced } from '#/shared/services/format';
+import { spaced } from '#/shared/lib/services/format';
 import { areaTitled, type Area } from '#/entities/area';
 import { PORT_RULE, RELAY_LABELS } from '#/pages/email/services/relay';
 import { removeConsequence } from '#/pages/email/services/remove';

@@ -17,7 +17,7 @@ import {
   type CopyPart as Part,
   type CopyRead,
 } from '#/pages/scopes/services/scopeCopy';
-import { copyReadOf } from '#/shared/services/copy';
+import { copyReadOf } from '#/shared/lib/services/copy';
 import {
   copyEtagKey,
   copyKey,
@@ -25,13 +25,13 @@ import {
   findKey,
   listKey,
   pickerKey,
-} from '#/shared/repository/queryKeys';
-import { useFreshRead } from '#/shared/repository/useFreshRead';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { useWrite } from '#/shared/repository/useWrite';
-import { etagOfRead } from '#/shared/services/record';
-import type { GatewayResult } from '#/shared/transport/gateway';
-import { useTransport } from '#/shared/transport/useTransport';
+} from '#/shared/lib/repository/queryKeys';
+import { useFreshRead } from '#/shared/lib/repository/useFreshRead';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { useWrite } from '#/shared/lib/repository/useWrite';
+import { etagOfRead } from '#/shared/lib/services/record';
+import type { GatewayResult } from '#/shared/api/transport/gateway';
+import { useTransport } from '#/shared/api/transport/useTransport';
 
 export type ScopeInput = CreateScopeInput;
 

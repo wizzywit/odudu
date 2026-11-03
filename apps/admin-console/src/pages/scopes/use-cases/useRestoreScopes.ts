@@ -9,8 +9,8 @@ import {
   restoreText,
 } from '#/pages/scopes/services/restore';
 import { useRefusal } from '#/entities/session';
-import { useToast } from '#/shared/repository/useToasts';
-import { useConfirmedRemoval } from '#/shared/use-cases/useConfirmedChange';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { useConfirmedRemoval } from '#/shared/lib/use-cases/useConfirmedChange';
 
 export interface RestoreScopes {
   title: string;

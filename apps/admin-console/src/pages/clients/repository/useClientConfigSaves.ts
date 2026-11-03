@@ -3,8 +3,8 @@ import { authPayload } from '#/pages/clients/services/clientAuthentication';
 import { keysPayload } from '#/pages/clients/services/clientKeys';
 import { userinfoPayload } from '#/pages/clients/services/userinfoResponse';
 import { sentOf } from '#/pages/clients/services/choices';
-import type { SaveInput } from '#/shared/repository/useSectionSave';
-import type { Gateway } from '#/shared/transport/gateway';
+import type { SaveInput } from '#/shared/lib/repository/useSectionSave';
+import type { Gateway } from '#/shared/api/transport/gateway';
 
 type Values = Readonly<Record<string, unknown>>;
 

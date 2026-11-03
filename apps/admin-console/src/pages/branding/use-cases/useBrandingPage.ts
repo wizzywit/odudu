@@ -14,7 +14,7 @@ import {
 } from '#/features/branding-editor';
 import { BRANDING_PAGE_WORDS } from '#/pages/branding/services/brandingPage';
 import { useMailTab, type MailTab } from '#/pages/branding/use-cases/useMailTab';
-import { useRecordTab } from '#/shared/repository/useRecordTab';
+import { useRecordTab } from '#/shared/lib/repository/useRecordTab';
 
 export interface BrandingPage {
   branding: ScopeBranding;

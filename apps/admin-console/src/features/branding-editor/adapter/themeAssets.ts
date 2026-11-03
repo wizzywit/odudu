@@ -1,6 +1,6 @@
 import { themeAssetSchema } from '@odudu/contracts/admin';
-import { adminCall, nothing, segment } from '#/shared/adapter/route';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+import { adminCall, nothing, segment } from '#/shared/api/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 import { imageDataUrl } from '#/features/branding-editor/services/imageThumbnails';
 import type { SlotImage } from '#/features/branding-editor/types/slotImage';
 

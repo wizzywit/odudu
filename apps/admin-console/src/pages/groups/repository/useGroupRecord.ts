@@ -17,15 +17,15 @@ import {
   holdersKey,
   listKey,
   pickerKey,
-} from '#/shared/repository/queryKeys';
-import { useAfterChange } from '#/shared/repository/useAfterChange';
-import { useRead } from '#/shared/repository/useRead';
-import { useRecord, type RecordState } from '#/shared/repository/useRecord';
-import type { SaveInput } from '#/shared/repository/useSectionSave';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { useTransport } from '#/shared/transport/useTransport';
-import { useWrite, type Write } from '#/shared/repository/useWrite';
-import type { DescriptionValues, DefaultValues } from '#/shared/services/sectionValues';
+} from '#/shared/lib/repository/queryKeys';
+import { useAfterChange } from '#/shared/lib/repository/useAfterChange';
+import { useRead } from '#/shared/lib/repository/useRead';
+import { useRecord, type RecordState } from '#/shared/lib/repository/useRecord';
+import type { SaveInput } from '#/shared/lib/repository/useSectionSave';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { useTransport } from '#/shared/api/transport/useTransport';
+import { useWrite, type Write } from '#/shared/lib/repository/useWrite';
+import type { DescriptionValues, DefaultValues } from '#/shared/lib/services/sectionValues';
 import type { RoleValues } from '#/entities/role';
 
 export function useGroupRecord(tenant: string, id: string): RecordState<GroupRecord> {

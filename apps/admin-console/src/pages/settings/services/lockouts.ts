@@ -1,4 +1,4 @@
-import type { AdminCapability } from '#/shared/services/principal';
+import type { AdminCapability } from '#/shared/lib/services/principal';
 
 export const LOCKOUTS_NEEDS: AdminCapability = 'manage-users';
 

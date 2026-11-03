@@ -1,9 +1,9 @@
 import type { Client } from '#/entities/client';
 import type { Scope } from '#/entities/scope';
-import { writeRefusal } from '#/shared/services/capabilities';
-import { writeFailureText } from '#/shared/services/failure';
-import { counted, shown } from '#/shared/services/format';
-import type { GatewayFailure, Problem } from '#/shared/services/result';
+import { writeRefusal } from '#/shared/lib/services/capabilities';
+import { writeFailureText } from '#/shared/lib/services/failure';
+import { counted, shown } from '#/shared/lib/services/format';
+import type { GatewayFailure, Problem } from '#/shared/lib/services/result';
 
 export const SCOPES_CAPABILITY = 'manage-tenant';
 

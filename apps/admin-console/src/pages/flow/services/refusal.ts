@@ -1,6 +1,6 @@
 import type { Step } from '#/pages/flow/services/steps';
-import { andList } from '#/shared/services/format';
-import type { GatewayResult } from '#/shared/services/result';
+import { andList } from '#/shared/lib/services/format';
+import type { GatewayResult } from '#/shared/lib/services/result';
 
 const STEP_AT = /^\[(\d+)\]/u;
 

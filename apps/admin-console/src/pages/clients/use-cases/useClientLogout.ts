@@ -27,8 +27,8 @@ import {
   useClientSection,
   type ClientRecordRead,
 } from '#/pages/clients/use-cases/useClientSection';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { orBlank, spaced } from '#/shared/services/format';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { orBlank, spaced } from '#/shared/lib/services/format';
 
 export interface ClientLogout {
   sections: typeof SECTIONS_LOGOUT;

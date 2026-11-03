@@ -3,8 +3,8 @@ import type { AuditEvent } from '#/entities/audit-event';
 import { z } from 'zod';
 import type { Collection, Jwks } from '#/pages/overview/types/overviewReads';
 import { readAuditPage } from '#/entities/audit-event';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall, segment } from '#/shared/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { adminCall, segment } from '#/shared/api/adapter/route';
 
 // The gateway's mirrors of the tenant's public documents have no contract
 // in @odudu/contracts, so these hold them only to what the page reads and

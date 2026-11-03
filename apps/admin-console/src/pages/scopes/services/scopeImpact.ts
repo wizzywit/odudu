@@ -1,7 +1,7 @@
 import type { ScopeImpact } from '#/pages/scopes/types/scopeImpact';
 import { scopeDeleteConsequence } from '#/pages/scopes/services/scopeDeletion';
-import { andList, groupedNumber, plural } from '#/shared/services/format';
-import type { Read } from '#/shared/services/read';
+import { andList, groupedNumber, plural } from '#/shared/lib/services/format';
+import type { Read } from '#/shared/lib/services/read';
 
 interface Count {
   count: number;

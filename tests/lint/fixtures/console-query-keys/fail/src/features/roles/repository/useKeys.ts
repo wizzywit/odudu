@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRead } from '#/shared/repository/useRead';
+import { useRead } from '#/shared/lib/repository/useRead';
 
 export function useKeys(tenant: string, id: string) {
   const client = useQueryClient();

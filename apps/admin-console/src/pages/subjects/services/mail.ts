@@ -1,8 +1,8 @@
-import { COULD_NOT_FINISH } from '#/shared/services/failure';
-import { fieldErrorsOf, type FieldErrors } from '#/shared/services/fieldErrors';
-import { counted } from '#/shared/services/format';
-import type { GatewayFailure } from '#/shared/services/result';
-import { subjectRefusal } from '#/shared/services/capabilities';
+import { COULD_NOT_FINISH } from '#/shared/lib/services/failure';
+import { fieldErrorsOf, type FieldErrors } from '#/shared/lib/services/fieldErrors';
+import { counted } from '#/shared/lib/services/format';
+import type { GatewayFailure } from '#/shared/lib/services/result';
+import { subjectRefusal } from '#/shared/lib/services/capabilities';
 
 export interface MailRefusal {
   text: string;

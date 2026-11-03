@@ -9,16 +9,16 @@ import {
   setRoleDefault,
 } from '#/pages/roles/adapter/roles';
 import { compositesRecord, roleRecord } from '#/pages/roles/services/tabs';
-import { isStale } from '#/shared/services/failure';
-import { useAfterChange } from '#/shared/repository/useAfterChange';
-import { recordKey } from '#/shared/repository/queryKeys';
+import { isStale } from '#/shared/lib/services/failure';
+import { useAfterChange } from '#/shared/lib/repository/useAfterChange';
+import { recordKey } from '#/shared/lib/repository/queryKeys';
 import { type Role, rolesGoneReach } from '#/entities/role';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { useRecord, type RecordState } from '#/shared/repository/useRecord';
-import type { SaveInput } from '#/shared/repository/useSectionSave';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { useWrite, type Write } from '#/shared/repository/useWrite';
-import type { DescriptionValues, DefaultValues } from '#/shared/services/sectionValues';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { useRecord, type RecordState } from '#/shared/lib/repository/useRecord';
+import type { SaveInput } from '#/shared/lib/repository/useSectionSave';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { useWrite, type Write } from '#/shared/lib/repository/useWrite';
+import type { DescriptionValues, DefaultValues } from '#/shared/lib/services/sectionValues';
 
 export function useRoleRecord(tenant: string, id: string): RecordState<Role> {
   return useRecord({

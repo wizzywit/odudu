@@ -11,7 +11,7 @@ import {
   withOutcome,
   type MailOutcome,
 } from '#/pages/subjects/services/mail';
-import { withoutField } from '#/shared/services/fieldErrors';
+import { withoutField } from '#/shared/lib/services/fieldErrors';
 import {
   actionsMailProblem,
   REQUIRED_ACTION_OPTIONS,

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { ListStatus } from '#/shared/services/resourceList';
+import type { ListStatus } from '#/shared/lib/services/resourceList';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { LoadFailed } from '#/shared/ui/LoadFailed';
 

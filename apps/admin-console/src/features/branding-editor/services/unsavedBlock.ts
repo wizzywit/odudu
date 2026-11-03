@@ -1,4 +1,4 @@
-import { andList } from '#/shared/services/format';
+import { andList } from '#/shared/lib/services/format';
 
 // The sentence that holds an action back while sections have unsaved edits.
 // `action` is what the person may do first: only save, or save or discard

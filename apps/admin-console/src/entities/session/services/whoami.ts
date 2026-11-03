@@ -1,7 +1,7 @@
-import { dataOf } from '#/shared/services/settled';
-import { isUnknownTenant } from '#/shared/services/failure';
-import type { Authority } from '#/shared/services/principal';
-import type { GatewayResult } from '#/shared/services/result';
+import { dataOf } from '#/shared/lib/services/settled';
+import { isUnknownTenant } from '#/shared/lib/services/failure';
+import type { Authority } from '#/shared/lib/services/principal';
+import type { GatewayResult } from '#/shared/lib/services/result';
 
 // What whoami granted, nothing until it has answered or when it refused.
 export function authorityOf(read: GatewayResult<Authority> | undefined): Authority | undefined {

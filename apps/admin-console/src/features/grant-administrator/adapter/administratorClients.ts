@@ -1,7 +1,7 @@
 import type { ListClientsResponse, ListRolesResponse } from '@odudu/contracts/admin';
 import { readClientPage } from '#/entities/client';
 import { readRolePage } from '#/entities/role';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 
 // A client_id search is a prefix, so a tenant's own `odudu-admin-x` comes
 // back too; the caller keeps the built-in one.

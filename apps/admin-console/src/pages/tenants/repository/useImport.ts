@@ -1,14 +1,14 @@
 import type { Tenant } from '#/pages/tenants/types/tenant';
-import { findKey } from '#/shared/repository/queryKeys';
+import { findKey } from '#/shared/lib/repository/queryKeys';
 import { useMutation } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { readFileText } from '#/pages/tenants/adapter/files';
 import { findTenant, importTenant } from '#/pages/tenants/adapter/tenants';
 import { parseDocument } from '#/pages/tenants/services/document';
 import { type ImportedSecret, type ImportOutcome } from '#/pages/tenants/services/import';
-import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
-import { useFreshRead } from '#/shared/repository/useFreshRead';
-import { useTransport } from '#/shared/transport/useTransport';
+import type { GatewayFailure, GatewayResult } from '#/shared/api/transport/gateway';
+import { useFreshRead } from '#/shared/lib/repository/useFreshRead';
+import { useTransport } from '#/shared/api/transport/useTransport';
 
 export interface ImportInput {
   name: string;

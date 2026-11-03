@@ -1,6 +1,6 @@
-import { writeFailureText } from '#/shared/services/failure';
-import type { GatewayFailure } from '#/shared/services/result';
-import { subjectRefusal } from '#/shared/services/capabilities';
+import { writeFailureText } from '#/shared/lib/services/failure';
+import type { GatewayFailure } from '#/shared/lib/services/result';
+import { subjectRefusal } from '#/shared/lib/services/capabilities';
 import { type Subject } from '#/entities/subject';
 
 // A service subject has no `users` row: no username, email,

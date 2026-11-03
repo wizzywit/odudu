@@ -4,7 +4,7 @@ import { useFlowRecord } from '#/pages/flow/repository/useFlowRecord';
 import { flowPage, type FlowWords } from '#/pages/flow/services/flowWording';
 import { otpRead, settingsFailed, type OtpRead } from '#/pages/flow/services/flowRecords';
 import { readingOf } from '#/pages/flow/services/otp';
-import type { RecordState } from '#/shared/repository/useRecord';
+import type { RecordState } from '#/shared/lib/repository/useRecord';
 
 export interface FlowSections {
   flow: RecordState<ListExecutionsResponse>;

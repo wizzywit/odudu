@@ -1,6 +1,6 @@
 import { type RequiredAction } from '@odudu/contracts/admin';
-import { listOrNone } from '#/shared/services/format';
-import { inOrderOf } from '#/shared/services/ids';
+import { listOrNone } from '#/shared/lib/services/format';
+import { inOrderOf } from '#/shared/lib/services/ids';
 
 // In the order the next sign-in asks for them.
 export const REQUIRED_ACTIONS: readonly {

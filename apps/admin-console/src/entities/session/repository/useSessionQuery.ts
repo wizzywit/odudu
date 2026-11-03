@@ -12,11 +12,11 @@ import {
 } from '#/entities/session/services/boot';
 import { remembers } from '#/entities/session/services/tenant';
 import { sessionKey } from '#/entities/session/repository/queryKeys';
-import { useDrafts } from '#/shared/repository/useDrafts';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
-import type { Gateway } from '#/shared/transport/gateway';
-import type { AuthEvents } from '#/shared/services/authEvents';
-import { useTransport } from '#/shared/transport/useTransport';
+import { useDrafts } from '#/shared/lib/repository/useDrafts';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
+import type { Gateway } from '#/shared/api/transport/gateway';
+import type { AuthEvents } from '#/shared/lib/services/authEvents';
+import { useTransport } from '#/shared/api/transport/useTransport';
 
 const KEY = sessionKey();
 

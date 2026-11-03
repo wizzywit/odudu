@@ -1,6 +1,6 @@
 import { testRecipientSchema } from '@odudu/contracts/admin';
-import { refusedBy, writeFailureText } from '#/shared/services/failure';
-import type { GatewayResult, Problem } from '#/shared/services/result';
+import { refusedBy, writeFailureText } from '#/shared/lib/services/failure';
+import type { GatewayResult, Problem } from '#/shared/lib/services/result';
 
 export interface TestOutcome {
   tone: 'success' | 'error';

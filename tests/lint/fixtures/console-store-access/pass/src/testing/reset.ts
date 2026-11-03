@@ -1,4 +1,4 @@
-import { useToasts } from '#/shared/repository/useToasts';
+import { useToasts } from '#/shared/lib/repository/useToasts';
 
 export function reset(): void {
   useToasts.setState(useToasts.getInitialState(), true);

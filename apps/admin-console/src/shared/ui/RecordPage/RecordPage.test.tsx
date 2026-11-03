@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import type { RecordView } from '#/shared/services/record';
+import type { RecordView } from '#/shared/lib/services/record';
 import { Button } from '#/shared/ui/Button';
 import { TextField } from '#/shared/ui/Field';
 import { RecordPage } from '#/shared/ui/RecordPage/RecordPage';

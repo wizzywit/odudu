@@ -5,8 +5,8 @@ import {
   type Loss,
   type OwnAccess,
   type OwnAccessRead,
-} from '#/shared/services/capabilities';
-import { type AdminCapability } from '#/shared/services/principal';
+} from '#/shared/lib/services/capabilities';
+import { type AdminCapability } from '#/shared/lib/services/principal';
 import { within } from '#/pages/groups/services/groupPath';
 
 export type Change =

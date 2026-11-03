@@ -10,8 +10,8 @@ import {
 } from '#/features/branding-editor/services/publishOutcome';
 import { publishFailure } from '#/features/branding-editor/services/writeFailures';
 import { writeCapability, type ThemeScope } from '#/features/branding-editor/services/themeScope';
-import { useToast } from '#/shared/repository/useToasts';
-import { reportFailure } from '#/shared/services/settled';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { reportFailure } from '#/shared/lib/services/settled';
 
 export interface Publication {
   busy: boolean;

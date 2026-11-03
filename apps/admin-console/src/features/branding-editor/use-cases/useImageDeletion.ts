@@ -3,7 +3,7 @@ import { useAssetDelete } from '#/features/branding-editor/repository/useThemeAs
 import { deleteImageFailure } from '#/features/branding-editor/services/writeFailures';
 import { writeCapability, type ThemeScope } from '#/features/branding-editor/services/themeScope';
 import type { ImageSlot } from '#/features/branding-editor/services/imageValues';
-import { useConfirmedChange, type Confirming } from '#/shared/use-cases/useConfirmedChange';
+import { useConfirmedChange, type Confirming } from '#/shared/lib/use-cases/useConfirmedChange';
 
 export interface ImageAsk {
   slot: ImageSlot;

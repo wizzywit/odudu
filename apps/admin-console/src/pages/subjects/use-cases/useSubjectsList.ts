@@ -1,9 +1,9 @@
 import { useAuthority } from '#/entities/session';
 import { useSubjectList } from '#/pages/subjects/repository/useSubjectList';
-import { lacking } from '#/shared/services/access';
-import { STATUS_FILTER } from '#/shared/services/filters';
-import type { AdminCapability } from '#/shared/services/principal';
-import { useListPage, type ListPageState } from '#/shared/use-cases/useListPage';
+import { lacking } from '#/shared/lib/services/access';
+import { STATUS_FILTER } from '#/shared/lib/services/filters';
+import type { AdminCapability } from '#/shared/lib/services/principal';
+import { useListPage, type ListPageState } from '#/shared/lib/use-cases/useListPage';
 import { CAPABILITY_FILTER } from '#/pages/subjects/services/subjectFilters';
 import { createSubjectHref } from '#/pages/subjects/services/newSubject';
 import { newSubjectHref, type Subject, subjectHref } from '#/entities/subject';

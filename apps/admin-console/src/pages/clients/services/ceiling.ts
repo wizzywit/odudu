@@ -1,14 +1,14 @@
 import type { Client } from '#/entities/client';
-import { beyondCaller } from '#/shared/services/capabilities';
-import { andList } from '#/shared/services/format';
-import type { AdminCapability } from '#/shared/services/principal';
+import { beyondCaller } from '#/shared/lib/services/capabilities';
+import { andList } from '#/shared/lib/services/format';
+import type { AdminCapability } from '#/shared/lib/services/principal';
 
 // Every write on a client takes the client's service account over, so each is
 // held to the ceiling on that subject (ADR 0040): refused when it holds an
 // admin capability the caller lacks. The record carries what it holds, so the
 // ceiling is judged from the record and the caller's own capabilities alone.
 // A client with no service account has none. Not an instance of Ceiling<Ready>
-// (shared/services/access): it judges one account, carries no caller and cannot fail.
+// (shared/lib/services/access): it judges one account, carries no caller and cannot fail.
 export type ServiceAccountReach =
   | { status: 'free' }
   | { status: 'checking' }

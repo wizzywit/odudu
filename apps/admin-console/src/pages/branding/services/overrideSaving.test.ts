@@ -12,7 +12,7 @@ import {
   OVERRIDE_CAP,
   UNKNOWN_KEY,
 } from '#/pages/branding/services/overrideForm';
-import type { GatewayFailure } from '#/shared/services/result';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 
 const refused = (status: number, type: string, extra: object = {}): GatewayFailure => ({
   ok: false,

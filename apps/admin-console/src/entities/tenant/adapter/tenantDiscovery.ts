@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { segment } from '#/shared/adapter/route';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+import { segment } from '#/shared/api/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 
 // The gateway's mirror of a tenant's discovery document has no contract in
 // @odudu/contracts, so it is held only to what the pages read.

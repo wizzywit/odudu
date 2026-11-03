@@ -11,8 +11,8 @@ import {
   type LockoutClearState,
 } from '#/pages/settings/services/lockoutClear';
 import { LOCKOUTS_NEEDS } from '#/pages/settings/services/lockouts';
-import { useToast } from '#/shared/repository/useToasts';
-import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { useConfirmedRemoval, type Removal } from '#/shared/lib/use-cases/useConfirmedChange';
 
 export interface LockoutsClear extends Removal {
   state: LockoutClearState;

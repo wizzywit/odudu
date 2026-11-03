@@ -5,7 +5,7 @@ import {
   newSubjectSpec,
   subjectCreatedText,
 } from '#/pages/subjects/services/newSubject';
-import { createFailure } from '#/shared/services/failure';
+import { createFailure } from '#/shared/lib/services/failure';
 import { failure, refusal } from '#/testing/failures';
 
 const NEW = '/console/acme/subjects/new';

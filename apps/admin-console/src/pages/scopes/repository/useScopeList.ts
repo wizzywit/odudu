@@ -1,7 +1,7 @@
 import type { Scope } from '#/entities/scope';
 import { readScopeCount, readScopePage } from '#/pages/scopes/adapter/scopes';
-import { useResourceList } from '#/shared/repository/useResourceList';
-import type { ResourceListState } from '#/shared/services/resourceList';
+import { useResourceList } from '#/shared/lib/repository/useResourceList';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
 
 export function useScopeList(tenant: string): ResourceListState<Scope> {
   return useResourceList({

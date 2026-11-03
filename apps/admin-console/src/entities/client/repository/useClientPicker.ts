@@ -1,6 +1,6 @@
 import { readClientPage } from '#/entities/client/adapter/clientPage';
-import { usePicker } from '#/shared/repository/usePicker';
-import type { PickerState } from '#/shared/services/picker';
+import { usePicker } from '#/shared/lib/repository/usePicker';
+import type { PickerState } from '#/shared/lib/services/picker';
 import type { Client } from '#/entities/client/types/client';
 
 // A tenant can hold thousands of clients, so a search is a prefix of the name

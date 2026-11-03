@@ -2,8 +2,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { expect, it, vi } from 'vitest';
-import type { Translations } from '#/shared/services/localised';
-import type { Read } from '#/shared/services/read';
+import type { Translations } from '#/shared/lib/services/localised';
+import type { Read } from '#/shared/lib/services/read';
 import { LocalisedTextField } from '#/shared/ui/LocalisedTextField';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 

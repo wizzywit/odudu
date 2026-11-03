@@ -1,6 +1,6 @@
-import { writeRefusal } from '#/shared/services/capabilities';
-import type { AdminCapability } from '#/shared/services/principal';
-import type { GatewayFailure, Problem } from '#/shared/services/result';
+import { writeRefusal } from '#/shared/lib/services/capabilities';
+import type { AdminCapability } from '#/shared/lib/services/principal';
+import type { GatewayFailure, Problem } from '#/shared/lib/services/result';
 
 export const CLIENT_CAPABILITY: AdminCapability = 'manage-clients';
 

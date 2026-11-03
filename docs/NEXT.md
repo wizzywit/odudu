@@ -85,7 +85,7 @@ live is pushed there rather than accumulating here.
 **A console to build on, and the ways in.** The SPA talks to nothing but
 `/console/api/session`, `/console/api/admin/*`, `/console/auth/login` and
 `POST /console/auth/logout`; `gateway.request` is the one caller of `fetch`,
-and a feature reaches it through `shared/transport`. A feature is five
+and a feature reaches it through `shared/api/transport`. A feature is five
 layers behind one `index.ts`, built from the Instrument components in
 `shared/view`, with a draft keyed by tenant and record, a rebase on a `412`
 and an unsaved-changes guard. The lints that hold this, and what each cannot

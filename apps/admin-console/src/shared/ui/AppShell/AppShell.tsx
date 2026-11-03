@@ -9,7 +9,7 @@ import {
   type RefObject,
 } from 'react';
 import { Dialog, DialogTrigger, Modal, ModalOverlay } from 'react-aria-components';
-import { PRODUCT_NAME } from '#/shared/services/product';
+import { PRODUCT_NAME } from '#/shared/lib/services/product';
 import { BrandLine } from '#/shared/ui/BrandLine';
 import { Button } from '#/shared/ui/Button';
 import { KeyHint } from '#/shared/ui/KeyHint';

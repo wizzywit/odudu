@@ -20,11 +20,11 @@ import {
   SESSIONS_NOUN,
   SESSIONS_RULE,
 } from '#/pages/clients/services/sessions';
-import { useGo } from '#/shared/repository/useGo';
-import { lacking, readable } from '#/shared/services/access';
-import type { AdminCapability } from '#/shared/services/principal';
-import type { ResourceListState } from '#/shared/services/resourceList';
-import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
+import { useGo } from '#/shared/lib/repository/useGo';
+import { lacking, readable } from '#/shared/lib/services/access';
+import type { AdminCapability } from '#/shared/lib/services/principal';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
+import { useConfirmedRemoval, type Removal } from '#/shared/lib/use-cases/useConfirmedChange';
 import { subjectHref, usernameOrId } from '#/entities/subject';
 
 export interface SessionsPanel {

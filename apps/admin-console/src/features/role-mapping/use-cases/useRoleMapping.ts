@@ -15,13 +15,13 @@ import {
   useSectionSave,
   type SaveInput,
   type SectionSave,
-} from '#/shared/repository/useSectionSave';
-import { writeRefusal } from '#/shared/services/capabilities';
-import { describeIds } from '#/shared/services/format';
-import { sortedIds } from '#/shared/services/ids';
-import type { PickerState } from '#/shared/services/picker';
-import type { AdminCapability } from '#/shared/services/principal';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+} from '#/shared/lib/repository/useSectionSave';
+import { writeRefusal } from '#/shared/lib/services/capabilities';
+import { describeIds } from '#/shared/lib/services/format';
+import { sortedIds } from '#/shared/lib/services/ids';
+import type { PickerState } from '#/shared/lib/services/picker';
+import type { AdminCapability } from '#/shared/lib/services/principal';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 
 export interface MappedItem {
   id: string;

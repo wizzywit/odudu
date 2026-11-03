@@ -16,8 +16,8 @@ import {
   withRequirement,
   type Direction,
 } from '#/pages/flow/services/steps';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { writeRefusal } from '#/shared/services/capabilities';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { writeRefusal } from '#/shared/lib/services/capabilities';
 
 export interface FlowSteps {
   save: SectionSave<StepValues>;

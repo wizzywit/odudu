@@ -1,5 +1,5 @@
-import { blockedByDefault, roleReachUnavailable } from '#/shared/services/capabilities';
-import { type AdminCapability } from '#/shared/services/principal';
+import { blockedByDefault, roleReachUnavailable } from '#/shared/lib/services/capabilities';
+import { type AdminCapability } from '#/shared/lib/services/principal';
 import { type Defaulting } from '#/pages/groups/services/groupReach';
 import type { GroupRole } from '#/pages/groups/types/groupRoles';
 

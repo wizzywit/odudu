@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { languageLabel } from '#/shared/services/locales';
+import { languageLabel } from '#/shared/lib/services/locales';
 import {
   LANGUAGES_FAILED,
   languagesNote,
@@ -10,8 +10,8 @@ import {
   translationTabs,
   withTranslation,
   type Translations,
-} from '#/shared/services/localised';
-import type { Read } from '#/shared/services/read';
+} from '#/shared/lib/services/localised';
+import type { Read } from '#/shared/lib/services/read';
 import { InlineFailed } from '#/shared/ui/InlineFailed';
 import { FieldCluster, TextAreaField, TextField } from '#/shared/ui/Field';
 import { Note } from '#/shared/ui/Note';

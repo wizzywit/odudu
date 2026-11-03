@@ -5,8 +5,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { SignedInContext } from '#/entities/session';
 import { roleCeiling } from '#/pages/roles/services/roleCeiling';
 import { useRoleGeneral } from '#/pages/roles/use-cases/useRoleGeneral';
-import { useToasts } from '#/shared/repository/useToasts';
-import type { AdminCapability } from '#/shared/services/principal';
+import { useToasts } from '#/shared/lib/repository/useToasts';
+import type { AdminCapability } from '#/shared/lib/services/principal';
 import { whoamiReads, type Answer } from '#/testing/fakeTransport';
 import { hookHarness } from '#/testing/hookHarness';
 import { whoami } from '#/testing/renderConsole';
@@ -14,7 +14,7 @@ import { role } from '#/testing/roleAnswers';
 import { R } from '#/testing/rolesFixtures';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 
-vi.mock('#/shared/repository/useGo', () => ({ useGo: () => vi.fn() }));
+vi.mock('#/shared/lib/repository/useGo', () => ({ useGo: () => vi.fn() }));
 
 const GRACE = { tenant: 'acme', subjectId: 's1', username: 'grace' };
 const REACHING = role('r-aud', 'auditor', null, ['view-users', 'manage-users']);

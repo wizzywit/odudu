@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { expect, it } from 'vitest';
-import type { Write } from '#/shared/repository/useWrite';
-import type { GatewayResult } from '#/shared/services/result';
+import type { Write } from '#/shared/lib/repository/useWrite';
+import type { GatewayResult } from '#/shared/lib/services/result';
 import type { Answer } from '#/testing/fakeTransport';
 import { hookHarness, rejectingTransport } from '#/testing/hookHarness';
 

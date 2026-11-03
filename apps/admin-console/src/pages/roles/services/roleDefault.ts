@@ -1,6 +1,6 @@
 import type { Role } from '#/entities/role';
-import { blockedByDefault } from '#/shared/services/capabilities';
-import { andList } from '#/shared/services/format';
+import { blockedByDefault } from '#/shared/lib/services/capabilities';
+import { andList } from '#/shared/lib/services/format';
 import { isBuiltin } from '#/pages/roles/services/roleDeletion';
 
 export function defaultBlock(role: Role): string | null {

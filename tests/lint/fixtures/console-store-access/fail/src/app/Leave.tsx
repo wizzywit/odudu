@@ -1,5 +1,5 @@
-import { useDrafts } from '#/shared/repository/useDrafts';
-import { useToasts } from '#/shared/repository/useToasts';
+import { useDrafts } from '#/shared/lib/repository/useDrafts';
+import { useToasts } from '#/shared/lib/repository/useToasts';
 
 export function Leave() {
   const { forgetAll } = useDrafts.getState();

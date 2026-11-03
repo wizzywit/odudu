@@ -1,5 +1,5 @@
 import { Link } from 'react-aria-components';
-import type { Crumb } from '#/shared/services/breadcrumb';
+import type { Crumb } from '#/shared/lib/services/breadcrumb';
 import styles from '#/shared/ui/Breadcrumb/Breadcrumb.module.css';
 
 export type { Crumb };

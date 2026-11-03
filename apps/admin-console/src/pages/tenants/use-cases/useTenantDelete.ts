@@ -8,12 +8,12 @@ import {
   deleteState,
   type DeleteState,
 } from '#/pages/tenants/services/deletion';
-import { useGo } from '#/shared/repository/useGo';
-import { useToast } from '#/shared/repository/useToasts';
-import { lacking } from '#/shared/services/access';
-import { deletedText } from '#/shared/services/failure';
-import { SYSTEM_TENANT } from '#/shared/services/principal';
-import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
+import { useGo } from '#/shared/lib/repository/useGo';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { lacking } from '#/shared/lib/services/access';
+import { deletedText } from '#/shared/lib/services/failure';
+import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
+import { useConfirmedRemoval, type Removal } from '#/shared/lib/use-cases/useConfirmedChange';
 
 export interface TenantDelete extends Removal {
   state: DeleteState;

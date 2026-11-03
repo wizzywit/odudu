@@ -28,8 +28,8 @@ import {
 } from 'react-aria-components';
 import { Button } from '#/shared/ui/Button';
 import styles from '#/shared/ui/Field/Field.module.css';
-import type { Choice } from '#/shared/services/choice';
-import { groupedNumber, lowerFirst } from '#/shared/services/format';
+import type { Choice } from '#/shared/lib/services/choice';
+import { groupedNumber, lowerFirst } from '#/shared/lib/services/format';
 
 export interface Chrome {
   label: string;

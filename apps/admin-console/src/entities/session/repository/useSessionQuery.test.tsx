@@ -7,9 +7,9 @@ import {
   useSessionEvent,
   useSessionQuery,
 } from '#/entities/session/repository/useSessionQuery';
-import { createReadCache } from '#/shared/repository/readCache';
+import { createReadCache } from '#/shared/lib/repository/readCache';
 import { sessionKey } from '#/entities/session/repository/queryKeys';
-import { TransportContext } from '#/shared/transport/useTransport';
+import { TransportContext } from '#/shared/api/transport/useTransport';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 
 it('drops every other cached read when the session is marked ended', async () => {

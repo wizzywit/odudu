@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { readAuthority, readSession } from '#/entities/session/adapter/session';
-import { createAuthEvents } from '#/shared/services/authEvents';
-import { createGateway, type Fetch } from '#/shared/transport/gateway';
+import { createAuthEvents } from '#/shared/lib/services/authEvents';
+import { createGateway, type Fetch } from '#/shared/api/transport/gateway';
 
 function gatewayAnswering(body: unknown, urls: string[] = []) {
   const answer: Fetch = (url) => {

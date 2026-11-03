@@ -1,4 +1,4 @@
-import { counted } from '#/shared/services/format';
+import { counted } from '#/shared/lib/services/format';
 import {
   PALETTE_LABELS,
   type Palette,

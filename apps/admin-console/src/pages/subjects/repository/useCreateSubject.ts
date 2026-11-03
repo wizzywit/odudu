@@ -1,9 +1,9 @@
-import { findKey, listKey } from '#/shared/repository/queryKeys';
-import { useFreshRead } from '#/shared/repository/useFreshRead';
-import type { GatewayResult } from '#/shared/transport/gateway';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { useWrite } from '#/shared/repository/useWrite';
-import { useTransport } from '#/shared/transport/useTransport';
+import { findKey, listKey } from '#/shared/lib/repository/queryKeys';
+import { useFreshRead } from '#/shared/lib/repository/useFreshRead';
+import type { GatewayResult } from '#/shared/api/transport/gateway';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { useWrite } from '#/shared/lib/repository/useWrite';
+import { useTransport } from '#/shared/api/transport/useTransport';
 import { createSubject, findSubject, type Subject } from '#/entities/subject';
 
 export interface CreateSubject {

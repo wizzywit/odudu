@@ -1,7 +1,7 @@
 import type { LogoutDelivery } from '#/pages/clients/types/logoutDelivery';
-import type { Choice } from '#/shared/services/choice';
-import { ANY_STATUS } from '#/shared/services/filters';
-import { attemptsText } from '#/shared/services/format';
+import type { Choice } from '#/shared/lib/services/choice';
+import { ANY_STATUS } from '#/shared/lib/services/filters';
+import { attemptsText } from '#/shared/lib/services/format';
 
 export const DELIVERIES_HEADING = 'Back-channel deliveries';
 export const DELIVERIES_RULE =

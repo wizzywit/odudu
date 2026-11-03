@@ -1,5 +1,5 @@
-import { refusedBy, writeFailureText } from '#/shared/services/failure';
-import type { GatewayFailure } from '#/shared/services/result';
+import { refusedBy, writeFailureText } from '#/shared/lib/services/failure';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 
 const GUARDED = 'openid';
 

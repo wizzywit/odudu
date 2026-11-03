@@ -15,8 +15,8 @@ import { RouteFailure, ShellFailure } from '#/widgets/failure';
 import { ConsoleHome } from '#/pages/console-home';
 import { SessionGate } from '#/widgets/session-gate';
 import { pendingPage, PendingFrame, TenantShell } from '#/widgets/shell';
-import { PRODUCT_NAME } from '#/shared/services/product';
-import { parseSearch, stringifySearch } from '#/shared/services/search';
+import { PRODUCT_NAME } from '#/shared/lib/services/product';
+import { parseSearch, stringifySearch } from '#/shared/lib/services/search';
 import { LostFrame } from '#/shared/ui/LostFrame';
 import { PageNotFound } from '#/shared/ui/PageNotFound';
 

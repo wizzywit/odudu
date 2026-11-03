@@ -1,6 +1,6 @@
-import type { Read } from '#/shared/services/read';
-import type { NamedDialog } from '#/shared/services/dialog';
-import { lowerFirst } from '#/shared/services/format';
+import type { Read } from '#/shared/lib/services/read';
+import type { NamedDialog } from '#/shared/lib/services/dialog';
+import { lowerFirst } from '#/shared/lib/services/format';
 import { credentialsOf, factorLabel } from '#/pages/subjects/services/credentialList';
 import { type Credential } from '#/pages/subjects/types/credential';
 

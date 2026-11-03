@@ -1,5 +1,5 @@
 import type { PublishThemeResponse } from '#/features/branding-editor/types/theme';
-import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
+import type { GatewayFailure, GatewayResult } from '#/shared/lib/services/result';
 import { PUBLISHED_TOAST } from '#/features/branding-editor/services/publishDraft';
 import {
   NO_ISSUES,

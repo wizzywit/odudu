@@ -5,10 +5,10 @@ import axe from 'axe-core';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { App } from '#/app/App/App';
 import { createConsoleRouter } from '#/app/router';
-import { createReadCache } from '#/shared/repository/readCache';
-import { useDialogHost } from '#/shared/repository/useDialogHost';
-import { useToasts } from '#/shared/repository/useToasts';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
+import { createReadCache } from '#/shared/lib/repository/readCache';
+import { useDialogHost } from '#/shared/lib/repository/useDialogHost';
+import { useToasts } from '#/shared/lib/repository/useToasts';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 import {
   fakeTransport,
   json,

@@ -2,7 +2,7 @@ import { createEvent, fireEvent, render, screen, waitFor, within } from '@testin
 import userEvent from '@testing-library/user-event';
 import { use, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { HIGHLIGHT_LIMIT, type CodeLanguage, type LineIssue } from '#/shared/services/code';
+import { HIGHLIGHT_LIMIT, type CodeLanguage, type LineIssue } from '#/shared/lib/services/code';
 import { CodeField, CodeInsert } from '#/shared/ui/CodeField/CodeField';
 import css from '#/shared/ui/CodeField/CodeField.module.css?raw';
 import { ReadOnlyFields } from '#/shared/ui/Field';

@@ -1,6 +1,6 @@
-import { isEmptyRecord } from '#/shared/services/fieldErrors';
+import { isEmptyRecord } from '#/shared/lib/services/fieldErrors';
 import type { ThemeView } from '#/features/branding-editor/types/theme';
-import type { SectionFields } from '#/shared/services/sectionSave';
+import type { SectionFields } from '#/shared/lib/services/sectionSave';
 import {
   SCHEME_LABELS,
   schemeColoursName,

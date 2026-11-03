@@ -1,5 +1,5 @@
 import styles from '#/shared/ui/Count/Count.module.css';
-import { groupedNumber } from '#/shared/services/format';
+import { groupedNumber } from '#/shared/lib/services/format';
 
 // The API counts no further than its cap, so a capped count is a floor.
 export function Count({

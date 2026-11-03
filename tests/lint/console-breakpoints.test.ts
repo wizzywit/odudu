@@ -12,7 +12,7 @@ const files = (pattern: string): string[] =>
 // the Branding pages narrow is written in each stylesheet that asks, and held
 // to `NARROW_REM` here: change one, and this fails until they all agree.
 const NARROW_REM = Number(
-  /export const NARROW_REM = (\d+);/u.exec(read('shared/services/narrow.ts'))?.[1],
+  /export const NARROW_REM = (\d+);/u.exec(read('shared/lib/services/narrow.ts'))?.[1],
 );
 
 // The widths a stylesheet asks about with `<`, in `@container` or `@media`, in

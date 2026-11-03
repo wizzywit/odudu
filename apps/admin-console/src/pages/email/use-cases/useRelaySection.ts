@@ -10,8 +10,8 @@ import {
   type RelayValues,
 } from '#/pages/email/services/relay';
 import { EMAIL_WORDS, RELAY_TITLE, type EmailWords } from '#/pages/email/services/emailWords';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { writeRefusal } from '#/shared/services/capabilities';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { writeRefusal } from '#/shared/lib/services/capabilities';
 
 export interface RelaySection {
   words: EmailWords['relay'];

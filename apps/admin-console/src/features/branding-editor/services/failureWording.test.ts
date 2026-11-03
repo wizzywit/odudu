@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { uploadFailureOf } from '#/features/branding-editor/services/imageUpload';
-import type { GatewayFailure } from '#/shared/services/result';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 import { failure, refusal } from '#/testing/failures';
 
 describe('uploadFailureOf', () => {

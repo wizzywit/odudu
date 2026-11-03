@@ -33,10 +33,10 @@ import { loadedRange } from '#/pages/audit/services/trailCount';
 import { FILTER_WORDS, type FilterWords } from '#/pages/audit/services/filterWords';
 import { auditArea } from '#/pages/audit/services/auditArea';
 import { AUDIT_PAGE_WORDS, type AuditPageWords } from '#/pages/audit/services/auditPageWords';
-import { holds } from '#/shared/services/access';
-import { isEmptyRecord } from '#/shared/services/fieldErrors';
-import { useNow } from '#/shared/use-cases/useNow';
-import { localZone } from '#/shared/services/zones';
+import { holds } from '#/shared/lib/services/access';
+import { isEmptyRecord } from '#/shared/lib/services/fieldErrors';
+import { useNow } from '#/shared/lib/use-cases/useNow';
+import { localZone } from '#/shared/lib/services/zones';
 import { subjectHref } from '#/entities/subject';
 
 const RECORD_PAGES: RecordPages = {

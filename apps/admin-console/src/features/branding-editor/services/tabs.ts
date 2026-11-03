@@ -1,4 +1,4 @@
-import { recordTabs, tabNamed } from '#/shared/services/record';
+import { recordTabs, tabNamed } from '#/shared/lib/services/record';
 
 // Every tab of the Branding area, in the order they join it.
 const TABS = ['theme', 'pages', 'mail', 'languages'] as const;

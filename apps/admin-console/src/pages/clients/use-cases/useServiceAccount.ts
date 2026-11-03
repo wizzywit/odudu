@@ -26,7 +26,7 @@ import {
 import { canChange, type ServiceAccountReach } from '#/pages/clients/services/ceiling';
 import { ceilingRefused } from '#/pages/clients/services/refusal';
 import { SERVICE_SECTION } from '#/pages/clients/services/tabs';
-import type { RecordState } from '#/shared/repository/useRecord';
+import type { RecordState } from '#/shared/lib/repository/useRecord';
 import {
   assignedRoles,
   knownAssignments,
@@ -34,13 +34,13 @@ import {
   useRolePicker,
   type RoleValues,
 } from '#/entities/role';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { callerCapabilities, lacking } from '#/shared/services/access';
-import { writeRefusal } from '#/shared/services/capabilities';
-import { describeIds } from '#/shared/services/format';
-import { sortedIds } from '#/shared/services/ids';
-import type { PickerState } from '#/shared/services/picker';
-import type { AdminCapability } from '#/shared/services/principal';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { callerCapabilities, lacking } from '#/shared/lib/services/access';
+import { writeRefusal } from '#/shared/lib/services/capabilities';
+import { describeIds } from '#/shared/lib/services/format';
+import { sortedIds } from '#/shared/lib/services/ids';
+import type { PickerState } from '#/shared/lib/services/picker';
+import type { AdminCapability } from '#/shared/lib/services/principal';
 import { subjectHref } from '#/entities/subject';
 
 // The tab's access, and the note for an account the client no longer uses.

@@ -1,5 +1,5 @@
-import { usePicker } from '#/shared/repository/usePicker';
-import type { PickerState } from '#/shared/services/picker';
+import { usePicker } from '#/shared/lib/repository/usePicker';
+import type { PickerState } from '#/shared/lib/services/picker';
 import { readSubjectPage } from '#/entities/subject/adapter/subjectList';
 import type { Subject } from '#/entities/subject/types/subject';
 

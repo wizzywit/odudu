@@ -1,9 +1,9 @@
 import { whoamiResponseSchema } from '@odudu/contracts/admin';
 import { z } from 'zod';
-import type { Authority } from '#/shared/services/principal';
+import type { Authority } from '#/shared/lib/services/principal';
 import type { Principal } from '#/entities/session/types/principal';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall } from '#/shared/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { adminCall } from '#/shared/api/adapter/route';
 
 // GET /console/api/session is the gateway's own, so it has no contract in
 // @odudu/contracts; whoami's does.

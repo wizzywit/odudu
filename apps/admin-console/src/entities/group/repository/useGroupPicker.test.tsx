@@ -3,8 +3,8 @@ import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
 import { useGroupPicker } from '#/entities/group/repository/useGroupPicker';
-import { createReadCache } from '#/shared/repository/readCache';
-import { TransportContext } from '#/shared/transport/useTransport';
+import { createReadCache } from '#/shared/lib/repository/readCache';
+import { TransportContext } from '#/shared/api/transport/useTransport';
 import { fakeTransport, problem, type Answer } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 

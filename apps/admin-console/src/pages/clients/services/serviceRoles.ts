@@ -1,7 +1,7 @@
 import type { Role, SetRolesResponse } from '@odudu/contracts/admin';
-import { beyondCaller, isAdminRole } from '#/shared/services/capabilities';
-import { andList, counted } from '#/shared/services/format';
-import type { AdminCapability } from '#/shared/services/principal';
+import { beyondCaller, isAdminRole } from '#/shared/lib/services/capabilities';
+import { andList, counted } from '#/shared/lib/services/format';
+import type { AdminCapability } from '#/shared/lib/services/principal';
 
 export const ROLES_LABEL = 'Roles';
 

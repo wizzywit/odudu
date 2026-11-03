@@ -1,4 +1,4 @@
-import { resourceAddress, withSearch } from '#/shared/services/address';
+import { resourceAddress, withSearch } from '#/shared/lib/services/address';
 
 const groups = resourceAddress({ segment: 'groups', group: 'Identity', label: 'Groups' });
 

@@ -30,8 +30,8 @@ import {
 } from '#/features/branding-editor/services/stylesheetView';
 import { useDesignValues, useSelectors } from '#/features/branding-editor/use-cases/useSelectors';
 import { useSectionHold } from '#/features/branding-editor/use-cases/useSectionHold';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import type { SizeReading } from '#/shared/services/format';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import type { SizeReading } from '#/shared/lib/services/format';
 
 export interface Stylesheet {
   save: SectionSave<StylesheetValues>;

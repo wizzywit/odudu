@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { Component, useState, type ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { lazyFeatureRoute } from '#/app/lazyFeatureRoute/lazyFeatureRoute';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
-import { TransportContext } from '#/shared/transport/useTransport';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
+import { TransportContext } from '#/shared/api/transport/useTransport';
 import { fakeTransport } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';
 

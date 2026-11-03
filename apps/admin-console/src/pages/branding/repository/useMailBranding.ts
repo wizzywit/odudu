@@ -1,9 +1,9 @@
 import type { MailBrandingView } from '#/pages/branding/types/mailBranding';
 import { readMailBranding } from '#/pages/branding/adapter/mail';
 import { mailBrandingKey } from '#/pages/branding/repository/queryKeys';
-import { useRead } from '#/shared/repository/useRead';
-import type { Read } from '#/shared/services/read';
-import { useTransport } from '#/shared/transport/useTransport';
+import { useRead } from '#/shared/lib/repository/useRead';
+import type { Read } from '#/shared/lib/services/read';
+import { useTransport } from '#/shared/api/transport/useTransport';
 
 export function useMailBranding(
   tenant: string,

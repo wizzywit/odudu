@@ -1,5 +1,5 @@
-import { useDialogHost } from '#/shared/repository/useDialogHost';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
+import { useDialogHost } from '#/shared/lib/repository/useDialogHost';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 import { DialogPresence } from '#/shared/ui/dialogPresence';
 import { UnsavedChangesDialog } from '#/shared/ui/UnsavedChangesDialog';
 

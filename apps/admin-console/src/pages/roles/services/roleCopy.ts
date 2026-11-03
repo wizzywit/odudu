@@ -1,11 +1,11 @@
 import type { Composites } from '#/pages/roles/types/composite';
 import type { RoleCopySource } from '#/pages/roles/types/roleCopySource';
-import { withSearch } from '#/shared/services/address';
+import { withSearch } from '#/shared/lib/services/address';
 import type { Role } from '#/entities/role';
-import { copyingLineOf, type LeftOut, type PartialCopy } from '#/shared/services/copy';
-import { andList } from '#/shared/services/format';
-import { type AdminCapability } from '#/shared/services/principal';
-import { type GatewayResult } from '#/shared/services/result';
+import { copyingLineOf, type LeftOut, type PartialCopy } from '#/shared/lib/services/copy';
+import { andList } from '#/shared/lib/services/format';
+import { type AdminCapability } from '#/shared/lib/services/principal';
+import { type GatewayResult } from '#/shared/lib/services/result';
 import { childUnavailable } from '#/pages/roles/services/composites';
 
 export function copyHref(newHref: string, id: string): string {

@@ -1,6 +1,6 @@
 import { useRef } from 'react';
-import { LOAD_LIMIT_NOTICE } from '#/shared/services/resourceList';
-import { useFocusWhen } from '#/shared/use-cases/useFocusWhen';
+import { LOAD_LIMIT_NOTICE } from '#/shared/lib/services/resourceList';
+import { useFocusWhen } from '#/shared/lib/use-cases/useFocusWhen';
 import { Button } from '#/shared/ui/Button';
 import styles from '#/shared/ui/LoadMore/LoadMore.module.css';
 

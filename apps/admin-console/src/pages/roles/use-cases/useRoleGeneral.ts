@@ -1,6 +1,6 @@
 import { useRefusal, useRereadAuthority } from '#/entities/session';
 import { useOwnRoles } from '#/features/own-roles';
-import { useGo } from '#/shared/repository/useGo';
+import { useGo } from '#/shared/lib/repository/useGo';
 import { useRoleDeletion, useRoleSaves } from '#/pages/roles/repository/useRoleRecord';
 import { type Role, rolesHref } from '#/entities/role';
 import { defaultBlock, DEFAULT_LABEL } from '#/pages/roles/services/roleDefault';
@@ -18,15 +18,15 @@ import {
 import { roleSelfLoss } from '#/pages/roles/services/roleLoss';
 import { NAME_FIXED } from '#/pages/roles/services/roleCopy';
 import { roleRecord } from '#/pages/roles/services/tabs';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { useToast } from '#/shared/repository/useToasts';
-import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
-import { judgedLoss, lossAction, writeRefusal } from '#/shared/services/capabilities';
-import { deletedText } from '#/shared/services/failure';
-import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/services/labels';
-import type { DefaultValues, DescriptionValues } from '#/shared/services/sectionValues';
-import { orBlank } from '#/shared/services/format';
-import { ceilingCaller } from '#/shared/services/access';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { useConfirmedRemoval, type Removal } from '#/shared/lib/use-cases/useConfirmedChange';
+import { judgedLoss, lossAction, writeRefusal } from '#/shared/lib/services/capabilities';
+import { deletedText } from '#/shared/lib/services/failure';
+import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/lib/services/labels';
+import type { DefaultValues, DescriptionValues } from '#/shared/lib/services/sectionValues';
+import { orBlank } from '#/shared/lib/services/format';
+import { ceilingCaller } from '#/shared/lib/services/access';
 
 export type { SectionSave };
 

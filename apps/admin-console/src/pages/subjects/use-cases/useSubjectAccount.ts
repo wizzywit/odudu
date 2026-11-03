@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useEndOwnSession, useRefusal } from '#/entities/session';
 import { areaAt, areaHref } from '#/entities/area';
-import { useGo } from '#/shared/repository/useGo';
+import { useGo } from '#/shared/lib/repository/useGo';
 import {
   saveAccount,
   useSubjectDeletion,
@@ -9,11 +9,11 @@ import {
   useUsernamePolicy,
   type AccountValues,
 } from '#/pages/subjects/repository/useSubjectRecord';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { useToast } from '#/shared/repository/useToasts';
-import { deletedText, enabledText } from '#/shared/services/failure';
-import { orBlank } from '#/shared/services/format';
-import { DESCRIPTION_RULE } from '#/shared/services/labels';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { deletedText, enabledText } from '#/shared/lib/services/failure';
+import { orBlank } from '#/shared/lib/services/format';
+import { DESCRIPTION_RULE } from '#/shared/lib/services/labels';
 import {
   confirmationOf,
   deletionRefusal,

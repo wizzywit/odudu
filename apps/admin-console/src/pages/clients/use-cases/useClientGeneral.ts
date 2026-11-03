@@ -2,7 +2,7 @@ import {
   useClientSection,
   type ClientRecordRead,
 } from '#/pages/clients/use-cases/useClientSection';
-import { useGo } from '#/shared/repository/useGo';
+import { useGo } from '#/shared/lib/repository/useGo';
 import {
   useClientDeletion,
   useClientSaves,
@@ -35,14 +35,14 @@ import {
   offeredBy,
   TRANSLATIONS_LEAD,
 } from '#/pages/clients/services/translations';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { useToast } from '#/shared/repository/useToasts';
-import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
-import { deletedText, writeFailureText } from '#/shared/services/failure';
-import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/services/labels';
-import { orBlank, spaced } from '#/shared/services/format';
-import { describeTranslations } from '#/shared/services/localised';
-import type { Read } from '#/shared/services/read';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { useConfirmedRemoval, type Removal } from '#/shared/lib/use-cases/useConfirmedChange';
+import { deletedText, writeFailureText } from '#/shared/lib/services/failure';
+import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/lib/services/labels';
+import { orBlank, spaced } from '#/shared/lib/services/format';
+import { describeTranslations } from '#/shared/lib/services/localised';
+import type { Read } from '#/shared/lib/services/read';
 
 export type { SectionSave };
 

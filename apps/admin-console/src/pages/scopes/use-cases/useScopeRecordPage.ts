@@ -8,8 +8,8 @@ import {
   type ScopeTab,
   TAB_RECORDS,
 } from '#/pages/scopes/services/tabs';
-import { type RecordView, tabEntries, type TabEntry } from '#/shared/services/record';
-import { useRecordTabs } from '#/shared/use-cases/useRecordTabs';
+import { type RecordView, tabEntries, type TabEntry } from '#/shared/lib/services/record';
+import { useRecordTabs } from '#/shared/lib/use-cases/useRecordTabs';
 
 export interface ScopeRecordPage {
   record: RecordView;

@@ -1,5 +1,5 @@
-import { counted } from '#/shared/services/format';
-import type { Read } from '#/shared/services/read';
+import { counted } from '#/shared/lib/services/format';
+import type { Read } from '#/shared/lib/services/read';
 import { type Lockout } from '#/pages/subjects/types/lockout';
 
 export interface LockoutSummary {

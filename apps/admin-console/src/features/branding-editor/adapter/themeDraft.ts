@@ -4,9 +4,9 @@ import {
   listThemeVersionsResponseSchema,
   type PutThemeRequest,
 } from '@odudu/contracts/admin';
-import { adminCall } from '#/shared/adapter/route';
-import { staleWhenTagMissing } from '#/shared/services/failure';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+import { adminCall } from '#/shared/api/adapter/route';
+import { staleWhenTagMissing } from '#/shared/lib/services/failure';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 import { ifMatchOf, tagOf, type ThemeScope } from '#/features/branding-editor/services/themeScope';
 import type { PublishThemeResponse, ThemeView } from '#/features/branding-editor/types/theme';
 import type { ThemeVersions } from '#/features/branding-editor/types/themeVersion';

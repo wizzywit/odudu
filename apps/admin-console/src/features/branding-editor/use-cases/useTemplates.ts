@@ -23,8 +23,8 @@ import {
   type TemplateValues,
 } from '#/features/branding-editor/services/templateValues';
 import { useSectionHold } from '#/features/branding-editor/use-cases/useSectionHold';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import type { SizeReading } from '#/shared/services/format';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import type { SizeReading } from '#/shared/lib/services/format';
 
 export interface Templates {
   save: SectionSave<TemplateValues>;

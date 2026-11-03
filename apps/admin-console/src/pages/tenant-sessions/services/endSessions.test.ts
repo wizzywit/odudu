@@ -5,7 +5,7 @@ import {
   endFailure,
   endMoreText,
 } from '#/pages/tenant-sessions/services/endSessions';
-import type { GatewayFailure } from '#/shared/services/result';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 
 const refused = (status: number, extra: object = {}): GatewayFailure => ({
   ok: false,

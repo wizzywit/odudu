@@ -1,6 +1,6 @@
 import type { Client } from '#/entities/client';
 import { useState } from 'react';
-import { useNow } from '#/shared/use-cases/useNow';
+import { useNow } from '#/shared/lib/use-cases/useNow';
 import { useRotateSecret } from '#/pages/clients/repository/useRotateSecret';
 import { SECTIONS_ADVANCED } from '#/pages/clients/services/sectionTitles';
 import {

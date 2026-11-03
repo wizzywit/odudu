@@ -1,7 +1,7 @@
 import type { Role } from '#/entities/role';
 import { readRoleCount, readRolePage } from '#/pages/roles/adapter/roles';
-import { useResourceList } from '#/shared/repository/useResourceList';
-import type { ResourceListState } from '#/shared/services/resourceList';
+import { useResourceList } from '#/shared/lib/repository/useResourceList';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
 
 export function useRoleList(tenant: string): ResourceListState<Role> {
   return useResourceList({

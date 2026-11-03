@@ -3,14 +3,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { readScopeClients } from '#/pages/scopes/adapter/scopes';
 import { type AssignedScopes, assignScope, unassignScope } from '#/entities/scope';
 import { withoutScope, withScopes } from '#/pages/scopes/services/clientScopesCache';
-import { recordKey } from '#/shared/repository/queryKeys';
+import { recordKey } from '#/shared/lib/repository/queryKeys';
 import { scopeClientsKey } from '#/entities/scope';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import type { RecordEntry } from '#/shared/repository/useRecord';
-import { useListPages } from '#/shared/repository/useResourceList';
-import type { ListStatus } from '#/shared/services/resourceList';
-import type { GatewayResult } from '#/shared/transport/gateway';
-import { useWrite } from '#/shared/repository/useWrite';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import type { RecordEntry } from '#/shared/lib/repository/useRecord';
+import { useListPages } from '#/shared/lib/repository/useResourceList';
+import type { ListStatus } from '#/shared/lib/services/resourceList';
+import type { GatewayResult } from '#/shared/api/transport/gateway';
+import { useWrite } from '#/shared/lib/repository/useWrite';
 
 // What the console holds of a client that a scope's assignment changes.
 interface ClientRecord {

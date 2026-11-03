@@ -1,9 +1,9 @@
 import type { Client } from '@odudu/contracts/admin';
-import { holds, lacking } from '#/shared/services/access';
-import type { Authority } from '#/shared/services/principal';
-import { ADMIN_CLIENT_KEY } from '#/shared/services/capabilities';
-import { lastChosen } from '#/shared/services/picker';
-import type { ListStatus } from '#/shared/services/resourceList';
+import { holds, lacking } from '#/shared/lib/services/access';
+import type { Authority } from '#/shared/lib/services/principal';
+import { ADMIN_CLIENT_KEY } from '#/shared/lib/services/capabilities';
+import { lastChosen } from '#/shared/lib/services/picker';
+import type { ListStatus } from '#/shared/lib/services/resourceList';
 
 type TestClientOption = Pick<Client, 'id' | 'name' | 'client_id'>;
 

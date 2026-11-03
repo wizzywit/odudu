@@ -1,5 +1,5 @@
-import { CONSOLE_FAULT, failureTextWith } from '#/shared/services/failure';
-import type { GatewayFailure } from '#/shared/services/result';
+import { CONSOLE_FAULT, failureTextWith } from '#/shared/lib/services/failure';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 
 export function tenantChangeFailure(name: string, failure: GatewayFailure): string {
   const fault = () => `The console could not make the change. ${CONSOLE_FAULT}`;

@@ -5,8 +5,8 @@ import {
   type SmtpConfig,
   type TestSmtpResponse,
 } from '@odudu/contracts/admin';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall, nothing } from '#/shared/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { adminCall, nothing } from '#/shared/api/adapter/route';
 
 // A full replace, except for the password: left out, the stored one is kept.
 export function putSmtp(

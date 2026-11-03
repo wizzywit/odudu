@@ -14,7 +14,7 @@ import { Button } from '#/shared/ui/Button';
 import { InlineFields } from '#/shared/ui/Field';
 import { KeyHint } from '#/shared/ui/KeyHint';
 import styles from '#/shared/ui/FilterBar/FilterBar.module.css';
-import type { Choice } from '#/shared/services/choice';
+import type { Choice } from '#/shared/lib/services/choice';
 
 export interface Search {
   field: string;

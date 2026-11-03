@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
-import { ROW_BUDGET } from '#/shared/services/resourceList';
+import { ROW_BUDGET } from '#/shared/lib/services/resourceList';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { inTurn, json, pending, problem } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';

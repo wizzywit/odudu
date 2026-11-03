@@ -1,5 +1,5 @@
-import type { Choice } from '#/shared/services/choice';
-import { ANY_STATUS, optionalFilter } from '#/shared/services/filters';
+import type { Choice } from '#/shared/lib/services/choice';
+import { ANY_STATUS, optionalFilter } from '#/shared/lib/services/filters';
 
 // One page of the latest mail: the panel never reads more until asked.
 export const MAIL_PAGE_SIZE = 20;

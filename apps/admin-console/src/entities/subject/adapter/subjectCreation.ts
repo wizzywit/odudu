@@ -1,6 +1,6 @@
 import { issuePasswordResponseSchema, subjectSchema } from '@odudu/contracts/admin';
-import { adminCall, firstMatch, mapResult } from '#/shared/adapter/route';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+import { adminCall, firstMatch, mapResult } from '#/shared/api/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 import { readSubjectPage } from '#/entities/subject/adapter/subjectList';
 import { subjectOf } from '#/entities/subject/adapter/subjectWire';
 import type { IssuedPassword, Subject } from '#/entities/subject/types/subject';

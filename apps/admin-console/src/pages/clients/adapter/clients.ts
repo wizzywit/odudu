@@ -13,8 +13,8 @@ import type {
 } from '#/pages/clients/types/clientRecord';
 import { type NewClientKind } from '#/pages/clients/services/newClient';
 import { entriesOf } from '#/pages/clients/services/listEntries';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall, countReader, mapResult, nothing } from '#/shared/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { adminCall, countReader, mapResult, nothing } from '#/shared/api/adapter/route';
 
 export { readClientPage };
 

@@ -1,7 +1,7 @@
-import { type Loss, type OwnAccessRead } from '#/shared/services/capabilities';
+import { type Loss, type OwnAccessRead } from '#/shared/lib/services/capabilities';
 import type { Role } from '#/entities/role';
-import { type Ceiling } from '#/shared/services/access';
-import { type Authority } from '#/shared/services/principal';
+import { type Ceiling } from '#/shared/lib/services/access';
+import { type Authority } from '#/shared/lib/services/principal';
 import { deleteBlock, isBuiltin } from '#/pages/roles/services/roleDeletion';
 
 export function deleteChecking(ceiling: RoleCeiling, loss: Loss): boolean {

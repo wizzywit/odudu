@@ -11,8 +11,8 @@ import type { EvaluatedClaims } from '#/pages/clients/types/evaluation';
 import type { Installation } from '#/pages/clients/types/installation';
 import type { LogoutDeliveryList } from '#/pages/clients/types/logoutDelivery';
 import type { ClientSessionList, RevokedGrants } from '#/pages/clients/types/clientSession';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall } from '#/shared/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { adminCall } from '#/shared/api/adapter/route';
 
 export function readClientSessions(
   gateway: Gateway,

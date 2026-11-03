@@ -1,6 +1,6 @@
 import type { MailMessage } from '@odudu/contracts/admin';
-import { ANY_STATUS } from '#/shared/services/filters';
-import { attemptsText } from '#/shared/services/format';
+import { ANY_STATUS } from '#/shared/lib/services/filters';
+import { attemptsText } from '#/shared/lib/services/format';
 
 type MailTone = 'neutral' | 'active' | 'warning' | 'danger';
 

@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import type { RefusalReporter } from '#/shared/repository/useSectionSave';
-import { useToast } from '#/shared/repository/useToasts';
-import { lastChosen } from '#/shared/services/picker';
-import type { AdminCapability } from '#/shared/services/principal';
-import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
+import type { RefusalReporter } from '#/shared/lib/repository/useSectionSave';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { lastChosen } from '#/shared/lib/services/picker';
+import type { AdminCapability } from '#/shared/lib/services/principal';
+import type { GatewayFailure, GatewayResult } from '#/shared/api/transport/gateway';
 
 export type AssignmentVerb = 'assigned' | 'unassigned';
 

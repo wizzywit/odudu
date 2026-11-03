@@ -8,9 +8,9 @@ import {
   type RouteComponent,
 } from '@tanstack/react-router';
 import { render } from '@testing-library/react';
-import { parseSearch, stringifySearch } from '#/shared/services/search';
-import { TransportContext } from '#/shared/transport/useTransport';
-import type { Transport } from '#/shared/transport/transport';
+import { parseSearch, stringifySearch } from '#/shared/lib/services/search';
+import { TransportContext } from '#/shared/api/transport/useTransport';
+import type { Transport } from '#/shared/api/transport/transport';
 
 interface Mounted {
   basepath?: string;

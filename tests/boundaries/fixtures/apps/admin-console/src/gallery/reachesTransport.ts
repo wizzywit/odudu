@@ -1,3 +1,3 @@
-import { request } from '../shared/transport/client.js';
+import { request } from '../shared/api/transport/client.js';
 
 export const fetched = request;

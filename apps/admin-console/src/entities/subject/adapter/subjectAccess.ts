@@ -16,9 +16,9 @@ import {
   adminClientOfRoles,
   holdingRoleIds,
   type Holding,
-} from '#/shared/services/capabilities';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall, listReader } from '#/shared/adapter/route';
+} from '#/shared/lib/services/capabilities';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { adminCall, listReader } from '#/shared/api/adapter/route';
 
 // An entity cannot import another's adapter, so the roles list is read here
 // with the same call the role entity makes.

@@ -1,10 +1,10 @@
 import type { Group } from '#/entities/group';
 import { readGroupCount, readGroupPage } from '#/pages/groups/adapter/groups';
 import { groupListScope } from '#/pages/groups/services/list';
-import { listKey } from '#/shared/repository/queryKeys';
-import { useListPages, useResourceList } from '#/shared/repository/useResourceList';
-import { useUrlSearch } from '#/shared/repository/useUrlSearch';
-import type { ResourceListState } from '#/shared/services/resourceList';
+import { listKey } from '#/shared/lib/repository/queryKeys';
+import { useListPages, useResourceList } from '#/shared/lib/repository/useResourceList';
+import { useUrlSearch } from '#/shared/lib/repository/useUrlSearch';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
 
 export interface GroupList {
   list: ResourceListState<Group>;

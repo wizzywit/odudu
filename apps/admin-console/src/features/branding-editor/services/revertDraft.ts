@@ -1,9 +1,9 @@
 import type { ThemeBody, ThemeView } from '#/features/branding-editor/types/theme';
 import type { ThemeBodyRequest } from '@odudu/contracts';
-import type { Conflict } from '#/shared/services/conflict';
-import { isStale, writeFailureText } from '#/shared/services/failure';
-import { counted } from '#/shared/services/format';
-import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
+import type { Conflict } from '#/shared/lib/services/conflict';
+import { isStale, writeFailureText } from '#/shared/lib/services/failure';
+import { counted } from '#/shared/lib/services/format';
+import type { GatewayFailure, GatewayResult } from '#/shared/lib/services/result';
 import { unsavedSections } from '#/features/branding-editor/services/sectionTitles';
 import { unsavedBlock } from '#/features/branding-editor/services/unsavedBlock';
 import type { ThemeScope } from '#/features/branding-editor/services/themeScope';

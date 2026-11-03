@@ -1,5 +1,5 @@
-import { nullWhenBlank } from '#/shared/services/format';
-import type { Translations } from '#/shared/services/localised';
+import { nullWhenBlank } from '#/shared/lib/services/format';
+import type { Translations } from '#/shared/lib/services/localised';
 
 export const NEW_SCOPE_TITLE = 'Create a scope';
 

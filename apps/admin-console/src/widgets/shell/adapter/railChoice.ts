@@ -1,4 +1,4 @@
-import { browserStorage } from '#/shared/adapter/browserStorage';
+import { browserStorage } from '#/shared/api/adapter/browserStorage';
 
 const KEY = 'odudu.console.rail';
 const COLLAPSED = 'collapsed';

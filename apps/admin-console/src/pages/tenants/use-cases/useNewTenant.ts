@@ -9,7 +9,7 @@ import { draftOwner, usePrincipal } from '#/entities/session';
 import { useSystemIssuer } from '#/pages/tenants/repository/useSystemIssuer';
 import { doneOf, type DoneStep } from '#/pages/tenants/services/creationOutcome';
 import { creationHeading, pageOf } from '#/pages/tenants/services/creationPosition';
-import type { Crumb } from '#/shared/services/breadcrumb';
+import type { Crumb } from '#/shared/lib/services/breadcrumb';
 import { unfinishedOf, type Unfinished } from '#/pages/tenants/services/unfinishedCreation';
 import { useStepFeedback, type StepFeedback } from '#/pages/tenants/use-cases/useStepFeedback';
 

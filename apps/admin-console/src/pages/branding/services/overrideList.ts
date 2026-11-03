@@ -1,4 +1,4 @@
-import { counted } from '#/shared/services/format';
+import { counted } from '#/shared/lib/services/format';
 import { OVERRIDE_CAP } from '#/pages/branding/services/overrideForm';
 
 // How many are shown, said as a total only once no page is left to load.

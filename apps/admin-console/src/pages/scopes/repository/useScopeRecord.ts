@@ -17,19 +17,19 @@ import {
 } from '#/pages/scopes/adapter/scopes';
 import { generalPatch, type GeneralValues } from '#/pages/scopes/services/scopeDetails';
 import { scopeMappersRecord, scopeRecord, scopeRolesRecord } from '#/pages/scopes/services/tabs';
-import { uniqueIds } from '#/shared/services/ids';
-import { countKey, listKey, pickerKey } from '#/shared/repository/queryKeys';
+import { uniqueIds } from '#/shared/lib/services/ids';
+import { countKey, listKey, pickerKey } from '#/shared/lib/repository/queryKeys';
 import { builtinScopesKey, scopeImpactKey } from '#/pages/scopes/repository/queryKeys';
-import { useAfterChange } from '#/shared/repository/useAfterChange';
-import { useRead } from '#/shared/repository/useRead';
-import { useRecord, type RecordState } from '#/shared/repository/useRecord';
-import type { Read } from '#/shared/services/read';
-import { useTransport } from '#/shared/transport/useTransport';
-import type { SaveInput } from '#/shared/repository/useSectionSave';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { useWrite, type Write } from '#/shared/repository/useWrite';
-import type { Translations } from '#/shared/services/localised';
-import type { DescriptionValues } from '#/shared/services/sectionValues';
+import { useAfterChange } from '#/shared/lib/repository/useAfterChange';
+import { useRead } from '#/shared/lib/repository/useRead';
+import { useRecord, type RecordState } from '#/shared/lib/repository/useRecord';
+import type { Read } from '#/shared/lib/services/read';
+import { useTransport } from '#/shared/api/transport/useTransport';
+import type { SaveInput } from '#/shared/lib/repository/useSectionSave';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { useWrite, type Write } from '#/shared/lib/repository/useWrite';
+import type { Translations } from '#/shared/lib/services/localised';
+import type { DescriptionValues } from '#/shared/lib/services/sectionValues';
 import type { RoleValues } from '#/entities/role';
 
 export function useScopeRecord(tenant: string, id: string): RecordState<Scope> {

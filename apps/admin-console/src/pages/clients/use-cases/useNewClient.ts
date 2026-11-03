@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useRefusal } from '#/entities/session';
 import { useCreateClient } from '#/pages/clients/repository/useCreateClient';
-import { useGo } from '#/shared/repository/useGo';
+import { useGo } from '#/shared/lib/repository/useGo';
 import { type Client, clientHref, clientsHref } from '#/entities/client';
 import {
   clientIdProblem,
@@ -23,12 +23,12 @@ import { CLIENT_ID_TAKEN } from '#/pages/clients/services/clientDetails';
 import { REDIRECTS_RULE } from '#/pages/clients/services/clientRedirects';
 import { CLIENT_LIST_LIMIT, listCount } from '#/pages/clients/services/listEntries';
 import { CLIENT_CAPABILITY } from '#/pages/clients/services/refusal';
-import { useToast } from '#/shared/repository/useToasts';
-import { problemAt } from '#/shared/services/fieldErrors';
-import { createdText, lookupText } from '#/shared/services/failure';
-import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/services/labels';
-import { useCreationFlow } from '#/shared/use-cases/useCreationFlow';
-import { spaced } from '#/shared/services/format';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { problemAt } from '#/shared/lib/services/fieldErrors';
+import { createdText, lookupText } from '#/shared/lib/services/failure';
+import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/lib/services/labels';
+import { useCreationFlow } from '#/shared/lib/use-cases/useCreationFlow';
+import { spaced } from '#/shared/lib/services/format';
 
 type Errors = Partial<Record<NewClientField, string>>;
 

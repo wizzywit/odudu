@@ -1,5 +1,5 @@
 import type { ThemeView } from '#/features/branding-editor/types/theme';
-import { capitalise } from '#/shared/services/format';
+import { capitalise } from '#/shared/lib/services/format';
 import { schemeColoursName } from '#/features/branding-editor/services/colourScheme';
 import type { ThemeScope } from '#/features/branding-editor/services/themeScope';
 import { PAGE_KIND_LABELS, pageKindOf } from '#/features/branding-editor/services/pageKinds';

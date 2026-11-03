@@ -1,9 +1,9 @@
 import type { ClearLockoutsResponse } from '@odudu/contracts/admin';
-import { holds } from '#/shared/services/access';
-import { refusedBy, writeFailureText } from '#/shared/services/failure';
-import { counted } from '#/shared/services/format';
-import type { AdminCapability, Authority } from '#/shared/services/principal';
-import type { GatewayFailure } from '#/shared/services/result';
+import { holds } from '#/shared/lib/services/access';
+import { refusedBy, writeFailureText } from '#/shared/lib/services/failure';
+import { counted } from '#/shared/lib/services/format';
+import type { AdminCapability, Authority } from '#/shared/lib/services/principal';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 import { CLEAR_HEADING, CLEAR_RULE, LOCKOUTS_NEEDS } from '#/pages/settings/services/lockouts';
 
 // The most accounts one request clears; the server does the rest on the next.

@@ -9,7 +9,7 @@ import {
   SHELL_FAILURE_TEXT,
   TRY_AGAIN_LABEL,
 } from '#/widgets/failure/services/wording';
-import { PRODUCT_NAME } from '#/shared/services/product';
+import { PRODUCT_NAME } from '#/shared/lib/services/product';
 
 export interface FailureShown {
   details: string;

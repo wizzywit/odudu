@@ -180,7 +180,7 @@ describe('declarations in the console', { timeout: 60_000 }, () => {
   it('are not copied between features, shared, app and the e2e files', async () => {
     const files = await read(CONSOLE, TREE);
     const names = [...files.keys()];
-    expect(names).toContain('src/shared/services/failure.ts');
+    expect(names).toContain('src/shared/lib/services/failure.ts');
     expect(names.filter((file) => file.startsWith('src/pages/groups/'))).not.toEqual([]);
     expect(names.filter((file) => file.startsWith('src/pages/roles/'))).not.toEqual([]);
     expect(names.filter((file) => file.startsWith('src/pages/clients/'))).not.toEqual([]);
@@ -212,7 +212,7 @@ describe('declarations in the console', { timeout: 60_000 }, () => {
     [
       'shared',
       [
-        'DESCRIPTION_RULE is declared identically in src/features/clients/services/labels.ts:2 and src/shared/services/labels.ts:1',
+        'DESCRIPTION_RULE is declared identically in src/features/clients/services/labels.ts:2 and src/shared/lib/services/labels.ts:1',
       ],
     ],
     [

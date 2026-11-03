@@ -12,7 +12,7 @@ import {
   type FailureReport,
 } from '#/widgets/failure/services/failureReport';
 import { failureLogLine, type FailureSource } from '#/widgets/failure/services/failureLogging';
-import { currentTime } from '#/shared/adapter/clock';
+import { currentTime } from '#/shared/api/adapter/clock';
 
 export function newFailureReport(route: string): FailureReport {
   return buildFailureReport({ bytes: randomBytes(FAILURE_ID_LENGTH), route, now: currentTime() });

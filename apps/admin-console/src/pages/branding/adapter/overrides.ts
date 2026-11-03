@@ -1,6 +1,6 @@
 import { listMessageOverridesResponseSchema, messageOverrideSchema } from '@odudu/contracts/admin';
-import { adminCall, nothing } from '#/shared/adapter/route';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+import { adminCall, nothing } from '#/shared/api/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 import type { MessageOverride } from '#/pages/branding/types/messageOverride';
 
 // One page of a language's overrides, in key order, from the cursor in `query`.

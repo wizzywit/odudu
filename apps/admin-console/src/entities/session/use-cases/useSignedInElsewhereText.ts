@@ -3,7 +3,7 @@ import {
   signedInToTitle,
   signInToLabel,
 } from '#/entities/session/services/sessionStatusText';
-import { tenantPage } from '#/shared/services/address';
+import { tenantPage } from '#/shared/lib/services/address';
 
 export function useSignedInElsewhereText(
   signedInTo: string,

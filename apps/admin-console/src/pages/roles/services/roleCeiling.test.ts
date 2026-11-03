@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type AdminCapability } from '#/shared/services/principal';
+import { type AdminCapability } from '#/shared/lib/services/principal';
 import {
   compositesOffered,
   defaultsChecking,

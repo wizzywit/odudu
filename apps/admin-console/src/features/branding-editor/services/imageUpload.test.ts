@@ -14,7 +14,7 @@ import {
   type UploadStart,
 } from '#/features/branding-editor/services/imageUpload';
 import type { ImageValues } from '#/features/branding-editor/services/imageValues';
-import type { GatewayResult } from '#/shared/services/result';
+import type { GatewayResult } from '#/shared/lib/services/result';
 
 const none: ImageValues = {
   'assets.logo': null,

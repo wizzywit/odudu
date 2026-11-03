@@ -6,9 +6,9 @@ import {
   removalConfirmation,
   TENANT_ADMIN,
   type Confirmation,
-} from '#/shared/services/capabilities';
-import { SYSTEM_TENANT } from '#/shared/services/principal';
-import { type Loaded } from '#/shared/services/read';
+} from '#/shared/lib/services/capabilities';
+import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
+import { type Loaded } from '#/shared/lib/services/read';
 
 function under(path: string, mapped: string): boolean {
   return path === mapped || path.startsWith(`${mapped}/`);

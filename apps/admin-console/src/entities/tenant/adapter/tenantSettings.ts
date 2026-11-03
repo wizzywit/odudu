@@ -1,6 +1,6 @@
 import { settingsSchema, type AmendSettingsRequest, type Settings } from '@odudu/contracts/admin';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall } from '#/shared/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { adminCall } from '#/shared/api/adapter/route';
 
 export function readTenantSettings(
   gateway: Gateway,

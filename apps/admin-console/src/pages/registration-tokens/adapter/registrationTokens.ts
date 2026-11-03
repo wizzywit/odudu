@@ -3,8 +3,8 @@ import {
   mintRegistrationTokenResponseSchema,
   type MintRegistrationTokenResponse,
 } from '@odudu/contracts/admin';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall, listReader, nothing } from '#/shared/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { adminCall, listReader, nothing } from '#/shared/api/adapter/route';
 
 export const readTokenPage = listReader(
   'registration-tokens',

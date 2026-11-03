@@ -1,6 +1,6 @@
-import { formatAbsolute, counted } from '#/shared/services/format';
-import { type CreateOutcome, createFailure, refusedBy } from '#/shared/services/failure';
-import type { GatewayFailure } from '#/shared/services/result';
+import { formatAbsolute, counted } from '#/shared/lib/services/format';
+import { type CreateOutcome, createFailure, refusedBy } from '#/shared/lib/services/failure';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 import { MINT_FIELDS } from '#/pages/registration-tokens/services/mint';
 
 const LOST =

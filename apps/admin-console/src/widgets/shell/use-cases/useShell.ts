@@ -10,11 +10,11 @@ import { type RailSection } from '#/widgets/shell/services/railGroups';
 import { dialogOpen, pathnameOf } from '#/widgets/shell/services/pageContext';
 import { currentHref, railGroups, systemRecordHref } from '#/widgets/shell/services/railGroups';
 import { actsWithSystemAuthority, showsSystemArea } from '#/widgets/shell/services/systemAuthority';
-import { useDialogHost } from '#/shared/repository/useDialogHost';
+import { useDialogHost } from '#/shared/lib/repository/useDialogHost';
 import { useRailCollapsed } from '#/widgets/shell/repository/useRailCollapsed';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
-import type { ThemeChoice } from '#/shared/services/theme';
-import { useTheme } from '#/shared/repository/useTheme';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
+import type { ThemeChoice } from '#/shared/lib/services/theme';
+import { useTheme } from '#/shared/lib/repository/useTheme';
 
 export interface Shell {
   groups: readonly RailSection[];

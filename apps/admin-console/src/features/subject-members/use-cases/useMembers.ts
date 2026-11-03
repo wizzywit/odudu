@@ -1,8 +1,8 @@
 import { useAuthority } from '#/entities/session';
-import { useGo } from '#/shared/repository/useGo';
+import { useGo } from '#/shared/lib/repository/useGo';
 import { useMemberList } from '#/features/subject-members/repository/useMemberList';
-import { notLacking } from '#/shared/services/access';
-import type { ResourceListState } from '#/shared/services/resourceList';
+import { notLacking } from '#/shared/lib/services/access';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
 import { membersListHref } from '#/features/subject-members/services/memberListAddress';
 import { type Subject, subjectHref, subjectName, subjectsHref } from '#/entities/subject';
 

@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { readAuthority } from '#/entities/session/adapter/session';
-import { type Authority } from '#/shared/services/principal';
+import { type Authority } from '#/shared/lib/services/principal';
 import { authorityOf, refusedUnknownOf } from '#/entities/session/services/whoami';
-import { authorityKey } from '#/shared/repository/queryKeys';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { useTransport } from '#/shared/transport/useTransport';
+import { authorityKey } from '#/shared/lib/repository/queryKeys';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { useTransport } from '#/shared/api/transport/useTransport';
 
 // Keyed by the principal as well as the tenant, so what whoami told one
 // administrator is never offered to another signed in after them.

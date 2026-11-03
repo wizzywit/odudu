@@ -1,4 +1,4 @@
-import type { AdminCapability } from '#/shared/services/principal';
+import type { AdminCapability } from '#/shared/lib/services/principal';
 
 // A mapped role carries what it hands out, so a change to the mapping is
 // judged without a read per role.

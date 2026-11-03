@@ -5,11 +5,11 @@ import {
   lossText,
   type Loss,
   writeRefusal,
-} from '#/shared/services/capabilities';
-import { andList } from '#/shared/services/format';
-import { type AdminCapability } from '#/shared/services/principal';
-import { writeFailureText } from '#/shared/services/failure';
-import { type GatewayFailure } from '#/shared/services/result';
+} from '#/shared/lib/services/capabilities';
+import { andList } from '#/shared/lib/services/format';
+import { type AdminCapability } from '#/shared/lib/services/principal';
+import { writeFailureText } from '#/shared/lib/services/failure';
+import { type GatewayFailure } from '#/shared/lib/services/result';
 
 // Every role of the built-in admin client, which the server guards by the
 // client rather than by the role's name.

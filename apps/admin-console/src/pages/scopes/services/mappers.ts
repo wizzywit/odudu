@@ -1,6 +1,6 @@
-import type { GatewayFailure } from '#/shared/services/result';
-import { andList } from '#/shared/services/format';
-import type { Choice } from '#/shared/services/choice';
+import type { GatewayFailure } from '#/shared/lib/services/result';
+import { andList } from '#/shared/lib/services/format';
+import type { Choice } from '#/shared/lib/services/choice';
 
 export const NONE_TEXT = 'Nothing bound. No mapper runs by default, so this scope adds no claims.';
 

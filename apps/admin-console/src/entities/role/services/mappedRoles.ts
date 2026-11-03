@@ -1,6 +1,6 @@
-import { roleReachUnavailable } from '#/shared/services/capabilities';
-import { sortedIds } from '#/shared/services/ids';
-import type { AdminCapability } from '#/shared/services/principal';
+import { roleReachUnavailable } from '#/shared/lib/services/capabilities';
+import { sortedIds } from '#/shared/lib/services/ids';
+import type { AdminCapability } from '#/shared/lib/services/principal';
 import type { MappedRole } from '#/entities/role/types/mappedRole';
 
 export type IndexedRole = MappedRole & { admin_reach: readonly string[] };

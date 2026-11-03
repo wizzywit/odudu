@@ -7,8 +7,8 @@ import { useSectionHold } from '#/features/branding-editor/use-cases/useSectionH
 import { TH } from '#/testing/brandingFixtures';
 import { pending } from '#/testing/fakeTransport';
 import { hookHarness as harness } from '#/testing/hookHarness';
-import { useSavingSections } from '#/shared/repository/useSavingSections';
-import { savingKey } from '#/shared/services/savingSections';
+import { useSavingSections } from '#/shared/lib/repository/useSavingSections';
+import { savingKey } from '#/shared/lib/services/savingSections';
 
 const TENANT = { kind: 'tenant' } as const;
 

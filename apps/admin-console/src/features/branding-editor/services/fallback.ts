@@ -1,6 +1,6 @@
 import type { ThemePreviewInfo } from '#/features/branding-editor/types/theme';
-import { capitalise } from '#/shared/services/format';
-import type { Read } from '#/shared/services/read';
+import { capitalise } from '#/shared/lib/services/format';
+import type { Read } from '#/shared/lib/services/read';
 import { PAGE_KIND_LABELS } from '#/features/branding-editor/services/pageKinds';
 import type { ThemeScope } from '#/features/branding-editor/services/themeScope';
 

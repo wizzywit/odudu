@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { SignedInContext } from '#/entities/session';
 import { useExportEvents } from '#/pages/audit/use-cases/useExportEvents';
-import { useToasts } from '#/shared/repository/useToasts';
+import { useToasts } from '#/shared/lib/repository/useToasts';
 import { AUDIT } from '#/testing/auditFixtures';
 import { fakeTransport, pending, problem, type Answer } from '#/testing/fakeTransport';
 import { hookHarness } from '#/testing/hookHarness';

@@ -6,7 +6,7 @@ import { NO_OUTCOME } from '#/features/branding-editor/services/publishOutcome';
 import { NO_DRAFT_TO_DISCARD } from '#/features/branding-editor/services/discardDraft';
 import { TENANT_SCOPE } from '#/features/branding-editor/services/themeScope';
 import { usePublicationBar } from '#/features/branding-editor/use-cases/usePublicationBar';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 import { draftedView, TH, themeView } from '#/testing/brandingFixtures';
 import { pending } from '#/testing/fakeTransport';
 import { hookHarness } from '#/testing/hookHarness';

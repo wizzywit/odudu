@@ -1,7 +1,7 @@
 import { MAIL_PREVIEW_LOCALES, type AmendSettingsRequest } from '@odudu/contracts/admin';
-import { languageChoices } from '#/shared/services/locales';
-import { uniqueIds } from '#/shared/services/ids';
-import type { Choice } from '#/shared/services/choice';
+import { languageChoices } from '#/shared/lib/services/locales';
+import { uniqueIds } from '#/shared/lib/services/ids';
+import type { Choice } from '#/shared/lib/services/choice';
 import { ADD_LABEL } from '#/pages/branding/services/addedLanguage';
 
 // The languages this build holds a catalogue for; a test in packages/email

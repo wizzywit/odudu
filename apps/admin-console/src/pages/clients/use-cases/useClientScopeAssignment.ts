@@ -21,9 +21,9 @@ import {
   SCOPES_PAGE,
   shownScopes,
 } from '#/pages/clients/services/clientScopes';
-import { lacking } from '#/shared/services/access';
-import type { AdminCapability } from '#/shared/services/principal';
-import type { PickerState } from '#/shared/services/picker';
+import { lacking } from '#/shared/lib/services/access';
+import type { AdminCapability } from '#/shared/lib/services/principal';
+import type { PickerState } from '#/shared/lib/services/picker';
 import {
   assignedText,
   ASSIGNMENT_RULE,
@@ -33,7 +33,7 @@ import {
   unassignedText,
   useAssignmentFlow,
 } from '#/features/scope-assignment';
-import { spaced } from '#/shared/services/format';
+import { spaced } from '#/shared/lib/services/format';
 
 type Assigned = Client['scopes'][number];
 

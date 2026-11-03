@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AdminCapability, Authority } from '#/shared/services/principal';
+import type { AdminCapability, Authority } from '#/shared/lib/services/principal';
 import {
   exportBlame,
   exportedOf,

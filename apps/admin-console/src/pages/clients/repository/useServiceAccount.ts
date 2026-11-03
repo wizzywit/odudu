@@ -1,9 +1,9 @@
 import type { SetRolesResponse } from '@odudu/contracts/admin';
 import { useRereadClient } from '#/pages/clients/repository/useClientRecord';
 import { serviceRolesRecord } from '#/pages/clients/services/serviceAccess';
-import { useRecord, type RecordState } from '#/shared/repository/useRecord';
-import { uniqueIds } from '#/shared/services/ids';
-import type { Gateway } from '#/shared/transport/gateway';
+import { useRecord, type RecordState } from '#/shared/lib/repository/useRecord';
+import { uniqueIds } from '#/shared/lib/services/ids';
+import type { Gateway } from '#/shared/api/transport/gateway';
 import { readSubjectRoles, setSubjectRoles } from '#/entities/subject';
 
 export function useServiceRolesRecord(

@@ -1,5 +1,5 @@
-import { segment } from '#/shared/adapter/route';
-import type { Gateway, GatewayResult, RawBody } from '#/shared/transport/gateway';
+import { segment } from '#/shared/api/adapter/route';
+import type { Gateway, GatewayResult, RawBody } from '#/shared/api/transport/gateway';
 
 // The events a listing's filters match, as the NDJSON the server wrote.
 export function exportAuditEvents(

@@ -1,7 +1,7 @@
 import type { Group, GroupRecord } from '#/entities/group';
-import { beyondCaller, blockedByDefault } from '#/shared/services/capabilities';
-import { andList } from '#/shared/services/format';
-import { type AdminCapability } from '#/shared/services/principal';
+import { beyondCaller, blockedByDefault } from '#/shared/lib/services/capabilities';
+import { andList } from '#/shared/lib/services/format';
+import { type AdminCapability } from '#/shared/lib/services/principal';
 
 export interface ReachLines {
   // Why the group cannot be moved, or null when it can.

@@ -1,4 +1,4 @@
-import type { Read } from '#/shared/services/read';
+import type { Read } from '#/shared/lib/services/read';
 import { SLOT_RULES, ACCEPTED_TYPE_LIST } from '#/features/branding-editor/services/imageSlots';
 import {
   imageField,

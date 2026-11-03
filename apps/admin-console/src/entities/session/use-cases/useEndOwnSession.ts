@@ -1,6 +1,6 @@
 import { useGatewaySessionEnd } from '#/entities/session/repository/useGatewaySessionEnd';
-import { CONSOLE_ROOT } from '#/shared/services/address';
-import { useDrafts } from '#/shared/repository/useDrafts';
+import { CONSOLE_ROOT } from '#/shared/lib/services/address';
+import { useDrafts } from '#/shared/lib/repository/useDrafts';
 import { useLeaveConsole } from '#/entities/session/repository/useLeaveConsole';
 
 // After the signed-in subject deleted itself: its sessions went with it, so

@@ -9,7 +9,7 @@ import { unsavedSections } from '#/features/branding-editor/services/sectionTitl
 import { tabUnsaved } from '#/features/branding-editor/services/revertDraft';
 import { themeRecord, type ThemeScope } from '#/features/branding-editor/services/themeScope';
 import { colourValues } from '#/features/branding-editor/services/colourValues';
-import { useDirtySections } from '#/shared/repository/useDirtySections';
+import { useDirtySections } from '#/shared/lib/repository/useDirtySections';
 
 // Why each action over the whole draft is held, read from what is running
 // anywhere on the page and what is unsaved on any tab. The contrast pairs

@@ -3,8 +3,8 @@ import {
   type ListExecutionsResponse,
   type ReplaceExecutionsRequest,
 } from '@odudu/contracts/admin';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall } from '#/shared/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { adminCall } from '#/shared/api/adapter/route';
 
 export function readFlow(
   gateway: Gateway,

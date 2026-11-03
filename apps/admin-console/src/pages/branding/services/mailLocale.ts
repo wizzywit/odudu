@@ -1,6 +1,6 @@
 import { MAIL_PREVIEW_LOCALES } from '@odudu/contracts/admin';
-import type { Choice } from '#/shared/services/choice';
-import { languageChoices } from '#/shared/services/locales';
+import type { Choice } from '#/shared/lib/services/choice';
+import { languageChoices } from '#/shared/lib/services/locales';
 
 export const MAIL_LOCALE_LABEL = 'Language';
 

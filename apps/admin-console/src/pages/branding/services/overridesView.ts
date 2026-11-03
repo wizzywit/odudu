@@ -1,7 +1,7 @@
 import type { MessageOverride } from '#/pages/branding/types/messageOverride';
-import { spaced } from '#/shared/services/format';
-import type { Choice } from '#/shared/services/choice';
-import type { Conflict } from '#/shared/services/conflict';
+import { spaced } from '#/shared/lib/services/format';
+import type { Choice } from '#/shared/lib/services/choice';
+import type { Conflict } from '#/shared/lib/services/conflict';
 import {
   conflictFields,
   conflictLead,

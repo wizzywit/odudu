@@ -1,6 +1,6 @@
 import { subjectSchema } from '@odudu/contracts/admin';
-import { adminCall, mapResult, nothing } from '#/shared/adapter/route';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+import { adminCall, mapResult, nothing } from '#/shared/api/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 import { subjectOf } from '#/entities/subject/adapter/subjectWire';
 import type { Subject, SubjectChanges } from '#/entities/subject/types/subject';
 

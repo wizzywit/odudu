@@ -1,6 +1,6 @@
 import { amendTenantSettings } from '#/entities/tenant';
-import type { SaveInput } from '#/shared/repository/useSectionSave';
-import type { Gateway } from '#/shared/transport/gateway';
+import type { SaveInput } from '#/shared/lib/repository/useSectionSave';
+import type { Gateway } from '#/shared/api/transport/gateway';
 import {
   languagesRequest,
   type LanguageValues,

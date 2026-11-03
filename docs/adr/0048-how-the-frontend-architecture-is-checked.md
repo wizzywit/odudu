@@ -42,7 +42,7 @@ Run in a scratch directory outside the repository, on a copy of
 - **Public API only:** all 1,260 `fsd/no-public-api-sidestep` findings are in
   `shared` and the `app`/`features` files importing it, because Steiger wants
   one `index.ts` per slice and `shared` here is a folder of segments
-  (`#/shared/services/x`). No finding is in a feature: features already expose
+  (`#/shared/lib/services/x`). No finding is in a feature: features already expose
   one `index.ts`. A deliberate deep import added to a copy
   (`#/features/clients/ui/ClientRecordPage` from the audit feature) was
   reported by `fsd/no-public-api-sidestep` on that line. A deep import of a
@@ -121,7 +121,7 @@ boundaries`): the segment boundaries, which layer may import which, and the
   `tests/lint`.
 - Some platform vocabulary stays in `shared` although it names a domain word:
   the tenant vocabulary (`SYSTEM_TENANT`, `isTenantName`, `tenantPage`,
-  `isUnknownTenant`), the capability rules under `shared/services/capabilities`,
+  `isUnknownTenant`), the capability rules under `shared/lib/services/capabilities`,
   what the failure wording reads from them and the `group` cache kind, which the
   role entity invalidates and the group page reads. Several slices read each, an
   entity imports no entity, and an `@x` file per symbol would be the ten

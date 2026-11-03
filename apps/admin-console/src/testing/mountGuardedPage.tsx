@@ -13,8 +13,8 @@ import { Providers } from '#/app/Providers';
 import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer';
 import { SessionGate } from '#/widgets/session-gate';
 import { TenantShell } from '#/widgets/shell';
-import { createReadCache } from '#/shared/repository/readCache';
-import { parseSearch, stringifySearch } from '#/shared/services/search';
+import { createReadCache } from '#/shared/lib/repository/readCache';
+import { parseSearch, stringifySearch } from '#/shared/lib/services/search';
 import { fakeTransport, type Answer } from '#/testing/fakeTransport';
 
 // A section on acme's client c1, inside the session gate, the tenant shell and

@@ -1,4 +1,4 @@
-import { spaced } from '#/shared/services/format';
+import { spaced } from '#/shared/lib/services/format';
 
 export interface PickerWording {
   // Said, with another try, when the list could not be read.

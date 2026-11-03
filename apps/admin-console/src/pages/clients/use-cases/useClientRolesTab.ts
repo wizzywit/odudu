@@ -17,15 +17,15 @@ import {
   ROLES_OPEN_LABEL,
   rolesReadable,
 } from '#/pages/clients/services/clientRoles';
-import { useGo } from '#/shared/repository/useGo';
-import { useToast } from '#/shared/repository/useToasts';
-import { lacking } from '#/shared/services/access';
-import { createdText, createFailure } from '#/shared/services/failure';
-import { requiredProblem, withoutField } from '#/shared/services/fieldErrors';
-import type { AdminCapability } from '#/shared/services/principal';
-import type { ResourceListState } from '#/shared/services/resourceList';
-import type { GatewayFailure } from '#/shared/transport/gateway';
-import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/services/labels';
+import { useGo } from '#/shared/lib/repository/useGo';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { lacking } from '#/shared/lib/services/access';
+import { createdText, createFailure } from '#/shared/lib/services/failure';
+import { requiredProblem, withoutField } from '#/shared/lib/services/fieldErrors';
+import type { AdminCapability } from '#/shared/lib/services/principal';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
+import type { GatewayFailure } from '#/shared/api/transport/gateway';
+import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/lib/services/labels';
 
 type Field = 'name' | 'description';
 type Errors = Partial<Record<Field, string>>;

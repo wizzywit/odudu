@@ -2,9 +2,9 @@ import type { ListExecutionsResponse } from '@odudu/contracts/admin';
 import { replaceFlow, readFlow } from '#/pages/flow/adapter/flow';
 import type { Step } from '#/pages/flow/services/steps';
 import { amendTenantSettings } from '#/entities/tenant';
-import { useRecord, type RecordState } from '#/shared/repository/useRecord';
-import type { SaveInput } from '#/shared/repository/useSectionSave';
-import type { Gateway } from '#/shared/transport/gateway';
+import { useRecord, type RecordState } from '#/shared/lib/repository/useRecord';
+import type { SaveInput } from '#/shared/lib/repository/useSectionSave';
+import type { Gateway } from '#/shared/api/transport/gateway';
 
 export const FLOW_RECORD = 'flow';
 

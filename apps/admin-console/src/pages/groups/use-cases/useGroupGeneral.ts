@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useRefusal, useRereadAuthority } from '#/entities/session';
 import { useOwnRoles } from '#/features/own-roles';
-import { useGo } from '#/shared/repository/useGo';
+import { useGo } from '#/shared/lib/repository/useGo';
 import {
   useGroupDeletion,
   useGroupSaves,
@@ -31,18 +31,23 @@ import {
 import { NAME_FIXED } from '#/pages/groups/services/groupPath';
 import { lossOf } from '#/pages/groups/services/groupLoss';
 import { groupRecord } from '#/pages/groups/services/tabs';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { useToast } from '#/shared/repository/useToasts';
-import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
-import { type Asked, lossAction, type Loss, writeRefusal } from '#/shared/services/capabilities';
-import { writeFailureText } from '#/shared/services/failure';
-import { firstChosen, type PickerState } from '#/shared/services/picker';
-import type { GatewayResult } from '#/shared/transport/gateway';
-import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/services/labels';
-import type { DefaultValues, DescriptionValues } from '#/shared/services/sectionValues';
-import { orBlank } from '#/shared/services/format';
-import { ceilingCaller } from '#/shared/services/access';
-import { indexById } from '#/shared/services/ids';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { useConfirmedRemoval, type Removal } from '#/shared/lib/use-cases/useConfirmedChange';
+import {
+  type Asked,
+  lossAction,
+  type Loss,
+  writeRefusal,
+} from '#/shared/lib/services/capabilities';
+import { writeFailureText } from '#/shared/lib/services/failure';
+import { firstChosen, type PickerState } from '#/shared/lib/services/picker';
+import type { GatewayResult } from '#/shared/api/transport/gateway';
+import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/lib/services/labels';
+import type { DefaultValues, DescriptionValues } from '#/shared/lib/services/sectionValues';
+import { orBlank } from '#/shared/lib/services/format';
+import { ceilingCaller } from '#/shared/lib/services/access';
+import { indexById } from '#/shared/lib/services/ids';
 
 export type { SectionSave };
 

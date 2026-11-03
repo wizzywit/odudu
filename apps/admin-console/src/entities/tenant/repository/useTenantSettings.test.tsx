@@ -2,11 +2,11 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
-import { createReadCache } from '#/shared/repository/readCache';
-import { recordKey } from '#/shared/repository/queryKeys';
+import { createReadCache } from '#/shared/lib/repository/readCache';
+import { recordKey } from '#/shared/lib/repository/queryKeys';
 import { useTenantSettings } from '#/entities/tenant/repository/useTenantSettings';
 import { TENANT_SETTINGS_RECORD } from '#/entities/tenant/services/tenantSettings';
-import { TransportContext } from '#/shared/transport/useTransport';
+import { TransportContext } from '#/shared/api/transport/useTransport';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 

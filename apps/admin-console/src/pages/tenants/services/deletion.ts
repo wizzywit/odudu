@@ -1,7 +1,7 @@
-import { writeRefusal } from '#/shared/services/capabilities';
-import { isMissing, isUnknownTenant, writeFailureText } from '#/shared/services/failure';
-import { SYSTEM_TENANT, type AdminCapability } from '#/shared/services/principal';
-import type { GatewayFailure, GatewayResult, Problem } from '#/shared/services/result';
+import { writeRefusal } from '#/shared/lib/services/capabilities';
+import { isMissing, isUnknownTenant, writeFailureText } from '#/shared/lib/services/failure';
+import { SYSTEM_TENANT, type AdminCapability } from '#/shared/lib/services/principal';
+import type { GatewayFailure, GatewayResult, Problem } from '#/shared/lib/services/result';
 import { tenantRecord } from '#/pages/tenants/services/tenantRecordTabs';
 
 // What `DELETE /admin/tenants/:tenant` takes of the caller.

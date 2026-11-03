@@ -1,9 +1,9 @@
 import type { PublishThemeResponse } from '#/features/branding-editor/types/theme';
 import type { FieldError } from '@odudu/contracts/admin';
-import { problemSubtype } from '#/shared/services/failure';
-import { shown } from '#/shared/services/format';
+import { problemSubtype } from '#/shared/lib/services/failure';
+import { shown } from '#/shared/lib/services/format';
 import { moreProblems, PROBLEMS_SHOWN } from '#/features/branding-editor/services/problems';
-import type { Problem } from '#/shared/services/result';
+import type { Problem } from '#/shared/lib/services/result';
 import {
   NO_DRAFT_HOLD,
   NOTHING_TO_PUBLISH,

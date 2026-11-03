@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useCopySource, useCreateRole } from '#/pages/roles/repository/useCreateRole';
-import { useGo } from '#/shared/repository/useGo';
+import { useGo } from '#/shared/lib/repository/useGo';
 import { type Role, roleHref, rolesHref } from '#/entities/role';
 import {
   sourceDescription,
@@ -13,13 +13,18 @@ import {
   sourceChildren,
 } from '#/pages/roles/services/roleCopy';
 import { roleTabHrefOf } from '#/pages/roles/services/tabs';
-import { useToast } from '#/shared/repository/useToasts';
-import { useUrlSearch } from '#/shared/repository/useUrlSearch';
-import { problemAt, requiredProblem } from '#/shared/services/fieldErrors';
-import { createdText, lookupText, namedCreation } from '#/shared/services/failure';
-import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/services/labels';
-import { useCreationFlow } from '#/shared/use-cases/useCreationFlow';
-import { copiedDescription, copyBlocked, copyBusy, type PartialCopy } from '#/shared/services/copy';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { useUrlSearch } from '#/shared/lib/repository/useUrlSearch';
+import { problemAt, requiredProblem } from '#/shared/lib/services/fieldErrors';
+import { createdText, lookupText, namedCreation } from '#/shared/lib/services/failure';
+import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/lib/services/labels';
+import { useCreationFlow } from '#/shared/lib/use-cases/useCreationFlow';
+import {
+  copiedDescription,
+  copyBlocked,
+  copyBusy,
+  type PartialCopy,
+} from '#/shared/lib/services/copy';
 
 type Field = 'name' | 'description';
 type Errors = Partial<Record<Field, string>>;

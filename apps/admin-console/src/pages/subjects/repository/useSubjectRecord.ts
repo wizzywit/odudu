@@ -1,16 +1,16 @@
 import type { Profile } from '@odudu/contracts/admin';
 import { useQueryClient } from '@tanstack/react-query';
 import { amendProfile, readProfile, readUsernameEditable } from '#/pages/subjects/adapter/subjects';
-import { listKey, recordKey, usernamePolicyKey } from '#/shared/repository/queryKeys';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { useRecord, type RecordEntry, type RecordState } from '#/shared/repository/useRecord';
-import type { SaveInput } from '#/shared/repository/useSectionSave';
-import { useRead } from '#/shared/repository/useRead';
-import { useWrite, type Write } from '#/shared/repository/useWrite';
-import { isStale } from '#/shared/services/failure';
-import type { Read } from '#/shared/services/read';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { useTransport } from '#/shared/transport/useTransport';
+import { listKey, recordKey, usernamePolicyKey } from '#/shared/lib/repository/queryKeys';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { useRecord, type RecordEntry, type RecordState } from '#/shared/lib/repository/useRecord';
+import type { SaveInput } from '#/shared/lib/repository/useSectionSave';
+import { useRead } from '#/shared/lib/repository/useRead';
+import { useWrite, type Write } from '#/shared/lib/repository/useWrite';
+import { isStale } from '#/shared/lib/services/failure';
+import type { Read } from '#/shared/lib/services/read';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { useTransport } from '#/shared/api/transport/useTransport';
 import {
   amendSubject,
   deleteSubject,

@@ -1,7 +1,7 @@
 import type { SlotImage } from '#/features/branding-editor/types/slotImage';
-import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
-import { failureTextWith } from '#/shared/services/failure';
-import { reportFailure } from '#/shared/services/settled';
+import type { GatewayFailure, GatewayResult } from '#/shared/lib/services/result';
+import { failureTextWith } from '#/shared/lib/services/failure';
+import { reportFailure } from '#/shared/lib/services/settled';
 import { altEdited, logoOf } from '#/features/branding-editor/services/logoAlt';
 import {
   uploadRefusal,

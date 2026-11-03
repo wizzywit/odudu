@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tenantFrame } from '#/widgets/shell/services/tenantFrame';
-import { PRODUCT_NAME } from '#/shared/services/product';
+import { PRODUCT_NAME } from '#/shared/lib/services/product';
 
 describe('the frame of a tenant address', () => {
   it('is valid for a tenant name and names the product', () => {

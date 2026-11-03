@@ -7,10 +7,10 @@ import {
   type Holding,
   type HoldingOption,
   onlyHolderText,
-} from '#/shared/services/capabilities';
-import { listOrNone } from '#/shared/services/format';
-import { type AdminCapability } from '#/shared/services/principal';
-import type { Choice } from '#/shared/services/choice';
+} from '#/shared/lib/services/capabilities';
+import { listOrNone } from '#/shared/lib/services/format';
+import { type AdminCapability } from '#/shared/lib/services/principal';
+import type { Choice } from '#/shared/lib/services/choice';
 
 export function capabilityOptions({
   tenant,

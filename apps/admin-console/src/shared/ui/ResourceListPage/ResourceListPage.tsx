@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { ResourceListState } from '#/shared/services/resourceList';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
 import { Button } from '#/shared/ui/Button';
 import { Count } from '#/shared/ui/Count';
 import { DataTable, type Column } from '#/shared/ui/DataTable';
@@ -12,7 +12,7 @@ import { PageHeader } from '#/shared/ui/PageHeader';
 import { Pager } from '#/shared/ui/Pager';
 import { TableSkeleton } from '#/shared/ui/Skeleton';
 import styles from '#/shared/ui/ResourceListPage/ResourceListPage.module.css';
-import type { Choice } from '#/shared/services/choice';
+import type { Choice } from '#/shared/lib/services/choice';
 
 export function ResourceListPage<T>({
   list,

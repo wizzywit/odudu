@@ -1,4 +1,4 @@
-import { bytesText, KIB } from '#/shared/services/format';
+import { bytesText, KIB } from '#/shared/lib/services/format';
 import type { ImageSlot } from '#/features/branding-editor/services/imageValues';
 
 export interface SlotRule {

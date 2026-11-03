@@ -1,4 +1,4 @@
-import { CONSOLE_ROOT } from '#/shared/services/address';
+import { CONSOLE_ROOT } from '#/shared/lib/services/address';
 import { describe, expect, it } from 'vitest';
 import { loginUrl, signOutDestination } from '#/entities/session/services/loginUrl';
 

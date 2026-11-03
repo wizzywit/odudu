@@ -1,5 +1,5 @@
 import { CONSENT_TEXT_MAX } from '@odudu/contracts/admin';
-import { DESCRIPTION_MAX } from '#/shared/services/labels';
+import { DESCRIPTION_MAX } from '#/shared/lib/services/labels';
 import { displayOrderProblem } from '#/pages/scopes/services/scopeDetails';
 
 export const CONSENT_RULE = `What the consent screen says in place of the scope's name. At most ${String(CONSENT_TEXT_MAX)} characters; leave it empty for none.`;

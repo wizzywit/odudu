@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { useBrandingPage } from '#/pages/branding/use-cases/useBrandingPage';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 import {
   brandingRoutes,
   draftedView,
@@ -19,7 +19,7 @@ import { ACME_ADMIN } from '#/testing/tenantPaths';
 
 const address = vi.hoisted(() => ({ search: '', go: vi.fn<(params: URLSearchParams) => void>() }));
 
-vi.mock('#/shared/repository/useUrlSearch', () => ({
+vi.mock('#/shared/lib/repository/useUrlSearch', () => ({
   useUrlSearch: () => ({
     params: new URLSearchParams(address.search),
     go: address.go,

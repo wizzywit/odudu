@@ -7,7 +7,7 @@ import {
   clearWords,
   lockoutClearState,
 } from '#/pages/settings/services/lockoutClear';
-import type { GatewayFailure } from '#/shared/services/result';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 
 const refused = (status: number): GatewayFailure => ({
   ok: false,

@@ -1,5 +1,5 @@
 import type { MailMessage } from '@odudu/contracts/admin';
-import { ANY_STATUS } from '#/shared/services/filters';
+import { ANY_STATUS } from '#/shared/lib/services/filters';
 import { describe, expect, it } from 'vitest';
 import {
   anyMasked,

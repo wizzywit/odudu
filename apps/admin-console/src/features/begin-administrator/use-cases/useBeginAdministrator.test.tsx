@@ -13,7 +13,7 @@ import { useBeginAdministrator } from '#/features/begin-administrator';
 
 const go = vi.fn();
 
-vi.mock('#/shared/repository/useGo', () => ({ useGo: () => go }));
+vi.mock('#/shared/lib/repository/useGo', () => ({ useGo: () => go }));
 
 const PRINCIPAL = { tenant: 'system', subjectId: 's0', username: 'root' };
 const OWNER = draftOwner(PRINCIPAL);

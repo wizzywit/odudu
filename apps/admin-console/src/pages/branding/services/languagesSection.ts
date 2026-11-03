@@ -1,4 +1,4 @@
-import type { SectionFields } from '#/shared/services/sectionSave';
+import type { SectionFields } from '#/shared/lib/services/sectionSave';
 import {
   type LanguageValues,
   SUPPORTED_LABEL,

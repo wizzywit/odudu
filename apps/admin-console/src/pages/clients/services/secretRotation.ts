@@ -1,8 +1,8 @@
 import { CLIENT_SECRET_GRACE_MAX_SECONDS } from '@odudu/contracts/admin';
 import { clientRefusal } from '#/pages/clients/services/refusal';
-import { writeFailureText } from '#/shared/services/failure';
-import { formatDuration } from '#/shared/services/format';
-import type { GatewayFailure } from '#/shared/services/result';
+import { writeFailureText } from '#/shared/lib/services/failure';
+import { formatDuration } from '#/shared/lib/services/format';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 
 export const SECRET_RULE =
   'Rotating makes a new secret, shown once. Until its grace period ends the previous secret keeps authenticating beside it, so an application can be given the new one without a gap. A grace of 0 s replaces it at once, the right answer to a leak.';

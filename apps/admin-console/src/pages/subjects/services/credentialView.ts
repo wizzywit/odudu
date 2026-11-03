@@ -1,4 +1,4 @@
-import type { Read } from '#/shared/services/read';
+import type { Read } from '#/shared/lib/services/read';
 import { askToRemove, askToRevoke, type Asking } from '#/pages/subjects/services/credentialAsk';
 import {
   credentialsOf,

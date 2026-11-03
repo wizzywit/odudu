@@ -1,6 +1,6 @@
 import { listRoleCompositesResponseSchema, MAX_LIMIT, roleSchema } from '@odudu/contracts/admin';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall, firstMatch, nothing } from '#/shared/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { adminCall, firstMatch, nothing } from '#/shared/api/adapter/route';
 import { readRoleCount, readRolePage, type Role } from '#/entities/role';
 import type { Composites } from '#/pages/roles/types/composite';
 

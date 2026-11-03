@@ -5,7 +5,7 @@ import {
   GRANT_NEEDS,
   subjectlessRequest,
 } from '#/entities/administrator/services/administratorRequests';
-import { tenantAdminCarries } from '#/shared/services/capabilities';
+import { tenantAdminCarries } from '#/shared/lib/services/capabilities';
 
 describe('the first administrator', () => {
   it('makes only the calls not yet made, the password last', () => {

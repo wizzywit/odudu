@@ -7,7 +7,7 @@ import {
   hasResourceType,
   withField,
 } from '#/pages/audit/services/filterDraft';
-import { ANY_STATUS } from '#/shared/services/filters';
+import { ANY_STATUS } from '#/shared/lib/services/filters';
 
 describe('the form as a draft of the filters', () => {
   it('reads "any" as no filter, and shows no filter as "any"', () => {

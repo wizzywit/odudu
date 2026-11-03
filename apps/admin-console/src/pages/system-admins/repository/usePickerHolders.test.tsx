@@ -3,8 +3,8 @@ import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { usePickerHolders } from '#/pages/system-admins/repository/usePickerHolders';
-import { createReadCache } from '#/shared/repository/readCache';
-import { TransportContext } from '#/shared/transport/useTransport';
+import { createReadCache } from '#/shared/lib/repository/readCache';
+import { TransportContext } from '#/shared/api/transport/useTransport';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 
 const SUBJECTS = 'GET /console/api/admin/tenants/system/subjects';

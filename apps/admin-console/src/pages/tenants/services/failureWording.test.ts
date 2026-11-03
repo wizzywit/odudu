@@ -3,7 +3,7 @@ import { importMessage } from '#/pages/tenants/services/import';
 import { exportFailureText } from '#/pages/tenants/services/export';
 import { tenantChangeFailure } from '#/pages/tenants/services/tenantChange';
 import { stepFailureText } from '#/pages/tenants/services/creationCall';
-import type { GatewayFailure } from '#/shared/services/result';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 import { failure, refusal } from '#/testing/failures';
 
 describe('tenantChangeFailure', () => {

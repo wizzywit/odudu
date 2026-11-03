@@ -2,8 +2,8 @@ import { useSessionEvent, useSessionQuery } from '#/entities/session/repository/
 import { type Principal } from '#/entities/session/types/principal';
 import { bootOf, draftOwner, shownPrincipal } from '#/entities/session/services/boot';
 import { useSignIn } from '#/entities/session/use-cases/useSignIn';
-import { useDrafts } from '#/shared/repository/useDrafts';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
+import { useDrafts } from '#/shared/lib/repository/useDrafts';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 
 export type Boot =
   | { kind: 'loading' }

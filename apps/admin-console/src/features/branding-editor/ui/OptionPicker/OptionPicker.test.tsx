@@ -7,7 +7,7 @@ import { InsertPicker, OptionPicker } from '#/features/branding-editor/ui/Option
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { CodeField } from '#/shared/ui/CodeField';
 import type { ComboOption } from '#/shared/ui/Field';
-import type { Read } from '#/shared/services/read';
+import type { Read } from '#/shared/lib/services/read';
 
 const OPTIONS: ComboOption[] = [
   { id: 'one', label: 'one', detail: 'First' },

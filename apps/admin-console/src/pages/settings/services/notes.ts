@@ -1,6 +1,6 @@
 import { TENANT_SETTING_RANGES } from '@odudu/contracts/admin';
-import { formatDuration } from '#/shared/services/format';
-import { rangeSentence } from '#/shared/services/numbers';
+import { formatDuration } from '#/shared/lib/services/format';
+import { rangeSentence } from '#/shared/lib/services/numbers';
 import type { SettingField } from '#/pages/settings/services/sections';
 
 // The range the server holds the setting to, as it reports it in a refusal.

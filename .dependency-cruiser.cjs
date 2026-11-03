@@ -82,7 +82,7 @@ module.exports = {
       name: 'console-service-imports-only-service',
       severity: 'error',
       comment:
-        'A console service is pure: it imports other services, its own or shared/services, and ' +
+        'A console service is pure: it imports other services, its own or shared/lib/services, and ' +
         '@odudu/contracts, and nothing else. A feature index.ts is refused too, since it ' +
         'reaches views and usecases, and through them the stores; an entity index is the one ' +
         'index admitted, since a service in a higher layer computes from the domain it owns, and ' +
@@ -185,7 +185,7 @@ module.exports = {
       comment:
         'A console view reaches the gateway and the cross-feature stores only through a usecase.',
       from: { path: '(^|/)apps/admin-console/src/(?:ui|.*/ui)(?:/|\\.tsx?$)' },
-      to: { path: '(^|/)apps/admin-console/src/shared/(?:transport|repository)/' },
+      to: { path: '(^|/)apps/admin-console/src/shared/(?:api/transport|lib/repository)/' },
     },
     {
       name: 'console-usecase-no-transport',
@@ -198,7 +198,7 @@ module.exports = {
         pathNot: '\\.test\\.tsx?$',
       },
       to: {
-        path: '(^|/)apps/admin-console/src/shared/transport/',
+        path: '(^|/)apps/admin-console/src/shared/api/transport/',
         dependencyTypesNot: ['type-only'],
       },
     },
@@ -214,7 +214,7 @@ module.exports = {
           '(^|/)apps/admin-console/src/(?:app/|testing/|(?:repository|.*/repository)(?:/|\\.tsx?$))|\\.test\\.tsx?$',
       },
       to: {
-        path: '(^|/)apps/admin-console/src/shared/transport/useTransport\\.ts$',
+        path: '(^|/)apps/admin-console/src/shared/api/transport/useTransport\\.ts$',
         dependencyTypesNot: ['type-only'],
       },
     },
@@ -227,10 +227,10 @@ module.exports = {
       from: {
         path: '(^|/)apps/admin-console/src/',
         pathNot:
-          '(^|/)apps/admin-console/src/(?:app/|testing/|shared/transport/|(?:adapter|.*/adapter)(?:/|\\.tsx?$))|\\.test\\.tsx?$',
+          '(^|/)apps/admin-console/src/(?:app/|testing/|shared/api/transport/|(?:adapter|.*/adapter)(?:/|\\.tsx?$))|\\.test\\.tsx?$',
       },
       to: {
-        path: '(^|/)apps/admin-console/src/shared/transport/(?:gateway|auth|transport)\\.ts$',
+        path: '(^|/)apps/admin-console/src/shared/api/transport/(?:gateway|auth|transport)\\.ts$',
         dependencyTypesNot: ['type-only'],
       },
     },
@@ -344,11 +344,11 @@ module.exports = {
       severity: 'error',
       comment:
         'The gallery renders the design system with sample data, so it needs shared/ui and ' +
-        'the pure rules in shared/services, and never a store, the transport or a feature.',
+        'the pure rules in shared/lib/services, and never a store, the transport or a feature.',
       from: { path: '(^|/)apps/admin-console/src/gallery/' },
       to: {
         path: '(^|/)apps/admin-console/src/',
-        pathNot: '(^|/)apps/admin-console/src/(?:gallery|shared/ui|shared/services)/',
+        pathNot: '(^|/)apps/admin-console/src/(?:gallery|shared/ui|shared/lib/services)/',
       },
     },
     {

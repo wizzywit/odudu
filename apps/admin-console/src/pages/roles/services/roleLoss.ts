@@ -1,5 +1,5 @@
 import { type EffectiveRoleAssignment } from '@odudu/contracts/admin';
-import { adminLoss } from '#/shared/services/capabilities';
+import { adminLoss } from '#/shared/lib/services/capabilities';
 
 export type RoleChange =
   { kind: 'delete'; id: string } | { kind: 'remove'; id: string; child: string };

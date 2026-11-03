@@ -1,6 +1,6 @@
 import { useId } from 'react';
-import { describeValue, type Conflict } from '#/shared/services/conflict';
-import type { ConflictSource } from '#/shared/services/sectionSave';
+import { describeValue, type Conflict } from '#/shared/lib/services/conflict';
+import type { ConflictSource } from '#/shared/lib/services/sectionSave';
 import { Button } from '#/shared/ui/Button';
 import styles from '#/shared/ui/ConflictPanel/ConflictPanel.module.css';
 

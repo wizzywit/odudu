@@ -1,6 +1,6 @@
-import { refusedBy, writeFailureText } from '#/shared/services/failure';
-import { counted } from '#/shared/services/format';
-import type { GatewayFailure } from '#/shared/services/result';
+import { refusedBy, writeFailureText } from '#/shared/lib/services/failure';
+import { counted } from '#/shared/lib/services/format';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 
 export function clientsCount(shown: number, more: boolean): string {
   return more

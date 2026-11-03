@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
-import { useFreshRead } from '#/shared/repository/useFreshRead';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
+import { useFreshRead } from '#/shared/lib/repository/useFreshRead';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
 
 export function useFresh(tenant: string) {
   const fresh = useFreshRead();

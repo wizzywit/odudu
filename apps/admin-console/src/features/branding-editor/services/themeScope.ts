@@ -1,7 +1,7 @@
 import type { ThemeView } from '#/features/branding-editor/types/theme';
-import { refusedBy } from '#/shared/services/failure';
-import type { AdminCapability } from '#/shared/services/principal';
-import type { Problem } from '#/shared/services/result';
+import { refusedBy } from '#/shared/lib/services/failure';
+import type { AdminCapability } from '#/shared/lib/services/principal';
+import type { Problem } from '#/shared/lib/services/result';
 
 // Whose theme a call is about: the tenant's own, or one client's. `below` is
 // what the tenant's published theme supplies, as the client's own read says;

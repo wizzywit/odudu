@@ -1,5 +1,5 @@
-import type { GatewayResult } from '#/shared/services/result';
-import { mapRead, readOutcome } from '#/shared/services/read';
+import type { GatewayResult } from '#/shared/lib/services/result';
+import { mapRead, readOutcome } from '#/shared/lib/services/read';
 import type { OverviewRead } from '#/pages/overview/types/overviewReads';
 
 export function overviewOutcome<T>(

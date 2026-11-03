@@ -1,4 +1,4 @@
-import type { Crumb } from '#/shared/services/breadcrumb';
+import type { Crumb } from '#/shared/lib/services/breadcrumb';
 import {
   ADD_SYSTEM_ADMIN_TITLE,
   CREATE_TENANT_TITLE,

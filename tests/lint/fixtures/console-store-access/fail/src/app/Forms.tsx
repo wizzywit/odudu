@@ -1,6 +1,6 @@
 import { forwardRef, memo } from 'react';
-import { useToasts as Toasts } from '#/shared/repository/useToasts';
-import { useToasts } from '#/shared/repository/useToasts';
+import { useToasts as Toasts } from '#/shared/lib/repository/useToasts';
+import { useToasts } from '#/shared/lib/repository/useToasts';
 
 export const Wrapped = forwardRef(() => {
   useToasts.getState().push('a');

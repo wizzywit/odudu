@@ -1,6 +1,6 @@
 import { use, useId } from 'react';
 import { Link } from 'react-aria-components';
-import { previewable, typingScheme, urlProblem } from '#/shared/services/profileUrl';
+import { previewable, typingScheme, urlProblem } from '#/shared/lib/services/profileUrl';
 import {
   FieldClusterIds,
   FieldsReadOnly,

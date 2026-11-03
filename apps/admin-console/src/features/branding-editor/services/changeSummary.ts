@@ -1,5 +1,5 @@
 import type { ThemeView } from '#/features/branding-editor/types/theme';
-import { counted } from '#/shared/services/format';
+import { counted } from '#/shared/lib/services/format';
 import { STYLESHEET_SECTION_TITLE } from '#/features/branding-editor/services/stylesheet';
 import { TEMPLATES_SECTION_TITLE } from '#/features/branding-editor/services/templateParts';
 import {

@@ -2,7 +2,7 @@ import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { useSignIn } from '#/entities/session/use-cases/useSignIn';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 import { hookHarness } from '#/testing/hookHarness';
 import { mountAtRoute } from '#/testing/mountAtRoute';
 import { resetConsole } from '#/testing/resetConsole';

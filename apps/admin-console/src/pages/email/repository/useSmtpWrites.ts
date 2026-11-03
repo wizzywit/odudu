@@ -1,7 +1,7 @@
 import type { TestSmtpResponse } from '@odudu/contracts/admin';
 import { deleteSmtp, testSmtp } from '#/pages/email/adapter/smtp';
-import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
-import type { GatewayResult } from '#/shared/transport/gateway';
+import { useGatewayWrite, type Write } from '#/shared/lib/repository/useWrite';
+import type { GatewayResult } from '#/shared/api/transport/gateway';
 
 export interface TestRequest {
   to: string;

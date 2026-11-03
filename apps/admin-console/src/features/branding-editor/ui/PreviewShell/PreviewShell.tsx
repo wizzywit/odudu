@@ -1,7 +1,7 @@
 import { useId, useRef, type ReactNode } from 'react';
 import { usePreviewShell } from '#/features/branding-editor/use-cases/usePreviewShell';
 import { PreviewFrame, type PreviewFrameProps } from '#/features/branding-editor/ui/PreviewFrame';
-import { useContainerNarrow } from '#/shared/use-cases/useContainerNarrow';
+import { useContainerNarrow } from '#/shared/lib/use-cases/useContainerNarrow';
 import { Button } from '#/shared/ui/Button';
 import { DialogFrame } from '#/shared/ui/DialogFrame';
 import { NativeSelectFields } from '#/shared/ui/Field';

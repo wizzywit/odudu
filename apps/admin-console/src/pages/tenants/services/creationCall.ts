@@ -1,7 +1,7 @@
-import { type AdminCapability } from '#/shared/services/principal';
-import { fieldErrorsOf, isEmptyRecord } from '#/shared/services/fieldErrors';
-import { CONSOLE_FAULT, failureTextWith } from '#/shared/services/failure';
-import type { GatewayFailure } from '#/shared/services/result';
+import { type AdminCapability } from '#/shared/lib/services/principal';
+import { fieldErrorsOf, isEmptyRecord } from '#/shared/lib/services/fieldErrors';
+import { CONSOLE_FAULT, failureTextWith } from '#/shared/lib/services/failure';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 import {
   ADMINISTRATOR_REQUEST_NEEDS,
   type AdministratorCall,

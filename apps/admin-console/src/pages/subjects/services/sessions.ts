@@ -1,4 +1,4 @@
-import { counted, formatAbsolute } from '#/shared/services/format';
+import { counted, formatAbsolute } from '#/shared/lib/services/format';
 import type { SubjectSession } from '#/pages/subjects/types/subjectSession';
 
 export function sessionEndedText(name: string): string {

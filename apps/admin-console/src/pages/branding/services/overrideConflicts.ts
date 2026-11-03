@@ -1,6 +1,6 @@
 import type { MessageOverride } from '#/pages/branding/types/messageOverride';
-import { describeValue, type Conflict } from '#/shared/services/conflict';
-import type { GatewayResult } from '#/shared/services/result';
+import { describeValue, type Conflict } from '#/shared/lib/services/conflict';
+import type { GatewayResult } from '#/shared/lib/services/result';
 import { EMPTY_OVERRIDE, type OverrideValues } from '#/pages/branding/services/overrideForm';
 import { overrideFailure, type SentOverride } from '#/pages/branding/services/overrideSaving';
 

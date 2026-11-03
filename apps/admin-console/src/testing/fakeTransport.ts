@@ -1,8 +1,8 @@
 import { vi } from 'vitest';
-import { createAuthEvents } from '#/shared/services/authEvents';
-import { createAuth } from '#/shared/transport/auth';
-import { createGateway, type Fetch } from '#/shared/transport/gateway';
-import type { Transport } from '#/shared/transport/transport';
+import { createAuthEvents } from '#/shared/lib/services/authEvents';
+import { createAuth } from '#/shared/api/transport/auth';
+import { createGateway, type Fetch } from '#/shared/api/transport/gateway';
+import type { Transport } from '#/shared/api/transport/transport';
 
 // Given what was sent, for an answer that depends on the query or the body.
 export type Answer = (request: Sent) => Response | Promise<Response>;

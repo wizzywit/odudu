@@ -1,7 +1,7 @@
 import { readMailPage } from '#/pages/email/adapter/mail';
 import { mailQuery } from '#/pages/email/services/mailQuery';
-import { listKey } from '#/shared/repository/queryKeys';
-import { useListPages } from '#/shared/repository/useResourceList';
+import { listKey } from '#/shared/lib/repository/queryKeys';
+import { useListPages } from '#/shared/lib/repository/useResourceList';
 
 // The mail of one status, or of any, a page at a time; the list reads again
 // when the status changes, since a cursor is bound to its filter.

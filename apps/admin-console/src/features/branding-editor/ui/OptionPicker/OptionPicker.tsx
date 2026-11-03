@@ -1,6 +1,6 @@
 import { use } from 'react';
 import type { PickerWording } from '#/features/branding-editor/services/pickerWording';
-import type { Read } from '#/shared/services/read';
+import type { Read } from '#/shared/lib/services/read';
 import { CodeInsert } from '#/shared/ui/CodeField';
 import { ComboBoxField, type ComboOption } from '#/shared/ui/Field';
 import { InlineFailed } from '#/shared/ui/InlineFailed';

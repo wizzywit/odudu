@@ -1,4 +1,4 @@
-import type { Choice } from '#/shared/services/choice';
+import type { Choice } from '#/shared/lib/services/choice';
 import { ADD_BUTTON, ADD_LABEL, ADD_NOTE } from '#/pages/branding/services/addedLanguage';
 import {
   LANGUAGES_DESCRIPTION,

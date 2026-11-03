@@ -10,8 +10,8 @@ import {
   otpRequired,
 } from '#/pages/flow/services/otp';
 import type { Step } from '#/pages/flow/services/steps';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { writeRefusal } from '#/shared/services/capabilities';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { writeRefusal } from '#/shared/lib/services/capabilities';
 import { TENANT_SETTINGS_RECORD } from '#/entities/tenant';
 
 export interface OtpRequirement {

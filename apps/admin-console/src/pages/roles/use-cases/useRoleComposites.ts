@@ -23,15 +23,15 @@ import {
 import { type RoleCeiling, compositesOffered } from '#/pages/roles/services/roleCeiling';
 import { roleSelfLoss } from '#/pages/roles/services/roleLoss';
 import { compositesRecord } from '#/pages/roles/services/tabs';
-import type { RecordState } from '#/shared/repository/useRecord';
+import type { RecordState } from '#/shared/lib/repository/useRecord';
 import { type Role, useRolePicker, roleNameOf } from '#/entities/role';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { useToast } from '#/shared/repository/useToasts';
-import { type Asked, judgedLoss, lossAction, type Loss } from '#/shared/services/capabilities';
-import { describeId } from '#/shared/services/format';
-import { firstChosen, type PickerState } from '#/shared/services/picker';
-import { ceilingCaller } from '#/shared/services/access';
-import { indexById } from '#/shared/services/ids';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { type Asked, judgedLoss, lossAction, type Loss } from '#/shared/lib/services/capabilities';
+import { describeId } from '#/shared/lib/services/format';
+import { firstChosen, type PickerState } from '#/shared/lib/services/picker';
+import { ceilingCaller } from '#/shared/lib/services/access';
+import { indexById } from '#/shared/lib/services/ids';
 
 export function useCompositesRead(tenant: string, id: string): RecordState<Composites> {
   return useCompositesRecord(tenant, id);

@@ -10,12 +10,12 @@ import { type GroupCeiling } from '#/pages/groups/services/groupCeiling';
 import { rolesConfirmation } from '#/pages/groups/services/groupConfirmation';
 import { lossOf } from '#/pages/groups/services/groupLoss';
 import { groupRolesRecord } from '#/pages/groups/services/tabs';
-import type { RecordState } from '#/shared/repository/useRecord';
+import type { RecordState } from '#/shared/lib/repository/useRecord';
 import { type MappedRole, type Role } from '#/entities/role';
 import { useRoleMapping, type RoleMappingModel } from '#/features/role-mapping';
-import { type Asked, lossAction, lossBlocked } from '#/shared/services/capabilities';
-import { removedFrom } from '#/shared/services/ids';
-import { ceilingCaller } from '#/shared/services/access';
+import { type Asked, lossAction, lossBlocked } from '#/shared/lib/services/capabilities';
+import { removedFrom } from '#/shared/lib/services/ids';
+import { ceilingCaller } from '#/shared/lib/services/access';
 
 export function useGroupRolesRead(tenant: string, id: string): RecordState<GroupRoleList> {
   return useGroupRolesRecord(tenant, id);

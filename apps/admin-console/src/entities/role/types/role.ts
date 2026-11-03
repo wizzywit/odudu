@@ -1,4 +1,4 @@
-import type { AdminCapability } from '#/shared/services/principal';
+import type { AdminCapability } from '#/shared/lib/services/principal';
 
 // The wire's field names are kept: other slices read `client_key` and
 // `admin_reach` as they come.

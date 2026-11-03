@@ -1,6 +1,6 @@
 import { sendMail, type MailRequest } from '#/pages/subjects/adapter/mail';
-import { useWrite } from '#/shared/repository/useWrite';
-import type { GatewayResult } from '#/shared/transport/gateway';
+import { useWrite } from '#/shared/lib/repository/useWrite';
+import type { GatewayResult } from '#/shared/api/transport/gateway';
 
 export type { MailRequest };
 

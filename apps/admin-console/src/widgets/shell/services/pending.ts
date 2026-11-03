@@ -1,5 +1,5 @@
-import { holds } from '#/shared/services/access';
-import { isTenantName, SYSTEM_TENANT, type Authority } from '#/shared/services/principal';
+import { holds } from '#/shared/lib/services/access';
+import { isTenantName, SYSTEM_TENANT, type Authority } from '#/shared/lib/services/principal';
 import type { Principal } from '#/entities/session';
 import { type Area, EVERY_AREA, OVERVIEW, SYSTEM_AREAS } from '#/entities/area';
 import { showsSystemArea } from '#/widgets/shell/services/systemAuthority';

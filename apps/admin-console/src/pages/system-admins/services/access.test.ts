@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { AdminCapability, Authority } from '#/shared/services/principal';
+import type { AdminCapability, Authority } from '#/shared/lib/services/principal';
 import { administratorsAccess } from '#/pages/system-admins/services/access';
-import { tenantAdminCarries } from '#/shared/services/capabilities';
+import { tenantAdminCarries } from '#/shared/lib/services/capabilities';
 
 const caller = (...capabilities: AdminCapability[]): Authority => ({
   capabilities,

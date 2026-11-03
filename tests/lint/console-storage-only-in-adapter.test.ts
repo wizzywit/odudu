@@ -93,15 +93,15 @@ describe('browser storage in the console', { timeout: 60_000 }, () => {
 
   it('is found by reference, not by text, outside an adapter in the fixtures', async () => {
     const files = await read(FIXTURES);
-    expect([...files.keys()]).toContain('shared/adapter/theme.ts');
+    expect([...files.keys()]).toContain('shared/api/adapter/theme.ts');
     expect(offenders(files)).toEqual([
-      'shared/repository/reachesAround.ts:5',
-      'shared/repository/reachesAround.ts:6',
-      'shared/repository/reachesAround.ts:7',
-      'shared/repository/reachesAround.ts:8',
-      'shared/repository/useThings.ts:5',
-      'shared/repository/useThings.ts:9',
-      'shared/repository/useThings.ts:12',
+      'shared/lib/repository/reachesAround.ts:5',
+      'shared/lib/repository/reachesAround.ts:6',
+      'shared/lib/repository/reachesAround.ts:7',
+      'shared/lib/repository/reachesAround.ts:8',
+      'shared/lib/repository/useThings.ts:5',
+      'shared/lib/repository/useThings.ts:9',
+      'shared/lib/repository/useThings.ts:12',
     ]);
   });
 });

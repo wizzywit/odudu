@@ -1,7 +1,7 @@
 import type { SendActionsEmailRequest } from '@odudu/contracts/admin';
 import { z } from 'zod';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall } from '#/shared/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { adminCall } from '#/shared/api/adapter/route';
 
 export type MailRequest =
   { kind: 'reset' } | { kind: 'verification' } | { kind: 'actions'; body: SendActionsEmailRequest };

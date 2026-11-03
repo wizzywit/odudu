@@ -13,9 +13,9 @@ import {
   type VersionRow,
   type VersionsWords,
 } from '#/features/branding-editor/services/versions';
-import { useToast } from '#/shared/repository/useToasts';
-import type { Read } from '#/shared/services/read';
-import { useConfirmedChange, type Confirming } from '#/shared/use-cases/useConfirmedChange';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import type { Read } from '#/shared/lib/services/read';
+import { useConfirmedChange, type Confirming } from '#/shared/lib/use-cases/useConfirmedChange';
 
 export interface Versions {
   read: Read<ThemeVersions>;

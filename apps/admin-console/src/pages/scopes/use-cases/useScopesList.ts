@@ -1,7 +1,7 @@
 import { useScopeList } from '#/pages/scopes/repository/useScopeList';
 import { type Scope, newScopeHref, scopeHref } from '#/entities/scope';
-import { NAME_SEARCH } from '#/shared/services/filters';
-import { useListPage, type ListPageState } from '#/shared/use-cases/useListPage';
+import { NAME_SEARCH } from '#/shared/lib/services/filters';
+import { useListPage, type ListPageState } from '#/shared/lib/use-cases/useListPage';
 
 export interface ScopesList extends ListPageState<Scope> {
   searchFields: readonly { id: string; label: string }[];

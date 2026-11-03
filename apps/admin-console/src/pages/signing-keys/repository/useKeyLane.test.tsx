@@ -3,8 +3,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
 import { useKeyLane } from '#/pages/signing-keys/repository/useKeyLane';
-import { createReadCache } from '#/shared/repository/readCache';
-import { TransportContext } from '#/shared/transport/useTransport';
+import { createReadCache } from '#/shared/lib/repository/readCache';
+import { TransportContext } from '#/shared/api/transport/useTransport';
 import { fakeTransport, json, problem, type Answer } from '#/testing/fakeTransport';
 import { KEYS, READY_KEY, signingKey } from '#/testing/keysFixtures';
 

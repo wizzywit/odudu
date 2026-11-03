@@ -32,7 +32,7 @@ import {
   type CodeToken,
   type LineIssue,
   type TokenKind,
-} from '#/shared/services/code';
+} from '#/shared/lib/services/code';
 import {
   Description,
   FieldsReadOnly,
@@ -42,11 +42,11 @@ import {
   VALIDATION,
   type Chrome,
 } from '#/shared/ui/Field';
-import { useCodeHistory } from '#/shared/use-cases/useCodeHistory';
-import { useContainerNarrow } from '#/shared/use-cases/useContainerNarrow';
+import { useCodeHistory } from '#/shared/lib/use-cases/useCodeHistory';
+import { useContainerNarrow } from '#/shared/lib/use-cases/useContainerNarrow';
 import { Button } from '#/shared/ui/Button';
 import { KeyHint } from '#/shared/ui/KeyHint';
-import type { SizeReading } from '#/shared/services/format';
+import type { SizeReading } from '#/shared/lib/services/format';
 import styles from '#/shared/ui/CodeField/CodeField.module.css';
 
 const TOKEN_CLASS: Readonly<Record<TokenKind, string | undefined>> = {

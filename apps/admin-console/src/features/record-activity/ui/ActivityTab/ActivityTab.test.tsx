@@ -2,7 +2,7 @@ import type { AuditEvent } from '#/entities/audit-event';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import type { ResourceListState } from '#/shared/services/resourceList';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
 import { ActivityTab } from '#/features/record-activity/ui/ActivityTab/ActivityTab';
 import { activityWords } from '#/features/record-activity/services/activityWords';
 import { auditEvent } from '#/testing/auditFixtures';

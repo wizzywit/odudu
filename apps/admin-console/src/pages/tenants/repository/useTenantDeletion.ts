@@ -9,11 +9,11 @@ import {
   overviewKey,
   RECORD_KIND,
   recordKey,
-} from '#/shared/repository/queryKeys';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { useWrite, type Write } from '#/shared/repository/useWrite';
-import { SYSTEM_TENANT } from '#/shared/services/principal';
-import type { GatewayResult } from '#/shared/services/result';
+} from '#/shared/lib/repository/queryKeys';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { useWrite, type Write } from '#/shared/lib/repository/useWrite';
+import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
+import type { GatewayResult } from '#/shared/lib/services/result';
 
 // The lists of tenants, their count and the system trail that records the
 // deletion are read again at once. The deleted tenant's own entries go when

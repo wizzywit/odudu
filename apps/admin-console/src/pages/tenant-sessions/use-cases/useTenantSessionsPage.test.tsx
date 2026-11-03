@@ -7,7 +7,7 @@ import { useTenantSessionsPage } from '#/pages/tenant-sessions/use-cases/useTena
 import type { TenantSession } from '#/pages/tenant-sessions/types/tenantSession';
 import { hookHarness } from '#/testing/hookHarness';
 
-vi.mock('#/shared/repository/useGo', () => ({ useGo: () => vi.fn() }));
+vi.mock('#/shared/lib/repository/useGo', () => ({ useGo: () => vi.fn() }));
 
 // The list reads the router's location; only the naming is under test here.
 vi.mock('#/pages/tenant-sessions/repository/useTenantSessions', async (importOriginal) => ({

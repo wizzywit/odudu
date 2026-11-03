@@ -6,7 +6,7 @@ import {
   NONE,
   type InstallationRow,
 } from '#/pages/clients/services/installation';
-import { mapRead, type Read } from '#/shared/services/read';
+import { mapRead, type Read } from '#/shared/lib/services/read';
 
 export interface InstallationPanel {
   heading: string;

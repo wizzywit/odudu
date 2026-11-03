@@ -1,4 +1,4 @@
-import { type Read } from '#/shared/services/read';
+import { type Read } from '#/shared/lib/services/read';
 
 export function rolesFailure(read: Read<unknown>): { retry: () => void } | null {
   return read.status === 'failed' ? { retry: read.retry } : null;

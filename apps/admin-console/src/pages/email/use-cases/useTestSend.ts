@@ -20,7 +20,7 @@ import {
   type TestClientChoice,
 } from '#/pages/email/services/testClient';
 import { useClientPicker } from '#/entities/client';
-import type { PickerState } from '#/shared/services/picker';
+import type { PickerState } from '#/shared/lib/services/picker';
 
 export interface TestForm {
   to: string;

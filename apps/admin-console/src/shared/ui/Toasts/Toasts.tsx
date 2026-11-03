@@ -6,7 +6,7 @@ import {
   useState,
   type FocusEvent,
 } from 'react';
-import type { Toast } from '#/shared/services/toast';
+import type { Toast } from '#/shared/lib/services/toast';
 import { Button } from '#/shared/ui/Button';
 import styles from '#/shared/ui/Toasts/Toasts.module.css';
 

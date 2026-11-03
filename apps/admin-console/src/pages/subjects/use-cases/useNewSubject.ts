@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useCreateSubject } from '#/pages/subjects/repository/useCreateSubject';
-import { useGo } from '#/shared/repository/useGo';
-import { useToast } from '#/shared/repository/useToasts';
-import { lookupText } from '#/shared/services/failure';
-import { problemAt } from '#/shared/services/fieldErrors';
-import { useCreationFlow } from '#/shared/use-cases/useCreationFlow';
+import { useGo } from '#/shared/lib/repository/useGo';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { lookupText } from '#/shared/lib/services/failure';
+import { problemAt } from '#/shared/lib/services/fieldErrors';
+import { useCreationFlow } from '#/shared/lib/use-cases/useCreationFlow';
 import { USERNAME_RULE_TEXT, usernameProblem } from '#/pages/subjects/services/username';
 import {
   manageUsersRefusal,

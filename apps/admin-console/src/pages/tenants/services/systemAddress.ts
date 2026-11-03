@@ -1,5 +1,5 @@
-import { recordAddress, SYSTEM_BASE } from '#/shared/services/address';
-import { SYSTEM_TENANT } from '#/shared/services/principal';
+import { recordAddress, SYSTEM_BASE } from '#/shared/lib/services/address';
+import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
 
 export const TENANTS_HREF = `${SYSTEM_BASE}/tenants`;
 

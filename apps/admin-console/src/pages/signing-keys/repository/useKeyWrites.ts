@@ -1,10 +1,10 @@
 import type { SigningKey, SigningKeyAlg } from '@odudu/contracts/admin';
 import { useRef } from 'react';
 import { deleteKey, promoteKey, retireKey, stageKey } from '#/pages/signing-keys/adapter/keys';
-import { listKey, overviewKey } from '#/shared/repository/queryKeys';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+import { listKey, overviewKey } from '#/shared/lib/repository/queryKeys';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { useGatewayWrite, type Write } from '#/shared/lib/repository/useWrite';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 
 // A write's answer changes the lanes and what the overview says about the
 // keys, whatever it was: a refused or lost one may still have left them stale.

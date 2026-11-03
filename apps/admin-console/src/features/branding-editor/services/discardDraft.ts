@@ -1,6 +1,6 @@
-import { writeFailureText } from '#/shared/services/failure';
+import { writeFailureText } from '#/shared/lib/services/failure';
 import { unsavedBlock } from '#/features/branding-editor/services/unsavedBlock';
-import type { GatewayFailure } from '#/shared/services/result';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 import type { ThemeScope } from '#/features/branding-editor/services/themeScope';
 
 export const DISCARD_LABEL = 'Discard draft…';

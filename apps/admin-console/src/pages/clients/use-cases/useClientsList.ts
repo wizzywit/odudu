@@ -1,8 +1,8 @@
 import { useClientList } from '#/pages/clients/repository/useClientList';
 import { TYPE_TEXT } from '#/pages/clients/services/clientDetails';
 import { type Client, clientHref, newClientHref } from '#/entities/client';
-import { STATUS_FILTER } from '#/shared/services/filters';
-import { useListPage, type ListPageState } from '#/shared/use-cases/useListPage';
+import { STATUS_FILTER } from '#/shared/lib/services/filters';
+import { useListPage, type ListPageState } from '#/shared/lib/use-cases/useListPage';
 
 export interface ClientsList extends ListPageState<Client> {
   // How each client type reads in the Type column.

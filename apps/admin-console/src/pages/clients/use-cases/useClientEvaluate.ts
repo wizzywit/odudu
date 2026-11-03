@@ -16,9 +16,9 @@ import {
   type Artefact,
   type Asked,
 } from '#/pages/clients/services/evaluate';
-import { readable } from '#/shared/services/access';
-import type { AdminCapability } from '#/shared/services/principal';
-import { lastChosen, type PickerState } from '#/shared/services/picker';
+import { readable } from '#/shared/lib/services/access';
+import type { AdminCapability } from '#/shared/lib/services/principal';
+import { lastChosen, type PickerState } from '#/shared/lib/services/picker';
 import { useSubjectPicker, usernameOrId, type Subject } from '#/entities/subject';
 
 // Whether the caller may look at a subject's claims (whoami says view-users

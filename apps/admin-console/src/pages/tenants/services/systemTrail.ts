@@ -1,5 +1,5 @@
 import { areaAt } from '#/entities/area';
-import type { Crumb } from '#/shared/services/breadcrumb';
+import type { Crumb } from '#/shared/lib/services/breadcrumb';
 import {
   SYSTEM_ADMINS_HREF,
   TENANTS_HREF,

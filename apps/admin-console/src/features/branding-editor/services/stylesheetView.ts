@@ -3,7 +3,7 @@ import {
   type PickerWording,
 } from '#/features/branding-editor/services/pickerWording';
 import type { ThemeView } from '#/features/branding-editor/types/theme';
-import type { Read } from '#/shared/services/read';
+import type { Read } from '#/shared/lib/services/read';
 import { LIST_LIMIT } from '#/features/branding-editor/services/catalogue';
 import {
   SELECTORS_FAILED,

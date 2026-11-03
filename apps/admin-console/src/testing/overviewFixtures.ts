@@ -4,7 +4,7 @@ import { publishedLane, readyToPromote } from '#/entities/signing-key';
 import type { AttentionInputs } from '#/pages/overview/services/attention';
 import type { EntityRules } from '#/pages/overview/services/entityRules';
 import type { AreaOf, OverviewRead, OverviewReads } from '#/pages/overview/types/overviewReads';
-import type { AdminCapability, Authority } from '#/shared/services/principal';
+import type { AdminCapability, Authority } from '#/shared/lib/services/principal';
 
 export const retry = (): void => undefined;
 

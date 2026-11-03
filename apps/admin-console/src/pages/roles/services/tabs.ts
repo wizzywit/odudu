@@ -1,4 +1,4 @@
-import { recordTabs } from '#/shared/services/record';
+import { recordTabs } from '#/shared/lib/services/record';
 
 const model = recordTabs({
   tabs: ['general', 'composites', 'members', 'activity'] as const,

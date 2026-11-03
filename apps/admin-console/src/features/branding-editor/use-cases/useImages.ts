@@ -35,8 +35,8 @@ import {
 } from '#/features/branding-editor/services/imageValues';
 import { imageFields, IMAGES_TITLE } from '#/features/branding-editor/services/imageSection';
 import { useSectionHold } from '#/features/branding-editor/use-cases/useSectionHold';
-import { useLatest } from '#/shared/repository/useLatest';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
+import { useLatest } from '#/shared/lib/repository/useLatest';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
 
 export interface Images {
   save: SectionSave<ImageValues>;

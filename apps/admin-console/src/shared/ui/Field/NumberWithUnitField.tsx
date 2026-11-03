@@ -1,6 +1,6 @@
 import { use } from 'react';
 import { Group, Input, NumberField as AriaNumberField, Text } from 'react-aria-components';
-import { formatDuration } from '#/shared/services/format';
+import { formatDuration } from '#/shared/lib/services/format';
 import {
   FieldsReadOnly,
   Header,

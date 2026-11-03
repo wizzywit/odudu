@@ -1,5 +1,5 @@
-import { TENANT_NAME_RULE_TEXT } from '#/shared/services/principal';
-import { isTenantName, SYSTEM_TENANT } from '#/shared/services/principal';
+import { TENANT_NAME_RULE_TEXT } from '#/shared/lib/services/principal';
+import { isTenantName, SYSTEM_TENANT } from '#/shared/lib/services/principal';
 import { type Principal } from '#/entities/session/types/principal';
 
 // The tenant this browser last signed in to is only a fallback: a tenant

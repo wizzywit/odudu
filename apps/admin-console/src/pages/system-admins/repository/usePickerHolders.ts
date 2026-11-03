@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { holderSet, holdersParams } from '#/pages/system-admins/services/picker';
-import { listKey } from '#/shared/repository/queryKeys';
-import { SYSTEM_TENANT } from '#/shared/services/principal';
-import { useTransport } from '#/shared/transport/useTransport';
+import { listKey } from '#/shared/lib/repository/queryKeys';
+import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
+import { useTransport } from '#/shared/api/transport/useTransport';
 import { readSubjectPage } from '#/entities/subject';
 
 // System administrators are few; more pages of them than this is a fault

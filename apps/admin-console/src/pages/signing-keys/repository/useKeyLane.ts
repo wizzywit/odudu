@@ -1,8 +1,8 @@
 import type { SigningKey, SigningKeyStatus } from '@odudu/contracts/admin';
 import { readKeyPage } from '#/entities/signing-key';
-import { listKey } from '#/shared/repository/queryKeys';
-import { useListPages } from '#/shared/repository/useResourceList';
-import type { ListStatus } from '#/shared/services/resourceList';
+import { listKey } from '#/shared/lib/repository/queryKeys';
+import { useListPages } from '#/shared/lib/repository/useResourceList';
+import type { ListStatus } from '#/shared/lib/services/resourceList';
 
 export interface KeyLane {
   status: ListStatus;

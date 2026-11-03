@@ -1,8 +1,8 @@
 import type { RevokedGrants } from '#/pages/clients/types/clientSession';
-import { writeFailureText } from '#/shared/services/failure';
-import { counted } from '#/shared/services/format';
-import type { AdminCapability } from '#/shared/services/principal';
-import type { GatewayFailure } from '#/shared/services/result';
+import { writeFailureText } from '#/shared/lib/services/failure';
+import { counted } from '#/shared/lib/services/format';
+import type { AdminCapability } from '#/shared/lib/services/principal';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 import { clientRefusal } from '#/pages/clients/services/refusal';
 
 export const SESSIONS_CAPABILITY: AdminCapability = 'manage-sessions';

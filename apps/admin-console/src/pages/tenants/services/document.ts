@@ -1,6 +1,6 @@
 import { TENANT_IMPORT_BODY_LIMIT } from '@odudu/contracts/admin';
-import { bytesText } from '#/shared/services/format';
-import { isRecord, parseJson } from '#/shared/services/json';
+import { bytesText } from '#/shared/lib/services/format';
+import { isRecord, parseJson } from '#/shared/lib/services/json';
 
 // What an export says it left out, by JSON path; read only to show it, since
 // the file saved is the text as the server sent it.

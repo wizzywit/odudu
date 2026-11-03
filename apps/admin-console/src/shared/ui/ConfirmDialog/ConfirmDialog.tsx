@@ -1,5 +1,5 @@
 import { useId, useState, type SubmitEvent, type ReactNode } from 'react';
-import type { DialogAsk } from '#/shared/services/dialog';
+import type { DialogAsk } from '#/shared/lib/services/dialog';
 import { Button } from '#/shared/ui/Button';
 import { KeyHint } from '#/shared/ui/KeyHint';
 import { ChecklistField } from '#/shared/ui/ChecklistField';

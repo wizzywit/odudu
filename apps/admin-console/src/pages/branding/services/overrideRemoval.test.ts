@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ALREADY_REMOVED, removeOutcome } from '#/pages/branding/services/overrideRemoval';
-import type { GatewayFailure } from '#/shared/services/result';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 
 const refused = (status: number, type: string, extra: object = {}): GatewayFailure => ({
   ok: false,

@@ -1,6 +1,6 @@
 import type { ExecutionRequirement, ExecutionStep } from '@odudu/contracts/admin';
-import { listOrNone } from '#/shared/services/format';
-import { isRecord } from '#/shared/services/json';
+import { listOrNone } from '#/shared/lib/services/format';
+import { isRecord } from '#/shared/lib/services/json';
 
 export interface Step {
   authenticator: string;

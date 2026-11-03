@@ -1,7 +1,7 @@
 import type { CountResponse, Settings, SigningKey, SmtpConfig } from '@odudu/contracts/admin';
 import type { AuditEvent } from '#/entities/audit-event';
 import type { Place } from '#/entities/area';
-import type { Read } from '#/shared/services/read';
+import type { Read } from '#/shared/lib/services/read';
 
 export interface Discovery {
   issuer: string;

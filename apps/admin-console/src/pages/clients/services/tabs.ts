@@ -1,4 +1,4 @@
-import { recordTabs } from '#/shared/services/record';
+import { recordTabs } from '#/shared/lib/services/record';
 
 // A client's record, a tab per concern, in the order the page shows them.
 const TABS = [

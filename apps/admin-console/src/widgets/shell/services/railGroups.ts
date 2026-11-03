@@ -1,6 +1,6 @@
-import { readable } from '#/shared/services/access';
-import { recordAddress } from '#/shared/services/address';
-import { SYSTEM_TENANT, type Authority } from '#/shared/services/principal';
+import { readable } from '#/shared/lib/services/access';
+import { recordAddress } from '#/shared/lib/services/address';
+import { SYSTEM_TENANT, type Authority } from '#/shared/lib/services/principal';
 import { type Area, OVERVIEW, SYSTEM_AREAS, TENANT_AREAS, areaAt, areaHref } from '#/entities/area';
 
 export interface RailLink {

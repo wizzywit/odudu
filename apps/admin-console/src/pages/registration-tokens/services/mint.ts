@@ -1,4 +1,4 @@
-import { groupedNumber } from '#/shared/services/format';
+import { groupedNumber } from '#/shared/lib/services/format';
 
 export interface MintValues {
   uses: number;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Holding } from '#/shared/services/capabilities';
+import type { Holding } from '#/shared/lib/services/capabilities';
 import { keptOtherwise, onlyHolder } from '#/features/subject-capabilities/services/lastHolder';
 
 describe('the last holder of a capability', () => {

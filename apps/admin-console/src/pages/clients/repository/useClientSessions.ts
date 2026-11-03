@@ -4,10 +4,10 @@ import {
   readClientSessions,
   revokeClientGrants,
 } from '#/pages/clients/adapter/operations';
-import { useResourceList } from '#/shared/repository/useResourceList';
-import type { ResourceListState } from '#/shared/services/resourceList';
-import type { GatewayResult } from '#/shared/transport/gateway';
-import { useWrite, type Write } from '#/shared/repository/useWrite';
+import { useResourceList } from '#/shared/lib/repository/useResourceList';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
+import type { GatewayResult } from '#/shared/api/transport/gateway';
+import { useWrite, type Write } from '#/shared/lib/repository/useWrite';
 
 // Who is signed in through the client, a page at a time and counted.
 export function useClientSessionList(

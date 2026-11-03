@@ -1,3 +1,3 @@
-import { stored } from '../../../shared/adapter/storage.js';
+import { stored } from '../../../shared/api/adapter/storage.js';
 
 export const shown = stored;

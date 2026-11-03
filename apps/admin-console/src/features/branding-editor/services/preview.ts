@@ -1,5 +1,5 @@
 import type { ThemeView } from '#/features/branding-editor/types/theme';
-import type { Read } from '#/shared/services/read';
+import type { Read } from '#/shared/lib/services/read';
 import { FALLBACK_TITLE } from '#/features/branding-editor/services/fallback';
 import {
   PAGE_KIND_LABELS,

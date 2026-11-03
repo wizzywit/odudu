@@ -8,13 +8,13 @@ import {
   readRole,
 } from '#/pages/roles/adapter/roles';
 import { copySourceOf, type CopyRead } from '#/pages/roles/services/roleCopy';
-import { copyReadOf } from '#/shared/services/copy';
-import { copyKey, findKey, listKey, pickerKey } from '#/shared/repository/queryKeys';
-import { useFreshRead } from '#/shared/repository/useFreshRead';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { useWrite } from '#/shared/repository/useWrite';
-import type { GatewayResult } from '#/shared/transport/gateway';
-import { useTransport } from '#/shared/transport/useTransport';
+import { copyReadOf } from '#/shared/lib/services/copy';
+import { copyKey, findKey, listKey, pickerKey } from '#/shared/lib/repository/queryKeys';
+import { useFreshRead } from '#/shared/lib/repository/useFreshRead';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { useWrite } from '#/shared/lib/repository/useWrite';
+import type { GatewayResult } from '#/shared/api/transport/gateway';
+import { useTransport } from '#/shared/api/transport/useTransport';
 
 export interface RoleInput {
   name: string;

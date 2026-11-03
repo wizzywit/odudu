@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isTenantName } from '#/shared/services/principal';
+import { isTenantName } from '#/shared/lib/services/principal';
 import { type Principal } from '#/entities/session/types/principal';
 import {
   namedTenant,
@@ -7,7 +7,7 @@ import {
   tenantMissing,
   tenantProblem,
 } from '#/entities/session/services/tenant';
-import { TENANT_NAME_RULE_TEXT } from '#/shared/services/principal';
+import { TENANT_NAME_RULE_TEXT } from '#/shared/lib/services/principal';
 
 const grace: Principal = { tenant: 'acme', subjectId: 's1', username: 'grace' };
 

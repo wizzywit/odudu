@@ -4,8 +4,8 @@ import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
 import { useOverviewReads } from '#/pages/overview/repository/useOverviewReads';
 import type { OverviewAsks } from '#/pages/overview/types/overviewReads';
-import { createReadCache } from '#/shared/repository/readCache';
-import { TransportContext } from '#/shared/transport/useTransport';
+import { createReadCache } from '#/shared/lib/repository/readCache';
+import { TransportContext } from '#/shared/api/transport/useTransport';
 import { fakeTransport, json, pending, problem, type Answer } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
 

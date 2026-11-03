@@ -1,5 +1,5 @@
 import { isAuditInstant } from '@odudu/contracts/admin';
-import { shortened } from '#/shared/services/format';
+import { shortened } from '#/shared/lib/services/format';
 import {
   endsBefore,
   FILTER_LABELS,

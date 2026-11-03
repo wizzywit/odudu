@@ -1,8 +1,8 @@
 import type { BuiltinScopes } from '#/pages/scopes/types/builtinScopes';
-import { refusedBy, writeFailureText } from '#/shared/services/failure';
-import { andList, plural } from '#/shared/services/format';
-import type { Read } from '#/shared/services/read';
-import type { GatewayFailure } from '#/shared/services/result';
+import { refusedBy, writeFailureText } from '#/shared/lib/services/failure';
+import { andList, plural } from '#/shared/lib/services/format';
+import type { Read } from '#/shared/lib/services/read';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 
 export type RestoreOffer =
   | { kind: 'reading' }

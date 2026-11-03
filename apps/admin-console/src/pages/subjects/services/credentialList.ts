@@ -1,4 +1,4 @@
-import { formatAbsolute } from '#/shared/services/format';
+import { formatAbsolute } from '#/shared/lib/services/format';
 import { type Credential } from '#/pages/subjects/types/credential';
 
 export interface Credentials {

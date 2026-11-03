@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { usePrincipal, isSelf } from '#/entities/session';
 import { useHolderList } from '#/features/subject-capabilities/repository/useHolders';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard';
-import { STATUS_FILTER } from '#/shared/services/filters';
-import type { ResourceListState } from '#/shared/services/resourceList';
+import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
+import { STATUS_FILTER } from '#/shared/lib/services/filters';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
 import { holderFilterOptions } from '#/features/subject-capabilities/services/capabilityChoices';
 import { reachesEveryTenant } from '#/features/subject-capabilities/services/tenantReach';
 import { heldLines, type HeldLine } from '#/features/subject-capabilities/services/heldLines';

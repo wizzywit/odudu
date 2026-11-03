@@ -2,8 +2,8 @@ import { useRefusal } from '#/entities/session';
 import type { ThemeWrites } from '#/features/branding-editor/repository/useThemeWrites';
 import { DISCARD_DONE, discardFailure } from '#/features/branding-editor/services/discardDraft';
 import { writeCapability, type ThemeScope } from '#/features/branding-editor/services/themeScope';
-import { useToast } from '#/shared/repository/useToasts';
-import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { useConfirmedRemoval, type Removal } from '#/shared/lib/use-cases/useConfirmedChange';
 
 // The saved draft dropped, behind a confirmation that says what stays.
 export function useThemeDiscard(

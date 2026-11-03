@@ -2,10 +2,10 @@ import type { ThemePreviewInfo } from '#/features/branding-editor/types/theme';
 import { readPreviewInfo } from '#/features/branding-editor/adapter/themePreview';
 import { type PreviewChoice } from '#/features/branding-editor/services/preview';
 import { scopeKeyPart, type ThemeScope } from '#/features/branding-editor/services/themeScope';
-import { previewInfoKey } from '#/shared/repository/queryKeys';
-import { useRead } from '#/shared/repository/useRead';
-import type { Read } from '#/shared/services/read';
-import { useTransport } from '#/shared/transport/useTransport';
+import { previewInfoKey } from '#/shared/lib/repository/queryKeys';
+import { useRead } from '#/shared/lib/repository/useRead';
+import type { Read } from '#/shared/lib/services/read';
+import { useTransport } from '#/shared/api/transport/useTransport';
 
 // What the frame shows, asked when the frame is, and again whenever it
 // reloads.

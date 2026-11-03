@@ -39,7 +39,7 @@ describe("the console's service files", { timeout: 60_000 }, () => {
     expect([...files.keys()]).toContain(
       'apps/admin-console/src/pages/subjects/services/credentialAsk.ts',
     );
-    expect([...files.keys()]).toContain('apps/admin-console/src/shared/services/dirty.ts');
+    expect([...files.keys()]).toContain('apps/admin-console/src/shared/lib/services/dirty.ts');
     const offenders = [...files].flatMap(([file, source]) => violation(file, source) ?? []);
     expect(offenders).toEqual([]);
   });

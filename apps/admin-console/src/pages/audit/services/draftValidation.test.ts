@@ -5,7 +5,7 @@ import {
   draftProblems,
   withUnreadable,
 } from '#/pages/audit/services/draftValidation';
-import { isEmptyRecord } from '#/shared/services/fieldErrors';
+import { isEmptyRecord } from '#/shared/lib/services/fieldErrors';
 import { EMPTY_DRAFT } from '#/pages/audit/services/filterDraft';
 
 const ACTOR = '0192f7a4-5c1e-7b3a-9d2e-6f8a1b2c3d4e';

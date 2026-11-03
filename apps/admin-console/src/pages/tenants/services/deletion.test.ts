@@ -8,7 +8,7 @@ import {
   missingIfUnknown,
   settledDeletion,
 } from '#/pages/tenants/services/deletion';
-import type { GatewayFailure } from '#/shared/services/result';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 
 const refused = (status: number, type = 'about:blank', extra: object = {}): GatewayFailure => ({
   ok: false,

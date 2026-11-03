@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useAuthorityQuery } from '#/entities/session/repository/useAuthorityQuery';
-import { type AdminCapability, type Authority } from '#/shared/services/principal';
+import { type AdminCapability, type Authority } from '#/shared/lib/services/principal';
 import { tenantMissing } from '#/entities/session/services/tenant';
 import { useSignedIn } from '#/entities/session/use-cases/useSignedIn';
-import { isRefused } from '#/shared/services/failure';
-import type { GatewayResult } from '#/shared/transport/gateway';
+import { isRefused } from '#/shared/lib/services/failure';
+import type { GatewayResult } from '#/shared/api/transport/gateway';
 
 function useWhoami(tenant: string) {
   const { principal, ended } = useSignedIn();

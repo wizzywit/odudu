@@ -1,5 +1,5 @@
-import { blockedChanges, lacking, type Change } from '#/shared/services/access';
-import type { AdminCapability, Authority } from '#/shared/services/principal';
+import { blockedChanges, lacking, type Change } from '#/shared/lib/services/access';
+import type { AdminCapability, Authority } from '#/shared/lib/services/principal';
 import { administratorNeeds } from '#/entities/administrator';
 
 // A row opens a tenant's record only when whoami says reading one is allowed.

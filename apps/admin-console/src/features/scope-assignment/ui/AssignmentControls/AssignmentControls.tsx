@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Choice } from '#/shared/services/choice';
+import type { Choice } from '#/shared/lib/services/choice';
 import { Button } from '#/shared/ui/Button';
 import { InlineFields, SelectField } from '#/shared/ui/Field';
 import { Panel } from '#/shared/ui/Panel';

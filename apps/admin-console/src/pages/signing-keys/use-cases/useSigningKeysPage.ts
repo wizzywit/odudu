@@ -21,9 +21,9 @@ import {
 } from '#/pages/signing-keys/services/rows';
 import { KEYS_WORDS, keysArea, type KeysWords } from '#/pages/signing-keys/services/keysWords';
 import { algOf, stageFailure, stagedText } from '#/pages/signing-keys/services/stage';
-import { useToast } from '#/shared/repository/useToasts';
-import { useAnnouncedAction } from '#/shared/use-cases/useAnnouncedAction';
-import { useNow } from '#/shared/use-cases/useNow';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { useAnnouncedAction } from '#/shared/lib/use-cases/useAnnouncedAction';
+import { useNow } from '#/shared/lib/use-cases/useNow';
 
 // Finer than the minutes a key's readiness is measured in.
 const CLOCK_MS = 30_000;

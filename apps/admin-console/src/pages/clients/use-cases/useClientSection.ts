@@ -3,7 +3,7 @@ import { useRefusal } from '#/entities/session';
 import { useRereadClient } from '#/pages/clients/repository/useClientRecord';
 import { ceilingRefused, CLIENT_CAPABILITY, clientRefusal } from '#/pages/clients/services/refusal';
 import { clientRecord } from '#/pages/clients/services/tabs';
-import type { GatewayFailure } from '#/shared/transport/gateway';
+import type { GatewayFailure } from '#/shared/api/transport/gateway';
 
 // The client's record as a tab is given it: the ETag it was read with, and
 // whether it has since been found deleted.

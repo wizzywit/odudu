@@ -1,5 +1,5 @@
 import { useRoleDeletion } from '#/pages/roles/repository/useRoleRecord';
-import { groupKey } from '#/shared/repository/queryKeys';
+import { groupKey } from '#/shared/lib/repository/queryKeys';
 import { deletionContract } from '#/testing/deletionContract';
 
 deletionContract({

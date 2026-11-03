@@ -1,3 +1,3 @@
-import { createGateway } from '../../../shared/transport/gateway.js';
+import { createGateway } from '../../../shared/api/transport/gateway.js';
 
 export const built = createGateway;

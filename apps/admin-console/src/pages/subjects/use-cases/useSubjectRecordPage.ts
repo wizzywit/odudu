@@ -1,10 +1,10 @@
 import { useAuthority, usePrincipal, isSelf } from '#/entities/session';
 import { useSubjectRecord } from '#/pages/subjects/repository/useSubjectRecord';
-import { lacking } from '#/shared/services/access';
-import { type AdminCapability } from '#/shared/services/principal';
-import { type RecordView, tabEntries, type TabEntry } from '#/shared/services/record';
+import { lacking } from '#/shared/lib/services/access';
+import { type AdminCapability } from '#/shared/lib/services/principal';
+import { type RecordView, tabEntries, type TabEntry } from '#/shared/lib/services/record';
 import { SUBJECT_TAB_LABELS } from '#/pages/subjects/services/tabs';
-import { useRecordTabs } from '#/shared/use-cases/useRecordTabs';
+import { useRecordTabs } from '#/shared/lib/use-cases/useRecordTabs';
 import {
   type Subject,
   useHeldCapabilities,

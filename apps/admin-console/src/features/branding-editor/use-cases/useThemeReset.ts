@@ -7,8 +7,8 @@ import {
   resetWords,
   type ResetWords,
 } from '#/features/branding-editor/services/versions';
-import { useToast } from '#/shared/repository/useToasts';
-import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirmedChange';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { useConfirmedRemoval, type Removal } from '#/shared/lib/use-cases/useConfirmedChange';
 
 export interface ThemeReset {
   removal: Removal;

@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import type { Conflict } from '#/shared/services/conflict';
+import type { Conflict } from '#/shared/lib/services/conflict';
 import { ConflictPanel } from '#/shared/ui/ConflictPanel/ConflictPanel';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 

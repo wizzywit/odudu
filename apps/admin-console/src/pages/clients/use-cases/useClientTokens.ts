@@ -48,10 +48,10 @@ import {
   type ClientRecordRead,
 } from '#/pages/clients/use-cases/useClientSection';
 import type { ClientTokenTtlField } from '@odudu/contracts/admin';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { describeIds, namesOrNone, spaced } from '#/shared/services/format';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { describeIds, namesOrNone, spaced } from '#/shared/lib/services/format';
 import type { ChecklistOption } from '#/shared/ui/ChecklistField';
-import type { Choice } from '#/shared/services/choice';
+import type { Choice } from '#/shared/lib/services/choice';
 
 // A duration the client may leave to a default, as the tab shows it.
 export interface SecondsFieldView {

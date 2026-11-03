@@ -1,7 +1,7 @@
 import type { AuditEvent } from '#/entities/audit-event/types/auditEvent';
-import { shortened } from '#/shared/services/format';
-import { isRecord } from '#/shared/services/json';
-import { formatInZone, localZone } from '#/shared/services/zones';
+import { shortened } from '#/shared/lib/services/format';
+import { isRecord } from '#/shared/lib/services/json';
+import { formatInZone, localZone } from '#/shared/lib/services/zones';
 
 // What the dialog that opens one row is called.
 export const AUDIT_EVENT_TITLE = 'Audit event';

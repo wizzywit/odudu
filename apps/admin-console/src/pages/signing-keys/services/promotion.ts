@@ -1,5 +1,5 @@
 import type { Promotion } from '#/entities/signing-key';
-import { formatAbsolute } from '#/shared/services/format';
+import { formatAbsolute } from '#/shared/lib/services/format';
 
 export function promotionLabel(promotion: Promotion): string {
   switch (promotion.kind) {

@@ -1,5 +1,5 @@
 import type { ActivityWords } from '#/features/record-activity/services/activityWords';
-import type { ResourceListState } from '#/shared/services/resourceList';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
 import { auditColumns, AuditTable, type AuditEvent } from '#/entities/audit-event';
 import { EmptyState } from '#/shared/ui/EmptyState';
 import { ListGate } from '#/shared/ui/ListGate';

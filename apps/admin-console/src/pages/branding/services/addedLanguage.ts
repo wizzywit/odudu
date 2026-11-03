@@ -1,5 +1,5 @@
 import { LOCALISED_TEXT_ENTRIES_MAX } from '@odudu/contracts';
-import { localeProblem } from '#/shared/services/locales';
+import { localeProblem } from '#/shared/lib/services/locales';
 
 export const ADD_LABEL = 'Add a language';
 

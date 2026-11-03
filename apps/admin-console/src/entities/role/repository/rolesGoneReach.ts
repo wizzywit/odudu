@@ -1,11 +1,11 @@
-import type { ChangeReach } from '#/shared/repository/useAfterChange';
+import type { ChangeReach } from '#/shared/lib/repository/useAfterChange';
 import {
   GROUP_KIND,
   heldCapabilitiesKey,
   holdersKey,
   listKey,
   pickerKey,
-} from '#/shared/repository/queryKeys';
+} from '#/shared/lib/repository/queryKeys';
 
 // What a role going away, or its edges changing, alters in the console: the
 // group reads, the role and group records that name it, the lists, the role

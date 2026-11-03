@@ -1,6 +1,6 @@
-import { andList } from '#/shared/services/format';
-import { TENANT_ADMIN } from '#/shared/services/capabilities';
-import { requiredProblem } from '#/shared/services/fieldErrors';
+import { andList } from '#/shared/lib/services/format';
+import { TENANT_ADMIN } from '#/shared/lib/services/capabilities';
+import { requiredProblem } from '#/shared/lib/services/fieldErrors';
 import { holdingsProblem } from '#/entities/administrator';
 
 // further one to a tenant that has some.

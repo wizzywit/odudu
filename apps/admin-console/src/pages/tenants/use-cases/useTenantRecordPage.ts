@@ -7,13 +7,13 @@ import {
   TENANT_TABS,
   type TenantTab,
 } from '#/pages/tenants/services/tenantRecordTabs';
-import type { Crumb } from '#/shared/services/breadcrumb';
+import type { Crumb } from '#/shared/lib/services/breadcrumb';
 import { tenantsTrail } from '#/pages/tenants/services/systemTrail';
-import { tenantPage } from '#/shared/services/address';
-import { useDirtySections } from '#/shared/repository/useDirtySections';
-import { useRecordTab } from '#/shared/repository/useRecordTab';
-import { SYSTEM_TENANT } from '#/shared/services/principal';
-import { tabNamed, type RecordView } from '#/shared/services/record';
+import { tenantPage } from '#/shared/lib/services/address';
+import { useDirtySections } from '#/shared/lib/repository/useDirtySections';
+import { useRecordTab } from '#/shared/lib/repository/useRecordTab';
+import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
+import { tabNamed, type RecordView } from '#/shared/lib/services/record';
 
 export interface TenantRecordPage {
   record: RecordView;

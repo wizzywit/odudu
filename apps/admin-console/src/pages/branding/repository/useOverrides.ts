@@ -7,13 +7,13 @@ import {
   readOverridePage,
 } from '#/pages/branding/adapter/overrides';
 import { PAGE_SIZE } from '#/pages/branding/services/overrideList';
-import { listKey, overrideReadKey, themeWriteKey } from '#/shared/repository/queryKeys';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { useListPages } from '#/shared/repository/useResourceList';
-import { useFreshRead } from '#/shared/repository/useFreshRead';
-import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
-import { useTransport } from '#/shared/transport/useTransport';
-import type { GatewayResult } from '#/shared/transport/gateway';
+import { listKey, overrideReadKey, themeWriteKey } from '#/shared/lib/repository/queryKeys';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { useListPages } from '#/shared/lib/repository/useResourceList';
+import { useFreshRead } from '#/shared/lib/repository/useFreshRead';
+import { useGatewayWrite, type Write } from '#/shared/lib/repository/useWrite';
+import { useTransport } from '#/shared/api/transport/useTransport';
+import type { GatewayResult } from '#/shared/api/transport/gateway';
 
 const RESOURCE = 'message-overrides';
 

@@ -7,7 +7,7 @@ import {
   VisuallyHidden,
   type Key,
 } from 'react-aria-components';
-import { useRevealSelected } from '#/shared/use-cases/useRevealSelected';
+import { useRevealSelected } from '#/shared/lib/use-cases/useRevealSelected';
 import styles from '#/shared/ui/Tabs/Tabs.module.css';
 
 export interface TabItem {

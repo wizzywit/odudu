@@ -1,4 +1,4 @@
-import type { Choice } from '#/shared/services/choice';
+import type { Choice } from '#/shared/lib/services/choice';
 
 export const ASSIGNMENTS: readonly Choice[] = [
   { id: 'default', label: 'Default' },

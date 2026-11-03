@@ -7,11 +7,11 @@ import {
   type Asked,
   type Loss,
   type RefusalProblem,
-} from '#/shared/services/capabilities';
-import { type AdminCapability } from '#/shared/services/principal';
+} from '#/shared/lib/services/capabilities';
+import { type AdminCapability } from '#/shared/lib/services/principal';
 import { isBuiltin } from '#/pages/roles/services/roleDeletion';
-import { failureTextWith } from '#/shared/services/failure';
-import { type GatewayFailure } from '#/shared/services/result';
+import { failureTextWith } from '#/shared/lib/services/failure';
+import { type GatewayFailure } from '#/shared/lib/services/result';
 
 export interface Child {
   role: Role;

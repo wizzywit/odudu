@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useCreateGroup } from '#/pages/groups/repository/useCreateGroup';
-import { useGo } from '#/shared/repository/useGo';
+import { useGo } from '#/shared/lib/repository/useGo';
 import { useGroupNamed } from '#/pages/groups/repository/useGroupRecord';
 import { type Group, groupHref, groupsHref, useGroupPicker } from '#/entities/group';
 import { parentUnavailable } from '#/pages/groups/services/groupMove';
@@ -11,14 +11,14 @@ import {
   newGroupPlace,
   NAME_TAKEN,
 } from '#/pages/groups/services/groupCreation';
-import { useToast } from '#/shared/repository/useToasts';
-import { useUrlSearch } from '#/shared/repository/useUrlSearch';
-import { problemAt, requiredProblem } from '#/shared/services/fieldErrors';
-import { createdText, lookupText } from '#/shared/services/failure';
-import { firstChosen, type PickerState } from '#/shared/services/picker';
-import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/services/labels';
-import { useCreationFlow } from '#/shared/use-cases/useCreationFlow';
-import { loadedData } from '#/shared/services/read';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { useUrlSearch } from '#/shared/lib/repository/useUrlSearch';
+import { problemAt, requiredProblem } from '#/shared/lib/services/fieldErrors';
+import { createdText, lookupText } from '#/shared/lib/services/failure';
+import { firstChosen, type PickerState } from '#/shared/lib/services/picker';
+import { DESCRIPTION_MAX, DESCRIPTION_RULE } from '#/shared/lib/services/labels';
+import { useCreationFlow } from '#/shared/lib/use-cases/useCreationFlow';
+import { loadedData } from '#/shared/lib/services/read';
 
 type Field = 'name' | 'description' | 'parent_id';
 type Errors = Partial<Record<Field, string>>;

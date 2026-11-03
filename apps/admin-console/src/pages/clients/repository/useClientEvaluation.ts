@@ -6,9 +6,9 @@ import {
   type Asked,
   type Evaluation,
 } from '#/pages/clients/services/evaluate';
-import { evaluateKey } from '#/shared/repository/queryKeys';
-import { freshness } from '#/shared/services/read';
-import { useTransport } from '#/shared/transport/useTransport';
+import { evaluateKey } from '#/shared/lib/repository/queryKeys';
+import { freshness } from '#/shared/lib/services/read';
+import { useTransport } from '#/shared/api/transport/useTransport';
 
 // A read, made when asked for and again only when the question changes.
 export function useEvaluation(tenant: string, clientDbId: string, asked: Asked | null): Evaluation {

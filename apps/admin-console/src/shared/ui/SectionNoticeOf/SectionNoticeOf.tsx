@@ -1,5 +1,5 @@
-import type { Conflict } from '#/shared/services/conflict';
-import type { ConflictSource, SaveStatus } from '#/shared/services/sectionSave';
+import type { Conflict } from '#/shared/lib/services/conflict';
+import type { ConflictSource, SaveStatus } from '#/shared/lib/services/sectionSave';
 import { SectionNotice } from '#/shared/ui/SectionNotice';
 
 // A section's save, as its notice reads it: `useSectionSave`'s answer to

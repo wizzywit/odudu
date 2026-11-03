@@ -5,9 +5,9 @@ import { useScopeRolesRecord, useScopeSaves } from '#/pages/scopes/repository/us
 import { INCLUDE_ALL_POINTER, NO_ROLES_MAPPED } from '#/pages/scopes/services/scopeRoles';
 import { scopeRolesRecord } from '#/pages/scopes/services/tabs';
 import { useRoleMapping, type RoleMappingModel } from '#/features/role-mapping';
-import type { RecordState } from '#/shared/repository/useRecord';
-import { roleReachUnavailable } from '#/shared/services/capabilities';
-import { callerCapabilities } from '#/shared/services/access';
+import type { RecordState } from '#/shared/lib/repository/useRecord';
+import { roleReachUnavailable } from '#/shared/lib/services/capabilities';
+import { callerCapabilities } from '#/shared/lib/services/access';
 
 export function useScopeRolesRead(tenant: string, id: string): RecordState<ScopeRoleList> {
   return useScopeRolesRecord(tenant, id);

@@ -1,5 +1,5 @@
-import { type RemovalOutcome, refusedBy, removalOutcome } from '#/shared/services/failure';
-import type { GatewayResult } from '#/shared/services/result';
+import { type RemovalOutcome, refusedBy, removalOutcome } from '#/shared/lib/services/failure';
+import type { GatewayResult } from '#/shared/lib/services/result';
 
 export const REMOVED_TEXT = 'The tenant’s own relay was removed.';
 

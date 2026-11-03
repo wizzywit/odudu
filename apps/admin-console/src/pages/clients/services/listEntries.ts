@@ -1,6 +1,6 @@
 export { CLIENT_LIST_LIMIT } from '@odudu/contracts/admin';
 
-import { limitReading } from '#/shared/services/format';
+import { limitReading } from '#/shared/lib/services/format';
 
 // A row added and left empty is no entry, and one padded with spaces is
 // the entry without them: what is counted and what is sent.

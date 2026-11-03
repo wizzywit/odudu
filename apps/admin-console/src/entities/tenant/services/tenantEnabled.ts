@@ -1,4 +1,4 @@
-import { SYSTEM_TENANT } from '#/shared/services/principal';
+import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
 
 const SYSTEM_FIXED =
   'system cannot be disabled: it is the tenant every cross-tenant administrator signs in to.';

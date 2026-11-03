@@ -1,6 +1,6 @@
-import { type RemovalOutcome, refusedBy, removalOutcome } from '#/shared/services/failure';
-import { counted } from '#/shared/services/format';
-import type { GatewayResult } from '#/shared/services/result';
+import { type RemovalOutcome, refusedBy, removalOutcome } from '#/shared/lib/services/failure';
+import { counted } from '#/shared/lib/services/format';
+import type { GatewayResult } from '#/shared/lib/services/result';
 
 export const REVOKED_TEXT = 'The token was revoked.';
 

@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
-import { createReadCache } from '#/shared/repository/readCache';
+import { createReadCache } from '#/shared/lib/repository/readCache';
 import { useRecordActivity } from '#/features/record-activity/use-cases/useRecordActivity';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 import { mountAtRoute } from '#/testing/mountAtRoute';

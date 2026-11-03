@@ -3,12 +3,12 @@ import {
   endTenantSessions,
   readTenantSessionPage,
 } from '#/pages/tenant-sessions/adapter/tenantSessions';
-import { countKey, listKey } from '#/shared/repository/queryKeys';
-import { useInvalidate } from '#/shared/repository/useInvalidate';
-import { useResourceList } from '#/shared/repository/useResourceList';
-import { useWrite, type Write } from '#/shared/repository/useWrite';
-import type { ResourceListState } from '#/shared/services/resourceList';
-import type { GatewayResult } from '#/shared/services/result';
+import { countKey, listKey } from '#/shared/lib/repository/queryKeys';
+import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
+import { useResourceList } from '#/shared/lib/repository/useResourceList';
+import { useWrite, type Write } from '#/shared/lib/repository/useWrite';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
+import type { GatewayResult } from '#/shared/lib/services/result';
 
 export function useTenantSessionList(tenant: string): ResourceListState<TenantSession> {
   return useResourceList({

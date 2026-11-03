@@ -1,5 +1,5 @@
 import { logOut } from '#/entities/session/adapter/logout';
-import { useTransport } from '#/shared/transport/useTransport';
+import { useTransport } from '#/shared/api/transport/useTransport';
 
 // Ends the gateway's session whatever it answers: the caller leaves the
 // console next in any case.

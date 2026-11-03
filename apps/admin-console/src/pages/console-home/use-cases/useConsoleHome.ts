@@ -15,10 +15,10 @@ import {
   useSignedIn,
   useSignIn,
 } from '#/entities/session';
-import { useGo } from '#/shared/repository/useGo';
-import { useToast } from '#/shared/repository/useToasts';
-import { useUrlSearch } from '#/shared/repository/useUrlSearch';
-import { tenantPage } from '#/shared/services/address';
+import { useGo } from '#/shared/lib/repository/useGo';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { useUrlSearch } from '#/shared/lib/repository/useUrlSearch';
+import { tenantPage } from '#/shared/lib/services/address';
 
 export type Home =
   | { kind: 'leaving'; tenant: string | null }

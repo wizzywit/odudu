@@ -1,9 +1,9 @@
 import { MAX_STYLESHEET_BYTES, MAX_TEMPLATE_BYTES } from '@odudu/contracts';
 import type { FieldError } from '@odudu/contracts/admin';
-import { byteSizeReading, utf8Length, type SizeReading } from '#/shared/services/format';
+import { byteSizeReading, utf8Length, type SizeReading } from '#/shared/lib/services/format';
 import { SELECTORS_LABEL } from '#/features/branding-editor/services/selectors';
 import { detailed, problemsFor } from '#/features/branding-editor/services/problems';
-import type { SectionFields } from '#/shared/services/sectionSave';
+import type { SectionFields } from '#/shared/lib/services/sectionSave';
 import type { StylesheetValues } from '#/features/branding-editor/services/stylesheetValues';
 import { describeTemplate } from '#/features/branding-editor/services/templateParts';
 

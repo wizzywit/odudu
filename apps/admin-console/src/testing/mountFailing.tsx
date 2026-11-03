@@ -9,8 +9,8 @@ import {
 } from '@tanstack/react-router';
 import type { ReactElement, ReactNode } from 'react';
 import { RouteFailure, ShellFailure } from '#/widgets/failure';
-import { createReadCache } from '#/shared/repository/readCache';
-import { TransportContext } from '#/shared/transport/useTransport';
+import { createReadCache } from '#/shared/lib/repository/readCache';
+import { TransportContext } from '#/shared/api/transport/useTransport';
 import { fakeTransport } from '#/testing/fakeTransport';
 
 function withProviders(routed: ReactElement): ReactElement {

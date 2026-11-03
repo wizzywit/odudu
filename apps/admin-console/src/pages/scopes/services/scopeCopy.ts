@@ -1,11 +1,11 @@
 import type { Scope } from '#/entities/scope';
 import type { ScopeRoleList } from '#/pages/scopes/types/scopeRoles';
-import { withSearch } from '#/shared/services/address';
-import { roleReachUnavailable } from '#/shared/services/capabilities';
-import type { LeftOut, PartialCopy } from '#/shared/services/copy';
-import { andList, plural } from '#/shared/services/format';
-import type { AdminCapability } from '#/shared/services/principal';
-import type { GatewayResult } from '#/shared/services/result';
+import { withSearch } from '#/shared/lib/services/address';
+import { roleReachUnavailable } from '#/shared/lib/services/capabilities';
+import type { LeftOut, PartialCopy } from '#/shared/lib/services/copy';
+import { andList, plural } from '#/shared/lib/services/format';
+import type { AdminCapability } from '#/shared/lib/services/principal';
+import type { GatewayResult } from '#/shared/lib/services/result';
 
 type MappedRole = ScopeRoleList['items'][number];
 

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { SignedInContext } from '#/entities/session';
 import { useNewClient } from '#/pages/clients/use-cases/useNewClient';
-import { useToasts } from '#/shared/repository/useToasts';
+import { useToasts } from '#/shared/lib/repository/useToasts';
 import { BILLING, C } from '#/testing/clientsFixtures';
 import { json, problem, type Answer } from '#/testing/fakeTransport';
 import { hookHarness } from '#/testing/hookHarness';
@@ -12,7 +12,7 @@ import { ACME_ADMIN } from '#/testing/tenantPaths';
 
 const go = vi.fn<(href: string, options?: { replace?: boolean }) => void>();
 
-vi.mock('#/shared/repository/useGo', () => ({ useGo: () => go }));
+vi.mock('#/shared/lib/repository/useGo', () => ({ useGo: () => go }));
 
 const GRACE = { tenant: 'acme', subjectId: 's1', username: 'grace' };
 const SECRET = 'cs_only-shown-once';

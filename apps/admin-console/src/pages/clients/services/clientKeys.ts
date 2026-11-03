@@ -1,6 +1,6 @@
 import type { Client } from '#/entities/client';
-import type { Choice } from '#/shared/services/choice';
-import { isRecord } from '#/shared/services/json';
+import type { Choice } from '#/shared/lib/services/choice';
+import { isRecord } from '#/shared/lib/services/json';
 
 export type KeySource = 'none' | 'uri' | 'inline';
 

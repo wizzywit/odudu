@@ -8,8 +8,8 @@ import {
   type Lockout as WireLockout,
   type Profile,
 } from '@odudu/contracts/admin';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
-import { adminCall, mapResult, nothing } from '#/shared/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
+import { adminCall, mapResult, nothing } from '#/shared/api/adapter/route';
 import { type CredentialChange } from '#/pages/subjects/services/credentialChange';
 import type { Credential } from '#/pages/subjects/types/credential';
 import type { Lockout } from '#/pages/subjects/types/lockout';

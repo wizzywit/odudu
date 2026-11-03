@@ -1,7 +1,7 @@
 import type { SetRolesResponse } from '@odudu/contracts/admin';
 import { useAuthority, useRefusal, useRereadAuthority } from '#/entities/session';
-import type { RecordState } from '#/shared/repository/useRecord';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
+import type { RecordState } from '#/shared/lib/repository/useRecord';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
 import {
   holdingsIn,
   type Holding,
@@ -10,10 +10,10 @@ import {
   removalConfirmation,
   type Confirmation,
   administratorCapability,
-} from '#/shared/services/capabilities';
-import { inOrderOf, removedFrom } from '#/shared/services/ids';
-import type { AdminCapability } from '#/shared/services/principal';
-import { useSaveConfirmation } from '#/shared/use-cases/useSaveConfirmation';
+} from '#/shared/lib/services/capabilities';
+import { inOrderOf, removedFrom } from '#/shared/lib/services/ids';
+import type { AdminCapability } from '#/shared/lib/services/principal';
+import { useSaveConfirmation } from '#/shared/lib/use-cases/useSaveConfirmation';
 import {
   adminRolesBlocked,
   rolesFailure,
@@ -29,7 +29,7 @@ import {
   type HeldElsewhere,
 } from '#/features/subject-capabilities/services/heldElsewhere';
 import { keptOtherwise, onlyHolder } from '#/features/subject-capabilities/services/lastHolder';
-import { offersWrites } from '#/shared/services/access';
+import { offersWrites } from '#/shared/lib/services/access';
 import {
   type Subject,
   useAdminRoleIds,

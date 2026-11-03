@@ -9,8 +9,8 @@ import {
   readTypedNumber,
   splitPhone,
   typingInternational,
-} from '#/shared/services/phone';
-import { countryOptions } from '#/shared/services/regions';
+} from '#/shared/lib/services/phone';
+import { countryOptions } from '#/shared/lib/services/regions';
 import { ComboBoxField, type ComboOption } from '#/shared/ui/Field/ComboBoxField';
 import {
   FieldCluster,

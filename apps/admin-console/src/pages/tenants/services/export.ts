@@ -1,9 +1,9 @@
-import { utcDay } from '#/shared/services/dateTime';
-import { utf8Length } from '#/shared/services/format';
-import { failureTextWith } from '#/shared/services/failure';
-import { lacking } from '#/shared/services/access';
-import { type AdminCapability, type Authority } from '#/shared/services/principal';
-import type { GatewayFailure } from '#/shared/services/result';
+import { utcDay } from '#/shared/lib/services/dateTime';
+import { utf8Length } from '#/shared/lib/services/format';
+import { failureTextWith } from '#/shared/lib/services/failure';
+import { lacking } from '#/shared/lib/services/access';
+import { type AdminCapability, type Authority } from '#/shared/lib/services/principal';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 import { omittedOf } from '#/pages/tenants/services/document';
 
 // The UTC day, so one export taken twice in an evening is named the same

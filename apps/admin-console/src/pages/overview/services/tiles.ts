@@ -1,6 +1,6 @@
 import type { CountResponse } from '@odudu/contracts/admin';
-import { readable } from '#/shared/services/access';
-import type { Authority } from '#/shared/services/principal';
+import { readable } from '#/shared/lib/services/access';
+import type { Authority } from '#/shared/lib/services/principal';
 import { countAgainLabel, limitText } from '#/pages/overview/services/panelText';
 import { gate } from '#/pages/overview/services/readGate';
 import { readyData } from '#/pages/overview/services/readState';

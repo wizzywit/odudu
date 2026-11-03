@@ -11,8 +11,8 @@ import {
   Text,
   type Key,
 } from 'react-aria-components';
-import { shortened } from '#/shared/services/format';
-import { narrowOptions, OPTION_DETAIL_LIMIT } from '#/shared/services/options';
+import { shortened } from '#/shared/lib/services/format';
+import { narrowOptions, OPTION_DETAIL_LIMIT } from '#/shared/lib/services/options';
 import {
   Description,
   FieldClusterIds,

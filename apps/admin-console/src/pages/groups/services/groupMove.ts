@@ -4,9 +4,9 @@ import {
   blockedByDefault,
   type RefusalProblem,
   writeRefusal,
-} from '#/shared/services/capabilities';
-import { andList } from '#/shared/services/format';
-import { type AdminCapability } from '#/shared/services/principal';
+} from '#/shared/lib/services/capabilities';
+import { andList } from '#/shared/lib/services/format';
+import { type AdminCapability } from '#/shared/lib/services/principal';
 import { within } from '#/pages/groups/services/groupPath';
 
 // A parent that is the group or sits beneath it would make a loop.

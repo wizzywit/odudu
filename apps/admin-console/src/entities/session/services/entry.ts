@@ -1,4 +1,4 @@
-import { SYSTEM_TENANT } from '#/shared/services/principal';
+import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
 import { type Principal } from '#/entities/session/types/principal';
 
 // A tenant administrator opening another tenant's console is asked first:

@@ -1,13 +1,13 @@
 import type { Tenant } from '#/pages/tenants/types/tenant';
-import { findKey } from '#/shared/repository/queryKeys';
+import { findKey } from '#/shared/lib/repository/queryKeys';
 import { createTenant, findTenant } from '#/pages/tenants/adapter/tenants';
 import { createSubject, findSubject, issuePassword, type Subject } from '#/entities/subject';
 import { defect, grantHoldings, refusedAt, type Refused } from '#/features/grant-administrator';
-import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce';
-import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway';
-import { useFreshRead } from '#/shared/repository/useFreshRead';
-import { useWrite } from '#/shared/repository/useWrite';
-import { useTransport } from '#/shared/transport/useTransport';
+import { useSecretOnce, type SecretOnce } from '#/shared/lib/repository/useSecretOnce';
+import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/api/transport/gateway';
+import { useFreshRead } from '#/shared/lib/repository/useFreshRead';
+import { useWrite } from '#/shared/lib/repository/useWrite';
+import { useTransport } from '#/shared/api/transport/useTransport';
 import {
   administratorCalls,
   subjectlessRequest,

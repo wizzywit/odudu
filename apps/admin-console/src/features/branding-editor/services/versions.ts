@@ -1,7 +1,7 @@
 import type { ThemeVersions } from '#/features/branding-editor/types/themeVersion';
 import { THEME_VERSIONS_LIMIT } from '@odudu/contracts/admin';
-import { formatAbsolute } from '#/shared/services/format';
-import type { Read } from '#/shared/services/read';
+import { formatAbsolute } from '#/shared/lib/services/format';
+import type { Read } from '#/shared/lib/services/read';
 import type { ThemeScope } from '#/features/branding-editor/services/themeScope';
 
 type Version = ThemeVersions['items'][number];

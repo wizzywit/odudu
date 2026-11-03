@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { GatewayResult } from '#/shared/services/result';
+import type { GatewayResult } from '#/shared/lib/services/result';
 import { mapOverviewRead, overviewOutcome } from '#/pages/overview/services/readState';
 import type { OverviewRead } from '#/pages/overview/types/overviewReads';
 import { retry, FAILED, ready } from '#/testing/overviewFixtures';

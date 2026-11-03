@@ -1,6 +1,6 @@
 import { VisuallyHidden } from 'react-aria-components';
-import type { Conflict } from '#/shared/services/conflict';
-import type { ConflictSource, SaveStatus } from '#/shared/services/sectionSave';
+import type { Conflict } from '#/shared/lib/services/conflict';
+import type { ConflictSource, SaveStatus } from '#/shared/lib/services/sectionSave';
 import { Button } from '#/shared/ui/Button';
 import { ConflictPanel } from '#/shared/ui/ConflictPanel';
 import styles from '#/shared/ui/SectionNotice/SectionNotice.module.css';

@@ -1,8 +1,17 @@
 import { use, useState } from 'react';
 import { useLocale } from 'react-aria-components';
-import { localeName, localeOptions, localeProblem, typingLocale } from '#/shared/services/locales';
-import { countryOptions, englishCountryName, regionOfCountryName } from '#/shared/services/regions';
-import { offsetOf, timeZoneOptions, zoneProblem } from '#/shared/services/zones';
+import {
+  localeName,
+  localeOptions,
+  localeProblem,
+  typingLocale,
+} from '#/shared/lib/services/locales';
+import {
+  countryOptions,
+  englishCountryName,
+  regionOfCountryName,
+} from '#/shared/lib/services/regions';
+import { offsetOf, timeZoneOptions, zoneProblem } from '#/shared/lib/services/zones';
 import { ComboBoxField } from '#/shared/ui/Field/ComboBoxField';
 import {
   FieldsReadOnly,

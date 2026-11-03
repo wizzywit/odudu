@@ -3,8 +3,8 @@ import {
   activityWords,
   type ActivityWords,
 } from '#/features/record-activity/services/activityWords';
-import { useResourceList } from '#/shared/repository/useResourceList';
-import type { ResourceListState } from '#/shared/services/resourceList';
+import { useResourceList } from '#/shared/lib/repository/useResourceList';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
 
 // A record's Activity is the audit trail with its resource fixed; the API
 // refuses `resource_id` without `resource_type`, so both are required here.

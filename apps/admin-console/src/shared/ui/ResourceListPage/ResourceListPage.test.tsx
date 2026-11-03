@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import type { ResourceListState } from '#/shared/services/resourceList';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
 import { Button } from '#/shared/ui/Button';
 import type { Column } from '#/shared/ui/DataTable';
 import { ResourceListPage } from '#/shared/ui/ResourceListPage/ResourceListPage';

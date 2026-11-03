@@ -7,8 +7,8 @@ import {
   type MailRow,
 } from '#/pages/email/services/mailDelivery';
 import { MAIL_WORDS, mailTableLabel, type MailWords } from '#/pages/email/services/mailWording';
-import { ANY_STATUS, statusFilter } from '#/shared/services/filters';
-import type { ListStatus } from '#/shared/services/resourceList';
+import { ANY_STATUS, statusFilter } from '#/shared/lib/services/filters';
+import type { ListStatus } from '#/shared/lib/services/resourceList';
 
 export interface MailDelivery {
   status: string;

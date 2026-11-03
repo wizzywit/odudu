@@ -1,5 +1,5 @@
-import { CONSOLE_ROOT, tenantPage } from '#/shared/services/address';
-import { isTenantName } from '#/shared/services/principal';
+import { CONSOLE_ROOT, tenantPage } from '#/shared/lib/services/address';
+import { isTenantName } from '#/shared/lib/services/principal';
 import { type Area } from '#/entities/area/services/areas';
 
 export function areaHref(tenant: string, area: Area): string {

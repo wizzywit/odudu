@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { authorityOf, refusedUnknownOf } from '#/entities/session/services/whoami';
-import type { Authority } from '#/shared/services/principal';
-import type { GatewayResult } from '#/shared/services/result';
+import type { Authority } from '#/shared/lib/services/principal';
+import type { GatewayResult } from '#/shared/lib/services/result';
 
 const granted: Authority = { capabilities: ['manage-users'], crossTenant: false };
 const answered: GatewayResult<Authority> = {

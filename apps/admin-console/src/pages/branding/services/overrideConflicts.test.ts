@@ -26,7 +26,7 @@ import {
 } from '#/pages/branding/services/overrideForm';
 import { overrideFailure, afterSave } from '#/pages/branding/services/overrideSaving';
 import { removeOutcome, STALE_REMOVAL } from '#/pages/branding/services/overrideRemoval';
-import type { GatewayFailure } from '#/shared/services/result';
+import type { GatewayFailure } from '#/shared/lib/services/result';
 
 const refused = (status: number, type: string): GatewayFailure => ({
   ok: false,

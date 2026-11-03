@@ -1,7 +1,7 @@
 import type { FieldError } from '@odudu/contracts/admin';
-import type { Problem } from '#/shared/services/result';
-import { problemSubtype } from '#/shared/services/failure';
-import { bytesText, counted } from '#/shared/services/format';
+import type { Problem } from '#/shared/lib/services/result';
+import { problemSubtype } from '#/shared/lib/services/failure';
+import { bytesText, counted } from '#/shared/lib/services/format';
 import {
   SLOT_RULES,
   TENANT_IMAGE_CAP,

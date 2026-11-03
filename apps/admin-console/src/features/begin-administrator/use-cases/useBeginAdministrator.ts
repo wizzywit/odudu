@@ -1,6 +1,6 @@
 import { administratorStepHref, beginOrResumeAdministrator } from '#/entities/creation-draft';
 import { draftOwner, usePrincipal } from '#/entities/session';
-import { useGo } from '#/shared/repository/useGo';
+import { useGo } from '#/shared/lib/repository/useGo';
 
 export interface BeginAdministrator {
   start: () => void;

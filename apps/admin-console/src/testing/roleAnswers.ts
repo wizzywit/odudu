@@ -1,6 +1,6 @@
 import { ADMIN_CAPABILITIES, type EffectiveRoleAssignment } from '@odudu/contracts/admin';
-import { ADMIN_CLIENT_KEY } from '#/shared/services/capabilities';
-import type { AdminCapability } from '#/shared/services/principal';
+import { ADMIN_CLIENT_KEY } from '#/shared/lib/services/capabilities';
+import type { AdminCapability } from '#/shared/lib/services/principal';
 
 export const EVERY_TENANT_CAPABILITY: AdminCapability[] = [
   'view-users',

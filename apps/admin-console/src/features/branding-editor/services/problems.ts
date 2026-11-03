@@ -1,6 +1,6 @@
 import type { FieldError } from '@odudu/contracts/admin';
-import type { LineIssue } from '#/shared/services/code';
-import { moreCount, shown } from '#/shared/services/format';
+import type { LineIssue } from '#/shared/lib/services/code';
+import { moreCount, shown } from '#/shared/lib/services/format';
 
 // The most refusals marked or listed at once; the server stops at 100.
 export const PROBLEMS_SHOWN = 20;

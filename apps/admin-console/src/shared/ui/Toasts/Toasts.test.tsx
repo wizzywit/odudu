@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { Toast } from '#/shared/services/toast';
+import type { Toast } from '#/shared/lib/services/toast';
 import { Toasts } from '#/shared/ui/Toasts/Toasts';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 

@@ -4,8 +4,8 @@ import {
   useSubjectSessions,
   type SubjectSessions,
 } from '#/pages/subjects/use-cases/useSubjectSessions';
-import type { AdminCapability } from '#/shared/services/principal';
-import type { ResourceListState } from '#/shared/services/resourceList';
+import type { AdminCapability } from '#/shared/lib/services/principal';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
 import { Button } from '#/shared/ui/Button';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';

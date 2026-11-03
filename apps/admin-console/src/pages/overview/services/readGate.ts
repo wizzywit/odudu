@@ -1,7 +1,7 @@
 import type { AuditEvent } from '#/entities/audit-event';
-import { holds } from '#/shared/services/access';
-import type { AdminCapability, Authority } from '#/shared/services/principal';
-import type { GatewayResult } from '#/shared/services/result';
+import { holds } from '#/shared/lib/services/access';
+import type { AdminCapability, Authority } from '#/shared/lib/services/principal';
+import type { GatewayResult } from '#/shared/lib/services/result';
 import type {
   Gated,
   OverviewAsks,

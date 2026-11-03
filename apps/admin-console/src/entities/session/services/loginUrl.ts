@@ -1,6 +1,6 @@
 import { type SignOutAnswer } from '#/entities/session/services/boot';
 import { returnPath } from '#/entities/session/services/returnPath';
-import { CONSOLE_ROOT } from '#/shared/services/address';
+import { CONSOLE_ROOT } from '#/shared/lib/services/address';
 
 export function loginUrl(tenant: string, returnTo: string): string {
   const query = new URLSearchParams({ tenant, return_to: returnPath(returnTo) });

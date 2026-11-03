@@ -8,9 +8,9 @@ import {
   useRefreshCredentials,
   useLockout,
 } from '#/pages/subjects/repository/useCredentials';
-import { useToast } from '#/shared/repository/useToasts';
-import type { NamedDialog } from '#/shared/services/dialog';
-import type { Read } from '#/shared/services/read';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import type { NamedDialog } from '#/shared/lib/services/dialog';
+import type { Read } from '#/shared/lib/services/read';
 import {
   askingAgainst,
   credentialDialogOf,

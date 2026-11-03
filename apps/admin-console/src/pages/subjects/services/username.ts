@@ -1,7 +1,7 @@
 import { USERNAME_RULE } from '@odudu/contracts/admin';
-import { requiredProblem } from '#/shared/services/fieldErrors';
-import { sentence } from '#/shared/services/format';
-import type { Loaded } from '#/shared/services/read';
+import { requiredProblem } from '#/shared/lib/services/fieldErrors';
+import { sentence } from '#/shared/lib/services/format';
+import type { Loaded } from '#/shared/lib/services/read';
 
 export const USERNAME_RULE_TEXT = sentence(USERNAME_RULE);
 

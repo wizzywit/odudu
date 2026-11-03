@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { Platform } from '#/shared/services/platform';
+import type { Platform } from '#/shared/lib/services/platform';
 import css from '#/shared/ui/KeyHint/KeyHint.module.css?raw';
 import { KeyHint, PlatformContext } from '#/shared/ui/KeyHint/KeyHint';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';

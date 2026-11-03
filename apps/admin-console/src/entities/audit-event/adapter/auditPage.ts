@@ -1,6 +1,6 @@
 import { listAuditResponseSchema } from '@odudu/contracts/admin';
-import { listReader } from '#/shared/adapter/route';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway';
+import { listReader } from '#/shared/api/adapter/route';
+import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 import type { AuditPage } from '#/entities/audit-event/types/auditEvent';
 
 const readWirePage = listReader('audit', listAuditResponseSchema);

@@ -1,6 +1,6 @@
 import type { Client } from '#/entities/client';
-import { notLacking } from '#/shared/services/access';
-import type { AdminCapability, Authority } from '#/shared/services/principal';
+import { notLacking } from '#/shared/lib/services/access';
+import type { AdminCapability, Authority } from '#/shared/lib/services/principal';
 
 export const SERVICE_CAPABILITY: AdminCapability = 'manage-users';
 

@@ -1,8 +1,8 @@
 import type { FieldError } from '@odudu/contracts/admin';
-import { writeRefusal } from '#/shared/services/capabilities';
-import { problemSubtype, writeFailureText } from '#/shared/services/failure';
-import { fieldErrorsOf } from '#/shared/services/fieldErrors';
-import type { GatewayFailure, GatewayResult, Problem } from '#/shared/services/result';
+import { writeRefusal } from '#/shared/lib/services/capabilities';
+import { problemSubtype, writeFailureText } from '#/shared/lib/services/failure';
+import { fieldErrorsOf } from '#/shared/lib/services/fieldErrors';
+import type { GatewayFailure, GatewayResult, Problem } from '#/shared/lib/services/result';
 import {
   type OverrideErrors,
   OVER_BOUND,

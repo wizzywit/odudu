@@ -1,4 +1,4 @@
-import { isEmptyRecord } from '#/shared/services/fieldErrors';
+import { isEmptyRecord } from '#/shared/lib/services/fieldErrors';
 import type { MessageOverride } from '#/pages/branding/types/messageOverride';
 import {
   MESSAGE_OVERRIDE_KEY_MAX_LENGTH,

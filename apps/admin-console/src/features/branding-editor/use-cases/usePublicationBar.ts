@@ -22,7 +22,7 @@ import {
 import { usePublicationHolds } from '#/features/branding-editor/use-cases/usePublicationHolds';
 import { useRevert, type Revert } from '#/features/branding-editor/use-cases/useRevert';
 import { useThemeDiscard } from '#/features/branding-editor/use-cases/useThemeDiscard';
-import type { Removal } from '#/shared/use-cases/useConfirmedChange';
+import type { Removal } from '#/shared/lib/use-cases/useConfirmedChange';
 
 export interface PublicationBar {
   publication: Publication;

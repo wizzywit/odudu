@@ -46,10 +46,10 @@ import {
   type OverrideValues,
 } from '#/pages/branding/services/overrideForm';
 import { shownLocale } from '#/pages/branding/services/overrideList';
-import { withoutField } from '#/shared/services/fieldErrors';
-import { useToast } from '#/shared/repository/useToasts';
+import { withoutField } from '#/shared/lib/services/fieldErrors';
+import { useToast } from '#/shared/lib/repository/useToasts';
 import { offeredLocales } from '#/entities/tenant';
-import { useAnnouncedAction } from '#/shared/use-cases/useAnnouncedAction';
+import { useAnnouncedAction } from '#/shared/lib/use-cases/useAnnouncedAction';
 
 export type RemovedOverride = Pick<MessageOverride, 'locale' | 'key' | 'etag'>;
 

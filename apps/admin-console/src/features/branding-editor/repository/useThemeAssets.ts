@@ -1,9 +1,9 @@
 import type { SlotImage } from '#/features/branding-editor/types/slotImage';
 import { deleteAsset, uploadAsset } from '#/features/branding-editor/adapter/themeAssets';
 import { TENANT_WIDE_WRITES } from '#/features/branding-editor/services/themeScope';
-import { themeWriteKey } from '#/shared/repository/queryKeys';
-import { useGatewayWrite, type Write } from '#/shared/repository/useWrite';
-import type { GatewayResult } from '#/shared/transport/gateway';
+import { themeWriteKey } from '#/shared/lib/repository/queryKeys';
+import { useGatewayWrite, type Write } from '#/shared/lib/repository/useWrite';
+import type { GatewayResult } from '#/shared/api/transport/gateway';
 
 export interface Upload {
   kind: string;

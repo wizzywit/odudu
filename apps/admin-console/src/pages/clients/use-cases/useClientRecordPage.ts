@@ -23,12 +23,12 @@ import {
   tabsWithEdits,
   type ClientTab,
 } from '#/pages/clients/services/tabs';
-import { useDirtySections } from '#/shared/repository/useDirtySections';
-import { useRecordTab } from '#/shared/repository/useRecordTab';
-import { lacking } from '#/shared/services/access';
-import { andList } from '#/shared/services/format';
-import type { AdminCapability } from '#/shared/services/principal';
-import { type RecordView, tabEntries, type TabEntry } from '#/shared/services/record';
+import { useDirtySections } from '#/shared/lib/repository/useDirtySections';
+import { useRecordTab } from '#/shared/lib/repository/useRecordTab';
+import { lacking } from '#/shared/lib/services/access';
+import { andList } from '#/shared/lib/services/format';
+import type { AdminCapability } from '#/shared/lib/services/principal';
+import { type RecordView, tabEntries, type TabEntry } from '#/shared/lib/services/record';
 
 export interface ClientRecordPage {
   record: RecordView;

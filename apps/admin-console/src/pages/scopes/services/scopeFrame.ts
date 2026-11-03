@@ -1,5 +1,5 @@
 import { NEW_SCOPE_TITLE, SCOPE_TITLE } from '#/pages/scopes/services/scopeDetails';
-import { pageFrame, type PageFrame } from '#/shared/services/address';
+import { pageFrame, type PageFrame } from '#/shared/lib/services/address';
 
 export interface ScopeFrames {
   record: PageFrame;

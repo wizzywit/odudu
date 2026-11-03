@@ -1,7 +1,7 @@
-import { readable } from '#/shared/services/access';
-import { withSearch } from '#/shared/services/address';
-import { TENANT_ROLE_TEXT } from '#/shared/services/capabilities';
-import type { Authority } from '#/shared/services/principal';
+import { readable } from '#/shared/lib/services/access';
+import { withSearch } from '#/shared/lib/services/address';
+import { TENANT_ROLE_TEXT } from '#/shared/lib/services/capabilities';
+import type { Authority } from '#/shared/lib/services/principal';
 
 export const ROLES_CAPABILITY = 'manage-tenant';
 

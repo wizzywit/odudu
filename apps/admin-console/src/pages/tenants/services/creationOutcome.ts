@@ -1,4 +1,4 @@
-import { tenantPage } from '#/shared/services/address';
+import { tenantPage } from '#/shared/lib/services/address';
 import { holdsText, systemHoldsText } from '#/pages/tenants/services/administratorHoldings';
 import type { Creation, CreationFlow } from '#/entities/creation-draft';
 import { systemAdminsHrefOf, tenantHref } from '#/pages/tenants/services/systemAddress';

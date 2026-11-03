@@ -9,10 +9,10 @@ import {
 import { readDiscovery } from '#/entities/tenant';
 import type { ImportedSecret } from '#/pages/tenants/services/import';
 import type { Tenant } from '#/pages/tenants/types/tenant';
-import type { ListPage } from '#/shared/services/resourceList';
-import type { Gateway, GatewayResult, RawBody } from '#/shared/transport/gateway';
-import { adminRootCall, firstMatch, mapResult, nothing, segment } from '#/shared/adapter/route';
-import { SYSTEM_TENANT } from '#/shared/services/principal';
+import type { ListPage } from '#/shared/lib/services/resourceList';
+import type { Gateway, GatewayResult, RawBody } from '#/shared/api/transport/gateway';
+import { adminRootCall, firstMatch, mapResult, nothing, segment } from '#/shared/api/adapter/route';
+import { SYSTEM_TENANT } from '#/shared/lib/services/principal';
 
 function tenantOf(wire: WireTenant): Tenant {
   return {

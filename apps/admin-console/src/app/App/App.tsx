@@ -5,7 +5,7 @@ import { Providers } from '#/app/Providers';
 import type { ConsoleRouter } from '#/app/router';
 import { ToastLayer } from '#/app/ToastLayer';
 import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer';
-import type { Transport } from '#/shared/transport/transport';
+import type { Transport } from '#/shared/api/transport/transport';
 
 export function App({
   router,

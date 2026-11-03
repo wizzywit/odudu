@@ -1,5 +1,5 @@
-import { type AdminCapability } from '#/shared/services/principal';
-import { TENANT_ADMIN, tenantAdminCarries } from '#/shared/services/capabilities';
+import { type AdminCapability } from '#/shared/lib/services/principal';
+import { TENANT_ADMIN, tenantAdminCarries } from '#/shared/lib/services/capabilities';
 import type {
   AdministratorCall,
   AdministratorRequest,

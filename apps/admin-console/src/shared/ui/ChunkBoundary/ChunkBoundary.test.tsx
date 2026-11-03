@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Component, type ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { ChunkLoadError } from '#/shared/services/chunkLoad';
+import { ChunkLoadError } from '#/shared/lib/services/chunkLoad';
 import { ChunkBoundary, ChunkFailed } from '#/shared/ui/ChunkBoundary/ChunkBoundary';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 

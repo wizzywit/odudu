@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import { MAX_PAGES } from '#/shared/services/cursorTrail';
+import { MAX_PAGES } from '#/shared/lib/services/cursorTrail';
 import { Pager } from '#/shared/ui/Pager/Pager';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 

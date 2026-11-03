@@ -1,13 +1,13 @@
 import type { Group, GroupFields, SetSubjectGroupsResponse } from '@odudu/contracts/admin';
 import { useRefusal, useRereadAuthority } from '#/entities/session';
 import { useGroupPicker } from '#/entities/group';
-import type { RecordState } from '#/shared/repository/useRecord';
-import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave';
-import { describeIds } from '#/shared/services/format';
-import { indexById, sortedIds } from '#/shared/services/ids';
-import type { PickerState } from '#/shared/services/picker';
-import { useSaveConfirmation } from '#/shared/use-cases/useSaveConfirmation';
-import { accessRefusal, type Confirmation } from '#/shared/services/capabilities';
+import type { RecordState } from '#/shared/lib/repository/useRecord';
+import { useSectionSave, type SectionSave } from '#/shared/lib/repository/useSectionSave';
+import { describeIds } from '#/shared/lib/services/format';
+import { indexById, sortedIds } from '#/shared/lib/services/ids';
+import type { PickerState } from '#/shared/lib/services/picker';
+import { useSaveConfirmation } from '#/shared/lib/use-cases/useSaveConfirmation';
+import { accessRefusal, type Confirmation } from '#/shared/lib/services/capabilities';
 import {
   groupsRemoveTenants,
   groupsSaveConfirmation,

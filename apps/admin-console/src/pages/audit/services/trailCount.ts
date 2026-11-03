@@ -1,6 +1,6 @@
 import type { AuditEvent } from '#/entities/audit-event';
-import { counted } from '#/shared/services/format';
-import { formatInZone } from '#/shared/services/zones';
+import { counted } from '#/shared/lib/services/format';
+import { formatInZone } from '#/shared/lib/services/zones';
 
 // The trail has no count, so the page says what it does know: how far back
 // the rows read so far reach.

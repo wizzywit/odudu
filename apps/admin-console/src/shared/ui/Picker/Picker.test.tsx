@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import type { PickerState } from '#/shared/services/picker';
+import type { PickerState } from '#/shared/lib/services/picker';
 import pickerCss from '#/shared/ui/Picker/Picker.module.css?raw';
 import { Picker } from '#/shared/ui/Picker/Picker';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';

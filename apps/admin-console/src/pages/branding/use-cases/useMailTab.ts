@@ -22,8 +22,8 @@ import {
   type MailPreviewView,
 } from '#/pages/branding/services/mailTabView';
 import { useClientPicker } from '#/entities/client';
-import type { PickerState } from '#/shared/services/picker';
-import { mapRead, type Read } from '#/shared/services/read';
+import type { PickerState } from '#/shared/lib/services/picker';
+import { mapRead, type Read } from '#/shared/lib/services/read';
 
 export interface MailTab {
   preview: {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { lossOf, selfLoss } from '#/pages/groups/services/groupLoss';
-import { lossText, possibleLoss } from '#/shared/services/capabilities';
+import { lossText, possibleLoss } from '#/shared/lib/services/capabilities';
 
 describe('what a write here takes from yourself', () => {
   const via = (path: string) => ({

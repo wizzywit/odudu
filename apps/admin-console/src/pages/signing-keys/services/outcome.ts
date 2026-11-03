@@ -1,8 +1,8 @@
 import type { SigningKey } from '@odudu/contracts/admin';
-import { writeRefusal } from '#/shared/services/capabilities';
-import { removalOutcome, type RemovalOutcome } from '#/shared/services/failure';
-import { andList, groupedNumber } from '#/shared/services/format';
-import type { GatewayResult, Problem } from '#/shared/services/result';
+import { writeRefusal } from '#/shared/lib/services/capabilities';
+import { removalOutcome, type RemovalOutcome } from '#/shared/lib/services/failure';
+import { andList, groupedNumber } from '#/shared/lib/services/format';
+import type { GatewayResult, Problem } from '#/shared/lib/services/result';
 
 export type KeyAction = 'promote' | 'retire' | 'delete';
 

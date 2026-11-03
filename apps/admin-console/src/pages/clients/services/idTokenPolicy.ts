@@ -1,7 +1,7 @@
 import { DEFAULT_MAX_AGE_MAX, ID_TOKEN_SIGNING_ALGS } from '@odudu/contracts/admin';
 import { AUTO } from '#/pages/clients/services/choices';
-import { formatDuration } from '#/shared/services/format';
-import type { Choice } from '#/shared/services/choice';
+import { formatDuration } from '#/shared/lib/services/format';
+import type { Choice } from '#/shared/lib/services/choice';
 
 export const FULL_SCOPE_LABEL = 'Include all roles in tokens';
 export const FULL_SCOPE_RULE =

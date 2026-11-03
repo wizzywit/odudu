@@ -20,10 +20,10 @@ import {
   type TokenWords,
 } from '#/pages/registration-tokens/services/tokenWording';
 import { askedConsequence, revokeOutcome } from '#/pages/registration-tokens/services/revoke';
-import { useToast } from '#/shared/repository/useToasts';
-import { isEmptyRecord, withoutField } from '#/shared/services/fieldErrors';
-import type { ResourceListState } from '#/shared/services/resourceList';
-import { useAnnouncedAction } from '#/shared/use-cases/useAnnouncedAction';
+import { useToast } from '#/shared/lib/repository/useToasts';
+import { isEmptyRecord, withoutField } from '#/shared/lib/services/fieldErrors';
+import type { ResourceListState } from '#/shared/lib/services/resourceList';
+import { useAnnouncedAction } from '#/shared/lib/use-cases/useAnnouncedAction';
 
 // The gate wraps the page, so it takes the area and the title here.
 export function useTokensArea(): { area: Area; title: string } {

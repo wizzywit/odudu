@@ -1,6 +1,6 @@
-import { type Authority } from '#/shared/services/principal';
-import { notLacking } from '#/shared/services/access';
-import { createdText, type CreateSpec } from '#/shared/services/failure';
+import { type Authority } from '#/shared/lib/services/principal';
+import { notLacking } from '#/shared/lib/services/access';
+import { createdText, type CreateSpec } from '#/shared/lib/services/failure';
 
 // Offered only while whoami says nothing rules creating out.
 export function createSubjectHref(
