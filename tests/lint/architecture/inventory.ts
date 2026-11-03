@@ -275,8 +275,6 @@ export const INVENTORY: Record<RuleId, string[]> = {
     'apps/admin-console/src/features/overview/ui/CountsPanel/CountsPanel.tsx',
     'apps/admin-console/src/features/overview/ui/DiscoveryPanel/DiscoveryPanel.tsx',
     'apps/admin-console/src/features/registration-tokens/ui/RegistrationTokensPage/RegistrationTokensPage.tsx',
-    'apps/admin-console/src/features/settings/ui/ClearLockouts/ClearLockouts.tsx',
-    'apps/admin-console/src/features/settings/ui/SettingsPage/SettingsPage.tsx',
     'apps/admin-console/src/features/signing-keys/ui/SigningKeysPage/SigningKeysPage.tsx',
     'apps/admin-console/src/shared/ui/AppShell/AppShell.tsx',
     'apps/admin-console/src/shared/ui/ChunkBoundary/ChunkBoundary.tsx',

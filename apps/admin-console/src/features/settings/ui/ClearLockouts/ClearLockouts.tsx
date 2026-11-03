@@ -1,4 +1,3 @@
-import { CLEAR_HEADING, CLEAR_RULE, LOCKOUTS_NEEDS } from '#/features/settings/services/lockouts';
 import { useLockoutsClearAction } from '#/features/settings/use-cases/useLockoutsClear';
 import { Button } from '#/shared/ui/Button';
 import { CapabilityNote } from '#/shared/ui/CapabilityNote';
@@ -8,25 +7,26 @@ import { recordTab } from '#/shared/ui/RecordTab';
 
 export function ClearLockouts({ tenant }: { tenant: string }) {
   const clear = useLockoutsClearAction(tenant);
+  const { words } = clear;
   if (clear.state === 'checking') return null;
   return (
-    <Panel title={CLEAR_HEADING}>
-      <p className={recordTab.rule}>{CLEAR_RULE}</p>
+    <Panel title={words.heading}>
+      <p className={recordTab.rule}>{words.rule}</p>
       {clear.state === 'lacking' ? (
-        <CapabilityNote capability={LOCKOUTS_NEEDS}>Clearing every lockout</CapabilityNote>
+        <CapabilityNote capability={words.needs}>{words.lacking}</CapabilityNote>
       ) : (
         <>
           <div className={recordTab.actions}>
             <Button variant="danger" onPress={clear.ask}>
-              {CLEAR_HEADING}
+              {words.heading}
             </Button>
           </div>
           {clear.more === null ? null : <p role="status">{clear.more}</p>}
           <ConfirmDialog
             isOpen={clear.confirming}
-            title={`${CLEAR_HEADING} in ${tenant}?`}
-            consequence={clear.consequence}
-            confirmLabel={CLEAR_HEADING}
+            title={words.dialogTitle}
+            consequence={words.consequence}
+            confirmLabel={words.confirmLabel}
             tone="danger"
             typed={tenant}
             busy={clear.busy}

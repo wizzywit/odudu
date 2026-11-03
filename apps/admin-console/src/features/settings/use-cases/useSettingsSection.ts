@@ -9,7 +9,17 @@ import {
   type SectionSave,
 } from '#/shared/repository/useSectionSave';
 import { writeRefusal } from '#/shared/services/capabilities';
-import { disableAsk, disableConsequence, TENANT_SETTINGS_RECORD } from '#/entities/tenant';
+import {
+  disableAsk,
+  disableConsequence,
+  disableFixed,
+  TENANT_SETTINGS_RECORD,
+} from '#/entities/tenant';
+import {
+  disableDialog,
+  fixedSettings,
+  type DisableDialog,
+} from '#/features/settings/services/generalSection';
 import { useSaveConfirmation } from '#/shared/use-cases/useSaveConfirmation';
 
 export type SettingsSave = SectionSave<SectionValues>;
@@ -55,7 +65,9 @@ export interface GeneralSection {
   save: SettingsSave;
   // Switching the tenant off is asked about before it is saved.
   confirming: boolean;
-  consequence: string;
+  dialog: DisableDialog;
+  // What the tenant's own state holds fixed in this section, with why.
+  fixed: Readonly<Record<string, string>>;
   submit: () => boolean;
   confirm: () => void;
   cancel: () => void;
@@ -68,7 +80,11 @@ export function useGeneralSection(input: SectionInput): GeneralSection {
   return {
     save,
     confirming: asking.confirming !== null,
-    consequence: disableConsequence(input.tenant, isOwnTenant(principal, input.tenant)),
+    dialog: disableDialog(
+      input.tenant,
+      disableConsequence(input.tenant, isOwnTenant(principal, input.tenant)),
+    ),
+    fixed: fixedSettings(disableFixed(input.tenant)),
     submit: () =>
       asking.submitOrAsk(disableAsk(input.data.enabled, save.values.enabled), {
         whenAsked: false,

@@ -2,9 +2,9 @@ import type { ClearLockoutsResponse } from '@odudu/contracts/admin';
 import { holds } from '#/shared/services/access';
 import { refusedBy, writeFailureText } from '#/shared/services/failure';
 import { counted } from '#/shared/services/format';
-import type { Authority } from '#/shared/services/principal';
+import type { AdminCapability, Authority } from '#/shared/services/principal';
 import type { GatewayFailure } from '#/shared/services/result';
-import { LOCKOUTS_NEEDS } from '#/features/settings/services/lockouts';
+import { CLEAR_HEADING, CLEAR_RULE, LOCKOUTS_NEEDS } from '#/features/settings/services/lockouts';
 
 // The most accounts one request clears; the server does the rest on the next.
 const CLEAR_LIMIT = '10,000';
@@ -55,4 +55,26 @@ export function clearFailure(tenant: string, failure: GatewayFailure): string {
     lookAt: 'a subject’s lockout',
     refused: refusedBy(LOCKOUTS_NEEDS),
   });
+}
+
+export interface ClearWords {
+  heading: string;
+  rule: string;
+  needs: AdminCapability;
+  lacking: string;
+  dialogTitle: string;
+  confirmLabel: string;
+  consequence: string;
+}
+
+export function clearWords(tenant: string): ClearWords {
+  return {
+    heading: CLEAR_HEADING,
+    rule: CLEAR_RULE,
+    needs: LOCKOUTS_NEEDS,
+    lacking: 'Clearing every lockout',
+    dialogTitle: `${CLEAR_HEADING} in ${tenant}?`,
+    confirmLabel: CLEAR_HEADING,
+    consequence: clearConsequence(tenant),
+  };
 }

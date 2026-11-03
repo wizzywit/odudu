@@ -1,26 +1,18 @@
 import type { Settings } from '@odudu/contracts/admin';
 import { Fragment } from 'react';
 import { AreaGate } from '#/widgets/shell';
-import { areaAt } from '#/entities/area';
-import { fieldDescription } from '#/features/settings/services/notes';
-import {
-  GENERAL_SECTION,
-  LOCKOUT_SECTION,
-  PASSWORD_SECTION,
-  sectionHeadingId,
-  SETTINGS_SECTIONS,
-  type SettingField,
-  type SettingsSection,
-} from '#/features/settings/services/sections';
-import { booleanOf, listOf, numberOf, textOf } from '#/features/settings/services/values';
+import type { ControlView } from '#/features/settings/services/controls';
+import type { SectionPlan } from '#/features/settings/services/sectionPlan';
+import type { SettingValue } from '#/features/settings/services/values';
 import { usePasswordNote } from '#/features/settings/use-cases/usePasswordNote';
+import { useSettingsFields } from '#/features/settings/use-cases/useSettingsFields';
+import { useSettingsPage } from '#/features/settings/use-cases/useSettingsPage';
+import { useSettingsSections } from '#/features/settings/use-cases/useSettingsSections';
 import {
   useGeneralSection,
   useSettingsSection,
   type SettingsSave,
 } from '#/features/settings/use-cases/useSettingsSection';
-import { numberKept } from '#/shared/services/numbers';
-import { disableFixed, useTenantSettingsRead } from '#/entities/tenant';
 import { Button } from '#/shared/ui/Button';
 import { ChecklistField } from '#/shared/ui/ChecklistField';
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
@@ -33,35 +25,28 @@ import { SaveSection } from '#/shared/ui/SaveSection';
 import { ClearLockouts } from '#/features/settings/ui/ClearLockouts';
 import styles from '#/features/settings/ui/SettingsPage/SettingsPage.module.css';
 
-const AREA = areaAt('settings');
-
 function Control({
-  field,
-  save,
-  description,
-  isDisabled,
+  view,
+  change,
 }: {
-  field: SettingField;
-  save: SettingsSave;
-  description?: string | undefined;
-  isDisabled?: boolean;
+  view: ControlView;
+  change: (name: string, next: SettingValue) => void;
 }) {
   const shared = {
-    label: field.label,
-    description: description ?? fieldDescription(field),
-    error: save.fieldErrors[field.name],
-    changed: save.changed.includes(field.name),
-    ...(isDisabled === undefined ? {} : { isDisabled }),
+    label: view.label,
+    description: view.description,
+    error: view.error,
+    changed: view.changed,
+    isDisabled: view.isDisabled,
   };
-  const value = save.values[field.name];
-  switch (field.control) {
+  switch (view.control) {
     case 'toggle':
       return (
         <ToggleField
           {...shared}
-          value={booleanOf(value)}
+          value={view.value}
           onChange={(next) => {
-            save.edit(field.name, next);
+            change(view.name, next);
           }}
         />
       );
@@ -69,21 +54,20 @@ function Control({
       return (
         <TextField
           {...shared}
-          value={textOf(value)}
+          value={view.value}
           onChange={(next) => {
-            save.edit(field.name, next);
+            change(view.name, next);
           }}
         />
       );
-    case 'seconds':
-    case 'count':
+    case 'number':
       return (
         <NumberWithUnitField
           {...shared}
-          unit={field.control === 'seconds' ? 'seconds' : (field.unit ?? '')}
-          value={numberOf(value)}
+          unit={view.unit}
+          value={view.value}
           onChange={(next) => {
-            save.edit(field.name, numberKept(next, numberOf(value)));
+            change(view.name, next);
           }}
         />
       );
@@ -91,10 +75,10 @@ function Control({
       return (
         <SelectField
           {...shared}
-          options={field.options ?? []}
-          value={textOf(value)}
+          options={view.options}
+          value={view.value}
           onChange={(next) => {
-            save.edit(field.name, next);
+            change(view.name, next);
           }}
         />
       );
@@ -102,14 +86,10 @@ function Control({
       return (
         <ChecklistField
           {...shared}
-          options={(field.options ?? []).map((option) => ({
-            id: option.id,
-            label: option.label,
-            ...(option.fixed === undefined ? {} : { unavailable: option.fixed }),
-          }))}
-          value={listOf(value)}
+          options={view.options}
+          value={view.value}
           onChange={(next) => {
-            save.edit(field.name, next);
+            change(view.name, next);
           }}
         />
       );
@@ -117,35 +97,22 @@ function Control({
 }
 
 function Fields({
-  section,
+  plan,
   save,
   fixed,
 }: {
-  section: SettingsSection;
+  plan: SectionPlan;
   save: SettingsSave;
-  fixed?: Readonly<Record<string, string>>;
+  fixed: Readonly<Record<string, string>>;
 }) {
+  const { controls, change } = useSettingsFields(plan.section, save, fixed);
   return (
     <FieldGrid>
-      {section.fields.map((field) => {
-        const why = fixed?.[field.name];
-        return (
-          <GridCell
-            key={field.name}
-            {...(field.control === 'set'
-              ? { span: 'full' as const }
-              : field.control === 'text' || field.control === 'choice'
-                ? { span: 'wide' as const }
-                : {})}
-          >
-            <Control
-              field={field}
-              save={save}
-              {...(why === undefined ? {} : { description: why, isDisabled: true })}
-            />
-          </GridCell>
-        );
-      })}
+      {controls.map((view) => (
+        <GridCell key={view.name} {...view.cell}>
+          <Control view={view} change={change} />
+        </GridCell>
+      ))}
     </FieldGrid>
   );
 }
@@ -155,6 +122,7 @@ interface Props {
   data: Settings;
   etag: string;
   gone: boolean;
+  plan: SectionPlan;
 }
 
 function PasswordHint({ save, data }: { save: SettingsSave; data: Settings }) {
@@ -162,41 +130,40 @@ function PasswordHint({ save, data }: { save: SettingsSave; data: Settings }) {
   return note === null ? null : <Note tone={note.tone}>{note.text}</Note>;
 }
 
-function Plain({ tenant, data, etag, gone, section }: Props & { section: SettingsSection }) {
-  const save = useSettingsSection({ tenant, section, data, etag, gone });
+function Plain({ tenant, data, etag, gone, plan }: Props) {
+  const save = useSettingsSection({ tenant, section: plan.section, data, etag, gone });
   return (
     <SaveSection
-      title={section.title}
-      headingId={sectionHeadingId(section.id)}
-      description={section.description}
+      title={plan.title}
+      headingId={plan.headingId}
+      description={plan.description}
       save={save}
     >
-      <Fields section={section} save={save} />
-      {section.id === PASSWORD_SECTION ? <PasswordHint save={save} data={data} /> : null}
+      <Fields plan={plan} save={save} fixed={{}} />
+      {plan.kind === 'password' ? <PasswordHint save={save} data={data} /> : null}
     </SaveSection>
   );
 }
 
-function General({ tenant, data, etag, gone, section }: Props & { section: SettingsSection }) {
-  const general = useGeneralSection({ tenant, section, data, etag, gone });
+function General({ tenant, data, etag, gone, plan }: Props) {
+  const general = useGeneralSection({ tenant, section: plan.section, data, etag, gone });
   const s = general.save;
-  const why = disableFixed(tenant);
   return (
     <>
       <SaveSection
-        title={section.title}
-        headingId={sectionHeadingId(section.id)}
-        description={section.description}
+        title={plan.title}
+        headingId={plan.headingId}
+        description={plan.description}
         save={s}
         onSave={general.submit}
       >
-        <Fields section={section} save={s} {...(why === null ? {} : { fixed: { enabled: why } })} />
+        <Fields plan={plan} save={s} fixed={general.fixed} />
       </SaveSection>
       <ConfirmDialog
         isOpen={general.confirming}
-        title={`Disable ${tenant}?`}
-        consequence={general.consequence}
-        confirmLabel={`Disable ${tenant}`}
+        title={general.dialog.title}
+        consequence={general.dialog.consequence}
+        confirmLabel={general.dialog.confirmLabel}
         tone="danger"
         typed={tenant}
         busy={s.saving}
@@ -208,53 +175,42 @@ function General({ tenant, data, etag, gone, section }: Props & { section: Setti
 }
 
 function Sections({ tenant }: { tenant: string }) {
-  const settings = useTenantSettingsRead(tenant);
+  const { read, plans, words } = useSettingsSections(tenant);
   return (
-    <ReadGate
-      read={settings}
-      label="Loading the settings"
-      fields={4}
-      failed="The settings could not be loaded"
-    >
+    <ReadGate read={read} label={words.loading} fields={4} failed={words.failed}>
       {(data, etag) => (
         <div className={styles.page}>
-          <nav aria-label="On this page" className={styles.nav}>
+          <nav aria-label={words.navLabel} className={styles.nav}>
             <ul className={styles.sections}>
-              {SETTINGS_SECTIONS.map((section) => (
-                <li key={section.id}>
+              {plans.map((plan) => (
+                <li key={plan.section.id}>
                   <Button
                     size="small"
                     variant="quiet"
                     onPress={() => {
-                      document.getElementById(sectionHeadingId(section.id))?.focus();
+                      document.getElementById(plan.headingId)?.focus();
                     }}
                   >
-                    {section.title}
+                    {plan.title}
                   </Button>
                 </li>
               ))}
             </ul>
           </nav>
-          {SETTINGS_SECTIONS.map((section) =>
-            section.id === GENERAL_SECTION ? (
+          {plans.map((plan) =>
+            plan.kind === 'general' ? (
               <General
-                key={section.id}
+                key={plan.section.id}
                 tenant={tenant}
                 data={data}
                 etag={etag}
-                gone={settings.gone}
-                section={section}
+                gone={read.gone}
+                plan={plan}
               />
             ) : (
-              <Fragment key={section.id}>
-                <Plain
-                  tenant={tenant}
-                  data={data}
-                  etag={etag}
-                  gone={settings.gone}
-                  section={section}
-                />
-                {section.id === LOCKOUT_SECTION ? <ClearLockouts tenant={tenant} /> : null}
+              <Fragment key={plan.section.id}>
+                <Plain tenant={tenant} data={data} etag={etag} gone={read.gone} plan={plan} />
+                {plan.kind === 'lockouts' ? <ClearLockouts tenant={tenant} /> : null}
               </Fragment>
             ),
           )}
@@ -265,13 +221,10 @@ function Sections({ tenant }: { tenant: string }) {
 }
 
 export function SettingsPage({ tenant }: { tenant: string }) {
+  const { area, title, words } = useSettingsPage();
   return (
-    <AreaGate tenant={tenant} area={AREA} title={AREA.label}>
-      <PageHeader
-        kicker={tenant}
-        title={AREA.label}
-        description="How this tenant signs people in, what it asks of their passwords, and how long it keeps what it records. Every section saves on its own."
-      />
+    <AreaGate tenant={tenant} area={area} title={title}>
+      <PageHeader kicker={tenant} title={title} description={words.description} />
       <Sections tenant={tenant} />
     </AreaGate>
   );

@@ -52,7 +52,8 @@ it('asks first, names the tenant in what it says, and sends nothing until confir
   await waitFor(() => {
     expect(result.current.state).toBe('ready');
   });
-  expect(result.current.consequence).toContain('every lockout in acme');
+  expect(result.current.words.consequence).toContain('every lockout in acme');
+  expect(result.current.words.dialogTitle).toBe('Clear all lockouts in acme?');
   act(() => {
     result.current.ask();
   });

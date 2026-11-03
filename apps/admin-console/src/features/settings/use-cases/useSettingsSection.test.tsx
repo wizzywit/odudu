@@ -76,8 +76,12 @@ it('asks first when an enabled tenant is switched off, and names the tenant in w
   });
   expect(sentAtOnce).toBe(false);
   expect(result.current.used.confirming).toBe(true);
-  expect(result.current.used.consequence).toContain('Nobody can sign in to acme');
-  expect(result.current.used.consequence).toContain('Your own console session in acme ends too.');
+  expect(result.current.used.dialog.title).toBe('Disable acme?');
+  expect(result.current.used.dialog.confirmLabel).toBe('Disable acme');
+  expect(result.current.used.dialog.consequence).toContain('Nobody can sign in to acme');
+  expect(result.current.used.dialog.consequence).toContain(
+    'Your own console session in acme ends too.',
+  );
   expect(sent.some((call) => call.method === 'PATCH')).toBe(false);
   act(() => {
     result.current.used.confirm();

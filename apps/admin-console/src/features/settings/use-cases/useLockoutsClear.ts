@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/entities/session';
 import { useLockoutsClear } from '#/features/settings/repository/useLockoutsClear';
 import {
-  clearConsequence,
+  clearWords,
   clearedText,
   clearMoreText,
   clearFailure,
   lockoutClearState,
+  type ClearWords,
   type LockoutClearState,
 } from '#/features/settings/services/lockoutClear';
 import { LOCKOUTS_NEEDS } from '#/features/settings/services/lockouts';
@@ -15,7 +16,7 @@ import { useConfirmedRemoval, type Removal } from '#/shared/use-cases/useConfirm
 
 export interface LockoutsClear extends Removal {
   state: LockoutClearState;
-  consequence: string;
+  words: ClearWords;
   // What stays beside the button while more lockouts are left.
   more: string | null;
 }
@@ -37,7 +38,7 @@ export function useLockoutsClearAction(tenant: string): LockoutsClear {
   return {
     ...removal,
     state: lockoutClearState(useAuthority(tenant)),
-    consequence: clearConsequence(tenant),
+    words: clearWords(tenant),
     more,
   };
 }

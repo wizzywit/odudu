@@ -4,6 +4,7 @@ import {
   clearFailure,
   clearedText,
   clearMoreText,
+  clearWords,
   lockoutClearState,
 } from '#/features/settings/services/lockoutClear';
 import type { GatewayFailure } from '#/shared/services/result';
@@ -82,5 +83,18 @@ describe('what stays beside the action while lockouts remain', () => {
       'More failed sign-ins are left in acme: clear every lockout again to clear the next 10,000.',
     );
     expect(clearMoreText('acme', { cleared: 3, remaining: 0, beyond_ceiling: 1 })).toBeNull();
+  });
+});
+
+describe('the words of the clear panel', () => {
+  it('names the tenant in the dialog and the capability a lack needs', () => {
+    expect(clearWords('acme')).toMatchObject({
+      heading: 'Clear all lockouts',
+      needs: 'manage-users',
+      lacking: 'Clearing every lockout',
+      dialogTitle: 'Clear all lockouts in acme?',
+      confirmLabel: 'Clear all lockouts',
+    });
+    expect(clearWords('acme').consequence).toBe(clearConsequence('acme'));
   });
 });
