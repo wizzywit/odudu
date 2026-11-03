@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { uploadFailureOf } from '#/features/branding/services/edits';
+import { uploadFailureOf } from '#/features/branding/services/imageUpload';
 import type { GatewayFailure } from '#/shared/services/result';
 import { failure, refusal } from '#/testing/failures';
 

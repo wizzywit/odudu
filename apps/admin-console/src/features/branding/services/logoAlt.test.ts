@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { altEdited, altProblem, imagesHold } from '#/features/branding/services/logoAlt';
+import {
+  altEdited,
+  altProblem,
+  imagesHold,
+  altChanged,
+} from '#/features/branding/services/logoAlt';
 import type { ImageValues } from '#/features/branding/services/values';
 
 const none: ImageValues = {
@@ -22,5 +27,15 @@ describe('logos', () => {
       /alt text is required/u,
     );
     expect(altEdited(none, 'logo', 'x')).toBeNull();
+  });
+});
+
+describe('an alt text marked changed', () => {
+  it('is a logo’s alt text that differs from the saved one', () => {
+    const saved = { ...none, 'assets.logo': { assetId: 'a', alt: 'A' } };
+    const edited = { ...none, 'assets.logo': { assetId: 'a', alt: 'B' } };
+    expect(altChanged(saved, edited, 'logo')).toBe(true);
+    expect(altChanged(saved, saved, 'logo')).toBe(false);
+    expect(altChanged(saved, saved, 'favicon')).toBe(false);
   });
 });

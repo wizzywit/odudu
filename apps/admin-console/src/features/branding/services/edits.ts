@@ -1,6 +1,4 @@
 import type { GatewayFailure, GatewayResult } from '#/shared/services/result';
-import { failureTextWith } from '#/shared/services/failure';
-import { reportFailure } from '#/shared/services/settled';
 import {
   colourProblem,
   DEFAULT_PALETTES,
@@ -17,29 +15,10 @@ import {
   type Issues,
 } from '#/features/branding/services/publish';
 import type { PreviewChoice } from '#/features/branding/services/preview';
-import {
-  type ColourValues,
-  type ImageSlot,
-  type ImageValues,
-  type Logo,
-  type Plain,
-} from '#/features/branding/services/values';
-import type {
-  FieldError,
-  PublishThemeResponse,
-  ThemeAsset,
-  ThemeView,
-} from '@odudu/contracts/admin';
+import type { ColourValues } from '#/features/branding/services/values';
+import type { FieldError, PublishThemeResponse, ThemeView } from '@odudu/contracts/admin';
 import { tabNamed } from '#/shared/services/record';
 import { OFFERED_TABS, type OfferedTab } from '#/features/branding/services/tabs';
-import { altEdited, logoOf } from '#/features/branding/services/logoAlt';
-import {
-  uploadRefusal,
-  uploadFailureText,
-  UPLOAD_FAULT,
-  UPLOAD_LOST,
-} from '#/features/branding/services/imageRefusals';
-import { slotNames } from '#/features/branding/services/imageThumbnails';
 
 export function paletteField(scheme: Scheme): 'tokens.light' | 'tokens.dark' {
   return `tokens.${scheme}`;
@@ -77,56 +56,6 @@ export function coloursHold(values: ColourValues): string | undefined {
     (scheme) => Object.keys(colourProblems(values[paletteField(scheme)])).length > 0,
   );
   return bad ? COLOURS_HOLD : undefined;
-}
-
-// What an uploaded image fills its slot with: a logo keeps the alt text it
-// had, and starts without one.
-export function imageAfterUpload(
-  slot: ImageSlot,
-  assetId: string,
-  values: ImageValues,
-): Logo | Plain {
-  if (slot === 'logo') return logoOf(assetId, values['assets.logo']);
-  if (slot === 'darkLogo') return logoOf(assetId, values['assets.darkLogo']);
-  return { assetId };
-}
-
-export interface SlotState {
-  busy: boolean;
-  error: string | null;
-}
-
-export type SlotStates = Readonly<Record<ImageSlot, SlotState>>;
-
-const QUIET: SlotState = { busy: false, error: null };
-
-export const IDLE_SLOTS: SlotStates = {
-  logo: QUIET,
-  darkLogo: QUIET,
-  favicon: QUIET,
-  background: QUIET,
-};
-
-export function slotBusy(slots: SlotStates, slot: ImageSlot): SlotStates {
-  return { ...slots, [slot]: { busy: true, error: null } };
-}
-
-export function slotFailed(slots: SlotStates, slot: ImageSlot, error: string): SlotStates {
-  return { ...slots, [slot]: { busy: false, error } };
-}
-
-export function slotDone(slots: SlotStates, slot: ImageSlot): SlotStates {
-  return { ...slots, [slot]: QUIET };
-}
-
-// What a failed upload says, in the console's words.
-export function uploadFailureOf(slot: ImageSlot, failure: GatewayFailure): string {
-  return failureTextWith({
-    network: () => UPLOAD_LOST,
-    schema: () => UPLOAD_FAULT,
-    defect: () => UPLOAD_FAULT,
-    problem: (problem) => uploadFailureText(slot, problem),
-  })(failure);
 }
 
 export interface PublishOutcome {
@@ -207,82 +136,6 @@ export function previewKey(
   choice: PreviewChoice,
 ): string {
   return `${String(view?.published?.version ?? 0)}|${tag ?? ''}|${choice.kind}|${choice.scheme}`;
-}
-
-export interface UploadStart {
-  // Takes the change to the slots as a function of the slots at the time it runs.
-  show: (next: (was: SlotStates) => SlotStates) => void;
-  send: () => void;
-}
-
-// Marks the slot busy and sends the file, or fails the slot in place when the
-// file is refused here, before anything is sent.
-export function startUpload(
-  slot: ImageSlot,
-  file: { type: string; size: number },
-  to: UploadStart,
-): void {
-  const refused = uploadRefusal(slot, file);
-  to.show((was) => (refused === null ? slotBusy(was, slot) : slotFailed(was, slot, refused)));
-  if (refused === null) to.send();
-}
-
-// The slot once its upload has answered.
-export function slotAfterUpload(
-  slots: SlotStates,
-  slot: ImageSlot,
-  result: GatewayResult<ThemeAsset>,
-): SlotStates {
-  return result.ok ? slotDone(slots, slot) : slotFailed(slots, slot, uploadFailureOf(slot, result));
-}
-
-// What an answered upload puts in its slot, nothing when it was refused.
-export function uploadedImage(
-  slot: ImageSlot,
-  result: GatewayResult<ThemeAsset>,
-  values: ImageValues,
-): Logo | Plain | null {
-  return result.ok ? imageAfterUpload(slot, result.data.id, values) : null;
-}
-
-export interface UploadAnswer {
-  show: (next: (was: SlotStates) => SlotStates) => void;
-  edit: (slot: ImageSlot, image: Logo | Plain | null) => void;
-  report: (failure: GatewayFailure) => void;
-}
-
-// Settles the slot, fills it when the file landed and reports a refusal.
-export function finishUpload(
-  slot: ImageSlot,
-  result: GatewayResult<ThemeAsset>,
-  values: ImageValues,
-  to: UploadAnswer,
-): void {
-  to.show((was) => slotAfterUpload(was, slot, result));
-  const image = uploadedImage(slot, result, values);
-  if (image !== null) to.edit(slot, image);
-  reportFailure(result, to.report);
-}
-
-// Sets a logo's alt text where a logo is set.
-export function editAlt(
-  values: ImageValues,
-  slot: 'logo' | 'darkLogo',
-  alt: string,
-  edit: (slot: ImageSlot, logo: Logo) => void,
-): void {
-  const logo = altEdited(values, slot, alt);
-  if (logo !== null) edit(slot, logo);
-}
-
-// Empties the slot that still names a deleted image.
-export function forgetImage(
-  values: ImageValues,
-  slot: ImageSlot,
-  assetId: string,
-  edit: (slot: ImageSlot, image: null) => void,
-): void {
-  if (slotNames(values, slot, assetId)) edit(slot, null);
 }
 
 // Runs `select` for a tab this area has, and for no other name.

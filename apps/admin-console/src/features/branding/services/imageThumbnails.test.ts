@@ -5,6 +5,7 @@ import {
   slotThumbnail,
   slotView,
   thumbnailAlt,
+  slotNames,
 } from '#/features/branding/services/imageThumbnails';
 import type { ImageValues } from '#/features/branding/services/values';
 
@@ -79,5 +80,21 @@ describe('the thumbnail of an uploaded image', () => {
     expect(thumbnailAlt('logo', '  ')).toBe('Logo');
     expect(thumbnailAlt('favicon', null)).toBe('Favicon');
     expect(thumbnailAlt('background', null)).toBe('Background image');
+  });
+});
+
+describe('a deleted image', () => {
+  it('empties the slot only if the slot holds that very image', () => {
+    const had = { ...none, 'assets.favicon': { assetId: 'f1' } };
+    expect(slotNames(had, 'favicon', 'f1')).toBe(true);
+    expect(slotNames(had, 'favicon', 'other')).toBe(false);
+    expect(slotNames(had, 'logo', 'f1')).toBe(false);
+  });
+});
+
+describe('the upload button’s name', () => {
+  it('says it is uploading while it is', () => {
+    expect(slotView('logo', none, true).uploadName).toBe('Uploading logo');
+    expect(slotView('logo', none).uploadName).toBe('Upload logo');
   });
 });
