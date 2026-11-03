@@ -12,7 +12,7 @@ import {
 } from '#/features/branding/services/holds';
 import { DISCARDING } from '#/features/branding/services/discardDraft';
 import { PUBLISHING } from '#/features/branding/services/copy';
-import { REVERTING } from '#/features/branding/services/publication';
+import { REVERTING } from '#/features/branding/services/revertDraft';
 import { EMPTY, themeView } from '#/testing/brandingFixtures';
 
 const IDLE: WritesRunning = { publish: false, discard: false, revert: false, saving: false };

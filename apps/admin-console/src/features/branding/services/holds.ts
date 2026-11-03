@@ -1,6 +1,6 @@
 import type { ThemeView } from '@odudu/contracts/admin';
 import { PUBLISHING } from '#/features/branding/services/copy';
-import { REVERT_LABEL, REVERTING, revertHold } from '#/features/branding/services/publication';
+import { REVERT_LABEL, REVERTING, revertHold } from '#/features/branding/services/revertDraft';
 import {
   DISCARD_LABEL,
   DISCARDING,

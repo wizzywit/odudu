@@ -10,7 +10,7 @@ import {
   REVERT_TITLE,
   REVERTING,
   revertLead,
-} from '#/features/branding/services/publication';
+} from '#/features/branding/services/revertDraft';
 import type { ThemeScope } from '#/features/branding/services/themeScope';
 import type { ScopedTab } from '#/features/branding/services/tabs';
 import {

@@ -12,7 +12,7 @@ import {
   revertRequest,
   revertSection,
   shownRevertConflicts,
-} from '#/features/branding/services/publication';
+} from '#/features/branding/services/revertDraft';
 import { writeCapability, type ThemeScope } from '#/features/branding/services/themeScope';
 import type { ScopedTab } from '#/features/branding/services/tabs';
 import { usePublicationHolds } from '#/features/branding/use-cases/usePublicationHolds';

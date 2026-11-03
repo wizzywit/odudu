@@ -13,7 +13,7 @@ import {
   MORE_LABEL,
   MORE_TRIGGER,
   publishedShort,
-} from '#/features/branding/services/publication';
+} from '#/features/branding/services/changeSummary';
 import {
   PUBLISH_BODY,
   PUBLISH_TITLE,

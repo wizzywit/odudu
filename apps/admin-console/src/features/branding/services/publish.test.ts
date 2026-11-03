@@ -10,6 +10,7 @@ import {
   publishHold,
   refusalText,
   warningLines,
+  NOTHING_TO_PUBLISH,
 } from '#/features/branding/services/publish';
 import { draftedView, themeView } from '#/testing/brandingFixtures';
 
@@ -110,5 +111,11 @@ describe('what the server refused', () => {
         '"d1"',
       ).warnings,
     ).toEqual(['stylesheet: m']);
+  });
+});
+
+describe('the hold for nothing to publish', () => {
+  it('is the sentence the server’s refusal says too', () => {
+    expect(NOTHING_TO_PUBLISH).toBe('Nothing to publish: the draft matches what people see.');
   });
 });

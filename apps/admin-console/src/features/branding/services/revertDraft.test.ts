@@ -2,12 +2,7 @@ import type { ThemeView } from '@odudu/contracts/admin';
 import { describe, expect, it, vi } from 'vitest';
 import {
   announceRevert,
-  barText,
-  changeBrief,
-  changeCount,
-  changedText,
   revertHold,
-  revertUnsaved,
   revertLead,
   REVERT_CONFLICT_LEAD,
   REVERT_KEEP_HINT,
@@ -20,10 +15,9 @@ import {
   revertSection,
   shownRevertConflicts,
   revertRequest,
-  tabsChanged,
   tabUnsaved,
-} from '#/features/branding/services/publication';
-import { NOTHING_TO_PUBLISH } from '#/features/branding/services/publish';
+  revertUnsaved,
+} from '#/features/branding/services/revertDraft';
 import { EMPTY, LOGO_ID, OWN_LIGHT, themeView } from '#/testing/brandingFixtures';
 
 const NO_DRAFT = themeView() as ThemeView;
@@ -38,49 +32,6 @@ function viewOf(draft: object | null, published: object | null, changed: string[
     changed,
   }) as ThemeView;
 }
-
-describe('what differs', () => {
-  it('is named by the sections that hold it, in the order they sit on the tabs', () => {
-    expect(changedText(viewOf(EMPTY, null, ['templates', 'tokens']))).toBe(
-      'Changed: Colours and font, Page templates',
-    );
-    expect(changedText(viewOf(EMPTY, null, ['stylesheet', 'assets']))).toBe(
-      'Changed: Images, Stylesheet',
-    );
-  });
-
-  it('says nothing when nothing differs', () => {
-    expect(changedText(viewOf(EMPTY, EMPTY, []))).toBeNull();
-    expect(changedText(NO_DRAFT)).toBeNull();
-  });
-
-  it('is told by the bar as what is published and what is waiting', () => {
-    expect(barText(NO_DRAFT)).toBe('No draft.');
-    expect(barText(viewOf(EMPTY, EMPTY, []))).toBe('The draft matches what people see.');
-    expect(barText(viewOf(EMPTY, EMPTY, ['tokens']))).toBe('Changed: Colours and font');
-  });
-
-  it('is told in a count where the bar has one line, the sentence kept for a title', () => {
-    expect(changeCount(NO_DRAFT)).toBeNull();
-    expect(changeCount(viewOf(EMPTY, EMPTY, []))).toBeNull();
-    expect(changeCount(viewOf(EMPTY, EMPTY, ['tokens']))).toBe('1 change');
-    expect(changeCount(viewOf(EMPTY, EMPTY, ['tokens', 'assets', 'templates']))).toBe('3 changes');
-  });
-
-  it('is told in a few words where the bar has room for no more', () => {
-    expect(changeBrief(NO_DRAFT)).toBe('No draft');
-    expect(changeBrief(viewOf(EMPTY, EMPTY, []))).toBe('Up to date');
-    expect(changeBrief(viewOf(EMPTY, EMPTY, ['tokens', 'assets']))).toBe('2 changes');
-  });
-
-  it('gives each tab a dot for the pieces of the change it holds', () => {
-    expect([...tabsChanged(['tokens'])]).toEqual(['theme']);
-    expect([...tabsChanged(['assets', 'stylesheet'])]).toEqual(['theme']);
-    expect([...tabsChanged(['templates'])]).toEqual(['pages']);
-    expect([...tabsChanged(['tokens', 'templates'])]).toEqual(['theme', 'pages']);
-    expect([...tabsChanged([])]).toEqual([]);
-  });
-});
 
 describe('reverting a tab', () => {
   const published = { ...EMPTY, tokens: { light: OWN_LIGHT }, stylesheet: '.a { }' };
@@ -174,20 +125,6 @@ describe('what a revert answers', () => {
   });
 });
 
-describe('the hold for nothing to publish', () => {
-  it('is the sentence the server’s refusal says too', () => {
-    expect(NOTHING_TO_PUBLISH).toBe('Nothing to publish: the draft matches what people see.');
-  });
-});
-
-describe('the sentence that asks for a save first', () => {
-  it('names the sections and what is waiting on the saved draft', () => {
-    expect(revertUnsaved(['Images', 'Stylesheet'])).toBe(
-      'Save your changes first, in “Images” and “Stylesheet”: reverting works on the saved draft.',
-    );
-  });
-});
-
 describe('a revert that met a newer draft', () => {
   const published = { ...EMPTY, tokens: { light: OWN_LIGHT } };
   const draft = {
@@ -275,5 +212,13 @@ describe('a revert’s answer belongs to the tab it reverted', () => {
 
   it('shows nothing before any revert was answered', () => {
     expect(revertAnswerOf(null, 'theme')).toEqual({ problem: null, stale: false });
+  });
+});
+
+describe('the sentence that asks for a save first', () => {
+  it('names the sections and what is waiting on the saved draft', () => {
+    expect(revertUnsaved(['Images', 'Stylesheet'])).toBe(
+      'Save your changes first, in “Images” and “Stylesheet”: reverting works on the saved draft.',
+    );
   });
 });
