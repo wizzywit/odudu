@@ -123,6 +123,12 @@ boundaries`): the segment boundaries, which layer may import which, and the
   cannot see the console's own imports. A rule about those imports goes in
   `tests/lint`; teaching dependency-cruiser the alias would move
   them, and is not needed to finish the migration.
+- The sideways rule compares slices of one layer only. A page importing a
+  feature is legal by the layer order and is not flagged, as it should not be;
+  a feature importing a page breaks that order and is not flagged either,
+  since dependency-cruiser cannot read `#/` and no `tests/lint` rule checks the
+  order. It showed in domain 3, when `features/groups` and `features/roles`
+  imported `pages/subjects` between two commits with every check green.
 - Steiger's findings are not a gap in coverage we are accepting: the two
   checks it makes are made here, and it makes no check we lack except
   `insignificant-slice` and the naming rules, which are advice about FSD and
