@@ -15,7 +15,6 @@ import {
   assignButtonText,
   NO_SCOPES,
   PICKER_LABEL,
-  moreScopes,
   scopeCount,
   scopeFailureText,
   SCOPES_CAPABILITY,
@@ -107,6 +106,7 @@ export function useClientScopeAssignment({
       assignedText(scope.name, client.name, assignmentOf(chosenAssignment)),
     );
 
+  const listed = shownScopes(client.scopes, page);
   const chosen = picker.options.find((scope) => scope.id === flow.chosenId) ?? null;
   return {
     assignedHeading: ASSIGNED_HEADING,
@@ -120,8 +120,8 @@ export function useClientScopeAssignment({
     count: scopeCount(client.scopes.length),
     rule: spaced(ASSIGNMENT_RULE, scopeCount(client.scopes.length)),
     choices: ASSIGNMENTS,
-    shown: shownScopes(client.scopes, page),
-    more: moreScopes(client.scopes, page),
+    shown: listed.items,
+    more: listed.rest,
     showMore: () => {
       setPage((was) => was + SCOPES_PAGE);
     },

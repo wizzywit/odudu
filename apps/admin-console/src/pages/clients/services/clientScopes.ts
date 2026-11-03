@@ -2,7 +2,7 @@ import type { Client } from '#/entities/client';
 import type { Scope } from '#/entities/scope';
 import { writeRefusal } from '#/shared/services/capabilities';
 import { writeFailureText } from '#/shared/services/failure';
-import { counted } from '#/shared/services/format';
+import { counted, shown } from '#/shared/services/format';
 import type { GatewayFailure, Problem } from '#/shared/services/result';
 
 export const SCOPES_CAPABILITY = 'manage-tenant';
@@ -16,12 +16,8 @@ export function assignedScopes(scopes: readonly Assignment[]): readonly Assignme
   return [...scopes].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function shownScopes(scopes: readonly Assignment[], shown: number): readonly Assignment[] {
-  return assignedScopes(scopes).slice(0, shown);
-}
-
-export function moreScopes(scopes: readonly Assignment[], shown: number): number {
-  return Math.max(0, scopes.length - shown);
+export function shownScopes(scopes: readonly Assignment[], limit: number) {
+  return shown(assignedScopes(scopes), limit);
 }
 
 export function scopeCount(count: number): string {

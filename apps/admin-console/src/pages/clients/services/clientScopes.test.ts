@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   alreadyAssigned,
   assignButtonText,
-  moreScopes,
   scopeCount,
   scopeRefusal,
   SCOPES_PAGE,
@@ -17,9 +16,10 @@ const SCOPES = [
 
 describe('what a client is shown of its scopes', () => {
   it('lists them by name and shows only as many as asked', () => {
-    expect(shownScopes(SCOPES, 2).map((each) => each.name)).toEqual(['billing', 'email']);
-    expect(moreScopes(SCOPES, 2)).toBe(1);
-    expect(moreScopes(SCOPES, SCOPES_PAGE)).toBe(0);
+    const some = shownScopes(SCOPES, 2);
+    expect(some.items.map((each) => each.name)).toEqual(['billing', 'email']);
+    expect(some.rest).toBe(1);
+    expect(shownScopes(SCOPES, SCOPES_PAGE).rest).toBe(0);
   });
 
   it('counts them in words', () => {
