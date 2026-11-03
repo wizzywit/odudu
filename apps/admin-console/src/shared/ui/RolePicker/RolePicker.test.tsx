@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { RolePicker } from '#/shared/ui/RolePicker/RolePicker';
+import { roleOwnerShort } from '#/shared/services/capabilities';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { pickerState } from '#/testing/pickerState';
 
@@ -41,6 +42,17 @@ it('names the built-in admin client as the owner of its roles', () => {
   const option = within(screen.getByRole('listbox', { name: 'Roles' })).getByRole('option');
   expect(option).toHaveTextContent('view-usersclient odudu-admin');
   expect(option).toHaveAccessibleName('view-users, a role of client odudu-admin');
+});
+
+it('words each owner as the capabilities owner does', () => {
+  const owned = [role('r1', 'a'), role('r2', 'b', 'portal'), BUILT_IN];
+  render(<RolePicker label="Roles" picker={pickerState(owned)} selected={[]} onChange={vi.fn()} />);
+  const options = within(screen.getByRole('listbox', { name: 'Roles' })).getAllByRole('option');
+  expect(options.map((option) => option.textContent)).toEqual([
+    `a${roleOwnerShort(null)}`,
+    `b${roleOwnerShort('portal')}`,
+    `view-users${roleOwnerShort('odudu-admin')}`,
+  ]);
 });
 
 it("shows a role's description beside its owner", () => {

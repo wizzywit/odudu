@@ -1,5 +1,4 @@
 import type { Role } from '@odudu/contracts/admin';
-import { roleOwnerShort } from '#/shared/services/capabilities';
 import { Picker, type PickerFieldProps } from '#/shared/ui/Picker';
 
 // A client role is carried in a token under its client's name, so two roles
@@ -30,7 +29,7 @@ export function RolePicker({
       nameOf={(role) => role.name}
       detailOf={(role) => {
         const client = owner(role);
-        return described(roleOwnerShort(client), role.description);
+        return described(client === null ? 'tenant role' : `client ${client}`, role.description);
       }}
       accessibleNameOf={(role) => {
         const client = owner(role);
