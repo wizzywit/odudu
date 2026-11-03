@@ -10,7 +10,7 @@ import {
   tenantAdminRole,
   withRole,
 } from '#/shared/services/administrators';
-import { tenantAdminCarries } from '#/shared/services/capabilities/holdings';
+import { tenantAdminCarries } from '#/shared/services/capabilities';
 
 describe('the first administrator', () => {
   it('makes only the calls not yet made, the password last', () => {

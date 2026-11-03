@@ -1,5 +1,5 @@
 import { type AdminCapability } from '#/shared/services/principal';
-import { TENANT_ADMIN, tenantAdminCarries } from '#/shared/services/capabilities/holdings';
+import { TENANT_ADMIN, tenantAdminCarries } from '#/shared/services/capabilities';
 
 export type AdministratorCall = 'create' | 'grant' | 'password';
 
