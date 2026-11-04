@@ -24,7 +24,7 @@ When a person signs in, Odudu records a session and sets a cookie in their brows
 
 While the sign-in page is open, a second, short-lived cookie remembers which sign-in this browser started. It signs nobody in. It lets a link mailed during the sign-in, such as a password reset, bring that browser, and no other, back to the application's original request. Anyone using the same browser profile can continue that sign-in until the cookie, which is HttpOnly, expires with the login lifetime.
 
-A session belongs to a tenant, to a person and to a browser. It also remembers which clients it signed the person in to, so that signing out can reach them all. A session cookie belongs to one host, so switching a tenant's address makes people sign in again at the new one; the sessions at the address left are not ended and resume if the tenant switches back ([Custom domains](../operating/custom-domains.md)).
+A session belongs to a tenant, to a person and to a browser. It remembers which clients it signed in, so signing out reaches them all. The cookie is per host, so people sign in again after a switch of address ([Custom domains](../operating/custom-domains.md)).
 
 ## How long it lasts
 
