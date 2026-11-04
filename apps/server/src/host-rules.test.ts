@@ -21,9 +21,14 @@ describe('requestHost', () => {
     expect(requestHost(raw(headers), false)).toBe('evil.test');
   });
 
-  it('takes the leftmost X-Forwarded-Host once the proxy is trusted', () => {
-    const headers = { host: 'internal.test', 'x-forwarded-host': 'Login.Acme.com, other.test' };
+  it('takes the last X-Forwarded-Host entry, the one the trusted proxy appended', () => {
+    const headers = { host: 'internal.test', 'x-forwarded-host': 'spoof.example, Login.Acme.com' };
     expect(requestHost(raw(headers), true)).toBe('login.acme.com');
+  });
+
+  it('never takes an entry the client could have written ahead of the proxy', () => {
+    const headers = { host: 'internal.test', 'x-forwarded-host': 'login.acme.com, spoof.example' };
+    expect(requestHost(raw(headers), true)).toBe('spoof.example');
   });
 
   it('does not fall back to Host when the forwarded value is unusable', () => {

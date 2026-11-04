@@ -8,14 +8,16 @@ function headerText(value: string | string[] | undefined): string | undefined {
 
 // The canonical host the request was addressed to, or null when it names no
 // registrable one. `X-Forwarded-Host` counts only behind a proxy the
-// deployment trusts, leftmost value first as the proxy appended it; a client
-// reaching the server directly writes that header itself.
+// deployment trusts, and then the last entry: a proxy appends its own on the
+// right, so everything left of it is what the client wrote. Fastify's
+// `request.host` reads the header the same way.
 export function requestHost(
   raw: Pick<IncomingMessage, 'headers'>,
   trustProxy: boolean,
 ): string | null {
   const forwarded = trustProxy ? headerText(raw.headers['x-forwarded-host']) : undefined;
-  const written = forwarded === undefined ? headerText(raw.headers.host) : forwarded.split(',')[0];
+  const written =
+    forwarded === undefined ? headerText(raw.headers.host) : forwarded.split(',').at(-1);
   return written === undefined ? null : canonicalHost(written.trim());
 }
 
