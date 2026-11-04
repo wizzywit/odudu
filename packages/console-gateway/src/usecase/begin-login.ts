@@ -6,9 +6,11 @@ import {
   CONSOLE_CALLBACK_PATH,
   isValidTenantName,
 } from '@odudu/domain-tenant';
+import { addressUrl } from '@odudu/kernel';
 import { consoleLoginRepository } from '#/repository/console-logins';
-import { tenantDirectory } from '#/repository/tenants';
+import { canonicalHostById, tenantDirectory } from '#/repository/tenants';
 import { codeChallenge, codeVerifier } from '#/service/pkce';
+import { consoleAddressOf } from '#/service/tenant-address';
 import { safeReturnTo } from '#/service/return-to';
 import { bindToTenant, randomSecret, sha256 } from '#/service/secrets';
 import { CONSOLE_LOGIN_SECONDS } from '#/service/session-lifetime';
@@ -54,9 +56,15 @@ export async function beginLogin(deps: LoginDeps, input: BeginLogin): Promise<Be
     }),
   );
 
-  // Absolute on the public base, so the browser's own authorization
-  // request carries the authority the gateway later injects with.
-  const authorize = new URL(`/tenants/${tenant}/protocol/openid-connect/auth`, deps.base);
+  // Absolute at the tenant's canonical address, so the browser's own
+  // authorization request carries the authority the gateway later injects
+  // with. The callback stays on the public base, where the console is.
+  const address = consoleAddressOf(
+    deps.base,
+    tenant,
+    await canonicalHostById(deps.database.db, tenantId),
+  );
+  const authorize = new URL(addressUrl(address, '/protocol/openid-connect/auth'));
   authorize.search = new URLSearchParams({
     response_type: 'code',
     client_id: ADMIN_CLIENT_ID,

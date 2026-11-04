@@ -1,6 +1,7 @@
 import { type ClientKey, signClientAssertion } from '@odudu/crypto';
 import { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { ADMIN_API_AUDIENCE, ADMIN_CLIENT_ID } from '@odudu/domain-tenant';
+import { addressPath, addressUrl, type TenantAddress } from '@odudu/kernel';
 import { z } from 'zod';
 import {
   type AdminCall,
@@ -41,10 +42,12 @@ function json(res: LightMyRequestResponse): unknown {
   }
 }
 
-// Every call carries the public base's host and never the browser's. The
-// issuer is the configured base whatever a request says, which is what keeps
-// the callback's iss, the ID token's iss and the admin API's issuer check on
-// one string, so no forwarded scheme is needed.
+// A call about a tenant carries the host of the address it is served at: the
+// public base for a tenant on its path address, its canonical domain otherwise,
+// which host resolution routes to the tenant. The issuer is that address
+// whatever a browser's request says, which keeps the callback's iss, the ID
+// token's iss and the admin API's issuer check on one string, so no forwarded
+// scheme is needed. Calls to the admin API are on the base.
 export interface ClientAuthentication {
   /** The key every tenant's admin client is registered with. */
   readonly key: ClientKey;
@@ -60,29 +63,29 @@ export function oduduClient(
   fastify: FastifyInstance,
   base: URL,
   authentication: ClientAuthentication,
+  addressOf: (tenant: string) => Promise<TenantAddress>,
 ): OduduPort {
-  const authority = { host: base.host };
   // The browser's request id, so the server's audit rows and problem
   // instances name the id the browser was answered with.
-  const headersFor = (from: Caller): Record<string, string> => ({
-    ...authority,
+  const headersFor = (from: Caller, address?: TenantAddress): Record<string, string> => ({
+    host: new URL(address?.origin ?? base.origin).host,
     'x-request-id': from.requestId,
   });
-  const tenantPath = (tenant: string): string => `/tenants/${encodeURIComponent(tenant)}`;
-  async function clientAuthentication(tenant: string): Promise<Record<string, string>> {
+  async function clientAuthentication(address: TenantAddress): Promise<Record<string, string>> {
     const assertion = await signClientAssertion(authentication.key, {
       clientId: ADMIN_CLIENT_ID,
-      audience: `${base.origin}${tenantPath(tenant)}/protocol/openid-connect/token`,
+      audience: addressUrl(address, '/protocol/openid-connect/token'),
       now: authentication.now(),
     });
     return { client_assertion_type: CLIENT_ASSERTION_TYPE, client_assertion: assertion };
   }
 
   async function discoveryOf(tenant: string, from: Caller): Promise<DiscoveryDocument | null> {
+    const address = await addressOf(tenant);
     const res = await fastify.inject({
       method: 'GET',
-      url: `${tenantPath(tenant)}/.well-known/openid-configuration`,
-      headers: headersFor(from),
+      url: addressPath(address, '/.well-known/openid-configuration'),
+      headers: headersFor(from, address),
       remoteAddress: from.ip,
     });
     if (res.statusCode !== 200) return null;
@@ -99,10 +102,11 @@ export function oduduClient(
     discoveryOf,
 
     async keysOf(tenant: string, from: Caller): Promise<JsonWebKeySet | null> {
+      const address = await addressOf(tenant);
       const res = await fastify.inject({
         method: 'GET',
-        url: `${tenantPath(tenant)}/protocol/openid-connect/certs`,
-        headers: headersFor(from),
+        url: addressPath(address, '/protocol/openid-connect/certs'),
+        headers: headersFor(from, address),
         remoteAddress: from.ip,
       });
       if (res.statusCode !== 200) return null;
@@ -111,10 +115,14 @@ export function oduduClient(
     },
 
     async exchangeCode(input: CodeExchange): Promise<TokenSet | null> {
+      const address = await addressOf(input.tenant);
       const res = await fastify.inject({
         method: 'POST',
-        url: `${tenantPath(input.tenant)}/protocol/openid-connect/token`,
-        headers: { ...headersFor(input.from), 'content-type': 'application/x-www-form-urlencoded' },
+        url: addressPath(address, '/protocol/openid-connect/token'),
+        headers: {
+          ...headersFor(input.from, address),
+          'content-type': 'application/x-www-form-urlencoded',
+        },
         remoteAddress: input.from.ip,
         payload: new URLSearchParams({
           grant_type: 'authorization_code',
@@ -123,7 +131,7 @@ export function oduduClient(
           client_id: ADMIN_CLIENT_ID,
           code_verifier: input.verifier,
           resource: ADMIN_API_AUDIENCE,
-          ...(await clientAuthentication(input.tenant)),
+          ...(await clientAuthentication(address)),
         }).toString(),
       });
       if (res.statusCode !== 200) return null;
@@ -138,32 +146,40 @@ export function oduduClient(
     },
 
     async revoke(tenant: string, refreshToken: string, from: Caller): Promise<void> {
+      const address = await addressOf(tenant);
       await fastify.inject({
         method: 'POST',
-        url: `${tenantPath(tenant)}/protocol/openid-connect/revoke`,
-        headers: { ...headersFor(from), 'content-type': 'application/x-www-form-urlencoded' },
+        url: addressPath(address, '/protocol/openid-connect/revoke'),
+        headers: {
+          ...headersFor(from, address),
+          'content-type': 'application/x-www-form-urlencoded',
+        },
         remoteAddress: from.ip,
         payload: new URLSearchParams({
           token: refreshToken,
           token_type_hint: 'refresh_token',
           client_id: ADMIN_CLIENT_ID,
-          ...(await clientAuthentication(tenant)),
+          ...(await clientAuthentication(address)),
         }).toString(),
       });
     },
 
     async refresh(tenant: string, refreshToken: string, from: Caller): Promise<RefreshOutcome> {
+      const address = await addressOf(tenant);
       const res = await fastify.inject({
         method: 'POST',
-        url: `${tenantPath(tenant)}/protocol/openid-connect/token`,
-        headers: { ...headersFor(from), 'content-type': 'application/x-www-form-urlencoded' },
+        url: addressPath(address, '/protocol/openid-connect/token'),
+        headers: {
+          ...headersFor(from, address),
+          'content-type': 'application/x-www-form-urlencoded',
+        },
         remoteAddress: from.ip,
         payload: new URLSearchParams({
           grant_type: 'refresh_token',
           refresh_token: refreshToken,
           client_id: ADMIN_CLIENT_ID,
           resource: ADMIN_API_AUDIENCE,
-          ...(await clientAuthentication(tenant)),
+          ...(await clientAuthentication(address)),
         }).toString(),
       });
       if (
