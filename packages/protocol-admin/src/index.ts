@@ -16,6 +16,7 @@ import {
   systemClock,
 } from '@odudu/kernel';
 import {
+  acceptedIssuersLookup,
   tenantLookupRepository,
   tokenGrantRepository,
   type ClaimContext,
@@ -904,6 +905,7 @@ function buildAdminRoutes(
         withTenant(deps.database.db, tenantId, async (tx) =>
           subjectIsEnabled(await subjectRepository(tx).byId(subjectId)),
         ),
+      acceptedIssuers: acceptedIssuersLookup(deps),
     };
 
     const authzDeps: AuthorizeAdminDeps = {

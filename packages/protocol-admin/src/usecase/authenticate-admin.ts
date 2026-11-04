@@ -1,7 +1,12 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { ADMIN_API_AUDIENCE, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
-import { tenantIssuer, type TenantLookup, type TokenGrantRecord } from '@odudu/protocol-oidc';
+import {
+  tenantIssuer,
+  type AcceptedIssuersLookup,
+  type TenantLookup,
+  type TokenGrantRecord,
+} from '@odudu/protocol-oidc';
 
 export interface AdminPrincipal {
   readonly subjectId: string;
@@ -42,6 +47,9 @@ export interface AuthenticateAdminDeps {
   ): Promise<boolean>;
   isClientEnabled(tenantId: string, clientDbId: string): Promise<boolean>;
   isSubjectEnabled(tenantId: string, subjectId: string): Promise<boolean>;
+  // The issuers a token for this tenant may carry: its canonical address and
+  // any it left whose window is open, the set /userinfo checks against.
+  acceptedIssuers: AcceptedIssuersLookup;
 }
 
 export interface AuthenticateAdminInput {
@@ -49,11 +57,13 @@ export interface AuthenticateAdminInput {
   targetTenantName: string;
   // The row `targetTenantName` resolves to, as the caller has already read it,
   // so it is not read a second time here.
-  targetTenant?: TenantLookup;
-  // The two whole strings this door accepts as `iss`, resolved by the
-  // caller the same way /userinfo resolves the one it checks against
-  // (`tenantIssuerFor`, `@odudu/protocol-oidc`) — kept out of this usecase
-  // so it stays free of the Fastify request type that computes them.
+  targetTenant: TenantLookup;
+  // The whole strings this door accepts as `iss`: the target tenant's accepted
+  // set (`deps.acceptedIssuers`, seeded with this request's own issuer for the
+  // tenant, which stands for all of it where no base URL is configured) and the
+  // system tenant's, resolved by the caller the way /userinfo resolves its own
+  // (`tenantIssuerFor`, `@odudu/protocol-oidc`) — kept out of this usecase so
+  // it stays free of the Fastify request type that computes them.
   targetTenantIssuer: string;
   systemTenantIssuer: string;
   issuerBase: string;
@@ -108,27 +118,39 @@ export function lifespansOf(tenant: TenantLookup): SessionLifespans {
 }
 
 // Which tenant's keys the signature verifies against is decided here, by
-// exact string match against the two issuers this door accepts — never by
+// exact string match against the issuers this door accepts — never by
 // trusting the path alone. A system-tenant token presented at another
 // tenant's path names the system tenant's issuer and must resolve to it,
-// not to the path tenant it was never minted for.
+// not to the path tenant it was never minted for. The system tenant cannot
+// have a domain, so its one issuer is never looked up.
+async function namesTarget(
+  deps: AuthenticateAdminDeps,
+  input: AuthenticateAdminInput,
+  iss: string,
+): Promise<boolean> {
+  if (input.targetTenantName === SYSTEM_TENANT_NAME) return iss === input.targetTenantIssuer;
+  if (iss === input.systemTenantIssuer) return false;
+  const accepted = await deps.acceptedIssuers(
+    { id: input.targetTenant.id, name: input.targetTenantName },
+    input.targetTenantIssuer,
+    input.now,
+  );
+  return accepted.includes(iss);
+}
+
 async function matchIssuer(
   deps: AuthenticateAdminDeps,
   input: AuthenticateAdminInput,
   iss: string,
 ): Promise<MatchedTenant | undefined> {
-  const name =
-    iss === input.targetTenantIssuer
-      ? input.targetTenantName
-      : iss === input.systemTenantIssuer
-        ? SYSTEM_TENANT_NAME
-        : undefined;
+  const name = (await namesTarget(deps, input, iss))
+    ? input.targetTenantName
+    : iss === input.systemTenantIssuer
+      ? SYSTEM_TENANT_NAME
+      : undefined;
   if (name === undefined) return undefined;
 
-  const tenant =
-    name === input.targetTenantName && input.targetTenant !== undefined
-      ? input.targetTenant
-      : await deps.findTenant(name);
+  const tenant = name === input.targetTenantName ? input.targetTenant : await deps.findTenant(name);
   if (!tenant?.enabled) return undefined;
   return { id: tenant.id, lifespans: lifespansOf(tenant) };
 }

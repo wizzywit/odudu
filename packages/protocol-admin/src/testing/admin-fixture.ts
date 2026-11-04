@@ -52,6 +52,7 @@ import {
   oidcRoutes,
   provisionAdminClient,
   standardClaimMappers,
+  configureIssuerBase,
   tenantIssuerFor,
   tokenGrantRepository,
   UNLIMITED_AUDIT_REFUSAL_BUDGET,
@@ -286,10 +287,15 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
     catchUpToWall();
     done();
   });
+  // The issuer is the configured base wherever there is one, for the OIDC routes
+  // and the admin API alike, as in a deployment: a token minted here names the
+  // address the admin API takes as the tenant's canonical one.
+  configureIssuerBase(http, options.domainsBaseUrl);
   await http.register(formbody);
   await http.register(
     oidcRoutes({
       tls: false,
+      ...(options.domainsBaseUrl === undefined ? {} : { publicBaseUrl: options.domainsBaseUrl }),
       database: app,
       ownerDatabase: owner,
       kek: KEK,
