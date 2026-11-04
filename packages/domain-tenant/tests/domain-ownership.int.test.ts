@@ -137,7 +137,7 @@ describe('verifyDomain against the table', () => {
       const domains = tenantDomainRepository(tx);
       const resolveTxt = publishing(second.recordName, second.recordValue);
       const result = await verifyDomain({ resolveTxt, domains }, b.id, second.row.id, NOW);
-      return { outcome: result, listed: await domains.list(b.id) };
+      return { outcome: result, listed: await domains.page(b.id, { limit: 50 }) };
     });
     expect(outcome).toBe('verified_elsewhere');
     expect(listed).toMatchObject([{ id: second.row.id, state: 'pending' }]);

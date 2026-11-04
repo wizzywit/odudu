@@ -94,7 +94,7 @@ describe('insert, list and get', () => {
       canonical: false,
     });
     const listed = await withTenant(app.db, tenantId, (tx) =>
-      tenantDomainRepository(tx).list(tenantId),
+      tenantDomainRepository(tx).page(tenantId, { limit: 50 }),
     );
     expect(listed.map((r) => r.id)).toEqual([row.id]);
     const got = await withTenant(app.db, tenantId, (tx) =>
@@ -199,7 +199,7 @@ describe('the canonical row', () => {
     await canonicalise(tenantId, one.id);
     expect(await canonicalise(tenantId, two.id)).toMatchObject({ canonical: true });
     const rows = await withTenant(app.db, tenantId, (tx) =>
-      tenantDomainRepository(tx).list(tenantId),
+      tenantDomainRepository(tx).page(tenantId, { limit: 50 }),
     );
     expect(rows.filter((r) => r.canonical).map((r) => r.id)).toEqual([two.id]);
   });
@@ -548,7 +548,7 @@ describe('a foreign tenant', () => {
       async (tx, seeded) => {
         const repo = tenantDomainRepository(tx);
         return {
-          listed: await repo.list(seeded.tenantA),
+          listed: await repo.page(seeded.tenantA, { limit: 50 }),
           got: await repo.get(seeded.tenantA, seeded.id),
           byHost: await repo.getByHost(seeded.tenantA, seeded.host),
           retired: await repo.listRetired(seeded.tenantA, NOW),

@@ -206,7 +206,7 @@ export async function driveRepositories(
   await capture('domains: what a tenant reads of its domains', 'authn', () =>
     withTenant(database, world.tenantId, async (tx) => {
       const domains = tenantDomainRepository(tx);
-      const [first] = await domains.list(world.tenantId);
+      const [first] = await domains.page(world.tenantId, { limit: 50 });
       if (first !== undefined) await domains.get(world.tenantId, first.id);
       await domains.getByHost(world.tenantId, 'plans1.example.com');
       await domains.listRetired(world.tenantId, new Date());

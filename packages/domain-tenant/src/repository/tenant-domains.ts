@@ -157,15 +157,6 @@ export function tenantDomainRepository(tx: TenantScopedDatabase) {
         .limit(input.limit);
     },
 
-    list(tenantId: string): Promise<DomainRow[]> {
-      return tx
-        .select(COLUMNS)
-        .from(tenantDomains)
-        .where(eq(tenantDomains.tenantId, tenantId))
-        .orderBy(asc(tenantDomains.createdAt), asc(tenantDomains.id))
-        .limit(MAX_DOMAINS_PER_TENANT);
-    },
-
     async get(tenantId: string, id: string): Promise<DomainRow | null> {
       const rows = await tx.select(COLUMNS).from(tenantDomains).where(own(tenantId, id));
       return rows[0] ?? null;

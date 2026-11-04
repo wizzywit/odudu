@@ -56,7 +56,7 @@ async function run(args: string[]): Promise<DomainCommandResult> {
 }
 
 const rows = (tenantId: string) =>
-  withTenant(appDb.db, tenantId, (tx) => tenantDomainRepository(tx).list(tenantId));
+  withTenant(appDb.db, tenantId, (tx) => tenantDomainRepository(tx).page(tenantId, { limit: 50 }));
 const retired = (tenantId: string) =>
   withTenant(appDb.db, tenantId, (tx) =>
     tenantDomainRepository(tx).listRetired(tenantId, new Date()),
