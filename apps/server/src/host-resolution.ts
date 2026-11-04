@@ -42,16 +42,12 @@ function answer(reply: FastifyReply, refusal: Refusal): FastifyReply {
 
 // Serves a verified domain at its root as its tenant: the request is handed to
 // the router again with the URL it would have had under `/tenants/<name>`, so
-// every route, throttle and hook declared for that path applies unchanged. The
-// first pass is abandoned (`hijack`) and the second reads what it learned.
-// Nothing is resolved without a base URL to tell the operator's own host by.
-// A tenant that switched address answers at the one it left, for a window,
-// only where an issued token is used; after it, with a bare 404.
+// every route, throttle and hook declared for that path applies unchanged.
+// Nothing is resolved without a base URL. A tenant that switched address
+// answers at the one it left, for a window, only where an issued token is used.
 //
-// Returns the hook that refuses a path address a tenant left. It is the
-// caller's to register after the throttle hooks, so a request they refuse
-// costs no statement; it reads the tenant once for a `/tenants/<name>` URL on
-// the base host or a host nobody verified, and never for another path.
+// Returns the hook that refuses a path address a tenant left, for the caller to
+// register after the throttle hooks so a request they refuse costs no statement.
 export function configureHostResolution(
   app: FastifyInstance,
   deps: HostResolutionDeps,
