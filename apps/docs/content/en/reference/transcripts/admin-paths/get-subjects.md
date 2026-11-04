@@ -141,15 +141,17 @@ so no holder of anything in `admins-demo` itself. `grace`
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3080/admin/tenants/admins-demo/subjects?capability=tenant-admin'
+  'http://localhost:3000/admin/tenants/admins-demo/subjects?capability=tenant-admin'
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3080/admin/tenants/admins-demo/subjects?capability=view-users'
+  'http://localhost:3000/admin/tenants/admins-demo/subjects?capability=view-users'
 ```
 
 ```
-{"items":[{"id":"01a0ea0f-36a4-7377-b18e-c6e48982a5cf","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-10-27T01:16:21.310Z","admin_capabilities":[{"name":"tenant-admin","direct":true},{"name":"view-users","direct":false},{"name":"manage-users","direct":false},{"name":"manage-clients","direct":false},{"name":"manage-tenant","direct":false},{"name":"manage-keys","direct":false},{"name":"manage-sessions","direct":false},{"name":"view-audit","direct":false}]}]}
-{"items":[{"id":"01a0ea0f-36a4-7377-b18e-c6e48982a5cf","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-10-27T01:16:21.310Z","admin_capabilities":[{"name":"tenant-admin","direct":true},{"name":"view-users","direct":false},{"name":"manage-users","direct":false},{"name":"manage-clients","direct":false},{"name":"manage-tenant","direct":false},{"name":"manage-keys","direct":false},{"name":"manage-sessions","direct":false},{"name":"view-audit","direct":false}]}]}
+{"items":[{"id":"01a1a8b1-9be5-70de-8c85-93229675801c","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-11-04T22:32:54.496Z","admin_capabilities":[{"name":"tenant-admin","direct":true},{"name":"view-users","direct":false},{"name":"manage-users","direct":false},{"name":"manage-clients","direct":false},{"name":"manage-tenant","direct":false},{"name":"manage-keys","direct":false},{"name":"manage-sessions","direct":false},{"name":"view-audit","direct":false},{"name":"view-domains","direct":false},{"name":"manage-domains","direct":false}]}]}
+{"items":[{"id":"01a1a8b1-9be5-70de-8c85-93229675801c","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-11-04T22:32:54.496Z","admin_capabilities":[{"name":"tenant-admin","direct":true},{"name":"view-users","direct":false},{"name":"manage-users","direct":false},{"name":"manage-clients","direct":false},{"name":"manage-tenant","direct":false},{"name":"manage-keys","direct":false},{"name":"manage-sessions","direct":false},{"name":"view-audit","direct":false},{"name":"view-domains","direct":false},{"name":"manage-domains","direct":false}]},{"id":"01a1a8b1-9f83-7e71-b85e-2c904346eca3","type":"user","username":"hana","email":null,"enabled":true,"created_at":"2026-11-04T22:32:55.421Z","admin_capabilities":[{"name":"view-users","direct":true}]}]}
 ```
+
+This block ran again after `view-domains` and `manage-domains` joined the built-in roles, so its ids and times are not those of the blocks around it.
 
 Holding through a group or a composite is shown by an integration test, not
 here.
@@ -175,7 +177,7 @@ and `bob`, who holds nothing. The listing, its count, a page of two with its
 listing is not filtered by capability:
 
 ```bash
-P=http://localhost:3082/admin/tenants/holders-demo
+P=http://localhost:3000/admin/tenants/holders-demo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?capability=any"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/count?capability=any"; echo
 curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?capability=any&limit=2"; echo
@@ -183,21 +185,23 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?username=bob"; ech
 ```
 
 ```
-{"items":[{"id":"01a10a7d-5942-7332-a5b6-2397a9e53571","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-10-05T05:15:49.436Z","admin_capabilities":[{"name":"tenant-admin","direct":true},{"name":"view-users","direct":false},{"name":"manage-users","direct":false},{"name":"manage-clients","direct":false},{"name":"manage-tenant","direct":false},{"name":"manage-keys","direct":false},{"name":"manage-sessions","direct":false},{"name":"view-audit","direct":false}]},{"id":"01a10a7d-5af3-7c7b-9a9d-a9563044e85d","type":"user","username":"linus","email":null,"enabled":true,"created_at":"2026-10-05T05:15:49.870Z","admin_capabilities":[{"name":"view-audit","direct":false}]},{"id":"01a10a7d-5cfe-7324-b44c-9877c28a2d78","type":"user","username":"mei","email":null,"enabled":true,"created_at":"2026-10-05T05:15:50.394Z","admin_capabilities":[{"name":"view-users","direct":true},{"name":"manage-sessions","direct":true}]}]}
+{"items":[{"id":"01a1a8b1-88b4-7c2b-ae64-c7d60920fd47","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-11-04T22:32:49.582Z","admin_capabilities":[{"name":"tenant-admin","direct":true},{"name":"view-users","direct":false},{"name":"manage-users","direct":false},{"name":"manage-clients","direct":false},{"name":"manage-tenant","direct":false},{"name":"manage-keys","direct":false},{"name":"manage-sessions","direct":false},{"name":"view-audit","direct":false},{"name":"view-domains","direct":false},{"name":"manage-domains","direct":false}]},{"id":"01a1a8b1-8acb-7210-98d9-e7ebaebacf75","type":"user","username":"linus","email":null,"enabled":true,"created_at":"2026-11-04T22:32:50.118Z","admin_capabilities":[{"name":"view-audit","direct":false}]},{"id":"01a1a8b1-8cba-721d-9d0a-7b5d7704f203","type":"user","username":"mei","email":null,"enabled":true,"created_at":"2026-11-04T22:32:50.612Z","admin_capabilities":[{"name":"view-users","direct":true},{"name":"manage-sessions","direct":true}]}]}
 {"count":3,"capped":false}
 HTTP/1.1 200 OK
-x-request-id: 01a10a7d-8300-7580-ba1b-eda334c45132
+x-request-id: 01a1a8b1-c9ba-7646-bc96-852d1f704c60
 cache-control: no-store
-link: </admin/tenants/holders-demo/subjects?limit=2&capability=any&cursor=eyJhZnRlciI6IjAxYTEwYTdkLTVhZjMtN2M3Yi05YTlkLWE5NTYzMDQ0ZTg1ZCIsImNvbGxlY3Rpb24iOiJzdWJqZWN0cyIsInRlbmFudElkIjoiMDFhMTBhN2QtMzg4Ni03NTVhLWExZGEtOGFkMGFhMmQ1YWQ2IiwiZmlsdGVycyI6InJXRnNaN2Y3d3JBRDFrck0wQXJORFY1dEgwXzJNZEdSQW5kV2NmUTBBelUifQ.whYgO_QpD-V6fE1qy0WiRaYQLulYCMcMjrMM-oyB2D4>; rel="next"
+link: </admin/tenants/holders-demo/subjects?limit=2&capability=any&cursor=eyJhZnRlciI6IjAxYTFhOGIxLThhY2ItNzIxMC05OGQ5LWU3ZWJhZWJhY2Y3NSIsImNvbGxlY3Rpb24iOiJzdWJqZWN0cyIsInRlbmFudElkIjoiMDFhMWE4YjEtNzZkMy03ODQ2LWFjZGItZjEwNGNlM2NmN2JjIiwiZmlsdGVycyI6InJXRnNaN2Y3d3JBRDFrck0wQXJORFY1dEgwXzJNZEdSQW5kV2NmUTBBelUifQ.dcy5prL553f6FljLAB9RcCXF99yMJrjksnrt7S86DbU>; rel="next"
 content-type: application/json; charset=utf-8
-content-length: 992
-Date: Mon, 05 Oct 2026 05:16:00 GMT
+content-length: 1072
+Date: Wed, 04 Nov 2026 22:33:06 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a10a7d-5942-7332-a5b6-2397a9e53571","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-10-05T05:15:49.436Z","admin_capabilities":[{"name":"tenant-admin","direct":true},{"name":"view-users","direct":false},{"name":"manage-users","direct":false},{"name":"manage-clients","direct":false},{"name":"manage-tenant","direct":false},{"name":"manage-keys","direct":false},{"name":"manage-sessions","direct":false},{"name":"view-audit","direct":false}]},{"id":"01a10a7d-5af3-7c7b-9a9d-a9563044e85d","type":"user","username":"linus","email":null,"enabled":true,"created_at":"2026-10-05T05:15:49.870Z","admin_capabilities":[{"name":"view-audit","direct":false}]}],"next":"eyJhZnRlciI6IjAxYTEwYTdkLTVhZjMtN2M3Yi05YTlkLWE5NTYzMDQ0ZTg1ZCIsImNvbGxlY3Rpb24iOiJzdWJqZWN0cyIsInRlbmFudElkIjoiMDFhMTBhN2QtMzg4Ni03NTVhLWExZGEtOGFkMGFhMmQ1YWQ2IiwiZmlsdGVycyI6InJXRnNaN2Y3d3JBRDFrck0wQXJORFY1dEgwXzJNZEdSQW5kV2NmUTBBelUifQ.whYgO_QpD-V6fE1qy0WiRaYQLulYCMcMjrMM-oyB2D4"}
-{"items":[{"id":"01a10a7d-5ebc-7d00-9f74-e53b9038a916","type":"user","username":"bob","email":null,"enabled":true,"created_at":"2026-10-05T05:15:50.840Z"}]}
+{"items":[{"id":"01a1a8b1-88b4-7c2b-ae64-c7d60920fd47","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-11-04T22:32:49.582Z","admin_capabilities":[{"name":"tenant-admin","direct":true},{"name":"view-users","direct":false},{"name":"manage-users","direct":false},{"name":"manage-clients","direct":false},{"name":"manage-tenant","direct":false},{"name":"manage-keys","direct":false},{"name":"manage-sessions","direct":false},{"name":"view-audit","direct":false},{"name":"view-domains","direct":false},{"name":"manage-domains","direct":false}]},{"id":"01a1a8b1-8acb-7210-98d9-e7ebaebacf75","type":"user","username":"linus","email":null,"enabled":true,"created_at":"2026-11-04T22:32:50.118Z","admin_capabilities":[{"name":"view-audit","direct":false}]}],"next":"eyJhZnRlciI6IjAxYTFhOGIxLThhY2ItNzIxMC05OGQ5LWU3ZWJhZWJhY2Y3NSIsImNvbGxlY3Rpb24iOiJzdWJqZWN0cyIsInRlbmFudElkIjoiMDFhMWE4YjEtNzZkMy03ODQ2LWFjZGItZjEwNGNlM2NmN2JjIiwiZmlsdGVycyI6InJXRnNaN2Y3d3JBRDFrck0wQXJORFY1dEgwXzJNZEdSQW5kV2NmUTBBelUifQ.dcy5prL553f6FljLAB9RcCXF99yMJrjksnrt7S86DbU"}
+{"items":[{"id":"01a1a8b1-8ea4-7320-a26f-3e371440cc46","type":"user","username":"bob","email":null,"enabled":true,"created_at":"2026-11-04T22:32:51.103Z"}]}
 ```
+
+This block ran again after `view-domains` and `manage-domains` joined the built-in roles, so its ids and times are not those of the blocks around it. `tenant-admin` carries nine roles now, so `grace`'s `admin_capabilities` has two more names and the page of two is longer.
 
 `grace`'s capabilities other than `tenant-admin` are held within it, so none
 is direct; `linus` holds `view-audit` only through `/auditors`; `bob` is in

@@ -59,10 +59,16 @@ compared with what the pages said (every report was identical). The retention pa
 registers a domain and switches `demo` to it, which is why two of its counts are `1`. The page
 on [a tenant's own address](../reference/transcripts/request-paths/custom-domains-a-domain-host-and-the-proxys-question.md)
 sends a `Host` header to the stack's port, since no DNS names the domain; the host checks are the
-real ones. The admin-paths pages that list the built-in roles, a role's composites or an administrator's
-capabilities were captured before `view-domains` and `manage-domains` joined those lists and were not run
-again: Getting the token, the roles pages, the composites page, the export page, the admin-capabilities
-page, the two groups pages and the subjects page. `GET /whoami` shows the new list beside its old one.
+real ones. Seven admin-paths pages listed the built-in roles or what `tenant-admin` carries, which grew by
+`view-domains` and `manage-domains`. The blocks that showed that were run again on the same project, each
+in a tenant made for it as its page describes (`holders-demo`, `admins-demo` with `grace` and `hana`,
+`composites-demo`, `groups-demo` with `helpdesk` and `mei2`, and `export-demo` with the setup its page
+gives): the whoami of Getting the token and of `GET /whoami`, the roles page's list a user manager picks
+from, the composites of `tenant-admin`, the export, the subjects page's capability filters and
+the whole of the groups page from its `helpdesk` section on. Each says so under the block, and its ids
+and times are that run's, not those of the blocks around it. The admin-capabilities page and the groups page (`GET /groups`)
+do not involve `tenant-admin` or the new capabilities and were not touched. The rest of the
+admin paths were not run again for this phase, which stays with the end-to-end re-run of all of them.
 `tests/docs/retention-schedule.test.ts` holds every report to `REAP_ORDER`'s keys, and
 `apps/server/tests/reap.int.test.ts` runs both rules against real rows.
 

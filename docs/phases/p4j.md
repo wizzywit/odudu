@@ -122,15 +122,12 @@ Each row is in `docs/NEXT.md`, "Decisions still open", with its argument.
   path addresses, is the design; a cache has to state its bound and its invalidation on a
   switch and would blur "refused at its expiry". **P11**, when a measurement asks.
 - **Back-channel logout retry keeps the original `exp`.** A retried logout token that has
-  expired is refused by the receiver. It predates this phase and is outside its topic; **P13**
-  takes the deliveries.
+  expired is refused by the receiver. It predates this phase and is outside its topic; **P11**
+  takes it with the other outbound-call work.
 - **A person with no password and only hidden passkeys has no way back inside the sign-in
   itself**; recovery needs a switch back, a reset or an administrator (the guide says which).
   **P4f**, whose self-service criterion owns the account's own recovery.
-- **Admin-paths transcripts that list the built-in roles or capabilities** predate the two new
-  capabilities and were not re-run: Getting the token, the roles, composites, export,
-  admin-capabilities, groups and subjects pages (`contributing/transcripts.md` names them).
-  Re-running the admin paths in order on one stack is owed, and **P4g** takes it, since it is
-  the phase that last ran them end to end and that releases `0.1.0`.
 - **Not run:** a real reverse proxy and real DNS (above); `pnpm verify`, the e2e specs, the
   conformance job and the console screenshots of this closing increment ran in CI.
+- **The admin paths as a whole.** The blocks that listed roles or what `tenant-admin` carries were
+  run again for the two new capabilities; the 73 pages in one order on one stack stay with **P4g**.

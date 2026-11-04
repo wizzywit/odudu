@@ -46,76 +46,69 @@ holds, and that `oncall` carries nothing itself while its parent carries
 
 ```bash
 curl -sS -H "Authorization: Bearer $HELPDESK_TOKEN" \
-  http://localhost:3082/admin/tenants/groups-demo/whoami
+  http://localhost:3000/admin/tenants/groups-demo/whoami
 
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3082/admin/tenants/groups-demo/groups/01a109b9-c2d9-7265-9cfe-1cc931aa4a87/roles
+  http://localhost:3000/admin/tenants/groups-demo/groups/01a1a8b2-3185-7f82-8c55-61f0b1dbe23c/roles
 
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3082/admin/tenants/groups-demo/groups/01a109b9-c2c0-7af8-baf6-399f4128272f/roles
+  http://localhost:3000/admin/tenants/groups-demo/groups/01a1a8b2-2ffa-7a43-9317-6edf9d9e2087/roles
 ```
 
 ```
-{"subjectId":"01a109b9-c365-7216-9064-207c3931f9e0","issuerTenantId":"01a109b9-c288-7ef5-a623-21ab2f266513","capabilities":["manage-users","view-users"],"crossTenant":false}
+{"subjectId":"01a1a8b2-37e7-78a1-bae2-ab65b553f569","issuerTenantId":"01a1a8b1-8127-7350-86b7-3cc9fb8bc5c0","capabilities":["manage-users","view-users"],"crossTenant":false}
 {"items":[]}
-{"items":[{"id":"01a17afc-b055-741f-801d-cfe280df3b15","name":"tenant-admin","client_id":"01a109b9-c28f-78c9-bac7-b8be0801cfd6","client_key":"odudu-admin","admin_reach":["view-users","manage-users","manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}]}
+{"items":[{"id":"01a1a8b1-8198-7416-b9df-c11af829837b","name":"tenant-admin","client_id":"01a1a8b1-817e-7849-8840-51c37e1a68d6","client_key":"odudu-admin","admin_reach":["view-users","manage-users","manage-clients","manage-tenant","manage-keys","mana
 ```
+
+This block ran again after `view-domains` and `manage-domains` joined the built-in roles, so its ids and times are not those of the blocks around it. Every id on this page from here to its end is from that run.
 
 The read, then a write with no `If-Match`, then `helpdesk` putting `mei2`
 in `oncall`:
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $HELPDESK_TOKEN" \
-  http://localhost:3082/admin/tenants/groups-demo/subjects/01a109b9-c34e-7692-b5a4-67af33cf85e0/groups
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a1a8b2-3622-7c10-8a54-7281a4c3cfa3/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"group_ids": ["01a109b9-c2f2-795b-9df3-36c34e89980e"]}' \
-  http://localhost:3082/admin/tenants/groups-demo/subjects/01a109b9-c34e-7692-b5a4-67af33cf85e0/groups
+  -d '{"group_ids": ["01a1a8b2-32fe-72d5-8b42-367ce4e09849"]}' \
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a1a8b2-3622-7c10-8a54-7281a4c3cfa3/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
-  -d '{"group_ids": ["01a109b9-c2d9-7265-9cfe-1cc931aa4a87"]}' \
-  http://localhost:3082/admin/tenants/groups-demo/subjects/01a109b9-c34e-7692-b5a4-67af33cf85e0/groups
+  -d '{"group_ids": ["01a1a8b2-3185-7f82-8c55-61f0b1dbe23c"]}' \
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a1a8b2-3622-7c10-8a54-7281a4c3cfa3/groups
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a109b9-f21c-7f4a-b3f7-d25034ae0c60
-cache-control: no-store
+x-request-id: 01a1a8b2-3f69-7dd3-b2fe-8006c5ae9e60
 etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
 content-type: application/json; charset=utf-8
 content-length: 12
-Date: Mon, 05 Oct 2026 01:42:23 GMT
-Connection: keep-alive
-Keep-Alive: timeout=72
+Date: Wed, 04 Nov 2026 22:33:36 GMT
 
 {"items":[]}
 
 HTTP/1.1 428 Precondition Required
-x-request-id: 01a109b9-f22d-71b1-b8e2-f82b7f95e7e8
-cache-control: no-store
+x-request-id: 01a1a8b2-3f7e-7d0a-be27-e517a89c60ee
 content-type: application/problem+json; charset=utf-8
 content-length: 181
-Date: Mon, 05 Oct 2026 01:42:23 GMT
-Connection: keep-alive
-Keep-Alive: timeout=72
+Date: Wed, 04 Nov 2026 22:33:36 GMT
 
-{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a subject’s groups","instance":"01a109b9-f22d-71b1-b8e2-f82b7f95e7e8"}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a subject’s groups","instance":"01a1a8b2-3f7e-7d0a-be27-e517a89c60ee"}
 
 HTTP/1.1 403 Forbidden
-x-request-id: 01a109b9-f243-73fa-8f46-668be780b58a
-cache-control: no-store
+x-request-id: 01a1a8b2-3f9b-7d8c-864b-d2e55038a9c3
 content-type: application/problem+json; charset=utf-8
-content-length: 228
-Date: Mon, 05 Oct 2026 01:42:23 GMT
-Connection: keep-alive
-Keep-Alive: timeout=72
+content-length: 258
+Date: Wed, 04 Nov 2026 22:33:36 GMT
 
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"the caller does not hold: tenant-admin, manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a109b9-f243-73fa-8f46-668be780b58a"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the caller does not hold: tenant-admin, manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit, view-domains, manage-domains","instance":"01a1a8b2-3f9b-7d8c-864b-d2e550
 ```
 
 `oncall` names no role, and is refused for everything `tenant-admin`
@@ -126,58 +119,49 @@ stale:
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $HELPDESK_TOKEN" \
-  http://localhost:3082/admin/tenants/groups-demo/subjects/01a109b9-c34e-7692-b5a4-67af33cf85e0/groups
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a1a8b2-3622-7c10-8a54-7281a4c3cfa3/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
-  -d '{"group_ids": ["01a109b9-c2f2-795b-9df3-36c34e89980e"]}' \
-  http://localhost:3082/admin/tenants/groups-demo/subjects/01a109b9-c34e-7692-b5a4-67af33cf85e0/groups
+  -d '{"group_ids": ["01a1a8b2-32fe-72d5-8b42-367ce4e09849"]}' \
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a1a8b2-3622-7c10-8a54-7281a4c3cfa3/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
   -d '{"group_ids": []}' \
-  http://localhost:3082/admin/tenants/groups-demo/subjects/01a109b9-c34e-7692-b5a4-67af33cf85e0/groups
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a1a8b2-3622-7c10-8a54-7281a4c3cfa3/groups
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a109b9-f25d-7357-a2c8-4c86697f32da
-cache-control: no-store
+x-request-id: 01a1a8b2-3fbb-73cf-8b3e-9bcbee85d026
 etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
 content-type: application/json; charset=utf-8
 content-length: 12
-Date: Mon, 05 Oct 2026 01:42:23 GMT
-Connection: keep-alive
-Keep-Alive: timeout=72
+Date: Wed, 04 Nov 2026 22:33:36 GMT
 
 {"items":[]}
 
 HTTP/1.1 200 OK
-x-request-id: 01a109b9-f26f-7e40-9063-700663679c1b
-cache-control: no-store
-etag: "66a62a8dcf68d9df0b7e058b8cd86c42a83d9452d2fabf3f17091b29552fecf4"
+x-request-id: 01a1a8b2-3fd0-72cd-84f4-cfdc80bcfd48
+etag: "7077f0aba25d33ec1994d8a980c0506d603b6e345e60454c624713a0e7669efb"
 content-type: application/json; charset=utf-8
 content-length: 201
-Date: Mon, 05 Oct 2026 01:42:23 GMT
-Connection: keep-alive
-Keep-Alive: timeout=72
+Date: Wed, 04 Nov 2026 22:33:36 GMT
 
-{"items":[{"id":"01a109b9-c2f2-795b-9df3-36c34e89980e","name":"support","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/support","created_at":"2026-10-05T01:42:11.441Z"}]}
+{"items":[{"id":"01a1a8b2-32fe-72d5-8b42-367ce4e09849","name":"support","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/support","created_at":"2026-11-04T22:33:33.180Z"}]}
 
 HTTP/1.1 412 Precondition Failed
-x-request-id: 01a109b9-f288-78e9-ade7-7dfb8ef68ccd
-cache-control: no-store
+x-request-id: 01a1a8b2-3ff0-70d7-a231-9aea2d4e69be
 content-type: application/problem+json; charset=utf-8
 content-length: 153
-Date: Mon, 05 Oct 2026 01:42:23 GMT
-Connection: keep-alive
-Keep-Alive: timeout=72
+Date: Wed, 04 Nov 2026 22:33:36 GMT
 
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a109b9-f288-78e9-ade7-7dfb8ef68ccd"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1a8b2-3ff0-70d7-a231-9aea2d4e69be"}
 ```
 
 Both writes that reached the ceiling are in the trail, scoped here to
@@ -188,9 +172,9 @@ In the same tenant:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3082/admin/tenants/groups-demo/audit?action=subject.groups_set&resource_type=subject&resource_id=01a109b9-c34e-7692-b5a4-67af33cf85e0'; echo
+  'http://localhost:3000/admin/tenants/groups-demo/audit?action=subject.groups_set&resource_type=subject&resource_id=01a1a8b2-3622-7c10-8a54-7281a4c3cfa3'; echo
 ```
 
 ```
-{"items":[{"id":"01a109b9-f27e-7d11-a166-1263b8d4466f","occurred_at":"2026-10-05T01:42:23.608Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"allowed","actor_tenant_id":"01a109b9-c288-7ef5-a623-21ab2f266513","actor_subject_id":"01a109b9-c365-7216-9064-207c3931f9e0","actor_client_id":"01a109b9-c28f-78c9-bac7-b8be0801cfd6","actor_name":"helpdesk","actor_origin":"tenant","resource_type":"subject","resource_id":"01a109b9-c34e-7692-b5a4-67af33cf85e0","request_id":"01a109b9-f26f-7e40-9063-700663679c1b","ip":"172.22.0.1","detail":{"group_ids":{"after":["01a109b9-c2f2-795b-9df3-36c34e89980e"],"before":[]}}},{"id":"01a109b9-f252-7573-967d-079323ae2a71","occurred_at":"2026-10-05T01:42:23.565Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"refused","actor_tenant_id":"01a109b9-c288-7ef5-a623-21ab2f266513","actor_subject_id":"01a109b9-c365-7216-9064-207c3931f9e0","actor_client_id":"01a109b9-c28f-78c9-bac7-b8be0801cfd6","actor_name":"helpdesk","actor_origin":"tenant","resource_type":"subject","resource_id":"01a109b9-c34e-7692-b5a4-67af33cf85e0","request_id":"01a109b9-f243-73fa-8f46-668be780b58a","ip":"172.22.0.1","detail":{"denied":["tenant-admin","manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}}]}
+{"items":[{"id":"01a1a8b2-3fe5-7328-976c-4cf15df36cab","occurred_at":"2026-11-04T22:33:36.477Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"allowed","actor_tenant_id":"01a1a8b1-8127-7350-86b7-3cc9fb8bc5c0","actor_subject_id
 ```

@@ -290,18 +290,20 @@ it, as `hana`, a subject seeded there with `seed user`, granted
 tenant's own admin client, first `whoami`, then two lists and a count:
 
 ```bash
-curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3082/admin/tenants/admins-demo/whoami
-curl -sS -H "Authorization: Bearer $HANA_TOKEN" 'http://localhost:3082/admin/tenants/admins-demo/roles?name=manage&limit=2'
-curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3082/admin/tenants/admins-demo/groups
-curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3082/admin/tenants/admins-demo/roles/count
+curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3000/admin/tenants/admins-demo/whoami
+curl -sS -H "Authorization: Bearer $HANA_TOKEN" 'http://localhost:3000/admin/tenants/admins-demo/roles?name=manage&limit=2'
+curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3000/admin/tenants/admins-demo/groups
+curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3000/admin/tenants/admins-demo/roles/count
 ```
 
 ```
-{"subjectId":"01a10bd4-f479-7550-825d-3c8550dce115","issuerTenantId":"01a10bd4-f16d-7850-b858-651e575d55f3","capabilities":["view-users"],"crossTenant":false}
-{"items":[{"id":"01a10bd4-f17f-7cf9-bb84-4ae17ae3e1a0","name":"manage-clients","description":null,"client_id":"01a10bd4-f176-7236-8562-d17d73d5ca00","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:07.245Z","admin_reach":["manage-clients"]},{"id":"01a10bd4-f181-794a-a3be-a2e7aa703a1a","name":"manage-keys","description":null,"client_id":"01a10bd4-f176-7236-8562-d17d73d5ca00","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:07.245Z","admin_reach":["manage-keys"]}],"next":"eyJhZnRlciI6IjAxYTEwYmQ0LWYxODEtNzk0YS1hM2JlLWEyZTdhYTcwM2ExYSIsInNvcnQiOiJtYW5hZ2Uta2V5cyIsImNvbGxlY3Rpb24iOiJyb2xlcyIsInRlbmFudElkIjoiMDFhMTBiZDQtZjE2ZC03ODUwLWI4NTgtNjUxZTU3NWQ1NWYzIiwiZmlsdGVycyI6IlJmN1o1Njk1VkFrc05UeHBDNUhuYnZuN1dYME5hV0d0MGdmVk9OblNpTmcifQ.hbcmmrbCixpSou6fDWJKHn8iiap4gM_BtpdZl_wJA_M"}
+{"subjectId":"01a1a8b1-9f83-7e71-b85e-2c904346eca3","issuerTenantId":"01a1a8b1-7b69-785b-9e31-aabf725e7291","capabilities":["view-users"],"crossTenant":false}
+{"items":[{"id":"01a1a8b1-7c94-7503-b20d-a74c128b7ed8","name":"manage-clients","description":null,"client_id":"01a1a8b1-7c3e-7346-ada2-2b8823b3bd1b","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-11-04T22:32:46.394Z","admin_reach":["manage-clients"]},{"id":"01a1a8b1-7cb9-7b64-a611-3bc2da2c3ad5","name":"manage-domains","description":null,"client_id":"01a1a8b1-7c3e-7346-ada2-2b8823b3bd1b","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-11-04T22:32:46.394Z","admin_reach":["view-domains","manage-domains"]}],"next":"eyJhZnRlciI6IjAxYTFhOGIxLTdjYjktN2I2NC1hNjExLTNiYzJkYTJjM2FkNSIsInNvcnQiOiJtYW5hZ2UtZG9tYWlucyIsImNvbGxlY3Rpb24iOiJyb2xlcyIsInRlbmFudElkIjoiMDFhMWE4YjEtN2I2OS03ODViLTllMzEtYWFiZjcyNWU3MjkxIiwiZmlsdGVycyI6IlJmN1o1Njk1VkFrc05UeHBDNUhuYnZuN1dYME5hV0d0MGdmVk9OblNpTmcifQ._BOcDlYJ5BU6CG8AmjGIusNK8rfdnftMImK2csQdH5s"}
 {"items":[]}
-{"type":"about:blank","title":"Forbidden","status":403,"instance":"01a10bd4-f7ef-7b52-b934-b29dfb03b749"}
+{"type":"about:blank","title":"Forbidden","status":403,"instance":"01a1a8b1-ca76-74e1-be07-5758f1559921"}
 ```
+
+This block ran again after `view-domains` and `manage-domains` joined the built-in roles, so its ids and times are not those of the blocks around it. `manage-domains` now sorts second among the roles named `manage`.
 
 Then `kai`, created there the same way holding `manage-clients` alone,
 refused the list, and the row that refusal wrote:

@@ -39,19 +39,7 @@ curl -sS \
 ```
 
 ```
-{"subjectId":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","view-audit","view-users"],"crossTenant":true}
+{"subjectId":"01a1a8b1-70c0-7311-922c-8ce4551fc10b","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-domains","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","view-audit","view-domains","view-users"],"crossTenant":true}
 ```
 
-The block above was captured before `view-domains` and `manage-domains` existed. The same call on a
-later stack, from the same kind of caller, a fresh `ada` holding `tenant-admin` (a different subject,
-so a different `subjectId`), lists both:
-
-```bash
-curl -sS \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/whoami
-```
-
-```
-{"subjectId":"01a1a899-f88d-7c10-b446-f0729ae1e2fc","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-domains","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","view-audit","view-domains","view-users"],"crossTenant":true}
-```
+This block ran again after `view-domains` and `manage-domains` joined the built-in roles, so its ids and times are not those of the blocks around it. The caller is the run's own `ada`, holding `tenant-admin`, so `subjectId` is hers.

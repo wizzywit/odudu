@@ -82,24 +82,27 @@ edge, as `ada`, who holds `tenant-admin` itself:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-583e-7b19-a308-08d826338992/composites
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a1a8b1-849b-7d7b-8b9b-4c125123e0dd/composites
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-583e-7b19-a308-08d826338992/composites/01a10bd5-5841-7874-aa25-572fc2a878e5
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a1a8b1-849b-7d7b-8b9b-4c125123e0dd/composites/01a1a8b1-849e-7cc5-bf55-b09e03e03203
 ```
 
 ```
-{"items":[{"id":"01a10bd5-5842-7490-b382-85389129dc00","name":"manage-clients","description":null,"client_id":"01a10bd5-5836-749c-aa8a-4b597ca19dde","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.533Z","admin_reach":["manage-clients"]},{"id":"01a10bd5-5844-71e3-bed0-0949a7ea38f5","name":"manage-keys","description":null,"client_id":"01a10bd5-5836-749c-aa8a-4b597ca19dde","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.533Z","admin_reach":["manage-keys"]},{"id":"01a10bd5-5846-7dc3-b7ac-1ec2d0a29eaf","name":"manage-sessions","description":null,"client_id":"01a10bd5-5836-749c-aa8a-4b597ca19dde","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.533Z","admin_reach":["manage-sessions"]},{"id":"01a10bd5-5843-76ad-acd9-600944633961","name":"manage-tenant","description":null,"client_id":"01a10bd5-5836-749c-aa8a-4b597ca19dde","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.533Z","admin_reach":["manage-tenant"]},{"id":"01a10bd5-5841-7874-aa25-572fc2a878e5","name":"manage-users","description":null,"client_id":"01a10bd5-5836-749c-aa8a-4b597ca19dde","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.533Z","admin_reach":["view-users","manage-users"]},{"id":"01a10bd5-5847-76e9-a6c2-5035c8b1c8e0","name":"view-audit","description":null,"client_id":"01a10bd5-5836-749c-aa8a-4b597ca19dde","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.533Z","admin_reach":["view-audit"]},{"id":"01a10bd5-5840-7456-ae39-b63101320c03","name":"view-users","description":null,"client_id":"01a10bd5-5836-749c-aa8a-4b597ca19dde","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.533Z","admin_reach":["view-users"]}]}
+{"items":[{"id":"01a1a8b1-849f-7b65-8009-0a80dfbf3c03","name":"manage-clients","description":null,"client_id":"01a1a8b1-848b-71f5-90ea-6fbb151dfb17","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-11-04T22:32:48.521Z","admin_reach":["manage-clients"]},{"id":"01a1a8b1-84a5-7f33-8301-d08c7b3e6564","name":"manage-domains","description":null,"client_id":"01a1a8b1-848b-71f5-90ea-6fbb151dfb17","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-11-04T22:32:48.521Z","admin_reach":["view-domains","manage-domains"]},{"id":"01a1a8b1-84a1-705f-a869-a8e1375b77ec","name":"manage-keys","description":null,"client_id":"01a1a8b1-848b-71f5-90ea-6fbb151dfb17","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-11-04T22:32:48.521Z","admin_reach":["manage-keys"]},{"id":"01a1a8b1-84a2-7901-a64e-bc4c0b40b3da","name":"manage-sessions","description":null,"client_id":"01a1a8b1-848b-71f5-90ea-6fbb151dfb17","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-11-04T22:32:48.521Z","admin_reach":["manage-sessions"]},{"id":"01a1a8b1-84a0-75f1-a09e-7b7173dc7844","name":"manage-tenant","description":null,"client_id":"01a1a8b1-848b-71f5-90ea-6fbb151dfb17","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-11-04T22:32:48.521Z","admin_reach":["manage-tenant"]},{"id":"01a1a8b1-849e-7cc5-bf55-b09e03e03203","name":"manage-users","description":null,"client_id":"01a1a8b1-848b-71f5-90ea-6fbb151dfb17","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-11-04T22:32:48.521Z","admin_reach":["view-users","manage-users"]},{"id":"01a1a8b1-84a3-7e48-8a7c-f9ca22794e5f","name":"view-audit","description":null,"client_id":"01a1a8b1-848b-71f5-90ea-6fbb151dfb17","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-11-04T22:32:48.521Z","admin_reach":["view-audit"]},{"id":"01a1a8b1-84a4-7d84-8742-1443da3ed46a","name":"view-domains","description":null,"client_id":"01a1a8b1-848b-71f5-90ea-6fbb151dfb17","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-11-04T22:32:48.521Z","admin_reach":["view-domains"]},{"id":"01a1a8b1-849d-74c5-b537-7de865befcbb","name":"view-users","description":null,"client_id":"01a1a8b1-848b-71f5-90ea-6fbb151dfb17","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-11-04T22:32:48.521Z","admin_reach":["view-users"]}]}
+
 HTTP/1.1 409 Conflict
-x-request-id: 01a10bd5-5aa9-7257-9841-8d55f52532fc
+x-request-id: 01a1a8b2-a7b4-739f-8665-31264fe6bcbd
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 283
-Date: Mon, 05 Oct 2026 11:31:34 GMT
+Date: Wed, 04 Nov 2026 22:34:03 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"tenant-admin is a capability of odudu-admin, this tenant's built-in admin client, and removing a composite from it would strip that from every administrator holding it","instance":"01a10bd5-5aa9-7257-9841-8d55f52532fc"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"tenant-admin is a capability of odudu-admin, this tenant's built-in admin client, and removing a composite from it would strip that from every administrator holding it","instance":"01a1a8b2-a7b4-739f-8665-31264fe6bcbd"}
 ```
+
+This block ran again after `view-domains` and `manage-domains` joined the built-in roles, so its ids and times are not those of the blocks around it. `tenant-admin` nests nine roles now, `view-domains` and `manage-domains` among them.
 
 The trail holds the removal that landed; the guarded one wrote its
 `refused` row on `tenant-admin`, the role it was attempted on. Scoped to
