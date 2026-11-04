@@ -542,9 +542,9 @@ export default function globalSetup(): void {
       fixedTenantOnly: { tenant: `${run}-y5`, username: 'adleman', password: password() },
     },
     domains: {
-      main: { tenant: `${run}-d1`, username: 'berners', password: password() },
-      fixed: { tenant: `${run}-d2`, username: 'cerf', password: password() },
-      fixedViewOnly: { tenant: `${run}-d2`, username: 'kahn', password: password() },
+      main: { tenant: `${run}-z1`, username: 'berners', password: password() },
+      fixed: { tenant: `${run}-z2`, username: 'cerf', password: password() },
+      fixedViewOnly: { tenant: `${run}-z2`, username: 'kahn', password: password() },
     },
   };
   const config = {
