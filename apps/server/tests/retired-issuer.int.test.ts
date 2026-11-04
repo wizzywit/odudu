@@ -538,8 +538,7 @@ describe('the path address after a switch to a domain', () => {
   }
 
   it('answers token, userinfo, introspection, revocation, jwks, discovery and logout inside the window', async () => {
-    const { t, path, tokens, to } = await switched();
-
+    const { path, tokens, to } = await switched();
     const issued = await clientCredentials(path);
     expect(issued.statusCode).toBe(200);
     expect(claimsOf(issued.json<{ access_token: string }>().access_token).iss).toBe(path.issuer);
