@@ -115,4 +115,24 @@ describe('GET /internal/domain-check', () => {
     await ask(instance, '?domain=b.example.com');
     expect(asked).toEqual(['a.example.com']);
   });
+
+  it('answers HEAD as it answers GET, with no body', async () => {
+    const { app: instance } = start({ 'login.acme.com': LIVE });
+    const head = (query: string) =>
+      instance.inject({ method: 'HEAD', url: `/internal/domain-check${query}` });
+    expect((await head('?domain=login.acme.com')).statusCode).toBe(200);
+    const gone = await head('?domain=nobody.example.com');
+    expect(gone.statusCode).toBe(404);
+    expect(gone.body).toBe('');
+  });
+
+  it('is not a POST route and reads nothing for one', async () => {
+    const { app: instance, asked } = start({ 'login.acme.com': LIVE });
+    const res = await instance.inject({
+      method: 'POST',
+      url: '/internal/domain-check?domain=login.acme.com',
+    });
+    expect(res.statusCode).toBe(404);
+    expect(asked).toEqual([]);
+  });
 });
