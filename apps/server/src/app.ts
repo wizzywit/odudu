@@ -78,6 +78,7 @@ import { findHeldSignInIn } from '#/held-sign-in';
 import { createClientKeyRequest, defaultClientKeyLookup } from '#/client-key-transport';
 import { type ConsoleKeys, missingConsoleKey } from '#/console-key';
 import { registerHealth } from '#/health';
+import { registerDomainCheck } from '#/domain-check';
 import { configureHostResolution } from '#/host-resolution';
 import { type RateLimiter, slidingWindow } from '#/throttle';
 import { mailGate as createMailGate } from '#/mail-limiter';
@@ -203,6 +204,8 @@ export interface AppDeps {
    * `ODUDU_LOGIN_THROTTLE_*` says.
    */
   readonly loginThrottle?: ThrottleSettings;
+  /** The proxy's domain question; its own budget, per origin. */
+  readonly domainCheckThrottle?: ThrottleSettings;
   /**
    * ADR 0028's escape hatch for a `jwks_uri` resolving to a private or
    * loopback address — the same flag `main.ts` already passes to the
@@ -240,6 +243,12 @@ export interface ThrottleSettings {
 }
 
 export const DEFAULT_THROTTLE: ThrottleSettings = { limit: 10, windowSeconds: 60 };
+
+// Per origin, and the origin is normally the one proxy. A certificate is
+// asked about once per new host and then cached by the proxy, so this leaves
+// room for a burst of a few hundred handshakes while bounding how fast the
+// registered hosts can be enumerated.
+export const DEFAULT_DOMAIN_CHECK_THROTTLE: ThrottleSettings = { limit: 300, windowSeconds: 60 };
 
 export const DEFAULT_LOGIN_THROTTLE: ThrottleSettings = { limit: 5, windowSeconds: 60 };
 
@@ -382,11 +391,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // OIDC routes and the admin API alike; never what a Host header says.
   configureIssuerBase(app, deps.publicBaseUrl);
   configureTenantAddress(app);
+  const hostStateOf =
+    deps.hostState ?? ((host: string) => hostState(deps.ownerDatabase.db, host, systemClock.now()));
   configureHostResolution(app, {
     publicBaseUrl: deps.publicBaseUrl,
     trustProxy: deps.trustProxy ?? false,
     tls,
-    state: deps.hostState ?? ((host) => hostState(deps.ownerDatabase.db, host, systemClock.now())),
+    state: hostStateOf,
   });
 
   if (deps.onRoute !== undefined) app.addHook('onRoute', deps.onRoute);
@@ -494,6 +505,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(cookie);
 
   registerHealth(app, deps);
+  registerDomainCheck(app, {
+    state: hostStateOf,
+    throttle: slidingWindow({
+      ...(deps.domainCheckThrottle ?? DEFAULT_DOMAIN_CHECK_THROTTLE),
+      now: () => new Date(),
+    }),
+  });
   app.register(instrumentRoutes(deps.instrumentDir ?? DEFAULT_INSTRUMENT_DIR));
   app.register(
     brandRoutes({

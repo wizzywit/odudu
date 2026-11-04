@@ -54,6 +54,11 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
     auth: 'None',
     purpose: 'Readiness: answers `200` while the database answers, and `503` when it does not.',
   },
+  'GET /internal/domain-check': {
+    auth: 'None',
+    purpose:
+      'The reverse proxy’s on-demand TLS question: `200` when the host in `domain` is a verified custom domain being served, `404` otherwise, with no body either way; throttled per origin.',
+  },
   'GET /admin/openapi.json': {
     auth: 'None',
     purpose: 'The OpenAPI document of the admin API, readable from any origin.',
