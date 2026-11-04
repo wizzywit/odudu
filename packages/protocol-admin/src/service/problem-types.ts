@@ -258,8 +258,8 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
   'domain-failed': {
     status: 409,
     summary:
-      'A failed domain is never checked again. Remove it and register the host again to prove it ' +
-      'afresh.',
+      'A failed domain proves nothing until its TXT record is seen again. Publish the record and ' +
+      'verify it again, or remove the domain.',
   },
   'domain-canonical': {
     status: 409,

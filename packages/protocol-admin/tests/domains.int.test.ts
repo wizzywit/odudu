@@ -6,7 +6,7 @@ import {
   type ResolveTxt,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createVerifyThrottle } from '#/service/domain-throttle';
@@ -255,6 +255,36 @@ describe('verifying a domain', () => {
     expect(await actions(a.tenant.id)).toEqual([
       'domain.failed:failed',
       'domain.registered:allowed',
+    ]);
+  });
+
+  it('verifies a failed domain again once its record is back, and not before', async () => {
+    const ctx = await tenantCtx();
+    const row = await register(ctx);
+    const record = row.dns_record?.value ?? '';
+    dns = () => Promise.resolve([[record]]);
+    await call(ctx.tenant.name, ctx.manage, 'POST', `/${row.id}/verify`);
+    await fx().owner.db.execute(
+      sql`update tenant_domains set state = 'failed', failed_checks = 3 where id = ${row.id}`,
+    );
+
+    dns = () => Promise.reject(Object.assign(new Error('none'), { code: 'ENODATA' }));
+    const refused = await call(ctx.tenant.name, ctx.manage, 'POST', `/${row.id}/verify`);
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json<{ type: string }>().type).toBe('about:blank#domain-failed');
+
+    dns = () => Promise.resolve([[record]]);
+    const again = await call(ctx.tenant.name, ctx.manage, 'POST', `/${row.id}/verify`);
+    expect(again.statusCode).toBe(200);
+    expect(again.json<Wire>()).toMatchObject({ state: 'verified', canonical: false });
+    const stored = await fx().owner.db.execute<{ failed_checks: number } & Record<string, unknown>>(
+      sql`select failed_checks from tenant_domains where id = ${row.id}`,
+    );
+    expect(stored[0]?.failed_checks).toBe(0);
+    expect(await actions(ctx.tenant.id)).toEqual([
+      'domain.registered:allowed',
+      'domain.verified:allowed',
+      'domain.verified:allowed',
     ]);
   });
 

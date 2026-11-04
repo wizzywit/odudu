@@ -57,6 +57,7 @@ const SWEPT: DomainRecheckOutcome = {
   failed: 1,
   indeterminate: 0,
   fellBack: 1,
+  errored: 0,
 };
 
 describe('whether the server rechecks domains on its own schedule', () => {
@@ -65,6 +66,7 @@ describe('whether the server rechecks domains on its own schedule', () => {
       scheduled: true,
       intervalMs: HOUR,
       jitterMs: HOUR * DOMAIN_RECHECK_JITTER_FRACTION,
+      options: { threshold: 3, base: READY.ODUDU_PUBLIC_BASE_URL, tls: false },
     });
   });
 
@@ -118,10 +120,35 @@ describe('domainRecheckModule', () => {
     ]);
     expect(log.lines).toContainEqual({
       level: 'info',
-      payload: { checked: 4, failed: 1, indeterminate: 0, fellBack: 1 },
+      payload: { checked: 4, failed: 1, indeterminate: 0, fellBack: 1, errored: 0 },
       message: 'domain recheck complete',
     });
     await module.stop?.();
+  });
+
+  it('logs a row the pass could not settle, naming its tenant and host', async () => {
+    const log = recorder();
+    const module = domainRecheckModule(DEPS, (_deps, _now, options) => {
+      options.onRowError?.(
+        {
+          id: 'd1',
+          tenantId: 't1',
+          tenantName: 'acme',
+          host: 'login.acme.com',
+          challenge: 'secret-challenge',
+          failedChecks: 0,
+          canonical: false,
+        },
+        new Error('poisoned'),
+      );
+      return Promise.resolve({ ...SWEPT, errored: 1 });
+    });
+    await module.start?.(context(READY, log.logger));
+    await vi.advanceTimersByTimeAsync(WINDOW);
+    await module.stop?.();
+    const line = log.lines.find((l) => l.level === 'error');
+    expect(line?.payload).toMatchObject({ tenantId: 't1', host: 'login.acme.com' });
+    expect(JSON.stringify(line?.payload)).not.toContain('secret-challenge');
   });
 
   it('reports a skipped pass as skipped', async () => {

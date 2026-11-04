@@ -124,17 +124,18 @@ The `issuer` in the answer must begin `https://id.example.com/`. If it does not,
 
 ## 7. Leave the schedules on
 
-The server runs three background passes by itself, and you should leave them on.
+The server runs four background passes by itself, and you should leave them on.
 
 - **Retention.** It reaps expired state hourly. Without it `authentication_sessions`, `authorization_codes` and `refresh_tokens` grow without bound. Shorten the interval with `ODUDU_REAP_INTERVAL_SECONDS`.
 - **Mail.** It sends queued mail every 15 seconds. With nothing sending, every verification and reset link sits unsent, and the flows that queued them answer exactly as they do when mail is going out.
 - **Back-channel logout.** It delivers logout tokens to the apps that registered for them.
+- **Domain recheck.** It looks up the ownership record of every verified custom domain hourly. A domain whose record is gone for three passes in a row fails, and its tenant returns to the path address. A resolver outage counts as nothing. Without it a domain you no longer own keeps serving a tenant's sign-in.
 
-To schedule one yourself instead, set its `ODUDU_REAP_ENABLED`, `ODUDU_OUTBOX_ENABLED` or `ODUDU_LOGOUT_SENDER_ENABLED` to `false` and run `odudu reap`, `odudu send-mail` or `odudu send-logouts` from cron or a Kubernetes CronJob. Do one or the other. Doing both is harmless. The retention pass takes a Postgres advisory lock, and whoever loses a tick skips it. The mail and logout senders claim each message, so none is sent twice.
-
-The custom-domain ownership recheck is a fourth pass. Switch it off with `ODUDU_DOMAIN_RECHECK_ENABLED=false` and run `odudu domains recheck` yourself. It takes a Postgres advisory lock of its own, so a second run at the same time skips.
+To schedule one yourself instead, set its `ODUDU_REAP_ENABLED`, `ODUDU_OUTBOX_ENABLED`, `ODUDU_LOGOUT_SENDER_ENABLED` or `ODUDU_DOMAIN_RECHECK_ENABLED` to `false` and run `odudu reap`, `odudu send-mail`, `odudu send-logouts` or `odudu domains recheck` from cron or a Kubernetes CronJob. Do one or the other. Doing both is harmless. The retention pass and the domain recheck each take a Postgres advisory lock, and whoever loses a tick skips it. The mail and logout senders claim each message, so none is sent twice.
 
 The retention pass needs `ODUDU_APP_DATABASE_URL`, because its deletes are scoped by the row-level-security policy that the owner role escapes. Its one transaction covers every tenant, which is what to watch if a deployment has many tenants and very large tables.
+
+The domain recheck needs `ODUDU_APP_DATABASE_URL` for the same reason, and `ODUDU_PUBLIC_BASE_URL`, because a tenant falling back goes to its path address. Without either the server logs a warning at start and does not schedule it, and `odudu domains recheck` refuses or does nothing.
 
 ## 8. Set up mail
 

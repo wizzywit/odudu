@@ -12,6 +12,7 @@ import {
   tenantDomainRepository,
   verifiedDomainPage,
   type RecheckReport,
+  type VerifiedDomainRow,
   type ResolveTxt,
 } from '@odudu/domain-tenant';
 import { loadConfig, OduduError, type Config } from '@odudu/kernel';
@@ -32,6 +33,7 @@ export interface DomainRecheckOptions {
   readonly timeoutMs?: number;
   readonly concurrency?: number;
   readonly pageSize?: number;
+  readonly onRowError?: (row: VerifiedDomainRow, error: unknown) => void;
 }
 
 /** Undefined without a public base URL: no domain can be registered then. */
@@ -129,6 +131,7 @@ export async function recheckDomainsLocked(
         threshold: options.threshold,
         base: options.base,
         tls: options.tls,
+        ...(options.onRowError === undefined ? {} : { onRowError: options.onRowError }),
       },
       now,
     );
@@ -163,11 +166,16 @@ export async function domainsCommand(argv: readonly string[]): Promise<DomainRec
   const owner = createDatabase(config.ODUDU_DATABASE_URL);
   const runtime = createDatabase(appUrl);
   try {
-    return await recheckDomainsLocked(
-      { database: runtime, ownerDatabase: owner },
-      new Date(),
-      options,
-    );
+    return await recheckDomainsLocked({ database: runtime, ownerDatabase: owner }, new Date(), {
+      ...options,
+      onRowError: (row, error) => {
+        console.error(
+          `could not recheck ${row.host} (tenant ${row.tenantId}): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      },
+    });
   } finally {
     await runtime.close();
     await owner.close();

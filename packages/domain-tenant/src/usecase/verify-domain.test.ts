@@ -81,11 +81,22 @@ describe('verifyDomain', () => {
     expect(resolve).not.toHaveBeenCalled();
   });
 
-  it('answers a failed row without resolving', async () => {
-    const resolve = vi.fn<ResolveTxt>();
-    const { deps } = setup(resolve, row({ state: 'failed' }));
-    expect(await verifyDomain(deps, 't1', 'd1', NOW)).toBe('failed');
-    expect(resolve).not.toHaveBeenCalled();
+  it('verifies a failed row whose record is back, resetting its count', async () => {
+    const { deps, domains } = setup(
+      () => Promise.resolve([[CHALLENGE]]),
+      row({ state: 'failed', failedChecks: 3 }),
+    );
+    expect(await verifyDomain(deps, 't1', 'd1', NOW)).toBe('verified');
+    expect(domains.markVerified).toHaveBeenCalledWith('t1', 'd1', NOW);
+  });
+
+  it('keeps a failed row failed while the record is missing or unknowable', async () => {
+    for (const resolve of [failing('ENOTFOUND'), failing('ESERVFAIL')]) {
+      const { deps, domains } = setup(resolve, row({ state: 'failed' }));
+      expect(await verifyDomain(deps, 't1', 'd1', NOW)).toBe('failed');
+      expect(domains.markVerified).not.toHaveBeenCalled();
+      expect(domains.recordCheck).not.toHaveBeenCalled();
+    }
   });
 
   it('answers not_found for a row the tenant does not hold', async () => {

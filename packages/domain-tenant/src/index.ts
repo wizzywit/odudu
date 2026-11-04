@@ -160,7 +160,6 @@ export {
   type RecheckAuditEvent,
   type RecheckDomainsDeps,
   type RecheckReport,
-  type RecheckRow,
   type RecheckScope,
 } from '#/usecase/recheck-domains';
 export {

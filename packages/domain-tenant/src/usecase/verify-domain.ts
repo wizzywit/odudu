@@ -24,8 +24,10 @@ export async function verifyDomain(
   const row = await deps.domains.get(tenantId, id);
   if (row === null) return 'not_found';
   if (row.state === 'verified') return 'verified';
-  if (row.state === 'failed') return 'failed';
   const found = await lookupTxtOutcome(deps.resolveTxt, row.host, row.challenge);
+  // A failed row stays failed until its record is seen again; the misses
+  // that failed it are already counted.
+  if (row.state === 'failed' && found !== 'match') return 'failed';
   if (found === 'indeterminate') return 'pending';
   if (found === 'absent') {
     await deps.domains.recordCheck(tenantId, id, false, now);

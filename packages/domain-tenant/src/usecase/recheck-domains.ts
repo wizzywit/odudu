@@ -1,16 +1,6 @@
-import { type DomainRow } from '#/repository/tenant-domains';
+import { type DomainRow, type VerifiedDomainRow } from '#/repository/tenant-domains';
 import { lookupTxtOutcome, type ResolveTxt, type TxtOutcome } from '#/service/tenant-domain';
 import { switchCanonical, type SwitchDomains } from '#/usecase/switch-canonical';
-
-export interface RecheckRow {
-  id: string;
-  tenantId: string;
-  tenantName: string;
-  host: string;
-  challenge: string;
-  failedChecks: number;
-  canonical: boolean;
-}
 
 export interface RecheckAuditEvent {
   action: 'domain.failed';
@@ -37,7 +27,7 @@ export interface RecheckDomainsDeps {
   domains: {
     // Verified rows of every tenant, in host order after `after`: read where no
     // tenant context limits it.
-    page(after: string | undefined, limit: number): Promise<RecheckRow[]>;
+    page(after: string | undefined, limit: number): Promise<VerifiedDomainRow[]>;
     inTenant<T>(tenantId: string, fn: (scope: RecheckScope) => Promise<T>): Promise<T>;
   };
   timeoutMs: number;
@@ -47,6 +37,8 @@ export interface RecheckDomainsDeps {
   threshold: number;
   base: string;
   tls: boolean;
+  // Told of a row whose write failed, before the pass moves on to the next.
+  onRowError?: (row: VerifiedDomainRow, error: unknown) => void;
 }
 
 export interface RecheckReport {
@@ -54,10 +46,11 @@ export interface RecheckReport {
   failed: number;
   indeterminate: number;
   fellBack: number;
+  errored: number;
 }
 
 interface Looked {
-  row: RecheckRow;
+  row: VerifiedDomainRow;
   outcome: TxtOutcome;
 }
 
@@ -73,7 +66,10 @@ function cutAt<T>(work: Promise<T>, timeoutMs: number): Promise<T> {
   });
 }
 
-async function lookupAll(deps: RecheckDomainsDeps, rows: readonly RecheckRow[]): Promise<Looked[]> {
+async function lookupAll(
+  deps: RecheckDomainsDeps,
+  rows: readonly VerifiedDomainRow[],
+): Promise<Looked[]> {
   const looked: Looked[] = [];
   let next = 0;
   const worker = async (): Promise<void> => {
@@ -102,7 +98,7 @@ async function lookupAll(deps: RecheckDomainsDeps, rows: readonly RecheckRow[]):
 async function countMiss(
   deps: RecheckDomainsDeps,
   scope: RecheckScope,
-  row: RecheckRow,
+  row: VerifiedDomainRow,
   now: Date,
 ): Promise<{ failed: boolean; fellBack: boolean }> {
   const counted = await scope.domains.recordCheck(row.tenantId, row.id, false, now);
@@ -118,6 +114,11 @@ async function countMiss(
       now,
       { precondition: (current) => current?.id === row.id },
     );
+    // A switch that was overtaken or could not be written leaves the row
+    // verified at the threshold, so the next pass tries again. One that finds
+    // the tenant already moved off this domain only has the row to fail.
+    const moved = ['switched', 'unchanged', 'precondition_failed'].includes(outcome.kind);
+    if (!moved) return { failed: false, fellBack: false };
     fellBack = outcome.kind === 'switched';
   }
   await scope.domains.markFailed(row.tenantId, row.id);
@@ -151,7 +152,13 @@ async function settle(
 // which more than half the lookups could not be answered changes nothing, so
 // a resolver outage cannot fail the domains it covers.
 export async function recheckDomains(deps: RecheckDomainsDeps, now: Date): Promise<RecheckReport> {
-  const report: RecheckReport = { checked: 0, failed: 0, indeterminate: 0, fellBack: 0 };
+  const report: RecheckReport = {
+    checked: 0,
+    failed: 0,
+    indeterminate: 0,
+    fellBack: 0,
+    errored: 0,
+  };
   let after: string | undefined;
   for (;;) {
     const rows = await deps.domains.page(after, deps.pageSize);
@@ -164,9 +171,14 @@ export async function recheckDomains(deps: RecheckDomainsDeps, now: Date): Promi
     if (unknown * 2 <= rows.length) {
       for (const result of looked) {
         if (result.outcome === 'indeterminate') continue;
-        const done = await settle(deps, result, now);
-        if (done.failed) report.failed += 1;
-        if (done.fellBack) report.fellBack += 1;
+        try {
+          const done = await settle(deps, result, now);
+          if (done.failed) report.failed += 1;
+          if (done.fellBack) report.fellBack += 1;
+        } catch (error) {
+          report.errored += 1;
+          deps.onRowError?.(result.row, error);
+        }
       }
     }
     if (rows.length < deps.pageSize) return report;

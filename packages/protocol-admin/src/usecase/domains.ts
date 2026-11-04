@@ -188,8 +188,7 @@ export async function verifyDomainFor(
   const repository = tenantDomainRepository(tx);
   const before = await repository.get(input.tenant.id, input.id);
   if (before === null) return { kind: 'not_found' };
-  if (before.state === 'failed') return { kind: 'failed' };
-  if (before.state === 'pending') {
+  if (before.state !== 'verified') {
     const decision = deps.throttle.take(input.tenant.id, before.host, now);
     if (!decision.allowed)
       return { kind: 'throttled', retryAfterSeconds: decision.retryAfterSeconds };
@@ -209,7 +208,8 @@ export async function verifyDomainFor(
     });
     return { kind: 'verified_elsewhere' };
   }
-  if (outcome === 'verified' && before.state === 'pending') {
+  if (outcome === 'failed') return { kind: 'failed' };
+  if (outcome === 'verified' && before.state !== 'verified') {
     await audit(deps, tx, input, {
       action: 'domain.verified',
       resourceId: before.id,

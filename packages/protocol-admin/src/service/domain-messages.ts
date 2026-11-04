@@ -19,7 +19,8 @@ export const DOMAIN_DETAILS: Readonly<Record<DomainCode, string>> = {
 export const DOMAIN_NOT_VERIFIED_DETAIL =
   'only a verified domain can become the tenant’s address; verify it first';
 export const DOMAIN_FAILED_DETAIL =
-  'a failed domain proves nothing and is never checked again; remove it and register it again';
+  'the domain stopped proving ownership and its record is still not there; publish the ' +
+  'record again and verify it, or remove it';
 export const DOMAIN_CANONICAL_DETAIL =
   'the domain is the tenant’s address; deactivate it before removing it';
 export const DOMAIN_SWITCH_CONFLICT_DETAIL =

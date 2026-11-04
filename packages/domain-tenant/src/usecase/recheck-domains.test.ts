@@ -1,18 +1,17 @@
 import { ACCESS_TOKEN_CEILING_SECONDS } from '@odudu/contracts/admin';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { type DomainRow } from '#/repository/tenant-domains';
+import { type DomainRow, type VerifiedDomainRow } from '#/repository/tenant-domains';
 import { type ResolveTxt } from '#/service/tenant-domain';
 import {
   recheckDomains,
   type RecheckDomainsDeps,
-  type RecheckRow,
   type RecheckScope,
 } from '#/usecase/recheck-domains';
 
 const NOW = new Date('2026-11-04T12:00:00Z');
 const CHALLENGE = 'odudu-domain-verification=abc';
 
-interface Stored extends RecheckRow {
+interface Stored extends VerifiedDomainRow {
   state: DomainRow['state'];
 }
 
@@ -33,6 +32,21 @@ function stored(n: number, over: Partial<Stored> = {}): Stored {
 const failing = (code: string) => () => Promise.reject(Object.assign(new Error(code), { code }));
 const present: ResolveTxt = () => Promise.resolve([[CHALLENGE]]);
 const absent: ResolveTxt = failing('ENOTFOUND');
+
+function asDomainRow(r: Stored | undefined): DomainRow {
+  if (r === undefined) throw new Error('no row');
+  return {
+    id: r.id,
+    tenantId: r.tenantId,
+    host: r.host,
+    state: r.state,
+    challenge: r.challenge,
+    verifiedAt: NOW,
+    lastCheckedAt: null,
+    failedChecks: r.failedChecks,
+    canonical: r.canonical,
+  };
+}
 
 function world(rows: Stored[], overrides: Partial<RecheckDomainsDeps> = {}) {
   const writes: string[] = [];
@@ -131,6 +145,7 @@ describe('recheckDomains', () => {
       failed: 0,
       indeterminate: 0,
       fellBack: 0,
+      errored: 0,
     });
     expect(w.writes).toEqual([]);
   });
@@ -148,7 +163,7 @@ describe('recheckDomains', () => {
     expect(w.rows[0]?.failedChecks).toBe(1);
     await recheckDomains(w.deps, NOW);
     const third = await recheckDomains(w.deps, NOW);
-    expect(third).toEqual({ checked: 1, failed: 1, indeterminate: 0, fellBack: 0 });
+    expect(third).toEqual({ checked: 1, failed: 1, indeterminate: 0, fellBack: 0, errored: 0 });
     expect(w.rows[0]?.state).toBe('failed');
     expect(w.audits).toEqual([
       {
@@ -187,6 +202,7 @@ describe('recheckDomains', () => {
       failed: 0,
       indeterminate: 4,
       fellBack: 0,
+      errored: 0,
     });
     expect(w.writes).toEqual([]);
     expect(w.rows.every((r) => r.failedChecks === 2 && r.state === 'verified')).toBe(true);
@@ -286,5 +302,96 @@ describe('recheckDomains', () => {
     const report = await recheckDomains(w.deps, NOW);
     expect(report).toMatchObject({ checked: 2, indeterminate: 1 });
     expect(w.rows[1]?.failedChecks).toBe(1);
+  });
+
+  it('counts nothing for a missing record on a page where most lookups are unknown', async () => {
+    const rows = [1, 2, 3, 4].map((n) => stored(n, { failedChecks: 2, canonical: n === 4 }));
+    const w = world(rows, {
+      resolveTxt: (name) => (name.includes('h000004') ? absent(name) : failing('ESERVFAIL')()),
+    });
+    const report = await recheckDomains(w.deps, NOW);
+    expect(report).toMatchObject({ checked: 4, indeterminate: 3, failed: 0, fellBack: 0 });
+    expect(w.writes).toEqual([]);
+    expect(w.rows[3]).toMatchObject({ failedChecks: 2, state: 'verified', canonical: true });
+  });
+
+  it('still counts when exactly half of a page is unknown', async () => {
+    const w = world([stored(1), stored(2), stored(3), stored(4)], {
+      resolveTxt: (name) =>
+        name.includes('h000001') || name.includes('h000002')
+          ? failing('ESERVFAIL')()
+          : absent(name),
+    });
+    const report = await recheckDomains(w.deps, NOW);
+    expect(report).toMatchObject({ indeterminate: 2 });
+    expect(w.writes.sort()).toEqual(['miss:d000003', 'miss:d000004']);
+  });
+
+  it('counts a lone missing record', async () => {
+    const w = world([stored(1)], { resolveTxt: absent });
+    await recheckDomains(w.deps, NOW);
+    expect(w.rows[0]?.failedChecks).toBe(1);
+  });
+
+  it('leaves the row verified when another switch overtook the fall-back', async () => {
+    const w = world([stored(1, { failedChecks: 2, canonical: true })], { resolveTxt: absent });
+    const scope = w.deps.domains.inTenant.bind(w.deps.domains);
+    w.deps.domains.inTenant = (tenantId, fn) =>
+      scope(tenantId, (s) =>
+        fn({
+          ...s,
+          domains: {
+            ...s.domains,
+            // The canonical read after the lock names another row.
+            canonical: (() => {
+              let reads = 0;
+              return (t: string) => {
+                reads += 1;
+                return reads === 1
+                  ? s.domains.canonical(t)
+                  : Promise.resolve({ ...asDomainRow(w.rows[0]), id: 'other' });
+              };
+            })(),
+          },
+        }),
+      );
+    const report = await recheckDomains(w.deps, NOW);
+    expect(report).toMatchObject({ failed: 0, fellBack: 0, errored: 0 });
+    expect(w.rows[0]).toMatchObject({ state: 'verified', canonical: true });
+    expect(w.audits).toEqual([]);
+    expect(w.retirements).toEqual([]);
+  });
+
+  it('fails a row an admin already switched away from, without a retirement of its own', async () => {
+    const w = world([stored(1, { failedChecks: 2, canonical: true })], { resolveTxt: absent });
+    const scope = w.deps.domains.inTenant.bind(w.deps.domains);
+    w.deps.domains.inTenant = (tenantId, fn) =>
+      scope(tenantId, (s) =>
+        fn({
+          ...s,
+          domains: { ...s.domains, canonical: () => Promise.resolve(null) },
+        }),
+      );
+    const report = await recheckDomains(w.deps, NOW);
+    expect(report).toMatchObject({ failed: 1, fellBack: 0 });
+    expect(w.rows[0]?.state).toBe('failed');
+  });
+
+  it('counts a row whose write fails, reports it and carries on with the rest and the next page', async () => {
+    const seen: string[] = [];
+    const w = world([stored(1), stored(2), stored(3), stored(4)], {
+      resolveTxt: absent,
+      pageSize: 2,
+      onRowError: (row) => {
+        seen.push(row.host);
+      },
+    });
+    const scope = w.deps.domains.inTenant.bind(w.deps.domains);
+    w.deps.domains.inTenant = (tenantId, fn) =>
+      tenantId === 't000001' ? Promise.reject(new Error('poisoned')) : scope(tenantId, fn);
+    const report = await recheckDomains(w.deps, NOW);
+    expect(report).toMatchObject({ checked: 4, errored: 1 });
+    expect(seen).toEqual(['h000001.acme.com']);
+    expect(w.rows.map((r) => r.failedChecks)).toEqual([0, 1, 1, 1]);
   });
 });

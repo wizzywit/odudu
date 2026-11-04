@@ -13,7 +13,12 @@ import { startScheduler, type Scheduler } from '#/scheduler';
 export const DOMAIN_RECHECK_JITTER_FRACTION = 0.1;
 
 export type DomainRecheckScheduleDecision =
-  | { readonly scheduled: true; readonly intervalMs: number; readonly jitterMs: number }
+  | {
+      readonly scheduled: true;
+      readonly intervalMs: number;
+      readonly jitterMs: number;
+      readonly options: DomainRecheckOptions;
+    }
   | {
       readonly scheduled: false;
       readonly why: 'switched-off' | 'no-serving-connection' | 'no-base-url';
@@ -31,12 +36,14 @@ export function domainRecheckSchedule(config: Config): DomainRecheckScheduleDeci
   if (config.ODUDU_APP_DATABASE_URL === undefined) {
     return { scheduled: false, why: 'no-serving-connection' };
   }
-  if (config.ODUDU_PUBLIC_BASE_URL === undefined) return { scheduled: false, why: 'no-base-url' };
+  const options = domainRecheckOptionsFromConfig(config);
+  if (options === undefined) return { scheduled: false, why: 'no-base-url' };
   const intervalMs = config.ODUDU_DOMAIN_RECHECK_INTERVAL_SECONDS * 1000;
   return {
     scheduled: true,
     intervalMs,
     jitterMs: intervalMs * DOMAIN_RECHECK_JITTER_FRACTION,
+    options,
   };
 }
 
@@ -90,12 +97,21 @@ export function domainRecheckModule(
         jitterMs: decision.jitterMs,
         log,
         run: async () => {
-          const options = domainRecheckOptionsFromConfig(ctx.config);
-          if (options === undefined) return;
-          const outcome = await pass(deps, ctx.clock.now(), options);
+          const outcome = await pass(deps, ctx.clock.now(), {
+            ...decision.options,
+            onRowError: (row, err) => {
+              log.error(
+                { err, tenantId: row.tenantId, host: row.host },
+                'a domain could not be rechecked; the pass went on',
+              );
+            },
+          });
           if (outcome.ran) {
-            const { checked, failed, indeterminate, fellBack } = outcome;
-            log.info({ checked, failed, indeterminate, fellBack }, 'domain recheck complete');
+            const { checked, failed, indeterminate, fellBack, errored } = outcome;
+            log.info(
+              { checked, failed, indeterminate, fellBack, errored },
+              'domain recheck complete',
+            );
           } else {
             log.info({ reason: outcome.reason }, 'domain recheck skipped');
           }
