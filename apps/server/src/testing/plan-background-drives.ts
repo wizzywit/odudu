@@ -1,7 +1,12 @@
 import { type Database, withTenant } from '@odudu/db';
 import { credentialRepository } from '@odudu/domain-identity';
 import { assetRepository, themeRepository } from '@odudu/domain-theme';
-import { canonicalHostOf, lookupHost, tenantDomainRepository } from '@odudu/domain-tenant';
+import {
+  canonicalHostOf,
+  hostState,
+  lookupHost,
+  tenantDomainRepository,
+} from '@odudu/domain-tenant';
 import { capturingSender, sendPending } from '@odudu/email';
 import { loadConfig } from '@odudu/kernel';
 import { PgDialect } from 'drizzle-orm/pg-core';
@@ -167,6 +172,12 @@ export async function driveRepositories(
   );
   await capture('domains: host lookup of another tenant at volume', 'authn', () =>
     lookupHost(world.owner.db, 'o4999.volume.example.com', new Date()),
+  );
+  await capture('domains: state of a host nobody holds', 'authn', () =>
+    hostState(world.owner.db, 'nobody.example.com', new Date()),
+  );
+  await capture('domains: state of a host that is only pending', 'authn', () =>
+    hostState(world.owner.db, 'plans3.example.com', new Date()),
   );
   await capture('domains: what a tenant reads of its domains', 'authn', () =>
     withTenant(database, world.tenantId, async (tx) => {

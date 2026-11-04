@@ -15,6 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   canonicalHostOf,
   DomainConflictError,
+  hostState,
   lookupHost,
   MAX_DOMAINS_PER_TENANT,
   tenantDomainRepository,
@@ -374,6 +375,73 @@ describe('lookupHost', () => {
     await canonicalise(t.id, row.id);
     expect(await lookupHost(app.db, 'owner-a.example.com', NOW)).toBeNull();
     expect(await lookup('owner-a.example.com')).not.toBeNull();
+  });
+});
+
+describe('hostState', () => {
+  const state = (host: string, now = NOW) => hostState(owner.db, host, now);
+
+  it('is live, with the route, for a canonical host', async () => {
+    const t = await newTenant();
+    const row = await verified(t.id, 'state-live.example.com');
+    await canonicalise(t.id, row.id);
+    expect(await state('state-live.example.com')).toEqual({
+      kind: 'live',
+      route: { tenantId: t.id, tenantName: t.name, canonical: true, retiredUntil: null },
+    });
+  });
+
+  it('is unknown for a host no tenant registered', async () => {
+    expect(await state('state-nobody.example.com')).toEqual({ kind: 'unknown' });
+  });
+
+  it('is not live, with nothing else, for a pending and a failed host', async () => {
+    const t = await newTenant();
+    const pending = await register(t.id, 'state-pending.example.com');
+    expect(await state('state-pending.example.com')).toEqual({ kind: 'not_live' });
+    await withTenant(app.db, t.id, (tx) => tenantDomainRepository(tx).markFailed(t.id, pending.id));
+    expect(await state('state-pending.example.com')).toEqual({ kind: 'not_live' });
+  });
+
+  it('is not live for an idle verified host and for a disabled tenant', async () => {
+    const t = await newTenant();
+    await verified(t.id, 'state-idle.example.com');
+    expect(await state('state-idle.example.com')).toEqual({ kind: 'not_live' });
+    const u = await newTenant();
+    const row = await verified(u.id, 'state-off.example.com');
+    await canonicalise(u.id, row.id);
+    await owner.db.update(tenants).set({ enabled: false }).where(eq(tenants.id, u.id));
+    expect(await state('state-off.example.com')).toEqual({ kind: 'not_live' });
+  });
+
+  it('is not live for a host another tenant holds pending while the verified one is idle', async () => {
+    const a = await newTenant();
+    const b = await newTenant();
+    await verified(a.id, 'state-shared.example.com');
+    await register(b.id, 'state-shared.example.com');
+    expect(await state('state-shared.example.com')).toEqual({ kind: 'not_live' });
+  });
+
+  it('is live while a retirement window is open and not live after', async () => {
+    const t = await newTenant();
+    await verified(t.id, 'state-retired.example.com');
+    const until = new Date(NOW.getTime() + HOUR);
+    await withTenant(app.db, t.id, (tx) =>
+      tenantDomainRepository(tx).retireIssuer(t.id, 'https://state-retired.example.com', until),
+    );
+    expect((await state('state-retired.example.com')).kind).toBe('live');
+    expect(await state('state-retired.example.com', new Date(until.getTime() + 1))).toEqual({
+      kind: 'not_live',
+    });
+  });
+
+  it('reads nothing on the serving role, so every host looks unknown there', async () => {
+    const t = await newTenant();
+    const row = await verified(t.id, 'state-serving.example.com');
+    await canonicalise(t.id, row.id);
+    expect(await hostState(app.db, 'state-serving.example.com', NOW)).toEqual({
+      kind: 'unknown',
+    });
   });
 });
 

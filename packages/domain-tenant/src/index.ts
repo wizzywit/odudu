@@ -117,12 +117,14 @@ export {
 export {
   canonicalHostOf,
   DomainConflictError,
+  hostState,
   lookupHost,
   MAX_DOMAINS_PER_TENANT,
   tenantDomainRepository,
   type DomainConflict,
   type DomainRow,
   type HostRoute,
+  type HostState,
   type NewDomain,
   type RetiredIssuer,
 } from '#/repository/tenant-domains';

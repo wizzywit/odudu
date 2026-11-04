@@ -333,3 +333,22 @@ export async function lookupHost(db: Database, host: string, now: Date): Promise
     );
   return rows[0] ?? null;
 }
+
+export type HostState =
+  { kind: 'live'; route: HostRoute } | { kind: 'not_live' } | { kind: 'unknown' };
+
+// What a request for `host` is, on the same owner connection as lookupHost:
+// served (live), registered by some tenant but not serving (a pending, failed
+// or idle row, or a disabled tenant) or nobody's. The second read runs only
+// where the first found no route, and leaves no tenant detail.
+export async function hostState(db: Database, host: string, now: Date): Promise<HostState> {
+  const route = await lookupHost(db, host, now);
+  if (route !== null) return { kind: 'live', route };
+  const rows = await db.execute<{ registered: boolean }>(sql`
+    select (
+      exists (select 1 from tenant_domains where host = ${host} and state = 'verified')
+      or exists (select 1 from tenant_domains where host = ${host} and state <> 'verified')
+    ) as registered
+  `);
+  return rows[0]?.registered === true ? { kind: 'not_live' } : { kind: 'unknown' };
+}

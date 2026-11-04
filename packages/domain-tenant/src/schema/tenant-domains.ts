@@ -4,7 +4,7 @@ import { tenants } from '@odudu/db';
 export type DomainState = 'pending' | 'verified' | 'failed';
 
 // Policy, the CHECKs on the host's shape and on `canonical`, and the partial
-// unique indexes are in packages/db/drizzle/0111_tenant_domains.sql.
+// unique and lookup indexes are in packages/db/drizzle/0111_tenant_domains.sql.
 export const tenantDomains = pgTable('tenant_domains', {
   id: uuid('id').primaryKey(),
   tenantId: uuid('tenant_id')
