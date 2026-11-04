@@ -26,6 +26,8 @@ It is a signed JWT whose header says `typ: at+jwt`. It names who issued it (`iss
 
 Your API can check it **without calling Odudu**. It fetches the tenant's public keys once, from `GET /tenants/{tenant}/protocol/openid-connect/certs`, checks the signature, then the issuer, audience and expiry. [Protect an API](../guides/api.md) does exactly that.
 
+The issuer is the tenant's address: its path address by default, or its custom domain once the tenant has switched to one ([Custom domains](../operating/custom-domains.md)). After a switch, the old address stays valid for one hour, the longest an access token lives, so a token minted there keeps working. An API that checks signatures locally accepts both issuers for that hour, then only the new one.
+
 If the access token carries roles or groups, they came from the scopes the client was granted. See [Roles and groups](./roles-and-groups.mdx).
 
 ## The ID token

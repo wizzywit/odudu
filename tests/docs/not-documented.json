@@ -1,8 +1,1 @@
-[
-  {
-    "inventory": "cli-commands",
-    "item": "seed domain",
-    "reason": "the custom-domains guide, whose runnable blocks seed a served domain, is written in the phase's documentation increment",
-    "phase": "P4j"
-  }
-]
+[]

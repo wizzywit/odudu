@@ -16,6 +16,7 @@ const PAGES = [
   'guides/wordpress.md',
   'operating/upgrading.md',
   'operating/backups.md',
+  'operating/custom-domains.md',
   'operating/hardening.md',
 ];
 

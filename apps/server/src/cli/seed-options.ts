@@ -46,9 +46,15 @@ export const CLIENT_OPTIONS = {
   'token-endpoint-auth-method': text(
     'client_secret_basic or client_secret_post, for a confidential client.',
   ),
-  'redirect-uri': texts('A redirect URI the client may use.'),
-  'post-logout-redirect-uri': texts('A URI the client may send users to after logout.'),
-  'web-origin': texts('A browser origin allowed to call the endpoints.'),
+  'redirect-uri': texts(
+    "A redirect URI the client may use. Switching the tenant's address does not change it.",
+  ),
+  'post-logout-redirect-uri': texts(
+    "A URI the client may send users to after logout. Switching the tenant's address does not change it.",
+  ),
+  'web-origin': texts(
+    "A browser origin allowed to call the endpoints. Switching the tenant's address does not change it.",
+  ),
   'grant-type': texts('A grant type the client may use.'),
   'consent-required': flag('Ask people to allow access the first time they sign in.'),
   'client-credentials-scope': texts(
