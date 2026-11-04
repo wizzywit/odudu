@@ -49,18 +49,22 @@ shipped); it was added to the recorded blocks by hand, after `nosniff` where
 `pageHeaders` places it, and a live login-page response on the project
 `odudu-p4g-13b` confirmed its value and position.
 
-The `odudu reap` reports in the retention section carry `tenant_issuer_retirements`
-and `tenant_domains`, the keys of the two tables the pass gained with custom domains.
-Both were added to the recorded reports by hand, after `console_logins` where
-`REAP_ORDER` places them, with the `0` they report on a stack that registers no domain;
-the reports were not captured again afterwards. `tests/docs/retention-schedule.test.ts`
-holds every report to `REAP_ORDER`'s keys, and
+The custom-domain work of 2026-11-04 was captured on the compose project `odudu-p4j-tx`, built from the
+branch commit `cdde6fd8` plus the documentation, on port `3000` with `ODUDU_THROTTLE_LIMIT` and
+`ODUDU_LOGIN_THROTTLE_LIMIT` at `10000` and the three schedules off. The domains page of the admin
+paths ran in one pass on a stack with `ada`, `demo` and `other`; `GET /admin/openapi.json`'s figures
+and the `odudu reap` reports of the retention page, which now carry `tenant_issuer_retirements` and
+`tenant_domains` after `console_logins` as `REAP_ORDER` places them, were run on that project and
+compared with what the pages said (every report was identical). The retention page's section on domains
+registers a domain and switches `demo` to it, which is why two of its counts are `1`. The page
+on [a tenant's own address](../reference/transcripts/request-paths/custom-domains-a-domain-host-and-the-proxys-question.md)
+sends a `Host` header to the stack's port, since no DNS names the domain; the host checks are the
+real ones. The admin-paths pages that list the built-in roles, a role's composites or an administrator's
+capabilities were captured before `view-domains` and `manage-domains` joined those lists and were not run
+again: Getting the token, the roles pages, the composites page, the export page, the admin-capabilities
+page, the two groups pages and the subjects page. `GET /whoami` shows the new list beside its old one.
+`tests/docs/retention-schedule.test.ts` holds every report to `REAP_ORDER`'s keys, and
 `apps/server/tests/reap.int.test.ts` runs both rules against real rows.
-
-The OpenAPI figures on `GET /admin/openapi.json`'s page (`109` paths, `content-length: 693233`, 677 KB)
-were changed by hand when the domains routes joined the route table; the capture was not run again.
-The domains page shows no captured output at all, and says so.
-`tests/docs/admin-paths.test.ts` derives both figures from the generated document.
 
 A page follows the colour the person chose in the console. The console writes
 the cookie `odudu-theme` (`light` or `dark`; it expires it for `system`), and
