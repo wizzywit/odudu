@@ -140,12 +140,14 @@ select o.id, 'https://older' || o.n || '.volume.example.com', now() + interval '
 insert into tenant_domains (id, tenant_id, host, state, challenge, verified_at, canonical)
 select gen_random_uuid(), ${t}, 'plans' || g || '.example.com',
        case when g <= 2 then 'verified' when g <= 6 then 'pending' else 'failed' end, 'c',
-       case when g <= 2 then now() end, g = 1
+       case when g <= 2 then now() end, false
   from generate_series(1, ${v.domains}) g;
 insert into tenant_issuer_retirements (tenant_id, issuer, expires_at)
 select ${t}, 'https://plans-old' || g || '.example.com',
        case when g = 4 then now() - interval '1 hour' else now() + interval '1 hour' end
   from generate_series(1, 4) g;
+insert into tenant_issuer_retirements (tenant_id, issuer, expires_at)
+select ${t}, 'https://plans1.example.com', now() + interval '1 hour';
 
 insert into subjects (id, tenant_id, type)
 select gen_random_uuid(), ${t}, 'user' from generate_series(1, ${v.subjects});

@@ -5,6 +5,7 @@ import {
   canonicalHostOf,
   hostState,
   lookupHost,
+  tenantAddressing,
   tenantDomainRepository,
 } from '@odudu/domain-tenant';
 import { capturingSender, sendPending } from '@odudu/email';
@@ -16,7 +17,7 @@ import { logoutSenderOptionsFromConfig, sendLogoutsAcrossTenants } from '#/cli/s
 import { outboxOptionsFromConfig } from '#/cli/send-mail';
 import { browse, Jar, signIn, startConsoleApp } from '#/testing/console-harness';
 import { type Capture, type PathRun } from '#/testing/plan-paths';
-import { PUBLIC_BASE_URL, type PlanWorld } from '#/testing/plan-world';
+import { PUBLIC_BASE_URL, TARGET_TENANT, type PlanWorld } from '#/testing/plan-world';
 
 const WRITE = { origin: PUBLIC_BASE_URL, 'x-odudu-console': '1' };
 
@@ -178,6 +179,22 @@ export async function driveRepositories(
   );
   await capture('domains: state of a host that is only pending', 'authn', () =>
     hostState(world.owner.db, 'plans3.example.com', new Date()),
+  );
+  await capture('domains: where a tenant is addressed, for a path request', 'authn', () =>
+    tenantAddressing(
+      world.owner.db,
+      TARGET_TENANT,
+      `${PUBLIC_BASE_URL}/tenants/${TARGET_TENANT}`,
+      new Date(),
+    ),
+  );
+  await capture('domains: where a tenant nobody has is addressed', 'authn', () =>
+    tenantAddressing(
+      world.owner.db,
+      'nobody-here',
+      `${PUBLIC_BASE_URL}/tenants/nobody-here`,
+      new Date(),
+    ),
   );
   await capture('domains: what a tenant reads of its domains', 'authn', () =>
     withTenant(database, world.tenantId, async (tx) => {
