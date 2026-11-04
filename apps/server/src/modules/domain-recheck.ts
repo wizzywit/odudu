@@ -33,11 +33,11 @@ export type DomainRecheckScheduleDecision =
  */
 export function domainRecheckSchedule(config: Config): DomainRecheckScheduleDecision {
   if (!config.ODUDU_DOMAIN_RECHECK_ENABLED) return { scheduled: false, why: 'switched-off' };
+  const options = domainRecheckOptionsFromConfig(config);
+  if (options === undefined) return { scheduled: false, why: 'no-base-url' };
   if (config.ODUDU_APP_DATABASE_URL === undefined) {
     return { scheduled: false, why: 'no-serving-connection' };
   }
-  const options = domainRecheckOptionsFromConfig(config);
-  if (options === undefined) return { scheduled: false, why: 'no-base-url' };
   const intervalMs = config.ODUDU_DOMAIN_RECHECK_INTERVAL_SECONDS * 1000;
   return {
     scheduled: true,
@@ -58,13 +58,14 @@ export type DomainRecheckPass = (
   options: DomainRecheckOptions,
 ) => Promise<DomainRecheckOutcome>;
 
-const REFUSALS: Record<'no-serving-connection' | 'no-base-url', string> = {
-  'no-serving-connection':
-    'not rechecking domains: ODUDU_APP_DATABASE_URL is unset, and the pass writes under the ' +
-    'tenant policy the owner role escapes — set it, or set ODUDU_DOMAIN_RECHECK_ENABLED=false',
-  'no-base-url':
-    'not rechecking domains: ODUDU_PUBLIC_BASE_URL is unset, so no domain can be served',
-};
+const NO_SERVING_CONNECTION =
+  'not rechecking domains: ODUDU_APP_DATABASE_URL is unset, and the pass writes under the ' +
+  'tenant policy the owner role escapes — set it, or set ODUDU_DOMAIN_RECHECK_ENABLED=false';
+
+// Quiet because without a base URL no domain can be registered, so a deployment
+// that never uses domains has nothing to recheck and nothing to be told.
+const NO_BASE_URL =
+  'not rechecking domains: ODUDU_PUBLIC_BASE_URL is unset, so no domain can be served';
 
 export function domainRecheckModule(
   deps: DomainRecheckModuleDeps,
@@ -85,8 +86,10 @@ export function domainRecheckModule(
             'ODUDU_DOMAIN_RECHECK_ENABLED=false: nothing here notices a domain that stops ' +
               'proving ownership, so schedule `odudu domains recheck` externally',
           );
+        } else if (decision.why === 'no-base-url') {
+          ctx.logger.info({}, NO_BASE_URL);
         } else {
-          ctx.logger.warn({}, REFUSALS[decision.why]);
+          ctx.logger.warn({}, NO_SERVING_CONNECTION);
         }
         return Promise.resolve();
       }

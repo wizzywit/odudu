@@ -90,6 +90,10 @@ describe('whether the server rechecks domains on its own schedule', () => {
     });
     const noBase = loadConfig({ ...MINIMAL, ODUDU_APP_DATABASE_URL: READY.ODUDU_APP_DATABASE_URL });
     expect(domainRecheckSchedule(noBase)).toEqual({ scheduled: false, why: 'no-base-url' });
+    expect(domainRecheckSchedule(loadConfig({ ...MINIMAL }))).toEqual({
+      scheduled: false,
+      why: 'no-base-url',
+    });
   });
 });
 
@@ -193,18 +197,27 @@ describe('domainRecheckModule', () => {
     await expect(module.stop?.()).resolves.toBeUndefined();
   });
 
-  it('warns once and starts no timer without a serving connection or a base URL', async () => {
-    for (const [env, named] of [
-      [{ ODUDU_PUBLIC_BASE_URL: READY.ODUDU_PUBLIC_BASE_URL }, 'ODUDU_APP_DATABASE_URL'],
-      [{ ODUDU_APP_DATABASE_URL: READY.ODUDU_APP_DATABASE_URL }, 'ODUDU_PUBLIC_BASE_URL'],
-    ] as const) {
+  it('warns once and starts no timer where domains can exist and cannot be checked', async () => {
+    const log = recorder();
+    const module = domainRecheckModule(DEPS, () => Promise.resolve(SWEPT));
+    await module.start?.(
+      context({ ODUDU_PUBLIC_BASE_URL: READY.ODUDU_PUBLIC_BASE_URL }, log.logger),
+    );
+    expect(vi.getTimerCount()).toBe(0);
+    expect(log.lines).toHaveLength(1);
+    expect(log.lines[0]?.level).toBe('warn');
+    expect(log.lines[0]?.message).toContain('ODUDU_APP_DATABASE_URL');
+  });
+
+  it('says so quietly, without a warning, where no domain can be registered', async () => {
+    for (const env of [{}, { ODUDU_APP_DATABASE_URL: READY.ODUDU_APP_DATABASE_URL }]) {
       const log = recorder();
       const module = domainRecheckModule(DEPS, () => Promise.resolve(SWEPT));
       await module.start?.(context(env, log.logger));
       expect(vi.getTimerCount()).toBe(0);
       expect(log.lines).toHaveLength(1);
-      expect(log.lines[0]?.level).toBe('warn');
-      expect(log.lines[0]?.message).toContain(named);
+      expect(log.lines[0]?.level).toBe('info');
+      expect(log.lines[0]?.message).toContain('ODUDU_PUBLIC_BASE_URL');
     }
   });
 });
