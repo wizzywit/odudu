@@ -46,7 +46,6 @@ import {
   clientScopeMapperRepository,
   clientScopeRepository,
   consentRepository,
-  tenantDomainRepository,
   type LookupCanonicalDomain,
 } from '@odudu/domain-tenant';
 import {
@@ -74,7 +73,7 @@ import {
   USERINFO_ENCRYPTION_ENCS_PERMITTED,
 } from '#/service/client-metadata';
 import { DEFAULT_TLS_CLIENT_SUBJECT_HEADER } from '#/service/tls-client-auth';
-import { acceptedIssuers, type AcceptedIssuersLookup } from '#/service/issuer';
+import { acceptedIssuersLookup } from '#/repository/accepted-issuers';
 import { configureIssuerBase, configureTenantAddress } from '#/view/issuer';
 import { expandWebOrigins } from '#/service/web-origin';
 import {
@@ -199,24 +198,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const loadClaimContext = (tenantId: string, subjectId: string): Promise<LoadedClaimContext> =>
       withTenant(deps.database.db, tenantId, (tx) => loadClaimContextIn(tx, tenantId, subjectId));
 
-    // What a token, hint or client assertion presented here may have been
-    // issued under: the tenant's canonical issuer and any it retired whose
-    // window is still open. A switch needs a configured base, so without one
-    // nothing is retired and the request's own issuer is the whole answer.
-    const acceptedIssuersFor: AcceptedIssuersLookup = (tenant, requestIssuer, now) => {
-      const base = deps.publicBaseUrl;
-      if (base === undefined) return Promise.resolve([requestIssuer]);
-      return withTenant(deps.database.db, tenant.id, async (tx) => {
-        const canonical = addressIssuer(
-          await canonicalAddressFor(tx, tenant, base, baseIsTls(base), deps.canonicalDomain),
-        );
-        return acceptedIssuers(
-          canonical,
-          await tenantDomainRepository(tx).listRetired(tenant.id, now),
-          now,
-        );
-      });
-    };
+    const acceptedIssuersFor = acceptedIssuersLookup(deps);
 
     // The keys /jwks publishes, and the ones an `id_token_hint` is checked
     // against at /authorize — one definition, so a client trusting the
@@ -1047,7 +1029,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 
 // The admin API verifies a bearer token's `iss` the same way /userinfo
 // does (packages/protocol-admin/src/usecase/authenticate-admin.ts).
-export { tenantIssuer } from '#/service/issuer';
+export { acceptedIssuersLookup } from '#/repository/accepted-issuers';
+export { acceptedIssuers, tenantIssuer, type AcceptedIssuersLookup } from '#/service/issuer';
 export { restartAuthorizeLocation } from '#/service/restart-request';
 export { sendThrottledPage } from '#/view/routes/throttled';
 export { sendPreviousAddressPage } from '#/view/routes/previous-address';
