@@ -11,6 +11,7 @@ import {
 import { actionTokenRepository } from '#/repository/action-tokens';
 import { mailAddressOf } from '#/usecase/mail-address';
 import { type LookupCanonicalDomain } from '@odudu/domain-tenant';
+import { type TenantAddress } from '@odudu/kernel';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
 import { type MailGate } from '#/service/mail-gate';
 import { withMinimum } from '#/service/password-violations';
@@ -83,7 +84,7 @@ export async function requestPasswordReset(
     const mail = await mailContext(tx, deps.resolveMailLook, { ...deps, address });
     const user = await deps.findByEmail(tx, email);
     if (user === null || !deps.mailGate('reset', deps.tenantId, user.email)) return;
-    await enqueueResetLink(tx, { ...deps, issuerBase }, user, mail);
+    await enqueueResetLink(tx, { ...deps, issuerBase }, user, { address, mail });
   });
 
   return { kind: 'requested' };
@@ -117,10 +118,11 @@ export async function enqueueResetLink(
     readonly email: string;
     readonly locale?: string | null | undefined;
   },
-  context?: MailContext,
+  resolved?: { readonly address: TenantAddress; readonly mail: MailContext },
 ): Promise<void> {
-  const address = await mailAddressOf(tx, tenant);
-  const mail = context ?? (await mailContext(tx, tenant.resolveMailLook, { ...tenant, address }));
+  const address = resolved?.address ?? (await mailAddressOf(tx, tenant));
+  const mail =
+    resolved?.mail ?? (await mailContext(tx, tenant.resolveMailLook, { ...tenant, address }));
   const tokens = actionTokenRepository(tx);
   const { token } = await tokens.issue({
     tenantId: tenant.tenantId,

@@ -1,13 +1,12 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { domainAddress, pathAddress, type TenantAddress } from '@odudu/kernel';
+import { canonicalHostOf } from '#/repository/tenant-domains';
 
 /** The tenant's canonical host, or null when it has none. */
 export type LookupCanonicalDomain = (
   tx: TenantScopedDatabase,
   tenantId: string,
 ) => Promise<string | null>;
-
-const noCanonicalDomain: LookupCanonicalDomain = () => Promise.resolve(null);
 
 // What a mail link, a brand asset in a mail or a queued logout names when no
 // request is in hand to say which address the person used. The base is the
@@ -18,7 +17,7 @@ export async function canonicalAddressFor(
   tenant: { readonly id: string; readonly name: string },
   base: string,
   tls: boolean,
-  lookupDomain: LookupCanonicalDomain = noCanonicalDomain,
+  lookupDomain: LookupCanonicalDomain = canonicalHostOf,
 ): Promise<TenantAddress> {
   const host = await lookupDomain(tx, tenant.id);
   return host === null ? pathAddress(base, tenant.name) : domainAddress(host, tls);

@@ -8,7 +8,9 @@ const acme = { id: 'tenant-1', name: 'acme' };
 
 describe('canonicalAddressFor', () => {
   it('is the path address when the tenant has no canonical domain', async () => {
-    const address = await canonicalAddressFor(tx, acme, 'https://id.example.com/', true);
+    const address = await canonicalAddressFor(tx, acme, 'https://id.example.com/', true, () =>
+      Promise.resolve(null),
+    );
     expect(addressIssuer(address)).toBe('https://id.example.com/tenants/acme');
   });
 

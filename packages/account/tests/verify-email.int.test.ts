@@ -16,6 +16,7 @@ import {
 } from '@odudu/email';
 import { newId, type TenantAddress } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { tenantDomainRepository } from '@odudu/domain-tenant';
 import { eq, sql } from 'drizzle-orm';
 import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -268,6 +269,26 @@ describe('address verification', () => {
       /^https:\/\/login\.acme\.com\/login-actions\/action-token\?key=/u,
     );
     expect(scopes.map((a) => a?.origin)).toEqual(['https://login.acme.com']);
+  });
+
+  it('mails a link on the canonical domain the tenant has in the table, with nothing injected', async () => {
+    await withTenant(app.db, tenantId, async (tx) => {
+      const domains = tenantDomainRepository(tx);
+      const row = await domains.insert({ tenantId, host: 'login.acme.com', challenge: 'c' });
+      await domains.markVerified(tenantId, row.id, new Date());
+      await domains.setCanonical(tenantId, row.id);
+    });
+    try {
+      await sendVerificationEmail(deps, { subjectId: subject, email: 'ada@example.test' });
+      await drainOutbox();
+      const message = sender.sent[0];
+      if (message === undefined) throw new Error('no mail sent');
+      expect(extractLink(message)).toMatch(
+        /^https:\/\/login\.acme\.com\/login-actions\/action-token\?key=/u,
+      );
+    } finally {
+      await owner.sql`delete from tenant_domains where tenant_id = ${tenantId}`;
+    }
   });
 
   it('queues the mail in the transaction that issues the token, and sends nothing itself', async () => {

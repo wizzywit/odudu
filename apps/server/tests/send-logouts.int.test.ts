@@ -7,7 +7,7 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import { generateSigningKey, signingKeyRepository, signJwt } from '@odudu/crypto';
-import { clients } from '@odudu/domain-tenant';
+import { clients, tenantDomainRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { logoutDeliveryRepository, type LogoutDeliveryTransport } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -229,17 +229,21 @@ describe('sendLogoutsAcrossTenants', () => {
       );
       return Promise.resolve({ status: issuers.length === 1 ? 503 : 200 });
     };
-    let canonicalHost: string | null = null;
     const deps = {
       database: app,
       ownerDatabase: owner,
       transport,
-      signing: { kek, publicBaseUrl: base, lookupDomain: () => Promise.resolve(canonicalHost) },
+      signing: { kek, publicBaseUrl: base },
     };
     const onlyThisTenant = { ...OPTIONS, batchSize: 1000 };
 
     await sendLogoutsAcrossTenants(deps, NOW, onlyThisTenant);
-    canonicalHost = 'login.acme.com';
+    await withTenant(app.db, tenantId, async (tx) => {
+      const domains = tenantDomainRepository(tx);
+      const row = await domains.insert({ tenantId, host: 'login.acme.com', challenge: 'c' });
+      await domains.markVerified(tenantId, row.id, NOW);
+      await domains.setCanonical(tenantId, row.id);
+    });
     await sendLogoutsAcrossTenants(deps, new Date(NOW.getTime() + 3_600_000), onlyThisTenant);
 
     expect(issuers.slice(-2)).toEqual([`${base}/tenants/${name}`, 'https://login.acme.com']);

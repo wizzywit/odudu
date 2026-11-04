@@ -33,6 +33,7 @@ import { accountTestDeps } from '#/testing/support';
 import { registerActionTokenRoute } from '#/view/routes/action-token';
 import { actionTokenRepository } from '#/repository/action-tokens';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
+import { requestPasswordReset } from '#/usecase/reset-password';
 import { registerResetPasswordRoute } from '#/view/routes/reset-password';
 import { actionTokens } from '#/schema/action-tokens';
 
@@ -424,6 +425,37 @@ describe('password reset', () => {
       new RegExp(`^https://idp\\.example\\.test/tenants/${tenantName}/login-actions/`, 'u'),
     );
     expect(message.text + message.html).not.toContain('evil.example');
+  });
+
+  it('resolves the canonical address once for a request, and mails the link on it', async () => {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
+      resetPasswordAllowed: true,
+    });
+    await seedAda(tenantId);
+    const lookups: string[] = [];
+    const outcome = await requestPasswordReset(
+      {
+        database: app,
+        tenantId,
+        tenantName,
+        tenantDisplayName: tenantName,
+        issuerBase: 'https://idp.example.test',
+        lookupDomain: (_tx, id) => {
+          lookups.push(id);
+          return Promise.resolve('login.acme.com');
+        },
+        now: () => new Date(),
+        findByEmail,
+        mailGate: () => true,
+      },
+      'ada@example.test',
+    );
+    expect(outcome).toEqual({ kind: 'requested' });
+    expect(lookups).toEqual([tenantId]);
+    await drainOutbox();
+    const message = sender.sent[0];
+    if (message === undefined) throw new Error('no mail sent');
+    expect(extractLink(message)).toMatch(/^https:\/\/login\.acme\.com\/login-actions\//u);
   });
 
   it('queues no mail once the address has had its share, and answers the same', async () => {
