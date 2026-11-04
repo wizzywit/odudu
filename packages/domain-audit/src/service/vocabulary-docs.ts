@@ -99,6 +99,12 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
   'consent.revoke': 'A subject’s consent to a client was revoked.',
   'console.assertion':
     'A client assertion for the console was printed by `odudu console assertion`.',
+  'domain.activated': 'A domain was made the tenant’s canonical address.',
+  'domain.deactivated': 'The tenant’s canonical address went back to the path address.',
+  'domain.failed': 'A domain could not be proved, or stopped proving, that the tenant controls it.',
+  'domain.registered': 'A domain was registered for a tenant, pending its ownership check.',
+  'domain.removed': 'A domain was removed from a tenant.',
+  'domain.verified': 'A domain was proved to belong to the tenant.',
   'flow.replace': 'A tenant’s authentication flow was replaced.',
   'grant.revoke': 'A subject’s grants to a client were revoked.',
   'group.amend': 'A group was amended.',

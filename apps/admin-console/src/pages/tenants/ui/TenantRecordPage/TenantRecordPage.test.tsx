@@ -48,7 +48,7 @@ it('offers what the operator can change, and says once what it cannot', async ()
     [`GET ${ADMIN}/system/whoami`]: whoami(['manage-tenants', 'manage-tenant', 'view-users']),
   });
   expect(await screen.findByRole('note')).toHaveTextContent(
-    'You can view tenants but not add their administrators (needs manage-users, manage-clients, manage-keys, manage-sessions and view-audit).',
+    'You can view tenants but not add their administrators (needs manage-users, manage-clients, manage-keys, manage-sessions, view-audit, view-domains and manage-domains).',
   );
   expect(await screen.findByRole('textbox', { name: 'Display name' })).toBeVisible();
   expect(screen.getByRole('button', { name: 'Disable acme' })).toBeVisible();

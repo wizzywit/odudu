@@ -242,6 +242,8 @@ it('names what the first administrator needs to a holder of manage-tenants alone
     'Creating the administrator needs the manage-keys capability.',
     'Creating the administrator needs the manage-sessions capability.',
     'Creating the administrator needs the view-audit capability.',
+    'Creating the administrator needs the view-domains capability.',
+    'Creating the administrator needs the manage-domains capability.',
   ]);
   expect(screen.getByRole('button', { name: 'Create administrator' })).toBeDisabled();
   expect(sent.filter((s) => s.method !== 'GET')).toHaveLength(0);

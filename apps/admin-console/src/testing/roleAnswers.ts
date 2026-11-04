@@ -10,6 +10,8 @@ export const EVERY_TENANT_CAPABILITY: AdminCapability[] = [
   'manage-keys',
   'manage-sessions',
   'view-audit',
+  'view-domains',
+  'manage-domains',
 ];
 
 export function role(
@@ -35,9 +37,9 @@ export function role(
 function reachOf(name: string, clientKey: string | null): AdminCapability[] {
   if (clientKey !== 'odudu-admin') return [];
   if (name === 'tenant-admin') return EVERY_TENANT_CAPABILITY;
-  return name === 'manage-users'
-    ? ['view-users', 'manage-users']
-    : ADMIN_CAPABILITIES.filter((each) => each === name);
+  if (name === 'manage-users') return ['view-users', 'manage-users'];
+  if (name === 'manage-domains') return ['view-domains', 'manage-domains'];
+  return ADMIN_CAPABILITIES.filter((each) => each === name);
 }
 
 // The built-in admin client's roles, as the role list answers them.

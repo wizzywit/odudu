@@ -13,6 +13,8 @@ export const EVERY_CAPABILITY = [
   'manage-keys',
   'manage-sessions',
   'view-audit',
+  'view-domains',
+  'manage-domains',
 ];
 
 export function tenant(name: string, extra: Record<string, unknown> = {}) {

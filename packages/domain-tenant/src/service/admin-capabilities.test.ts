@@ -10,7 +10,7 @@ import {
 } from '#/service/admin-capabilities';
 
 describe('admin capabilities', () => {
-  it('names the seven per-tenant capabilities', () => {
+  it('names the nine per-tenant capabilities', () => {
     expect([...TENANT_CAPABILITIES]).toEqual([
       'view-users',
       'manage-users',
@@ -19,6 +19,8 @@ describe('admin capabilities', () => {
       'manage-keys',
       'manage-sessions',
       'view-audit',
+      'view-domains',
+      'manage-domains',
     ]);
   });
 
@@ -29,6 +31,7 @@ describe('admin capabilities', () => {
 
   it('composes manage-users onto view-users so granting one is enough', () => {
     expect(viewCounterpart('manage-users')).toBe('view-users');
+    expect(viewCounterpart('manage-domains')).toBe('view-domains');
   });
 
   it('gives a capability with no view counterpart none', () => {

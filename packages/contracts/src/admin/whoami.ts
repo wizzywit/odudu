@@ -15,6 +15,8 @@ export const ADMIN_CAPABILITIES = [
   'manage-keys',
   'manage-sessions',
   'view-audit',
+  'view-domains',
+  'manage-domains',
   'manage-tenants',
 ] as const;
 
