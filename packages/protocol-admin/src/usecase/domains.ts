@@ -285,7 +285,13 @@ export async function deactivateDomain(
   if (row === null) return { kind: 'not_found' };
   // Not the tenant's address: there is nothing to give up, and switching to
   // the path address would take away whichever domain is.
-  if (!row.canonical) return { kind: 'ok', ...(await pointed(tx, input.tenant.id, row)) };
+  if (!row.canonical) {
+    const current = await repository.canonical(input.tenant.id);
+    if (matches(input.ifMatch, switchEtag(current)) !== 'match') {
+      return { kind: 'precondition_failed' };
+    }
+    return { kind: 'ok', ...(await pointed(tx, input.tenant.id, row)) };
+  }
   // Another address taking the domain's place is a conflict, not a stale
   // If-Match: the caller named nothing that could have gone stale.
   const seen = { moved: false };

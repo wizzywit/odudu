@@ -458,6 +458,17 @@ describe('switching the canonical address', () => {
     expect(etagOf(relisted)).toBe(etagOf(await call(ctx.tenant.name, ctx.read, 'GET', `/${a.id}`)));
   });
 
+  it('answers a stale If-Match on a request that changes nothing as it does on a switch', async () => {
+    const ctx = await tenantCtx();
+    const a = await verified(ctx);
+    const b = await verified(ctx);
+    const initial = await currentEtag(ctx);
+    expect((await activate(ctx, a.id, initial)).statusCode).toBe(200);
+    expect((await activate(ctx, a.id, initial)).statusCode).toBe(412);
+    expect((await deactivate(ctx, b.id, initial)).statusCode).toBe(412);
+    expect((await deactivate(ctx, b.id)).statusCode).toBe(200);
+  });
+
   it('requires If-Match on activate and deactivate: 428 without it, and a wildcard counts as none', async () => {
     const ctx = await tenantCtx();
     const row = await verified(ctx);
