@@ -183,6 +183,28 @@ export const CONFIG_DOCS: Record<ConfigKey, ConfigDoc> = {
     summary: 'Seconds between retention passes, plus up to a tenth of that as random jitter.',
     secret: false,
   },
+  ODUDU_DOMAIN_RECHECK_ENABLED: {
+    group: 'Background passes',
+    summary:
+      'Whether the server rechecks the ownership of custom domains itself. Set it to `false` ' +
+      'when you schedule `odudu domains recheck`; with neither running, a domain that stops ' +
+      'proving ownership keeps serving.',
+    secret: false,
+  },
+  ODUDU_DOMAIN_RECHECK_INTERVAL_SECONDS: {
+    group: 'Background passes',
+    summary:
+      'Seconds between ownership rechecks of custom domains, plus up to a tenth of that as ' +
+      'random jitter.',
+    secret: false,
+  },
+  ODUDU_DOMAIN_RECHECK_FAILURES: {
+    group: 'Background passes',
+    summary:
+      'Consecutive rechecks that find no matching DNS record before a custom domain fails ' +
+      'and its tenant returns to the path address. A resolver error counts as nothing.',
+    secret: false,
+  },
   ODUDU_OUTBOX_ENABLED: {
     group: 'Background passes',
     summary:
