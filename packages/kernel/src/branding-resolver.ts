@@ -1,3 +1,4 @@
+import { addressPath, type TenantAddress } from '#/address';
 import { type MailBranding } from '#/mail-branding';
 import { type PageKind } from '#/page-kinds';
 import {
@@ -69,12 +70,12 @@ export async function brandLocale(
 // tenant. Anything else, a foreign or unknown id included, is no client, so
 // the page cannot say whether a client exists.
 export async function clientFromReturnTo(
-  tenant: string,
+  address: TenantAddress,
   returnTo: string | null,
   isClientOfTenant: (clientId: string) => Promise<boolean>,
 ): Promise<string | null> {
   if (returnTo === null || returnTo.length > MAX_SIGN_IN_PATH_LENGTH) return null;
-  const prefix = `/tenants/${encodeURIComponent(tenant)}/protocol/openid-connect/auth?`;
+  const prefix = addressPath(address, '/protocol/openid-connect/auth?');
   if (!returnTo.startsWith(prefix)) return null;
   const named = new URLSearchParams(returnTo.slice(prefix.length)).getAll('client_id');
   const [id] = named;

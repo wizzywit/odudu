@@ -122,5 +122,7 @@ export {
   domainAddress,
   isAddressLiteral,
   pathAddress,
+  routeAddress,
+  tenantAddressOf,
   type TenantAddress,
 } from '#/address';

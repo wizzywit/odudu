@@ -7,6 +7,8 @@ import {
   domainAddress,
   isAddressLiteral,
   pathAddress,
+  routeAddress,
+  tenantAddressOf,
 } from '#/address';
 
 describe('pathAddress', () => {
@@ -20,6 +22,10 @@ describe('pathAddress', () => {
     expect(addressUrl(a, '/login-actions/authenticate')).toBe(
       'https://idp.example/tenants/acme/login-actions/authenticate',
     );
+  });
+
+  it('keeps a name that is not one path segment to one', () => {
+    expect(pathAddress('https://idp.example', 'a b/../c').prefix).toBe('/tenants/a%20b%2F..%2Fc');
   });
 
   it('tolerates a trailing slash on the base', () => {
@@ -62,5 +68,30 @@ describe('isAddressLiteral', () => {
     expect(isAddressLiteral('[::1]')).toBe(true);
     expect(isAddressLiteral('idp.example')).toBe(false);
     expect(isAddressLiteral('localhost')).toBe(false);
+  });
+});
+
+describe('tenantAddressOf', () => {
+  it('returns the address a request carries', () => {
+    const a = pathAddress('https://idp.example', 'acme');
+    expect(tenantAddressOf({ tenantAddress: a })).toBe(a);
+  });
+
+  it('refuses a request outside a tenant', () => {
+    expect(() => tenantAddressOf({ tenantAddress: undefined })).toThrow('no tenant address');
+  });
+});
+
+describe('routeAddress', () => {
+  it('names the tenant of a route segment', () => {
+    expect(routeAddress({ tenant: 'acme' }, 'https://idp.example')).toEqual(
+      pathAddress('https://idp.example', 'acme'),
+    );
+  });
+
+  it('is undefined where no segment names a tenant', () => {
+    expect(routeAddress({}, 'https://idp.example')).toBeUndefined();
+    expect(routeAddress(undefined, 'https://idp.example')).toBeUndefined();
+    expect(routeAddress({ tenant: 7 }, 'https://idp.example')).toBeUndefined();
   });
 });

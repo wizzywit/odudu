@@ -4,7 +4,10 @@ export interface TenantAddress {
 }
 
 export function pathAddress(issuerBase: string, tenant: string): TenantAddress {
-  return { origin: issuerBase.replace(/\/+$/, ''), prefix: `/tenants/${tenant}` };
+  return {
+    origin: issuerBase.replace(/\/+$/, ''),
+    prefix: `/tenants/${encodeURIComponent(tenant)}`,
+  };
 }
 
 export function domainAddress(host: string, tls: boolean): TenantAddress {
@@ -38,4 +41,22 @@ export function isAddressLiteral(hostname: string): boolean {
 export function addressRelyingParty(a: TenantAddress): { id: string; origin: string } {
   const parsed = new URL(a.origin);
   return { id: parsed.hostname, origin: `${parsed.protocol}//${parsed.host}` };
+}
+
+// The path address of the tenant a route's `:tenant` segment names, for a
+// request with an authority of its own to read the origin from; undefined
+// off a tenant route, where no segment says whose address this is.
+export function routeAddress(params: unknown, issuerBase: string): TenantAddress | undefined {
+  if (typeof params !== 'object' || params === null || !('tenant' in params)) return undefined;
+  return typeof params.tenant === 'string' ? pathAddress(issuerBase, params.tenant) : undefined;
+}
+
+// What a tenant route reads off its request: the hook that sets the address
+// runs for every route under a tenant, so an absence here is a route
+// registered outside one, not a state a request can be in.
+export function tenantAddressOf(request: {
+  readonly tenantAddress: TenantAddress | undefined;
+}): TenantAddress {
+  if (request.tenantAddress === undefined) throw new Error('the request has no tenant address');
+  return request.tenantAddress;
 }
