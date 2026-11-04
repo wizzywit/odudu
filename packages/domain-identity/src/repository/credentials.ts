@@ -19,6 +19,8 @@ export interface NewCredential {
   secret: CredentialSecret;
   label?: string;
   lookupKey?: string;
+  // The relying-party id a passkey is registered under.
+  rpId?: string;
 }
 
 export interface RecoveryStanding {
@@ -37,6 +39,7 @@ function toRecord(row: typeof userCredentials.$inferSelect): CredentialRecord {
     label: row.label,
     lastUsedAt: row.lastUsedAt,
     lookupKey: row.lookupKey,
+    rpId: row.rpId,
     createdAt: row.createdAt,
   };
 }
@@ -198,6 +201,7 @@ export function credentialRepository(tx: TenantScopedDatabase) {
         hashNfc: input.type === 'password' ? true : null,
         label: input.label ?? null,
         lookupKey: input.lookupKey ?? null,
+        rpId: input.rpId ?? null,
       });
     },
 

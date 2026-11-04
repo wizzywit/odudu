@@ -280,6 +280,33 @@ describe('credentialRepository — widened credential types', () => {
     });
   });
 
+  it('records the relying party id a passkey is inserted with, and reads it back by lookup key', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subject = await seedSubject(tx, tenantId);
+        const lookupKey = `rp-${tenantId}`;
+        await credentialRepository(tx).insert({
+          tenantId,
+          subjectId: subject,
+          type: 'webauthn',
+          secret: { kind: 'webauthn', publicKey: 'pk', counter: 0, transports: ['internal'] },
+          lookupKey,
+          rpId: 'login.acme.com',
+        });
+        return lookupKey;
+      },
+      verifySeeded: async (tx, lookupKey) => {
+        expect((await credentialRepository(tx).byLookupKey(lookupKey))?.rpId).toBe(
+          'login.acme.com',
+        );
+      },
+      attempt: async (tx, lookupKey) => credentialRepository(tx).byLookupKey(lookupKey),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+    });
+  });
+
   it('cannot resolve a lookup_key under a different tenant context', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {
