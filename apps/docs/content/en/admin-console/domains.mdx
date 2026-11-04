@@ -28,7 +28,7 @@ The registered domain is **Pending**, and **Publish this record** shows what pro
 
 ## 3. Verify it
 
-Once DNS shows the record, choose **Verify** on the domain's row. The state becomes **Verified**. Checking is limited, so a second try a moment after the first is refused and the page says to wait. If the record is not there the domain stays as it was, and a domain that was verified and stopped proving it reads **Failed**: publish the record again and choose **Verify**, or remove it. A host that another tenant verified first cannot be verified here.
+Once DNS shows the record, choose **Verify** on the domain's row. The state becomes **Verified**. Checking is limited, so a second try a moment after the first is refused and the page says to wait. If the record is not there the domain stays as it was, and a domain that was verified and stopped proving it reads **Failed**. The page no longer shows a record for it, so the one it was registered with must still be published at the DNS provider: once it is seen again, choose **Verify**. If it is gone, remove the domain and register it again to get a new record. A host that another tenant verified first cannot be verified here.
 
 Odudu checks the domains it serves again on a schedule. A tenant's address that stops proving ownership goes to **Failed** and the tenant returns to its path address, so an expired domain that somebody else bought cannot keep serving the tenant's sign-in.
 

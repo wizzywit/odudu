@@ -37,6 +37,8 @@ The request id, the address a request came from and the caller's tenant and clie
 
 ## 3. Read one event
 
+A row about a domain, a signing key, the sign-in flow or a registration token links its resource to the page that manages it.
+
 Choose **Details** on a row to read the whole event. Rows written for one request share a correlation id and are labelled as one. The caller can set that id, so it links rows together and proves nothing about who sent the request. An actor marked "from elsewhere" belongs to another tenant: a system administrator acting across tenants, whose name this tenant cannot show.
 
 ## 4. Take the events away
