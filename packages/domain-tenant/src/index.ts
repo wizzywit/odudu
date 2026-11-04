@@ -127,3 +127,31 @@ export {
   type RetiredIssuer,
 } from '#/repository/tenant-domains';
 export { tenantDomains, tenantIssuerRetirements, type DomainState } from '#/schema/tenant-domains';
+export {
+  canonicalHost,
+  challengeName,
+  CHALLENGE_PREFIX,
+  DOMAIN_CODES,
+  newChallenge,
+  refuseHost,
+  REFUSAL_CODES,
+  txtMatchesChallenge,
+  type DomainCode,
+  type DomainRefusal,
+} from '#/service/tenant-domain';
+export {
+  verifyDomain,
+  type ResolveTxt,
+  type VerifyDomainDeps,
+  type VerifyDomainOutcome,
+} from '#/usecase/verify-domain';
+export {
+  registerDomain,
+  type RegisterDomainDeps,
+  type RegisterDomainOutcome,
+} from '#/usecase/register-domain';
+export {
+  dnsChallengeResolver,
+  DEFAULT_LOOKUP_TIMEOUT_MS,
+  type DnsChallengeOptions,
+} from '#/adapter/dns-challenge';
