@@ -30,6 +30,11 @@ export interface SendLogoutsDeps {
   markAbandoned(id: string, now: Date, error: string): Promise<void>;
   readonly transport: LogoutDeliveryTransport;
   /**
+   * The token one attempt carries, asked for on every attempt so a retry
+   * can name an address the first one did not. Absent, the stored token.
+   */
+  tokenFor?(row: ClaimedLogoutDelivery): Promise<string>;
+  /**
    * Bounds one delivery end to end. A relying party that accepts the
    * connection and never answers is abandoned for this pass, not for good —
    * the row is still due, by `markFailed`'s own backoff, for the next one.
@@ -67,7 +72,8 @@ async function deliverOne(
 ): Promise<'delivered' | 'failed' | 'already_recorded'> {
   const signal = AbortSignal.timeout(deps.responseTimeoutMs);
   try {
-    const response = await deps.transport(row.endpoint, row.logoutToken, signal);
+    const logoutToken = deps.tokenFor === undefined ? row.logoutToken : await deps.tokenFor(row);
+    const response = await deps.transport(row.endpoint, logoutToken, signal);
     if (response.status >= 200 && response.status < 300) {
       const recorded = await deps.markDelivered(row.id, now);
       return recorded ? 'delivered' : 'already_recorded';

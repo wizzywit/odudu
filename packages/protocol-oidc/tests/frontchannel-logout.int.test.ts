@@ -453,6 +453,47 @@ describe('the logout page frames each relying party that used the session', () =
     expect(url.searchParams.get('iss')).toBe(await issuerFor(tenantName));
   });
 
+  it('names the canonical issuer in iss, whatever address the request arrived at', async () => {
+    const tenantName = `frontchannel-canonical-${newId()}`;
+    const { tenantId, subjectId, rpClientIds } = await setupTenant(tenantName, [RP_THREE]);
+    const configured = Fastify();
+    await configured.register(formbody);
+    await configured.register(
+      oidcRoutes({
+        tls: false,
+        database: app,
+        ownerDatabase: owner,
+        kek: KEK,
+        clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+        auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
+        clientKeySet: NO_CLIENT_KEY_FETCHER,
+        publicBaseUrl: 'https://id.example.com',
+        canonicalDomain: () => Promise.resolve('login.acme.com'),
+      }),
+    );
+    await configured.ready();
+    const plain = http;
+    http = configured;
+    try {
+      const cookie = await signIn(tenantName);
+      const sessionId = sessionIdFromCookie(cookie);
+      const rpThreeId = rpClientIds.get(RP_THREE.hostname);
+      if (rpThreeId === undefined) throw new Error('expected rp-three to have been provisioned');
+      await grantUnderSession(tenantId, rpThreeId, subjectId, sessionId);
+
+      const hint = await mintIdToken(tenantName, subjectId, sessionId);
+      const res = await logoutConfirmed(tenantName, cookie, logoutUrl(tenantName, hint));
+
+      expect(res.statusCode).toBe(200);
+      expect(frameUrl(res.body, 'rp-three.example').searchParams.get('iss')).toBe(
+        'https://login.acme.com',
+      );
+    } finally {
+      http = plain;
+      await configured.close();
+    }
+  });
+
   it('[OIDC-FRONTCHANNEL-3-TRACKING-01] frames nothing, and carries no frame-src, when the session had no grants', async () => {
     const tenantName = `frontchannel-nogrants-${newId()}`;
     const { tenantId, subjectId, rpClientIds } = await setupTenant(tenantName, [RP_ONE]);

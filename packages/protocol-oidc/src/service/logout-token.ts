@@ -54,3 +54,45 @@ export function logoutTokenClaims(input: LogoutTokenInput): LogoutTokenClaims {
     events: { [BACKCHANNEL_LOGOUT_EVENT]: {} },
   };
 }
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+// A stored Logout Token's claims with another issuer, for a delivery that
+// names the tenant's address as it is now rather than as it was when the
+// session ended. Everything else, `iat`, `exp` and `jti` included, is kept:
+// it is the same event. Null for anything that is not a token this module
+// assembled.
+export function reissuedLogoutTokenClaims(token: string, issuer: string): LogoutTokenClaims | null {
+  const segment = token.split('.')[1];
+  if (segment === undefined) return null;
+  let payload: unknown;
+  try {
+    payload = JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+  if (typeof payload !== 'object' || payload === null) return null;
+  const { aud, iat, exp, jti, sub, sid } = payload as Record<string, unknown>;
+  if (
+    !isNonEmptyString(aud) ||
+    !isNonEmptyString(jti) ||
+    !isNonEmptyString(sub) ||
+    !isNonEmptyString(sid) ||
+    typeof iat !== 'number' ||
+    typeof exp !== 'number'
+  ) {
+    return null;
+  }
+  return {
+    iss: issuer,
+    aud,
+    iat,
+    exp,
+    jti,
+    sub,
+    sid,
+    events: { [BACKCHANNEL_LOGOUT_EVENT]: {} },
+  };
+}

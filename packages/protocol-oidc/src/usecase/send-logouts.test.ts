@@ -181,6 +181,34 @@ describe('sendLogouts', () => {
     expect(deps.queue.byId.get('delivery-1')?.delivered).toBe(true);
   });
 
+  it('asks for the token of every attempt, so a retry can carry a different one', async () => {
+    const sent: string[] = [];
+    let attempt = 0;
+    const deps = buildDeps([row()], (_endpoint, token) => {
+      sent.push(token);
+      return Promise.resolve({ status: sent.length === 1 ? 503 : 200 });
+    });
+    deps.tokenFor = () => {
+      attempt += 1;
+      return Promise.resolve(`token-${String(attempt)}`);
+    };
+
+    await sendLogouts(deps, NOW);
+    await sendLogouts(deps, new Date(NOW.getTime() + 3_600_000));
+
+    expect(sent).toEqual(['token-1', 'token-2']);
+  });
+
+  it('records a token that cannot be made as a failed attempt, and sends nothing', async () => {
+    const deps = buildDeps([row()], neverCalled);
+    deps.tokenFor = () => Promise.reject(new Error('no signing key'));
+
+    const result = await sendLogouts(deps, NOW);
+
+    expect(result).toEqual({ delivered: 0, failed: 1 });
+    expect(deps.queue.byId.get('delivery-1')?.lastError).toBe('no signing key');
+  });
+
   it('[OIDC-BACKCHANNEL-2.5-02] retries a 503, which is recoverable', async () => {
     const deps = buildDeps([row()], transportWith(503));
 

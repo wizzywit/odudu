@@ -2,15 +2,21 @@ import {
   bypassesRowLevelSecurity,
   createDatabase,
   tenantIdPages,
+  tenants,
   withTenant,
   type DatabaseHandle,
+  type TenantScopedDatabase,
 } from '@odudu/db';
-import { loadConfig, OduduError, type Config } from '@odudu/kernel';
+import { baseIsTls, canonicalAddressFor, type LookupCanonicalDomain } from '@odudu/domain-tenant';
+import { addressIssuer, loadConfig, OduduError, type Config } from '@odudu/kernel';
 import {
   logoutDeliveryRepository,
+  reissueLogoutToken,
   sendLogouts,
+  type ClaimedLogoutDelivery,
   type LogoutDeliveryTransport,
 } from '@odudu/protocol-oidc';
+import { eq } from 'drizzle-orm';
 import { assertProductionNoPrivateClientUrls } from '#/config-guard';
 import { createLogoutDeliveryTransport } from '#/logout-delivery-transport';
 
@@ -31,6 +37,23 @@ export function logoutSenderOptionsFromConfig(config: Config): LogoutSenderOptio
   };
 }
 
+/**
+ * What signs a delivery's Logout Token when it is sent. Without it the token
+ * stored when the session ended goes out as it is, which is all a deployment
+ * with no ODUDU_PUBLIC_BASE_URL can name.
+ */
+export interface LogoutSigning {
+  readonly kek: Uint8Array;
+  readonly publicBaseUrl: string;
+  readonly lookupDomain?: LookupCanonicalDomain | undefined;
+}
+
+export function logoutSigningFromConfig(config: Config): LogoutSigning | undefined {
+  return config.ODUDU_PUBLIC_BASE_URL === undefined
+    ? undefined
+    : { kek: config.ODUDU_KEK, publicBaseUrl: config.ODUDU_PUBLIC_BASE_URL };
+}
+
 export interface LogoutSenderDeps {
   /** The serving, row-level-security-constrained connection: every claim and write. */
   readonly database: DatabaseHandle;
@@ -41,6 +64,7 @@ export interface LogoutSenderDeps {
    */
   readonly ownerDatabase: DatabaseHandle;
   readonly transport: LogoutDeliveryTransport;
+  readonly signing?: LogoutSigning | undefined;
 }
 
 /**
@@ -71,6 +95,36 @@ async function assertRolesAreRight(deps: LogoutSenderDeps): Promise<void> {
         'subject to it; ODUDU_APP_DATABASE_URL names a SUPERUSER or BYPASSRLS role',
     );
   }
+}
+
+// The issuer is read once for the pass, in the transaction that claims the
+// rows: every delivery of one pass names the address the tenant has at that
+// moment, and a retry in a later pass names the one it has then.
+function tokenFor(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  signing: LogoutSigning,
+): (row: ClaimedLogoutDelivery) => Promise<string> {
+  const issuer = async (): Promise<string> => {
+    const [tenant] = await tx
+      .select({ name: tenants.name })
+      .from(tenants)
+      .where(eq(tenants.id, tenantId));
+    if (tenant === undefined) throw new Error('the tenant of a claimed delivery is not visible');
+    const address = await canonicalAddressFor(
+      tx,
+      { id: tenantId, name: tenant.name },
+      signing.publicBaseUrl,
+      baseIsTls(signing.publicBaseUrl),
+      signing.lookupDomain,
+    );
+    return addressIssuer(address);
+  };
+  let named: Promise<string> | undefined;
+  return async (row) => {
+    named ??= issuer();
+    return reissueLogoutToken(tx, signing, row.logoutToken, await named);
+  };
 }
 
 /**
@@ -107,6 +161,9 @@ export async function sendLogoutsAcrossTenants(
             markFailed: (id, at, error) => repository.markFailed(id, at, error),
             markAbandoned: (id, at, error) => repository.markAbandoned(id, at, error),
             transport: deps.transport,
+            ...(deps.signing === undefined
+              ? {}
+              : { tokenFor: tokenFor(tx, tenantId, deps.signing) }),
             responseTimeoutMs: options.responseTimeoutMs,
           },
           now,
@@ -154,6 +211,7 @@ export async function sendLogoutsCommand(): Promise<LogoutSenderReport> {
         transport: createLogoutDeliveryTransport({
           allowPrivate: config.ODUDU_ALLOW_PRIVATE_CLIENT_URLS,
         }),
+        signing: logoutSigningFromConfig(config),
       },
       new Date(),
       logoutSenderOptionsFromConfig(config),

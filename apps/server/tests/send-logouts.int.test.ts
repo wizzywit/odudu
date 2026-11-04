@@ -6,6 +6,7 @@ import {
   withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
+import { generateSigningKey, signingKeyRepository, signJwt } from '@odudu/crypto';
 import { clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { logoutDeliveryRepository, type LogoutDeliveryTransport } from '@odudu/protocol-oidc';
@@ -164,6 +165,84 @@ describe('sendLogoutsAcrossTenants', () => {
 
     expect(report).toEqual({ ran: true, delivered: 1, failed: 1 });
     expect(calls).toBe(2);
+  });
+
+  // The token is stored when the session ends, under the address the tenant
+  // had then. What a relying party is sent names the address it has now.
+  it('signs the issuer of each attempt from the canonical address at that moment', async () => {
+    const kek = Buffer.alloc(32, 7);
+    const tenantId = await seedTenant();
+    const name = await withTenant(app.db, tenantId, async (tx) => {
+      const generated = await generateSigningKey('RS256', kek);
+      await signingKeyRepository(tx).create({
+        id: newId(),
+        tenantId,
+        kid: generated.kid,
+        alg: generated.alg,
+        status: 'active',
+        publicJwk: generated.publicJwk,
+        privateJwkEncrypted: generated.privateJwkEncrypted,
+      });
+      const [row] = await tx.select({ name: tenants.name }).from(tenants);
+      return row?.name ?? '';
+    });
+    const base = 'https://id.example.com';
+    const queued = await withTenant(app.db, tenantId, async (tx) =>
+      signJwt(
+        {
+          iss: `${base}/tenants/${name}`,
+          aud: 'rp',
+          iat: 1_780_000_000,
+          exp: 1_780_000_120,
+          jti: newId(),
+          sub: 'sub-1',
+          sid: 'sid-1',
+          events: { 'http://schemas.openid.net/event/backchannel-logout': {} },
+        },
+        { key: await signingKeyRepository(tx).active(), kek, typ: 'logout+jwt' },
+      ),
+    );
+    const clientId = await seedClient(tenantId);
+    await withTenant(app.db, tenantId, (tx) =>
+      logoutDeliveryRepository(tx).enqueue([
+        {
+          id: newId(),
+          tenantId,
+          clientId,
+          sessionId: newId(),
+          endpoint: 'https://rp-switch.example/backchannel',
+          logoutToken: queued,
+          nextAttemptAt: NOW,
+        },
+      ]),
+    );
+
+    const issuers: string[] = [];
+    const transport: LogoutDeliveryTransport = (_endpoint, token) => {
+      const payload: unknown = JSON.parse(
+        Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'),
+      );
+      issuers.push(
+        typeof payload === 'object' && payload !== null && 'iss' in payload
+          ? String(payload.iss)
+          : '',
+      );
+      return Promise.resolve({ status: issuers.length === 1 ? 503 : 200 });
+    };
+    let canonicalHost: string | null = null;
+    const deps = {
+      database: app,
+      ownerDatabase: owner,
+      transport,
+      signing: { kek, publicBaseUrl: base, lookupDomain: () => Promise.resolve(canonicalHost) },
+    };
+    const onlyThisTenant = { ...OPTIONS, batchSize: 1000 };
+
+    await sendLogoutsAcrossTenants(deps, NOW, onlyThisTenant);
+    canonicalHost = 'login.acme.com';
+    await sendLogoutsAcrossTenants(deps, new Date(NOW.getTime() + 3_600_000), onlyThisTenant);
+
+    expect(issuers.slice(-2)).toEqual([`${base}/tenants/${name}`, 'https://login.acme.com']);
   });
 
   it('refuses to run on a serving connection that bypasses row-level security', async () => {

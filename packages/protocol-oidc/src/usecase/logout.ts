@@ -210,6 +210,10 @@ export interface LogoutUsecaseDeps {
     sessionId: string,
     limit: number,
   ): Promise<FrontChannelTarget[]>;
+  // The issuer a relying party is told, which is the tenant's canonical one
+  // whichever address the request arrived at. `requestIssuer` is what stands
+  // in for it where the deployment states no public base URL.
+  canonicalIssuer(tenant: { id: string; name: string }, requestIssuer: string): Promise<string>;
   now(): Date;
 }
 
@@ -361,7 +365,7 @@ export async function handleLogoutRequest(
   if (decision.kind === 'end' && decision.sessionEnds && session !== null) {
     return endAndAnswer(
       deps,
-      tenant.id,
+      { id: tenant.id, name: tenantName },
       issuer,
       session,
       requested,
@@ -450,7 +454,7 @@ export async function handleLogoutConfirmation(
   const client = await logoutClientOf(deps, tenant.id, params.clientId);
   return endAndAnswer(
     deps,
-    tenant.id,
+    { id: tenant.id, name: tenantName },
     issuer,
     session,
     params.postLogoutRedirectUri,
@@ -467,8 +471,8 @@ export async function handleLogoutConfirmation(
 // given or waived.
 async function endAndAnswer(
   deps: LogoutUsecaseDeps,
-  tenantId: string,
-  issuer: string,
+  tenant: { id: string; name: string },
+  requestIssuer: string,
   session: LogoutSession,
   requested: string | null,
   registered: readonly string[],
@@ -477,10 +481,11 @@ async function endAndAnswer(
   brandClientId: string | null,
 ): Promise<LogoutOutcome> {
   const decision = decideRedirect(requested, registered);
+  const issuer = await deps.canonicalIssuer(tenant, requestIssuer);
 
-  await deps.endSession(tenantId, session.id, session.subjectId, deps.now(), issuer, request);
+  await deps.endSession(tenant.id, session.id, session.subjectId, deps.now(), issuer, request);
 
-  const frontChannel = await frontChannelLogoutUrls(deps, tenantId, issuer, session.id);
+  const frontChannel = await frontChannelLogoutUrls(deps, tenant.id, issuer, session.id);
   if (decision.kind === 'end') {
     return {
       kind: 'end',

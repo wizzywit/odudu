@@ -40,12 +40,16 @@ import {
   verifyPassword,
 } from '@odudu/domain-identity';
 import {
+  baseIsTls,
+  canonicalAddressFor,
   clientRepository,
   clientScopeMapperRepository,
   clientScopeRepository,
   consentRepository,
+  type LookupCanonicalDomain,
 } from '@odudu/domain-tenant';
 import {
+  addressIssuer,
   systemClock,
   type BrandingResolver,
   type OverridesResolver,
@@ -115,6 +119,9 @@ export interface OidcRoutesDeps {
   // passkey enrolment then reports itself unsupported rather than binding
   // credentials to a guessed domain.
   publicBaseUrl?: string;
+  // Where a tenant's canonical host is read from; absent, every tenant is on
+  // its path address.
+  canonicalDomain?: LookupCanonicalDomain;
   // ADR 0023's client-authentication budget on /token, per client_id.
   // Required rather than defaulted: `oidcRoutes` is this package's
   // exported entry point, and a permissive default here would let an
@@ -943,6 +950,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withTenant(deps.database.db, tenantId, (tx) =>
           tokenGrantRepository(tx).frontChannelClientsForSession(sessionId, limit),
         ),
+      canonicalIssuer: (tenant, requestIssuer) => {
+        const base = deps.publicBaseUrl;
+        if (base === undefined) return Promise.resolve(requestIssuer);
+        return withTenant(deps.database.db, tenant.id, async (tx) =>
+          addressIssuer(
+            await canonicalAddressFor(tx, tenant, base, baseIsTls(base), deps.canonicalDomain),
+          ),
+        );
+      },
     });
     // Own encapsulation scope: `@fastify/cors`'s delegator-driven hook adds
     // `Vary: Origin` to every response it sees, including a disallowed one
@@ -1059,6 +1075,7 @@ export {
   type ClaimDue,
   type EnqueueDelivery,
 } from '#/repository/logout-deliveries';
+export { reissueLogoutToken } from '#/usecase/reissue-logout-token';
 export {
   sendLogouts,
   type ClaimedLogoutDelivery,
