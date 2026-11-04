@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { inflateSync } from 'node:zlib';
-import { DEFAULT_PAGE_LOCALE, withBranding } from '@odudu/kernel';
+import { DEFAULT_PAGE_LOCALE, pathAddress, withBranding } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import { sha256Hex } from '../../../../packages/domain-theme/src/service/branding-urls.ts';
 import { contrastFailures } from '../../../../packages/domain-theme/src/service/contrast.ts';
@@ -78,6 +78,7 @@ describe('the tenant theme the landing page shows', () => {
     const locale = withBranding(DEFAULT_PAGE_LOCALE, outcome.branding);
     const html = renderLoginForm(
       'acme',
+      pathAddress('http://pages.test', 'acme'),
       'a-session',
       'password',
       true,

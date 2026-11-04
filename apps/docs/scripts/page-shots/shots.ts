@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   DEFAULT_PAGE_LOCALE,
+  pathAddress,
   withBranding,
   type PageLocale,
   type RenderedPage,
@@ -25,6 +26,7 @@ const STYLESHEET_SOURCES = [
   'packages/instrument/src/pages.css',
 ];
 
+const ADDRESS = pathAddress('http://pages.test', 'acme');
 const SIGN_IN_PATH = '/tenants/acme/protocol/openid-connect/auth?client_id=notes';
 const RULES = {
   minLength: 15,
@@ -52,6 +54,7 @@ export interface Job extends Shot {
 function login(form: string, locale: PageLocale, remember = true): RenderedPage {
   return renderLoginForm(
     'acme',
+    ADDRESS,
     'a-session',
     form,
     form === 'password',
@@ -69,11 +72,12 @@ const SHOTS: Shot[] = [
   {
     name: 'create-account',
     render: (locale) =>
-      renderRegistrationForm('acme', { rules: RULES, signInPath: SIGN_IN_PATH }, locale),
+      renderRegistrationForm('acme', ADDRESS, { rules: RULES, signInPath: SIGN_IN_PATH }, locale),
   },
   {
     name: 'reset-password',
-    render: (locale) => renderResetRequestForm('acme', { signInPath: SIGN_IN_PATH }, locale),
+    render: (locale) =>
+      renderResetRequestForm('acme', ADDRESS, { signInPath: SIGN_IN_PATH }, locale),
   },
   { name: 'second-factor', render: (locale) => login('otp', locale, false) },
 ];

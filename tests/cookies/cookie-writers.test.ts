@@ -17,6 +17,7 @@ import {
   sessionCookie,
 } from '../../packages/console-gateway/src/service/cookies.js';
 import { themeCookie } from '../../apps/admin-console/src/shared/lib/services/theme.js';
+import { pathAddress } from '../../packages/kernel/src/index.js';
 
 // Every cookie the server (and the console's own script) writes, under TLS and
 // without: the prefix its scope allows, Secure, HttpOnly where the script does
@@ -62,7 +63,8 @@ const WRITERS: readonly Writer[] = [
   host('SSO session, persistent, cleared', (t) => sessionPair(t, 1, true)),
   {
     name: 'sign-in handle',
-    write: (t) => signInHandleCookie('acme', t, SESSION, 'secret', 60),
+    write: (t) =>
+      signInHandleCookie(pathAddress('https://idp.example', 'acme'), t, SESSION, 'secret', 60),
     scope: 'path',
     httpOnly: true,
     sameSite: 'Lax',
@@ -70,7 +72,7 @@ const WRITERS: readonly Writer[] = [
   },
   {
     name: 'sign-in handle, cleared',
-    write: (t) => clearedSignInHandleCookie('acme', t),
+    write: (t) => clearedSignInHandleCookie(pathAddress('https://idp.example', 'acme'), t),
     scope: 'path',
     httpOnly: true,
     sameSite: 'Lax',
