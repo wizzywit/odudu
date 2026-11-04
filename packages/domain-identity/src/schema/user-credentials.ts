@@ -27,6 +27,9 @@ export const userCredentials = pgTable('user_credentials', {
   // passwordless assertion, which names a credential rather than a user,
   // can resolve its subject through an index instead of scanning jsonb.
   lookupKey: text('lookup_key'),
+  // The relying-party id a passkey was registered under; null reads as any
+  // (packages/db/drizzle/0111_tenant_domains.sql).
+  rpId: text('rp_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }).enableRLS();
 

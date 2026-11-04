@@ -114,3 +114,16 @@ export {
   canonicalAddressFor,
   type LookupCanonicalDomain,
 } from '#/usecase/canonical-address';
+export {
+  canonicalHostOf,
+  DomainConflictError,
+  lookupHost,
+  MAX_DOMAINS_PER_TENANT,
+  tenantDomainRepository,
+  type DomainConflict,
+  type DomainRow,
+  type HostRoute,
+  type NewDomain,
+  type RetiredIssuer,
+} from '#/repository/tenant-domains';
+export { tenantDomains, tenantIssuerRetirements, type DomainState } from '#/schema/tenant-domains';
