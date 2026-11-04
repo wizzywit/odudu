@@ -1,4 +1,10 @@
-import { isUniqueViolation, tenants, type Database, type TenantScopedDatabase } from '@odudu/db';
+import {
+  isUniqueViolation,
+  tenants,
+  withSavepoint,
+  type Database,
+  type TenantScopedDatabase,
+} from '@odudu/db';
 import { and, asc, count, eq, gt, isNotNull, max, ne, or, sql } from 'drizzle-orm';
 import { tenantDomains, tenantIssuerRetirements, type DomainState } from '#/schema/tenant-domains';
 
@@ -90,18 +96,20 @@ export function tenantDomainRepository(tx: TenantScopedDatabase) {
         throw new DomainConflictError('limit', input.host);
       }
       try {
-        const rows = await tx
-          .insert(tenantDomains)
-          .values({
-            id: input.id ?? crypto.randomUUID(),
-            tenantId: input.tenantId,
-            host: input.host,
-            challenge: input.challenge,
-          })
-          .returning(COLUMNS);
-        const row = rows[0];
-        if (row === undefined) throw new Error('insert into tenant_domains returned no row');
-        return row;
+        return await withSavepoint(tx, async (inner) => {
+          const rows = await inner
+            .insert(tenantDomains)
+            .values({
+              id: input.id ?? crypto.randomUUID(),
+              tenantId: input.tenantId,
+              host: input.host,
+              challenge: input.challenge,
+            })
+            .returning(COLUMNS);
+          const row = rows[0];
+          if (row === undefined) throw new Error('insert into tenant_domains returned no row');
+          return row;
+        });
       } catch (error) {
         if (isUniqueViolation(error))
           throw new DomainConflictError('already_registered', input.host);
@@ -143,12 +151,14 @@ export function tenantDomainRepository(tx: TenantScopedDatabase) {
     // refuses the second.
     async markVerified(tenantId: string, id: string, now: Date): Promise<DomainRow | null> {
       try {
-        const rows = await tx
-          .update(tenantDomains)
-          .set({ state: 'verified', verifiedAt: now, lastCheckedAt: now, failedChecks: 0 })
-          .where(own(tenantId, id))
-          .returning(COLUMNS);
-        return rows[0] ?? null;
+        return await withSavepoint(tx, async (inner) => {
+          const rows = await inner
+            .update(tenantDomains)
+            .set({ state: 'verified', verifiedAt: now, lastCheckedAt: now, failedChecks: 0 })
+            .where(own(tenantId, id))
+            .returning(COLUMNS);
+          return rows[0] ?? null;
+        });
       } catch (error) {
         if (isUniqueViolation(error)) {
           throw new DomainConflictError('host_verified_elsewhere', id);

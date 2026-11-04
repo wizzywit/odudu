@@ -153,6 +153,32 @@ describe('a host held by several tenants', () => {
   });
 });
 
+describe('a caught conflict', () => {
+  it('leaves the transaction usable after a duplicate insert and after a refused verification', async () => {
+    const a = await newTenant();
+    const b = await newTenant();
+    await verified(a.id, 'held.example.com');
+    const mine = await register(b.id, 'held.example.com');
+    const outcome = await withTenant(app.db, b.id, async (tx) => {
+      const repo = tenantDomainRepository(tx);
+      const caught: string[] = [];
+      for (const attempt of [
+        () => repo.insert({ tenantId: b.id, host: 'held.example.com', challenge: 'c' }),
+        () => repo.markVerified(b.id, mine.id, NOW),
+      ]) {
+        try {
+          await attempt();
+        } catch (error) {
+          if (error instanceof DomainConflictError) caught.push(error.reason);
+        }
+      }
+      return { caught, failed: await repo.markFailed(b.id, mine.id) };
+    });
+    expect(outcome.caught).toEqual(['already_registered', 'host_verified_elsewhere']);
+    expect(outcome.failed).toMatchObject({ state: 'failed' });
+  });
+});
+
 describe('the canonical row', () => {
   it('is at most one per tenant, at the database', async () => {
     const { id: tenantId } = await newTenant();
