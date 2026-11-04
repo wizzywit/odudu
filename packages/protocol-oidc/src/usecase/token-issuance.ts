@@ -100,7 +100,10 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   // replay-revocation and the refresh_token grant's rotation are exactly
   // the kind of side effect that must survive that rollback.
   database: DatabaseHandle;
+  // What tokens are minted under: the address the request arrived at.
   issuer: string;
+  // What a token, hint or assertion presented here may have been issued under.
+  acceptedIssuers: readonly string[];
   kek: Uint8Array;
   clock: Clock;
   // The tenant's own lifespan pair — the same one /authorize's
@@ -988,7 +991,7 @@ async function issueExchangedTokens(
 
   const now = deps.clock.now();
   const resolveDeps: ResolveDeps = {
-    issuer: deps.issuer,
+    acceptedIssuers: deps.acceptedIssuers,
     requestingClientId: client.clientId,
     lifespans: deps.lifespans,
     now,

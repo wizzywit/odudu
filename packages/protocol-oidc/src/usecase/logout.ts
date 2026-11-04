@@ -5,6 +5,7 @@ import { type FrontChannelTarget } from '#/repository/grants';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import { frontChannelLogoutUrl, MAX_FRONT_CHANNEL_FRAMES } from '#/service/frontchannel-logout';
 import { mostRecentlyActive } from '#/service/session-selection';
+import { type AcceptedIssuersLookup } from '#/service/issuer';
 import { subjectOfLogoutHint } from '#/usecase/authorization-request';
 
 export interface LogoutSession {
@@ -166,6 +167,9 @@ export interface LogoutUsecaseDeps {
   // Shared with /authorize's own hint validation — this tenant's own keys,
   // this tenant's issuer.
   listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
+  // The issuers a logout `id_token_hint` may carry: the canonical one, and a
+  // retired one while its window is open.
+  acceptedIssuers: AcceptedIssuersLookup;
   // A client (the request's `client_id`, else its hint's one audience) with
   // its registered post_logout_redirect_uris and whether it skips the
   // confirmation, read in one go. An unknown or disabled client yields null,
@@ -337,7 +341,12 @@ export async function handleLogoutRequest(
   const hint =
     params.idTokenHint === null
       ? null
-      : await subjectOfLogoutHint(deps, tenant.id, issuer, params.idTokenHint);
+      : await subjectOfLogoutHint(
+          deps,
+          tenant.id,
+          await deps.acceptedIssuers({ id: tenant.id, name: tenantName }, issuer, deps.now()),
+          params.idTokenHint,
+        );
   const clientId = clientOfRequest(params.clientId, hint);
   const client = await logoutClientOf(deps, tenant.id, clientId);
   const registered = client?.postLogoutRedirectUris ?? [];

@@ -10,3 +10,31 @@ import { addressIssuer, pathAddress } from '@odudu/kernel';
 export function tenantIssuer(issuerBase: string, tenantName: string): string {
   return addressIssuer(pathAddress(issuerBase, tenantName));
 }
+
+export interface RetiredIssuerWindow {
+  readonly issuer: string;
+  readonly expiresAt: Date;
+}
+
+// The issuers a tenant still recognises on a token or a hint it signed: its
+// canonical one, then each retired one whose window has not ended. A window
+// ends at its `expiresAt`, which is already outside it.
+export function acceptedIssuers(
+  canonical: string,
+  retired: readonly RetiredIssuerWindow[],
+  now: Date,
+): readonly string[] {
+  const live = retired
+    .filter((entry) => entry.expiresAt.getTime() > now.getTime())
+    .map((entry) => entry.issuer);
+  return [...new Set([canonical, ...live])];
+}
+
+// Resolves what a request's tenant accepts. `requestIssuer` stands in for the
+// canonical issuer where no public base URL is configured, because a switch
+// needs one and so nothing can have been retired.
+export type AcceptedIssuersLookup = (
+  tenant: { readonly id: string; readonly name: string },
+  requestIssuer: string,
+  now: Date,
+) => Promise<readonly string[]>;

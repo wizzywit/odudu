@@ -25,7 +25,9 @@ export interface ClientAssertionBody {
 }
 
 export interface ExpectedClientAssertion {
-  readonly audience: string;
+  // Any of these: a tenant answers at its canonical token endpoint and, for a
+  // window after a switch, at the previous one.
+  readonly audience: string | readonly string[];
 }
 
 // Nothing in this result is authenticated. The assertion's signature is
@@ -107,7 +109,8 @@ export function parseClientAssertion(
   // client_id. RFC 7523 §3 is looser — it asks only that `iss` identify the
   // issuing entity — so this equality is the OIDC rule, not the RFC's.
   if (claims.iss !== claims.sub) return { kind: 'invalid' };
-  if (claims.aud !== expected.audience) return { kind: 'invalid' };
+  const audiences = typeof expected.audience === 'string' ? [expected.audience] : expected.audience;
+  if (!audiences.includes(claims.aud)) return { kind: 'invalid' };
 
   const nowSeconds = now.getTime() / 1000;
   if (claims.exp + ASSERTION_LEEWAY_SECONDS <= nowSeconds) return { kind: 'invalid' };

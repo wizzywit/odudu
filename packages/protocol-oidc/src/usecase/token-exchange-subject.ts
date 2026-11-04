@@ -31,7 +31,7 @@ export interface ResolvedExchangeToken {
 export type ResolveOutcome = { kind: 'ok'; token: ResolvedExchangeToken } | { kind: 'refused' };
 
 export interface ResolveDeps {
-  issuer: string;
+  acceptedIssuers: readonly string[];
   requestingClientId: string;
   lifespans: SessionLifespans;
   now: Date;
@@ -65,7 +65,7 @@ async function resolveAccessToken(
   try {
     payload = await verifyJwt(token, {
       keys: await signingKeyRepository(tx).listPublishable(),
-      issuer: deps.issuer,
+      issuer: deps.acceptedIssuers,
       audience: AUDIENCE_UNCHECKED,
       typ: 'at+jwt',
     });
@@ -145,7 +145,7 @@ async function resolveIdToken(
   const claims = await subjectOfIdTokenHint(
     { listPublishableKeys: () => signingKeyRepository(tx).listPublishable() },
     '',
-    deps.issuer,
+    deps.acceptedIssuers,
     token,
     deps.requestingClientId,
   );

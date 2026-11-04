@@ -32,6 +32,7 @@ import {
 } from '#/service/claims-request';
 import { normalizeAuthorizeQuery } from '#/service/query-normalization';
 import { parseUiLocales } from '#/service/ui-locales';
+import { type AcceptedIssuersLookup } from '#/service/issuer';
 import { parseResource } from '#/service/resource-indicator';
 import {
   decideConsentGate,
@@ -172,6 +173,9 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // publishes and /userinfo verifies against, so a hint minted with a key
   // that has since rotated out of publication is no longer honoured.
   listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
+  // The issuers an `id_token_hint` may carry: the canonical one, and a retired
+  // one while its window is open.
+  acceptedIssuers: AcceptedIssuersLookup;
   // Scoped to the resolved tenant by the caller composing this dependency
   // (index.ts), the same way listPublishableKeys is for the JWKS route.
   resolveClient(tenantId: string, oauthClientId: string): Promise<ResolvedClient>;
@@ -428,7 +432,7 @@ export async function handleAuthorizationRequest(
     const hint = await subjectOfAuthorizeHint(
       deps,
       tenant.id,
-      issuer,
+      await deps.acceptedIssuers({ id: tenant.id, name: tenantName }, issuer, deps.now()),
       outcome.idTokenHint,
       request.clientId,
     );
@@ -918,7 +922,7 @@ function audiencesOf(claim: unknown): readonly string[] {
 async function verifiedHint(
   deps: Pick<AuthorizeUsecaseDeps, 'listPublishableKeys'>,
   tenantId: string,
-  issuer: string,
+  issuers: readonly string[],
   hint: string,
   audience: ExpectedAudience,
   expiry: ExpiryPolicy | undefined,
@@ -927,7 +931,7 @@ async function verifiedHint(
   try {
     const payload = await verifyJwt(hint, {
       keys,
-      issuer,
+      issuer: issuers,
       audience,
       // An ID Token has no `typ` of its own (OIDC Core §2), so a hint is
       // read as one only when its header carries none at all —
@@ -960,11 +964,11 @@ async function verifiedHint(
 export function subjectOfIdTokenHint(
   deps: Pick<AuthorizeUsecaseDeps, 'listPublishableKeys'>,
   tenantId: string,
-  issuer: string,
+  issuers: readonly string[],
   hint: string,
   audience: ExpectedAudience,
 ): Promise<IdTokenHintClaims | null> {
-  return verifiedHint(deps, tenantId, issuer, hint, audience, undefined);
+  return verifiedHint(deps, tenantId, issuers, hint, audience, undefined);
 }
 
 // The same checks with `exp` left unjudged, for the logout endpoint alone:
@@ -974,10 +978,10 @@ export function subjectOfIdTokenHint(
 export function subjectOfLogoutHint(
   deps: Pick<AuthorizeUsecaseDeps, 'listPublishableKeys'>,
   tenantId: string,
-  issuer: string,
+  issuers: readonly string[],
   hint: string,
 ): Promise<IdTokenHintClaims | null> {
-  return verifiedHint(deps, tenantId, issuer, hint, AUDIENCE_UNCHECKED, EXPIRY_NOT_ENFORCED);
+  return verifiedHint(deps, tenantId, issuers, hint, AUDIENCE_UNCHECKED, EXPIRY_NOT_ENFORCED);
 }
 
 // OIDC Core §3.1.2.2 asks the OP to accept a hint "even when the `exp` time
@@ -989,9 +993,9 @@ export function subjectOfLogoutHint(
 export function subjectOfAuthorizeHint(
   deps: Pick<AuthorizeUsecaseDeps, 'listPublishableKeys'>,
   tenantId: string,
-  issuer: string,
+  issuers: readonly string[],
   hint: string,
   clientId: string,
 ): Promise<IdTokenHintClaims | null> {
-  return verifiedHint(deps, tenantId, issuer, hint, clientId, EXPIRY_NOT_ENFORCED);
+  return verifiedHint(deps, tenantId, issuers, hint, clientId, EXPIRY_NOT_ENFORCED);
 }

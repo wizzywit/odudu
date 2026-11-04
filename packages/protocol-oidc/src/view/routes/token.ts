@@ -10,6 +10,7 @@ import { type AuditRefusalBudget } from '#/service/audit-refusal-budget';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
 import { issueTokens, type ClientKeySet, type TokenResponse } from '#/usecase/token-issuance';
+import { type AcceptedIssuersLookup } from '#/service/issuer';
 import { tenantIssuerFor } from '#/view/issuer';
 import { keepingSpend, unsettle } from '#/usecase/private-key-jwt-authentication';
 import { recordRefusal } from '#/usecase/record-refusal';
@@ -29,6 +30,7 @@ export interface TokenRouteDeps {
       } & SessionLifespans)
     | null
   >;
+  acceptedIssuers: AcceptedIssuersLookup;
   kek: Uint8Array;
   clock: Clock;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
@@ -78,6 +80,11 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
     const corsHeaders = corsHeadersForRequest(request.headers.origin, allowedOrigins);
 
     const issuer = tenantIssuerFor(request, request.params.tenant);
+    const acceptedIssuers = await deps.acceptedIssuers(
+      { id: tenant.id, name: request.params.tenant },
+      issuer,
+      deps.clock.now(),
+    );
 
     const context = requestContextFrom(request);
     try {
@@ -93,6 +100,7 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
                   database: deps.database,
                   tenantId: tenant.id,
                   issuer,
+                  acceptedIssuers,
                   kek: deps.kek,
                   clock: deps.clock,
                   now: () => deps.clock.now(),

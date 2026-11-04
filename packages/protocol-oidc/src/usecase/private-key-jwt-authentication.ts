@@ -28,13 +28,14 @@ export interface PrivateKeyJwtDeps extends ClientAuthenticationDeps {
 }
 
 /**
- * The one audience an assertion may name, at every endpoint a client
+ * The audiences an assertion may name, at every endpoint a client
  * authenticates to: the tenant's token endpoint, the string discovery
- * publishes as `token_endpoint`. OIDC Core §9 asks for it, and one value
- * leaves nothing to choose between at /revoke and /introspect.
+ * publishes as `token_endpoint`, and for a window after a switch the previous
+ * address's. OIDC Core §9 asks for it, and one value per address leaves
+ * nothing to choose between at /revoke and /introspect.
  */
 export interface EndpointAuthenticationDeps extends PrivateKeyJwtDeps {
-  readonly issuer: string;
+  readonly acceptedIssuers: readonly string[];
   // Gates tls_client_auth exactly as it gates Fastify's own `X-Forwarded-*`
   // trust: the proxy-supplied subject header is as forgeable as those, so it
   // is read only when an operator has said a proxy in front controls it.
@@ -93,7 +94,7 @@ export async function authenticatePrivateKeyJwt(
   tx: TenantScopedDatabase,
   deps: PrivateKeyJwtDeps,
   outcome: Exclude<AssertionOutcome, { kind: 'unsupported' }>,
-  tokenEndpoint: string,
+  tokenEndpoints: readonly string[],
 ): Promise<AuthenticatedClient> {
   const fail = (reason: string, resolved?: { client: ClientRecord; reason: AuditReason }): never =>
     refusePrivateKeyJwt(
@@ -137,7 +138,7 @@ export async function authenticatePrivateKeyJwt(
 
   const verified = await verifyJwtAgainstJwkSet(outcome.assertion, jwks, {
     issuer: outcome.claimedClientId,
-    audience: tokenEndpoint,
+    audience: tokenEndpoints,
     now: deps.now(),
     clockToleranceSeconds: ASSERTION_LEEWAY_SECONDS,
   });
@@ -355,8 +356,8 @@ export async function authenticateEndpointClient(
   request: ClientRequest,
 ): Promise<AuthenticatedClient> {
   const { body } = request;
-  const tokenEndpoint = tokenEndpointOf(deps.issuer);
-  const assertion = parseClientAssertion(body, deps.now(), { audience: tokenEndpoint });
+  const tokenEndpoints = deps.acceptedIssuers.map(tokenEndpointOf);
+  const assertion = parseClientAssertion(body, deps.now(), { audience: tokenEndpoints });
   const basic = parseBasicAuth(request.authorizationHeader);
   const bodyClientSecret = readOptionalField(body, 'client_secret');
   const certResult = tlsClientSubject(request.headers, request.rawHeaders, {
@@ -400,7 +401,7 @@ export async function authenticateEndpointClient(
         assertion.claimedClientId,
       );
     }
-    return authenticatePrivateKeyJwt(tx, deps, assertion, tokenEndpoint);
+    return authenticatePrivateKeyJwt(tx, deps, assertion, tokenEndpoints);
   }
   const authenticated =
     certificateSubject !== null

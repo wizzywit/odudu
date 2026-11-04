@@ -76,7 +76,7 @@ const caller = { clientId: 'resource-server-a', audiences: ['https://api.example
 function makeDeps(overrides: Partial<IntrospectionDeps> = {}): IntrospectionDeps {
   return {
     tenantId: 'tenant-1',
-    issuer: ISSUER,
+    acceptedIssuers: [ISSUER],
     lifespans: {
       ssoSessionIdleSeconds: 300,
       ssoSessionMaxSeconds: 36_000,
@@ -347,5 +347,31 @@ describe('introspect', () => {
     const response = await introspect(deps, { token: foreignIssuerToken, caller }, NOW);
 
     expect(response).toEqual({ active: false });
+  });
+
+  describe('a tenant that moved to another address', () => {
+    const PREVIOUS = 'https://op.example/tenants/before';
+
+    it('describes a token minted under a retired issuer while the tenant still accepts it', async () => {
+      const key = await makeSigningKey();
+      const token = await mintToken(
+        { iss: PREVIOUS, aud: ['https://api.example', PREVIOUS], sid: 'session-1' },
+        key,
+      );
+      const deps = makeDeps({ keys: [key], acceptedIssuers: [ISSUER, PREVIOUS] });
+
+      expect(await introspect(deps, { token, caller }, NOW)).toMatchObject({ active: true });
+    });
+
+    it('answers inactive for the same token once the retired issuer is no longer accepted', async () => {
+      const key = await makeSigningKey();
+      const token = await mintToken(
+        { iss: PREVIOUS, aud: ['https://api.example', PREVIOUS], sid: 'session-1' },
+        key,
+      );
+      const deps = makeDeps({ keys: [key], acceptedIssuers: [ISSUER] });
+
+      expect(await introspect(deps, { token, caller }, NOW)).toEqual({ active: false });
+    });
   });
 });

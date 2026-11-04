@@ -46,6 +46,7 @@ import {
   clientScopeMapperRepository,
   clientScopeRepository,
   consentRepository,
+  tenantDomainRepository,
   type LookupCanonicalDomain,
 } from '@odudu/domain-tenant';
 import {
@@ -73,6 +74,7 @@ import {
   USERINFO_ENCRYPTION_ENCS_PERMITTED,
 } from '#/service/client-metadata';
 import { DEFAULT_TLS_CLIENT_SUBJECT_HEADER } from '#/service/tls-client-auth';
+import { acceptedIssuers, type AcceptedIssuersLookup } from '#/service/issuer';
 import { configureIssuerBase, configureTenantAddress } from '#/view/issuer';
 import { expandWebOrigins } from '#/service/web-origin';
 import {
@@ -196,6 +198,25 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const claimMappers = deps.claimMappers ?? standardClaimMappers();
     const loadClaimContext = (tenantId: string, subjectId: string): Promise<LoadedClaimContext> =>
       withTenant(deps.database.db, tenantId, (tx) => loadClaimContextIn(tx, tenantId, subjectId));
+
+    // What a token, hint or client assertion presented here may have been
+    // issued under: the tenant's canonical issuer and any it retired whose
+    // window is still open. A switch needs a configured base, so without one
+    // nothing is retired and the request's own issuer is the whole answer.
+    const acceptedIssuersFor: AcceptedIssuersLookup = (tenant, requestIssuer, now) => {
+      const base = deps.publicBaseUrl;
+      if (base === undefined) return Promise.resolve([requestIssuer]);
+      return withTenant(deps.database.db, tenant.id, async (tx) => {
+        const canonical = addressIssuer(
+          await canonicalAddressFor(tx, tenant, base, baseIsTls(base), deps.canonicalDomain),
+        );
+        return acceptedIssuers(
+          canonical,
+          await tenantDomainRepository(tx).listRetired(tenant.id, now),
+          now,
+        );
+      });
+    };
 
     // The keys /jwks publishes, and the ones an `id_token_hint` is checked
     // against at /authorize — one definition, so a client trusting the
@@ -559,6 +580,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       database: deps.database,
       findTenant,
       listPublishableKeys,
+      acceptedIssuers: acceptedIssuersFor,
       clientKeySet,
       trustProxy: deps.trustProxy ?? false,
       tlsClientCertHeader: deps.tlsClientCertHeader ?? DEFAULT_TLS_CLIENT_SUBJECT_HEADER,
@@ -577,6 +599,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       database: deps.database,
       findTenant,
       listPublishableKeys,
+      acceptedIssuers: acceptedIssuersFor,
       clientKeySet,
       trustProxy: deps.trustProxy ?? false,
       tlsClientCertHeader: deps.tlsClientCertHeader ?? DEFAULT_TLS_CLIENT_SUBJECT_HEADER,
@@ -696,6 +719,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 
     registerAuthorizeRoute(app, {
       findTenant,
+      acceptedIssuers: acceptedIssuersFor,
       recoverPendingRequest,
       redirectStillRegistered,
       clientName,
@@ -906,6 +930,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     });
     registerLogoutRoute(app, {
       findTenant,
+      acceptedIssuers: acceptedIssuersFor,
       tls,
       ...branding,
       listPublishableKeys,
@@ -977,6 +1002,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       registerTokenRoute(scope, {
         database: deps.database,
         findTenant,
+        acceptedIssuers: acceptedIssuersFor,
         kek: deps.kek,
         clock,
         verifyPassword,
@@ -990,6 +1016,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       });
       registerUserinfoRoute(scope, {
         findTenant,
+        acceptedIssuers: acceptedIssuersFor,
         listPublishableKeys: (tenantId) =>
           withTenant(deps.database.db, tenantId, (tx) =>
             signingKeyRepository(tx).listPublishable(),

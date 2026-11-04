@@ -73,6 +73,18 @@ describe('parseClientAssertion', () => {
     ).toBe('invalid');
   });
 
+  it('takes the audiences a tenant still accepts as any-of', () => {
+    const previous = 'https://id.example/tenants/acme/token';
+    const accepted: ExpectedClientAssertion = { audience: [AUDIENCE, previous] };
+    expect(parseClientAssertion(body({ ...validClaims, aud: previous }), now, accepted).kind).toBe(
+      'ok',
+    );
+    expect(parseClientAssertion(body(validClaims), now, accepted).kind).toBe('ok');
+    expect(
+      parseClientAssertion(body({ ...validClaims, aud: 'https://elsewhere' }), now, accepted).kind,
+    ).toBe('invalid');
+  });
+
   it('accepts one that expired less than the leeway ago, and refuses one that expired longer ago', () => {
     const at = (secondsAgo: number) => ({ ...validClaims, exp: nowSeconds - secondsAgo });
     expect(parseClientAssertion(body(at(29)), now, expected).kind).toBe('ok');
