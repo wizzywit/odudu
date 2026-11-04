@@ -133,12 +133,19 @@ describe('recheckDomainsLocked', () => {
     expect(retired.map((r) => r.issuer)).toEqual([`https://${lost.host}`]);
 
     const audit = await owner.db.execute<
-      { action: string; outcome: string; detail: unknown } & Record<string, unknown>
-    >(sql`select action, outcome, detail from audit_events where resource_id = ${lost.domainId}`);
+      { action: string; outcome: string; tenant_id: string; detail: unknown } & Record<
+        string,
+        unknown
+      >
+    >(sql`
+      select action, outcome, tenant_id, detail from audit_events
+       where resource_id = ${lost.domainId}
+    `);
     expect(audit).toHaveLength(1);
     expect(audit[0]).toMatchObject({
       action: 'domain.failed',
       outcome: 'failed',
+      tenant_id: lost.tenantId,
       detail: { host: lost.host, reason: 'ownership_lost', fell_back: true },
     });
   });
