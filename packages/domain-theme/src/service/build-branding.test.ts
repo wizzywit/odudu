@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { pathAddress } from '@odudu/kernel';
 import { buildBranding } from '#/service/build-branding';
 import { type PublishedLayer } from '#/service/record';
 
@@ -17,7 +18,7 @@ const NEEDS_FORM = '<p>no form here</p>';
 const SIGN_IN = '{{error}}{{form.open}}{{fields}}{{submit}}{{form.close}}{{links}}';
 
 function build(layers: { name: 'client' | 'tenant'; layer: PublishedLayer }[]) {
-  return buildBranding({ tenantName: 'acme', origin: ORIGIN, layers });
+  return buildBranding({ address: pathAddress(ORIGIN, 'acme'), origin: ORIGIN, layers });
 }
 
 describe('what a build says about the layers it read', () => {

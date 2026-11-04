@@ -1,4 +1,10 @@
-import { brandingProblems, PAGE_KINDS, type PageKind, type ResolvedBranding } from '@odudu/kernel';
+import {
+  brandingProblems,
+  PAGE_KINDS,
+  type PageKind,
+  type ResolvedBranding,
+  type TenantAddress,
+} from '@odudu/kernel';
 import { type MailBranding } from '@odudu/kernel';
 import { type PublishedAsset, type PublishedLayer } from '#/service/record';
 import { assetIdsOf, parseThemeBody, type ThemeBody } from '#/service/body';
@@ -12,7 +18,8 @@ import { checkTemplate } from '#/service/template';
 const KINDS = Object.keys(PAGE_KINDS) as PageKind[];
 
 export interface BuildInput {
-  tenantName: string;
+  // Where the tenant's assets are served from.
+  address: TenantAddress;
   // The origin pages are served from.
   origin: string;
   // Published layers, most specific first, as stored and so untrusted.
@@ -69,7 +76,7 @@ interface Kept {
 // checks drops that piece alone.
 function keepLayer(
   name: 'client' | 'tenant',
-  tenantName: string,
+  address: TenantAddress,
   layer: PublishedLayer,
   report: { problems: string[]; refused: TemplateRefused[]; faults: LayerFault[] },
 ): Kept | null {
@@ -86,7 +93,7 @@ function keepLayer(
   const sizes = new Map<string, LogoSize>();
   for (const id of assetIdsOf(body.assets)) {
     const asset = held.get(id);
-    const path = asset === undefined ? null : assetPath(tenantName, asset.sha256, asset.mime);
+    const path = asset === undefined ? null : assetPath(address, asset.sha256, asset.mime);
     if (path === null) {
       problems.push(`${name} theme version ${String(layer.version)} names an image that is gone`);
       faults.push({ layer: name, code: 'image_gone' });
@@ -147,7 +154,7 @@ export function buildBranding(input: BuildInput): BuildOutcome {
     mail: branding === null ? null : mail,
   });
   const kept = input.layers.flatMap((entry) => {
-    const layer = keepLayer(entry.name, input.tenantName, entry.layer, {
+    const layer = keepLayer(entry.name, input.address, entry.layer, {
       problems,
       refused,
       faults,
@@ -179,7 +186,7 @@ export function buildBranding(input: BuildInput): BuildOutcome {
     origin: input.origin,
     templates: body.templates,
     tokensCss: tokens,
-    stylesheetUrl: css === '' ? null : stylesheetPath(input.tenantName, css, clientRowId),
+    stylesheetUrl: css === '' ? null : stylesheetPath(input.address, css, clientRowId),
     faviconUrl: urlOf(favicon?.assetId),
     logo,
     assetUrls,

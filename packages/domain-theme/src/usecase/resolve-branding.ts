@@ -1,6 +1,7 @@
 import {
   createFallbackReporter,
   MAX_CLIENT_ID_LENGTH,
+  pathAddress,
   type BrandingResolver,
   type BrandingScope,
   type MailBranding,
@@ -137,7 +138,7 @@ function createResolvers(deps: ResolveBrandingDeps): {
       return null;
     }
     const built = buildBranding({
-      tenantName: scope.tenantName,
+      address: pathAddress(origin, scope.tenantName),
       origin,
       layers: [
         ...(layers.client === null ? [] : [{ name: 'client' as const, layer: layers.client }]),
@@ -191,7 +192,7 @@ function createResolvers(deps: ResolveBrandingDeps): {
     try {
       const layers = await read(scope.tenantId, clientId);
       const built = buildBranding({
-        tenantName: scope.tenantName,
+        address: pathAddress(origin, scope.tenantName),
         origin,
         layers: [
           ...(layers.client === null ? [] : [{ name: 'client' as const, layer: layers.client }]),
@@ -228,7 +229,7 @@ function createResolvers(deps: ResolveBrandingDeps): {
     try {
       const layers = await read(scope.tenantId, null);
       const built = buildBranding({
-        tenantName: scope.tenantName,
+        address: pathAddress(deps.origin, scope.tenantName),
         origin: deps.origin,
         layers: layers.tenant === null ? [] : [{ name: 'tenant', layer: layers.tenant }],
       });
