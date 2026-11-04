@@ -11,6 +11,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp, type ThrottleSettings } from '#/app';
 import { seed } from '#/cli/seed';
 import { createLogger } from '#/logger';
+import { CONSOLE_KEYS } from '#/testing/console-key';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // A verified domain serves its tenant at the root, and nothing else does:
 // the host selects a tenant only through a verified, live row.
@@ -63,6 +67,7 @@ interface StartOptions {
   trustProxy?: boolean;
   throttle?: ThrottleSettings;
   loginThrottle?: ThrottleSettings;
+  extra?: Partial<Parameters<typeof buildApp>[0]>;
 }
 
 async function start(options: StartOptions = {}): Promise<Stack> {
@@ -79,6 +84,7 @@ async function start(options: StartOptions = {}): Promise<Stack> {
     trustProxy: options.trustProxy ?? false,
     throttle: options.throttle ?? { limit: 100_000, windowSeconds: 60 },
     ...(options.loginThrottle === undefined ? {} : { loginThrottle: options.loginThrottle }),
+    ...options.extra,
     hostState: (host) => {
       lookups.push(host);
       return hostState(owner.db, host, new Date());
@@ -428,15 +434,27 @@ describe('which header names the host', () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it('follows the leftmost X-Forwarded-Host once it is', async () => {
+  it('follows the last X-Forwarded-Host entry once it is, not one the client prepended', async () => {
     const { app } = await start({ trustProxy: true });
     const tenant = await newTenant();
     const host = await addDomain(tenant, 'canonical');
     const res = await new Browser(app, 'internal.login-tests.net', {
-      'x-forwarded-host': `${host}, other.example.org`,
+      'x-forwarded-host': `spoof.login-tests.net, ${host}`,
     }).get('/.well-known/openid-configuration');
     expect(res.statusCode).toBe(200);
     expect(res.json<{ issuer: string }>().issuer).toBe(`https://${host}`);
+  });
+});
+
+describe('a client that writes the forwarded host itself', () => {
+  it('is not served as the domain it names ahead of the proxy`s entry', async () => {
+    const { app } = await start({ trustProxy: true });
+    const tenant = await newTenant();
+    const host = await addDomain(tenant, 'canonical');
+    const res = await new Browser(app, 'internal.login-tests.net', {
+      'x-forwarded-host': `${host}, spoof.login-tests.net`,
+    }).get('/.well-known/openid-configuration');
+    expect(res.statusCode).toBe(404);
   });
 });
 
@@ -708,5 +726,41 @@ describe('a full authorization code flow on a domain', () => {
     const cleared = browser.seen.flat().filter((line) => line.includes('Max-Age=0'));
     expect(cleared.some((line) => line.startsWith(`__Host-${tenant.name}-session=;`))).toBe(true);
     for (const line of browser.seen.flat()) expect(line).not.toContain('/tenants/');
+  });
+});
+
+describe('the 404 page of a domain', () => {
+  let docs: string;
+  const CONSOLE = 'https://console.example.test';
+
+  beforeAll(async () => {
+    docs = await mkdtemp(join(tmpdir(), 'domain-docs-'));
+    await mkdir(docs, { recursive: true });
+    await writeFile(join(docs, 'index.html'), '<!doctype html><title>Docs</title>');
+    await writeFile(
+      join(docs, 'csp.json'),
+      JSON.stringify({ scriptHashes: [`sha256-${'A'.repeat(43)}=`], styleAttributeHashes: [] }),
+    );
+  });
+
+  afterAll(async () => {
+    await rm(docs, { recursive: true, force: true });
+  });
+
+  it('names no console or docs of the operator, which the base host`s still does', async () => {
+    const { app } = await start({
+      extra: { consoleBaseUrl: CONSOLE, consoleKeys: CONSOLE_KEYS, docsDir: docs },
+    });
+    const tenant = await newTenant();
+    const host = await addDomain(tenant, 'canonical');
+    const browser = { accept: 'text/html,application/xhtml+xml' };
+    const onBase = await new Browser(app, BASE_HOST).get('/nothing-here', browser);
+    expect(onBase.body).toContain(CONSOLE);
+    const onDomain = await new Browser(app, host).get('/nothing-here', browser);
+    expect(onDomain.statusCode).toBe(404);
+    // Routed under the tenant, the path is an API path: a problem document, never the page.
+    expect(onDomain.headers['content-type']).toContain('application/problem+json');
+    expect(onDomain.body).not.toContain(CONSOLE);
+    expect(onDomain.body).not.toContain('/docs/');
   });
 });

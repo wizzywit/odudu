@@ -2,6 +2,7 @@ import { configureIssuerBase, configureTenantAddress } from '@odudu/protocol-oid
 import { type HostState } from '@odudu/domain-tenant';
 import Fastify, { type FastifyInstance } from 'fastify';
 import http from 'node:http';
+import net from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
 import { configureHostResolution } from '#/host-resolution';
 
@@ -53,6 +54,12 @@ const inject = (
   host: string,
   extra: Record<string, string> = {},
 ) => app.inject({ method: 'GET', url, headers: { host, ...extra } });
+
+function withoutId(headers: Record<string, unknown> | undefined): Record<string, unknown> {
+  const rest = { ...headers };
+  Reflect.deleteProperty(rest, 'x-request-id');
+  return rest;
+}
 
 describe('a live domain host', () => {
   it('routes a path as the tenant, with the domain as its address', async () => {
@@ -117,14 +124,20 @@ describe('a host that is registered and not live', () => {
     expect(res.body).toBe('');
   });
 
+  it('names the request in the refusal, so a probe can be correlated', async () => {
+    const { app } = build({ states });
+    const res = await inject(app, '/ping', 'idle.acme.com');
+    expect(res.headers['x-request-id']).toEqual(expect.any(String));
+  });
+
   it('refuses every path in the same bytes', async () => {
     const { app } = build({ states });
     const [a, b, c] = await Promise.all(
       ['/ping', '/tenants/acme/ping', '/x/y?z=1'].map((p) => inject(app, p, 'idle.acme.com')),
     );
     expect(a?.rawPayload.length).toBe(0);
-    expect(b?.headers).toEqual(a?.headers);
-    expect(c?.headers).toEqual(a?.headers);
+    expect(withoutId(b?.headers)).toEqual(withoutId(a?.headers));
+    expect(withoutId(c?.headers)).toEqual(withoutId(a?.headers));
   });
 });
 
@@ -194,6 +207,7 @@ describe('a lookup that fails', () => {
     state.mockRejectedValueOnce(new Error('down'));
     const res = await inject(app, '/ping', 'login.acme.com');
     expect(res.statusCode).toBe(500);
+    expect(res.headers['x-request-id']).toEqual(expect.any(String));
   });
 });
 
@@ -222,7 +236,9 @@ describe('over a real socket', () => {
             (res) => {
               let text = '';
               res.on('data', (chunk: Buffer) => (text += chunk.toString()));
-              res.on('end', () => { resolve({ status: res.statusCode ?? 0, body: text }); });
+              res.on('end', () => {
+                resolve({ status: res.statusCode ?? 0, body: text });
+              });
             },
           );
           req.on('error', reject);
@@ -234,6 +250,93 @@ describe('over a real socket', () => {
       expect(next.status).toBe(200);
       expect((await call('/ping', 'GET', 'nobody.example.org')).status).toBe(404);
       agent.destroy();
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe('targets that try to leave the tenant', () => {
+  it.each(['/../tenants/other/ping', '//ping', '/%2e%2e/tenants/other/ping', '/./ping/../../x'])(
+    'keeps %s under the tenant prefix, where no route matches',
+    async (path) => {
+      const { app } = build();
+      const res = await inject(app, path, 'login.acme.com');
+      expect(res.statusCode).toBe(404);
+      expect(res.body).not.toContain('"tenant":"other"');
+    },
+  );
+
+  async function listening(app: FastifyInstance): Promise<number> {
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const address = app.server.address();
+    return typeof address === 'object' && address !== null ? address.port : 0;
+  }
+
+  it('refuses an absolute-form target on a live host', async () => {
+    const { app } = build();
+    const port = await listening(app);
+    try {
+      const status = await new Promise<number>((resolve, reject) => {
+        const req = http.request(
+          {
+            host: '127.0.0.1',
+            port,
+            path: 'http://other.example.org/tenants/acme/ping',
+            headers: { host: 'login.acme.com' },
+          },
+          (res) => {
+            res.resume();
+            resolve(res.statusCode ?? 0);
+          },
+        );
+        req.on('error', reject);
+        req.end();
+      });
+      expect(status).toBe(404);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('survives a client that goes away while its host is being looked up', async () => {
+    const { app, state } = build();
+    let release: (value: HostState) => void = () => undefined;
+    state.mockImplementationOnce(
+      () =>
+        new Promise<HostState>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const failures: unknown[] = [];
+    const record = (error: unknown) => failures.push(error);
+    process.on('unhandledRejection', record);
+    process.on('uncaughtException', record);
+    const port = await listening(app);
+    try {
+      const socket = net.connect(port, '127.0.0.1');
+      await new Promise<void>((resolve) => socket.on('connect', resolve));
+      socket.write('GET /ping HTTP/1.1\r\nhost: login.acme.com\r\n\r\n');
+      await vi.waitFor(() => {
+        expect(state).toHaveBeenCalledTimes(1);
+      });
+      socket.destroy();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      release(LIVE);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(failures).toEqual([]);
+      const next = await new Promise<number>((resolve, reject) => {
+        const req = http.request(
+          { host: '127.0.0.1', port, path: '/ping', headers: { host: 'login.acme.com' } },
+          (res) => {
+            res.resume();
+            resolve(res.statusCode ?? 0);
+          },
+        );
+        req.on('error', reject);
+        req.end();
+      });
+      expect(next).toBe(200);
     } finally {
       await app.close();
     }

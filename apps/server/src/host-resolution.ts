@@ -41,6 +41,7 @@ export function configureHostResolution(app: FastifyInstance, deps: HostResoluti
     if (isExemptPath(url)) return;
     const host = requestHost(request.raw, trustProxy);
     if (host === null || host === baseHost) return;
+    reply.header('x-request-id', request.id);
     const found = await state(host);
     if (found.kind === 'unknown') return;
     if (found.kind === 'not_live') return refuse(reply);
