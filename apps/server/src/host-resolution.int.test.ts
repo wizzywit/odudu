@@ -352,12 +352,7 @@ describe('a host that is registered and not live', () => {
     const { app } = await start();
     const tenant = await newTenant();
     const disabled = await newTenant();
-    const hosts = [
-      await addDomain(tenant, 'pending'),
-      await addDomain(tenant, 'failed'),
-      await addDomain(tenant, 'idle'),
-      await addDomain(disabled, 'canonical'),
-    ];
+    const hosts = [await addDomain(tenant, 'idle'), await addDomain(disabled, 'canonical')];
     await owner.db.update(tenants).set({ enabled: false }).where(eq(tenants.id, disabled.id));
     const paths = [
       '/.well-known/openid-configuration',
@@ -380,12 +375,28 @@ describe('a host that is registered and not live', () => {
   it('is refused in the same bytes on a POST', async () => {
     const { app } = await start();
     const tenant = await newTenant();
-    const host = await addDomain(tenant, 'pending');
+    const host = await addDomain(tenant, 'idle');
     const refused = await new Browser(app, host).post('/login-actions/authenticate', {
       username: 'x',
     });
     const get = await new Browser(app, host).get('/anything');
     expect(comparable(refused)).toEqual(comparable(get));
+  });
+});
+
+describe('a host registered and never verified', () => {
+  it('is routed as a host nobody registered, so registering cannot blank a name', async () => {
+    const { app } = await start();
+    const tenant = await newTenant();
+    const other = await newTenant();
+    const pending = await addDomain(tenant, 'pending');
+    const failed = await addDomain(other, 'failed');
+    for (const host of [pending, failed]) {
+      const browser = new Browser(app, host);
+      const doc = await browser.get(`/tenants/${tenant.name}/.well-known/openid-configuration`);
+      expect(doc.statusCode, host).toBe(200);
+      expect((await browser.get('/.well-known/openid-configuration')).statusCode, host).toBe(404);
+    }
   });
 });
 

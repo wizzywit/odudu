@@ -13,16 +13,17 @@ selects a tenant"; how it was planned is in the
 A tenant has one canonical address, its path address or one verified domain at the
 root, and the issuer, the cookies, the RP ID and every link Odudu writes follow it.
 
-- **A table of domains** (`0111_tenant_domains.sql`, `0112_tenant_domains_unverified_host.sql`):
+- **A table of domains** (`0111_tenant_domains.sql`):
   state `pending`, `verified` or `failed`, a challenge, `canonical` at most once per tenant,
   a host unique among verified rows, twenty a tenant. `tenant_issuer_retirements` holds an
-  address a tenant left, with its expiry. `0113_user_credentials_passkey_rp_id.sql` gives
-  a passkey the RP ID it was registered under.
+  address a tenant left, with its expiry. The `rp_id` column that gives a
+  passkey the RP ID it was registered under is in the same migration, and
+  `0112_user_credentials_passkey_rp_id.sql` indexes it.
 - **One address service** in `@odudu/kernel` (`TenantAddress`), and a lint
   (`tests/lint/tenant-address.test.ts`) that holds every package to it: no place writes
   `base + /tenants/ + name` itself.
 - **Host resolution at the edge**, as a rewrite to the tenant's path before routing, so
-  none of the routes that take `:tenant` changed. A host with no row is routed as before.
+  none of the routes that take `:tenant` changed. A host with no verified row is routed as before.
 - **`GET /internal/domain-check`** for the reverse proxy's on-demand TLS question, with its
   own limiter and no secret.
 - **The admin API** under `/admin/tenants/{tenant}/domains` (register, list, read, verify,

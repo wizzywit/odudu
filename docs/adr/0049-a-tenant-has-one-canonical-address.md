@@ -55,8 +55,9 @@ tenant when its host, read as `ODUDU_TRUST_PROXY` allows and from the last
 `X-Forwarded-Host` entry when it does, has a verified row that is the canonical
 address or inside its window. The mechanism is a rewrite at the edge to the
 tenant's `/tenants/<name>` path, so no route that takes `:tenant` changes. A host
-with no row is routed exactly as before; a host with a row that is not live
-answers a bare refusal on every path. Mail links never read `Host`.
+with no verified row is routed exactly as before, so a registration that was
+never verified cannot blank a name; a verified host that is not live answers a
+bare refusal on every path. Mail links never read `Host`.
 
 **Ownership is a DNS TXT record, checked again on a schedule.** A tenant
 registers a host, publishes a token under `_odudu-challenge.<host>`, and

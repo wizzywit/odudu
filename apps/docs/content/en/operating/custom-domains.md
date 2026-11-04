@@ -83,7 +83,7 @@ https:// {
 
 Odudu reads the host a request arrived for from the `Host` header, which Caddy passes through unchanged. If your proxy rewrites it, set `ODUDU_TRUST_PROXY=true` and have it set `X-Forwarded-Host`: Odudu then reads the last entry, the one your proxy wrote, and never one a client could have sent. With trust off, `X-Forwarded-Host` is ignored.
 
-Three kinds of host are told apart. A host Odudu has never heard of is routed as before, which at the root reaches nothing. A host that is registered but is not the tenant's address answers a bare `404` on every path. The address of a tenant is served at the root, and only its own tenant's routes, so `/tenants/<name>` on a domain is refused, and so are `/admin`, `/console` and `/docs`.
+Three kinds of host are told apart. A host with no verified row, whether nobody registered it or it is only pending or failed, is routed as before, which at the root reaches nothing. A verified host that is not the tenant's address answers a bare `404` on every path. The address of a tenant is served at the root, and only its own tenant's routes, so `/tenants/<name>` on a domain is refused, and so are `/admin`, `/console` and `/docs`.
 
 ## 4. Switch the tenant to it
 

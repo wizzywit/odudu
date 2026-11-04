@@ -396,12 +396,12 @@ describe('hostState', () => {
     expect(await state('state-nobody.example.com')).toEqual({ kind: 'unknown' });
   });
 
-  it('is not live, with nothing else, for a pending and a failed host', async () => {
+  it('is unknown for a pending and a failed host, which nobody verified', async () => {
     const t = await newTenant();
     const pending = await register(t.id, 'state-pending.example.com');
-    expect(await state('state-pending.example.com')).toEqual({ kind: 'not_live' });
+    expect(await state('state-pending.example.com')).toEqual({ kind: 'unknown' });
     await withTenant(app.db, t.id, (tx) => tenantDomainRepository(tx).markFailed(t.id, pending.id));
-    expect(await state('state-pending.example.com')).toEqual({ kind: 'not_live' });
+    expect(await state('state-pending.example.com')).toEqual({ kind: 'unknown' });
   });
 
   it('is not live for an idle verified host and for a disabled tenant', async () => {

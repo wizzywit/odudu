@@ -25,7 +25,7 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ### Security
 
-- A request is served as a tenant only through a verified domain row. A host nobody registered selects no tenant, and a host that is registered but not live gets one bare refusal on every path, so a stranger cannot tell a pending domain from a failed one.
+- A request is served as a tenant only through a verified domain row. A host with no verified row selects no tenant and is routed as before, so registering a name cannot blank it; a verified host that is not live gets one bare refusal on every path.
 - `X-Forwarded-Host` is read only when `ODUDU_TRUST_PROXY` is on, and then from its last entry, the one your proxy appended, never one a client could have written ahead of it.
 - Hosts are refused by their folded spelling, so a Unicode dot or a fullwidth letter does not walk past the refusal of your own host, `localhost` or an IP address.
 - Verifying a domain is limited: a host is looked up once every 30 seconds, whichever tenant asks, and a tenant makes ten lookups a minute. The limits are per process.

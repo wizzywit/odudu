@@ -98,7 +98,7 @@ the client controls otherwise) matches a verified domain is served as that
 tenant at the root. The mechanism is a rewrite at the edge: the request URL
 `/protocol/openid-connect/auth` becomes `/tenants/<name>/protocol/openid-connect/auth`
 before routing, so none of the 86 route declarations that take `:tenant` change.
-A host with no row at all is left alone and routed exactly as today (the issuer comes from configuration, so a host selects nothing), which is what keeps the loopback health checks, the conformance scripts and a deployment reached by IP unchanged; at a root path such a host reaches nothing because no route lives there. A host that has a row but is not live (`pending`, `failed`, idle) receives the same bare refusal an unknown path does, for every path. Host resolution is skipped for the base host, for `/health*` and for `/internal/domain-check`, so a probe whose `Host` is `127.0.0.1` or an internal name costs no lookup. Requests
+A host with no verified row (nobody's, or only pending or failed, so a registration cannot blank a name the operator runs) is left alone and routed exactly as today (the issuer comes from configuration, so a host selects nothing), which is what keeps the loopback health checks, the conformance scripts and a deployment reached by IP unchanged; at a root path such a host reaches nothing because no route lives there. A host whose verified row is not live (idle, past its window, or a disabled tenant) receives the same bare refusal an unknown path does, for every path. Host resolution is skipped for the base host, for `/health*` and for `/internal/domain-check`, so a probe whose `Host` is `127.0.0.1` or an internal name costs no lookup. Requests
 already under `/tenants/` on a domain host are refused: a domain serves its own
 tenant at the root and nothing else.
 
@@ -161,7 +161,7 @@ Questions a reader of this document asked, answered here as the author's calls.
   the URL the specification derives from it. Everything else on a domain host
   (`/admin`, `/console`, `/docs`, `/internal`) is not found: every path is
   routed under the tenant's prefix, so what no tenant route serves answers the
-  application's ordinary 404, and a host that is registered but not live gets
+  application's ordinary 404, and a verified host that is not live gets
   the bare refusal on every path. `/health*` is exempt from host resolution and
   answers on any host, so a probe never costs a lookup.
 - **Which header.** Fastify's `request.host`, which honours `X-Forwarded-Host`
