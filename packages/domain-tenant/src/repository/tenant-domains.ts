@@ -381,6 +381,46 @@ export async function lookupHost(db: Database, host: string, now: Date): Promise
   return rows[0] ?? null;
 }
 
+export interface VerifiedDomainRow {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  host: string;
+  challenge: string;
+  failedChecks: number;
+  canonical: boolean;
+}
+
+// The verified rows of every tenant after `after`, in host order: one read
+// of a page, served by the partial unique index on verified hosts. On the
+// owner connection like lookupHost, since the walk crosses tenants.
+export async function verifiedDomainPage(
+  db: Database,
+  after: string | undefined,
+  limit: number,
+): Promise<VerifiedDomainRow[]> {
+  return db
+    .select({
+      id: tenantDomains.id,
+      tenantId: tenantDomains.tenantId,
+      tenantName: tenants.name,
+      host: tenantDomains.host,
+      challenge: tenantDomains.challenge,
+      failedChecks: tenantDomains.failedChecks,
+      canonical: tenantDomains.canonical,
+    })
+    .from(tenantDomains)
+    .innerJoin(tenants, eq(tenants.id, tenantDomains.tenantId))
+    .where(
+      and(
+        eq(tenantDomains.state, 'verified'),
+        after === undefined ? undefined : gt(tenantDomains.host, after),
+      ),
+    )
+    .orderBy(asc(tenantDomains.host))
+    .limit(limit);
+}
+
 export interface TenantAddressing {
   // The verified canonical domain, or null while the tenant is on its path address.
   canonicalHost: string | null;

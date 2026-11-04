@@ -123,6 +123,7 @@ export {
   MAX_DOMAINS_PER_TENANT,
   tenantAddressing,
   tenantDomainRepository,
+  verifiedDomainPage,
   type DomainConflict,
   type DomainRow,
   type HostRoute,
@@ -130,6 +131,7 @@ export {
   type NewDomain,
   type RetiredIssuer,
   type TenantAddressing,
+  type VerifiedDomainRow,
 } from '#/repository/tenant-domains';
 export { tenantDomains, tenantIssuerRetirements, type DomainState } from '#/schema/tenant-domains';
 export {
@@ -140,8 +142,10 @@ export {
   newChallenge,
   refuseHost,
   REFUSAL_CODES,
+  lookupTxtOutcome,
   txtMatchesChallenge,
   type ResolveTxt,
+  type TxtOutcome,
   type DomainCode,
   type DomainRefusal,
 } from '#/service/tenant-domain';
@@ -151,6 +155,14 @@ export {
   type VerifyDomainDeps,
   type VerifyDomainOutcome,
 } from '#/usecase/verify-domain';
+export {
+  recheckDomains,
+  type RecheckAuditEvent,
+  type RecheckDomainsDeps,
+  type RecheckReport,
+  type RecheckRow,
+  type RecheckScope,
+} from '#/usecase/recheck-domains';
 export {
   switchCanonical,
   type SwitchCanonicalDeps,

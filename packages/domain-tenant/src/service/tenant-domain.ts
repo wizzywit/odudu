@@ -139,6 +139,30 @@ export function txtMatchesChallenge(
   return records.some((chunks) => chunks.join('') === challenge);
 }
 
+export type TxtOutcome = 'match' | 'absent' | 'indeterminate';
+
+// What a resolver says when the name or the record is not there; any other
+// error is a resolver that could not answer, which proves nothing either way.
+const ABSENT_CODES = new Set(['ENOTFOUND', 'ENODATA']);
+
+function isAbsent(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && ABSENT_CODES.has(String(error.code));
+}
+
+/** What the challenge record of `host` says: there, not there, or unknowable. */
+export async function lookupTxtOutcome(
+  resolveTxt: ResolveTxt,
+  host: string,
+  challenge: string,
+): Promise<TxtOutcome> {
+  try {
+    const records = await resolveTxt(challengeName(host));
+    return txtMatchesChallenge(records, challenge) ? 'match' : 'absent';
+  } catch (error) {
+    return isAbsent(error) ? 'absent' : 'indeterminate';
+  }
+}
+
 /**
  * Whether a verified host answers requests: its tenant is enabled and it is
  * the tenant's canonical address or an issuer retired inside its window.

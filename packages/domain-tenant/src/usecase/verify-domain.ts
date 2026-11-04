@@ -1,5 +1,5 @@
 import { DomainConflictError, type DomainRow } from '#/repository/tenant-domains';
-import { challengeName, txtMatchesChallenge, type ResolveTxt } from '#/service/tenant-domain';
+import { lookupTxtOutcome, type ResolveTxt } from '#/service/tenant-domain';
 
 export interface VerifyDomainDomains {
   get(tenantId: string, id: string): Promise<DomainRow | null>;
@@ -15,25 +15,6 @@ export interface VerifyDomainDeps {
 export type VerifyDomainOutcome =
   'verified' | 'pending' | 'failed' | 'not_found' | 'verified_elsewhere';
 
-// What a resolver says when the name or the record is not there; any other
-// error is a resolver that could not answer, which proves nothing either way.
-const ABSENT_CODES = new Set(['ENOTFOUND', 'ENODATA']);
-
-function isAbsent(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && ABSENT_CODES.has(String(error.code));
-}
-
-type Lookup = 'match' | 'absent' | 'indeterminate';
-
-async function lookup(resolveTxt: ResolveTxt, row: DomainRow): Promise<Lookup> {
-  try {
-    const records = await resolveTxt(challengeName(row.host));
-    return txtMatchesChallenge(records, row.challenge) ? 'match' : 'absent';
-  } catch (error) {
-    return isAbsent(error) ? 'absent' : 'indeterminate';
-  }
-}
-
 export async function verifyDomain(
   deps: VerifyDomainDeps,
   tenantId: string,
@@ -44,7 +25,7 @@ export async function verifyDomain(
   if (row === null) return 'not_found';
   if (row.state === 'verified') return 'verified';
   if (row.state === 'failed') return 'failed';
-  const found = await lookup(deps.resolveTxt, row);
+  const found = await lookupTxtOutcome(deps.resolveTxt, row.host, row.challenge);
   if (found === 'indeterminate') return 'pending';
   if (found === 'absent') {
     await deps.domains.recordCheck(tenantId, id, false, now);
