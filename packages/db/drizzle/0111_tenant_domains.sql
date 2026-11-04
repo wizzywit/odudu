@@ -1,8 +1,7 @@
 -- A host a tenant serves its sign-in from. A host is stored as the lowercase,
 -- punycode, dot-separated name the resolver compares with: no port, no
 -- trailing dot, at least two labels, a top label that starts with a letter so
--- an address literal cannot pass. packages/domain-tenant's host rule repeats
--- this shape.
+-- an address literal cannot pass.
 CREATE TABLE tenant_domains (
   id              uuid PRIMARY KEY,
   tenant_id       uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
@@ -32,7 +31,6 @@ CREATE UNIQUE INDEX tenant_domains_by_tenant_host ON tenant_domains (tenant_id, 
 -- proof and a failed row holds nothing.
 CREATE UNIQUE INDEX tenant_domains_one_verified_host ON tenant_domains (host)
   WHERE state = 'verified';
-CREATE INDEX tenant_domains_by_host ON tenant_domains (host);
 
 CREATE UNIQUE INDEX tenant_domains_one_canonical ON tenant_domains (tenant_id)
   WHERE canonical;
