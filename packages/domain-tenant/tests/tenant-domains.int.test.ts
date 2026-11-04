@@ -394,13 +394,15 @@ describe('a foreign tenant', () => {
           canonical: await canonicalHostOf(tx, seeded.tenantA),
         };
       },
-      (result) => { expect(result).toEqual({
+      (result) => {
+        expect(result).toEqual({
           listed: [],
           got: null,
           byHost: null,
           retired: [],
           canonical: null,
-        }); },
+        });
+      },
     );
   });
 
@@ -418,7 +420,8 @@ describe('a foreign tenant', () => {
           unretired: await repo.clearRetirement(seeded.tenantA, 'https://r.example.com'),
         };
       },
-      (result) => { expect(result).toEqual({
+      (result) => {
+        expect(result).toEqual({
           deleted: false,
           verified: null,
           failed: null,
@@ -426,7 +429,8 @@ describe('a foreign tenant', () => {
           canonical: null,
           cleared: 0,
           unretired: false,
-        }); },
+        });
+      },
       async (tx, seeded) => {
         const repo = tenantDomainRepository(tx);
         expect(await repo.get(seeded.tenantA, seeded.id)).toMatchObject({
