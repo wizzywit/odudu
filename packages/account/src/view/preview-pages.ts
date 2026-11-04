@@ -1,4 +1,4 @@
-import { type PageKind, type PasswordRules, type PreviewRender } from '@odudu/kernel';
+import { pathAddress, type PageKind, type PasswordRules, type PreviewRender } from '@odudu/kernel';
 import { renderRegistrationForm } from '#/view/registration-html';
 import { renderRequiredActionsForm } from '#/view/required-actions-html';
 import { renderResetPasswordForm, renderResetRequestedPage } from '#/view/reset-html';
@@ -23,12 +23,20 @@ const RULES: PasswordRules = {
 // values, for the theme preview. No value here is real or secret.
 export const PREVIEW_PAGES: Readonly<Record<AccountKind, PreviewRender>> = {
   registration: (tenant, locale) =>
-    renderRegistrationForm(tenant, { rules: RULES, signInPath: '#' }, locale),
-  reset: (tenant, locale) => renderResetPasswordForm(tenant, KEY, undefined, RULES, locale),
-  verification: (tenant, locale) => renderEmailConfirmPage(tenant, KEY, 'ada', locale),
+    renderRegistrationForm(
+      tenant,
+      pathAddress('', tenant),
+      { rules: RULES, signInPath: '#' },
+      locale,
+    ),
+  reset: (tenant, locale) =>
+    renderResetPasswordForm(tenant, pathAddress('', tenant), KEY, undefined, RULES, locale),
+  verification: (tenant, locale) =>
+    renderEmailConfirmPage(pathAddress('', tenant), KEY, 'ada', locale),
   'required-actions': (tenant, locale) =>
     renderRequiredActionsForm(
       tenant,
+      pathAddress('', tenant),
       KEY,
       ['update-password', 'configure-totp'],
       true,

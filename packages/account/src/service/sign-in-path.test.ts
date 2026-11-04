@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_SIGN_IN_PATH_LENGTH } from '@odudu/kernel';
+import { MAX_SIGN_IN_PATH_LENGTH, pathAddress } from '@odudu/kernel';
 import { signInPath } from '#/service/sign-in-path';
 
 const AUTH = '/tenants/acme/protocol/openid-connect/auth';
@@ -7,13 +7,13 @@ const GOOD = `${AUTH}?response_type=code&client_id=portal&redirect_uri=https%3A%
 
 describe('signInPath', () => {
   it('keeps the authorize path of this tenant, query and all', () => {
-    expect(signInPath('acme', GOOD)).toBe(GOOD);
+    expect(signInPath(pathAddress('https://idp.example', 'acme'), GOOD)).toBe(GOOD);
   });
 
   it('refuses anything that is not a single string', () => {
-    expect(signInPath('acme', undefined)).toBeNull();
-    expect(signInPath('acme', [GOOD, GOOD])).toBeNull();
-    expect(signInPath('acme', '')).toBeNull();
+    expect(signInPath(pathAddress('https://idp.example', 'acme'), undefined)).toBeNull();
+    expect(signInPath(pathAddress('https://idp.example', 'acme'), [GOOD, GOOD])).toBeNull();
+    expect(signInPath(pathAddress('https://idp.example', 'acme'), '')).toBeNull();
   });
 
   it.each([
@@ -31,17 +31,22 @@ describe('signInPath', () => {
     ['a longer tenant name', '/tenants/acmeX/protocol/openid-connect/auth?client_id=x'],
     ['a dot segment', `/tenants/acme/protocol/openid-connect/../openid-connect/auth?client_id=x`],
   ])('refuses %s', (_label, value) => {
-    expect(signInPath('acme', value)).toBeNull();
+    expect(signInPath(pathAddress('https://idp.example', 'acme'), value)).toBeNull();
   });
 
   it('matches a tenant name that needs encoding only in its encoded form', () => {
     const path = '/tenants/a%20b/protocol/openid-connect/auth?client_id=x';
-    expect(signInPath('a b', path)).toBe(path);
-    expect(signInPath('a b', '/tenants/a b/protocol/openid-connect/auth?client_id=x')).toBeNull();
+    expect(signInPath(pathAddress('https://idp.example', 'a b'), path)).toBe(path);
+    expect(
+      signInPath(
+        pathAddress('https://idp.example', 'a b'),
+        '/tenants/a b/protocol/openid-connect/auth?client_id=x',
+      ),
+    ).toBeNull();
   });
 
   it('refuses a value past the length bound', () => {
     const long = `${AUTH}?x=${'a'.repeat(MAX_SIGN_IN_PATH_LENGTH)}`;
-    expect(signInPath('acme', long)).toBeNull();
+    expect(signInPath(pathAddress('https://idp.example', 'acme'), long)).toBeNull();
   });
 });

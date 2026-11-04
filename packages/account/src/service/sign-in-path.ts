@@ -1,4 +1,4 @@
-import { MAX_SIGN_IN_PATH_LENGTH } from '@odudu/kernel';
+import { addressPath, MAX_SIGN_IN_PATH_LENGTH, type TenantAddress } from '@odudu/kernel';
 
 // Where an account page sends a person back to sign in: the authorize path
 // the sign-in page rebuilt from the parked request, carried through the
@@ -11,9 +11,12 @@ import { MAX_SIGN_IN_PATH_LENGTH } from '@odudu/kernel';
 
 const PRINTABLE_ASCII = /^[\x21-\x7e]+$/u;
 
-export function signInPath(tenant: string, value: string | string[] | undefined): string | null {
+export function signInPath(
+  address: TenantAddress,
+  value: string | string[] | undefined,
+): string | null {
   if (typeof value !== 'string' || value.length > MAX_SIGN_IN_PATH_LENGTH) return null;
-  const prefix = `/tenants/${encodeURIComponent(tenant)}/protocol/openid-connect/auth?`;
+  const prefix = addressPath(address, '/protocol/openid-connect/auth?');
   if (!value.startsWith(prefix) || value.length === prefix.length) return null;
   if (!PRINTABLE_ASCII.test(value) || value.includes('\\') || value.includes('#')) return null;
   return value;

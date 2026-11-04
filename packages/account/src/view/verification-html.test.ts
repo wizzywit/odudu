@@ -1,4 +1,4 @@
-import { DEFAULT_PAGE_LOCALE } from '@odudu/kernel';
+import { DEFAULT_PAGE_LOCALE, pathAddress } from '@odudu/kernel';
 import { ARABIC, FRENCH } from '@odudu/testkit/i18n';
 import Fastify from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
@@ -134,7 +134,12 @@ describe('the pages a mailed link opens, with the way back it carried', () => {
 
 describe('renderEmailConfirmPage', () => {
   it('asks for one click, and carries the key only in the form', () => {
-    const page = renderEmailConfirmPage('acme', 'k"ey', null, DEFAULT_PAGE_LOCALE);
+    const page = renderEmailConfirmPage(
+      pathAddress('https://idp.example', 'acme'),
+      'k"ey',
+      null,
+      DEFAULT_PAGE_LOCALE,
+    );
 
     expectFragment(page);
     expect(page.body).toContain('<h1>Confirm your email address</h1>');
@@ -149,7 +154,12 @@ describe('renderEmailConfirmPage', () => {
   });
 
   it('names the account a registration link will create, isolated', () => {
-    const page = renderEmailConfirmPage('acme', 'k', '<ada>', DEFAULT_PAGE_LOCALE);
+    const page = renderEmailConfirmPage(
+      pathAddress('https://idp.example', 'acme'),
+      'k',
+      '<ada>',
+      DEFAULT_PAGE_LOCALE,
+    );
 
     expect(page.body).toContain('Account name: <bdi>&lt;ada&gt;</bdi>');
   });

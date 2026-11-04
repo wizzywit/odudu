@@ -1,4 +1,4 @@
-import { DEFAULT_PAGE_LOCALE } from '@odudu/kernel';
+import { DEFAULT_PAGE_LOCALE, pathAddress } from '@odudu/kernel';
 import { ARABIC, FRENCH } from '@odudu/testkit/i18n';
 import { describe, expect, it, vi } from 'vitest';
 import { en } from '#/view/messages';
@@ -46,7 +46,12 @@ const SIGN_IN =
 
 describe('renderRegistrationForm', () => {
   it('returns a body fragment and a title beside the document', () => {
-    const page = renderRegistrationForm('acme', { rules: RULES }, DEFAULT_PAGE_LOCALE);
+    const page = renderRegistrationForm(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      { rules: RULES },
+      DEFAULT_PAGE_LOCALE,
+    );
     expect(page.title).toBe('Create account');
     expect(page.body).toContain('name="username"');
     expectFragment(page);
@@ -54,7 +59,14 @@ describe('renderRegistrationForm', () => {
 
   it('keeps the English markup exactly, with no way back when none was carried', () => {
     expect(
-      withoutScript(renderRegistrationForm('acme', { rules: RULES }, DEFAULT_PAGE_LOCALE).body),
+      withoutScript(
+        renderRegistrationForm(
+          'acme',
+          pathAddress('https://idp.example', 'acme'),
+          { rules: RULES },
+          DEFAULT_PAGE_LOCALE,
+        ).body,
+      ),
     ).toBe(`<header class="intro">
 <h1>Create account</h1>
 <p class="tenant"><bdi>acme</bdi></p>
@@ -80,6 +92,7 @@ describe('renderRegistrationForm', () => {
   it('links back to sign-in and carries the way in the form', () => {
     const { body } = renderRegistrationForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       { rules: RULES, signInPath: SIGN_IN },
       DEFAULT_PAGE_LOCALE,
     );
@@ -97,6 +110,7 @@ describe('renderRegistrationForm', () => {
     };
     const { body } = renderRegistrationForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       { rules: RULES, failure, username: 'newcomer', email: 'new@example.test' },
       DEFAULT_PAGE_LOCALE,
     );
@@ -118,6 +132,7 @@ describe('renderRegistrationForm', () => {
   it('names each empty field, marks it and focuses the first', () => {
     const { body } = renderRegistrationForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       { rules: RULES, failure: { missing: ['email', 'password'] }, username: 'newcomer' },
       DEFAULT_PAGE_LOCALE,
     );
@@ -140,6 +155,7 @@ describe('renderRegistrationForm', () => {
   ] as const)('puts %s on the %s field', (refusal, field, text) => {
     const { body } = renderRegistrationForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       { rules: RULES, failure: { refusal } },
       DEFAULT_PAGE_LOCALE,
     );
@@ -155,6 +171,7 @@ describe('renderRegistrationForm', () => {
   it('escapes what it gives back and refuses a value too long to reflect', () => {
     const { body } = renderRegistrationForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       {
         rules: RULES,
         failure: { refusal: 'email_taken' },
@@ -169,7 +186,12 @@ describe('renderRegistrationForm', () => {
   });
 
   it('reads French where the fixture has it and English for the rest', () => {
-    const page = renderRegistrationForm('acme', { rules: RULES }, FRENCH);
+    const page = renderRegistrationForm(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      { rules: RULES },
+      FRENCH,
+    );
     expect(page.html).toContain('<html lang="fr" dir="ltr">');
     expect(page.title).toBe('Créer un compte');
     expect(page.body).toContain(`<label>Nom d&#39;utilisateur <input`);
@@ -178,6 +200,7 @@ describe('renderRegistrationForm', () => {
     expect(
       renderRegistrationForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         { rules: RULES, failure: { refusal: 'username_taken' } },
         FRENCH,
       ).body,
@@ -187,6 +210,7 @@ describe('renderRegistrationForm', () => {
   it('shows a rule it has no wording for by its developer message, isolated and escaped', () => {
     const { body } = renderRegistrationForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       {
         rules: RULES,
         failure: { violations: [{ rule: 'future', message: '<img src=x onerror=1>' }] },
@@ -198,13 +222,23 @@ describe('renderRegistrationForm', () => {
   });
 
   it('writes lang and dir for a right-to-left locale', () => {
-    expect(renderRegistrationForm('acme', { rules: RULES }, ARABIC).html).toContain(
-      '<html lang="ar" dir="rtl">',
-    );
+    expect(
+      renderRegistrationForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        { rules: RULES },
+        ARABIC,
+      ).html,
+    ).toContain('<html lang="ar" dir="rtl">');
   });
 
   it('writes a tenant name into the action as a path segment, and into the page as text', () => {
-    const { html } = renderRegistrationForm('a b?"<%', { rules: RULES }, DEFAULT_PAGE_LOCALE);
+    const { html } = renderRegistrationForm(
+      'a b?"<%',
+      pathAddress('https://idp.example', 'a b?"<%'),
+      { rules: RULES },
+      DEFAULT_PAGE_LOCALE,
+    );
     expect(html).toContain('action="/tenants/a%20b%3F%22%3C%25/login-actions/registration"');
     expect(html).toContain('<bdi>a b?&quot;&lt;%</bdi>');
     expect(html).not.toContain('<%');
@@ -213,7 +247,11 @@ describe('renderRegistrationForm', () => {
 
 describe('renderRegistrationFailedPage', () => {
   it('stays a page for the one refusal that is not about a field, with the way to try again', () => {
-    const page = renderRegistrationFailedPage('acme', null, DEFAULT_PAGE_LOCALE);
+    const page = renderRegistrationFailedPage(
+      pathAddress('https://idp.example', 'acme'),
+      null,
+      DEFAULT_PAGE_LOCALE,
+    );
     expect(page.title).toBe("Can't create this account");
     expect(page.body).toBe(`<h1>Can&#39;t create this account</h1>
 <p>Registration is temporarily unavailable. Try again later.</p>
@@ -224,16 +262,20 @@ describe('renderRegistrationFailedPage', () => {
   });
 
   it('keeps the way back through the retry and beside it', () => {
-    const { body } = renderRegistrationFailedPage('acme', SIGN_IN, DEFAULT_PAGE_LOCALE);
+    const { body } = renderRegistrationFailedPage(
+      pathAddress('https://idp.example', 'acme'),
+      SIGN_IN,
+      DEFAULT_PAGE_LOCALE,
+    );
     const retry = `/tenants/acme/login-actions/registration?return_to=${encodeURIComponent(SIGN_IN)}`;
     expect(body).toContain(`<a href="${retry.replaceAll('&', '&amp;')}">Try again</a>`);
     expect(body).toContain(`>Back to sign in</a>`);
   });
 
   it('writes lang and dir for a right-to-left locale', () => {
-    expect(renderRegistrationFailedPage('acme', null, ARABIC).html).toContain(
-      '<html lang="ar" dir="rtl">',
-    );
+    expect(
+      renderRegistrationFailedPage(pathAddress('https://idp.example', 'acme'), null, ARABIC).html,
+    ).toContain('<html lang="ar" dir="rtl">');
   });
 });
 
@@ -291,6 +333,7 @@ describe('a refused registration form reads coherently to a screen reader', () =
     expectCoherent(
       renderRegistrationForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         {
           rules: RULES,
           failure: {
@@ -306,6 +349,7 @@ describe('a refused registration form reads coherently to a screen reader', () =
     expectCoherent(
       renderRegistrationForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         { rules: RULES, failure: { missing: ['username', 'email'] } },
         DEFAULT_PAGE_LOCALE,
       ).body,

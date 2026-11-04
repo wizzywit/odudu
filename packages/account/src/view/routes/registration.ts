@@ -1,7 +1,8 @@
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { type MailLookResolver } from '@odudu/email';
 import { requestContextFrom } from '@odudu/domain-audit';
-import { PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
+import { PASSWORD_TOO_LONG, readPasswordField, tenantAddressOf } from '@odudu/kernel';
+import { ensureTenantAddress } from '#/view/routes/tenant-address';
 import { type FastifyInstance, type FastifyReply } from 'fastify';
 import {
   register,
@@ -107,6 +108,7 @@ function tenantIsOpenForRegistration(
 // at all — 404, not a page saying registration is closed, the same way a
 // disabled tenant's action-token route refuses rather than explaining.
 export function registerRegistrationRoute(app: FastifyInstance, deps: RegistrationRouteDeps): void {
+  ensureTenantAddress(app);
   app.get<{
     Params: { tenant: string };
     Querystring: Record<string, string | string[] | undefined>;
@@ -115,13 +117,14 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
     if (!tenantIsOpenForRegistration(tenant)) {
       return reply.code(404).send();
     }
-    const returnTo = signInPath(request.params.tenant, request.query.return_to);
+    const returnTo = signInPath(tenantAddressOf(request), request.query.return_to);
     const locale = await brandedLocale(request, deps, tenant, returnTo);
     return sendVerificationHtml(
       reply,
       200,
       renderRegistrationForm(
         request.params.tenant,
+        tenantAddressOf(request),
         { rules: tenant.passwordPolicy, signInPath: returnTo },
         locale,
       ),
@@ -142,7 +145,7 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
     const email = firstNonEmptyString(body.email);
     const candidate = readPasswordField(body.password);
     const again = readPasswordField(body.password_confirm);
-    const returnTo = signInPath(request.params.tenant, body.return_to);
+    const returnTo = signInPath(tenantAddressOf(request), body.return_to);
     const locale = await brandedLocale(request, deps, tenant, returnTo);
     // The form comes back in place, keeping the two values that are safe to
     // keep; a password is never put into a field again.
@@ -152,6 +155,7 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
         status,
         renderRegistrationForm(
           request.params.tenant,
+          tenantAddressOf(request),
           {
             rules: tenant.passwordPolicy,
             signInPath: returnTo,
@@ -194,7 +198,7 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
     // Only a mail that will carry a link needs to know the sign-in it came out of.
     const held =
       tenant.verifyEmail && returnTo !== null
-        ? await deps.findHeldSignIn(tenant, request.headers.cookie)
+        ? await deps.findHeldSignIn(tenant, request.headers.cookie, tenantAddressOf(request))
         : null;
     const outcome = await register(
       {
@@ -242,7 +246,7 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
       return sendVerificationHtml(
         reply,
         500,
-        renderRegistrationFailedPage(request.params.tenant, returnTo, locale),
+        renderRegistrationFailedPage(tenantAddressOf(request), returnTo, locale),
       );
     }
 

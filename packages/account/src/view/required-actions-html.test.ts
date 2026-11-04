@@ -1,4 +1,4 @@
-import { DEFAULT_PAGE_LOCALE } from '@odudu/kernel';
+import { DEFAULT_PAGE_LOCALE, pathAddress } from '@odudu/kernel';
 import { ARABIC, FRENCH } from '@odudu/testkit/i18n';
 import { describe, expect, it, vi } from 'vitest';
 import { en } from '#/view/messages';
@@ -37,6 +37,7 @@ describe('renderRequiredActionsForm', () => {
       withoutScript(
         renderRequiredActionsForm(
           'acme',
+          pathAddress('https://idp.example', 'acme'),
           'k"ey',
           ['update-password', 'configure-totp'],
           true,
@@ -69,6 +70,7 @@ describe('renderRequiredActionsForm', () => {
 </form>`);
     const without = renderRequiredActionsForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'key',
       ['configure-passkey'],
       false,
@@ -85,6 +87,7 @@ describe('renderRequiredActionsForm', () => {
   it('comes back in place with the reasons above the form and the field marked', () => {
     const { body } = renderRequiredActionsForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'key',
       ['update-password'],
       true,
@@ -108,6 +111,7 @@ describe('renderRequiredActionsForm', () => {
   it('marks nothing on a link that asks for no password', () => {
     const { body } = renderRequiredActionsForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'key',
       ['configure-totp'],
       false,
@@ -121,6 +125,7 @@ describe('renderRequiredActionsForm', () => {
   it('words every action the link can carry', () => {
     const { body } = renderRequiredActionsForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'k',
       ['update-password', 'configure-totp', 'configure-passkey', 'generate-recovery-codes'],
       false,
@@ -141,6 +146,7 @@ describe('renderRequiredActionsForm', () => {
   it('reads French where the fixture has it and English for the rest', () => {
     const page = renderRequiredActionsForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'k',
       ['configure-totp', 'update-password'],
       true,
@@ -158,7 +164,16 @@ describe('renderRequiredActionsForm', () => {
 
   it('writes lang and dir for a right-to-left locale', () => {
     expect(
-      renderRequiredActionsForm('acme', 'k', [], false, undefined, RULES, ARABIC).html,
+      renderRequiredActionsForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'k',
+        [],
+        false,
+        undefined,
+        RULES,
+        ARABIC,
+      ).html,
     ).toContain('<html lang="ar" dir="rtl">');
   });
 
@@ -167,6 +182,7 @@ describe('renderRequiredActionsForm', () => {
     for (const locale of [EN, FRENCH]) {
       const { html, body } = renderRequiredActionsForm(
         '<t>',
+        pathAddress('https://idp.example', '<t>'),
         '"><i>',
         [hostile],
         true,
@@ -183,8 +199,16 @@ describe('renderRequiredActionsForm', () => {
 
   it('does not take an action named like an object member for a catalogue entry', () => {
     expect(
-      renderRequiredActionsForm('acme', 'k', ['constructor' as never], false, undefined, RULES, EN)
-        .body,
+      renderRequiredActionsForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'k',
+        ['constructor' as never],
+        false,
+        undefined,
+        RULES,
+        EN,
+      ).body,
     ).toContain('<li><bdi>constructor</bdi></li>');
   });
 });
@@ -224,7 +248,16 @@ describe('the actions pages with the way back a mailed link carried', () => {
 
   it('keeps it out of the form and links back from the done page', () => {
     expect(
-      renderRequiredActionsForm('acme', 'k', ['update-password'], true, undefined, RULES, EN).body,
+      renderRequiredActionsForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'k',
+        ['update-password'],
+        true,
+        undefined,
+        RULES,
+        EN,
+      ).body,
     ).not.toContain('return_to');
     expect(renderRequiredActionsSucceededPage([], way, EN).body)
       .toBe(`<h1>Your account is updated</h1>

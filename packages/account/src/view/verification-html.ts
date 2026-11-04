@@ -1,4 +1,10 @@
-import { type PageLocale, pageHeaders, type RenderedPage } from '@odudu/kernel';
+import {
+  addressPath,
+  type PageLocale,
+  pageHeaders,
+  type RenderedPage,
+  type TenantAddress,
+} from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { escapeHtml, page } from '#/view/document';
 import { links } from '#/view/links';
@@ -73,12 +79,12 @@ export function renderVerificationFailedPage(
 // button posts the key back, and that confirms the address (and, for a
 // registration, creates the account named on the page).
 export function renderEmailConfirmPage(
-  tenant: string,
+  address: TenantAddress,
   key: string,
   username: string | null,
   locale: PageLocale,
 ): RenderedPage {
-  const action = `/tenants/${escapeHtml(encodeURIComponent(tenant))}/login-actions/action-token`;
+  const action = escapeHtml(addressPath(address, '/login-actions/action-token'));
   const account =
     username === null ? '' : `\n<p>${tHtml(locale, 'confirm.account', {}, { username })}</p>`;
   return page(

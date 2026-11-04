@@ -1,3 +1,5 @@
+import { type TenantAddress } from '@odudu/kernel';
+
 // The sign-in a browser still holds, as the composition root resolves it from
 // the browser's cookie: the parked session and the authorize path rebuilt from
 // the request it parked (null when that request cannot be rebuilt faithfully,
@@ -15,6 +17,7 @@ export interface HeldSignIn {
 export type FindHeldSignIn = (
   tenant: { readonly id: string; readonly name: string },
   header: string | undefined,
+  address: TenantAddress,
 ) => Promise<HeldSignIn | null>;
 
 // Which sign-in a mailed link may name: the one this browser holds, and only

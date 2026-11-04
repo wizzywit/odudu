@@ -4,6 +4,7 @@ import {
   type PageLocale,
   type RenderedPage,
   type ResolvedBranding,
+  pathAddress,
 } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import {
@@ -80,6 +81,7 @@ const CASES: Case[] = [
     render: (locale) =>
       renderRegistrationForm(
         't1',
+        pathAddress('https://idp.example', 't1'),
         { rules: RULES, signInPath: SIGN_IN, failure: { mismatch: true } },
         locale,
       ),
@@ -100,7 +102,12 @@ const CASES: Case[] = [
     name: 'reset request',
     kind: 'reset',
     render: (locale) =>
-      renderResetRequestForm('t1', { signInPath: SIGN_IN, emailRequired: true }, locale),
+      renderResetRequestForm(
+        't1',
+        pathAddress('https://idp.example', 't1'),
+        { signInPath: SIGN_IN, emailRequired: true },
+        locale,
+      ),
     template: '{{intro}}{{form.open}}{{fields}}{{submit}}{{form.close}}{{error}}{{links}}',
     inOrder: ['class="intro"', '<form', 'name="email"', '<button', '</form>', 'role="alert"'],
     hidden: ['return_to'],
@@ -108,7 +115,15 @@ const CASES: Case[] = [
   {
     name: 'reset password',
     kind: 'reset',
-    render: (locale) => renderResetPasswordForm('t1', 'key-1', 'required', RULES, locale),
+    render: (locale) =>
+      renderResetPasswordForm(
+        't1',
+        pathAddress('https://idp.example', 't1'),
+        'key-1',
+        'required',
+        RULES,
+        locale,
+      ),
     template: '{{error}}{{form.open}}{{submit}}{{fields}}{{form.close}}{{intro}}',
     inOrder: ['role="alert"', '<form', '<button', 'name="password"', '</form>', 'class="intro"'],
     hidden: ['key'],
@@ -116,7 +131,8 @@ const CASES: Case[] = [
   {
     name: 'verification, confirm',
     kind: 'verification',
-    render: (locale) => renderEmailConfirmPage('t1', 'key-1', 'ann', locale),
+    render: (locale) =>
+      renderEmailConfirmPage(pathAddress('https://idp.example', 't1'), 'key-1', 'ann', locale),
     template: '{{form.open}}{{submit}}{{form.close}}{{message}}',
     inOrder: ['<form', '<button', '</form>', '<h1>'],
     hidden: ['key'],
@@ -127,6 +143,7 @@ const CASES: Case[] = [
     render: (locale) =>
       renderRequiredActionsForm(
         't1',
+        pathAddress('https://idp.example', 't1'),
         'key-1',
         ['update-password', 'configure-totp'],
         true,
@@ -209,7 +226,12 @@ describe.each(Object.keys(DEFAULT_TEMPLATES) as TemplatedKind[])(
 describe('a page that fills an optional part with nothing', () => {
   it('renders a template that leaves the optional parts out', () => {
     const own = slots(PAGE_KINDS.registration.required);
-    const page = renderRegistrationForm('t1', { rules: RULES }, themed('registration', own));
+    const page = renderRegistrationForm(
+      't1',
+      pathAddress('https://idp.example', 't1'),
+      { rules: RULES },
+      themed('registration', own),
+    );
     expect(page.body).toContain('name="username"');
     expect(page.body).not.toContain('class="intro"');
   });
@@ -217,7 +239,12 @@ describe('a page that fills an optional part with nothing', () => {
 
 describe('the password script', () => {
   const render = (template: string): RenderedPage =>
-    renderRegistrationForm('t1', { rules: RULES }, themed('registration', template));
+    renderRegistrationForm(
+      't1',
+      pathAddress('https://idp.example', 't1'),
+      { rules: RULES },
+      themed('registration', template),
+    );
   const names = ['form.open', 'submit', 'error', 'form.close'];
 
   it('travels with the fields it reads, wherever a theme places them', () => {
@@ -250,8 +277,15 @@ describe('a theme template that cannot be filled', () => {
   it('is reported with its kind and reason, and the default template is rendered', () => {
     told.length = 0;
     const locale = { ...themed('reset', '{{nonesuch}}'), templateFallback: spy };
-    expect(renderResetRequestForm('t1', {}, locale).body).toBe(
-      renderResetRequestForm('t1', {}, DEFAULT_PAGE_LOCALE).body,
+    expect(
+      renderResetRequestForm('t1', pathAddress('https://idp.example', 't1'), {}, locale).body,
+    ).toBe(
+      renderResetRequestForm(
+        't1',
+        pathAddress('https://idp.example', 't1'),
+        {},
+        DEFAULT_PAGE_LOCALE,
+      ).body,
     );
     expect(told).toEqual([['reset', 'unknown slot nonesuch']]);
   });
@@ -260,7 +294,7 @@ describe('a theme template that cannot be filled', () => {
     told.length = 0;
     const own = '{{message}}{{form.open}}{{submit}}{{form.close}}{{t "no.such.key"}}';
     const locale = { ...themed('verification', own), templateFallback: spy };
-    renderEmailConfirmPage('t1', 'key-1', null, locale);
+    renderEmailConfirmPage(pathAddress('https://idp.example', 't1'), 'key-1', null, locale);
     expect(told).toEqual([['verification', 'unknown message no.such.key']]);
   });
 
@@ -270,7 +304,7 @@ describe('a theme template that cannot be filled', () => {
       ...themed('verification', '{{message}}{{form.open}}{{submit}}{{form.close}}'),
       templateFallback: spy,
     };
-    renderEmailConfirmPage('t1', 'key-1', null, locale);
+    renderEmailConfirmPage(pathAddress('https://idp.example', 't1'), 'key-1', null, locale);
     expect(told).toEqual([]);
   });
 });
@@ -298,7 +332,8 @@ const NOTICES: NoticeCase[] = [
   },
   {
     name: 'registration failed',
-    render: (l) => renderRegistrationFailedPage('t1', SIGN_IN, l),
+    render: (l) =>
+      renderRegistrationFailedPage(pathAddress('https://idp.example', 't1'), SIGN_IN, l),
     wayOn: true,
   },
   {
@@ -308,7 +343,7 @@ const NOTICES: NoticeCase[] = [
   },
   {
     name: 'registration username gone',
-    render: (l) => renderRegistrationUsernameGonePage('t1', l),
+    render: (l) => renderRegistrationUsernameGonePage(pathAddress('https://idp.example', 't1'), l),
     wayOn: true,
   },
   {
@@ -319,7 +354,8 @@ const NOTICES: NoticeCase[] = [
   { name: 'reset requested', render: (l) => renderResetRequestedPage(SIGN_IN, l), wayOn: false },
   {
     name: 'reset request failed',
-    render: (l) => renderResetRequestFailedPage('t1', SIGN_IN, l),
+    render: (l) =>
+      renderResetRequestFailedPage(pathAddress('https://idp.example', 't1'), SIGN_IN, l),
     wayOn: true,
   },
   {
