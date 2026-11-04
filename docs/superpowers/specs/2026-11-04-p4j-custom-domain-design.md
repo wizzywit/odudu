@@ -158,8 +158,11 @@ Questions a reader of this document asked, answered here as the author's calls.
   tenant's path, plus `/.well-known/openid-configuration` mapped to the tenant's
   discovery document, so the issuer `https://login.acme.com` has its discovery at
   the URL the specification derives from it. Everything else on a domain host
-  (`/admin`, `/console`, `/docs`, `/internal`, health, metrics) gets the bare
-  refusal; those live on the base host, and a proxy health check targets it.
+  (`/admin`, `/console`, `/docs`, `/internal`) is not found: every path is
+  routed under the tenant's prefix, so what no tenant route serves answers the
+  application's ordinary 404, and a host that is registered but not live gets
+  the bare refusal on every path. `/health*` is exempt from host resolution and
+  answers on any host, so a probe never costs a lookup.
 - **Which header.** Fastify's `request.host`, which honours `X-Forwarded-Host`
   only when `ODUDU_TRUST_PROXY` is on and is the `Host` header otherwise. Behind
   a proxy that preserves `Host` (Caddy's default) it works with trust off; a
