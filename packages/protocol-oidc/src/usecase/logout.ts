@@ -481,11 +481,12 @@ async function endAndAnswer(
   brandClientId: string | null,
 ): Promise<LogoutOutcome> {
   const decision = decideRedirect(requested, registered);
+  const tenantId = tenant.id;
   const issuer = await deps.canonicalIssuer(tenant, requestIssuer);
 
-  await deps.endSession(tenant.id, session.id, session.subjectId, deps.now(), issuer, request);
+  await deps.endSession(tenantId, session.id, session.subjectId, deps.now(), issuer, request);
 
-  const frontChannel = await frontChannelLogoutUrls(deps, tenant.id, issuer, session.id);
+  const frontChannel = await frontChannelLogoutUrls(deps, tenantId, issuer, session.id);
   if (decision.kind === 'end') {
     return {
       kind: 'end',
