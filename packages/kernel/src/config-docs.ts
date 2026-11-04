@@ -167,6 +167,10 @@ export const CONFIG_DOCS: Record<ConfigKey, ConfigDoc> = {
     'How long a back-channel logout that used up every attempt is kept, counted from its ' +
       'last attempt.',
   ),
+  ODUDU_RETENTION_PENDING_DOMAIN_SECONDS: retention(
+    'How long a custom domain that was registered and never verified is kept, counted from ' +
+      'its registration. A verified domain is never removed by `odudu reap`.',
+  ),
   ODUDU_REAP_ENABLED: {
     group: 'Background passes',
     summary:

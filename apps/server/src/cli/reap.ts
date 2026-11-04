@@ -33,6 +33,8 @@ export type TableName =
   | 'client_assertion_jti'
   | 'console_sessions'
   | 'console_logins'
+  | 'tenant_issuer_retirements'
+  | 'tenant_domains'
   | 'sessions'
   | 'audit_events';
 
@@ -87,6 +89,7 @@ export interface RetentionPolicy {
   readonly emailMaxAttempts: number;
   readonly logoutDeliveredSeconds: number;
   readonly logoutFailedSeconds: number;
+  readonly pendingDomainSeconds: number;
 }
 
 export function retentionPolicyFromConfig(config: Config): RetentionPolicy {
@@ -103,6 +106,7 @@ export function retentionPolicyFromConfig(config: Config): RetentionPolicy {
     emailMaxAttempts: config.ODUDU_OUTBOX_MAX_ATTEMPTS,
     logoutDeliveredSeconds: config.ODUDU_RETENTION_LOGOUT_DELIVERED_SECONDS,
     logoutFailedSeconds: config.ODUDU_RETENTION_LOGOUT_FAILED_SECONDS,
+    pendingDomainSeconds: config.ODUDU_RETENTION_PENDING_DOMAIN_SECONDS,
   };
 }
 
@@ -373,6 +377,30 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
     `,
   },
 
+  // No window of its own, for the reason client_assertion_jti has none: past
+  // its expires_at an issuer is no longer accepted anywhere, so the row
+  // decides nothing. Served by tenant_issuer_retirements_by_expiry.
+  tenant_issuer_retirements: {
+    after: [],
+    statement: (now) => sql`
+      DELETE FROM tenant_issuer_retirements r
+       WHERE r.expires_at < ${now.toISOString()}::timestamptz
+    `,
+  },
+
+  // Only a registration nobody proved: a verified row is the tenant's
+  // address and a failed one is kept for the tenant to read, so neither is
+  // reaped however old. Served by tenant_domains_pending_by_created.
+  tenant_domains: {
+    after: [],
+    statement: (now, policy) => sql`
+      DELETE FROM tenant_domains d
+       WHERE d.state = 'pending'
+         AND d.created_at < ${now.toISOString()}::timestamptz
+             - make_interval(secs => ${policy.pendingDomainSeconds}::integer)
+    `,
+  },
+
   // Last, and only once nothing points at it. The ON DELETE SET NULL on
   // token_grants.session_id is a backstop this must never reach: nulling a
   // session-bound grant's session would promote it to an offline one, which
@@ -426,6 +454,8 @@ export const REAP_ORDER: readonly TableName[] = [
   'client_assertion_jti',
   'console_sessions',
   'console_logins',
+  'tenant_issuer_retirements',
+  'tenant_domains',
   'sessions',
   'audit_events',
 ];

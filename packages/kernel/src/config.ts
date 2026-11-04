@@ -237,6 +237,15 @@ export const configSchema = z.object({
     .min(3600)
     .max(31_536_000)
     .default(2_592_000),
+  // A custom domain nobody proved ownership of, measured from its
+  // registration. Only `pending` rows are ever deleted: a verified one is a
+  // tenant's, and a failed one is kept for the tenant to read.
+  ODUDU_RETENTION_PENDING_DOMAIN_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(3600)
+    .max(31_536_000)
+    .default(604_800),
   // How often the server runs that pass itself, and whether it runs it at
   // all. `false` is for a deployment that schedules `odudu reap` as a cron
   // entry or a Kubernetes CronJob instead — a documented alternative, and

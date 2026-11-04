@@ -30,6 +30,7 @@ const POLICY: RetentionPolicy = {
   emailMaxAttempts: 5,
   logoutDeliveredSeconds: 7 * 24 * 60 * 60,
   logoutFailedSeconds: 30 * 24 * 60 * 60,
+  pendingDomainSeconds: 7 * 24 * 60 * 60,
 };
 
 const REAPABLE_TOKENS = 3;

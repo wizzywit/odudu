@@ -57,6 +57,7 @@ const POLICY: RetentionPolicy = {
   emailMaxAttempts: 5,
   logoutDeliveredSeconds: 7 * 24 * 60 * 60,
   logoutFailedSeconds: 30 * 24 * 60 * 60,
+  pendingDomainSeconds: 7 * 24 * 60 * 60,
 };
 
 function at(offsetMs: number): string {
@@ -91,6 +92,10 @@ interface Fixture {
   readonly assertionJtiLive: string;
   readonly consoleSessionLiveId: string;
   readonly consoleLoginLiveId: string;
+  readonly pendingDomainStaleId: string;
+  readonly pendingDomainYoungId: string;
+  readonly verifiedDomainOldId: string;
+  readonly failedDomainOldId: string;
 }
 
 // One tenant carrying, for every reaped table, a row that is eligible and a
@@ -122,6 +127,10 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   const assertionJtiLive = `jti-live-${tenantId}`;
   const consoleSessionLiveId = newId();
   const consoleLoginLiveId = newId();
+  const pendingDomainStaleId = newId();
+  const pendingDomainYoungId = newId();
+  const verifiedDomainOldId = newId();
+  const failedDomainOldId = newId();
 
   await owner.db.execute(sql`
     INSERT INTO tenants (id, name, brute_force_lockout_seconds,
@@ -313,6 +322,25 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
        '/console/', ${at(5 * MINUTE)}::timestamptz)
   `);
 
+  await owner.db.execute(sql`
+    INSERT INTO tenant_domains (id, tenant_id, host, state, challenge, created_at)
+    VALUES
+      (${pendingDomainStaleId}, ${tenantId}, ${`stale-${tenantId}.example.com`}, 'pending', 'c',
+       ${at(-8 * DAY)}::timestamptz),
+      (${pendingDomainYoungId}, ${tenantId}, ${`young-${tenantId}.example.com`}, 'pending', 'c',
+       ${at(-6 * DAY)}::timestamptz),
+      (${verifiedDomainOldId}, ${tenantId}, ${`kept-${tenantId}.example.com`}, 'verified', 'c',
+       ${at(-400 * DAY)}::timestamptz),
+      (${failedDomainOldId}, ${tenantId}, ${`failed-${tenantId}.example.com`}, 'failed', 'c',
+       ${at(-400 * DAY)}::timestamptz)
+  `);
+  await owner.db.execute(sql`
+    INSERT INTO tenant_issuer_retirements (tenant_id, issuer, expires_at)
+    VALUES
+      (${tenantId}, 'https://old.example.com', ${at(-1 * SECOND)}::timestamptz),
+      (${tenantId}, 'https://live.example.com', ${at(1 * HOUR)}::timestamptz)
+  `);
+
   return {
     tenant,
     tenantId,
@@ -335,6 +363,10 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
     assertionJtiLive,
     consoleSessionLiveId,
     consoleLoginLiveId,
+    pendingDomainStaleId,
+    pendingDomainYoungId,
+    verifiedDomainOldId,
+    failedDomainOldId,
   };
 }
 
@@ -352,6 +384,8 @@ const RELATIONS: Record<TableName, SQL> = {
   client_assertion_jti: sql.raw('client_assertion_jti'),
   console_sessions: sql.raw('console_sessions'),
   console_logins: sql.raw('console_logins'),
+  tenant_issuer_retirements: sql.raw('tenant_issuer_retirements'),
+  tenant_domains: sql.raw('tenant_domains'),
   sessions: sql.raw('sessions'),
   audit_events: sql.raw('audit_events'),
 };
@@ -518,6 +552,8 @@ describe('odudu reap', () => {
       client_assertion_jti: 1,
       console_sessions: 2,
       console_logins: 1,
+      tenant_issuer_retirements: 1,
+      tenant_domains: 1,
       sessions: 1,
       audit_events: 0,
     });
@@ -539,6 +575,8 @@ describe('odudu reap', () => {
       client_assertion_jti: 1,
       console_sessions: 1,
       console_logins: 1,
+      tenant_issuer_retirements: 1,
+      tenant_domains: 3,
       sessions: 1,
       audit_events: 0,
     });
@@ -557,6 +595,8 @@ describe('odudu reap', () => {
       client_assertion_jti: 0,
       console_sessions: 0,
       console_logins: 0,
+      tenant_issuer_retirements: 0,
+      tenant_domains: 0,
       sessions: 0,
       audit_events: 0,
     });
@@ -589,6 +629,42 @@ describe('odudu reap', () => {
     );
     expect(sessions.map((row) => row.id)).toEqual([fixture.consoleSessionLiveId]);
     expect(logins.map((row) => row.id)).toEqual([fixture.consoleLoginLiveId]);
+  });
+
+  it('deletes only a pending domain past its window, and never a verified or failed one', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const domains = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM tenant_domains WHERE tenant_id = ${fixture.tenantId} ORDER BY id`,
+    );
+    expect(domains.map((row) => row.id).sort()).toEqual(
+      [fixture.pendingDomainYoungId, fixture.verifiedDomainOldId, fixture.failedDomainOldId].sort(),
+    );
+    const retired = await owner.db.execute<{ issuer: string }>(
+      sql`SELECT issuer FROM tenant_issuer_retirements WHERE tenant_id = ${fixture.tenantId}`,
+    );
+    expect(retired.map((row) => row.issuer)).toEqual(['https://live.example.com']);
+  });
+
+  it('keeps a pending domain exactly at the edge of its window', async () => {
+    const tenantId = newId();
+    await owner.db.execute(
+      sql`INSERT INTO tenants (id, name) VALUES (${tenantId}, ${`reap-${tenantId}`})`,
+    );
+    await owner.db.execute(sql`
+      INSERT INTO tenant_domains (id, tenant_id, host, state, challenge, created_at)
+      VALUES (${newId()}, ${tenantId}, 'edge.example.com', 'pending', 'c', ${at(-7 * DAY)}::timestamptz),
+             (${newId()}, ${tenantId}, 'past.example.com', 'pending', 'c', ${at(-7 * DAY - 1)}::timestamptz)
+    `);
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ host: string }>(
+      sql`SELECT host FROM tenant_domains WHERE tenant_id = ${tenantId}`,
+    );
+    expect(rows.map((row) => row.host)).toEqual(['edge.example.com']);
   });
 
   it('keeps a console session seen exactly thirty minutes ago, and deletes one seen earlier', async () => {
@@ -626,25 +702,30 @@ describe('odudu reap', () => {
   // Each rule's own statement, run under one tenant's context alone: the
   // DELETEs carry no tenant predicate, so the policy is all that spares
   // the other tenant's rows.
-  it.each(['console_sessions', 'console_logins'] as const)(
-    'scopes the %s delete to one tenant by row-level security alone',
-    async (table) => {
-      const mine = await seedFixture();
-      const theirs = await seedFixture();
+  it.each([
+    'console_sessions',
+    'console_logins',
+    'tenant_issuer_retirements',
+    'tenant_domains',
+  ] as const)('scopes the %s delete to one tenant by row-level security alone', async (table) => {
+    const mine = await seedFixture();
+    const theirs = await seedFixture();
 
-      const before = await countRows(theirs.tenantId, table);
-      const pass = await withEachTenantExclusive(appDb.db, REAP_LOCK_KEY, [mine.tenantId], (tx) =>
-        tx.execute(RETENTION_RULES[table].statement(NOW, POLICY, TENANT)),
-      );
-      expect(pass.acquired).toBe(true);
+    const before = await countRows(theirs.tenantId, table);
+    const mineBefore = await countRows(mine.tenantId, table);
+    const pass = await withEachTenantExclusive(appDb.db, REAP_LOCK_KEY, [mine.tenantId], (tx) =>
+      tx.execute(RETENTION_RULES[table].statement(NOW, POLICY, TENANT)),
+    );
+    expect(pass.acquired).toBe(true);
 
-      expect(await countRows(mine.tenantId, table)).toBe(1);
-      expect(before).toBeGreaterThan(1);
-      expect(await countRows(theirs.tenantId, table)).toBe(before);
+    const mineAfter = await countRows(mine.tenantId, table);
+    expect(mineAfter).toBeLessThan(mineBefore);
+    expect(mineAfter).toBeGreaterThan(0);
+    expect(before).toBeGreaterThan(1);
+    expect(await countRows(theirs.tenantId, table)).toBe(before);
 
-      await runPass();
-    },
-  );
+    await runPass();
+  });
 
   // The foreign-tenant probe for this table specifically: the
   // generic "scopes each tenant's statements by row-level security alone"

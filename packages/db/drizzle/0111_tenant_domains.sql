@@ -37,8 +37,8 @@ CREATE INDEX tenant_domains_by_host ON tenant_domains (host);
 CREATE UNIQUE INDEX tenant_domains_one_canonical ON tenant_domains (tenant_id)
   WHERE canonical;
 
--- What reap deletes: pending rows past their window, oldest first.
-CREATE INDEX tenant_domains_pending_by_created ON tenant_domains (created_at)
+-- What reap deletes, per tenant: pending rows past their window.
+CREATE INDEX tenant_domains_pending_by_created ON tenant_domains (tenant_id, created_at)
   WHERE state = 'pending';
 
 ALTER TABLE tenant_domains ENABLE ROW LEVEL SECURITY;
@@ -54,8 +54,9 @@ CREATE TABLE tenant_issuer_retirements (
   PRIMARY KEY (tenant_id, issuer)
 );
 
--- What reap deletes: retirements past their window.
-CREATE INDEX tenant_issuer_retirements_by_expiry ON tenant_issuer_retirements (expires_at);
+-- What reap deletes, per tenant: retirements past their window.
+CREATE INDEX tenant_issuer_retirements_by_expiry
+  ON tenant_issuer_retirements (tenant_id, expires_at);
 
 ALTER TABLE tenant_issuer_retirements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_issuer_retirements FORCE ROW LEVEL SECURITY;
