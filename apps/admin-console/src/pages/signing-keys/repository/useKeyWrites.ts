@@ -1,9 +1,9 @@
 import type { SigningKey, SigningKeyAlg } from '#/entities/signing-key';
-import { useRef } from 'react';
 import { deleteKey, promoteKey, retireKey, stageKey } from '#/pages/signing-keys/adapter/keys';
 import { listKey, overviewKey } from '#/shared/lib/repository/queryKeys';
 import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
-import { useGatewayWrite, type Write } from '#/shared/lib/repository/useWrite';
+import { useGuardedWrite } from '#/shared/lib/repository/useGuardedWrite';
+import type { Write } from '#/shared/lib/repository/useWrite';
 import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 
 // A write's answer changes the lanes and what the overview says about the
@@ -21,24 +21,7 @@ function useKeyWrite<Input, Answer>(
   tenant: string,
   send: (gateway: Gateway, input: Input) => Promise<GatewayResult<Answer>>,
 ): KeyWrite<Input, Answer> {
-  const read = useKeysRead(tenant);
-  // One press is one write, however often it is pressed before the first answer.
-  const sending = useRef(false);
-  const write = useGatewayWrite({
-    send,
-    onSettled: () => {
-      sending.current = false;
-      read();
-    },
-  });
-  return {
-    busy: write.busy,
-    run: (input) => {
-      if (sending.current) return Promise.resolve({ ok: false, kind: 'defect' });
-      sending.current = true;
-      return write.run(input);
-    },
-  };
+  return useGuardedWrite(send, useKeysRead(tenant));
 }
 
 export function useStageKey(tenant: string): KeyWrite<SigningKeyAlg, SigningKey> {

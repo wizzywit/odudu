@@ -1,5 +1,4 @@
 import type { Domain } from '#/pages/domains/types/domain';
-import { useRef } from 'react';
 import {
   activateDomain,
   deactivateDomain,
@@ -11,7 +10,8 @@ import { DOMAINS_RECORD } from '#/pages/domains/services/domainsWords';
 import { passkeyImpactsKey } from '#/pages/domains/repository/queryKeys';
 import { overviewKey, recordKey } from '#/shared/lib/repository/queryKeys';
 import { useInvalidate } from '#/shared/lib/repository/useInvalidate';
-import { useGatewayWrite, type Write } from '#/shared/lib/repository/useWrite';
+import { useGuardedWrite } from '#/shared/lib/repository/useGuardedWrite';
+import type { Write } from '#/shared/lib/repository/useWrite';
 import type { Gateway, GatewayResult } from '#/shared/api/transport/gateway';
 
 // A write's answer changes the domains, the tag a switch waits on, what a
@@ -31,24 +31,7 @@ function useDomainWrite<Input, Answer>(
   tenant: string,
   send: (gateway: Gateway, input: Input) => Promise<GatewayResult<Answer>>,
 ): DomainWrite<Input, Answer> {
-  const read = useDomainsRead(tenant);
-  // One press is one write, however often it is pressed before the first answer.
-  const sending = useRef(false);
-  const write = useGatewayWrite({
-    send,
-    onSettled: () => {
-      sending.current = false;
-      read();
-    },
-  });
-  return {
-    busy: write.busy,
-    run: (input) => {
-      if (sending.current) return Promise.resolve({ ok: false, kind: 'defect' });
-      sending.current = true;
-      return write.run(input);
-    },
-  };
+  return useGuardedWrite(send, useDomainsRead(tenant));
 }
 
 // A switch names the tag it was asked for against, the tenant's, never a domain's.
