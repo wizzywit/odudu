@@ -109,3 +109,8 @@ export {
   type ProvisionAdminClientOptions,
   type ProvisionedAdminClient,
 } from '#/usecase/provision-admin-client';
+export {
+  baseIsTls,
+  canonicalAddressFor,
+  type LookupCanonicalDomain,
+} from '#/usecase/canonical-address';
