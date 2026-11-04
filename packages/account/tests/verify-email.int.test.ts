@@ -14,7 +14,7 @@ import {
   type EmailSender,
   type SendPendingOptions,
 } from '@odudu/email';
-import { newId } from '@odudu/kernel';
+import { newId, type TenantAddress } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq, sql } from 'drizzle-orm';
 import formbody from '@fastify/formbody';
@@ -246,6 +246,28 @@ describe('address verification', () => {
 
     expect(res.statusCode).toBe(200);
     expect(store.users.get(subject)?.verified).toBe(true);
+  });
+
+  it('mails a link on the canonical domain, and tells the theme which address that is', async () => {
+    const scopes: (TenantAddress | undefined)[] = [];
+    await sendVerificationEmail(
+      {
+        ...deps,
+        lookupDomain: () => Promise.resolve('login.acme.com'),
+        resolveMailLook: (_tx, scope) => {
+          scopes.push(scope.address);
+          return Promise.resolve({ branding: null, overrides: {} });
+        },
+      },
+      { subjectId: subject, email: 'ada@example.test' },
+    );
+    await drainOutbox();
+    const message = sender.sent[0];
+    if (message === undefined) throw new Error('no mail sent');
+    expect(extractLink(message)).toMatch(
+      /^https:\/\/login\.acme\.com\/login-actions\/action-token\?key=/u,
+    );
+    expect(scopes.map((a) => a?.origin)).toEqual(['https://login.acme.com']);
   });
 
   it('queues the mail in the transaction that issues the token, and sends nothing itself', async () => {

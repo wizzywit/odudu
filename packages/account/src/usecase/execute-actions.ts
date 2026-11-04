@@ -3,6 +3,7 @@ import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odu
 import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import { mailContext, outboxRepository, renderRequiredActions } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
+import { mailAddressOf } from '#/usecase/mail-address';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
 import { withMinimum } from '#/service/password-violations';
 import { orderedActions, type LinkedRequiredAction } from '#/service/required-actions';
@@ -33,7 +34,8 @@ export async function enqueueActionsLink(
 ): Promise<void> {
   const actions = orderedActions(link.actions);
   if (actions.length === 0) throw new Error('an actions link names no action this server takes');
-  const mail = await mailContext(tx, tenant.resolveMailLook, tenant);
+  const address = await mailAddressOf(tx, tenant);
+  const mail = await mailContext(tx, tenant.resolveMailLook, { ...tenant, address });
   const tokens = actionTokenRepository(tx);
   const { token } = await tokens.issue({
     tenantId: tenant.tenantId,
@@ -43,7 +45,7 @@ export async function enqueueActionsLink(
     actions,
     ttlSeconds: await tokens.lifetimeOf(tenant.tenantId, 'execute_actions'),
   });
-  const url = actionLink(tenant.issuerBase, tenant.tenantName, token);
+  const url = actionLink(address, token);
   await outboxRepository(tx).enqueue({
     tenantId: tenant.tenantId,
     ...renderRequiredActions({

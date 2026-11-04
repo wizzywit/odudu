@@ -251,6 +251,29 @@ describe('a link that takes its subject through required actions', () => {
     }
   });
 
+  it('mails a link on the canonical domain for an administrator-sent actions link and reset link', async () => {
+    const seeded = await seed(true);
+    const rows = await withTenant(app.db, seeded.tenantId, async (tx) => {
+      const tenant = {
+        tenantId: seeded.tenantId,
+        tenantName: seeded.tenantName,
+        tenantDisplayName: 'Acme',
+        issuerBase: 'https://idp.example.test',
+        lookupDomain: () => Promise.resolve('login.acme.com'),
+        now: () => new Date(),
+      };
+      const user = { subjectId: seeded.subjectId, email: 'ada@example.test' };
+      await enqueueActionsLink(tx, tenant, user, { actions: ['configure-totp'] });
+      await enqueueResetLink(tx, tenant, user);
+      return tx.select().from(emailOutbox);
+    });
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.bodyText).toContain('https://login.acme.com/login-actions/action-token?key=');
+      expect(row.bodyText).not.toContain('idp.example.test');
+    }
+  });
+
   it.each([
     ['2026-12-31T23:59:59Z', '2026'],
     ['2027-01-01T00:00:00Z', '2027'],

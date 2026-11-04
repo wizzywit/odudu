@@ -402,6 +402,30 @@ describe('password reset', () => {
     expect(await outboxRows(tenantId)).toHaveLength(1);
   });
 
+  it('mails the configured address however the request names its host', async () => {
+    const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
+      resetPasswordAllowed: true,
+    });
+    await seedAda(tenantId);
+    await httpApp.inject({
+      method: 'POST',
+      url: `/tenants/${tenantName}/login-actions/reset-password`,
+      payload: new URLSearchParams({ email: 'ada@example.test' }).toString(),
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        host: 'evil.example',
+        'x-forwarded-host': 'evil.example',
+      },
+    });
+    await drainOutbox();
+    const message = sender.sent[0];
+    if (message === undefined) throw new Error('no mail sent');
+    expect(extractLink(message)).toMatch(
+      new RegExp(`^https://idp\\.example\\.test/tenants/${tenantName}/login-actions/`, 'u'),
+    );
+    expect(message.text + message.html).not.toContain('evil.example');
+  });
+
   it('queues no mail once the address has had its share, and answers the same', async () => {
     const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       resetPasswordAllowed: true,

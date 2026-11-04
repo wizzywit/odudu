@@ -10,6 +10,8 @@ import {
   type MailLookResolver,
 } from '@odudu/email';
 import { BidiControlError, containsBidiControl, OduduError } from '@odudu/kernel';
+import { mailAddressOf } from '#/usecase/mail-address';
+import { type LookupCanonicalDomain } from '@odudu/domain-tenant';
 import { pendingRegistrationRepository } from '#/repository/pending-registrations';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
 import { withMinimum } from '#/service/password-violations';
@@ -50,6 +52,7 @@ export interface RegisterDeps {
   // party. Undefined when unset; register() refuses to send rather than
   // building a link some other way.
   readonly issuerBase: string | undefined;
+  readonly lookupDomain?: LookupCanonicalDomain | undefined;
   readonly verifyEmailEnabled: boolean;
   // Whether the tenant serves a password reset the mail to an existing
   // address holder can point at.
@@ -232,7 +235,8 @@ async function requestVerification(
     deps.database.db,
     deps.tenantId,
     async (tx): Promise<RegisterOutcome> => {
-      const mail = await mailContext(tx, deps.resolveMailLook, deps);
+      const address = await mailAddressOf(tx, { ...deps, issuerBase });
+      const mail = await mailContext(tx, deps.resolveMailLook, { ...deps, address });
       const taken = await deps.findTaken(tx, deps.tenantId, input);
       if (taken.username) return { kind: 'username_taken' };
       if (taken.emailOwner !== null) {
@@ -249,9 +253,7 @@ async function requestVerification(
             tenantId: deps.tenantId,
             ...renderRegistrationDuplicate({
               to: input.email,
-              resetLink: deps.resetPasswordAllowed
-                ? resetPasswordLink(issuerBase, deps.tenantName)
-                : null,
+              resetLink: deps.resetPasswordAllowed ? resetPasswordLink(address) : null,
               tenantDisplayName: deps.tenantDisplayName,
               now: deps.now(),
               ...mail,
@@ -276,7 +278,7 @@ async function requestVerification(
         tenantId: deps.tenantId,
         ...renderFinishRegistration({
           to: input.email,
-          link: actionLink(issuerBase, deps.tenantName, key),
+          link: actionLink(address, key),
           tenantDisplayName: deps.tenantDisplayName,
           now: deps.now(),
           ...mail,

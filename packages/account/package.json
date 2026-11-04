@@ -18,6 +18,7 @@
   "dependencies": {
     "@odudu/db": "workspace:*",
     "@odudu/domain-audit": "workspace:*",
+    "@odudu/domain-tenant": "workspace:*",
     "@odudu/email": "workspace:*",
     "@odudu/i18n": "workspace:*",
     "@odudu/kernel": "workspace:*",

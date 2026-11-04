@@ -1,10 +1,13 @@
 import { tenants, type TenantScopedDatabase } from '@odudu/db';
-import { type MailBranding } from '@odudu/kernel';
+import { type MailBranding, type TenantAddress } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 
 export interface MailTenantScope {
   readonly tenantId: string;
   readonly tenantName: string;
+  // Where the mail's brand assets are served from: the tenant's canonical
+  // address. Absent, the path address under the configured base.
+  readonly address?: TenantAddress | undefined;
   // False for a caller that shows only the theme: the wording is then not read.
   readonly wording?: boolean;
   // The OAuth client_id of the sign-in the flow began inside, taken from
