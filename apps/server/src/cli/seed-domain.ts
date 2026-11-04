@@ -62,12 +62,30 @@ export interface SeedDomainContext {
   now: Date;
 }
 
+const REFUSAL_SENTENCES: Record<DomainCode, (host: string) => string> = {
+  domain_system_tenant: () => 'the system tenant cannot have domains',
+  domain_no_base_url: () =>
+    'ODUDU_PUBLIC_BASE_URL is required, because a domain is told apart from the operator host by it',
+  domain_limit: () => 'the tenant already has as many domains as it may register',
+  domain_already_registered: (host) => `${host} is already registered to this tenant`,
+  domain_verified_elsewhere: (host) => `${host} is verified by another tenant`,
+  domain_host_ip_literal: (host) => `${host} is an IP address, and a domain must be a DNS name`,
+  domain_host_localhost: (host) => `${host} is a local name that no one else can reach`,
+  domain_host_operator: (host) => `${host} is the operator's own host`,
+  domain_host_reserved: (host) => `${host} is a reserved name that cannot be proven or served`,
+  domain_host_invalid: (host) => `${host} is not a valid host name`,
+};
+
+export function domainRefusalMessage(code: DomainCode, host: string): string {
+  return `${code}: ${REFUSAL_SENTENCES[code](host)}`;
+}
+
 function refused(code: DomainCode, host: string): OduduError {
   return new OduduError(
     code === 'domain_verified_elsewhere' || code === 'domain_already_registered'
       ? 'seed_conflict'
       : 'seed_invalid_options',
-    `${code}: domain ${JSON.stringify(host)} was refused`,
+    domainRefusalMessage(code, host),
   );
 }
 

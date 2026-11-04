@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseSeedDomainArgs } from '#/cli/seed-domain';
+import { DOMAIN_CODES } from '@odudu/domain-tenant';
+import { domainRefusalMessage, parseSeedDomainArgs } from '#/cli/seed-domain';
 
 describe('seed domain options', () => {
   it('needs a tenant and a host', () => {
@@ -38,5 +39,22 @@ describe('seed domain options', () => {
     expect(
       parseSeedDomainArgs(['--tenant', 'acme', '--host', 'login.acme.org'], 'production'),
     ).toMatchObject({ assumeVerified: false, canonical: false });
+  });
+});
+
+describe('the sentence a refused domain is explained in', () => {
+  it('keeps the code first and says something for every code', () => {
+    for (const code of Object.values(DOMAIN_CODES)) {
+      const message = domainRefusalMessage(code, 'login.acme.org');
+      expect(message.startsWith(`${code}: `), code).toBe(true);
+      expect(message.length, code).toBeGreaterThan(code.length + 20);
+      expect(message, code).not.toContain('was refused');
+    }
+  });
+
+  it('names the setting a missing base address asks for', () => {
+    expect(domainRefusalMessage(DOMAIN_CODES.noBaseUrl, 'login.acme.org')).toContain(
+      'ODUDU_PUBLIC_BASE_URL',
+    );
   });
 });
