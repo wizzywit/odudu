@@ -1,16 +1,20 @@
 import { type RegistrationResponseJSON } from '@simplewebauthn/server';
+import { domainAddress, pathAddress } from '@odudu/kernel';
 import { softwareRegistrationResponse } from '@odudu/testkit';
 import { describe, expect, it } from 'vitest';
 import {
+  canonicalRelyingParty,
   parseRegistrationResponse,
   passkeyRegistrationOptions,
+  relyingPartyFor,
   relyingPartyId,
-  relyingPartyOrigin,
   verifyPasskeyRegistration,
 } from '#/service/webauthn';
 
 const PUBLIC_BASE_URL = 'http://localhost:3000';
 const RP_ID = 'localhost';
+const PATH_RP = relyingPartyFor(pathAddress(PUBLIC_BASE_URL, 'demo'));
+const DOMAIN_RP = relyingPartyFor(domainAddress('login.acme.com', true));
 const CHALLENGE = 'Zm9yLXJlZ2lzdHJhdGlvbi1vbmx5';
 
 // A registration the software authenticator really signed, with the origin
@@ -59,23 +63,51 @@ describe('relyingPartyId', () => {
   });
 });
 
-describe('relyingPartyOrigin', () => {
-  // The origin keeps the port the RP ID drops: a response's clientDataJSON
-  // names the full origin, and http://localhost:8080 is not http://localhost.
-  it('keeps the port and drops everything after the host', () => {
-    expect(relyingPartyOrigin('http://localhost:8080')).toBe('http://localhost:8080');
-    expect(relyingPartyOrigin('https://id.example.com/')).toBe('https://id.example.com');
+describe('relyingPartyFor', () => {
+  it('reads the id and origin off the address, whatever its path prefix', () => {
+    expect(relyingPartyFor(pathAddress('https://id.example.com:8443', 'acme'))).toEqual({
+      id: 'id.example.com',
+      origin: 'https://id.example.com:8443',
+    });
+    expect(relyingPartyFor(domainAddress('login.acme.com', true))).toEqual({
+      id: 'login.acme.com',
+      origin: 'https://login.acme.com',
+    });
+    expect(relyingPartyFor(domainAddress('login.acme.test:8080', false))).toEqual({
+      id: 'login.acme.test',
+      origin: 'http://login.acme.test:8080',
+    });
   });
 
-  it('throws on a base URL that is not one', () => {
-    expect(() => relyingPartyOrigin('')).toThrow();
+  it('refuses an address literal, which no credential can be bound to', () => {
+    expect(() => relyingPartyFor(pathAddress('http://127.0.0.1:3000', 'acme'))).toThrow(/address/);
+    expect(() => relyingPartyFor(domainAddress('[::1]', false))).toThrow(/address/);
+  });
+});
+
+describe('canonicalRelyingParty', () => {
+  it('is the base host for a tenant with no canonical domain', () => {
+    expect(canonicalRelyingParty(null, 'https://id.example.com')).toEqual({
+      id: 'id.example.com',
+      origin: 'https://id.example.com',
+    });
+  });
+
+  it('is the canonical domain, over the base URL scheme, for one that has it', () => {
+    expect(canonicalRelyingParty('login.acme.com', 'https://id.example.com')).toEqual({
+      id: 'login.acme.com',
+      origin: 'https://login.acme.com',
+    });
+    expect(canonicalRelyingParty('login.acme.test', 'http://localhost:3000').origin).toBe(
+      'http://login.acme.test',
+    );
   });
 });
 
 describe('passkeyRegistrationOptions', () => {
   it('[WEBAUTHN2-7.1.1-01] names the derived relying party and carries a challenge', async () => {
     const offer = await passkeyRegistrationOptions({
-      publicBaseUrl: 'https://id.example.com:8443',
+      relyingParty: relyingPartyFor(pathAddress('https://id.example.com:8443', 'demo')),
       tenantName: 'demo',
       username: 'ada',
       userHandle: '11111111-1111-1111-1111-111111111111',
@@ -95,7 +127,7 @@ describe('passkeyRegistrationOptions', () => {
   // can be fixed after the credential exists.
   it('requires user verification and a discoverable credential', async () => {
     const offer = await passkeyRegistrationOptions({
-      publicBaseUrl: 'https://id.example.com',
+      relyingParty: relyingPartyFor(pathAddress('https://id.example.com', 'demo')),
       tenantName: 'demo',
       username: 'ada',
       userHandle: '11111111-1111-1111-1111-111111111111',
@@ -113,7 +145,7 @@ describe('passkeyRegistrationOptions', () => {
   // nothing the server can explain.
   it('excludes the credentials the subject already has', async () => {
     const offer = await passkeyRegistrationOptions({
-      publicBaseUrl: 'https://id.example.com',
+      relyingParty: relyingPartyFor(pathAddress('https://id.example.com', 'demo')),
       tenantName: 'demo',
       username: 'ada',
       userHandle: '11111111-1111-1111-1111-111111111111',
@@ -128,7 +160,7 @@ describe('passkeyRegistrationOptions', () => {
 
   it('issues a different challenge every time', async () => {
     const input = {
-      publicBaseUrl: 'https://id.example.com',
+      relyingParty: relyingPartyFor(pathAddress('https://id.example.com', 'demo')),
       tenantName: 'demo',
       username: 'ada',
       userHandle: '11111111-1111-1111-1111-111111111111',
@@ -147,7 +179,7 @@ describe('verifyPasskeyRegistration', () => {
   // enrolment, not a 500, so it is caught and reported as one.
   it('[WEBAUTHN2-7.1.3-01] reports a rejection rather than throwing on a response that is not one', async () => {
     const outcome = await verifyPasskeyRegistration({
-      publicBaseUrl: 'http://localhost:3000',
+      relyingParty: PATH_RP,
       expectedChallenge: 'a-challenge',
       response: {
         id: 'nope',
@@ -168,7 +200,7 @@ describe('verifyPasskeyRegistration', () => {
   // response that would have been refused for the other reason anyway.
   it('[WEBAUTHN2-7.1.9-01] refuses a registration whose client data names another origin', async () => {
     const outcome = await verifyPasskeyRegistration({
-      publicBaseUrl: PUBLIC_BASE_URL,
+      relyingParty: PATH_RP,
       expectedChallenge: CHALLENGE,
       response: registrationFor({ origin: 'https://attacker.example' }),
     });
@@ -178,7 +210,7 @@ describe('verifyPasskeyRegistration', () => {
 
   it("[WEBAUTHN2-7.1.13-01] refuses a registration signed over another relying party's id", async () => {
     const outcome = await verifyPasskeyRegistration({
-      publicBaseUrl: PUBLIC_BASE_URL,
+      relyingParty: PATH_RP,
       expectedChallenge: CHALLENGE,
       response: registrationFor({ rpId: 'attacker.example' }),
     });
@@ -188,11 +220,44 @@ describe('verifyPasskeyRegistration', () => {
 
   it('accepts the same response with both of those right', async () => {
     const outcome = await verifyPasskeyRegistration({
-      publicBaseUrl: PUBLIC_BASE_URL,
+      relyingParty: PATH_RP,
       expectedChallenge: CHALLENGE,
       response: registrationFor({}),
     });
 
     expect(outcome.kind).toBe('verified');
+  });
+});
+
+describe('a passkey and the address it was registered at', () => {
+  const authenticatorAt = (rp: { id: string; origin: string }) =>
+    parseRegistrationResponse(
+      softwareRegistrationResponse({ challenge: CHALLENGE, rpId: rp.id, origin: rp.origin }),
+    );
+
+  it('verifies at the address it was registered under and at no other', async () => {
+    const atDomain = authenticatorAt(DOMAIN_RP);
+    if (atDomain === null) throw new Error('expected the fixture to produce a registration');
+
+    const at = (relyingParty: { id: string; origin: string }) =>
+      verifyPasskeyRegistration({
+        relyingParty,
+        expectedChallenge: CHALLENGE,
+        response: atDomain,
+      });
+
+    expect((await at(DOMAIN_RP)).kind).toBe('verified');
+    expect(await at(PATH_RP)).toEqual({ kind: 'rejected' });
+  });
+
+  it('is refused at the domain when it was registered at the path address, and again verifies there', async () => {
+    const atPath = authenticatorAt(PATH_RP);
+    if (atPath === null) throw new Error('expected the fixture to produce a registration');
+
+    const at = (relyingParty: { id: string; origin: string }) =>
+      verifyPasskeyRegistration({ relyingParty, expectedChallenge: CHALLENGE, response: atPath });
+
+    expect(await at(DOMAIN_RP)).toEqual({ kind: 'rejected' });
+    expect((await at(PATH_RP)).kind).toBe('verified');
   });
 });

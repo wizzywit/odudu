@@ -647,6 +647,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             ) =>
               withTenant(deps.database.db, tenantId, (tx) =>
                 beginPasskeyEnrolment(tx, {
+                  tenantId,
                   tenantName,
                   publicBaseUrl,
                   authSessionId,
@@ -661,7 +662,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         : {
             beginPasskeyAuthentication: (tenantId: string, authSessionId: string) =>
               withTenant(deps.database.db, tenantId, (tx) =>
-                beginPasskeyAuthentication(tx, { publicBaseUrl, authSessionId }),
+                beginPasskeyAuthentication(tx, { tenantId, publicBaseUrl, authSessionId }),
               ),
           };
 

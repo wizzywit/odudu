@@ -7,7 +7,7 @@ import {
   type LockoutPolicy,
 } from '@odudu/domain-identity';
 import { timingSafeEqual } from 'node:crypto';
-import { newId, systemClock, type Clock } from '@odudu/kernel';
+import { baseRelyingPartyId, newId, systemClock, type Clock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { executionRepository } from '#/repository/executions';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
@@ -47,7 +47,8 @@ import {
   type StoredRecoveryCode,
 } from '#/service/authenticators/recovery';
 import { otpApplicable, totpStep, type TotpSecret } from '#/service/authenticators/totp';
-import { assertedCredentialId } from '#/service/webauthn';
+import { assertedCredentialId, type RelyingParty } from '#/service/webauthn';
+import { relyingPartyOfTenant } from '#/usecase/passkey-relying-party';
 
 // Never assigned to a real subject (subject ids come from `newId()`), so a
 // lookup against it always misses — which is the point: it lets the
@@ -319,12 +320,31 @@ async function runRecoveryStep(
 async function passkeyCredentialFor(
   tx: TenantScopedDatabase,
   assertion: unknown,
-): Promise<{ id: string; subjectId: string; secret: WebauthnSecret } | null> {
+  base: string | null,
+): Promise<{ id: string; subjectId: string; secret: WebauthnSecret; rpId: string | null } | null> {
   const credentialId = assertedCredentialId(assertion);
   if (credentialId === null) return null;
   const record = await credentialRepository(tx).byLookupKey(credentialId);
   if (record?.type !== 'webauthn' || record.secret.kind !== 'webauthn') return null;
-  return { id: record.id, subjectId: record.subjectId, secret: record.secret };
+  return {
+    id: record.id,
+    subjectId: record.subjectId,
+    secret: record.secret,
+    // Every passkey registered before domains existed was registered at the
+    // base host, and boot stamps them; one not yet stamped is read the same.
+    rpId: record.rpId ?? (base === null ? null : baseRelyingPartyId(base)),
+  };
+}
+
+// Where no relying party can be derived — no base URL, or one that names an
+// address — nothing is asserted and no passkey can exist.
+async function relyingPartyOf(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  base: string | null,
+): Promise<RelyingParty | null> {
+  if (base === null || baseRelyingPartyId(base) === null) return null;
+  return relyingPartyOfTenant(tx, tenantId, base);
 }
 
 async function runPasskeyStep(
@@ -336,11 +356,11 @@ async function runPasskeyStep(
     return passkeyStep(input, {
       credential: null,
       expectedChallenge: null,
-      publicBaseUrl: context.publicBaseUrl,
+      relyingParty: null,
     });
   }
 
-  const credential = await passkeyCredentialFor(tx, input.assertion);
+  const credential = await passkeyCredentialFor(tx, input.assertion, context.publicBaseUrl);
   // Reading and clearing the challenge is a single statement whose whole
   // point is that a replay finds nothing (see claimWebauthnChallenge): it
   // must not be undone by anything this transaction does afterwards, so
@@ -352,7 +372,7 @@ async function runPasskeyStep(
   const outcome = await passkeyStep(input, {
     credential,
     expectedChallenge,
-    publicBaseUrl: context.publicBaseUrl,
+    relyingParty: await relyingPartyOf(tx, context.tenantId, context.publicBaseUrl),
   });
   if (outcome.kind === 'failure') {
     return {

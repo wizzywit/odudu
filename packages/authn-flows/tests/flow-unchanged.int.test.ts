@@ -206,7 +206,7 @@ describe('a default tenant login, walked for several subject shapes before and a
 
     const authSessionId = await start(tenantId);
     const offer = await withTenant(app.db, tenantId, (tx) =>
-      beginPasskeyAuthentication(tx, { publicBaseUrl: PUBLIC_BASE_URL, authSessionId }),
+      beginPasskeyAuthentication(tx, { tenantId, publicBaseUrl: PUBLIC_BASE_URL, authSessionId }),
     );
     const assertion = authenticator.assertion({
       challenge: offer.challenge,

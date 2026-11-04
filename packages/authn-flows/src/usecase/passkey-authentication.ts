@@ -1,8 +1,10 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
+import { relyingPartyOfTenant } from '#/usecase/passkey-relying-party';
 import { passkeyAuthenticationOptions, type PasskeyAuthenticationOffer } from '#/service/webauthn';
 
 export interface BeginPasskeyAuthentication {
+  tenantId: string;
   publicBaseUrl: string;
   authSessionId: string;
 }
@@ -17,7 +19,9 @@ export async function beginPasskeyAuthentication(
   tx: TenantScopedDatabase,
   input: BeginPasskeyAuthentication,
 ): Promise<PasskeyAuthenticationOffer> {
-  const offer = await passkeyAuthenticationOptions(input.publicBaseUrl);
+  const offer = await passkeyAuthenticationOptions(
+    await relyingPartyOfTenant(tx, input.tenantId, input.publicBaseUrl),
+  );
   await authenticationSessionRepository(tx).setWebauthnChallenge(
     input.authSessionId,
     offer.challenge,
