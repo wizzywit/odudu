@@ -130,14 +130,15 @@ export function sendSwitch(
   return writes[action]({ id: domain.id, ifMatch: etag });
 }
 
-// What the confirmation draws: closed, or the one asked for.
+// What the confirmation draws: closed, or the one asked for. The choice, when
+// there is one, carries whether it is ticked and how that changes.
 export interface DialogView {
   isOpen: boolean;
   title: string;
   consequence: string;
   confirmLabel: string;
   tone: 'primary' | 'danger';
-  choice: { label: string; note: string } | null;
+  choice?: { label: string; note: string; checked: boolean; onChange: (checked: boolean) => void };
 }
 
 const CLOSED: DialogView = {
@@ -146,11 +147,20 @@ const CLOSED: DialogView = {
   consequence: '',
   confirmLabel: '',
   tone: 'primary',
-  choice: null,
 };
 
-export function dialogView(asking: Asking | null): DialogView {
+export function dialogView(
+  asking: Asking | null,
+  acknowledged: boolean,
+  onAcknowledge: (checked: boolean) => void,
+): DialogView {
   if (asking === null) return CLOSED;
-  const { dialog } = asking;
-  return { isOpen: true, ...dialog, choice: dialog.choice ?? null };
+  const { choice, ...dialog } = asking.dialog;
+  return {
+    isOpen: true,
+    ...dialog,
+    ...(choice === undefined
+      ? {}
+      : { choice: { ...choice, checked: acknowledged, onChange: onAcknowledge } }),
+  };
 }

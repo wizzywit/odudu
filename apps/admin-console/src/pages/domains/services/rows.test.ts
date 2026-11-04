@@ -1,6 +1,12 @@
 import { expect, it } from 'vitest';
 import type { Domain } from '#/pages/domains/types/domain';
-import { addressLine, challengesOf, columnIds, domainRows } from '#/pages/domains/services/rows';
+import {
+  actionDisabled,
+  addressLine,
+  challengesOf,
+  columnIds,
+  domainRows,
+} from '#/pages/domains/services/rows';
 
 function domain(id: string, state: Domain['state'], extra: Partial<Domain> = {}): Domain {
   return {
@@ -80,4 +86,18 @@ it('lists a challenge for each domain that has a record to publish, and no other
 it('draws the actions column only for a caller who may change the domains', () => {
   expect(columnIds(false)).toEqual(['host', 'state', 'use', 'checked', 'actions']);
   expect(columnIds(true)).toEqual(['host', 'state', 'use', 'checked']);
+});
+
+it('disables every action until the tenant’s tag is read', () => {
+  for (const action of ['verify', 'activate', 'deactivate', 'remove'] as const) {
+    expect(actionDisabled(action, { tagged: false, verifying: false }), action).toBe(true);
+    expect(actionDisabled(action, { tagged: true, verifying: false }), action).toBe(false);
+  }
+});
+
+it('disables verify, and only verify, while a verification is running', () => {
+  expect(actionDisabled('verify', { tagged: true, verifying: true })).toBe(true);
+  for (const action of ['activate', 'deactivate', 'remove'] as const) {
+    expect(actionDisabled(action, { tagged: true, verifying: true }), action).toBe(false);
+  }
 });

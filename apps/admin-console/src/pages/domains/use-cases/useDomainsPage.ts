@@ -37,6 +37,7 @@ import type { PasskeyWarning } from '#/pages/domains/services/passkeyWarning';
 import { transitionNote } from '#/pages/domains/services/transition';
 import { registerLabel, registerRequest } from '#/pages/domains/services/register';
 import {
+  actionDisabled,
   addressLine,
   challengesOf,
   columnIds,
@@ -107,8 +108,8 @@ export interface DomainsPage {
   // What the caller may not do here, or null when it may.
   needs: Change | null;
   columns: readonly ColumnId[];
-  // The tenant's tag has been read, which every switch is made against.
-  tagged: boolean;
+  // Whether an action on a row may not be taken now.
+  disabled: (action: DomainAction) => boolean;
   act: (action: DomainAction, domain: Domain) => void;
   register: RegisterSection;
   verify: VerifySection;
@@ -201,7 +202,8 @@ export function useDomainsPage(tenant: string): DomainsPage {
     challenges: challengesOf(domainsOf(record.data)),
     needs,
     columns: columnIds(needs !== null),
-    tagged: record.etag !== null,
+    disabled: (action) =>
+      actionDisabled(action, { tagged: record.etag !== null, verifying: verifying.busy }),
     act: (action, domain) => {
       doing[action](domain);
     },
@@ -220,7 +222,7 @@ export function useDomainsPage(tenant: string): DomainsPage {
     verify: { busy: verifying.busy, message: verifyMessage, run: verify },
     action: {
       asking: askingOf(acting.asked, warning),
-      dialog: dialogView(askingOf(acting.asked, warning)),
+      dialog: dialogView(askingOf(acting.asked, warning), acknowledged, setAcknowledged),
       held,
       acknowledged,
       acknowledge: setAcknowledged,

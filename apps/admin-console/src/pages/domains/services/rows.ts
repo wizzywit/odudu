@@ -81,3 +81,12 @@ export function columnIds(viewOnly: boolean): readonly ColumnId[] {
   const shown: readonly ColumnId[] = ['host', 'state', 'use', 'checked'];
   return viewOnly ? shown : [...shown, 'actions'];
 }
+
+// Every action is made against the tenant's tag, so none is offered before it
+// is read; a verification already running is not started a second time.
+export function actionDisabled(
+  action: DomainAction,
+  state: { tagged: boolean; verifying: boolean },
+): boolean {
+  return !state.tagged || (action === 'verify' && state.verifying);
+}

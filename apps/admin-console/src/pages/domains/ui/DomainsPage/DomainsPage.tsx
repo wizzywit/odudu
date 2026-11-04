@@ -54,7 +54,7 @@ function columns(page: Page): readonly Column<DomainRow>[] {
               size="small"
               variant="quiet"
               aria-label={row.labels[action]}
-              isDisabled={!page.tagged || (action === 'verify' && page.verify.busy)}
+              isDisabled={page.disabled(action)}
               onPress={() => {
                 page.act(action, row.domain);
               }}
@@ -171,16 +171,12 @@ function Listed({ page }: { page: Page }) {
 
 function SwitchDialog({ page }: { page: Page }) {
   const { action } = page;
-  const { choice, ...dialog } = action.dialog;
   return (
     <ConfirmDialog
-      {...dialog}
+      {...action.dialog}
       busy={action.busy}
       problem={action.problem}
       held={action.held}
-      {...(choice === null
-        ? {}
-        : { choice: { ...choice, checked: action.acknowledged, onChange: action.acknowledge } })}
       onConfirm={() => {
         action.confirm().catch(() => undefined);
       }}

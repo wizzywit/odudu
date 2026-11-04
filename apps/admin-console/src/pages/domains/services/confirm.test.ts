@@ -3,6 +3,7 @@ import type { Domain } from '#/pages/domains/types/domain';
 import {
   askingOf,
   dialogOf,
+  dialogView,
   holdsSwitch,
   impactTarget,
   sendSwitch,
@@ -109,4 +110,30 @@ it('sends nothing before the tag is known, and answers as a missing precondition
   expect(writes.remove).not.toHaveBeenCalled();
   expect(result.ok).toBe(false);
   expect(!result.ok && result.kind === 'problem' && result.problem.status).toBe(428);
+});
+
+it('draws a closed dialog with no choice', () => {
+  const view = dialogView(null, false, vi.fn());
+  expect(view.isOpen).toBe(false);
+  expect('choice' in view).toBe(false);
+});
+
+it('draws no choice for a dialog that offers none', () => {
+  const asking = askingOf({ action: 'remove', domain: verified }, { kind: 'none' });
+  const view = dialogView(asking, true, vi.fn());
+  expect(view.isOpen).toBe(true);
+  expect(view.title).toBe('Remove login.acme.com?');
+  expect('choice' in view).toBe(false);
+});
+
+it('draws the choice with whether it is ticked and how it changes', () => {
+  const onChange = vi.fn();
+  const asking = askingOf({ action: 'activate', domain: verified }, ACK);
+  const view = dialogView(asking, true, onChange);
+  expect(view.choice).toEqual({
+    label: 'I understand',
+    note: 'They come back on a switch back.',
+    checked: true,
+    onChange,
+  });
 });

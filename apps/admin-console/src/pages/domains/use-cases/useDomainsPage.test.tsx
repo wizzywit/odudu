@@ -346,7 +346,7 @@ it('holds a switch until the fresh count lands, though an older count of none is
 
 it('offers no switch before the tenant’s tag is known', async () => {
   const { result } = page();
-  expect(result.current.tagged).toBe(false);
+  expect(result.current.disabled('remove')).toBe(true);
   await read(result);
-  expect(result.current.tagged).toBe(true);
+  expect(result.current.disabled('remove')).toBe(false);
 });
