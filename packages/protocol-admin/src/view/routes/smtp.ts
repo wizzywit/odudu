@@ -2,6 +2,7 @@ import { putSmtpRequestSchema, testSmtpRequestSchema } from '@odudu/contracts/ad
 import { type Database } from '@odudu/db';
 import { type MailLookResolver } from '@odudu/email';
 import { readPasswordField } from '@odudu/kernel';
+import { issuerBaseFor } from '@odudu/protocol-oidc';
 import { etagOf } from '#/service/etag';
 import { type SmtpDestinationPolicy } from '#/service/smtp-destination';
 import {
@@ -199,7 +200,11 @@ export function testSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
     const readOutcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       readSmtpForTest(
         tx,
-        { tenantId: targetTenantId, tenantName: tenantNameOf(request) },
+        {
+          tenantId: targetTenantId,
+          tenantName: tenantNameOf(request),
+          base: issuerBaseFor(request),
+        },
         deps.resolveMailLook,
         body.client_id,
       ),

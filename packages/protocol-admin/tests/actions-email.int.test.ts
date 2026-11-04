@@ -9,7 +9,11 @@ import { newId } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import {
+  FIXTURE_CONSOLE_BASE_URL,
+  startAdminFixture,
+  type AdminFixture,
+} from '#/testing/admin-fixture';
 
 let relayed: AdminFixture | undefined;
 let unrelayed: AdminFixture | undefined;
@@ -104,6 +108,30 @@ describe('POST /subjects/:id/actions-email', () => {
       },
     ]);
     expect(JSON.stringify(rows)).not.toContain('key=');
+  });
+
+  it('mails the configured address however the request names its host', async () => {
+    const t = await fixture.createTenant(`act-${newId()}`);
+    await allowReset(fixture, t.id);
+    const ada = await seedUser(fixture, t.id, 'ada', 'ada@example.com');
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/subjects/${ada}/actions-email`,
+      headers: {
+        authorization: `Bearer ${token}`,
+        'x-forwarded-host': 'evil.example',
+      },
+      payload: { actions: ['configure-totp'] },
+    });
+    expect(res.statusCode, res.body).toBe(202);
+
+    const [queued] = await outboxOf(fixture, t.id);
+    expect(queued?.bodyText).toContain(
+      `${FIXTURE_CONSOLE_BASE_URL}/tenants/${t.name}/login-actions/action-token?key=`,
+    );
+    expect(queued?.bodyText).not.toContain('evil.example');
   });
 
   it('needs no reset setting when no password is asked for', async () => {

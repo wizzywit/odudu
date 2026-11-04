@@ -215,6 +215,23 @@ describe('readSmtpForTest, the theme the test mail wears', () => {
 
   const TENANT = { tenantId: 'tenant-1', tenantName: 'acme' };
 
+  it('draws the theme for the canonical address of a tenant that has one', async () => {
+    const addresses: (string | undefined)[] = [];
+    await readSmtpForTest(
+      tx,
+      {
+        ...TENANT,
+        base: 'https://id.example.test',
+        lookupDomain: () => Promise.resolve('login.acme.com'),
+      },
+      (_tx, scope) => {
+        addresses.push(scope.address?.origin);
+        return Promise.resolve({ branding: null, overrides: {} });
+      },
+    );
+    expect(addresses).toEqual(['https://login.acme.com']);
+  });
+
   async function mailFor(resolve?: MailLookResolver, client?: string): Promise<EmailMessage> {
     const read = await readSmtpForTest(tx, TENANT, resolve, client);
     if (read.kind !== 'ok') throw new Error('not configured');
