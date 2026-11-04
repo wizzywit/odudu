@@ -11,9 +11,9 @@ A paid, hosted service beside the open-source server is planned and has no date
 ([ADR 0042](https://github.com/wizzywit/odudu/blob/main/docs/adr/0042-distribution-licensing-and-the-paid-boundary.md));
 nothing on this page depends on it.
 
-| Today                                                                                                                                    | Next, in this order                                                                                 | Later                                                                                       |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Sign-in and tokens, many tenants, passwords, passkeys and recovery codes, theming and branding, an admin API and console, an audit trail | The stable release, a custom domain, an MCP server, self-service, a localized console, agent access | Brokering, LDAP and SCIM, SAML, authorization services, extensibility, many instances, FAPI |
+| Today                                                                                                                                    | Next, in this order                                                                | Later                                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Sign-in and tokens, many tenants, passwords, passkeys and recovery codes, theming and branding, an admin API and console, an audit trail | The stable release, an MCP server, self-service, a localized console, agent access | Brokering, LDAP and SCIM, SAML, authorization services, extensibility, many instances, FAPI |
 
 ## Shipped
 
@@ -32,6 +32,7 @@ Everything here works in the latest release candidate, which the quick start ins
 ### Many tenants
 
 - Any number of tenants on one server, each with its own people, clients, keys, settings, sign-in flow and mail relay, kept apart by the database itself.
+- A public address of its own for a tenant, a custom domain such as `login.acme.com`. The tenant proves it owns the host with a DNS record, and your reverse proxy asks Odudu whether a host is registered, so it can get the certificate on demand. The issuer, the cookies, the passkeys and the links in mail follow the address. Switching is safe in both directions: sessions end, the old address serves what was already issued for an hour and then nothing, a client's redirect addresses do not change, and a tenant can go back to its path address whether or not it still holds the domain. A domain whose record disappears is failed by a recheck and its tenant falls back. Odudu does not issue the certificates ([custom domains](operating/custom-domains.md)).
 - Gap-free signing key rotation, and export of a tenant to a file and import as a new tenant.
 - Built-in scopes, like any other, can be deleted after typing their name, and restored.
 
@@ -68,7 +69,6 @@ Everything here works in the latest release candidate, which the quick start ins
 These are the phases being built, in the order the design spec gives. Each one says what it brings you.
 
 - **P4g, the stable release.** Release candidates are out: a signed container image with its contents listed and its base images pinned, the one-file Docker Compose quick start that pulls it, a written release process, this documentation site, a landing page and worked examples. The stable `0.1.0` follows once the candidates have had a real run.
-- **P4j, a custom domain for each tenant.** A tenant is reached at a public address of its own, not as `/tenants/<name>` under the operator's one base address. Odudu keeps a table of verified domains, resolves the tenant from the host, and answers your reverse proxy's question whether a domain is registered, so the proxy can obtain its certificate on demand. The issuer, the cookies and passkeys move with the domain.
 - **P5a, an MCP server.** The admin API as tools for an AI agent, read-only by default and held to the same capabilities as everyone else, and a guide to protecting an MCP server with Odudu. It passes the MCP authorization profile against a real client, with Claude and Cursor setup examples. The server does not yet publish the metadata an MCP client looks for. The admin API has no `Idempotency-Key` header today, and P5a adds one so a retried request does not act twice.
 - **P4f, self-service.** A "me" API through which an application lets a person read and change their own profile, credentials, sessions and consents, and application-initiated actions such as changing a password or enrolling an authenticator. It also brings fresh recovery codes before the old set runs out, a notice mail when someone enrols a factor, and the offer to end other sessions after a password change. It also reconciles accounts whose addresses differ only by case, so none can share an address, and makes confirming a registration take more than one click. A person can ask for a new verification email, see each session against its device, and a tenant sets its own authenticator rules. A link an administrator mailed gets somewhere to return to.
 - **P4h, a localized console.** Every string in the admin console read from a catalogue, a language switch, and right-to-left layouts. Lists sort by the person's language, and error messages are translated. It also sends the failure screen's Error ID to the server, so an operator can find it in the logs. A client's base name and a scope's base text get a language of their own, so a page can mark them.
@@ -99,7 +99,6 @@ Placed on a phase, in order, and not started. Each line names the phase that wil
 - **several sign-in flows with a per-client override**: P4f.
 - **per-step authenticator configuration**: P4f.
 - **a breached-password check**: P4f.
-- **a public address of its own for each tenant (a custom domain)**: P4j, because it changes how a tenant is found rather than how a page looks. Today one `ODUDU_PUBLIC_BASE_URL` serves every tenant as `/tenants/<name>`, and a tenant's issuer is that base plus its name.
 - **custom subject attributes and a declarative user profile**: P7.
 - **fine-grained admin permissions**: P9.
 - **per-client dedicated mappers**: P10.

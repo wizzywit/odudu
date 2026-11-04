@@ -2,7 +2,7 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b, P3a, P3b, P4a, P4b, P4c, P4d and P4e are complete, and the
+**P0, P1, P2a, P2b, P3a, P3b, P4a, P4b, P4c, P4d, P4e, P4j and P4k are complete, and the
 tenant rename is done. P4g has closed as release candidates, and only its
 stable tag is left.** Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
@@ -28,10 +28,15 @@ is in pages, widgets, features, entities and `shared`, and the rules that hold i
 have no allowlist. It changed no behaviour but one defect it found. What it
 found and what it left is in [`docs/phases/p4k.md`](phases/p4k.md).
 
-**What is next, in this order: P4j, P5a, P4f, P4h, P4i, P5, P5b**, then the
+**P4j, a public address of its own for each tenant, is built.** A tenant is
+reached at one canonical address, its path or a verified domain, and a switch
+between them is safe in both directions. What it found, what proves the domain
+path and what it left is in [`docs/phases/p4j.md`](phases/p4j.md); the argument
+is [ADR 0049](adr/0049-a-tenant-has-one-canonical-address.md).
+
+**What is next, in this order: P5a, P4f, P4h, P4i, P5, P5b**, then the
 phases the roadmap page lists as "Later", P6 to P14. The letters do not read
-in execution order. P4j is a custom domain for each tenant, which left P4b
-for its own phase; P5a the MCP server;
+in execution order. P5a is the MCP server;
 P4f self-service through a "me" API and application-initiated actions; P4h
 console localization ([ADR 0043](adr/0043-localization-is-a-catalogue-a-negotiation-and-a-set-of-owners.md));
 P4i the SDKs.
@@ -60,6 +65,7 @@ open.
 The running records, split out of this file on 2026-09-17: P2b reached
 1,873 lines here, of which the part describing where the project stood was 58.
 
+- [P4j — a custom domain for each tenant](phases/p4j.md)
 - [P4k — the frontend architecture](phases/p4k.md)
 - [P4b — theming and client branding](phases/p4b.md)
 - [P4g — the public release](phases/p4g.md)
@@ -86,7 +92,7 @@ another paragraph. `tests/docs/next-budget.test.ts` holds the file to 400
 lines and any one section to 130, so an entry that has somewhere better to
 live is pushed there rather than accumulating here.
 
-## What P4j, P4f and P4h inherit
+## What P4f and P4h inherit
 
 **A console to build on, and the ways in.** The SPA talks to nothing but
 `/console/api/session`, `/console/api/admin/*`, `/console/auth/login` and
@@ -112,11 +118,10 @@ takes its look through `resolveMailBranding` in the transaction that queues it.
 P4f's self-service pages and P4h's console strings follow these two rules; what a
 theme may do and why is in [web-security.md](protocols/web-security.md).
 
-**A custom domain is P4j's.** A tenant is resolved from the path today
-(`/tenants/<name>`) and its issuer is `ODUDU_PUBLIC_BASE_URL` plus its name.
-P4j resolves it from `Host` instead, which moves the issuer, cookie scope and
-the WebAuthn RP ID. The design is in the P4b spec, section 3. Brand asset addresses are
-content-hashed under the tenant's path, so they move with the issuer.
+**A tenant's address is its canonical address.** A page, mail or link a later
+phase writes takes its origin from `TenantAddress` in `@odudu/kernel`, never from
+`base + /tenants/ + name` or from `Host`; `tests/lint/tenant-address.test.ts`
+fails the build on the concatenation. P4f's "me" pages and mail follow it.
 
 ## What P11 and P12 inherit
 
@@ -208,6 +213,10 @@ that should hold it, which is usually false.
 | The Node major moves by hand: Node 24 to 26 once 26 is LTS and tested, by running the full CI, replacing `corepack` if Node drops it, amending ADR 0001 and moving `engines`, the Dockerfile and CI                                                                                                                                                                                                                                                                                                                                                                                                                               | [ADR 0001](adr/0001-typescript-on-node.md), amendment 2026-10-27                                  | **P12**, operations: a runtime move is deployment work, and no earlier phase changes what a deployment runs on |
 | The cleanup P4k left in branding and clients (screen-named service files, 25-field return bags), and the domain types that still carry the wire's field names, since most `types/` files re-export the wire shape and do not map it; also `Field.tsx` (958 lines, formatting logic), `Gallery.tsx` and `router.tsx`, view-side phrasing (`SectionNotice`, `ChecklistField`, `Field`'s `counted`), repository logic (`useCreation`, `useScopeClients`, `useSessionQuery`) and endpoint paths built in repositories (`useSessions`, `useRecordActivity`)                                                                            | [`phases/p4k.md`](phases/p4k.md), "Left, and where it went"                                       | **P4h**, at its start: it rewrites the same console files for the string catalogue                             |
 | Committed development credentials                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | [ADR 0014](adr/0014-committed-development-credentials.md)                                         | the conditions that ADR names                                                                                  |
+| The domain verification throttle and the check endpoint's limiter are per process, and no global cap bounds the DNS lookups a verification makes across tenants                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | [`phases/p4j.md`](phases/p4j.md), "Left, and where it went"                                       | **P11**, many instances, with the other in-process bounds                                                      |
+| The edge reads the tenant's address once per request on a non-base host and on a path address, with no host-to-tenant cache; a cache has to state its bound and be invalidated on a switch, and would blur "refused at its expiry"                                                                                                                                                                                                                                                                                                                                                                                                | [ADR 0049](adr/0049-a-tenant-has-one-canonical-address.md), "Consequences"                        | **P11**, when a measurement of the p99 asks for it                                                             |
+| A back-channel logout that is retried keeps the `exp` of its first attempt, so a retry made after it is refused by the receiver                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | [`phases/p4j.md`](phases/p4j.md), "Left, and where it went"                                       | **P11**, with the deadline work on the server's other outbound calls                                           |
+| A person with no password and only passkeys registered at the address a tenant left has no way back inside the sign-in itself: the challenge is one they cannot answer, and a switch back, a reset or an administrator recovers them                                                                                                                                                                                                                                                                                                                                                                                              | [`phases/p4j.md`](phases/p4j.md); the guide `operating/custom-domains.md`                         | **P4f**, whose self-service criterion owns the account's own recovery                                          |
 
 ### Argued here, because there is nowhere else
 

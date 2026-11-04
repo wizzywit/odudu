@@ -97,9 +97,6 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
     'example applications',
   ],
   ['P4g', 'The stable `0.1.0` follows'],
-  ['P4j', 'A tenant is reached at', 'custom domain', 'public address of its own'],
-  ['P4j', 'Odudu keeps a table of verified domains', 'table of verified domains', 'on-demand tls'],
-  ['P4j', 'The issuer, the cookies', 'issuer', 'cookie scope', 'webauthn rp id'],
   ['P5a', 'It passes the MCP authorization profile', 'claude and cursor configuration examples'],
   ['P5a', 'The admin API as tools', 'read-only by default', 'protect an mcp server with odudu'],
   [
@@ -335,6 +332,22 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     ['A person who confirms a "finish registration"', ['P4f'], ['more than one click']],
     ['Accounts that differ only by the case', ['P4f'], ['differ only by case']],
     ['The Node major moves by hand', ['P12'], ['even-numbered node lts']],
+    [
+      "The domain verification throttle and the check endpoint's limiter",
+      ['P11'],
+      "an in-process bound, held by the P11 criterion's every bound held in one process's memory",
+    ],
+    ['The edge reads the tenant', ['P11'], ['documented p99']],
+    [
+      'A back-channel logout that is retried',
+      ['P11'],
+      'a retry path that keeps its first token, no product capability',
+    ],
+    [
+      'A person with no password and only passkeys',
+      ['P4f'],
+      ['their own profile, credentials, sessions and consents'],
+    ],
     [
       'The cleanup P4k left in branding and clients',
       ['P4h'],
