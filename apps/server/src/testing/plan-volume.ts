@@ -44,6 +44,8 @@ export const PLAN_VOLUME = {
   consoleRows: 6_000,
   // What a set the admin API replaces whole holds, at the most it may.
   assignments: ASSIGNMENT_LIMIT,
+  // The most rows a tenant may hold, less the one the domain drive adds.
+  domains: 19,
 } as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -121,6 +123,29 @@ insert into audit_events (id, tenant_id, occurred_at, event_type, action, outcom
 select gen_random_uuid(), o.id, now() - (g || ' seconds')::interval,
        'admin_mutation', 'client.create', 'allowed', 'client', g::text
   from vol_other o cross join generate_series(1, ${v.auditEventsPerOtherTenant}) g;
+
+insert into tenant_domains (id, tenant_id, host, state, challenge, verified_at, canonical)
+select gen_random_uuid(), o.id, 'o' || o.n || '.volume.example.com', 'verified', 'c', now(), true
+  from vol_other o;
+insert into tenant_domains (id, tenant_id, host, state, challenge)
+select gen_random_uuid(), o.id, 'p' || o.n || '.volume.example.com', 'pending', 'c'
+  from vol_other o where o.n % 5 = 0;
+insert into tenant_issuer_retirements (tenant_id, issuer, expires_at)
+select o.id, 'https://old' || o.n || '.volume.example.com',
+       case when o.n % 10 = 0 then now() - interval '1 hour' else now() + interval '1 hour' end
+  from vol_other o;
+insert into tenant_issuer_retirements (tenant_id, issuer, expires_at)
+select o.id, 'https://older' || o.n || '.volume.example.com', now() + interval '2 hours'
+  from vol_other o where o.n % 5 = 0;
+insert into tenant_domains (id, tenant_id, host, state, challenge, verified_at, canonical)
+select gen_random_uuid(), ${t}, 'plans' || g || '.example.com',
+       case when g = 1 then 'verified' when g <= 6 then 'pending' else 'failed' end, 'c',
+       case when g = 1 then now() end, g = 1
+  from generate_series(1, ${v.domains}) g;
+insert into tenant_issuer_retirements (tenant_id, issuer, expires_at)
+select ${t}, 'https://plans-old' || g || '.example.com',
+       case when g = 4 then now() - interval '1 hour' else now() + interval '1 hour' end
+  from generate_series(1, 4) g;
 
 insert into subjects (id, tenant_id, type)
 select gen_random_uuid(), ${t}, 'user' from generate_series(1, ${v.subjects});

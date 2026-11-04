@@ -4,6 +4,7 @@ import {
   addressPath,
   addressRelyingParty,
   addressUrl,
+  baseRelyingPartyId,
   domainAddress,
   isAddressLiteral,
   pathAddress,
@@ -93,5 +94,26 @@ describe('routeAddress', () => {
     expect(routeAddress({}, 'https://idp.example')).toBeUndefined();
     expect(routeAddress(undefined, 'https://idp.example')).toBeUndefined();
     expect(routeAddress({ tenant: 7 }, 'https://idp.example')).toBeUndefined();
+  });
+});
+
+describe('baseRelyingPartyId', () => {
+  it.each([
+    ['https://idp.example.com', 'idp.example.com'],
+    ['http://localhost:3000', 'localhost'],
+    ['https://idp.example.com:8443', 'idp.example.com'],
+  ])('is the host of %s without its port', (base, id) => {
+    expect(baseRelyingPartyId(base)).toBe(id);
+  });
+
+  it.each(['http://127.0.0.1:3000', 'http://[::1]:3000', 'http://10.0.0.5'])(
+    'is null for the address literal %s, which can never be a relying party id',
+    (base) => {
+      expect(baseRelyingPartyId(base)).toBeNull();
+    },
+  );
+
+  it('is null when no base URL is configured', () => {
+    expect(baseRelyingPartyId(undefined)).toBeNull();
   });
 });

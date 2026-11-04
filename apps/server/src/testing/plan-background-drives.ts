@@ -1,6 +1,7 @@
 import { type Database, withTenant } from '@odudu/db';
 import { credentialRepository } from '@odudu/domain-identity';
 import { assetRepository, themeRepository } from '@odudu/domain-theme';
+import { canonicalHostOf, lookupHost, tenantDomainRepository } from '@odudu/domain-tenant';
 import { capturingSender, sendPending } from '@odudu/email';
 import { loadConfig } from '@odudu/kernel';
 import { PgDialect } from 'drizzle-orm/pg-core';
@@ -156,6 +157,42 @@ export async function driveRepositories(
       await assets.get(world.tenantId, 'f'.repeat(64));
       await assets.bytesUsed(world.tenantId);
       await assets.referencedBy(world.tenantId, world.clientDbId);
+    }),
+  );
+  await capture('domains: host lookup of a canonical host', 'authn', () =>
+    lookupHost(world.owner.db, 'plans1.example.com', new Date()),
+  );
+  await capture('domains: host lookup of a host nobody holds', 'authn', () =>
+    lookupHost(world.owner.db, 'nobody.example.com', new Date()),
+  );
+  await capture('domains: host lookup of another tenant at volume', 'authn', () =>
+    lookupHost(world.owner.db, 'o4999.volume.example.com', new Date()),
+  );
+  await capture('domains: what a tenant reads of its domains', 'authn', () =>
+    withTenant(database, world.tenantId, async (tx) => {
+      const domains = tenantDomainRepository(tx);
+      const [first] = await domains.list(world.tenantId);
+      if (first !== undefined) await domains.get(world.tenantId, first.id);
+      await domains.getByHost(world.tenantId, 'plans1.example.com');
+      await domains.listRetired(world.tenantId, new Date());
+      await canonicalHostOf(tx, world.tenantId);
+    }),
+  );
+  await capture('domains: register, verify, check, fail and delete one', 'authn', () =>
+    withTenant(database, world.tenantId, async (tx) => {
+      const domains = tenantDomainRepository(tx);
+      const now = new Date();
+      const row = await domains.insert({
+        tenantId: world.tenantId,
+        host: 'drive.example.com',
+        challenge: 'c',
+      });
+      await domains.markVerified(world.tenantId, row.id, now);
+      await domains.recordCheck(world.tenantId, row.id, false, now);
+      await domains.markFailed(world.tenantId, row.id);
+      await domains.delete(world.tenantId, row.id);
+      await domains.retireIssuer(world.tenantId, 'https://drive-old.example.com', now);
+      await domains.clearRetirement(world.tenantId, 'https://drive-old.example.com');
     }),
   );
 }

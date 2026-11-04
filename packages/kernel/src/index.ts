@@ -119,6 +119,7 @@ export {
   addressPath,
   addressRelyingParty,
   addressUrl,
+  baseRelyingPartyId,
   domainAddress,
   isAddressLiteral,
   pathAddress,

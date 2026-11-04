@@ -43,6 +43,15 @@ export function addressRelyingParty(a: TenantAddress): { id: string; origin: str
   return { id: parsed.hostname, origin: `${parsed.protocol}//${parsed.host}` };
 }
 
+// The relying-party id the configured base URL gives every passkey registered
+// at the path address; null when no base URL is set or it names an address
+// literal, where no passkey can have been registered.
+export function baseRelyingPartyId(base: string | undefined): string | null {
+  if (base === undefined) return null;
+  const { id } = addressRelyingParty(pathAddress(base, ''));
+  return isAddressLiteral(id) ? null : id;
+}
+
 // The path address of the tenant a route's `:tenant` segment names, for a
 // request with an authority of its own to read the origin from; undefined
 // off a tenant route, where no segment says whose address this is.

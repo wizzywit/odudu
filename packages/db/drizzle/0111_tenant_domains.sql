@@ -68,3 +68,7 @@ CREATE POLICY tenant_issuer_retirements_isolation ON tenant_issuer_retirements
 -- that already exist with the base host's id; a deployment with no base URL
 -- keeps null, which reads as "any relying party id".
 ALTER TABLE user_credentials ADD COLUMN rp_id text;
+
+-- Passkeys still to be stamped, so the stamp at start reads only them.
+CREATE INDEX user_credentials_unstamped_passkeys ON user_credentials (id)
+  WHERE type = 'webauthn' AND rp_id IS NULL;
