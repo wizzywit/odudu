@@ -70,10 +70,7 @@ deleted once its `expires_at` has passed, since nothing accepts it after that.
 The second deletes only a `pending` row older than
 `ODUDU_RETENTION_PENDING_DOMAIN_SECONDS` (a week), a domain whose ownership
 nobody proved. A `verified` or `failed` row is never deleted by this pass,
-however old. **These two keys were added to the captured reports by hand, with
-the value `0` they would carry on this stack; the transcripts were not
-captured again after the two tables joined the pass.** The rules themselves are
-exercised against real rows by `apps/server/tests/reap.int.test.ts`.
+however old.
 
 `audit_events` reports `0` in every count below, in both passes. The rows
 this walkthrough writes there, one per login step, are minutes old, and

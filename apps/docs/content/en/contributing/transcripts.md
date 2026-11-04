@@ -49,6 +49,14 @@ shipped); it was added to the recorded blocks by hand, after `nosniff` where
 `pageHeaders` places it, and a live login-page response on the project
 `odudu-p4g-13b` confirmed its value and position.
 
+The `odudu reap` reports in the retention section carry `tenant_issuer_retirements`
+and `tenant_domains`, the keys of the two tables the pass gained with custom domains.
+Both were added to the recorded reports by hand, after `console_logins` where
+`REAP_ORDER` places them, with the `0` they report on a stack that registers no domain;
+the reports were not captured again afterwards. `tests/docs/retention-schedule.test.ts`
+holds every report to `REAP_ORDER`'s keys, and
+`apps/server/tests/reap.int.test.ts` runs both rules against real rows.
+
 A page follows the colour the person chose in the console. The console writes
 the cookie `odudu-theme` (`light` or `dark`; it expires it for `system`), and
 every page's `<html>` names that value in `data-theme` and nothing else: with no
