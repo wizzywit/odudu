@@ -84,11 +84,11 @@ async function start(options: StartOptions = {}): Promise<Stack> {
     trustProxy: options.trustProxy ?? false,
     throttle: options.throttle ?? { limit: 100_000, windowSeconds: 60 },
     ...(options.loginThrottle === undefined ? {} : { loginThrottle: options.loginThrottle }),
-    ...options.extra,
     hostState: (host) => {
       lookups.push(host);
       return hostState(owner.db, host, new Date());
     },
+    ...options.extra,
   });
   await app.ready();
   apps.push(app);
@@ -324,7 +324,7 @@ describe('a verified canonical domain', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it('refuses what is not the tenant`s to serve, and serves health to any host', async () => {
+  it('refuses what the tenant does not serve, and serves health to any host', async () => {
     const { app, lookups } = await start();
     const tenant = await newTenant();
     const host = await addDomain(tenant, 'canonical');
@@ -447,7 +447,7 @@ describe('which header names the host', () => {
 });
 
 describe('a client that writes the forwarded host itself', () => {
-  it('is not served as the domain it names ahead of the proxy`s entry', async () => {
+  it('is not served as the domain it names ahead of the proxy entry', async () => {
     const { app } = await start({ trustProxy: true });
     const tenant = await newTenant();
     const host = await addDomain(tenant, 'canonical');
@@ -628,7 +628,7 @@ describe('a required action on a domain', () => {
     return { final: res, actions };
   }
 
-  it('completes TOTP enrolment and a password change at the domain`s own paths', async () => {
+  it('completes TOTP enrolment and a password change at the paths of the domain itself', async () => {
     const { app } = await start();
     const tenant = await newTenant();
     await owe(tenant, ['update-password', 'configure-totp']);
@@ -729,9 +729,11 @@ describe('a full authorization code flow on a domain', () => {
   });
 });
 
-describe('the 404 page of a domain', () => {
+describe('the error pages of a domain', () => {
   let docs: string;
   const CONSOLE = 'https://console.example.test';
+  const PAGE = { accept: 'text/html,application/xhtml+xml' };
+  const operator = { consoleBaseUrl: CONSOLE, consoleKeys: CONSOLE_KEYS } as const;
 
   beforeAll(async () => {
     docs = await mkdtemp(join(tmpdir(), 'domain-docs-'));
@@ -747,20 +749,55 @@ describe('the 404 page of a domain', () => {
     await rm(docs, { recursive: true, force: true });
   });
 
-  it('names no console or docs of the operator, which the base host`s still does', async () => {
+  it.each(['/', '/login-actions/zzz', '/nothing-here'])(
+    'draws the 404 for %s without the operator console or docs',
+    async (path) => {
+      const { app } = await start({ extra: { ...operator, docsDir: docs } });
+      const tenant = await newTenant();
+      const host = await addDomain(tenant, 'canonical');
+      const res = await new Browser(app, host).get(path, PAGE);
+      expect(res.statusCode).toBe(404);
+      expect(res.body).not.toContain(CONSOLE);
+      expect(res.body).not.toContain('/docs/');
+      expect(res.body).not.toContain(BASE_HOST);
+    },
+  );
+
+  it('keeps the links on the path address and the base host, unchanged', async () => {
+    const { app } = await start({ extra: { ...operator, docsDir: docs } });
+    const tenant = await newTenant();
+    const onBase = await new Browser(app, BASE_HOST).get('/nothing-here', PAGE);
+    expect(onBase.body).toContain(CONSOLE);
+    expect(onBase.body).toContain('/docs/');
+    const onPath = await new Browser(app, BASE_HOST).get(`/tenants/${tenant.name}/`, PAGE);
+    expect(onPath.statusCode).toBe(404);
+    expect(onPath.body).toContain(CONSOLE);
+    expect(onPath.body).toContain('/docs/');
+  });
+
+  it('draws a failed lookup without any operator URL', async () => {
     const { app } = await start({
-      extra: { consoleBaseUrl: CONSOLE, consoleKeys: CONSOLE_KEYS, docsDir: docs },
+      extra: {
+        ...operator,
+        docsDir: docs,
+        hostState: () => Promise.reject(new Error('down')),
+      },
     });
+    const res = await new Browser(app, 'anything.login-tests.net').get('/', PAGE);
+    expect(res.statusCode).toBe(500);
+    expect(res.body).not.toContain(CONSOLE);
+    expect(res.body).not.toContain('/docs/');
+  });
+});
+
+describe('a trailing empty X-Forwarded-Host entry', () => {
+  it('names no host, so no tenant is selected', async () => {
+    const { app } = await start({ trustProxy: true });
     const tenant = await newTenant();
     const host = await addDomain(tenant, 'canonical');
-    const browser = { accept: 'text/html,application/xhtml+xml' };
-    const onBase = await new Browser(app, BASE_HOST).get('/nothing-here', browser);
-    expect(onBase.body).toContain(CONSOLE);
-    const onDomain = await new Browser(app, host).get('/nothing-here', browser);
-    expect(onDomain.statusCode).toBe(404);
-    // Routed under the tenant, the path is an API path: a problem document, never the page.
-    expect(onDomain.headers['content-type']).toContain('application/problem+json');
-    expect(onDomain.body).not.toContain(CONSOLE);
-    expect(onDomain.body).not.toContain('/docs/');
+    const res = await new Browser(app, 'internal.login-tests.net', {
+      'x-forwarded-host': `${host},`,
+    }).get('/.well-known/openid-configuration');
+    expect(res.statusCode).toBe(404);
   });
 });

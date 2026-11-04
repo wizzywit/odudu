@@ -310,9 +310,9 @@ describe('targets that try to leave the tenant', () => {
     );
     const failures: unknown[] = [];
     const record = (error: unknown) => failures.push(error);
+    const port = await listening(app);
     process.on('unhandledRejection', record);
     process.on('uncaughtException', record);
-    const port = await listening(app);
     try {
       const socket = net.connect(port, '127.0.0.1');
       await new Promise<void>((resolve) => socket.on('connect', resolve));

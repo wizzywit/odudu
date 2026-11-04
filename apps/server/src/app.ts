@@ -406,7 +406,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       ...(deps.docsDir === undefined ? {} : { docs: '/docs/' }),
     },
   };
-  app.setNotFoundHandler((request, reply) => answerNotFound(request, reply, unrouted));
+  // A domain is the tenant's own address: its pages name no operator link.
+  const atDomain: UnroutedDeps = { links: {} };
+  app.setNotFoundHandler((request, reply) =>
+    answerNotFound(request, reply, request.tenantAddress?.prefix === '' ? atDomain : unrouted),
+  );
   app.setErrorHandler<FastifyError>((error, request, reply) =>
     answerServerError(error, request, reply),
   );

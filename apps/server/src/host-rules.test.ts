@@ -36,6 +36,11 @@ describe('requestHost', () => {
     expect(requestHost(raw(headers), true)).toBeNull();
   });
 
+  it('names no host for a forwarded value that ends in an empty entry', () => {
+    const headers = { host: 'login.acme.com', 'x-forwarded-host': 'login.acme.com,' };
+    expect(requestHost(raw(headers), true)).toBeNull();
+  });
+
   it('uses Host when a trusted proxy sent no forwarded one', () => {
     expect(requestHost(raw({ host: 'login.acme.com' }), true)).toBe('login.acme.com');
   });
