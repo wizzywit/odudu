@@ -308,6 +308,11 @@ describe('a request served at a tenant`s own domain', () => {
     expect(tenantIssuerFor({ ...base, tenantAddress }, 'acme')).toBe('https://login.acme.com');
   });
 
+  it('answers the domain whatever tenant name the caller passes', () => {
+    const tenantAddress = domainAddress('login.acme.com', true);
+    expect(tenantIssuerFor({ ...base, tenantAddress }, 'other')).toBe('https://login.acme.com');
+  });
+
   it('keeps the path address for a request at the path', () => {
     const tenantAddress = pathAddress('https://id.example', 'acme');
     expect(tenantIssuerFor({ ...base, tenantAddress }, 'acme')).toBe(
