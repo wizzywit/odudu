@@ -1,7 +1,9 @@
-// How often a verify may make the server look a host up in DNS. A host is
-// looked up at most once per cooldown whichever tenant asks, and a tenant
-// makes at most `tenantLimit` lookups per window, so a tenant cannot use the
-// endpoint to point lookups at names it has no claim on.
+// How often a verify may make the server look a host up in DNS. A tenant
+// looks one host up at most once per cooldown and makes at most
+// `tenantLimit` lookups per window, so the DNS load of the whole deployment
+// is bounded by the tenants' own budgets. The cooldown is the tenant's own:
+// a shared one would let a tenant that registers another's pending host keep
+// that tenant's verify refused.
 export interface VerifyThrottleOptions {
   readonly hostCooldownMs: number;
   readonly tenantLimit: number;
@@ -45,7 +47,8 @@ export function createVerifyThrottle(
   return {
     take(tenantId, host, now) {
       const at = now.getTime();
-      const hostUntil = (hosts.get(host) ?? 0) + options.hostCooldownMs;
+      const hostKey = `${tenantId}\u0000${host}`;
+      const hostUntil = (hosts.get(hostKey) ?? 0) + options.hostCooldownMs;
       if (hostUntil > at) return { allowed: false, retryAfterSeconds: seconds(hostUntil - at) };
 
       const recent = (tenants.get(tenantId) ?? []).filter((t) => t > at - options.tenantWindowMs);
@@ -55,8 +58,8 @@ export function createVerifyThrottle(
         return { allowed: false, retryAfterSeconds: seconds(until - at) };
       }
 
-      hosts.delete(host);
-      hosts.set(host, at);
+      hosts.delete(hostKey);
+      hosts.set(hostKey, at);
       trim(hosts, options.maxEntries);
       tenants.delete(tenantId);
       tenants.set(tenantId, [...recent, at]);

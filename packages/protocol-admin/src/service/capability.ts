@@ -1309,8 +1309,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Registers a host, pending, and answers the TXT record to publish under `dns_record`. ' +
       'Refused with a typed `409` or `422` for the system tenant, a server with no public base ' +
-      'URL, a tenant at its limit of domains, a host already registered, a host another tenant ' +
-      'has verified, an IP address, `localhost`, this server\u2019s own host, a reserved name or ' +
+      'URL, a tenant at its limit of domains, a host already registered, ' +
+      'an IP address, `localhost`, this server\u2019s own host, a reserved name or ' +
       'a host that is not a lowercase punycode DNS name.',
   },
   {
@@ -1337,8 +1337,10 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: domainSchema,
     description:
       'Looks the TXT record up and verifies the domain when it holds the challenge; a domain ' +
-      'whose record is not there yet stays `pending`. A host is looked up at most once every ' +
-      '30 seconds and a tenant at most ten times a minute, otherwise `429` with `Retry-After`.',
+      'whose record is not there yet stays `pending`. A tenant looks a host up at most once ' +
+      'every 30 seconds and makes at most ten lookups a minute, otherwise `429` with ' +
+      '`Retry-After`. A host another tenant verified first is refused here with `409`, not at ' +
+      'registration.',
   },
   {
     method: 'POST',
@@ -1348,8 +1350,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Makes a verified domain the tenant\u2019s address, in one transaction that also lets the ' +
       'previous address\u2019s tokens stay valid for an hour. Refused with `409` for a domain that ' +
-      'is not verified and when another change of the address landed first. `If-Match` is ' +
-      'optional; a stale one is refused with `412`. Already the address: answered unchanged.',
+      'is not verified and when another change of the address landed first. `If-Match`, ' +
+      'from a domains read, is required: `428` without it, `412` when stale. Already the ' +
+      'address: answered unchanged.',
   },
   {
     method: 'POST',
@@ -1359,7 +1362,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Returns the tenant to its path address when this domain is its address, with the same ' +
       'hour for the domain\u2019s tokens. Makes no DNS lookup. A domain that is not the address is ' +
-      'answered unchanged. `If-Match` is optional; a stale one is refused with `412`.',
+      'answered unchanged. `If-Match` is required: `428` without it, `412` when stale.',
   },
   {
     method: 'DELETE',

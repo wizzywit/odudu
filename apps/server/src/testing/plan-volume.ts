@@ -301,8 +301,14 @@ select gen_random_uuid(), ${t}, 'reg_' || md5(n::text), 'pending' || n, 'pending
 insert into user_credentials (id, tenant_id, subject_id, type, secret_data, label, lookup_key, rp_id)
 select gen_random_uuid(), ${t}, s.id, 'webauthn',
        '{"publicKey":"k","counter":0,"transports":[]}'::jsonb, 'key ' || g, 'lk' || g,
-       case when g % 2 = 0 then 'id.volume.example.com' end
+       case when g % 2 = 0 then 'localhost' end
   from vol_subjects s cross join generate_series(1, 12) g where s.n = 1;
+-- Passkeys all registered under the base host, so a read for credentials
+-- under another host finds none and has to prove it without walking them.
+insert into user_credentials (id, tenant_id, subject_id, type, secret_data, label, lookup_key, rp_id)
+select gen_random_uuid(), ${t}, s.id, 'webauthn',
+       '{"publicKey":"k","counter":0,"transports":[]}'::jsonb, 'bulk', 'bulk' || s.n, 'localhost'
+  from vol_subjects s where s.n between 2 and 40000;
 insert into user_credentials (id, tenant_id, subject_id, type, secret_data)
 select gen_random_uuid(), ${t}, s.id, k.type, '{"hash":"h"}'::jsonb
   from vol_subjects s

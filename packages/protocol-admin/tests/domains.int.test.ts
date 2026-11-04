@@ -108,9 +108,20 @@ async function verified(ctx: Ctx, host = freshHost()): Promise<Wire> {
   return res.json<Wire>();
 }
 
+// The ETag every domains response carries, which a switch must name.
+async function currentEtag(ctx: Ctx): Promise<string> {
+  return etagOf(await call(ctx.tenant.name, ctx.read, 'GET', ''));
+}
+
 async function activate(ctx: Ctx, id: string, ifMatch?: string): Promise<LightMyRequestResponse> {
   return call(ctx.tenant.name, ctx.manage, 'POST', `/${id}/activate`, {
-    ...(ifMatch === undefined ? {} : { ifMatch }),
+    ifMatch: ifMatch ?? (await currentEtag(ctx)),
+  });
+}
+
+async function deactivate(ctx: Ctx, id: string, ifMatch?: string): Promise<LightMyRequestResponse> {
+  return call(ctx.tenant.name, ctx.manage, 'POST', `/${id}/deactivate`, {
+    ifMatch: ifMatch ?? (await currentEtag(ctx)),
   });
 }
 
@@ -352,7 +363,7 @@ describe('switching the canonical address', () => {
       throw new Error('deactivate must not contact DNS');
     };
     lookups = [];
-    const res = await call(ctx.tenant.name, ctx.manage, 'POST', `/${row.id}/deactivate`);
+    const res = await deactivate(ctx, row.id);
     expect(res.statusCode, res.body).toBe(200);
     expect(res.json<Wire>().canonical).toBe(false);
     expect(lookups).toEqual([]);
@@ -363,7 +374,7 @@ describe('switching the canonical address', () => {
   it('deactivates idempotently when the tenant is on the path address already', async () => {
     const ctx = await tenantCtx();
     const row = await verified(ctx);
-    const res = await call(ctx.tenant.name, ctx.manage, 'POST', `/${row.id}/deactivate`);
+    const res = await deactivate(ctx, row.id);
     expect(res.statusCode).toBe(200);
     expect(await retirements(ctx.tenant.id)).toEqual(new Map());
     expect(
@@ -376,7 +387,7 @@ describe('switching the canonical address', () => {
     const a = await verified(ctx);
     const b = await verified(ctx);
     await activate(ctx, a.id);
-    const res = await call(ctx.tenant.name, ctx.manage, 'POST', `/${b.id}/deactivate`);
+    const res = await deactivate(ctx, b.id);
     expect(res.statusCode).toBe(200);
     const list = await call(ctx.tenant.name, ctx.read, 'GET', '');
     expect(list.json<{ items: Wire[] }>().items.find((r) => r.id === a.id)?.canonical).toBe(true);
@@ -394,9 +405,7 @@ describe('switching the canonical address', () => {
   it('refuses an unknown id with 404', async () => {
     const ctx = await tenantCtx();
     expect((await activate(ctx, newId())).statusCode).toBe(404);
-    expect(
-      (await call(ctx.tenant.name, ctx.manage, 'POST', `/${newId()}/deactivate`)).statusCode,
-    ).toBe(404);
+    expect((await deactivate(ctx, newId())).statusCode).toBe(404);
   });
 
   it('carries the ETag: a stale If-Match is 412 for activate and deactivate, the current one passes', async () => {
@@ -412,24 +421,36 @@ describe('switching the canonical address', () => {
     expect(after).not.toBe(initial);
 
     expect((await activate(ctx, b.id, initial)).statusCode).toBe(412);
-    expect(
-      (await call(ctx.tenant.name, ctx.manage, 'POST', `/${a.id}/deactivate`, { ifMatch: initial }))
-        .statusCode,
-    ).toBe(412);
+    expect((await deactivate(ctx, a.id, initial)).statusCode).toBe(412);
     expect((await activate(ctx, b.id, after)).statusCode).toBe(200);
     // The list answers the validator the last switch did.
     const relisted = await call(ctx.tenant.name, ctx.read, 'GET', '');
     expect(etagOf(relisted)).toBe(etagOf(await call(ctx.tenant.name, ctx.read, 'GET', `/${a.id}`)));
   });
 
+  it('requires If-Match on activate and deactivate: 428 without it, and a wildcard counts as none', async () => {
+    const ctx = await tenantCtx();
+    const row = await verified(ctx);
+    for (const action of ['activate', 'deactivate']) {
+      const bare = await call(ctx.tenant.name, ctx.manage, 'POST', `/${row.id}/${action}`);
+      expect(bare.statusCode, action).toBe(428);
+      const star = await call(ctx.tenant.name, ctx.manage, 'POST', `/${row.id}/${action}`, {
+        ifMatch: '*',
+      });
+      expect(star.statusCode, action).toBe(428);
+    }
+    expect(await retirements(ctx.tenant.id)).toEqual(new Map());
+  });
+
   it('lets exactly one of two concurrent activations of different domains be the address', async () => {
     const ctx = await tenantCtx();
     const a = await verified(ctx);
     const b = await verified(ctx);
-    const results = await Promise.all([activate(ctx, a.id), activate(ctx, b.id)]);
+    const named = await currentEtag(ctx);
+    const results = await Promise.all([activate(ctx, a.id, named), activate(ctx, b.id, named)]);
     const statuses = results.map((r) => r.statusCode).sort();
     expect(statuses[0]).toBe(200);
-    expect([200, 409]).toContain(statuses[1]);
+    expect([409, 412]).toContain(statuses[1]);
     const list = await call(ctx.tenant.name, ctx.read, 'GET', '');
     expect(list.json<{ items: Wire[] }>().items.filter((r) => r.canonical)).toHaveLength(1);
   });
@@ -559,7 +580,9 @@ describe('a foreign tenant', () => {
       ['POST', `/${row.id}/deactivate`],
       ['DELETE', `/${row.id}`],
     ] as const) {
-      const res = await call(foreign.tenant.name, foreign.manage, method, tail);
+      const res = await call(foreign.tenant.name, foreign.manage, method, tail, {
+        ifMatch: await currentEtag(foreign),
+      });
       expect(res.statusCode, `${method} ${tail}`).toBe(404);
     }
     const list = await call(foreign.tenant.name, foreign.read, 'GET', '');

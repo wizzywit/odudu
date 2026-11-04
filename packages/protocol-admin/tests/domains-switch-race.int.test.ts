@@ -2,6 +2,7 @@ import { withTenant } from '@odudu/db';
 import { tenantDomainRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { switchEtag } from '#/service/domain-wire';
 import { createVerifyThrottle } from '#/service/domain-throttle';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import { activateDomain, type Audit, type DomainsDeps } from '#/usecase/domains';
@@ -80,7 +81,7 @@ describe('two admins activating two domains at once', () => {
       activateDomain(
         tx,
         depsWith(slowAudit),
-        { tenant, id: a, ifMatch: undefined, ...actor },
+        { tenant, id: a, ifMatch: switchEtag(null), ...actor },
         new Date(),
       ),
     );
@@ -89,7 +90,7 @@ describe('two admins activating two domains at once', () => {
       activateDomain(
         tx,
         depsWith(() => Promise.resolve()),
-        { tenant, id: b, ifMatch: undefined, ...actor },
+        { tenant, id: b, ifMatch: switchEtag(null), ...actor },
         new Date(),
       ),
     );

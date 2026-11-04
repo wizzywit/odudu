@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
-import { and, count, countDistinct, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, inArray, isNotNull, lt, or, sql } from 'drizzle-orm';
 import {
   userCredentials,
   type CredentialRecord,
@@ -139,9 +139,10 @@ export function credentialRepository(tx: TenantScopedDatabase) {
     },
 
     // How many subjects hold a passkey registered under another relying
-    // party ID than `rpId`, reading at most `cap + 1` credentials: a passkey
-    // with no recorded ID is not counted, and every passkey carries a lookup
-    // key, so the tenant's partial index on it serves the read.
+    // party ID than `rpId`, reading at most `cap + 1` credentials. A passkey
+    // with no recorded ID is not counted. The two ranges either side of `rpId`
+    // are what the partial index on (tenant_id, rp_id) serves, so credentials
+    // under `rpId` itself are never read.
     async subjectsWithPasskeyOutside(
       rpId: string,
       cap: number,
@@ -154,18 +155,24 @@ export function credentialRepository(tx: TenantScopedDatabase) {
             eq(userCredentials.type, 'webauthn'),
             isNotNull(userCredentials.lookupKey),
             isNotNull(userCredentials.rpId),
-            ne(userCredentials.rpId, rpId),
+            or(lt(userCredentials.rpId, rpId), gt(userCredentials.rpId, rpId)),
           ),
         )
         .limit(cap + 1)
         .as('matching');
-      const rows = await tx
-        .select({ rows: count(), subjects: countDistinct(matching.subjectId) })
-        .from(matching);
-      const read = rows[0];
+      const read = await tx.select({ rows: count() }).from(matching);
+      const distinct = await tx
+        .select({ n: count() })
+        .from(
+          tx
+            .select({ subjectId: matching.subjectId })
+            .from(matching)
+            .groupBy(matching.subjectId)
+            .as('held'),
+        );
       return {
-        subjects: Math.min(read?.subjects ?? 0, cap),
-        capped: (read?.rows ?? 0) > cap,
+        subjects: Math.min(distinct[0]?.n ?? 0, cap),
+        capped: (read[0]?.rows ?? 0) > cap,
       };
     },
 

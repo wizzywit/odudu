@@ -6,13 +6,14 @@ const at = (ms: number): Date => new Date(T0.getTime() + ms);
 const options = { hostCooldownMs: 30_000, tenantLimit: 3, tenantWindowMs: 60_000, maxEntries: 4 };
 
 describe('the verify throttle', () => {
-  it('allows a host once per cooldown whichever tenant asks', () => {
+  it('allows a tenant a host once per cooldown, and never makes one tenant wait for another', () => {
     const throttle = createVerifyThrottle(options);
     expect(throttle.take('a', 'login.acme.com', T0)).toEqual({ allowed: true });
-    expect(throttle.take('b', 'login.acme.com', at(10_000))).toEqual({
+    expect(throttle.take('a', 'login.acme.com', at(10_000))).toEqual({
       allowed: false,
       retryAfterSeconds: 20,
     });
+    expect(throttle.take('b', 'login.acme.com', at(10_001))).toEqual({ allowed: true });
     expect(throttle.take('a', 'login.acme.com', at(29_999))).toMatchObject({ allowed: false });
     expect(throttle.take('a', 'login.acme.com', at(30_000))).toEqual({ allowed: true });
   });

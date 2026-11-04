@@ -389,11 +389,19 @@ export async function driveAdminWrites(
     ['verify a pending domain', { method: 'POST', url: `${T}/domains/{newDomain}/verify` }],
     [
       'make a verified domain the address',
-      { method: 'POST', url: `${T}/domains/${ids.verifiedDomain}/activate` },
+      {
+        method: 'POST',
+        url: `${T}/domains/${ids.verifiedDomain}/activate`,
+        etagFrom: `${T}/domains`,
+      },
     ],
     [
       'return to the path address',
-      { method: 'POST', url: `${T}/domains/${ids.verifiedDomain}/deactivate` },
+      {
+        method: 'POST',
+        url: `${T}/domains/${ids.verifiedDomain}/deactivate`,
+        etagFrom: `${T}/domains`,
+      },
     ],
     ['remove a failed domain', { method: 'DELETE', url: `${T}/domains/${ids.failedDomain}` }],
     [

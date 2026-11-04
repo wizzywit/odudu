@@ -26,10 +26,10 @@ the integration tests that drive them.
   `domain-host-invalid`. Writes `domain.registered`.
 - `POST /domains/:id/verify` looks the TXT record up and, when it holds the value, marks the
   domain `verified` and writes `domain.verified`; otherwise it answers the domain still
-  `pending`. A host is looked up at most once every 30 seconds, and a tenant at most ten
-  times a minute; past either, `429` with `Retry-After` and
+  `pending`. A tenant looks a host up at most once every 30 seconds and makes at most ten
+  lookups a minute; past either, `429` with `Retry-After` and
   `about:blank#domain-verify-throttled`, and no lookup is made. A host another tenant
-  verified first answers `409` `about:blank#domain-verified-elsewhere` and writes
+  verified first is refused here, not at registration, and answers `409` `about:blank#domain-verified-elsewhere` and writes
   `domain.failed`; a domain that is `failed` answers `409` `about:blank#domain-failed`.
 - `POST /domains/:id/activate` makes a verified domain the tenant's address, in one
   transaction that also lets the previous address's tokens stay valid for an hour. An
@@ -46,8 +46,7 @@ the integration tests that drive them.
   different relying party ID than that address uses, which a switch would hide.
 
 Every domains response carries an `ETag` over which domain, if any, is the tenant's address.
-`activate` and `deactivate` take it in `If-Match`; a stale one is refused with `412`, and
-none is required. `GET /domains` pages by host with `limit` and `cursor`.
+`activate` and `deactivate` require it in `If-Match`: `428` without it, `412` when stale. `GET /domains` pages by host with `limit` and `cursor`.
 
 A tenant export leaves the tenant's domains out, and an import with a `domains` key is
 refused as an unknown field, so a host can only be claimed by proving it.

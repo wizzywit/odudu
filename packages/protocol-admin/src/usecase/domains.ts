@@ -20,7 +20,7 @@ import { addressRelyingParty, baseRelyingPartyId, domainAddress } from '@odudu/k
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { domainWireShape, switchEtag } from '#/service/domain-wire';
 import { type VerifyThrottle } from '#/service/domain-throttle';
-import { matches } from '#/service/etag';
+import { hasPrecondition, matches } from '#/service/etag';
 import { COUNT_CAP } from '#/usecase/counts';
 
 const COLLECTION = 'domains';
@@ -228,6 +228,7 @@ export type SwitchDomainOutcome =
   | { kind: 'not_verified' }
   | { kind: 'no_base_url' }
   | { kind: 'conflict' }
+  | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' };
 
 type Applied = Extract<SwitchOutcome, { kind: 'switched' | 'unchanged' }>;
@@ -246,12 +247,13 @@ export async function activateDomain(
   input: { tenant: DomainTenant; id: string; ifMatch: string | undefined } & DomainActor,
   now: Date,
 ): Promise<SwitchDomainOutcome> {
+  if (!hasPrecondition(input.ifMatch)) return { kind: 'precondition_required' };
   const outcome = await switchCanonical(
     { domains: tenantDomainRepository(tx), base: deps.publicBaseUrl, tls: deps.tls },
     input.tenant,
     input.id,
     now,
-    { precondition: (current) => matches(input.ifMatch, switchEtag(current)) !== 'mismatch' },
+    { precondition: (current) => matches(input.ifMatch, switchEtag(current)) === 'match' },
   );
   if (!applied(outcome)) return refusal(outcome);
   if (outcome.kind === 'switched') {
@@ -277,22 +279,29 @@ export async function deactivateDomain(
   input: { tenant: DomainTenant; id: string; ifMatch: string | undefined } & DomainActor,
   now: Date,
 ): Promise<SwitchDomainOutcome> {
+  if (!hasPrecondition(input.ifMatch)) return { kind: 'precondition_required' };
   const repository = tenantDomainRepository(tx);
   const row = await repository.get(input.tenant.id, input.id);
   if (row === null) return { kind: 'not_found' };
   // Not the tenant's address: there is nothing to give up, and switching to
   // the path address would take away whichever domain is.
   if (!row.canonical) return { kind: 'ok', ...(await pointed(tx, input.tenant.id, row)) };
+  // Another address taking the domain's place is a conflict, not a stale
+  // If-Match: the caller named nothing that could have gone stale.
+  const seen = { moved: false };
   const outcome = await switchCanonical(
     { domains: repository, base: deps.publicBaseUrl, tls: deps.tls },
     input.tenant,
     'path',
     now,
     {
-      precondition: (current) =>
-        current?.id === row.id && matches(input.ifMatch, switchEtag(current)) !== 'mismatch',
+      precondition: (current) => {
+        seen.moved = current?.id !== row.id;
+        return !seen.moved && matches(input.ifMatch, switchEtag(current)) === 'match';
+      },
     },
   );
+  if (outcome.kind === 'precondition_failed' && seen.moved) return { kind: 'conflict' };
   if (!applied(outcome)) return refusal(outcome);
   if (outcome.kind === 'switched') {
     await audit(deps, tx, input, {

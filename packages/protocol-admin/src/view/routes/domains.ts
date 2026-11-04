@@ -26,7 +26,7 @@ import {
   switchConflictProblem,
   verifyThrottledProblem,
 } from '#/view/domain-problems';
-import { cursorProblem, fieldProblem, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import { cursorProblem, fieldProblem, ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -72,6 +72,12 @@ function answerSwitch(
       return sendProblem(reply, request, REGISTER_REFUSALS.domain_no_base_url);
     case 'conflict':
       return sendProblem(reply, request, switchConflictProblem());
+    case 'precondition_required':
+      return sendProblem(
+        reply,
+        request,
+        ifMatchRequired('the tenant’s address', request.headers['if-match']),
+      );
     case 'precondition_failed':
       return sendProblem(reply, request, ifMatchStale());
     case 'ok':

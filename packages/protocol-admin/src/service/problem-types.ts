@@ -227,8 +227,8 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
   'domain-verified-elsewhere': {
     status: 409,
     summary:
-      'Another tenant has proved ownership of this host first, so this tenant cannot register or ' +
-      'verify it.',
+      'Another tenant proved ownership of this host first, so this tenant\u2019s verification ' +
+      'of it is refused. Registering a host is never refused for that reason.',
   },
   'domain-host-ip-literal': {
     status: 422,

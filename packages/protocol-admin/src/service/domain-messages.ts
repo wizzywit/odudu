@@ -7,7 +7,8 @@ export const DOMAIN_DETAILS: Readonly<Record<DomainCode, string>> = {
     'this server has no public base URL configured, so no domain can be served',
   [DOMAIN_CODES.limit]: 'the tenant holds as many domains as it may, so remove one first',
   [DOMAIN_CODES.alreadyRegistered]: 'the tenant has registered this host already',
-  [DOMAIN_CODES.verifiedElsewhere]: 'another tenant has proved ownership of this host',
+  [DOMAIN_CODES.verifiedElsewhere]:
+    'another tenant proved ownership of this host first, so it cannot be verified here',
   [DOMAIN_CODES.ipLiteral]: 'an IP address cannot be a domain',
   [DOMAIN_CODES.localhost]: 'localhost cannot be a domain',
   [DOMAIN_CODES.operatorHost]: 'the host is the one this server itself is served at',

@@ -500,6 +500,36 @@ describe('a foreign tenant', () => {
     );
   });
 
+  it('cannot read tenant A’s canonical row or page of domains, or lock its switches', async () => {
+    await expectCrossTenantMethodProbe<Seeded>(app.db, {
+      seed: async (tx, tenantA) => {
+        await tx.insert(tenants).values({ id: tenantA, name: `t-${tenantA.slice(0, 8)}` });
+        const repo = tenantDomainRepository(tx);
+        const row = await repo.insert({ tenantId: tenantA, host: freshHost(), challenge: 'c' });
+        await repo.markVerified(tenantA, row.id, NOW);
+        await repo.setCanonical(tenantA, row.id);
+        return { tenantA, id: row.id, host: row.host };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const repo = tenantDomainRepository(tx);
+        expect((await repo.canonical(seeded.tenantA))?.id).toBe(seeded.id);
+        expect(await repo.page(seeded.tenantA, { limit: 10 })).toHaveLength(1);
+      },
+      attempt: async (tx, seeded) => {
+        const repo = tenantDomainRepository(tx);
+        await repo.lock(seeded.tenantA);
+        return {
+          canonical: await repo.canonical(seeded.tenantA),
+          page: await repo.page(seeded.tenantA, { limit: 10 }),
+          after: await repo.page(seeded.tenantA, { after: '', limit: 10 }),
+        };
+      },
+      expectBlocked: (result) => {
+        expect(result).toEqual({ canonical: null, page: [], after: [] });
+      },
+    });
+  });
+
   it('cannot delete, verify, fail, check, canonicalise or clear tenant A rows', async () => {
     await probe(
       async (tx, seeded) => {
