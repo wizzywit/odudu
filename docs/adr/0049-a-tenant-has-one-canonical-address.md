@@ -28,8 +28,9 @@ number of which are idle.
 **A switch is one transaction, in either direction, from the base address.** The
 admin API and the console stay on the base address, which is what makes switching
 back need nothing from the domain. A switch writes an audit row, records the
-address left as a retired issuer with an expiry, and ends the tenant's browser
-sessions, since a session cookie is host-only.
+address left as a retired issuer with an expiry. No session is ended: a session
+cookie is host-only, so people sign in again at the new address, and the
+sessions at the address left resume if the tenant switches back.
 
 **For a fixed window after a switch both addresses serve, and the window is the
 ceiling the token endpoint enforces on an access token's lifetime,** 3600
@@ -78,8 +79,8 @@ stay the proxy's work.
 ## Consequences
 
 A tenant that does no branding of its address is byte-for-byte unchanged: the
-existing suites pass without edits. A switch costs every browser session of the
-tenant, which the documentation says before the button is pressed. Resource
+existing suites pass without edits. A switch costs every person a sign-in at
+the new address, which the documentation says before the button is pressed. Resource
 servers need both issuers for an hour. The edge costs one indexed read per
 request on a non-base host and one on the base host's tenant paths, which a cache
 could remove and the design does not add until a measurement asks for one: a

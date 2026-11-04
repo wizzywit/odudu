@@ -13,7 +13,7 @@ do. §1 (Introduction), §2 (OpenID Provider Issuer Discovery, which is
 WebFinger-based and itself OPTIONAL), §5 (String Operations), §6
 (Implementation Considerations), §7 (Security Considerations) and §8–9
 (IANA, References) are out of this table's scope: §2 because Odudu's
-issuer is fixed by the tenant's path (design spec §6) and never resolved
+issuer is fixed by the tenant's address, its path or its domain (design spec §6), and never resolved
 by WebFinger, the rest because they impose nothing beyond what §3–4
 already state or are non-normative.
 

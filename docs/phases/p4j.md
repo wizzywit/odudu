@@ -30,7 +30,8 @@ root, and the issuer, the cookies, the RP ID and every link Odudu writes follow 
   activate, deactivate, remove, passkey impact) behind the new `view-domains` and
   `manage-domains` capabilities, which raise the built-in roles from eight to ten; `If-Match`
   is required to switch.
-- **A switch** that ends the tenant's browser sessions, records the address left as a retired
+- **A switch**, after which people sign in again because the session cookie is per host (no
+  session is ended, and the ones at the address left resume on a switch back), records the address left as a retired
   issuer for 3600 seconds, and leaves the address left serving token, userinfo,
   introspection, revocation, keys, logout and discovery, with a `410` page for sign-in.
   Resource servers, `id_token_hint` and client assertions accept both issuers for the window.
@@ -119,16 +120,24 @@ Each row is in `docs/NEXT.md`, "Decisions still open", with its argument.
 - **A global cap on verification lookups, and a limiter shared between instances.** The
   verify throttle and the check endpoint's limiter are per process: **P11**, with the other
   in-process bounds.
+- **Existing tenants get the new roles from `odudu console provision`.** The roles are written by `provisionAdminClient`, which runs for a new tenant and from that command, as every earlier
+  capability's roles were; nothing runs it at boot. The upgrade note, the CHANGELOG and the guide
+  say to run it once.
 - **A host-to-tenant cache.** One indexed read per request on a non-base host, and one on the
   path addresses, is the design; a cache has to state its bound and its invalidation on a
   switch and would blur "refused at its expiry". **P11**, when a measurement asks.
-- **Back-channel logout retry keeps the original `exp`.** A retried logout token that has
-  expired is refused by the receiver. It predates this phase and is outside its topic; **P11**
-  takes it with the other outbound-call work.
 - **A person with no password and only hidden passkeys has no way back inside the sign-in
   itself**; recovery needs a switch back, a reset or an administrator (the guide says which).
   **P4f**, whose self-service criterion owns the account's own recovery.
-- **Not run:** a real reverse proxy and real DNS (above); `pnpm verify`, the e2e specs, the
-  conformance job and the console screenshots of this closing increment ran in CI.
+- **Not run:** a real reverse proxy and real DNS (above). The e2e specs, the conformance job and
+  the console screenshots are CI's to run; none of them ran locally on the closing increment.
+- **Transcripts were captured at `cdde6fd8`.** The commits after it that touch what a server
+  answers are the host rules (a host with no verified row routes as before, the other scheme's
+  default port is no host, the request id of a domain request), the path-address check moving
+  behind the throttles, `verifyJwt` refusing an empty list, the passkey count and the retried
+  logout token. No recorded block sends a path request to a pending or failed host or a `:80`
+  host, and the domain-check answers are unchanged, so none was re-run. The one block that
+  decodes a delivered logout token (`rp-initiated-logout`) predates the phase, and the `iat` and
+  `exp` it shows are those of its own run.
 - **The admin paths as a whole.** The blocks that listed roles or what `tenant-admin` carries were
   run again for the two new capabilities; the 73 pages in one order on one stack stay with **P4g**.

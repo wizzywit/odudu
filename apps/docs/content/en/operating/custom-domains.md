@@ -13,11 +13,13 @@ Odudu does not issue certificates. Your reverse proxy does, and asks Odudu wheth
 
 A tenant has exactly one **canonical address**, either its path address (`https://id.example.com/tenants/acme`, the default) or one verified domain (`https://login.acme.com`, with the same routes at the root). Four things follow it: the `iss` that tokens carry, the host passkeys are tied to, the cookies, and every link Odudu writes, mail included.
 
-A tenant can register up to twenty domains and have one of them as its address. The others are idle: they serve nothing and your proxy is told not to get a certificate for them. Registering a host claims nothing, and several tenants may register the same one. The first to prove it owns it keeps it.
+A tenant can register up to twenty domains and have one of them as its address. The others are idle: they serve nothing and your proxy is told not to get a certificate for them. The one exception is a domain the tenant has just left, which keeps answering for an hour ([what a switch costs](#what-a-switch-costs)). Registering a host claims nothing, and several tenants may register the same one. The first to prove it owns it keeps it.
 
 The admin API and the admin console stay on your base address. That is what lets you switch a tenant back without the domain.
 
 ## 1. Point the commands at your server
+
+A server upgraded from a version before domains has tenants without the `view-domains` and `manage-domains` roles, so run `odudu console provision` once, as [Upgrading](./upgrading.md) says, before anyone manages a domain. A tenant made after the upgrade has them. A fresh quick start needs nothing.
 
 The commands on this page run against the stack from the [quick start](../quick-start/index.mdx), in the folder that holds `compose.yaml`. They read the server's address from one variable. If you moved the port, use that address instead of 3000.
 
@@ -49,7 +51,7 @@ To try the rest of this page without a DNS record, `odudu seed domain` registers
 docker compose exec odudu odudu seed domain --tenant acme --host login.acme-corp.dev --assume-verified
 ```
 
-A verified domain that is not the tenant's address is idle, and your proxy's question about it is answered no:
+A verified domain that is not the tenant's address, and was not in the last hour, is idle, and your proxy's question about it is answered no:
 
 ```sh {run expect="404"}
 curl -sS -o /dev/null -w '%{http_code}\n' "$ODUDU_BASE/internal/domain-check?domain=login.acme-corp.dev"
@@ -57,7 +59,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' "$ODUDU_BASE/internal/domain-check?dom
 
 ## 3. Put the domain behind your proxy
 
-Point the host's DNS at your proxy. The proxy ends TLS, and it gets the certificate on the first request for a host. That needs Odudu's answer to one question, `GET /internal/domain-check?domain=<host>`: `200` with no body for a host Odudu serves, `404` with no body for every other. It takes no secret and tells a caller nothing but whether the host is registered, which certificate transparency logs and DNS already show.
+Point the host's DNS at your proxy. The proxy ends TLS, and it gets the certificate on the first request for a host. That needs Odudu's answer to one question, `GET /internal/domain-check?domain=<host>`: `200` with no body for a host Odudu serves, `404` with no body for every other. It takes no secret and tells a caller nothing but whether the host is served, which certificate transparency logs and DNS already show.
 
 **Keep `/internal` off the public network.** Call it from the proxy by the server's internal name, and make the proxy refuse the path on every public listener. A public caller could otherwise ask it about any name. It is limited to 300 questions a minute from one address, and a proxy asks from a single address, so a flood of handshakes for names nobody registered through the proxy spends the whole budget: new certificates then wait, and are tried again, until the minute passes. Certificates already issued are unaffected.
 
@@ -113,9 +115,9 @@ curl -sS -o /dev/null -w '%{http_code}\n' "$ODUDU_BASE/tenants/acme/protocol/ope
 
 A switch is one change, and it is worth reading this list before you make it, because some of it cannot be undone.
 
-- **Everyone signed in is signed out.** A session cookie belongs to one host, so people sign in again at the new address. Switching back does not restore the sessions that ended. A person's refresh tokens are bound to the tenant, not an address, and keep working: the app uses them at the new address.
+- **Everyone signs in again.** A session cookie belongs to one host, so people sign in again at the new address. Sessions at the address left are not ended, and they resume if the tenant switches back, until their own limits. A person's refresh tokens are bound to the tenant, not an address, and keep working: the app uses them at the new address.
 - **There are two addresses for an hour.** One hour is the longest an access token lives. For that long the old address still serves the token, userinfo, introspection, revocation, key and logout endpoints and discovery, so what was issued keeps working, and a token minted there carries the old issuer. It refuses sign-in, registration and password-reset pages and points to the new address. When the hour ends it serves nothing for the tenant. A second switch inside the hour leaves both previous addresses valid until their own times.
-- **A resource server must accept both issuers for that hour.** An API that checks a token's `iss` against one string rejects tokens minted at the other. Odudu's own `/userinfo` and `/introspect` accept both. Each app also has to move to the new issuer: its discovery URL, and the issuer it checks, are the new address. It has an hour to do it.
+- **A resource server must accept both issuers for that hour.** An API that checks a token's `iss` against one string rejects tokens minted at the other. Odudu's own `/userinfo` and `/introspect` accept both. Each app also has to move to the new issuer: its discovery URL, and the issuer it checks, are the new address. It has an hour to do it. A token minted at the address left late in that hour carries the old issuer, so a resource server that then stops accepting it refuses the token before its own expiry.
 - **Passkeys are hidden, not lost.** A passkey belongs to the host it was registered at. At the new address Odudu offers only passkeys registered there, so the ones from the old address are not offered, and a switch back brings them back. Nothing is deleted. The console counts the people it affects before you switch.
 - **A client's redirect URIs, web origins and logout addresses do not change.** They name the app, not Odudu. `odudu seed client` and the console leave them as they are.
 - **Mail follows the new address.** A link already in somebody's inbox still names the address it was written for, and for a reset link that address refuses the page.
@@ -133,7 +135,7 @@ A tenant whose sign-in flow has no password step at all has only the first way. 
 
 ## 5. Switch back
 
-Choose **Switch back** in the console, or `POST /admin/tenants/acme/domains/<id>/deactivate`. It works whatever state the domain is in, and it makes no call to the domain. Everything above applies in the other direction: sessions end, the address you leave serves its token endpoints for an hour, and the passkeys hidden at the domain come back. The domain stays registered. You can [remove it](../reference/transcripts/admin-paths/get-domains-post-domains-and-the-domain-routes.md) only while it is not the address.
+Choose **Switch back** in the console, or `POST /admin/tenants/acme/domains/<id>/deactivate`. It works whatever state the domain is in, and it makes no call to the domain. Everything above applies in the other direction: people sign in again, the address you leave serves its token endpoints for an hour, and the passkeys hidden at the domain come back. The domain stays registered. You can [remove it](../reference/transcripts/admin-paths/get-domains-post-domains-and-the-domain-routes.md) only while it is not the address.
 
 ## Settings
 

@@ -10,7 +10,7 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 - A tenant can have a public address of its own, such as `login.acme.com`, instead of `/tenants/<name>` under your server's address. Its sign-in pages, the issuer its tokens carry, its cookies and the links in its mail follow that address, and a tenant that does nothing behaves exactly as before. The guide is [Custom domains](apps/docs/content/en/operating/custom-domains.md).
 - A tenant proves it owns a host by publishing a DNS TXT record under `_odudu-challenge.<host>`, in the console's new Domains area or through `/admin/tenants/{tenant}/domains`. A tenant registers up to twenty domains and has one as its address; registering claims nothing, and the first tenant to prove a host keeps it.
-- Switching a tenant to its domain, and back, from the base address. A switch ends the tenant's browser sessions. For one hour, the longest an access token lives, the address the tenant left keeps serving the token, user info, introspection, revocation, key, logout and discovery endpoints, and points sign-in to the new address. The console says how many people a switch hides passkeys from before you confirm it.
+- Switching a tenant to its domain, and back, from the base address. Sign-in cookies belong to one host, so people sign in again at the new address; sessions at the address left are not ended and resume if the tenant switches back. For one hour, the longest an access token lives, the address the tenant left keeps serving the token, user info, introspection, revocation, key, logout and discovery endpoints, and points sign-in to the new address. The console says how many people a switch hides passkeys from before you confirm it.
 - `GET /internal/domain-check?domain=<host>` for your reverse proxy's on-demand TLS question (Caddy's `on_demand_tls { ask }`): `200` for a host Odudu serves, `404` for every other, with no body. Keep it off the public network; it takes no secret.
 - A recheck of every verified domain's ownership record, `odudu domains recheck`, which the server also runs every hour. A domain whose record is gone for three passes fails, and a tenant that has it as its address returns to its path address. A resolver outage counts as nothing, and a failed domain verifies again once its record is back.
 - `odudu seed domain --tenant <name> --host <host>`, with `--canonical` and `--assume-verified`, which marks a host verified without the DNS proof and refuses to run in production.
@@ -21,14 +21,18 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 - A tenant has one address at a time. A passkey is tied to the address it was registered at: after a switch it is not offered at the other address, and a switch back brings it back. Password sign-in is not affected, and nothing is deleted.
 - A client's redirect addresses, web origins and sign-out addresses do not change when its tenant switches address, and the apps that read a tenant's issuer have an hour to move to the new one. An API that checks a token's issuer locally must accept both for that hour.
-- The built-in roles are ten, not eight.
+- The built-in roles are ten, not eight. A tenant that exists before the upgrade gets the two new roles when you run `odudu console provision` once after it; until then its administrators are refused the domain routes and the console hides Domains.
+
+### Fixed
+
+- A back-channel logout that is retried carries the time of the retry, with the lifetime it was minted with, so a receiver no longer refuses a retry for the age of the first attempt.
 
 ### Security
 
 - A request is served as a tenant only through a verified domain row. A host with no verified row selects no tenant and is routed as before, so registering a name cannot blank it; a verified host that is not live gets one bare refusal on every path.
 - `X-Forwarded-Host` is read only when `ODUDU_TRUST_PROXY` is on, and then from its last entry, the one your proxy appended, never one a client could have written ahead of it.
 - Hosts are refused by their folded spelling, so a Unicode dot or a fullwidth letter does not walk past the refusal of your own host, `localhost` or an IP address.
-- Verifying a domain is limited: a host is looked up once every 30 seconds, whichever tenant asks, and a tenant makes ten lookups a minute. The limits are per process.
+- Verifying a domain is limited: a tenant looks a host up at most once every 30 seconds and makes ten lookups a minute. The limits are per process.
 - A domain whose owner lost it stops serving the tenant's sign-in: the recheck fails it, and the tenant falls back to its path address.
 - Mail links are written from the tenant's address, never from the request's `Host`.
 

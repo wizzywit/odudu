@@ -17,7 +17,7 @@ The migrations only go forward. Odudu has no down migrations, so the way back fr
 
 Read the notes of every release between your version and the new one on [the releases page](https://github.com/wizzywit/odudu/releases), or in `CHANGELOG.md` in the repository. The phase notes in its `docs/phases` directory go into more detail. Look there for any command to run after the upgrade. Two you may meet:
 
-- `odudu console provision`, after a version that changes the console's key or the base address, so each tenant registers the console's current key and redirect addresses.
+- `odudu console provision`, after a version that changes the console's key or the base address, so each tenant registers the console's current key and redirect addresses. It also gives every existing tenant the roles a version added, such as `view-domains` and `manage-domains`; until it runs, those tenants' administrators are refused the routes behind them, and the console hides the area. A tenant made after the upgrade has them already. The command needs `ODUDU_CONSOLE` on.
 - `odudu client-origins rebuild`, once, after upgrading past the migration that added client origins, so a client whose addresses use an internationalised host or an IPv6 literal is not refused its preflight.
 
 ## 3. Replace the container
