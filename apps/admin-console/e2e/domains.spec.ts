@@ -83,7 +83,7 @@ test('a domain is registered and its record shown, then a verified one is made t
     name: `Make ${verified} the tenant’s address?`,
   });
   await expect(activate).toContainText('1 hour');
-  await expect(activate).toContainText('signed out');
+  await expect(activate).toContainText('sign in again');
   await expect(activate).toContainText('1 subject holds a passkey');
   const confirm = activate.getByRole('button', { name: 'Make it the address' });
   await expect(confirm).toBeDisabled();

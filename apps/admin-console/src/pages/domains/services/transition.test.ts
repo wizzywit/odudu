@@ -17,5 +17,6 @@ it('names what the previous address keeps serving and what it refuses', () => {
   const note = transitionNote();
   expect(note).toContain('token');
   expect(note).toContain('userinfo');
+  expect(note).toContain('discovery');
   expect(note).toContain('sign-in');
 });

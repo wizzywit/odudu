@@ -39,15 +39,15 @@ export function warningFor(
   return impactTarget(asked) === null ? { kind: 'none' } : passkeyWarning(impact);
 }
 
-const SIGNED_OUT =
-  'Everyone signed in to this tenant is signed out and signs in once more at the new address.';
+const SIGN_IN_AGAIN =
+  'Everyone has to sign in again at the new address, because a sign-in belongs to one address. Sessions at the address left are not ended and resume if the tenant switches back.';
 
 function warningSentences(warning: PasskeyWarning): string[] {
   return warning.kind === 'none' ? [] : [warning.text];
 }
 
 function switchConsequence(lead: string, warning: PasskeyWarning): string {
-  return spaced(lead, SIGNED_OUT, transitionNote(), ...warningSentences(warning));
+  return spaced(lead, SIGN_IN_AGAIN, transitionNote(), ...warningSentences(warning));
 }
 
 function choiceOf(warning: PasskeyWarning): Pick<NamedDialog, 'choice'> {

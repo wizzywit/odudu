@@ -310,10 +310,10 @@ function seedAccess(access: Seeded['access']): void {
   seedDomains(access.domains);
 }
 
-// Registered and verified without DNS, which the stack has none of; the
-// a subject beside the administrator holds a passkey registered at the base
-// address, which a switch to the domain would hide. It is not the administrator's
-// own, so signing in stays a password and nothing else.
+// Registered and verified without DNS, which the stack has none of. A subject
+// beside the administrator holds a passkey registered at the base address,
+// which a switch to the domain would hide. It is not the administrator's own,
+// so signing in stays a password and nothing else.
 function seedDomains(domains: Seeded['access']['domains']): void {
   for (const account of [domains.main, domains.fixed]) {
     seed(['tenant', '--name', account.tenant]);

@@ -44,7 +44,7 @@ export const DOMAINS_WORDS = {
   switching: {
     title: 'Switching the address',
     sessions:
-      'A switch signs everyone in at the tenant out, because a session belongs to the address it began at, and moves the issuer, the sign-in pages and the links in mail.',
+      'A switch moves the issuer, the sign-in pages and the links in mail. Everyone signs in again at the new address, because a sign-in belongs to one address, and sessions at the address left are not ended.',
     passkeys:
       'Passkeys belong to the address they were registered at, so a switch hides the ones registered at the other address, and a switch back brings them back. Before a switch the console counts the subjects it would affect.',
     back: 'Switching back to the path address is always possible, whatever state a domain is in.',

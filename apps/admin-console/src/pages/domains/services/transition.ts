@@ -13,5 +13,5 @@ export function windowWords(seconds: number): string {
 }
 
 export function transitionNote(seconds: number = ACCESS_TOKEN_CEILING_SECONDS): string {
-  return `For ${windowWords(seconds)} after a switch the previous address keeps serving the token, userinfo, introspection, revocation, key and logout endpoints, so what was already issued keeps working. It refuses sign-in, registration and password-reset pages, and points to the new address. After that it serves nothing for this tenant.`;
+  return `For ${windowWords(seconds)} after a switch the previous address keeps serving the token, userinfo, introspection, revocation, key, logout and discovery endpoints, so what was already issued keeps working. It refuses sign-in, registration and password-reset pages, and points to the new address. After that it serves nothing for this tenant.`;
 }

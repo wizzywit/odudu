@@ -61,7 +61,7 @@ Nothing yet
 No domains
 No domain is registered. Register a host above to give this tenant an address of its own.
 Switching the address
-A switch signs everyone in at the tenant out, because a session belongs to the address it began at, and moves the issuer, the sign-in pages and the links in mail.
-For 1 hour after a switch the previous address keeps serving the token, userinfo, introspection, revocation, key and logout endpoints, so what was already issued keeps working. It refuses sign-in, registration and password-reset pages, and points to the new address. After that it serves nothing for this tenant.
+A switch moves the issuer, the sign-in pages and the links in mail. Everyone signs in again at the new address, because a sign-in belongs to one address, and sessions at the address left are not ended.
+For 1 hour after a switch the previous address keeps serving the token, userinfo, introspection, revocation, key, logout and discovery endpoints, so what was already issued keeps working. It refuses sign-in, registration and password-reset pages, and points to the new address. After that it serves nothing for this tenant.
 Passkeys belong to the address they were registered at, so a switch hides the ones registered at the other address, and a switch back brings them back. Before a switch the console counts the subjects it would affect.
 Switching back to the path address is always possible, whatever state a domain is in.

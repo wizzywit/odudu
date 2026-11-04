@@ -34,10 +34,12 @@ it('asks a passkey impact for the host being made the address, and for the path 
   expect(impactTarget(null)).toBeNull();
 });
 
-it('says what an activation changes: sign-ins end, the window, and the passkeys', () => {
+it('says what an activation changes: people sign in again, the window, and the passkeys', () => {
   const dialog = dialogOf({ action: 'activate', domain: verified }, ACK);
   expect(dialog.title).toBe('Make login.acme.com the tenant’s address?');
-  expect(dialog.consequence).toContain('signed out');
+  expect(dialog.consequence).toContain('sign in again');
+  expect(dialog.consequence).toContain('are not ended');
+  expect(dialog.consequence).not.toContain('signed out');
   expect(dialog.consequence).toContain('1 hour');
   expect(dialog.consequence).toContain('3 subjects hold passkeys');
   expect(dialog.confirmLabel).toBe('Make it the address');
