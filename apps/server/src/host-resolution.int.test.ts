@@ -2,7 +2,7 @@ import { createDatabase, MIGRATIONS_DIR, runMigrations, tenants, withTenant } fr
 import { type DatabaseHandle } from '@odudu/db';
 import { requiredActionRepository, type RequiredAction } from '@odudu/authn-flows';
 import { totpCode, totpCounter } from '@odudu/crypto';
-import { hostState, tenantDomainRepository } from '@odudu/domain-tenant';
+import { hostState, tenantAddressing, tenantDomainRepository } from '@odudu/domain-tenant';
 import { loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq, sql } from 'drizzle-orm';
@@ -515,6 +515,27 @@ describe('the throttles and input hygiene of a tenant route', () => {
     }
     const same = await onPath.post(`/tenants/${twin.name}/login-actions/${action}`, body());
     expect(comparable(refused)).toEqual(comparable(same));
+  });
+
+  it('costs a throttled path-address POST no statement about its tenant', async () => {
+    const addressed: string[] = [];
+    const { app } = await start({
+      throttle: { limit: 1, windowSeconds: 60 },
+      extra: {
+        addressing: (name, issuer) => {
+          addressed.push(name);
+          return tenantAddressing(owner.db, name, issuer, new Date());
+        },
+      },
+    });
+    const tenant = await newTenant();
+    const path = `/tenants/${tenant.name}/login-actions/authenticate`;
+    const browser = new Browser(app, BASE_HOST);
+    expect((await browser.post(path, body())).statusCode).not.toBe(429);
+    const before = addressed.length;
+    expect(before).toBeGreaterThan(0);
+    expect((await browser.post(path, body())).statusCode).toBe(429);
+    expect(addressed.length).toBe(before);
   });
 
   it('counts a username from one address against the composite budget', async () => {

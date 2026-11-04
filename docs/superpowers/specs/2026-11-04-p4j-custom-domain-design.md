@@ -82,7 +82,7 @@ is tenant-isolated and cannot see another tenant's rows.
 
 The admin API hands back a token; the tenant publishes it as a DNS TXT record
 under `_odudu-challenge.<host>`; verification resolves the record. A recheck
-runs for every canonical domain on a schedule: a command first, a timer second
+runs for every verified domain on a schedule: a command first, a timer second
 (CLAUDE.md, "Background work"), `odudu domains recheck`, with the loop a thin
 file beside `scheduler.ts`. A lookup that answers _no such name_ or _no matching record_ counts as a failure; a resolver error or timeout is indeterminate and counts as nothing, and a page of the walk (500 rows) in which more than half the lookups are indeterminate counts nothing, which keeps memory bounded to one page, so a resolver outage cannot disable every custom domain. A pass is bounded: a per-lookup timeout, a concurrency limit, and a keyset walk in pages, so a pass over tens of thousands of domains neither runs serially nor holds its lock for hours. A domain that fails its recheck for a set number of
 consecutive passes goes to `failed`, the `ask` endpoint stops approving it, the
@@ -98,7 +98,7 @@ the client controls otherwise) matches a verified domain is served as that
 tenant at the root. The mechanism is a rewrite at the edge: the request URL
 `/protocol/openid-connect/auth` becomes `/tenants/<name>/protocol/openid-connect/auth`
 before routing, so none of the 86 route declarations that take `:tenant` change.
-A host with no verified row (nobody's, or only pending or failed, so a registration cannot blank a name the operator runs) is left alone and routed exactly as today (the issuer comes from configuration, so a host selects nothing), which is what keeps the loopback health checks, the conformance scripts and a deployment reached by IP unchanged; at a root path such a host reaches nothing because no route lives there. A host whose verified row is not live (idle, past its window, or a disabled tenant) receives the same bare refusal an unknown path does, for every path. Host resolution is skipped for the base host, for `/health*` and for `/internal/domain-check`, so a probe whose `Host` is `127.0.0.1` or an internal name costs no lookup. Requests
+A host with no verified row (nobody's, or only pending or failed, so a registration cannot blank a name the operator runs) is left alone and routed exactly as today (the issuer comes from configuration, so a host selects nothing), which is what keeps the loopback health checks, the conformance scripts and a deployment reached by IP unchanged; at a root path such a host reaches nothing because no route lives there. A host whose verified row is not live (idle, past its window, or a disabled tenant) receives the same bare refusal an unknown path does, for every path. Host resolution is skipped for the base host, for `/health*` and for `/internal/domain-check`, so a probe whose `Host` is `127.0.0.1` or an internal name costs no host lookup. A URL under `/tenants/<name>` on the base host or a host nobody verified costs one indexed read of the tenant's addressing, to refuse a path address the tenant left, and it is made after the throttles so a request they refuse costs none; every other path on those hosts costs none. Requests
 already under `/tenants/` on a domain host are refused: a domain serves its own
 tenant at the root and nothing else.
 
@@ -189,7 +189,9 @@ Questions a reader of this document asked, answered here as the author's calls.
   share the base host's RP ID, as they do today.
 - **Off switch and compatibility.** There is no feature flag: a tenant with no
   verified domain row changes nothing, and a request for the base host does no
-  domain lookup. `/internal/domain-check` always exists and answers 404 when
+  host lookup. A `/tenants/<name>` path on it pays the one addressing read
+  described in 3.4, whether or not any domain exists; a cache for it waits for a
+  measurement. `/internal/domain-check` always exists and answers 404 when
   nothing is registered. The recheck loop has a switch named in the loader like
   the others, so it can be turned off for a deployment that schedules
   `odudu domains recheck` externally. Nothing here is pre-1.0 frozen: the admin

@@ -47,9 +47,17 @@ function answer(reply: FastifyReply, refusal: Refusal): FastifyReply {
 // Nothing is resolved without a base URL to tell the operator's own host by.
 // A tenant that switched address answers at the one it left, for a window,
 // only where an issued token is used; after it, with a bare 404.
-export function configureHostResolution(app: FastifyInstance, deps: HostResolutionDeps): void {
+//
+// Returns the hook that refuses a path address a tenant left. It is the
+// caller's to register after the throttle hooks, so a request they refuse
+// costs no statement; it reads the tenant once for a `/tenants/<name>` URL on
+// the base host or a host nobody verified, and never for another path.
+export function configureHostResolution(
+  app: FastifyInstance,
+  deps: HostResolutionDeps,
+): (request: FastifyRequest, reply: FastifyReply) => Promise<FastifyReply | undefined> {
   const { publicBaseUrl, trustProxy, tls, state, addressing } = deps;
-  if (publicBaseUrl === undefined) return;
+  if (publicBaseUrl === undefined) return () => Promise.resolve(undefined);
   const baseHost = baseHostOf(publicBaseUrl);
   const served = new WeakMap<IncomingMessage, string>();
 
@@ -109,10 +117,10 @@ export function configureHostResolution(app: FastifyInstance, deps: HostResoluti
     const url = request.raw.url ?? '';
     if (isExemptPath(url)) return;
     const host = requestHost(request.raw, trustProxy);
-    if (host === null || host === baseHost) return pathAddressAnswer(request, reply, url);
+    if (host === null || host === baseHost) return;
     reply.header('x-request-id', request.id);
     const found = await state(host);
-    if (found.kind === 'unknown') return pathAddressAnswer(request, reply, url);
+    if (found.kind === 'unknown') return;
     if (found.kind === 'not_live') return refuse(reply);
     const target = rewriteForDomain(url, found.route.tenantName);
     if (target === null) return refuse(reply);
@@ -125,4 +133,10 @@ export function configureHostResolution(app: FastifyInstance, deps: HostResoluti
     request.raw.url = target;
     app.routing(request.raw, reply.raw);
   });
+
+  return async (request, reply) => {
+    const url = request.raw.url ?? '';
+    if (served.has(request.raw) || isExemptPath(url)) return undefined;
+    return pathAddressAnswer(request, reply, url);
+  };
 }

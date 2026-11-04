@@ -34,13 +34,14 @@ function build(options: Options = {}) {
   const base = 'publicBaseUrl' in options ? options.publicBaseUrl : BASE;
   configureIssuerBase(app, base);
   configureTenantAddress(app);
-  configureHostResolution(app, {
+  const pathAddressCheck = configureHostResolution(app, {
     publicBaseUrl: base,
     trustProxy: options.trustProxy ?? false,
     tls: true,
     state,
     addressing,
   });
+  app.addHook('onRequest', pathAddressCheck);
   app.get('/tenants/:tenant/ping', (request) => ({
     route: request.routeOptions.url,
     url: request.url,

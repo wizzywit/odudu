@@ -22,6 +22,7 @@ import {
   tenantAddressing,
   type HostState,
   type ResolveTxt,
+  type TenantAddressing,
 } from '@odudu/domain-tenant';
 import { createBranding, type Branding } from '#/branding';
 import { createMailLook } from '#/mail-look';
@@ -249,6 +250,8 @@ export interface AppDeps {
    * passes its own to count the reads.
    */
   readonly hostState?: (host: string) => Promise<HostState>;
+  /** Defaults to `tenantAddressing` on `ownerDatabase`; a test counts the reads. */
+  readonly addressing?: (tenantName: string, issuer: string) => Promise<TenantAddressing | null>;
 }
 
 export interface ThrottleSettings {
@@ -407,13 +410,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   configureTenantAddress(app);
   const hostStateOf =
     deps.hostState ?? ((host: string) => hostState(deps.ownerDatabase.db, host, systemClock.now()));
-  configureHostResolution(app, {
+  const pathAddressCheck = configureHostResolution(app, {
     publicBaseUrl: deps.publicBaseUrl,
     trustProxy: deps.trustProxy ?? false,
     tls,
     state: hostStateOf,
-    addressing: (tenantName, issuer) =>
-      tenantAddressing(deps.ownerDatabase.db, tenantName, issuer, systemClock.now()),
+    addressing:
+      deps.addressing ??
+      ((tenantName, issuer) =>
+        tenantAddressing(deps.ownerDatabase.db, tenantName, issuer, systemClock.now())),
   });
 
   if (deps.onRoute !== undefined) app.addHook('onRoute', deps.onRoute);
@@ -477,10 +482,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // names) — so the two can never disagree about which mappers exist.
   const claimMappers = standardClaimMappers();
 
-  // At onRequest, so a refusal costs neither the body parse nor anything
-  // that touches the database. It is also what keeps the refusal from
-  // being an oracle: nothing here has looked an account up, so a throttled
-  // request cannot answer differently for an account that exists.
+  // At onRequest, so a refusal costs neither the body parse nor any account
+  // lookup. It is also what keeps the refusal from being an oracle: nothing
+  // here has looked an account up, so a throttled request cannot answer
+  // differently for an account that exists. A request for a domain host has
+  // already paid that host's one indexed read, because it picks the route.
   app.addHook('onRequest', async (request, reply) => {
     if (request.method !== 'POST') return;
     const route = request.routeOptions.url;
@@ -489,6 +495,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (decision.allowed) return;
     return refuse(reply, route, decision.retryAfterSeconds);
   });
+
+  // After the throttle, so a throttled request costs no statement about its
+  // tenant. A domain host's own lookup cannot wait: it decides the route.
+  app.addHook('onRequest', pathAddressCheck);
 
   // Under /tenants, before anything reads a value: a NUL or a lone surrogate
   // in a name, a form field, a query parameter or the tenant segment cannot
