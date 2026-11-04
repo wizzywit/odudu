@@ -490,7 +490,6 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Verify: page(DOMAINS_WORDS, "verify: 'Verify'"),
   'Make the address': page(DOMAINS_WORDS, "activate: 'Make the address'"),
   'Switch back': page(DOMAINS_WORDS, "deactivate: 'Switch back'"),
-  Remove: page(DOMAINS_WORDS, "remove: 'Remove'"),
   'Make it the address': page(DOMAINS_CONFIRM, "confirmLabel: 'Make it the address'"),
   'Remove domain': page(DOMAINS_CONFIRM, "confirmLabel: 'Remove domain'"),
   Pending: page(DOMAINS_ROWS, "label: 'Pending'"),
@@ -609,7 +608,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     "OVERRIDES_TITLE = 'Message overrides'",
   ),
   Edit: page('branding/services/overridesView.ts', "edit: 'Edit'"),
-  Remove: page('branding/services/overridesView.ts', "remove: 'Remove'"),
+  Remove: several(
+    page('branding/services/overridesView.ts', "remove: 'Remove'"),
+    page(DOMAINS_WORDS, "remove: 'Remove'"),
+  ),
   'Colours and font': feature(
     'branding-editor/services/colourSection.ts',
     "COLOURS_TITLE = 'Colours and font'",
