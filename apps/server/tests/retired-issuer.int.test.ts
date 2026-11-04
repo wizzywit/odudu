@@ -436,7 +436,11 @@ const SITES: Site[] = [
     },
     after: async (_t, to, tokens) => {
       const res = await authorizeWithHint(to, tokens.idToken);
-      expect(res.body).not.toContain('<form');
+      expect(res.statusCode).toBe(302);
+      const location = new URL(String(res.headers.location));
+      expect(location.origin + location.pathname).toBe(REDIRECT_URI);
+      expect(location.searchParams.get('error')).toBe('invalid_request');
+      expect(location.searchParams.get('error_description')).toBe('id_token_hint is not valid');
     },
   },
   {
@@ -449,6 +453,8 @@ const SITES: Site[] = [
     after: async (_t, to, tokens) => {
       const res = await logoutWithHint(to, tokens.idToken);
       expect(res.statusCode).toBe(200);
+      expect(res.headers.location).toBeUndefined();
+      expect(res.body).not.toContain(LOGOUT_URI);
     },
   },
 ];
@@ -470,6 +476,24 @@ describe('a token minted at the address a tenant left', () => {
     },
     60_000,
   );
+
+  it("is refused for another tenant, whose accepted issuers do not include the first tenant's retired one", async () => {
+    const first = await newTenant();
+    const second = await newTenant();
+    const minted = await codeFlow(first, pathAddress(first));
+    const firstDomain = await verifiedDomain(first, false);
+    await switchTo(first, firstDomain.id);
+    const secondDomain = await verifiedDomain(second, false);
+    await switchTo(second, secondDomain.id);
+
+    for (const at of [pathAddress(second), domainAddress(secondDomain.host)]) {
+      expect((await userinfo(at, minted.accessToken)).statusCode, at.issuer).toBe(401);
+      expect(await introspects(at, minted.accessToken), at.issuer).toBe(false);
+    }
+    expect((await userinfo(domainAddress(firstDomain.host), minted.accessToken)).statusCode).toBe(
+      200,
+    );
+  }, 60_000);
 
   it('is accepted as a client assertion audience inside the window and refused when it ends', async () => {
     const t = await newTenant();
@@ -515,7 +539,6 @@ describe('the path address after a switch to a domain', () => {
 
   it('answers token, userinfo, introspection, revocation, jwks, discovery and logout inside the window', async () => {
     const { t, path, tokens, to } = await switched();
-    const own = (await codeFlow(t, path).catch(() => null)) ?? tokens;
 
     const issued = await clientCredentials(path);
     expect(issued.statusCode).toBe(200);
@@ -527,7 +550,7 @@ describe('the path address after a switch to a domain', () => {
     expect((await logoutWithHint(path, tokens.idToken)).statusCode).toBe(302);
     const revocation = await new Browser(path).post(
       '/protocol/openid-connect/revoke',
-      { token: own.accessToken },
+      { token: tokens.accessToken },
       basic(),
     );
     expect(revocation.statusCode).toBe(200);
