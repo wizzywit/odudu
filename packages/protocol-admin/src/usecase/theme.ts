@@ -21,7 +21,7 @@ import {
   type ThemeScope,
   type ThemeVersionSummary,
 } from '@odudu/domain-theme';
-import { PAGE_KINDS, type PageKind } from '@odudu/kernel';
+import { PAGE_KINDS, type PageKind, pathAddress } from '@odudu/kernel';
 import { hasPrecondition, matches, requiredPrecondition } from '#/service/etag';
 import { fieldPath } from '#/service/field-path';
 import {
@@ -203,7 +203,10 @@ async function holdAssets(
     const named = body.assets[slot];
     if (named === undefined) continue;
     const asset = byId.get(named.assetId);
-    const url = asset === undefined ? null : assetPath(target.tenantName, asset.sha256, asset.mime);
+    const url =
+      asset === undefined
+        ? null
+        : assetPath(pathAddress('', target.tenantName), asset.sha256, asset.mime);
     if (url === null) missing.push({ path: `assets.${slot}.assetId`, assetId: named.assetId });
     else urls.add(url);
   }
