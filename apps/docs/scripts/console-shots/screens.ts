@@ -220,7 +220,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'roles',
-    alt: "The demo tenant's Roles list: the eight built-in admin capabilities, each marked as an admin capability, and a Create a role button.",
+    alt: "The demo tenant's Roles list: the ten built-in roles of the admin client, each marked as an admin capability, and a Create a role button.",
     caption: 'Every tenant starts with the admin capabilities as roles.',
     signedIn: true,
     expect: [
@@ -236,12 +236,14 @@ export const SCREENS: readonly Screen[] = [
           'manage-keys',
           'manage-sessions',
           'view-audit',
+          'view-domains',
+          'manage-domains',
         ],
       },
     ],
     open: async (page, context) => {
       await openArea(page, context, `${DEMO}/roles`);
-      await page.getByText('8 roles').waitFor();
+      await page.getByText('10 roles').waitFor();
     },
   },
   {

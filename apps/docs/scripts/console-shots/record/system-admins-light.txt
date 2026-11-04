@@ -69,6 +69,8 @@ manage-tenant
 manage-keys
 manage-sessions
 view-audit
+view-domains
+manage-domains
 manage-tenants
 1 administrator
 admin@odudu.local
@@ -113,6 +115,12 @@ See and end sessions, and revoke grants.
 Carried by Full (tenant-admin).
 view-audit
 Read the audit trail.
+Carried by Full (tenant-admin).
+view-domains
+See the tenant’s domains and which one is its address.
+Carried by Full (tenant-admin).
+manage-domains
+Register, verify, switch to and remove the tenant’s domains. Carries view-domains.
 Carried by Full (tenant-admin).
 manage-tenants
 Create, change and disable tenants, and act inside every one.

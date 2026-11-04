@@ -61,7 +61,7 @@ Tenant or client
 ▾
 Tenant or client
 Tenant roles
-8 roles
+10 roles
 Role
 Belongs to
 Description
@@ -139,6 +139,26 @@ Created
 recently
 Role
 view-audit
+Belongs to
+admin capability
+Description
+—
+New subjects
+—
+Created
+recently
+Role
+view-domains
+Belongs to
+admin capability
+Description
+—
+New subjects
+—
+Created
+recently
+Role
+manage-domains
 Belongs to
 admin capability
 Description
