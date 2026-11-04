@@ -19,6 +19,7 @@ import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import {
   dnsChallengeResolver,
   hostState,
+  tenantAddressing,
   type HostState,
   type ResolveTxt,
 } from '@odudu/domain-tenant';
@@ -411,6 +412,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     trustProxy: deps.trustProxy ?? false,
     tls,
     state: hostStateOf,
+    addressing: (tenantName, issuer) =>
+      tenantAddressing(deps.ownerDatabase.db, tenantName, issuer, systemClock.now()),
   });
 
   if (deps.onRoute !== undefined) app.addHook('onRoute', deps.onRoute);

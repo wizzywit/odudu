@@ -1,5 +1,5 @@
 import { configureIssuerBase, configureTenantAddress } from '@odudu/protocol-oidc';
-import { type HostState } from '@odudu/domain-tenant';
+import { type HostState, type TenantAddressing } from '@odudu/domain-tenant';
 import Fastify, { type FastifyInstance } from 'fastify';
 import http from 'node:http';
 import net from 'node:net';
@@ -15,6 +15,7 @@ const LIVE: HostState = {
 };
 
 interface Options {
+  addressing?: (tenantName: string, issuer: string) => TenantAddressing | null;
   states?: Record<string, HostState>;
   trustProxy?: boolean;
   publicBaseUrl?: string | undefined;
@@ -25,6 +26,10 @@ function build(options: Options = {}) {
   const state = vi.fn((host: string): Promise<HostState> => {
     return Promise.resolve(states[host] ?? { kind: 'unknown' });
   });
+  const answer = options.addressing ?? (() => ({ canonicalHost: null, retiredUntil: null }));
+  const addressing = vi.fn((tenantName: string, issuer: string) =>
+    Promise.resolve(answer(tenantName, issuer)),
+  );
   const app: FastifyInstance = Fastify({ trustProxy: options.trustProxy ?? false });
   const base = 'publicBaseUrl' in options ? options.publicBaseUrl : BASE;
   configureIssuerBase(app, base);
@@ -34,6 +39,7 @@ function build(options: Options = {}) {
     trustProxy: options.trustProxy ?? false,
     tls: true,
     state,
+    addressing,
   });
   app.get('/tenants/:tenant/ping', (request) => ({
     route: request.routeOptions.url,
@@ -45,7 +51,9 @@ function build(options: Options = {}) {
   app.get('/health/live', () => ({ status: 'ok' }));
   app.get('/internal/domain-check', () => ({ check: true }));
   app.post('/tenants/:tenant/echo', (request) => ({ body: request.body }));
-  return { app, state };
+  app.get('/tenants/:tenant/protocol/openid-connect/auth', () => ({ authorize: true }));
+  app.get('/tenants/:tenant/protocol/openid-connect/userinfo', () => ({ userinfo: true }));
+  return { app, state, addressing };
 }
 
 const inject = (
@@ -352,5 +360,137 @@ describe('targets that try to leave the tenant', () => {
   it('leaves no process listener behind', () => {
     expect(process.listenerCount('unhandledRejection')).toBe(listenersBefore.rejection);
     expect(process.listenerCount('uncaughtException')).toBe(listenersBefore.exception);
+  });
+});
+
+describe('the previous address of a tenant', () => {
+  const FUTURE = new Date('2099-01-01T00:00:00Z');
+  const moved = (canonicalHost: string | null, retiredUntil: Date | null) => () => ({
+    canonicalHost,
+    retiredUntil,
+  });
+  const PATH = '/tenants/acme';
+  const PAGE = { accept: 'text/html' };
+
+  describe('the path address after a switch to a domain', () => {
+    it('serves what a token issued there is used at, inside the window', async () => {
+      const { app } = build({ addressing: moved('login.acme.com', FUTURE) });
+      for (const rest of [
+        '/.well-known/openid-configuration',
+        '/protocol/openid-connect/userinfo',
+      ]) {
+        expect((await inject(app, `${PATH}${rest}`, 'id.odudu.example')).statusCode, rest).toBe(
+          200,
+        );
+      }
+    });
+
+    it('points at the canonical address instead of authorizing, inside the window', async () => {
+      const { app } = build({ addressing: moved('login.acme.com', FUTURE) });
+      const res = await inject(
+        app,
+        `${PATH}/protocol/openid-connect/auth?client_id=a`,
+        'id.odudu.example',
+        PAGE,
+      );
+      expect(res.statusCode).toBe(410);
+      expect(res.headers['content-type']).toContain('text/html');
+      expect(res.headers['cache-control']).toBe('no-store');
+      expect(res.body).toContain('<h1>This address has moved</h1>');
+      expect(res.body).toContain('href="https://login.acme.com"');
+    });
+
+    it('asks about the tenant by name and its own path issuer', async () => {
+      const { app, addressing } = build({ addressing: moved('login.acme.com', FUTURE) });
+      await inject(app, `${PATH}/ping`, 'id.odudu.example');
+      expect(addressing).toHaveBeenCalledWith('acme', 'https://id.odudu.example/tenants/acme');
+    });
+
+    it('answers the bare 404 on every path once the window is over', async () => {
+      const { app } = build({ addressing: moved('login.acme.com', null) });
+      const answers = await Promise.all(
+        [
+          '/.well-known/openid-configuration',
+          '/protocol/openid-connect/userinfo',
+          '/ping',
+          '/x',
+        ].map((rest) => inject(app, `${PATH}${rest}`, 'id.odudu.example', PAGE)),
+      );
+      for (const res of answers) {
+        expect(res.statusCode).toBe(404);
+        expect(res.body).toBe('');
+      }
+      expect(withoutId(answers[1]?.headers)).toEqual(withoutId(answers[3]?.headers));
+    });
+
+    it('also applies on a host nobody registered, which reaches the same path address', async () => {
+      const { app } = build({ addressing: moved('login.acme.com', null) });
+      expect((await inject(app, `${PATH}/ping`, 'other.example.org')).statusCode).toBe(404);
+    });
+
+    it('reads a percent-encoded tenant segment as the router does', async () => {
+      const { app, addressing } = build({ addressing: moved('login.acme.com', null) });
+      expect((await inject(app, '/tenants/%61cme/ping', 'id.odudu.example')).statusCode).toBe(404);
+      expect(addressing).toHaveBeenCalledWith('acme', 'https://id.odudu.example/tenants/acme');
+    });
+
+    it('serves a tenant that is on its path address, and one that does not exist', async () => {
+      const onPath = build({ addressing: moved(null, null) });
+      expect((await inject(onPath.app, `${PATH}/ping`, 'id.odudu.example')).statusCode).toBe(200);
+      const nobody = build({ addressing: () => null });
+      expect((await inject(nobody.app, `${PATH}/ping`, 'id.odudu.example')).statusCode).toBe(200);
+    });
+
+    it('asks nothing for a path that names no tenant, a probe or an unconfigured base', async () => {
+      const { app, addressing } = build({ addressing: moved('login.acme.com', null) });
+      await inject(app, '/health/live', 'id.odudu.example');
+      await inject(app, '/admin/tenants/acme', 'id.odudu.example');
+      await inject(app, '/nope', 'id.odudu.example');
+      expect(addressing).not.toHaveBeenCalled();
+      const unconfigured = build({ publicBaseUrl: undefined, addressing: moved('x.test', null) });
+      await inject(unconfigured.app, `${PATH}/ping`, 'id.odudu.example');
+      expect(unconfigured.addressing).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('a domain the tenant left, inside its window', () => {
+    const LEFT: HostState = {
+      kind: 'live',
+      route: {
+        tenantId: TENANT_ID,
+        tenantName: 'acme',
+        canonical: false,
+        retiredUntil: FUTURE,
+      },
+    };
+    const states = { 'old.acme.com': LEFT };
+
+    it('serves what a token issued there is used at', async () => {
+      const { app } = build({ states, addressing: moved('login.acme.com', null) });
+      const res = await inject(app, '/protocol/openid-connect/userinfo', 'old.acme.com');
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ userinfo: true });
+    });
+
+    it('points at the other domain it moved to', async () => {
+      const { app } = build({ states, addressing: moved('login.acme.com', null) });
+      const res = await inject(app, '/protocol/openid-connect/auth', 'old.acme.com', PAGE);
+      expect(res.statusCode).toBe(410);
+      expect(res.body).toContain('href="https://login.acme.com"');
+    });
+
+    it('points at the path address when the tenant switched back to it', async () => {
+      const { app, addressing } = build({ states, addressing: moved(null, null) });
+      const res = await inject(app, '/protocol/openid-connect/auth', 'old.acme.com', PAGE);
+      expect(res.statusCode).toBe(410);
+      expect(res.body).toContain('href="https://id.odudu.example/tenants/acme"');
+      expect(addressing).toHaveBeenCalledWith('acme', 'https://old.acme.com');
+    });
+
+    it('does not ask about a domain that is canonical', async () => {
+      const { app, addressing } = build();
+      await inject(app, '/protocol/openid-connect/auth', 'login.acme.com');
+      expect(addressing).not.toHaveBeenCalled();
+    });
   });
 });

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { baseHostOf, isExemptPath, requestHost, rewriteForDomain } from '#/host-rules';
+import {
+  baseHostOf,
+  isExemptPath,
+  previousAddressServes,
+  requestHost,
+  rewriteForDomain,
+  tenantOfPath,
+} from '#/host-rules';
 
 const raw = (headers: Record<string, string>) => ({ headers });
 
@@ -113,5 +120,59 @@ describe('rewriteForDomain', () => {
 
   it('encodes the tenant name as a path segment', () => {
     expect(rewriteForDomain('/x', 'a b')).toBe('/tenants/a%20b/x');
+  });
+});
+
+describe('tenantOfPath', () => {
+  it('names the tenant a path address addresses, as the router would decode it', () => {
+    expect(tenantOfPath('/tenants/acme/protocol/openid-connect/auth?x=1')).toBe('acme');
+    expect(tenantOfPath('/tenants/acme')).toBe('acme');
+    expect(tenantOfPath('/tenants/%61cme/jwks')).toBe('acme');
+  });
+
+  it('names no tenant for what is not a tenant path or not a valid name', () => {
+    expect(tenantOfPath('/health/live')).toBeNull();
+    expect(tenantOfPath('/admin/tenants/acme')).toBeNull();
+    expect(tenantOfPath('/tenants/')).toBeNull();
+    expect(tenantOfPath('/tenants/ACME/x')).toBeNull();
+    expect(tenantOfPath('/tenants/a%2Fb/x')).toBeNull();
+    expect(tenantOfPath('/tenants/%zz/x')).toBeNull();
+    expect(tenantOfPath('/tenants/-a/x')).toBeNull();
+  });
+});
+
+describe('previousAddressServes', () => {
+  const under = (rest: string) => `/tenants/acme${rest}`;
+
+  it.each([
+    '/.well-known/openid-configuration',
+    '/protocol/openid-connect/token',
+    '/protocol/openid-connect/token/introspect',
+    '/protocol/openid-connect/revoke',
+    '/protocol/openid-connect/userinfo',
+    '/protocol/openid-connect/certs',
+    '/protocol/openid-connect/logout',
+    '/protocol/openid-connect/userinfo?x=1',
+    '/brand/abc.png',
+    '/brand/c/portal/abc.png',
+  ])('keeps serving %s', (rest) => {
+    expect(previousAddressServes(under(rest))).toBe(true);
+  });
+
+  it.each([
+    '/protocol/openid-connect/auth',
+    '/login-actions/authenticate',
+    '/login-actions/registration',
+    '/login-actions/reset-password',
+    '/login-actions/action-token',
+    '/login-actions/consent',
+    '/clients-registrations/openid-connect',
+    '/protocol/openid-connect/token/',
+    '/protocol/openid-connect/tokens',
+    '/protocol/openid-connect/logout/x',
+    '/',
+    '',
+  ])('refuses %s with a pointer to the canonical address', (rest) => {
+    expect(previousAddressServes(under(rest))).toBe(false);
   });
 });

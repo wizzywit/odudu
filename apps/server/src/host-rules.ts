@@ -44,3 +44,32 @@ export function rewriteForDomain(url: string, tenantName: string): string | null
   if (!url.startsWith('/')) return null;
   return addressPath(pathAddress('', tenantName), url);
 }
+
+const TENANT_PATH = /^\/tenants\/([^/?#]+)/u;
+const TENANT_NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u;
+
+// The tenant a path address names, read as the router reads it (the segment
+// percent-decoded), or null when the URL is not under `/tenants/` or the
+// segment is not a name a tenant can have.
+export function tenantOfPath(url: string): string | null {
+  const segment = TENANT_PATH.exec(url)?.[1];
+  if (segment === undefined) return null;
+  let name: string;
+  try {
+    name = decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+  return TENANT_NAME.test(name) ? name : null;
+}
+
+// What a tenant's previous address still answers for the window after a
+// switch: discovery, the endpoints a token already issued is used at, and the
+// brand files the logout page draws. Anything else is somewhere the tenant no
+// longer offers, and gets the pointer to its canonical address.
+const WINDOW_SERVES =
+  /^\/tenants\/[^/?#]+(?:\/\.well-known\/openid-configuration|\/protocol\/openid-connect\/(?:token|token\/introspect|revoke|userinfo|certs|logout)|\/brand\/[^?#]*)(?:\?.*)?$/u;
+
+export function previousAddressServes(tenantUrl: string): boolean {
+  return WINDOW_SERVES.test(tenantUrl);
+}
