@@ -7,7 +7,7 @@ import {
   type DatabaseHandle,
   type TenantScopedDatabase,
 } from '@odudu/db';
-import { newId } from '@odudu/kernel';
+import { newId, pathAddress } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -58,7 +58,13 @@ async function tenantWith(name: string): Promise<string> {
 
 // The Cookie header a browser holding the session's handle would send.
 function header(tenant: string, sessionId: string, secret: string): string {
-  const [pair = ''] = signInHandleCookie(tenant, false, sessionId, secret, 60).split(';');
+  const [pair = ''] = signInHandleCookie(
+    pathAddress('https://idp.example', tenant),
+    false,
+    sessionId,
+    secret,
+    60,
+  ).split(';');
   return `theme=light; ${pair}`;
 }
 

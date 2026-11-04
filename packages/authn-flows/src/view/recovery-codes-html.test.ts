@@ -1,4 +1,4 @@
-import { DEFAULT_PAGE_LOCALE } from '@odudu/kernel';
+import { DEFAULT_PAGE_LOCALE, pathAddress } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import { en } from '#/view/messages';
 import { renderRecoveryCodesPage } from '#/view/recovery-codes-html';
@@ -20,6 +20,7 @@ describe('renderRecoveryCodesPage', () => {
   it('prints every code and says it is the only time they are shown', () => {
     const page = renderRecoveryCodesPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'auth-session-1',
       OFFER,
       undefined,
@@ -38,6 +39,7 @@ describe('renderRecoveryCodesPage', () => {
   it('carries the session id back and nothing else', () => {
     const page = renderRecoveryCodesPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'auth-session-1',
       OFFER,
       undefined,
@@ -53,17 +55,31 @@ describe('renderRecoveryCodesPage', () => {
 
   it('needs no script, so the page asks for no policy beyond the base one', () => {
     expect(
-      renderRecoveryCodesPage('acme', 'auth-session-1', OFFER, undefined, DEFAULT_PAGE_LOCALE)
-        .script,
+      renderRecoveryCodesPage(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'auth-session-1',
+        OFFER,
+        undefined,
+        DEFAULT_PAGE_LOCALE,
+      ).script,
     ).toBeNull();
     expect(
-      renderRecoveryCodesPage('acme', 'auth-session-1', OFFER, undefined, DEFAULT_PAGE_LOCALE).html,
+      renderRecoveryCodesPage(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'auth-session-1',
+        OFFER,
+        undefined,
+        DEFAULT_PAGE_LOCALE,
+      ).html,
     ).not.toContain('<script');
   });
 
   it('says so when this set retires an earlier one, and stays quiet when it does not', () => {
     const first = renderRecoveryCodesPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'auth-session-1',
       OFFER,
       undefined,
@@ -71,6 +87,7 @@ describe('renderRecoveryCodesPage', () => {
     );
     const again = renderRecoveryCodesPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'auth-session-1',
       { ...OFFER, replaced: true },
       undefined,
@@ -84,6 +101,7 @@ describe('renderRecoveryCodesPage', () => {
   it('escapes the tenant, the session id and a code, and keeps a code left to right', () => {
     const page = renderRecoveryCodesPage(
       'acme"><script>',
+      pathAddress('https://idp.example', 'acme"><script>'),
       'session"><script>',
       { codes: ['<script>'], replaced: false },
       undefined,
@@ -98,6 +116,7 @@ describe('renderRecoveryCodesPage', () => {
     expect(
       renderRecoveryCodesPage(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'sess-1',
         { codes: ['ABCDE-FGHJK', 'MNPQR-STVWX'], replaced: true },
         'codes_not_saved',
@@ -125,7 +144,14 @@ describe('renderRecoveryCodesPage', () => {
   });
 
   it('reads French where the fixture has it and English for the rest, codes unchanged', () => {
-    const page = renderRecoveryCodesPage('acme', 's1', OFFER, 'codes_not_saved', FRENCH);
+    const page = renderRecoveryCodesPage(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      's1',
+      OFFER,
+      'codes_not_saved',
+      FRENCH,
+    );
     expect(page.html).toContain('<html lang="fr" dir="ltr">');
     expect(page.title).toBe('Enregistrez vos codes de secours');
     expect(page.body).toContain(
@@ -140,14 +166,28 @@ describe('renderRecoveryCodesPage', () => {
   });
 
   it('writes lang and dir for a right-to-left locale', () => {
-    expect(renderRecoveryCodesPage('a', 's', OFFER, undefined, ARABIC).html).toContain(
-      '<html lang="ar" dir="rtl">',
-    );
+    expect(
+      renderRecoveryCodesPage(
+        'a',
+        pathAddress('https://idp.example', 'a'),
+        's',
+        OFFER,
+        undefined,
+        ARABIC,
+      ).html,
+    ).toContain('<html lang="ar" dir="rtl">');
   });
 
   it('says nothing about an error when there is none', () => {
     expect(
-      renderRecoveryCodesPage('acme', 'auth-session-1', OFFER, undefined, DEFAULT_PAGE_LOCALE).html,
+      renderRecoveryCodesPage(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'auth-session-1',
+        OFFER,
+        undefined,
+        DEFAULT_PAGE_LOCALE,
+      ).html,
     ).not.toContain('role="alert"');
   });
 });

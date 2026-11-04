@@ -1,4 +1,10 @@
-import { type PageLocale, scriptNonce, type RenderedPage } from '@odudu/kernel';
+import {
+  addressPath,
+  type PageLocale,
+  scriptNonce,
+  type RenderedPage,
+  type TenantAddress,
+} from '@odudu/kernel';
 import { type EnrolmentRefusal } from '#/schema/enrolment-refusal';
 import { escapeHtml, intro, page } from '#/view/document';
 import { t, tHtml } from '#/view/messages';
@@ -42,6 +48,7 @@ function jsonForScript(value: unknown): string {
 // the subject that attempt has already identified.
 export function renderPasskeyEnrolmentPage(
   tenant: string,
+  address: TenantAddress,
   authSessionId: string,
   offer: PasskeyEnrolmentOffer,
   error: EnrolmentRefusal | undefined,
@@ -51,7 +58,9 @@ export function renderPasskeyEnrolmentPage(
   // policy served with this page cannot name a different value — a refused
   // script is invisible in a response, so nothing else would notice.
   const nonce = scriptNonce();
-  const target = `/tenants/${escapeHtml(encodeURIComponent(tenant))}/login-actions/required-action?action=configure-passkey`;
+  const target = escapeHtml(
+    addressPath(address, '/login-actions/required-action?action=configure-passkey'),
+  );
   // The options are inline, so this script fetches nothing.
   const title = t(locale, 'passkey.title');
   const script = `<p id="passkey-error" class="alert" role="alert" hidden></p>

@@ -1,4 +1,9 @@
-import { DEFAULT_PAGE_LOCALE, type PageLocale, type RenderedPage } from '@odudu/kernel';
+import {
+  DEFAULT_PAGE_LOCALE,
+  type PageLocale,
+  type RenderedPage,
+  pathAddress,
+} from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import { type PasswordViolation } from '#/schema/password-violation';
 import { type RequiredAction } from '#/schema/required-action';
@@ -66,7 +71,16 @@ describe('the TOTP enrolment page under the default template', () => {
   for (const [name, locale] of LOCALES) {
     it(`renders byte-identically (${name})`, () => {
       expect(
-        markup(renderTotpEnrolmentPage('acme', 'sess-1', OFFER, undefined, locale)),
+        markup(
+          renderTotpEnrolmentPage(
+            'acme',
+            pathAddress('https://idp.example', 'acme'),
+            'sess-1',
+            OFFER,
+            undefined,
+            locale,
+          ),
+        ),
       ).toMatchSnapshot();
     });
   }
@@ -74,7 +88,14 @@ describe('the TOTP enrolment page under the default template', () => {
   it('renders a refused code byte-identically', () => {
     expect(
       markup(
-        renderTotpEnrolmentPage('acme', 'sess-1', OFFER, 'code_mismatch', DEFAULT_PAGE_LOCALE),
+        renderTotpEnrolmentPage(
+          'acme',
+          pathAddress('https://idp.example', 'acme'),
+          'sess-1',
+          OFFER,
+          'code_mismatch',
+          DEFAULT_PAGE_LOCALE,
+        ),
       ),
     ).toMatchSnapshot();
   });
@@ -82,7 +103,16 @@ describe('the TOTP enrolment page under the default template', () => {
   it('renders hostile text byte-identically', () => {
     const hostile = { secret: HOSTILE, uri: `otpauth://totp/${HOSTILE}` };
     expect(
-      markup(renderTotpEnrolmentPage(HOSTILE, HOSTILE, hostile, 'code_mismatch', ARABIC_DARK)),
+      markup(
+        renderTotpEnrolmentPage(
+          HOSTILE,
+          pathAddress('https://idp.example', HOSTILE),
+          HOSTILE,
+          hostile,
+          'code_mismatch',
+          ARABIC_DARK,
+        ),
+      ),
     ).toMatchSnapshot();
   });
 });
@@ -91,7 +121,16 @@ describe('the passkey enrolment page under the default template', () => {
   for (const [name, locale] of LOCALES) {
     it(`renders byte-identically (${name})`, () => {
       expect(
-        markup(renderPasskeyEnrolmentPage('acme', 'sess-1', PASSKEY, undefined, locale)),
+        markup(
+          renderPasskeyEnrolmentPage(
+            'acme',
+            pathAddress('https://idp.example', 'acme'),
+            'sess-1',
+            PASSKEY,
+            undefined,
+            locale,
+          ),
+        ),
       ).toMatchSnapshot();
     });
   }
@@ -101,6 +140,7 @@ describe('the passkey enrolment page under the default template', () => {
       markup(
         renderPasskeyEnrolmentPage(
           'acme',
+          pathAddress('https://idp.example', 'acme'),
           'sess-1',
           PASSKEY,
           'passkey_not_added',
@@ -118,7 +158,16 @@ describe('the passkey enrolment page under the default template', () => {
       pubKeyCredParams: PASSKEY.options.pubKeyCredParams,
     };
     expect(
-      markup(renderPasskeyEnrolmentPage('acme', 'sess-1', { options }, undefined, DARK)),
+      markup(
+        renderPasskeyEnrolmentPage(
+          'acme',
+          pathAddress('https://idp.example', 'acme'),
+          'sess-1',
+          { options },
+          undefined,
+          DARK,
+        ),
+      ),
     ).toMatchSnapshot();
   });
 
@@ -128,7 +177,14 @@ describe('the passkey enrolment page under the default template', () => {
     };
     expect(
       markup(
-        renderPasskeyEnrolmentPage(HOSTILE, HOSTILE, hostile, 'passkey_not_added', ARABIC_DARK),
+        renderPasskeyEnrolmentPage(
+          HOSTILE,
+          pathAddress('https://idp.example', HOSTILE),
+          HOSTILE,
+          hostile,
+          'passkey_not_added',
+          ARABIC_DARK,
+        ),
       ),
     ).toMatchSnapshot();
   });
@@ -141,6 +197,7 @@ describe('the recovery codes page under the default template', () => {
         markup(
           renderRecoveryCodesPage(
             'acme',
+            pathAddress('https://idp.example', 'acme'),
             'sess-1',
             { codes: CODES, replaced: false },
             undefined,
@@ -156,6 +213,7 @@ describe('the recovery codes page under the default template', () => {
       markup(
         renderRecoveryCodesPage(
           'acme',
+          pathAddress('https://idp.example', 'acme'),
           'sess-1',
           { codes: CODES, replaced: true },
           undefined,
@@ -170,6 +228,7 @@ describe('the recovery codes page under the default template', () => {
       markup(
         renderRecoveryCodesPage(
           'acme',
+          pathAddress('https://idp.example', 'acme'),
           'sess-1',
           { codes: CODES, replaced: true },
           'codes_not_saved',
@@ -184,6 +243,7 @@ describe('the recovery codes page under the default template', () => {
       markup(
         renderRecoveryCodesPage(
           HOSTILE,
+          pathAddress('https://idp.example', HOSTILE),
           HOSTILE,
           { codes: [HOSTILE], replaced: true },
           'codes_not_saved',
@@ -198,33 +258,78 @@ describe('the update-password page under the default template', () => {
   for (const [name, locale] of LOCALES) {
     it(`renders byte-identically (${name})`, () => {
       expect(
-        markup(renderUpdatePasswordPage('acme', 'sess-1', [], RULES, locale)),
+        markup(
+          renderUpdatePasswordPage(
+            'acme',
+            pathAddress('https://idp.example', 'acme'),
+            'sess-1',
+            [],
+            RULES,
+            locale,
+          ),
+        ),
       ).toMatchSnapshot();
     });
   }
 
   it('renders every rule a tenant can enable byte-identically', () => {
     expect(
-      markup(renderUpdatePasswordPage('acme', 'sess-1', [], ALL_RULES, DEFAULT_PAGE_LOCALE)),
+      markup(
+        renderUpdatePasswordPage(
+          'acme',
+          pathAddress('https://idp.example', 'acme'),
+          'sess-1',
+          [],
+          ALL_RULES,
+          DEFAULT_PAGE_LOCALE,
+        ),
+      ),
     ).toMatchSnapshot();
   });
 
   it('renders a refused candidate with every violation byte-identically', () => {
     expect(
-      markup(renderUpdatePasswordPage('acme', 'sess-1', VIOLATIONS, ALL_RULES, DARK)),
+      markup(
+        renderUpdatePasswordPage(
+          'acme',
+          pathAddress('https://idp.example', 'acme'),
+          'sess-1',
+          VIOLATIONS,
+          ALL_RULES,
+          DARK,
+        ),
+      ),
     ).toMatchSnapshot();
   });
 
   it('renders a violation with no minimum byte-identically', () => {
     const own = [{ rule: 'min-length', message: 'too short' }];
     expect(
-      markup(renderUpdatePasswordPage('acme', 'sess-1', own, RULES, DEFAULT_PAGE_LOCALE)),
+      markup(
+        renderUpdatePasswordPage(
+          'acme',
+          pathAddress('https://idp.example', 'acme'),
+          'sess-1',
+          own,
+          RULES,
+          DEFAULT_PAGE_LOCALE,
+        ),
+      ),
     ).toMatchSnapshot();
   });
 
   it('renders hostile text byte-identically', () => {
     expect(
-      markup(renderUpdatePasswordPage(HOSTILE, HOSTILE, VIOLATIONS, RULES, ARABIC_DARK)),
+      markup(
+        renderUpdatePasswordPage(
+          HOSTILE,
+          pathAddress('https://idp.example', HOSTILE),
+          HOSTILE,
+          VIOLATIONS,
+          RULES,
+          ARABIC_DARK,
+        ),
+      ),
     ).toMatchSnapshot();
   });
 });

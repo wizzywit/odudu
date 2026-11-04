@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { isUuid } from '@odudu/kernel';
+import { addressPath, isUuid, type TenantAddress } from '@odudu/kernel';
 
 // What ties a browser to the sign-in it parked. The cookie is not a login
 // credential and authorises no write: it only lets a mailed link find out
@@ -20,31 +20,31 @@ export function hashSignInSecret(secret: string): string {
   return createHash('sha256').update(secret).digest('hex');
 }
 
-function handleCookie(tenant: string, tls: boolean, value: string, maxAge: number): string {
+function handleCookie(address: TenantAddress, tls: boolean, value: string, maxAge: number): string {
   return [
     `${signInHandleName(tls)}=${value}`,
     'HttpOnly',
     'SameSite=Lax',
-    `Path=/tenants/${encodeURIComponent(tenant)}/`,
+    `Path=${addressPath(address, '/')}`,
     ...(tls ? ['Secure'] : []),
     `Max-Age=${String(maxAge)}`,
   ].join('; ');
 }
 
 export function signInHandleCookie(
-  tenant: string,
+  address: TenantAddress,
   tls: boolean,
   sessionId: string,
   secret: string,
   maxAgeSeconds: number,
 ): string {
-  return handleCookie(tenant, tls, `${sessionId}.${secret}`, maxAgeSeconds);
+  return handleCookie(address, tls, `${sessionId}.${secret}`, maxAgeSeconds);
 }
 
 // The same name, path and attributes with an expiry: a browser drops a cookie
 // only when the clearing one matches how it was set.
-export function clearedSignInHandleCookie(tenant: string, tls: boolean): string {
-  return handleCookie(tenant, tls, '', 0);
+export function clearedSignInHandleCookie(address: TenantAddress, tls: boolean): string {
+  return handleCookie(address, tls, '', 0);
 }
 
 export interface SignInHandle {

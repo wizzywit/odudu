@@ -1,5 +1,5 @@
 import qrcode from 'qrcode-generator';
-import { type PageLocale, type RenderedPage } from '@odudu/kernel';
+import { addressPath, type PageLocale, type RenderedPage, type TenantAddress } from '@odudu/kernel';
 import { type EnrolmentRefusal } from '#/schema/enrolment-refusal';
 import { escapeHtml, intro, page } from '#/view/document';
 import { t, tHtml, token } from '#/view/messages';
@@ -33,12 +33,15 @@ function qrSvg(uri: string): string {
 // authentication session is already bound to.
 export function renderTotpEnrolmentPage(
   tenant: string,
+  address: TenantAddress,
   authSessionId: string,
   offer: TotpEnrolmentOffer,
   error: EnrolmentRefusal | undefined,
   locale: PageLocale,
 ): RenderedPage {
-  const target = `/tenants/${escapeHtml(encodeURIComponent(tenant))}/login-actions/required-action?action=configure-totp`;
+  const target = escapeHtml(
+    addressPath(address, '/login-actions/required-action?action=configure-totp'),
+  );
   const problems = refusalProblems(locale, error, 'code');
   const code = `${invalidAttributes(problems, 'code')}${firstInvalidField(problems, ['code']) === null ? '' : ' autofocus'}`;
   return page(
