@@ -135,6 +135,13 @@ export type ExpiryPolicy = typeof EXPIRY_NOT_ENFORCED;
 // refused — an ID Token minted here never has one.
 const EPOCH = new Date(0);
 
+// An empty string names no principal, so an expectation made of nothing else
+// is an empty list, which accepts no token, rather than one that a token with
+// an empty claim would satisfy.
+function named(expected: string | readonly string[]): string[] {
+  return (typeof expected === 'string' ? [expected] : [...expected]).filter((v) => v !== '');
+}
+
 export async function verifyJwt(
   token: string,
   opts: {
@@ -178,12 +185,10 @@ export async function verifyJwt(
   // it did.
   const { payload } = await jwtVerify(token, publicKey, {
     algorithms: [record.alg],
-    issuer: typeof opts.issuer === 'string' ? opts.issuer : [...opts.issuer],
+    issuer: named(opts.issuer),
     requiredClaims: ['exp'],
     ...(opts.expiry === EXPIRY_NOT_ENFORCED ? { currentDate: EPOCH } : {}),
-    ...(opts.audience === AUDIENCE_UNCHECKED
-      ? {}
-      : { audience: typeof opts.audience === 'string' ? opts.audience : [...opts.audience] }),
+    ...(opts.audience === AUDIENCE_UNCHECKED ? {} : { audience: named(opts.audience) }),
   });
 
   return payload;

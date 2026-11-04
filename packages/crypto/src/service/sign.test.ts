@@ -247,6 +247,59 @@ describe('[JOSE-4.1-01] a minted Claims Set carries each claim name once', () =>
   });
 });
 
+describe('an expectation that names nothing', () => {
+  const API = 'https://api.example';
+
+  async function tokens(): Promise<{ key: SigningKeyRecord; issued: string[] }> {
+    const key = await makeKey('ES256');
+    const claims = [{ iss: ISS, aud: API }, { aud: API }, { iss: ISS }, { iss: '', aud: '' }];
+    const issued = await Promise.all(
+      claims.map((c) => signJwt({ sub: 'u', ...c, ...futureExp() }, { key, kek: KEK })),
+    );
+    return { key, issued };
+  }
+
+  it('accepts no token for an empty list of issuers', async () => {
+    const { key, issued } = await tokens();
+    for (const token of issued) {
+      await expect(
+        verifyJwt(token, {
+          keys: [key],
+          issuer: [],
+          audience: AUDIENCE_UNCHECKED,
+          typ: TYP_UNCHECKED,
+        }),
+      ).rejects.toThrow();
+    }
+  });
+
+  it('accepts no token for an empty list of audiences', async () => {
+    const { key, issued } = await tokens();
+    for (const token of issued) {
+      await expect(
+        verifyJwt(token, { keys: [key], issuer: ISS, audience: [], typ: TYP_UNCHECKED }),
+      ).rejects.toThrow();
+    }
+  });
+
+  it('accepts no token for a list holding only the empty string', async () => {
+    const { key, issued } = await tokens();
+    for (const token of issued) {
+      await expect(
+        verifyJwt(token, {
+          keys: [key],
+          issuer: [''],
+          audience: AUDIENCE_UNCHECKED,
+          typ: TYP_UNCHECKED,
+        }),
+      ).rejects.toThrow();
+      await expect(
+        verifyJwt(token, { keys: [key], issuer: ISS, audience: [''], typ: TYP_UNCHECKED }),
+      ).rejects.toThrow();
+    }
+  });
+});
+
 describe('[JOSE-4.1-02] aud is matched against the principal processing the token', () => {
   const API = 'https://api.example';
 
