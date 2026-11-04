@@ -381,6 +381,46 @@ export async function lookupHost(db: Database, host: string, now: Date): Promise
   return rows[0] ?? null;
 }
 
+export interface TenantAddressing {
+  // The verified canonical domain, or null while the tenant is on its path address.
+  canonicalHost: string | null;
+  // When the window of the issuer asked about ends, null where it is closed
+  // or was never retired.
+  retiredUntil: Date | null;
+}
+
+interface AddressingFacts {
+  canonical_host: string | null;
+  retired_until: Date | string | null;
+}
+
+// Where a tenant is addressed now, and whether `issuer` is one it left that
+// still answers: what the edge needs to refuse a tenant's previous address.
+// On the owner connection like hostState, because it runs before tenant
+// context exists; null for a name no tenant has.
+export async function tenantAddressing(
+  db: Database,
+  tenantName: string,
+  issuer: string,
+  now: Date,
+): Promise<TenantAddressing | null> {
+  const rows = await db.execute<AddressingFacts & Record<string, unknown>>(sql`
+    select (select td.host from tenant_domains td
+             where td.tenant_id = t.id and td.canonical and td.state = 'verified') as canonical_host,
+           (select max(r.expires_at) from tenant_issuer_retirements r
+             where r.tenant_id = t.id and r.issuer = ${issuer}
+               and r.expires_at > ${now.toISOString()}::timestamptz) as retired_until
+      from tenants t
+     where t.name = ${tenantName}
+  `);
+  const facts = rows[0];
+  if (facts === undefined) return null;
+  return {
+    canonicalHost: facts.canonical_host,
+    retiredUntil: facts.retired_until === null ? null : new Date(facts.retired_until),
+  };
+}
+
 export type HostState =
   { kind: 'live'; route: HostRoute } | { kind: 'not_live' } | { kind: 'unknown' };
 

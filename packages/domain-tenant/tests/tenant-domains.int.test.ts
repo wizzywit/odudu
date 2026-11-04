@@ -18,6 +18,7 @@ import {
   hostState,
   lookupHost,
   MAX_DOMAINS_PER_TENANT,
+  tenantAddressing,
   tenantDomainRepository,
 } from '#/repository/tenant-domains';
 
@@ -442,6 +443,72 @@ describe('hostState', () => {
     expect(await hostState(app.db, 'state-serving.example.com', NOW)).toEqual({
       kind: 'unknown',
     });
+  });
+});
+
+describe('tenantAddressing', () => {
+  const addressing = (name: string, issuer: string, now = NOW) =>
+    tenantAddressing(owner.db, name, issuer, now);
+  const PATH_ISSUER = 'https://id.example.com/tenants/x';
+
+  it('is null for a tenant nobody has', async () => {
+    expect(await addressing('addressing-nobody', PATH_ISSUER)).toBeNull();
+  });
+
+  it('names no canonical host for a tenant on its path address', async () => {
+    const t = await newTenant();
+    await verified(t.id);
+    expect(await addressing(t.name, PATH_ISSUER)).toEqual({
+      canonicalHost: null,
+      retiredUntil: null,
+    });
+  });
+
+  it('names the canonical host, and the end of the window of the issuer asked about', async () => {
+    const t = await newTenant();
+    const row = await verified(t.id, 'addressing-live.example.com');
+    await canonicalise(t.id, row.id);
+    const until = new Date(NOW.getTime() + HOUR);
+    await withTenant(app.db, t.id, async (tx) => {
+      const domains = tenantDomainRepository(tx);
+      await domains.retireIssuer(t.id, PATH_ISSUER, until);
+      await domains.retireIssuer(
+        t.id,
+        'https://other.example.com',
+        new Date(NOW.getTime() + 5 * HOUR),
+      );
+    });
+    expect(await addressing(t.name, PATH_ISSUER)).toEqual({
+      canonicalHost: 'addressing-live.example.com',
+      retiredUntil: until,
+    });
+    expect(await addressing(t.name, 'https://never.example.com')).toEqual({
+      canonicalHost: 'addressing-live.example.com',
+      retiredUntil: null,
+    });
+  });
+
+  it('reads a window as over at its end', async () => {
+    const t = await newTenant();
+    const row = await verified(t.id, 'addressing-over.example.com');
+    await canonicalise(t.id, row.id);
+    const until = new Date(NOW.getTime() + HOUR);
+    await withTenant(app.db, t.id, (tx) =>
+      tenantDomainRepository(tx).retireIssuer(t.id, PATH_ISSUER, until),
+    );
+    expect(
+      (await addressing(t.name, PATH_ISSUER, new Date(until.getTime() - 1)))?.retiredUntil,
+    ).toEqual(until);
+    expect((await addressing(t.name, PATH_ISSUER, until))?.retiredUntil).toBeNull();
+  });
+
+  it('ignores a canonical row that is no longer verified, and reads nothing on the serving role', async () => {
+    const t = await newTenant();
+    const row = await verified(t.id, 'addressing-failed.example.com');
+    await canonicalise(t.id, row.id);
+    expect(await tenantAddressing(app.db, t.name, PATH_ISSUER, NOW)).toBeNull();
+    await withTenant(app.db, t.id, (tx) => tenantDomainRepository(tx).markFailed(t.id, row.id));
+    expect((await addressing(t.name, PATH_ISSUER))?.canonicalHost).toBeNull();
   });
 });
 

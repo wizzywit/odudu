@@ -121,6 +121,7 @@ export {
   hostState,
   lookupHost,
   MAX_DOMAINS_PER_TENANT,
+  tenantAddressing,
   tenantDomainRepository,
   type DomainConflict,
   type DomainRow,
@@ -128,6 +129,7 @@ export {
   type HostState,
   type NewDomain,
   type RetiredIssuer,
+  type TenantAddressing,
 } from '#/repository/tenant-domains';
 export { tenantDomains, tenantIssuerRetirements, type DomainState } from '#/schema/tenant-domains';
 export {
