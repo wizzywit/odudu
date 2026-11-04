@@ -257,6 +257,11 @@ describe('over a real socket', () => {
 });
 
 describe('targets that try to leave the tenant', () => {
+  const listenersBefore = {
+    rejection: process.listenerCount('unhandledRejection'),
+    exception: process.listenerCount('uncaughtException'),
+  };
+
   it.each(['/../tenants/other/ping', '//ping', '/%2e%2e/tenants/other/ping', '/./ping/../../x'])(
     'keeps %s under the tenant prefix, where no route matches',
     async (path) => {
@@ -338,7 +343,14 @@ describe('targets that try to leave the tenant', () => {
       });
       expect(next).toBe(200);
     } finally {
+      process.off('unhandledRejection', record);
+      process.off('uncaughtException', record);
       await app.close();
     }
+  });
+
+  it('leaves no process listener behind', () => {
+    expect(process.listenerCount('unhandledRejection')).toBe(listenersBefore.rejection);
+    expect(process.listenerCount('uncaughtException')).toBe(listenersBefore.exception);
   });
 });
