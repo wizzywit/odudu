@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
-import { and, count, desc, eq, gt, inArray, isNotNull, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, lt, sql, type SQL } from 'drizzle-orm';
 import {
   userCredentials,
   type CredentialRecord,
@@ -143,40 +143,27 @@ export function credentialRepository(tx: TenantScopedDatabase) {
 
     // How many subjects hold a passkey registered under another relying
     // party ID than `rpId`, reading at most `cap + 1` credentials. A passkey
-    // with no recorded ID is not counted. The two ranges either side of `rpId`
-    // are what the partial index on (tenant_id, rp_id) serves, so credentials
-    // under `rpId` itself are never read.
+    // with no recorded ID is not counted. Each side of `rpId` is its own range
+    // scan of the partial index on (tenant_id, rp_id), starting at `rpId` and
+    // stopping at the cap, so credentials under `rpId` itself are never read.
+    // One statement returns the rows, so the counts below cannot disagree.
     async subjectsWithPasskeyOutside(
       rpId: string,
       cap: number,
     ): Promise<{ subjects: number; capped: boolean }> {
-      const matching = tx
-        .select({ subjectId: userCredentials.subjectId })
-        .from(userCredentials)
-        .where(
-          and(
-            eq(userCredentials.type, 'webauthn'),
-            isNotNull(userCredentials.lookupKey),
-            isNotNull(userCredentials.rpId),
-            or(lt(userCredentials.rpId, rpId), gt(userCredentials.rpId, rpId)),
-          ),
-        )
-        .limit(cap + 1)
-        .as('matching');
-      const read = await tx.select({ rows: count() }).from(matching);
-      const distinct = await tx
-        .select({ n: count() })
-        .from(
-          tx
-            .select({ subjectId: matching.subjectId })
-            .from(matching)
-            .groupBy(matching.subjectId)
-            .as('held'),
-        );
-      return {
-        subjects: Math.min(distinct[0]?.n ?? 0, cap),
-        capped: (read[0]?.rows ?? 0) > cap,
-      };
+      const side = (range: SQL) =>
+        tx
+          .select({ subjectId: userCredentials.subjectId })
+          .from(userCredentials)
+          .where(
+            and(eq(userCredentials.type, 'webauthn'), isNotNull(userCredentials.lookupKey), range),
+          )
+          .limit(cap + 1);
+      const read = await side(lt(userCredentials.rpId, rpId)).unionAll(
+        side(gt(userCredentials.rpId, rpId)),
+      );
+      const held = new Set(read.map((row) => row.subjectId));
+      return { subjects: Math.min(held.size, cap), capped: read.length > cap };
     },
 
     async byLookupKey(lookupKey: string): Promise<CredentialRecord | null> {
