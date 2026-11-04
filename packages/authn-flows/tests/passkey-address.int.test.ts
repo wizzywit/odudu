@@ -98,6 +98,14 @@ async function seedTenant(tenantId: string): Promise<string> {
   return subjectId;
 }
 
+async function addSubject(tenantId: string, username: string): Promise<string> {
+  return withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await tx.insert(users).values({ subjectId: subject.id, tenantId, username });
+    return subject.id;
+  });
+}
+
 async function setCanonical(tenantId: string, host: string | null): Promise<void> {
   await owner.sql`delete from tenant_domains where tenant_id = ${tenantId}`;
   if (host === null) return;
@@ -171,11 +179,13 @@ async function signInAt(
   authenticator: SoftwareAuthenticator,
   at: { id: string; origin: string },
   signCount: number,
+  between: () => Promise<void> = () => Promise.resolve(),
 ) {
   const authSessionId = await startSession(tenantId, null);
   const offer = await withTenant(app.db, tenantId, (tx) =>
     beginPasskeyAuthentication(tx, { tenantId, publicBaseUrl: PUBLIC_BASE_URL, authSessionId }),
   );
+  await between();
   const assertion = authenticator.assertion({
     challenge: offer.challenge,
     rpId: at.id,
@@ -344,5 +354,65 @@ describe('a passkey and the canonical address', () => {
     expect(await hiddenBySwitch('localhost')).toEqual({ subjects: 0, capped: false });
     await setCanonical(tenantId, null);
     expect((await signInAt(tenantId, pathPasskey, PATH_RP, 2)).outcome.kind).toBe('success');
+  });
+
+  it('counts every subject holding a passkey the switch hides, mixed holders included, and each hidden passkey fails while each visible one works', async () => {
+    const tenantId = newId();
+    const onlyHidden = await seedTenant(tenantId);
+    const onlyVisible = await addSubject(tenantId, 'grace');
+    const mixed = await addSubject(tenantId, 'alan');
+    const hiddenKey = softwareAuthenticator();
+    const mixedHiddenKey = softwareAuthenticator();
+    const visibleKey = softwareAuthenticator();
+    const mixedVisibleKey = softwareAuthenticator();
+    await enrolAt(tenantId, onlyHidden, hiddenKey, PATH_RP);
+    await enrolAt(tenantId, mixed, mixedHiddenKey, PATH_RP);
+
+    await setCanonical(tenantId, domainOf(tenantId));
+    await enrolAt(tenantId, onlyVisible, visibleKey, domainRp(tenantId));
+    await enrolAt(tenantId, mixed, mixedVisibleKey, domainRp(tenantId));
+
+    const hiddenBySwitch = (rpId: string) =>
+      withTenant(app.db, tenantId, (tx) =>
+        credentialRepository(tx).subjectsWithPasskeyOutside(rpId, 10),
+      );
+    expect(await hiddenBySwitch(domainOf(tenantId))).toEqual({ subjects: 2, capped: false });
+
+    const at = domainRp(tenantId);
+    const results = {
+      hidden: (await signInAt(tenantId, hiddenKey, at, 1)).outcome.kind,
+      mixedHidden: (await signInAt(tenantId, mixedHiddenKey, at, 1)).outcome.kind,
+      visible: (await signInAt(tenantId, visibleKey, at, 1)).outcome.kind,
+      mixedVisible: (await signInAt(tenantId, mixedVisibleKey, at, 1)).outcome.kind,
+    };
+    expect(results).toEqual({
+      hidden: 'failure',
+      mixedHidden: 'failure',
+      visible: 'success',
+      mixedVisible: 'success',
+    });
+
+    expect(await hiddenBySwitch('localhost')).toEqual({ subjects: 2, capped: false });
+    await setCanonical(tenantId, null);
+    expect((await signInAt(tenantId, hiddenKey, PATH_RP, 2)).outcome.kind).toBe('success');
+    expect((await signInAt(tenantId, mixedHiddenKey, PATH_RP, 2)).outcome.kind).toBe('success');
+    expect((await signInAt(tenantId, visibleKey, PATH_RP, 2)).outcome.kind).toBe('failure');
+    expect((await signInAt(tenantId, mixedVisibleKey, PATH_RP, 2)).outcome.kind).toBe('failure');
+  });
+
+  it('fails an assertion for a challenge issued before the switch, signed at the address the tenant left', async () => {
+    const tenantId = newId();
+    const subjectId = await seedTenant(tenantId);
+    const authenticator = softwareAuthenticator();
+    await enrolAt(tenantId, subjectId, authenticator, PATH_RP);
+
+    const stale = await signInAt(tenantId, authenticator, PATH_RP, 1, () =>
+      setCanonical(tenantId, domainOf(tenantId)),
+    );
+
+    expect(stale.rpId).toBe('localhost');
+    expect(stale.outcome.kind).toBe('failure');
+    await setCanonical(tenantId, null);
+    expect((await signInAt(tenantId, authenticator, PATH_RP, 2)).outcome.kind).toBe('success');
   });
 });
