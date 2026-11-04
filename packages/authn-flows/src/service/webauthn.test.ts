@@ -4,6 +4,8 @@ import { softwareRegistrationResponse } from '@odudu/testkit';
 import { describe, expect, it } from 'vitest';
 import {
   canonicalRelyingParty,
+  ceremonyRelyingParty,
+  credentialRelyingPartyId,
   parseRegistrationResponse,
   passkeyRegistrationOptions,
   relyingPartyFor,
@@ -259,5 +261,56 @@ describe('a passkey and the address it was registered at', () => {
 
     expect(await at(DOMAIN_RP)).toEqual({ kind: 'rejected' });
     expect((await at(PATH_RP)).kind).toBe('verified');
+  });
+});
+
+describe('ceremonyRelyingParty', () => {
+  it('is the base host for a tenant at the path address', () => {
+    expect(ceremonyRelyingParty(null, 'https://id.example.com')).toEqual({
+      id: 'id.example.com',
+      origin: 'https://id.example.com',
+    });
+  });
+
+  it('is the canonical domain for a tenant that has one', () => {
+    expect(ceremonyRelyingParty('login.acme.com', 'https://id.example.com')).toEqual({
+      id: 'login.acme.com',
+      origin: 'https://login.acme.com',
+    });
+  });
+
+  it('is nothing where there is no base URL', () => {
+    expect(ceremonyRelyingParty(null, null)).toBeNull();
+    expect(ceremonyRelyingParty('login.acme.com', null)).toBeNull();
+  });
+
+  it('is nothing at a path address whose base is an address literal', () => {
+    for (const base of ['http://127.0.0.1:3000', 'http://[::1]:3000']) {
+      expect(ceremonyRelyingParty(null, base), base).toBeNull();
+    }
+  });
+
+  it('is the canonical domain even when the base is an address literal', () => {
+    expect(ceremonyRelyingParty('login.acme.com', 'http://127.0.0.1:3000')).toEqual({
+      id: 'login.acme.com',
+      origin: 'http://login.acme.com',
+    });
+  });
+});
+
+describe('credentialRelyingPartyId', () => {
+  it('keeps the id a passkey was stamped with', () => {
+    expect(credentialRelyingPartyId('login.acme.com', 'https://id.example.com')).toBe(
+      'login.acme.com',
+    );
+  });
+
+  it('reads one not yet stamped as registered at the base host', () => {
+    expect(credentialRelyingPartyId(null, 'https://id.example.com')).toBe('id.example.com');
+  });
+
+  it('is nothing without a base URL or with an address literal for one', () => {
+    expect(credentialRelyingPartyId(null, null)).toBeNull();
+    expect(credentialRelyingPartyId(null, 'http://127.0.0.1:3000')).toBeNull();
   });
 });

@@ -7,7 +7,7 @@ import {
   type LockoutPolicy,
 } from '@odudu/domain-identity';
 import { timingSafeEqual } from 'node:crypto';
-import { baseRelyingPartyId, newId, systemClock, type Clock } from '@odudu/kernel';
+import { newId, systemClock, type Clock } from '@odudu/kernel';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { executionRepository } from '#/repository/executions';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
@@ -47,8 +47,8 @@ import {
   type StoredRecoveryCode,
 } from '#/service/authenticators/recovery';
 import { otpApplicable, totpStep, type TotpSecret } from '#/service/authenticators/totp';
-import { assertedCredentialId, type RelyingParty } from '#/service/webauthn';
-import { relyingPartyOfTenant } from '#/usecase/passkey-relying-party';
+import { assertedCredentialId, credentialRelyingPartyId } from '#/service/webauthn';
+import { relyingPartyOfTenantOrNone } from '#/usecase/passkey-relying-party';
 
 // Never assigned to a real subject (subject ids come from `newId()`), so a
 // lookup against it always misses — which is the point: it lets the
@@ -330,21 +330,8 @@ async function passkeyCredentialFor(
     id: record.id,
     subjectId: record.subjectId,
     secret: record.secret,
-    // Every passkey registered before domains existed was registered at the
-    // base host, and boot stamps them; one not yet stamped is read the same.
-    rpId: record.rpId ?? (base === null ? null : baseRelyingPartyId(base)),
+    rpId: credentialRelyingPartyId(record.rpId, base),
   };
-}
-
-// Where no relying party can be derived — no base URL, or one that names an
-// address — nothing is asserted and no passkey can exist.
-async function relyingPartyOf(
-  tx: TenantScopedDatabase,
-  tenantId: string,
-  base: string | null,
-): Promise<RelyingParty | null> {
-  if (base === null || baseRelyingPartyId(base) === null) return null;
-  return relyingPartyOfTenant(tx, tenantId, base);
 }
 
 async function runPasskeyStep(
@@ -372,7 +359,7 @@ async function runPasskeyStep(
   const outcome = await passkeyStep(input, {
     credential,
     expectedChallenge,
-    relyingParty: await relyingPartyOf(tx, context.tenantId, context.publicBaseUrl),
+    relyingParty: await relyingPartyOfTenantOrNone(tx, context.tenantId, context.publicBaseUrl),
   });
   if (outcome.kind === 'failure') {
     return {

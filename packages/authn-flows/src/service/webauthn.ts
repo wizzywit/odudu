@@ -13,6 +13,7 @@ import {
 import { baseIsTls } from '@odudu/domain-tenant';
 import {
   addressRelyingParty,
+  baseRelyingPartyId,
   domainAddress,
   isAddressLiteral,
   pathAddress,
@@ -65,6 +66,30 @@ export function canonicalRelyingParty(canonicalHost: string | null, base: string
   return relyingPartyFor(
     canonicalHost === null ? pathAddress(base, '') : domainAddress(canonicalHost, baseIsTls(base)),
   );
+}
+
+// The relying party a login asserts against, or null where none can be derived:
+// no base URL, or a path-addressed tenant on a base that names an address. A
+// canonical domain is a host in its own right, so a literal base does not
+// take it away.
+export function ceremonyRelyingParty(
+  canonicalHost: string | null,
+  base: string | null,
+): RelyingParty | null {
+  if (base === null) return null;
+  if (canonicalHost === null && baseRelyingPartyId(base) === null) return null;
+  return canonicalRelyingParty(canonicalHost, base);
+}
+
+// The relying-party id a stored passkey was registered under. Every passkey
+// registered before domains existed was registered at the base host, and boot
+// stamps them; one not yet stamped is read the same.
+export function credentialRelyingPartyId(
+  stored: string | null,
+  base: string | null,
+): string | null {
+  if (stored !== null) return stored;
+  return base === null ? null : baseRelyingPartyId(base);
 }
 
 // What boot checks of the configured base URL: every path-addressed tenant
