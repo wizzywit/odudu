@@ -39,6 +39,13 @@ it('lists each domain with its state, and where the tenant signs in now', async 
   expect(screen.getByText('This tenant signs in at its path address.')).toBeVisible();
 });
 
+it('says no domain is registered, with the form to register one, when there is none', async () => {
+  renderConsoleAt(AT, domainRoutes(undefined, {}, []));
+  expect(await screen.findByRole('heading', { level: 2, name: 'No domains' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Register domain' })).toBeVisible();
+  expect(screen.getByText('This tenant signs in at its path address.')).toBeVisible();
+});
+
 it('shows the TXT record a pending domain needs, each part copyable, and a verify beside it', async () => {
   renderConsoleAt(AT, domainRoutes());
   await table();

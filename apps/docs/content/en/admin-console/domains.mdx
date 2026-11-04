@@ -1,0 +1,61 @@
+---
+title: Domains in the console
+description: Give a tenant an address of its own, prove you control it, switch the tenant to it, and switch back.
+sidebar_position: 14.5
+---
+
+import { ConsoleShot } from '@site/src/shared/ui/ConsoleShot';
+
+# Domains in the console
+
+A tenant signs in at its path address until you give it one of its own: `https://login.acme.com` instead of `<server>/tenants/acme`. The sign-in pages, the issuer that tokens carry, the cookies and the links in mail all follow the address the tenant has. This page registers a host, proves it is yours, switches the tenant to it and, when you want, switches back. Seeing the domains needs the `view-domains` capability and changing them needs `manage-domains`, which carries it; the menu entry is **Domains** under **TENANT**.
+
+<ConsoleShot
+  name="domains"
+  alt="The Domains page: a Register a domain form with a Host field and a Register domain button, an empty list saying the tenant signs in at its path address, and a Switching the address note."
+  caption="A tenant with no domain signs in at its path address."
+/>
+
+## 1. Register a domain
+
+Under **Register a domain**, enter the **Host** the tenant should sign in at, a lowercase name such as `login.acme.com` with no scheme, path or port, and choose **Register domain**. The server refuses its own host, an IP address, `localhost`, the names reserved for tests and anything that is not a lowercase DNS name, and says why under the field. A tenant holds at most twenty domains.
+
+Registering claims nothing. Several tenants may register the same host, and the first to prove it owns it keeps it. A domain that stays pending is removed after a retention window, seven days unless the operator set another.
+
+## 2. Publish the record
+
+The registered domain is **Pending**, and **Publish this record** shows what proves you control it: a TXT record, with its name under `_odudu-challenge.` and its value. Copy each with the button beside it and add the record at the DNS provider of the host. The record is shown while the domain is pending; once it is verified there is nothing left to publish.
+
+## 3. Verify it
+
+Once DNS shows the record, choose **Verify** on the domain's row. The state becomes **Verified**. Checking is limited, so a second try a moment after the first is refused and the page says to wait. If the record is not there the domain stays as it was, and a domain that was verified and stopped proving it reads **Failed**: publish the record again and choose **Verify**, or remove it. A host that another tenant verified first cannot be verified here.
+
+Odudu checks the domains it serves again on a schedule. A tenant's address that stops proving ownership goes to **Failed** and the tenant returns to its path address, so an expired domain that somebody else bought cannot keep serving the tenant's sign-in.
+
+## 4. Make it the address
+
+A verified domain that is not in use reads **Not in use**. Choose **Make the address** on its row. The confirmation says what a switch does before you choose **Make it the address**:
+
+- Everyone signed in to the tenant is signed out and signs in once more at the new address, because a session belongs to the address it began at. Password sign-in is not affected.
+- For one hour, the longest an access token lives, the previous address keeps serving the token, userinfo, introspection, revocation, key and logout endpoints, so what was already issued keeps working. It refuses sign-in, registration and password-reset pages and points to the new address. After the hour it serves nothing for the tenant.
+- A passkey belongs to the address it was registered at. The confirmation counts the subjects whose passkeys the switch would hide, and when there are any you must tick the box that reads "I understand these passkeys stop being offered at sign-in until the address is switched back" before the button opens. A switch back brings those passkeys back.
+
+The row then reads **Current address**, and the line above the list names where the tenant signs in. If somebody else changed the address while the confirmation was open, nothing is done: the page says so and reads the domains again.
+
+## 5. Switch back
+
+On the current address, choose **Switch back**. It is always possible, whatever state the domain is in, and it needs no call to the domain. The confirmation says the same of sessions and passkeys, and the tenant signs in at its path address again. The domain stays registered and verified, **Not in use**.
+
+## 6. Remove a domain
+
+Choose **Remove** on a row and confirm with **Remove domain**. The tenant's current address cannot be removed; switch back first.
+
+## Things that cannot be undone
+
+- A switch, in either direction, ends every browser session of the tenant. People sign in again; switching back does not restore the sessions that ended.
+- **Remove domain** forgets the domain. Using it again means registering it and proving ownership again.
+- While a domain is the address, the passkeys registered at the path address are hidden, and the other way round after a switch back. Nothing is deleted.
+
+## Do the same through the API
+
+The calls are in the [domains area of the admin API](../reference/generated/admin-api/domains/index.md). A switch needs the tenant's current `ETag` in `If-Match`, and a stale one is refused so two administrators cannot overwrite each other.

@@ -368,6 +368,22 @@ export const SCREENS: readonly Screen[] = [
     open: (page, context) => openArea(page, context, `${DEMO}/email`),
   },
   {
+    name: 'domains',
+    alt: 'The Domains page: a Register a domain form with a Host field and a Register domain button, an empty list saying the tenant signs in at its path address, and a Switching the address note.',
+    caption: 'A tenant with no domain signs in at its path address.',
+    signedIn: true,
+    expect: [
+      { heading: 'Domains' },
+      { heading: 'Register a domain' },
+      { label: 'Host' },
+      { role: 'button', name: 'Register domain' },
+    ],
+    open: async (page, context) => {
+      await openArea(page, context, `${DEMO}/domains`);
+      await page.getByText('No domains').waitFor();
+    },
+  },
+  {
     name: 'audit',
     alt: "The demo tenant's audit trail: the three events so far, tenant.create, client.create and subject.create, each allowed and made by a system administrator.",
     caption: 'The trail records each change with who made it, newest first.',
