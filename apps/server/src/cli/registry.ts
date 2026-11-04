@@ -91,6 +91,23 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
     example: 'odudu reap',
   },
   {
+    name: 'domains',
+    summary: 'Operate on custom domains.',
+    options: [],
+    subcommands: [
+      {
+        name: 'recheck',
+        summary:
+          'Look up the ownership record of every verified custom domain once, fail the ones ' +
+          'that stopped proving it and print the counts as JSON.',
+        options: [],
+        subcommands: NONE,
+        example: 'odudu domains recheck',
+      },
+    ],
+    example: 'odudu domains recheck',
+  },
+  {
     name: 'send-mail',
     summary: 'Deliver the queued emails once and print the outcome as JSON.',
     options: [],

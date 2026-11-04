@@ -21,6 +21,7 @@ import { databaseModule } from '#/modules/database';
 import { httpModule } from '#/modules/http';
 import { logoutSenderModule } from '#/modules/logout-sender';
 import { outboxModule } from '#/modules/outbox';
+import { domainRecheckModule } from '#/modules/domain-recheck';
 import { reapModule } from '#/modules/reap';
 
 const config = loadConfig();
@@ -70,6 +71,7 @@ const smtpDestination = smtpDestinationPolicyFor(config);
 const registry = new ModuleRegistry()
   .register(databaseModule(owner, runtime))
   .register(reapModule({ database: runtime, ownerDatabase: owner }))
+  .register(domainRecheckModule({ database: runtime, ownerDatabase: owner }))
   .register(
     outboxModule({
       database: runtime,

@@ -7,6 +7,7 @@ import {
   lookupHost,
   tenantAddressing,
   tenantDomainRepository,
+  verifiedDomainPage,
 } from '@odudu/domain-tenant';
 import { capturingSender, sendPending } from '@odudu/email';
 import { loadConfig } from '@odudu/kernel';
@@ -179,6 +180,12 @@ export async function driveRepositories(
   );
   await capture('domains: state of a host that is only pending', 'authn', () =>
     hostState(world.owner.db, 'plans3.example.com', new Date()),
+  );
+  await capture('domains: the first page of verified domains for a recheck', 'authn', () =>
+    verifiedDomainPage(world.owner.db, undefined, 500),
+  );
+  await capture('domains: a later page of verified domains for a recheck', 'authn', () =>
+    verifiedDomainPage(world.owner.db, 'plans1.example.com', 500),
   );
   await capture('domains: where a tenant is addressed, for a path request', 'authn', () =>
     tenantAddressing(

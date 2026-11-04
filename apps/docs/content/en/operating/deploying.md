@@ -132,6 +132,8 @@ The server runs three background passes by itself, and you should leave them on.
 
 To schedule one yourself instead, set its `ODUDU_REAP_ENABLED`, `ODUDU_OUTBOX_ENABLED` or `ODUDU_LOGOUT_SENDER_ENABLED` to `false` and run `odudu reap`, `odudu send-mail` or `odudu send-logouts` from cron or a Kubernetes CronJob. Do one or the other. Doing both is harmless. The retention pass takes a Postgres advisory lock, and whoever loses a tick skips it. The mail and logout senders claim each message, so none is sent twice.
 
+The custom-domain ownership recheck is a fourth pass. Switch it off with `ODUDU_DOMAIN_RECHECK_ENABLED=false` and run `odudu domains recheck` yourself. It takes a Postgres advisory lock of its own, so a second run at the same time skips.
+
 The retention pass needs `ODUDU_APP_DATABASE_URL`, because its deletes are scoped by the row-level-security policy that the owner role escapes. Its one transaction covers every tenant, which is what to watch if a deployment has many tenants and very large tables.
 
 ## 8. Set up mail
