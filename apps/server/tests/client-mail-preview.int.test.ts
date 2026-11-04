@@ -46,10 +46,11 @@ const LIGHT = {
 const WARM = { ...LIGHT, surfacePanel: '#fffaf0' };
 const COOL = { ...LIGHT, surfacePanel: '#e0f0ff' };
 
-// The caller's checks, the client's row, the tenant's row, the client-bound
-// theme read in a savepoint and one more read: the overrides for the preview,
-// the tenant's own look for the branding view.
-const STATEMENTS = 12;
+// The caller's checks, the client's row, the tenant's row, the tenant's
+// canonical domain, the client-bound theme read in a savepoint and one more
+// read: the overrides for the preview, the tenant's own look for the branding
+// view.
+const STATEMENTS = 13;
 
 beforeAll(async () => {
   container = await startTestDatabase();

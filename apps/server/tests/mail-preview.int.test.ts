@@ -161,10 +161,11 @@ async function get(w: World, path: string, bearer?: string) {
 }
 
 // Measured with the theme's cache emptied, savepoints counted: the caller's
-// own checks, the published theme's read, the tenant's row and, for the
-// preview alone, one read of the overrides in a savepoint, whatever languages
-// the tenant wrote. The branding view shows no wording and skips that read.
-const MAIL_STATEMENTS = { '/mail/preview': 11, '/mail/branding': 9 } as const;
+// own checks, the published theme's read, the tenant's row, the tenant's
+// canonical domain and, for the preview alone, one read of the overrides in a
+// savepoint, whatever languages the tenant wrote. The branding view shows no
+// wording and skips that read.
+const MAIL_STATEMENTS = { '/mail/preview': 12, '/mail/branding': 10 } as const;
 
 const header = (res: { headers: Record<string, unknown> }, name: string): string =>
   String(res.headers[name]);
