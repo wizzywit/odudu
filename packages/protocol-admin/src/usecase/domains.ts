@@ -324,6 +324,7 @@ export async function removeDomain(
   input: { tenantId: string; id: string } & DomainActor,
 ): Promise<RemoveDomainOutcome> {
   const repository = tenantDomainRepository(tx);
+  await repository.lock(input.tenantId);
   const row = await repository.get(input.tenantId, input.id);
   if (row === null) return { kind: 'not_found' };
   if (row.canonical) return { kind: 'canonical' };

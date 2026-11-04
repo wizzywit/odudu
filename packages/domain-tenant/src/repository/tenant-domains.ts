@@ -227,13 +227,16 @@ export function tenantDomainRepository(tx: TenantScopedDatabase) {
     },
 
     // Makes a verified row the tenant's one canonical host. Null when the row
-    // is not the tenant's or is not verified, with nothing changed.
+    // is not the tenant's or is not verified, with nothing changed. The target
+    // is locked before the previous canonical is cleared, so a row that fails
+    // or is deleted meanwhile cannot leave the tenant with none.
     async setCanonical(tenantId: string, id: string): Promise<DomainRow | null> {
       await lockTenantDomains(tx, tenantId);
       const target = await tx
         .select({ id: tenantDomains.id })
         .from(tenantDomains)
-        .where(and(own(tenantId, id), eq(tenantDomains.state, 'verified')));
+        .where(and(own(tenantId, id), eq(tenantDomains.state, 'verified')))
+        .for('update');
       if (target[0] === undefined) return null;
       await tx
         .update(tenantDomains)
@@ -252,7 +255,9 @@ export function tenantDomainRepository(tx: TenantScopedDatabase) {
             .set({ canonical: true })
             .where(own(tenantId, id))
             .returning(COLUMNS);
-          return rows[0] ?? null;
+          const row = rows[0];
+          if (row === undefined) throw new Error('a locked tenant_domains row vanished');
+          return row;
         });
       } catch (error) {
         if (isUniqueViolation(error)) throw new CanonicalConflictError(tenantId);

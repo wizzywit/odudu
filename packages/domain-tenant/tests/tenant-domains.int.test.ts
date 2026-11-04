@@ -10,7 +10,7 @@ import {
 import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   canonicalHostOf,
@@ -21,6 +21,7 @@ import {
   tenantAddressing,
   tenantDomainRepository,
 } from '#/repository/tenant-domains';
+import { switchCanonical } from '#/usecase/switch-canonical';
 
 let container: TestDatabase;
 let owner: DatabaseHandle;
@@ -652,5 +653,59 @@ describe('a foreign tenant', () => {
       ),
     ).rejects.toThrow();
     expect(await owner.sql`select 1 from tenant_domains where tenant_id = ${a.id}`).toHaveLength(0);
+  });
+});
+
+async function waitForLockWait(): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const rows = await owner.db.execute<{ n: number } & Record<string, unknown>>(
+      sql`select count(*)::int as n from pg_stat_activity where wait_event_type = 'Lock'`,
+    );
+    if ((rows[0]?.n ?? 0) > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('nothing ever waited on a lock');
+}
+
+describe('a switch to a row that stops being verified underneath it', () => {
+  it('leaves the previous canonical in place and writes no retirement', async () => {
+    const t = await newTenant();
+    const previous = await verified(t.id, 'switch-prev.example.com');
+    await canonicalise(t.id, previous.id);
+    const target = await verified(t.id, 'switch-target.example.com');
+
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let failed: () => void = () => undefined;
+    const targetFailed = new Promise<void>((resolve) => {
+      failed = resolve;
+    });
+    const recheck = withTenant(app.db, t.id, async (tx) => {
+      await tenantDomainRepository(tx).markFailed(t.id, target.id);
+      failed();
+      await gate;
+    });
+    await targetFailed;
+    const switching = withTenant(app.db, t.id, (tx) =>
+      switchCanonical(
+        { domains: tenantDomainRepository(tx), base: 'https://id.example.com', tls: true },
+        t,
+        target.id,
+        NOW,
+      ),
+    );
+    await waitForLockWait();
+    release();
+    await recheck;
+
+    expect((await switching).kind).toBe('not_found');
+    const after = await withTenant(app.db, t.id, async (tx) => ({
+      canonical: await tenantDomainRepository(tx).canonical(t.id),
+      retired: await tenantDomainRepository(tx).listRetired(t.id, NOW),
+    }));
+    expect(after.canonical?.id).toBe(previous.id);
+    expect(after.retired).toEqual([]);
   });
 });

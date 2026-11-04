@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { switchEtag } from '#/service/domain-wire';
 import { createVerifyThrottle } from '#/service/domain-throttle';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
-import { activateDomain, type Audit, type DomainsDeps } from '#/usecase/domains';
+import { activateDomain, removeDomain, type Audit, type DomainsDeps } from '#/usecase/domains';
 
 const BASE = 'https://id.operator.test';
 
@@ -99,6 +99,52 @@ describe('two admins activating two domains at once', () => {
 
     expect((await first).kind).toBe('ok');
     expect((await second).kind).toBe('conflict');
+    const canonical = await withTenant(fx().app.db, tenant.id, (tx) =>
+      tenantDomainRepository(tx).canonical(tenant.id),
+    );
+    expect(canonical?.id).toBe(a);
+  });
+});
+
+describe('an admin removing a domain while another activates it', () => {
+  it('answers the removal canonical and keeps the row, so no switch goes unrecorded', async () => {
+    const tenant = await fx().createTenant(`race-${newId()}`);
+    const a = await verifiedDomain(tenant.id, 'a.remove-race.org');
+
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let held: () => void = () => undefined;
+    const activationHoldsTheLock = new Promise<void>((resolve) => {
+      held = resolve;
+    });
+    const slowAudit: Audit = async () => {
+      held();
+      await gate;
+    };
+
+    const activation = withTenant(fx().app.db, tenant.id, (tx) =>
+      activateDomain(
+        tx,
+        depsWith(slowAudit),
+        { tenant, id: a, ifMatch: switchEtag(null), ...actor },
+        new Date(),
+      ),
+    );
+    await activationHoldsTheLock;
+    const removal = withTenant(fx().app.db, tenant.id, (tx) =>
+      removeDomain(
+        tx,
+        depsWith(() => Promise.resolve()),
+        { tenantId: tenant.id, id: a, ...actor },
+      ),
+    );
+    await waitForLockWait();
+    release();
+
+    expect((await activation).kind).toBe('ok');
+    expect((await removal).kind).toBe('canonical');
     const canonical = await withTenant(fx().app.db, tenant.id, (tx) =>
       tenantDomainRepository(tx).canonical(tenant.id),
     );

@@ -95,6 +95,52 @@ async function stored(domainId: string): Promise<Stored> {
   return row;
 }
 
+async function waitForLockWait(): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const rows = await owner.db.execute<{ n: number } & Record<string, unknown>>(
+      sql`select count(*)::int as n from pg_stat_activity where wait_event_type = 'Lock'`,
+    );
+    if ((rows[0]?.n ?? 0) > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('the pass never waited on the switch');
+}
+
+describe('a recheck racing an admin who switches the same tenant', () => {
+  it('waits for the tenant lock before it touches the row, so neither deadlocks', async () => {
+    const lost = await seed('race', true);
+    await owner.db.execute(
+      sql`update tenant_domains set failed_checks = 2 where id = ${lost.domainId}`,
+    );
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let held: () => void = () => undefined;
+    const adminHoldsTheLock = new Promise<void>((resolve) => {
+      held = resolve;
+    });
+    const admin = withTenant(app.db, lost.tenantId, async (tx) => {
+      const repository = tenantDomainRepository(tx);
+      await repository.lock(lost.tenantId);
+      held();
+      await gate;
+      await repository.clearCanonical(lost.tenantId);
+    });
+    await adminHoldsTheLock;
+    const pass = recheckDomainsLocked(
+      { database: app, ownerDatabase: owner, resolveTxt: answering([lost.host]) },
+      NOW,
+      OPTIONS,
+    );
+    await waitForLockWait();
+    release();
+    await admin;
+    expect(await pass).toMatchObject({ ran: true, failed: 1, fellBack: 0, errored: 0 });
+    expect(await stored(lost.domainId)).toMatchObject({ state: 'failed', canonical: false });
+  });
+});
+
 describe('recheckDomainsLocked', () => {
   it('writes nothing for a domain that still proves ownership', async () => {
     const healthy = await seed('healthy', true);

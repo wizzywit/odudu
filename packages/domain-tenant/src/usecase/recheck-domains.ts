@@ -101,6 +101,9 @@ async function countMiss(
   row: VerifiedDomainRow,
   now: Date,
 ): Promise<{ failed: boolean; fellBack: boolean }> {
+  // The tenant's lock before the row's, the order every switch takes, so a
+  // miss and an admin's switch of the same tenant cannot wait on each other.
+  await scope.domains.lock(row.tenantId);
   const counted = await scope.domains.recordCheck(row.tenantId, row.id, false, now);
   if (counted?.state !== 'verified' || counted.failedChecks < deps.threshold) {
     return { failed: false, fellBack: false };
