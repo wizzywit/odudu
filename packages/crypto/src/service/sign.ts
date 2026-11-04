@@ -71,7 +71,9 @@ function decodeProtectedHeaderSafely(token: string): Record<string, unknown> {
 // explains how beside its own call.
 export const AUDIENCE_UNCHECKED = Symbol('audience unchecked');
 
-export type ExpectedAudience = string | typeof AUDIENCE_UNCHECKED;
+// A list is any-of: the token's `aud` must contain at least one named
+// principal, as jose's own option reads it.
+export type ExpectedAudience = string | readonly string[] | typeof AUDIENCE_UNCHECKED;
 
 // RFC 9068 §2.1 gives an access token `typ: at+jwt`; an OIDC Core §2 ID
 // Token carries none. A verifier naming neither inherits the confusion —
@@ -137,7 +139,8 @@ export async function verifyJwt(
   token: string,
   opts: {
     keys: SigningKeyRecord[];
-    issuer: string;
+    // A list is any-of, for a tenant that still accepts a retired issuer.
+    issuer: string | readonly string[];
     audience: ExpectedAudience;
     typ: ExpectedTyp;
     expiry?: ExpiryPolicy;
@@ -175,10 +178,12 @@ export async function verifyJwt(
   // it did.
   const { payload } = await jwtVerify(token, publicKey, {
     algorithms: [record.alg],
-    issuer: opts.issuer,
+    issuer: typeof opts.issuer === 'string' ? opts.issuer : [...opts.issuer],
     requiredClaims: ['exp'],
     ...(opts.expiry === EXPIRY_NOT_ENFORCED ? { currentDate: EPOCH } : {}),
-    ...(typeof opts.audience === 'string' ? { audience: opts.audience } : {}),
+    ...(opts.audience === AUDIENCE_UNCHECKED
+      ? {}
+      : { audience: typeof opts.audience === 'string' ? opts.audience : [...opts.audience] }),
   });
 
   return payload;

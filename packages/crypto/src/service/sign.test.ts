@@ -93,6 +93,17 @@ describe('signJwt / verifyJwt', () => {
     ).rejects.toThrow(/iss/i);
   });
 
+  it('accepts an iss named among several, and refuses one named in none', async () => {
+    const key = await makeKey('RS256');
+    const token = await signJwt({ sub: 'user-4', iss: ISS, ...futureExp() }, { key, kek: KEK });
+    const verify = (issuer: string[]) =>
+      verifyJwt(token, { keys: [key], issuer, audience: AUDIENCE_UNCHECKED, typ: TYP_UNCHECKED });
+    await expect(verify(['https://someone-else.example', ISS])).resolves.toMatchObject({
+      sub: 'user-4',
+    });
+    await expect(verify(['https://someone-else.example'])).rejects.toThrow(/iss/i);
+  });
+
   it('rejects an audience that is not present', async () => {
     const key = await makeKey('RS256');
     const token = await signJwt(
@@ -238,6 +249,30 @@ describe('[JOSE-4.1-01] a minted Claims Set carries each claim name once', () =>
 
 describe('[JOSE-4.1-02] aud is matched against the principal processing the token', () => {
   const API = 'https://api.example';
+
+  it('accepts a token whose aud contains any of several named principals, and only those', async () => {
+    const key = await makeKey('RS256');
+    const token = await signJwt(
+      { sub: 'u', iss: ISS, aud: [API, 'https://other.example'], ...futureExp() },
+      { key, kek: KEK },
+    );
+    await expect(
+      verifyJwt(token, {
+        keys: [key],
+        issuer: ISS,
+        audience: ['https://nobody.example', API],
+        typ: TYP_UNCHECKED,
+      }),
+    ).resolves.toMatchObject({ sub: 'u' });
+    await expect(
+      verifyJwt(token, {
+        keys: [key],
+        issuer: ISS,
+        audience: ['https://nobody.example', 'https://nobody-else.example'],
+        typ: TYP_UNCHECKED,
+      }),
+    ).rejects.toThrow(/aud/i);
+  });
 
   it('accepts a token whose single-valued aud names the processing principal', async () => {
     const key = await makeKey('RS256');
