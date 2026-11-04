@@ -43,11 +43,14 @@ async function foreignKey(): Promise<SigningKeyRecord> {
   };
 }
 
-async function foreignToken(key: SigningKeyRecord): Promise<string> {
+async function foreignToken(
+  key: SigningKeyRecord,
+  iss = `${BASE}/tenants/foreign`,
+): Promise<string> {
   const iat = Math.floor(Date.now() / 1000);
   return signJwt(
     {
-      iss: `${BASE}/tenants/foreign`,
+      iss,
       sub: 'subject-id',
       aud: [ADMIN_API_AUDIENCE],
       iat,
@@ -67,6 +70,7 @@ function deps(key: SigningKeyRecord, overrides: Partial<AuthenticateAdminDeps>) 
     isClientEnabled: () => Promise.resolve(false),
     isSubjectEnabled: () => Promise.resolve(false),
     acceptedIssuers: (_tenant, requestIssuer) => Promise.resolve([requestIssuer]),
+    tenantNameAtHost: () => Promise.resolve(null),
   };
   return { ...base, ...overrides };
 }
@@ -308,5 +312,53 @@ describe('a tenant that has moved to its own domain', () => {
       },
     );
     expect(asked).toEqual(['target']);
+  });
+});
+
+describe('a foreign tenant that has moved to its own domain', () => {
+  const HOST = 'login.foreign.example';
+
+  it('is recorded as a foreign issuer when its token names the domain', async () => {
+    const key = await foreignKey();
+    const asked: string[] = [];
+    const outcome = await authenticate(
+      deps(key, {
+        tenantNameAtHost: (host) => {
+          asked.push(host);
+          return Promise.resolve(host === HOST ? 'foreign' : null);
+        },
+      }),
+      await foreignToken(key, `https://${HOST}`),
+    );
+
+    expect(asked).toEqual([HOST]);
+    expect(outcome).toEqual({
+      kind: 'unauthenticated',
+      reason: 'issuer_mismatch',
+      foreignIssuer: { issuerTenantId: FOREIGN.id, subjectId: 'subject-id', clientDbId: null },
+    });
+  });
+
+  it('is the plain issuer mismatch when no tenant serves that host', async () => {
+    const key = await foreignKey();
+    const outcome = await authenticate(deps(key, {}), await foreignToken(key, `https://${HOST}`));
+
+    expect(outcome).toEqual({ kind: 'unauthenticated', reason: 'issuer_mismatch' });
+  });
+
+  it('never looks a host up for an issuer that is not a bare origin', async () => {
+    const key = await foreignKey();
+    const asked: string[] = [];
+    await authenticate(
+      deps(key, {
+        tenantNameAtHost: (host) => {
+          asked.push(host);
+          return Promise.resolve('foreign');
+        },
+      }),
+      await foreignToken(key, `https://${HOST}/tenants/x`),
+    );
+
+    expect(asked).toEqual([]);
   });
 });

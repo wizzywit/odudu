@@ -50,6 +50,9 @@ export interface AuthenticateAdminDeps {
   // The issuers a token for this tenant may carry: its canonical address and
   // any it left whose window is open, the set /userinfo checks against.
   acceptedIssuers: AcceptedIssuersLookup;
+  // The tenant a verified host serves right now, canonical or inside its
+  // window, for a foreign token that names a domain.
+  tenantNameAtHost(host: string, now: Date): Promise<string | null>;
 }
 
 export interface AuthenticateAdminInput {
@@ -155,6 +158,30 @@ async function matchIssuer(
   return { id: tenant.id, lifespans: lifespansOf(tenant) };
 }
 
+function bareOriginHost(iss: string): string | undefined {
+  try {
+    const url = new URL(iss);
+    return url.origin === iss ? url.host : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function foreignTenantName(
+  deps: AuthenticateAdminDeps,
+  input: AuthenticateAdminInput,
+  iss: string,
+): Promise<string | undefined> {
+  const prefix = tenantIssuer(input.issuerBase, '');
+  if (iss.startsWith(prefix)) {
+    const name = iss.slice(prefix.length);
+    return name.length === 0 || name.includes('/') ? undefined : name;
+  }
+  const host = bareOriginHost(iss);
+  if (host === undefined) return undefined;
+  return (await deps.tenantNameAtHost(host, input.now)) ?? undefined;
+}
+
 // Resolves an issuer neither of the two above, only to learn whether a
 // tenant here really signed it. The answer changes no response.
 async function resolveForeignIssuer(
@@ -163,10 +190,8 @@ async function resolveForeignIssuer(
   token: string,
   iss: string,
 ): Promise<ForeignIssuer | undefined> {
-  const prefix = tenantIssuer(input.issuerBase, '');
-  if (!iss.startsWith(prefix)) return undefined;
-  const name = iss.slice(prefix.length);
-  if (name.length === 0 || name.includes('/')) return undefined;
+  const name = await foreignTenantName(deps, input, iss);
+  if (name === undefined) return undefined;
 
   const tenant = await deps.findTenant(name);
   if (!tenant?.enabled) return undefined;

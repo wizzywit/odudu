@@ -6,7 +6,7 @@ import { type DatabaseHandle, type TenantScopedDatabase, withTenant } from '@odu
 import { auditRepository, type AdminMutationAction } from '@odudu/domain-audit';
 import { effectiveRoles } from '@odudu/domain-authz';
 import { hashPassword, subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
-import { ADMIN_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
+import { ADMIN_CLIENT_ID, clientRepository, hostState } from '@odudu/domain-tenant';
 import { type inspectImage } from '@odudu/domain-theme';
 import {
   type ClaimMapperRegistry,
@@ -906,6 +906,10 @@ function buildAdminRoutes(
           subjectIsEnabled(await subjectRepository(tx).byId(subjectId)),
         ),
       acceptedIssuers: acceptedIssuersLookup(deps),
+      tenantNameAtHost: async (host, now) => {
+        const state = await hostState(deps.ownerDatabase.db, host, now);
+        return state.kind === 'live' ? state.route.tenantName : null;
+      },
     };
 
     const authzDeps: AuthorizeAdminDeps = {

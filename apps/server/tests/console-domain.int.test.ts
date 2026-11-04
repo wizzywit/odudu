@@ -257,5 +257,11 @@ describe('a tenant administrator of a tenant on a canonical domain', () => {
 
     expect((await whoamiWith(a, own.accessToken)).statusCode).toBe(200);
     expect((await whoamiWith(b, own.accessToken)).statusCode).toBe(401);
+
+    const recorded = await owner.db.execute<{ n: number }>(
+      sql`select count(*)::int as n from audit_events
+           where tenant_id = ${b.id} and action = 'token.foreign_issuer' and actor_tenant_id = ${a.id}`,
+    );
+    expect(recorded[0]?.n).toBe(1);
   });
 });
