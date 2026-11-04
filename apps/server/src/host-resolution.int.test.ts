@@ -496,12 +496,13 @@ describe('the throttles and input hygiene of a tenant route', () => {
     const refused = await onDomain.post(`/login-actions/${action}`, body());
     expect(refused.statusCode).toBe(429);
 
+    const twin = await newTenant();
     const other = await start({ throttle: { limit: 3, windowSeconds: 60 } });
     const onPath = new Browser(other.app, BASE_HOST);
     for (let i = 0; i < 3; i += 1) {
-      await onPath.post(`/tenants/${tenant.name}/login-actions/${action}`, body());
+      await onPath.post(`/tenants/${twin.name}/login-actions/${action}`, body());
     }
-    const same = await onPath.post(`/tenants/${tenant.name}/login-actions/${action}`, body());
+    const same = await onPath.post(`/tenants/${twin.name}/login-actions/${action}`, body());
     expect(comparable(refused)).toEqual(comparable(same));
   });
 
@@ -529,8 +530,9 @@ describe('the throttles and input hygiene of a tenant route', () => {
     const host = await addDomain(tenant, 'canonical');
     const hostile = body({ username: 'a\u0000b\ud800c', password: 'x\u0000y' });
     const onDomain = await new Browser(app, host).post('/login-actions/authenticate', hostile);
+    const twin = await newTenant();
     const onPath = await new Browser(app, BASE_HOST).post(
-      `/tenants/${tenant.name}/login-actions/authenticate`,
+      `/tenants/${twin.name}/login-actions/authenticate`,
       hostile,
     );
     expect(onDomain.statusCode).toBeLessThan(500);
@@ -557,9 +559,10 @@ describe('CORS', () => {
         `/protocol/openid-connect/${endpoint}`,
         { headers },
       );
+      const twin = await newTenant();
       const onPath = await new Browser(app, BASE_HOST).send(
         'OPTIONS',
-        `/tenants/${tenant.name}/protocol/openid-connect/${endpoint}`,
+        `/tenants/${twin.name}/protocol/openid-connect/${endpoint}`,
         { headers },
       );
       expect(onPath.headers['access-control-allow-origin']).toBe(SPA_ORIGIN);
