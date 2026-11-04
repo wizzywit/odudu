@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DomainConflictError, type DomainRow } from '#/repository/tenant-domains';
-import { verifyDomain, type ResolveTxt } from '#/usecase/verify-domain';
+import { type ResolveTxt } from '#/service/tenant-domain';
+import { verifyDomain } from '#/usecase/verify-domain';
 
 const NOW = new Date('2026-11-04T12:00:00Z');
 const CHALLENGE = 'odudu-domain-verification=abc123';

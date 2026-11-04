@@ -72,6 +72,34 @@ describe('refuseHost', () => {
   });
 });
 
+describe('refuseHost on spellings that fold to a refused name', () => {
+  it.each([
+    ['id\u3002operator.net', 'operator_host'],
+    ['id\uff0eoperator\uff61net', 'operator_host'],
+    ['\uff29\uff24.operator.net', 'operator_host'],
+    ['x\u3002localhost', 'localhost'],
+    ['\uff4c\uff4f\uff43\uff41\uff4c\uff48\uff4f\uff53\uff54', 'localhost'],
+    ['a\u3002test', 'reserved_name'],
+  ])('refuses %j as %s', (host, refusal) => {
+    expect(refuseHost(host, OPERATOR)).toBe(refusal);
+  });
+
+  it('compares an operator host written in unicode with its punycode form', () => {
+    expect(refuseHost('xn--bcher-kva.de', 'B\u00fccher.de')).toBe('operator_host');
+    expect(refuseHost('B\u00fccher.de', 'xn--bcher-kva.de')).toBe('operator_host');
+  });
+});
+
+describe('ports', () => {
+  it.each(['login.acme.com:', 'login.acme.com:0443', 'login.acme.com:00080', 'login.acme.com:0'])(
+    'refuses %s as invalid and canonicalises it to nothing',
+    (host) => {
+      expect(refuseHost(host, OPERATOR)).toBe('invalid');
+      expect(canonicalHost(host)).toBeNull();
+    },
+  );
+});
+
 describe('the challenge', () => {
   it('is published under a label of the host', () => {
     expect(challengeName('login.acme.com')).toBe('_odudu-challenge.login.acme.com');

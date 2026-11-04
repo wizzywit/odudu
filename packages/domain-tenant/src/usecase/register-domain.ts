@@ -37,9 +37,10 @@ export async function registerDomain(
   if (deps.publicBaseUrl === undefined) return refused(DOMAIN_CODES.noBaseUrl);
   const operatorHost = new URL(deps.publicBaseUrl).hostname;
   const refusal = refuseHost(rawHost, operatorHost);
-  const host = canonicalHost(rawHost);
   if (refusal !== null) return refused(REFUSAL_CODES[refusal]);
-  if (host === null) return refused(DOMAIN_CODES.invalid);
+  const host = canonicalHost(rawHost);
+  if (host === null)
+    throw new Error(`a host refuseHost accepted has no canonical form: ${rawHost}`);
   try {
     const row = await deps.domains.insert({
       tenantId: tenant.id,

@@ -1,7 +1,5 @@
 import { DomainConflictError, type DomainRow } from '#/repository/tenant-domains';
-import { challengeName, txtMatchesChallenge } from '#/service/tenant-domain';
-
-export type ResolveTxt = (name: string) => Promise<readonly (readonly string[])[]>;
+import { challengeName, txtMatchesChallenge, type ResolveTxt } from '#/service/tenant-domain';
 
 export interface VerifyDomainDomains {
   get(tenantId: string, id: string): Promise<DomainRow | null>;

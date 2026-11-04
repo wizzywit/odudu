@@ -136,12 +136,13 @@ export {
   refuseHost,
   REFUSAL_CODES,
   txtMatchesChallenge,
+  type ResolveTxt,
   type DomainCode,
   type DomainRefusal,
 } from '#/service/tenant-domain';
 export {
   verifyDomain,
-  type ResolveTxt,
+  type VerifyDomainDomains,
   type VerifyDomainDeps,
   type VerifyDomainOutcome,
 } from '#/usecase/verify-domain';

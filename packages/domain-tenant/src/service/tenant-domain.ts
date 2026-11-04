@@ -39,25 +39,41 @@ const DEFAULT_PORTS = new Set([80, 443]);
 const RESERVED_TOP_LABELS = new Set(['test', 'example', 'invalid', 'local']);
 const RESERVED_APEXES = ['example.com', 'example.org', 'example.net'];
 
+export type ResolveTxt = (name: string) => Promise<readonly (readonly string[])[]>;
+
 interface Authority {
   name: string;
-  port: number | null;
+  // null: no port written; 'malformed': an empty port or one with leading zeros.
+  port: number | 'malformed' | null;
+}
+
+function parsePort(digits: string): number | 'malformed' {
+  if (digits === '' || (digits.length > 1 && digits.startsWith('0'))) return 'malformed';
+  return Number.parseInt(digits, 10);
 }
 
 function splitAuthority(raw: string): Authority {
   const lower = raw.toLowerCase();
   const match = PORT_SUFFIX.exec(lower);
   if (match === null || lower.endsWith(']')) return { name: lower, port: null };
-  const digits = match[2] ?? '';
-  return { name: match[1] ?? '', port: digits === '' ? null : Number.parseInt(digits, 10) };
+  return { name: match[1] ?? '', port: parsePort(match[2] ?? '') };
+}
+
+function hasForeignPort(port: Authority['port']): boolean {
+  return port !== null && (port === 'malformed' || !DEFAULT_PORTS.has(port));
 }
 
 function withoutRootLabel(name: string): string {
   return name.endsWith('.') ? name.slice(0, -1) : name;
 }
 
+// The name as a resolver compares it: dots and letters folded, punycode.
+function asciiOf(name: string): string {
+  return domainToASCII(withoutRootLabel(name));
+}
+
 function dnsNameOf(name: string): string | null {
-  const ascii = domainToASCII(withoutRootLabel(name));
+  const ascii = asciiOf(name);
   if (ascii === '' || ascii.length > MAX_HOST_LENGTH || !DNS_NAME.test(ascii)) return null;
   return ascii;
 }
@@ -69,7 +85,7 @@ function dnsNameOf(name: string): string | null {
  */
 export function canonicalHost(raw: string): string | null {
   const { name, port } = splitAuthority(raw);
-  if (port !== null && !DEFAULT_PORTS.has(port)) return null;
+  if (hasForeignPort(port)) return null;
   return dnsNameOf(name);
 }
 
@@ -90,10 +106,11 @@ function isReserved(host: string): boolean {
 export function refuseHost(host: string, operatorHost: string): DomainRefusal | null {
   const { name, port } = splitAuthority(host);
   if (isIpLiteral(name)) return 'ip_literal';
-  const bare = withoutRootLabel(name);
-  if (bare === 'localhost' || bare.endsWith('.localhost')) return 'localhost';
-  if (bare === splitAuthority(operatorHost).name.toLowerCase()) return 'operator_host';
-  if (port !== null && !DEFAULT_PORTS.has(port)) return 'invalid';
+  const ascii = asciiOf(name);
+  if (ascii === 'localhost' || ascii.endsWith('.localhost')) return 'localhost';
+  const operatorName = splitAuthority(operatorHost).name;
+  if (ascii !== '' && ascii === asciiOf(operatorName)) return 'operator_host';
+  if (hasForeignPort(port)) return 'invalid';
   const canonical = dnsNameOf(name);
   if (canonical === null) return 'invalid';
   if (isReserved(canonical)) return 'reserved_name';

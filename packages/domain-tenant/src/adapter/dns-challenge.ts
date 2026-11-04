@@ -1,5 +1,5 @@
 import { resolveTxt } from 'node:dns/promises';
-import { type ResolveTxt } from '#/usecase/verify-domain';
+import { type ResolveTxt } from '#/service/tenant-domain';
 
 export const DEFAULT_LOOKUP_TIMEOUT_MS = 5000;
 

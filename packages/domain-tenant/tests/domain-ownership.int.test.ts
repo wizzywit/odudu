@@ -11,7 +11,8 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MAX_DOMAINS_PER_TENANT, tenantDomainRepository } from '#/repository/tenant-domains';
 import { registerDomain } from '#/usecase/register-domain';
-import { verifyDomain, type ResolveTxt } from '#/usecase/verify-domain';
+import { type ResolveTxt } from '#/service/tenant-domain';
+import { verifyDomain } from '#/usecase/verify-domain';
 
 let container: TestDatabase;
 let owner: DatabaseHandle;
@@ -41,6 +42,7 @@ async function newTenant(): Promise<{ id: string; name: string }> {
 }
 
 let counter = 0;
+let fill = 0;
 const freshHost = (): string => `login${String((counter += 1))}.acme.com`;
 
 function register(tenant: { id: string; name: string }, host: string) {
@@ -49,7 +51,7 @@ function register(tenant: { id: string; name: string }, host: string) {
       {
         domains: tenantDomainRepository(tx),
         publicBaseUrl: BASE,
-        random: () => Buffer.alloc(32, counter),
+        random: () => Buffer.alloc(32, (fill += 1)),
       },
       tenant,
       host,
