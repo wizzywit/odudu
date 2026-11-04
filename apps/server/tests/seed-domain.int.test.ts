@@ -149,6 +149,46 @@ describe('seed domain', () => {
     expect((await rows(b.id))[0]).toBeUndefined();
   });
 
+  it('registers, unverified, a host another tenant already verified', async () => {
+    const a = await tenant();
+    const b = await tenant();
+    await run(['--tenant', a.name, '--host', 'login.claimed.org', '--assume-verified']);
+    const result = await run(['--tenant', b.name, '--host', 'login.claimed.org']);
+    expect(result).toMatchObject({ state: 'pending', canonical: false, created: true });
+    expect((await rows(b.id))[0]).toMatchObject({ state: 'pending' });
+    expect((await rows(a.id))[0]).toMatchObject({ state: 'verified' });
+  });
+
+  it('says which setting a missing base address needs', async () => {
+    const t = await tenant();
+    const kept = process.env.ODUDU_PUBLIC_BASE_URL;
+    Reflect.deleteProperty(process.env, 'ODUDU_PUBLIC_BASE_URL');
+    try {
+      await expect(run(['--tenant', t.name, '--host', 'login.nobase.org'])).rejects.toThrow(
+        /domain_no_base_url: ODUDU_PUBLIC_BASE_URL is required/,
+      );
+    } finally {
+      process.env.ODUDU_PUBLIC_BASE_URL = kept;
+    }
+  });
+
+  it('reads NODE_ENV from the configuration to refuse --assume-verified in production', async () => {
+    const t = await tenant();
+    const kept = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      await expect(
+        run(['--tenant', t.name, '--host', 'login.prod-run.org', '--assume-verified']),
+      ).rejects.toMatchObject({ code: 'domain_assume_verified_production' });
+      expect(await rows(t.id)).toHaveLength(0);
+      expect(await run(['--tenant', t.name, '--host', 'login.prod-run.org'])).toMatchObject({
+        state: 'pending',
+      });
+    } finally {
+      process.env.NODE_ENV = kept;
+    }
+  });
+
   it('refuses an unknown tenant', async () => {
     await expect(
       run(['--tenant', 'nobody-here', '--host', 'login.nobody.org']),
