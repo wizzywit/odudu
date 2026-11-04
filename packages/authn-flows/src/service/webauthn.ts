@@ -10,6 +10,7 @@ import {
   type VerifiedAuthenticationResponse,
   type VerifiedRegistrationResponse,
 } from '@simplewebauthn/server';
+import { isAddressLiteral } from '@odudu/kernel';
 import { z } from 'zod';
 
 // WebAuthn §5.1.3 binds a credential to the relying party's identifier, and
@@ -31,16 +32,6 @@ function publicOrigin(publicBaseUrl: string): URL {
     throw new Error(`ODUDU_PUBLIC_BASE_URL must use http or https, got "${parsed.protocol}"`);
   }
   return parsed;
-}
-
-// An RP ID is a domain, and WebAuthn §5.1.3's same-origin check compares
-// it as one: a browser can never match a credential's RP ID against an
-// address literal, so a passkey registered against one is unusable from
-// the moment it is created. `[…]` is how URL renders an IPv6 host, and a
-// host of only digits and dots is an IPv4 one — no registrable domain
-// looks like either.
-function isAddressLiteral(hostname: string): boolean {
-  return hostname.startsWith('[') || /^[0-9.]+$/.test(hostname);
 }
 
 export function relyingPartyId(publicBaseUrl: string): string {
