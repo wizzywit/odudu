@@ -83,7 +83,7 @@ The admin API hands back a token; the tenant publishes it as a DNS TXT record
 under `_odudu-challenge.<host>`; verification resolves the record. A recheck
 runs for every canonical domain on a schedule: a command first, a timer second
 (CLAUDE.md, "Background work"), `odudu domains recheck`, with the loop a thin
-file beside `scheduler.ts`. A lookup that answers *no such name* or *no matching record* counts as a failure; a resolver error or timeout is indeterminate and counts as nothing, and a pass in which more than half the lookups are indeterminate counts nothing at all, so a resolver outage cannot disable every custom domain. A pass is bounded: a per-lookup timeout, a concurrency limit, and a keyset walk in pages, so a pass over tens of thousands of domains neither runs serially nor holds its lock for hours. A domain that fails its recheck for a set number of
+file beside `scheduler.ts`. A lookup that answers _no such name_ or _no matching record_ counts as a failure; a resolver error or timeout is indeterminate and counts as nothing, and a pass in which more than half the lookups are indeterminate counts nothing at all, so a resolver outage cannot disable every custom domain. A pass is bounded: a per-lookup timeout, a concurrency limit, and a keyset walk in pages, so a pass over tens of thousands of domains neither runs serially nor holds its lock for hours. A domain that fails its recheck for a set number of
 consecutive passes goes to `failed`, the `ask` endpoint stops approving it, the
 host resolves to nothing, and the tenant's canonical address returns to the path
 address, with an audit row. This is the lost-domain case closing by itself: an
@@ -254,5 +254,5 @@ the P4j inheritance; the landing page, README and `questions.md` lose their
 "follows in P4j" lines; a guide for operators (proxy, DNS, the switch and its
 costs) with runnable blocks where it can have them; the transcripts for the
 domain routes and the check endpoint re-run on a live stack; `CHANGELOG.md`
-under `Unreleased`; a phase note in `docs/phases/p4j.md`; an ADR for the
+under `Unreleased`; a phase note in the P4j note under `docs/phases/`; an ADR for the
 canonical address and the transition window.

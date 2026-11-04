@@ -69,14 +69,18 @@
 **Files:** Create `packages/kernel/src/address.ts`, `packages/kernel/src/address.test.ts`; modify `packages/kernel/src/index.ts`.
 
 **Interfaces — Produces:**
+
 ```ts
-export interface TenantAddress { readonly origin: string; readonly prefix: string }
-export function pathAddress(issuerBase: string, tenant: string): TenantAddress   // prefix `/tenants/<name>`
-export function domainAddress(host: string, tls: boolean): TenantAddress          // prefix ''
-export function addressIssuer(a: TenantAddress): string                           // origin + prefix
-export function addressPath(a: TenantAddress, rest: string): string               // prefix + rest ('/login-actions/x')
-export function addressUrl(a: TenantAddress, rest: string): string                // origin + addressPath
-export function addressRelyingParty(a: TenantAddress): { id: string; origin: string }
+export interface TenantAddress {
+  readonly origin: string;
+  readonly prefix: string;
+}
+export function pathAddress(issuerBase: string, tenant: string): TenantAddress; // prefix `/tenants/<name>`
+export function domainAddress(host: string, tls: boolean): TenantAddress; // prefix ''
+export function addressIssuer(a: TenantAddress): string; // origin + prefix
+export function addressPath(a: TenantAddress, rest: string): string; // prefix + rest ('/login-actions/x')
+export function addressUrl(a: TenantAddress, rest: string): string; // origin + addressPath
+export function addressRelyingParty(a: TenantAddress): { id: string; origin: string };
 ```
 
 - [ ] **Step 1: Write failing tests** in `address.test.ts`: `pathAddress('https://idp.example','acme')` → issuer `https://idp.example/tenants/acme`, `addressPath(…,'/login-actions/authenticate')` → `/tenants/acme/login-actions/authenticate`; `domainAddress('login.acme.com', true)` → issuer `https://login.acme.com`, path `/login-actions/authenticate`; relying-party id is the host without port for both (`idp.example`, `login.acme.com`), origin keeps the port; `tls=false` gives `http`.
@@ -91,7 +95,7 @@ export function addressRelyingParty(a: TenantAddress): { id: string; origin: str
 
 **Interfaces — Consumes:** Task 1. **Produces:** `request.tenantAddress: TenantAddress | undefined` (undefined off tenant routes); renderers' inputs gain `address`.
 
-- [ ] **Step 1: Write the lint test** `tests/lint/tenant-address.test.ts`: walk production `.ts` under `packages/*/src` and `apps/server/src` (not tests, not `testing/`), fail naming file and line on a template literal or string containing `/tenants/`, or a call of `tenantIssuer(`, that is not in an allowlist of *route-pattern* files (`app.ts`, `brand-routes.ts`, `endpoint-docs.ts`, route registrations under `view/routes`, `protocol-admin`, `console-gateway`, `cli/console.ts`) and not `kernel/src/address.ts`. Its header lists what it cannot see (a path built by concatenating a variable). Run — expect FAIL listing today's sites.
+- [ ] **Step 1: Write the lint test** `tests/lint/tenant-address.test.ts`: walk production `.ts` under `packages/*/src` and `apps/server/src` (not tests, not `testing/`), fail naming file and line on a template literal or string containing `/tenants/`, or a call of `tenantIssuer(`, that is not in an allowlist of _route-pattern_ files (`app.ts`, `brand-routes.ts`, `endpoint-docs.ts`, route registrations under `view/routes`, `protocol-admin`, `console-gateway`, `cli/console.ts`) and not `kernel/src/address.ts`. Its header lists what it cannot see (a path built by concatenating a variable). Run — expect FAIL listing today's sites.
 - [ ] **Step 2:** Convert each listed site, one commit per package. Renderer snapshot tests and view tests keep their expected output: the path address yields the same bytes, so **no existing snapshot changes**.
 - [ ] **Step 3:** Run `pnpm verify` — expect green with no snapshot or test edit. Run the lint — PASS.
 - [ ] **Step 4: Commit** per package, `refactor(<pkg>): write tenant addresses through the address service`.
@@ -115,17 +119,32 @@ export function addressRelyingParty(a: TenantAddress): { id: string; origin: str
 **Files:** Create `packages/db/drizzle/0111_tenant_domains.sql` (with `ENABLE` and `FORCE ROW LEVEL SECURITY` for both tables, as `0003_signing_keys.sql` does), `packages/domain-tenant/src/schema/tenant-domains.ts` (beside the other tenant-scoped tables there; the `tenants` table alone sits in `packages/db/src/schema`), `packages/domain-tenant/src/repository/tenant-domains.ts`, tests `packages/domain-tenant/src/repository/tenant-domains.int.test.ts`; modify `packages/db/src/schema/index.ts`, the domain-identity credentials schema (new `rp_id`).
 
 **Interfaces — Produces:**
+
 ```ts
 // tenant_domains(id uuid pk, tenant_id uuid fk, host text, state text check in ('pending','verified','failed'),
 //   challenge text, verified_at, last_checked_at, failed_checks int default 0, canonical bool default false,
 //   created_at)  -- partial unique indexes: (tenant_id) where canonical; (host) where state = 'verified'; plain index on host
 // tenant_issuer_retirements(tenant_id, issuer text, expires_at timestamptz, pk (tenant_id, issuer))
 // user_credentials.rp_id text not null, back-filled with the base host
-export interface DomainRow { id; tenantId; host; state; challenge; verifiedAt; lastCheckedAt; failedChecks; canonical }
+export interface DomainRow {
+  id;
+  tenantId;
+  host;
+  state;
+  challenge;
+  verifiedAt;
+  lastCheckedAt;
+  failedChecks;
+  canonical;
+}
 // tenant-scoped (uses the tenant's transaction):
-insert/list/get/delete/setCanonical/markChecked/retireIssuer/listRetired
+insert / list / get / delete /setCanonical/Cacdeehkkmr / retireIssuer / listRetired;
 // deployment-wide, owner-or-definer seam, returns only what routing needs:
-export function lookupHost(db, host: string, now: Date): Promise<{ tenantId; tenantName; canonical: boolean; retiredUntil: Date | null } | null>
+export function lookupHost(
+  db,
+  host: string,
+  now: Date,
+): Promise<{ tenantId; tenantName; canonical: boolean; retiredUntil: Date | null } | null>;
 ```
 
 - [ ] **Step 0:** add `tenant_issuer_retirements` (delete rows past `expires_at`) and `tenant_domains` (delete `pending` rows older than the retention window, default 7 days, through the policy `retentionPolicyFromConfig` already reads; document the setting) to `RETENTION_RULES` and `REAP_ORDER` (no `after`); because `tests/docs/retention-schedule.test.ts` asserts every captured `odudu reap` transcript carries `REAP_ORDER`'s keys in order, edit the retention page under `operating/` and re-run the reap transcripts under `reference/transcripts/` in the same increment (the commit lists each); and and register the new host lookup, the domain list and the retirement read in the `query-plans` harness found by `git grep -n -i 'query-plans\|queryPlan' -- tests .github package.json`; a plan that seq-scans `tenant_domains` fails.
@@ -139,13 +158,19 @@ export function lookupHost(db, host: string, now: Date): Promise<{ tenantId; ten
 **Files:** Create `packages/domain-tenant/src/service/tenant-domain.ts`, `tenant-domain.test.ts`, `packages/domain-tenant/src/usecase/verify-domain.ts`, `verify-domain.test.ts`, `packages/domain-tenant/src/adapter/dns-challenge.ts`.
 
 **Interfaces — Produces:**
+
 ```ts
-export function canonicalHost(raw: string): string | null          // lowercase, no trailing dot, no default port, punycode; null if not a DNS name
-export function refuseHost(host: string, operatorHost: string): DomainRefusal | null  // 'ip_literal'|'localhost'|'operator_host'|'reserved_name'|'invalid'
-export function challengeName(host: string): string                // `_odudu-challenge.<host>`
-export function newChallenge(random: () => Buffer): string
-export type ResolveTxt = (name: string) => Promise<readonly (readonly string[])[]>
-export function verifyDomain(deps: { resolveTxt: ResolveTxt; domains }, tenantId, id, now): Promise<'verified'|'pending'|'failed'>
+export function canonicalHost(raw: string): string | null; // lowercase, no trailing dot, no default port, punycode; null if not a DNS name
+export function refuseHost(host: string, operatorHost: string): DomainRefusal | null; // 'ip_literal'|'localhost'|'operator_host'|'reserved_name'|'invalid'
+export function challengeName(host: string): string; // `_odudu-challenge.<host>`
+export function newChallenge(random: () => Buffer): string;
+export type ResolveTxt = (name: string) => Promise<readonly (readonly string[])[]>;
+export function verifyDomain(
+  deps: { resolveTxt: ResolveTxt; domains },
+  tenantId,
+  id,
+  now,
+): Promise<'verified' | 'pending' | 'failed'>;
 ```
 
 - [ ] **Step 1: Write failing tests**: `canonicalHost('LOGIN.Acme.COM.:443')` → `login.acme.com`; `xn--` and unicode forms of the same name equal; `refuseHost('192.0.2.1')`, `'[::1]'`, `'localhost'`, `'x.localhost'`, `'a.test'`, the operator host, any host carrying a non-default port, and a single-label name → refusals; `registerDomain` refuses the system tenant (`SYSTEM_TENANT_ID`) with code `domain_system_tenant` and refuses every registration when `ODUDU_PUBLIC_BASE_URL` is unset with `domain_no_base_url`; `verifyDomain` marks `verified` only when a TXT value equals the challenge, `pending` on `ENOTFOUND`/no match, and treats a resolver timeout as `pending`, never `verified`.
@@ -162,11 +187,13 @@ Push; PR; CI green; answer review.
 **Files:** Create `apps/server/src/host-resolution.ts`, `host-resolution.test.ts`, `host-resolution.int.test.ts`; modify `apps/server/src/app.ts` (`buildApp`: `rewriteUrl` option; `request.tenantAddress` for domain hosts), `apps/server/src/app-deps.ts`.
 
 **Interfaces — Consumes:** Task 1 `domainAddress`; Task 3 `lookupHost`. **Produces:**
+
 ```ts
-export function requestHost(raw: IncomingMessage, trustProxy: boolean): string | null   // canonicalHost of Host, or leftmost X-Forwarded-Host only when trustProxy
-export const DOMAIN_ALLOWED: readonly RegExp[]  // paths a domain host may serve (protocol, login-actions, account pages, brand, discovery)
-export function rewriteForDomain(url: string, tenantName: string): string | null   // null = refuse
+export function requestHost(raw: IncomingMessage, trustProxy: boolean): string | null; // canonicalHost of Host, or leftmost X-Forwarded-Host only when trustProxy
+export const DOMAIN_ALLOWED: readonly RegExp[]; // paths a domain host may serve (protocol, login-actions, account pages, brand, discovery)
+export function rewriteForDomain(url: string, tenantName: string): string | null; // null = refuse
 ```
+
 The host-to-tenant lookup is asynchronous and `rewriteUrl` is not, so a request on a non-base host cannot be rewritten in one step. The contract is the behavioural tests below; the mechanism is chosen in step 1 between two candidates: (a) `rewriteUrl` sends every non-base-host path to a reserved prefix, and a handler there resolves the host and serves the tenant's routes registered a second time under that prefix with the tenant taken from the host; (b) a hook that runs before routing resolves the host and sets the URL the router sees. `assumption:` Fastify 5.12.7 allows (b); step 1 proves or disproves it.
 
 - [ ] **Step 1: Spike** (script under the scratchpad, not committed): establish which of (a)/(b) works on Fastify 5.12.7 with an async DB lookup; record the verified command and output in the PR description.
@@ -203,7 +230,7 @@ Push; PR; CI; review.
 
 **Interfaces — Consumes:** `listRetired`. **Produces:** `acceptedIssuers(canonical: string, retired: readonly {issuer; expiresAt}[], now: Date): readonly string[]` (pure, in `packages/protocol-oidc/src/service/issuer.ts`).
 
-Sites: enumerate every comparison and every emission with `git grep -n -E "\\biss\\b|issuer" -- packages/protocol-oidc/src | grep -v '\.test\.'` and classify each in the PR as *compare* (accepts the canonical and live retired issuers through `acceptedIssuers`) or *emit* (uses the address the request arrived at, or the canonical one where there is no request): userinfo, introspection, revocation, token-exchange subject validation (`token-exchange-subject.ts`), `id_token_hint` at authorize and logout, client-assertion `aud`, logout-token, front-channel logout, discovery. The previous-address refusal is a new server page: add its renderer `*-html.ts` with a `messages.ts` entry and Arabic text, its kind in `page-kinds.ts`, make `theme-reach.test.ts`, `arabic-catalogues.test.ts` and the `server-pages-arabic.spec.ts` axe run pass, and regenerate the landing screenshots with `pnpm --filter @odudu/instrument build && pnpm --filter @odudu/docs page-shots` in the same commit (`drift.test.ts` fails otherwise).
+Sites: enumerate every comparison and every emission with `git grep -n -E "\\biss\\b|issuer" -- packages/protocol-oidc/src | grep -v '\.test\.'` and classify each in the PR as _compare_ (accepts the canonical and live retired issuers through `acceptedIssuers`) or _emit_ (uses the address the request arrived at, or the canonical one where there is no request): userinfo, introspection, revocation, token-exchange subject validation (`token-exchange-subject.ts`), `id_token_hint` at authorize and logout, client-assertion `aud`, logout-token, front-channel logout, discovery. The previous-address refusal is a new server page: add its renderer `*-html.ts` with a `messages.ts` entry and Arabic text, its kind in `page-kinds.ts`, make `theme-reach.test.ts`, `arabic-catalogues.test.ts` and the `server-pages-arabic.spec.ts` axe run pass, and regenerate the landing screenshots with `pnpm --filter @odudu/instrument build && pnpm --filter @odudu/docs page-shots` in the same commit (`drift.test.ts` fails otherwise).
 
 - [ ] **Step 1: Write failing tests**: `acceptedIssuers` drops an expired retirement and keeps a live one; for each site (userinfo, introspection, `id_token_hint` at authorize and at logout, client-assertion `aud`) a token minted under the retired issuer is accepted inside the window and refused at `expires_at`; at the previous address, `/authorize`, registration and reset pages refuse with a catalogue page naming the canonical address, while token, userinfo, introspection, revocation, jwks and logout answer inside the window and everything answers the bare 404 after it; a token minted at the previous address in the window carries that address's issuer; a token-exchange `subject_token` and a revocation request presenting a retired-issuer token are accepted inside the window and refused after; a client whose `redirect_uri` and `post_logout_redirect_uri` were registered before the switch completes authorize and logout unchanged at the canonical address (client URIs do not move on a switch).
 - [ ] **Step 2–4:** Run; implement; run `pnpm verify`. **Step 5: Commit** `feat(protocol-oidc): accept a retired issuer until its window ends`.
@@ -265,7 +292,7 @@ Push; PR; CI; review.
 
 ### Task 12: What an operator and a reader need
 
-**Files:** `docs/protocols/web-security.md` (a reading note: why a host selects a tenant only through a verified row, and why mail links never read `Host`), `tests/docs/questions.md` (the P4j line), the `README.md` feature list, `apps/docs/content/en/operating/custom-domains.md` (proxy `on_demand_tls { ask }`, why `/internal` is not public, DNS record, the switch and its costs: sessions end, passkeys hidden, resource servers accept two issuers for the window), transcripts under `reference/transcripts/` for the domain routes and the check endpoint **re-run on a live stack**, concept page edits in `concepts/tokens.md` and `sessions.md`, ADR `docs/adr/0049-a-tenant-has-one-canonical-address.md` (+ `docs/adr/README.md` row), `docs/phases/p4j.md`, `CHANGELOG.md` `## [Unreleased]`.
+**Files:** `docs/protocols/web-security.md` (a reading note: why a host selects a tenant only through a verified row, and why mail links never read `Host`), `tests/docs/questions.md` (the P4j line), the `README.md` feature list, `apps/docs/content/en/operating/custom-domains.md` (proxy `on_demand_tls { ask }`, why `/internal` is not public, DNS record, the switch and its costs: sessions end, passkeys hidden, resource servers accept two issuers for the window), transcripts under `reference/transcripts/` for the domain routes and the check endpoint **re-run on a live stack**, concept page edits in `concepts/tokens.md` and `sessions.md`, ADR ADR 0049, "a tenant has one canonical address", under `docs/adr/` (+ `docs/adr/README.md` row), the P4j note under `docs/phases/`, `CHANGELOG.md` `## [Unreleased]`.
 
 - [ ] **Step 0:** `seed client` and the guide say a client's redirect URIs, web origins and logout URIs do not change on a switch; the guide says to keep `/internal/domain-check` off the public network; a Caddy `on_demand_tls { ask }` example in the guide, tagged `text` and stated as illustrative, since no CI job runs a real Caddy against real DNS; the guide's Odudu commands use `odudu seed domain --assume-verified` in runnable blocks; state in the phase note that `container`, `conformance` and `quickstart` exercise only the path address and what proves the domain path instead (Task 5's full-flow test, Task 11's e2e).
 - [ ] **Step 1:** Write the pages; `pnpm --filter @odudu/docs test` — expect `guides-runnable`, `transcripts`, `links`, `operating` tests PASS.
