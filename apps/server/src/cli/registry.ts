@@ -28,6 +28,7 @@ const SEED_SUMMARIES: Record<(typeof SEED_COMMANDS)[number], string> = {
   profile: 'Set the standard profile claims of a user.',
   'registration-token': 'Mint an initial access token for dynamic client registration.',
   admin: 'Create an administrator in the system tenant and print a one-time password.',
+  domain: 'Register a domain for a tenant, optionally verified and canonical.',
 };
 
 const SEED_EXAMPLES: Record<(typeof SEED_COMMANDS)[number], string> = {
@@ -48,6 +49,7 @@ const SEED_EXAMPLES: Record<(typeof SEED_COMMANDS)[number], string> = {
   profile: 'odudu seed profile --tenant acme --username ada --given-name Ada',
   'registration-token': 'odudu seed registration-token --tenant acme --uses 1 --ttl 3600',
   admin: 'odudu seed admin --username root',
+  domain: 'odudu seed domain --tenant acme --host login.acme.org',
 };
 
 const SEED_SUBCOMMANDS: readonly CliCommand[] = SEED_COMMANDS.map((name) => ({

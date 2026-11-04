@@ -150,6 +150,11 @@ export const ERROR_DOCS: Record<ErrorCode, ErrorDoc> = {
     '`ODUDU_APP_DATABASE_URL` names a superuser or BYPASSRLS role, so the logout sender would not ' +
       'claim deliveries under the tenant policy.',
   ),
+  domain_assume_verified_production: command(
+    '`odudu seed domain --assume-verified` was run with `NODE_ENV=production`. It marks a domain ' +
+      'verified without a DNS lookup, so a production deployment cannot use it; publish the ' +
+      'challenge record and verify the domain instead.',
+  ),
   domains_unknown_command: command('`odudu domains` was given a subcommand it does not have.'),
   domain_recheck_cannot_read_every_tenant: pass(
     '`odudu domains recheck` must read the verified domains of every tenant, which needs a ' +

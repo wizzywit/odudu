@@ -4,5 +4,11 @@
     "item": "previous-address-html",
     "reason": "the custom-domains guide, which says what a tenant's previous address answers, is written in the phase's documentation increment",
     "phase": "P4j"
+  },
+  {
+    "inventory": "cli-commands",
+    "item": "seed domain",
+    "reason": "the custom-domains guide, whose runnable blocks seed a served domain, is written in the phase's documentation increment",
+    "phase": "P4j"
   }
 ]

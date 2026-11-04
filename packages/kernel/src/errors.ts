@@ -54,6 +54,7 @@ export const ERROR_CODES = [
   'logout_sender_requires_app_database_url',
   'logout_sender_serving_role_bypasses_rls',
   'domains_unknown_command',
+  'domain_assume_verified_production',
   'domain_recheck_cannot_read_every_tenant',
   'domain_recheck_requires_app_database_url',
   'domain_recheck_serving_role_bypasses_rls',
