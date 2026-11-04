@@ -116,7 +116,7 @@ export function configureHostResolution(
     }
     const url = request.raw.url ?? '';
     if (isExemptPath(url)) return;
-    const host = requestHost(request.raw, trustProxy);
+    const host = requestHost(request.raw, trustProxy, tls);
     if (host === null || host === baseHost) return;
     reply.header('x-request-id', request.id);
     const found = await state(host);
@@ -130,6 +130,8 @@ export function configureHostResolution(
     }
     served.set(request.raw, host);
     reply.hijack();
+    // The second routing reads its id from the header, so it keeps this one.
+    request.raw.headers['x-request-id'] = request.id;
     request.raw.url = target;
     app.routing(request.raw, reply.raw);
   });

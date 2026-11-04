@@ -16,7 +16,7 @@ afterEach(async () => {
   app = undefined;
 });
 
-function start(states: Record<string, HostState>, limit = 1000) {
+function start(states: Record<string, HostState>, limit = 1000, resolving = true) {
   const asked: string[] = [];
   const instance = Fastify();
   registerDomainCheck(instance, {
@@ -24,6 +24,7 @@ function start(states: Record<string, HostState>, limit = 1000) {
       asked.push(host);
       return Promise.resolve(states[host] ?? { kind: 'unknown' });
     },
+    resolving,
     throttle: slidingWindow({ limit, windowSeconds: 60, now: () => new Date() }),
   });
   app = instance;
@@ -53,6 +54,14 @@ describe('GET /internal/domain-check', () => {
       expect(res.statusCode, query).toBe(404);
       expect(res.body, query).toBe('');
     }
+  });
+
+  it('answers 404 without asking while host resolution is off', async () => {
+    const { app: instance, asked } = start({ 'login.acme.com': LIVE }, 1000, false);
+    const res = await ask(instance, '?domain=login.acme.com');
+    expect(res.statusCode).toBe(404);
+    expect(res.body).toBe('');
+    expect(asked).toEqual([]);
   });
 
   it('reads the host in any spelling of it', async () => {

@@ -8,6 +8,9 @@ export const DOMAIN_CHECK_PATH = '/internal/domain-check';
 export interface DomainCheckDeps {
   // Reads on the owner connection; the serving role sees no domain row.
   readonly state: (host: string) => Promise<HostState>;
+  // False when no host is resolved to a tenant (no public base URL): a
+  // certificate for a host that would then route as an unknown one is no help.
+  readonly resolving: boolean;
   // Its own budget: a proxy asking about every handshake must never spend
   // what a person signing in has, nor the other way round.
   readonly throttle: RateLimiter;
@@ -35,7 +38,7 @@ export function registerDomainCheck(app: FastifyInstance, deps: DomainCheckDeps)
     },
     async (request, reply) => {
       const host = hostAsked(request.query);
-      const found = host === null ? null : await deps.state(host);
+      const found = host === null || !deps.resolving ? null : await deps.state(host);
       return reply.code(found?.kind === 'live' ? 200 : 404).send();
     },
   );

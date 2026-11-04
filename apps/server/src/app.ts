@@ -533,6 +533,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerHealth(app, deps);
   registerDomainCheck(app, {
     state: hostStateOf,
+    resolving: deps.publicBaseUrl !== undefined,
     throttle: slidingWindow({
       ...(deps.domainCheckThrottle ?? DEFAULT_DOMAIN_CHECK_THROTTLE),
       now: () => new Date(),

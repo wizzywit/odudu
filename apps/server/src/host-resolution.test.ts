@@ -15,6 +15,7 @@ const LIVE: HostState = {
 };
 
 interface Options {
+  genReqId?: () => string;
   addressing?: (tenantName: string, issuer: string) => TenantAddressing | null;
   states?: Record<string, HostState>;
   trustProxy?: boolean;
@@ -30,7 +31,12 @@ function build(options: Options = {}) {
   const addressing = vi.fn((tenantName: string, issuer: string) =>
     Promise.resolve(answer(tenantName, issuer)),
   );
-  const app: FastifyInstance = Fastify({ trustProxy: options.trustProxy ?? false });
+  const app: FastifyInstance = Fastify({
+    trustProxy: options.trustProxy ?? false,
+    ...(options.genReqId === undefined
+      ? {}
+      : { genReqId: options.genReqId, requestIdHeader: 'x-request-id' }),
+  });
   const base = 'publicBaseUrl' in options ? options.publicBaseUrl : BASE;
   configureIssuerBase(app, base);
   configureTenantAddress(app);
@@ -40,6 +46,9 @@ function build(options: Options = {}) {
     tls: true,
     state,
     addressing,
+  });
+  app.addHook('onRequest', async (request, reply) => {
+    reply.header('x-request-id', request.id);
   });
   app.addHook('onRequest', pathAddressCheck);
   app.get('/tenants/:tenant/ping', (request) => ({
@@ -161,6 +170,32 @@ describe('a host nobody registered', () => {
     });
     expect((await inject(app, '/ping', 'other.example.org')).statusCode).toBe(404);
     expect(state).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('the request id of a domain host request', () => {
+  it('is drawn once and is the one the response carries', async () => {
+    let drawn = 0;
+    const { app } = build({ genReqId: () => `id-${String((drawn += 1))}` });
+    const res = await inject(app, '/ping', 'login.acme.com');
+    expect(res.statusCode).toBe(200);
+    expect(drawn).toBe(1);
+    expect(res.headers['x-request-id']).toBe('id-1');
+  });
+
+  it('is the one the client sent', async () => {
+    const { app } = build({ genReqId: () => 'drawn' });
+    const res = await inject(app, '/ping', 'login.acme.com', { 'x-request-id': 'theirs' });
+    expect(res.headers['x-request-id']).toBe('theirs');
+  });
+});
+
+describe('a host spelled with the other scheme default port', () => {
+  it('is not a registered host', async () => {
+    const { app, state } = build();
+    const res = await inject(app, '/ping', 'login.acme.com:80');
+    expect(res.statusCode).toBe(404);
+    expect(state).not.toHaveBeenCalled();
   });
 });
 

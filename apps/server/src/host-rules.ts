@@ -10,15 +10,21 @@ function headerText(value: string | string[] | undefined): string | undefined {
 // registrable one. `X-Forwarded-Host` counts only behind a proxy the
 // deployment trusts, and then the last entry: a proxy appends its own on the
 // right, so everything left of it is what the client wrote. Fastify's
-// `request.host` reads the header the same way.
+// `request.host` reads the header the same way. The port that is the other
+// scheme's default (`:80` behind TLS, `:443` without) is as foreign as any
+// other port: no connection of this scheme arrives on it.
 export function requestHost(
   raw: Pick<IncomingMessage, 'headers'>,
   trustProxy: boolean,
+  tls: boolean,
 ): string | null {
   const forwarded = trustProxy ? headerText(raw.headers['x-forwarded-host']) : undefined;
   const written =
     forwarded === undefined ? headerText(raw.headers.host) : forwarded.split(',').at(-1);
-  return written === undefined ? null : canonicalHost(written.trim());
+  if (written === undefined) return null;
+  const text = written.trim();
+  if (text.endsWith(tls ? ':80' : ':443')) return null;
+  return canonicalHost(text);
 }
 
 // The host of the configured public base URL, by name: a port does not make
