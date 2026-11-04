@@ -123,13 +123,27 @@ describe('reissuedLogoutTokenClaims', () => {
     return signJwt({ ...claims }, { key: await makeSigningKey(), kek: KEK, typ: LOGOUT_TOKEN_TYP });
   }
 
-  it('keeps every claim of the token but the issuer', async () => {
-    const reissued = reissuedLogoutTokenClaims(await tokenFor(minted), 'https://login.acme.com');
-    expect(reissued).toEqual({ ...minted, iss: 'https://login.acme.com' });
+  it('keeps the event and its lifetime, and names the issuer and the attempt', async () => {
+    const later = new Date('2026-09-19T10:30:00Z');
+    const reissued = reissuedLogoutTokenClaims(
+      await tokenFor(minted),
+      'https://login.acme.com',
+      later,
+    );
+    const iat = Math.floor(later.getTime() / 1000);
+    expect(reissued).toEqual({
+      ...minted,
+      iss: 'https://login.acme.com',
+      iat,
+      exp: iat + (minted.exp - minted.iat),
+    });
+    expect(reissued?.jti).toBe(minted.jti);
   });
 
   it('is null for text that is not a token this server minted', async () => {
-    expect(reissuedLogoutTokenClaims('signed-logout-token', 'https://x')).toBeNull();
-    expect(reissuedLogoutTokenClaims(await tokenFor({ iss: 'x' }), 'https://x')).toBeNull();
+    expect(reissuedLogoutTokenClaims('signed-logout-token', 'https://x', new Date())).toBeNull();
+    expect(
+      reissuedLogoutTokenClaims(await tokenFor({ iss: 'x' }), 'https://x', new Date()),
+    ).toBeNull();
   });
 });

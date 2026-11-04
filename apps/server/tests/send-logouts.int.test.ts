@@ -218,6 +218,7 @@ describe('sendLogoutsAcrossTenants', () => {
     );
 
     const issuers: string[] = [];
+    const lifetimes: { iat: number; exp: number }[] = [];
     const transport: LogoutDeliveryTransport = (_endpoint, token) => {
       const payload: unknown = JSON.parse(
         Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'),
@@ -227,6 +228,9 @@ describe('sendLogoutsAcrossTenants', () => {
           ? String(payload.iss)
           : '',
       );
+      if (typeof payload === 'object' && payload !== null && 'iat' in payload && 'exp' in payload) {
+        lifetimes.push({ iat: Number(payload.iat), exp: Number(payload.exp) });
+      }
       return Promise.resolve({ status: issuers.length === 1 ? 503 : 200 });
     };
     const deps = {
@@ -247,6 +251,10 @@ describe('sendLogoutsAcrossTenants', () => {
     await sendLogoutsAcrossTenants(deps, new Date(NOW.getTime() + 3_600_000), onlyThisTenant);
 
     expect(issuers.slice(-2)).toEqual([`${base}/tenants/${name}`, 'https://login.acme.com']);
+    const [first, retry] = lifetimes.slice(-2);
+    const retriedAt = Math.floor(NOW.getTime() / 1000) + 3600;
+    expect(retry).toEqual({ iat: retriedAt, exp: retriedAt + 120 });
+    expect(retry?.exp).toBeGreaterThan(first?.exp ?? 0);
   });
 
   it('refuses to run on a serving connection that bypasses row-level security', async () => {

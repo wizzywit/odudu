@@ -104,6 +104,7 @@ function tokenFor(
   tx: TenantScopedDatabase,
   tenantId: string,
   signing: LogoutSigning,
+  now: Date,
 ): (row: ClaimedLogoutDelivery) => Promise<string> {
   const issuer = async (): Promise<string> => {
     const [tenant] = await tx
@@ -123,7 +124,7 @@ function tokenFor(
   let named: Promise<string> | undefined;
   return async (row) => {
     named ??= issuer();
-    return reissueLogoutToken(tx, signing, row.logoutToken, await named);
+    return reissueLogoutToken(tx, signing, row.logoutToken, await named, now);
   };
 }
 
@@ -163,7 +164,7 @@ export async function sendLogoutsAcrossTenants(
             transport: deps.transport,
             ...(deps.signing === undefined
               ? {}
-              : { tokenFor: tokenFor(tx, tenantId, deps.signing) }),
+              : { tokenFor: tokenFor(tx, tenantId, deps.signing, now) }),
             responseTimeoutMs: options.responseTimeoutMs,
           },
           now,

@@ -339,11 +339,6 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     ],
     ['The edge reads the tenant', ['P11'], ['documented p99']],
     [
-      'A back-channel logout that is retried',
-      ['P11'],
-      'a retry path that keeps its first token, no product capability',
-    ],
-    [
       'A person with no password and only passkeys',
       ['P4f'],
       ['their own profile, credentials, sessions and consents'],
