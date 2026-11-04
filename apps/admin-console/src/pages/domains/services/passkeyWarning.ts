@@ -1,6 +1,7 @@
 import type { PasskeyImpactResponse } from '#/pages/domains/types/domain';
 import { groupedNumber } from '#/shared/lib/services/format';
-import type { Read } from '#/shared/lib/services/read';
+import { readOutcome, type Read } from '#/shared/lib/services/read';
+import type { GatewayResult } from '#/shared/lib/services/result';
 
 export type PasskeyWarning =
   | { kind: 'counting'; text: string }
@@ -54,4 +55,13 @@ export function switchAllowed(warning: PasskeyWarning, acknowledged: boolean): b
     case 'acknowledge':
       return acknowledged;
   }
+}
+
+// A count kept from an earlier ask is not offered while a fresh one is read.
+export function impactRead(
+  fetching: boolean,
+  kept: GatewayResult<PasskeyImpactResponse> | undefined,
+  retry: () => void,
+): Read<PasskeyImpactResponse> {
+  return readOutcome(fetching ? undefined : kept, retry);
 }

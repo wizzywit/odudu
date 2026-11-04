@@ -7,6 +7,7 @@ export const AREA_RESOURCES: Readonly<Record<string, string>> = {
   signing_key: 'keys',
   flow: 'flow',
   registration_token: 'registration-tokens',
+  domain: 'domains',
 };
 
 const RECORD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;

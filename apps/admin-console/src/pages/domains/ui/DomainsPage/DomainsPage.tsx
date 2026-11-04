@@ -1,6 +1,5 @@
-import type { Domain } from '#/pages/domains/types/domain';
 import { AreaGate } from '#/widgets/shell';
-import type { Challenge, DomainAction, DomainRow } from '#/pages/domains/services/rows';
+import type { Challenge, ColumnId, DomainRow } from '#/pages/domains/services/rows';
 import {
   useDomainsArea,
   useDomainsPage,
@@ -22,60 +21,52 @@ import { Timestamp } from '#/shared/ui/Timestamp';
 import { ViewOnlyNote } from '#/shared/ui/ViewOnlyNote';
 import styles from '#/pages/domains/ui/DomainsPage/DomainsPage.module.css';
 
-function press(page: Page, action: DomainAction, domain: Domain): () => void {
-  return () => {
-    if (action === 'verify') {
-      page.verify.run(domain).catch(() => undefined);
-      return;
-    }
-    page.action.ask(action, domain);
-  };
-}
-
 function columns(page: Page): readonly Column<DomainRow>[] {
   const { columns: header, ...labels } = page.words.list;
-  const base: readonly Column<DomainRow>[] = [
-    {
+  const byId: Record<ColumnId, Column<DomainRow>> = {
+    host: {
       id: 'host',
       header: header.host,
       isRowHeader: true,
       cell: ({ domain }) => <code className={styles.host}>{domain.host}</code>,
     },
-    {
+    state: {
       id: 'state',
       header: header.state,
       cell: ({ tag }) => <StatusTag tone={tag.tone}>{tag.label}</StatusTag>,
     },
-    { id: 'use', header: header.use, cell: ({ use }) => use ?? '—' },
-    {
+    use: { id: 'use', header: header.use, cell: ({ use }) => use ?? '—' },
+    checked: {
       id: 'checked',
       header: header.checked,
       secondary: true,
       cell: ({ domain }) =>
         domain.last_checked_at === null ? '—' : <Timestamp value={domain.last_checked_at} />,
     },
-  ];
-  const actions: Column<DomainRow> = {
-    id: 'actions',
-    header: header.actions,
-    cell: (row) => (
-      <div className={styles.actions}>
-        {row.actions.map((action) => (
-          <Button
-            key={action}
-            size="small"
-            variant="quiet"
-            aria-label={row.labels[action]}
-            isDisabled={action === 'verify' && page.verify.busy}
-            onPress={press(page, action, row.domain)}
-          >
-            {labels[action]}
-          </Button>
-        ))}
-      </div>
-    ),
+    actions: {
+      id: 'actions',
+      header: header.actions,
+      cell: (row) => (
+        <div className={styles.actions}>
+          {row.actions.map((action) => (
+            <Button
+              key={action}
+              size="small"
+              variant="quiet"
+              aria-label={row.labels[action]}
+              isDisabled={!page.tagged || (action === 'verify' && page.verify.busy)}
+              onPress={() => {
+                page.act(action, row.domain);
+              }}
+            >
+              {labels[action]}
+            </Button>
+          ))}
+        </div>
+      ),
+    },
   };
-  return page.needs === null ? [...base, actions] : base;
+  return page.columns.map((id) => byId[id]);
 }
 
 function Register({ page }: { page: Page }) {
@@ -101,7 +92,7 @@ function Register({ page }: { page: Page }) {
         />
         <div className={styles.actions}>
           <Button type="submit" variant="primary" isDisabled={page.register.busy}>
-            {page.register.busy ? register.registering : register.submit}
+            {page.register.label}
           </Button>
         </div>
         <LiveMessage label={register.last}>{page.register.message}</LiveMessage>
@@ -180,18 +171,14 @@ function Listed({ page }: { page: Page }) {
 
 function SwitchDialog({ page }: { page: Page }) {
   const { action } = page;
-  const choice = action.asking?.dialog.choice;
+  const { choice, ...dialog } = action.dialog;
   return (
     <ConfirmDialog
-      isOpen={action.asking !== null}
-      title={action.asking?.dialog.title ?? ''}
-      consequence={action.asking?.dialog.consequence ?? ''}
-      confirmLabel={action.asking?.dialog.confirmLabel ?? ''}
-      tone={action.asking?.dialog.tone ?? 'primary'}
+      {...dialog}
       busy={action.busy}
       problem={action.problem}
       held={action.held}
-      {...(choice === undefined
+      {...(choice === null
         ? {}
         : { choice: { ...choice, checked: action.acknowledged, onChange: action.acknowledge } })}
       onConfirm={() => {

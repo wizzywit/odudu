@@ -6,6 +6,7 @@ import {
 } from '#/pages/domains/services/passkeyWarning';
 import type { PasskeyImpactResponse } from '#/pages/domains/types/domain';
 import type { Read } from '#/shared/lib/services/read';
+import type { GatewayResult } from '#/shared/lib/services/result';
 import { transitionNote } from '#/pages/domains/services/transition';
 import type { NamedDialog } from '#/shared/lib/services/dialog';
 import { spaced } from '#/shared/lib/services/format';
@@ -106,7 +107,50 @@ export function holdsSwitch(
   return asked !== null && !switchAllowed(warning, acknowledged);
 }
 
-// The tag a switch is made against; none is drawn before the domains are read.
-export function ifMatchOf(etag: string | null): string {
-  return etag ?? '';
+export interface SwitchWrites {
+  activate: (input: { id: string; ifMatch: string }) => Promise<GatewayResult<unknown>>;
+  deactivate: (input: { id: string; ifMatch: string }) => Promise<GatewayResult<unknown>>;
+  remove: (input: { id: string; ifMatch: string }) => Promise<GatewayResult<unknown>>;
+}
+
+const NO_TAG: GatewayResult<never> = {
+  ok: false,
+  kind: 'problem',
+  problem: { type: 'about:blank', title: 'Precondition Required', status: 428 },
+};
+
+// A switch is made against the tenant's tag and never sent without one: before
+// the domains are read it answers as the server would, a missing precondition.
+export function sendSwitch(
+  writes: SwitchWrites,
+  { action, domain }: Asked,
+  etag: string | null,
+): Promise<GatewayResult<unknown>> {
+  if (etag === null) return Promise.resolve(NO_TAG);
+  return writes[action]({ id: domain.id, ifMatch: etag });
+}
+
+// What the confirmation draws: closed, or the one asked for.
+export interface DialogView {
+  isOpen: boolean;
+  title: string;
+  consequence: string;
+  confirmLabel: string;
+  tone: 'primary' | 'danger';
+  choice: { label: string; note: string } | null;
+}
+
+const CLOSED: DialogView = {
+  isOpen: false,
+  title: '',
+  consequence: '',
+  confirmLabel: '',
+  tone: 'primary',
+  choice: null,
+};
+
+export function dialogView(asking: Asking | null): DialogView {
+  if (asking === null) return CLOSED;
+  const { dialog } = asking;
+  return { isOpen: true, ...dialog, choice: dialog.choice ?? null };
 }

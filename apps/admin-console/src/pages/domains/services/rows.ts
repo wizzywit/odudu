@@ -73,3 +73,11 @@ export function challengesOf(domains: readonly Domain[]): Challenge[] {
 export function domainsOf(page: ListDomainsResponse | undefined): readonly Domain[] {
   return page?.items ?? [];
 }
+
+export type ColumnId = 'host' | 'state' | 'use' | 'checked' | 'actions';
+
+// The actions are left out for a caller who may only look.
+export function columnIds(viewOnly: boolean): readonly ColumnId[] {
+  const shown: readonly ColumnId[] = ['host', 'state', 'use', 'checked'];
+  return viewOnly ? shown : [...shown, 'actions'];
+}

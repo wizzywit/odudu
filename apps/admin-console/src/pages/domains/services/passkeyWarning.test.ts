@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { passkeyWarning, switchAllowed } from '#/pages/domains/services/passkeyWarning';
+import { impactRead, passkeyWarning, switchAllowed } from '#/pages/domains/services/passkeyWarning';
 
 const ready = (subjects: number, capped = false) =>
   ({ status: 'ready', data: { subjects, capped } }) as const;
@@ -39,4 +39,16 @@ it('still requires an acknowledgement when the count could not be read', () => {
   expect(warning.text).toContain('could not be counted');
   expect(switchAllowed(warning, false)).toBe(false);
   expect(switchAllowed(warning, true)).toBe(true);
+});
+
+it('reads as loading while a fresh count is fetched, whatever count was kept', () => {
+  const kept = {
+    ok: true,
+    status: 200,
+    data: { subjects: 0, capped: false },
+    etag: null,
+    next: null,
+  } as const;
+  expect(impactRead(true, kept, () => undefined)).toEqual({ status: 'loading' });
+  expect(impactRead(false, kept, () => undefined).status).toBe('ready');
 });

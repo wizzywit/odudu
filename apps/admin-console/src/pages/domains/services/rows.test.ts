@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import type { Domain } from '#/pages/domains/types/domain';
-import { addressLine, challengesOf, domainRows } from '#/pages/domains/services/rows';
+import { addressLine, challengesOf, columnIds, domainRows } from '#/pages/domains/services/rows';
 
 function domain(id: string, state: Domain['state'], extra: Partial<Domain> = {}): Domain {
   return {
@@ -75,4 +75,9 @@ it('lists a challenge for each domain that has a record to publish, and no other
     domain('v', 'verified'),
   ]);
   expect(challenges).toEqual([{ id: 'p', host: 'p.acme.com', record: RECORD }]);
+});
+
+it('draws the actions column only for a caller who may change the domains', () => {
+  expect(columnIds(false)).toEqual(['host', 'state', 'use', 'checked', 'actions']);
+  expect(columnIds(true)).toEqual(['host', 'state', 'use', 'checked']);
 });

@@ -3,7 +3,8 @@ import {
   domainActionOutcome,
   registerFailure,
   registeredText,
-  verifyAnswer,
+  registerInstruction,
+  verifyInstruction,
   verifyFailureText,
 } from '#/pages/domains/services/outcome';
 import type { GatewayFailure, GatewayResult } from '#/shared/lib/services/result';
@@ -36,6 +37,13 @@ it('closes the dialog and says to look again when the address moved first, on a 
   expect(outcome.done).toBe(false);
   expect(outcome.closes).toBe(true);
   expect(outcome.text).toContain('changed');
+  expect(outcome.text).toContain('read again');
+});
+
+it('treats a missing precondition as a stale one: close, read again, ask again', () => {
+  const outcome = domainActionOutcome('activate', host, refused(428, 'about:blank'));
+  expect(outcome.done).toBe(false);
+  expect(outcome.closes).toBe(true);
   expect(outcome.text).toContain('read again');
 });
 
@@ -76,25 +84,9 @@ it('names manage-domains when the server refuses with a 403', () => {
   expect(outcome.text).toContain('manage-domains');
 });
 
-it('says a verification landed, and why one did not', () => {
-  const domain = {
-    id: 'd',
-    host,
-    state: 'verified',
-    canonical: false,
-    verified_at: null,
-    last_checked_at: null,
-    dns_record: null,
-  } as const;
-  expect(verifyAnswer(domain)).toEqual({
-    verified: true,
-    text: 'login.acme.com is verified. It can now be made the tenant’s address.',
-  });
-  const pending = verifyAnswer({ ...domain, state: 'pending' });
-  expect(pending.verified).toBe(false);
-  expect(pending.text).toContain('does not show its record yet');
+it('says why a verification did not land', () => {
   expect(verifyFailureText(host, refused(409, 'about:blank#domain-failed'))).toContain(
-    'Publish the record again',
+    'register it again',
   );
   expect(verifyFailureText(host, refused(429, 'about:blank#domain-verify-throttled'))).toContain(
     'too recently',
@@ -122,4 +114,42 @@ it('places a refused host under the host field and any other refusal as a messag
   );
   expect(limit.errors).toEqual({});
   expect(limit.message).toBe('Hold as many as allowed.');
+});
+
+const answered = (data: unknown): GatewayResult<never> =>
+  ({ ok: true, status: 200, data, etag: null, next: null }) as GatewayResult<never>;
+
+const base = {
+  id: 'd',
+  host,
+  state: 'verified',
+  canonical: false,
+  verified_at: null,
+  last_checked_at: null,
+  dns_record: null,
+} as const;
+
+it('tells a verification as one instruction: a toast when verified, a message when not', () => {
+  expect(verifyInstruction(host, answered(base))).toEqual({
+    message: null,
+    toast: 'login.acme.com is verified. It can now be made the tenant’s address.',
+    report: false,
+  });
+  const pending = verifyInstruction(host, answered({ ...base, state: 'pending' }));
+  expect(pending.toast).toBeNull();
+  expect(pending.message).toContain('does not show its record yet');
+  const refusedTwice = verifyInstruction(host, refused(403, 'about:blank'));
+  expect(refusedTwice.report).toBe(true);
+  expect(refusedTwice.message).toContain('manage-domains');
+});
+
+it('tells a registration as one instruction: the host emptied on success, kept on a refusal', () => {
+  const done = registerInstruction('typed.acme.com', answered({ ...base, host: 'typed.acme.com' }));
+  expect(done).toMatchObject({ host: '', error: undefined, message: null, report: false });
+  expect(done.toast).toContain('Publish the TXT record');
+  const refusal = registerInstruction(
+    'Typed.acme.com',
+    refused(422, 'about:blank#domain-host-invalid', 'not a name'),
+  );
+  expect(refusal).toMatchObject({ host: 'Typed.acme.com', error: 'Not a name.', toast: null });
 });

@@ -3,6 +3,7 @@ import {
   isMissing,
   isStale,
   problemSubtype,
+  staleWhenTagMissing,
   writeFailureText,
   type CreateOutcome,
   type RemovalOutcome,
@@ -62,8 +63,9 @@ function outOfDate(action: SwitchAction, result: GatewayFailure): boolean {
 export function domainActionOutcome(
   action: SwitchAction,
   host: string,
-  result: GatewayResult<unknown>,
+  answer: GatewayResult<unknown>,
 ): RemovalOutcome {
+  const result = staleWhenTagMissing(answer);
   if (result.ok) return { done: true, text: successText(action, host) };
   if (action === 'remove' && isMissing(result)) return { done: true, text: GONE_TEXT };
   if (outOfDate(action, result)) {
@@ -84,32 +86,13 @@ export function domainActionOutcome(
   };
 }
 
-export interface VerifyAnswer {
-  verified: boolean;
-  text: string;
-}
-
-// A verification that finds no record is not a failure: the domain stays as it was.
-export function verifyAnswer(domain: Domain): VerifyAnswer {
-  if (domain.state === 'verified') {
-    return {
-      verified: true,
-      text: `${domain.host} is verified. It can now be made the tenant’s address.`,
-    };
-  }
-  return {
-    verified: false,
-    text: `${domain.host} does not show its record yet. DNS can take a while to show a new one: check the record, then verify again.`,
-  };
-}
-
 export function registeredText(host: string): string {
   return `${host} was registered. Publish the TXT record shown for it, then verify it.`;
 }
 
 const VERIFY_REFUSALS: Readonly<Record<string, (host: string) => string>> = {
   'domain-failed': (host) =>
-    `${host} still does not show its record. Publish the record again, then verify it, or remove the domain.`,
+    `${host} still does not show its record. The record it was registered with must still be published at the DNS provider; if it is gone, remove the domain and register it again for a new one.`,
   'domain-verify-throttled': (host) =>
     `${host} or this tenant was checked too recently. Wait a little, then verify again.`,
   'domain-verified-elsewhere': (host) =>
@@ -152,4 +135,60 @@ export function registerFailure(failure: GatewayFailure): CreateOutcome {
       refusalText(problem) ??
       (problem.status === 409 ? sentence(problem.detail ?? problem.title) : null),
   });
+}
+
+// What the page does with an answer: the line it keeps, the toast it shows,
+// and whether a refusal means the caller's authority is in doubt.
+export interface Instruction {
+  message: string | null;
+  toast: string | null;
+  report: boolean;
+}
+
+// A verification that finds no record is not a failure: the domain stays as it was.
+export function verifyInstruction(host: string, result: GatewayResult<Domain>): Instruction {
+  if (!result.ok) {
+    return { message: verifyFailureText(host, result), toast: null, report: true };
+  }
+  if (result.data.state === 'verified') {
+    return {
+      message: null,
+      toast: `${result.data.host} is verified. It can now be made the tenant’s address.`,
+      report: false,
+    };
+  }
+  return {
+    message: `${result.data.host} does not show its record yet. DNS can take a while to show a new one: check the record, then verify again.`,
+    toast: null,
+    report: false,
+  };
+}
+
+export interface RegisterInstruction extends Instruction {
+  // What the field holds afterwards.
+  host: string;
+  error: string | undefined;
+}
+
+export function registerInstruction(
+  typed: string,
+  result: GatewayResult<Domain>,
+): RegisterInstruction {
+  if (result.ok) {
+    return {
+      host: '',
+      error: undefined,
+      message: null,
+      toast: registeredText(result.data.host),
+      report: false,
+    };
+  }
+  const outcome = registerFailure(result);
+  return {
+    host: typed,
+    error: outcome.errors.host,
+    message: outcome.message,
+    toast: null,
+    report: outcome.report,
+  };
 }

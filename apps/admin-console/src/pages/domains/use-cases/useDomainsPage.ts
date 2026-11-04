@@ -13,8 +13,10 @@ import {
 } from '#/pages/domains/repository/useDomainWrites';
 import {
   askingOf,
+  dialogView,
   holdsSwitch,
-  ifMatchOf,
+  type DialogView,
+  sendSwitch,
   impactTarget,
   type Asked,
   type Asking,
@@ -28,19 +30,20 @@ import {
 } from '#/pages/domains/services/domainsWords';
 import {
   domainActionOutcome,
-  registerFailure,
-  registeredText,
-  verifyAnswer,
-  verifyFailureText,
+  registerInstruction,
+  verifyInstruction,
 } from '#/pages/domains/services/outcome';
 import type { PasskeyWarning } from '#/pages/domains/services/passkeyWarning';
 import { transitionNote } from '#/pages/domains/services/transition';
-import { hostProblem, trimmedHost } from '#/pages/domains/services/register';
+import { registerLabel, registerRequest } from '#/pages/domains/services/register';
 import {
   addressLine,
   challengesOf,
+  columnIds,
   domainRows,
   domainsOf,
+  type ColumnId,
+  type DomainAction,
   type Challenge,
   type DomainRow,
 } from '#/pages/domains/services/rows';
@@ -62,6 +65,8 @@ export interface RegisterSection {
   error: string | undefined;
   message: string | null;
   busy: boolean;
+  // What the button says.
+  label: string;
   start: () => void;
 }
 
@@ -73,6 +78,7 @@ export interface VerifySection {
 
 export interface ActionSection {
   asking: Asking | null;
+  dialog: DialogView;
   // The switch may not be confirmed yet: the passkeys it hides are being
   // counted, or the caller has not said it knows they will be hidden.
   held: boolean;
@@ -100,6 +106,10 @@ export interface DomainsPage {
   challenges: Challenge[];
   // What the caller may not do here, or null when it may.
   needs: Change | null;
+  columns: readonly ColumnId[];
+  // The tenant's tag has been read, which every switch is made against.
+  tagged: boolean;
+  act: (action: DomainAction, domain: Domain) => void;
   register: RegisterSection;
   verify: VerifySection;
   action: ActionSection;
@@ -126,12 +136,12 @@ export function useDomainsPage(tenant: string): DomainsPage {
     refusal,
     capability: 'manage-domains',
     blocked: busy,
-    send: ({ action, domain }) =>
-      writes[action]({ id: domain.id, ifMatch: ifMatchOf(record.etag) }),
+    send: (asked) => sendSwitch(writes, asked, record.etag),
     outcomeOf: ({ action, domain }, result) => domainActionOutcome(action, domain.host, result),
   });
   const impact = usePasskeyImpact(tenant, impactTarget(acting.asked));
   const warning: PasskeyWarning = warningFor(acting.asked, impact);
+  const needs = blockedChanges(authority, CHANGES);
   const held = holdsSwitch(acting.asked, warning, acknowledged);
 
   const confirm = (): Promise<boolean> => {
@@ -140,34 +150,45 @@ export function useDomainsPage(tenant: string): DomainsPage {
   };
   const verify = async (domain: Domain): Promise<void> => {
     const result = await verifying.run(domain.id);
-    if (result.ok) {
-      const answer = verifyAnswer(result.data);
-      setVerifyMessage(answer.verified ? null : answer.text);
-      if (answer.verified) toast.succeeded(answer.text);
-      return;
-    }
-    setVerifyMessage(verifyFailureText(domain.host, result));
-    refusal.report(result, 'manage-domains');
+    const told = verifyInstruction(domain.host, result);
+    setVerifyMessage(told.message);
+    if (told.toast !== null) toast.succeeded(told.toast);
+    if (told.report) refusal.report(result, 'manage-domains');
   };
   const register = (): void => {
-    const problem = hostProblem(host);
-    setHostError(problem ?? undefined);
+    const request = registerRequest(host);
+    setHostError(request.error);
     setRegisterMessage(null);
-    if (problem !== null) return;
+    if (request.send === null) return;
     registering
-      .run(trimmedHost(host))
+      .run(request.send)
       .then((result) => {
-        if (result.ok) {
-          setHost('');
-          toast.succeeded(registeredText(result.data.host));
-          return;
-        }
-        const outcome = registerFailure(result);
-        setHostError(outcome.errors.host);
-        setRegisterMessage(outcome.message);
-        if (outcome.report) refusal.report(result, 'manage-domains');
+        const told = registerInstruction(host, result);
+        setHost(told.host);
+        setHostError(told.error);
+        setRegisterMessage(told.message);
+        if (told.toast !== null) toast.succeeded(told.toast);
+        if (told.report) refusal.report(result, 'manage-domains');
       })
       .catch(() => undefined);
+  };
+  const ask = (action: SwitchAction, domain: Domain): void => {
+    setAcknowledged(false);
+    acting.ask({ action, domain });
+  };
+  const doing: Record<DomainAction, (domain: Domain) => void> = {
+    verify: (domain) => {
+      verify(domain).catch(() => undefined);
+    },
+    activate: (domain) => {
+      ask('activate', domain);
+    },
+    deactivate: (domain) => {
+      ask('deactivate', domain);
+    },
+    remove: (domain) => {
+      ask('remove', domain);
+    },
   };
 
   return {
@@ -178,7 +199,12 @@ export function useDomainsPage(tenant: string): DomainsPage {
     address: addressLine(domainsOf(record.data)),
     transition: transitionNote(),
     challenges: challengesOf(domainsOf(record.data)),
-    needs: blockedChanges(authority, CHANGES),
+    needs,
+    columns: columnIds(needs !== null),
+    tagged: record.etag !== null,
+    act: (action, domain) => {
+      doing[action](domain);
+    },
     register: {
       host,
       edit: (value) => {
@@ -188,11 +214,13 @@ export function useDomainsPage(tenant: string): DomainsPage {
       error: hostError,
       message: registerMessage,
       busy: registering.busy,
+      label: registerLabel(registering.busy),
       start: register,
     },
     verify: { busy: verifying.busy, message: verifyMessage, run: verify },
     action: {
       asking: askingOf(acting.asked, warning),
+      dialog: dialogView(askingOf(acting.asked, warning)),
       held,
       acknowledged,
       acknowledge: setAcknowledged,
@@ -200,10 +228,7 @@ export function useDomainsPage(tenant: string): DomainsPage {
       problem: acting.problem,
       notice: acting.notice,
       count: acting.done,
-      ask: (action, domain) => {
-        setAcknowledged(false);
-        acting.ask({ action, domain });
-      },
+      ask,
       cancel: acting.cancel,
       confirm,
     },

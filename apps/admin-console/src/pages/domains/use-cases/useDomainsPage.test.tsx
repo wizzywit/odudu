@@ -214,7 +214,7 @@ it('says why a verification did not land, and does not say it is done', async ()
   await act(async () => {
     await result.current.verify.run(PENDING);
   });
-  expect(result.current.verify.message).toContain('Publish the record again');
+  expect(result.current.verify.message).toContain('register it again');
 });
 
 it('says a verification that finds no record yet leaves the domain as it was', async () => {
@@ -307,4 +307,46 @@ it('says the tenant signs in at the address it holds', async () => {
   const { result } = page({}, undefined, [ADDRESS]);
   await read(result);
   expect(result.current.address).toBe('This tenant signs in at www.acme.com.');
+});
+
+it('holds a switch until the fresh count lands, though an older count of none is cached', async () => {
+  const { result, sent } = page({
+    [`GET ${IMPACT}`]: inTurn(json({ subjects: 0, capped: false }), async () => {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      return json({ subjects: 3, capped: false })({
+        method: 'GET',
+        path: IMPACT,
+        search: new URLSearchParams(),
+        ifMatch: null,
+        ifNoneMatch: null,
+        body: undefined,
+      });
+    }),
+  });
+  await read(result);
+  act(() => {
+    result.current.action.ask('activate', VERIFIED);
+  });
+  await waitFor(() => {
+    expect(result.current.action.held).toBe(false);
+  });
+  act(() => {
+    result.current.action.cancel();
+  });
+  act(() => {
+    result.current.action.ask('activate', VERIFIED);
+  });
+  expect(result.current.action.held).toBe(true);
+  await waitFor(() => {
+    expect(result.current.action.asking?.dialog.choice).toBeDefined();
+  });
+  expect(result.current.action.held).toBe(true);
+  expect(sent.filter((request) => request.path === IMPACT)).toHaveLength(2);
+});
+
+it('offers no switch before the tenant’s tag is known', async () => {
+  const { result } = page();
+  expect(result.current.tagged).toBe(false);
+  await read(result);
+  expect(result.current.tagged).toBe(true);
 });

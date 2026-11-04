@@ -1,11 +1,11 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import type { Domain } from '#/pages/domains/types/domain';
 import {
   askingOf,
   dialogOf,
   holdsSwitch,
-  ifMatchOf,
   impactTarget,
+  sendSwitch,
   warningFor,
 } from '#/pages/domains/services/confirm';
 
@@ -95,7 +95,18 @@ it('puts the dialog beside what was asked, and nothing beside nothing', () => {
   );
 });
 
-it('sends no tag before the domains were read', () => {
-  expect(ifMatchOf('"a"')).toBe('"a"');
-  expect(ifMatchOf(null)).toBe('');
+it('sends a switch with the tenant’s tag, by what was asked', async () => {
+  const answer = { ok: true, status: 200, data: {}, etag: null, next: null } as const;
+  const activate = vi.fn(() => Promise.resolve(answer));
+  const writes = { activate, deactivate: vi.fn(), remove: vi.fn() };
+  await sendSwitch(writes, { action: 'activate', domain: verified }, '"t"');
+  expect(activate).toHaveBeenCalledWith({ id: 'd1', ifMatch: '"t"' });
+});
+
+it('sends nothing before the tag is known, and answers as a missing precondition', async () => {
+  const writes = { activate: vi.fn(), deactivate: vi.fn(), remove: vi.fn() };
+  const result = await sendSwitch(writes, { action: 'remove', domain: verified }, null);
+  expect(writes.remove).not.toHaveBeenCalled();
+  expect(result.ok).toBe(false);
+  expect(!result.ok && result.kind === 'problem' && result.problem.status).toBe(428);
 });
