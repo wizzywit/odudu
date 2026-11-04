@@ -1049,6 +1049,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 export { tenantIssuer } from '#/service/issuer';
 export { restartAuthorizeLocation } from '#/service/restart-request';
 export { sendThrottledPage } from '#/view/routes/throttled';
+export { sendPreviousAddressPage } from '#/view/routes/previous-address';
 export { answerNotFound, answerServerError, type UnroutedDeps } from '#/view/routes/unrouted';
 export { isApiPath, wantsHtmlPage } from '#/service/page-negotiation';
 export {

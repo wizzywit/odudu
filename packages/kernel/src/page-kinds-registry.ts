@@ -7,6 +7,8 @@ export const NO_TENANT_IN_SCOPE: Record<string, string> = {
     'answers a path no route owns, before any tenant is resolved',
   'packages/protocol-oidc/src/view/server-error-html.ts':
     'answers a failure that may have happened before the tenant was known, and must not depend on a theme read',
+  'packages/protocol-oidc/src/view/previous-address-html.ts':
+    'answers from the edge, before any route runs, for an address the tenant has left; it names only the canonical address and must not cost a theme read',
   'packages/protocol-oidc/src/view/throttled-html.ts':
     'the request path names the tenant, but the throttle answers before any tenant lookup by design, so a refusal costs no query (a cost choice)',
   'packages/console-gateway/src/view/refusal-html.ts':

@@ -413,6 +413,50 @@ test('the server-error page, renderer only', async ({ page, problems }) => {
   forgive(problems, '/server-error-view-ar');
 });
 
+// The previous-address page answers only after a tenant switched its canonical
+// address, which this stack cannot do, so it is the renderer's own output under
+// the headers a real response carries.
+const RENDER_PREVIOUS_ADDRESS = `
+const { renderPreviousAddressPage } = await import(process.env.RENDERER);
+const { pageHeaders } = await import(process.env.HEADERS);
+const page = renderPreviousAddressPage('https://login.acme.example', { tag: 'ar', dir: 'rtl' });
+process.stdout.write(JSON.stringify({ html: page.html, headers: Object.fromEntries(pageHeaders(page)) }));
+`;
+
+test('the previous-address page, renderer only', async ({ page, problems }) => {
+  const rendered = z.object({ html: z.string(), headers: z.record(z.string(), z.string()) }).parse(
+    JSON.parse(
+      execFileSync(
+        'node',
+        ['--no-warnings', '--input-type=module', '-e', RENDER_PREVIOUS_ADDRESS],
+        {
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            RENDERER: pathToFileURL(
+              path.join(ROOT, 'packages/protocol-oidc/src/view/previous-address-html.ts'),
+            ).href,
+            HEADERS: pathToFileURL(path.join(ROOT, 'packages/kernel/src/page.ts')).href,
+          },
+        },
+      ),
+    ),
+  );
+  const view = `${BASE}/previous-address-view-ar`;
+  await page.route(view, (route) =>
+    route.fulfill({
+      status: 410,
+      contentType: 'text/html',
+      headers: rendered.headers,
+      body: rendered.html,
+    }),
+  );
+  await page.goto(view);
+  await expect(page.getByRole('link', { name: 'https://login.acme.example' })).toBeVisible();
+  await look(page, 'previous-address');
+  forgive(problems, '/previous-address-view-ar');
+});
+
 // An administrator's actions link opens with no request behind it and the
 // stack cannot mint one here, so the page is the renderer's own output under
 // the headers a real response carries, once with no way back and once with one.
