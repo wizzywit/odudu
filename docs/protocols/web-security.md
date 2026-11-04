@@ -97,9 +97,9 @@ tenant owns a name, why a name is refused, or whether it is registered but not l
 reveal, which hosts are served, certificate transparency logs and DNS already show, and it takes no
 secret for that reason, with its own limiter and a placement off the public network.
 
-Mail links never read `Host`. A link in a message is written from the tenant's canonical address,
-which `packages/account` resolves from the database, so a forged `Host` on a reset request cannot
-make Odudu mail a link to a host the sender chose (`apps/server/tests/issuer-forged-host.int.test.ts`).
+Mail links never read `Host`. A link in a message is written from the tenant's canonical address, which
+`canonicalAddressFor` resolves from the database and a configured scheme with no request in sight, so a
+forged `Host` on a reset request cannot make Odudu mail a link to a host the sender chose.
 
 ## Clause table
 
@@ -130,3 +130,4 @@ make Odudu mail a link to a host the sender chose (`apps/server/tests/issuer-for
 | Odudu             | MUST   | a host selects a tenant only through a verified row that is its canonical address or inside its window; an unknown host selects nothing and a registered one that is not live answers one bare refusal | `ODUDU-HOST-SELECT-01`      | covered                                                                 |
 | Odudu             | MUST   | `X-Forwarded-Host` is read only when the proxy is trusted, and then from its last entry, never one a client could have written ahead of the proxy                                                      | `ODUDU-HOST-FORWARD-01`     | covered                                                                 |
 | Odudu             | MUST   | the proxy's domain question answers `200` or `404` with no body and the same headers, whatever the `Host` it was called with                                                                           | `ODUDU-HOST-CHECK-01`       | covered                                                                 |
+| Odudu             | MUST   | a mail link is written from the tenant's canonical address, resolved from the database, never from a request's `Host`                                                                                  | `ODUDU-HOST-MAIL-01`        | covered                                                                 |

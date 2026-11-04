@@ -7,14 +7,14 @@ const tx = {} as unknown as TenantScopedDatabase;
 const acme = { id: 'tenant-1', name: 'acme' };
 
 describe('canonicalAddressFor', () => {
-  it('is the path address when the tenant has no canonical domain', async () => {
+  it('[ODUDU-HOST-MAIL-01] is the path address when the tenant has no canonical domain', async () => {
     const address = await canonicalAddressFor(tx, acme, 'https://id.example.com/', true, () =>
       Promise.resolve(null),
     );
     expect(addressIssuer(address)).toBe('https://id.example.com/tenants/acme');
   });
 
-  it('is the domain address when the lookup names a canonical host', async () => {
+  it('[ODUDU-HOST-MAIL-01] is the domain address when the lookup names a canonical host', async () => {
     const lookup = vi.fn(() => Promise.resolve('login.acme.com'));
     const address = await canonicalAddressFor(tx, acme, 'https://id.example.com', true, lookup);
     expect(addressUrl(address, '/login-actions/reset-password')).toBe(
