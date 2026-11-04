@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canonicalHost,
   challengeName,
+  hostServes,
   newChallenge,
   refuseHost,
   txtMatchesChallenge,
@@ -120,5 +121,19 @@ describe('the challenge', () => {
     expect(txtMatchesChallenge([['v=spf1'], ['abc', 'def']], 'abcdef')).toBe(true);
     expect(txtMatchesChallenge([['abcdefg'], ['abc']], 'abcdef')).toBe(false);
     expect(txtMatchesChallenge([], 'abcdef')).toBe(false);
+  });
+});
+
+describe('hostServes', () => {
+  const off = { enabled: true, canonical: false, retiredUntil: null };
+
+  it('serves a canonical host and a retired one inside its window', () => {
+    expect(hostServes({ ...off, canonical: true })).toBe(true);
+    expect(hostServes({ ...off, retiredUntil: new Date() })).toBe(true);
+  });
+
+  it('does not serve an idle host or a disabled tenant`s', () => {
+    expect(hostServes(off)).toBe(false);
+    expect(hostServes({ ...off, canonical: true, enabled: false })).toBe(false);
   });
 });

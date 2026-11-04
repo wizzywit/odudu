@@ -6,6 +6,7 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { and, asc, count, eq, gt, isNotNull, max, ne, or, sql } from 'drizzle-orm';
+import { hostServes } from '#/service/tenant-domain';
 import { tenantDomains, tenantIssuerRetirements, type DomainState } from '#/schema/tenant-domains';
 
 // Rows a tenant may hold in any state, so its list is one bounded read.
@@ -337,18 +338,59 @@ export async function lookupHost(db: Database, host: string, now: Date): Promise
 export type HostState =
   { kind: 'live'; route: HostRoute } | { kind: 'not_live' } | { kind: 'unknown' };
 
-// What a request for `host` is, on the same owner connection as lookupHost:
-// served (live), registered by some tenant but not serving (a pending, failed
-// or idle row, or a disabled tenant) or nobody's. The second read runs only
-// where the first found no route, and leaves no tenant detail.
+interface HostFacts {
+  tenant_id: string | null;
+  tenant_name: string | null;
+  enabled: boolean | null;
+  canonical: boolean | null;
+  retired_until: Date | string | null;
+  registered: boolean;
+}
+
+// What a request for `host` is, on the same owner connection as lookupHost,
+// in one statement: the verified row with its tenant and open retirement
+// window, and whether any row at all names the host. Served (live),
+// registered by some tenant but not serving (a pending, failed or idle row,
+// or a disabled tenant) or nobody's; nothing of a tenant leaves unless live.
 export async function hostState(db: Database, host: string, now: Date): Promise<HostState> {
-  const route = await lookupHost(db, host, now);
-  if (route !== null) return { kind: 'live', route };
-  const rows = await db.execute<{ registered: boolean }>(sql`
-    select (
-      exists (select 1 from tenant_domains where host = ${host} and state = 'verified')
-      or exists (select 1 from tenant_domains where host = ${host} and state <> 'verified')
-    ) as registered
+  const rows = await db.execute<HostFacts & Record<string, unknown>>(sql`
+    select v.tenant_id, v.tenant_name, v.enabled, v.canonical, v.retired_until,
+           (v.tenant_id is not null
+            or exists (select 1 from tenant_domains where host = ${host} and state <> 'verified')
+           ) as registered
+      from (select 1) as one
+      left join lateral (
+        select td.tenant_id, t.name as tenant_name, t.enabled, td.canonical,
+               (select max(r.expires_at) from tenant_issuer_retirements r
+                 where r.tenant_id = td.tenant_id
+                   and r.issuer in (${`https://${host}`}, ${`http://${host}`})
+                   and r.expires_at > ${now.toISOString()}::timestamptz) as retired_until
+          from tenant_domains td
+          join tenants t on t.id = td.tenant_id
+         where td.host = ${host} and td.state = 'verified'
+      ) v on true
   `);
-  return rows[0]?.registered === true ? { kind: 'not_live' } : { kind: 'unknown' };
+  const facts = rows[0];
+  if (!facts?.registered) return { kind: 'unknown' };
+  const retiredUntil = facts.retired_until === null ? null : new Date(facts.retired_until);
+  if (
+    facts.tenant_id === null ||
+    facts.tenant_name === null ||
+    !hostServes({
+      enabled: facts.enabled === true,
+      canonical: facts.canonical === true,
+      retiredUntil,
+    })
+  ) {
+    return { kind: 'not_live' };
+  }
+  return {
+    kind: 'live',
+    route: {
+      tenantId: facts.tenant_id,
+      tenantName: facts.tenant_name,
+      canonical: facts.canonical === true,
+      retiredUntil,
+    },
+  };
 }

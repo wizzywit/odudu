@@ -138,3 +138,15 @@ export function txtMatchesChallenge(
 ): boolean {
   return records.some((chunks) => chunks.join('') === challenge);
 }
+
+/**
+ * Whether a verified host answers requests: its tenant is enabled and it is
+ * the tenant's canonical address or an issuer retired inside its window.
+ */
+export function hostServes(facts: {
+  enabled: boolean;
+  canonical: boolean;
+  retiredUntil: Date | null;
+}): boolean {
+  return facts.enabled && (facts.canonical || facts.retiredUntil !== null);
+}
