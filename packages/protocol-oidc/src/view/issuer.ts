@@ -1,5 +1,5 @@
 import { type FastifyInstance, type FastifyRequest } from 'fastify';
-import { tenantIssuer } from '#/service/issuer';
+import { addressIssuer, pathAddress, routeAddress, type TenantAddress } from '@odudu/kernel';
 
 const DEFAULT_PORT: Record<string, string> = { http: '80', https: '443' };
 
@@ -45,7 +45,22 @@ declare module 'fastify' {
     // The deployment's own public address (ODUDU_PUBLIC_BASE_URL), when it
     // states one; undefined where the issuer is read off the request.
     readonly configuredIssuerBase: string | undefined;
+    // Where this request's tenant is addressed: the origin and path prefix
+    // every page, cookie and issuer of the tenant is written from. Undefined
+    // off a tenant route.
+    tenantAddress: TenantAddress | undefined;
   }
+}
+
+// Gives every request under this instance its tenant's address. Anything
+// that resolves a tenant some other way registers its own hook after this
+// one, so what it sets is what the handlers read.
+export function configureTenantAddress(app: FastifyInstance): void {
+  app.decorateRequest('tenantAddress', undefined);
+  app.addHook('onRequest', (request, _reply, done) => {
+    request.tenantAddress = routeAddress(request.params, issuerBaseFor(request));
+    done();
+  });
 }
 
 // Makes every request of this instance, and of what is registered under it,
@@ -83,5 +98,5 @@ export function tenantIssuerFor(
   },
   tenant: string,
 ): string {
-  return tenantIssuer(issuerBaseFor(request), tenant);
+  return addressIssuer(pathAddress(issuerBaseFor(request), tenant));
 }

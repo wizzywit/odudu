@@ -4,6 +4,7 @@ import { renderLoginForm } from '#/view/authorize-html';
 import { ar } from '#/view/messages.ar';
 import { renderServerErrorPage } from '#/view/server-error-html';
 import { ARABIC } from '@odudu/testkit/i18n';
+import { pathAddress } from '@odudu/kernel';
 
 // A name somebody else chose is Latin, carries markup and punctuation, and is
 // set inside right-to-left text: it is escaped once and sits in its own <bdi>.
@@ -16,6 +17,7 @@ describe('a page in Arabic isolates what somebody else wrote', () => {
   it('the client in the sign-in context', () => {
     const page = renderLoginForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'session-id',
       'password',
       undefined,
@@ -33,6 +35,7 @@ describe('a page in Arabic isolates what somebody else wrote', () => {
     const page = renderConsentPage(
       {
         tenant: 'acme',
+        address: pathAddress('https://idp.example', 'acme'),
         authSessionId: 'session-id',
         clientName: HOSTILE,
         clientPages: { clientUri: 'https://acme.example/about', policyUri: null, tosUri: null },
@@ -51,6 +54,7 @@ describe('a page in Arabic isolates what somebody else wrote', () => {
     const page = renderConsentPage(
       {
         tenant: 'acme',
+        address: pathAddress('https://idp.example', 'acme'),
         authSessionId: 'session-id',
         clientName: 'Acme',
         clientPages: { clientUri: null, policyUri: null, tosUri: null },

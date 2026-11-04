@@ -1,5 +1,6 @@
 import formbody from '@fastify/formbody';
 import Fastify from 'fastify';
+import { configureTenantAddress } from '#/view/issuer';
 import { SessionEntry } from '@odudu/authn-flows';
 import { describe, expect, it, vi } from 'vitest';
 import { registerLoginRoute, type LoginRouteDeps } from '#/view/routes/login';
@@ -90,6 +91,7 @@ function deps(): LoginRouteDeps {
 describe('the login route, on a successful login', () => {
   it('writes both the ephemeral and the persistent cookie, never one merged header', async () => {
     const app = Fastify();
+    configureTenantAddress(app);
     await app.register(formbody);
     registerLoginRoute(app, deps());
     await app.ready();

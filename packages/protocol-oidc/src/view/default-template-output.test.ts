@@ -1,4 +1,9 @@
-import { DEFAULT_PAGE_LOCALE, type PageLocale, type RenderedPage } from '@odudu/kernel';
+import {
+  DEFAULT_PAGE_LOCALE,
+  type PageLocale,
+  type RenderedPage,
+  pathAddress,
+} from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import {
   renderAuthorizeErrorPage,
@@ -38,6 +43,7 @@ describe('the sign-in page under the default template', () => {
     it(`renders the password step byte-identically (${name})`, () => {
       const page = renderLoginForm(
         't1',
+        pathAddress('https://idp.example', 't1'),
         'sess-1',
         'password',
         false,
@@ -55,6 +61,7 @@ describe('the sign-in page under the default template', () => {
   it('renders every option of the password step byte-identically', () => {
     const page = renderLoginForm(
       HOSTILE,
+      pathAddress('https://idp.example', HOSTILE),
       'sess-<1>',
       'password',
       true,
@@ -72,6 +79,7 @@ describe('the sign-in page under the default template', () => {
   it('renders a refusal that gives back no username byte-identically', () => {
     const page = renderLoginForm(
       't1',
+      pathAddress('https://idp.example', 't1'),
       'sess-1',
       'password',
       false,
@@ -89,6 +97,7 @@ describe('the sign-in page under the default template', () => {
     it(`renders the ${form} step byte-identically`, () => {
       const page = renderLoginForm(
         't1',
+        pathAddress('https://idp.example', 't1'),
         'sess-1',
         form,
         true,
@@ -131,6 +140,7 @@ describe('the authorize error and unverified-email pages under the default templ
 
 const CONSENT = {
   tenant: 't1',
+  address: pathAddress('https://idp.example', 't1'),
   authSessionId: 'sess-1',
   clientName: 'App',
   clientPages: { clientUri: null, policyUri: null, tosUri: null },
@@ -152,6 +162,7 @@ describe('the consent page under the default template', () => {
       {
         ...CONSENT,
         tenant: HOSTILE,
+        address: pathAddress('https://idp.example', HOSTILE),
         authSessionId: 'sess-<1>',
         clientName: HOSTILE,
         clientPages: {
@@ -182,13 +193,23 @@ describe('the account chooser under the default template', () => {
   ];
   for (const [name, locale] of LOCALES) {
     it(`renders byte-identically (${name})`, () => {
-      const input = { tenant: 't1', authSessionId: 'sess-1', accounts };
+      const input = {
+        tenant: 't1',
+        address: pathAddress('https://idp.example', 't1'),
+        authSessionId: 'sess-1',
+        accounts,
+      };
       expect(markup(renderSelectAccountPage(input, locale))).toMatchSnapshot();
     });
   }
 
   it('renders no accounts byte-identically', () => {
-    const input = { tenant: HOSTILE, authSessionId: 'sess-<1>', accounts: [] };
+    const input = {
+      tenant: HOSTILE,
+      address: pathAddress('https://idp.example', HOSTILE),
+      authSessionId: 'sess-<1>',
+      accounts: [],
+    };
     expect(markup(renderSelectAccountPage(input, DEFAULT_PAGE_LOCALE))).toMatchSnapshot();
   });
 });
@@ -201,21 +222,45 @@ describe('the logout pages under the default template', () => {
   for (const [name, locale] of LOCALES) {
     it(`renders the confirmation byte-identically (${name})`, () => {
       expect(
-        markup(renderLogoutConfirmationPage('t1', 'sid', 'csrf', NONE, locale)),
+        markup(
+          renderLogoutConfirmationPage(
+            pathAddress('https://idp.example', 't1'),
+            'sid',
+            'csrf',
+            NONE,
+            locale,
+          ),
+        ),
       ).toMatchSnapshot();
     });
   }
 
   it('renders the confirmation with every hidden field byte-identically', () => {
     expect(
-      markup(renderLogoutConfirmationPage(HOSTILE, 'sid<1>', 'csrf"', ALL, DEFAULT_PAGE_LOCALE)),
+      markup(
+        renderLogoutConfirmationPage(
+          pathAddress('https://idp.example', HOSTILE),
+          'sid<1>',
+          'csrf"',
+          ALL,
+          DEFAULT_PAGE_LOCALE,
+        ),
+      ),
     ).toMatchSnapshot();
   });
 
   it('renders the confirmation with one hidden field byte-identically', () => {
     const only = { ...NONE, state: 'abc' };
     expect(
-      markup(renderLogoutConfirmationPage('t1', 'sid', 'csrf', only, DEFAULT_PAGE_LOCALE)),
+      markup(
+        renderLogoutConfirmationPage(
+          pathAddress('https://idp.example', 't1'),
+          'sid',
+          'csrf',
+          only,
+          DEFAULT_PAGE_LOCALE,
+        ),
+      ),
     ).toMatchSnapshot();
   });
 

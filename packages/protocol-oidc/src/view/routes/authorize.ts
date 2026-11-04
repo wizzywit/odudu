@@ -1,5 +1,5 @@
 import { signInHandleCookie, type SignInBrowser } from '@odudu/authn-flows';
-import { reloadOnRestore, type RenderedPage } from '@odudu/kernel';
+import { reloadOnRestore, type RenderedPage, tenantAddressOf } from '@odudu/kernel';
 import { type FastifyInstance, type FastifyReply } from 'fastify';
 import { FORM_MEDIA_TYPE } from '#/service/media-type';
 import { OAUTH_ERROR_DESCRIPTIONS } from '#/service/oauth-errors';
@@ -48,14 +48,19 @@ export interface AuthorizeRouteDeps
 function holdSignIn(
   reply: FastifyReply,
   deps: AuthorizeRouteDeps,
-  tenant: string,
   authSessionId: string,
   browser: SignInBrowser | undefined,
 ): void {
   if (browser === undefined) return;
   reply.header(
     'set-cookie',
-    signInHandleCookie(tenant, deps.tls, authSessionId, browser.secret, browser.maxAgeSeconds),
+    signInHandleCookie(
+      tenantAddressOf(reply.request),
+      deps.tls,
+      authSessionId,
+      browser.secret,
+      browser.maxAgeSeconds,
+    ),
   );
 }
 
@@ -134,10 +139,11 @@ async function renderAuthorizationOutcome(
   if (outcome.kind === 'select') {
     // Nobody is identified yet, so no subject locale applies.
     const { locale, continuing } = await continuation(deps, tenant, outcome.authSessionId, reply);
-    holdSignIn(reply, deps, tenant, outcome.authSessionId, outcome.browser);
+    holdSignIn(reply, deps, outcome.authSessionId, outcome.browser);
     const page = renderSelectAccountPage(
       {
         tenant,
+        address: tenantAddressOf(reply.request),
         authSessionId: outcome.authSessionId,
         accounts: outcome.accounts,
       },
@@ -160,6 +166,7 @@ async function renderAuthorizationOutcome(
     const page = renderConsentPage(
       {
         tenant,
+        address: tenantAddressOf(reply.request),
         authSessionId: outcome.authSessionId,
         clientName: outcome.clientName,
         clientPages: outcome.clientPages,
@@ -181,10 +188,13 @@ async function renderAuthorizationOutcome(
   // request. 303, since the POST form of /authorize lands here too.
   if (outcome.kind === 'register') {
     const { signInPath } = await continuation(deps, tenant, outcome.authSessionId, reply);
-    holdSignIn(reply, deps, tenant, outcome.authSessionId, outcome.browser);
+    holdSignIn(reply, deps, outcome.authSessionId, outcome.browser);
     return reply
       .code(303)
-      .header('location', accountPagePath(tenant, 'registration', signInPath))
+      .header(
+        'location',
+        accountPagePath(tenantAddressOf(reply.request), 'registration', signInPath),
+      )
       .send();
   }
 
@@ -195,9 +205,10 @@ async function renderAuthorizationOutcome(
     outcome.authSessionId,
     reply,
   );
-  holdSignIn(reply, deps, tenant, outcome.authSessionId, outcome.browser);
+  holdSignIn(reply, deps, outcome.authSessionId, outcome.browser);
   const page = renderLoginForm(
     tenant,
+    tenantAddressOf(reply.request),
     outcome.authSessionId,
     outcome.form,
     deps.passkeyLogin ?? false,
@@ -205,7 +216,7 @@ async function renderAuthorizationOutcome(
     undefined,
     outcome.loginWithEmail,
     await clientName(),
-    loginWays(tenant, outcome, signInPath),
+    loginWays(tenantAddressOf(reply.request), outcome, signInPath),
     locale,
   );
   return sendHtml(reply, 200, continuing(form(page)));

@@ -6,7 +6,7 @@ import {
   type SessionEntry,
 } from '@odudu/authn-flows';
 import { type RequestContext } from '@odudu/domain-audit';
-import { isUuid } from '@odudu/kernel';
+import { isUuid, type TenantAddress } from '@odudu/kernel';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import {
   completeAuthorizedLogin,
@@ -106,7 +106,7 @@ export interface ConsentAnswer {
 export async function handleConsentSubmission(
   deps: ConsentSubmissionDeps,
   tenantName: string,
-  issuerBase: string,
+  address: TenantAddress,
   authSessionId: string | undefined,
   answer: ConsentAnswer,
   request: RequestContext,
@@ -174,7 +174,7 @@ export async function handleConsentSubmission(
   if (answer.decision !== 'allow') {
     return {
       kind: 'error_redirect',
-      location: errorRedirect(pending, tenantName, issuerBase, 'access_denied'),
+      location: errorRedirect(pending, address, 'access_denied'),
     };
   }
 
@@ -222,7 +222,7 @@ export async function handleConsentSubmission(
       rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
       maxSessionsPerBrowser: tenant.maxSessionsPerBrowser,
     },
-    issuerBase,
+    address,
     authSessionId,
     { ...pending, scope: finalScopes.join(' ') },
     clientId,

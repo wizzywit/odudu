@@ -1,3 +1,4 @@
+import { pathAddress } from '@odudu/kernel';
 import { type DatabaseHandle } from '@odudu/db';
 import { describe, expect, it } from 'vitest';
 import { findHeldSignInIn } from '#/held-sign-in';
@@ -24,6 +25,6 @@ describe('findHeldSignInIn', () => {
       '__Secure-odudu-sign-in=0192f2a0-0000-7000-8000-000000000002.abc',
     ],
   ])('asks the database nothing for %s', async (_label, header) => {
-    expect(await find(tenant, header)).toBeNull();
+    expect(await find(tenant, header, pathAddress('https://idp.example', tenant.name))).toBeNull();
   });
 });

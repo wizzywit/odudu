@@ -1,6 +1,6 @@
+import { tenantAddressOf } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { resolveDiscoveryDocument, type DiscoveryUsecaseDeps } from '#/usecase/discovery';
-import { issuerBaseFor } from '#/view/issuer';
 
 export function registerDiscoveryRoute(app: FastifyInstance, deps: DiscoveryUsecaseDeps): void {
   app.get<{ Params: { tenant: string } }>(
@@ -12,7 +12,7 @@ export function registerDiscoveryRoute(app: FastifyInstance, deps: DiscoveryUsec
       const doc = await resolveDiscoveryDocument(
         deps,
         request.params.tenant,
-        issuerBaseFor(request),
+        tenantAddressOf(request),
       );
       if (doc === null) return reply.code(404).send();
       return doc;

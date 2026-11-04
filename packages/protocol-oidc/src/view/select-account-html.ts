@@ -1,4 +1,4 @@
-import { type PageLocale, type RenderedPage } from '@odudu/kernel';
+import { addressPath, type PageLocale, type RenderedPage, type TenantAddress } from '@odudu/kernel';
 import { escapeHtml, intro, page } from '#/view/document';
 import { fillPage } from '#/view/template';
 import { bdi, t, tHtml } from '#/view/messages';
@@ -10,6 +10,7 @@ export interface SelectAccountEntry {
 
 export interface SelectAccountInput {
   tenant: string;
+  address: TenantAddress;
   authSessionId: string;
   accounts: readonly SelectAccountEntry[];
 }
@@ -28,7 +29,7 @@ export function renderSelectAccountPage(
   input: SelectAccountInput,
   locale: PageLocale,
 ): RenderedPage {
-  const action = `/tenants/${escapeHtml(encodeURIComponent(input.tenant))}/login-actions/select-account`;
+  const action = escapeHtml(addressPath(input.address, '/login-actions/select-account'));
   const accountList = input.accounts.map(renderAccount).join('\n  ');
   return page(
     t(locale, 'selectAccount.title'),

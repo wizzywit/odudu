@@ -1,9 +1,8 @@
 import { type PasskeyAuthenticationOffer } from '@odudu/authn-flows';
 import { requestContextFrom } from '@odudu/domain-audit';
-import { isUuid, MAX_PASSWORD_LENGTH, readPasswordField } from '@odudu/kernel';
+import { isUuid, MAX_PASSWORD_LENGTH, readPasswordField, tenantAddressOf } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { handleLoginSubmission, type LoginSubmissionDeps } from '#/usecase/login-submission';
-import { issuerBaseFor } from '#/view/issuer';
 import { sendRequestError } from '#/view/routes/request-error';
 import { sendLoginOutcome, type LoginResponseDeps } from '#/view/routes/login-response';
 
@@ -101,7 +100,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     const outcome = await handleLoginSubmission(
       deps,
       request.params.tenant,
-      issuerBaseFor(request),
+      tenantAddressOf(request),
       authSessionId,
       {
         ...(username !== undefined ? { username } : {}),

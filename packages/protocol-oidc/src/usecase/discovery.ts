@@ -1,6 +1,6 @@
 import { discoveryDocument, type DiscoveryDocument } from '@odudu/contracts';
+import { addressIssuer, type TenantAddress } from '@odudu/kernel';
 import { type TenantLookup } from '#/repository/tenant-lookup';
-import { tenantIssuer } from '#/service/issuer';
 
 export interface DiscoveryUsecaseDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
@@ -29,7 +29,7 @@ export interface DiscoveryUsecaseDeps {
 export async function resolveDiscoveryDocument(
   deps: DiscoveryUsecaseDeps,
   tenantName: string,
-  issuerBase: string,
+  address: TenantAddress,
 ): Promise<DiscoveryDocument | null> {
   const tenant = await deps.findTenant(tenantName);
   if (tenant === null) return null;
@@ -38,7 +38,7 @@ export async function resolveDiscoveryDocument(
   const scopesSupported = [...(await deps.scopesForTenant(tenant.id))].sort();
   const algs = [...(await deps.algorithmsAvailable(tenant.id))].sort();
   return discoveryDocument({
-    issuer: tenantIssuer(issuerBase, tenantName),
+    issuer: addressIssuer(address),
     claimsSupported: await deps.claimNames(tenant.id),
     scopesSupported,
     // The tenant's own list, the same one negotiation matches a request against.

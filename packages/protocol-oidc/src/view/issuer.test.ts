@@ -1,6 +1,12 @@
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
-import { configureIssuerBase, issuerBaseFor, tenantIssuerFor } from '#/view/issuer';
+import { pathAddress } from '@odudu/kernel';
+import {
+  configureIssuerBase,
+  configureTenantAddress,
+  issuerBaseFor,
+  tenantIssuerFor,
+} from '#/view/issuer';
 
 async function probe(
   options: { trustProxy: boolean },
@@ -249,5 +255,43 @@ describe('[ODUDU-ISSUER-03] a configured public base is the issuer, whatever the
       { host: 'idp.example:8443' },
     );
     expect(base).toBe('http://idp.example:8443');
+  });
+});
+
+describe('configureTenantAddress', () => {
+  async function addressAt(url: string, later?: boolean): Promise<unknown> {
+    const app = Fastify();
+    configureIssuerBase(app, 'https://id.example.com');
+    configureTenantAddress(app);
+    if (later === true) {
+      app.addHook('onRequest', (request, _reply, done) => {
+        request.tenantAddress = { origin: 'https://acme.example', prefix: '' };
+        done();
+      });
+    }
+    app.get('/tenants/:tenant/x', (request) => ({ address: request.tenantAddress ?? null }));
+    app.get('/elsewhere', (request) => ({ address: request.tenantAddress ?? null }));
+    try {
+      return (await app.inject({ url })).json<{ address: unknown }>().address;
+    } finally {
+      await app.close();
+    }
+  }
+
+  it("is the path address of the route's tenant, on the issuer base", async () => {
+    expect(await addressAt('/tenants/acme/x')).toEqual(
+      pathAddress('https://id.example.com', 'acme'),
+    );
+  });
+
+  it('is undefined off a tenant route', async () => {
+    expect(await addressAt('/elsewhere')).toBeNull();
+  });
+
+  it('is what a hook registered after it sets', async () => {
+    expect(await addressAt('/tenants/acme/x', true)).toEqual({
+      origin: 'https://acme.example',
+      prefix: '',
+    });
   });
 });

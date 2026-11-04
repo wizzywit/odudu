@@ -1,6 +1,11 @@
 import { clearedSessionCookies } from '@odudu/authn-flows';
 import { requestContextFrom } from '@odudu/domain-audit';
-import { type BrandingResolver, type OverridesResolver, type PageLocale } from '@odudu/kernel';
+import {
+  type BrandingResolver,
+  type OverridesResolver,
+  type PageLocale,
+  tenantAddressOf,
+} from '@odudu/kernel';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import {
   handleLogoutConfirmation,
@@ -67,7 +72,7 @@ async function respondToOutcome(
       return sendHtml(reply, 200, renderNoActiveSessionPage(await locale(outcome.brandClientId)));
     }
     const page = renderLogoutConfirmationPage(
-      tenant,
+      tenantAddressOf(reply.request),
       outcome.sessionId,
       outcome.csrf,
       {

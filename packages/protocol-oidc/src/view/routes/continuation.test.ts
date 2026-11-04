@@ -1,5 +1,6 @@
 import { type PendingRequest } from '@odudu/authn-flows';
-import Fastify from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
+import { pathAddress } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import {
   continuation,
@@ -9,6 +10,14 @@ import {
   type PageSubject,
 } from '#/view/routes/continuation';
 import { page } from '#/view/document';
+
+const ADDRESS = pathAddress('https://idp.example', 'acme');
+
+// These routes have no tenant segment, so the address is fixed.
+function withAddress(app: FastifyInstance): FastifyInstance {
+  app.decorateRequest('tenantAddress', { getter: () => ADDRESS });
+  return app;
+}
 
 const PENDING: PendingRequest = {
   clientId: 'c',
@@ -40,7 +49,7 @@ async function localeFor(
   d: ContinuationDeps,
   who?: PageSubject,
 ): Promise<string> {
-  const app = Fastify();
+  const app = withAddress(Fastify());
   let tag = '';
   app.get('/', async (request, reply) => {
     const { locale, continuing } = await continuation(d, 'acme', 'a1', reply, who);
@@ -115,7 +124,7 @@ describe('continuation', () => {
 
 describe('continuation clientName', () => {
   async function nameFor(d: ContinuationDeps): Promise<string | undefined> {
-    const app = Fastify();
+    const app = withAddress(Fastify());
     let name: string | undefined;
     app.get('/', async (_request, reply) => {
       name = await (await continuation(d, 'acme', 'a1', reply)).clientName();
@@ -142,7 +151,7 @@ describe('continuation clientName', () => {
 
   it('asks nothing until the page wants the name', async () => {
     const asked: string[] = [];
-    const app = Fastify();
+    const app = withAddress(Fastify());
     app.get('/', async (_request, reply) => {
       await continuation(
         deps({
@@ -178,7 +187,7 @@ describe('continuation clientName', () => {
 
 describe('the theme the request carries', () => {
   async function themes(cookie: string | undefined): Promise<(string | undefined)[]> {
-    const app = Fastify();
+    const app = withAddress(Fastify());
     const seen: (string | undefined)[] = [];
     app.get('/', async (_request, reply) => {
       seen.push((await continuation(deps(), 'acme', 'a1', reply)).locale.theme);
@@ -203,7 +212,7 @@ describe('the theme the request carries', () => {
 
 describe('continuation signInPath', () => {
   async function pathFor(d: ContinuationDeps): Promise<string | null> {
-    const app = Fastify();
+    const app = withAddress(Fastify());
     let path: string | null = 'unset';
     app.get('/', async (_request, reply) => {
       path = (await continuation(d, 'acme', 'a1', reply)).signInPath;

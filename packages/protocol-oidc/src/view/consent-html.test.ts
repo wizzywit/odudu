@@ -1,4 +1,4 @@
-import { DEFAULT_PAGE_LOCALE } from '@odudu/kernel';
+import { DEFAULT_PAGE_LOCALE, pathAddress } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import { renderConsentPage } from '#/view/consent-html';
 import { en, t } from '#/view/messages';
@@ -18,6 +18,7 @@ vi.mock('#/view/messages', async (importOriginal) => {
 
 const BASE = {
   tenant: 'acme',
+  address: pathAddress('https://idp.example', 'acme'),
   authSessionId: 'session-id',
   clientName: 'Acme Dashboard',
   clientPages: { clientUri: null, policyUri: null, tosUri: null },

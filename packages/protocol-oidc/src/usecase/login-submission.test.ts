@@ -5,6 +5,7 @@ import {
   type CompleteLoginOutcome,
   type LoginSubmissionDeps,
 } from '#/usecase/login-submission';
+import { pathAddress } from '@odudu/kernel';
 
 // A real uuid, not a readable placeholder: the handler shape-checks this
 // field before it reaches a `uuid` column, so a placeholder would be
@@ -126,7 +127,7 @@ describe('handleLoginSubmission — a session id that cannot name a session', ()
       const outcome = await handleLoginSubmission(
         deps,
         'acme',
-        'https://idp.example',
+        pathAddress('https://idp.example', 'acme'),
         authSessionId,
         { username: 'ada', password: 'x' },
         REQUEST,
@@ -146,7 +147,7 @@ describe('handleLoginSubmission — the success path', () => {
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
       REQUEST,
@@ -188,7 +189,7 @@ describe('handleLoginSubmission — the success path', () => {
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
       REQUEST,
@@ -211,7 +212,7 @@ describe('handleLoginSubmission — the success path', () => {
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
       REQUEST,
@@ -245,7 +246,7 @@ describe('handleLoginSubmission — the success path', () => {
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
       REQUEST,
@@ -267,7 +268,7 @@ describe('handleLoginSubmission — a tenant that requires a verified address', 
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
       REQUEST,
@@ -290,7 +291,7 @@ describe('handleLoginSubmission — a tenant that requires a verified address', 
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
       REQUEST,
@@ -312,7 +313,7 @@ describe('handleLoginSubmission — a tenant that requires a verified address', 
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
       REQUEST,
@@ -331,7 +332,7 @@ describe('handleLoginSubmission — a subject with a pending required action', (
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
       REQUEST,
@@ -354,7 +355,7 @@ describe('handleLoginSubmission — a subject with a pending required action', (
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
       REQUEST,
@@ -376,7 +377,7 @@ describe('handleLoginSubmission — a subject with a pending required action', (
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
       REQUEST,
@@ -396,7 +397,7 @@ describe('handleLoginSubmission — a session already consumed by an earlier or 
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
       REQUEST,
@@ -414,7 +415,7 @@ describe('handleLoginSubmission — the request reaches the attempt', () => {
     await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
       REQUEST,
@@ -438,7 +439,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'wrong' },
       REQUEST,
@@ -461,7 +462,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { recoveryCode: 'AAAAA-BBBBB' },
       REQUEST,
@@ -482,7 +483,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
       REQUEST,
@@ -500,7 +501,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       {},
       REQUEST,
@@ -518,7 +519,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'right' },
       REQUEST,
@@ -544,7 +545,7 @@ describe('handleLoginSubmission — a disabled subject who passed the factors', 
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'right' },
       REQUEST,
@@ -574,7 +575,7 @@ describe('handleLoginSubmission — a hint naming somebody other than who signed
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
       REQUEST,
@@ -595,7 +596,7 @@ describe('handleLoginSubmission — a hint naming somebody other than who signed
     const outcome = await handleLoginSubmission(
       deps,
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
       REQUEST,

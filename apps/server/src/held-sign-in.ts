@@ -11,7 +11,7 @@ import { restartAuthorizeLocation } from '@odudu/protocol-oidc';
 // reaches the database. The held request's own client_id rides with it, the
 // one client a mail queued out of that sign-in may wear.
 export function findHeldSignInIn(database: DatabaseHandle, tls: boolean): FindHeldSignIn {
-  return async (tenant, header) => {
+  return async (tenant, header, address) => {
     if (readSignInHandle(header, tls) === null) return null;
     return withTenant(database.db, tenant.id, async (tx) => {
       const held = await heldSignIn(tx, header, tls);
@@ -19,7 +19,7 @@ export function findHeldSignInIn(database: DatabaseHandle, tls: boolean): FindHe
         ? null
         : {
             sessionId: held.sessionId,
-            signInPath: restartAuthorizeLocation(tenant.name, held.pendingRequest),
+            signInPath: restartAuthorizeLocation(address, held.pendingRequest),
             clientId: held.pendingRequest.clientId,
           };
     });

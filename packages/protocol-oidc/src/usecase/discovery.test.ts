@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolveDiscoveryDocument } from '#/usecase/discovery';
+import { pathAddress } from '@odudu/kernel';
 
 const PASSWORD_RULES = {
   minLength: 15,
@@ -48,7 +49,7 @@ describe('resolveDiscoveryDocument', () => {
         trustProxy: false,
       },
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
     );
     expect(doc?.ui_locales_supported).toEqual(['en', 'fr']);
     expect(doc).not.toHaveProperty('claims_locales_supported');
@@ -91,7 +92,7 @@ describe('resolveDiscoveryDocument', () => {
           trustProxy: false,
         },
         'acme',
-        'https://idp.example',
+        pathAddress('https://idp.example', 'acme'),
       );
       expect(doc?.prompt_values_supported).toEqual(expected);
     },
@@ -109,7 +110,7 @@ describe('resolveDiscoveryDocument', () => {
         trustProxy: false,
       },
       'no-such-tenant',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'no-such-tenant'),
     );
     expect(doc).toBeNull();
   });
@@ -144,7 +145,7 @@ describe('resolveDiscoveryDocument', () => {
         trustProxy: false,
       },
       'disabled-tenant',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'disabled-tenant'),
     );
     expect(doc?.issuer).toBe('https://idp.example/tenants/disabled-tenant');
   });
@@ -178,7 +179,7 @@ describe('resolveDiscoveryDocument', () => {
         trustProxy: false,
       },
       'disabled-tenant',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'disabled-tenant'),
     );
     expect(doc).not.toBeNull();
     expect(doc).not.toHaveProperty('registration_endpoint');
@@ -214,7 +215,7 @@ describe('resolveDiscoveryDocument', () => {
         trustProxy: false,
       },
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
     );
     expect(doc?.issuer).toBe('https://idp.example/tenants/acme');
   });
@@ -249,7 +250,7 @@ describe('resolveDiscoveryDocument', () => {
         trustProxy: false,
       },
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
     );
     expect(doc?.scopes_supported).toEqual(['email', 'openid', 'profile']);
   });
@@ -284,7 +285,7 @@ describe('resolveDiscoveryDocument', () => {
         trustProxy: false,
       },
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
     );
     expect([...(doc?.claims_supported ?? [])].sort()).toEqual([
       'email',
@@ -329,7 +330,7 @@ describe('resolveDiscoveryDocument', () => {
           trustProxy: false,
         },
         'acme',
-        'https://idp.example',
+        pathAddress('https://idp.example', 'acme'),
       );
       expect(doc?.registration_endpoint).toBe(
         'https://idp.example/tenants/acme/clients-registrations/openid-connect',
@@ -373,7 +374,7 @@ describe('resolveDiscoveryDocument', () => {
           trustProxy,
         },
         'acme',
-        'https://idp.example',
+        pathAddress('https://idp.example', 'acme'),
       );
       expect(doc?.token_endpoint_auth_methods_supported.includes('tls_client_auth')).toBe(
         trustProxy,
@@ -411,7 +412,7 @@ describe('resolveDiscoveryDocument', () => {
         trustProxy: false,
       },
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
     );
     expect(doc?.userinfo_signing_alg_values_supported).toEqual(['ES256', 'none']);
   });
@@ -446,7 +447,7 @@ describe('resolveDiscoveryDocument', () => {
         trustProxy: false,
       },
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
     );
     expect(doc?.userinfo_encryption_alg_values_supported).toEqual(userinfoEncryptionAlgSupported);
     expect(doc?.userinfo_encryption_enc_values_supported).toEqual(userinfoEncryptionEncSupported);
@@ -482,7 +483,7 @@ describe('resolveDiscoveryDocument', () => {
         trustProxy: false,
       },
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
     );
     expect(doc?.userinfo_signing_alg_values_supported).toEqual(['none']);
   });
@@ -517,7 +518,7 @@ describe('resolveDiscoveryDocument', () => {
         trustProxy: false,
       },
       'acme',
-      'https://idp.example',
+      pathAddress('https://idp.example', 'acme'),
     );
     expect(doc).not.toHaveProperty('registration_endpoint');
   });

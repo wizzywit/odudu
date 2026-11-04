@@ -52,6 +52,7 @@ import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
   configureIssuerBase,
+  configureTenantAddress,
   endAllAccess,
   tenantIssuerFor,
   oidcRoutes,
@@ -372,6 +373,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // The issuer is the configured public address wherever one is stated, for the
   // OIDC routes and the admin API alike; never what a Host header says.
   configureIssuerBase(app, deps.publicBaseUrl);
+  configureTenantAddress(app);
 
   if (deps.onRoute !== undefined) app.addHook('onRoute', deps.onRoute);
 

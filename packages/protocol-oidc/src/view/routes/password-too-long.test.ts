@@ -1,6 +1,7 @@
 import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { MAX_PASSWORD_LENGTH } from '@odudu/kernel';
+import { configureTenantAddress } from '#/view/issuer';
 import { describe, expect, it, vi } from 'vitest';
 import { registerLoginRoute, type LoginRouteDeps } from '#/view/routes/login';
 import {
@@ -51,6 +52,7 @@ async function post(
   acceptLanguage?: string,
 ) {
   const app = Fastify();
+  configureTenantAddress(app);
   await app.register(formbody);
   register(app);
   await app.ready();

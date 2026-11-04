@@ -6,7 +6,7 @@ import {
   renderUpdatePasswordPage,
 } from '@odudu/authn-flows';
 import { requestContextFrom } from '@odudu/domain-audit';
-import { PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
+import { PASSWORD_TOO_LONG, readPasswordField, tenantAddressOf } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { handleLoginSubmission, type LoginSubmissionDeps } from '#/usecase/login-submission';
 import {
@@ -16,7 +16,6 @@ import {
 import { sendSignInExpired } from '#/view/routes/expired-sign-in';
 import { sendHtml } from '#/view/html-response';
 import { sendRequestError } from '#/view/routes/request-error';
-import { issuerBaseFor } from '#/view/issuer';
 import { continuation, lookingUpTenantOnce } from '#/view/routes/continuation';
 import { sendLoginOutcome, type LoginResponseDeps } from '#/view/routes/login-response';
 
@@ -76,6 +75,7 @@ export function registerRequiredActionRoute(
         continuing(
           renderUpdatePasswordPage(
             tenantName,
+            tenantAddressOf(request),
             authSessionId,
             [PASSWORD_TOO_LONG],
             found.passwordRules,
@@ -135,6 +135,7 @@ export function registerRequiredActionRoute(
         continuing(
           renderUpdatePasswordPage(
             tenantName,
+            tenantAddressOf(request),
             outcome.authSessionId,
             outcome.violations,
             tenant.passwordRules,
@@ -153,7 +154,7 @@ export function registerRequiredActionRoute(
       const resumed = await handleLoginSubmission(
         deps,
         tenantName,
-        issuerBaseFor(request),
+        tenantAddressOf(request),
         outcome.authSessionId,
         {},
         context,
@@ -180,7 +181,7 @@ export function registerRequiredActionRoute(
         const resumed = await handleLoginSubmission(
           deps,
           tenantName,
-          issuerBaseFor(request),
+          tenantAddressOf(request),
           outcome.authSessionId,
           {},
           context,
@@ -195,6 +196,7 @@ export function registerRequiredActionRoute(
         continuing(
           renderRecoveryCodesPage(
             tenantName,
+            tenantAddressOf(request),
             outcome.authSessionId,
             issued.offer,
             outcome.reason,
@@ -217,6 +219,7 @@ export function registerRequiredActionRoute(
         continuing(
           renderPasskeyEnrolmentPage(
             tenantName,
+            tenantAddressOf(request),
             outcome.authSessionId,
             passkey,
             outcome.reason,
@@ -231,7 +234,14 @@ export function registerRequiredActionRoute(
       reply,
       200,
       continuing(
-        renderTotpEnrolmentPage(tenantName, outcome.authSessionId, offer, outcome.reason, locale),
+        renderTotpEnrolmentPage(
+          tenantName,
+          tenantAddressOf(request),
+          outcome.authSessionId,
+          offer,
+          outcome.reason,
+          locale,
+        ),
       ),
     );
   });

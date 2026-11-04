@@ -1,6 +1,6 @@
 import { type PendingRequest } from '@odudu/authn-flows';
 import { negotiatePageLocale } from '@odudu/i18n';
-import { brandLocale, withPageTheme } from '@odudu/kernel';
+import { brandLocale, withPageTheme, tenantAddressOf } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { restartAuthorizeLocation } from '#/service/restart-request';
 import { errorRedirect } from '#/usecase/login-submission';
@@ -8,7 +8,6 @@ import { renderAuthorizeErrorPage, type WayOn } from '#/view/authorize-html';
 import { sendHtml } from '#/view/html-response';
 import { t } from '#/view/messages';
 import { tenantNegotiation, type ContinuationDeps } from '#/view/routes/continuation';
-import { issuerBaseFor } from '#/view/issuer';
 import { type AuthorizationErrorCode } from '#/service/oauth-errors';
 
 // RFC 6749 §4.1.2.1 / OIDC Core §3.1.2.6: `access_denied`, since the sign-in
@@ -24,7 +23,6 @@ async function returnToApplication(
   reply: FastifyReply,
   deps: ContinuationDeps,
   tenantId: string,
-  tenantName: string,
   pending: PendingRequest,
 ): Promise<WayOn | undefined> {
   if (!(await deps.redirectStillRegistered(tenantId, pending.clientId, pending.redirectUri))) {
@@ -32,7 +30,7 @@ async function returnToApplication(
   }
   return {
     kind: 'return',
-    href: errorRedirect(pending, tenantName, issuerBaseFor(reply.request), NOT_COMPLETED),
+    href: errorRedirect(pending, tenantAddressOf(reply.request), NOT_COMPLETED),
   };
 }
 
@@ -54,10 +52,10 @@ export async function sendSignInExpired(
       : await deps.recoverPendingRequest(tenant.id, authSessionId);
   let wayOn: WayOn | undefined;
   if (tenant !== null && pending !== null) {
-    const restart = restartAuthorizeLocation(tenantName, pending);
+    const restart = restartAuthorizeLocation(tenantAddressOf(reply.request), pending);
     wayOn =
       restart === null
-        ? await returnToApplication(reply, deps, tenant.id, tenantName, pending)
+        ? await returnToApplication(reply, deps, tenant.id, pending)
         : { kind: 'restart', href: restart };
   }
   // The row may be gone, and an expired attempt authenticated nobody, so
