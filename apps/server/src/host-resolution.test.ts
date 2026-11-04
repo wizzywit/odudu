@@ -138,7 +138,7 @@ describe('a host that is registered and not live', () => {
     expect(res.headers['x-request-id']).toEqual(expect.any(String));
   });
 
-  it('refuses every path in the same bytes', async () => {
+  it('[ODUDU-HOST-SELECT-01] refuses every path in the same bytes', async () => {
     const { app } = build({ states });
     const [a, b, c] = await Promise.all(
       ['/ping', '/tenants/acme/ping', '/x/y?z=1'].map((p) => inject(app, p, 'idle.acme.com')),
@@ -150,7 +150,7 @@ describe('a host that is registered and not live', () => {
 });
 
 describe('a host nobody registered', () => {
-  it('is routed as it is today', async () => {
+  it('[ODUDU-HOST-SELECT-01] is routed as it is today', async () => {
     const { app, state } = build();
     const path = await inject(app, '/tenants/acme/ping', 'other.example.org');
     expect(path.statusCode).toBe(200);
@@ -191,7 +191,7 @@ describe('what is answered without a lookup', () => {
 describe('X-Forwarded-Host', () => {
   const forged = { 'x-forwarded-host': 'login.acme.com' };
 
-  it('selects no tenant while the proxy is not trusted', async () => {
+  it('[ODUDU-HOST-FORWARD-01] selects no tenant while the proxy is not trusted', async () => {
     const { app, state } = build({ trustProxy: false });
     const res = await inject(app, '/ping', 'evil.test', forged);
     expect(res.statusCode).toBe(404);

@@ -23,7 +23,7 @@ describe('requestHost', () => {
     expect(requestHost(raw({}), false)).toBeNull();
   });
 
-  it('ignores X-Forwarded-Host while the proxy is not trusted', () => {
+  it('[ODUDU-HOST-FORWARD-01] ignores X-Forwarded-Host while the proxy is not trusted', () => {
     const headers = { host: 'evil.test', 'x-forwarded-host': 'login.acme.com' };
     expect(requestHost(raw(headers), false)).toBe('evil.test');
   });
@@ -33,7 +33,7 @@ describe('requestHost', () => {
     expect(requestHost(raw(headers), true)).toBe('login.acme.com');
   });
 
-  it('never takes an entry the client could have written ahead of the proxy', () => {
+  it('[ODUDU-HOST-FORWARD-01] never takes an entry the client could have written ahead of the proxy', () => {
     const headers = { host: 'internal.test', 'x-forwarded-host': 'login.acme.com, spoof.example' };
     expect(requestHost(raw(headers), true)).toBe('spoof.example');
   });

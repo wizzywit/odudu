@@ -46,7 +46,7 @@ describe('GET /internal/domain-check', () => {
     expect(asked).toEqual(['login.acme.com']);
   });
 
-  it('answers 404 with no body for a host that is not live or not known', async () => {
+  it('[ODUDU-HOST-CHECK-01] answers 404 with no body for a host that is not live or not known', async () => {
     const { app: instance } = start({ 'p.acme.com': { kind: 'not_live' } });
     for (const query of ['?domain=p.acme.com', '?domain=nobody.example.com']) {
       const res = await ask(instance, query);
@@ -80,7 +80,7 @@ describe('GET /internal/domain-check', () => {
     expect(asked).toEqual([]);
   });
 
-  it('answers 200 and 404 with the same headers', async () => {
+  it('[ODUDU-HOST-CHECK-01] answers 200 and 404 with the same headers', async () => {
     const { app: instance } = start({ 'login.acme.com': LIVE });
     const live = await ask(instance, '?domain=login.acme.com');
     const gone = await ask(instance, '?domain=nobody.example.com');
