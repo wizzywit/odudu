@@ -139,8 +139,8 @@ select o.id, 'https://older' || o.n || '.volume.example.com', now() + interval '
   from vol_other o where o.n % 5 = 0;
 insert into tenant_domains (id, tenant_id, host, state, challenge, verified_at, canonical)
 select gen_random_uuid(), ${t}, 'plans' || g || '.example.com',
-       case when g = 1 then 'verified' when g <= 6 then 'pending' else 'failed' end, 'c',
-       case when g = 1 then now() end, g = 1
+       case when g <= 2 then 'verified' when g <= 6 then 'pending' else 'failed' end, 'c',
+       case when g <= 2 then now() end, g = 1
   from generate_series(1, ${v.domains}) g;
 insert into tenant_issuer_retirements (tenant_id, issuer, expires_at)
 select ${t}, 'https://plans-old' || g || '.example.com',
@@ -298,9 +298,10 @@ select gen_random_uuid(), ${t}, 'reg_' || md5(n::text), 'pending' || n, 'pending
        now() + interval '1 day'
   from vol_subjects where n % 4 = 1;
 
-insert into user_credentials (id, tenant_id, subject_id, type, secret_data, label, lookup_key)
+insert into user_credentials (id, tenant_id, subject_id, type, secret_data, label, lookup_key, rp_id)
 select gen_random_uuid(), ${t}, s.id, 'webauthn',
-       '{"publicKey":"k","counter":0,"transports":[]}'::jsonb, 'key ' || g, 'lk' || g
+       '{"publicKey":"k","counter":0,"transports":[]}'::jsonb, 'key ' || g, 'lk' || g,
+       case when g % 2 = 0 then 'id.volume.example.com' end
   from vol_subjects s cross join generate_series(1, 12) g where s.n = 1;
 insert into user_credentials (id, tenant_id, subject_id, type, secret_data)
 select gen_random_uuid(), ${t}, s.id, k.type, '{"hash":"h"}'::jsonb

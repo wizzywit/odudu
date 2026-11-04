@@ -16,7 +16,12 @@ import {
   type MailGate,
 } from '@odudu/account';
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
-import { hostState, type HostState } from '@odudu/domain-tenant';
+import {
+  dnsChallengeResolver,
+  hostState,
+  type HostState,
+  type ResolveTxt,
+} from '@odudu/domain-tenant';
 import { createBranding, type Branding } from '#/branding';
 import { createMailLook } from '#/mail-look';
 import { createDatabaseMessageOverrides, type MessageOverrides } from '#/message-overrides';
@@ -72,6 +77,7 @@ import Fastify, {
   type RouteOptions,
   type RawServerDefault,
 } from 'fastify';
+import { randomBytes } from 'node:crypto';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
 import { findHeldSignInIn } from '#/held-sign-in';
@@ -156,6 +162,13 @@ export interface AppDeps {
    * `ODUDU_TLS`; required, so a caller cannot lose it silently.
    */
   readonly tls: boolean;
+  /**
+   * The resolver a domain's ownership check reads its TXT record through: the
+   * system resolver unless a test names another.
+   */
+  readonly resolveTxt?: ResolveTxt;
+  /** The source a domain's challenge is drawn from: `crypto.randomBytes` unless a test names another. */
+  readonly randomBytes?: () => Buffer;
   /** The console gateway's clock, so a test can age a pending sign-in. */
   readonly consoleNow?: () => Date;
   /** Called with every route as it is registered, for a tool that lists what the app serves. */
@@ -568,6 +581,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         invalidate: messageOverrides.invalidateTenant,
       },
       themePreviewPages: THEME_PREVIEW_PAGES,
+      resolveTxt: deps.resolveTxt ?? dnsChallengeResolver(),
+      randomBytes: deps.randomBytes ?? (() => randomBytes(32)),
+      publicBaseUrl: deps.publicBaseUrl,
+      tls,
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
       logger: deps.logger,

@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, countDistinct, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import {
   userCredentials,
   type CredentialRecord,
@@ -136,6 +136,37 @@ export function credentialRepository(tx: TenantScopedDatabase) {
         .from(userCredentials)
         .where(and(eq(userCredentials.subjectId, subjectId), eq(userCredentials.type, type)));
       return rows.map(toRecord);
+    },
+
+    // How many subjects hold a passkey registered under another relying
+    // party ID than `rpId`, reading at most `cap + 1` credentials: a passkey
+    // with no recorded ID is not counted, and every passkey carries a lookup
+    // key, so the tenant's partial index on it serves the read.
+    async subjectsWithPasskeyOutside(
+      rpId: string,
+      cap: number,
+    ): Promise<{ subjects: number; capped: boolean }> {
+      const matching = tx
+        .select({ subjectId: userCredentials.subjectId })
+        .from(userCredentials)
+        .where(
+          and(
+            eq(userCredentials.type, 'webauthn'),
+            isNotNull(userCredentials.lookupKey),
+            isNotNull(userCredentials.rpId),
+            ne(userCredentials.rpId, rpId),
+          ),
+        )
+        .limit(cap + 1)
+        .as('matching');
+      const rows = await tx
+        .select({ rows: count(), subjects: countDistinct(matching.subjectId) })
+        .from(matching);
+      const read = rows[0];
+      return {
+        subjects: Math.min(read?.subjects ?? 0, cap),
+        capped: (read?.rows ?? 0) > cap,
+      };
     },
 
     async byLookupKey(lookupKey: string): Promise<CredentialRecord | null> {

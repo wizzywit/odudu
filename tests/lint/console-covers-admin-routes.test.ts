@@ -28,12 +28,23 @@ const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
 const FRAMED =
   'Framed by address (previewSource), not requested by an adapter: the Branding preview is an iframe whose own navigation fetches it.';
 
+// The domains area of the console is not built yet; the entries below go when it is.
+const NO_DOMAINS_SCREEN = 'The console has no domains screen yet, so nothing calls this route.';
+
 // Routes the console deliberately never calls, each with the reason.
 const NEVER: Readonly<Record<string, string>> = {
   'POST /admin/tenants/:tenant/subjects/bulk':
     'API-only: acts on up to 100 subjects in one call for scripts and migrations. Every console list and record page acts on one subject at a time and has no multi-select.',
   'GET /admin/tenants/:tenant/audit/count':
     'The audit trail has no count, by design: over a trail that long a capped total would be an estimate the page cannot stand behind, so it says how far back the loaded rows reach instead.',
+  'GET /admin/tenants/:tenant/domains': NO_DOMAINS_SCREEN,
+  'POST /admin/tenants/:tenant/domains': NO_DOMAINS_SCREEN,
+  'GET /admin/tenants/:tenant/domains/passkey-impact': NO_DOMAINS_SCREEN,
+  'GET /admin/tenants/:tenant/domains/:id': NO_DOMAINS_SCREEN,
+  'POST /admin/tenants/:tenant/domains/:id/verify': NO_DOMAINS_SCREEN,
+  'POST /admin/tenants/:tenant/domains/:id/activate': NO_DOMAINS_SCREEN,
+  'POST /admin/tenants/:tenant/domains/:id/deactivate': NO_DOMAINS_SCREEN,
+  'DELETE /admin/tenants/:tenant/domains/:id': NO_DOMAINS_SCREEN,
   'GET /admin/tenants/:tenant/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/clients/:id/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/mail/preview': FRAMED,

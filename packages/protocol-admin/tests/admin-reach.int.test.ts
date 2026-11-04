@@ -147,6 +147,8 @@ describe("a role's admin_reach", () => {
       'manage-keys',
       'manage-sessions',
       'view-audit',
+      'view-domains',
+      'manage-domains',
     ]);
   });
 });

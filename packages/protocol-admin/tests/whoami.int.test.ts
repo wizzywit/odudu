@@ -110,11 +110,13 @@ describe('GET /whoami', () => {
     const body = res.json<WhoamiBody>();
     expect(body.capabilities).toEqual([
       'manage-clients',
+      'manage-domains',
       'manage-keys',
       'manage-sessions',
       'manage-tenant',
       'manage-users',
       'view-audit',
+      'view-domains',
       'view-users',
     ]);
     expect(body.capabilities).not.toContain(TENANT_ADMIN);

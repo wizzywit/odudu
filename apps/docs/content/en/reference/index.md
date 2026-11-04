@@ -39,6 +39,7 @@ The operations of the admin API, grouped by area, with one page for each operati
   the shape of an error.
 - [Audit](./generated/admin-api/audit/index.md)
 - [Clients](./generated/admin-api/clients/index.md)
+- [Domains](./generated/admin-api/domains/index.md)
 - [Flow](./generated/admin-api/flow/index.md)
 - [Groups](./generated/admin-api/groups/index.md)
 - [Keys](./generated/admin-api/keys/index.md)

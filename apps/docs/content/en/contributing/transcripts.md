@@ -57,6 +57,11 @@ the reports were not captured again afterwards. `tests/docs/retention-schedule.t
 holds every report to `REAP_ORDER`'s keys, and
 `apps/server/tests/reap.int.test.ts` runs both rules against real rows.
 
+The OpenAPI figures on `GET /admin/openapi.json`'s page (`109` paths, `content-length: 693155`, 677 KB)
+were changed by hand when the domains routes joined the route table; the capture was not run again.
+The domains page shows no captured output at all, and says so.
+`tests/docs/admin-paths.test.ts` derives both figures from the generated document.
+
 A page follows the colour the person chose in the console. The console writes
 the cookie `odudu-theme` (`light` or `dark`; it expires it for `system`), and
 every page's `<html>` names that value in `data-theme` and nothing else: with no

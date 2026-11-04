@@ -97,6 +97,8 @@ export async function startPlanWorld(connections: WorldConnections): Promise<Pla
     kek: KEK,
     logger: createLogger(config),
     publicBaseUrl: PUBLIC_BASE_URL,
+    // A verify finds no record, so a drive never reaches a real resolver.
+    resolveTxt: () => Promise.reject(Object.assign(new Error('no record'), { code: 'ENODATA' })),
     consoleBaseUrl: PUBLIC_BASE_URL,
     consoleKeys: CONSOLE_KEYS,
     throttle: { limit: 1_000_000, windowSeconds: 60 },

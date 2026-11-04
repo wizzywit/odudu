@@ -206,6 +206,77 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
       'The draft has the content that is already published, so publishing it would only add ' +
       'an identical version. Change the draft first, or discard it.',
   },
+  'domain-system-tenant': {
+    status: 409,
+    summary: 'The system tenant has no domain of its own, so none can be registered for it.',
+  },
+  'domain-no-base-url': {
+    status: 409,
+    summary:
+      'The server has no public base URL configured, and a domain is served only relative to ' +
+      'one. Set `ODUDU_PUBLIC_BASE_URL`.',
+  },
+  'domain-limit': {
+    status: 409,
+    summary: 'The tenant holds as many domains as it may. Remove one to register another.',
+  },
+  'domain-already-registered': {
+    status: 409,
+    summary: 'The tenant has already registered this host.',
+  },
+  'domain-verified-elsewhere': {
+    status: 409,
+    summary:
+      'Another tenant has proved ownership of this host first, so this tenant cannot register or ' +
+      'verify it.',
+  },
+  'domain-host-ip-literal': {
+    status: 422,
+    summary: 'An IP address cannot be a domain.',
+  },
+  'domain-host-localhost': {
+    status: 422,
+    summary: '`localhost` and its subdomains cannot be a domain.',
+  },
+  'domain-host-operator': {
+    status: 422,
+    summary: 'The host is the one this server itself is served at.',
+  },
+  'domain-host-reserved': {
+    status: 422,
+    summary:
+      'The name is reserved for tests and documentation (`.test`, `.example`, `example.com`).',
+  },
+  'domain-host-invalid': {
+    status: 422,
+    summary: 'The host is not a lowercase, punycode DNS name, or carries a port.',
+  },
+  'domain-not-verified': {
+    status: 409,
+    summary: 'Only a verified domain can become the tenant\u2019s address. Verify it first.',
+  },
+  'domain-failed': {
+    status: 409,
+    summary:
+      'A failed domain is never checked again. Remove it and register the host again to prove it ' +
+      'afresh.',
+  },
+  'domain-canonical': {
+    status: 409,
+    summary: 'The domain is the tenant\u2019s address. Deactivate it before removing it.',
+  },
+  'domain-switch-conflict': {
+    status: 409,
+    summary:
+      'Another change of the tenant\u2019s address landed while this one was being made. Read ' +
+      'the domains again and repeat the request if it still applies.',
+  },
+  'domain-verify-throttled': {
+    status: 429,
+    summary:
+      'The host or the tenant was looked up too recently. Repeat the request after the ' +
+      '`Retry-After` interval.',
+  },
   'tenant-enabled': {
     status: 409,
     summary:

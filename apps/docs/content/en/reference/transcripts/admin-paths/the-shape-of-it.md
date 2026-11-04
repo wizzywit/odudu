@@ -191,6 +191,14 @@ shown once — a registration token, a client secret, a one-time password.
 | `GET`    | `/admin/tenants/{tenant}/registration-tokens`                           | List initial access tokens                 |
 | `POST`   | `/admin/tenants/{tenant}/registration-tokens`                           | Mint an initial access token               |
 | `DELETE` | `/admin/tenants/{tenant}/registration-tokens/:id`                       | Revoke an initial access token             |
+| `GET`    | `/admin/tenants/{tenant}/domains`                                       | List domains                               |
+| `POST`   | `/admin/tenants/{tenant}/domains`                                       | Register a domain                          |
+| `GET`    | `/admin/tenants/{tenant}/domains/passkey-impact`                        | Count the passkeys a switch hides          |
+| `GET`    | `/admin/tenants/{tenant}/domains/:id`                                   | Read a domain                              |
+| `POST`   | `/admin/tenants/{tenant}/domains/:id/verify`                            | Verify a domain                            |
+| `POST`   | `/admin/tenants/{tenant}/domains/:id/activate`                          | Make a domain the tenant address           |
+| `POST`   | `/admin/tenants/{tenant}/domains/:id/deactivate`                        | Return to the path address                 |
+| `DELETE` | `/admin/tenants/{tenant}/domains/:id`                                   | Remove a domain                            |
 | `GET`    | `/admin/tenants/{tenant}/roles`                                         | List roles                                 |
 | `GET`    | `/admin/tenants/{tenant}/roles/count`                                   | Count roles                                |
 | `POST`   | `/admin/tenants/{tenant}/roles`                                         | Create a role                              |
