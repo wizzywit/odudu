@@ -92,11 +92,17 @@ export function issuerBaseFor(
   );
 }
 
+// The issuer of `tenant` as this request reaches it. A request served at a
+// tenant's own domain reaches no other tenant, and its issuer is that domain,
+// not the configured path base every other request is read against.
 export function tenantIssuerFor(
   request: Pick<FastifyRequest, 'protocol' | 'host'> & {
     readonly configuredIssuerBase?: string | undefined;
+    readonly tenantAddress?: TenantAddress | undefined;
   },
   tenant: string,
 ): string {
+  const address = request.tenantAddress;
+  if (address?.prefix === '') return addressIssuer(address);
   return addressIssuer(pathAddress(issuerBaseFor(request), tenant));
 }

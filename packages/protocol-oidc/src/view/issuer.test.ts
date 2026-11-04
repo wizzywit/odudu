@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
-import { pathAddress } from '@odudu/kernel';
+import { domainAddress, pathAddress } from '@odudu/kernel';
 import {
   configureIssuerBase,
   configureTenantAddress,
@@ -293,5 +293,26 @@ describe('configureTenantAddress', () => {
       origin: 'https://acme.example',
       prefix: '',
     });
+  });
+});
+
+describe('a request served at a tenant`s own domain', () => {
+  const base = {
+    protocol: 'http' as const,
+    host: 'internal:3000',
+    configuredIssuerBase: 'https://id.example',
+  };
+
+  it('states the domain as the issuer, never the configured base', () => {
+    const tenantAddress = domainAddress('login.acme.com', true);
+    expect(tenantIssuerFor({ ...base, tenantAddress }, 'acme')).toBe('https://login.acme.com');
+  });
+
+  it('keeps the path address for a request at the path', () => {
+    const tenantAddress = pathAddress('https://id.example', 'acme');
+    expect(tenantIssuerFor({ ...base, tenantAddress }, 'acme')).toBe(
+      'https://id.example/tenants/acme',
+    );
+    expect(tenantIssuerFor(base, 'other')).toBe('https://id.example/tenants/other');
   });
 });

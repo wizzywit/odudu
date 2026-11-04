@@ -16,6 +16,7 @@ import {
   type MailGate,
 } from '@odudu/account';
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import { hostState, type HostState } from '@odudu/domain-tenant';
 import { createBranding, type Branding } from '#/branding';
 import { createMailLook } from '#/mail-look';
 import { createDatabaseMessageOverrides, type MessageOverrides } from '#/message-overrides';
@@ -77,6 +78,7 @@ import { findHeldSignInIn } from '#/held-sign-in';
 import { createClientKeyRequest, defaultClientKeyLookup } from '#/client-key-transport';
 import { type ConsoleKeys, missingConsoleKey } from '#/console-key';
 import { registerHealth } from '#/health';
+import { configureHostResolution } from '#/host-resolution';
 import { type RateLimiter, slidingWindow } from '#/throttle';
 import { mailGate as createMailGate } from '#/mail-limiter';
 import { neutraliseRequestInput } from '#/input-hygiene';
@@ -224,6 +226,12 @@ export interface AppDeps {
   readonly deploymentSmtp?: boolean;
   /** `ODUDU_OUTBOX_MAX_ATTEMPTS`, what the admin API's mail listing calls `failed`. */
   readonly outboxMaxAttempts?: number;
+  /**
+   * What a request's host is: served by a verified domain, registered and not
+   * serving, or nobody's. Defaults to `hostState` on `ownerDatabase`; a test
+   * passes its own to count the reads.
+   */
+  readonly hostState?: (host: string) => Promise<HostState>;
 }
 
 export interface ThrottleSettings {
@@ -374,6 +382,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // OIDC routes and the admin API alike; never what a Host header says.
   configureIssuerBase(app, deps.publicBaseUrl);
   configureTenantAddress(app);
+  configureHostResolution(app, {
+    publicBaseUrl: deps.publicBaseUrl,
+    trustProxy: deps.trustProxy ?? false,
+    tls,
+    state: deps.hostState ?? ((host) => hostState(deps.ownerDatabase.db, host, systemClock.now())),
+  });
 
   if (deps.onRoute !== undefined) app.addHook('onRoute', deps.onRoute);
 
