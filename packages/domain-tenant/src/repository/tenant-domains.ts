@@ -64,6 +64,14 @@ export class DomainConflictError extends Error {
   }
 }
 
+/** A second canonical row was refused by the one-per-tenant index. */
+export class CanonicalConflictError extends Error {
+  constructor(tenantId: string) {
+    super(`tenant ${tenantId} already has a canonical domain`);
+    this.name = 'CanonicalConflictError';
+  }
+}
+
 const COLUMNS = {
   id: tenantDomains.id,
   tenantId: tenantDomains.tenantId,
@@ -116,6 +124,37 @@ export function tenantDomainRepository(tx: TenantScopedDatabase) {
           throw new DomainConflictError('already_registered', input.host);
         throw error;
       }
+    },
+
+    // Serialises every switch of one tenant's canonical address until commit.
+    async lock(tenantId: string): Promise<void> {
+      await lockTenantDomains(tx, tenantId);
+    },
+
+    async canonical(tenantId: string): Promise<DomainRow | null> {
+      const rows = await tx
+        .select(COLUMNS)
+        .from(tenantDomains)
+        .where(and(eq(tenantDomains.tenantId, tenantId), eq(tenantDomains.canonical, true)));
+      return rows[0] ?? null;
+    },
+
+    // Keyset by host, which the (tenant_id, host) unique index serves.
+    page(
+      tenantId: string,
+      input: { after?: string | undefined; limit: number },
+    ): Promise<DomainRow[]> {
+      return tx
+        .select(COLUMNS)
+        .from(tenantDomains)
+        .where(
+          and(
+            eq(tenantDomains.tenantId, tenantId),
+            input.after === undefined ? undefined : gt(tenantDomains.host, input.after),
+          ),
+        )
+        .orderBy(asc(tenantDomains.host))
+        .limit(input.limit);
     },
 
     list(tenantId: string): Promise<DomainRow[]> {
@@ -215,12 +254,19 @@ export function tenantDomainRepository(tx: TenantScopedDatabase) {
             ne(tenantDomains.id, id),
           ),
         );
-      const rows = await tx
-        .update(tenantDomains)
-        .set({ canonical: true })
-        .where(own(tenantId, id))
-        .returning(COLUMNS);
-      return rows[0] ?? null;
+      try {
+        return await withSavepoint(tx, async (inner) => {
+          const rows = await inner
+            .update(tenantDomains)
+            .set({ canonical: true })
+            .where(own(tenantId, id))
+            .returning(COLUMNS);
+          return rows[0] ?? null;
+        });
+      } catch (error) {
+        if (isUniqueViolation(error)) throw new CanonicalConflictError(tenantId);
+        throw error;
+      }
     },
 
     async clearCanonical(tenantId: string): Promise<number> {

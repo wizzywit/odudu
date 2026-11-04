@@ -116,6 +116,7 @@ export {
 } from '#/usecase/canonical-address';
 export {
   canonicalHostOf,
+  CanonicalConflictError,
   DomainConflictError,
   hostState,
   lookupHost,
@@ -148,6 +149,14 @@ export {
   type VerifyDomainDeps,
   type VerifyDomainOutcome,
 } from '#/usecase/verify-domain';
+export {
+  switchCanonical,
+  type SwitchCanonicalDeps,
+  type SwitchDomains,
+  type SwitchOptions,
+  type SwitchOutcome,
+  type SwitchTarget,
+} from '#/usecase/switch-canonical';
 export {
   registerDomain,
   type RegisterDomainDeps,

@@ -46,6 +46,13 @@ import {
   groupSchema,
   listGroupsQuerySchema,
 } from '#/admin/groups';
+import {
+  domainDnsRecordSchema,
+  domainSchema,
+  passkeyImpactQuerySchema,
+  passkeyImpactResponseSchema,
+  registerDomainRequestSchema,
+} from '#/admin/domains';
 import { createKeyRequestSchema, listKeysQuerySchema, signingKeySchema } from '#/admin/keys';
 import { mailMessageSchema } from '#/admin/mail';
 import { amendProfileRequestSchema, profileSchema } from '#/admin/profile';
@@ -505,6 +512,33 @@ describeFields(mintRegistrationTokenResponseSchema, {
   remaining_uses: 'How many registrations it allows.',
   expires_at: 'When it stops working.',
 });
+describeFields(domainDnsRecordSchema, {
+  name: 'The DNS name to publish the TXT record under, `_odudu-challenge.` followed by the host.',
+  value: 'The text the TXT record must hold.',
+});
+describeFields(domainSchema, {
+  id: 'The domain’s identifier.',
+  host: 'The host, in its lowercase ASCII (punycode) spelling.',
+  state:
+    '`pending` until the TXT record is seen, `verified` once it has been, `failed` when a verified domain stopped proving it.',
+  canonical:
+    'Whether the tenant’s address is this domain: its issuer, sign-in pages and mailed links name it.',
+  verified_at: 'When ownership was proved, or null.',
+  last_checked_at: 'When the DNS record was last looked up, or null.',
+  dns_record: 'The TXT record to publish while the domain is pending; null otherwise.',
+});
+describeFields(registerDomainRequestSchema, {
+  host: 'The host to serve the tenant at, for example `login.acme.com`.',
+});
+describeFields(passkeyImpactQuerySchema, {
+  canonical:
+    'The address to switch to: `path` for the tenant’s path address, or the host of one of its domains.',
+});
+describeFields(passkeyImpactResponseSchema, {
+  subjects:
+    'How many subjects hold a passkey registered under another relying party ID than the one the address would use, which the switch would hide.',
+  capped: 'Whether `subjects` stopped counting at its ceiling.',
+});
 describeFields(registrationTokenSchema, {
   id: 'The token’s identifier, for revoking it. The token itself is never shown again.',
   remaining_uses: 'How many more registrations the token allows.',
@@ -908,7 +942,8 @@ describeFields(tenantDocumentSchema, {
   message_overrides:
     'The tenant’s own wording for page messages, at most 500, in locale and key order. Absent from a document exported before overrides existed, which imports with none.',
   subjects: 'The tenant’s users, only when requested with `include=subjects`.',
-  omitted: 'What the document leaves out on purpose, such as secrets and credentials.',
+  omitted:
+    'The secrets and credentials the document leaves out, each by its JSON path. It never carries the tenant’s domains either: a host is claimed by proving ownership of it, so no document can hold one, and an import with a `domains` key is refused as an unknown field.',
 });
 describeFields(tenantSettingsDocumentSchema, {
   display_name: 'The name shown to people on sign-in pages.',
