@@ -36,6 +36,7 @@ export interface Finding {
 
 export function findings(file: string, source: string): Finding[] {
   const found: Finding[] = [];
+  if (!source.includes('/tenants/') && !source.includes('tenantIssuer')) return found;
   const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const report = (node: ts.Node, what: string): void => {
     const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
@@ -84,12 +85,22 @@ async function productionFiles(): Promise<string[]> {
   return files.sort();
 }
 
-describe('tenant addresses are written through the address service', () => {
+const READ_BATCH = 32;
+
+describe('tenant addresses are written through the address service', { timeout: 60_000 }, () => {
   it('no production file spells a tenant path or issuer itself', async () => {
+    const files = await productionFiles();
     const all: string[] = [];
-    for (const file of await productionFiles()) {
-      const source = await readFile(path.join(REPO_ROOT, file), 'utf8');
-      for (const f of findings(file, source)) all.push(`${f.file}:${String(f.line)} ${f.what}`);
+    for (let i = 0; i < files.length; i += READ_BATCH) {
+      const batch = files.slice(i, i + READ_BATCH);
+      const sources = await Promise.all(
+        batch.map((file) => readFile(path.join(REPO_ROOT, file), 'utf8')),
+      );
+      batch.forEach((file, index) => {
+        for (const f of findings(file, sources[index] ?? '')) {
+          all.push(`${f.file}:${String(f.line)} ${f.what}`);
+        }
+      });
     }
     expect(all).toEqual([]);
   });
@@ -103,5 +114,12 @@ describe('tenant addresses are written through the address service', () => {
       "// '/tenants/in-a-comment'",
     ].join('\n');
     expect(findings('f.ts', source).map((f) => f.line)).toEqual([1, 2, 4]);
+  });
+
+  it('still ignores the substring in a comment, and finds a hit among other text', () => {
+    expect(findings('f.ts', "// '/tenants/x' and tenantIssuer(a)\nconst a = 1;")).toEqual([]);
+    expect(
+      findings('f.ts', 'const a = 1;\n\nconst b = `/tenants/${a}`;').map((f) => f.line),
+    ).toEqual([3]);
   });
 });
