@@ -93,8 +93,8 @@ existing `private_key_jwt` path, which holds the client to an assertion at the t
 endpoint (`docs/protocols/rfc7523.md`). A key set with no key is refused, as is `private_key_jwt` with neither a key nor a `jwks_uri`.
 A `jwks_uri` of such a client is fetched only from public addresses, whatever the
 deployment allows for the clients it registers by hand, and its cache entries are kept apart.
-A changed key set takes effect when the document
-is next resolved; Odudu does not revoke tokens or consent because the keys changed.
+A changed inline key set takes effect when the document
+is next resolved; keys behind a `jwks_uri` are cached for five minutes, so a key removed there stays usable for up to that long after the client's own server drops it; Odudu does not revoke tokens or consent because the keys changed.
 
 ### Members not read
 
