@@ -23,6 +23,8 @@ import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
+import { tokenGrants } from '#/schema/token-grants';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
@@ -58,6 +60,8 @@ const WEB_ID = 'mcp-scope-web';
 const WEB_SECRET = 'mcp-scope-web-secret';
 const MACHINE_ID = 'mcp-scope-machine';
 const MACHINE_SECRET = 'mcp-scope-machine-secret';
+const EXCHANGE_ID = 'mcp-scope-exchange';
+const EXCHANGE_SECRET = 'mcp-scope-exchange-secret';
 const PLAIN_ID = 'mcp-scope-plain';
 const PLAIN_SECRET = 'mcp-scope-plain-secret';
 
@@ -70,6 +74,7 @@ async function addClient(
     audiences: string[];
     assign: string[];
     serviceSubjectId?: string;
+    impersonation?: boolean;
   },
 ): Promise<void> {
   const id = newId();
@@ -96,6 +101,7 @@ async function addClient(
     grantTypes: input.grantTypes,
     tokenEndpointAuthMethod: 'client_secret_basic',
     audiences: input.audiences,
+    ...(input.impersonation === true ? { tokenExchangeImpersonationAllowed: true } : {}),
     accessTokenTtlSeconds: 300,
     refreshTokenTtlSeconds: 1_209_600,
     ...(input.grantTypes.includes('client_credentials')
@@ -122,6 +128,14 @@ async function populate(): Promise<void> {
       grantTypes: ['authorization_code', 'refresh_token'],
       audiences: [MCP_URL, OTHER],
       assign: ['mcp:read', 'mcp:write'],
+    });
+    await addClient(tx, {
+      clientId: EXCHANGE_ID,
+      secret: EXCHANGE_SECRET,
+      grantTypes: ['authorization_code', 'refresh_token', TOKEN_EXCHANGE_GRANT],
+      audiences: [MCP_URL, OTHER],
+      assign: ['mcp:read'],
+      impersonation: true,
     });
     await addClient(tx, {
       clientId: PLAIN_ID,
@@ -376,5 +390,71 @@ describe('the /token endpoint, for a request that did not pass /authorize', () =
     expect(foreign.body.error).toBe('invalid_scope');
     const unnarrowed = await token(base, MACHINE_ID, MACHINE_SECRET);
     expect(unnarrowed.body.error).toBe('invalid_scope');
+  });
+});
+
+async function redeem(clientId: string, secret: string, scope: string) {
+  const redirect = await authorizeAndSignIn(clientId, { scope, resource: MCP_URL });
+  const code = redirect.searchParams.get('code');
+  if (code === null) throw new Error(`no code: ${redirect.searchParams.get('error') ?? ''}`);
+  const res = await http.inject({
+    method: 'POST',
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+    payload: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: VERIFIER,
+    }).toString(),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: `Basic ${Buffer.from(`${clientId}:${secret}`).toString('base64')}`,
+    },
+  });
+  expect(res.statusCode).toBe(200);
+  return res.json<{ access_token: string; refresh_token: string }>();
+}
+
+describe('the refresh grant', () => {
+  it('refuses a refresh whose stored scope and audience disagree', async () => {
+    const issued = await redeem(WEB_ID, WEB_SECRET, 'openid mcp:read');
+    const grantId = claimsOf(issued.access_token).grant_id;
+    if (typeof grantId !== 'string') throw new Error('no grant_id');
+    await withTenant(app.db, TENANT_ID, (tx) =>
+      tx
+        .update(tokenGrants)
+        .set({ audience: [OTHER] })
+        .where(eq(tokenGrants.id, grantId)),
+    );
+    const refreshed = await token(
+      { grant_type: 'refresh_token', refresh_token: issued.refresh_token },
+      WEB_ID,
+      WEB_SECRET,
+    );
+    expect(refreshed.status).toBe(400);
+    expect(refreshed.body.error).toBe('invalid_scope');
+  });
+});
+
+describe('the token-exchange grant', () => {
+  it('refuses an mcp scope at a foreign audience', async () => {
+    const subject = await redeem(EXCHANGE_ID, EXCHANGE_SECRET, 'openid mcp:read');
+    const exchange = (resource: string) =>
+      token(
+        {
+          grant_type: TOKEN_EXCHANGE_GRANT,
+          subject_token: subject.access_token,
+          subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+          scope: 'mcp:read',
+          resource,
+        },
+        EXCHANGE_ID,
+        EXCHANGE_SECRET,
+      );
+    const ok = await exchange(MCP_URL);
+    expect(ok.status).toBe(200);
+    const foreign = await exchange(OTHER);
+    expect(foreign.status).toBe(400);
+    expect(foreign.body.error).toBe('invalid_scope');
   });
 });
