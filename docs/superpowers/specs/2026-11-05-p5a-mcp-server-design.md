@@ -153,7 +153,8 @@ account key from the environment (5.2, headless) or runs a loopback browser
 sign-in (5.1) as a public client the server registers per tenant, and keeps
 the refresh token in the operating-system credential store, falling back to a
 file readable only by the user. It calls the instance's admin API directly
-with the exchange performed by the server's token endpoint, the same as 5.1.
+with an admin-audience token that the authorization server issues straight to
+`odudu-mcp` (§10); it does not request a token exchange.
 No password is ever typed into the command.
 
 **5.5 What every request does first.** TLS or loopback (the server already
@@ -165,7 +166,10 @@ issuer. A token for another tenant is refused with the refusal audited
 ## 6. Tools and the ceiling
 
 - **Scope to what a call may do.** `mcp:read` admits only admin routes whose
-  method is GET; `mcp:write` also admits the allowlisted reversible writes in
+  method is GET; an agent token with no MCP scope is refused; a write is
+  admitted by field, not by route (an agent's PATCH of a client or scope may
+  carry descriptive fields only; `enabled`, `redirect_uris` and the rest are
+  refused); `mcp:write` also admits the allowlisted reversible writes in
   the table below; the exchange always intersects with the owner's capabilities
   (`ADMIN_CAPABILITIES`: `view-users`, `manage-users`, `manage-clients`,
   `manage-tenant`, `manage-keys`, `manage-sessions`, `view-audit`,
