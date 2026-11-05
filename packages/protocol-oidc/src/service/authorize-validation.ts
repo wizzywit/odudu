@@ -135,7 +135,10 @@ export function validateAuthorizationRequest(
   }
 
   const redirectUri = params.redirect_uri;
-  if (redirectUri === undefined || !isRegisteredRedirectUri(redirectUri, config.redirectUris)) {
+  if (
+    redirectUri === undefined ||
+    !isRegisteredRedirectUri(redirectUri, config.redirectUris, client.type)
+  ) {
     return { kind: 'render', error: 'invalid_request', description: 'Unregistered redirect URI' };
   }
 
