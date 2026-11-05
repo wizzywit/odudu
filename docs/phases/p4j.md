@@ -5,8 +5,8 @@ record the spec and plan do not keep. The argument is in
 [ADR 0049](../adr/0049-a-tenant-has-one-canonical-address.md); the reading note for
 the host rules is in [web-security.md](../protocols/web-security.md), "Which host
 selects a tenant"; how it was planned is in the
-[spec](../superpowers/specs/2026-11-04-p4j-custom-domain-design.md) and the
-[plan](../superpowers/plans/2026-11-04-p4j-custom-domain.md).
+[spec](../archive/specs/2026-11-04-p4j-custom-domain-design.md) and the
+[plan](../archive/plans/2026-11-04-p4j-custom-domain.md).
 
 ## What shipped
 

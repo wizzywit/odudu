@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Fastify 5.12.7, Drizzle + hand-written SQL migrations, PostgreSQL (Testcontainers), Vitest, Zod, `node:dns/promises`.
 
-**Spec:** `docs/superpowers/specs/2026-11-04-p4j-custom-domain-design.md`
+**Spec:** `docs/archive/specs/2026-11-04-p4j-custom-domain-design.md`
 
 ## Global Constraints
 

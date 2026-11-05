@@ -1,7 +1,7 @@
 # P4j: a public address of its own for each tenant (a custom domain)
 
 Phase spec. The umbrella decisions are in
-[the design spec](2026-09-10-odudu-design.md), section 11, row P4j; the move
+[the design spec](../../superpowers/specs/2026-09-10-odudu-design.md), section 11, row P4j; the move
 out of P4b is in section 3 of the P4b spec. Written 2026-11-04.
 
 ## 1. Intent
