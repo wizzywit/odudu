@@ -231,6 +231,11 @@ export interface AppDeps {
    * `ODUDU_LOGIN_THROTTLE_*` says.
    */
   readonly loginThrottle?: ThrottleSettings;
+  /**
+   * The registrations one address may make on a tenant whose client
+   * registration policy is `mcp`. Defaults to `DEFAULT_MCP_REGISTRATION_THROTTLE`.
+   */
+  readonly mcpRegistrationThrottle?: ThrottleSettings;
   /** The proxy's domain question; its own budget, per origin. */
   readonly domainCheckThrottle?: ThrottleSettings;
   /**
@@ -289,6 +294,15 @@ export const DEFAULT_THROTTLE: ThrottleSettings = { limit: 10, windowSeconds: 60
 export const DEFAULT_DOMAIN_CHECK_THROTTLE: ThrottleSettings = { limit: 300, windowSeconds: 60 };
 
 export const DEFAULT_LOGIN_THROTTLE: ThrottleSettings = { limit: 5, windowSeconds: 60 };
+
+// An agent registers once per installation, so ten an hour from one address
+// is generous. At this limit the limiter keeps the exact log, which at the
+// key cap holds ten timestamps for each of at most `MAX_THROTTLE_KEYS` keys
+// (ADR 0023).
+export const DEFAULT_MCP_REGISTRATION_THROTTLE: ThrottleSettings = {
+  limit: 10,
+  windowSeconds: 3600,
+};
 
 // Mirrors the account lockout's own defaults (brute_force_max_failures,
 // brute_force_lockout_seconds — packages/db/drizzle/0041_login_failures.sql):
@@ -478,6 +492,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // flood cannot spend the other's window.
   const clientSecretLimiter: RateLimiter = slidingWindow({
     ...(deps.clientSecretThrottle ?? DEFAULT_CLIENT_SECRET_THROTTLE),
+    now: () => new Date(),
+  });
+
+  // Keyed by tenant and address, so the budget of one tenant is never spent
+  // by another's registrations.
+  const mcpRegistrations: RateLimiter = slidingWindow({
+    ...(deps.mcpRegistrationThrottle ?? DEFAULT_MCP_REGISTRATION_THROTTLE),
     now: () => new Date(),
   });
 
@@ -676,6 +697,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,
       clientSecretLimiter,
+      mcpRegistrationLimiter: {
+        check: (tenantId, origin) =>
+          mcpRegistrations.check(`${tenantId}:${throttleOrigin(origin)}`),
+      },
       auditRefusalBudget: auditRefusalBudget(() => new Date()),
       clientKeySet: privateKeyJwtKeySet,
       cimd: {

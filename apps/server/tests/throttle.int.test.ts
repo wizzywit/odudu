@@ -10,7 +10,12 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { eq } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildApp, DEFAULT_LOGIN_THROTTLE, DEFAULT_THROTTLE } from '#/app';
+import {
+  buildApp,
+  DEFAULT_LOGIN_THROTTLE,
+  DEFAULT_MCP_REGISTRATION_THROTTLE,
+  DEFAULT_THROTTLE,
+} from '#/app';
 import { seed } from '#/cli/seed';
 import { createLogger } from '#/logger';
 
@@ -564,6 +569,45 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
         ORIGIN,
       );
       expect(single.statusCode).toBe(302);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('holds the mcp registration policy to its own budget per tenant and origin', async () => {
+    const tenantName = `mcp-throttle-${newId()}`;
+    const seeded = await seed({
+      tenant: tenantName,
+      clientId: 'throttle-app',
+      redirectUris: [REDIRECT_URI],
+    });
+    await owner.db
+      .update(tenants)
+      .set({ clientRegistrationPolicy: 'mcp', maxClients: 1000 })
+      .where(eq(tenants.id, seeded.tenantId));
+
+    const app = buildTestApp();
+    await app.ready();
+
+    try {
+      const url = `/tenants/${tenantName}/clients-registrations/openid-connect`;
+      const body = { redirect_uris: [REDIRECT_URI], token_endpoint_auth_method: 'none' };
+      const register = (remoteAddress: string) =>
+        app.inject({ method: 'POST', url, payload: body, remoteAddress });
+
+      const allowed: number[] = [];
+      for (let attempt = 0; attempt < DEFAULT_MCP_REGISTRATION_THROTTLE.limit; attempt += 1) {
+        allowed.push((await register(ORIGIN)).statusCode);
+      }
+      const refused = await register(ORIGIN);
+      const elsewhere = await register(OTHER_ORIGIN);
+
+      expect(allowed).toEqual(
+        Array.from({ length: DEFAULT_MCP_REGISTRATION_THROTTLE.limit }, () => 201),
+      );
+      expect(refused.statusCode).toBe(429);
+      expect(Number(refused.headers['retry-after'])).toBeGreaterThan(0);
+      expect(elsewhere.statusCode).toBe(201);
     } finally {
       await app.close();
     }
