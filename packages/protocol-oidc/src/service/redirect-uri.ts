@@ -19,8 +19,9 @@ const LOOPBACK_LITERALS: ReadonlySet<string> = new Set(['127.0.0.1', '[::1]']);
 // control (§8.3), and a registration that names a port is matched exactly.
 function matchesLoopbackPort(presented: string, registered: string): boolean {
   // The presented string is what the browser is redirected to; refuse every
-  // character a URL parser would drop or reinterpret before it is compared.
-  if (/[\u0000- \u007f\\]/.test(presented)) return false;
+  // character a URL parser would drop or reinterpret before it is compared,
+  // and everything outside ASCII (a fullwidth host folds to 127.0.0.1).
+  if (/[^\u0021-\u007e]|\\/.test(presented)) return false;
   if (!URL.canParse(registered) || !URL.canParse(presented)) return false;
   const base = new URL(registered);
   if (base.protocol !== 'http:' || base.port !== '') return false;

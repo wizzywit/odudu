@@ -116,6 +116,9 @@ describe('isRegisteredRedirectUri, loopback port', () => {
     'http://127.0.0.1:9000\\@evil.test/',
     'http://127.0.0.1:90\t00/',
     'http://127.0.0.1:9000 /',
+    'http://127.0.0.1:９０００/',
+    'http://１２７.０.０.１:9000/',
+    'http://127.0.0.1:9000/é',
   ])('refuses %s against a registered 127.0.0.1', (presented) => {
     expect(isRegisteredRedirectUri(presented, V4, 'public')).toBe(false);
   });
