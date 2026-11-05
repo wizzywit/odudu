@@ -67,6 +67,16 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
     auth: 'None',
     purpose: 'The discovery document: the tenant’s issuer, endpoints and supported features.',
   },
+  'GET /.well-known/oauth-authorization-server/tenants/:tenant': {
+    auth: 'None',
+    purpose:
+      'The authorization server metadata (RFC 8414) of a tenant at the path address: the same issuer and endpoints as discovery, plus the scopes an MCP client asks for.',
+  },
+  'GET /tenants/:tenant/.well-known/oauth-authorization-server': {
+    auth: 'None',
+    purpose:
+      'The authorization server metadata of a tenant at its own domain, where the host reads it as `/.well-known/oauth-authorization-server`; `404` at the path address.',
+  },
   [`GET ${OIDC}/certs`]: {
     auth: 'None',
     purpose: 'The JWKS: the tenant’s public signing keys.',

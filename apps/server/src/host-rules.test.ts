@@ -111,6 +111,9 @@ describe('rewriteForDomain', () => {
     expect(rewriteForDomain('/.well-known/openid-configuration', 'acme')).toBe(
       '/tenants/acme/.well-known/openid-configuration',
     );
+    expect(rewriteForDomain('/.well-known/oauth-authorization-server', 'acme')).toBe(
+      '/tenants/acme/.well-known/oauth-authorization-server',
+    );
     expect(rewriteForDomain('/login-actions/authenticate', 'acme')).toBe(
       '/tenants/acme/login-actions/authenticate',
     );
@@ -140,6 +143,7 @@ describe('tenantOfPath', () => {
     expect(tenantOfPath('/tenants/acme/protocol/openid-connect/auth?x=1')).toBe('acme');
     expect(tenantOfPath('/tenants/acme')).toBe('acme');
     expect(tenantOfPath('/tenants/%61cme/jwks')).toBe('acme');
+    expect(tenantOfPath('/.well-known/oauth-authorization-server/tenants/acme')).toBe('acme');
   });
 
   it('names no tenant for what is not a tenant path or not a valid name', () => {
@@ -154,10 +158,21 @@ describe('tenantOfPath', () => {
 });
 
 describe('previousAddressServes', () => {
+  it('keeps serving the metadata at the path-inserted URL of the address left', () => {
+    expect(previousAddressServes('/.well-known/oauth-authorization-server/tenants/acme')).toBe(
+      true,
+    );
+    expect(previousAddressServes('/.well-known/oauth-authorization-server/tenants/acme?x=1')).toBe(
+      true,
+    );
+    expect(previousAddressServes('/.well-known/oauth-authorization-server/x')).toBe(false);
+  });
+
   const under = (rest: string) => `/tenants/acme${rest}`;
 
   it.each([
     '/.well-known/openid-configuration',
+    '/.well-known/oauth-authorization-server',
     '/protocol/openid-connect/token',
     '/protocol/openid-connect/token/introspect',
     '/protocol/openid-connect/revoke',

@@ -53,7 +53,9 @@ export function rewriteForDomain(url: string, tenantName: string): string | null
   return addressPath(pathAddress('', tenantName), url);
 }
 
-const TENANT_PATH = /^\/tenants\/([^/?#]+)/u;
+// The second form is where RFC 8414 §3.1 puts the metadata of an issuer that
+// has a path: the well-known suffix goes before `/tenants/<name>`.
+const TENANT_PATH = /^(?:\/\.well-known\/oauth-authorization-server)?\/tenants\/([^/?#]+)/u;
 const TENANT_NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u;
 
 // The tenant a path address names, read as the router reads it (the segment
@@ -76,8 +78,11 @@ export function tenantOfPath(url: string): string | null {
 // brand files the logout page draws. Anything else is somewhere the tenant no
 // longer offers, and gets the pointer to its canonical address.
 const WINDOW_SERVES =
-  /^\/tenants\/[^/?#]+(?:\/\.well-known\/openid-configuration|\/protocol\/openid-connect\/(?:token|token\/introspect|revoke|userinfo|certs|logout)|\/brand\/[^?#]*)(?:\?.*)?$/u;
+  /^\/tenants\/[^/?#]+(?:\/\.well-known\/(?:openid-configuration|oauth-authorization-server)|\/protocol\/openid-connect\/(?:token|token\/introspect|revoke|userinfo|certs|logout)|\/brand\/[^?#]*)(?:\?.*)?$/u;
+
+const WINDOW_SERVES_AS_METADATA =
+  /^\/\.well-known\/oauth-authorization-server\/tenants\/[^/?#]+(?:\?.*)?$/u;
 
 export function previousAddressServes(tenantUrl: string): boolean {
-  return WINDOW_SERVES.test(tenantUrl);
+  return WINDOW_SERVES.test(tenantUrl) || WINDOW_SERVES_AS_METADATA.test(tenantUrl);
 }

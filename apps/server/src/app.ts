@@ -70,6 +70,7 @@ import {
   type UnroutedDeps,
   standardClaimMappers,
   type AuditRefusalBudget,
+  AS_METADATA_PATH_FORM,
 } from '@odudu/protocol-oidc';
 import { docsRoutes } from '@odudu/web-assets';
 import Fastify, {
@@ -504,7 +505,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // in a name, a form field, a query parameter or the tenant segment cannot
   // be a database parameter, so it is made one no account answers to.
   app.addHook('preValidation', (request, _reply, done) => {
-    if (request.routeOptions.url?.startsWith('/tenants/') === true) {
+    const route = request.routeOptions.url;
+    if (route?.startsWith('/tenants/') === true || route === AS_METADATA_PATH_FORM) {
       neutraliseRequestInput(request);
     }
     done();
