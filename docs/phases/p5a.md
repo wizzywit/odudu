@@ -88,3 +88,22 @@ requesting client, both as settings an operator controls.
 Gate result: no target client needs a revision the SDK does not serve, so the
 phase continues. Residual risk: the SDK source names only 2025-11-25 and
 2026-07-28; the hand run records what each client negotiates.
+
+## The built-in client
+
+`odudu-mcp` is provisioned with every tenant and backfilled by migration 0114;
+`clients.builtin_mcp` marks it, once a tenant. Its posture stays amendable: an
+administrator may disable it (the off switch), change its name or lifetimes, even
+its redirect URIs. Only deletion is refused, because its id is reserved and a
+deleted client could not be created again, and only the marker is not
+amendable. `odudu-admin` is guarded harder because every administrator depends
+on it; nothing depends on `odudu-mcp`.
+
+The export document carries no marker field. An import derives the marker from
+the id, which is safe because the import refuses an `odudu-mcp` client that is
+not public, has a `client_credentials` grant, or registers anything but the bare
+`http://127.0.0.1` and `http://[::1]`: the shape that gets any-port loopback
+matching cannot be smuggled in under that id. The replacement of the provisioned
+row by the document's happens in the import's one transaction. Its row ids come
+from `gen_random_uuid()` in the migration, not `newId()` (v7); lists key on the
+id as a total order and `isUuid` accepts any version, so nothing assumes v7.
