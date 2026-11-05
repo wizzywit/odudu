@@ -101,7 +101,7 @@ Exit: a stranger's MCP client can discover the tenant as an authorization server
 - [ ] **Step 2:** Run `pnpm --filter @odudu/protocol-oidc test -- as-metadata`; expect FAIL.
 - [ ] **Step 3:** Implement by projecting the existing discovery document, so the two cannot drift; a test asserts the shared fields equal.
 - [ ] **Step 4:** Run the same command and the int test; expect PASS.
-- [ ] **Step 5:** Reading note `docs/protocols/rfc8414.md` with a clause table, each clause mapped to a test (as `rfc8707.md`); transcript under `reference/transcripts/` re-run on a live stack; `tests/docs/endpoints.test.ts` green. Commit.
+- [ ] **Step 5:** Reading note for RFC 8414 under `docs/protocols/` with a clause table, each clause mapped to a test (as `rfc8707.md`); transcript under `reference/transcripts/` re-run on a live stack; `tests/docs/endpoints.test.ts` green. Commit.
 
 ### Task 1.2: RFC 9728 protected-resource metadata and the challenge
 
