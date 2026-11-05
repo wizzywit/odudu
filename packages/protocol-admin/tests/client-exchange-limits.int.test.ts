@@ -123,9 +123,9 @@ describe('the per-client token exchange limits', () => {
         .where(and(eq(auditEvents.action, 'client.amend'), eq(auditEvents.resourceId, id))),
     );
     expect(rows).toHaveLength(1);
-    expect(JSON.stringify(rows[0]?.detail)).toContain('token_exchange_allowed_for_public');
-    expect(JSON.stringify(rows[0]?.detail)).toContain('token_exchange_actor_from_other_client');
-    expect(JSON.stringify(rows[0]?.detail)).toContain('token_exchange_impersonation_allowed');
+    for (const field of [...FIELDS, 'token_exchange_impersonation_allowed']) {
+      expect(rows[0]?.detail).toMatchObject({ [field]: { before: false, after: true } });
+    }
   });
 
   it('cannot be turned on on the built-in admin client, whose posture every administrator relies on', async () => {

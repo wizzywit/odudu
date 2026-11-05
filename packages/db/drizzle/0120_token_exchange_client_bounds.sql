@@ -5,8 +5,7 @@ ALTER TABLE client_oidc_config
   ADD COLUMN IF NOT EXISTS token_exchange_allowed_for_public boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS token_exchange_actor_from_other_client boolean NOT NULL DEFAULT false;
 
--- A client's type never changes after creation, so a config row records once
--- whether its client is public. The boot-time warning about public clients
+-- A config row records whether its client is public. The boot-time warning about public clients
 -- the upgrade stopped then reads an index holding exactly those clients: a
 -- confidential client with the grant and the setting off is not in it.
 ALTER TABLE client_oidc_config
@@ -27,6 +26,22 @@ DROP TRIGGER IF EXISTS client_oidc_config_set_public ON client_oidc_config;
 CREATE TRIGGER client_oidc_config_set_public
   BEFORE INSERT ON client_oidc_config
   FOR EACH ROW EXECUTE FUNCTION client_oidc_config_set_public();
+
+-- A client can be made confidential after it exists (a tenant's built-in
+-- admin client is), so the marker follows the type.
+CREATE OR REPLACE FUNCTION clients_sync_config_public() RETURNS trigger
+  LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE client_oidc_config SET is_public_client = (NEW.type = 'public')
+    WHERE client_id = NEW.id;
+  RETURN NULL;
+END $$;
+
+DROP TRIGGER IF EXISTS clients_sync_config_public ON clients;
+CREATE TRIGGER clients_sync_config_public
+  AFTER UPDATE OF type ON clients
+  FOR EACH ROW WHEN (OLD.type IS DISTINCT FROM NEW.type)
+  EXECUTE FUNCTION clients_sync_config_public();
 
 CREATE INDEX IF NOT EXISTS client_oidc_config_exchange_closed
   ON client_oidc_config (tenant_id, client_id)

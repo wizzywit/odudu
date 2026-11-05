@@ -8,6 +8,7 @@ import {
   withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
+import { ADMIN_API_AUDIENCE } from '@odudu/domain-tenant';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
 import {
   clientRegistrationTokenRepository,
@@ -602,6 +603,26 @@ describe('after the policy is turned off', () => {
     const afterOff = claimsOf(await refresh(clientId, next));
     expect([afterOff.aud].flat()).not.toContain(mcpUrl);
     expect(afterOff.scope.split(' ')).not.toContain('mcp:read');
+  });
+
+  it('refuses to refresh a chain that would reach the admin API without its MCP scope', async () => {
+    const clientId = await registered({
+      ...PUBLIC,
+      grant_types: ['authorization_code', 'refresh_token'],
+    });
+    const first = await startChain(clientId);
+    await owner.db.execute(
+      sql`update token_grants set audience = audience || ARRAY[${ADMIN_API_AUDIENCE}]::text[]
+        where tenant_id = ${tenantId}`,
+    );
+    await setPolicy('disabled');
+
+    const refused = await refresh(clientId, first);
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json<{ error: string }>().error).toBe('invalid_scope');
+    // Refused before the token was spent: the same refusal, not a replay.
+    const again = await refresh(clientId, first);
+    expect(again.json<{ error: string }>().error).toBe('invalid_scope');
   });
 
   it('refuses a refresh naming the MCP URL before the token is spent', async () => {

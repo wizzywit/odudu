@@ -799,13 +799,23 @@ async function refreshCeiling(
   const policy = needsApproval(client.registrationOrigin)
     ? await tenantRegistrationPolicyRepository(tx).policy(deps.tenantId)
     : null;
-  return refreshUnderPolicy({
+  const held = refreshUnderPolicy({
     registrationOrigin: client.registrationOrigin,
     policy: policy ?? 'disabled',
     mcpAudience: mcpAudienceOfIssuer(deps.issuer),
     scope,
     audience,
   });
+  // Ending the policy takes mcp:read away; a chain that still reaches the
+  // admin API would then be the person's own token, so it ends instead.
+  if (
+    holdsMcpScope(scope) &&
+    !holdsMcpScope(held.scope) &&
+    held.audience.includes(ADMIN_API_AUDIENCE)
+  ) {
+    throw invalidScope();
+  }
+  return held;
 }
 
 // Stage 3 (and everything after) for `refresh_token`. Rotation runs in its

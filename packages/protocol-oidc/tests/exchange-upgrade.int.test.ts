@@ -3,11 +3,14 @@ import type { DatabaseHandle } from '@odudu/db';
 import { clientRepository, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import {
   EXCHANGE_UPGRADE_COUNT_CAP,
   EXCHANGE_UPGRADE_SAMPLE_LIMIT,
+  boundedCount,
+  withStatementTimeout,
   publicExchangeClientsAtRisk,
 } from '#/repository/exchange-upgrade';
 import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
@@ -104,6 +107,21 @@ describe('publicExchangeClientsAtRisk', () => {
     ]);
   });
 
+  it('follows a client whose type changes after it was created', async () => {
+    await tenantWith('upgrade-retype', [{ clientId: 'retyped', type: 'public', exchange: true }]);
+    const flag = async () => {
+      const rows = await owner.sql<{ is_public_client: boolean }[]>`
+        select o.is_public_client from client_oidc_config o join clients c on c.id = o.client_id
+        where c.client_id = 'retyped'`;
+      return rows[0]?.is_public_client;
+    };
+    expect(await flag()).toBe(true);
+    await owner.sql`update clients set type = 'confidential', secret_hash = 'x' where client_id = 'retyped'`;
+    expect(await flag()).toBe(false);
+    await owner.sql`update clients set type = 'public', secret_hash = null where client_id = 'retyped'`;
+    expect(await flag()).toBe(true);
+  });
+
   it('names at most the sample limit and counts up to the cap', async () => {
     const many = Array.from({ length: EXCHANGE_UPGRADE_SAMPLE_LIMIT + 5 }, (_, index) => ({
       clientId: `bulk-${String(index)}`,
@@ -115,8 +133,24 @@ describe('publicExchangeClientsAtRisk', () => {
     const found = await publicExchangeClientsAtRisk(owner.db);
 
     expect(found.sample).toHaveLength(EXCHANGE_UPGRADE_SAMPLE_LIMIT);
-    // The two stranded clients of the first case and the one of the index case.
-    expect(found.count).toBe(3 + EXCHANGE_UPGRADE_SAMPLE_LIMIT + 5);
+    // The two stranded clients of the first case the one of the index case and the retyped one.
+    expect(found.count).toBe(4 + EXCHANGE_UPGRADE_SAMPLE_LIMIT + 5);
     expect(EXCHANGE_UPGRADE_COUNT_CAP).toBe(10_000);
+  });
+});
+
+describe('the bounds of the read', () => {
+  it('never counts fewer clients than it names', () => {
+    expect(boundedCount(undefined, 4)).toBe(4);
+    expect(boundedCount(2, 4)).toBe(4);
+    expect(boundedCount(9, 4)).toBe(9);
+  });
+
+  it('ends a statement that outlasts the timeout, in the database', async () => {
+    await expect(
+      withStatementTimeout(owner.db, 50, (tx) => tx.execute(sql`select pg_sleep(2)`)),
+    ).rejects.toMatchObject({
+      cause: { message: expect.stringContaining('statement timeout') as unknown },
+    });
   });
 });
