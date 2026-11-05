@@ -144,8 +144,9 @@ export function credentialRepository(tx: TenantScopedDatabase) {
     // How many subjects hold a passkey registered under another relying
     // party ID than `rpId`, reading at most `cap + 1` credentials. A passkey
     // with no recorded ID is not counted. Each side of `rpId` is its own range
-    // scan of the partial index on (tenant_id, rp_id), starting at `rpId` and
-    // stopping at the cap, so credentials under `rpId` itself are never read.
+    // scan of the partial index on (tenant_id, rp_id), ordered by `rp_id` so
+    // the index supplies the order and the scan stops at the cap; credentials
+    // under `rpId` itself are never read.
     // One statement returns the rows, so the counts below cannot disagree.
     async subjectsWithPasskeyOutside(
       rpId: string,
@@ -158,6 +159,7 @@ export function credentialRepository(tx: TenantScopedDatabase) {
           .where(
             and(eq(userCredentials.type, 'webauthn'), isNotNull(userCredentials.lookupKey), range),
           )
+          .orderBy(userCredentials.rpId)
           .limit(cap + 1);
       const read = await side(lt(userCredentials.rpId, rpId)).unionAll(
         side(gt(userCredentials.rpId, rpId)),
