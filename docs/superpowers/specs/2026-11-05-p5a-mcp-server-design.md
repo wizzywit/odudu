@@ -320,3 +320,31 @@ credential-store library for stdio.
 Decided by the owner (2026-11-05): the CIMD and MCP-registration settings get
 one control on the existing settings screen, with its console page and
 screenshot (`pnpm docs:screenshots`), not a new area.
+
+## 11. Gap audit, 2026-11-05
+
+Every placement of P5a was read in the roadmap, section 11's row, `docs/NEXT.md`,
+`tests/docs/questions.md`, ADR 0042 and the roadmap-reasoning note, then
+checked against sections 1 to 10. Each row is a gap that the first draft had
+and what now closes it.
+
+| Gap | Closed by |
+| --- | --- |
+| Section 11 says a write needs a **short-lived** token; §5 only bounded the exchanged one | An `mcp:write` access token lives at most 10 minutes (a tenant setting may only lower it), is never issued with a refresh token, and a client holding `mcp:write` must re-authorize; `mcp:read` follows the tenant's normal lifetime. Tested. |
+| Section 11: every call recorded as an agent for its owner, but `/introspect` and `/userinfo` reads write no row (a decision) | A deliberate, documented exception for agents only: one row per tool call, a new `agent.tool_call` action under `admin_access` carrying tool, route, outcome, agent client and owner, and no argument text. Bounded by the audit retention window; its volume is stated in ADR 0041's terms. The decision list says why agents differ from a resource server's reads. |
+| The stdio public client was "registered per tenant" with no owner | A built-in `odudu-mcp` client created with every tenant like `odudu-admin`, backfilled for existing tenants by migration, in the tenant export and import document (`tenant-document.ts`), with the two new settings. Round-trip tested. |
+| The roadmap's "Later" line gives **client registration policies** to P13, which P5a's MCP policy overlaps | P5a adds only a narrow MCP policy (§5.3); P13 keeps general policies. The roadmap line and section 11's P5a row say so, and CIMD, the stdio sign-in and the built-in client are added to both, with their `roadmap-section-11.test.ts` mappings. |
+| Open decision: scope is not coherent with audience (RFC 9068 §2.2.3), placed on P9 | `mcp:read` and `mcp:write` are meaningful only at the MCP and admin audiences and refused elsewhere; the row stays on P9 and the reading note records that P5a adds two scopes that are coherent by construction. |
+| A revoked grant, a disabled tenant, a removed role or an owner's ended session | Honoured on the next call, because every call re-validates the token and re-exchanges; one test each. An owner can revoke an agent client's grant through the existing grants route and the console. |
+| MCP spec: servers MUST rate limit tool calls | A per-principal, in-process limiter in the shape of the existing ones, its bound stated and its one-instance limit named against P11. |
+| Clause-level conformance for RFCs the repository implements | Reading notes with clause tables under `docs/protocols/` for RFC 9728, RFC 8414, the CIMD draft and the MCP authorization sections, each clause mapped to a test, so the gap recorded for RFC 7523 is not repeated. |
+| Every repository method probed with a foreign `tenant_id`; query plans | The idempotency table and any CIMD cache table get the foreign-tenant probe, row-level security, an index for each read and an entry in the `query-plans` job. |
+| New routes and the endpoint's documentation | The well-known routes and the MCP endpoint are in the endpoints reference (`tests/docs/endpoints.test.ts`) and each has a transcript re-run on a live stack, the MCP one as `server/discover` and `tools/list` calls; the OpenAPI document gains the `Idempotency-Key` header. |
+| Documents the closing pass reads | `README.md`'s feature list, `tests/docs/questions.md` D22, the landing page's planned MCP item, `CHANGELOG.md`, the roadmap's three P5a placements, section 11, `docs/NEXT.md`'s next-phase order and a new ADR (token exchange for MCP, the ceiling in the admin token, CIMD) plus an ADR 0040 amendment. |
+| Prompt-injection and boundary tests | Included in §7 and §9; the coverage test fails on a new admin route until it is a tool or named as not one. |
+
+Left standing on purpose, each named against the phase that owns it: the
+destructive tools and out-of-band approval (P5b), budgets, CIBA and `may_act`
+minting (P5), enterprise-managed authorization (no phase; it needs an upstream
+identity provider, recorded as a non-goal on the roadmap's "Decided against"),
+and `/introspect` narrowing (P9).
