@@ -17,7 +17,11 @@ const LOOPBACK_LITERALS: ReadonlySet<string> = new Set(['127.0.0.1', '[::1]']);
 // literal registered without a port stands for that address at any port.
 // Only the literals: `localhost` resolves through a resolver the app does not
 // control (§8.3), and a registration that names a port is matched exactly.
-function matchesLoopbackPort(presented: string, registered: string): boolean {
+export function matchesLoopbackPort(
+  presented: string,
+  registered: string,
+  hosts: ReadonlySet<string> = LOOPBACK_LITERALS,
+): boolean {
   // The presented string is what the browser is redirected to; refuse every
   // character a URL parser would drop or reinterpret before it is compared,
   // and everything outside ASCII (a fullwidth host folds to 127.0.0.1).
@@ -25,7 +29,7 @@ function matchesLoopbackPort(presented: string, registered: string): boolean {
   if (!URL.canParse(registered) || !URL.canParse(presented)) return false;
   const base = new URL(registered);
   if (base.protocol !== 'http:' || base.port !== '') return false;
-  if (!LOOPBACK_LITERALS.has(base.hostname)) return false;
+  if (!hosts.has(base.hostname)) return false;
   const candidate = new URL(presented);
   return (
     candidate.protocol === 'http:' &&
