@@ -33,7 +33,7 @@ Inputs the spec implies and no single task's happy path exercises; each has a te
 
 1. A token for another tenant, another audience, another issuer form (path versus verified domain) or another resource URL spelling (trailing slash, uppercase host): refused, audited, never accepted (I1, I5, I8).
 2. A read token whose arguments name a write, or whose tool is called by name though absent from `tools/list` (I8, I9).
-3. Audit text and names that contain instructions: no tool call or write follows from them (I9).
+3. Audit text and names that contain instructions: no write the token lacks follows from them, and a write the token does hold needs the caller's own decision, which the guide says plainly (I9).
 4. A retried POST with the same key and a changed body, the same key in flight twice, and a key from another tenant (I6).
 5. A CIMD document whose URL redirects, resolves to a private address, is oversized, slow, or whose `client_id` differs from its URL (I3).
 6. The owner's role removed, grant revoked, session ended or tenant disabled between two calls: the next call fails (I8).
@@ -107,7 +107,7 @@ Exit: a stranger's MCP client can discover the tenant as an authorization server
 
 **Files:** Create `packages/protocol-oidc/src/view/routes/resource-metadata.ts`, `packages/mcp/src/service/challenge.ts` (the package skeleton arrives here: `package.json`, `tsconfig.json`, `index.ts`, copied from `protocol-admin`'s shape, verified: `cat packages/protocol-admin/tsconfig.json`). Test beside each.
 
-**Interfaces:** Produces `GET /.well-known/oauth-protected-resource/tenants/:tenant/mcp` returning `{resource, authorization_servers: [issuer], scopes_supported, bearer_methods_supported: ["header"]}`; `challengeFor(address, scope): string` returning `Bearer resource_metadata="…", scope="…"` and `insufficientScope(address, scopes): string`.
+**Interfaces:** Produces `GET /.well-known/oauth-protected-resource/tenants/:tenant/mcp` (and, on a verified-domain host, `GET /.well-known/oauth-protected-resource/mcp`) returning `{resource, authorization_servers: [issuer], scopes_supported, bearer_methods_supported: ["header"]}`; `challengeFor(address, scope): string` returning `Bearer resource_metadata="…", scope="…"` and `insufficientScope(address, scopes): string`.
 
 - [ ] **Step 1: Failing tests:** `resource` is the canonical MCP URL without a trailing slash; the metadata's `authorization_servers` entry equals the issuer in I1.1; `challengeFor` for `mcp:read` matches the spec's example form; `insufficientScope` carries `error="insufficient_scope"`.
 - [ ] **Step 2:** Run to fail; **Step 3:** implement; **Step 4:** run to pass.
@@ -161,16 +161,16 @@ Exit: a stranger's MCP client can discover the tenant as an authorization server
 
 **Files:** Create `packages/protocol-oidc/src/adapter/client-metadata-fetch.ts`; a cache table via migration with RLS and the foreign-tenant probe; tests `client-metadata-fetch.test.ts` (against a local test server) and an int test for the cache. Consumes the existing address guard (verified: `git grep -n "isPrivateAddress\|remote-address" -- packages/protocol-oidc/src/service | head -3`, reuse it; do not write a second one).
 
-**Interfaces:** Produces `fetchCimdDocument(url, deps): Promise<{ kind: 'ok'; body: unknown; expiresAt: Date } | { kind: 'refused'; reason: 'private_address' | 'redirect' | 'too_large' | 'timeout' | 'not_json' | 'status' }>`: HTTPS only, no redirects followed, 5 KiB cap, 3 s deadline, DNS pinned between check and connect, cached per `Cache-Control` clamped to 1 minute–24 hours, at most N cached rows per tenant (state N; reaped by `odudu reap`).
+**Interfaces:** Produces `fetchCimdDocument(url, deps): Promise<{ kind: 'ok'; body: unknown; expiresAt: Date } | { kind: 'refused'; reason: 'private_address' | 'redirect' | 'too_large' | 'timeout' | 'not_json' | 'status' }>`: HTTPS only, no redirects followed, 5 KiB cap, 3 s deadline, DNS pinned between check and connect, cached per `Cache-Control`: a `no-store` or `max-age=0` response is never stored, a response with no freshness directive is cached for one hour, and no entry lives longer than 24 hours, at most N cached rows per tenant (state N; reaped by `odudu reap`).
 
 - [ ] **Step 1: Failing tests** for each refusal in Review Focus 5, including a hostname that resolves to `169.254.169.254` and an IPv4-mapped IPv6 address.
 - [ ] **Steps 2–5.** Reuse scan reported: the existing outbound transports (`client-key-transport.ts`, `logout-delivery-transport.ts`) are candidates; say what was reused or why not, and note their DNS-deadline gap is P11's, not copied.
 
 ### Task 3.3: Wire into `/authorize`, `/token` and the metadata
 
-**Files:** modify client lookup in `/authorize` and the token endpoint to resolve a CIMD `client_id` to a transient public client when the tenant setting `cimd_enabled` is on (migration adds the column, default false); modify I1.1 to emit `client_id_metadata_document_supported`. Tests: int tests through the real endpoints.
+**Files:** modify client lookup in `/authorize` and the token endpoint to resolve a CIMD `client_id` to a persistent `clients` row (grants store `client.id` and token validation needs an enabled row) when the tenant setting `cimd_enabled` is on (migration adds the column, default false). The row is created or refreshed by an upsert keyed `(tenant_id, client_id URL)` on the first authorization request after the document validates, is a public client marked `source = 'cimd'`, takes its name and redirect URIs from the document and is rewritten whenever the cached document is refetched, counts against the tenant's `max_clients`, shows in the client list and can be disabled like any client, and is deleted by `odudu reap` when it has no live grant and has not been used for 30 days. Switching `cimd_enabled` off refuses new authorizations and refreshes for these rows (existing access tokens run out; the `invalid_client` answer is the same as for an unknown client); modify I1.1 to emit `client_id_metadata_document_supported`. Tests: int tests through the real endpoints.
 
-- [ ] **Step 1: Failing tests:** off → a URL `client_id` is `invalid_client` exactly as an unknown client; on → authorize reaches consent showing the client name and every redirect URI; a redirect URI not in the document is refused; the issued token's audience still needs the MCP URL registered, so a CIMD client gets it by the MCP policy (I4), not by the document.
+- [ ] **Step 1: Failing tests:** off → a URL `client_id` is `invalid_client` exactly as an unknown client, and a refresh for an existing CIMD grant is refused; a CIMD row is created once under two concurrent first authorizations; its redirect list follows a changed document; a disabled row is refused; the reaper removes an unused row with no live grant and keeps one with a live grant; the foreign-tenant probe on the upsert; on → authorize reaches consent showing the client name and every redirect URI; a redirect URI not in the document is refused; the issued token's audience still needs the MCP URL registered, so a CIMD client gets it by the MCP policy (I4), not by the document.
 - [ ] **Steps 2–5.** the reading note for the CIMD draft under `docs/protocols/`. Push; CI; review.
 
 ---
@@ -208,7 +208,7 @@ Exit: a stranger's MCP client can discover the tenant as an authorization server
 
 **Files:** modify `packages/protocol-admin/src/usecase/authenticate-admin.ts` (the verified read: it checks signature, issuer, `ADMIN_API_AUDIENCE`, `typ`, grant liveness; it ignores `scope` and `act`) and `AdminPrincipal`. Tests: extend `authenticate-admin.test.ts` first.
 
-**Interfaces:** Produces `AdminPrincipal.agent?: { clientId: string; ownerSubjectId: string }` and `AdminPrincipal.scopes: readonly string[]`; agent is set when the token carries `act.sub` or when `client_id` is the tenant's `odudu-mcp` client or any client holding an MCP scope.
+**Interfaces:** Produces `AdminPrincipal.agent?: { clientId: string; ownerSubjectId: string }` and `AdminPrincipal.scopes: readonly string[]`; agent is set when the token carries `act.sub` or when `client_id` is the tenant's `odudu-mcp` client or any client holding an MCP scope. An agent token that carries no MCP scope is refused at the admin API, so an `act` token minted with a non-MCP scope can never keep the owner's full capabilities.
 
 - [ ] **Step 1: Failing tests:** a token with `act` yields `agent`; an `mcp:*` token from `odudu-mcp` yields `agent` with no `act`; an ordinary console token yields none; a token with `mcp:read` for the wrong tenant is refused as today.
 - [ ] **Steps 2–5.**
@@ -217,9 +217,9 @@ Exit: a stranger's MCP client can discover the tenant as an authorization server
 
 **Files:** create `packages/protocol-admin/src/service/agent-scope.ts`; modify the router's authorize step (`router.ts`, `authorize-admin.ts`). Tests: `agent-scope.test.ts` and a table test over every entry of `ADMIN_ROUTES` (verified count: `grep -c "pattern:" capability.ts` = 145).
 
-**Interfaces:** Produces `scopeAdmits(scopes: readonly string[], route: AdminRoute): boolean` (read scope: `method === 'GET'` only; write scope: GET plus `AGENT_WRITE_ROUTES`, an exported allowlist of the descriptive-metadata PATCH routes for a scope and a client); requests with no MCP scope are unaffected.
+**Interfaces:** Produces `scopeAdmits(scopes: readonly string[], route: AdminRoute): boolean` (read scope: `method === 'GET'` only; write scope: GET plus `AGENT_WRITE_ROUTES`, an exported allowlist of the descriptive-metadata PATCH routes for a scope and a client) and `agentWritableFields(route): readonly string[]` (the body fields an agent write may carry: names, descriptions and localized text only; the PATCH of a client also accepts `enabled`, `redirect_uris` and more for an ordinary caller, so admission is by field, not by route: any other field in an agent's body is refused 403 `insufficient_scope`); requests that carry neither an MCP scope nor an agent marker are unaffected.
 
-- [ ] **Step 1: Failing tests:** for every route, `mcp:read` admits exactly the GETs; `mcp:write` admits exactly GETs plus the allowlist; a console token (no MCP scope) admits as before; the owner's missing capability still refuses (both gates must pass); a refusal records `capability.refused` with the agent.
+- [ ] **Step 1: Failing tests:** for every route, `mcp:read` admits exactly the GETs; `mcp:write` admits exactly GETs plus the allowlist; a console token (no MCP scope, no agent) admits as before; an agent token with no MCP scope is refused; an `mcp:write` PATCH of a client carrying `enabled` or `redirect_uris` is refused and one carrying only descriptive fields succeeds (and the same for a scope); the owner's missing capability still refuses (both gates must pass); a refusal records `capability.refused` with the agent.
 - [ ] **Steps 2–5.**
 
 ### Task 5.3: Audit attribution and the decision records
@@ -234,7 +234,7 @@ Found by the spike (`docs/phases/p5a.md`): a public client granted the exchange 
 
 **Files:** modify `packages/protocol-oidc/src/usecase/token-issuance.ts` (the exchange branch, verified: `issueExchangedTokens` near line 950, grant gate near 1301), add `packages/protocol-oidc/src/usecase/mint-agent-token.ts`, export it from `packages/protocol-oidc/src/index.ts`; migration for two client columns; contracts, audit allowlist, `seed client` flags, console client page. Tests beside, plus an int test through `/token`.
 
-**Interfaces:** Produces `mintAgentToken(tx, deps, input: { subjectGrantId: string; agentClientId: string; audience: string; scope: readonly string[]; now: Date }): Promise<{ accessToken: string; expiresAt: Date }>`: takes an already-validated owner grant, sets `act = { sub: agentClientId }`, requires `scope ⊆` the grant's scope, `exp ≤` the grant's access-token `exp`, refuses a revoked grant, ended session, disabled client or tenant. It is not a `/token` request and performs no client authentication, because its only caller is the MCP layer after it has validated the MCP-audience token.
+**Interfaces:** Produces `mintAgentToken(tx, deps, input: { subjectGrantId: string; agentClientId: string; audience: string; scope: readonly string[]; notAfter: Date; now: Date }): Promise<{ accessToken: string; expiresAt: Date }>`: takes an already-validated owner grant and the presented MCP token's `exp` as `notAfter`, sets `act = { sub: agentClientId }`, requires `scope ⊆` the grant's scope, `exp ≤ min(notAfter, now + a few minutes)` (a grant stores no per-token expiry, so the cap must be passed in), refuses a revoked grant, ended session, disabled client or tenant. It is not a `/token` request and performs no client authentication, because its only caller is the MCP layer after it has validated the MCP-audience token.
 
 - [ ] **Step 1: Failing tests:** `mintAgentToken` returns `act.sub` = the agent client and a narrowed scope; a widened scope, a revoked grant, an ended session, a disabled client are refused; a public client with the exchange grant is refused at `/token` with `unauthorized_client` unless a new per-client setting `tokenExchangeAllowedForPublic` is on (default off); an `actor_token` whose grant belongs to another client is `invalid_grant` unless the new per-client setting `tokenExchangeActorFromOtherClient` is on (default off, and on for no built-in client); both settings round-trip through the admin API and appear in the audit allowlist.
 - [ ] **Steps 2–5:** run to fail, implement, run to pass, commit. Reuse scan: `issueExchangedTokens`'s claim-building is extracted and shared, not copied.
@@ -247,7 +247,7 @@ Found by the spike (`docs/phases/p5a.md`): a public client granted the exchange 
 
 **Files:** migration creating `idempotency_keys(tenant_id, key, route, fingerprint, status, response_status, response_body, created_at, expires_at)` with RLS, a unique index `(tenant_id, key, route)` and an index on `expires_at`; `packages/protocol-admin/src/repository/idempotency.ts`, `…/service/idempotency.ts`, `…/usecase/idempotent.ts`; `reap` gains a pass (command first, timer second: ADR 0024; verified pair to copy: `apps/server/src/cli/reap.ts` and `scheduler.ts`). Tests: unit, int with the foreign-tenant probe, `query-plans` entry.
 
-**Interfaces:** Produces `withIdempotency(tx, input: { tenantId; key; route; fingerprint; now }, run): Promise<Stored | Fresh>`; `fingerprintOf(method, path, body): string` (SHA-256 of canonical JSON); window 24 hours; at most 10,000 live keys per tenant (then 429 `idempotency_capacity`); response body cap 64 KiB (larger responses are not stored, and the key is refused with 422 so a replay can never lie).
+**Interfaces:** Produces `withIdempotency(tx, input: { tenantId; key; route; fingerprint; now }, run): Promise<Stored | Fresh>`; `fingerprintOf(method, path, body): string` (SHA-256 of canonical JSON); window 24 hours; at most 10,000 live keys per tenant (then 429 `idempotency_capacity`); response body cap 64 KiB: the row is written in the same transaction as the mutation, and a response larger than the cap rolls that transaction back and answers 422 `idempotency_response_too_large`, so nothing ran, no row exists and a retry without a key behaves as before; a replay can never lie.
 
 - [ ] **Step 1: Failing tests:** first call runs; replay answers the stored status and body; same key different fingerprint → 422; in-flight duplicate → 409 (two concurrent calls in one test); another tenant's identical key is independent; expired key runs again; a failed (5xx) first call stores nothing; a replayed successful `If-Match` write is answered by design.
 - [ ] **Steps 2–5.**
@@ -297,7 +297,7 @@ interface AdminCaller {
 
 and `NOT_TOOLS: Record<routeKey, reason>`.
 
-- [ ] **Step 1: Failing tests:** every `ADMIN_ROUTES` entry is exactly one of a tool's `routeKey` or a `NOT_TOOLS` key; each tool's `capability` equals the route's required capability; every `access: 'write'` tool's route is in `AGENT_WRITE_ROUTES` and vice versa; tool names are unique, match `[A-Za-z0-9_.-]{1,128}`, and sorted deterministically.
+- [ ] **Step 1: Failing tests:** every `ADMIN_ROUTES` entry is exactly one of a tool's `routeKey` or a `NOT_TOOLS` key; each tool's `capability` equals the route's required capability; every `access: 'write'` tool's route is in `AGENT_WRITE_ROUTES` (the reverse, that every `AGENT_WRITE_ROUTES` entry has a write tool, is asserted in Task 9.1 when the write tools exist); tool names are unique, match `[A-Za-z0-9_.-]{1,128}`, and sorted deterministically.
 - [ ] **Steps 2–5.** The destructive routes (tenant delete, end-all sessions, lockout clear, signing-key change) go in `NOT_TOOLS` with "P5b".
 
 ### Task 8.2: Read tools

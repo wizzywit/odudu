@@ -125,6 +125,12 @@ wide as the role the administrator gave it.
   fetches and validates the document (redirect URIs matched exactly, the
   document's `client_id` equal to its URL), with SSRF protection and caching
   by HTTP headers. A tenant setting turns it on; off by default.
+  A validated document becomes a persistent `clients` row (grants and token
+  validation need one): created by an upsert on the first authorization, kept
+  in step with the document on every refetch, counted against `max_clients`,
+  listed and disableable like any client, and removed by the reaper after 30
+  days unused with no live grant. Turning the setting off refuses new
+  authorizations and refreshes for these clients.
 - **DCR**: the existing registration endpoint stays closed by default. A tenant
   registration policy for MCP clients is added: open registration limited to
   public clients, PKCE required, loopback and HTTPS redirects only, the
@@ -145,7 +151,8 @@ account key from the environment (5.2, headless) or runs a loopback browser
 sign-in (5.1) as a public client the server registers per tenant, and keeps
 the refresh token in the operating-system credential store, falling back to a
 file readable only by the user. It calls the instance's admin API directly
-with the exchange performed by the server's token endpoint, the same as 5.1.
+with an admin-audience token that the authorization server issues straight to
+`odudu-mcp` (§10); it does not request a token exchange.
 No password is ever typed into the command.
 
 **5.5 What every request does first.** TLS or loopback (the server already
@@ -157,7 +164,10 @@ issuer. A token for another tenant is refused with the refusal audited
 ## 6. Tools and the ceiling
 
 - **Scope to what a call may do.** `mcp:read` admits only admin routes whose
-  method is GET; `mcp:write` also admits the allowlisted reversible writes in
+  method is GET; an agent token with no MCP scope is refused; a write is
+  admitted by field, not by route (an agent's PATCH of a client or scope may
+  carry descriptive fields only; `enabled`, `redirect_uris` and the rest are
+  refused); `mcp:write` also admits the allowlisted reversible writes in
   the table below; the exchange always intersects with the owner's capabilities
   (`ADMIN_CAPABILITIES`: `view-users`, `manage-users`, `manage-clients`,
   `manage-tenant`, `manage-keys`, `manage-sessions`, `view-audit`,
