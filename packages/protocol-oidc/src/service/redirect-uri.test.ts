@@ -149,3 +149,31 @@ describe('isRegisteredRedirectUri, loopback port', () => {
     expect(isRegisteredRedirectUri('http://127.0.0.1:9000/', V6, 'public')).toBe(false);
   });
 });
+
+describe('isRegisteredRedirectUri for a client from a metadata document', () => {
+  const registered = ['http://localhost/callback', 'https://app.example.com/cb'];
+
+  it('matches a localhost entry at any port, which a hand-registered public client does not', () => {
+    const presented = 'http://localhost:51234/callback';
+    expect(isRegisteredRedirectUri(presented, registered, 'public', 'cimd')).toBe(true);
+    expect(isRegisteredRedirectUri(presented, registered, 'public', 'seeded')).toBe(false);
+    expect(isRegisteredRedirectUri(presented, registered, 'public')).toBe(false);
+  });
+
+  it('still refuses another path, another host and an address the document does not list', () => {
+    for (const presented of [
+      'http://localhost:51234/other',
+      'http://127.0.0.1:51234/callback',
+      'https://app.example.com/cb2',
+      'https://evil.example/cb',
+    ]) {
+      expect(isRegisteredRedirectUri(presented, registered, 'public', 'cimd')).toBe(false);
+    }
+  });
+
+  it('keeps an https entry exact', () => {
+    expect(
+      isRegisteredRedirectUri('https://app.example.com/cb', registered, 'public', 'cimd'),
+    ).toBe(true);
+  });
+});

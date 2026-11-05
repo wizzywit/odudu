@@ -1,6 +1,6 @@
 import { isIP } from 'node:net';
 import { isLoopbackHost, privateMemberRefusal } from '#/service/client-metadata';
-import { matchesLoopbackPort } from '#/service/redirect-uri';
+export { isCimdRedirectUri } from '#/service/redirect-uri';
 
 export type CimdRefusal =
   | 'not_an_object'
@@ -130,18 +130,6 @@ export function parseCimdDocument(clientIdUrl: string, body: unknown): CimdOutco
       loopback: redirectUris.some((u) => isLoopbackHost(new URL(u).hostname)),
     },
   };
-}
-
-// `localhost` is accepted here, unlike for the built-in client: the document
-// is the client's own statement of where it listens, so what protects the
-// person is the consent page naming the client_id's host, not the literal.
-const CIMD_LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '[::1]']);
-
-export function isCimdRedirectUri(presented: string, registered: readonly string[]): boolean {
-  return (
-    registered.includes(presented) ||
-    registered.some((uri) => matchesLoopbackPort(presented, uri, CIMD_LOOPBACK_HOSTS))
-  );
 }
 
 // What the consent page shows beside client_name, which the document chose

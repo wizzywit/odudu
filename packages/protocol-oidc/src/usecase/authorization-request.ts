@@ -43,6 +43,7 @@ import {
   type ConsentGateDeps,
   type LoginSubmissionDeps,
 } from '#/usecase/login-submission';
+import { resolveAuthorizeClient } from '#/usecase/resolve-cimd-client';
 import { decideReuse, withinMaxAge, type ResolvedSession } from '#/usecase/session-reuse';
 import {
   AUTHORIZE_REQUEST_DESCRIPTIONS,
@@ -167,6 +168,8 @@ export interface ResolvedClient {
   scopes: readonly string[];
 }
 
+const NO_CLIENT: ResolvedClient = { client: null, config: null, scopes: [] };
+
 export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
   // The tenant's own signing keys, which is the whole of "did this server
@@ -180,6 +183,10 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // Scoped to the resolved tenant by the caller composing this dependency
   // (index.ts), the same way listPublishableKeys is for the JWKS route.
   resolveClient(tenantId: string, oauthClientId: string): Promise<ResolvedClient>;
+  // Brings the client a URL client_id names up to date with its metadata
+  // document, answering whether it is now usable. Absent where documents
+  // cannot be fetched.
+  refreshCimdClient?(tenantId: string, url: string): Promise<boolean>;
   // The names, of those given, that the tenant defines as scopes: the same
   // vocabulary discovery advertises, asked about only the scopes a request
   // names.
@@ -353,8 +360,21 @@ export async function handleAuthorizationRequest(
   const oauthClientId = params.client_id;
   const resolved: ResolvedClient =
     oauthClientId === undefined
-      ? { client: null, config: null, scopes: [] }
-      : await deps.resolveClient(tenant.id, oauthClientId);
+      ? NO_CLIENT
+      : await resolveAuthorizeClient(
+          {
+            resolveClient: (tenantId, id) => deps.resolveClient(tenantId, id),
+            empty: NO_CLIENT,
+            ...(deps.refreshCimdClient === undefined
+              ? {}
+              : {
+                  refreshCimdClient: (tenantId: string, url: string) =>
+                    deps.refreshCimdClient?.(tenantId, url) ?? Promise.resolve(false),
+                }),
+          },
+          tenant,
+          oauthClientId,
+        );
 
   const outcome = validateAuthorizationRequest(
     params,

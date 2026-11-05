@@ -6,6 +6,7 @@ import {
   NO_CONSENT_I18N,
   type ConsentI18n,
 } from '#/service/consent-i18n';
+import { type ClientSource } from '#/service/client-source';
 import { fillPage } from '#/view/template';
 import { bdi, t, tHtml } from '#/view/messages';
 
@@ -22,6 +23,8 @@ export interface ConsentPageInput {
     readonly clientUri: string | null;
     readonly policyUri: string | null;
     readonly tosUri: string | null;
+    // Absent for a client registered by hand.
+    readonly source?: ClientSource | null;
   };
   defaultScopes: readonly string[];
   optionalScopes: readonly string[];
@@ -85,6 +88,17 @@ function renderOptionalScope(
   return `<label><input type="checkbox" name="scope" value="${escapeHtml(scope)}"${checked}> ${text}</label>`;
 }
 
+// The name is the client's own word, so the page also says where the client
+// was found and where a decision sends the person.
+function sourceLines(source: ClientSource | null, locale: PageLocale): string[] {
+  if (source === null) return [];
+  return [
+    tHtml(locale, 'consent.source.host', {}, { host: source.host }),
+    tHtml(locale, 'consent.source.redirects'),
+    ...source.redirectUris.map((uri) => bdi(uri)),
+  ];
+}
+
 function renderPageLinks(
   pages: ConsentPageInput['clientPages'],
   clientName: string,
@@ -123,7 +137,11 @@ export function renderConsentPage(input: ConsentPageInput, locale: PageLocale): 
     fillPage(
       'consent',
       {
-        client: intro(tHtml(locale, 'consent.heading', {}, { client: clientName }), input.tenant),
+        client: intro(
+          tHtml(locale, 'consent.heading', {}, { client: clientName }),
+          input.tenant,
+          sourceLines(input.clientPages.source ?? null, locale),
+        ),
         links: renderPageLinks(input.clientPages, clientName, locale),
         error: '',
         'form.open': `<form method="post" action="${action}">

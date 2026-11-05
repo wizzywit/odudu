@@ -6,8 +6,10 @@ export function isRegisteredRedirectUri(
   presented: string,
   registered: readonly string[],
   clientType: 'public' | 'confidential',
+  registrationOrigin?: string,
 ): boolean {
   if (registered.includes(presented)) return true;
+  if (registrationOrigin === 'cimd') return isCimdRedirectUri(presented, registered);
   return clientType === 'public' && registered.some((uri) => matchesLoopbackPort(presented, uri));
 }
 
@@ -41,5 +43,17 @@ export function matchesLoopbackPort(
     candidate.port !== '0' &&
     candidate.pathname === base.pathname &&
     candidate.search === base.search
+  );
+}
+
+// `localhost` is accepted here, unlike for the built-in client: the document
+// is the client's own statement of where it listens, so what protects the
+// person is the consent page naming the client_id's host, not the literal.
+const CIMD_LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+export function isCimdRedirectUri(presented: string, registered: readonly string[]): boolean {
+  return (
+    registered.includes(presented) ||
+    registered.some((uri) => matchesLoopbackPort(presented, uri, CIMD_LOOPBACK_HOSTS))
   );
 }

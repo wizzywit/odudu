@@ -91,8 +91,18 @@ describe('resolveAsMetadata', () => {
     );
   });
 
-  it('leaves out client_id_metadata_document_supported', async () => {
-    expect(await resolveAsMetadata(deps(), 'acme', PATH)).not.toHaveProperty(
+  it('states client_id_metadata_document_supported only for a tenant that has turned them on', async () => {
+    const wired = (over: Partial<typeof TENANT>) => ({ ...deps(over), cimdFetchable: true });
+    expect(await resolveAsMetadata(wired({ cimdEnabled: true }), 'acme', PATH)).toMatchObject({
+      client_id_metadata_document_supported: true,
+    });
+    expect(await resolveAsMetadata(wired({ cimdEnabled: false }), 'acme', PATH)).not.toHaveProperty(
+      'client_id_metadata_document_supported',
+    );
+  });
+
+  it('leaves client_id_metadata_document_supported out when the process cannot fetch a document', async () => {
+    expect(await resolveAsMetadata(deps({ cimdEnabled: true }), 'acme', PATH)).not.toHaveProperty(
       'client_id_metadata_document_supported',
     );
   });

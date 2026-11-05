@@ -72,6 +72,12 @@ import {
   standardClaimMappers,
   type AuditRefusalBudget,
   AS_METADATA_PATH_FORM,
+  CIMD_FETCHES_PER_HOST_PER_MINUTE,
+  CIMD_FETCHES_PER_TENANT_PER_MINUTE,
+  CIMD_LIMITER_MAX_HOSTS,
+  CIMD_LIMITER_MAX_TENANTS,
+  createFetchLimiter,
+  type CimdRequest,
 } from '@odudu/protocol-oidc';
 import { docsRoutes } from '@odudu/web-assets';
 import Fastify, {
@@ -85,7 +91,11 @@ import { randomBytes } from 'node:crypto';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
 import { findHeldSignInIn } from '#/held-sign-in';
-import { createClientKeyRequest, defaultClientKeyLookup } from '#/client-key-transport';
+import {
+  createCimdRequest,
+  createClientKeyRequest,
+  defaultClientKeyLookup,
+} from '#/client-key-transport';
 import { type ConsoleKeys, missingConsoleKey } from '#/console-key';
 import { registerHealth } from '#/health';
 import { registerDomainCheck } from '#/domain-check';
@@ -232,6 +242,15 @@ export interface AppDeps {
    * it explicitly rather than getting it silently.
    */
   readonly allowPrivateClientUrls?: boolean;
+  /**
+   * How a Client ID Metadata Document is fetched. The defaults are the real
+   * resolver and the pinned `node:https` request, behind the address guard
+   * that has no switch; a test of the whole path swaps them, never the guard.
+   */
+  readonly cimdTransport?: {
+    readonly lookup: (hostname: string) => Promise<readonly string[]>;
+    readonly request: CimdRequest;
+  };
   /**
    * The same escape hatch for the relay a tenant configures through
    * `PUT /smtp`. Separate from `allowPrivateClientUrls` because an
@@ -479,6 +498,18 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     allowPrivate: deps.allowPrivateClientUrls ?? false,
   });
 
+  // One limiter for the process: its windows are the per-host and per-tenant
+  // budgets for fetching a client's metadata document, so a second instance
+  // would be a second budget.
+  const cimdFetchLimiter = createFetchLimiter({
+    now: () => new Date(),
+    perHost: CIMD_FETCHES_PER_HOST_PER_MINUTE,
+    perTenant: CIMD_FETCHES_PER_TENANT_PER_MINUTE,
+    windowMs: 60_000,
+    maxHosts: CIMD_LIMITER_MAX_HOSTS,
+    maxTenants: CIMD_LIMITER_MAX_TENANTS,
+  });
+
   // One instance for the process, shared by `oidcRoutes` (issuance and
   // discovery) and `adminRoutes` (`GET /scopes/:id/mappers`'s available
   // names) — so the two can never disagree about which mappers exist.
@@ -647,6 +678,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       clientSecretLimiter,
       auditRefusalBudget: auditRefusalBudget(() => new Date()),
       clientKeySet: privateKeyJwtKeySet,
+      cimd: {
+        lookup: deps.cimdTransport?.lookup ?? defaultClientKeyLookup,
+        request: deps.cimdTransport?.request ?? createCimdRequest(),
+        limiter: cimdFetchLimiter,
+        warn: (message, context) => {
+          app.log.warn(context, message);
+        },
+      },
       claimMappers,
       tls,
       ...(deps.publicBaseUrl === undefined ? {} : { publicBaseUrl: deps.publicBaseUrl }),

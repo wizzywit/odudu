@@ -70,6 +70,8 @@ export const en = {
 
   'consent.title': 'Allow access?',
   'consent.heading': '{client} is asking for access',
+  'consent.source.host': 'This application is published at {host}',
+  'consent.source.redirects': 'After you decide, you are sent to one of these addresses:',
   'consent.link.about': 'About {client}',
   'consent.link.privacy': 'Privacy policy',
   'consent.link.terms': 'Terms of service',

@@ -60,6 +60,17 @@ import { type FastifyPluginAsync } from 'fastify';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { loadClaimContextIn } from '#/usecase/evaluate-claims';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import {
+  fetchCimdDocument,
+  type CimdFetchDeps,
+  type CimdRequest,
+} from '#/adapter/client-metadata-fetch';
+import { cimdCacheRepository } from '#/repository/client-metadata-cache';
+import { type FetchLimiter } from '#/service/cimd-fetch-limiter';
+import { persistCimdClient } from '#/usecase/persist-cimd-client';
+import { resolveCimdDocument } from '#/usecase/resolve-cimd-document';
+import { refreshCimdClient } from '#/usecase/resolve-cimd-client';
+import { clientSourceOf } from '#/service/client-source';
 import { isRegisteredRedirectUri } from '#/service/redirect-uri';
 import { tokenGrantRepository } from '#/repository/grants';
 import { tenantLookupRepository } from '#/repository/tenant-lookup';
@@ -171,6 +182,18 @@ export interface OidcRoutesDeps {
   // The tenant's own wording for the language a page is shown in; the server
   // wires the reader here. None means every page reads the catalogue alone.
   resolveOverrides?: OverridesResolver;
+  // How a Client ID Metadata Document is fetched, for the tenants that turn
+  // them on. Absent, no document can be fetched and a URL client_id is refused
+  // like any unknown one. The limiter is shared by every request, so the
+  // composition root builds exactly one.
+  cimd?: CimdWiring;
+}
+
+export interface CimdWiring {
+  readonly lookup: CimdFetchDeps['lookup'];
+  readonly request: CimdRequest;
+  readonly limiter: FetchLimiter;
+  readonly warn: (message: string, context: Record<string, string>) => void;
 }
 
 // The plugin apps/server registers. Discovery and JWKS both read the
@@ -411,6 +434,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             clientUri: config?.clientUri ?? null,
             policyUri: config?.policyUri ?? null,
             tosUri: config?.tosUri ?? null,
+            source: client === null ? null : clientSourceOf(client, config?.redirectUris ?? []),
           },
           scopeLabels,
           i18n,
@@ -521,7 +545,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       trustProxy: deps.trustProxy ?? false,
     };
     registerDiscoveryRoute(app, discoveryDeps);
-    registerAsMetadataRoutes(app, discoveryDeps);
+    registerAsMetadataRoutes(app, { ...discoveryDeps, cimdFetchable: deps.cimd !== undefined });
 
     registerJwksRoute(app, { findTenant, listPublishableKeys });
     // Introspection's two grant/session reads, resolved here rather than in
@@ -703,11 +727,43 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         if (!client?.enabled) return false;
         const config = await clientOidcConfigRepository(tx).byClientId(client.id);
         return (
-          config !== null && isRegisteredRedirectUri(redirectUri, config.redirectUris, client.type)
+          config !== null &&
+          isRegisteredRedirectUri(
+            redirectUri,
+            config.redirectUris,
+            client.type,
+            client.registrationOrigin,
+          )
         );
       });
 
+    const cimd = deps.cimd;
+    const refreshCimd =
+      cimd === undefined
+        ? undefined
+        : (tenantId: string, url: string) =>
+            refreshCimdClient(tenantId, url, {
+              resolveDocument: (id, target) =>
+                resolveCimdDocument(id, target, {
+                  cache: cimdCacheRepository(deps.database),
+                  fetch: (address) =>
+                    fetchCimdDocument(address, {
+                      lookup: cimd.lookup,
+                      request: cimd.request,
+                      now: () => clock.now(),
+                    }),
+                  limiter: cimd.limiter,
+                  now: () => clock.now(),
+                  warn: cimd.warn,
+                }),
+              persist: (id, document, now) =>
+                withTenant(deps.database.db, id, (tx) => persistCimdClient(tx, id, document, now)),
+              now: () => clock.now(),
+              warn: cimd.warn,
+            });
+
     registerAuthorizeRoute(app, {
+      ...(refreshCimd === undefined ? {} : { refreshCimdClient: refreshCimd }),
       findTenant,
       acceptedIssuers: acceptedIssuersFor,
       recoverPendingRequest,
@@ -1137,6 +1193,14 @@ export {
   createFetchLimiter,
   type FetchLimiter,
 } from '#/service/cimd-fetch-limiter';
+export {
+  CIMD_CLIENT_UNUSED_SECONDS,
+  CIMD_CLIENTS_PER_TENANT,
+  persistCimdClient,
+  type PersistCimdOutcome,
+} from '#/usecase/persist-cimd-client';
+export { tenantCimdRepository } from '#/repository/tenant-cimd';
+export { parseCimdDocument, type CimdClient } from '#/service/client-id-metadata';
 export {
   resolveCimdDocument,
   type ResolveCimdDeps,

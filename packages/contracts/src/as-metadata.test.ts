@@ -91,9 +91,15 @@ describe('asMetadataDocument', () => {
     expect(asMetadataDocument(d, []).registration_endpoint).toBe(d.registration_endpoint);
   });
 
-  it('does not claim client id metadata documents before they are served', () => {
+  it('states client_id_metadata_document_supported as true only when told documents are served', () => {
     expect(asMetadataDocument(discovery(), [])).not.toHaveProperty(
       'client_id_metadata_document_supported',
+    );
+    expect(asMetadataDocument(discovery(), [], false)).not.toHaveProperty(
+      'client_id_metadata_document_supported',
+    );
+    expect(asMetadataDocument(discovery(), [], true).client_id_metadata_document_supported).toBe(
+      true,
     );
   });
 

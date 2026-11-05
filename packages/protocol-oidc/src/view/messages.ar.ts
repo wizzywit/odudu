@@ -64,6 +64,8 @@ export const ar: Readonly<Record<string, string>> = {
 
   'consent.title': 'السماح بالوصول؟',
   'consent.heading': 'يطلب {client} الوصول',
+  'consent.source.host': 'هذا التطبيق منشور على {host}',
+  'consent.source.redirects': 'بعد قرارك تُعاد توجيهك إلى أحد هذه العناوين:',
   'consent.link.about': 'نبذة عن {client}',
   'consent.link.privacy': 'سياسة الخصوصية',
   'consent.link.terms': 'شروط الخدمة',

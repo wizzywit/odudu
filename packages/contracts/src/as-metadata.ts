@@ -5,8 +5,8 @@ import { type DiscoveryDocument } from '#/discovery';
 // `private_key_jwt` is advertised, and forbids `none` in it.
 export const CLIENT_ASSERTION_SIGNING_ALGS_SUPPORTED: readonly string[] = ['RS256', 'ES256'];
 
-// RFC 8414 §2. `client_id_metadata_document_supported` is deliberately not a
-// member until the server resolves such client ids.
+// RFC 8414 §2, and the Client ID Metadata Document draft's
+// `client_id_metadata_document_supported`, present only when true.
 export interface AsMetadataDocument {
   readonly issuer: string;
   readonly authorization_endpoint: string;
@@ -28,6 +28,7 @@ export interface AsMetadataDocument {
   readonly ui_locales_supported: readonly string[];
   readonly scopes_supported?: readonly string[];
   readonly registration_endpoint?: string;
+  readonly client_id_metadata_document_supported?: true;
 }
 
 // Projected from the discovery document so that what both describe cannot
@@ -35,6 +36,7 @@ export interface AsMetadataDocument {
 export function asMetadataDocument(
   discovery: DiscoveryDocument,
   scopesSupported: readonly string[],
+  clientIdMetadataDocumentSupported = false,
 ): AsMetadataDocument {
   return {
     issuer: discovery.issuer,
@@ -63,5 +65,6 @@ export function asMetadataDocument(
     ...(discovery.registration_endpoint === undefined
       ? {}
       : { registration_endpoint: discovery.registration_endpoint }),
+    ...(clientIdMetadataDocumentSupported ? { client_id_metadata_document_supported: true } : {}),
   };
 }

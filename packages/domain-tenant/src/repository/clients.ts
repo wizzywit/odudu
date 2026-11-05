@@ -53,6 +53,9 @@ export interface NewClient {
   builtinAdmin?: boolean;
   skipLogoutConfirmation?: boolean;
   builtinMcp?: boolean;
+  // Required for, and only for, registrationOrigin 'cimd'
+  // (clients_metadata_used_for_cimd).
+  metadataUsedAt?: Date | null;
   // Defaults to the column's own default ('seeded'): every caller that
   // predates dynamic registration creates a client that way, and only
   // the registration endpoint has reason to name 'anonymous' or 'token'.
@@ -122,6 +125,7 @@ export function clientRepository(tx: TenantScopedDatabase) {
             builtinAdmin: input.builtinAdmin ?? false,
             skipLogoutConfirmation: input.skipLogoutConfirmation ?? false,
             builtinMcp: input.builtinMcp ?? false,
+            metadataUsedAt: input.metadataUsedAt ?? null,
             ...(input.registrationOrigin === undefined
               ? {}
               : { registrationOrigin: input.registrationOrigin }),
@@ -175,6 +179,25 @@ export function clientRepository(tx: TenantScopedDatabase) {
     // config row a second time.
     async delete(id: string): Promise<void> {
       await tx.delete(clients).where(eq(clients.id, id));
+    },
+
+    // Counted no further than `limit`, which is all a ceiling check needs;
+    // served by clients_cimd_by_use.
+    async countCimdAtMost(limit: number): Promise<number> {
+      const held = tx
+        .select({ one: sql<number>`1`.as('one') })
+        .from(clients)
+        .where(eq(clients.registrationOrigin, 'cimd'))
+        .limit(limit)
+        .as('held');
+      const rows = await tx.select({ count: count() }).from(held);
+      return rows[0]?.count ?? 0;
+    },
+
+    // The instant a client's metadata document was last resolved, for the
+    // client `reap` ages out by it.
+    async markMetadataUsed(id: string, now: Date): Promise<void> {
+      await tx.update(clients).set({ metadataUsedAt: now }).where(eq(clients.id, id));
     },
 
     // `secret_hash` is refused by the general amendment (client-patch.ts's
