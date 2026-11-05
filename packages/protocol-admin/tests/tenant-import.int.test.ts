@@ -351,6 +351,42 @@ describe('POST /admin/tenant-imports', () => {
     );
   });
 
+  it.each([
+    ['a confidential type', { type: 'confidential' }, 'type'],
+    [
+      'a client_credentials grant',
+      { grant_types: ['authorization_code', 'client_credentials'] },
+      'grant_types',
+    ],
+    [
+      'a secret-bearing auth method',
+      { token_endpoint_auth_method: 'client_secret_basic', type: 'confidential' },
+      'type',
+    ],
+    ['an https redirect', { redirect_uris: ['https://evil.example/cb'] }, 'redirect_uris'],
+    ['localhost', { redirect_uris: ['http://localhost'] }, 'redirect_uris'],
+    ['a loopback with a port', { redirect_uris: ['http://127.0.0.1:8080'] }, 'redirect_uris'],
+    ['a loopback with a path', { redirect_uris: ['http://127.0.0.1/cb'] }, 'redirect_uris'],
+  ])('refuses an odudu-mcp client with %s, creating no tenant', async (_label, change, field) => {
+    const source = await fixture.createTenant(`mcp-bad-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const document = {
+      ...original,
+      clients: original.clients.map((client) =>
+        client.client_id === 'odudu-mcp' ? { ...client, ...change } : client,
+      ),
+    };
+    const name = `mcp-bad-copy-${newId()}`;
+    const res = await postImport(token, { name, document });
+    expect(res.statusCode, res.payload).toBe(400);
+    const errors = res.json<{ errors: { path: string; message: string }[] }>().errors;
+    expect(errors.some((e) => e.path.includes('document.clients[') && e.path.endsWith(field))).toBe(
+      true,
+    );
+    expect(await tenantIdOf(name)).toBeNull();
+  });
+
   it('keeps a disabled built-in MCP client disabled across an import', async () => {
     const source = await fixture.createTenant(`mcp-off-${newId()}`);
     const token = await operatorToken();
