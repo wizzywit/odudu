@@ -360,6 +360,11 @@ insert into backchannel_logout_deliveries (id, tenant_id, client_id, endpoint, l
 select gen_random_uuid(), ${t}, ${c0}, 'https://rp.example/b', 't',
        now() - (g || ' seconds')::interval, gen_random_uuid(), now()
   from generate_series(1, ${v.logoutDeliveries}) g;
+insert into client_metadata_cache (tenant_id, url, body, fetched_at, expires_at)
+select ${t}, 'https://plans-' || g || '.example.com/client.json', '{"client_name":"x"}'::jsonb,
+       now() - (g || ' seconds')::interval,
+       case when g <= 20 then now() - interval '1 hour' else now() + interval '1 hour' end
+  from generate_series(1, 1000) g;
 insert into client_assertion_jti (tenant_id, oauth_client_id, jti, expires_at)
 select ${t}, 'plans-app', md5(g::text),
        case when g <= ${v.assertionIds} / 50 then now() - interval '1 hour' else now() + interval '2 hours' end

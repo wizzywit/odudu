@@ -1114,6 +1114,27 @@ export {
 } from '#/usecase/token-exchange-subject';
 export { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 export {
+  CIMD_DEADLINE_MS,
+  CIMD_MAX_BODY_BYTES,
+  fetchCimdDocument,
+  ResponseTimedOut,
+  ResponseTooLarge,
+  type CimdFetchDeps,
+  type CimdRequest,
+  type CimdResponse,
+} from '#/adapter/client-metadata-fetch';
+export type { CimdFetchOutcome, CimdFetchRefusal } from '#/service/cimd-fetch-outcome';
+export {
+  CIMD_CACHE_MAX_ROWS,
+  cimdCacheRepository,
+  type CachedCimdDocument,
+} from '#/repository/client-metadata-cache';
+export {
+  resolveCimdDocument,
+  type ResolveCimdDeps,
+  type ResolveCimdOutcome,
+} from '#/usecase/resolve-cimd-document';
+export {
   assertFetchableUrl,
   assertPublicAddresses,
   RemoteAddressRefused,

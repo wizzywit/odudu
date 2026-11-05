@@ -11,6 +11,7 @@ import {
 } from '@odudu/domain-tenant';
 import { capturingSender, sendPending } from '@odudu/email';
 import { loadConfig } from '@odudu/kernel';
+import { CIMD_CACHE_MAX_ROWS, cimdCacheRepository } from '@odudu/protocol-oidc';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { type LightMyRequestResponse } from 'fastify';
 import { REAP_ORDER, RETENTION_RULES, retentionPolicyFromConfig } from '#/cli/reap';
@@ -78,6 +79,26 @@ export function retentionRuns(world: PlanWorld): PathRun[] {
       statements: [{ handle: 'app', tenantId: world.tenantId, query: sql, parameters: params }],
     };
   });
+}
+
+export async function driveClientMetadataCache(world: PlanWorld, capture: Capture): Promise<void> {
+  const cache = cimdCacheRepository(world.app);
+  const now = new Date();
+  const url = 'https://plans-5.example.com/client.json';
+  await capture('cimd cache: a fresh document', 'oidc', () => cache.find(world.tenantId, url, now));
+  await capture('cimd cache: a document nobody fetched', 'oidc', () =>
+    cache.find(world.tenantId, 'https://nobody.example.com/client.json', now),
+  );
+  await capture('cimd cache: store one and trim to the ceiling', 'oidc', () =>
+    cache.store(
+      world.tenantId,
+      'https://plans-new.example.com/client.json',
+      { client_name: 'x' },
+      now,
+      new Date(now.getTime() + 600_000),
+      CIMD_CACHE_MAX_ROWS,
+    ),
+  );
 }
 
 export async function driveGateway(world: PlanWorld, capture: Capture): Promise<void> {

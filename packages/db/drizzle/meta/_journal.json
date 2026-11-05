@@ -806,6 +806,13 @@
       "when": 1790518482737,
       "tag": "0114_builtin_mcp_client",
       "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1790518483737,
+      "tag": "0115_client_metadata_cache",
+      "breakpoints": true
     }
   ]
 }
