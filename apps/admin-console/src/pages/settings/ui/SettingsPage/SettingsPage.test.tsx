@@ -119,9 +119,7 @@ it('sets a switch and a choice', async () => {
   const clients = await section('Client registration');
   await user.click(within(clients).getByRole('button', { name: /Policy/u }));
   await user.click(await screen.findByRole('option', { name: /With a registration token/u }));
-  await user.click(
-    within(clients).getByRole('button', { name: 'Save Client registration' }),
-  );
+  await user.click(within(clients).getByRole('button', { name: 'Save Client registration' }));
   await waitFor(() => {
     expect(sent.filter((s) => s.method === 'PATCH').at(-1)?.body).toEqual({
       client_registration_policy: 'token',
