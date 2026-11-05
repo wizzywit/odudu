@@ -34,7 +34,15 @@ export async function refreshCimdClient(
   }
   const parsed = parseCimdDocument(url, resolved.body);
   if (parsed.kind !== 'ok') return false;
-  return (await deps.persist(tenantId, parsed.client, deps.now())) === 'ok';
+  const stored = await deps.persist(tenantId, parsed.client, deps.now());
+  if (stored === 'at_capacity') {
+    deps.warn('client metadata ceiling reached, no client could be evicted', {
+      tenantId,
+      host: new URL(url).hostname,
+      reason: stored,
+    });
+  }
+  return stored === 'ok';
 }
 
 export interface AuthorizeClientDeps<R extends { client: ClientRecord | null }> {

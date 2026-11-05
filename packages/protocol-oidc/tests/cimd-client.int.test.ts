@@ -13,6 +13,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { cimdClientRepository } from '#/repository/cimd-clients';
 import { tenantCimdRepository } from '#/repository/tenant-cimd';
 import { parseCimdDocument, type CimdClient } from '#/service/client-id-metadata';
 import { CIMD_CLIENTS_PER_TENANT, persistCimdClient } from '#/usecase/persist-cimd-client';
@@ -188,26 +189,113 @@ describe('persistCimdClient', () => {
     expect((await rowsOf(theirs)).client?.tenantId).toBe(theirs);
   });
 
-  it('stops creating clients at the per-tenant ceiling but still refreshes one it holds', async () => {
-    await withTenant(app.db, mine, async (tx) => {
-      const repository = clientRepository(tx);
-      for (let index = 0; index < CIMD_CLIENTS_PER_TENANT; index += 1) {
-        await repository.create({
-          tenantId: mine,
-          clientId: `https://filler.example/${String(index)}`,
-          name: 'filler',
-          type: 'public',
-          secretHash: null,
-          registrationOrigin: 'cimd',
-          metadataUsedAt: NOW,
-        });
-      }
-    });
-    expect(await persist(mine, documentClient())).toBe('at_capacity');
-    const filler = documentClient({}, 'https://filler.example/7');
-    expect(await persist(mine, filler)).toBe('ok');
-    expect(await persist(theirs, documentClient())).toBe('ok');
+  // `n` metadata document clients of `tenant`, the first used longest ago.
+  async function fill(tenant: string, n: number): Promise<void> {
+    await ownerHandle?.db.execute(sql`
+      insert into clients (id, tenant_id, client_id, name, type, registration_origin, metadata_used_at)
+      select gen_random_uuid(), ${tenant}, 'https://filler.example/' || g, 'filler', 'public', 'cimd',
+             ${NOW.toISOString()}::timestamptz - (${n + 1}::int - g) * interval '1 second'
+        from generate_series(1, ${n}) g`);
+  }
+
+  async function idOf(tenant: string, url: string): Promise<string> {
+    const found = await ownerHandle?.db.execute<{ id: string }>(
+      sql`select id from clients where tenant_id = ${tenant} and client_id = ${url}`,
+    );
+    return found?.[0]?.id ?? '';
+  }
+
+  async function urlsOf(tenant: string): Promise<Set<string>> {
+    const found = await ownerHandle?.db.execute<{ client_id: string }>(
+      sql`select client_id from clients where tenant_id = ${tenant} and registration_origin = 'cimd'`,
+    );
+    return new Set((found ?? []).map((row) => row.client_id));
+  }
+
+  async function protect(
+    tenant: string,
+    url: string,
+    how: 'consent' | 'refresh' | 'code',
+  ): Promise<void> {
+    const client = await idOf(tenant, url);
+    const subject = newId();
+    const db = ownerHandle?.db;
+    if (db === undefined) throw new Error('no database');
+    await db.execute(
+      sql`insert into subjects (id, tenant_id, type) values (${subject}, ${tenant}, 'user')`,
+    );
+    if (how === 'consent') {
+      await db.execute(sql`insert into consents (id, tenant_id, subject_id, client_id)
+        values (gen_random_uuid(), ${tenant}, ${subject}, ${client})`);
+    } else if (how === 'refresh') {
+      const grant = newId();
+      await db.execute(sql`insert into token_grants (id, tenant_id, client_id, subject_id, scope)
+        values (${grant}, ${tenant}, ${client}, ${subject}, 'openid')`);
+      await db.execute(sql`insert into refresh_tokens (token_hash, tenant_id, grant_id, expires_at)
+        values (${`rt-${client}`}, ${tenant}, ${grant}, now() + interval '5 days')`);
+    } else {
+      await db.execute(sql`insert into authorization_codes (code_hash, tenant_id, client_id, subject_id,
+          redirect_uri, scope, code_challenge, code_challenge_method, auth_time, expires_at)
+        values (${`code-${client}`}, ${tenant}, ${client}, ${subject}, 'https://a.example/cb', 'openid',
+          'c', 'S256', ${NOW.toISOString()}::timestamptz, now() + interval '1 minute')`);
+    }
+  }
+
+  it('[ODUDU-CIMD-CEILING-01] makes room at the ceiling by evicting the oldest row that never completed anything', async () => {
+    await fill(mine, CIMD_CLIENTS_PER_TENANT);
+
+    expect(await persist(mine, documentClient())).toBe('ok');
+
+    const urls = await urlsOf(mine);
+    expect(urls.size).toBe(CIMD_CLIENTS_PER_TENANT);
+    expect(urls.has(URL_A)).toBe(true);
+    expect(urls.has('https://filler.example/1')).toBe(false);
+    expect(urls.has('https://filler.example/2')).toBe(true);
   }, 60_000);
+
+  it('never evicts a client with a consent, a live refresh token or an unexpired code', async () => {
+    await fill(mine, CIMD_CLIENTS_PER_TENANT);
+    await protect(mine, 'https://filler.example/1', 'refresh');
+    await protect(mine, 'https://filler.example/2', 'consent');
+    await protect(mine, 'https://filler.example/3', 'code');
+
+    expect(await persist(mine, documentClient())).toBe('ok');
+
+    const urls = await urlsOf(mine);
+    for (const kept of [1, 2, 3])
+      expect(urls.has(`https://filler.example/${String(kept)}`)).toBe(true);
+    expect(urls.has('https://filler.example/4')).toBe(false);
+  }, 60_000);
+
+  it('refuses a new client at the ceiling when every row is protected, and still refreshes a held one', async () => {
+    await fill(mine, 3);
+    await ownerHandle?.db.execute(
+      sql`update clients set metadata_used_at = ${NOW.toISOString()}::timestamptz where tenant_id = ${mine}`,
+    );
+    for (const n of [1, 2, 3])
+      await protect(mine, `https://filler.example/${String(n)}`, 'consent');
+    const ceiling = await withTenant(app.db, mine, (tx) =>
+      persistCimdClient(tx, mine, documentClient(), NOW, 3),
+    );
+    expect(ceiling).toBe('at_capacity');
+    const held = await withTenant(app.db, mine, (tx) =>
+      persistCimdClient(tx, mine, documentClient({}, 'https://filler.example/2'), NOW, 3),
+    );
+    expect(held).toBe('ok');
+  });
+
+  it('evicts nothing of another tenant, and finds nothing evictable through a foreign tenant context', async () => {
+    await fill(mine, 5);
+    await fill(theirs, 5);
+    const asTheirs = await withTenant(app.db, theirs, (tx) => cimdClientRepository(tx).evictable());
+    const mineId = await idOf(mine, 'https://filler.example/1');
+    expect(asTheirs).not.toBe(mineId);
+    const other = await withTenant(app.db, mine, (tx) =>
+      persistCimdClient(tx, mine, documentClient(), NOW, 5),
+    );
+    expect(other).toBe('ok');
+    expect((await urlsOf(theirs)).size).toBe(5);
+  });
 
   it('counts only its own tenant’s cimd clients', async () => {
     await persist(mine, documentClient());

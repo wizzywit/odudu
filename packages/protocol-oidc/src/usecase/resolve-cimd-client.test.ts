@@ -59,6 +59,19 @@ describe('refreshCimdClient', () => {
     },
   );
 
+  it('says so, without the document, when the ceiling could not be made room under', async () => {
+    const { deps, warn } = refreshDeps({ persisted: 'at_capacity' });
+    expect(await refreshCimdClient('t1', URL_A, deps)).toBe(false);
+    expect(warn).toHaveBeenCalledWith(
+      'client metadata ceiling reached, no client could be evicted',
+      {
+        tenantId: 't1',
+        host: 'app.example.com',
+        reason: 'at_capacity',
+      },
+    );
+  });
+
   it('is not usable when the resolved body no longer validates', async () => {
     const { deps, persist } = refreshDeps({ resolved: { kind: 'ok', body: { client_id: 'x' } } });
     expect(await refreshCimdClient('t1', URL_A, deps)).toBe(false);

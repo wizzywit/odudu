@@ -186,7 +186,7 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // Brings the client a URL client_id names up to date with its metadata
   // document, answering whether it is now usable. Absent where documents
   // cannot be fetched.
-  refreshCimdClient?(tenantId: string, url: string): Promise<boolean>;
+  refreshCimdClient?: (tenantId: string, url: string) => Promise<boolean>;
   // The names, of those given, that the tenant defines as scopes: the same
   // vocabulary discovery advertises, asked about only the scopes a request
   // names.
@@ -367,10 +367,7 @@ export async function handleAuthorizationRequest(
             empty: NO_CLIENT,
             ...(deps.refreshCimdClient === undefined
               ? {}
-              : {
-                  refreshCimdClient: (tenantId: string, url: string) =>
-                    deps.refreshCimdClient?.(tenantId, url) ?? Promise.resolve(false),
-                }),
+              : { refreshCimdClient: deps.refreshCimdClient }),
           },
           tenant,
           oauthClientId,

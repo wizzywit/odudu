@@ -3,6 +3,8 @@ import { clientRepository, provisionClientDefaults, type ClientRecord } from '@o
 import { containsBidiControl } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { cimdClientRepository } from '#/repository/cimd-clients';
+import { amendmentOf, cimdClientType, placementOf } from '#/service/cimd-client-plan';
 import { type CimdClient } from '#/service/client-id-metadata';
 
 /** Most clients a tenant keeps from metadata documents; `reap` frees the unused ones. */
@@ -11,21 +13,7 @@ export const CIMD_CLIENTS_PER_TENANT = 1000;
 /** How long a client stays when nothing has resolved its document, before `reap` removes it. */
 export const CIMD_CLIENT_UNUSED_SECONDS = 30 * 24 * 60 * 60;
 
-const LAST_USED_GRANULARITY_MS = 24 * 60 * 60 * 1000;
-
 export type PersistCimdOutcome = 'ok' | 'at_capacity' | 'foreign' | 'refused';
-
-function sameList(a: readonly unknown[], b: readonly unknown[]): boolean {
-  return a.length === b.length && a.every((item, index) => item === b[index]);
-}
-
-function sameJson(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-}
-
-function typeOf(client: CimdClient): ClientRecord['type'] {
-  return client.tokenEndpointAuthMethod === 'none' ? 'public' : 'confidential';
-}
 
 async function writeConfig(
   tx: TenantScopedDatabase,
@@ -56,30 +44,15 @@ async function amend(
 ): Promise<void> {
   const clients = clientRepository(tx);
   const configs = clientOidcConfigRepository(tx);
-  const type = typeOf(document);
-  if (existing.name !== document.clientName || existing.type !== type) {
-    await clients.update(existing.id, { name: document.clientName, type });
-  }
   const config = await configs.byClientId(existing.id);
-  if (config === null) {
+  const changes = amendmentOf(existing, config, document, now);
+  if (changes.client !== null) await clients.update(existing.id, changes.client);
+  if (changes.config === 'create') {
     await writeConfig(tx, existing.tenantId, existing.id, document);
-  } else if (
-    !sameList(config.redirectUris, document.redirectUris) ||
-    config.tokenEndpointAuthMethod !== document.tokenEndpointAuthMethod ||
-    !sameJson(config.jwks, document.jwks) ||
-    config.jwksUri !== document.jwksUri
-  ) {
-    await configs.update(existing.id, {
-      redirectUris: document.redirectUris,
-      tokenEndpointAuthMethod: document.tokenEndpointAuthMethod,
-      jwks: document.jwks,
-      jwksUri: document.jwksUri,
-    });
+  } else if (changes.config !== null) {
+    await configs.update(existing.id, changes.config);
   }
-  const usedAt = existing.metadataUsedAt;
-  if (usedAt === null || now.getTime() - usedAt.getTime() >= LAST_USED_GRANULARITY_MS) {
-    await clients.markMetadataUsed(existing.id, now);
-  }
+  if (changes.touch) await clients.markMetadataUsed(existing.id, now);
 }
 
 // Written exactly as a client registered by hand would be, so every later
@@ -97,7 +70,7 @@ async function insert(
     tenantId,
     clientId: document.clientId,
     name: document.clientName,
-    type: typeOf(document),
+    type: cimdClientType(document),
     secretHash: null,
     registrationOrigin: 'cimd',
     metadataUsedAt: now,
@@ -111,21 +84,30 @@ export async function persistCimdClient(
   tenantId: string,
   document: CimdClient,
   now: Date,
+  ceiling: number = CIMD_CLIENTS_PER_TENANT,
 ): Promise<PersistCimdOutcome> {
   if (containsBidiControl(document.clientName)) return 'refused';
   // One writer per tenant, so two first resolutions of different documents
   // cannot both pass the ceiling check.
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`cimd-clients:${tenantId}`}))`);
-  const existing = await clientRepository(tx).byClientId(document.clientId);
+  const clients = clientRepository(tx);
+  const existing = await clients.byClientId(document.clientId);
+  const placement = placementOf(
+    existing?.registrationOrigin ?? null,
+    existing === null ? await clients.countCimdAtMost(ceiling) : 0,
+    ceiling,
+  );
+  if (placement === 'foreign') return 'foreign';
   if (existing !== null) {
-    if (existing.registrationOrigin !== 'cimd') return 'foreign';
     await amend(tx, existing, document, now);
     return 'ok';
   }
-  if (
-    (await clientRepository(tx).countCimdAtMost(CIMD_CLIENTS_PER_TENANT)) >= CIMD_CLIENTS_PER_TENANT
-  ) {
-    return 'at_capacity';
+  if (placement === 'make_room') {
+    // Resolving a document needs no sign-in, so the ceiling cannot be held by
+    // whoever filled it first: a row that never completed anything makes way.
+    const evict = await cimdClientRepository(tx).evictable();
+    if (evict === null) return 'at_capacity';
+    await clients.delete(evict);
   }
   await insert(tx, tenantId, document, now);
   return 'ok';
