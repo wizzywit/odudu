@@ -94,8 +94,11 @@ describe('authorization server metadata at the path address', () => {
 
   it('[RFC8414-3-02] uses the registered oauth-authorization-server suffix', async () => {
     const t = await newTenant();
-    expect(SUFFIX).toBe('/.well-known/oauth-authorization-server');
-    expect((await atBase(`${SUFFIX}/tenants/${t.name}`)).statusCode).toBe(200);
+    const { issuer } = (await atBase(`${SUFFIX}/tenants/${t.name}`)).json<{ issuer: string }>();
+    const { origin, pathname } = new URL(issuer);
+    expect(`${origin}${SUFFIX}${pathname}`).toBe(`${BASE}${SUFFIX}/tenants/${t.name}`);
+    const lookalike = await atBase(`/.well-known/oauth-authorization-servers/tenants/${t.name}`);
+    expect(lookalike.statusCode).toBe(404);
   });
 
   it('[RFC8414-3.2-01] answers 200 OK', async () => {
@@ -113,7 +116,7 @@ describe('authorization server metadata at the path address', () => {
   it('[RFC8414-3.1-01] is read with GET only', async () => {
     const t = await newTenant();
     const res = await atBase(`${SUFFIX}/tenants/${t.name}`, 'POST');
-    expect(res.statusCode).toBeGreaterThanOrEqual(400);
+    expect(res.statusCode).toBe(404);
     expect(res.body).not.toContain('"issuer"');
   });
 
