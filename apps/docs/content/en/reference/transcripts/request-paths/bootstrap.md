@@ -671,10 +671,10 @@ endpoint (ADR 0026's amendment). It is open in the way `open` is, with no
 credential, and bounded in ways `open` is not. The client has to be public
 (`token_endpoint_auth_method` of `none`, whose absence is refused rather than
 defaulted to a secret), its redirect URIs `https` or `http` on a loopback host,
-its grants `authorization_code` and `refresh_token`, its `scope` at most
+its grants `authorization_code` and `refresh_token`, no key set and no logout address, its `scope` at most
 `mcp:read` beside the sign-in scopes, and its `audience`, when it names one,
 exactly the tenant's MCP URL. A request is counted against ten an hour per
-address on that tenant, and a tenant at its `max_clients` refuses as under any
+address on that tenant and sixty an hour for the tenant, and a tenant at its `max_clients` refuses as under any
 policy. Neither `seed tenant --set` nor the admin API sets this value yet, so
 the commands below set it in the database, on a tenant made for it:
 
@@ -766,8 +766,11 @@ curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/op
 
 The ceiling is the tenant's `max_clients`, here lowered to the number of
 clients it holds, and the budget is the eleventh request from one address
-inside an hour (the six above and the one below were counted too, so four more
-succeed first). The `429` carries `retry-after` in seconds:
+inside an hour. Every request above was counted, refused ones too: one
+registration, four refusals and the refusal at the ceiling make six, so the
+four in the loop reach ten and the request after them is the `429`. A tenant
+is also held to sixty an hour over every address together, which this run did
+not reach. The `429` carries `retry-after` in seconds:
 
 ```bash
 docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \

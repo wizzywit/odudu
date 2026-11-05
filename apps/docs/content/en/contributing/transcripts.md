@@ -62,6 +62,7 @@ the value yet. The tenant, client and instants differ from the page by being eli
 The other registration pages predate the policy and were not run again, and no sign-in was re-run for the consent change,
 whose screen is unchanged. `GET /admin/openapi.json` was fetched again on the project `odudu-p5a-i4b`, because the
 tenant export's schema names the new value; only its request id, date and size (693,792 bytes) differ.
+The retention page of the request paths gained the `dynamic_clients` key of `odudu reap` the same day, and its seven reports were captured again on the project `odudu-p5a-i4c` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), freshly built and driven as the page says, as far as Path A plus one refresh rotation and then through the page's own commands in order. The section on `dynamic_clients` ran on a second tenant of that stack.
 
 `cimd_enabled`, the tenant setting for client ID metadata documents, was added on 2026-11-05. The
 authorization server metadata page gained a section that turns it on and off, and the settings page's

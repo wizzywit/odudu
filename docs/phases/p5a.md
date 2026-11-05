@@ -168,9 +168,13 @@ its only audience, `mcp:read` as an optional scope, `consent_required` true and
 `registration_origin` `anonymous`, and the existing `max_clients` lock bounds
 the tenant.
 
-- **Budget.** Ten registrations an hour per tenant and address, over the
-  `slidingWindow` the other routes use (the exact log at this limit: ten
-  timestamps for each of at most `MAX_THROTTLE_KEYS` keys, ADR 0023). The
+- **Budget.** Ten registrations an hour per tenant and address, and sixty an
+  hour per tenant over every address (`mcpRegistrationBudget`; the address is
+  checked first, so a refused address spends none of the tenant's), over the
+  `slidingWindow` the other routes use. The bound: at most `MAX_THROTTLE_KEYS`
+  keys in each limiter, ten timestamps a key for the address one (the exact
+  log) and sixty for the tenant one, so a tenant cannot be filled by
+  addresses faster than sixty clients an hour (ADR 0023). The
   limiter is injected into `oidcRoutes` and is optional: a tenant on `mcp` with
   none wired answers 404, so open registration never runs without a budget.
   The budget is per process, as the other limiters are.
@@ -185,13 +189,40 @@ the tenant.
 - **CIMD under the policy.** `/authorize` passes the tenant's MCP URL and
   whether the policy grants it to `persistCimdClient`, which rewrites the
   client's audiences (the MCP URL alone under `mcp`, the MCP URL removed
-  otherwise, any other audience an administrator set left alone) and assigns
-  `mcp:read` as optional when it holds none. It is applied on every resolution,
-  so a policy change reaches a client at its next `/authorize`; a refresh token
-  it already holds keeps the audience it was issued with until then. A document
-  never names either.
+  otherwise, so one an administrator assigned by hand goes too, and any other
+  audience left alone) and assigns `mcp:read` as optional when it holds none.
+  Only a public document client takes part: one that authenticates with a key
+  (`private_key_jwt`) is given neither, the same rule the registration policy
+  has, and the policy never touches a client of another origin.
+- **Ending the policy ends what it gave, for every client it touched.**
+  `audiencesHeld` is applied at `/authorize` and `refreshUnderPolicy` on every
+  refresh, to a client whose origin is `anonymous` or `cimd` (`needsApproval`):
+  while the tenant's policy is not `mcp` the MCP URL is not one of its
+  audiences and `mcp:read` is dropped from a refreshed token's scope, whatever
+  its row or its grant says. So a refresh chain started under the policy
+  carries no MCP audience once the policy is turned off, without a client row
+  being rewritten. The stored row of a self-registered client still lists the
+  MCP URL; it is ignored, and the row is removed by the reap rule below when
+  unused or with the client. An administrator who wants one chain ended sooner
+  disables or deletes the client.
+- **mcp:write.** A client of those origins is refused `mcp:write` at
+  `/authorize` (`refusesWriteScope`) even if an administrator assigned it,
+  so the policy's ceiling holds for a row nobody at the tenant vetted.
+- **Registration refuses more than the spec lists.** A `jwks`, a `jwks_uri` or
+  a logout address is refused under `mcp`: a public client holds no key, and a
+  logout address would have the server call or load an address chosen by an
+  anonymous registrant.
+- **Reaping.** `odudu reap` reports `dynamic_clients`: a public client of
+  origin `anonymous`, enabled, older than a week
+  (`UNUSED_DYNAMIC_CLIENT_SECONDS`), with no consent, no grant of any age
+  and no unexpired code, is deleted; one with any of those is kept. It
+  applies to every self-registered public client, not only those the `mcp`
+  policy made. Served by `clients_anonymous_public_by_created` (migration 0118) with the existing `consents_by_client`, `token_grants_by_client` and
+  `authorization_codes_by_client`; the plans suite covers the statement at
+  volume (1,000 such clients in one tenant).
 - **Not done here.** Neither `seed tenant --set` nor the admin settings accept
-  `mcp` yet (the admin API field and the console control are separate work); the
+  `mcp` yet. The settings API must accept it (`tenant-settings.ts` `values`, and
+  the console's parity list), and the closing pass lists that against the
+  admin-field and console work; the
   tenant export schema (`registrationPolicySchema`) accepts it, because an
-  export of a tenant set in the database would otherwise fail. `mcp:write` is never given by the policy, but an administrator can
-  still assign it to a client the policy created.
+  export of a tenant set in the database would otherwise fail.
