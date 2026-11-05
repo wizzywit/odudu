@@ -428,3 +428,42 @@ describe('record', () => {
     expect(granted).toEqual(new Set([seeded.scopeId]));
   });
 });
+
+describe('the approval marker on the client', () => {
+  const approvedAt = (tenantId: string, clientId: string) =>
+    withTenant(app.db, tenantId, async (tx) => {
+      const rows = await tx
+        .select({ approvedAt: clients.approvedAt })
+        .from(clients)
+        .where(eq(clients.id, clientId));
+      return rows[0]?.approvedAt ?? null;
+    });
+
+  it('is set when a consent is first recorded, kept on a later one, and survives a withdrawal', async () => {
+    const { tenantId, subjectId, clientId, scopeAId } = await seedFixture();
+    expect(await approvedAt(tenantId, clientId)).toBeNull();
+
+    await withTenant(app.db, tenantId, (tx) =>
+      consentRepository(tx).record(tenantId, subjectId, clientId, [scopeAId]),
+    );
+    const first = await approvedAt(tenantId, clientId);
+    expect(first).toBeInstanceOf(Date);
+
+    await withTenant(app.db, tenantId, (tx) =>
+      consentRepository(tx).record(tenantId, subjectId, clientId, []),
+    );
+    expect(await approvedAt(tenantId, clientId)).toEqual(first);
+
+    await withTenant(app.db, tenantId, (tx) => consentRepository(tx).revoke(subjectId, clientId));
+    expect(await approvedAt(tenantId, clientId)).toEqual(first);
+  });
+
+  it('marks nothing of another tenant’s client', async () => {
+    const mine = await seedFixture();
+    const theirs = await seedFixture();
+    await withTenant(app.db, mine.tenantId, (tx) =>
+      consentRepository(tx).record(mine.tenantId, mine.subjectId, mine.clientId, []),
+    );
+    expect(await approvedAt(theirs.tenantId, theirs.clientId)).toBeNull();
+  });
+});

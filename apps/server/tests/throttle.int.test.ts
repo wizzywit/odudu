@@ -608,6 +608,9 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
       );
       expect(refused.statusCode).toBe(429);
       expect(Number(refused.headers['retry-after'])).toBeGreaterThan(0);
+      expect(refused.json<{ error_description: string }>().error_description).toContain(
+        'this address',
+      );
       expect(elsewhere.statusCode).toBe(201);
     } finally {
       await app.close();
@@ -652,6 +655,9 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
       expect(codes.every((code) => code === 201)).toBe(true);
       expect(fresh.statusCode).toBe(429);
       expect(Number(fresh.headers['retry-after'])).toBeGreaterThan(0);
+      expect(fresh.json<{ error_description: string }>().error_description).toContain(
+        'this tenant',
+      );
     } finally {
       await app.close();
     }

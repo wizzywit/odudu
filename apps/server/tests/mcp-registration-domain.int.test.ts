@@ -145,3 +145,67 @@ describe('the mcp policy on a tenant that has a domain', () => {
     );
   });
 });
+
+describe('the mcp policy across a change of address', () => {
+  it('holds a client registered at the path address to the domain MCP URL after the switch, and to none once the policy ends', async () => {
+    const name = `sw-${newId()}`;
+    const seeded = await seed({
+      tenant: name,
+      clientId: 'portal',
+      redirectUris: ['https://app.example/callback'],
+      username: `u${newId().slice(-8)}`,
+      password: 'correct horse battery staple',
+    });
+    await owner.db
+      .update(tenants)
+      .set({ clientRegistrationPolicy: 'mcp' })
+      .where(eq(tenants.id, seeded.tenantId));
+
+    const registered = await app.inject({
+      method: 'POST',
+      url: `/tenants/${name}/clients-registrations/openid-connect`,
+      headers: { host: BASE_HOST },
+      payload: { redirect_uris: ['https://rp.example/cb'], token_endpoint_auth_method: 'none' },
+    });
+    expect(registered.statusCode, registered.body).toBe(201);
+    const { client_id: clientId } = registered.json<{ client_id: string }>();
+
+    const host = `s${name.slice(-8)}.domain-tests.net`;
+    await withTenant(appDb.db, seeded.tenantId, async (tx) => {
+      const domains = tenantDomainRepository(tx);
+      const row = await domains.insert({ tenantId: seeded.tenantId, host, challenge: 'c' });
+      await domains.markVerified(seeded.tenantId, row.id, new Date());
+      await domains.setCanonical(seeded.tenantId, row.id);
+    });
+
+    const oldUrl = `${BASE}/tenants/${name}/mcp`;
+    const newUrl = `https://${host}/mcp`;
+    const authorize = (resource: string) =>
+      app.inject({
+        url: `/protocol/openid-connect/auth?${new URLSearchParams({
+          response_type: 'code',
+          client_id: clientId,
+          redirect_uri: 'https://rp.example/cb',
+          scope: 'openid',
+          state: 's',
+          resource,
+          code_challenge: CHALLENGE,
+          code_challenge_method: 'S256',
+        }).toString()}`,
+        headers: { host },
+      });
+    const errorOf = (res: Awaited<ReturnType<typeof authorize>>) =>
+      res.statusCode === 302
+        ? new URL(String(res.headers.location)).searchParams.get('error')
+        : null;
+
+    expect((await authorize(newUrl)).statusCode).toBe(200);
+
+    await owner.db
+      .update(tenants)
+      .set({ clientRegistrationPolicy: 'disabled' })
+      .where(eq(tenants.id, seeded.tenantId));
+    expect(errorOf(await authorize(newUrl))).toBe('invalid_target');
+    expect(errorOf(await authorize(oldUrl))).toBe('invalid_target');
+  });
+});

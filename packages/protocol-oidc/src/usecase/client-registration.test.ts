@@ -270,7 +270,7 @@ describe('registerClient — the mcp policy', () => {
         mcpRegistrationLimiter: {
           check: (tenantId, origin) => {
             seen.push(`${tenantId}:${origin}`);
-            return { allowed: false, retryAfterSeconds: 17 };
+            return { allowed: false, retryAfterSeconds: 17, scope: 'tenant' as const };
           },
         },
       }),
@@ -278,7 +278,7 @@ describe('registerClient — the mcp policy', () => {
       undefined,
       PUBLIC,
     );
-    expect(outcome).toEqual({ kind: 'rate_limited', retryAfterSeconds: 17 });
+    expect(outcome).toEqual({ kind: 'rate_limited', retryAfterSeconds: 17, scope: 'tenant' });
     expect(seen).toEqual(['r1:203.0.113.9']);
   });
 

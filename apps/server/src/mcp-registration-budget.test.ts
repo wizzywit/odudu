@@ -19,7 +19,7 @@ describe('mcpRegistrationBudget', () => {
     const limiter = budget(2, 100);
     expect(limiter.check('t1', '198.51.100.7').allowed).toBe(true);
     expect(limiter.check('t1', '198.51.100.7').allowed).toBe(true);
-    expect(limiter.check('t1', '198.51.100.7').allowed).toBe(false);
+    expect(limiter.check('t1', '198.51.100.7')).toMatchObject({ allowed: false, scope: 'address' });
     expect(limiter.check('t1', '203.0.113.9').allowed).toBe(true);
   });
 
@@ -30,6 +30,7 @@ describe('mcpRegistrationBudget', () => {
     }
     const refused = limiter.check('t1', '10.0.0.4');
     expect(refused.allowed).toBe(false);
+    expect(refused).toMatchObject({ scope: 'tenant' });
     expect(refused.retryAfterSeconds).toBeGreaterThan(0);
     expect(limiter.check('t2', '10.0.0.4').allowed).toBe(true);
   });

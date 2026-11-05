@@ -84,6 +84,8 @@ describe('the consent decisions the consent and audit page describes are the one
     grantedScopes: [] as string[],
     prompt: new Set<'consent' | 'none'>(),
     consentRequired: false,
+    approvalRequired: false,
+    approved: false,
   };
 
   it('asks when the request says prompt=consent, whatever the client is set to', () => {
@@ -101,6 +103,13 @@ describe('the consent decisions the consent and audit page describes are the one
     expect(decideConsent({ ...required, grantedScopes: ['openid', 'email'] }).kind).toBe(
       'not_required',
     );
+  });
+
+  it('asks for a client nobody vetted until this exact client is approved, whatever it is set to', () => {
+    const unvetted = { ...base, approvalRequired: true };
+    expect(decideConsent(unvetted).kind).toBe('ask');
+    expect(decideConsent({ ...unvetted, approved: true }).kind).toBe('not_required');
+    expect(body('consent-and-audit')).toContain('no grant recorded for this exact client');
   });
 
   it('asks again when the client wants more than was granted', () => {

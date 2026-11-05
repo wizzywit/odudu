@@ -216,6 +216,16 @@ the tenant.
   reuse detection. A tenant with a domain is registered and authorized at the
   domain, where both derive the MCP URL from the same address; its path
   address no longer serves registration, so no other audience can be stored.
+- **Addresses.** An MCP URL is recognised by its path (`/mcp`), so a client
+  registered at an address the tenant has since left is held to the tenant's
+  current MCP URL while the policy is `mcp` (`audiencesHeld`, at `/authorize` and
+  on refresh) and to none of the tenant's MCP URLs, old or new, once it is not.
+- **No registration token.** Under `mcp` a presented token is not read: the client
+  is stored `anonymous`, so the policy's rules and the per-sign-in consent apply to
+  it, and the token is not spent. Rows already carrying origin `token` under the
+  policy are unchanged.
+- **The 429.** The budget names which limit refused (`address` or `tenant`) and the
+  response says so.
 - **mcp:write.** A client of those origins is refused `mcp:write` at
   `/authorize` (`refusesWriteScope`) even if an administrator assigned it,
   so the policy's ceiling holds for a row nobody at the tenant vetted.
@@ -225,19 +235,20 @@ the tenant.
   anonymous registrant.
 - **Reaping.** `odudu reap` reports `dynamic_clients`: a public client of
   origin `anonymous`, enabled, older than a week
-  (`UNUSED_DYNAMIC_CLIENT_SECONDS`), with no consent, no token grant (a grant is reaped by its own rule
+  (`UNUSED_DYNAMIC_CLIENT_SECONDS`), never approved (`clients.approved_at`, set when
+  a consent is first recorded and never cleared, so withdrawing an approval does not
+  make the client look unused; migration 0119, backfilled from `consents`), with no consent, no token grant (a grant is reaped by its own rule
   first, once past its retention, and only then can the client go) and
-  no unexpired code, is deleted; one with any of those is kept. It
+  no unexpired code and no unexpired pending sign-in naming it
+  (`authentication_sessions.pending_request ->> 'clientId'`), is deleted; one with
+  any of those is kept. It
   applies to every self-registered public client, not only those the `mcp`
   policy made. Served by `clients_anonymous_public_by_created` (migration 0118) with the existing `consents_by_client`, `token_grants_by_client` and
   `authorization_codes_by_client`; the plans suite covers the statement at
   volume (1,000 such clients in one tenant).
-- **Not done here.** Neither `seed tenant --set` nor the admin settings accept
-  `mcp` yet. The settings API must accept it (`tenant-settings.ts` `values`, and
-  the console's parity list), and the closing pass lists that against the
-  admin-field and console work; the
-  tenant export schema (`registrationPolicySchema`) accepts it, because an
-  export of a tenant set in the database would otherwise fail.
+- **Settings.** `seed tenant --set`, the settings API, the console and the tenant
+  export all take `mcp`; `registrationPolicySchema` accepts it so an export of such
+  a tenant does not fail.
 
 ## The admin API and an agent's token
 
@@ -311,7 +322,7 @@ holding no MCP scope a 403. An agent must pass both gates: the scope
 - Because the token shares its owner's grant, a token exchange that presents
   it would read the grant's scope, wider than the token's. The exchange now
   intersects the grant's scope with the presented token's own `scope` claim.
-- Two per-client settings, migration 0119, both default off:
+- Two per-client settings, migration 0120, both default off:
   `token_exchange_allowed_for_public` (a public client is refused the grant
   with `unauthorized_client`, before any token is read) and
   `token_exchange_actor_from_other_client` (an actor token issued to another

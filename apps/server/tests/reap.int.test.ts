@@ -749,6 +749,53 @@ describe('odudu reap', () => {
     ]);
   });
 
+  it('keeps an old self-registered client a person once approved, though the approval was withdrawn', async () => {
+    const fixture = await seedFixture();
+    const clientId = newId();
+    await owner.db.execute(sql`
+      INSERT INTO clients (id, tenant_id, client_id, name, type, registration_origin, created_at,
+                           approved_at)
+      VALUES (${clientId}, ${fixture.tenantId}, 'dyn-withdrawn', 'Withdrawn', 'public',
+              'anonymous', ${at(-30 * DAY)}::timestamptz, ${at(-20 * DAY)}::timestamptz)
+    `);
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ client_id: string }>(
+      sql`SELECT client_id FROM clients WHERE id = ${clientId}`,
+    );
+    expect(rows.map((row) => row.client_id)).toEqual(['dyn-withdrawn']);
+  });
+
+  it('keeps an old self-registered client whose first sign-in is still pending, and not one whose sign-in lapsed', async () => {
+    const fixture = await seedFixture();
+    const pending = (clientKey: string, expiresAt: string) =>
+      owner.db.execute(sql`
+        INSERT INTO authentication_sessions (id, tenant_id, pending_request, expires_at)
+        VALUES (${newId()}, ${fixture.tenantId},
+                ${JSON.stringify({ clientId: clientKey })}::jsonb, ${expiresAt}::timestamptz)
+      `);
+    for (const key of ['dyn-signing-in', 'dyn-lapsed']) {
+      await owner.db.execute(sql`
+        INSERT INTO clients (id, tenant_id, client_id, name, type, registration_origin, created_at)
+        VALUES (${newId()}, ${fixture.tenantId}, ${key}, ${key}, 'public', 'anonymous',
+                ${at(-30 * DAY)}::timestamptz)
+      `);
+    }
+    await pending('dyn-signing-in', at(20 * MINUTE));
+    await pending('dyn-lapsed', at(-20 * MINUTE));
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ client_id: string }>(
+      sql`SELECT client_id FROM clients
+           WHERE tenant_id = ${fixture.tenantId} AND client_id LIKE 'dyn-%' ORDER BY client_id`,
+    );
+    expect(rows.map((row) => row.client_id)).toEqual(
+      ['dyn-consented', 'dyn-confidential', 'dyn-disabled', 'dyn-fresh', 'dyn-signing-in'].sort(),
+    );
+  });
+
   it('keeps an old self-registered client that holds a grant, however spent', async () => {
     const fixture = await seedFixture();
     const clientId = newId();

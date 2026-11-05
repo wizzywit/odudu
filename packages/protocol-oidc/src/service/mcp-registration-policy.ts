@@ -1,4 +1,5 @@
 import { isLoopbackHost } from '#/service/client-metadata';
+import { MCP_RESOURCE_PATH } from '@odudu/kernel';
 import { needsApproval } from '#/service/consent';
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '#/service/mcp-scopes';
 
@@ -117,7 +118,18 @@ export function audiencesUnderPolicy(
   mcpAudience: string,
   policyIsMcp: boolean,
 ): string[] {
-  return policyIsMcp ? [mcpAudience] : current.filter((audience) => audience !== mcpAudience);
+  return policyIsMcp ? [mcpAudience] : current.filter((audience) => !isMcpUrl(audience));
+}
+
+// An audience the policy itself gave: a tenant's MCP endpoint is its address
+// followed by `/mcp`, and a tenant that has changed address holds the same
+// path under each address it had, so the path is what marks one.
+function isMcpUrl(audience: string): boolean {
+  try {
+    return new URL(audience).pathname.endsWith(MCP_RESOURCE_PATH);
+  } catch {
+    return false;
+  }
 }
 
 // What the tenant's policy says about a client resolved from a metadata
@@ -147,16 +159,18 @@ export function refusesWriteScope(
 
 // The audiences a client may be issued a token for under the tenant's policy
 // as it is now. A client registered over the wire or resolved from a document
-// holds the MCP URL only while the policy is `mcp`, whatever its row says.
+// holds an MCP URL only while the policy is `mcp`, and then the tenant's
+// current one, whichever address its row or grant was written under.
 export function audiencesHeld(
   registrationOrigin: string,
   policy: string,
   audiences: readonly string[],
   mcpAudience: string,
 ): string[] {
-  return needsApproval(registrationOrigin) && policy !== 'mcp'
-    ? audiences.filter((audience) => audience !== mcpAudience)
-    : [...audiences];
+  if (!needsApproval(registrationOrigin)) return [...audiences];
+  const others = audiences.filter((audience) => !isMcpUrl(audience));
+  const heldOne = others.length < audiences.length;
+  return policy === 'mcp' && heldOne ? [...others, mcpAudience] : others;
 }
 
 // What a refresh may carry, re-derived from the policy as it stands: the MCP
@@ -168,13 +182,16 @@ export function refreshUnderPolicy(input: {
   readonly scope: readonly string[];
   readonly audience: readonly string[];
 }): { scope: string[]; audience: string[] } {
+  const audience = audiencesHeld(
+    input.registrationOrigin,
+    input.policy,
+    input.audience,
+    input.mcpAudience,
+  );
   if (!needsApproval(input.registrationOrigin) || input.policy === 'mcp') {
-    return { scope: [...input.scope], audience: [...input.audience] };
+    return { scope: [...input.scope], audience };
   }
-  return {
-    scope: input.scope.filter((scope) => scope !== MCP_READ_SCOPE),
-    audience: input.audience.filter((audience) => audience !== input.mcpAudience),
-  };
+  return { scope: input.scope.filter((scope) => scope !== MCP_READ_SCOPE), audience };
 }
 
 // A metadata document client takes part in the `mcp` policy only as a public

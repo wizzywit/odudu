@@ -20,7 +20,10 @@ import {
   type McpPolicyGrant,
 } from '#/service/mcp-registration-policy';
 import { MCP_READ_SCOPE } from '#/service/mcp-scopes';
-import { type RegistrationLimiter } from '#/service/registration-throttle';
+import {
+  type RegistrationBudgetScope,
+  type RegistrationLimiter,
+} from '#/service/registration-throttle';
 import { parseLocalisedClientNames } from '#/service/localised-client-names';
 import { idTokenAlgUnavailable } from '#/usecase/id-token-alg';
 
@@ -70,7 +73,7 @@ export type ClientRegistrationOutcome =
       description: string;
     }
   | { kind: 'at_capacity' }
-  | { kind: 'rate_limited'; retryAfterSeconds: number }
+  | { kind: 'rate_limited'; retryAfterSeconds: number; scope: RegistrationBudgetScope }
   | { kind: 'ok'; client: RegisteredClient };
 
 // RFC 7591 places no format requirement on a client secret; 32 random bytes
@@ -277,12 +280,17 @@ export async function registerMcpClient(
   deps: ClientRegistrationDeps,
   tenant: TenantLookup,
   body: unknown,
-  presentedToken: string | undefined,
   context: RegistrationContext,
 ): Promise<ClientRegistrationOutcome> {
   if (deps.mcpRegistrationLimiter === undefined) return { kind: 'not_found' };
   const budget = deps.mcpRegistrationLimiter.check(tenant.id, context.origin);
-  if (!budget.allowed) return { kind: 'rate_limited', retryAfterSeconds: budget.retryAfterSeconds };
+  if (!budget.allowed) {
+    return {
+      kind: 'rate_limited',
+      retryAfterSeconds: budget.retryAfterSeconds,
+      scope: budget.scope ?? 'address',
+    };
+  }
 
   const registration = parseRegistration(deps, tenant, body);
   if ('kind' in registration) return registration;
@@ -305,7 +313,9 @@ export async function registerMcpClient(
   if (decision.kind === 'invalid') {
     return { kind: 'invalid_metadata', error: decision.error, description: decision.description };
   }
-  return persistRegistration(deps, tenant, presentedToken, registration, {
+  // A credential presented here is not read: spending it would store the
+  // client as one an administrator authorised, which it is not.
+  return persistRegistration(deps, tenant, undefined, registration, {
     audience: mcpAudience,
     granted: true,
   });
@@ -329,7 +339,7 @@ export async function registerClient(
   }
 
   if (tenant.clientRegistrationPolicy === 'mcp') {
-    return registerMcpClient(deps, tenant, body, presentedToken, context);
+    return registerMcpClient(deps, tenant, body, context);
   }
 
   const registration = parseRegistration(deps, tenant, body);

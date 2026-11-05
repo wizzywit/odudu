@@ -685,7 +685,7 @@ odudu seed tenant --name mcp-refused --set client_registration_policy=nonsense 2
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"mcp-demo","tenantId":"01a1ad3d-4e23-…","settings":["client_registration_policy"]}
+{"command":"tenant","created":true,"tenant":"mcp-demo","tenantId":"01a1ad89-34df-…","settings":["client_registration_policy"]}
 OduduError: tenant setting client_registration_policy must be one of disabled, open, token, mcp
   code: 'seed_invalid_options'
 ```
@@ -698,8 +698,8 @@ curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/op
 
 ```json
 {
-  "client_id": "01a1ad2c-c0f1-…",
-  "client_id_issued_at": 1793906753,
+  "client_id": "01a1ad89-370d-…",
+  "client_id_issued_at": 1793912813,
   "redirect_uris": ["https://agent.example/cb", "http://127.0.0.1:53124/cb"],
   "audience": ["http://localhost:3000/tenants/mcp-demo/mcp"],
   "grant_types": ["authorization_code"],
@@ -717,13 +717,13 @@ not assigned to any client the policy creates:
 docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
   select c.type, c.registration_origin, o.token_endpoint_auth_method, o.audiences, o.consent_required
   from clients c join client_oidc_config o on o.client_id = c.id
-  where c.client_id = '01a1ad2c-c0f1-75cd-bb2a-dcaf7ce5a2ed'"
+  where c.client_id = '01a1ad89-370d-78ab-9205-c4ed703375e2'"
 docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
   select s.name, a.assignment
   from client_scope_assignments a
   join client_scopes s on s.id = a.client_scope_id
   join clients c on c.id = a.client_id
-  where c.client_id = '01a1ad2c-c0f1-75cd-bb2a-dcaf7ce5a2ed' and s.name like 'mcp:%'"
+  where c.client_id = '01a1ad89-370d-78ab-9205-c4ed703375e2' and s.name like 'mcp:%'"
 ```
 
 ```

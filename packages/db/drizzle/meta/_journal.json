@@ -839,7 +839,14 @@
       "idx": 119,
       "version": "7",
       "when": 1790532883737,
-      "tag": "0119_token_exchange_client_bounds",
+      "tag": "0119_clients_approved_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1790536483737,
+      "tag": "0120_token_exchange_client_bounds",
       "breakpoints": true
     }
   ]
