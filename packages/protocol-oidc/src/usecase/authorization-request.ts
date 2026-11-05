@@ -16,8 +16,9 @@ import {
   type ExpiryPolicy,
   type SigningKeyRecord,
 } from '@odudu/crypto';
-import { type ClientRecord } from '@odudu/domain-tenant';
-import { isUuid } from '@odudu/kernel';
+import { ADMIN_API_AUDIENCE, type ClientRecord } from '@odudu/domain-tenant';
+import { scopesCoherentWithAudience } from '#/service/mcp-scopes';
+import { isUuid, mcpAudienceOfIssuer } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import {
@@ -388,6 +389,16 @@ export async function handleAuthorizationRequest(
   const resourceOutcome = parseResource(resourceParam(rawParams), resolved.config?.audiences ?? []);
   if (resourceOutcome.kind === 'invalid_target') return reject('invalid_target');
   const audience = resourceOutcome.audience;
+  if (
+    !scopesCoherentWithAudience(
+      requestedScopeTokens(params.scope),
+      audience,
+      mcpAudienceOfIssuer(issuer),
+      ADMIN_API_AUDIENCE,
+    )
+  ) {
+    return reject('invalid_scope');
+  }
 
   // OIDC Dynamic Client Registration §2: a request's own `max_age` wins,
   // and the client's `default_max_age` stands in where it carries none.

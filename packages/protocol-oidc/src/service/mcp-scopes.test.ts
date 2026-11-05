@@ -3,6 +3,7 @@ import {
   MCP_READ_SCOPE,
   MCP_WRITE_SCOPE,
   scopeAllowedAt,
+  scopesCoherentWithAudience,
   withMcpScopes,
 } from '#/service/mcp-scopes';
 
@@ -53,5 +54,29 @@ describe('withMcpScopes', () => {
     const scopes = ['openid'];
     withMcpScopes(scopes);
     expect(scopes).toEqual(['openid']);
+  });
+});
+
+describe('scopesCoherentWithAudience', () => {
+  it('accepts an MCP scope only when every audience is the MCP or the admin one', () => {
+    expect(scopesCoherentWithAudience(['openid', 'mcp:read'], [MCP], MCP, ADMIN)).toBe(true);
+    expect(scopesCoherentWithAudience(['mcp:write'], [MCP, ADMIN], MCP, ADMIN)).toBe(true);
+    expect(scopesCoherentWithAudience(['mcp:read'], [MCP, 'https://api.example'], MCP, ADMIN)).toBe(
+      false,
+    );
+    expect(scopesCoherentWithAudience(['mcp:read'], ['https://api.example'], MCP, ADMIN)).toBe(
+      false,
+    );
+  });
+
+  it('refuses an MCP scope that names no audience at all', () => {
+    expect(scopesCoherentWithAudience(['mcp:write'], [], MCP, ADMIN)).toBe(false);
+  });
+
+  it('leaves a request with no MCP scope to every audience', () => {
+    expect(scopesCoherentWithAudience(['openid'], [], MCP, ADMIN)).toBe(true);
+    expect(
+      scopesCoherentWithAudience(['openid', 'profile'], ['https://api.example'], MCP, ADMIN),
+    ).toBe(true);
   });
 });

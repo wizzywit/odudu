@@ -74,6 +74,10 @@ export const en = {
   'consent.link.privacy': 'Privacy policy',
   'consent.link.terms': 'Terms of service',
   'consent.scope.offlineAccess': '{label} — grants ongoing access, even while you are not present',
+  'consent.scope.mcpRead':
+    "{label} — lets the application read this tenant's settings and records on your behalf",
+  'consent.scope.mcpWrite':
+    "{label} — lets the application change this tenant's settings on your behalf",
   'consent.allow': 'Allow',
   'consent.deny': 'Deny',
 

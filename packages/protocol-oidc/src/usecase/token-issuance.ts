@@ -8,8 +8,8 @@ import {
 } from '@odudu/db';
 import { auditRepository, type AuditReason, type RequestContext } from '@odudu/domain-audit';
 import { subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
-import { clientScopeRepository, type ClientRecord } from '@odudu/domain-tenant';
-import { type ClaimMapperRegistry, type Clock, newId } from '@odudu/kernel';
+import { ADMIN_API_AUDIENCE, clientScopeRepository, type ClientRecord } from '@odudu/domain-tenant';
+import { type ClaimMapperRegistry, type Clock, mcpAudienceOfIssuer, newId } from '@odudu/kernel';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { type ClientOidcConfig } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
@@ -41,6 +41,7 @@ import {
   type TokenErrorCode,
   type TokenRefusalAudit,
 } from '#/service/errors';
+import { scopesCoherentWithAudience } from '#/service/mcp-scopes';
 import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { parseResource } from '#/service/resource-indicator';
 import { resolveScope } from '#/service/scope';
@@ -457,6 +458,18 @@ async function mintAccessToken(
   key: SigningKeyRecord,
   now: Date,
 ): Promise<{ accessToken: string; audience: string[]; iat: number; exp: number }> {
+  // The one place every grant's granted scope and resolved audience are both
+  // known: an MCP scope is never signed into a token for another resource.
+  if (
+    !scopesCoherentWithAudience(
+      input.scope,
+      input.audience,
+      mcpAudienceOfIssuer(deps.issuer),
+      ADMIN_API_AUDIENCE,
+    )
+  ) {
+    throw invalidScope();
+  }
   const iat = Math.floor(now.getTime() / 1000);
   const ttlExp = iat + input.config.accessTokenTtlSeconds;
   const ceiling =

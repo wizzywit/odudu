@@ -16,6 +16,23 @@ export function scopeAllowedAt(
   return audience === mcpAudience || audience === adminAudience;
 }
 
+// A token carries every audience it names, so a scope has to be allowed at
+// each of them; an MCP scope with no audience would reach no resource that
+// defines it.
+export function scopesCoherentWithAudience(
+  scopes: readonly string[],
+  audiences: readonly string[],
+  mcpAudience: string,
+  adminAudience: string,
+): boolean {
+  return scopes.every((scope) =>
+    !MCP_SCOPES.includes(scope)
+      ? true
+      : audiences.length > 0 &&
+        audiences.every((audience) => scopeAllowedAt(scope, audience, mcpAudience, adminAudience)),
+  );
+}
+
 // What authorization-server metadata advertises: the tenant's own scopes and
 // the two every tenant can be asked for at the MCP audience.
 export function withMcpScopes(scopes: readonly string[]): string[] {
