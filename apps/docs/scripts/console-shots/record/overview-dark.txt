@@ -56,7 +56,7 @@ Counts
 Subjects
 1 subject
 Clients
-2 clients
+3 clients
  of 200 allowed
 Groups
 0 groups

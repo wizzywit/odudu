@@ -159,6 +159,8 @@ Preview as client
 Search
 Odudu administration
 odudu-admin · confidential
+Odudu MCP
+odudu-mcp · public
 Storefront
 storefront · public
 The verification mail, drawn by the code that sends it, from the published theme and the tenant’s message overrides. Changes to the draft appear once you publish.

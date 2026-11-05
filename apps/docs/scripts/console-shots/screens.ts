@@ -102,13 +102,13 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'clients',
-    alt: "The demo tenant's Clients list: the built-in odudu-admin client and my-app, with a Create a client button.",
-    caption: 'The demo tenant lists my-app beside its built-in administration client.',
+    alt: "The demo tenant's Clients list: the built-in odudu-admin and odudu-mcp clients and my-app, with a Create a client button.",
+    caption: 'The demo tenant lists my-app beside its two built-in clients.',
     signedIn: true,
     expect: [
       { heading: 'Clients' },
       { role: 'link', name: 'Create a client' },
-      { rows: ['odudu-admin', CLIENT] },
+      { rows: ['odudu-admin', 'odudu-mcp', CLIENT] },
     ],
     open: (page, context) => openList(page, context, 'clients'),
   },

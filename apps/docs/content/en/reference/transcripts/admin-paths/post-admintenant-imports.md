@@ -58,6 +58,8 @@ would refuse to remove, and naming one it does not give, which
 `POST /roles/:id/composites` would refuse to add: a capability role's shape
 is provisioning's in both directions.
 
+The built-in client `odudu-mcp` is matched the same way: the new tenant is provisioned with one, and a document that carries one replaces it, once, so a copy keeps what an administrator changed on it (a disabled client stays disabled); a document from before the client existed leaves the provisioned one in place. The run is under [`GET /export`](./get-export.md).
+
 Then one transaction creates the tenant the way `POST /admin/tenants` does
 — its row, flow, built-in admin client and a signing key of its own, never
 the source's — and writes the document into it: settings, flow, clients,

@@ -48,10 +48,46 @@ each role on the built-in `odudu-admin` client and each default scope
 (`openid` and the rest) carries `"builtin": true`, so an import can merge
 onto its own copies. The `odudu-admin` client itself is not among
 `clients`, and no scope lists an assignment to it: an import provisions
-its own. A role on it is still referenced as
+its own. `odudu-mcp`, below, is the exception. A role on it is still referenced as
 `{"name": …, "client": "odudu-admin"}`, because a tenant role may carry the
 same name as a capability, and a reference that dropped the client would
 not tell the two apart.
+
+The built-in MCP client `odudu-mcp` is the exception, and does travel: it is an
+ordinary public client whose registration an administrator may amend (disable it,
+say), so it is listed under `clients` and in the `clients` of the scopes assigned
+to it, and an import replaces the provisioned one with the document's, once. This
+block, and the import after it, were run on a fresh stack against a tenant
+`mcp-demo` holding nothing else, and the export of the long block below was not
+re-run for it:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3092/admin/tenants/mcp-demo/export \
+  | jq -c '(.clients[] | select(.client_id=="odudu-mcp") | {client_id,name,type,enabled,redirect_uris,grant_types,audiences,token_endpoint_auth_method,consent_required,access_token_ttl_seconds,refresh_token_ttl_seconds}), (.scopes[] | select(.name|startswith("mcp:")) | {name, builtin, clients})'
+```
+
+```
+{"client_id":"odudu-mcp","name":"Odudu MCP","type":"public","enabled":true,"redirect_uris":["http://127.0.0.1","http://[::1]"],"grant_types":["authorization_code","refresh_token"],"audiences":["urn:odudu:params:admin-api"],"token_endpoint_auth_method":"none","consent_required":true,"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600}
+{"name":"mcp:read","builtin":true,"clients":[{"client_id":"odudu-mcp","assignment":"default"}]}
+{"name":"mcp:write","builtin":true,"clients":[{"client_id":"odudu-mcp","assignment":"optional"}]}
+```
+
+Importing that document as `mcp-demo-copy` answers `201`, and the copy lists the
+admin client and `odudu-mcp` once each, with no conflict between the client the
+new tenant was provisioned with and the one in the document:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3092/admin/tenants/mcp-demo/export > doc.json
+jq -n --slurpfile d doc.json '{name:"mcp-demo-copy", document:$d[0]}' > import.json
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' --data @import.json http://localhost:3092/admin/tenant-imports
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3092/admin/tenants/mcp-demo-copy/clients | jq -c '.items[].client_id'
+```
+
+```
+201
+"odudu-admin"
+"odudu-mcp"
+```
 
 `?include=subjects` adds `subjects` — each user with a sign-in, its profile
 claims and verification flags, its direct roles, its groups by path and its
@@ -118,7 +154,7 @@ Keep-Alive: timeout=72
 {"version":1,"settings":{"display_name":null,"enabled":true,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":15,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"login_with_email":false,"audit_event_types":["admin_mutation","admin_access","authentication","session","token","credential"],"supported_locales":["en"],"default_locale":null},"flow":[{"authenticator":"passkey","requirement":"alternative"},{"authenticator":"password","requirement":"alternative"},{"authenticator":"otp","requirement":"conditional"},{"authenticator":"recovery-code","requirement":"conditional"}],"clients":[{"client_id":"billing-app","name":"billing-app","description":null,"name_i18n":{},"description_i18n":{},"type":"confidential","enabled":true,"full_scope_allowed":false,"skip_logout_confirmation":false,"registration_origin":"operator","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"service_account_roles":[]}],"roles":[{"name":"billing-reader","client":null,"description":null,"default_for_new_subjects":false,"builtin":false,"composites":[]},{"name":"manage-clients","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-domains","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[{"name":"view-domains","client":"odudu-admin"}]},{"name":"manage-keys","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-sessions","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-tenant","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-users","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[{"name":"view-users","client":"odudu-admin"}]},{"name":"tenant-admin","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[{"name":"manage-clients","client":"odudu-admin"},{"name":"manage-domains","client":"odudu-admin"},{"name":"manage-keys","client":"odudu-admin"},{"name":"manage-sessions","client":"odudu-admin"},{"name":"manage-tenant","client":"odudu-admin"},{"name":"manage-users","client":"odudu-admin"},{"name":"view-audit","client":"odudu-admin"},{"name":"view-domains","client":"odudu-admin"},{"name":"view-users","client":"odudu-admin"}]},{"name":"view-audit","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"view-domains","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"view-users","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]}],"groups":[{"path":"/finance","description":null,"default_for_new_subjects":false,"roles":[]}],"scopes":[{"name":"address","description":null,"include_in_id_token":true,"include_in_access_token":false,"default_client_assignment":"default","consent_text":null,"description_i18n":{},"consent_text_i18n":{},"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"email","description":null,"include_in_id_token":true,"include_in_access_token":false,"default_client_assignment":"default","consent_text":null,"description_i18n":{},"consent_text_i18n":{},"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"groups","description":null,"include_in_id_token":false,"include_in_access_token":true,"default_client_assignment":"default","consent_text":null,"description_i18n":{},"consent_text_i18n":{},"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"offline_access","description":null,"include_in_id_token":false,"include_in_access_token":false,"default_client_assignment":"optional","consent_text":null,"description_i18n":{},"consent_text_i18n":{},"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"optional"}]},{"name":"openid","description":null,"include_in_id_token":true,"include_in_access_token":false,"default_client_assignment":"default","consent_text":null,"description_i18n":{},"consent_text_i18n":{},"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"phone","description":null,"include_in_id_token":true,"include_in_access_token":false,"default_client_assignment":"default","consent_text":null,"description_i18n":{},"consent_text_i18n":{},"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"profile","description":null,"include_in_id_token":true,"include_in_access_token":false,"default_client_assignment":"default","consent_text":null,"description_i18n":{},"consent_text_i18n":{},"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"roles","description":null,"include_in_id_token":false,"include_in_access_token":true,"default_client_assignment":"default","consent_text":null,"description_i18n":{},"consent_text_i18n":{},"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]}],"registration_policy":{"registration_allowed":false,"verify_email":false,"client_registration_policy":"disabled"},"smtp":{"host":"smtp.example.test","port":587,"from_address":"noreply@export.example","username":null,"starttls":true},"message_overrides":[],"omitted":["clients[0].secret","smtp.password"]}
 ```
 
-A server that has `mcp:read` and `mcp:write` in the tenant exports both under `scopes`, with `default_client_assignment` `null` and no clients; this capture was taken before they existed and was not re-run.
+A server that has `mcp:read` and `mcp:write` in the tenant exports both under `scopes`, with `default_client_assignment` `null` and, since every tenant is provisioned with `odudu-mcp`, the assignments shown further up this page; this capture was taken before they existed and was not re-run.
 
 This block ran again after `view-domains` and `manage-domains` joined the built-in roles, so its ids and times are not those of the blocks around it. The tenant was made with the setup above, so the rest of the export is the same; the roles are the difference: two more built-in ones, and nine in `tenant-admin`.
 

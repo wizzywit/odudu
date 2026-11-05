@@ -796,6 +796,20 @@ and the role `auditor` mapped to `roles` were the only other state. The OpenAPI
 section of [the admin API's OpenAPI page](../reference/transcripts/admin-paths/get-adminopenapijson.md) was run again on the
 same stack with nothing seeded.
 
+### The built-in MCP client
+
+The blocks about `odudu-mcp` on the pages for
+[`GET /clients`](../reference/transcripts/admin-paths/get-clients-post-clients-and-get-clientsid.md),
+[`DELETE /clients/{id}`](../reference/transcripts/admin-paths/delete-clientsid.md) and
+[`GET /export`](../reference/transcripts/admin-paths/get-export.md) were run on the project
+`odudu-p5a-i22` on `http://localhost:3092`, its `odudu` service built from the working tree
+of the commit that added the client, on an empty volume with a console key made for it.
+`seed admin --username ada` made the administrator, whose token was got as in
+[Getting the token](../reference/transcripts/admin-paths/getting-the-token.md), and the tenants
+`mcp-demo` and `mcp-demo-copy` were the only other state. The rest of those three pages,
+and every other transcript that lists a tenant's clients or exports one, predates the client
+and was not run again.
+
 ### A value that changes with a build is not asserted
 
 A transcript may show a response that holds a hashed file name, a byte size, a path
