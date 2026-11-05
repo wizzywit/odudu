@@ -198,6 +198,49 @@ OduduError: tenant setting password_max_age_days must be between 0 and 3650; ten
 {"command":"tenant","created":true,"tenant":"range-demo","tenantId":"01a18727-f2ea-7b3e-aa11-34755da578a2"}
 ```
 
+## Who may register clients
+
+`client_registration_policy` is one of `disabled`, `open`, `token` and `mcp`, and
+`cimd_enabled` switches on [client ID metadata
+documents](../request-paths/authorization-server-metadata.md). Both are read and
+amended like any other setting, `seed tenant --set` takes them too, and a change
+to either is the only thing the audit event of a settings change names: the
+value before and after, never another setting. In a new tenant, `policy-doc`,
+a patch carrying the `ETag` it was read with, the same patch again with that
+now-stale tag, a spelling outside the four, and the audit row:
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"policy-doc","display_name":"Policy Demo"}' \
+  http://localhost:3000/admin/tenants -o /dev/null
+ETAG=$(curl -sS -D - -o /dev/null -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/policy-doc/settings | awk 'tolower($1) == "etag:" {print $2}' | tr -d '\r')
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -H "If-Match: $ETAG" \
+  -d '{"client_registration_policy": "mcp", "cimd_enabled": true}' \
+  http://localhost:3000/admin/tenants/policy-doc/settings \
+  | jq -c '{client_registration_policy, cimd_enabled}'
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -H "If-Match: $ETAG" \
+  -d '{"cimd_enabled": false}' \
+  http://localhost:3000/admin/tenants/policy-doc/settings
+echo
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d '{"client_registration_policy": "sometimes"}' \
+  http://localhost:3000/admin/tenants/policy-doc/settings
+echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/policy-doc/audit?action=tenant.amend_settings" \
+  | jq -c '.items[] | {action, detail}'
+```
+
+```
+{"client_registration_policy":"mcp","cimd_enabled":true}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a1ad3e-1028-735f-9c2a-4c2ac1373c5a"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"tenant setting client_registration_policy must be one of disabled, open, token, mcp","errors":[{"path":"client_registration_policy","message":"must be one of disabled, open, token, mcp"}],"instance":"01a1ad3e-1044-7399-9efb-7f3018f783c0"}
+{"action":"tenant.amend_settings","detail":{"cimd_enabled":{"after":true,"before":false},"client_registration_policy":{"after":"mcp","before":"disabled"}}}
+```
+
 ## Lifetimes, and signing in with an email address
 
 Seven of the settings are lifetimes the code used to fix, each defaulting to the

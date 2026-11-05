@@ -675,18 +675,19 @@ its grants `authorization_code` and `refresh_token`, no key set and no logout ad
 `mcp:read` beside the sign-in scopes, and its `audience`, when it names one,
 exactly the tenant's MCP URL. A request is counted against ten an hour per
 address on that tenant and sixty an hour for the tenant, and a tenant at its `max_clients` refuses as under any
-policy. Neither `seed tenant --set` nor the admin API sets this value yet, so
-the commands below set it in the database, on a tenant made for it:
+policy. `seed tenant --set` and the settings API both take the value, and
+refuse any other spelling by naming the four:
 
 ```bash
-odudu seed tenant --name mcp-demo
-docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
-  -c "update tenants set client_registration_policy = 'mcp' where name = 'mcp-demo'"
+odudu seed tenant --name mcp-demo --set client_registration_policy=mcp
+odudu seed tenant --name mcp-refused --set client_registration_policy=nonsense 2>&1 \
+  | grep -E '^OduduError|code:'
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"mcp-demo","tenantId":"01a1ad2c-bfc1-…"}
-UPDATE 1
+{"command":"tenant","created":true,"tenant":"mcp-demo","tenantId":"01a1ad3d-4e23-…","settings":["client_registration_policy"]}
+OduduError: tenant setting client_registration_policy must be one of disabled, open, token, mcp
+  code: 'seed_invalid_options'
 ```
 
 ```bash

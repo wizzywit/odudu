@@ -149,6 +149,11 @@ no-store document is fetched every time and never cached.
 - **The setting reached the admin API with its column**, because tenant
   settings, their export and `seed tenant --set` are one map. The console
   control is still to come (`PLACED_ELSEWHERE` in the settings page names it).
+- **`mcp` reached the same map as a value** of `client_registration_policy`
+  (`SETTINGS`' `values`, which the settings API and `seed tenant --set` both
+  read; an unknown spelling is a 400 naming the four, as it was for three). A
+  settings amendment's audit event now carries a `tenant_settings` diff of
+  those two settings only (`ALLOWLISTS`), where it carried no detail at all.
 
 ## The `mcp` registration policy
 
