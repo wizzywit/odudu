@@ -1,0 +1,268 @@
+---
+title: 'Authorization server metadata'
+description: 'The RFC 8414 document a tenant publishes at its path address and at its own domain, and the empty 404 for a tenant that is not there.'
+---
+
+# Authorization server metadata
+
+A client that knows only a resource, such as an MCP server that names this tenant as its
+authorization server, asks the authorization server what it offers
+(RFC 8414). A tenant answers with the same issuer and
+endpoints as its [discovery document](./path-a-authorization-code-with-pkce.md), in the members
+RFC 8414 defines, and with the scopes `mcp:read` and `mcp:write` added to its own. RFC 8414 §3.1
+puts the well-known suffix between the host and the issuer's path, so the tenant's issuer decides
+where the document is: `/.well-known/oauth-authorization-server/tenants/<name>` at the path
+address, and `/.well-known/oauth-authorization-server` on a tenant's own domain. The reading note
+is `docs/protocols/rfc8414.md`.
+
+Every command was run, in this order, on a freshly built compose stack (the project
+`odudu-p5a-i1`, port `3000`, the throttles at `10000`, the schedules off) driven only as far as
+this page goes: the tenant `demo`, its client `demo-spa` and its user `ada` made as
+[Bootstrap](./bootstrap.md) makes them, then a second tenant `gone-demo` made and switched off
+(below), then the domain `login.acme-corp.dev` seeded as the tenant's address. No DNS names that
+domain, so each request to it goes to the stack's port with the `Host` header a proxy would have
+kept. The stack does not end TLS, so an issuer is `http`; behind a proxy with `ODUDU_TLS=true` the
+same address is `https`.
+
+## At the path address
+
+The document is public: no credential, and every origin may read it.
+
+```bash
+curl -sS -D - -o /dev/null http://localhost:3000/.well-known/oauth-authorization-server/tenants/demo
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a1ab49-74da-72f8-8dd9-9b88d88b71b5
+access-control-allow-origin: *
+content-type: application/json; charset=utf-8
+content-length: 1514
+Date: Thu, 05 Nov 2026 10:38:00 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+```
+
+```bash
+curl -sS http://localhost:3000/.well-known/oauth-authorization-server/tenants/demo | jq .
+```
+
+```json
+{
+  "issuer": "http://localhost:3000/tenants/demo",
+  "authorization_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/auth",
+  "token_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/token",
+  "jwks_uri": "http://localhost:3000/tenants/demo/protocol/openid-connect/certs",
+  "introspection_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/token/introspect",
+  "revocation_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/revoke",
+  "response_types_supported": ["code"],
+  "response_modes_supported": ["query"],
+  "grant_types_supported": [
+    "authorization_code",
+    "refresh_token",
+    "client_credentials",
+    "urn:ietf:params:oauth:grant-type:token-exchange"
+  ],
+  "token_endpoint_auth_methods_supported": [
+    "client_secret_basic",
+    "client_secret_post",
+    "none",
+    "private_key_jwt"
+  ],
+  "token_endpoint_auth_signing_alg_values_supported": ["RS256", "ES256"],
+  "introspection_endpoint_auth_methods_supported": [
+    "client_secret_basic",
+    "client_secret_post",
+    "private_key_jwt",
+    "none"
+  ],
+  "introspection_endpoint_auth_signing_alg_values_supported": ["RS256", "ES256"],
+  "revocation_endpoint_auth_methods_supported": [
+    "client_secret_basic",
+    "client_secret_post",
+    "private_key_jwt",
+    "none"
+  ],
+  "revocation_endpoint_auth_signing_alg_values_supported": ["RS256", "ES256"],
+  "code_challenge_methods_supported": ["S256"],
+  "authorization_response_iss_parameter_supported": true,
+  "ui_locales_supported": ["en"],
+  "scopes_supported": [
+    "address",
+    "email",
+    "groups",
+    "mcp:read",
+    "mcp:write",
+    "offline_access",
+    "openid",
+    "phone",
+    "profile",
+    "roles"
+  ]
+}
+```
+
+(`jq` only indents what the server sent as one line, 1,514 bytes.) Three things in it are there
+because a client reads them. `none` beside `private_key_jwt` in `token_endpoint_auth_methods_supported`
+says a public client may use the token endpoint, which Claude requires before it will use a client
+identifier that is a URL. The three `..._auth_signing_alg_values_supported` lists are required by §2
+wherever `private_key_jwt` is listed. `mcp:read` and `mcp:write` are advertised only: a tenant's own
+scopes are the rows it defines, and these two are not among them. `registration_endpoint` is absent
+because `demo` does not open client registration, and `client_id_metadata_document_supported` is
+absent because the server does not resolve client identifiers that are URLs.
+
+The issuer is the tenant's, the one its discovery document states:
+
+```bash
+curl -sS http://localhost:3000/tenants/demo/.well-known/openid-configuration | jq -r .issuer
+```
+
+```
+http://localhost:3000/tenants/demo
+```
+
+## A tenant that is not there
+
+A tenant that does not exist and one that is switched off answer the same bytes, an empty `404`,
+so nothing tells them apart. `gone-demo` was made and switched off with:
+
+```bash
+odudu seed tenant --name gone-demo
+odudu seed tenant --name gone-demo --set enabled=false
+```
+
+```
+{"command":"tenant","created":true,"tenant":"gone-demo","tenantId":"01a1ab49-773a-700e-9c4e-73d29f387e86"}
+{"command":"tenant","created":false,"tenant":"gone-demo","tenantId":"01a1ab49-773a-700e-9c4e-73d29f387e86","settings":["enabled"]}
+```
+
+```bash
+curl -sS -D - http://localhost:3000/.well-known/oauth-authorization-server/tenants/gone-demo
+```
+
+```
+HTTP/1.1 404 Not Found
+x-request-id: 01a1ab49-8b82-753c-b5db-a4f84a581904
+access-control-allow-origin: *
+content-length: 0
+Date: Thu, 05 Nov 2026 10:38:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+```
+
+```bash
+curl -sS -D - http://localhost:3000/.well-known/oauth-authorization-server/tenants/nobody
+```
+
+```
+HTTP/1.1 404 Not Found
+x-request-id: 01a1ab49-750d-7792-8bad-25da871172e6
+access-control-allow-origin: *
+content-length: 0
+Date: Thu, 05 Nov 2026 10:38:00 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+```
+
+The discovery document still describes a switched-off tenant, since it still publishes the keys its
+queued logout tokens are signed with; this one points a client at a token endpoint that tenant
+refuses, so it does not.
+
+At the path address the document is at the one URL above and nowhere else. Under the tenant, where
+a domain's request is routed, it is not served, so an issuer has one metadata URL:
+
+```bash
+curl -sS -D - http://localhost:3000/tenants/demo/.well-known/oauth-authorization-server
+```
+
+```
+HTTP/1.1 404 Not Found
+x-request-id: 01a1ab49-7519-7757-be63-9e2144831235
+content-length: 0
+Date: Thu, 05 Nov 2026 10:38:00 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+```
+
+## At the tenant's own domain
+
+Seeding a domain as the tenant's address is what a switch does, without the DNS proof
+([A tenant at its own address](./custom-domains-a-domain-host-and-the-proxys-question.md) has the
+steps):
+
+```bash
+odudu seed domain --tenant demo --host login.acme-corp.dev --assume-verified --canonical
+```
+
+```
+{"command":"domain","tenant":"demo","tenantId":"01a1ab49-5d03-79c7-99f1-e49a38639a68","host":"login.acme-corp.dev","state":"verified","canonical":true,"created":true}
+```
+
+The domain's issuer has no path, so its document is at the root of the host, and every URL in it is
+the domain's:
+
+```bash
+curl -sS -D - -o /dev/null -H "Host: login.acme-corp.dev" http://localhost:3000/.well-known/oauth-authorization-server
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a1ab49-8d9e-74e7-8037-587f4e5543d9
+access-control-allow-origin: *
+content-type: application/json; charset=utf-8
+content-length: 1466
+Date: Thu, 05 Nov 2026 10:38:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+```
+
+```bash
+curl -sS -H "Host: login.acme-corp.dev" http://localhost:3000/.well-known/oauth-authorization-server | jq '{issuer, authorization_endpoint, token_endpoint, jwks_uri}'
+```
+
+```json
+{
+  "issuer": "http://login.acme-corp.dev",
+  "authorization_endpoint": "http://login.acme-corp.dev/protocol/openid-connect/auth",
+  "token_endpoint": "http://login.acme-corp.dev/protocol/openid-connect/token",
+  "jwks_uri": "http://login.acme-corp.dev/protocol/openid-connect/certs"
+}
+```
+
+The path address is the address the tenant left, and for an hour it keeps answering where a token
+already issued is used, discovery among them. This document is one of those, and it states the issuer
+of the address it is read at, which is still the path one:
+
+```bash
+curl -sS http://localhost:3000/.well-known/oauth-authorization-server/tenants/demo | jq -r .issuer
+```
+
+```
+http://localhost:3000/tenants/demo
+```
+
+On the domain itself the path-inserted URL is not served, since the domain's issuer has no path:
+
+```bash
+curl -sS -D - -o /dev/null -H "Host: login.acme-corp.dev" http://localhost:3000/.well-known/oauth-authorization-server/tenants/demo
+```
+
+```
+HTTP/1.1 404 Not Found
+x-request-id: 01a1ab49-8ddd-707d-8ee8-90a28ea5dd5e
+content-type: application/problem+json; charset=utf-8
+content-length: 151
+Date: Thu, 05 Nov 2026 10:38:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+```
+
+After the hour the path address serves nothing for the tenant, this document included, and answers
+the same empty `404` every other path there gives. That was not run on this stack, which would have
+had to wait an hour; an integration test against a real database holds it.

@@ -10,6 +10,7 @@ Odudu speaks OpenID Connect and OAuth 2.0. Every tenant has its own issuer, `htt
 ## The addresses
 
 - **Discovery document**: `/.well-known/openid-configuration`. It names every address below and what the tenant supports.
+- **Authorization server metadata** (RFC 8414): `/.well-known/oauth-authorization-server/tenants/<tenant>` on the base address, or `/.well-known/oauth-authorization-server` on a tenant's own domain. The same issuer and endpoints as the discovery document, in the shape an OAuth client that was not written for OpenID Connect reads, with the scopes `mcp:read` and `mcp:write` added. A tenant that is disabled or does not exist answers an empty `404`. See [Authorization server metadata](./transcripts/request-paths/authorization-server-metadata.md).
 - **Authorization endpoint**: `/protocol/openid-connect/auth`. It sends the person to sign in, then back to your app with a code.
 - **Token endpoint**: `/protocol/openid-connect/token`. It trades a code, a refresh token, client credentials or another token for tokens.
 - **UserInfo endpoint**: `/protocol/openid-connect/userinfo`. It returns the claims of the person an access token names.
