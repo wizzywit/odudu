@@ -30,8 +30,9 @@ alone is from a later run, `ada` being that run's `system` administrator and
 `$ADA_SESSION` the `odudu-console` cookie of her sign-in on
 `http://localhost:3082`, because the discovery document has gained members
 since the first run (`private_key_jwt` among the methods `/introspect` and
-`/revoke` accept, `ui_locales_supported` and `prompt_values_supported`); the
-blocks after it are from the first:
+`/revoke` accept, `ui_locales_supported` and `prompt_values_supported`, and
+`mcp:read` and `mcp:write` in `scopes_supported`); the blocks after it are
+from the first:
 
 ```bash
 curl -sS -D - -H 'Host: evil.example' -H "Cookie: $ADA_SESSION" \
@@ -40,18 +41,16 @@ curl -sS -D - -H 'Host: evil.example' -H "Cookie: $ADA_SESSION" \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a17b05-e90d-773c-bbdc-f511707d6234
+x-request-id: 01a1ac23-3259-7eb8-aee3-81d8c042894a
 cache-control: no-store
 content-type: application/json; charset=utf-8
-content-length: 2412
-Date: Tue, 27 Oct 2026 01:42:27 GMT
+content-length: 2435
+Date: Thu, 05 Nov 2026 14:35:50 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"issuer":"http://localhost:3082/tenants/system","authorization_endpoint":"http://localhost:3082/tenants/system/protocol/openid-connect/auth","token_endpoint":"http://localhost:3082/tenants/system/protocol/openid-connect/token","introspection_endpoint":"http://localhost:3082/tenants/system/protocol/openid-connect/token/introspect","revocation_endpoint":"http://localhost:3082/tenants/system/protocol/openid-connect/revoke","userinfo_endpoint":"http://localhost:3082/tenants/system/protocol/openid-connect/userinfo","jwks_uri":"http://localhost:3082/tenants/system/protocol/openid-connect/certs","end_session_endpoint":"http://localhost:3082/tenants/system/protocol/openid-connect/logout","response_types_supported":["code"],"response_modes_supported":["query"],"subject_types_supported":["public"],"id_token_signing_alg_values_supported":["RS256","ES256"],"userinfo_signing_alg_values_supported":["ES256","none"],"userinfo_encryption_alg_values_supported":["RSA-OAEP-256","ECDH-ES","ECDH-ES+A128KW","ECDH-ES+A192KW","ECDH-ES+A256KW"],"userinfo_encryption_enc_values_supported":["A128CBC-HS256","A192CBC-HS384","A256CBC-HS512","A128GCM","A192GCM","A256GCM"],"code_challenge_methods_supported":["S256"],"grant_types_supported":["authorization_code","refresh_token","client_credentials","urn:ietf:params:oauth:grant-type:token-exchange"],"token_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","none","private_key_jwt"],"introspection_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","private_key_jwt","none"],"revocation_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","private_key_jwt","none"],"authorization_response_iss_parameter_supported":true,"claims_parameter_supported":true,"ui_locales_supported":["en"],"prompt_values_supported":["none","login","consent","select_account"],"backchannel_logout_supported":true,"backchannel_logout_session_supported":true,"frontchannel_logout_supported":true,"frontchannel_logout_session_supported":true,"scopes_supported":["address","email","groups","offline_access","openid","phone","profile","roles"],"claims_supported":["sub","name","given_name","family_name","middle_name","nickname","preferred_username","profile","picture","website","gender","birthdate","zoneinfo","locale","updated_at","email","email_verified","roles","groups","address","phone_number","phone_number_verified"]}
+{"issuer":"http://localhost:3082/tenants/system","authorization_endpoint":"http://localhost:3082/tenants/system/protocol/openid-connect/auth","token_endpoint":"http://localhost:3082/tenants/system/protocol/openid-connect/token","introspection_endpoint":"http://localhost:3082/tenants/system/protocol/openid-connect/token/introspect","revocation_endpoint":"http://localhost:3082/tenants/system/protocol/openid-connect/revoke","userinfo_endpoint":"http://localhost:3082/tenants/system/protocol/openid-connect/userinfo","jwks_uri":"http://localhost:3082/tenants/system/protocol/openid-connect/certs","end_session_endpoint":"http://localhost:3082/tenants/system/protocol/openid-connect/logout","response_types_supported":["code"],"response_modes_supported":["query"],"subject_types_supported":["public"],"id_token_signing_alg_values_supported":["RS256","ES256"],"userinfo_signing_alg_values_supported":["ES256","none"],"userinfo_encryption_alg_values_supported":["RSA-OAEP-256","ECDH-ES","ECDH-ES+A128KW","ECDH-ES+A192KW","ECDH-ES+A256KW"],"userinfo_encryption_enc_values_supported":["A128CBC-HS256","A192CBC-HS384","A256CBC-HS512","A128GCM","A192GCM","A256GCM"],"code_challenge_methods_supported":["S256"],"grant_types_supported":["authorization_code","refresh_token","client_credentials","urn:ietf:params:oauth:grant-type:token-exchange"],"token_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","none","private_key_jwt"],"introspection_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","private_key_jwt","none"],"revocation_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","private_key_jwt","none"],"authorization_response_iss_parameter_supported":true,"claims_parameter_supported":true,"ui_locales_supported":["en"],"prompt_values_supported":["none","login","consent","select_account"],"backchannel_logout_supported":true,"backchannel_logout_session_supported":true,"frontchannel_logout_supported":true,"frontchannel_logout_session_supported":true,"scopes_supported":["address","email","groups","mcp:read","mcp:write","offline_access","openid","phone","profile","roles"],"claims_supported":["sub","name","given_name","family_name","middle_name","nickname","preferred_username","profile","picture","website","gender","birthdate","zoneinfo","locale","updated_at","email","email_verified","roles","groups","address","phone_number","phone_number_verified"]}
 ```
-
-A server that has `mcp:read` and `mcp:write` in the tenant lists both in `scopes_supported`, between `groups` and `offline_access`; this capture was taken before they existed and was not re-run, so its list stops at eight.
 
 `ada`'s own tenant is `system`, so the same session also reads a tenant
 that does not exist, answering `404` rather than `403`:

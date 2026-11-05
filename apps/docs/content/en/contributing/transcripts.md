@@ -808,7 +808,16 @@ of the commit that added the client, on an empty volume with a console key made 
 [Getting the token](../reference/transcripts/admin-paths/getting-the-token.md), and the tenants
 `mcp-demo` and `mcp-demo-copy` were the only other state. The rest of those three pages,
 and every other transcript that lists a tenant's clients or exports one, predates the client
-and was not run again.
+and was not run again, except the three blocks below.
+
+The scope list that gained `mcp:read` and `mcp:write` was re-run on the project
+`odudu-p5a-i2c` on `http://localhost:3082`, built from the working tree on an empty volume
+with a console key made for it, the administrator and the token made as above: the
+[console's discovery block](../reference/transcripts/console-paths/get-consoleapitenantstenantdiscovery-get-consoleapitenantstenantjwks.md)
+for `system`, the [discovery block at a tenant's own address](../reference/transcripts/request-paths/custom-domains-a-domain-host-and-the-proxys-question.md#discovery)
+for `demo` registered at `login.acme-corp.dev` with `seed domain --assume-verified --canonical`, and the
+long export in [`GET /export`](../reference/transcripts/admin-paths/get-export.md), whose tenant `export-demo` was
+made with that page's setup and held nothing else.
 
 ### A value that changes with a build is not asserted
 
