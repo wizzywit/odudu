@@ -41,6 +41,17 @@ a second line.
 ADR 0040), and an admin mutation an agent makes carries the agent's client row
 as its actor client and the owner as its actor subject.
 
+**Two paths run beside it.** A local client over stdio has no MCP endpoint in
+its path: `odudu mcp` is a public client registered for the tenant with the
+admin API as its audience and a scope of `mcp:read` or `mcp:write`, and its
+token is issued directly, so the token's client and subject are the
+attribution and the principal reads the client as the agent marker where there
+is no `act`. A machine (a client holding the `client_credentials` grant, a key
+of its own and a role on the tenant's admin client) presents a token for the
+endpoint with its `resource` and `scope`; its subject is the client's service
+account, so its ceiling is the role it was given and no wider. Both reach the
+same tool catalogue and the same admin API checks.
+
 ## Consequences
 
 - The ceiling of ADR 0040, the tenant boundary and the audit trail are the
@@ -55,6 +66,17 @@ as its actor client and the owner as its actor subject.
   the MCP scope.
 
 ## Alternatives rejected
+
+- **Handlers called in process with a principal the MCP layer builds itself.**
+  Cheapest, with no exchange; but it is a new door into the admin handlers that
+  skips token validation, so ADR 0040's ceiling and the tenant boundary would
+  each have to be proven again for it.
+- **A separate package calling the admin API over HTTP.** It works against a
+  remote instance, but the HTTP form would be its own deployment and its own
+  resource server, and the instance's URL would no longer be the MCP URL. Its
+  shape is what the stdio command uses, behind the same tool catalogue and one
+  `AdminCaller` interface with two adapters (in process for HTTP, `fetch` for
+  stdio).
 
 - **Token passthrough:** the MCP token, or the person's own admin token, sent
   to the admin API. The MCP audience would then be meaningless, the token would

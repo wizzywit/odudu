@@ -289,8 +289,14 @@ holding no MCP scope a 403. An agent must pass both gates: the scope
   reads included. Its detail is `agent_client`, `owner`, `tool` and `route`,
   and the allowlist has no key for arguments or results; the row's actor
   columns carry the owner and the agent client row too, so the audit list
-  filters find it. `recordAgentToolCall` (`usecase/access-audit.ts`) writes it;
-  the MCP server calls it per tool call.
+  filters find it. `recordAgentToolCall` (`usecase/access-audit.ts`) writes it.
+  It is called by the MCP endpoint, which lands in Increment 8, and nothing
+  calls it before. `route` must be an `ADMIN_ROUTES` key and `tool` an
+  identifier of at most 64 characters from `[a-z0-9_.-]`; the detail allowlist
+  rejects anything else, so text an agent chose cannot reach the trail.
+- Attribution is proved against `mintAgentToken`: the owner's grant belongs to
+  the named agent client, so `principal.clientDbId` is the agent client row and
+  `act.sub` is its `client_id`; the int test mints through the real function.
 - A mutation an agent makes is not given a second copy of that fact in its
   detail: its actor columns already name the agent client row
   (`principal.clientDbId`) and the owner, which is what `client.amend` shows.

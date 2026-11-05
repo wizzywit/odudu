@@ -17,14 +17,6 @@ afterAll(async () => {
   await fixtureHandle?.stop();
 });
 
-function subjectOf(token: string): string {
-  const payload = token.split('.')[1] ?? '';
-  const claims: unknown = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-  if (typeof claims !== 'object' || claims === null || !('sub' in claims))
-    throw new Error('no sub');
-  return String(claims.sub);
-}
-
 async function rows(tenantId: string, action: string) {
   return withTenant(fixture.app.db, tenantId, (tx) =>
     tx.select().from(auditEvents).where(eq(auditEvents.action, action)),
@@ -89,7 +81,11 @@ describe('agent.tool_call', () => {
     await fixture.owner
       .sql`update tenants set audit_event_types = '{admin_mutation,admin_access}' where id = ${t.id}`;
     await withTenant(fixture.app.db, t.id, (tx) =>
-      recordAgentToolCall(tx, principal, { tool: 'whoami', route: 'GET /x', outcome: 'allowed' }),
+      recordAgentToolCall(tx, principal, {
+        tool: 'whoami',
+        route: 'GET /admin/tenants/:tenant/whoami',
+        outcome: 'allowed',
+      }),
     );
     expect(await rows(t.id, 'agent.tool_call')).toHaveLength(1);
     await expect(
@@ -99,24 +95,58 @@ describe('agent.tool_call', () => {
   });
 });
 
-describe('an admin mutation made by an agent', () => {
-  it('is attributable through its actor columns: the agent client row and the owner', async () => {
+describe('recordAgentToolCall', () => {
+  it('refuses a route that is not in the table and a tool that is not an identifier', async () => {
+    const { t, principal } = await agentWorld();
+    const record = (call: { tool: string; route: string }) =>
+      withTenant(fixture.app.db, t.id, (tx) =>
+        recordAgentToolCall(tx, principal, { ...call, outcome: 'allowed' }),
+      );
+    await expect(record({ tool: 'x', route: 'GET /admin/tenants/acme/clients' })).rejects.toThrow(
+      /does not exist/,
+    );
+    await expect(
+      record({ tool: 'List Clients', route: 'GET /admin/tenants/:tenant/clients' }),
+    ).rejects.toThrow(/invalid value/);
+    expect(await rows(t.id, 'agent.tool_call')).toHaveLength(0);
+  });
+});
+
+describe('an admin mutation made through a token mintAgentToken signed', () => {
+  it('names the agent client row as its actor client and the owner as its actor subject', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
-    const token = await fixture.agentToken(t.name, ['manage-clients'], {
-      scope: 'mcp:write',
-      act: { sub: 'agent' },
+    const minted = await fixture.mintAgentTokenForOwner(t.name, ['manage-clients'], {
+      scope: ['mcp:write'],
     });
-    const owner = subjectOf(token);
-    const ordinary = await fixture.createConfidentialClient(t.name, {});
+    const admin = await fixture.adminToken(t.name, ['manage-clients']);
+    const list = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients?client_id=odudu-mcp`,
+      headers: { authorization: `Bearer ${admin}` },
+    });
+    const agentRow = list.json<{ items: { id: string; client_id: string }[] }>().items[0];
+    if (agentRow === undefined) throw new Error('no odudu-mcp client');
+    const adminClient = await fixture.builtinAdminClient(t.name);
+
     const res = await fixture.http.inject({
       method: 'PATCH',
-      url: `/admin/tenants/${t.name}/clients/${ordinary.id}`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      url: `/admin/tenants/${t.name}/clients/${agentRow.id}`,
+      headers: { authorization: `Bearer ${minted.token}`, 'content-type': 'application/json' },
       payload: { description: 'written by an agent' },
     });
     expect(res.statusCode).toBe(200);
+
     const [row] = await rows(t.id, 'client.amend');
-    expect(row).toMatchObject({ actorSubjectId: owner, outcome: 'allowed' });
-    expect(row?.actorClientId).not.toBeNull();
+    expect(row).toMatchObject({
+      outcome: 'allowed',
+      actorSubjectId: minted.subjectId,
+      actorClientId: agentRow.id,
+    });
+    expect(row?.actorClientId).not.toBe(adminClient.id);
+    const claims = JSON.parse(
+      Buffer.from(minted.token.split('.')[1] ?? '', 'base64url').toString('utf8'),
+    ) as { act?: { sub?: string }; client_id?: string };
+    expect(claims.act?.sub).toBe(agentRow.client_id);
+    expect(claims.client_id).toBe(agentRow.client_id);
   });
 });

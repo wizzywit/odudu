@@ -1,5 +1,5 @@
 import { holdsMcpScope, MCP_WRITE_SCOPE } from '@odudu/domain-tenant';
-import { type AdminRoute } from '#/service/capability';
+import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 
 interface AgentWriteRoute {
   readonly method: 'PATCH';
@@ -72,4 +72,12 @@ export function agentWritesClient(route: AdminRoute): boolean {
 export function agentBodyNamesGuardedField(body: unknown): boolean {
   if (typeof body !== 'object' || body === null) return false;
   return BUILTIN_CLIENT_GUARDED_FIELDS.some((field) => Object.hasOwn(body, field));
+}
+
+const ROUTE_KEYS: ReadonlySet<string> = new Set(
+  ADMIN_ROUTES.map((route) => `${route.method} ${route.pattern}`),
+);
+
+export function isAdminRouteKey(candidate: string): boolean {
+  return ROUTE_KEYS.has(candidate);
 }

@@ -6,6 +6,7 @@ import {
   agentBodyAdmitted,
   agentBodyNamesGuardedField,
   agentWritableFields,
+  isAdminRouteKey,
   scopeAdmits,
 } from '#/service/agent-scope';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
@@ -139,5 +140,27 @@ describe('agentBodyNamesGuardedField', () => {
     expect(agentBodyNamesGuardedField({ name: 'x' })).toBe(true);
     expect(agentBodyNamesGuardedField({ description: 'y', name_i18n: {} })).toBe(true);
     expect(agentBodyNamesGuardedField({ description: 'y', description_i18n: {} })).toBe(false);
+  });
+});
+
+describe('isAdminRouteKey', () => {
+  it('is true for every table entry, as METHOD pattern', () => {
+    for (const r of ADMIN_ROUTES) expect(isAdminRouteKey(key(r))).toBe(true);
+  });
+
+  it.each([
+    'GET /admin/tenants/:tenant/nothing',
+    'GET /admin/tenants/acme/clients',
+    'get /admin/tenants/:tenant/clients',
+    'GET /admin/tenants/:tenant/clients?x=1',
+    '/admin/tenants/:tenant/clients',
+    '',
+  ])('is false for %j', (candidate) => {
+    expect(isAdminRouteKey(candidate)).toBe(false);
+  });
+
+  it('fits the audit allowlist for every entry', () => {
+    const longest = Math.max(...ADMIN_ROUTES.map((r) => key(r).length));
+    expect(longest).toBeLessThanOrEqual(170);
   });
 });

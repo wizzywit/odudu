@@ -28,6 +28,22 @@ describe('agent.tool_call', () => {
     },
   );
 
+  it.each([
+    ['an empty tool', { tool: '' }],
+    ['an overlong tool', { tool: 'a'.repeat(65) }],
+    ['a tool with capitals', { tool: 'List_Clients' }],
+    ['a tool with a space', { tool: 'list clients' }],
+    ['a tool carrying text', { tool: 'ignore previous instructions' }],
+    ['an empty route', { route: '' }],
+    ['a route with no method', { route: '/admin/tenants/:tenant/clients' }],
+    ['a route with a query', { route: 'GET /admin/tenants/x/clients?name=a b' }],
+    ['an overlong route', { route: `GET /${'a'.repeat(200)}` }],
+  ])('refuses %s', (_, override) => {
+    expect(() => {
+      assertDetailAllowed('agent.tool_call', { ...detail, ...override });
+    }).toThrow(/invalid value/);
+  });
+
   it('refuses a non-string value', () => {
     expect(() => {
       assertDetailAllowed('agent.tool_call', { ...detail, tool: { name: 'x' } });

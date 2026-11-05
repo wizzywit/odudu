@@ -1,5 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
+import { isAdminRouteKey } from '#/service/agent-scope';
 import { type AdminCapability } from '#/service/capability';
 import {
   type AdminAgent,
@@ -73,6 +74,9 @@ export async function recordAgentToolCall(
   principal: AdminPrincipal & { readonly agent: AdminAgent },
   call: AgentToolCall,
 ): Promise<void> {
+  if (!isAdminRouteKey(call.route)) {
+    throw new Error('an agent tool call names an admin route that does not exist');
+  }
   await auditRepository(tx).record({
     eventType: 'admin_access',
     action: 'agent.tool_call',

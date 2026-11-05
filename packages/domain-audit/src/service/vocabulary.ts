@@ -252,7 +252,14 @@ const STRING_DETAIL_KEYS: ReadonlySet<string> = new Set([
   'route',
 ]);
 
+const TOOL_NAME = /^[a-z0-9_.-]{1,64}$/u;
+// A route is a table key, `METHOD /path/:param`, never a concrete address;
+// the admin router's own check that it is one lives with its table.
+const ROUTE_KEY = /^[A-Z]{3,7} \/[A-Za-z0-9/:_.-]{0,160}$/u;
+
 function isValidDetailValue(key: string, value: unknown): boolean {
+  if (key === 'tool') return typeof value === 'string' && TOOL_NAME.test(value);
+  if (key === 'route') return typeof value === 'string' && ROUTE_KEY.test(value);
   if (key === 'mode') return value === 'delegation' || value === 'impersonation';
   if (key === 'via') return value === 'logout' || value === 'admin' || value === 'evicted';
   if (key === 'also_admits') {
