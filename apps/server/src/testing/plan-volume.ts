@@ -100,6 +100,10 @@ select gen_random_uuid(), (select id from vol_other order by id limit 1),
        'https://plans-' || g || '.example.com/client.json', 'Document ' || g,
        'public', 'cimd', now() - (g || ' hours')::interval
   from generate_series(1, 1000) g;
+insert into clients (id, tenant_id, client_id, name, type, registration_origin, created_at)
+select gen_random_uuid(), (select id from vol_other order by id limit 1),
+       'dyn-' || g, 'Agent ' || g, 'public', 'anonymous', now() - (g || ' hours')::interval
+  from generate_series(1, 1000) g;
 insert into message_overrides (tenant_id, locale, key, message)
 select ${t}, case when g % 2 = 0 then 'en' else 'fr' end, 'bulk.' || g, 'Wording ' || g
   from generate_series(1, 499) g;

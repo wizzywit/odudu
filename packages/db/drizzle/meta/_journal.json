@@ -827,6 +827,13 @@
       "when": 1790525683737,
       "tag": "0117_mcp_registration_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1790529283737,
+      "tag": "0118_unused_dynamic_clients_index",
+      "breakpoints": true
     }
   ]
 }

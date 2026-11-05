@@ -1221,6 +1221,7 @@ export {
 export { holdsLiveRefreshToken } from '#/repository/cimd-clients';
 export { tenantCimdRepository } from '#/repository/tenant-cimd';
 export { type RegistrationLimiter } from '#/service/registration-throttle';
+export { UNUSED_DYNAMIC_CLIENT_SECONDS } from '#/service/dynamic-client-retention';
 export { parseCimdDocument, type CimdClient } from '#/service/client-id-metadata';
 export {
   resolveCimdDocument,
