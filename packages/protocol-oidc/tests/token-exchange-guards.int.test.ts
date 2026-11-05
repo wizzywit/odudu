@@ -636,3 +636,101 @@ describe('a refresh cannot strip the agent marker from a grant either', () => {
     expect(res.statusCode, res.payload).toBe(200);
   });
 });
+
+describe('an exchange cannot launder a token into an unmarked admin token', () => {
+  const toAdmin = (w: World, fields: Record<string, string>) =>
+    exchange(w, w.confidential, { resource: ADMIN_API_AUDIENCE, ...fields });
+
+  async function idTokenFor(w: World, client: ClientRecord): Promise<string> {
+    const iat = Math.floor(Date.now() / 1000);
+    return withTenant(app.db, w.tenantId, async (tx) =>
+      signJwt(
+        { iss: w.issuer, sub: w.ownerSubject, aud: client.clientId, iat, exp: iat + 600 },
+        { key: await signingKeyRepository(tx).active(), kek: KEK },
+      ),
+    );
+  }
+
+  it('refuses an ID token as the subject of a token for the admin API', async () => {
+    const w = await newWorld();
+    const res = await toAdmin(w, {
+      subject_token: await idTokenFor(w, w.confidential),
+      subject_token_type: 'urn:ietf:params:oauth:token-type:id_token',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_target' });
+  });
+
+  it('still takes an ID token as the subject of a token for another resource', async () => {
+    const w = await newWorld();
+    const res = await exchange(w, w.confidential, {
+      subject_token: await idTokenFor(w, w.confidential),
+      subject_token_type: 'urn:ietf:params:oauth:token-type:id_token',
+      resource: 'https://api.example',
+    });
+    expect(res.statusCode, res.payload).toBe(200);
+  });
+
+  it('keeps the act of a token that holds no MCP scope', async () => {
+    const w = await newWorld();
+    const subject = await tokenFor(w, w.confidential, w.ownerSubject, 'openid', {
+      audience: ADMIN_API_AUDIENCE,
+      act: { sub: 'someone' },
+    });
+    const res = await toAdmin(w, { subject_token: subject.token });
+    expect(res.statusCode, res.payload).toBe(200);
+    expect(claimsOf(res).act).toEqual({ sub: 'someone' });
+  });
+
+  it('keeps the act of the grant behind a refresh token', async () => {
+    const w = await newWorld();
+    const raw = `refresh-${newId()}`;
+    await withTenant(app.db, w.tenantId, async (tx) => {
+      const grantId = newId();
+      await tokenGrantRepository(tx).create({
+        id: grantId,
+        tenantId: w.tenantId,
+        clientId: w.confidential.id,
+        subjectId: w.ownerSubject,
+        scope: 'openid',
+        audience: [ADMIN_API_AUDIENCE],
+        actChain: { sub: 'someone' },
+      });
+      await refreshTokenRepository(tx).create({
+        tokenHash: hashRefreshToken(raw),
+        tenantId: w.tenantId,
+        grantId,
+        expiresAt: new Date(Date.now() + 3600_000),
+      });
+    });
+    const res = await toAdmin(w, { subject_token: raw, subject_token_type: REFRESH });
+    expect(res.statusCode, res.payload).toBe(200);
+    expect(claimsOf(res).act).toEqual({ sub: 'someone' });
+  });
+
+  it('keeps the actor of a delegation, which already marks the token', async () => {
+    const w = await newWorld();
+    const subject = await tokenFor(w, w.confidential, w.ownerSubject, 'openid', {
+      audience: ADMIN_API_AUDIENCE,
+      act: { sub: 'someone' },
+    });
+    const actor = await tokenFor(w, w.confidential, w.actorSubject);
+    const res = await toAdmin(w, {
+      subject_token: subject.token,
+      actor_token: actor.token,
+      actor_token_type: ACCESS,
+    });
+    expect(res.statusCode, res.payload).toBe(200);
+    expect(claimsOf(res).act).toEqual({ sub: w.actorSubject });
+  });
+
+  it('leaves an ordinary access token exchange to the admin API alone', async () => {
+    const w = await newWorld();
+    const subject = await tokenFor(w, w.confidential, w.ownerSubject, 'openid', {
+      audience: ADMIN_API_AUDIENCE,
+    });
+    const res = await toAdmin(w, { subject_token: subject.token, scope: 'openid' });
+    expect(res.statusCode, res.payload).toBe(200);
+    expect(claimsOf(res).act).toBeUndefined();
+  });
+});

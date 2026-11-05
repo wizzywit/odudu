@@ -1135,15 +1135,14 @@ async function issueExchangedTokens(
   // person's own, so an exchange of an agent's token may neither drop the
   // marker nor narrow away the scope it hangs from (ADR 0050).
   let act = delegatedAct;
+  if (act === undefined && subject.token.act !== undefined) {
+    const carried = narrowActClaim(subject.token.act);
+    if (carried === null) throw refused('invalid_grant', subject.token.subjectId);
+    act = carried;
+  }
   if (holdsMcpScope(subject.token.scope)) {
     if (!holdsMcpScope(scope)) throw invalidScope();
-    if (act === undefined) {
-      const carried = narrowActClaim(subject.token.act);
-      if (subject.token.act !== undefined && carried === null) {
-        throw refused('invalid_grant', subject.token.subjectId);
-      }
-      act = carried ?? { sub: client.clientId };
-    }
+    act ??= { sub: client.clientId };
   }
 
   const audienceOutcome = resolveExchangeAudience({
@@ -1153,6 +1152,11 @@ async function issueExchangedTokens(
     issuedType,
   });
   if (audienceOutcome.kind === 'invalid_target') throw invalidTarget();
+  // An ID token names no grant, scope or actor, so a token for the admin API
+  // made from one would be the person's own with nothing marking an agent.
+  if (subjectType === 'id_token' && audienceOutcome.audience.includes(ADMIN_API_AUDIENCE)) {
+    throw invalidTarget();
+  }
 
   // An exchange may not lengthen the credential it was handed —
   // mintAccessToken's own `expCeiling`, and (below) this same instant
