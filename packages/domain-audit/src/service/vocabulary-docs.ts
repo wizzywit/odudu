@@ -30,6 +30,9 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'capability.refused':
     'An authenticated admin caller lacked the capability a route needs, or an agent token ' +
     'lacked the scope: `detail` names the capability or the reason.',
+  'agent.tool_call':
+    'An AI agent called one MCP tool for its owner, reads included: one row per call, naming ' +
+    'the agent client, the owner, the tool and the admin route it reached, never its arguments.',
   'token.foreign_issuer':
     'A genuine token issued by another tenant was presented to the admin API.',
   'login.password': 'A password was checked at sign-in.',

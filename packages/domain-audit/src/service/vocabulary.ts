@@ -5,7 +5,7 @@ import { type AdminMutationAction } from '#/service/admin-mutation-actions';
 // their own `detail` allowlist lives in @odudu/protocol-admin's
 // audit-detail.ts.
 export const AUDIT_ACTIONS = {
-  admin_access: ['capability.refused', 'token.foreign_issuer'],
+  admin_access: ['capability.refused', 'token.foreign_issuer', 'agent.tool_call'],
   authentication: [
     'login.password',
     'login.otp',
@@ -111,6 +111,16 @@ type AdminAccessInput =
       readonly eventType: 'admin_access';
       readonly action: 'token.foreign_issuer';
       readonly detail?: ReasonOnly;
+    })
+  | (EventCommon & {
+      readonly eventType: 'admin_access';
+      readonly action: 'agent.tool_call';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        tool: string;
+        route: string;
+      }>;
     });
 
 type AuthenticationInput =
@@ -206,6 +216,7 @@ export type AuditEventInput = AdminMutationInput | VocabularyEventInput;
 // vocabulary one — its own allowlist lives in audit-detail.ts.
 const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> = {
   'capability.refused': ['capability', 'also_admits'],
+  'agent.tool_call': ['agent_client', 'owner', 'tool', 'route'],
   'login.password': ['factor'],
   'login.otp': ['factor'],
   'login.recovery_code': ['factor'],
@@ -235,6 +246,10 @@ const STRING_DETAIL_KEYS: ReadonlySet<string> = new Set([
   'grant_type',
   'requested_token_type',
   'capability',
+  'agent_client',
+  'owner',
+  'tool',
+  'route',
 ]);
 
 function isValidDetailValue(key: string, value: unknown): boolean {

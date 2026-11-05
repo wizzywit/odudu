@@ -1,7 +1,11 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
 import { type AdminCapability } from '#/service/capability';
-import { type AdminPrincipal, type ForeignIssuer } from '#/usecase/authenticate-admin';
+import {
+  type AdminAgent,
+  type AdminPrincipal,
+  type ForeignIssuer,
+} from '#/usecase/authenticate-admin';
 
 export async function recordCapabilityRefused(
   tx: TenantScopedDatabase,
@@ -52,5 +56,36 @@ export async function recordForeignIssuer(
     actorSubjectId: foreign.subjectId,
     actorClientId: foreign.clientDbId,
     detail: { reason: 'foreign_issuer' },
+  });
+}
+
+export interface AgentToolCall {
+  readonly tool: string;
+  readonly route: string;
+  readonly outcome: 'allowed' | 'refused' | 'failed';
+  readonly reason?: 'insufficient_scope' | 'missing_capability';
+}
+
+// Only the tool's name and the route it reached are recorded, never what it
+// was called with: arguments and results may carry text an agent reads back.
+export async function recordAgentToolCall(
+  tx: TenantScopedDatabase,
+  principal: AdminPrincipal & { readonly agent: AdminAgent },
+  call: AgentToolCall,
+): Promise<void> {
+  await auditRepository(tx).record({
+    eventType: 'admin_access',
+    action: 'agent.tool_call',
+    outcome: call.outcome,
+    actorTenantId: principal.issuerTenantId,
+    actorSubjectId: principal.agent.ownerSubjectId,
+    actorClientId: principal.clientDbId,
+    detail: {
+      agent_client: principal.clientDbId,
+      owner: principal.agent.ownerSubjectId,
+      tool: call.tool,
+      route: call.route,
+      ...(call.reason === undefined ? {} : { reason: call.reason }),
+    },
   });
 }
