@@ -1,4 +1,5 @@
-import { addressUrl, type TenantAddress } from '@odudu/kernel';
+import { addressIssuer, addressUrl, type TenantAddress } from '@odudu/kernel';
+import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '@odudu/protocol-oidc';
 
 // The MCP endpoint of a tenant, and so the `resource` its protected-resource
 // metadata states and the audience its tokens carry. No trailing slash: a
@@ -15,3 +16,22 @@ export function resourceMetadataUrl(address: TenantAddress): string {
 }
 
 export const RESOURCE_METADATA_SUFFIX = '/.well-known/oauth-protected-resource';
+
+export interface ResourceMetadata {
+  resource: string;
+  authorization_servers: string[];
+  scopes_supported: string[];
+  bearer_methods_supported: string[];
+}
+
+// RFC 9728 metadata of a tenant's MCP endpoint. The one authorization server
+// is the tenant's issuer, the value its RFC 8414 document states, because a
+// client reads only the first entry.
+export function resourceMetadataDocument(address: TenantAddress): ResourceMetadata {
+  return {
+    resource: mcpResourceUrl(address),
+    authorization_servers: [addressIssuer(address)],
+    scopes_supported: [MCP_READ_SCOPE, MCP_WRITE_SCOPE],
+    bearer_methods_supported: ['header'],
+  };
+}
