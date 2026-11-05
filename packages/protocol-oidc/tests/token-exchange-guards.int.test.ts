@@ -9,7 +9,12 @@ import type { DatabaseHandle, TenantScopedDatabase } from '@odudu/db';
 import { provisionTenant } from '@odudu/authn-flows';
 import { auditEvents } from '@odudu/domain-audit';
 import { subjectRepository } from '@odudu/domain-identity';
-import { clientRepository, provisionClientDefaults, type ClientRecord } from '@odudu/domain-tenant';
+import {
+  ADMIN_API_AUDIENCE,
+  clientRepository,
+  provisionClientDefaults,
+  type ClientRecord,
+} from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -20,6 +25,7 @@ import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
+import { tokenGrants } from '#/schema/token-grants';
 import { refreshTokenRepository } from '#/repository/refresh';
 import { provisionAdminClient } from '#/usecase/provision-admin-client';
 import { provisionMcpClient } from '#/usecase/provision-mcp-client';
@@ -81,7 +87,7 @@ async function addClient(
     redirectUris: ['https://app.example/callback'],
     grantTypes: [TOKEN_EXCHANGE_GRANT, ...extraGrants],
     tokenEndpointAuthMethod: type === 'public' ? 'none' : 'client_secret_basic',
-    audiences: ['https://api.example'],
+    audiences: ['https://api.example', ADMIN_API_AUDIENCE],
     accessTokenTtlSeconds: 300,
     refreshTokenTtlSeconds: 3600,
     tokenExchangeImpersonationAllowed: true,
@@ -124,7 +130,9 @@ async function newWorld(
       ownerSubject: ownerSubject.id,
       actorSubject: actorSubject.id,
       peerServiceSubject: peerService.id,
-      confidential: await addClient(tx, tenantId, 'confidential-ex', 'confidential', confidential),
+      confidential: await addClient(tx, tenantId, 'confidential-ex', 'confidential', confidential, [
+        'refresh_token',
+      ]),
       public: await addClient(tx, tenantId, 'public-ex', 'public', publicSettings),
       peer: await addClient(tx, tenantId, 'peer', 'confidential', {}, ['authorization_code']),
     };
@@ -142,7 +150,9 @@ async function tokenFor(
   client: ClientRecord,
   subjectId: string,
   scope = 'openid',
+  extra: { audience?: string; act?: unknown } = {},
 ): Promise<{ token: string; grantId: string }> {
+  const audience = extra.audience ?? 'https://api.example';
   return withTenant(app.db, w.tenantId, async (tx) => {
     const grantId = newId();
     await tokenGrantRepository(tx).create({
@@ -151,20 +161,21 @@ async function tokenFor(
       clientId: client.id,
       subjectId,
       scope,
-      audience: ['https://api.example'],
+      audience: [audience],
     });
     const iat = Math.floor(Date.now() / 1000);
     const token = await signJwt(
       {
         iss: w.issuer,
         sub: subjectId,
-        aud: ['https://api.example', w.issuer],
+        aud: [audience, w.issuer],
         client_id: client.clientId,
         scope,
         iat,
         exp: iat + 600,
         jti: newId(),
         grant_id: grantId,
+        ...(extra.act === undefined ? {} : { act: extra.act }),
       },
       { key: await signingKeyRepository(tx).active(), kek: KEK, typ: 'at+jwt' },
     );
@@ -192,6 +203,33 @@ function exchange(w: World, client: ClientRecord, fields: Record<string, string>
           }),
     },
   });
+}
+
+function exchangeGrant(w: World, client: ClientRecord, fields: Record<string, string>) {
+  return http.inject({
+    method: 'POST',
+    url: `/tenants/${w.tenant}/protocol/openid-connect/token`,
+    payload: new URLSearchParams(fields).toString(),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: `Basic ${Buffer.from(`${client.clientId}:${SECRET}`).toString('base64')}`,
+    },
+  });
+}
+
+// The same token, grant and all, with a `scope` claim narrower than its
+// grant's: what an agent token is, since it shares its owner's grant.
+async function signNarrowed(w: World, token: string, scope: string): Promise<string> {
+  const claims: unknown = JSON.parse(
+    Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'),
+  );
+  if (typeof claims !== 'object' || claims === null) throw new Error('unreadable token');
+  return withTenant(app.db, w.tenantId, async (tx) =>
+    signJwt(
+      { ...claims, scope },
+      { key: await signingKeyRepository(tx).active(), kek: KEK, typ: 'at+jwt' },
+    ),
+  );
 }
 
 async function delegation(w: World, requester: ClientRecord, actorClient: ClientRecord) {
@@ -408,5 +446,193 @@ describe('the built-in clients', () => {
         tokenExchangeActorFromOtherClient: false,
       });
     }
+  });
+});
+
+function claimsOf(res: LightMyRequestResponse): Record<string, unknown> {
+  const token = res.json<{ access_token: string }>().access_token;
+  return JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8')) as Record<
+    string,
+    unknown
+  >;
+}
+
+describe('an exchange cannot strip the agent marker from a token', () => {
+  const agentToken = (w: World, over: { scope?: string; act?: unknown } = {}) =>
+    tokenFor(w, w.confidential, w.ownerSubject, over.scope ?? 'mcp:read openid', {
+      audience: ADMIN_API_AUDIENCE,
+      ...(over.act === undefined ? {} : { act: over.act }),
+    });
+
+  const impersonate = (w: World, subjectToken: string, scope?: string) =>
+    exchange(w, w.confidential, {
+      subject_token: subjectToken,
+      resource: ADMIN_API_AUDIENCE,
+      ...(scope === undefined ? {} : { scope }),
+    });
+
+  it('refuses a narrowing that drops every MCP scope, the way to an ordinary admin token', async () => {
+    const w = await newWorld();
+    const subject = await agentToken(w, { act: { sub: 'agent' } });
+    const res = await impersonate(w, subject.token, 'openid');
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_scope' });
+  });
+
+  it('refuses it when the subject token holds no act either', async () => {
+    const w = await newWorld();
+    const subject = await agentToken(w);
+    expect((await impersonate(w, subject.token, 'openid')).json()).toMatchObject({
+      error: 'invalid_scope',
+    });
+  });
+
+  it('keeps an MCP scope and sets act to the requesting client when the subject names none', async () => {
+    const w = await newWorld();
+    const subject = await agentToken(w);
+    const res = await impersonate(w, subject.token, 'mcp:read');
+    expect(res.statusCode, res.payload).toBe(200);
+    expect(claimsOf(res)).toMatchObject({
+      scope: 'mcp:read',
+      act: { sub: 'confidential-ex' },
+      sub: w.ownerSubject,
+    });
+  });
+
+  it('carries the subject token act through instead of replacing it', async () => {
+    const w = await newWorld();
+    const subject = await agentToken(w, { act: { sub: 'original-agent' } });
+    const res = await impersonate(w, subject.token, 'mcp:read');
+    expect(res.statusCode, res.payload).toBe(200);
+    expect(claimsOf(res).act).toEqual({ sub: 'original-agent' });
+  });
+
+  it('keeps the marker when no scope is requested', async () => {
+    const w = await newWorld();
+    const subject = await agentToken(w);
+    const res = await impersonate(w, subject.token);
+    expect(res.statusCode, res.payload).toBe(200);
+    expect(claimsOf(res)).toMatchObject({
+      scope: 'mcp:read openid',
+      act: { sub: 'confidential-ex' },
+    });
+  });
+
+  it('refuses a subject token whose act is malformed, rather than dropping it', async () => {
+    const w = await newWorld();
+    const subject = await agentToken(w, { act: 'not-an-object' });
+    expect((await impersonate(w, subject.token, 'mcp:read')).statusCode).toBe(400);
+  });
+
+  it('keeps the marker through a delegated exchange too, and refuses its narrowing the same way', async () => {
+    const w = await newWorld();
+    const subject = await agentToken(w);
+    const actor = await tokenFor(w, w.confidential, w.actorSubject);
+    const ok = await exchange(w, w.confidential, {
+      subject_token: subject.token,
+      actor_token: actor.token,
+      actor_token_type: ACCESS,
+      resource: ADMIN_API_AUDIENCE,
+      scope: 'mcp:read',
+    });
+    expect(ok.statusCode, ok.payload).toBe(200);
+    expect(claimsOf(ok)).toMatchObject({ act: { sub: w.actorSubject }, scope: 'mcp:read' });
+    const stripped = await exchange(w, w.confidential, {
+      subject_token: subject.token,
+      actor_token: actor.token,
+      actor_token_type: ACCESS,
+      resource: ADMIN_API_AUDIENCE,
+      scope: 'openid',
+    });
+    expect(stripped.json()).toMatchObject({ error: 'invalid_scope' });
+  });
+
+  it('keeps the marker on an exchanged refresh token, so every token it mints names the agent', async () => {
+    const w = await newWorld();
+    const subject = await agentToken(w);
+    const res = await exchange(w, w.confidential, {
+      subject_token: subject.token,
+      resource: ADMIN_API_AUDIENCE,
+      scope: 'mcp:read',
+      requested_token_type: REFRESH,
+    });
+    expect(res.statusCode, res.payload).toBe(200);
+    const grants = await withTenant(app.db, w.tenantId, (tx) =>
+      tx.select().from(tokenGrants).where(eq(tokenGrants.exchangedFromGrantId, subject.grantId)),
+    );
+    expect(grants).toHaveLength(1);
+    expect(grants[0]?.actChain).toEqual({ sub: 'confidential-ex' });
+  });
+
+  it('leaves an ordinary exchange alone: no MCP scope in, none required, no act added', async () => {
+    const w = await newWorld();
+    const subject = await tokenFor(w, w.confidential, w.ownerSubject, 'openid profile');
+    const res = await exchange(w, w.confidential, {
+      subject_token: subject.token,
+      scope: 'openid',
+    });
+    expect(res.statusCode, res.payload).toBe(200);
+    expect(claimsOf(res).act).toBeUndefined();
+    expect(claimsOf(res).scope).toBe('openid');
+  });
+
+  it('does not let the token it presents widen to what its grant alone holds', async () => {
+    const w = await newWorld();
+    const subject = await tokenFor(w, w.confidential, w.ownerSubject, 'mcp:read mcp:write', {
+      audience: ADMIN_API_AUDIENCE,
+    });
+    const narrowed = await signNarrowed(w, subject.token, 'mcp:read');
+    const res = await impersonate(w, narrowed, 'mcp:write');
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_scope' });
+  });
+});
+
+describe('a refresh cannot strip the agent marker from a grant either', () => {
+  async function refreshableGrant(w: World, scope: string) {
+    const held = await tokenFor(w, w.confidential, w.ownerSubject, scope, {
+      audience: ADMIN_API_AUDIENCE,
+    });
+    const raw = `refresh-${newId()}`;
+    await withTenant(app.db, w.tenantId, (tx) =>
+      refreshTokenRepository(tx).create({
+        tokenHash: hashRefreshToken(raw),
+        tenantId: w.tenantId,
+        grantId: held.grantId,
+        expiresAt: new Date(Date.now() + 3600_000),
+      }),
+    );
+    return raw;
+  }
+
+  const refresh = (w: World, token: string, scope?: string) =>
+    exchangeGrant(w, w.confidential, {
+      grant_type: 'refresh_token',
+      refresh_token: token,
+      ...(scope === undefined ? {} : { scope }),
+    });
+
+  it('refuses a narrowing that drops every MCP scope', async () => {
+    const w = await newWorld();
+    const raw = await refreshableGrant(w, 'mcp:read openid');
+    const res = await refresh(w, raw, 'openid');
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_scope' });
+  });
+
+  it('still narrows to a scope that keeps one, and keeps all of them by default', async () => {
+    const w = await newWorld();
+    const first = await refresh(w, await refreshableGrant(w, 'mcp:read openid'), 'mcp:read');
+    expect(first.statusCode, first.payload).toBe(200);
+    expect(claimsOf(first).scope).toBe('mcp:read');
+    const second = await refresh(w, await refreshableGrant(w, 'mcp:read openid'));
+    expect(second.statusCode, second.payload).toBe(200);
+    expect(claimsOf(second).scope).toBe('mcp:read openid');
+  });
+
+  it('leaves a grant with no MCP scope free to narrow', async () => {
+    const w = await newWorld();
+    const res = await refresh(w, await refreshableGrant(w, 'openid profile'), 'openid');
+    expect(res.statusCode, res.payload).toBe(200);
   });
 });

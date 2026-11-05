@@ -46,6 +46,7 @@ import {
 } from '#/service/errors';
 import {
   capLifetimeForScope,
+  holdsMcpScope,
   refreshAllowedForScope,
   scopesCoherentWithAudience,
 } from '#/service/mcp-scopes';
@@ -766,7 +767,9 @@ async function evaluatePresentedRefreshToken(
 
   const decision = evaluateRefreshGrant(grant, client, subject, { requestedScope: request.scope });
   if (!decision.ok) {
-    throw decision.reason === 'scope_widened' ? invalidScope() : invalidGrant();
+    throw decision.reason === 'scope_widened' || decision.reason === 'mcp_scope_dropped'
+      ? invalidScope()
+      : invalidGrant();
   }
 
   // Repeated after rotation (line ~680 below), where it stays the
@@ -1122,11 +1125,26 @@ async function issueExchangedTokens(
   if (actChain !== undefined && actChain.kind !== 'ok') {
     throw refused('invalid_grant', subject.token.subjectId);
   }
-  const act = actChain?.kind === 'ok' ? actChain.act : undefined;
+  const delegatedAct = actChain?.kind === 'ok' ? actChain.act : undefined;
 
   const scopeOutcome = attenuateScope(request.scope, subject.token.scope);
   if (scopeOutcome.kind === 'widened') throw invalidScope();
   const scope = [...scopeOutcome.scope];
+
+  // The admin API treats a token with no `act` and no MCP scope as the
+  // person's own, so an exchange of an agent's token may neither drop the
+  // marker nor narrow away the scope it hangs from (ADR 0050).
+  let act = delegatedAct;
+  if (holdsMcpScope(subject.token.scope)) {
+    if (!holdsMcpScope(scope)) throw invalidScope();
+    if (act === undefined) {
+      const carried = narrowActClaim(subject.token.act);
+      if (subject.token.act !== undefined && carried === null) {
+        throw refused('invalid_grant', subject.token.subjectId);
+      }
+      act = carried ?? { sub: client.clientId };
+    }
+  }
 
   const audienceOutcome = resolveExchangeAudience({
     resource: request.resource,
@@ -1143,7 +1161,7 @@ async function issueExchangedTokens(
   // Recorded only for a delegated exchange (`act` present); an
   // impersonation names no actor in the claim, so none is recorded here
   // either (token-grants.ts's own comment on the column).
-  const actorSubjectId = act === undefined ? null : actorSubject;
+  const actorSubjectId = actor === null ? null : actorSubject;
   const requestedUserinfoClaims = subject.token.requestedUserinfoClaims;
   const recordExchange = (resourceId: string | null, issuedTokenType: string) =>
     auditRepository(tx).record({

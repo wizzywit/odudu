@@ -139,6 +139,18 @@ describe('evaluateRefreshGrant', () => {
     expect(decision).toEqual({ ok: false, reason: 'write_not_refreshable' });
   });
 
+  it('refuses a narrowing that leaves a grant holding an MCP scope with none', () => {
+    const read: TokenGrantRecord = { ...grant, scope: 'openid mcp:read' };
+    expect(evaluateRefreshGrant(read, client, subject, { requestedScope: 'openid' })).toEqual({
+      ok: false,
+      reason: 'mcp_scope_dropped',
+    });
+    expect(evaluateRefreshGrant(read, client, subject, { requestedScope: 'mcp:read' })).toEqual({
+      ok: true,
+      scope: ['mcp:read'],
+    });
+  });
+
   it('permits a matching client with no requested scope, keeping the original scope', () => {
     const decision = evaluateRefreshGrant(grant, client, subject, { requestedScope: '' });
     expect(decision).toEqual({ ok: true, scope: ['openid', 'profile'] });
