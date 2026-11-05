@@ -9,7 +9,11 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
-import { clientRepository, clientScopeRepository } from '@odudu/domain-tenant';
+import {
+  clientRegistrationTokenRepository,
+  clientRepository,
+  clientScopeRepository,
+} from '@odudu/domain-tenant';
 import { buildClientSigningKey, jwksDocumentFor } from '#/testing/private-key-jwt-fixture';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -267,6 +271,23 @@ describe('registration under the mcp policy', () => {
 
   it('admits a loopback http redirect on any port', async () => {
     await registered({ ...PUBLIC, redirect_uris: ['http://127.0.0.1:53124/cb'] });
+  });
+
+  it('does not read a registration token: the client stays anonymous and the token unspent', async () => {
+    const { token } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
+    );
+    for (const attempt of [1, 2]) {
+      const res = await http.inject({
+        method: 'POST',
+        url: `/tenants/${tenant}/clients-registrations/openid-connect`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { ...PUBLIC, client_name: `Notes ${String(attempt)}` },
+      });
+      expect(res.statusCode, res.body).toBe(201);
+      const { client } = await rowsOf(res.json<{ client_id: string }>().client_id);
+      expect(client?.registrationOrigin).toBe('anonymous');
+    }
   });
 
   it('refuses the client past the tenant ceiling', async () => {

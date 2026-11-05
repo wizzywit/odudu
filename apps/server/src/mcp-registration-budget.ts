@@ -25,7 +25,9 @@ export function mcpRegistrationBudget(options: McpRegistrationBudgetOptions): Re
   return {
     check: (tenantId, origin) => {
       const own = origins.check(`${tenantId}:${throttleOrigin(origin)}`);
-      return own.allowed ? tenants.check(tenantId) : own;
+      if (!own.allowed) return { ...own, scope: 'address' };
+      const all = tenants.check(tenantId);
+      return all.allowed ? all : { ...all, scope: 'tenant' };
     },
   };
 }

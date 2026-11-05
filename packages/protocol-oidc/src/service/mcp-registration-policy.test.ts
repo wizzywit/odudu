@@ -160,3 +160,38 @@ describe('policy applied to a dynamic client', () => {
     expect(grantForClient(grant, false)).toEqual({ audience: MCP, granted: false });
   });
 });
+
+describe('policy applied after the tenant has moved address', () => {
+  const OLD = 'https://idp.example/tenants/acme/mcp';
+  const NOW = 'https://login.acme.com/mcp';
+  const ADMIN = 'urn:odudu:params:admin-api';
+
+  it('replaces a stored MCP URL with the current one while the policy is mcp', () => {
+    expect(audiencesHeld('anonymous', 'mcp', [OLD], NOW)).toEqual([NOW]);
+    expect(audiencesHeld('cimd', 'mcp', [OLD, ADMIN], NOW)).toEqual([ADMIN, NOW]);
+  });
+
+  it('gives nothing to a client that held no MCP URL', () => {
+    expect(audiencesHeld('anonymous', 'mcp', [], NOW)).toEqual([]);
+  });
+
+  it('takes every MCP URL the tenant ever had out once the policy is gone', () => {
+    expect(audiencesHeld('anonymous', 'open', [OLD, NOW, ADMIN], NOW)).toEqual([ADMIN]);
+    expect(audiencesUnderPolicy([OLD, ADMIN], NOW, false)).toEqual([ADMIN]);
+  });
+
+  it('re-derives a refresh from a grant issued at the old address', () => {
+    const base = {
+      registrationOrigin: 'anonymous',
+      mcpAudience: NOW,
+      scope: ['openid', 'mcp:read'],
+      audience: [OLD],
+    };
+    expect(refreshUnderPolicy({ ...base, policy: 'mcp' }).audience).toEqual([NOW]);
+    expect(refreshUnderPolicy({ ...base, policy: 'open' }).audience).toEqual([]);
+  });
+
+  it('leaves another client’s audiences alone', () => {
+    expect(audiencesHeld('seeded', 'open', [OLD], NOW)).toEqual([OLD]);
+  });
+});

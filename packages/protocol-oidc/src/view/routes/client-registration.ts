@@ -1,3 +1,4 @@
+import { RATE_LIMIT_DESCRIPTIONS } from '#/service/registration-throttle';
 import { type RegistrationErrorCode } from '#/service/oauth-errors';
 import { tenantAddressOf } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
@@ -118,7 +119,7 @@ export function registerClientRegistrationRoute(
       case 'rate_limited':
         return reply.code(429).header('retry-after', String(outcome.retryAfterSeconds)).send({
           error: 'invalid_client_metadata',
-          error_description: 'too many registrations from this address; retry later',
+          error_description: RATE_LIMIT_DESCRIPTIONS[outcome.scope],
         });
       case 'ok':
         return reply.code(201).send(toResponseBody(outcome.client));
