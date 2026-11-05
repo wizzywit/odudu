@@ -72,7 +72,16 @@ describe('createFetchLimiter', () => {
 
   it('tracks at most maxTenants tenants', () => {
     const { limiter } = setup();
-    for (let i = 0; i < 9; i += 1) limiter.tryAcquire(`t${String(i)}`, 'a.example');
+    for (let i = 0; i < 9; i += 1) limiter.tryAcquire(`t${String(i)}`, `h${String(i)}.example`);
     expect(limiter.size().tenants).toBe(4);
+  });
+
+  it('does not evict a host budget for a request the tenant budget refused', () => {
+    const { limiter } = setup({ perTenant: 2, perHost: 1, maxHosts: 2 });
+    limiter.tryAcquire('t1', 'a.example');
+    limiter.tryAcquire('t1', 'b.example');
+    expect(limiter.tryAcquire('t1', 'c.example')).toBe(false);
+    expect(limiter.size().hosts).toBe(2);
+    expect(limiter.tryAcquire('t2', 'a.example')).toBe(false);
   });
 });

@@ -4,6 +4,7 @@ import {
   isCimdClientId,
   isCimdRedirectUri,
   parseCimdDocument,
+  projectCimdDocument,
 } from '#/service/client-id-metadata';
 
 const ID = 'https://app.example/oauth/client.json';
@@ -242,5 +243,57 @@ describe('isCimdClientId refuses address literals', () => {
 
   it('still accepts a named host', () => {
     expect(isCimdClientId('https://app.example.com/client.json')).toBe(true);
+  });
+});
+
+describe('projectCimdDocument', () => {
+  const doc = {
+    client_id: ID,
+    client_name: ' Example ',
+    redirect_uris: ['https://app.example/cb'],
+    token_endpoint_auth_method: 'private_key_jwt',
+    jwks: {
+      keys: [
+        {
+          kty: 'RSA',
+          n: 'abc',
+          e: 'AQAB',
+          weird: 1e99999,
+          nested: { a: 1 },
+          key_ops: ['verify', 2],
+        },
+      ],
+    },
+    big: Array.from({ length: 100 }, () => 1e9),
+    extra: { n: 1e99999 },
+  };
+
+  it('keeps only what validation read, and what it keeps validates again', () => {
+    const outcome = parseCimdDocument(ID, doc);
+    if (outcome.kind !== 'ok') throw new Error('document should validate');
+    const projection = projectCimdDocument(outcome.client);
+    expect(Object.keys(projection).sort()).toEqual([
+      'client_id',
+      'client_name',
+      'jwks',
+      'redirect_uris',
+      'token_endpoint_auth_method',
+    ]);
+    expect(JSON.stringify(projection)).not.toMatch(/1e|Infinity|null|nested|weird/);
+    const again = parseCimdDocument(ID, projection);
+    expect(again.kind).toBe('ok');
+    if (again.kind === 'ok') expect(projectCimdDocument(again.client)).toEqual(projection);
+  });
+
+  it('keeps a jwks_uri as given', () => {
+    const outcome = parseCimdDocument(ID, {
+      ...doc,
+      jwks: undefined,
+      jwks_uri: 'https://app.example/jwks.json',
+    });
+    if (outcome.kind !== 'ok') throw new Error('document should validate');
+    expect(projectCimdDocument(outcome.client)).toMatchObject({
+      jwks_uri: 'https://app.example/jwks.json',
+    });
   });
 });

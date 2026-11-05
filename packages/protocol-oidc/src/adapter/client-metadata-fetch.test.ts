@@ -145,8 +145,13 @@ describe('fetchCimdDocument', () => {
     expect(calls.requests).toHaveLength(1);
   });
 
-  it.each([404, 500])('refuses status %s', async (status) => {
+  it.each([404, 500, 204, 206])('refuses status %s, whatever the body', async (status) => {
     const { deps: d } = deps({ response: ok({ status }) });
+    expect(await fetchCimdDocument(URL_OK, d)).toEqual({ kind: 'refused', reason: 'status' });
+  });
+
+  it('refuses a 204 with no body as a status, not as bad JSON', async () => {
+    const { deps: d } = deps({ response: ok({ status: 204, body: '' }) });
     expect(await fetchCimdDocument(URL_OK, d)).toEqual({ kind: 'refused', reason: 'status' });
   });
 

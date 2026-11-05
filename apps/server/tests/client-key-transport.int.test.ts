@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type AddressInfo } from 'node:net';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { ResponseTimedOut, ResponseTooLarge } from '@odudu/protocol-oidc';
+import { fetchCimdDocument, ResponseTimedOut, ResponseTooLarge } from '@odudu/protocol-oidc';
 import { createClientKeyRequest, createCimdRequest } from '#/client-key-transport';
 
 // `.invalid` is reserved by RFC 2606 and never resolves. The hostname below
@@ -275,16 +275,22 @@ describe('createCimdRequest', () => {
     ).rejects.toBeInstanceOf(ResponseTimedOut);
   });
 
-  it('asks for no compression and hands a gzip body back undecoded', async () => {
+  it('sends no accept-encoding and refuses a gzip body it did not decode, through the fetcher', async () => {
     let encoding: string | string[] | undefined;
-    const { port, address } = await startServer((req, res) => {
+    const { port } = await startServer((req, res) => {
       encoding = req.headers['accept-encoding'];
       res.writeHead(200, { 'content-type': 'application/json', 'content-encoding': 'gzip' });
       res.end(gzipSync('{"a":1}'));
     });
-    const response = await createCimdRequest({ ca: cert })(urlFor(port), address);
+    const transport = createCimdRequest({ ca: cert });
+    const outcome = await fetchCimdDocument(urlFor(port).href, {
+      // The guard sees a public answer; the connection goes to the test server.
+      lookup: () => Promise.resolve(['93.184.216.34']),
+      request: (url) => transport(url, '127.0.0.1'),
+      now: () => new Date(),
+    });
     expect(encoding).toBeUndefined();
-    expect(() => JSON.parse(response.body)).toThrow();
+    expect(outcome).toEqual({ kind: 'refused', reason: 'not_json' });
   });
 
   it('hands a redirect back unfollowed', async () => {

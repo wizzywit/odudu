@@ -10,6 +10,7 @@ import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { resolveCimdDocument } from '#/usecase/resolve-cimd-document';
 import { cimdCacheRepository } from '#/repository/client-metadata-cache';
 import { clientMetadataCache } from '#/schema/client-metadata-cache';
 
@@ -185,5 +186,31 @@ describe('cimdCacheRepository', () => {
     await expect(
       repo.store(mine, `https://a.example.com/${'a'.repeat(2100)}`, {}, NOW, later, 1000),
     ).rejects.toThrow();
+  });
+
+  it('keeps the projection of a document whose extra members would overflow the size check', async () => {
+    const url = 'https://num.example.com/client.json';
+    const raw = JSON.parse(
+      `{"client_id":"${url}","client_name":"N","redirect_uris":["https://num.example.com/cb"],` +
+        `"x":1e99999,"big":[${Array.from({ length: 2000 }, () => '1e9').join(',')}]}`,
+    ) as unknown;
+    const repo = cimdCacheRepository(app);
+    const outcome = await resolveCimdDocument(mine, url, {
+      cache: repo,
+      fetch: () => Promise.resolve({ kind: 'ok', body: raw, expiresAt: later, cacheable: true }),
+      limiter: { tryAcquire: () => true },
+      now: () => NOW,
+      warn: () => {
+        throw new Error('the store must not fail');
+      },
+    });
+    expect(outcome.kind).toBe('ok');
+    const stored = await repo.find(mine, url, NOW);
+    expect(Object.keys(stored?.body as object).sort()).toEqual([
+      'client_id',
+      'client_name',
+      'redirect_uris',
+      'token_endpoint_auth_method',
+    ]);
   });
 });

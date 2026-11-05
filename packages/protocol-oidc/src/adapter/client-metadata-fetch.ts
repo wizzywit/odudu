@@ -116,7 +116,7 @@ function interpret(response: CimdResponse, now: Date): CimdFetchOutcome {
   if (response.status >= 300 && response.status < 400) {
     throw new Refused('redirect');
   }
-  if (response.status < 200 || response.status >= 300) {
+  if (response.status !== 200) {
     throw new Refused('status');
   }
   if (!isJson(response.contentType)) {

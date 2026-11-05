@@ -1,11 +1,12 @@
 -- A Client ID Metadata Document fetched for a tenant, kept until its
 -- Cache-Control lifetime ends (one minute to a day, set by the fetcher). The
 -- URL is the client_id the document was fetched for, never a foreign key: the
--- client it names need not exist anywhere else. The body is capped at the
--- fetch's own 5 KiB, measured on its text form (jsonb's stored size is several
--- times larger for numeric arrays), with room for the space jsonb's text form
--- adds after every comma and colon (at most one and a half times a 5 KiB
--- document, so 8192); at most a fixed number of rows per tenant are kept, the
+-- client it names need not exist anywhere else. The body is the validated
+-- projection of the document (strings and string lists only), never the raw
+-- document. The CHECK on its text form is a backstop for that projection and
+-- guarantees no more than that: a raw document is not bounded by it, since a
+-- number such as 1e99999 prints far longer than it was written.
+-- At most a fixed number of rows per tenant are kept, the
 -- oldest fetched going first. Each statement writes only what is missing, so
 -- the file can run again to no effect.
 CREATE TABLE IF NOT EXISTS client_metadata_cache (

@@ -26,16 +26,27 @@ interface Window {
 // several instances the effective limit is the stated one times the instance
 // count. Each map holds at most its bound, the oldest-inserted key leaving first.
 export function createFetchLimiter(options: FetchLimiterOptions): FetchLimiter {
+  // The host map is global across tenants by design: a host's budget protects
+  // that host. Pushing one out of it takes about maxHosts distinct hosts.
   const hosts = new Map<string, Window>();
   const tenants = new Map<string, Window>();
 
-  const current = (map: Map<string, Window>, key: string, max: number, now: number): Window => {
+  const live = (map: Map<string, Window>, key: string, now: number): Window | undefined => {
     const found = map.get(key);
-    if (found !== undefined && now - found.start < options.windowMs) return found;
+    return found !== undefined && now - found.start < options.windowMs ? found : undefined;
+  };
+
+  const open = (map: Map<string, Window>, key: string, max: number, now: number): Window => {
+    const found = live(map, key, now);
+    if (found !== undefined) {
+      return found;
+    }
     map.delete(key);
     if (map.size >= max) {
       const oldest = map.keys().next();
-      if (!oldest.done) map.delete(oldest.value);
+      if (!oldest.done) {
+        map.delete(oldest.value);
+      }
     }
     const fresh = { start: now, count: 0 };
     map.set(key, fresh);
@@ -45,13 +56,14 @@ export function createFetchLimiter(options: FetchLimiterOptions): FetchLimiter {
   return {
     tryAcquire: (tenantId, host) => {
       const now = options.now().getTime();
-      const hostWindow = current(hosts, host, options.maxHosts, now);
-      const tenantWindow = current(tenants, tenantId, options.maxTenants, now);
-      if (hostWindow.count >= options.perHost || tenantWindow.count >= options.perTenant) {
+      if (
+        (live(tenants, tenantId, now)?.count ?? 0) >= options.perTenant ||
+        (live(hosts, host, now)?.count ?? 0) >= options.perHost
+      ) {
         return false;
       }
-      hostWindow.count += 1;
-      tenantWindow.count += 1;
+      open(hosts, host, options.maxHosts, now).count += 1;
+      open(tenants, tenantId, options.maxTenants, now).count += 1;
       return true;
     },
     size: () => ({ hosts: hosts.size, tenants: tenants.size }),

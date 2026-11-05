@@ -149,3 +149,36 @@ export function isCimdRedirectUri(presented: string, registered: readonly string
 export function cimdConsentHost(clientIdUrl: string): string {
   return new URL(clientIdUrl).host;
 }
+
+function stringMembers(key: Record<string, unknown>): Record<string, unknown> {
+  const kept: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(key)) {
+    if (typeof value === 'string') {
+      kept[name] = value;
+    } else if (Array.isArray(value) && value.every((v) => typeof v === 'string')) {
+      kept[name] = value;
+    }
+  }
+  return kept;
+}
+
+// What a validated document is kept as: only the members the validator read,
+// and of a JWK only its string members, so nothing the document author chose
+// to put elsewhere (a number whose text is enormous, say) reaches storage.
+export function projectCimdDocument(client: CimdClient): Record<string, unknown> {
+  const projection: Record<string, unknown> = {
+    client_id: client.clientId,
+    client_name: client.clientName,
+    redirect_uris: client.redirectUris,
+    token_endpoint_auth_method: client.tokenEndpointAuthMethod,
+  };
+  if (client.jwks !== null) {
+    projection.jwks = {
+      keys: client.jwks.keys.map((key) => (isRecord(key) ? stringMembers(key) : {})),
+    };
+  }
+  if (client.jwksUri !== null) {
+    projection.jwks_uri = client.jwksUri;
+  }
+  return projection;
+}

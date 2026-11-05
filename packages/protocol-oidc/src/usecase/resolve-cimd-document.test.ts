@@ -33,6 +33,7 @@ function setup(over: Partial<ResolveCimdDeps> = {}) {
       return Promise.resolve({ kind: 'ok', body: DOC, expiresAt: later, cacheable: true });
     },
     limiter: { tryAcquire: () => true },
+    warn: () => undefined,
     now: () => NOW,
     ...over,
   };
@@ -43,13 +44,13 @@ describe('resolveCimdDocument', () => {
   it('serves a fresh cached document without fetching', async () => {
     const { deps, fetched } = setup({
       cache: {
-        find: () => Promise.resolve({ body: { cached: true }, expiresAt: later }),
+        find: () => Promise.resolve({ body: DOC, expiresAt: later }),
         store: () => Promise.reject(new Error('must not store')),
       },
     });
     expect(await resolveCimdDocument('t1', URL_A, deps)).toEqual({
       kind: 'ok',
-      body: { cached: true },
+      body: DOC,
     });
     expect(fetched).toEqual([]);
   });
@@ -81,14 +82,46 @@ describe('resolveCimdDocument', () => {
     expect(stored).toEqual([]);
   });
 
-  it('serves the fetched document uncached when the store fails', async () => {
+  it('serves the fetched document uncached when the store fails, and says so without the body', async () => {
+    const warned: unknown[][] = [];
     const { deps } = setup({
+      warn: (...args) => {
+        warned.push(args);
+      },
       cache: {
         find: () => Promise.resolve(null),
-        store: () => Promise.reject(new Error('check constraint')),
+        store: () =>
+          Promise.reject(
+            Object.assign(new Error('insert ... {"client_name":"App"}'), { code: '23514' }),
+          ),
       },
     });
     expect(await resolveCimdDocument('t1', URL_A, deps)).toEqual({ kind: 'ok', body: DOC });
+    expect(warned).toEqual([
+      ['cimd cache store failed', { tenantId: 't1', host: 'app.example.com', code: '23514' }],
+    ]);
+  });
+
+  it('caches and serves the projection, never the raw body', async () => {
+    const raw = { ...DOC, extra: { n: 1e99999 }, big: Array.from({ length: 50 }, () => 1e9) };
+    const { deps, stored } = setup({
+      fetch: () => Promise.resolve({ kind: 'ok', body: raw, expiresAt: later, cacheable: true }),
+    });
+    expect(await resolveCimdDocument('t1', URL_A, deps)).toEqual({ kind: 'ok', body: DOC });
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.body).toEqual(DOC);
+    expect(JSON.stringify(stored[0]?.body)).not.toContain('extra');
+  });
+
+  it('treats a cached projection that no longer validates as a miss', async () => {
+    const { deps, fetched } = setup({
+      cache: {
+        find: () => Promise.resolve({ body: { client_id: 'other' }, expiresAt: later }),
+        store: () => Promise.resolve(),
+      },
+    });
+    expect((await resolveCimdDocument('t1', URL_A, deps)).kind).toBe('ok');
+    expect(fetched).toEqual([URL_A]);
   });
 
   it('refuses a document that does not validate, and keeps nothing of it', async () => {
