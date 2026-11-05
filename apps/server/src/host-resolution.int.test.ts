@@ -639,6 +639,52 @@ describe('the account pages on a domain', () => {
   });
 });
 
+describe('the assets a page links, on a domain', () => {
+  it('are served from the root of the domain, as they are from the base address', async () => {
+    const instrumentDir = await mkdtemp(join(tmpdir(), 'domain-instrument-'));
+    const font = 'ibm-plex-sans-latin-400-normal.08949f72.woff2';
+    await mkdir(join(instrumentDir, 'fonts'));
+    await writeFile(
+      join(instrumentDir, 'instrument.css'),
+      `@font-face { src: url('/instrument/fonts/${font}'); }`,
+    );
+    await writeFile(join(instrumentDir, 'fonts', font), 'font bytes');
+    await writeFile(
+      join(instrumentDir, 'favicon.svg'),
+      '<svg xmlns="http://www.w3.org/2000/svg"/>',
+    );
+    await writeFile(join(instrumentDir, 'favicon.ico'), 'icon bytes');
+    const { app } = await start({ extra: { instrumentDir } });
+    const tenant = await newTenant();
+    await owner.db.execute(
+      sql`update tenants set registration_allowed = true, reset_password_allowed = true where id = ${tenant.id}`,
+    );
+    const host = await addDomain(tenant, 'canonical');
+    const browser = new Browser(app, host);
+
+    const pages = [authorizeUrl('', 'portal'), '/login-actions/registration'];
+    const linked = new Set<string>();
+    for (const page of pages) {
+      const body = (await browser.get(page)).body;
+      for (const target of targets(body)) if (target.startsWith('/instrument/')) linked.add(target);
+    }
+    const sheet = [...linked].find((target) => target.endsWith('.css'));
+    expect(sheet).toBeDefined();
+    const css = (await browser.get(sheet ?? '')).body;
+    for (const [, font] of css.matchAll(/url\('(\/instrument\/[^']+)'\)/gu)) linked.add(font ?? '');
+    expect(linked.size).toBeGreaterThan(2);
+
+    for (const target of linked) {
+      const onDomain = await browser.get(target);
+      const onBase = await new Browser(app, BASE_HOST).get(target);
+      expect(onDomain.statusCode, target).toBe(200);
+      expect(onDomain.headers['content-type'], target).toBe(onBase.headers['content-type']);
+      expect(onDomain.rawPayload.equals(onBase.rawPayload), target).toBe(true);
+    }
+    await rm(instrumentDir, { recursive: true });
+  });
+});
+
 describe('a required action on a domain', () => {
   async function walk(browser: Browser, tenant: Tenant) {
     let res = await browser.get(authorizeUrl('', 'portal'));
