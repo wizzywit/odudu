@@ -424,6 +424,17 @@ describe('hostState', () => {
     expect(await state('state-shared.example.com')).toEqual({ kind: 'not_live' });
   });
 
+  it('stays live for the tenant that verified a host another tenant holds pending', async () => {
+    const a = await newTenant();
+    const b = await newTenant();
+    const row = await verified(a.id, 'state-contested.example.com');
+    await canonicalise(a.id, row.id);
+    await register(b.id, 'state-contested.example.com');
+    const route = { tenantId: a.id, tenantName: a.name, canonical: true, retiredUntil: null };
+    expect(await state('state-contested.example.com')).toEqual({ kind: 'live', route });
+    expect(await lookup('state-contested.example.com')).toMatchObject({ tenantId: a.id });
+  });
+
   it('is live while a retirement window is open and not live after', async () => {
     const t = await newTenant();
     await verified(t.id, 'state-retired.example.com');
