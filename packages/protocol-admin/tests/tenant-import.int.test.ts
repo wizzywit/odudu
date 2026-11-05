@@ -264,8 +264,10 @@ describe('POST /admin/tenant-imports', () => {
     expect(original.scopes.map((scope) => scope.name)).toContain('billing');
     expect(original.scopes.map((scope) => scope.name)).not.toContain('phone');
     expect(original.groups.map((group) => group.path)).toEqual(['/finance', '/finance/payroll']);
+    // The seed's two clients and the built-in MCP client every tenant carries.
     expect(original.clients.map((client) => client.type).sort()).toEqual([
       'confidential',
+      'public',
       'public',
     ]);
     expect(original.smtp).not.toBeNull();
@@ -293,6 +295,95 @@ describe('POST /admin/tenant-imports', () => {
       })),
     };
     expect(withoutRenamedFields(reexported)).toEqual(withoutRenamedFields(expected));
+  });
+
+  async function mcpClientRows(tenantId: string) {
+    return withTenant(fixture.app.db, tenantId, async (tx) => {
+      const repository = clientRepository(tx);
+      const client = await repository.byClientId('odudu-mcp');
+      const config =
+        client === null ? null : await clientOidcConfigRepository(tx).byClientId(client.id);
+      const held =
+        client === null ? [] : await clientScopeRepository(tx).forClientByAssignment(client.id);
+      return { client, config, held };
+    });
+  }
+
+  it('carries the built-in MCP client in the export and reproduces it on import, once', async () => {
+    const source = await fixture.createTenant(`mcp-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const exported = original.clients.find((client) => client.client_id === 'odudu-mcp');
+    expect(exported).toMatchObject({
+      type: 'public',
+      redirect_uris: ['http://127.0.0.1', 'http://[::1]'],
+      grant_types: ['authorization_code', 'refresh_token'],
+      audiences: ['urn:odudu:params:admin-api'],
+      consent_required: true,
+    });
+    expect(
+      original.scopes
+        .filter((scope) => scope.name.startsWith('mcp:'))
+        .map((scope) => [scope.name, scope.clients.find((c) => c.client_id === 'odudu-mcp')]),
+    ).toEqual([
+      ['mcp:read', { client_id: 'odudu-mcp', assignment: 'default' }],
+      ['mcp:write', { client_id: 'odudu-mcp', assignment: 'optional' }],
+    ]);
+
+    // The new tenant is provisioned with its own built-in client and the
+    // document describes one too: neither a conflict nor a second client.
+    const name = `mcp-copy-${newId()}`;
+    const res = await postImport(token, { name, document: original });
+    expect(res.statusCode, res.payload).toBe(201);
+    const imported = await tenantIdOf(name);
+    const rows = await mcpClientRows(imported ?? '');
+    expect(rows.client).toMatchObject({ type: 'public', secretHash: null, builtinMcp: true });
+    expect(rows.config?.redirectUris).toEqual(['http://127.0.0.1', 'http://[::1]']);
+    expect(Object.fromEntries(rows.held.map((h) => [h.scope.name, h.assignment]))).toMatchObject({
+      'mcp:read': 'default',
+      'mcp:write': 'optional',
+    });
+    const count = await fixture.owner.sql<{ n: number }[]>`
+      select count(*)::int as n from clients where tenant_id = ${imported ?? ''} and client_id = 'odudu-mcp'`;
+    expect(count[0]?.n).toBe(1);
+    expect(withoutRenamedFields(await exportOf(token, name))).toEqual(
+      withoutRenamedFields(original),
+    );
+  });
+
+  it('keeps a disabled built-in MCP client disabled across an import', async () => {
+    const source = await fixture.createTenant(`mcp-off-${newId()}`);
+    const token = await operatorToken();
+    await withTenant(fixture.app.db, source.id, async (tx) => {
+      const client = await clientRepository(tx).byClientId('odudu-mcp');
+      if (client === null) throw new Error('expected odudu-mcp');
+      await clientRepository(tx).update(client.id, { enabled: false });
+    });
+    const name = `mcp-off-copy-${newId()}`;
+    const res = await postImport(token, { name, document: await exportOf(token, source.name) });
+    expect(res.statusCode, res.payload).toBe(201);
+    const rows = await mcpClientRows((await tenantIdOf(name)) ?? '');
+    expect(rows.client).toMatchObject({ enabled: false, builtinMcp: true });
+  });
+
+  it('leaves the provisioned MCP client in place for a document that predates it', async () => {
+    const source = await fixture.createTenant(`mcp-old-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const older: TenantDocument = {
+      ...original,
+      clients: original.clients.filter((client) => client.client_id !== 'odudu-mcp'),
+      scopes: original.scopes.map((scope) => ({
+        ...scope,
+        clients: scope.clients.filter((entry) => entry.client_id !== 'odudu-mcp'),
+      })),
+    };
+    const name = `mcp-old-copy-${newId()}`;
+    const res = await postImport(token, { name, document: older });
+    expect(res.statusCode, res.payload).toBe(201);
+    const rows = await mcpClientRows((await tenantIdOf(name)) ?? '');
+    expect(rows.client).toMatchObject({ builtinMcp: true, enabled: true });
+    expect(rows.config).not.toBeNull();
   });
 
   it('carries a tenant’s languages and default across, and refuses a default outside the list', async () => {

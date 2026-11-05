@@ -233,7 +233,9 @@ describe('GET /admin/tenants/{tenant}/export', () => {
     const openid = document.scopes.find((scope) => scope.name === 'openid');
     expect(openid?.builtin).toBe(true);
     expect(openid?.roles).toEqual([reader]);
-    expect(openid?.clients).toEqual([{ client_id: t.clientId, assignment: 'default' }]);
+    expect(openid?.clients).toEqual(
+      expect.arrayContaining([{ client_id: t.clientId, assignment: 'default' }]),
+    );
     const grace = document.subjects?.find((subject) => subject.username === 'grace');
     expect(grace?.roles).toEqual([{ name: 'billing-auditor', client: null }]);
     expect(grace?.groups).toEqual(['/finance/payroll']);
@@ -306,7 +308,9 @@ describe('GET /admin/tenants/{tenant}/export', () => {
       expect(res.payload, value).not.toContain(value);
     }
     const document = parsed(res.payload);
-    expect(document.clients.map((client) => client.client_id)).toEqual([t.clientId]);
+    expect(document.clients.map((client) => client.client_id).sort()).toEqual(
+      [t.clientId, 'odudu-mcp'].sort(),
+    );
     expect(document.subjects?.map((subject) => subject.username)).toEqual(['grace']);
   });
 
