@@ -9,7 +9,7 @@
 services:
   postgres:
     # digest of the multi-arch index; Dependabot moves it
-    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
     environment:
       POSTGRES_USER: odudu
       # Fixed, because a value generated at first run would need a file to
@@ -89,7 +89,7 @@ services:
   mailpit:
     profiles: ['mail']
     # digest of the multi-arch index; Dependabot moves it
-    image: axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498
+    image: axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
     ports:
       - '127.0.0.1:${ODUDU_MAIL_PORT:-8025}:8025'
 
