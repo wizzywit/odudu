@@ -901,7 +901,11 @@ function buildAdminRoutes(
           const client = await clientRepository(tx).byId(clientDbId);
           return client === null
             ? null
-            : { enabled: client.enabled, builtinMcp: client.builtinMcp };
+            : {
+                enabled: client.enabled,
+                builtinMcp: client.builtinMcp,
+                builtinAdmin: client.builtinAdmin,
+              };
         }),
       isSubjectEnabled: (tenantId, subjectId) =>
         withTenant(deps.database.db, tenantId, async (tx) =>

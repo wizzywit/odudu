@@ -56,6 +56,7 @@ export type AdminAuthOutcome =
 export interface ClientState {
   readonly enabled: boolean;
   readonly builtinMcp: boolean;
+  readonly builtinAdmin: boolean;
 }
 
 export interface AuthenticateAdminDeps {

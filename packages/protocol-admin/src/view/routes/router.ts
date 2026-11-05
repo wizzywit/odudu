@@ -4,7 +4,12 @@ import { type Clock } from '@odudu/kernel';
 import { issuerBaseFor, tenantIssuerFor } from '@odudu/protocol-oidc';
 import { Transform } from 'node:stream';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
-import { agentBodyAdmitted, scopeAdmits } from '#/service/agent-scope';
+import {
+  agentBodyAdmitted,
+  agentBodyNamesGuardedField,
+  agentWritesClient,
+  scopeAdmits,
+} from '#/service/agent-scope';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 import { declaredEssence, declaredTypeDetail } from '#/service/declared-type';
 import { paramsSchemaFor } from '#/service/path-params';
@@ -202,6 +207,19 @@ async function authorizeRoute(
 // of deciding twice.
 const GRANTED = new WeakMap<FastifyRequest, Granted>();
 
+async function agentMayWrite(
+  route: AdminRoute,
+  deps: AdminRouterDeps,
+  request: AdminRequest,
+  granted: Granted,
+): Promise<boolean> {
+  if (!agentBodyAdmitted(route, request.body)) return false;
+  if (!agentWritesClient(route) || !agentBodyNamesGuardedField(request.body)) return true;
+  const id = request.params.id;
+  const target = id === undefined ? null : await deps.auth.loadClientState(granted.tenantId, id);
+  return target === null || !(target.builtinAdmin || target.builtinMcp);
+}
+
 async function handleRoute(
   route: AdminRoute,
   handler: AdminRouteHandler,
@@ -213,13 +231,11 @@ async function handleRoute(
   if (granted === null) return reply;
   // Only now is the body parsed, so the fields an agent may write are
   // decided here, on the object the handler is about to read.
-  if (
-    granted.principal.agent !== undefined &&
-    route.method !== 'GET' &&
-    !agentBodyAdmitted(route, request.body)
-  ) {
-    await refuseScope(deps, request, reply, granted.tenantId, granted.principal);
-    return reply;
+  if (granted.principal.agent !== undefined && route.method !== 'GET') {
+    if (!(await agentMayWrite(route, deps, request, granted))) {
+      await refuseScope(deps, request, reply, granted.tenantId, granted.principal);
+      return reply;
+    }
   }
   return handler(request, reply, granted.principal, granted.tenantId);
 }

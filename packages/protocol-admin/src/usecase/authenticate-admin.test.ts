@@ -68,7 +68,8 @@ function deps(key: SigningKeyRecord, overrides: Partial<AuthenticateAdminDeps>) 
     listPublishableKeys: () => Promise.resolve([key]),
     loadGrant: () => Promise.resolve(null),
     isSessionLive: () => Promise.resolve(false),
-    loadClientState: () => Promise.resolve({ enabled: false, builtinMcp: false }),
+    loadClientState: () =>
+      Promise.resolve({ enabled: false, builtinMcp: false, builtinAdmin: false }),
     isSubjectEnabled: () => Promise.resolve(false),
     acceptedIssuers: (_tenant, requestIssuer) => Promise.resolve([requestIssuer]),
     tenantNameAtHost: () => Promise.resolve(null),
@@ -152,7 +153,8 @@ describe('the tenant named in the path, already looked up by the caller', () => 
           revokedAt: null,
         } as never),
       isSessionLive: () => Promise.resolve(true),
-      loadClientState: () => Promise.resolve({ enabled: true, builtinMcp: false }),
+      loadClientState: () =>
+        Promise.resolve({ enabled: true, builtinMcp: false, builtinAdmin: false }),
       isSubjectEnabled: () => Promise.resolve(true),
     });
     const outcome = await authenticateAdmin(d, {
@@ -253,7 +255,8 @@ describe('a tenant that has moved to its own domain', () => {
         findTenant: (name) => Promise.resolve(name === 'target' ? TARGET : null),
         loadGrant: () =>
           Promise.resolve({ clientId: 'client-id', sessionId: null, revokedAt: null } as never),
-        loadClientState: () => Promise.resolve({ enabled: true, builtinMcp: false }),
+        loadClientState: () =>
+          Promise.resolve({ enabled: true, builtinMcp: false, builtinAdmin: false }),
         isSubjectEnabled: () => Promise.resolve(true),
         acceptedIssuers: lookup,
       }),
@@ -392,7 +395,8 @@ describe('the scope and the agent a token carries', () => {
         findTenant: (name) => Promise.resolve(name === 'target' ? TARGET : null),
         loadGrant: () =>
           Promise.resolve({ clientId: 'client-db-id', sessionId: null, revokedAt: null } as never),
-        loadClientState: () => Promise.resolve({ enabled: true, builtinMcp: false }),
+        loadClientState: () =>
+          Promise.resolve({ enabled: true, builtinMcp: false, builtinAdmin: false }),
         isSubjectEnabled: () => Promise.resolve(true),
         ...overrides,
       }),
@@ -447,7 +451,7 @@ describe('the scope and the agent a token carries', () => {
         loadClientState: (tenantId, clientDbId) =>
           Promise.resolve(
             tenantId === TARGET.id && clientDbId === 'client-db-id'
-              ? { enabled: true, builtinMcp: true }
+              ? { enabled: true, builtinMcp: true, builtinAdmin: false }
               : null,
           ),
       },
@@ -485,7 +489,10 @@ describe('the scope and the agent a token carries', () => {
   it('forbids the built-in MCP client holding no MCP scope', async () => {
     const outcome = await outcomeFor(
       { scope: 'openid', client_id: 'odudu-mcp' },
-      { loadClientState: () => Promise.resolve({ enabled: true, builtinMcp: true }) },
+      {
+        loadClientState: () =>
+          Promise.resolve({ enabled: true, builtinMcp: true, builtinAdmin: false }),
+      },
     );
     expect(outcome).toMatchObject({
       kind: 'forbidden',

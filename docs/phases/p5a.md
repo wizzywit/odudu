@@ -249,7 +249,7 @@ holding no MCP scope a 403. An agent must pass both gates: the scope
 
 - `mcp:read` admits exactly the GET routes. `mcp:write` adds
   `AGENT_WRITE_ROUTES`, admitted by field on the body the handler reads:
-  `name`, `client_name`, `description`, `name_i18n`, `description_i18n` of a
+  `name`, `description`, `name_i18n`, `description_i18n` of a
   client and `description`, `description_i18n` of a scope. Anything else in the
   body, `enabled`, `redirect_uris` or `consent_text` among it, is a 403
   `insufficient_scope`. `consent_text` is left out because it is what a user
@@ -259,8 +259,15 @@ holding no MCP scope a 403. An agent must pass both gates: the scope
   (`principal.clientDbId`) as the actor client. `agent.clientId` is `act.sub`
   when the token has one and so depends on how it was minted: audit uses the
   database id.
-- Reads are every GET: `GET …/export` and `GET …/audit/export` included, which
-  the exchange that mints agent tokens must not widen beyond a person's own
-  capabilities.
+- Reads are every GET except `AGENT_DENIED_READS`: the tenant export, the
+  audit export and a theme image's bytes, each a whole document or download
+  in one call that a person fetches with their own token (export is not a
+  tool).
+- `name` and `name_i18n` of a built-in client (`builtin_admin` or
+  `builtin_mcp`) are refused to an agent; the handler reads the target row
+  with `loadClientState`, no second body read. Residual for the guide: an
+  agent may still rename an ordinary client, which shows on its consent
+  screen. It is reversible and audited as `client.amend` with the agent's
+  client row as actor client.
 - Not enforced anywhere an operator can see yet: no agent token exists
   outside tests until the MCP server mints them.

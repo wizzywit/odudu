@@ -98,7 +98,29 @@ describe('admission of an agent by its scope', () => {
       payload: { name: `s-${newId()}` },
     });
     if (client === undefined) throw new Error('no odudu-mcp client');
-    return { t, clientId: client.id, scopeId: created.json<{ id: string }>().id };
+    const ordinary = await fixture.createConfidentialClient(t.name, {});
+    return {
+      t,
+      clientId: client.id,
+      ordinaryId: ordinary.id,
+      scopeId: created.json<{ id: string }>().id,
+      admin,
+    };
+  }
+
+  async function read(tenant: string, path: string, token: string) {
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${tenant}/${path}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    return res.json<unknown>();
+  }
+
+  async function amendRows(tenantId: string) {
+    return withTenant(fixture.app.db, tenantId, (tx) =>
+      tx.select().from(auditEvents).where(eq(auditEvents.action, 'client.amend')),
+    );
   }
 
   function patch(tenant: string, path: string, token: string, payload: unknown) {
@@ -124,12 +146,17 @@ describe('admission of an agent by its scope', () => {
       scope: 'mcp:write',
       act: { sub: 'a' },
     });
-    const client = await patch(w.t.name, `clients/${w.clientId}`, token, {
+    const client = await patch(w.t.name, `clients/${w.ordinaryId}`, token, {
       description: 'by an agent',
-      name: 'Odudu MCP agent-renamed',
+      name: 'renamed by an agent',
     });
     expect(client.statusCode).toBe(200);
     expect(client.json()).toMatchObject({ description: 'by an agent' });
+    const rows = await amendRows(w.t.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ outcome: 'allowed', resourceId: w.ordinaryId });
+    expect(rows[0]?.actorClientId).not.toBeNull();
+    expect(rows[0]?.actorClientId).not.toBe(w.clientId);
     const scope = await patch(w.t.name, `scopes/${w.scopeId}`, token, { description: 'x' });
     expect(scope.statusCode).toBe(200);
   });
@@ -146,8 +173,10 @@ describe('admission of an agent by its scope', () => {
       scope: 'mcp:write',
       act: { sub: 'a' },
     });
-    const id = kind === 'clients' ? w.clientId : w.scopeId;
+    const id = kind === 'clients' ? w.ordinaryId : w.scopeId;
+    const before = await read(w.t.name, `${kind}/${id}`, w.admin);
     const res = await patch(w.t.name, `${kind}/${id}`, token, payload);
+    expect(await read(w.t.name, `${kind}/${id}`, w.admin)).toEqual(before);
     expect(res.statusCode).toBe(403);
     expect(res.json()).toMatchObject({ title: 'Forbidden', detail: 'insufficient_scope' });
     const rows = await refusals(w.t.id);
@@ -158,6 +187,55 @@ describe('admission of an agent by its scope', () => {
     });
     expect(rows[0]?.actorClientId).not.toBeNull();
     expect(JSON.stringify(rows[0]?.detail)).not.toContain('evil');
+    expect(await amendRows(w.t.id)).toHaveLength(0);
+  });
+
+  it.each([
+    ['name', { name: 'Google' }],
+    ['name_i18n', { name_i18n: { en: 'Google' } }],
+  ])('refuses an agent the %s of a built-in client, and changes nothing', async (_, payload) => {
+    const w = await world();
+    const token = await fixture.agentToken(w.t.name, OWNER, {
+      scope: 'mcp:write',
+      act: { sub: 'a' },
+    });
+    const before = await read(w.t.name, `clients/${w.clientId}`, w.admin);
+    const res = await patch(w.t.name, `clients/${w.clientId}`, token, payload);
+    expect(res.statusCode).toBe(403);
+    expect(await read(w.t.name, `clients/${w.clientId}`, w.admin)).toEqual(before);
+    const admin = await fixture.builtinAdminClient(w.t.name);
+    expect((await patch(w.t.name, `clients/${admin.id}`, token, payload)).statusCode).toBe(403);
+    expect(await refusals(w.t.id)).toHaveLength(2);
+    const described = await patch(w.t.name, `clients/${w.clientId}`, token, { description: 'ok' });
+    expect(described.statusCode).toBe(200);
+  });
+
+  it('refuses an agent the export reads, to either scope, and records it', async () => {
+    const w = await world();
+    for (const scope of ['mcp:read', 'mcp:write']) {
+      const token = await fixture.agentToken(w.t.name, [...OWNER, 'view-users'], {
+        scope,
+        act: { sub: 'a' },
+      });
+      for (const path of ['export', 'audit/export']) {
+        const res = await fixture.http.inject({
+          method: 'GET',
+          url: `/admin/tenants/${w.t.name}/${path}`,
+          headers: { authorization: `Bearer ${token}` },
+        });
+        expect(res.statusCode, `${scope} ${path}`).toBe(403);
+        expect(res.json()).toMatchObject({ detail: 'insufficient_scope' });
+      }
+    }
+    const rows = await refusals(w.t.id);
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toMatchObject({ detail: { reason: 'insufficient_scope' } });
+    const person = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${w.t.name}/export`,
+      headers: { authorization: `Bearer ${w.admin}` },
+    });
+    expect(person.statusCode).toBe(200);
   });
 
   it('refuses mcp:read a write and mcp:write a route outside the allowlist', async () => {

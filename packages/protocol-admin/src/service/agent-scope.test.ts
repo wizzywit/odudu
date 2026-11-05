@@ -1,8 +1,10 @@
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '@odudu/domain-tenant';
 import { describe, expect, it } from 'vitest';
 import {
+  AGENT_DENIED_READS,
   AGENT_WRITE_ROUTES,
   agentBodyAdmitted,
+  agentBodyNamesGuardedField,
   agentWritableFields,
   scopeAdmits,
 } from '#/service/agent-scope';
@@ -10,6 +12,7 @@ import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 
 const key = (route: Pick<AdminRoute, 'method' | 'pattern'>) => `${route.method} ${route.pattern}`;
 const allowed = new Set(AGENT_WRITE_ROUTES.map(key));
+const denied = new Set(AGENT_DENIED_READS);
 
 function route(method: string, pattern: string): AdminRoute {
   const found = ADMIN_ROUTES.find((r) => r.method === method && r.pattern === pattern);
@@ -23,13 +26,27 @@ describe('scopeAdmits over every admin route', () => {
   });
 
   it.each(ADMIN_ROUTES.map((r) => [key(r), r] as const))('%s', (_, r) => {
-    expect(scopeAdmits([MCP_READ_SCOPE], r)).toBe(r.method === 'GET');
-    expect(scopeAdmits([MCP_WRITE_SCOPE], r)).toBe(r.method === 'GET' || allowed.has(key(r)));
-    expect(scopeAdmits([MCP_READ_SCOPE, MCP_WRITE_SCOPE], r)).toBe(
-      r.method === 'GET' || allowed.has(key(r)),
-    );
+    const read = r.method === 'GET' && !denied.has(key(r));
+    expect(scopeAdmits([MCP_READ_SCOPE], r)).toBe(read);
+    expect(scopeAdmits([MCP_WRITE_SCOPE], r)).toBe(read || allowed.has(key(r)));
+    expect(scopeAdmits([MCP_READ_SCOPE, MCP_WRITE_SCOPE], r)).toBe(read || allowed.has(key(r)));
     expect(scopeAdmits(['openid', 'profile'], r)).toBe(false);
     expect(scopeAdmits([], r)).toBe(false);
+  });
+
+  it('refuses the bulk reads to both scopes, and they exist', () => {
+    expect([...denied].sort()).toEqual([
+      'GET /admin/tenants/:tenant/audit/export',
+      'GET /admin/tenants/:tenant/export',
+      'GET /admin/tenants/:tenant/theme/assets/:assetId/content',
+    ]);
+    for (const k of denied) {
+      const r = ADMIN_ROUTES.find((x) => key(x) === k);
+      expect(r).toBeDefined();
+      if (r !== undefined) {
+        expect(scopeAdmits([MCP_READ_SCOPE, MCP_WRITE_SCOPE], r)).toBe(false);
+      }
+    }
   });
 
   it('lists only routes that exist, and only PATCHes', () => {
@@ -48,7 +65,6 @@ describe('agentWritableFields', () => {
   it('names descriptive fields only, for a client and a scope', () => {
     expect(agentWritableFields(route('PATCH', '/admin/tenants/:tenant/clients/:id'))).toEqual([
       'name',
-      'client_name',
       'description',
       'name_i18n',
       'description_i18n',
@@ -72,7 +88,6 @@ describe('agentBodyAdmitted', () => {
 
   it.each([
     [client, { name: 'x', description: null, name_i18n: { de: 'y' } }],
-    [client, { client_name: 'x' }],
     [scope, { description: 'x', description_i18n: { de: 'y' } }],
   ])('admits a body of descriptive fields', (r, body) => {
     expect(agentBodyAdmitted(r, body)).toBe(true);
@@ -86,7 +101,8 @@ describe('agentBodyAdmitted', () => {
     [client, { name: 'x', enabled: true }],
     [client, { Name: 'x' }],
     [client, { 'name ': 'x' }],
-    [client, { client_name: 'x', client_uri: 'https://x' }],
+    [client, { client_name: 'x' }],
+    [client, { name: 'x', client_uri: 'https://x' }],
     [client, { description_i18n: null, consent_required: false }],
     [client, proto],
     [client, ctor],
@@ -115,5 +131,13 @@ describe('agentBodyAdmitted', () => {
     expect(agentBodyAdmitted(client, body)).toBe(false);
     const second: unknown = JSON.parse('{"name":"a","name":"b"}');
     expect(agentBodyAdmitted(client, second)).toBe(true);
+  });
+});
+
+describe('agentBodyNamesGuardedField', () => {
+  it('is true for a name or its translations, false for the rest', () => {
+    expect(agentBodyNamesGuardedField({ name: 'x' })).toBe(true);
+    expect(agentBodyNamesGuardedField({ description: 'y', name_i18n: {} })).toBe(true);
+    expect(agentBodyNamesGuardedField({ description: 'y', description_i18n: {} })).toBe(false);
   });
 });
