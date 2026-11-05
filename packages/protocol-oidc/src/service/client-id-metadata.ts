@@ -150,16 +150,16 @@ export function cimdConsentHost(clientIdUrl: string): string {
   return new URL(clientIdUrl).host;
 }
 
+// Built from entries, not assigned member by member: a JWK member named
+// `__proto__` would otherwise set the object's prototype instead of a key.
 function stringMembers(key: Record<string, unknown>): Record<string, unknown> {
-  const kept: Record<string, unknown> = {};
-  for (const [name, value] of Object.entries(key)) {
-    if (typeof value === 'string') {
-      kept[name] = value;
-    } else if (Array.isArray(value) && value.every((v) => typeof v === 'string')) {
-      kept[name] = value;
-    }
-  }
-  return kept;
+  return Object.fromEntries(
+    Object.entries(key).filter(
+      ([, value]) =>
+        typeof value === 'string' ||
+        (Array.isArray(value) && value.every((v) => typeof v === 'string')),
+    ),
+  );
 }
 
 // What a validated document is kept as: only the members the validator read,

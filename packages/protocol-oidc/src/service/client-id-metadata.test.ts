@@ -296,4 +296,20 @@ describe('projectCimdDocument', () => {
       jwks_uri: 'https://app.example/jwks.json',
     });
   });
+
+  it('keeps a JWK member named __proto__ as data, never as a prototype', () => {
+    const body: unknown = JSON.parse(
+      `{"client_id":"${ID}","client_name":"Example","redirect_uris":["https://app.example/cb"],` +
+        '"token_endpoint_auth_method":"private_key_jwt",' +
+        '"jwks":{"keys":[{"kty":"RSA","n":"abc","e":"AQAB","__proto__":["x"]}]}}',
+    );
+    const outcome = parseCimdDocument(ID, body);
+    if (outcome.kind !== 'ok') throw new Error('document should validate');
+    const projection = projectCimdDocument(outcome.client);
+    const jwks = projection.jwks as { keys: Record<string, unknown>[] };
+    const key = jwks.keys[0];
+    expect(Object.getPrototypeOf(key)).toBe(Object.prototype);
+    expect(Object.hasOwn(key ?? {}, '__proto__')).toBe(true);
+    expect(JSON.stringify(projection)).toContain('"__proto__":["x"]');
+  });
 });
