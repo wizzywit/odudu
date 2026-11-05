@@ -27,7 +27,14 @@ person (`sub` stays theirs), `act` names the agent client, `scope` is the MCP
 scope narrowed to `mcp:read` or `mcp:write`, and the lifetime is the shorter of
 the person's token and a few minutes. The call then goes through the admin API
 as an ordinary bearer request. A public client that presents an MCP token at
-`/token` cannot mint an admin-audience token.
+`/token` cannot mint an admin-audience token by default: it needs the exchange
+grant, `token_exchange_allowed_for_public` and impersonation switched on, and
+the admin API in its audience ceiling, all of them an operator's choice and off
+for every client. A client an operator did configure so can exchange an MCP
+access token for an admin-audience one, and the other rules still hold for it:
+the agent marker (`act`) is preserved, the MCP scope the presented token holds
+stays (an exchange that drops it is refused), and the admin API admits a call
+only by the owner's capability and the scope.
 
 **The admin API enforces the narrowing, not the MCP layer alone.** The
 principal reads `scope` and `act`. A call is admitted only if the owner's

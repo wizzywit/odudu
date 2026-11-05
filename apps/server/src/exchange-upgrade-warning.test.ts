@@ -1,3 +1,4 @@
+import { EXCHANGE_UPGRADE_COUNT_CAP } from '@odudu/protocol-oidc';
 import { describe, expect, it, vi } from 'vitest';
 import { exchangeUpgradeMessage, warnOfStrandedPublicClients } from '#/exchange-upgrade-warning';
 
@@ -14,6 +15,15 @@ describe('exchangeUpgradeMessage', () => {
     expect(message).toContain('3 public clients');
     expect(message).toContain('acme/spa');
     expect(message).toContain('token_exchange_allowed_for_public');
+  });
+});
+
+describe('a count that reached the cap', () => {
+  it('is reported as a lower bound, and an exact count is not', () => {
+    const sample = [{ tenant: 'acme', clientId: 'spa' }];
+    const capped = exchangeUpgradeMessage({ count: EXCHANGE_UPGRADE_COUNT_CAP, sample });
+    expect(capped).toContain(`at least ${String(EXCHANGE_UPGRADE_COUNT_CAP)} public clients`);
+    expect(exchangeUpgradeMessage({ count: 3, sample })).not.toContain('at least');
   });
 });
 

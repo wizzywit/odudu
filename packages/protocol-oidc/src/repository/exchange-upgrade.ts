@@ -6,6 +6,7 @@ import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 
 export const EXCHANGE_UPGRADE_SAMPLE_LIMIT = 20;
 export const EXCHANGE_UPGRADE_COUNT_CAP = 10_000;
+export const EXCHANGE_UPGRADE_STATEMENT_TIMEOUT_MS = 4_000;
 
 export interface ExchangeUpgradeFinding {
   readonly count: number;
@@ -25,15 +26,41 @@ const AT_RISK = and(
   sql`${clientOidcConfig.grantTypes} @> ARRAY[${TOKEN_EXCHANGE_GRANT}]::text[]`,
 );
 
-export async function publicExchangeClientsAtRisk(db: Database): Promise<ExchangeUpgradeFinding> {
-  const capped = db
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+
+// Both reads of the boot check run in one transaction the database itself
+// ends after `ms`, so a slow read frees the connection instead of running on
+// after the caller has stopped waiting for it.
+export function withStatementTimeout<T>(
+  db: Database,
+  ms: number,
+  fn: (tx: Transaction) => Promise<T>,
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select set_config('statement_timeout', ${String(ms)}, true)`);
+    return fn(tx);
+  });
+}
+
+// The count is read apart from the sample, so a row landing between them
+// must not leave it below the clients already named.
+export function boundedCount(counted: number | undefined, sampled: number): number {
+  return Math.max(counted ?? 0, sampled);
+}
+
+export function publicExchangeClientsAtRisk(db: Database): Promise<ExchangeUpgradeFinding> {
+  return withStatementTimeout(db, EXCHANGE_UPGRADE_STATEMENT_TIMEOUT_MS, (tx) => read(tx));
+}
+
+async function read(tx: Transaction): Promise<ExchangeUpgradeFinding> {
+  const capped = tx
     .select({ one: sql<number>`1`.as('one') })
     .from(clientOidcConfig)
     .where(AT_RISK)
     .limit(EXCHANGE_UPGRADE_COUNT_CAP)
     .as('capped');
-  const [counted] = await db.select({ n: sql<number>`count(*)::int` }).from(capped);
-  const rows = await db
+  const [counted] = await tx.select({ n: sql<number>`count(*)::int` }).from(capped);
+  const rows = await tx
     .select({
       tenantId: clientOidcConfig.tenantId,
       clientId: clients.clientId,
@@ -45,7 +72,7 @@ export async function publicExchangeClientsAtRisk(db: Database): Promise<Exchang
     .limit(EXCHANGE_UPGRADE_SAMPLE_LIMIT);
   if (rows.length === 0) return { count: 0, sample: [] };
 
-  const names = await db
+  const names = await tx
     .select({ id: tenants.id, name: tenants.name })
     .from(tenants)
     .where(
@@ -56,7 +83,7 @@ export async function publicExchangeClientsAtRisk(db: Database): Promise<Exchang
     );
   const nameOf = new Map(names.map((tenant) => [tenant.id, tenant.name]));
   return {
-    count: counted?.n ?? rows.length,
+    count: boundedCount(counted?.n, rows.length),
     sample: rows.map((row) => ({
       tenant: nameOf.get(row.tenantId) ?? row.tenantId,
       clientId: row.clientId,
