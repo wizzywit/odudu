@@ -42,17 +42,17 @@ Inputs the spec implies and no single task's happy path exercises; each has a te
 
 ## File Structure
 
-| Path | Responsibility |
-| --- | --- |
-| `packages/mcp/` (new) | tools, `AdminCaller`, coverage test, HTTP handler, stdio entry; layers `view usecase repository adapter service` as the server packages; no database import |
-| `packages/protocol-oidc/src/view/routes/{as-metadata,resource-metadata}.ts` | RFC 8414 and RFC 9728 routes |
-| `packages/protocol-oidc/src/service/{client-id-metadata,mcp-scopes}.ts`, `…/adapter/client-metadata-fetch.ts` | CIMD validation and the bounded fetch; the two scope definitions |
-| `packages/protocol-admin/src/usecase/authenticate-admin.ts`, `…/service/{agent-scope,idempotency}.ts`, `…/view/routes/router.ts` | principal reads scope and agent; route admission; idempotency |
-| `packages/domain-tenant/src/usecase/provision-mcp-client.ts` | the built-in `odudu-mcp` client, beside `provision-admin-client.ts` |
-| `packages/db/drizzle/NNNN_*.sql`, `packages/db/src/schema/*` | settings columns, idempotency table, CIMD cache, backfill |
-| `apps/server/src/cli/mcp.ts` + registry entry | `odudu mcp` |
-| `apps/admin-console/src/pages/settings/…` | the one control |
-| reading notes for RFC 8414, RFC 9728, the CIMD draft and the MCP authorization sections under `docs/protocols/`, a new ADR under `docs/adr/`, `docs/phases/p5a.md` | notes, decisions, record |
+| Path                                                                                                                                                               | Responsibility                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/mcp/` (new)                                                                                                                                              | tools, `AdminCaller`, coverage test, HTTP handler, stdio entry; layers `view usecase repository adapter service` as the server packages; no database import |
+| `packages/protocol-oidc/src/view/routes/{as-metadata,resource-metadata}.ts`                                                                                        | RFC 8414 and RFC 9728 routes                                                                                                                                |
+| `packages/protocol-oidc/src/service/{client-id-metadata,mcp-scopes}.ts`, `…/adapter/client-metadata-fetch.ts`                                                      | CIMD validation and the bounded fetch; the two scope definitions                                                                                            |
+| `packages/protocol-admin/src/usecase/authenticate-admin.ts`, `…/service/{agent-scope,idempotency}.ts`, `…/view/routes/router.ts`                                   | principal reads scope and agent; route admission; idempotency                                                                                               |
+| `packages/domain-tenant/src/usecase/provision-mcp-client.ts`                                                                                                       | the built-in `odudu-mcp` client, beside `provision-admin-client.ts`                                                                                         |
+| `packages/db/drizzle/NNNN_*.sql`, `packages/db/src/schema/*`                                                                                                       | settings columns, idempotency table, CIMD cache, backfill                                                                                                   |
+| `apps/server/src/cli/mcp.ts` + registry entry                                                                                                                      | `odudu mcp`                                                                                                                                                 |
+| `apps/admin-console/src/pages/settings/…`                                                                                                                          | the one control                                                                                                                                             |
+| reading notes for RFC 8414, RFC 9728, the CIMD draft and the MCP authorization sections under `docs/protocols/`, a new ADR under `docs/adr/`, `docs/phases/p5a.md` | notes, decisions, record                                                                                                                                    |
 
 ---
 
@@ -262,7 +262,7 @@ Found by the spike (`docs/phases/p5a.md`): a public client granted the exchange 
 
 ### Task 7.1
 
-**Files:** find where a confidential client's service account is created (verified entry: `git grep -n "serviceSubjectId" -- packages/db/src apps/server/src | head`); change creation to happen when the grant is switched on and its removal behaviour when it is switched off; a migration deciding existing clients (keep accounts for clients with the grant; mark the rest for the reaper only if no token or role references them, else keep); docs (`admin-console/clients`, `concepts/tokens`, CHANGELOG *Changed*). Tests: unit and int (including the foreign-tenant probe).
+**Files:** find where a confidential client's service account is created (verified entry: `git grep -n "serviceSubjectId" -- packages/db/src apps/server/src | head`); change creation to happen when the grant is switched on and its removal behaviour when it is switched off; a migration deciding existing clients (keep accounts for clients with the grant; mark the rest for the reaper only if no token or role references them, else keep); docs (`admin-console/clients`, `concepts/tokens`, CHANGELOG _Changed_). Tests: unit and int (including the foreign-tenant probe).
 
 **Interfaces:** Produces `ensureServiceAccount(tx, client)` / `retireServiceAccount(tx, client)` in `usecase/`.
 
@@ -281,14 +281,18 @@ Found by the spike (`docs/phases/p5a.md`): a public client granted the exchange 
 
 ```ts
 interface McpTool<I, O> {
-  readonly name: string; readonly description: string;
-  readonly routeKey: string;            // "<METHOD> <pattern>", an ADMIN_ROUTES entry
+  readonly name: string;
+  readonly description: string;
+  readonly routeKey: string; // "<METHOD> <pattern>", an ADMIN_ROUTES entry
   readonly capability: AdminCapability; // from @odudu/contracts/admin
   readonly access: 'read' | 'write';
-  readonly input: z.ZodType<I>; readonly output: z.ZodType<O>;
+  readonly input: z.ZodType<I>;
+  readonly output: z.ZodType<O>;
   readonly run: (caller: AdminCaller, input: I) => Promise<O>;
 }
-interface AdminCaller { call(req: AdminRequestSpec): Promise<AdminResult> }
+interface AdminCaller {
+  call(req: AdminRequestSpec): Promise<AdminResult>;
+}
 ```
 
 and `NOT_TOOLS: Record<routeKey, reason>`.
@@ -380,7 +384,7 @@ and `NOT_TOOLS: Record<routeKey, reason>`.
 ### Task 11.3: The closing pass (CLAUDE.md, six items)
 
 - [ ] **Step 1:** roadmap's "What is not implemented" markers re-read for truth; `git grep -n -E '\bP5a\b|planned|MCP' -- apps/docs README.md tests/docs docs/NEXT.md` and every hit made true: landing page's planned MCP item turned into a shipped one (`plannedClaims.ts`, its tests), `README.md`'s feature list, `tests/docs/questions.md` D22, `roadmap.md` (three P5a placements move to "built"; the P13 "client registration policies" line says P5a took only the MCP policy), section 11's row gains CIMD, the stdio sign-in and the built-in client, `roadmap-section-11.test.ts` mappings added both ways, `docs/NEXT.md` (headings against closed phases, next-phase order, the new decision row).
-- [ ] **Step 2:** `CHANGELOG.md` under `## [Unreleased]`: *Added* (MCP endpoint, `odudu mcp`, CIMD, `Idempotency-Key`, the two scopes), *Changed* (service accounts only with `client_credentials`; agent calls audited), *Security* (write tokens ten minutes, per-client consent for dynamic clients).
+- [ ] **Step 2:** `CHANGELOG.md` under `## [Unreleased]`: _Added_ (MCP endpoint, `odudu mcp`, CIMD, `Idempotency-Key`, the two scopes), _Changed_ (service accounts only with `client_credentials`; agent calls audited), _Security_ (write tokens ten minutes, per-client consent for dynamic clients).
 - [ ] **Step 3:** whole-branch review (spec compliance and quality, Sonnet), fix loop to clean; `docs/phases/p5a.md` completed with what building found; `git mv` the spec and plan to `docs/archive/`; `pnpm verify` green; finish via `superpowers:finishing-a-development-branch` (the merge into `main` is the owner's approval).
 
 ---
