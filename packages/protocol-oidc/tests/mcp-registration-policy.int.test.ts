@@ -216,32 +216,54 @@ describe('registration under the mcp policy', () => {
     expect(config?.audiences).toEqual([mcpUrl]);
   });
 
+  const MEMBER = 'invalid_client_metadata';
+  const REDIRECT = 'invalid_redirect_uri';
   it.each([
-    ['a confidential client', { token_endpoint_auth_method: 'client_secret_basic' }],
-    ['an http redirect that is not loopback', { redirect_uris: ['http://rp.example/cb'] }],
-    ['mcp:write', { scope: 'mcp:read mcp:write' }],
-    ['another audience', { audience: ['https://api.example'] }],
-    ['the admin API audience', { audience: 'urn:odudu:params:admin-api' }],
-    ['the client_credentials grant', { grant_types: ['client_credentials'] }],
+    ['a confidential client', { token_endpoint_auth_method: 'client_secret_basic' }, MEMBER],
+    [
+      'an http redirect that is not loopback',
+      { redirect_uris: ['http://rp.example/cb'] },
+      REDIRECT,
+    ],
+    ['mcp:write', { scope: 'mcp:read mcp:write' }, MEMBER],
+    ['another audience', { audience: ['https://api.example'] }, MEMBER],
+    ['the admin API audience', { audience: 'urn:odudu:params:admin-api' }, MEMBER],
+    ['the client_credentials grant', { grant_types: ['client_credentials'] }, MEMBER],
     [
       'the token-exchange grant',
       { grant_types: ['urn:ietf:params:oauth:grant-type:token-exchange'] },
+      MEMBER,
     ],
-    ['a scope split by a non-breaking space', { scope: 'openid\u00a0mcp:write' }],
-    ['two audiences, one of them the MCP URL', { audience: [mcpUrl, 'https://api.example'] }],
-    ['the same audience twice', { audience: [mcpUrl, mcpUrl] }],
-    ['inline keys', { jwks: { keys: [] } }],
-    ['a key set address', { jwks_uri: 'https://agent.example/jwks.json' }],
-    ['a back-channel logout address', { backchannel_logout_uri: 'https://agent.example/bc' }],
-    ['a front-channel logout address', { frontchannel_logout_uri: 'https://agent.example/fc' }],
-    ['more redirect addresses than a client may hold', { redirect_uris: manyRedirects() }],
-  ])('refuses %s and stores nothing', async (_label, change) => {
-    const before = await clientCount();
-    const res = await register({ ...PUBLIC, ...change });
-    expect(res.statusCode, res.body).toBe(400);
-    expect(res.json<{ error: string }>().error).toMatch(/^invalid_/u);
-    expect(await clientCount()).toBe(before);
-  });
+    ['a scope split by a non-breaking space', { scope: 'openid\u00a0mcp:write' }, MEMBER],
+    ['two audiences, one the MCP URL', { audience: [mcpUrl, 'https://api.example'] }, MEMBER],
+    ['the same audience twice', { audience: [mcpUrl, mcpUrl] }, MEMBER],
+    ['inline keys', { jwks: { keys: [] } }, MEMBER],
+    ['a key set address', { jwks_uri: 'https://agent.example/jwks.json' }, MEMBER],
+    [
+      'a back-channel logout address',
+      { backchannel_logout_uri: 'https://agent.example/bc' },
+      MEMBER,
+    ],
+    [
+      'a front-channel logout address',
+      { frontchannel_logout_uri: 'https://agent.example/fc' },
+      MEMBER,
+    ],
+    [
+      'more redirect addresses than a client may hold',
+      { redirect_uris: manyRedirects() },
+      REDIRECT,
+    ],
+  ])(
+    'refuses %s with the error its check names, and stores nothing',
+    async (_label, change, code) => {
+      const before = await clientCount();
+      const res = await register({ ...PUBLIC, ...change });
+      expect(res.statusCode, res.body).toBe(400);
+      expect(res.json<{ error: string }>().error).toBe(code);
+      expect(await clientCount()).toBe(before);
+    },
+  );
 
   it('admits a loopback http redirect on any port', async () => {
     await registered({ ...PUBLIC, redirect_uris: ['http://127.0.0.1:53124/cb'] });
@@ -559,6 +581,29 @@ describe('after the policy is turned off', () => {
     const afterOff = claimsOf(await refresh(clientId, next));
     expect([afterOff.aud].flat()).not.toContain(mcpUrl);
     expect(afterOff.scope.split(' ')).not.toContain('mcp:read');
+  });
+
+  it('refuses a refresh naming the MCP URL before the token is spent', async () => {
+    const clientId = await registered({
+      ...PUBLIC,
+      grant_types: ['authorization_code', 'refresh_token'],
+    });
+    const first = await startChain(clientId);
+    await setPolicy('disabled');
+
+    const refused = await form('protocol/openid-connect/token', {
+      grant_type: 'refresh_token',
+      client_id: clientId,
+      refresh_token: first,
+      resource: mcpUrl,
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json<{ error: string }>().error).toBe('invalid_target');
+
+    // The token was not consumed: a retry without the resource succeeds
+    // rather than tripping reuse detection.
+    const retry = await refresh(clientId, first);
+    expect(retry.statusCode, retry.body).toBe(200);
   });
 
   it('refuses a request for the MCP URL from a client registered under the policy', async () => {

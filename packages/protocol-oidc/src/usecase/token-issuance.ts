@@ -718,6 +718,7 @@ async function issueAuthorizationCodeTokens(
 // ADR 0019.
 async function evaluatePresentedRefreshToken(
   tx: TenantScopedDatabase,
+  deps: TokenIssuanceDeps,
   request: Extract<StructuredRequest, { grantType: 'refresh_token' }>,
   client: ClientRecord,
   presentedHash: string,
@@ -744,7 +745,8 @@ async function evaluatePresentedRefreshToken(
   // why that copy cannot move earlier. This one only needs to be right
   // often enough to refuse before the presented token is consumed; a
   // revocation landing between the two reads is still caught there.
-  resolveAudience(grant.audience, request.resource);
+  const held = await refreshCeiling(tx, deps, client, decision.scope, grant.audience);
+  resolveAudience(held.audience, request.resource);
   return decision.scope;
 }
 
@@ -788,7 +790,13 @@ async function issueRefreshTokens(
   const now = deps.clock.now();
   const presentedHash = hashRefreshToken(request.refreshToken);
 
-  const presentedScope = await evaluatePresentedRefreshToken(tx, request, client, presentedHash);
+  const presentedScope = await evaluatePresentedRefreshToken(
+    tx,
+    deps,
+    request,
+    client,
+    presentedHash,
+  );
 
   const outcome = await withTenant(
     deps.database.db,
