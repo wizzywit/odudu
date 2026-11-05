@@ -561,6 +561,23 @@ describe('a write token is short-lived and unrefreshable', () => {
     expect((res.body as Full).expires_in).toBe(600);
   });
 
+  it.each([
+    ['another resource and the issuer', (iss: string) => [OTHER, iss]],
+    ['the issuer alone', (iss: string) => [iss]],
+  ])('refuses a stored mcp:read grant whose audience is %s', async (_name, audienceOf) => {
+    const read = (await issue('openid mcp:read')).body as Full;
+    const claims = claimsOf(read.access_token);
+    const grantId = claims.grant_id;
+    if (typeof grantId !== 'string' || typeof claims.iss !== 'string') throw new Error('no claims');
+    const audience = audienceOf(claims.iss);
+    await withTenant(app.db, TENANT_ID, (tx) =>
+      tx.update(tokenGrants).set({ audience }).where(eq(tokenGrants.id, grantId)),
+    );
+    const refused = await refreshWith(read.refresh_token ?? '');
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toBe('invalid_scope');
+  });
+
   it('refuses to exchange a write token into a refresh token', async () => {
     const code = await mintCode(EXCHANGE_ID, 'openid mcp:write', [MCP_URL]);
     const held = await token(codeRequest(code), EXCHANGE_ID, EXCHANGE_SECRET);
