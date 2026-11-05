@@ -21,7 +21,8 @@ odudu seed client \
   --tenant exdoc --client-id exdoc-exchange --client-secret exdoc-exchange-secret \
   --redirect-uri http://localhost:8080/callback \
   --grant-type authorization_code --grant-type refresh_token \
-  --grant-type urn:ietf:params:oauth:grant-type:token-exchange
+  --grant-type urn:ietf:params:oauth:grant-type:token-exchange \
+  --token-exchange-actor-from-other-client
 odudu seed client \
   --tenant exdoc --client-id exdoc-exchange-restricted --client-secret exdoc-exchange-restricted-secret \
   --redirect-uri http://localhost:8080/callback \
@@ -33,7 +34,11 @@ odudu seed client \
   --grant-type authorization_code --grant-type refresh_token
 ```
 
-`seed client` has no `--audience` or impersonation flag (see [the roadmap](../../../roadmap.md#decided-against-and-why)), so `exdoc-exchange` and
+`exdoc-exchange` was given `--token-exchange-actor-from-other-client`
+because the actor token below was issued to `exdoc-spa`, not to the client
+that presents it; `exdoc-exchange-restricted` was not, and
+[a later section](#an-actor-token-another-client-was-issued-and-a-public-client)
+shows what that costs it. `seed client` has no `--audience` or impersonation flag (see [the roadmap](../../../roadmap.md#decided-against-and-why)), so `exdoc-exchange` and
 `exdoc-exchange-restricted` both get an audience set directly, and only the
 first gets `token_exchange_impersonation_allowed` flipped on:
 
@@ -257,6 +262,138 @@ Byte-identical to the impersonation refusal above — both are
 each transcript above shows the column its own refusal turns on rather
 than asserting which check fired.
 
+## An actor token another client was issued, and a public client
+
+Two limits on the grant, both off until an administrator turns them on. The
+actor token above, `bot`'s, was issued to `exdoc-spa`. `exdoc-exchange-restricted`
+holds the grant too, but was not told it may present another client's actor
+token, so the same request from it is refused. It is answered as every other
+refusal of an actor token is, `invalid_request` (RFC 8693 §2.2.2), and
+recorded under its own reason:
+
+```bash
+curl -sS -D - -H 'x-request-id: actor-from-other-client' \
+  -u exdoc-exchange-restricted:exdoc-exchange-restricted-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode "subject_token=$SUBJECT_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  --data-urlencode "actor_token=$ACTOR_TOKEN" \
+  --data-urlencode 'actor_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  --data-urlencode 'resource=https://api.exdoc.example' \
+  'http://localhost:3000/tenants/exdoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: actor-from-other-client
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+content-length: 104
+Date: Thu, 05 Nov 2026 20:55:08 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"error":"invalid_request","error_description":"The request is missing a parameter or has a wrong one."}
+```
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.action, e.outcome, c.client_id as actor_client, e.detail
+     from audit_events e left join clients c on c.id = e.actor_client_id
+    where e.request_id = 'actor-from-other-client';"
+```
+
+```
+-[ RECORD 1 ]+----------------------------
+action       | token.exchange
+outcome      | refused
+actor_client | exdoc-exchange-restricted
+detail       | {"reason": "invalid_grant"}
+```
+
+A public client holds no secret, so `/token` cannot tell its caller from
+anyone else holding its `client_id`. A public client registered for the grant,
+`exdoc-public` here (`odudu seed client --tenant exdoc --client-id exdoc-public
+--public --redirect-uri http://localhost:8080/callback --grant-type
+authorization_code --grant-type
+urn:ietf:params:oauth:grant-type:token-exchange`), is refused it outright,
+before either token is read. `$PUBLIC_SUBJECT_TOKEN` and `$PUBLIC_ACTOR_TOKEN`
+are `ada`'s and `bot`'s tokens from signing in through `exdoc-public`, so
+nothing about the tokens is at fault:
+
+```bash
+curl -sS -D - \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode 'client_id=exdoc-public' \
+  --data-urlencode "subject_token=$PUBLIC_SUBJECT_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  --data-urlencode "actor_token=$PUBLIC_ACTOR_TOKEN" \
+  --data-urlencode 'actor_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  'http://localhost:3000/tenants/exdoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a1ad7d-e82f-7db1-bb7f-cd1ffec423bd
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+content-length: 94
+Date: Thu, 05 Nov 2026 20:54:32 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"error":"unauthorized_client","error_description":"This client may not use this grant type."}
+```
+
+An administrator allows it with the client's `token_exchange_allowed_for_public`
+field, in the admin API (the token is the one from
+[Getting the token](../admin-paths/getting-the-token.md)), under `If-Match`
+like any other change to a client. The response is the client with the field
+on, so this block shows the response headers only:
+
+```bash
+curl -sS -D - -o /dev/null -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "If-Match: $ETAG" \
+  -H 'content-type: application/json' \
+  -d '{"token_exchange_allowed_for_public":true}' \
+  "http://localhost:3000/admin/tenants/exdoc/clients/$CLIENT_ID"
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a1ad7d-fe3b-702a-a19c-7f73ef86b86e
+cache-control: no-store
+etag: "cb08f285c73ebf6b4c845701bd0589cbce9b19b755d4485708238bc7bb9ac8c9"
+content-type: application/json; charset=utf-8
+content-length: 2134
+Date: Thu, 05 Nov 2026 20:54:37 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+```
+
+The same request now succeeds, its actor token being `exdoc-public`'s own,
+run a minute later. The token is shortened as everywhere else here:
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a1ad7f-3c21-7069-aad0-224b6e6980c8
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+content-length: 1130
+Date: Thu, 05 Nov 2026 20:55:59 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"access_token":"eyJhbGciOiJSUzI1NiIsImtp…","token_type":"Bearer","expires_in":212,"scope":"openid","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
+```
+
 ## A client disabled after a token was issued to it
 
 Disabling a client is an admin API operation
@@ -285,7 +422,8 @@ odudu seed client \
 The top-level `odudu seed` has no `--grant-type`, `--audience` or
 impersonation flag at all (see [the roadmap](../../../roadmap.md#decided-against-and-why)),
 so `disableddoc-spa` — created through it, not through `seed client` — gets
-the exchange grant and `https://api.disableddoc.example` named in its own
+the exchange grant, `token_exchange_allowed_for_public` (a public client is
+refused the grant without it, as the section before this one shows) and `https://api.disableddoc.example` named in its own
 `audiences` directly, the same way an id_token self-exchange needs
 `token_exchange_impersonation_allowed` on directly, too, since with no
 `actor_token` it is impersonating itself. `disableddoc-reader` gets the
@@ -300,7 +438,8 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
     UPDATE client_oidc_config
     SET audiences = ARRAY['https://api.disableddoc.example'],
         grant_types = array_append(grant_types, 'urn:ietf:params:oauth:grant-type:token-exchange'),
-        token_exchange_impersonation_allowed = true
+        token_exchange_impersonation_allowed = true,
+        token_exchange_allowed_for_public = true
     FROM clients
     WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'disableddoc-spa'
       AND client_oidc_config.tenant_id = (SELECT id FROM tenants WHERE name = 'disableddoc');
