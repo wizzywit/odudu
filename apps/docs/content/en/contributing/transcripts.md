@@ -54,6 +54,15 @@ a freshly built compose project, `odudu-p5a-i3b` (port `3000`, `ODUDU_REAP_ENABL
 only as far as Path A plus one refresh rotation and then through the page's own commands in order; each report was captured again and the page now shows it as it
 came back. The unseeded-stack and refusal outputs were not re-run, since the key is not in them.
 
+The `mcp` value of `client_registration_policy` was added on 2026-11-05. The new section of the bootstrap page,
+"The `mcp` policy", was run on a freshly built compose project, `odudu-p5a-i4` (port `3000`, `ODUDU_REAP_ENABLED=false`,
+throttles at `10000`, built from the branch commit `712f51e9` plus the documentation) with a tenant made for it, `mcp-demo`,
+and only as far as the commands it shows. The tenant's policy was set with `psql`, since no seed flag or admin field sets
+the value yet. The tenant, client and instants differ from the page by being elided, and the stack was removed afterwards.
+The other registration pages predate the policy and were not run again, and no sign-in was re-run for the consent change,
+whose screen is unchanged. `GET /admin/openapi.json` was fetched again on the project `odudu-p5a-i4b`, because the
+tenant export's schema names the new value; only its request id, date and size (693,792 bytes) differ.
+
 `cimd_enabled`, the tenant setting for client ID metadata documents, was added on 2026-11-05. The
 authorization server metadata page gained a section that turns it on and off, and the settings page's
 `GET`, first `PATCH` and unknown-setting refusal, the first export of `get-export.md` and the OpenAPI

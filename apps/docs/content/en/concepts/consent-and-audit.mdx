@@ -29,12 +29,15 @@ An allow is **recorded**: one grant for this person and this client, holding the
 Odudu decides in this order:
 
 1. If the request says `prompt=consent`, ask, whatever the client is set to. The app is entitled to ask for a fresh decision.
-2. If the client does not require consent, carry on without the screen.
-3. If everything it asks for is already recorded, carry on.
-4. If something is missing and the request says `prompt=none`, refuse with `consent_required`, because `none` means the person must not be shown anything.
-5. Otherwise, ask.
+2. If the client registered itself, or arrived as a metadata document, and this person has no grant recorded for this exact client, ask. The client's own setting does not matter here, and `prompt=none` refuses with `consent_required`.
+3. If the client does not require consent, carry on without the screen.
+4. If everything it asks for is already recorded, carry on.
+5. If something is missing and the request says `prompt=none`, refuse with `consent_required`, because `none` means the person must not be shown anything.
+6. Otherwise, ask.
 
 `consent_required` is a setting on each client. An administrator's clients leave it off by default. A client that registered itself with no token has it on. From the command line, `odudu seed client --consent-required` creates one that asks.
+
+A client that nobody at the tenant vetted is held to step 2 until the person approves it. The approval belongs to that client's id alone: allowing one app never allows another, even one that gives itself the same name, and a signed-in browser session does not stand in for it.
 
 ### Looking at and removing grants
 
@@ -43,6 +46,10 @@ An administrator can list what a person has allowed with `GET /admin/tenants/{te
 ### A client named by a URL
 
 A tenant can let an app identify itself with a web address instead of registering first. The `cimd_enabled` setting, off by default, turns it on. A `client_id` that is an https address is then fetched: the document served there, a Client ID Metadata Document, gives the app's name and redirect addresses. Odudu keeps the result as a public client and sends people back only to a listed address. Anyone can claim a name, so the consent screen also shows the host the document came from and every redirect address. A client nobody has used for thirty days is removed and returns when its address is next used. With the setting off, sign-in and token requests for such an address are refused like any unknown client; tokens already issued stay valid until they expire.
+
+### A client that registers itself for MCP
+
+A tenant can also let an agent register itself with `client_registration_policy` set to `mcp`. The registration endpoint then admits only a public client, with https or loopback http redirect addresses, which may ask for `mcp:read` and never `mcp:write`, and whose only audience is the tenant's MCP address. Each address may register ten clients an hour, and the tenant's `max_clients` still applies. Such a client, and a metadata document client on a tenant with this policy, is given that audience and `mcp:read` by the policy and not by anything it sends. If the policy is later changed, a metadata document client loses them the next time its document is fetched. `mcp:read` is optional, so the consent screen offers it as a choice. The [registration transcript](../reference/transcripts/request-paths/bootstrap.md#the-mcp-policy) shows each refusal.
 
 ## Audit
 

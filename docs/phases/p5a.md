@@ -131,10 +131,57 @@ no-store document is fetched every time and never cached.
   deletes a client unused for thirty days unless a refresh token of it can
   still be used. An administrator's `enabled = false` is never undone by a
   resolution.
-- **Left for a policy.** The client has no audience and no MCP scope; both
-  arrive with the MCP registration policy. Turning the setting off does not
+- **The policy gives it an audience.** The client has no audience and no MCP
+  scope of its own; both come from the tenant's `mcp` registration policy
+  (the section below), never from the document. Turning the setting off does not
   disable stored rows: `/authorize` and `/token` refuse them by reading the
   setting, so a later control for the setting changes nothing else.
 - **The setting reached the admin API with its column**, because tenant
   settings, their export and `seed tenant --set` are one map. The console
   control is still to come (`PLACED_ELSEWHERE` in the settings page names it).
+
+## The `mcp` registration policy
+
+`client_registration_policy` takes a fourth value, `mcp` (migration 0117 widens
+the CHECK; the default stays `disabled`). The registration endpoint is then open
+to a public client and nothing else: `decideMcpRegistration` (a pure service)
+refuses a client that would hold a secret, a redirect that is not `https` or
+loopback `http` (a reverse-DNS custom scheme, which `open` admits, is refused),
+a grant beyond `authorization_code` and `refresh_token`, a `scope` outside the
+sign-in scopes and `mcp:read`, and an `audience` that is not the tenant's MCP
+URL. The audience is not a member RFC 7591 defines; it is Odudu's, and the
+response echoes it as `audience`. A client that omits
+`token_endpoint_auth_method` is refused, not defaulted, because the RFC's
+default is a secret. `registerMcpClient` (usecase) runs the budget, the
+decision and the shared transaction; the client is written with the MCP URL as
+its only audience, `mcp:read` as an optional scope, `consent_required` true and
+`registration_origin` `anonymous`, and the existing `max_clients` lock bounds
+the tenant.
+
+- **Budget.** Ten registrations an hour per tenant and address, over the
+  `slidingWindow` the other routes use (the exact log at this limit: ten
+  timestamps for each of at most `MAX_THROTTLE_KEYS` keys, ADR 0023). The
+  limiter is injected into `oidcRoutes` and is optional: a tenant on `mcp` with
+  none wired answers 404, so open registration never runs without a budget.
+  The budget is per process, as the other limiters are.
+- **Consent.** `decideConsent` gained `approvalRequired` and `approved`. A
+  client registered anonymously or resolved from a metadata document is asked
+  about until a grant of its own exists, whatever `consent_required` says and
+  even for a request naming no scope a grant could cover (`needsApproval`;
+  "approved" is any grant row for that exact client id). A client registered
+  with a token or by an administrator is unchanged. A consent that can record
+  no scope (the client's vocabulary holds none of what was asked) cannot be
+  approved, so such a request asks every time.
+- **CIMD under the policy.** `/authorize` passes the tenant's MCP URL and
+  whether the policy grants it to `persistCimdClient`, which rewrites the
+  client's audiences (the MCP URL alone under `mcp`, the MCP URL removed
+  otherwise, any other audience an administrator set left alone) and assigns
+  `mcp:read` as optional when it holds none. It is applied on every resolution,
+  so a policy change reaches a client at its next `/authorize`; a refresh token
+  it already holds keeps the audience it was issued with until then. A document
+  never names either.
+- **Not done here.** Neither `seed tenant --set` nor the admin settings accept
+  `mcp` yet (the admin API field and the console control are separate work); the
+  tenant export schema (`registrationPolicySchema`) accepts it, because an
+  export of a tenant set in the database would otherwise fail. `mcp:write` is never given by the policy, but an administrator can
+  still assign it to a client the policy created.
