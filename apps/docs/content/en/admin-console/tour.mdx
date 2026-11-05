@@ -98,6 +98,8 @@ The [Audit trail](./audit-trail.mdx) page shows how to filter it and export it.
 
 Choose **Sign out** at the bottom of the menu, beside the name you are signed in as. The console revokes the refresh token it held for you, clears its cookie and ends your sign-in with the tenant too, and you arrive at the sign-in page. The console's own client skips the sign-out confirmation, so nothing asks first.
 
+**Switch tenant**, beside it, only returns you to the tenant list. It does not end your sign-in with the tenant you leave, so choosing that tenant again signs you in without asking for a password. Use **Sign out** first when you want the sign-in form back.
+
 ## If a page stops working
 
 Now and then a page fails to draw. The console replaces that page with a panel that says **Something went wrong**, and leaves the menu where it is, so you can go on elsewhere. Changes you had saved are kept; changes you had not saved on the page that failed cannot be recovered. **Try again** draws the page once more. It keeps you where you are, so it does not ask anything. **Back to overview** takes you to the tenant's overview and **Reload the console** starts the console over; both leave the page, so they ask first if another form still open holds changes you have not saved.
