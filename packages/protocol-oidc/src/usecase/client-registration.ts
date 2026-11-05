@@ -4,15 +4,19 @@ import { subjectRepository } from '@odudu/domain-identity';
 import {
   clientRegistrationTokenRepository,
   clientRepository,
+  clientScopeRepository,
   provisionClientDefaults,
   type ClientRecord,
 } from '@odudu/domain-tenant';
-import { newId } from '@odudu/kernel';
+import { addressUrl, MCP_RESOURCE_PATH, newId, type TenantAddress } from '@odudu/kernel';
 import { randomBytes } from 'node:crypto';
 import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import { extractBearerToken } from '#/service/bearer-token';
 import { parseClientMetadata, type ClientMetadata } from '#/service/client-metadata';
+import { decideMcpRegistration } from '#/service/mcp-registration-policy';
+import { MCP_READ_SCOPE } from '#/service/mcp-scopes';
+import { type RegistrationLimiter } from '#/service/registration-throttle';
 import { parseLocalisedClientNames } from '#/service/localised-client-names';
 import { idTokenAlgUnavailable } from '#/usecase/id-token-alg';
 
@@ -28,12 +32,25 @@ export interface ClientRegistrationDeps {
   // authenticating with one — see `parseClientMetadata`'s own
   // `tlsClientAuthEnabled` for the design decision this honours.
   tlsClientAuthEnabled: boolean;
+  // Consulted only for a tenant on the `mcp` policy, which stays closed
+  // where none is wired: open registration with no budget is not a default.
+  mcpRegistrationLimiter?: RegistrationLimiter | undefined;
+}
+
+// What the request itself says about where it came from.
+export interface RegistrationContext {
+  // The client address the throttle keys on.
+  readonly origin: string;
+  // The tenant's own address, whose MCP URL the `mcp` policy binds to.
+  readonly address: TenantAddress;
 }
 
 export interface RegisteredClient {
   clientId: string;
   clientIdIssuedAt: number;
   clientSecret: string | null;
+  // The audiences the policy gave it; empty for every policy but `mcp`.
+  audiences: string[];
   metadata: ClientMetadata;
   // `client_name#<tag>` members the tenant offers, by canonical tag.
   nameI18n: Record<string, string>;
@@ -49,6 +66,7 @@ export type ClientRegistrationOutcome =
       description: string;
     }
   | { kind: 'at_capacity' }
+  | { kind: 'rate_limited'; retryAfterSeconds: number }
   | { kind: 'ok'; client: RegisteredClient };
 
 // RFC 7591 places no format requirement on a client secret; 32 random bytes
@@ -63,9 +81,23 @@ function clientType(tokenEndpointAuthMethod: string): 'public' | 'confidential' 
   return tokenEndpointAuthMethod === 'none' ? 'public' : 'confidential';
 }
 
+// What the `mcp` policy grants a client registered under it, beyond the
+// defaults every client gets.
+interface McpGrant {
+  readonly audiences: string[];
+}
+
 // One transaction, entered only once the tenant is known to accept
 // registrations at all — a disabled tenant and an unknown one both stop at
 // `not_found` before any transaction opens.
+// Optional, so a client has to ask for it, and the person is shown it. A
+// tenant that has deleted the scope leaves the client without it.
+async function assignMcpRead(tx: TenantScopedDatabase, clientId: string): Promise<void> {
+  const scopes = clientScopeRepository(tx);
+  const scope = await scopes.byName(MCP_READ_SCOPE);
+  if (scope !== null) await scopes.assignOrUpdate(clientId, scope.id, 'optional');
+}
+
 async function performRegistration(
   deps: ClientRegistrationDeps,
   tx: TenantScopedDatabase,
@@ -74,6 +106,7 @@ async function performRegistration(
   nameI18n: Record<string, string>,
   origin: ClientRecord['registrationOrigin'],
   now: Date,
+  grant: McpGrant | null,
 ): Promise<ClientRegistrationOutcome> {
   const capacity = await clientRepository(tx).lockCapacity(tenantId);
   if (capacity.count >= capacity.maxClients) {
@@ -136,11 +169,13 @@ async function performRegistration(
   });
 
   await provisionClientDefaults(tx, client.id);
+  if (grant !== null) await assignMcpRead(tx, client.id);
 
+  const audiences = grant?.audiences ?? [];
   await clientOidcConfigRepository(tx).create({
     clientId: client.id,
     tenantId,
-    audiences: [],
+    audiences,
     accessTokenTtlSeconds: null,
     refreshTokenTtlSeconds: null,
     redirectUris: metadata.redirectUris,
@@ -156,7 +191,7 @@ async function performRegistration(
     // The one axis this defaults on for: an anonymous registration is
     // untrusted the way a seeded or token-authorized client is not (ADR
     // 0027, RFC 7591 §5).
-    consentRequired: origin === 'anonymous',
+    consentRequired: origin === 'anonymous' || grant !== null,
     userinfoSignedResponseAlg: metadata.userinfoSignedResponseAlg,
     userinfoEncryptedResponseAlg: metadata.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: metadata.userinfoEncryptedResponseEnc,
@@ -175,28 +210,23 @@ async function performRegistration(
       clientId: oauthClientId,
       clientIdIssuedAt: Math.floor(now.getTime() / 1000),
       clientSecret,
+      audiences,
       metadata,
       nameI18n,
     },
   };
 }
 
-export async function registerClient(
+interface ParsedRegistration {
+  readonly metadata: ClientMetadata;
+  readonly names: Record<string, string>;
+}
+
+function parseRegistration(
   deps: ClientRegistrationDeps,
-  tenantName: string,
-  authorizationHeader: string | undefined,
+  tenant: TenantLookup,
   body: unknown,
-): Promise<ClientRegistrationOutcome> {
-  const tenant = await deps.findTenant(tenantName);
-  if (!tenant?.enabled || tenant.clientRegistrationPolicy === 'disabled') {
-    return { kind: 'not_found' };
-  }
-
-  const presentedToken = extractBearerToken(authorizationHeader);
-  if (tenant.clientRegistrationPolicy === 'token' && presentedToken === undefined) {
-    return { kind: 'unauthorized' };
-  }
-
+): ParsedRegistration | Extract<ClientRegistrationOutcome, { kind: 'invalid_metadata' }> {
   const parsed = parseClientMetadata(body, {
     tlsClientAuthEnabled: deps.tlsClientAuthEnabled,
     refuseOperatorFields: true,
@@ -214,7 +244,16 @@ export async function registerClient(
       description: names.description,
     };
   }
+  return { metadata: parsed.metadata, names: names.names };
+}
 
+async function persistRegistration(
+  deps: ClientRegistrationDeps,
+  tenant: TenantLookup,
+  presentedToken: string | undefined,
+  registration: ParsedRegistration,
+  grant: McpGrant | null,
+): Promise<ClientRegistrationOutcome> {
   return deps.withinTenant(tenant.id, async (tx) => {
     // A presented token is honoured or refused outright — never silently
     // downgraded to an anonymous registration, which would let a client
@@ -231,10 +270,73 @@ export async function registerClient(
       deps,
       tx,
       tenant.id,
-      parsed.metadata,
-      names.names,
+      registration.metadata,
+      registration.names,
       origin,
       deps.now(),
+      grant,
     );
   });
+}
+
+// The `mcp` policy: the registration endpoint open to a public client that
+// can reach the tenant's MCP endpoint and nothing else (ADR 0026's amendment).
+// Throttled per tenant and origin, and bounded by the tenant's `max_clients`
+// like every other registration.
+export async function registerMcpClient(
+  deps: ClientRegistrationDeps,
+  tenant: TenantLookup,
+  body: unknown,
+  presentedToken: string | undefined,
+  context: RegistrationContext,
+): Promise<ClientRegistrationOutcome> {
+  if (deps.mcpRegistrationLimiter === undefined) return { kind: 'not_found' };
+  const budget = deps.mcpRegistrationLimiter.check(tenant.id, context.origin);
+  if (!budget.allowed) return { kind: 'rate_limited', retryAfterSeconds: budget.retryAfterSeconds };
+
+  const registration = parseRegistration(deps, tenant, body);
+  if ('kind' in registration) return registration;
+
+  // parseClientMetadata has shown the body is an object.
+  const members = body as Record<string, unknown>;
+  const decision = decideMcpRegistration({
+    redirectUris: registration.metadata.redirectUris,
+    grantTypes: registration.metadata.grantTypes,
+    tokenEndpointAuthMethod: registration.metadata.tokenEndpointAuthMethod,
+    scope: members.scope,
+    audience: members.audience,
+    mcpAudience: addressUrl(context.address, MCP_RESOURCE_PATH),
+  });
+  if (decision.kind === 'invalid') {
+    return { kind: 'invalid_metadata', error: decision.error, description: decision.description };
+  }
+  return persistRegistration(deps, tenant, presentedToken, registration, {
+    audiences: decision.audiences,
+  });
+}
+
+export async function registerClient(
+  deps: ClientRegistrationDeps,
+  tenantName: string,
+  authorizationHeader: string | undefined,
+  body: unknown,
+  context: RegistrationContext,
+): Promise<ClientRegistrationOutcome> {
+  const tenant = await deps.findTenant(tenantName);
+  if (!tenant?.enabled || tenant.clientRegistrationPolicy === 'disabled') {
+    return { kind: 'not_found' };
+  }
+
+  const presentedToken = extractBearerToken(authorizationHeader);
+  if (tenant.clientRegistrationPolicy === 'token' && presentedToken === undefined) {
+    return { kind: 'unauthorized' };
+  }
+
+  if (tenant.clientRegistrationPolicy === 'mcp') {
+    return registerMcpClient(deps, tenant, body, presentedToken, context);
+  }
+
+  const registration = parseRegistration(deps, tenant, body);
+  if ('kind' in registration) return registration;
+  return persistRegistration(deps, tenant, presentedToken, registration, null);
 }

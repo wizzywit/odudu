@@ -67,9 +67,11 @@ import {
 } from '#/adapter/client-metadata-fetch';
 import { cimdCacheRepository } from '#/repository/client-metadata-cache';
 import { type FetchLimiter } from '#/service/cimd-fetch-limiter';
-import { persistCimdClient } from '#/usecase/persist-cimd-client';
+import { type McpPolicyGrant } from '#/service/mcp-registration-policy';
+import { CIMD_CLIENTS_PER_TENANT, persistCimdClient } from '#/usecase/persist-cimd-client';
 import { resolveCimdDocument } from '#/usecase/resolve-cimd-document';
 import { refreshCimdClient } from '#/usecase/resolve-cimd-client';
+import { type RegistrationLimiter } from '#/service/registration-throttle';
 import { needsApproval } from '#/service/consent';
 import { clientSourceOf } from '#/service/client-source';
 import { isRegisteredRedirectUri } from '#/service/redirect-uri';
@@ -152,6 +154,10 @@ export interface OidcRoutesDeps {
   // (#/repository/client-keys.ts). `apps/server/src/app.ts` supplies the
   // real one, wired to `node:https` and `node:dns`.
   clientKeySet: ClientKeySet;
+  // The budget of the `mcp` registration policy. Optional because it is the
+  // one policy that is open to anybody: without it a tenant on that policy
+  // answers 404 rather than registering without limit.
+  mcpRegistrationLimiter?: RegistrationLimiter;
   // Whether a refusal at /token, /revoke or /introspect naming a registered
   // client is an audit row or a log line (ADR 0037). Required
   // for the same reason `clientSecretLimiter` is; a caller with no opinion
@@ -627,6 +633,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       hashClientSecret: hashPassword,
       now: () => clock.now(),
       tlsClientAuthEnabled: deps.trustProxy ?? false,
+      ...(deps.mcpRegistrationLimiter === undefined
+        ? {}
+        : { mcpRegistrationLimiter: deps.mcpRegistrationLimiter }),
     });
     // One definition for both doors onto the enrolment page: the login
     // submission that discovers the action is owed, and the enrolment
@@ -743,26 +752,33 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const refreshCimd =
       cimd === undefined
         ? undefined
-        : (tenantId: string, url: string) =>
-            refreshCimdClient(tenantId, url, {
-              resolveDocument: (id, target) =>
-                resolveCimdDocument(id, target, {
-                  cache: cimdCacheRepository(deps.database),
-                  fetch: (address) =>
-                    fetchCimdDocument(address, {
-                      lookup: cimd.lookup,
-                      request: cimd.request,
-                      now: () => clock.now(),
-                    }),
-                  limiter: cimd.limiter,
-                  now: () => clock.now(),
-                  warn: cimd.warn,
-                }),
-              persist: (id, document, now) =>
-                withTenant(deps.database.db, id, (tx) => persistCimdClient(tx, id, document, now)),
-              now: () => clock.now(),
-              warn: cimd.warn,
-            });
+        : (tenantId: string, url: string, policy: McpPolicyGrant) =>
+            refreshCimdClient(
+              tenantId,
+              url,
+              {
+                resolveDocument: (id, target) =>
+                  resolveCimdDocument(id, target, {
+                    cache: cimdCacheRepository(deps.database),
+                    fetch: (address) =>
+                      fetchCimdDocument(address, {
+                        lookup: cimd.lookup,
+                        request: cimd.request,
+                        now: () => clock.now(),
+                      }),
+                    limiter: cimd.limiter,
+                    now: () => clock.now(),
+                    warn: cimd.warn,
+                  }),
+                persist: (id, document, now, grant) =>
+                  withTenant(deps.database.db, id, (tx) =>
+                    persistCimdClient(tx, id, document, now, CIMD_CLIENTS_PER_TENANT, grant),
+                  ),
+                now: () => clock.now(),
+                warn: cimd.warn,
+              },
+              policy,
+            );
 
     registerAuthorizeRoute(app, {
       ...(refreshCimd === undefined ? {} : { refreshCimdClient: refreshCimd }),
