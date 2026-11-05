@@ -36,7 +36,7 @@ const SETTINGS = {
   client_registration_policy: {
     column: 'clientRegistrationPolicy',
     type: 'text',
-    values: ['disabled', 'open', 'token'],
+    values: ['disabled', 'open', 'token', 'mcp'],
   },
   max_clients: { column: 'maxClients', type: 'integer' },
   max_sessions_per_browser: { column: 'maxSessionsPerBrowser', type: 'integer' },
