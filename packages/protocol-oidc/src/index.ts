@@ -1042,6 +1042,7 @@ export { sendPreviousAddressPage } from '#/view/routes/previous-address';
 export { answerNotFound, answerServerError, type UnroutedDeps } from '#/view/routes/unrouted';
 export { isApiPath, wantsHtmlPage } from '#/service/page-negotiation';
 export { AS_METADATA_PATH_FORM } from '#/view/routes/as-metadata';
+export { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '#/service/mcp-scopes';
 export {
   configureIssuerBase,
   configureTenantAddress,
