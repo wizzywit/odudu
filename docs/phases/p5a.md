@@ -125,7 +125,9 @@ no-store document is fetched every time and never cached.
   address the owner has withdrawn does not keep working while their server is
   down.
 - **Bounds.** At most 1,000 per tenant (a lock per tenant makes the check
-  hold under concurrency), last use written at most once a day, and `reap`
+  hold under concurrency); at the ceiling a new client evicts the least recently
+  used one with no consent, no usable refresh token and no live code, else is
+  refused, because resolving a document needs no sign-in; last use written at most once a day, and `reap`
   deletes a client unused for thirty days unless a refresh token of it can
   still be used. An administrator's `enabled = false` is never undone by a
   resolution.

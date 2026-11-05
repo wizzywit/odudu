@@ -22,7 +22,13 @@ document is resolved, holds no secret, asks for consent every time, and holds no
 audience: what a token may be for is the tenant's policy, never the document's. A
 client that has not been resolved for thirty days is removed by `odudu reap`, unless it
 holds a refresh token that can still be used; its address brings it back. A tenant holds
-at most 1,000 of them. An administrator who disables one is not overruled by the next
+at most 1,000 of them. Resolving a document needs no sign-in, so at that count a new
+client makes room by removing the one unused longest that never completed anything: no
+consent recorded, no refresh token that can still be used, no authorization code that
+has not expired. If every row has, the new client is refused and the server logs the
+tenant and host. Turning the setting off refuses `/authorize` and `/token` only: tokens
+already issued stay valid at userinfo and introspection until they expire, and the consent
+and post-logout steps still read the stored row. An administrator who disables one is not overruled by the next
 resolution. With the setting off, a URL `client_id` is refused at `/authorize` and at
 `/token` exactly as an unknown client is, unless a client of another origin already holds
 that string.

@@ -129,7 +129,9 @@ wide as the role the administrator gave it.
   (`registration_origin = 'cimd'`), rewritten from its document each time it is
   resolved, so the token endpoint, consent and userinfo need no second lookup.
   A response that says `no-store` is never cached, a client unused for thirty
-  days is removed by `odudu reap`, and a tenant keeps at most 1,000. Its audience
+  days is removed by `odudu reap`, and a tenant keeps at most 1,000; at that
+  count a new one replaces the least recently used that never completed a
+  sign-in, else is refused. Its audience
   is the tenant's MCP policy, never the document's.
 - **DCR**: the existing registration endpoint stays closed by default. A tenant
   registration policy for MCP clients is added: open registration limited to
