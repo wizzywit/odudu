@@ -177,8 +177,9 @@ describe('seed', () => {
 
     const result = await seed(options);
 
+    // The MCP scopes are defined in the tenant and assigned to no client.
     expect(await assignedScopes(result.tenantId, result.clientId)).toEqual(
-      [...TENANT_DEFAULT_SCOPE_NAMES].sort(),
+      TENANT_DEFAULT_SCOPE_NAMES.filter((name) => !name.startsWith('mcp:')).sort(),
     );
   });
 
@@ -982,7 +983,9 @@ describe('seed client and the tenant’s default scopes', () => {
       'https://app.example/callback',
     ]);
 
-    const expected = [...TENANT_DEFAULT_SCOPE_NAMES.filter((name) => name !== 'phone')];
+    const expected = TENANT_DEFAULT_SCOPE_NAMES.filter(
+      (name) => name !== 'phone' && !name.startsWith('mcp:'),
+    );
     expect(await assignedScopes(first.tenantId, 'marked-spa')).toEqual(
       [...expected, 'reports:read'].sort(),
     );
@@ -1026,6 +1029,20 @@ describe('seed restore-scopes', () => {
       created: ['roles', 'groups'],
     });
     expect(again).toMatchObject({ command: 'restore-scopes', created: [] });
+    expect(await scopeNames(first.tenantId)).toEqual([...TENANT_DEFAULT_SCOPE_NAMES].sort());
+  });
+
+  it('creates mcp:read and mcp:write again when a tenant has lost them', async () => {
+    const options = uniqueOptions();
+    const first = await seed(options);
+    await deleteScopes(first.tenantId, ['mcp:read', 'mcp:write']);
+
+    const restored = await seed(['restore-scopes', '--tenant', options.tenant]);
+
+    expect(restored).toMatchObject({
+      command: 'restore-scopes',
+      created: ['mcp:read', 'mcp:write'],
+    });
     expect(await scopeNames(first.tenantId)).toEqual([...TENANT_DEFAULT_SCOPE_NAMES].sort());
   });
 
