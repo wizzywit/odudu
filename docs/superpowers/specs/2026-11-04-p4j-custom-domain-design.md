@@ -36,8 +36,9 @@ lost the domain.**
 - Certificates issued inside Odudu, ACME and renewal: P11 (section 3 of the P4b spec).
 - An operator-wide scheme such as `<tenant>.idp.example` for every tenant: not
   placed; it is a different feature (wildcard certificates, no ownership proof).
-- The admin API and the admin console on a tenant's domain: they stay on the base
-  address, which is what makes switching back possible without the domain.
+- The admin API and the admin console served on a tenant's domain: they stay on the
+  base address, which is what makes switching back possible without the domain. The
+  admin plane follows the tenant's canonical address all the same (3.5).
 - More than one domain live at once for a tenant. A tenant has any number of
   registered domains but one canonical address.
 - Related Origin Requests to share passkeys across domains: browsers count about
@@ -114,6 +115,17 @@ plan's first task, by grep, and a lint holds it afterwards.
 issuer with the switch time. **Deactivate** (switch back) is the same operation
 toward the path address. Both are admin API and console actions on the base
 address, need no call to the domain, and write an audit row.
+
+**The admin plane follows the canonical address.** The console stays on the base
+address and sends a tenant's administrators to the tenant's canonical address to
+sign in, then receives them back on the base address. The admin API accepts a
+tenant's token while its issuer is the tenant's canonical address or one it left
+inside the window; a machine client fetches tokens from the canonical token
+endpoint, and tokens from the address left stop working when the window ends. A
+console session opened before a switch works through the window and then needs a
+fresh sign-in, since the gateway does not refresh on a `401`. Switching back
+returns sign-in to the path address, and tokens issued at the domain work for the
+window. The system tenant cannot have a domain and is unaffected.
 
 **What each side serves after a switch.** For the transition window below, the
 previous address keeps serving token, userinfo, introspection, revocation, jwks
@@ -208,8 +220,9 @@ Questions a reader of this document asked, answered here as the author's calls.
 - **Mail links and brand assets** always use the tenant's canonical address,
   whichever address the request arrived at.
 - **A host-to-tenant cache** is not required. One indexed read per request on a
-  non-base host is the design; a cache comes only where a measurement asks for
-  it, and then states its bound and its invalidation on a switch.
+  non-base host is the design, and one tenant-scoped read per admin API request
+  for a tenant other than `system`; a cache comes only where a measurement asks
+  for it, and then states its bound and its invalidation on a switch.
 
 ## 4. Constraints
 
