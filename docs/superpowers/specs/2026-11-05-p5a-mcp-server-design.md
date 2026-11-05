@@ -132,9 +132,13 @@ wide as the role the administrator gave it.
   every sign-in (the confused-deputy rule: a client id a person has not
   approved is never approved by a stale cookie).
 
-`assumption:` Claude Desktop and Cursor register by DCR today and neither
-sends a CIMD URL; the guide says which each does once the conformance run has
-shown it.
+Client research, 2026-11-05 (`docs/phases/p5a.md`): hosted Claude prefers CIMD
+and uses it only when the metadata lists `client_id_metadata_document_supported:
+true` and `none` among the token endpoint auth methods, else DCR; Claude Code
+publishes a CIMD document with port-agnostic loopback redirect URIs; Cursor uses
+DCR as a public client or a static client id and has no CIMD. So CIMD is a
+documented, recommended setting for Claude users (off until a tenant turns it
+on), and loopback redirect URIs match any port.
 
 **5.4 stdio.** `odudu mcp --base-url … --tenant …` takes either a service
 account key from the environment (5.2, headless) or runs a loopback browser
@@ -316,6 +320,15 @@ Settled from the repository (each one grepped on 2026-11-05):
 Left to the builder: tool names and descriptions; the `_meta` handling the SDK
 does not do; the bounded lifetime and size of the idempotency table; the
 credential-store library for stdio.
+
+Client reach (research, 2026-11-05): claude.ai and Desktop connectors call from
+Anthropic's servers and need a public HTTPS URL, so a downloaded instance on a
+laptop is reached by them only through a tunnel; Claude Code and Cursor connect
+to `http://localhost` directly; Claude Desktop's local route is `odudu mcp` as a
+stdio server. No target client uses the client-credentials extension, so the
+machine route serves custom clients, scripts and `odudu mcp`. Hosted Claude and
+Cursor speak the `initialize` era, so the endpoint serves it statelessly beside
+2026-07-28.
 
 Decided by the owner (2026-11-05): the CIMD and MCP-registration settings get
 one control on the existing settings screen, with its console page and

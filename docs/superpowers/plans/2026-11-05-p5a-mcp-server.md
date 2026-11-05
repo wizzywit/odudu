@@ -82,8 +82,8 @@ Settles every `assumption:` on a load-bearing path. Throwaway code lives in the 
 **Interfaces:** Produces: which of DCR, CIMD, pre-registration Claude Desktop and Cursor use; which MCP revision each speaks; whether `@modelcontextprotocol/inspector` CLI runs headless against a local server.
 
 - [ ] **Step 1:** Run `npx @modelcontextprotocol/inspector --cli` against the scratch server; record the invocation that lists tools.
-- [ ] **Step 2:** The owner connects Claude Desktop and Cursor to the scratch server by hand (a user step; the plan does not proceed on a guess). Record version and registration behaviour.
-- [ ] **Step 3: Gate.** If any target client speaks only a revision the SDK does not serve, stop and ask the owner (§10). Commit `docs/phases/p5a.md` and open the draft PR.
+- [ ] **Step 2 (done by research, 2026-11-05; recorded in `docs/phases/p5a.md`):** hosted Claude and Cursor use the `initialize` era, Claude Code v2 can speak 2026-07-28; Claude prefers CIMD, Cursor uses DCR or a static id and has no CIMD; no target client uses the client-credentials extension. A hand test against a scratch server could show nothing more without the real authorization server, so what stays unknown (the DCR request bodies, any `iss` validation, Cursor's revision) is captured by the transcripts of Increment 4 and the hand run in Task 11.1.
+- [ ] **Step 3: Gate (passed).** No target client needs a revision the SDK does not serve. Commit `docs/phases/p5a.md` and open the draft PR.
 
 ---
 
@@ -97,7 +97,7 @@ Exit: a stranger's MCP client can discover the tenant as an authorization server
 
 **Interfaces:** Produces `resolveAsMetadata(deps, tenantName, address): Promise<AsMetadata | null>` reusing the discovery usecase's inputs; route `GET /.well-known/oauth-authorization-server/tenants/:tenant` and, for a tenant at a verified domain, `GET /.well-known/oauth-authorization-server` on that host (ADR 0049).
 
-- [ ] **Step 1: Failing tests:** the document's `issuer` equals the tenant's canonical issuer; includes `code_challenge_methods_supported: ["S256"]`, `authorization_response_iss_parameter_supported: true`, `token_endpoint_auth_methods_supported` containing `private_key_jwt`, `scopes_supported` containing `mcp:read` and `mcp:write`; `registration_endpoint` present only while the policy allows it; `client_id_metadata_document_supported` absent until I3; a disabled or unknown tenant is 404 with no body difference between the two; the path-form and the domain-form answer with their own issuer.
+- [ ] **Step 1: Failing tests:** the document's `issuer` equals the tenant's canonical issuer; includes `code_challenge_methods_supported: ["S256"]`, `authorization_response_iss_parameter_supported: true`, `token_endpoint_auth_methods_supported` containing `none` and `private_key_jwt` (Claude uses CIMD only when `none` is listed beside `client_id_metadata_document_supported: true`), `scopes_supported` containing `mcp:read` and `mcp:write`; `registration_endpoint` present only while the policy allows it; `client_id_metadata_document_supported` absent until I3; a disabled or unknown tenant is 404 with no body difference between the two; the path-form and the domain-form answer with their own issuer.
 - [ ] **Step 2:** Run `pnpm --filter @odudu/protocol-oidc test -- as-metadata`; expect FAIL.
 - [ ] **Step 3:** Implement by projecting the existing discovery document, so the two cannot drift; a test asserts the shared fields equal.
 - [ ] **Step 4:** Run the same command and the int test; expect PASS.
@@ -141,7 +141,7 @@ Exit: a stranger's MCP client can discover the tenant as an authorization server
 
 **Interfaces:** Produces `capLifetimeForScope(ttlSeconds, scope): number` in `service/`, returning `min(ttl, 600)` when `mcp:write` is present, and a rule that no refresh token is issued then.
 
-- [ ] **Step 1: Failing tests:** a grant with `mcp:write` gets `expires_in ≤ 600` and no `refresh_token`; with `mcp:read` only it follows the tenant; a refresh that would widen to `mcp:write` is refused; `offline_access` with `mcp:write` is refused.
+- [ ] **Step 1: Failing tests:** a grant with `mcp:write` gets `expires_in ≤ 600` and no `refresh_token`; with `mcp:read` only it follows the tenant; a refresh that would widen to `mcp:write` is refused; `offline_access` alongside `mcp:write` is ignored (the token is issued with no refresh token and no error), because Claude appends `offline_access` whenever the server lists it.
 - [ ] **Steps 2–5**; push the increment's PR; CI green; review answered.
 
 ---
@@ -152,9 +152,9 @@ Exit: a stranger's MCP client can discover the tenant as an authorization server
 
 **Files:** Create `packages/protocol-oidc/src/service/client-id-metadata.ts`, test beside.
 
-**Interfaces:** Produces `isCimdClientId(raw: string): boolean` (HTTPS URL with a non-root path, no fragment, no credentials); `parseCimdDocument(clientIdUrl: string, body: unknown): { kind: 'ok'; client: CimdClient } | { kind: 'invalid'; reason: CimdRefusal }` requiring `client_id` equal to the URL exactly, `client_name`, `redirect_uris` (HTTPS or loopback only), refusing `client_secret*`, symmetric auth methods and `jwks` that are not public.
+**Interfaces:** Produces `isCimdClientId(raw: string): boolean` (HTTPS URL with a non-root path, no fragment, no credentials); `parseCimdDocument(clientIdUrl: string, body: unknown): { kind: 'ok'; client: CimdClient } | { kind: 'invalid'; reason: CimdRefusal }` requiring `client_id` equal to the URL exactly, `client_name`, `redirect_uris` (HTTPS or loopback only; a loopback `http://localhost/…` or `http://127.0.0.1/…` entry matches any port, RFC 8252 §7.3, which Claude Code's document relies on), refusing `client_secret*`, symmetric auth methods and `jwks` that are not public.
 
-- [ ] **Step 1: Failing tests:** each refusal; accepted minimal document; a localhost redirect is flagged `loopback: true` so the consent page can show its host (spec: MUST display the hostname).
+- [ ] **Step 1: Failing tests:** each refusal; accepted minimal document; a localhost redirect is flagged `loopback: true`; a loopback redirect on a different port than the document's still matches, a different path does not; the consent page shows the `client_id` URL's host, not only `client_name`.
 - [ ] **Steps 2–5.** Commit.
 
 ### Task 3.2: The bounded fetch
@@ -314,7 +314,7 @@ and `NOT_TOOLS: Record<routeKey, reason>`.
 
 ### Task 8.4: The endpoint
 
-**Files:** `packages/mcp/src/view/routes/mcp.ts` (mounted in `apps/server` at `/tenants/:tenant/mcp` and on a verified domain), `…/usecase/validate-mcp-token.ts`, `…/service/rate-limit.ts`. Uses `@modelcontextprotocol/server` 2.4.0 with `@modelcontextprotocol/node` 2.1.2: `createMcpHandler(factory, { legacy: 'stateless' })` mounted with `reply.hijack()` and `toNodeHandler`; the principal is passed as `req.raw.auth`; Host and Origin hooks are built per request from the tenant's accepted hosts (Odudu does the 401 challenge in its own `onRequest`). Whether to serve the legacy 2025 era is decided by Task 0.3's client findings, default `reject` if both target clients speak 2026-07-28.
+**Files:** `packages/mcp/src/view/routes/mcp.ts` (mounted in `apps/server` at `/tenants/:tenant/mcp` and on a verified domain), `…/usecase/validate-mcp-token.ts`, `…/service/rate-limit.ts`. Uses `@modelcontextprotocol/server` 2.4.0 with `@modelcontextprotocol/node` 2.1.2: `createMcpHandler(factory, { legacy: 'stateless' })` mounted with `reply.hijack()` and `toNodeHandler`; the principal is passed as `req.raw.auth`; Host and Origin hooks are built per request from the tenant's accepted hosts (Odudu does the 401 challenge in its own `onRequest`). The handler is built with `legacy: 'stateless'`: hosted Claude and Cursor speak the `initialize` era and Claude Code v2 speaks 2026-07-28; a test sends both eras. Residual risk, UNVERIFIED: the SDK source names only 2025-11-25 and 2026-07-28, while hosted Claude documents 2025-06-18; the hand run in Task 11.1 records what each client negotiates.
 
 - [ ] **Step 1: Failing tests:** no token → 401 with the I1.2 challenge; wrong audience, foreign tenant, foreign issuer form, `typ` not `at+jwt`, expired → 401 and a `capability.refused`/`token.foreign_issuer` row where the existing door writes one; missing `Mcp-Method` or mismatch → 400 `-32020`; invalid `Origin` → 403; `GET` and `DELETE` → 405; `server/discover` lists supported revisions and `tools` capability; `tools/list` is deterministic, carries `ttlMs` and `cacheScope: "private"`, and omits tools the token cannot use (Review Focus 7); a tool call writes one `agent.tool_call` row; the per-principal limiter returns the MCP error and a `Retry-After`, with its bound documented (single instance; P11).
 - [ ] **Steps 2–5.** The conformance harness lands in Increment 11; here an Inspector-free SDK client test is the check. Push the increment's PR; CI; review.
@@ -373,7 +373,7 @@ and `NOT_TOOLS: Record<routeKey, reason>`.
 
 ### Task 11.2: Guides, pages and transcripts
 
-**Files:** `apps/docs/content/en/guides/protect-an-mcp-server.md` (runnable blocks, run by `tools/docs-run`), `guides/connect-claude.md`, `guides/connect-cursor.md` (written from the hand runs, with the exact versions and registration mode each uses), `concepts/{tokens,consent-and-audit}.md`, transcripts for the well-known routes and the endpoint, `reference` pages regenerate.
+**Files:** `apps/docs/content/en/guides/protect-an-mcp-server.md` (runnable blocks, run by `tools/docs-run`), `guides/connect-claude.md` (Claude Code against an instance on `http://localhost`; Claude Desktop through `odudu mcp` in `claude_desktop_config.json`; claude.ai and Desktop connectors need a public HTTPS URL reachable from Anthropic's servers, so a downloaded instance needs a tunnel, said plainly), `guides/connect-cursor.md` (DCR under the `mcp` policy, or a static client id in `mcp.json`), each written from the hand runs with exact versions; a page saying no target client uses the client-credentials extension yet, so the machine route is for custom clients, scripts and `odudu mcp`, `concepts/{tokens,consent-and-audit}.md`, transcripts for the well-known routes and the endpoint, `reference` pages regenerate.
 
 - [ ] **Step 1:** every fenced command block runs or is tagged `text`; a transcript block carries no language tag (CLAUDE.md); transcripts are re-run on a live stack and name the stack; `guides-runnable`, `transcripts`, `concepts`, `links`, `endpoints` tests green.
 

@@ -61,3 +61,30 @@ Consequences written into the plan: an in-process entry point that sets `act`
 to the agent client directly (no actor token, no `/token` request); a refusal
 of the exchange for public clients and a binding of an actor token to the
 requesting client, both as settings an operator controls.
+
+### What the target clients do (research; official docs unless marked)
+
+- **Claude (claude.ai, Desktop connectors):** speaks the `initialize` era
+  (2026-07-28 "rolling out", secondary). Client id: CIMD preferred (needs
+  `client_id_metadata_document_supported: true` and `none` in
+  `token_endpoint_auth_methods_supported`, else DCR), DCR, or a pasted client
+  id. Redirect `https://claude.ai/api/mcp/auth_callback` (may become
+  `claude.com`). Needs a public HTTPS URL: Anthropic's servers make the calls.
+  No client-credentials extension. Requires a 401 with `resource_metadata`, a
+  PRM `resource` equal to the MCP URL, form-encoded `/token`, S256 and rotating
+  refresh tokens for public clients; uses the first `authorization_servers`
+  entry; appends `offline_access` when the AS lists it.
+- **Claude Code:** `http://localhost` works; CIMD document at
+  `https://claude.ai/oauth/claude-code-client-metadata` with redirect URIs
+  `http://localhost/callback` and `http://127.0.0.1/callback` (any port); a
+  static `--client-id` and DCR also work; the v2 runtime can speak 2026-07-28.
+- **Cursor:** DCR as a public client or a static `auth.CLIENT_ID`; no CIMD;
+  redirects `http://localhost:8787/callback` and
+  `https://www.cursor.com/agents/mcp/oauth/callback` (no `cursor://` found);
+  `http://localhost` works; protocol revision unpublished.
+- **Unknown, to capture by transcript:** the exact DCR bodies, any `iss`
+  validation, Cursor's revision, hosted Claude's CIMD URL path.
+
+Gate result: no target client needs a revision the SDK does not serve, so the
+phase continues. Residual risk: the SDK source names only 2025-11-25 and
+2026-07-28; the hand run records what each client negotiates.
