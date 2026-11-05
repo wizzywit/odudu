@@ -831,6 +831,14 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'clients/services/tokenExchange.ts',
     "'Allow impersonation in token exchange'",
   ),
+  'Allow a public client to use token exchange': page(
+    'clients/services/tokenExchange.ts',
+    "EXCHANGE_PUBLIC_LABEL = 'Allow a public client to use token exchange'",
+  ),
+  'Accept an actor token issued to another client': page(
+    'clients/services/tokenExchange.ts',
+    "EXCHANGE_ACTOR_LABEL = 'Accept an actor token issued to another client'",
+  ),
   'New subjects': page('roles/use-cases/useRoleGeneral.ts', "label: 'New subjects'"),
   'Tenant or client': page('roles/ui/RolesPage/RolesPage.tsx', "label: 'Tenant or client'"),
   'New clients': page('scopes/use-cases/useScopeGeneral.ts', "label: 'New clients'"),

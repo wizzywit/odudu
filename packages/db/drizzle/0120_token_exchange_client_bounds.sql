@@ -23,6 +23,7 @@ BEGIN
   RETURN NEW;
 END $$;
 
+DROP TRIGGER IF EXISTS client_oidc_config_set_public ON client_oidc_config;
 CREATE TRIGGER client_oidc_config_set_public
   BEFORE INSERT ON client_oidc_config
   FOR EACH ROW EXECUTE FUNCTION client_oidc_config_set_public();
