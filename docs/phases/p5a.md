@@ -338,9 +338,13 @@ holding no MCP scope a 403. An agent must pass both gates: the scope
   one (else `invalid_scope`) and carries the subject's `act`, or the requesting
   client as `act`; a malformed `act` is refused; the refresh path refuses a
   narrowing that drops the last MCP scope the same way (`mcp_scope_dropped`).
-- Console: the client page has a bespoke control for impersonation (a wording
-  constant, a use-case value, a save group, a fixture); the two new settings
-  have none yet, so they are API and CLI only.
+- Console: the client page's Token exchange section shows both settings beside
+  impersonation, saved together; wording lives in `services/tokenExchange.ts`.
+- A token exchange is not bound to the client that holds the subject token, with
+  the new settings off. RFC 8693 does not ask for it, and the resource server
+  that exchanges the tokens of the client it serves is the grant's ordinary use
+  (the `disableddoc-reader` of Path D), so binding would break it; the actor
+  token is the credential of whoever acts, which is why that one is bound.
 - Volume: nothing here adds a query per request on the hot path. The mint
   reads a grant, a client, a tenant, a session and a subject by primary key
   and writes nothing; a tool call costs those five reads and one signature.

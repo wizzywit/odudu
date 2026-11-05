@@ -15,7 +15,11 @@ import {
 } from '#/pages/clients/services/clientAuthentication';
 import {
   AUDIENCES_RULE,
+  EXCHANGE_ACTOR_LABEL,
+  EXCHANGE_ACTOR_RULE,
   EXCHANGE_LABEL,
+  EXCHANGE_PUBLIC_LABEL,
+  EXCHANGE_PUBLIC_RULE,
   EXCHANGE_RULE,
   FIXED_BY_DESIGN,
 } from '#/pages/clients/services/tokenExchange';
@@ -63,6 +67,10 @@ export interface ClientAdvanced {
   audiencesDescription: string;
   exchangeLabel: string;
   exchangeRule: string;
+  exchangePublicLabel: string;
+  exchangePublicRule: string;
+  exchangeActorLabel: string;
+  exchangeActorRule: string;
   // What cannot be changed, each with its value and why.
   fixedByDesign: typeof FIXED_BY_DESIGN;
   auth: SectionSave<AuthValues>;
@@ -162,6 +170,16 @@ export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
         label: EXCHANGE_LABEL,
         kind: 'plain',
       },
+      token_exchange_allowed_for_public: {
+        value: client.token_exchange_allowed_for_public,
+        label: EXCHANGE_PUBLIC_LABEL,
+        kind: 'plain',
+      },
+      token_exchange_actor_from_other_client: {
+        value: client.token_exchange_actor_from_other_client,
+        label: EXCHANGE_ACTOR_LABEL,
+        kind: 'plain',
+      },
     },
     save: saves.exchange,
   });
@@ -182,6 +200,10 @@ export function useClientAdvanced(args: ClientRecordRead): ClientAdvanced {
     ),
     exchangeLabel: EXCHANGE_LABEL,
     exchangeRule: EXCHANGE_RULE,
+    exchangePublicLabel: EXCHANGE_PUBLIC_LABEL,
+    exchangePublicRule: EXCHANGE_PUBLIC_RULE,
+    exchangeActorLabel: EXCHANGE_ACTOR_LABEL,
+    exchangeActorRule: EXCHANGE_ACTOR_RULE,
     fixedByDesign: FIXED_BY_DESIGN,
     auth,
     authMethods: authOptions(client),

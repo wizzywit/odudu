@@ -239,6 +239,48 @@ it('allows impersonation in token exchange on its own save', async () => {
   await waitFor(() => {
     expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({
       token_exchange_impersonation_allowed: true,
+      token_exchange_allowed_for_public: false,
+      token_exchange_actor_from_other_client: false,
+    });
+  });
+});
+
+it('allows a public client to use token exchange on the same save, off until turned on', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(AT, patching({ token_exchange_allowed_for_public: true }));
+  await open();
+  const section = screen.getByRole('region', { name: 'Token exchange' });
+  const toggle = within(section).getByRole('switch', {
+    name: 'Allow a public client to use token exchange',
+  });
+  expect(toggle).not.toBeChecked();
+  await user.click(toggle);
+  await user.click(within(section).getByRole('button', { name: 'Save Token exchange' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({
+      token_exchange_impersonation_allowed: false,
+      token_exchange_allowed_for_public: true,
+      token_exchange_actor_from_other_client: false,
+    });
+  });
+});
+
+it('accepts an actor token issued to another client on the same save, off until turned on', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(AT, patching({ token_exchange_actor_from_other_client: true }));
+  await open();
+  const section = screen.getByRole('region', { name: 'Token exchange' });
+  const toggle = within(section).getByRole('switch', {
+    name: 'Accept an actor token issued to another client',
+  });
+  expect(toggle).not.toBeChecked();
+  await user.click(toggle);
+  await user.click(within(section).getByRole('button', { name: 'Save Token exchange' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({
+      token_exchange_impersonation_allowed: false,
+      token_exchange_allowed_for_public: false,
+      token_exchange_actor_from_other_client: true,
     });
   });
 });

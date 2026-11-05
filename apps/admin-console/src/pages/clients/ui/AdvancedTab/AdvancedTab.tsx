@@ -238,6 +238,26 @@ export function AdvancedTab({ tenant, client, etag, gone, writable }: ClientTabP
               exchange.edit('token_exchange_impersonation_allowed', value);
             }}
           />
+          <ToggleField
+            label={page.exchangePublicLabel}
+            description={page.exchangePublicRule}
+            value={exchange.values.token_exchange_allowed_for_public}
+            error={exchange.fieldErrors.token_exchange_allowed_for_public}
+            changed={exchange.changed.includes('token_exchange_allowed_for_public')}
+            onChange={(value) => {
+              exchange.edit('token_exchange_allowed_for_public', value);
+            }}
+          />
+          <ToggleField
+            label={page.exchangeActorLabel}
+            description={page.exchangeActorRule}
+            value={exchange.values.token_exchange_actor_from_other_client}
+            error={exchange.fieldErrors.token_exchange_actor_from_other_client}
+            changed={exchange.changed.includes('token_exchange_actor_from_other_client')}
+            onChange={(value) => {
+              exchange.edit('token_exchange_actor_from_other_client', value);
+            }}
+          />
         </SaveSection>
       </ReadOnlyFields>
       {secret.fixed !== null ? (

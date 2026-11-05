@@ -40,6 +40,8 @@ export interface Client {
   backchannel_logout_session_required: boolean;
   consent_required: boolean;
   token_exchange_impersonation_allowed: boolean;
+  token_exchange_allowed_for_public: boolean;
+  token_exchange_actor_from_other_client: boolean;
   userinfo_signed_response_alg: string | null;
   userinfo_encrypted_response_alg: string | null;
   userinfo_encrypted_response_enc: string | null;
