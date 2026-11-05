@@ -48,7 +48,7 @@ Keep-Alive: timeout=72
 curl -sS http://localhost:3000/.well-known/oauth-authorization-server/tenants/demo | jq .
 ```
 
-```json
+```
 {
   "issuer": "http://localhost:3000/tenants/demo",
   "authorization_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/auth",
@@ -56,8 +56,12 @@ curl -sS http://localhost:3000/.well-known/oauth-authorization-server/tenants/de
   "jwks_uri": "http://localhost:3000/tenants/demo/protocol/openid-connect/certs",
   "introspection_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/token/introspect",
   "revocation_endpoint": "http://localhost:3000/tenants/demo/protocol/openid-connect/revoke",
-  "response_types_supported": ["code"],
-  "response_modes_supported": ["query"],
+  "response_types_supported": [
+    "code"
+  ],
+  "response_modes_supported": [
+    "query"
+  ],
   "grant_types_supported": [
     "authorization_code",
     "refresh_token",
@@ -70,24 +74,37 @@ curl -sS http://localhost:3000/.well-known/oauth-authorization-server/tenants/de
     "none",
     "private_key_jwt"
   ],
-  "token_endpoint_auth_signing_alg_values_supported": ["RS256", "ES256"],
+  "token_endpoint_auth_signing_alg_values_supported": [
+    "RS256",
+    "ES256"
+  ],
   "introspection_endpoint_auth_methods_supported": [
     "client_secret_basic",
     "client_secret_post",
     "private_key_jwt",
     "none"
   ],
-  "introspection_endpoint_auth_signing_alg_values_supported": ["RS256", "ES256"],
+  "introspection_endpoint_auth_signing_alg_values_supported": [
+    "RS256",
+    "ES256"
+  ],
   "revocation_endpoint_auth_methods_supported": [
     "client_secret_basic",
     "client_secret_post",
     "private_key_jwt",
     "none"
   ],
-  "revocation_endpoint_auth_signing_alg_values_supported": ["RS256", "ES256"],
-  "code_challenge_methods_supported": ["S256"],
+  "revocation_endpoint_auth_signing_alg_values_supported": [
+    "RS256",
+    "ES256"
+  ],
+  "code_challenge_methods_supported": [
+    "S256"
+  ],
   "authorization_response_iss_parameter_supported": true,
-  "ui_locales_supported": ["en"],
+  "ui_locales_supported": [
+    "en"
+  ],
   "scopes_supported": [
     "address",
     "email",
@@ -225,7 +242,7 @@ Keep-Alive: timeout=72
 curl -sS -H "Host: login.acme-corp.dev" http://localhost:3000/.well-known/oauth-authorization-server | jq '{issuer, authorization_endpoint, token_endpoint, jwks_uri}'
 ```
 
-```json
+```
 {
   "issuer": "http://login.acme-corp.dev",
   "authorization_endpoint": "http://login.acme-corp.dev/protocol/openid-connect/auth",

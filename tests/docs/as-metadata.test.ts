@@ -4,7 +4,7 @@ import { TENANT_DEFAULT_SCOPE_NAMES } from '../../packages/domain-tenant/src/use
 import { standardClaimMappers } from '../../packages/protocol-oidc/src/service/claims.js';
 import { USERINFO_ENCRYPTION_ENCS_PERMITTED } from '../../packages/protocol-oidc/src/service/client-metadata.js';
 import { resolveAsMetadata } from '../../packages/protocol-oidc/src/usecase/as-metadata.js';
-import { jsonAfter, loadPages, PROTOCOL_PAGES } from './markdown.js';
+import { jsonAfter, loadPages, PROTOCOL_PAGES, UNTAGGED } from './markdown.js';
 import { pathAddress } from '../../packages/kernel/src/index.js';
 
 // The metadata page shows the response for this tenant on this stack, so the
@@ -69,7 +69,7 @@ async function serverAsMetadata(): Promise<Record<string, unknown>> {
 
 describe('the authorization server metadata the transcript shows is the one the server produces', () => {
   it('matches the request-path page member for member', async () => {
-    const shown = jsonAfter(loadPages(PROTOCOL_PAGES), CURL);
+    const shown = jsonAfter(loadPages(PROTOCOL_PAGES), CURL, UNTAGGED);
 
     expect(shown, 'the metadata transcript shows a response the server no longer produces').toEqual(
       await serverAsMetadata(),
