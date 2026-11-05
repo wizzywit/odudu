@@ -423,6 +423,16 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
        ${at(1 * HOUR)}::timestamptz)
   `);
 
+  await owner.db.execute(sql`
+    INSERT INTO idempotency_keys (tenant_id, key, route, fingerprint, status, response_status,
+                                  response_body, created_at, expires_at)
+    VALUES
+      (${tenantId}, 'lapsed', 'POST /r', ${'0'.repeat(64)}, 'completed', 201, '{}',
+       ${at(-25 * HOUR)}::timestamptz, ${at(-1 * HOUR)}::timestamptz),
+      (${tenantId}, 'live', 'POST /r', ${'0'.repeat(64)}, 'completed', 201, '{}',
+       ${at(-1 * HOUR)}::timestamptz, ${at(23 * HOUR)}::timestamptz)
+  `);
+
   return {
     tenant,
     tenantId,
@@ -468,6 +478,7 @@ const RELATIONS: Record<TableName, SQL> = {
   console_logins: sql.raw('console_logins'),
   tenant_issuer_retirements: sql.raw('tenant_issuer_retirements'),
   client_metadata_cache: sql.raw('client_metadata_cache'),
+  idempotency_keys: sql.raw('idempotency_keys'),
   cimd_clients: sql.raw("(SELECT * FROM clients WHERE registration_origin = 'cimd') AS cimd"),
   dynamic_clients: sql.raw(
     "(SELECT * FROM clients WHERE registration_origin = 'anonymous' AND type = 'public') AS dynamic",
@@ -641,6 +652,7 @@ describe('odudu reap', () => {
       console_logins: 1,
       tenant_issuer_retirements: 1,
       client_metadata_cache: 1,
+      idempotency_keys: 1,
       cimd_clients: 2,
       dynamic_clients: 1,
       tenant_domains: 1,
@@ -667,6 +679,7 @@ describe('odudu reap', () => {
       console_logins: 1,
       tenant_issuer_retirements: 1,
       client_metadata_cache: 1,
+      idempotency_keys: 1,
       cimd_clients: 4,
       dynamic_clients: 3,
       tenant_domains: 3,
@@ -690,6 +703,7 @@ describe('odudu reap', () => {
       console_logins: 0,
       tenant_issuer_retirements: 0,
       client_metadata_cache: 0,
+      idempotency_keys: 0,
       cimd_clients: 0,
       dynamic_clients: 0,
       tenant_domains: 0,
@@ -833,6 +847,17 @@ describe('odudu reap', () => {
     expect(rows.map((row) => row.url)).toEqual(['https://live.example.com/c.json']);
   });
 
+  it('keeps the idempotency key that is still live and deletes the one past its window', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ key: string }>(
+      sql`SELECT key FROM idempotency_keys WHERE tenant_id = ${fixture.tenantId}`,
+    );
+    expect(rows.map((row) => row.key)).toEqual(['live']);
+  });
+
   it('keeps the console session and pending login that are still live', async () => {
     const fixture = await seedFixture();
 
@@ -924,6 +949,7 @@ describe('odudu reap', () => {
     'console_logins',
     'tenant_issuer_retirements',
     'client_metadata_cache',
+    'idempotency_keys',
     'cimd_clients',
     'dynamic_clients',
     'tenant_domains',

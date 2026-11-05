@@ -374,6 +374,11 @@ select ${t}, 'https://plans-' || g || '.example.com/client.json', '{"client_name
        now() - (g || ' seconds')::interval,
        case when g <= 20 then now() - interval '1 hour' else now() + interval '1 hour' end
   from generate_series(1, 1000) g;
+insert into idempotency_keys (tenant_id, key, route, fingerprint, status, response_status, response_body, created_at, expires_at)
+select ${t}, 'plans-key-' || g, 'POST /admin/tenants/:tenant/roles', repeat('0', 64), 'completed', 201, '{}',
+       now() - interval '2 hours',
+       case when g <= 500 then now() - interval '1 hour' else now() + interval '22 hours' end
+  from generate_series(1, 10000) g;
 insert into client_assertion_jti (tenant_id, oauth_client_id, jti, expires_at)
 select ${t}, 'plans-app', md5(g::text),
        case when g <= ${v.assertionIds} / 50 then now() - interval '1 hour' else now() + interval '2 hours' end
