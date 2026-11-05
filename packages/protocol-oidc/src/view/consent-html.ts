@@ -38,9 +38,26 @@ function labelOf(scope: string, labels: ConsentPageInput['scopeLabels']): string
 
 // A label is an administrator's own wording and a bare scope name is a tenant's,
 // so each is isolated from the sentence around it.
-function renderDefaultScope(scope: string, labels: ConsentPageInput['scopeLabels']): string {
-  return `<li>${bdi(labelOf(scope, labels))}</li>`;
+function renderDefaultScope(
+  scope: string,
+  labels: ConsentPageInput['scopeLabels'],
+  locale: PageLocale,
+): string {
+  const label = labelOf(scope, labels);
+  const noteKey = mcpNoteKey(scope);
+  const text = noteKey === undefined ? bdi(label) : tHtml(locale, noteKey, {}, { label });
+  return `<li>${text}</li>`;
 }
+
+function mcpNoteKey(scope: string) {
+  return Object.hasOwn(MCP_SCOPE_NOTES, scope) ? MCP_SCOPE_NOTES[scope] : undefined;
+}
+
+// What an MCP scope lets the application do, stated beside it so a person is
+// never asked to approve a bare scope name that acts on the tenant.
+const MCP_SCOPE_NOTES: Readonly<
+  Record<string, 'consent.scope.mcpRead' | 'consent.scope.mcpWrite'>
+> = { 'mcp:read': 'consent.scope.mcpRead', 'mcp:write': 'consent.scope.mcpWrite' };
 
 // OIDC Core §16.18's SHOULD: "the authorization server clearly identifies
 // long-term grants to the user during authorization". `offline_access` is
@@ -58,10 +75,13 @@ function renderOptionalScope(
 ): string {
   const checked = granted.has(scope) ? ' checked' : '';
   const label = labelOf(scope, labels);
+  const noteKey = mcpNoteKey(scope);
   const text =
     scope === LONG_TERM_GRANT_SCOPE
       ? tHtml(locale, 'consent.scope.offlineAccess', {}, { label })
-      : bdi(label);
+      : noteKey === undefined
+        ? bdi(label)
+        : tHtml(locale, noteKey, {}, { label });
   return `<label><input type="checkbox" name="scope" value="${escapeHtml(scope)}"${checked}> ${text}</label>`;
 }
 
@@ -93,7 +113,7 @@ export function renderConsentPage(input: ConsentPageInput, locale: PageLocale): 
   const clientName = consentClientName(input.clientName, i18n, locale.tag);
   const labels = consentScopeTexts(input.scopeLabels, i18n, locale.tag);
   const defaultList = input.defaultScopes
-    .map((scope) => renderDefaultScope(scope, labels))
+    .map((scope) => renderDefaultScope(scope, labels, locale))
     .join('\n  ');
   const optionalList = input.optionalScopes
     .map((scope) => renderOptionalScope(scope, granted, labels, locale))

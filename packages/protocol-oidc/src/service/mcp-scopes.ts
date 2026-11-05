@@ -16,8 +16,40 @@ export function scopeAllowedAt(
   return audience === mcpAudience || audience === adminAudience;
 }
 
+// A token carries every audience it names, so a scope has to be allowed at
+// each of them; an MCP scope with no audience would reach no resource that
+// defines it.
+export function scopesCoherentWithAudience(
+  scopes: readonly string[],
+  audiences: readonly string[],
+  mcpAudience: string,
+  adminAudience: string,
+): boolean {
+  return scopes.every((scope) =>
+    !MCP_SCOPES.includes(scope)
+      ? true
+      : audiences.length > 0 &&
+        audiences.every((audience) => scopeAllowedAt(scope, audience, mcpAudience, adminAudience)),
+  );
+}
+
 // What authorization-server metadata advertises: the tenant's own scopes and
 // the two every tenant can be asked for at the MCP audience.
 export function withMcpScopes(scopes: readonly string[]): string[] {
   return [...new Set([...scopes, ...MCP_SCOPES])].sort();
+}
+
+export const MCP_WRITE_MAX_TTL_SECONDS = 600;
+
+// A write is made on a token that dies in ten minutes at most; a tenant or
+// client setting may only lower that.
+export function capLifetimeForScope(ttlSeconds: number, scope: readonly string[]): number {
+  return scope.includes(MCP_WRITE_SCOPE)
+    ? Math.min(ttlSeconds, MCP_WRITE_MAX_TTL_SECONDS)
+    : ttlSeconds;
+}
+
+// A grant holding mcp:write is never refreshable: the holder re-authorizes.
+export function refreshAllowedForScope(scope: readonly string[]): boolean {
+  return !scope.includes(MCP_WRITE_SCOPE);
 }

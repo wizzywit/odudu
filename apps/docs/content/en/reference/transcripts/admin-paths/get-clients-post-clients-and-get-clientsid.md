@@ -226,11 +226,65 @@ curl -sS -X POST \
 {"type":"about:blank","title":"Conflict","status":409,"detail":"the client_id \"odudu-admin\" is reserved","instance":"01a1872d-c793-7efe-8bf5-bc933364034f"}
 ```
 
+Every tenant is also provisioned with `odudu-mcp`, a public client for local
+MCP tools: loopback redirect URIs registered without a port, the code and
+refresh grants, `urn:odudu:params:admin-api` as its audience, and consent
+required. Its `client_id` is reserved the same way. This and the next three
+blocks were run on a freshly built stack against a tenant `mcp-demo` created
+for them, so the tenant holds nothing else:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3092/admin/tenants/mcp-demo/clients" \
+  | jq -c '.items[] | {client_id, type, builtin_admin, token_endpoint_auth_method, redirect_uris, grant_types, audiences, consent_required}'
+```
+
+```
+{"client_id":"odudu-admin","type":"confidential","builtin_admin":true,"token_endpoint_auth_method":"private_key_jwt","redirect_uris":["http://127.0.0.1:8080/callback","http://localhost:3092/console/auth/callback"],"grant_types":["authorization_code","refresh_token"],"audiences":["urn:odudu:params:admin-api"],"consent_required":false}
+{"client_id":"odudu-mcp","type":"public","builtin_admin":false,"token_endpoint_auth_method":"none","redirect_uris":["http://127.0.0.1","http://[::1]"],"grant_types":["authorization_code","refresh_token"],"audiences":["urn:odudu:params:admin-api"],"consent_required":true}
+```
+
+The client is reserved at creation, like `odudu-admin`:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"client_id": "odudu-mcp", "token_endpoint_auth_method": "none"}' \
+  http://localhost:3092/admin/tenants/mcp-demo/clients
+```
+
+```
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the client_id \"odudu-mcp\" is reserved","instance":"01a1ac04-0eae-7942-8cef-2fd94ae8d699"}
+```
+
+`/authorize` accepts any port for a loopback IP literal that a public client
+registered without one (RFC 8252 section 7.3), and nothing else: the same
+request with `localhost`, or with a path the registration does not carry, is
+refused on the page and never redirected to. The three requests, by status
+(the first is the sign-in page; the others carry the body `Unregistered redirect
+URI`):
+
+```bash
+Q='response_type=code&client_id=odudu-mcp&scope=mcp%3Aread&resource=urn%3Aodudu%3Aparams%3Aadmin-api&state=s&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+for R in 'http%3A%2F%2F127.0.0.1%3A53211%2F' 'http%3A%2F%2Flocalhost%3A53211%2F' 'http%3A%2F%2F127.0.0.1%3A53211%2Fcallback'; do
+  curl -sS -o /dev/null -w '%{http_code}\n' "http://localhost:3092/tenants/mcp-demo/protocol/openid-connect/auth?$Q&redirect_uri=$R"
+done
+```
+
+```
+200
+400
+400
+```
+
 Listing pages the same way `GET /admin/tenants` does — `?limit=`, `?cursor=`,
 ordered by `id`, a `Link: rel="next"` header and a `next` body member once a
 further page exists, no total (`GET /clients/count` below has one). Here the
 page of `client-facts-demo` held two clients, the tenant's own `odudu-admin` and
-`demo-backend` above:
+`demo-backend` above. That run predates `odudu-mcp`: a tenant created now holds it
+as a third (the block above), and the counts in the blocks below that page through
+`demo` were not re-run:
 
 ```bash
 curl -sS \

@@ -68,6 +68,9 @@ export const ar: Readonly<Record<string, string>> = {
   'consent.link.privacy': 'سياسة الخصوصية',
   'consent.link.terms': 'شروط الخدمة',
   'consent.scope.offlineAccess': '{label} — يمنح وصولًا مستمرًا حتى في غيابك',
+  'consent.scope.mcpRead':
+    '{label} — يتيح للتطبيق الاطلاع على إعدادات هذا المستأجر وسجلاته نيابةً عنك',
+  'consent.scope.mcpWrite': '{label} — يتيح للتطبيق تعديل إعدادات هذا المستأجر نيابةً عنك',
   'consent.allow': 'سماح',
   'consent.deny': 'رفض',
 

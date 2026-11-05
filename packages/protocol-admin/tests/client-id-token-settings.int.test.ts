@@ -314,7 +314,9 @@ describe('the three through registration, export and import', () => {
       default_max_age: 300,
       require_auth_time: true,
     };
-    expect(document.clients[0]).toMatchObject(settings);
+    expect(document.clients.find((client) => client.client_id === s.client.clientId)).toMatchObject(
+      settings,
+    );
 
     const name = `idt-copy-${newId()}`;
     const imported = await fixture.http.inject({

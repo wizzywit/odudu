@@ -22,6 +22,7 @@ import { groupRepository, roleRepository } from '@odudu/domain-authz';
 import { subjectRepository, userRepository, type ProfileUpdate } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  MCP_CLIENT_ID,
   capabilityRoleGraph,
   clientRepository,
   clientScopeMapperRepository,
@@ -180,6 +181,7 @@ async function writeClient(
     fullScopeAllowed: client.full_scope_allowed,
     skipLogoutConfirmation: client.skip_logout_confirmation,
     registrationOrigin: client.registration_origin,
+    builtinMcp: client.client_id === MCP_CLIENT_ID,
   });
   await clientOidcConfigRepository(tx).create({
     clientId: created.id,
@@ -394,6 +396,14 @@ async function writeDocument(
   const clientIds = new Map<string, string>([[ADMIN_CLIENT_ID, admin.id]]);
   const serviceSubjects = new Map<string, string>();
   const secrets: ImportedClientSecret[] = [];
+  // The new tenant is provisioned with the built-in MCP client, and a
+  // document that carries one describes it, whole: the provisioned row gives
+  // way to it rather than colliding. A document without one, from before the
+  // client existed, leaves the provisioned client as it is.
+  if (document.clients.some((client) => client.client_id === MCP_CLIENT_ID)) {
+    const provisioned = await clientRepository(tx).byClientId(MCP_CLIENT_ID);
+    if (provisioned !== null) await clientRepository(tx).delete(provisioned.id);
+  }
   for (const client of document.clients) {
     const written = await writeClient(
       tx,

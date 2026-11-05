@@ -33,6 +33,7 @@ function toRecord(row: typeof clients.$inferSelect): ClientRecord {
     registrationOrigin: row.registrationOrigin as ClientRecord['registrationOrigin'],
     builtinAdmin: row.builtinAdmin,
     skipLogoutConfirmation: row.skipLogoutConfirmation,
+    builtinMcp: row.builtinMcp,
   };
 }
 
@@ -50,6 +51,7 @@ export interface NewClient {
   fullScopeAllowed?: boolean;
   builtinAdmin?: boolean;
   skipLogoutConfirmation?: boolean;
+  builtinMcp?: boolean;
   // Defaults to the column's own default ('seeded'): every caller that
   // predates dynamic registration creates a client that way, and only
   // the registration endpoint has reason to name 'anonymous' or 'token'.
@@ -118,6 +120,7 @@ export function clientRepository(tx: TenantScopedDatabase) {
             fullScopeAllowed: input.fullScopeAllowed ?? false,
             builtinAdmin: input.builtinAdmin ?? false,
             skipLogoutConfirmation: input.skipLogoutConfirmation ?? false,
+            builtinMcp: input.builtinMcp ?? false,
             ...(input.registrationOrigin === undefined
               ? {}
               : { registrationOrigin: input.registrationOrigin }),

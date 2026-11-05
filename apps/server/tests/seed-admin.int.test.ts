@@ -193,6 +193,18 @@ describe('the client seed admin bootstraps', () => {
   });
 });
 
+describe('the system tenant seed admin creates', () => {
+  it('carries the built-in MCP client beside the admin client, once however often it runs', async () => {
+    await seedAdmin({ username: `ada-${newId()}` });
+    await seedAdmin({ username: `bea-${newId()}` });
+    const rows = await owner.sql<{ client_id: string; builtin_mcp: boolean; n: number }[]>`
+      select c.client_id, c.builtin_mcp, count(*) over (partition by c.client_id)::int as n
+        from clients c join tenants t on t.id = c.tenant_id
+       where t.name = ${SYSTEM_TENANT_NAME} and c.client_id = 'odudu-mcp'`;
+    expect(rows).toEqual([{ client_id: 'odudu-mcp', builtin_mcp: true, n: 1 }]);
+  });
+});
+
 describe('a one-time password the admin API issues', () => {
   it('signs in to the forced change, and appears in no log line and no audit row', async () => {
     const adminName = `ada-${newId()}`;

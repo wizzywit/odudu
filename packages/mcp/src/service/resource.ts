@@ -1,11 +1,11 @@
-import { addressIssuer, addressUrl, type TenantAddress } from '@odudu/kernel';
+import { addressIssuer, addressUrl, MCP_RESOURCE_PATH, type TenantAddress } from '@odudu/kernel';
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '@odudu/protocol-oidc';
 
 // The MCP endpoint of a tenant, and so the `resource` its protected-resource
 // metadata states and the audience its tokens carry. No trailing slash: a
 // client compares it as a string (RFC 9728 §3.3, §7.3).
 export function mcpResourceUrl(address: TenantAddress): string {
-  return addressUrl(address, '/mcp');
+  return addressUrl(address, MCP_RESOURCE_PATH);
 }
 
 // RFC 9728 §3.1 inserts the well-known suffix between the host and the

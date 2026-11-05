@@ -1,7 +1,7 @@
 import { DEFAULT_PAGE_LOCALE, pathAddress } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import { renderConsentPage } from '#/view/consent-html';
-import { en, t } from '#/view/messages';
+import { ar, en, t } from '#/view/messages';
 import { ARABIC, FRENCH } from '@odudu/testkit/i18n';
 
 vi.mock('#/view/messages', async (importOriginal) => {
@@ -105,6 +105,34 @@ describe('renderConsentPage', () => {
     // A scope with no such note (email) proves the distinction is drawn
     // deliberately, not emitted for every optional scope alike.
     expect(page.body).not.toMatch(/email[^<]*ongoing access/);
+  });
+
+  it('says in plain words what mcp:read and mcp:write let the application do', () => {
+    const input = {
+      ...BASE,
+      defaultScopes: ['openid', 'mcp:read'],
+      optionalScopes: ['mcp:write'],
+      alreadyGranted: [],
+    };
+    const page = renderConsentPage(input, DEFAULT_PAGE_LOCALE);
+    expect(page.body).toMatch(/<li><bdi>mcp:read<\/bdi> — [^<]*read[^<]*settings and records/u);
+    expect(page.body).toMatch(/<bdi>mcp:write<\/bdi> — [^<]*change[^<]*settings/u);
+    expect(page.body).not.toMatch(/<bdi>openid<\/bdi> —/u);
+  });
+
+  it("shows an administrator's own wording for an MCP scope in place of the sentence", () => {
+    const page = renderConsentPage(
+      { ...BASE, defaultScopes: ['mcp:read'], scopeLabels: { 'mcp:read': 'Look around' } },
+      DEFAULT_PAGE_LOCALE,
+    );
+    expect(page.body).toContain('<bdi>Look around</bdi> — ');
+  });
+
+  it('has the MCP sentences in the Arabic catalogue, each keeping its label slot', () => {
+    for (const id of ['consent.scope.mcpRead', 'consent.scope.mcpWrite'] as const) {
+      expect(ar[id]).toMatch(/^\{label\} — \p{Script=Arabic}/u);
+      expect(ar[id]).not.toBe(en[id]);
+    }
   });
 
   it('gives Allow and Deny distinguishable submitted values', () => {

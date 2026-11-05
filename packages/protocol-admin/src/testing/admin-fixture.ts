@@ -51,6 +51,7 @@ import {
   NO_CLIENT_KEY_FETCHER,
   oidcRoutes,
   provisionAdminClient,
+  provisionMcpClient,
   standardClaimMappers,
   configureIssuerBase,
   tenantIssuerFor,
@@ -424,6 +425,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
       await tx.insert(tenants).values({ id, name });
       await provisionTenant(tx, id);
       await provisionAdminClient(tx, id, options);
+      await provisionMcpClient(tx, id);
       const generated = await generateSigningKey('ES256', KEK);
       await signingKeyRepository(tx).create({
         id: newId(),

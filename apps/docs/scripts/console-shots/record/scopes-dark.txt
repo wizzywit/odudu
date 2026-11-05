@@ -58,7 +58,7 @@ Search
 or press 
 ↩ 
 Return
-8 scopes
+10 scopes
 Scope
 Description
 Created
@@ -108,6 +108,18 @@ Scope
 offline_access
 Description
 —
+Created
+recently
+Scope
+mcp:read
+Description
+Read the tenant through an MCP client: its settings and records, nothing changed.
+Created
+recently
+Scope
+mcp:write
+Description
+Change the tenant through an MCP client, with a short-lived access token.
 Created
 recently
 Previous

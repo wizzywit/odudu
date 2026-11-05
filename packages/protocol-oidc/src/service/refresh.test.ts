@@ -17,6 +17,7 @@ const client: ClientRecord = {
   fullScopeAllowed: false,
   registrationOrigin: 'seeded',
   builtinAdmin: false,
+  builtinMcp: false,
   skipLogoutConfirmation: false,
   nameI18n: {},
   descriptionI18n: {},
@@ -131,6 +132,12 @@ describe('[RFC6749-10.4-02] a refresh token cannot be generated, modified or gue
 });
 
 describe('evaluateRefreshGrant', () => {
+  it('refuses a grant holding mcp:write as invalid, even for a narrower request', () => {
+    const written: TokenGrantRecord = { ...grant, scope: 'openid mcp:write' };
+    const decision = evaluateRefreshGrant(written, client, subject, { requestedScope: 'openid' });
+    expect(decision).toEqual({ ok: false, reason: 'write_not_refreshable' });
+  });
+
   it('permits a matching client with no requested scope, keeping the original scope', () => {
     const decision = evaluateRefreshGrant(grant, client, subject, { requestedScope: '' });
     expect(decision).toEqual({ ok: true, scope: ['openid', 'profile'] });

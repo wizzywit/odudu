@@ -22,6 +22,8 @@ import {
 import { isEmailAddress, isValidE164 } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  MCP_CLIENT_ID,
+  MCP_CLIENT_REDIRECT_URIS,
   capabilityRoleGraph,
   isReservedTenantName,
   isValidTenantName,
@@ -480,6 +482,31 @@ function flowAndSmtpProblems(
   }
 }
 
+// The id alone makes an imported client the built-in one, which /authorize
+// matches on any port, so a document may only describe the shape it has: a
+// public client with no client_credentials grant whose redirect URIs are the
+// bare loopback literals.
+const LOOPBACK_URIS: ReadonlySet<string> = new Set([
+  ...MCP_CLIENT_REDIRECT_URIS,
+  ...MCP_CLIENT_REDIRECT_URIS.map((uri) => `${uri}/`),
+]);
+
+function mcpClientProblems(client: ExportedClient, path: string, problems: Problems): void {
+  if (client.type !== 'public') {
+    problems.add(`${path}.type`, `${MCP_CLIENT_ID} is a public client`);
+  }
+  if (client.grant_types.includes('client_credentials')) {
+    problems.add(`${path}.grant_types`, `${MCP_CLIENT_ID} has no client_credentials grant`);
+  }
+  const bare = (uri: string): boolean => LOOPBACK_URIS.has(uri);
+  if (!client.redirect_uris.every(bare)) {
+    problems.add(
+      `${path}.redirect_uris`,
+      `${MCP_CLIENT_ID} registers only http://127.0.0.1 and http://[::1], with no port`,
+    );
+  }
+}
+
 function clientProblems(
   document: TenantDocument,
   graph: RoleGraph,
@@ -508,6 +535,7 @@ function clientProblems(
       problems.add(`${path}.client_id`, `${ADMIN_CLIENT_ID} is provisioned by every new tenant`);
     }
     if (client.client_id === '') problems.add(`${path}.client_id`, 'is empty');
+    if (client.client_id === MCP_CLIENT_ID) mcpClientProblems(client, path, problems);
     for (const [field, max] of [
       ['name_i18n', CLIENT_NAME_MAX],
       ['description_i18n', DESCRIPTION_MAX],

@@ -12,9 +12,11 @@ A client is an application that signs people in through your tenant: a web app, 
 
 <ConsoleShot
   name="clients"
-  alt="The demo tenant's Clients list: the built-in odudu-admin client and my-app, with a Create a client button."
-  caption="The demo tenant lists my-app beside its built-in administration client."
+  alt="The demo tenant's Clients list: the built-in odudu-admin and odudu-mcp clients and my-app, with a Create a client button."
+  caption="The demo tenant lists my-app beside its two built-in clients."
 />
+
+Every tenant also lists `odudu-mcp`, the public client a local MCP tool signs in through. It asks for the `mcp:read` scope, and `mcp:write` if the person allows it, and shows each person a consent screen. Its redirect URIs are `http://127.0.0.1` and `http://[::1]`, which accept any port, because such a tool listens on a free one. You can disable it, which stops those sign-ins, but you cannot delete it, and its ID is reserved. Its other settings stay yours to change.
 
 ## 1. Register a client
 

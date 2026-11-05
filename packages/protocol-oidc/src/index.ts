@@ -702,7 +702,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         const client = await clientRepository(tx).byClientId(oauthClientId);
         if (!client?.enabled) return false;
         const config = await clientOidcConfigRepository(tx).byClientId(client.id);
-        return config !== null && isRegisteredRedirectUri(redirectUri, config.redirectUris);
+        return (
+          config !== null && isRegisteredRedirectUri(redirectUri, config.redirectUris, client.type)
+        );
       });
 
     registerAuthorizeRoute(app, {
@@ -1065,6 +1067,7 @@ export {
   type ClientJwks,
   type ProvisionAdminClientOptions,
 } from '#/usecase/provision-admin-client';
+export { provisionMcpClient } from '#/usecase/provision-mcp-client';
 export { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
 export {
   parseClientMetadata,

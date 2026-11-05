@@ -22,6 +22,7 @@ import {
   backchannelLogoutDeliveries,
   BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
   provisionAdminClient,
+  provisionMcpClient,
   type ClientJwks,
 } from '@odudu/protocol-oidc';
 import { and, asc, eq, gt, isNull, lt, sql, type SQL } from 'drizzle-orm';
@@ -137,7 +138,7 @@ export class TenantNameTakenError extends Error {
 }
 
 /**
- * The row, its browser flow, its built-in admin client and its signing key,
+ * The row, its browser flow, its built-in admin and MCP clients and its signing key,
  * inside a transaction `withTenant` has already bound to `row.id` — shared
  * by creating a tenant and importing one, so the two cannot provision
  * differently.
@@ -166,6 +167,7 @@ export async function insertProvisionedTenant(
     consoleBaseUrl: console.baseUrl,
     consoleClientJwks: console.clientJwks,
   });
+  await provisionMcpClient(tx, row.id);
   await mintSigningKey(tx, row.id, kek);
   return created;
 }

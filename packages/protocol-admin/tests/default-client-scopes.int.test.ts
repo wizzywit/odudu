@@ -97,6 +97,8 @@ describe('a scope’s default_client_assignment', () => {
       roles: 'default',
       groups: 'default',
       offline_access: 'optional',
+      'mcp:read': null,
+      'mcp:write': null,
     });
   });
 

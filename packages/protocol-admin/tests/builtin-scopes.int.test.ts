@@ -130,7 +130,8 @@ describe('DELETE /admin/tenants/{t}/scopes/{id} — a built-in scope', () => {
     const problem = res.json<Problem>();
     expect(problem.type).toBe('about:blank#builtin-scope-confirmation');
     expect(problem.detail).toContain('profile');
-    expect(problem.detail).toContain('2 clients');
+    // The built-in admin and MCP clients and the one the helper registers.
+    expect(problem.detail).toContain('3 clients');
     expect(problem.detail).toContain('1 role');
     expect(problem.detail).toContain('confirm=profile');
     expect(
@@ -141,7 +142,7 @@ describe('DELETE /admin/tenants/{t}/scopes/{id} — a built-in scope', () => {
     expect(row).toMatchObject({ outcome: 'refused', resourceId: id });
     expect(row?.detail).toMatchObject({
       builtin: true,
-      client_assignments: 2,
+      client_assignments: 3,
       role_mappings: 1,
     });
   });
@@ -175,7 +176,7 @@ describe('DELETE /admin/tenants/{t}/scopes/{id} — a built-in scope', () => {
     expect(row).toMatchObject({ outcome: 'allowed', resourceId: id });
     expect(row?.detail).toMatchObject({
       builtin: true,
-      client_assignments: 2,
+      client_assignments: 3,
       role_mappings: 1,
     });
   });
@@ -293,7 +294,7 @@ describe('GET /admin/tenants/{t}/scopes/{id}/impact', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
       builtin: true,
-      client_assignments: { count: 2, capped: false },
+      client_assignments: { count: 3, capped: false },
       role_mappings: { count: 1, capped: false },
     });
   });

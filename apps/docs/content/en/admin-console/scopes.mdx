@@ -12,8 +12,8 @@ A scope is a name an application uses to say what it wants, such as `profile` or
 
 <ConsoleShot
   name="scopes"
-  alt="The demo tenant's Scopes list: openid, profile, email, address, phone, roles, groups and offline_access, with Restore built-in scopes and Create a scope buttons."
-  caption="The eight scopes every tenant starts with."
+  alt="The demo tenant's Scopes list: openid, profile, email, address, phone, roles, groups, offline_access, mcp:read and mcp:write, with Restore built-in scopes and Create a scope buttons."
+  caption="The ten scopes every tenant starts with."
 />
 
 ## 1. Create a scope
@@ -37,6 +37,10 @@ A scope does nothing until a client is assigned it. There are two ways.
 
 A default scope goes to a request that names no scope. An optional scope goes only to a request that names it.
 
+`mcp:read` and `mcp:write` are refused with `invalid_scope` at any audience except the tenant's MCP URL or the admin API audience. A client registered for the MCP URL and another audience must send `resource` set to the MCP URL when it asks for one of them.
+
+A token that carries `mcp:write` lives ten minutes at most, even if the tenant or client allows longer, and no refresh token is issued with it. `mcp:read` follows the tenant's lifetimes.
+
 ## 5. Connect roles
 
 The **Roles** tab lists the roles a token carries when it is granted this scope. With none mapped, a client that has **Include all roles in tokens** off gets no roles from this scope. That switch is set on each client, under **Tokens**.
@@ -49,7 +53,7 @@ The **Activity** tab lists every change made to the scope.
 
 ## 6. Bring back a built-in scope
 
-Every tenant starts with eight scopes, and you may delete all of them except `openid`. If one is gone and a client needs it again, choose **Restore built-in scopes** above the list. The dialog names the scopes this tenant is missing; choose **Restore** and it creates each of them again with the settings a new tenant is given. A scope that is still there is left exactly as you edited it, and when none is missing the dialog says so and offers nothing.
+Every tenant starts with ten scopes, and you may delete all of them except `openid`. If one is gone and a client needs it again, choose **Restore built-in scopes** above the list. The dialog names the scopes this tenant is missing; choose **Restore** and it creates each of them again with the settings a new tenant is given. A scope that is still there is left exactly as you edited it, and when none is missing the dialog says so and offers nothing.
 
 A scope is built in because of its name alone. One you created under a built-in name, such as your own `roles`, is treated as built in: its delete asks for the same typed name, and **Restore** leaves it be because that name already exists.
 

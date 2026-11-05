@@ -15,6 +15,7 @@ import { effectiveRoles, groupRepository, roleRepository } from '@odudu/domain-a
 import { subjects, users } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  MCP_CLIENT_ID,
   clientRegistrationTokenRepository,
   clientRepository,
   clients,
@@ -177,8 +178,9 @@ describe('seed', () => {
 
     const result = await seed(options);
 
+    // The MCP scopes are defined in the tenant and assigned to no client.
     expect(await assignedScopes(result.tenantId, result.clientId)).toEqual(
-      [...TENANT_DEFAULT_SCOPE_NAMES].sort(),
+      TENANT_DEFAULT_SCOPE_NAMES.filter((name) => !name.startsWith('mcp:')).sort(),
     );
   });
 
@@ -187,9 +189,9 @@ describe('seed', () => {
 
     const first = await seed(options);
     await expect(seed(options)).resolves.toMatchObject({ created: false });
-    // The requested client plus the built-in odudu-admin this tenant's
-    // creation now provisions alongside it.
-    expect(await countClients(first.tenantId)).toBe(2);
+    // The requested client plus the built-in odudu-admin and odudu-mcp this
+    // tenant's creation provisions alongside it.
+    expect(await countClients(first.tenantId)).toBe(3);
     expect(await countSigningKeys(first.tenantId)).toBe(1);
   });
 
@@ -240,6 +242,14 @@ describe('seed', () => {
 
     await expect(seed({ ...options, clientId: ADMIN_CLIENT_ID })).rejects.toThrow(/reserved/);
     const rows = await owner.db.select().from(tenants).where(eq(tenants.name, tenantName));
+    expect(rows).toHaveLength(0);
+  });
+
+  it('refuses the reserved client id odudu-mcp, creating no tenant', async () => {
+    const options = uniqueOptions();
+
+    await expect(seed({ ...options, clientId: MCP_CLIENT_ID })).rejects.toThrow(/reserved/);
+    const rows = await owner.db.select().from(tenants).where(eq(tenants.name, options.tenant));
     expect(rows).toHaveLength(0);
   });
 
@@ -807,6 +817,28 @@ describe('seed tenant provisions the admin client', () => {
     expect(await countAdminClients(second.tenantId)).toBe(1);
   });
 
+  async function mcpClients(tenantId: string): Promise<{ builtinMcp: boolean }[]> {
+    return withTenant(owner.db, tenantId, async (tx) => {
+      const client = await clientRepository(tx).byClientId(MCP_CLIENT_ID);
+      return client === null ? [] : [{ builtinMcp: client.builtinMcp }];
+    });
+  }
+
+  it('creates the built-in MCP client via `seed tenant` and `seed --tenant`, once each', async () => {
+    const name = `tenant-mcp-${newId()}`;
+    const first = await seed(['tenant', '--name', name]);
+    if (first.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(await mcpClients(first.tenantId)).toEqual([{ builtinMcp: true }]);
+    await seed(['tenant', '--name', name]);
+    expect(await mcpClients(first.tenantId)).toEqual([{ builtinMcp: true }]);
+
+    const options = uniqueOptions();
+    const viaClient = await seed(options);
+    expect(await mcpClients(viaClient.tenantId)).toEqual([{ builtinMcp: true }]);
+    await seed(options);
+    expect(await mcpClients(viaClient.tenantId)).toEqual([{ builtinMcp: true }]);
+  });
+
   it('creates the built-in admin client via `seed --tenant`, once on a second run', async () => {
     const options = uniqueOptions();
 
@@ -982,7 +1014,9 @@ describe('seed client and the tenant’s default scopes', () => {
       'https://app.example/callback',
     ]);
 
-    const expected = [...TENANT_DEFAULT_SCOPE_NAMES.filter((name) => name !== 'phone')];
+    const expected = TENANT_DEFAULT_SCOPE_NAMES.filter(
+      (name) => name !== 'phone' && !name.startsWith('mcp:'),
+    );
     expect(await assignedScopes(first.tenantId, 'marked-spa')).toEqual(
       [...expected, 'reports:read'].sort(),
     );
@@ -1026,6 +1060,20 @@ describe('seed restore-scopes', () => {
       created: ['roles', 'groups'],
     });
     expect(again).toMatchObject({ command: 'restore-scopes', created: [] });
+    expect(await scopeNames(first.tenantId)).toEqual([...TENANT_DEFAULT_SCOPE_NAMES].sort());
+  });
+
+  it('creates mcp:read and mcp:write again when a tenant has lost them', async () => {
+    const options = uniqueOptions();
+    const first = await seed(options);
+    await deleteScopes(first.tenantId, ['mcp:read', 'mcp:write']);
+
+    const restored = await seed(['restore-scopes', '--tenant', options.tenant]);
+
+    expect(restored).toMatchObject({
+      command: 'restore-scopes',
+      created: ['mcp:read', 'mcp:write'],
+    });
     expect(await scopeNames(first.tenantId)).toEqual([...TENANT_DEFAULT_SCOPE_NAMES].sort());
   });
 

@@ -51,6 +51,7 @@ import {
 } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  MCP_CLIENT_ID,
   clientRegistrationTokenRepository,
   clientRepository,
   ClientScopeLimitError,
@@ -86,6 +87,7 @@ import {
   GRANT_TYPES_PERMITTED,
   isWellFormedWebOrigin,
   provisionAdminClient,
+  provisionMcpClient,
   tenantLookupRepository,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
@@ -231,15 +233,16 @@ function assertAuthMethodPairedWithSecret(opts: SeedOptions): void {
   }
 }
 
-// `odudu-admin` is reserved for the built-in admin client every tenant is
-// provisioned with (createClient, @odudu/protocol-admin, `reserved_client_id`).
+// `odudu-admin` and `odudu-mcp` are reserved for the built-in clients every
+// tenant is provisioned with (createClient, @odudu/protocol-admin,
+// `reserved_client_id`).
 // Refused here, before resolveTenantId runs: on a new tenant name,
 // provisionAdminClient would create that public client first and only then
 // have assertMatchesExisting reject the confidential client requested here,
 // by which point the tenant row was already committed on the owner
 // connection and the provisioning transaction's rollback cannot undo that.
 function assertClientIdNotReserved(clientId: string): void {
-  if (clientId === ADMIN_CLIENT_ID) {
+  if (clientId === ADMIN_CLIENT_ID || clientId === MCP_CLIENT_ID) {
     throw new OduduError(
       'seed_invalid_options',
       `the client_id ${JSON.stringify(clientId)} is reserved`,
@@ -461,6 +464,7 @@ async function performSeed(
   return withTenant(runtimeDb, tenantId, async (tx) => {
     if (tenantCreated) {
       await provisionTenant(tx, tenantId);
+      await provisionMcpClient(tx, tenantId);
     }
     // Idempotent, so a tenant seeded before this client existed gains one
     // here rather than being left without — only the flow and signing key
@@ -751,6 +755,7 @@ export async function seedAdmin(options: SeedAdminOptions): Promise<SeededAdmin>
         // unconditionally, so a re-run would collide with
         // client_scopes_name_unique.
         await provisionTenant(tx, tenantId);
+        await provisionMcpClient(tx, tenantId);
       }
       const { clientDbId } = await provisionAdminClient(tx, tenantId, {
         crossTenant: true,
@@ -1159,7 +1164,10 @@ async function runTenantCommand(
   }
   // Idempotent, so a tenant this command finds rather than creates still
   // gets one if an earlier run predates the admin client's existence.
-  await withTenant(runtimeDb, tenantId, (tx) => provisionAdminClient(tx, tenantId, consoleOptions));
+  await withTenant(runtimeDb, tenantId, async (tx) => {
+    await provisionAdminClient(tx, tenantId, consoleOptions);
+    if (created) await provisionMcpClient(tx, tenantId);
+  });
 
   if (settings.length > 0) {
     // The CHECK constraints (migrations 0028, 0035, 0041) remain the

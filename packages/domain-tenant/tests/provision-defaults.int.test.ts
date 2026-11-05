@@ -91,9 +91,14 @@ describe('a newly provisioned client', () => {
       return new Map<string, ClientScopeAssignment>(rows.map((row) => [row.name, row.assignment]));
     });
 
-    expect([...assignmentByName.keys()].sort()).toEqual([...TENANT_DEFAULT_SCOPE_NAMES].sort());
+    // The MCP scopes are defined in every tenant but assigned to no client:
+    // a client is given them deliberately.
+    const assignedByDefault = TENANT_DEFAULT_SCOPE_NAMES.filter(
+      (name) => name !== 'mcp:read' && name !== 'mcp:write',
+    );
+    expect([...assignmentByName.keys()].sort()).toEqual([...assignedByDefault].sort());
     expect(assignmentByName.get('offline_access')).toBe('optional');
-    for (const name of TENANT_DEFAULT_SCOPE_NAMES) {
+    for (const name of assignedByDefault) {
       if (name === 'offline_access') continue;
       expect(assignmentByName.get(name), `${name} should be assigned 'default'`).toBe('default');
     }
@@ -106,6 +111,66 @@ describe('a newly provisioned client', () => {
       clientScopeRepository(tx).forClient(clientDbId),
     );
     expect(assigned.map((scope) => scope.name)).toContain('offline_access');
+  });
+});
+
+describe('the MCP scopes of a provisioned tenant', () => {
+  it('exist with a description and are marked for no client', async () => {
+    const tenantId = newId();
+    const rows = await withTenant(app.db, tenantId, async (tx) => {
+      await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+      await provisionTenantDefaults(tx, tenantId);
+      return clientScopeRepository(tx).byNames(['mcp:read', 'mcp:write']);
+    });
+    expect(rows.map((row) => row.name).sort()).toEqual(['mcp:read', 'mcp:write']);
+    for (const row of rows) {
+      expect(row.defaultClientAssignment).toBeNull();
+      expect(row.includeInIdToken).toBe(false);
+      expect(row.includeInAccessToken).toBe(true);
+      expect(row.description).toMatch(/\S/u);
+    }
+  });
+
+  it('are listed with the built-ins, so a restore recreates them', async () => {
+    expect(TENANT_DEFAULT_SCOPE_NAMES).toEqual(expect.arrayContaining(['mcp:read', 'mcp:write']));
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+      await provisionTenantDefaults(tx, tenantId);
+      const repository = clientScopeRepository(tx);
+      for (const row of await repository.byNames(['mcp:read', 'mcp:write'])) {
+        await repository.delete(row.id);
+      }
+    });
+    const outcome = await withTenant(app.db, tenantId, (tx) => restoreBuiltinScopes(tx, tenantId));
+    expect(outcome).toEqual({ kind: 'restored', created: ['mcp:read', 'mcp:write'] });
+    const again = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).byNames(['mcp:read', 'mcp:write']),
+    );
+    expect(again.every((row) => row.defaultClientAssignment === null)).toBe(true);
+  });
+
+  it('are restored even when the scopes marked for new clients are at their ceiling', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+      await provisionTenantDefaults(tx, tenantId);
+      const repository = clientScopeRepository(tx);
+      for (const row of await repository.byNames(['mcp:read', 'mcp:write'])) {
+        await repository.delete(row.id);
+      }
+      const held = await repository.countDefaultsUpTo(tenantId, CLIENT_SCOPE_LIMIT);
+      await tx.insert(clientScopes).values(
+        Array.from({ length: CLIENT_SCOPE_LIMIT - held }, (_, index) => ({
+          id: newId(),
+          tenantId,
+          name: `marked-${String(index)}`,
+          defaultClientAssignment: 'optional' as const,
+        })),
+      );
+    });
+    const outcome = await withTenant(app.db, tenantId, (tx) => restoreBuiltinScopes(tx, tenantId));
+    expect(outcome).toEqual({ kind: 'restored', created: ['mcp:read', 'mcp:write'] });
   });
 });
 

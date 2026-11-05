@@ -8,8 +8,8 @@ import {
 } from '@odudu/db';
 import { auditRepository, type AuditReason, type RequestContext } from '@odudu/domain-audit';
 import { subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
-import { clientScopeRepository, type ClientRecord } from '@odudu/domain-tenant';
-import { type ClaimMapperRegistry, type Clock, newId } from '@odudu/kernel';
+import { ADMIN_API_AUDIENCE, clientScopeRepository, type ClientRecord } from '@odudu/domain-tenant';
+import { type ClaimMapperRegistry, type Clock, mcpAudienceOfIssuer, newId } from '@odudu/kernel';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { type ClientOidcConfig } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
@@ -41,6 +41,11 @@ import {
   type TokenErrorCode,
   type TokenRefusalAudit,
 } from '#/service/errors';
+import {
+  capLifetimeForScope,
+  refreshAllowedForScope,
+  scopesCoherentWithAudience,
+} from '#/service/mcp-scopes';
 import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { parseResource } from '#/service/resource-indicator';
 import { resolveScope } from '#/service/scope';
@@ -457,8 +462,22 @@ async function mintAccessToken(
   key: SigningKeyRecord,
   now: Date,
 ): Promise<{ accessToken: string; audience: string[]; iat: number; exp: number }> {
+  // The one place every grant's granted scope and resolved audience are both
+  // known: an MCP scope is never signed into a token for another resource.
+  if (
+    !scopesCoherentWithAudience(
+      input.scope,
+      // The issuer is signed into every token's audience; a stored grant
+      // already lists it, and it is no resource a scope is judged at.
+      input.audience.filter((audience) => audience !== deps.issuer),
+      mcpAudienceOfIssuer(deps.issuer),
+      ADMIN_API_AUDIENCE,
+    )
+  ) {
+    throw invalidScope();
+  }
   const iat = Math.floor(now.getTime() / 1000);
-  const ttlExp = iat + input.config.accessTokenTtlSeconds;
+  const ttlExp = iat + capLifetimeForScope(input.config.accessTokenTtlSeconds, input.scope);
   const ceiling =
     input.expCeiling === undefined ? ttlExp : Math.floor(input.expCeiling.getTime() / 1000);
   const exp = Math.min(ttlExp, ceiling);
@@ -533,8 +552,11 @@ async function issueAuthorizationCodeTokens(
   // dropped for this grant, its access token and its ID token alike. The
   // *resolved* scope decides this, never the raw request — a client
   // without the scope assigned gets it stripped by resolveScope above, and
-  // sees an ordinary session-bound grant.
-  const sessionId = scope.includes('offline_access') ? null : code.sessionId;
+  // sees an ordinary session-bound grant. A grant holding `mcp:write` is
+  // never refreshable, so it keeps its session: offline_access beside it is
+  // ignored.
+  const sessionId =
+    scope.includes('offline_access') && refreshAllowedForScope(scope) ? null : code.sessionId;
 
   // RFC 8707 §2: `/token` may narrow what `/authorize` already resolved
   // onto the code, and may never widen it — `code.resource` is the
@@ -549,7 +571,7 @@ async function issueAuthorizationCodeTokens(
   const userinfoClaims = Object.keys(code.claims.userinfo);
   const requestedUserinfoClaims = userinfoClaims.length > 0 ? userinfoClaims : null;
 
-  const { accessToken, audience, iat } = await mintAccessToken(
+  const { accessToken, audience, iat, exp } = await mintAccessToken(
     deps,
     {
       subjectId: code.subjectId,
@@ -665,7 +687,7 @@ async function issueAuthorizationCodeTokens(
   // exactly this reason — so it is issued only for a client actually
   // configured for it, never unconditionally.
   let refreshToken: string | undefined;
-  if (config.grantTypes.includes('refresh_token')) {
+  if (config.grantTypes.includes('refresh_token') && refreshAllowedForScope(scope)) {
     refreshToken = generateRefreshToken();
     await refreshTokenRepository(tx).create({
       tokenHash: hashRefreshToken(refreshToken),
@@ -680,7 +702,7 @@ async function issueAuthorizationCodeTokens(
     ...(idToken !== undefined ? { id_token: idToken } : {}),
     ...(refreshToken !== undefined ? { refresh_token: refreshToken } : {}),
     token_type: 'Bearer',
-    expires_in: config.accessTokenTtlSeconds,
+    expires_in: exp - iat,
     scope: scope.join(' '),
   };
 }
@@ -887,7 +909,7 @@ async function issueClientCredentialsTokens(
   // another. See the `grant_id` comment on `mintAccessToken`.
   const grantId = newId();
 
-  const { accessToken, audience } = await mintAccessToken(
+  const { accessToken, audience, iat, exp } = await mintAccessToken(
     deps,
     {
       subjectId: serviceSubjectId,
@@ -929,7 +951,7 @@ async function issueClientCredentialsTokens(
   return {
     access_token: accessToken,
     token_type: 'Bearer',
-    expires_in: config.accessTokenTtlSeconds,
+    expires_in: exp - iat,
     scope: scope.join(' '),
   };
 }
@@ -1060,6 +1082,7 @@ async function issueExchangedTokens(
     });
 
   if (issuedType === 'refresh_token') {
+    if (!refreshAllowedForScope(scope)) throw invalidScope();
     const grantId = newId();
     await tokenGrantRepository(tx).create({
       id: grantId,
