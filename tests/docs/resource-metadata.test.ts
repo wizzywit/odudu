@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { pathAddress } from '../../packages/kernel/src/index.js';
 import { resolveResourceMetadata } from '../../packages/mcp/src/usecase/resource-metadata.js';
-import { jsonAfter, loadPages, PROTOCOL_PAGES } from './markdown.js';
+import { jsonAfter, loadPages, PROTOCOL_PAGES, UNTAGGED } from './markdown.js';
 
 // The page shows the response for this tenant on this stack, so the document
 // under test fixes the address the comparison is made against.
@@ -18,7 +18,7 @@ describe('the protected resource metadata the transcript shows is the one the se
       pathAddress(BASE, TENANT),
     );
     if (document === null) throw new Error('the metadata usecase returned no document');
-    const shown = jsonAfter(loadPages(PROTOCOL_PAGES), PATH_FORM);
+    const shown = jsonAfter(loadPages(PROTOCOL_PAGES), PATH_FORM, UNTAGGED);
 
     expect(shown, 'the transcript shows a response the server no longer produces').toEqual(
       document,

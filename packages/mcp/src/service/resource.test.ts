@@ -1,6 +1,6 @@
 import { domainAddress, pathAddress } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
-import { mcpResourceUrl, resourceMetadataUrl } from '#/service/resource';
+import { mcpResourceUrl, resourceMetadataDocument, resourceMetadataUrl } from '#/service/resource';
 
 const PATH = pathAddress('https://idp.example', 'acme');
 const DOMAIN = domainAddress('login.acme.com', true);
@@ -28,5 +28,22 @@ describe('resourceMetadataUrl', () => {
       'https://idp.example/.well-known/oauth-protected-resource/tenants/acme/mcp',
     );
     expect(mcpResourceUrl(slashed)).toBe('https://idp.example/tenants/acme/mcp');
+  });
+});
+
+describe('resourceMetadataDocument', () => {
+  it('states the resource and names the issuer as the one authorization server', () => {
+    expect(resourceMetadataDocument(PATH)).toEqual({
+      resource: 'https://idp.example/tenants/acme/mcp',
+      authorization_servers: ['https://idp.example/tenants/acme'],
+      scopes_supported: ['mcp:read', 'mcp:write'],
+      bearer_methods_supported: ['header'],
+    });
+  });
+
+  it('uses the tenant domain as resource and issuer', () => {
+    const doc = resourceMetadataDocument(DOMAIN);
+    expect(doc.resource).toBe('https://login.acme.com/mcp');
+    expect(doc.authorization_servers).toEqual(['https://login.acme.com']);
   });
 });

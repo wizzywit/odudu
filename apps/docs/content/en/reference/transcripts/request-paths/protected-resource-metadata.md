@@ -48,12 +48,19 @@ Keep-Alive: timeout=72
 curl -sS http://localhost:3000/.well-known/oauth-protected-resource/tenants/demo/mcp | jq .
 ```
 
-```json
+```
 {
   "resource": "http://localhost:3000/tenants/demo/mcp",
-  "authorization_servers": ["http://localhost:3000/tenants/demo"],
-  "scopes_supported": ["mcp:read", "mcp:write"],
-  "bearer_methods_supported": ["header"]
+  "authorization_servers": [
+    "http://localhost:3000/tenants/demo"
+  ],
+  "scopes_supported": [
+    "mcp:read",
+    "mcp:write"
+  ],
+  "bearer_methods_supported": [
+    "header"
+  ]
 }
 ```
 
@@ -174,12 +181,19 @@ Keep-Alive: timeout=72
 curl -sS -H "Host: login.acme-corp.dev" http://localhost:3000/.well-known/oauth-protected-resource/mcp | jq .
 ```
 
-```json
+```
 {
   "resource": "http://login.acme-corp.dev/mcp",
-  "authorization_servers": ["http://login.acme-corp.dev"],
-  "scopes_supported": ["mcp:read", "mcp:write"],
-  "bearer_methods_supported": ["header"]
+  "authorization_servers": [
+    "http://login.acme-corp.dev"
+  ],
+  "scopes_supported": [
+    "mcp:read",
+    "mcp:write"
+  ],
+  "bearer_methods_supported": [
+    "header"
+  ]
 }
 ```
 
@@ -191,12 +205,19 @@ is read at, which is still the path one:
 curl -sS http://localhost:3000/.well-known/oauth-protected-resource/tenants/demo/mcp | jq .
 ```
 
-```json
+```
 {
   "resource": "http://localhost:3000/tenants/demo/mcp",
-  "authorization_servers": ["http://localhost:3000/tenants/demo"],
-  "scopes_supported": ["mcp:read", "mcp:write"],
-  "bearer_methods_supported": ["header"]
+  "authorization_servers": [
+    "http://localhost:3000/tenants/demo"
+  ],
+  "scopes_supported": [
+    "mcp:read",
+    "mcp:write"
+  ],
+  "bearer_methods_supported": [
+    "header"
+  ]
 }
 ```
 

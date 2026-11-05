@@ -299,8 +299,16 @@ export function blockAfter(document: Document, marker: string, language: string)
   return block;
 }
 
-export function jsonAfter(document: Document, marker: string): Record<string, unknown> {
-  const block = blockAfter(document, marker, 'json');
+// A transcript's response fence carries no language tag, so Prettier leaves
+// the bytes the server sent; those pages pass `UNTAGGED`.
+export const UNTAGGED = '';
+
+export function jsonAfter(
+  document: Document,
+  marker: string,
+  language = 'json',
+): Record<string, unknown> {
+  const block = blockAfter(document, marker, language);
   const parsed: unknown = JSON.parse(block.body);
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error(
