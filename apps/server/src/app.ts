@@ -56,6 +56,7 @@ import {
   newId,
   systemClock,
 } from '@odudu/kernel';
+import { RESOURCE_METADATA_PATH_FORM, registerResourceMetadataRoute } from '@odudu/mcp';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -70,6 +71,7 @@ import {
   type UnroutedDeps,
   standardClaimMappers,
   type AuditRefusalBudget,
+  AS_METADATA_PATH_FORM,
 } from '@odudu/protocol-oidc';
 import { docsRoutes } from '@odudu/web-assets';
 import Fastify, {
@@ -504,7 +506,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // in a name, a form field, a query parameter or the tenant segment cannot
   // be a database parameter, so it is made one no account answers to.
   app.addHook('preValidation', (request, _reply, done) => {
-    if (request.routeOptions.url?.startsWith('/tenants/') === true) {
+    const route = request.routeOptions.url;
+    if (
+      route?.startsWith('/tenants/') === true ||
+      route === AS_METADATA_PATH_FORM ||
+      route === RESOURCE_METADATA_PATH_FORM
+    ) {
       neutraliseRequestInput(request);
     }
     done();
@@ -649,6 +656,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         : { tlsClientCertHeader: deps.tlsClientCertHeader }),
     }),
   );
+
+  registerResourceMetadataRoute(app, {
+    findTenant: (name) => tenantSettingsRepository(deps.ownerDatabase.db).byName(name),
+  });
 
   // getCurrentEmail, markVerified and setPassword are the only points where
   // @odudu/account reaches @odudu/domain-identity's users and credentials

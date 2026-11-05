@@ -82,7 +82,9 @@ import {
   type CompleteLoginOutcome,
 } from '#/usecase/login-submission';
 import { type ResolvedClient } from '#/usecase/authorization-request';
+import { type DiscoveryUsecaseDeps } from '#/usecase/discovery';
 import { endSession } from '#/usecase/end-session';
+import { registerAsMetadataRoutes } from '#/view/routes/as-metadata';
 import { registerAuthorizeRoute } from '#/view/routes/authorize';
 import { registerClientRegistrationRoute } from '#/view/routes/client-registration';
 import { registerConsentRoute } from '#/view/routes/consent';
@@ -503,7 +505,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         input.request,
       );
 
-    registerDiscoveryRoute(app, {
+    const discoveryDeps: DiscoveryUsecaseDeps = {
       findTenant,
       claimNames: async (tenantId) => {
         const scopes = await scopesForTenant(tenantId);
@@ -517,7 +519,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       userinfoEncryptionAlgSupported: JWE_ALGS_PERMITTED,
       userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENCS_PERMITTED,
       trustProxy: deps.trustProxy ?? false,
-    });
+    };
+    registerDiscoveryRoute(app, discoveryDeps);
+    registerAsMetadataRoutes(app, discoveryDeps);
+
     registerJwksRoute(app, { findTenant, listPublishableKeys });
     // Introspection's two grant/session reads, resolved here rather than in
     // the route — a route never imports a repository (dependency-cruiser's
@@ -1036,6 +1041,8 @@ export { sendThrottledPage } from '#/view/routes/throttled';
 export { sendPreviousAddressPage } from '#/view/routes/previous-address';
 export { answerNotFound, answerServerError, type UnroutedDeps } from '#/view/routes/unrouted';
 export { isApiPath, wantsHtmlPage } from '#/service/page-negotiation';
+export { AS_METADATA_PATH_FORM } from '#/view/routes/as-metadata';
+export { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '#/service/mcp-scopes';
 export {
   configureIssuerBase,
   configureTenantAddress,

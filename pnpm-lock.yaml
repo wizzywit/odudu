@@ -382,6 +382,9 @@ importers:
       '@odudu/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
+      '@odudu/mcp':
+        specifier: workspace:*
+        version: link:../../packages/mcp
       '@odudu/protocol-admin':
         specifier: workspace:*
         version: link:../../packages/protocol-admin
@@ -808,6 +811,22 @@ importers:
       zod:
         specifier: 4.6.7
         version: 4.6.7
+
+  packages/mcp:
+    dependencies:
+      '@odudu/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@odudu/protocol-oidc':
+        specifier: workspace:*
+        version: link:../protocol-oidc
+      fastify:
+        specifier: 5.12.7
+        version: 5.12.7
+    devDependencies:
+      vitest:
+        specifier: 5.0.5
+        version: 5.0.5(@types/node@24.19.2)(jsdom@30.1.1(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@1.21.7)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0))
 
   packages/protocol-admin:
     dependencies:

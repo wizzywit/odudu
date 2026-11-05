@@ -1,4 +1,9 @@
 export {
+  asMetadataDocument,
+  CLIENT_ASSERTION_SIGNING_ALGS_SUPPORTED,
+  type AsMetadataDocument,
+} from '#/as-metadata';
+export {
   CORE_PROMPT_VALUES,
   discoveryDocument,
   promptValuesSupported,

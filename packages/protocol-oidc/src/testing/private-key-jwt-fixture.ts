@@ -10,8 +10,9 @@ import { newId } from '@odudu/kernel';
 export async function buildClientSigningKey(
   kek: Buffer,
   tenantId: string = newId(),
+  alg: 'RS256' | 'ES256' = 'RS256',
 ): Promise<SigningKeyRecord> {
-  const generated = await generateSigningKey('RS256', kek);
+  const generated = await generateSigningKey(alg, kek);
   return {
     id: newId(),
     tenantId,
