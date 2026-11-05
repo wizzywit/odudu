@@ -98,6 +98,8 @@ export async function seedDomainInTenant(
 ): Promise<DomainCommandResult> {
   const { tenant } = context;
   const domains = tenantDomainRepository(tx);
+  // Before any row lock, the order the admin paths take them in.
+  await domains.lock(tenant.id);
   const known = canonicalHost(input.host);
   let row = known === null ? null : await domains.getByHost(tenant.id, known);
   const created = row === null;

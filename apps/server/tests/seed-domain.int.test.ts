@@ -6,6 +6,7 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import { tenantDomainRepository } from '@odudu/domain-tenant';
+import { sql } from 'drizzle-orm';
 import { tenantLookupRepository } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -195,5 +196,47 @@ describe('seed domain', () => {
     ).rejects.toMatchObject({
       code: 'seed_not_found',
     });
+  });
+
+  it('takes the tenant lock before it locks the row it verifies', async () => {
+    const t = await tenant();
+    const args = ['--tenant', t.name, '--host', 'login.lock-order.org'];
+    await run(args);
+    const [row] = await rows(t.id);
+    if (row === undefined) throw new Error('no row');
+
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let held: () => void = () => undefined;
+    const taken = new Promise<void>((resolve) => {
+      held = resolve;
+    });
+    const holder = withTenant(appDb.db, t.id, async (tx) => {
+      await tenantDomainRepository(tx).lock(t.id);
+      held();
+      await gate;
+    });
+    await taken;
+    const seeding = run([...args, '--assume-verified', '--canonical']);
+    try {
+      for (let attempt = 0; attempt < 200; attempt += 1) {
+        const waiting = await owner.db.execute<{ n: number } & Record<string, unknown>>(
+          sql`select count(*)::int as n from pg_stat_activity where wait_event_type = 'Lock'`,
+        );
+        if ((waiting[0]?.n ?? 0) > 0) break;
+        if (attempt === 199) throw new Error('the seed never waited on the tenant lock');
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      const free = await owner.db.execute(
+        sql`select id from tenant_domains where id = ${row.id} for update skip locked`,
+      );
+      expect(free).toHaveLength(1);
+    } finally {
+      release();
+      await holder;
+    }
+    expect(await seeding).toMatchObject({ state: 'verified', canonical: true });
   });
 });
