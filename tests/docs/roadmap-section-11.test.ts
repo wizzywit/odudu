@@ -137,6 +137,12 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
   ],
   ['P4h', 'Lists sort by', '`intl.collator`', 'machine-readable `code`'],
   ['P4h', "A client's base name", 'carry a language of their own'],
+  [
+    'P4h',
+    'It also makes the console refresh',
+    'the console gateway refreshing a session and retrying once',
+    'forwarded admin call is refused with a `401`',
+  ],
   ['P4h', 'It also sends the failure screen', "failure screen's error id sent to the server"],
   [
     'P4i',
@@ -309,6 +315,7 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     ['Localization has its catalogue', ['P4h'], ['catalogue']],
     ['Tenant export and import carry no theme', ['P7'], ['published theme']],
     ["The console's failure ID", ['P4h'], ['failure screen']],
+    ['The console gateway does not refresh', ['P4h'], ['refresh a session and try again once']],
     ['A passage in another language', ['P4h'], ['language of their own']],
     ['No scope means anything', ['P9'], ['resource server as a first-class thing']],
     [

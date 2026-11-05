@@ -35,6 +35,11 @@ root, and the issuer, the cookies, the RP ID and every link Odudu writes follow 
   issuer for 3600 seconds, and leaves the address left serving token, userinfo,
   introspection, revocation, keys, logout and discovery, with a `410` page for sign-in.
   Resource servers, `id_token_hint` and client assertions accept both issuers for the window.
+- **The admin plane at a domain.** The console stays on the base address and signs a tenant's
+  administrators in at the tenant's canonical address; the admin API accepts a tenant's canonical
+  issuer and the ones it left inside the window, for any target other than `system`. A machine
+  client takes tokens from the canonical token endpoint. A console session straddling the end of
+  the window needs a fresh sign-in, because the gateway does not refresh on a `401`.
 - **Passkeys bound to the canonical address**, hidden at the other and brought back by a
   switch back; password sign-in is untouched.
 - **A recheck pass** (`odudu domains recheck`, with the loop beside the scheduler) that fails
@@ -124,8 +129,17 @@ Each row is in `docs/NEXT.md`, "Decisions still open", with its argument.
   capability's roles were; nothing runs it at boot. The upgrade note, the CHANGELOG and the guide
   say to run it once.
 - **A host-to-tenant cache.** One indexed read per request on a non-base host, and one on the
-  path addresses, is the design; a cache has to state its bound and its invalidation on a
-  switch and would blur "refused at its expiry". **P11**, when a measurement asks.
+  path addresses, is the design; the admin API adds one tenant-scoped read per request for a
+  tenant other than `system`, and host resolution states its owner connection per request. A
+  cache has to state its bound and its invalidation on a switch and would blur "refused at its
+  expiry". **P11**, when a measurement asks.
+- **A verification holds its transaction across the DNS lookup.** The lookup is bounded by a 5 s
+  timeout and ten verifications a minute per tenant, so a connection is held for seconds at the
+  worst; splitting the usecase into read, look up and write under lock is **P11**'s, with the
+  other pool bounds.
+- **The console gateway does not refresh on a `401`.** A session opened before a switch works
+  through the window; one whose access token outlives it needs a fresh sign-in. **P4h**, which
+  reworks what the console shows on a failed call and so touches the gateway's response handling.
 - **A person with no password and only hidden passkeys has no way back inside the sign-in
   itself**; recovery needs a switch back, a reset or an administrator (the guide says which).
   **P4f**, whose self-service criterion owns the account's own recovery.

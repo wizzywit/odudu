@@ -15,7 +15,7 @@ A tenant has exactly one **canonical address**, either its path address (`https:
 
 A tenant can register up to twenty domains and have one of them as its address. The others are idle: they serve nothing and your proxy is told not to get a certificate for them. The one exception is a domain the tenant has just left, which keeps answering for an hour ([what a switch costs](#what-a-switch-costs)). Registering a host claims nothing, and several tenants may register the same one. The first to prove it owns it keeps it.
 
-The admin API and the admin console stay on your base address. That is what lets you switch a tenant back without the domain.
+The console itself stays on your base address, and the admin API is reached there too. A tenant on a domain signs its administrators in through its domain, so the admin plane follows the tenant's address, and switching a tenant back still needs nothing from the domain. The system tenant cannot have a domain and is unaffected.
 
 ## 1. Point the commands at your server
 
@@ -119,6 +119,7 @@ A switch is one change, and it is worth reading this list before you make it, be
 - **There are two addresses for an hour.** One hour is the longest an access token lives. For that long the old address still serves the token, userinfo, introspection, revocation, key and logout endpoints and discovery, so what was issued keeps working, and a token minted there carries the old issuer. It refuses sign-in, registration and password-reset pages and points to the new address. When the hour ends it serves nothing for the tenant. A second switch inside the hour leaves both previous addresses valid until their own times.
 - **A resource server must accept both issuers for that hour.** An API that checks a token's `iss` against one string rejects tokens minted at the other. Odudu's own `/userinfo` and `/introspect` accept both. Each app also has to move to the new issuer: its discovery URL, and the issuer it checks, are the new address. It has an hour to do it. A token minted at the address left late in that hour carries the old issuer, so a resource server that then stops accepting it refuses the token before its own expiry.
 - **Passkeys are hidden, not lost.** A passkey belongs to the host it was registered at. At the new address Odudu offers only passkeys registered there, so the ones from the old address are not offered, and a switch back brings them back. Nothing is deleted. The console counts the people it affects before you switch.
+- **Administrators sign in through the domain.** A tenant's administrators open the console on your base address as before, and the console sends them to the tenant's domain to sign in; they come back to the console on the base address. A token for the admin API is accepted while its issuer is the tenant's current address or one it left in the last hour. A machine client of the admin API must fetch its tokens from the tenant's canonical token endpoint, and tokens it got from the address left stop working when the hour ends. A console session opened before the switch keeps working through the hour. After that its access token is refused, the console does not refresh it on a refused call, and the administrator signs in again.
 - **A client's redirect URIs, web origins and logout addresses do not change.** They name the app, not Odudu. `odudu seed client` and the console leave them as they are.
 - **Mail follows the new address.** A link already in somebody's inbox still names the address it was written for, and for a reset link that address refuses the page.
 - **Brand images move with the address**, since they are served from it.
@@ -135,7 +136,7 @@ A tenant whose sign-in flow has no password step at all has only the first way. 
 
 ## 5. Switch back
 
-Choose **Switch back** in the console, or `POST /admin/tenants/acme/domains/<id>/deactivate`. It works whatever state the domain is in, and it makes no call to the domain. Everything above applies in the other direction: people sign in again, the address you leave serves its token endpoints for an hour, and the passkeys hidden at the domain come back. The domain stays registered. You can [remove it](../reference/transcripts/admin-paths/get-domains-post-domains-and-the-domain-routes.md) only while it is not the address.
+Choose **Switch back** in the console, or `POST /admin/tenants/acme/domains/<id>/deactivate`. It works whatever state the domain is in, and it makes no call to the domain. Everything above applies in the other direction: people sign in again, administrators sign in at the path address, the address you leave serves its token endpoints for an hour and tokens issued at the domain keep working on the admin API for that hour, and the passkeys hidden at the domain come back. The domain stays registered. You can [remove it](../reference/transcripts/admin-paths/get-domains-post-domains-and-the-domain-routes.md) only while it is not the address.
 
 ## Settings
 
@@ -151,7 +152,7 @@ To schedule the recheck yourself, set `ODUDU_DOMAIN_RECHECK_ENABLED=false` and r
 ## What this does not do
 
 - It does not issue or renew certificates. That is the proxy's work.
-- It does not give the admin API or the console an address on a tenant's domain.
+- It does not serve the console or the admin API at a tenant's domain: they stay on the base address, and a tenant's administrators sign in through the domain to reach them.
 - It does not run more than one domain as a tenant's address at once, and it does not share passkeys between addresses.
 - It does not move a tenant's export or import: a tenant's domains are left out of an export, so a host can only be claimed by proving it.
 - The limits on verification lookups are per process. With more than one instance the budget is per instance ([Scaling](./scaling.md)).
