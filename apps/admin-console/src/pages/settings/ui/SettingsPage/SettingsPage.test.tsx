@@ -1,7 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
-import { useUnsavedGuard } from '#/shared/lib/repository/useUnsavedGuard';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { inTurn, json, problem } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';
@@ -170,9 +169,11 @@ it('counts an edit to the switch as unsaved until it is saved', async () => {
   const user = userEvent.setup();
   renderConsoleAt(AT, settingsRoutes());
   const clients = await section('Client registration');
-  expect(useUnsavedGuard.getState().unsaved()).toEqual([]);
+  expect(within(clients).queryByRole('button', { name: 'Save Client registration' })).toBeNull();
   await user.click(within(clients).getByRole('switch', { name: SETTINGS_WORDS.cimdLabel }));
-  expect(useUnsavedGuard.getState().unsaved()).toEqual(['Client registration']);
+  expect(
+    within(clients).getByRole('button', { name: 'Save Client registration' }),
+  ).toBeInTheDocument();
 });
 
 it('shows a 412 on the policy as the other administrator’s value beside yours', async () => {
