@@ -34,6 +34,7 @@ export type TableName =
   | 'console_sessions'
   | 'console_logins'
   | 'tenant_issuer_retirements'
+  | 'client_metadata_cache'
   | 'tenant_domains'
   | 'sessions'
   | 'audit_events';
@@ -388,6 +389,16 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
     `,
   },
 
+  // No window of its own: past expires_at the fetcher would not serve the
+  // row and refetches. Served by client_metadata_cache_by_expiry.
+  client_metadata_cache: {
+    after: [],
+    statement: (now) => sql`
+      DELETE FROM client_metadata_cache c
+       WHERE c.expires_at <= ${now.toISOString()}::timestamptz
+    `,
+  },
+
   // Only a registration nobody proved: a verified row is the tenant's
   // address and a failed one is kept for the tenant to read, so neither is
   // reaped however old. Served by tenant_domains_pending_by_created.
@@ -455,6 +466,7 @@ export const REAP_ORDER: readonly TableName[] = [
   'console_sessions',
   'console_logins',
   'tenant_issuer_retirements',
+  'client_metadata_cache',
   'tenant_domains',
   'sessions',
   'audit_events',

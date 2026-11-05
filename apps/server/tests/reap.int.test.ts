@@ -341,6 +341,15 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
       (${tenantId}, 'https://live.example.com', ${at(1 * HOUR)}::timestamptz)
   `);
 
+  await owner.db.execute(sql`
+    INSERT INTO client_metadata_cache (tenant_id, url, body, fetched_at, expires_at)
+    VALUES
+      (${tenantId}, 'https://stale.example.com/c.json', '{}'::jsonb, ${at(-2 * HOUR)}::timestamptz,
+       ${at(-1 * SECOND)}::timestamptz),
+      (${tenantId}, 'https://live.example.com/c.json', '{}'::jsonb, ${at(-1 * MINUTE)}::timestamptz,
+       ${at(1 * HOUR)}::timestamptz)
+  `);
+
   return {
     tenant,
     tenantId,
@@ -385,6 +394,7 @@ const RELATIONS: Record<TableName, SQL> = {
   console_sessions: sql.raw('console_sessions'),
   console_logins: sql.raw('console_logins'),
   tenant_issuer_retirements: sql.raw('tenant_issuer_retirements'),
+  client_metadata_cache: sql.raw('client_metadata_cache'),
   tenant_domains: sql.raw('tenant_domains'),
   sessions: sql.raw('sessions'),
   audit_events: sql.raw('audit_events'),
@@ -553,6 +563,7 @@ describe('odudu reap', () => {
       console_sessions: 2,
       console_logins: 1,
       tenant_issuer_retirements: 1,
+      client_metadata_cache: 1,
       tenant_domains: 1,
       sessions: 1,
       audit_events: 0,
@@ -576,6 +587,7 @@ describe('odudu reap', () => {
       console_sessions: 1,
       console_logins: 1,
       tenant_issuer_retirements: 1,
+      client_metadata_cache: 1,
       tenant_domains: 3,
       sessions: 1,
       audit_events: 0,
@@ -596,6 +608,7 @@ describe('odudu reap', () => {
       console_sessions: 0,
       console_logins: 0,
       tenant_issuer_retirements: 0,
+      client_metadata_cache: 0,
       tenant_domains: 0,
       sessions: 0,
       audit_events: 0,
@@ -614,6 +627,17 @@ describe('odudu reap', () => {
       sql`SELECT jti FROM client_assertion_jti WHERE tenant_id = ${fixture.tenantId}`,
     );
     expect(rows.map((row) => row.jti)).toEqual([fixture.assertionJtiLive]);
+  });
+
+  it('keeps the cached metadata document that is still fresh', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ url: string }>(
+      sql`SELECT url FROM client_metadata_cache WHERE tenant_id = ${fixture.tenantId}`,
+    );
+    expect(rows.map((row) => row.url)).toEqual(['https://live.example.com/c.json']);
   });
 
   it('keeps the console session and pending login that are still live', async () => {
@@ -706,6 +730,7 @@ describe('odudu reap', () => {
     'console_sessions',
     'console_logins',
     'tenant_issuer_retirements',
+    'client_metadata_cache',
     'tenant_domains',
   ] as const)('scopes the %s delete to one tenant by row-level security alone', async (table) => {
     const mine = await seedFixture();

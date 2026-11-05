@@ -49,6 +49,9 @@ shipped); it was added to the recorded blocks by hand, after `nosniff` where
 `pageHeaders` places it, and a live login-page response on the project
 `odudu-p4g-13b` confirmed its value and position.
 
+The `client_metadata_cache` key in the retention page's reports was added by editing the captured
+lines, since the table is empty throughout; those reports have not been re-run on a live stack since.
+
 The custom-domain work of 2026-11-04 was captured on the compose project `odudu-p4j-tx`, built from the
 branch commit `cdde6fd8` plus the documentation, on port `3000` with `ODUDU_THROTTLE_LIMIT` and
 `ODUDU_LOGIN_THROTTLE_LIMIT` at `10000` and the three schedules off. The domains page of the admin

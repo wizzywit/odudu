@@ -21,6 +21,7 @@ All notable changes to Odudu are written here, newest first. The format follows
 - `odudu seed domain --tenant <name> --host <host>`, with `--canonical` and `--assume-verified`, which marks a host verified without the DNS proof and refuses to run in production.
 - Settings `ODUDU_DOMAIN_RECHECK_ENABLED`, `ODUDU_DOMAIN_RECHECK_INTERVAL_SECONDS` and `ODUDU_DOMAIN_RECHECK_FAILURES` for the recheck, and `ODUDU_RETENTION_PENDING_DOMAIN_SECONDS` (seven days) for how long a domain nobody proved is kept. `odudu reap` reports `tenant_issuer_retirements` and `tenant_domains` as well.
 - The capabilities `view-domains` and `manage-domains`, and a built-in role for each.
+- `odudu reap` reports a new table, `client_metadata_cache`, after `tenant_issuer_retirements`: the Client ID Metadata Documents the server fetched for a tenant, which are deleted once their cache lifetime (one minute to a day) has ended. A tenant keeps at most 1,000 of them. Nothing fills it until a tenant turns on client metadata documents, so the count is `0` for now.
 
 ### Changed
 

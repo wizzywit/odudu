@@ -46,6 +46,7 @@ describe('the order the retention pass runs in', () => {
         'console_sessions',
         'console_logins',
         'tenant_issuer_retirements',
+        'client_metadata_cache',
         'tenant_domains',
         'sessions',
         'audit_events',
