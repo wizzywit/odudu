@@ -227,3 +227,20 @@ describe('cimdConsentHost', () => {
     expect(cimdConsentHost('https://app.example:8443/a')).toBe('app.example:8443');
   });
 });
+
+describe('isCimdClientId refuses address literals', () => {
+  it.each([
+    'https://127.0.0.1/client.json',
+    'https://169.254.169.254/x',
+    'https://[::1]/client.json',
+    'https://[2001:db8::1]/client.json',
+    'https://2130706433/client.json',
+    'https://0x7f.1/client.json',
+  ])('%s', (url) => {
+    expect(isCimdClientId(url)).toBe(false);
+  });
+
+  it('still accepts a named host', () => {
+    expect(isCimdClientId('https://app.example.com/client.json')).toBe(true);
+  });
+});

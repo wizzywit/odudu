@@ -42,6 +42,9 @@ export function cimdCacheRepository(database: DatabaseHandle) {
       maxRows: number,
     ): Promise<void> {
       await withTenant(database.db, tenantId, async (tx) => {
+        // One writer per tenant at a time, so the trim below sees every
+        // other store's row and the ceiling holds under concurrency.
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${tenantId}))`);
         await tx
           .insert(clientMetadataCache)
           .values({ tenantId, url, body, fetchedAt: now, expiresAt })

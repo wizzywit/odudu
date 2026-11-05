@@ -1,3 +1,4 @@
+import { gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import {
   CIMD_MAX_BODY_BYTES,
@@ -144,7 +145,7 @@ describe('fetchCimdDocument', () => {
     expect(calls.requests).toHaveLength(1);
   });
 
-  it.each([404, 500, 204])('refuses status %s', async (status) => {
+  it.each([404, 500])('refuses status %s', async (status) => {
     const { deps: d } = deps({ response: ok({ status }) });
     expect(await fetchCimdDocument(URL_OK, d)).toEqual({ kind: 'refused', reason: 'status' });
   });
@@ -231,5 +232,21 @@ describe('fetchCimdDocument', () => {
     );
     expect(short).toMatchObject({ expiresAt: new Date(NOW.getTime() + 60_000) });
     expect(long).toMatchObject({ expiresAt: new Date(NOW.getTime() + 86_400_000) });
+  });
+
+  it('does not decompress a gzip response: its bytes are not JSON', async () => {
+    const gz = Buffer.from(gzipSync('{"a":1}')).toString('latin1');
+    const { deps: d } = deps({ response: ok({ body: gz }) });
+    expect(await fetchCimdDocument(URL_OK, d)).toEqual({ kind: 'refused', reason: 'not_json' });
+  });
+
+  it.each([
+    'https://2130706433/client.json',
+    'https://0x7f.0.0.1/client.json',
+    'https://017700000001/c.json',
+  ])('refuses the numeric host in %s without a request', async (url) => {
+    const { deps: d, calls } = deps({ addresses: ['127.0.0.1'] });
+    expect(await fetchCimdDocument(url, d)).toEqual({ kind: 'refused', reason: 'private_address' });
+    expect(calls.requests).toEqual([]);
   });
 });

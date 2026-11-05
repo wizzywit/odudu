@@ -2,7 +2,10 @@
 -- Cache-Control lifetime ends (one minute to a day, set by the fetcher). The
 -- URL is the client_id the document was fetched for, never a foreign key: the
 -- client it names need not exist anywhere else. The body is capped at the
--- fetch's own 5 KiB; at most a fixed number of rows per tenant are kept, the
+-- fetch's own 5 KiB, measured on its text form (jsonb's stored size is several
+-- times larger for numeric arrays), with room for the space jsonb's text form
+-- adds after every comma and colon (at most one and a half times a 5 KiB
+-- document, so 8192); at most a fixed number of rows per tenant are kept, the
 -- oldest fetched going first. Each statement writes only what is missing, so
 -- the file can run again to no effect.
 CREATE TABLE IF NOT EXISTS client_metadata_cache (
@@ -13,7 +16,7 @@ CREATE TABLE IF NOT EXISTS client_metadata_cache (
   expires_at timestamptz NOT NULL,
   PRIMARY KEY (tenant_id, url),
   CONSTRAINT client_metadata_cache_url_length CHECK (length(url) <= 2048),
-  CONSTRAINT client_metadata_cache_body_size CHECK (pg_column_size(body) <= 6144)
+  CONSTRAINT client_metadata_cache_body_size CHECK (length(body::text) <= 8192)
 );
 
 -- What reap deletes, per tenant: rows past their expiry.

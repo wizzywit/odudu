@@ -6,7 +6,9 @@ export type CimdFetchRefusal =
   | 'too_large'
   | 'timeout'
   | 'not_json'
-  | 'status';
+  | 'status'
+  | 'rate_limited'
+  | 'invalid_document';
 
 export type CimdFetchOutcome =
   | {

@@ -1130,6 +1130,14 @@ export {
   type CachedCimdDocument,
 } from '#/repository/client-metadata-cache';
 export {
+  CIMD_FETCHES_PER_HOST_PER_MINUTE,
+  CIMD_FETCHES_PER_TENANT_PER_MINUTE,
+  CIMD_LIMITER_MAX_HOSTS,
+  CIMD_LIMITER_MAX_TENANTS,
+  createFetchLimiter,
+  type FetchLimiter,
+} from '#/service/cimd-fetch-limiter';
+export {
   resolveCimdDocument,
   type ResolveCimdDeps,
   type ResolveCimdOutcome,

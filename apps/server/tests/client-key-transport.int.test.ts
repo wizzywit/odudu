@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { gzipSync } from 'node:zlib';
 import { createServer, type Server } from 'node:https';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
@@ -272,6 +273,18 @@ describe('createCimdRequest', () => {
     await expect(
       createCimdRequest({ ca: cert, totalTimeoutMs: 200 })(urlFor(port), address),
     ).rejects.toBeInstanceOf(ResponseTimedOut);
+  });
+
+  it('asks for no compression and hands a gzip body back undecoded', async () => {
+    let encoding: string | string[] | undefined;
+    const { port, address } = await startServer((req, res) => {
+      encoding = req.headers['accept-encoding'];
+      res.writeHead(200, { 'content-type': 'application/json', 'content-encoding': 'gzip' });
+      res.end(gzipSync('{"a":1}'));
+    });
+    const response = await createCimdRequest({ ca: cert })(urlFor(port), address);
+    expect(encoding).toBeUndefined();
+    expect(() => JSON.parse(response.body)).toThrow();
   });
 
   it('hands a redirect back unfollowed', async () => {

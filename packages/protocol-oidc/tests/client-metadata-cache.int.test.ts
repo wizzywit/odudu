@@ -153,10 +153,34 @@ describe('cimdCacheRepository', () => {
     expect(await rows(theirs)).toEqual([URL_A]);
   });
 
+  it('stores a 5 KiB array of small numbers, whose jsonb form is several times its text', async () => {
+    const body = Array.from({ length: 2559 }, () => 1);
+    expect(JSON.stringify(body).length).toBeLessThanOrEqual(5120);
+    await cimdCacheRepository(app).store(mine, URL_A, body, NOW, later, 1000);
+    expect((await cimdCacheRepository(app).find(mine, URL_A, NOW))?.body).toEqual(body);
+  });
+
+  it('never leaves more than the ceiling after concurrent stores', async () => {
+    const repo = cimdCacheRepository(app);
+    await Promise.all(
+      Array.from({ length: 12 }, (_, i) =>
+        repo.store(
+          mine,
+          `https://c.example.com/${String(i)}`,
+          {},
+          new Date(NOW.getTime() + i),
+          later,
+          4,
+        ),
+      ),
+    );
+    expect(await rows(mine)).toHaveLength(4);
+  });
+
   it('refuses a body past the stored cap and a URL past 2048 characters', async () => {
     const repo = cimdCacheRepository(app);
     await expect(
-      repo.store(mine, URL_A, { x: 'a'.repeat(10_000) }, NOW, later, 1000),
+      repo.store(mine, URL_A, { x: 'a'.repeat(9000) }, NOW, later, 1000),
     ).rejects.toThrow();
     await expect(
       repo.store(mine, `https://a.example.com/${'a'.repeat(2100)}`, {}, NOW, later, 1000),

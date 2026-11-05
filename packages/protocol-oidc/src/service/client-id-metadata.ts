@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import { isLoopbackHost, privateMemberRefusal } from '#/service/client-metadata';
 import { matchesLoopbackPort } from '#/service/redirect-uri';
 
@@ -45,6 +46,7 @@ export function isCimdClientId(raw: string): boolean {
   if (url.href !== raw || raw.endsWith('?')) return false;
   if (url.protocol !== 'https:' || url.username !== '' || url.password !== '') return false;
   if (url.pathname === '/' || url.hostname.endsWith('.')) return false;
+  if (url.hostname.startsWith('[') || isIP(url.hostname) !== 0) return false;
   return !url.pathname.split('/').some((s) => s === '.' || s === '..');
 }
 

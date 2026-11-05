@@ -79,11 +79,15 @@ function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
 
 async function checkedAddress(url: URL, lookup: CimdFetchDeps['lookup']): Promise<string> {
   const host = bareHost(url.hostname);
-  if (isLocalName(host)) throw new Refused('private_address');
+  if (isLocalName(host)) {
+    throw new Refused('private_address');
+  }
   const addresses = isIP(host) === 0 ? await lookup(host) : [host];
   assertPublicAddresses(addresses);
   const [address] = addresses;
-  if (address === undefined) throw new Refused('unreachable');
+  if (address === undefined) {
+    throw new Refused('unreachable');
+  }
   return address;
 }
 
@@ -93,19 +97,31 @@ async function fetchChecked(url: URL, deps: CimdFetchDeps): Promise<CimdResponse
 }
 
 function refusalOf(error: unknown): CimdFetchRefusal {
-  if (error instanceof Refused) return error.reason;
-  if (error instanceof RemoteAddressRefused) return 'private_address';
-  if (error instanceof ResponseTooLarge) return 'too_large';
-  if (error instanceof ResponseTimedOut) return 'timeout';
+  if (error instanceof Refused) {
+    return error.reason;
+  }
+  if (error instanceof RemoteAddressRefused) {
+    return 'private_address';
+  }
+  if (error instanceof ResponseTooLarge) {
+    return 'too_large';
+  }
+  if (error instanceof ResponseTimedOut) {
+    return 'timeout';
+  }
   return 'unreachable';
 }
 
 function interpret(response: CimdResponse, now: Date): CimdFetchOutcome {
-  if (response.status >= 300 && response.status < 400) throw new Refused('redirect');
-  if (response.status < 200 || response.status >= 300 || response.status === 204) {
+  if (response.status >= 300 && response.status < 400) {
+    throw new Refused('redirect');
+  }
+  if (response.status < 200 || response.status >= 300) {
     throw new Refused('status');
   }
-  if (!isJson(response.contentType)) throw new Refused('not_json');
+  if (!isJson(response.contentType)) {
+    throw new Refused('not_json');
+  }
   if (Buffer.byteLength(response.body, 'utf8') > CIMD_MAX_BODY_BYTES)
     throw new Refused('too_large');
   let body: unknown;

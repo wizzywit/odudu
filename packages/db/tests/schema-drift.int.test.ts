@@ -131,7 +131,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK (((zoneinfo IS NULL) OR (zoneinfo ~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$'::text)))",
   'client_oidc_config.client_oidc_config_id_token_ttl_ceiling':
     'CHECK (((id_token_ttl_seconds >= 1) AND (id_token_ttl_seconds <= 3600)))',
-  'client_metadata_cache.client_metadata_cache_body_size': 'CHECK ((pg_column_size(body) <= 6144))',
+  'client_metadata_cache.client_metadata_cache_body_size': 'CHECK ((length((body)::text) <= 8192))',
   'client_metadata_cache.client_metadata_cache_url_length': 'CHECK ((length(url) <= 2048))',
   'tenant_domains.tenant_domains_canonical_is_verified':
     "CHECK (((NOT canonical) OR (state = 'verified'::text)))",
