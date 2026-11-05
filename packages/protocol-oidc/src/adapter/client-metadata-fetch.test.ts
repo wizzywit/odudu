@@ -71,7 +71,7 @@ describe('fetchCimdDocument', () => {
     expect(calls.requests).toEqual([{ url: URL_OK, address: '93.184.216.34' }]);
   });
 
-  it('refuses a name that resolves to the cloud metadata address, sending nothing', async () => {
+  it('[CIMD-6.5-01] refuses a name that resolves to the cloud metadata address, sending nothing', async () => {
     const { deps: d, calls } = deps({ addresses: ['169.254.169.254'] });
     expect(await fetchCimdDocument(URL_OK, d)).toEqual({
       kind: 'refused',
@@ -173,7 +173,7 @@ describe('fetchCimdDocument', () => {
     expect(await fetchCimdDocument(URL_OK, d)).toEqual({ kind: 'refused', reason: 'not_json' });
   });
 
-  it('refuses a body over five KiB even from a transport that did not stop it', async () => {
+  it('[CIMD-6.6-01] refuses a body over five KiB even from a transport that did not stop it', async () => {
     const big = `{"x":"${'a'.repeat(CIMD_MAX_BODY_BYTES)}"}`;
     const { deps: d } = deps({ response: ok({ body: big }) });
     expect(await fetchCimdDocument(URL_OK, d)).toEqual({ kind: 'refused', reason: 'too_large' });

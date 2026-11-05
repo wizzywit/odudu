@@ -313,3 +313,55 @@ describe('projectCimdDocument', () => {
     expect(JSON.stringify(projection)).toContain('"__proto__":["x"]');
   });
 });
+
+describe('the identifier and document rules of the draft', () => {
+  it('[CIMD-3-01] refuses an identifier that is not https', () => {
+    expect(isCimdClientId('http://app.example/a')).toBe(false);
+  });
+
+  it('[CIMD-3-02] refuses an identifier with no path component', () => {
+    expect(isCimdClientId('https://app.example')).toBe(false);
+    expect(isCimdClientId('https://app.example/')).toBe(false);
+  });
+
+  it('[CIMD-3-03] refuses single-dot and double-dot path segments', () => {
+    expect(isCimdClientId('https://app.example/a/../b')).toBe(false);
+    expect(isCimdClientId('https://app.example/./b')).toBe(false);
+  });
+
+  it('[CIMD-3-04] refuses a fragment', () => {
+    expect(isCimdClientId('https://app.example/a#f')).toBe(false);
+  });
+
+  it('[CIMD-3-05] refuses a username or password', () => {
+    expect(isCimdClientId('https://user@app.example/a')).toBe(false);
+    expect(isCimdClientId('https://u:p@app.example/a')).toBe(false);
+  });
+
+  it('[CIMD-3-06] accepts a port', () => {
+    expect(isCimdClientId('https://app.example:8443/a')).toBe(true);
+  });
+
+  it('[CIMD-4.1-01] refuses a document whose client_id is not its URL by string comparison', () => {
+    expect(refusal({ ...minimal, client_id: `${ID}/` })).toBe('client_id_mismatch');
+    expect(refusal({ ...minimal, client_id: ID.toUpperCase() })).toBe('client_id_mismatch');
+  });
+
+  it('[CIMD-4.1-02] refuses every shared-secret authentication method', () => {
+    for (const method of ['client_secret_basic', 'client_secret_post', 'client_secret_jwt']) {
+      expect(refusal({ ...minimal, token_endpoint_auth_method: method })).toBe(
+        'auth_method_refused',
+      );
+    }
+  });
+
+  it('[CIMD-4.1-03] refuses client_secret and client_secret_expires_at', () => {
+    expect(refusal({ ...minimal, client_secret: 'x' })).toBe('client_secret_present');
+    expect(refusal({ ...minimal, client_secret_expires_at: 0 })).toBe('client_secret_present');
+  });
+
+  it('[CIMD-4.5-01] refuses a document that registers no redirect address', () => {
+    expect(refusal({ ...minimal, redirect_uris: [] })).toBe('redirect_uris_invalid');
+    expect(refusal({ client_id: ID, client_name: 'Example' })).toBe('redirect_uris_invalid');
+  });
+});

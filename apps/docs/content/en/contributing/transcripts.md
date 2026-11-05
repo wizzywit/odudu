@@ -49,10 +49,18 @@ shipped); it was added to the recorded blocks by hand, after `nosniff` where
 `pageHeaders` places it, and a live login-page response on the project
 `odudu-p4g-13b` confirmed its value and position.
 
-The retention page's `odudu reap` reports gained the `client_metadata_cache` key on 2026-11-05. All seven were re-run on
-a freshly built compose project, `odudu-p5a-i3` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), driven
-only as far as Path A plus one refresh rotation and then through the page's own commands in order; each report came
-back identical to the page's. The unseeded-stack and refusal outputs were not re-run, since the key is not in them.
+The retention page's `odudu reap` reports gained the `client_metadata_cache` key on 2026-11-05, and `cimd_clients` after it later the same day. All seven were re-run on
+a freshly built compose project, `odudu-p5a-i3b` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), driven
+only as far as Path A plus one refresh rotation and then through the page's own commands in order; each report was captured again and the page now shows it as it
+came back. The unseeded-stack and refusal outputs were not re-run, since the key is not in them.
+
+`cimd_enabled`, the tenant setting for client ID metadata documents, was added on 2026-11-05. The
+authorization server metadata page gained a section that turns it on and off, and the settings page's
+`GET`, first `PATCH` and unknown-setting refusal, the first export of `get-export.md` and the OpenAPI
+page were re-run on the compose project `odudu-p5a-i3b` (port `3000`, `ODUDU_REAP_ENABLED=false`,
+throttles at `10000`) with an administrator token got as in Getting the token; the first two differ from
+their earlier captures only by the new member (and ids, times, `ETag`s and lengths). The rest of those
+pages, and the other pages that list a tenant's settings, predate the setting and were not run again.
 
 The custom-domain work of 2026-11-04 was captured on the compose project `odudu-p4j-tx`, built from the
 branch commit `cdde6fd8` plus the documentation, on port `3000` with `ODUDU_THROTTLE_LIMIT` and

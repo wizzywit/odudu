@@ -60,7 +60,7 @@ async function rows(tenantId: string): Promise<string[]> {
 }
 
 describe('cimdCacheRepository', () => {
-  it('returns what was stored until it expires', async () => {
+  it('[CIMD-4.4-01] returns what was stored until it expires', async () => {
     const repo = cimdCacheRepository(app);
     await repo.store(mine, URL_A, { client_name: 'App' }, NOW, later, 1000);
 

@@ -191,7 +191,7 @@ async function signIn(res: LightMyRequestResponse): Promise<LightMyRequestRespon
 }
 
 describe('Client ID Metadata Documents served over TLS', () => {
-  it('advertises support only while the tenant has them on', async () => {
+  it('[CIMD-5-01] advertises support only while the tenant has them on', async () => {
     await setCimd(false);
     const off = await app.inject({ url: `${SUFFIX}/tenants/${tenantName}` });
     expect(off.json<Record<string, unknown>>()).not.toHaveProperty(
@@ -207,18 +207,21 @@ describe('Client ID Metadata Documents served over TLS', () => {
     ).toContain('none');
   });
 
-  it('fetches the document once, caches it by its Cache-Control and reaches consent', async () => {
+  it('[CIMD-4-01] fetches the document at the client_id and reaches consent', async () => {
     await setCimd(true);
-    served = 0;
-
     const first = await signIn(await authorize(app, clientUrl(), callback()));
     expect(first.statusCode, first.body).toBe(200);
     expect(first.body).toContain('Notes');
     expect(first.body).toContain(`${CLIENT_HOST}:${String(port)}`);
     expect(first.body).toContain(callback());
+  });
 
+  it('[CIMD-4.4-02] caches the document for the lifetime its Cache-Control gives', async () => {
+    await setCimd(true);
     await authorize(app, clientUrl(), callback());
-    expect(served).toBe(1);
+    served = 0;
+    await authorize(app, clientUrl(), callback());
+    expect(served).toBe(0);
   });
 
   it('refuses a redirect address the document does not list', async () => {
@@ -235,7 +238,7 @@ describe('Client ID Metadata Documents served over TLS', () => {
     expect(asUrl.body).toBe(asUnknown.body);
   });
 
-  it('never connects to a local name, with no setting to allow it', async () => {
+  it('[CIMD-6.5-02] never connects to a local name, with no setting to allow it', async () => {
     await setCimd(true);
     served = 0;
     const id = `https://client.localhost:${String(port)}/oauth/client.json`;

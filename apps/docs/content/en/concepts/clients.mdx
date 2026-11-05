@@ -71,12 +71,6 @@ Odudu asks a person to confirm before signing them out at the end-session addres
 
 An administrator registers clients from the console or the admin API, or seeds them from the command line. A tenant can also let apps register themselves. A client that registered itself with no token starts out with the consent screen switched on, because nobody vouched for it. A client an administrator registered does not ask for consent unless you turn it on. [Consent and audit](./consent-and-audit.mdx) explains the screen.
 
-## A client named by a URL
-
-A tenant can let an app identify itself with a web address instead of being registered first. The `cimd_enabled` setting, off by default, turns it on. A `client_id` that is an https address is then fetched: the page at that address is a small JSON document, a Client ID Metadata Document, that gives the app's name and its redirect addresses. Odudu checks the document, keeps the result as a public client named by that address, and sends people back only to a redirect address the document lists.
-
-The consent screen shows the document's name, the host and port of the address it came from, and every redirect address, because the name is the app's own word and anyone can claim any name. Odudu fetches with a short deadline and a small size limit, never follows a redirect, refuses addresses that lead to private networks, and limits how often one host and one tenant are fetched. A client nobody has used for thirty days is removed and comes back the next time its address is used. With the setting off, an address as a `client_id` is refused like any unknown client.
-
 ## Working with clients
 
 1. Decide whether the app can keep a secret. If it cannot, it is public.

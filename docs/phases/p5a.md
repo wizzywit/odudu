@@ -107,3 +107,32 @@ matching cannot be smuggled in under that id. The replacement of the provisioned
 row by the document's happens in the import's one transaction. Its row ids come
 from `gen_random_uuid()` in the migration, not `newId()` (v7); lists key on the
 id as a total order and `isUuid` accepts any version, so nothing assumes v7.
+
+## Client ID metadata documents
+
+A URL `client_id` becomes a client row, not a transient object: the usecases
+after `/authorize` (consent, token, userinfo, introspection) all read clients
+by `client_id` from `clients`, and a second path for a client that is not there
+would have touched each of them. So `persistCimdClient` upserts the row, from
+the validated projection, every time `/authorize` resolves the document; a
+no-store document is fetched every time and never cached.
+
+- **Off is unknown.** With `cimd_enabled` off, `/authorize` answers a URL id,
+  including one with a stored row, byte for byte as it answers an unknown id,
+  and `/token` refuses a stored row's client as `invalid_client`. A client
+  registered by hand under a URL id is served whatever the setting says.
+- **A failed fetch refuses the client**, even with a stored row, so a redirect
+  address the owner has withdrawn does not keep working while their server is
+  down.
+- **Bounds.** At most 1,000 per tenant (a lock per tenant makes the check
+  hold under concurrency), last use written at most once a day, and `reap`
+  deletes a client unused for thirty days unless a refresh token of it can
+  still be used. An administrator's `enabled = false` is never undone by a
+  resolution.
+- **Left for a policy.** The client has no audience and no MCP scope; both
+  arrive with the MCP registration policy. Turning the setting off does not
+  disable stored rows: `/authorize` and `/token` refuse them by reading the
+  setting, so a later control for the setting changes nothing else.
+- **The setting reached the admin API with its column**, because tenant
+  settings, their export and `seed tenant --set` are one map. The console
+  control is still to come (`PLACED_ELSEWHERE` in the settings page names it).

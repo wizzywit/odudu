@@ -17,6 +17,11 @@ import { sql } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { oidcRoutes, type CimdResponse } from '#/index';
+import {
+  buildClientSigningKey,
+  jwksDocumentFor,
+  signClientAssertion,
+} from '#/testing/private-key-jwt-fixture';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
@@ -261,15 +266,19 @@ describe('a URL client_id with metadata documents on', () => {
     serve();
   });
 
-  it('reaches consent showing the name, the host with its port and every redirect address', async () => {
+  it('[CIMD-6.4-01] reaches consent showing the name the document gives', async () => {
     const login = await signIn(await authorize(CLIENT_URL));
 
     expect(login.statusCode).toBe(200);
     expect(login.body).toContain('login-actions/consent');
     expect(login.body).toContain('Example Notes');
-    expect(login.body).toContain('app.example.com:8443');
     expect(login.body).toContain(CALLBACK);
     expect(login.body).toContain('http://localhost/callback');
+  });
+
+  it('[CIMD-6.4-03] shows the host of the client_id with its port on the consent page', async () => {
+    const login = await signIn(await authorize(CLIENT_URL));
+    expect(login.body).toContain('app.example.com:8443');
   });
 
   it('issues a code, and redeems it as a public client with PKCE alone', async () => {
@@ -294,7 +303,7 @@ describe('a URL client_id with metadata documents on', () => {
     expect(claims.aud).toBe(CLIENT_URL);
   });
 
-  it('refuses a redirect address the document does not list, rendering rather than redirecting', async () => {
+  it('[CIMD-4.5-03] refuses a redirect address the document does not list, rendering rather than redirecting', async () => {
     const res = await authorize(CLIENT_URL, { redirect_uri: 'https://evil.example/cb' });
     expect(res.statusCode).toBe(400);
     expect(res.headers.location).toBeUndefined();
@@ -329,7 +338,7 @@ describe('a URL client_id with metadata documents on', () => {
     expect(moved.statusCode).toBe(200);
   });
 
-  it('refuses the client when its document stops being served, even though a row exists', async () => {
+  it('[CIMD-4.3-01] refuses the client when its document stops being served, even though a row exists', async () => {
     expect((await authorize(CLIENT_URL)).statusCode).toBe(200);
     documents.delete(CLIENT_URL);
     const res = await authorize(CLIENT_URL);
@@ -386,5 +395,35 @@ describe('a URL client_id with metadata documents on', () => {
     const res = await authorize('https://hand.example.com/c');
     expect(res.statusCode).toBe(200);
     expect(request).not.toHaveBeenCalled();
+  });
+
+  it('[CIMD-6.2-01] authenticates a client that published a key, by its signed assertion alone', async () => {
+    const key = await buildClientSigningKey(KEK);
+    serve({ token_endpoint_auth_method: 'private_key_jwt', jwks: jwksDocumentFor(key) });
+    const consent = await signIn(await authorize(CLIENT_URL));
+    const code = (await allow(consent)).searchParams.get('code') ?? '';
+    const form = {
+      grant_type: 'authorization_code',
+      client_id: CLIENT_URL,
+      code,
+      redirect_uri: CALLBACK,
+      code_verifier: VERIFIER,
+    };
+
+    const bare = await token(form);
+    expect(bare.statusCode).toBe(401);
+
+    const assertion = await signClientAssertion({
+      key,
+      clientId: CLIENT_URL,
+      audience: `http://localhost/tenants/${tenant}/protocol/openid-connect/token`,
+      kek: KEK,
+    });
+    const signed = await token({
+      ...form,
+      client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+      client_assertion: assertion,
+    });
+    expect(signed.statusCode, signed.body).toBe(200);
   });
 });

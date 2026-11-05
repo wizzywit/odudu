@@ -71,7 +71,7 @@ describe('resolveCimdDocument', () => {
     expect(stored).toEqual([]);
   });
 
-  it('keeps nothing of a refused fetch', async () => {
+  it('[CIMD-4.4-03] keeps nothing of a refused fetch', async () => {
     const { deps, stored } = setup({
       fetch: () => Promise.resolve({ kind: 'refused', reason: 'redirect' }),
     });
@@ -124,7 +124,7 @@ describe('resolveCimdDocument', () => {
     expect(fetched).toEqual([URL_A]);
   });
 
-  it('refuses a document that does not validate, and keeps nothing of it', async () => {
+  it('[CIMD-4.4-04] refuses a document that does not validate, and keeps nothing of it', async () => {
     const { deps, stored } = setup({
       fetch: () =>
         Promise.resolve({

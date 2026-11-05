@@ -168,7 +168,7 @@ Exit: a stranger's MCP client can discover the tenant as an authorization server
 
 ### Task 3.3: Wire into `/authorize`, `/token` and the metadata
 
-**Files:** modify client lookup in `/authorize` and the token endpoint to resolve a CIMD `client_id` to a transient public client when the tenant setting `cimd_enabled` is on (migration adds the column, default false); modify I1.1 to emit `client_id_metadata_document_supported`. Tests: int tests through the real endpoints.
+**Files:** resolve a CIMD `client_id` at `/authorize` into a persistent public client row (`registration_origin = 'cimd'`, upserted on each resolution, removed by `odudu reap` after thirty days unused, at most 1,000 per tenant, a no-store response never cached) when the tenant setting `cimd_enabled` is on (migration 0116 adds the column, default false), and have `/token` treat such a client as unknown while the setting is off; modify I1.1 to emit `client_id_metadata_document_supported`. Tests: int tests through the real endpoints.
 
 - [ ] **Step 1: Failing tests:** off → a URL `client_id` is `invalid_client` exactly as an unknown client; on → authorize reaches consent showing the client name and every redirect URI; a redirect URI not in the document is refused; the issued token's audience still needs the MCP URL registered, so a CIMD client gets it by the MCP policy (I4), not by the document.
 - [ ] **Steps 2–5.** the reading note for the CIMD draft under `docs/protocols/`. Push; CI; review.

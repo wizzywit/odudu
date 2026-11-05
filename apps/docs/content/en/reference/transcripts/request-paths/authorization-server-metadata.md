@@ -127,7 +127,65 @@ identifier that is a URL. The three `..._auth_signing_alg_values_supported` list
 wherever `private_key_jwt` is listed. `mcp:read` and `mcp:write` are advertised only: a tenant's own
 scopes are the rows it defines, and these two are not among them. `registration_endpoint` is absent
 because `demo` does not open client registration, and `client_id_metadata_document_supported` is
-absent because the server does not resolve client identifiers that are URLs.
+absent because `demo` has not turned on client ID metadata documents.
+
+A tenant turns client identifiers that are URLs on with its `cimd_enabled` setting, off by
+default. The member appears, as `true`, only then, and the OpenID discovery document never
+carries it. In a tenant `cimd-demo` created for this section, run on the same stack:
+
+```bash
+M=http://localhost:3000/.well-known/oauth-authorization-server/tenants/cimd-demo
+odudu seed tenant --name cimd-demo
+curl -sS $M | jq -c 'has("client_id_metadata_document_supported")'
+odudu seed tenant --name cimd-demo --set cimd_enabled=true
+curl -sS $M | jq '{client_id_metadata_document_supported, token_endpoint_auth_methods_supported}'
+curl -sS http://localhost:3000/tenants/cimd-demo/.well-known/openid-configuration | jq -c 'has("client_id_metadata_document_supported")'
+```
+
+```
+{"command":"tenant","created":true,"tenant":"cimd-demo","tenantId":"01a1aca9-97e3-7791-948f-964f921e5ece"}
+false
+{"command":"tenant","created":false,"tenant":"cimd-demo","tenantId":"01a1aca9-97e3-7791-948f-964f921e5ece","settings":["cimd_enabled"]}
+{
+  "client_id_metadata_document_supported": true,
+  "token_endpoint_auth_methods_supported": [
+    "client_secret_basic",
+    "client_secret_post",
+    "none",
+    "private_key_jwt"
+  ]
+}
+false
+```
+
+With it on, an authorization request whose `client_id` is a URL makes the server fetch the
+document there. This one names a host that does not exist, so the request is refused as an
+unknown client is, and the server logs why, naming the host and never any body:
+
+```bash
+Q="response_type=code&redirect_uri=https%3A%2F%2Fclient.invalid.test%2Fcb&scope=openid&state=s&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256"
+curl -sS -D - "http://localhost:3000/tenants/cimd-demo/protocol/openid-connect/auth?client_id=https%3A%2F%2Fclient.invalid.test%2Foauth%2Fclient.json&$Q" | sed -n '1p'
+docker compose logs odudu 2>&1 | grep 'metadata document' | tail -1 | cut -d'|' -f2- | jq -c '{host, reason, msg}'
+```
+
+```
+HTTP/1.1 400 Bad Request
+{"host":"client.invalid.test","reason":"unreachable","msg":"client metadata document refused"}
+```
+
+With the setting off again, the same request is the same `400`, and nothing is fetched:
+
+```bash
+odudu seed tenant --name cimd-demo --set cimd_enabled=false
+curl -sS -D - "http://localhost:3000/tenants/cimd-demo/protocol/openid-connect/auth?client_id=https%3A%2F%2Fclient.invalid.test%2Foauth%2Fclient.json&$Q" | sed -n '1p'
+curl -sS $M | jq -c 'has("client_id_metadata_document_supported")'
+```
+
+```
+{"command":"tenant","created":false,"tenant":"cimd-demo","tenantId":"01a1aca9-97e3-7791-948f-964f921e5ece","settings":["cimd_enabled"]}
+HTTP/1.1 400 Bad Request
+false
+```
 
 The issuer is the tenant's, the one its discovery document states:
 
