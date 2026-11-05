@@ -57,9 +57,17 @@ run again as the page now shows it (the delegation succeeds with the flag, `exdo
 audit row, the public client's refusal, the admin API `PATCH` and the exchange afterwards) and so was the `disableddoc`
 setup with `token_exchange_allowed_for_public` on, whose public self-exchange answered `200` as before. The blocks of
 that last section that did not change were not recorded again, and the new section's ids and times are that run's. The
-`GET /admin/openapi.json` page was fetched again on it (request id, date and size, 697,119 bytes). The admin paths pages
-that show a client, and the export, predate the two members and were not run again; the two members are `false` in each of them.
-The stack was removed afterwards.
+`GET /admin/openapi.json` page was fetched again on it (request id, date and size, 697,119 bytes). The stack was removed afterwards.
+
+The thirteen blocks of the admin paths that show a client or the export (`delete-scopesidclientsclientid`,
+`get-clients-post-clients-and-get-clientsid`, `get-export`, `getting-the-token`, `patch-clientsid` and
+`post-clientsidsecret`) were run again on a second freshly built compose project, `odudu-p5a-i5f` (port `3000`,
+`ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `cd22f623` plus the change),
+with `ada` and a token got as in Getting the token. Each page's own commands ran in order on a stack holding
+only the system tenant (the tenants earlier pages made were disabled and deleted between pages), and the output
+of the command before each of those blocks replaced it as it came back. Each says so under the block, because
+its ids, `ETag`s and times are that run's and not those of the blocks around it; the new members are `false`
+in each. The rest of those pages was not replaced. The stack was removed afterwards.
 
 The retention page's `odudu reap` reports gained the `client_metadata_cache` key on 2026-11-05, and `cimd_clients` after it later the same day. All seven were re-run on
 a freshly built compose project, `odudu-p5a-i3b` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), driven
