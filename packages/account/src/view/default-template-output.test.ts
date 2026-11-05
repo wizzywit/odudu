@@ -1,4 +1,9 @@
-import { DEFAULT_PAGE_LOCALE, type PageLocale, type RenderedPage } from '@odudu/kernel';
+import {
+  DEFAULT_PAGE_LOCALE,
+  type PageLocale,
+  type RenderedPage,
+  pathAddress,
+} from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import { type LinkedRequiredAction } from '#/usecase/action-token';
 import {
@@ -74,13 +79,23 @@ const UNKNOWN_ACTION = '<i>rotate</i>' as unknown as LinkedRequiredAction;
 describe('the registration pages under the default template', () => {
   for (const [name, locale] of LOCALES) {
     it(`renders the form byte-identically (${name})`, () => {
-      expect(markup(renderRegistrationForm('acme', { rules: RULES }, locale))).toMatchSnapshot();
+      expect(
+        markup(
+          renderRegistrationForm(
+            'acme',
+            pathAddress('https://idp.example', 'acme'),
+            { rules: RULES },
+            locale,
+          ),
+        ),
+      ).toMatchSnapshot();
     });
   }
 
   it('renders the form with every option and hostile text', () => {
     const page = renderRegistrationForm(
       HOSTILE,
+      pathAddress('https://idp.example', HOSTILE),
       {
         rules: ALL_RULES,
         signInPath: SIGN_IN,
@@ -107,6 +122,7 @@ describe('the registration pages under the default template', () => {
     it(`renders the form refused for ${name}`, () => {
       const page = renderRegistrationForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         { rules: ALL_RULES, failure, username: 'ann', email: 'ann@example.com' },
         DEFAULT_PAGE_LOCALE,
       );
@@ -116,11 +132,22 @@ describe('the registration pages under the default template', () => {
 
   it('renders the outcome pages', () => {
     const pages = [
-      renderRegistrationFailedPage('acme', null, DEFAULT_PAGE_LOCALE),
-      renderRegistrationFailedPage(HOSTILE, SIGN_IN, DEFAULT_PAGE_LOCALE),
+      renderRegistrationFailedPage(
+        pathAddress('https://idp.example', 'acme'),
+        null,
+        DEFAULT_PAGE_LOCALE,
+      ),
+      renderRegistrationFailedPage(
+        pathAddress('https://idp.example', HOSTILE),
+        SIGN_IN,
+        DEFAULT_PAGE_LOCALE,
+      ),
       renderRegistrationSucceededPage(true, SIGN_IN, DEFAULT_PAGE_LOCALE),
       renderRegistrationSucceededPage(false, null, DARK),
-      renderRegistrationUsernameGonePage(HOSTILE, DEFAULT_PAGE_LOCALE),
+      renderRegistrationUsernameGonePage(
+        pathAddress('https://idp.example', HOSTILE),
+        DEFAULT_PAGE_LOCALE,
+      ),
       renderRegistrationReadyPage(null, DEFAULT_PAGE_LOCALE),
       renderRegistrationReadyPage(SIGN_IN, ARABIC_DARK),
     ];
@@ -131,13 +158,18 @@ describe('the registration pages under the default template', () => {
 describe('the reset pages under the default template', () => {
   for (const [name, locale] of LOCALES) {
     it(`renders the request form byte-identically (${name})`, () => {
-      expect(markup(renderResetRequestForm('acme', {}, locale))).toMatchSnapshot();
+      expect(
+        markup(
+          renderResetRequestForm('acme', pathAddress('https://idp.example', 'acme'), {}, locale),
+        ),
+      ).toMatchSnapshot();
     });
   }
 
   it('renders the request form with every option and hostile text', () => {
     const page = renderResetRequestForm(
       HOSTILE,
+      pathAddress('https://idp.example', HOSTILE),
       { signInPath: SIGN_IN, emailRequired: true, email: '"><x@y.z' },
       DEFAULT_PAGE_LOCALE,
     );
@@ -145,22 +177,55 @@ describe('the reset pages under the default template', () => {
   });
 
   it('renders the request form refused with nothing typed', () => {
-    const page = renderResetRequestForm('acme', { emailRequired: true }, DEFAULT_PAGE_LOCALE);
+    const page = renderResetRequestForm(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      { emailRequired: true },
+      DEFAULT_PAGE_LOCALE,
+    );
     expect(markup(page)).toMatchSnapshot();
   });
 
   for (const [name, locale] of LOCALES) {
     it(`renders the password form byte-identically (${name})`, () => {
-      const page = renderResetPasswordForm('acme', 'key-1', undefined, RULES, locale);
+      const page = renderResetPasswordForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'key-1',
+        undefined,
+        RULES,
+        locale,
+      );
       expect(markup(page)).toMatchSnapshot();
     });
   }
 
   it('renders the password form with hostile text and each failure', () => {
     const pages = [
-      renderResetPasswordForm(HOSTILE, HOSTILE, undefined, ALL_RULES, DEFAULT_PAGE_LOCALE),
-      renderResetPasswordForm('acme', 'key-1', 'required', ALL_RULES, DEFAULT_PAGE_LOCALE),
-      renderResetPasswordForm('acme', 'key-1', VIOLATIONS, ALL_RULES, DEFAULT_PAGE_LOCALE),
+      renderResetPasswordForm(
+        HOSTILE,
+        pathAddress('https://idp.example', HOSTILE),
+        HOSTILE,
+        undefined,
+        ALL_RULES,
+        DEFAULT_PAGE_LOCALE,
+      ),
+      renderResetPasswordForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'key-1',
+        'required',
+        ALL_RULES,
+        DEFAULT_PAGE_LOCALE,
+      ),
+      renderResetPasswordForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'key-1',
+        VIOLATIONS,
+        ALL_RULES,
+        DEFAULT_PAGE_LOCALE,
+      ),
     ];
     expect(pages.map(markup)).toMatchSnapshot();
     for (const page of pages) expect(page.script).not.toBeNull();
@@ -170,8 +235,16 @@ describe('the reset pages under the default template', () => {
     const pages = [
       renderResetRequestedPage(null, DEFAULT_PAGE_LOCALE),
       renderResetRequestedPage(SIGN_IN, DARK),
-      renderResetRequestFailedPage('acme', null, DEFAULT_PAGE_LOCALE),
-      renderResetRequestFailedPage(HOSTILE, SIGN_IN, DEFAULT_PAGE_LOCALE),
+      renderResetRequestFailedPage(
+        pathAddress('https://idp.example', 'acme'),
+        null,
+        DEFAULT_PAGE_LOCALE,
+      ),
+      renderResetRequestFailedPage(
+        pathAddress('https://idp.example', HOSTILE),
+        SIGN_IN,
+        DEFAULT_PAGE_LOCALE,
+      ),
       renderResetPasswordSucceededPage(null, DEFAULT_PAGE_LOCALE),
       renderResetPasswordSucceededPage(SIGN_IN, ARABIC_DARK),
       renderResetPasswordFactorsRemovedPage(null, DEFAULT_PAGE_LOCALE),
@@ -201,14 +274,28 @@ describe('the verification pages under the default template', () => {
 
   for (const [name, locale] of LOCALES) {
     it(`renders the confirmation page byte-identically (${name})`, () => {
-      expect(markup(renderEmailConfirmPage('acme', 'key-1', null, locale))).toMatchSnapshot();
+      expect(
+        markup(
+          renderEmailConfirmPage(pathAddress('https://idp.example', 'acme'), 'key-1', null, locale),
+        ),
+      ).toMatchSnapshot();
     });
   }
 
   it('renders the confirmation page naming an account, with hostile text', () => {
     const pages = [
-      renderEmailConfirmPage('acme', 'key-1', 'ann', DEFAULT_PAGE_LOCALE),
-      renderEmailConfirmPage(HOSTILE, HOSTILE, HOSTILE, DEFAULT_PAGE_LOCALE),
+      renderEmailConfirmPage(
+        pathAddress('https://idp.example', 'acme'),
+        'key-1',
+        'ann',
+        DEFAULT_PAGE_LOCALE,
+      ),
+      renderEmailConfirmPage(
+        pathAddress('https://idp.example', HOSTILE),
+        HOSTILE,
+        HOSTILE,
+        DEFAULT_PAGE_LOCALE,
+      ),
     ];
     expect(pages.map(markup)).toMatchSnapshot();
   });
@@ -219,6 +306,7 @@ describe('the required-actions pages under the default template', () => {
     it(`renders the form byte-identically (${name})`, () => {
       const page = renderRequiredActionsForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'key-1',
         ['configure-totp'],
         false,
@@ -234,6 +322,7 @@ describe('the required-actions pages under the default template', () => {
     const pages = [
       renderRequiredActionsForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'key-1',
         ACTIONS,
         true,
@@ -243,6 +332,7 @@ describe('the required-actions pages under the default template', () => {
       ),
       renderRequiredActionsForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'key-1',
         ['update-password'],
         true,
@@ -252,6 +342,7 @@ describe('the required-actions pages under the default template', () => {
       ),
       renderRequiredActionsForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'key-1',
         ['update-password'],
         true,
@@ -267,6 +358,7 @@ describe('the required-actions pages under the default template', () => {
   it('renders the form with hostile text and an action it has no wording for', () => {
     const page = renderRequiredActionsForm(
       HOSTILE,
+      pathAddress('https://idp.example', HOSTILE),
       HOSTILE,
       [UNKNOWN_ACTION, 'configure-passkey'],
       false,

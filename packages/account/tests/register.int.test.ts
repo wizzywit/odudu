@@ -553,6 +553,33 @@ describe('self-registration', () => {
     expect(sender.sent).toHaveLength(1);
   });
 
+  it('mails the configured address however the request names its host', async () => {
+    const { tenantName } = await seedTenant(`tenant-${newId()}`, {
+      registrationAllowed: true,
+      verifyEmail: true,
+    });
+    const form = new URLSearchParams({
+      username: 'ada',
+      email: 'ada@example.test',
+      password: 'correct horse battery',
+      password_confirm: 'correct horse battery',
+    });
+    await httpApp.inject({
+      method: 'POST',
+      url: `/tenants/${tenantName}/login-actions/registration`,
+      payload: form.toString(),
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        host: 'evil.example',
+        'x-forwarded-host': 'evil.example',
+      },
+    });
+    await drainOutbox();
+    const text = sender.sent[0]?.text ?? '';
+    expect(text).toContain(`https://idp.example.test/tenants/${tenantName}/login-actions/`);
+    expect(text).not.toContain('evil.example');
+  });
+
   it('refuses a tenant that has been disabled since registration was enabled for it', async () => {
     const { tenantId, tenantName } = await seedTenant(`tenant-${newId()}`, {
       registrationAllowed: true,

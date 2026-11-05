@@ -26,6 +26,7 @@ Tenant
 Settings
 Branding
 Email
+Domains
 Export
 Observe
 Audit trail

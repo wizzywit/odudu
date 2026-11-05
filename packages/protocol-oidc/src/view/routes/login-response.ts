@@ -3,7 +3,7 @@ import {
   sessionCookies,
   type AuthenticatorResult,
 } from '@odudu/authn-flows';
-import { type PasswordRules } from '@odudu/kernel';
+import { type PasswordRules, tenantAddressOf } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { type LoginSubmissionOutcome } from '#/usecase/login-submission';
 import { loginWays } from '#/service/login-ways';
@@ -86,6 +86,7 @@ export async function sendLoginOutcome(
     );
     const page = renderLoginForm(
       tenantName,
+      tenantAddressOf(reply.request),
       outcome.authSessionId,
       form,
       deps.passkeyLogin ?? false,
@@ -98,7 +99,7 @@ export async function sendLoginOutcome(
           },
       tenant?.loginWithEmail ?? false,
       await clientName(),
-      tenant === null ? {} : loginWays(tenantName, tenant, signInPath),
+      tenant === null ? {} : loginWays(tenantAddressOf(reply.request), tenant, signInPath),
       locale,
     );
     return sendHtml(reply, 200, continuing(page));
@@ -142,6 +143,7 @@ export async function sendLoginOutcome(
     const page = renderConsentPage(
       {
         tenant: tenantName,
+        address: tenantAddressOf(reply.request),
         authSessionId: outcome.authSessionId,
         clientName: outcome.clientName,
         clientPages: outcome.clientPages,
@@ -167,6 +169,9 @@ export async function sendLoginOutcome(
   const reply302 = reply.code(302);
   for (const cookie of written) reply302.header('set-cookie', cookie);
   // The sign-in is finished: its handle has nothing left to name.
-  reply302.header('set-cookie', clearedSignInHandleCookie(tenantName, deps.tls));
+  reply302.header(
+    'set-cookie',
+    clearedSignInHandleCookie(tenantAddressOf(reply.request), deps.tls),
+  );
   return reply302.header('location', outcome.location).send();
 }

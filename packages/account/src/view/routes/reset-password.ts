@@ -1,6 +1,8 @@
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { type MailLookResolver } from '@odudu/email';
+import { tenantAddressOf } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
+import { ensureTenantAddress } from '#/view/routes/tenant-address';
 import { signInPath } from '#/service/sign-in-path';
 import {
   clientOfHeldSignIn,
@@ -73,6 +75,7 @@ export function registerResetPasswordRoute(
   app: FastifyInstance,
   deps: ResetPasswordRouteDeps,
 ): void {
+  ensureTenantAddress(app);
   app.get<{
     Params: { tenant: string };
     Querystring: Record<string, string | string[] | undefined>;
@@ -81,12 +84,17 @@ export function registerResetPasswordRoute(
     if (!tenantIsOpenForReset(tenant)) {
       return reply.code(404).send();
     }
-    const returnTo = signInPath(request.params.tenant, request.query.return_to);
+    const returnTo = signInPath(tenantAddressOf(request), request.query.return_to);
     const locale = await brandedLocale(request, deps, tenant, returnTo);
     return sendResetHtml(
       reply,
       200,
-      renderResetRequestForm(request.params.tenant, { signInPath: returnTo }, locale),
+      renderResetRequestForm(
+        request.params.tenant,
+        tenantAddressOf(request),
+        { signInPath: returnTo },
+        locale,
+      ),
     );
   });
 
@@ -100,7 +108,7 @@ export function registerResetPasswordRoute(
     }
 
     const email = firstNonEmptyString(request.body.email);
-    const returnTo = signInPath(request.params.tenant, request.body.return_to);
+    const returnTo = signInPath(tenantAddressOf(request), request.body.return_to);
     const locale = await brandedLocale(request, deps, tenant, returnTo);
     if (email === undefined) {
       return sendResetHtml(
@@ -108,6 +116,7 @@ export function registerResetPasswordRoute(
         400,
         renderResetRequestForm(
           request.params.tenant,
+          tenantAddressOf(request),
           { signInPath: returnTo, emailRequired: true },
           locale,
         ),
@@ -117,7 +126,9 @@ export function registerResetPasswordRoute(
     // Read before the address is looked up and whatever it names, so the one
     // read is no part of what tells a known address from an unknown one.
     const held =
-      returnTo === null ? null : await deps.findHeldSignIn(tenant, request.headers.cookie);
+      returnTo === null
+        ? null
+        : await deps.findHeldSignIn(tenant, request.headers.cookie, tenantAddressOf(request));
     // Composed before the lookup happens, and reached whether or not the
     // address matches an account — see requestPasswordReset for why: the
     // property this whole flow exists for is that these two paths cannot
@@ -147,7 +158,7 @@ export function registerResetPasswordRoute(
       return sendResetHtml(
         reply,
         500,
-        renderResetRequestFailedPage(request.params.tenant, returnTo, locale),
+        renderResetRequestFailedPage(tenantAddressOf(request), returnTo, locale),
       );
     }
 

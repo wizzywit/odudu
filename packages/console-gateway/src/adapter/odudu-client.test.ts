@@ -17,6 +17,7 @@ const TOKEN_ENDPOINT = 'https://idp.example.test/tenants/acme/protocol/openid-co
 
 interface Seen {
   readonly url: string;
+  readonly host: string | undefined;
   readonly form: URLSearchParams;
 }
 
@@ -43,11 +44,21 @@ async function client(reply: { status: number; body: unknown } = { status: 200, 
     },
   );
   app.post('/*', (request, res) => {
-    seen.push({ url: request.url, form: new URLSearchParams(String(request.body)) });
+    seen.push({
+      url: request.url,
+      host: request.headers.host,
+      form: new URLSearchParams(String(request.body)),
+    });
     return res.code(reply.status).send(reply.body);
   });
   await app.ready();
-  return oduduClient(app, BASE, { key, now: () => NOW });
+  return oduduClient(app, BASE, { key, now: () => NOW }, (tenant) =>
+    Promise.resolve(
+      tenant === 'moved'
+        ? { origin: 'https://login.moved.example', prefix: '' }
+        : { origin: BASE.origin, prefix: `/tenants/${tenant}` },
+    ),
+  );
 }
 
 async function assertionOf(form: URLSearchParams): Promise<Record<string, unknown> | null> {
@@ -95,6 +106,34 @@ describe('oduduClient: client authentication', () => {
     const [request] = seen;
     expect(request?.url).toBe('/tenants/acme/protocol/openid-connect/revoke');
     expect(await assertionOf(request?.form ?? new URLSearchParams())).not.toBeNull();
+  });
+
+  it('reaches a tenant with a canonical domain at the root of that host, naming it as audience', async () => {
+    const odudu = await client();
+    await odudu.exchangeCode({
+      tenant: 'moved',
+      code: 'c',
+      redirectUri: 'https://idp.example.test/console/auth/callback',
+      verifier: 'v',
+      from: FROM,
+    });
+    await odudu.refresh('moved', 'r', FROM);
+    await odudu.revoke('moved', 'r', FROM);
+    expect(seen.map((request) => [request.host, request.url])).toEqual([
+      ['login.moved.example', '/protocol/openid-connect/token'],
+      ['login.moved.example', '/protocol/openid-connect/token'],
+      ['login.moved.example', '/protocol/openid-connect/revoke'],
+    ]);
+    const claims = await verifyJwtClaims(
+      seen[0]?.form.get('client_assertion') ?? '',
+      registeredClientJwks(key, []),
+      {
+        issuer: 'odudu-admin',
+        audience: 'https://login.moved.example/protocol/openid-connect/token',
+        now: NOW,
+      },
+    );
+    expect(claims).not.toBeNull();
   });
 
   it('never signs the same assertion twice', async () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { pathAddress } from '@odudu/kernel';
 import { type PublishedLayer, type PublishedLayers } from '#/service/record';
 import { type ThemeBody } from '#/service/body';
 import { assetPath, parseBrandFile, sha256Hex, stylesheetPath } from '#/service/branding-urls';
@@ -88,7 +89,7 @@ function bytesOf(answer: BrandAnswer | null): Buffer {
 
 function pageStylesheet(layers: PublishedLayers): string {
   const built = buildBranding({
-    tenantName: TENANT.name,
+    address: pathAddress(ORIGIN, TENANT.name),
     origin: ORIGIN,
     layers: [
       ...(layers.client === null ? [] : [{ name: 'client' as const, layer: layers.client }]),
@@ -351,8 +352,8 @@ describe('the url shapes', () => {
       extension: 'webp',
     });
     expect(parseBrandFile(`${PNG_SHA}.css`)).toEqual({ kind: 'css', sha256: PNG_SHA });
-    expect(assetPath('acme', PNG_SHA, 'image/png')).toMatch(/\.png$/u);
-    expect(stylesheetPath('acme', 'a{}', CLIENT_ROW)).toBe(
+    expect(assetPath(pathAddress(ORIGIN, 'acme'), PNG_SHA, 'image/png')).toMatch(/\.png$/u);
+    expect(stylesheetPath(pathAddress(ORIGIN, 'acme'), 'a{}', CLIENT_ROW)).toBe(
       `/tenants/acme/brand/c/${CLIENT_ROW}/${sha256Hex('a{}')}.css`,
     );
   });

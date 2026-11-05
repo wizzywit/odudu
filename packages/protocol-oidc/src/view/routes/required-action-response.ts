@@ -10,7 +10,7 @@ import {
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
 import { requestContextFrom, type RequestContext } from '@odudu/domain-audit';
-import { type PasswordRules, type RenderedPage } from '@odudu/kernel';
+import { type PasswordRules, type RenderedPage, tenantAddressOf } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { sendHtml } from '#/view/html-response';
 import { sendSignInExpired } from '#/view/routes/expired-sign-in';
@@ -76,7 +76,16 @@ export async function sendRequiredActionPage(
     const tenant = await deps.findTenant(tenantName);
     if (tenant !== null) {
       const offer = await beginPasskey(tenantName, tenant.id, subjectId, authSessionId);
-      return send(renderPasskeyEnrolmentPage(tenantName, authSessionId, offer, undefined, locale));
+      return send(
+        renderPasskeyEnrolmentPage(
+          tenantName,
+          tenantAddressOf(reply.request),
+          authSessionId,
+          offer,
+          undefined,
+          locale,
+        ),
+      );
     }
   }
   if (action === 'generate-recovery-codes') {
@@ -98,7 +107,14 @@ export async function sendRequiredActionPage(
         return sendSignInExpired(reply, deps, tenantName, authSessionId);
       }
       return send(
-        renderRecoveryCodesPage(tenantName, authSessionId, issued.offer, undefined, locale),
+        renderRecoveryCodesPage(
+          tenantName,
+          tenantAddressOf(reply.request),
+          authSessionId,
+          issued.offer,
+          undefined,
+          locale,
+        ),
       );
     }
   }
@@ -106,7 +122,14 @@ export async function sendRequiredActionPage(
     const tenant = await deps.findTenant(tenantName);
     if (tenant !== null) {
       return send(
-        renderUpdatePasswordPage(tenantName, authSessionId, [], tenant.passwordRules, locale),
+        renderUpdatePasswordPage(
+          tenantName,
+          tenantAddressOf(reply.request),
+          authSessionId,
+          [],
+          tenant.passwordRules,
+          locale,
+        ),
       );
     }
     return sendHtml(reply, 200, renderRequiredActionPage(action, signInPath, locale));
@@ -119,5 +142,14 @@ export async function sendRequiredActionPage(
     return sendHtml(reply, 200, renderRequiredActionPage(action, signInPath, locale));
   }
   const offer = await deps.beginTotpEnrolment(tenantName, tenant.id, subjectId);
-  return send(renderTotpEnrolmentPage(tenantName, authSessionId, offer, undefined, locale));
+  return send(
+    renderTotpEnrolmentPage(
+      tenantName,
+      tenantAddressOf(reply.request),
+      authSessionId,
+      offer,
+      undefined,
+      locale,
+    ),
+  );
 }

@@ -48,6 +48,20 @@ describe('verifyJwtAgainstJwkSet', () => {
     ).resolves.toBe(true);
   });
 
+  it('takes an audience list as any-of', async () => {
+    const key = await makeKeyRecord();
+    const token = await signAssertion(key, {
+      iss: ISSUER,
+      sub: ISSUER,
+      aud: AUDIENCE,
+      exp: Math.floor(NOW.getTime() / 1000) + 60,
+    });
+    const verify = (audience: readonly string[]) =>
+      verifyJwtAgainstJwkSet(token, jwkSet(key), { issuer: ISSUER, audience, now: NOW });
+    await expect(verify(['https://elsewhere.example/token', AUDIENCE])).resolves.toBe(true);
+    await expect(verify(['https://elsewhere.example/token'])).resolves.toBe(false);
+  });
+
   it('refuses a token signed by a key absent from the set', async () => {
     const key = await makeKeyRecord();
     const stranger = await makeKeyRecord();

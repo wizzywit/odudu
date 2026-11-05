@@ -6,7 +6,7 @@ import { type DatabaseHandle, type TenantScopedDatabase, withTenant } from '@odu
 import { auditRepository, type AdminMutationAction } from '@odudu/domain-audit';
 import { effectiveRoles } from '@odudu/domain-authz';
 import { hashPassword, subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
-import { ADMIN_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
+import { ADMIN_CLIENT_ID, clientRepository, hostState } from '@odudu/domain-tenant';
 import { type inspectImage } from '@odudu/domain-theme';
 import {
   type ClaimMapperRegistry,
@@ -16,6 +16,7 @@ import {
   systemClock,
 } from '@odudu/kernel';
 import {
+  acceptedIssuersLookup,
   tenantLookupRepository,
   tokenGrantRepository,
   type ClaimContext,
@@ -242,6 +243,21 @@ import {
   type TenantSessionsRouteDeps,
 } from '#/view/routes/tenant-sessions';
 
+import {
+  activateDomainHandler,
+  deactivateDomainHandler,
+  listDomainsHandler,
+  passkeyImpactHandler,
+  readDomainHandler,
+  registerDomainHandler,
+  removeDomainHandler,
+  verifyDomainHandler,
+  type DomainsRouteDeps,
+} from '#/view/routes/domains';
+import { type Audit as DomainAudit } from '#/usecase/domains';
+import { createVerifyThrottle, type VerifyThrottle } from '#/service/domain-throttle';
+import { type ResolveTxt } from '@odudu/domain-tenant';
+
 export { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 export { COUNT_CAP } from '#/usecase/counts';
 export { expireRotatedClientSecrets } from '#/usecase/client-secret-expiry';
@@ -334,6 +350,17 @@ export interface AdminRoutesDeps {
   // The image inspector an upload runs; the bounded process-wide one when
   // omitted, which is what production uses. Tests give one that is busy.
   inspectImage?: typeof inspectImage;
+  // The resolver a domain's verification reads its TXT record through, and
+  // the random source its challenge is drawn from.
+  resolveTxt: ResolveTxt;
+  randomBytes: () => Buffer;
+  // `ODUDU_PUBLIC_BASE_URL`, and whether domains are served over https
+  // (`ODUDU_TLS`): the issuer a switch of address retires is spelled by them.
+  publicBaseUrl?: string | undefined;
+  tls?: boolean;
+  // Bounds how often a verify may make the server perform a DNS lookup; the
+  // 30 second per host, ten a minute per tenant one when omitted.
+  verifyThrottle?: VerifyThrottle;
   // How long an audit read may run before it is refused as too broad;
   // `AUDIT_READ_TIMEOUT_MS` unless a test shortens it.
   auditReadTimeoutMs?: number;
@@ -405,6 +432,7 @@ function buildAdminRoutes(
     const tenantAudit: Audit = recordAudit;
     const clientAudit: ClientAudit = recordAudit;
     const registrationTokenAudit: RegistrationTokenAudit = recordAudit;
+    const domainAudit: DomainAudit = recordAudit;
     const subjectAudit: SubjectAudit = recordAudit;
     const sessionAudit: SessionAudit = recordAudit;
     const grantAudit: GrantAudit = recordAudit;
@@ -579,6 +607,17 @@ function buildAdminRoutes(
       database: deps.database.db,
       cursorKey: deps.cursorKey,
       audit: registrationTokenAudit,
+    };
+    const domainsDeps: DomainsRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      audit: domainAudit,
+      resolveTxt: deps.resolveTxt,
+      random: deps.randomBytes,
+      publicBaseUrl: deps.publicBaseUrl,
+      tls: deps.tls ?? false,
+      throttle: deps.verifyThrottle ?? createVerifyThrottle(),
+      now: () => clock.now(),
     };
     const sessionsDeps: SessionsRouteDeps = {
       database: deps.database.db,
@@ -777,6 +816,14 @@ function buildAdminRoutes(
         mintRegistrationTokenHandler(registrationTokensDeps),
       'DELETE /admin/tenants/:tenant/registration-tokens/:id':
         revokeRegistrationTokenHandler(registrationTokensDeps),
+      'GET /admin/tenants/:tenant/domains': listDomainsHandler(domainsDeps),
+      'POST /admin/tenants/:tenant/domains': registerDomainHandler(domainsDeps),
+      'GET /admin/tenants/:tenant/domains/passkey-impact': passkeyImpactHandler(domainsDeps),
+      'GET /admin/tenants/:tenant/domains/:id': readDomainHandler(domainsDeps),
+      'POST /admin/tenants/:tenant/domains/:id/verify': verifyDomainHandler(domainsDeps),
+      'POST /admin/tenants/:tenant/domains/:id/activate': activateDomainHandler(domainsDeps),
+      'POST /admin/tenants/:tenant/domains/:id/deactivate': deactivateDomainHandler(domainsDeps),
+      'DELETE /admin/tenants/:tenant/domains/:id': removeDomainHandler(domainsDeps),
       'GET /admin/tenants/:tenant/roles': listRolesHandler(rolesDeps),
       'GET /admin/tenants/:tenant/roles/count': countRolesHandler(countsDeps),
       'POST /admin/tenants/:tenant/roles': createRoleHandler(rolesDeps),
@@ -858,6 +905,11 @@ function buildAdminRoutes(
         withTenant(deps.database.db, tenantId, async (tx) =>
           subjectIsEnabled(await subjectRepository(tx).byId(subjectId)),
         ),
+      acceptedIssuers: acceptedIssuersLookup(deps),
+      tenantNameAtHost: async (host, now) => {
+        const state = await hostState(deps.ownerDatabase.db, host, now);
+        return state.kind === 'live' ? state.route.tenantName : null;
+      },
     };
 
     const authzDeps: AuthorizeAdminDeps = {

@@ -150,6 +150,25 @@ export const ERROR_DOCS: Record<ErrorCode, ErrorDoc> = {
     '`ODUDU_APP_DATABASE_URL` names a superuser or BYPASSRLS role, so the logout sender would not ' +
       'claim deliveries under the tenant policy.',
   ),
+  domain_assume_verified_production: command(
+    '`odudu seed domain --assume-verified` was run with `NODE_ENV=production`. It marks a domain ' +
+      'verified without a DNS lookup, so a production deployment cannot use it; publish the ' +
+      'challenge record and verify the domain instead.',
+  ),
+  domains_unknown_command: command('`odudu domains` was given a subcommand it does not have.'),
+  domain_recheck_cannot_read_every_tenant: pass(
+    '`odudu domains recheck` must read the verified domains of every tenant, which needs a ' +
+      'connection that bypasses row-level security, and `ODUDU_DATABASE_URL` names a role that ' +
+      'does not.',
+  ),
+  domain_recheck_requires_app_database_url: pass(
+    '`odudu domains recheck` writes under the tenant policy and so needs ' +
+      '`ODUDU_APP_DATABASE_URL`; the owner role escapes the policy.',
+  ),
+  domain_recheck_serving_role_bypasses_rls: pass(
+    '`ODUDU_APP_DATABASE_URL` names a superuser or BYPASSRLS role, so `odudu domains recheck` ' +
+      'would not write under the tenant policy.',
+  ),
   kek_invalid: crypto('The key-encryption key is not 32 bytes.'),
   client_key_invalid: crypto(
     'The console client key is not base64-encoded JSON, or is not an EC P-256 key with its ' +

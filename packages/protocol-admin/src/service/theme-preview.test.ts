@@ -1,6 +1,7 @@
 import { assetPath } from '@odudu/domain-theme';
 import { describe, expect, it } from 'vitest';
 import { base64Length, previewInfoView, usedImages } from '#/service/theme-preview';
+import { pathAddress } from '@odudu/kernel';
 
 const IMAGE = {
   id: 'i',
@@ -10,7 +11,7 @@ const IMAGE = {
   height: 32,
   size: 300,
 };
-const PATH = assetPath('acme', IMAGE.sha256, IMAGE.mime) ?? '';
+const PATH = assetPath(pathAddress('', 'acme'), IMAGE.sha256, IMAGE.mime) ?? '';
 
 describe('usedImages', () => {
   it('weighs an image once for each place it is written', () => {

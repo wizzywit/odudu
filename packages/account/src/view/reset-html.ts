@@ -1,4 +1,10 @@
-import { type PageLocale, type PasswordRules, type RenderedPage } from '@odudu/kernel';
+import {
+  addressPath,
+  type PageLocale,
+  type PasswordRules,
+  type RenderedPage,
+  type TenantAddress,
+} from '@odudu/kernel';
 import { sendVerificationHtml } from '#/view/verification-html';
 import { escapeHtml, intro, page } from '#/view/document';
 import { links, type WayOn } from '#/view/links';
@@ -33,10 +39,11 @@ export interface ResetRequestForm {
 
 export function renderResetRequestForm(
   tenant: string,
+  address: TenantAddress,
   form: ResetRequestForm,
   locale: PageLocale,
 ): RenderedPage {
-  const action = `/tenants/${escapeHtml(encodeURIComponent(tenant))}/login-actions/reset-password`;
+  const action = escapeHtml(addressPath(address, '/login-actions/reset-password'));
   const problems: Problem[] =
     form.emailRequired === true
       ? [{ fields: ['email'], html: tHtml(locale, 'reset.requestFailed.emailRequired') }]
@@ -93,11 +100,11 @@ export function renderResetRequestedPage(
 // The one refusal of a reset request that is not about the field: the server
 // cannot send mail. It stays a page, with the way to try again.
 export function renderResetRequestFailedPage(
-  tenant: string,
+  address: TenantAddress,
   signInPath: string | null,
   locale: PageLocale,
 ): RenderedPage {
-  const retry = `/tenants/${encodeURIComponent(tenant)}/login-actions/reset-password`;
+  const retry = addressPath(address, '/login-actions/reset-password');
   const href =
     signInPath === null
       ? retry
@@ -125,12 +132,13 @@ export function renderResetRequestFailedPage(
 // password is never given back.
 export function renderResetPasswordForm(
   tenant: string,
+  address: TenantAddress,
   key: string,
   failure: PasswordFailure | undefined,
   rules: PasswordRules,
   locale: PageLocale,
 ): RenderedPage {
-  const action = `/tenants/${escapeHtml(encodeURIComponent(tenant))}/login-actions/action-token`;
+  const action = escapeHtml(addressPath(address, '/login-actions/action-token'));
   const problems = passwordProblems(failure, locale);
   const password = passwordField(
     'reset.form.newPassword',

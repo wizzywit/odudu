@@ -5,6 +5,7 @@ import { type FrontChannelTarget } from '#/repository/grants';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import { frontChannelLogoutUrl, MAX_FRONT_CHANNEL_FRAMES } from '#/service/frontchannel-logout';
 import { mostRecentlyActive } from '#/service/session-selection';
+import { type AcceptedIssuersLookup } from '#/service/issuer';
 import { subjectOfLogoutHint } from '#/usecase/authorization-request';
 
 export interface LogoutSession {
@@ -166,6 +167,9 @@ export interface LogoutUsecaseDeps {
   // Shared with /authorize's own hint validation — this tenant's own keys,
   // this tenant's issuer.
   listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
+  // The issuers a logout `id_token_hint` may carry: the canonical one, and a
+  // retired one while its window is open.
+  acceptedIssuers: AcceptedIssuersLookup;
   // A client (the request's `client_id`, else its hint's one audience) with
   // its registered post_logout_redirect_uris and whether it skips the
   // confirmation, read in one go. An unknown or disabled client yields null,
@@ -210,6 +214,10 @@ export interface LogoutUsecaseDeps {
     sessionId: string,
     limit: number,
   ): Promise<FrontChannelTarget[]>;
+  // The issuer a relying party is told, which is the tenant's canonical one
+  // whichever address the request arrived at. `requestIssuer` is what stands
+  // in for it where the deployment states no public base URL.
+  canonicalIssuer(tenant: { id: string; name: string }, requestIssuer: string): Promise<string>;
   now(): Date;
 }
 
@@ -333,7 +341,12 @@ export async function handleLogoutRequest(
   const hint =
     params.idTokenHint === null
       ? null
-      : await subjectOfLogoutHint(deps, tenant.id, issuer, params.idTokenHint);
+      : await subjectOfLogoutHint(
+          deps,
+          tenant.id,
+          await deps.acceptedIssuers({ id: tenant.id, name: tenantName }, issuer, deps.now()),
+          params.idTokenHint,
+        );
   const clientId = clientOfRequest(params.clientId, hint);
   const client = await logoutClientOf(deps, tenant.id, clientId);
   const registered = client?.postLogoutRedirectUris ?? [];
@@ -361,7 +374,7 @@ export async function handleLogoutRequest(
   if (decision.kind === 'end' && decision.sessionEnds && session !== null) {
     return endAndAnswer(
       deps,
-      tenant.id,
+      { id: tenant.id, name: tenantName },
       issuer,
       session,
       requested,
@@ -450,7 +463,7 @@ export async function handleLogoutConfirmation(
   const client = await logoutClientOf(deps, tenant.id, params.clientId);
   return endAndAnswer(
     deps,
-    tenant.id,
+    { id: tenant.id, name: tenantName },
     issuer,
     session,
     params.postLogoutRedirectUri,
@@ -467,8 +480,8 @@ export async function handleLogoutConfirmation(
 // given or waived.
 async function endAndAnswer(
   deps: LogoutUsecaseDeps,
-  tenantId: string,
-  issuer: string,
+  tenant: { id: string; name: string },
+  requestIssuer: string,
   session: LogoutSession,
   requested: string | null,
   registered: readonly string[],
@@ -477,6 +490,8 @@ async function endAndAnswer(
   brandClientId: string | null,
 ): Promise<LogoutOutcome> {
   const decision = decideRedirect(requested, registered);
+  const tenantId = tenant.id;
+  const issuer = await deps.canonicalIssuer(tenant, requestIssuer);
 
   await deps.endSession(tenantId, session.id, session.subjectId, deps.now(), issuer, request);
 

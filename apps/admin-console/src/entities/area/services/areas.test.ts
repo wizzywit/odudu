@@ -28,6 +28,7 @@ describe('the areas', () => {
     ['settings', 'Settings', 'manage-tenant'],
     ['branding', 'Branding', 'manage-tenant'],
     ['email', 'Email', 'manage-tenant'],
+    ['domains', 'Domains', 'view-domains'],
     ['export', 'Export', 'manage-tenant'],
     ['audit', 'Audit trail', 'view-audit'],
     ['tenants', 'Tenants', 'manage-tenants'],

@@ -1,4 +1,10 @@
-import { type PageLocale, type PasswordRules, type RenderedPage } from '@odudu/kernel';
+import {
+  addressPath,
+  type PageLocale,
+  type PasswordRules,
+  type RenderedPage,
+  type TenantAddress,
+} from '@odudu/kernel';
 import { type LinkedRequiredAction } from '#/usecase/action-token';
 import { escapeHtml, intro, page } from '#/view/document';
 import { problemSummary } from '#/view/form-error';
@@ -31,6 +37,7 @@ function listHtml(actions: readonly LinkedRequiredAction[], locale: PageLocale):
 // refused, with the reasons in place.
 export function renderRequiredActionsForm(
   tenant: string,
+  address: TenantAddress,
   key: string,
   actions: readonly LinkedRequiredAction[],
   setsPassword: boolean,
@@ -38,7 +45,7 @@ export function renderRequiredActionsForm(
   rules: PasswordRules,
   locale: PageLocale,
 ): RenderedPage {
-  const action = `/tenants/${escapeHtml(encodeURIComponent(tenant))}/login-actions/action-token`;
+  const action = escapeHtml(addressPath(address, '/login-actions/action-token'));
   const problems = passwordProblems(failure, locale);
   const field = setsPassword
     ? passwordField('requiredActions.newPassword', rules, problems, problems.length > 0, locale)

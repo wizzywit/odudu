@@ -2,6 +2,7 @@ import { type ClientKey } from '@odudu/crypto';
 import { type DatabaseHandle } from '@odudu/db';
 import { type FastifyPluginAsync } from 'fastify';
 import { oduduClient } from '#/adapter/odudu-client';
+import { tenantAddresses } from '#/repository/tenants';
 import { refreshConcurrency, semaphore } from '#/service/semaphore';
 import { singleFlight } from '#/service/single-flight';
 import { type FreshToken } from '#/usecase/fresh-access-token';
@@ -57,7 +58,12 @@ export function consoleGateway(deps: ConsoleGatewayDeps): FastifyPluginAsync {
   return (fastify) => {
     // Stamped by the wall clock, never `now` above, which tests move: the
     // server checks an assertion's lifetime against its own.
-    const odudu = oduduClient(fastify, base, { key: deps.clientKey, now: () => new Date() });
+    const odudu = oduduClient(
+      fastify,
+      base,
+      { key: deps.clientKey, now: () => new Date() },
+      tenantAddresses(deps.ownerDatabase.db, deps.database.db, base),
+    );
     fastify.register(
       (auth) => {
         registerAuthRoutes(auth, {

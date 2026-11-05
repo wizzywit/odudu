@@ -10,12 +10,21 @@ import {
   type VerifiedAuthenticationResponse,
   type VerifiedRegistrationResponse,
 } from '@simplewebauthn/server';
+import { baseIsTls } from '@odudu/domain-tenant';
+import {
+  addressRelyingParty,
+  baseRelyingPartyId,
+  domainAddress,
+  isAddressLiteral,
+  pathAddress,
+  type TenantAddress,
+} from '@odudu/kernel';
 import { z } from 'zod';
 
 // WebAuthn §5.1.3 binds a credential to the relying party's identifier, and
 // a browser will not offer a credential whose RP ID is not a registrable
 // suffix of the page's own domain. So the value has to come from what the
-// operator says this deployment is published as — never from `Host` or
+// operator configured or a tenant verified — never from `Host` or
 // `X-Forwarded-Host`, which the client controls: a credential registered
 // against an attacker-chosen RP ID is a credential for the attacker's
 // origin, and one registered against a merely wrong RP ID is unusable and
@@ -33,16 +42,59 @@ function publicOrigin(publicBaseUrl: string): URL {
   return parsed;
 }
 
-// An RP ID is a domain, and WebAuthn §5.1.3's same-origin check compares
-// it as one: a browser can never match a credential's RP ID against an
-// address literal, so a passkey registered against one is unusable from
-// the moment it is created. `[…]` is how URL renders an IPv6 host, and a
-// host of only digits and dots is an IPv4 one — no registrable domain
-// looks like either.
-function isAddressLiteral(hostname: string): boolean {
-  return hostname.startsWith('[') || /^[0-9.]+$/.test(hostname);
+export interface RelyingParty {
+  readonly id: string;
+  readonly origin: string;
 }
 
+// The id is a domain and the origin is what clientDataJSON has to name, port
+// included; an address literal has no id a browser could ever match.
+export function relyingPartyFor(address: TenantAddress): RelyingParty {
+  const party = addressRelyingParty(address);
+  if (isAddressLiteral(party.id)) {
+    throw new Error(
+      `a passkey cannot be bound to an address: "${party.id}" can never be a WebAuthn ` +
+        'relying party id',
+    );
+  }
+  return party;
+}
+
+// A tenant is addressed at its canonical domain or, with none, at the base
+// URL every path-addressed tenant shares.
+export function canonicalRelyingParty(canonicalHost: string | null, base: string): RelyingParty {
+  return relyingPartyFor(
+    canonicalHost === null ? pathAddress(base, '') : domainAddress(canonicalHost, baseIsTls(base)),
+  );
+}
+
+// The relying party a login asserts against, or null where none can be derived:
+// no base URL, or a path-addressed tenant on a base that names an address. A
+// canonical domain is a host in its own right, so a literal base does not
+// take it away.
+export function ceremonyRelyingParty(
+  canonicalHost: string | null,
+  base: string | null,
+): RelyingParty | null {
+  if (base === null) return null;
+  if (canonicalHost === null && baseRelyingPartyId(base) === null) return null;
+  return canonicalRelyingParty(canonicalHost, base);
+}
+
+// The relying-party id a stored passkey was registered under. Every passkey
+// registered before domains existed was registered at the base host, and boot
+// stamps them; one not yet stamped is read the same.
+export function credentialRelyingPartyId(
+  stored: string | null,
+  base: string | null,
+): string | null {
+  if (stored !== null) return stored;
+  return base === null ? null : baseRelyingPartyId(base);
+}
+
+// What boot checks of the configured base URL: every path-addressed tenant
+// takes its relying party from it, so one that names an address fails here
+// rather than at somebody's enrolment.
 export function relyingPartyId(publicBaseUrl: string): string {
   const hostname = publicOrigin(publicBaseUrl).hostname;
   if (isAddressLiteral(hostname)) {
@@ -54,15 +106,8 @@ export function relyingPartyId(publicBaseUrl: string): string {
   return hostname;
 }
 
-// What clientDataJSON has to name, port included — unlike the RP ID, which
-// is a domain and carries none.
-export function relyingPartyOrigin(publicBaseUrl: string): string {
-  const parsed = publicOrigin(publicBaseUrl);
-  return `${parsed.protocol}//${parsed.host}`;
-}
-
 export interface PasskeyRegistrationRequest {
-  publicBaseUrl: string;
+  relyingParty: RelyingParty;
   tenantName: string;
   username: string;
   // The WebAuthn user handle, which a discoverable credential returns
@@ -84,7 +129,7 @@ export async function passkeyRegistrationOptions(
 ): Promise<PasskeyRegistrationOffer> {
   const options = await generateRegistrationOptions({
     rpName: request.tenantName,
-    rpID: relyingPartyId(request.publicBaseUrl),
+    rpID: request.relyingParty.id,
     userName: request.username,
     userID: new TextEncoder().encode(request.userHandle),
     // A subject who already has a passkey enrols a second one on a
@@ -137,7 +182,7 @@ export function parseRegistrationResponse(value: unknown): RegistrationResponseJ
 }
 
 export interface PasskeyRegistrationVerification {
-  publicBaseUrl: string;
+  relyingParty: RelyingParty;
   expectedChallenge: string;
   response: RegistrationResponseJSON;
 }
@@ -164,8 +209,8 @@ export async function verifyPasskeyRegistration(
     verification = await verifyRegistrationResponse({
       response: input.response,
       expectedChallenge: input.expectedChallenge,
-      expectedOrigin: relyingPartyOrigin(input.publicBaseUrl),
-      expectedRPID: relyingPartyId(input.publicBaseUrl),
+      expectedOrigin: input.relyingParty.origin,
+      expectedRPID: input.relyingParty.id,
       // Stated rather than inherited, and it is the same requirement the
       // options ask the authenticator for: a response whose user-verified
       // flag is clear is refused here, so the two sides cannot drift into
@@ -206,10 +251,10 @@ export interface PasskeyAuthenticationOffer {
 // a passkey counts as two factors only where the authenticator verified
 // whoever held it.
 export async function passkeyAuthenticationOptions(
-  publicBaseUrl: string,
+  relyingParty: RelyingParty,
 ): Promise<PasskeyAuthenticationOffer> {
   const options = await generateAuthenticationOptions({
-    rpID: relyingPartyId(publicBaseUrl),
+    rpID: relyingParty.id,
     userVerification: 'required',
   });
   return { options, challenge: options.challenge };
@@ -258,7 +303,7 @@ export function assertedCredentialId(value: unknown): string | null {
 }
 
 export interface PasskeyAssertionVerification {
-  publicBaseUrl: string;
+  relyingParty: RelyingParty;
   expectedChallenge: string;
   response: AuthenticationResponseJSON;
   // The credential row this assertion named, as enrolment stored it.
@@ -276,8 +321,8 @@ export async function verifyPasskeyAssertion(
     verification = await verifyAuthenticationResponse({
       response: input.response,
       expectedChallenge: input.expectedChallenge,
-      expectedOrigin: relyingPartyOrigin(input.publicBaseUrl),
-      expectedRPID: relyingPartyId(input.publicBaseUrl),
+      expectedOrigin: input.relyingParty.origin,
+      expectedRPID: input.relyingParty.id,
       credential: {
         id: input.credential.id,
         publicKey: new Uint8Array(Buffer.from(input.credential.publicKey, 'base64url')),

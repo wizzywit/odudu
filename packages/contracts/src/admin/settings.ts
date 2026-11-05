@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ACCESS_TOKEN_CEILING_SECONDS } from '#/admin/client-rules';
 
 // Deliberately generic: the setting names and their types are
 // `@odudu/domain-tenant`'s `SETTINGS` map, the one authority for both.
@@ -39,7 +40,7 @@ export const TENANT_SETTING_RANGES: Readonly<Partial<Record<string, TenantSettin
   remember_me_idle_seconds: { min: 60, max: 31_536_000 },
   remember_me_max_seconds: { min: 60, max: 31_536_000 },
   audit_retention_days: { min: 1, max: 3650 },
-  access_token_ttl_seconds: { min: 1, max: 3600 },
+  access_token_ttl_seconds: { min: 1, max: ACCESS_TOKEN_CEILING_SECONDS },
   id_token_ttl_seconds: { min: 1, max: 3600 },
   refresh_token_ttl_seconds: { min: 1 },
   authorization_code_ttl_seconds: { min: 1, max: 600 },

@@ -189,14 +189,28 @@ async function violations(run: PathRun): Promise<string[]> {
   return out;
 }
 
-function workOf(path: string): Statement[] {
+// The edge asks where a tenant is addressed once for every path request, whatever
+// the route does; it is counted on its own so a route's own cost stays readable.
+const isAddressing = (statement: Statement): boolean => statement.query.includes('canonical_host');
+
+function runOf(path: string): Statement[] {
   const run = log.runs.find((candidate) => candidate.path === path);
   if (run === undefined) throw new Error(`no run named ${path}`);
   return run.statements.filter(isWork);
 }
 
+const workOf = (path: string): Statement[] => runOf(path).filter((s) => !isAddressing(s));
+
 const themeReads = (statements: Statement[]): number =>
   statements.filter((statement) => statement.query.includes('theme_versions')).length;
+
+describe('the edge on a path address', () => {
+  it('asks where the tenant is addressed once, whatever the route', () => {
+    for (const path of [BRANDING_PATHS.brandImage, BRANDING_PATHS.registrationPlain]) {
+      expect(runOf(path).filter(isAddressing).length, path).toBe(1);
+    }
+  });
+});
 
 describe('a themed page render', () => {
   it("sends the cached render's statements plus at most one theme read on a miss", () => {

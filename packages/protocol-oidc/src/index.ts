@@ -40,12 +40,16 @@ import {
   verifyPassword,
 } from '@odudu/domain-identity';
 import {
+  baseIsTls,
+  canonicalAddressFor,
   clientRepository,
   clientScopeMapperRepository,
   clientScopeRepository,
   consentRepository,
+  type LookupCanonicalDomain,
 } from '@odudu/domain-tenant';
 import {
+  addressIssuer,
   systemClock,
   type BrandingResolver,
   type OverridesResolver,
@@ -69,7 +73,8 @@ import {
   USERINFO_ENCRYPTION_ENCS_PERMITTED,
 } from '#/service/client-metadata';
 import { DEFAULT_TLS_CLIENT_SUBJECT_HEADER } from '#/service/tls-client-auth';
-import { configureIssuerBase } from '#/view/issuer';
+import { acceptedIssuersLookup } from '#/repository/accepted-issuers';
+import { configureIssuerBase, configureTenantAddress } from '#/view/issuer';
 import { expandWebOrigins } from '#/service/web-origin';
 import {
   issueAuthorizationCode,
@@ -115,6 +120,9 @@ export interface OidcRoutesDeps {
   // passkey enrolment then reports itself unsupported rather than binding
   // credentials to a guessed domain.
   publicBaseUrl?: string;
+  // Where a tenant's canonical host is read from; absent, every tenant is on
+  // its path address.
+  canonicalDomain?: LookupCanonicalDomain;
   // ADR 0023's client-authentication budget on /token, per client_id.
   // Required rather than defaulted: `oidcRoutes` is this package's
   // exported entry point, and a permissive default here would let an
@@ -174,6 +182,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     if (!app.hasRequestDecorator('configuredIssuerBase')) {
       configureIssuerBase(app, deps.publicBaseUrl);
     }
+    if (!app.hasRequestDecorator('tenantAddress')) configureTenantAddress(app);
     const findTenant = (name: string) => tenantLookupRepository(deps.ownerDatabase.db).byName(name);
     const clock = deps.clock ?? systemClock;
     const tls = deps.tls;
@@ -188,6 +197,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const claimMappers = deps.claimMappers ?? standardClaimMappers();
     const loadClaimContext = (tenantId: string, subjectId: string): Promise<LoadedClaimContext> =>
       withTenant(deps.database.db, tenantId, (tx) => loadClaimContextIn(tx, tenantId, subjectId));
+
+    const acceptedIssuersFor = acceptedIssuersLookup(deps);
 
     // The keys /jwks publishes, and the ones an `id_token_hint` is checked
     // against at /authorize — one definition, so a client trusting the
@@ -551,6 +562,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       database: deps.database,
       findTenant,
       listPublishableKeys,
+      acceptedIssuers: acceptedIssuersFor,
       clientKeySet,
       trustProxy: deps.trustProxy ?? false,
       tlsClientCertHeader: deps.tlsClientCertHeader ?? DEFAULT_TLS_CLIENT_SUBJECT_HEADER,
@@ -569,6 +581,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       database: deps.database,
       findTenant,
       listPublishableKeys,
+      acceptedIssuers: acceptedIssuersFor,
       clientKeySet,
       trustProxy: deps.trustProxy ?? false,
       tlsClientCertHeader: deps.tlsClientCertHeader ?? DEFAULT_TLS_CLIENT_SUBJECT_HEADER,
@@ -616,6 +629,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             ) =>
               withTenant(deps.database.db, tenantId, (tx) =>
                 beginPasskeyEnrolment(tx, {
+                  tenantId,
                   tenantName,
                   publicBaseUrl,
                   authSessionId,
@@ -630,7 +644,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         : {
             beginPasskeyAuthentication: (tenantId: string, authSessionId: string) =>
               withTenant(deps.database.db, tenantId, (tx) =>
-                beginPasskeyAuthentication(tx, { publicBaseUrl, authSessionId }),
+                beginPasskeyAuthentication(tx, { tenantId, publicBaseUrl, authSessionId }),
               ),
           };
 
@@ -688,6 +702,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 
     registerAuthorizeRoute(app, {
       findTenant,
+      acceptedIssuers: acceptedIssuersFor,
       recoverPendingRequest,
       redirectStillRegistered,
       clientName,
@@ -898,6 +913,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     });
     registerLogoutRoute(app, {
       findTenant,
+      acceptedIssuers: acceptedIssuersFor,
       tls,
       ...branding,
       listPublishableKeys,
@@ -942,6 +958,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withTenant(deps.database.db, tenantId, (tx) =>
           tokenGrantRepository(tx).frontChannelClientsForSession(sessionId, limit),
         ),
+      canonicalIssuer: (tenant, requestIssuer) => {
+        const base = deps.publicBaseUrl;
+        if (base === undefined) return Promise.resolve(requestIssuer);
+        return withTenant(deps.database.db, tenant.id, async (tx) =>
+          addressIssuer(
+            await canonicalAddressFor(tx, tenant, base, baseIsTls(base), deps.canonicalDomain),
+          ),
+        );
+      },
     });
     // Own encapsulation scope: `@fastify/cors`'s delegator-driven hook adds
     // `Vary: Origin` to every response it sees, including a disallowed one
@@ -960,6 +985,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       registerTokenRoute(scope, {
         database: deps.database,
         findTenant,
+        acceptedIssuers: acceptedIssuersFor,
         kek: deps.kek,
         clock,
         verifyPassword,
@@ -973,6 +999,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       });
       registerUserinfoRoute(scope, {
         findTenant,
+        acceptedIssuers: acceptedIssuersFor,
         listPublishableKeys: (tenantId) =>
           withTenant(deps.database.db, tenantId, (tx) =>
             signingKeyRepository(tx).listPublishable(),
@@ -1002,12 +1029,19 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 
 // The admin API verifies a bearer token's `iss` the same way /userinfo
 // does (packages/protocol-admin/src/usecase/authenticate-admin.ts).
-export { tenantIssuer } from '#/service/issuer';
+export { acceptedIssuersLookup } from '#/repository/accepted-issuers';
+export { acceptedIssuers, tenantIssuer, type AcceptedIssuersLookup } from '#/service/issuer';
 export { restartAuthorizeLocation } from '#/service/restart-request';
 export { sendThrottledPage } from '#/view/routes/throttled';
+export { sendPreviousAddressPage } from '#/view/routes/previous-address';
 export { answerNotFound, answerServerError, type UnroutedDeps } from '#/view/routes/unrouted';
 export { isApiPath, wantsHtmlPage } from '#/service/page-negotiation';
-export { configureIssuerBase, issuerBaseFor, tenantIssuerFor } from '#/view/issuer';
+export {
+  configureIssuerBase,
+  configureTenantAddress,
+  issuerBaseFor,
+  tenantIssuerFor,
+} from '#/view/issuer';
 export { assertionJtiRepository } from '#/repository/assertion-jti';
 export { isWellFormedWebOrigin } from '#/service/web-origin';
 export {
@@ -1053,6 +1087,7 @@ export {
   type ClaimDue,
   type EnqueueDelivery,
 } from '#/repository/logout-deliveries';
+export { reissueLogoutToken } from '#/usecase/reissue-logout-token';
 export {
   sendLogouts,
   type ClaimedLogoutDelivery,

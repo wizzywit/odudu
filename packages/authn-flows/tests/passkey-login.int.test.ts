@@ -151,7 +151,7 @@ async function assertWithPasskey(
   signCount: number,
 ): Promise<unknown> {
   const offer = await withTenant(app.db, tenantId, (tx) =>
-    beginPasskeyAuthentication(tx, { publicBaseUrl: PUBLIC_BASE_URL, authSessionId }),
+    beginPasskeyAuthentication(tx, { tenantId, publicBaseUrl: PUBLIC_BASE_URL, authSessionId }),
   );
   return authenticator.assertion({
     challenge: offer.challenge,
@@ -196,7 +196,7 @@ describe('signing in with a passkey and no username', () => {
     const authSessionId = await start(tenantId);
 
     const offer = await withTenant(app.db, tenantId, (tx) =>
-      beginPasskeyAuthentication(tx, { publicBaseUrl: PUBLIC_BASE_URL, authSessionId }),
+      beginPasskeyAuthentication(tx, { tenantId, publicBaseUrl: PUBLIC_BASE_URL, authSessionId }),
     );
 
     expect(offer.options.allowCredentials).toBeUndefined();

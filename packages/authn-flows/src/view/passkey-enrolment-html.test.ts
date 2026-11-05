@@ -1,4 +1,4 @@
-import { DEFAULT_PAGE_LOCALE } from '@odudu/kernel';
+import { DEFAULT_PAGE_LOCALE, pathAddress } from '@odudu/kernel';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
 import { en } from '#/view/messages';
@@ -45,6 +45,7 @@ describe('renderPasskeyEnrolmentPage', () => {
   it('carries the creation options and the field the ceremony fills in', () => {
     const { html: page } = renderPasskeyEnrolmentPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'auth-session-1',
       OFFER,
       undefined,
@@ -64,6 +65,7 @@ describe('renderPasskeyEnrolmentPage', () => {
   it('[WEBAUTHN2-7.1.2-01] emits the ceremony itself, and a path for a refusal', () => {
     const { html: page } = renderPasskeyEnrolmentPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'auth-session-1',
       OFFER,
       undefined,
@@ -83,6 +85,7 @@ describe('renderPasskeyEnrolmentPage', () => {
   it('carries the nonce it reports, freshly per render', () => {
     const first = renderPasskeyEnrolmentPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'auth-session-1',
       OFFER,
       undefined,
@@ -90,6 +93,7 @@ describe('renderPasskeyEnrolmentPage', () => {
     );
     const second = renderPasskeyEnrolmentPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'auth-session-1',
       OFFER,
       undefined,
@@ -106,8 +110,14 @@ describe('renderPasskeyEnrolmentPage', () => {
   // the page.
   it('reports that its script fetches nothing', () => {
     expect(
-      renderPasskeyEnrolmentPage('acme', 'auth-session-1', OFFER, undefined, DEFAULT_PAGE_LOCALE)
-        .script,
+      renderPasskeyEnrolmentPage(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'auth-session-1',
+        OFFER,
+        undefined,
+        DEFAULT_PAGE_LOCALE,
+      ).script,
     ).toMatchObject({
       fetchesSameOrigin: false,
     });
@@ -116,6 +126,7 @@ describe('renderPasskeyEnrolmentPage', () => {
   it('bounds what can be typed into the label', () => {
     const { html: page } = renderPasskeyEnrolmentPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'auth-session-1',
       OFFER,
       undefined,
@@ -129,6 +140,7 @@ describe('renderPasskeyEnrolmentPage', () => {
   it('escapes the tenant and the session id', () => {
     const { html: page } = renderPasskeyEnrolmentPage(
       'acme"><script>',
+      pathAddress('https://idp.example', 'acme"><script>'),
       'session"><script>',
       OFFER,
       undefined,
@@ -142,6 +154,7 @@ describe('renderPasskeyEnrolmentPage', () => {
   it('keeps the English markup exactly, apart from the script, which is checked below', () => {
     const { body } = renderPasskeyEnrolmentPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'sess-1',
       OFFER,
       'passkey_not_added',
@@ -169,7 +182,14 @@ describe('renderPasskeyEnrolmentPage', () => {
   });
 
   it('reads French where the fixture has it and English for the rest', () => {
-    const page = renderPasskeyEnrolmentPage('acme', 's1', OFFER, 'passkey_not_added', FRENCH);
+    const page = renderPasskeyEnrolmentPage(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      's1',
+      OFFER,
+      'passkey_not_added',
+      FRENCH,
+    );
     expect(page.html).toContain('<html lang="fr" dir="ltr">');
     expect(page.title).toBe('Ajouter une clé d’accès');
     expect(page.body).toContain('<li id="form-error-0">Cette clé n’a pas pu être ajoutée.</li>');
@@ -181,15 +201,23 @@ describe('renderPasskeyEnrolmentPage', () => {
   });
 
   it('writes lang and dir for a right-to-left locale', () => {
-    expect(renderPasskeyEnrolmentPage('a', 's', OFFER, undefined, ARABIC).html).toContain(
-      '<html lang="ar" dir="rtl">',
-    );
+    expect(
+      renderPasskeyEnrolmentPage(
+        'a',
+        pathAddress('https://idp.example', 'a'),
+        's',
+        OFFER,
+        undefined,
+        ARABIC,
+      ).html,
+    ).toContain('<html lang="ar" dir="rtl">');
   });
 
   it('holds a hostile tenant or session id inside its attribute, in both languages', () => {
     for (const locale of [DEFAULT_PAGE_LOCALE, FRENCH]) {
       const { body } = renderPasskeyEnrolmentPage(
         '"><img src=x onerror=1>',
+        pathAddress('https://idp.example', '"><img src=x onerror=1>'),
         '"><img src=x onerror=1>',
         OFFER,
         undefined,
@@ -203,7 +231,14 @@ describe('renderPasskeyEnrolmentPage', () => {
     // Runs the rendered script, presses the button and lets the browser
     // refuse with `thrown`; answers what the person is then told.
     async function failureShown(locale: typeof FRENCH, thrown: Error): Promise<string> {
-      const { body } = renderPasskeyEnrolmentPage('acme', 'sid', OFFER, undefined, locale);
+      const { body } = renderPasskeyEnrolmentPage(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'sid',
+        OFFER,
+        undefined,
+        locale,
+      );
       const code = /<script nonce="[^"]*">([\s\S]*?)<\/script>/u.exec(body)?.[1] ?? '';
       const data = (name: string): string =>
         unescapeAttribute(new RegExp(`${name}="([^"]*)"`, 'u').exec(body)?.[1] ?? '');
@@ -248,7 +283,14 @@ describe('renderPasskeyEnrolmentPage', () => {
     });
 
     it('holds no sentence of its own', () => {
-      const { body } = renderPasskeyEnrolmentPage('a', 's', OFFER, undefined, DEFAULT_PAGE_LOCALE);
+      const { body } = renderPasskeyEnrolmentPage(
+        'a',
+        pathAddress('https://idp.example', 'a'),
+        's',
+        OFFER,
+        undefined,
+        DEFAULT_PAGE_LOCALE,
+      );
       const script = body.slice(body.indexOf('<script'));
       expect(script).not.toMatch(/Your device|request was cancelled|try again/iu);
     });
@@ -260,6 +302,7 @@ describe('renderPasskeyEnrolmentPage', () => {
   it('neutralises a value that would close the script element', () => {
     const { html: page } = renderPasskeyEnrolmentPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'auth-session-1',
       {
         options: { ...OFFER.options, rp: { name: '</script><script>alert(1)</script>', id: 'x' } },
@@ -275,6 +318,7 @@ describe('renderPasskeyEnrolmentPage', () => {
   it('escapes the JSON line terminators JavaScript does not allow raw', () => {
     const { html: page } = renderPasskeyEnrolmentPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'auth-session-1',
       {
         options: {

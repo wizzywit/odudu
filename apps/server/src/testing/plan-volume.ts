@@ -44,6 +44,8 @@ export const PLAN_VOLUME = {
   consoleRows: 6_000,
   // What a set the admin API replaces whole holds, at the most it may.
   assignments: ASSIGNMENT_LIMIT,
+  // The most rows a tenant may hold, less the one the domain drive adds.
+  domains: 19,
 } as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -121,6 +123,31 @@ insert into audit_events (id, tenant_id, occurred_at, event_type, action, outcom
 select gen_random_uuid(), o.id, now() - (g || ' seconds')::interval,
        'admin_mutation', 'client.create', 'allowed', 'client', g::text
   from vol_other o cross join generate_series(1, ${v.auditEventsPerOtherTenant}) g;
+
+insert into tenant_domains (id, tenant_id, host, state, challenge, verified_at, canonical)
+select gen_random_uuid(), o.id, 'o' || o.n || '.volume.example.com', 'verified', 'c', now(), true
+  from vol_other o;
+insert into tenant_domains (id, tenant_id, host, state, challenge)
+select gen_random_uuid(), o.id, 'p' || o.n || '.volume.example.com', 'pending', 'c'
+  from vol_other o where o.n % 5 = 0;
+insert into tenant_issuer_retirements (tenant_id, issuer, expires_at)
+select o.id, 'https://old' || o.n || '.volume.example.com',
+       case when o.n % 10 = 0 then now() - interval '1 hour' else now() + interval '1 hour' end
+  from vol_other o;
+insert into tenant_issuer_retirements (tenant_id, issuer, expires_at)
+select o.id, 'https://older' || o.n || '.volume.example.com', now() + interval '2 hours'
+  from vol_other o where o.n % 5 = 0;
+insert into tenant_domains (id, tenant_id, host, state, challenge, verified_at, canonical)
+select gen_random_uuid(), ${t}, 'plans' || g || '.example.com',
+       case when g <= 2 then 'verified' when g <= 6 then 'pending' else 'failed' end, 'c',
+       case when g <= 2 then now() end, false
+  from generate_series(1, ${v.domains}) g;
+insert into tenant_issuer_retirements (tenant_id, issuer, expires_at)
+select ${t}, 'https://plans-old' || g || '.example.com',
+       case when g = 4 then now() - interval '1 hour' else now() + interval '1 hour' end
+  from generate_series(1, 4) g;
+insert into tenant_issuer_retirements (tenant_id, issuer, expires_at)
+select ${t}, 'https://plans1.example.com', now() + interval '1 hour';
 
 insert into subjects (id, tenant_id, type)
 select gen_random_uuid(), ${t}, 'user' from generate_series(1, ${v.subjects});
@@ -273,10 +300,17 @@ select gen_random_uuid(), ${t}, 'reg_' || md5(n::text), 'pending' || n, 'pending
        now() + interval '1 day'
   from vol_subjects where n % 4 = 1;
 
-insert into user_credentials (id, tenant_id, subject_id, type, secret_data, label, lookup_key)
+insert into user_credentials (id, tenant_id, subject_id, type, secret_data, label, lookup_key, rp_id)
 select gen_random_uuid(), ${t}, s.id, 'webauthn',
-       '{"publicKey":"k","counter":0,"transports":[]}'::jsonb, 'key ' || g, 'lk' || g
+       '{"publicKey":"k","counter":0,"transports":[]}'::jsonb, 'key ' || g, 'lk' || g,
+       case when g % 2 = 0 then 'localhost' end
   from vol_subjects s cross join generate_series(1, 12) g where s.n = 1;
+-- Passkeys all registered under the base host, so a read for credentials
+-- under another host finds none and has to prove it without walking them.
+insert into user_credentials (id, tenant_id, subject_id, type, secret_data, label, lookup_key, rp_id)
+select gen_random_uuid(), ${t}, s.id, 'webauthn',
+       '{"publicKey":"k","counter":0,"transports":[]}'::jsonb, 'bulk', 'bulk' || s.n, 'localhost'
+  from vol_subjects s where s.n between 2 and 40000;
 insert into user_credentials (id, tenant_id, subject_id, type, secret_data)
 select gen_random_uuid(), ${t}, s.id, k.type, '{"hash":"h"}'::jsonb
   from vol_subjects s

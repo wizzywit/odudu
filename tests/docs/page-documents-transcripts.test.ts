@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_PAGE_LOCALE as LOCALE,
+  pathAddress,
   type PasswordRules,
 } from '../../packages/kernel/src/index.js';
 import {
@@ -208,7 +209,14 @@ function violationFor(sentence: string): { rule: string; message: string; minLen
   const minLength = Number(/at least (\d+) characters/u.exec(sentence)?.[1] ?? 0);
   for (const rule of RULES) {
     const candidate = { rule, message: 'x', minLength };
-    const rendered = renderUpdatePasswordPage('t', 's', [candidate], RULES_DEFAULT, LOCALE).body;
+    const rendered = renderUpdatePasswordPage(
+      't',
+      pathAddress(ORIGIN, 't'),
+      's',
+      [candidate],
+      RULES_DEFAULT,
+      LOCALE,
+    ).body;
     if (first(rendered, ENTRY) === sentence) return candidate;
   }
   return { rule: 'unknown', message: sentence };
@@ -238,7 +246,14 @@ function accountViolationFor(sentence: string): {
   const minLength = Number(/at least (\d+) characters/u.exec(sentence)?.[1] ?? 0);
   for (const rule of ACCOUNT_RULES) {
     const candidate = { rule, message: 'x', minLength };
-    const rendered = renderResetPasswordForm('t', 'k', [candidate], RULES_DEFAULT, LOCALE).body;
+    const rendered = renderResetPasswordForm(
+      't',
+      pathAddress(ORIGIN, 't'),
+      'k',
+      [candidate],
+      RULES_DEFAULT,
+      LOCALE,
+    ).body;
     if (first(rendered, ENTRY) === sentence) return candidate;
   }
   return { rule: 'unknown', message: sentence };
@@ -256,6 +271,7 @@ const rulesOf = (body: string): PasswordRules => ({
 // A page's script carries a nonce fresh for each response.
 const unnonced = (text: string): string => text.replace(/nonce="[^"]*"/gu, 'nonce="N"');
 
+const ORIGIN = 'https://idp.example';
 const tenantOf = (body: string): string => first(body, /(?:action|href)="\/tenants\/([^/"]*)\//u);
 const keyOf = (body: string): string => first(body, /name="key" value="([^"]*)"/u);
 // An entry of a form's alert carries an id; a plain list item does not.
@@ -287,7 +303,17 @@ function passwordFailureOf(body: string): PasswordFailure | undefined {
   const entries = entriesOf(body);
   return entries.length === 1 &&
     entries[0] ===
-      first(renderResetPasswordForm('t', 'k', 'required', RULES_DEFAULT, LOCALE).body, ENTRY)
+      first(
+        renderResetPasswordForm(
+          't',
+          pathAddress(ORIGIN, 't'),
+          'k',
+          'required',
+          RULES_DEFAULT,
+          LOCALE,
+        ).body,
+        ENTRY,
+      )
     ? 'required'
     : entries.map(accountViolationFor);
 }
@@ -300,6 +326,7 @@ function registrationFailureOf(body: string): RegistrationFailure | undefined {
       entriesOf(
         renderRegistrationForm(
           't',
+          pathAddress(ORIGIN, 't'),
           { rules: RULES_DEFAULT, failure: { refusal: candidate } },
           LOCALE,
         ).body,
@@ -309,6 +336,7 @@ function registrationFailureOf(body: string): RegistrationFailure | undefined {
   if (/name="password_confirm"[^>]*aria-invalid/u.test(body) && entries.length === 1) {
     const mismatch = renderRegistrationForm(
       't',
+      pathAddress(ORIGIN, 't'),
       { rules: RULES_DEFAULT, failure: { mismatch: true } },
       LOCALE,
     );
@@ -324,7 +352,12 @@ function registrationFailureOf(body: string): RegistrationFailure | undefined {
   )
     .filter(([name]) => new RegExp(`name="${name}"[^>]*aria-invalid`, 'u').test(body))
     .map(([, field]) => field);
-  const asked = renderRegistrationForm('t', { rules: RULES_DEFAULT, failure: { missing } }, LOCALE);
+  const asked = renderRegistrationForm(
+    't',
+    pathAddress(ORIGIN, 't'),
+    { rules: RULES_DEFAULT, failure: { missing } },
+    LOCALE,
+  );
   if (missing.length > 0 && entriesOf(asked.body).join() === entries.join()) return { missing };
   return { violations: entries.map(accountViolationFor) };
 }
@@ -358,7 +391,8 @@ const elidesOnlyTheQr = (block: Recorded): boolean =>
 const RENDER_BACK: Record<string, (body: string) => string> = {
   'Set up your authenticator': (body: string) =>
     renderTotpEnrolmentPage(
-      first(body, /action="\/tenants\/([^/"]*)\//u),
+      tenantOf(body),
+      pathAddress(ORIGIN, tenantOf(body)),
       first(body, /name="auth_session_id" value="([^"]*)"/u),
       {
         secret: first(body, /name="secret" value="([^"]*)"/u),
@@ -369,7 +403,8 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
     ).body.replace(/<svg version=[\s\S]*?<\/svg>/u, QR_ELIDED),
   'Save your recovery codes': (body: string) =>
     renderRecoveryCodesPage(
-      first(body, /action="\/tenants\/([^/"]*)\//u),
+      tenantOf(body),
+      pathAddress(ORIGIN, tenantOf(body)),
       first(body, /name="auth_session_id" value="([^"]*)"/u),
       {
         codes: all(body, /^ {2}<li><bdi dir="ltr"><code>(.*)<\/code><\/bdi><\/li>$/gmu),
@@ -380,7 +415,8 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
     ).body,
   'Change your password': (body: string) =>
     renderUpdatePasswordPage(
-      first(body, /action="\/tenants\/([^/"]*)\//u),
+      tenantOf(body),
+      pathAddress(ORIGIN, tenantOf(body)),
       first(body, /name="auth_session_id" value="([^"]*)"/u),
       entriesOf(body).map(violationFor),
       rulesOf(body),
@@ -392,6 +428,7 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
     const failure = registrationFailureOf(body);
     return renderRegistrationForm(
       tenantOf(body),
+      pathAddress(ORIGIN, tenantOf(body)),
       {
         rules: rulesOf(body),
         signInPath: returnToOf(body),
@@ -403,7 +440,7 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
     ).body;
   },
   "Can't create this account": (body) =>
-    renderRegistrationFailedPage(tenantOf(body), null, LOCALE).body,
+    renderRegistrationFailedPage(pathAddress(ORIGIN, tenantOf(body)), null, LOCALE).body,
   'Account created': () => renderRegistrationSucceededPage(false, null, LOCALE).body,
   'Email confirmed': (body) => renderVerificationSucceededPage(continueOf(body), LOCALE).body,
   "Can't verify this link": (body) => renderVerificationFailedPage(backOf(body), LOCALE).body,
@@ -411,6 +448,7 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
     const email = valueOf(body, 'email');
     return renderResetRequestForm(
       tenantOf(body),
+      pathAddress(ORIGIN, tenantOf(body)),
       {
         signInPath: returnToOf(body),
         emailRequired: refused(body),
@@ -425,17 +463,18 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
       : renderResetRequestedPage(null, LOCALE).body,
   'Confirm your email address': (body) =>
     renderEmailConfirmPage(
-      tenantOf(body),
+      pathAddress(ORIGIN, tenantOf(body)),
       keyOf(body),
       body.includes('Account name:') ? first(body, /Account name: <bdi>(.*)<\/bdi>/u) : null,
       LOCALE,
     ).body,
   'Your account is ready': (body) => renderRegistrationReadyPage(continueOf(body), LOCALE).body,
   "Can't send a reset link": (body) =>
-    renderResetRequestFailedPage(tenantOf(body), null, LOCALE).body,
+    renderResetRequestFailedPage(pathAddress(ORIGIN, tenantOf(body)), null, LOCALE).body,
   'Choose a new password': (body) =>
     renderResetPasswordForm(
       tenantOf(body),
+      pathAddress(ORIGIN, tenantOf(body)),
       keyOf(body),
       passwordFailureOf(body),
       rulesOf(body),
@@ -453,6 +492,7 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
   'Update your account': (body) =>
     renderRequiredActionsForm(
       tenantOf(body),
+      pathAddress(ORIGIN, tenantOf(body)),
       keyOf(body),
       actionsOf(body),
       body.includes('name="password"'),
@@ -477,6 +517,7 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
     return renderConsentPage(
       {
         tenant: first(body, /action="\/tenants\/([^/"]*)\//u),
+        address: pathAddress(ORIGIN, first(body, /action="\/tenants\/([^/"]*)\//u)),
         authSessionId: first(body, /name="auth_session_id" value="([^"]*)"/u),
         clientName: first(body, /<h1><bdi>(.*?)<\/bdi> is asking/u),
         clientPages: {
@@ -500,6 +541,7 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
     renderSelectAccountPage(
       {
         tenant: first(body, /action="\/tenants\/([^/"]*)\//u),
+        address: pathAddress(ORIGIN, first(body, /action="\/tenants\/([^/"]*)\//u)),
         authSessionId: first(body, /name="auth_session_id" value="([^"]*)"/u),
         accounts: [
           ...body.matchAll(/name="session_id" value="([^"]*)"[^>]*><bdi>(.*?)<\/bdi>/gu),
@@ -525,7 +567,7 @@ const RENDER_BACK: Record<string, (body: string) => string> = {
   },
   'Sign out?': (body) =>
     renderLogoutConfirmationPage(
-      first(body, /action="\/tenants\/([^/"]*)\//u),
+      pathAddress(ORIGIN, tenantOf(body)),
       first(body, /name="session_id" value="([^"]*)"/u),
       first(body, /name="csrf" value="([^"]*)"/u),
       {

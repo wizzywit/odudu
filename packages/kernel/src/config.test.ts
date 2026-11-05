@@ -210,6 +210,26 @@ describe('loadConfig', () => {
     );
   });
 
+  it('rechecks custom domains hourly, three failures in a row, by default', () => {
+    const config = loadConfig(minimal);
+    expect(config.ODUDU_DOMAIN_RECHECK_ENABLED).toBe(true);
+    expect(config.ODUDU_DOMAIN_RECHECK_INTERVAL_SECONDS).toBe(3600);
+    expect(config.ODUDU_DOMAIN_RECHECK_FAILURES).toBe(3);
+  });
+
+  it('refuses a domain recheck interval under a minute and a threshold of zero', () => {
+    expect(() => loadConfig({ ...minimal, ODUDU_DOMAIN_RECHECK_INTERVAL_SECONDS: '59' })).toThrow(
+      /DOMAIN_RECHECK_INTERVAL_SECONDS/u,
+    );
+    expect(() => loadConfig({ ...minimal, ODUDU_DOMAIN_RECHECK_FAILURES: '0' })).toThrow(
+      /DOMAIN_RECHECK_FAILURES/u,
+    );
+    expect(
+      loadConfig({ ...minimal, ODUDU_DOMAIN_RECHECK_ENABLED: 'false' })
+        .ODUDU_DOMAIN_RECHECK_ENABLED,
+    ).toBe(false);
+  });
+
   it('sends queued mail every fifteen seconds by default', () => {
     const config = loadConfig(minimal);
     expect(config.ODUDU_OUTBOX_ENABLED).toBe(true);
@@ -270,6 +290,10 @@ describe('loadConfig', () => {
     const config = loadConfig(minimal);
     expect(config.ODUDU_RETENTION_LOGOUT_DELIVERED_SECONDS).toBe(604_800);
     expect(config.ODUDU_RETENTION_LOGOUT_FAILED_SECONDS).toBe(2_592_000);
+  });
+
+  it('keeps a pending domain a week', () => {
+    expect(loadConfig(minimal).ODUDU_RETENTION_PENDING_DOMAIN_SECONDS).toBe(604_800);
   });
 
   it('decodes ODUDU_KEK from base64 to exactly 32 bytes', () => {

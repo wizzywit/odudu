@@ -103,7 +103,7 @@ async function loginWithAssertionOnly(
     return id;
   });
   const offer = await withTenant(fixture.app.db, tenantId, (tx) =>
-    beginPasskeyAuthentication(tx, { publicBaseUrl: PUBLIC_BASE_URL, authSessionId }),
+    beginPasskeyAuthentication(tx, { tenantId, publicBaseUrl: PUBLIC_BASE_URL, authSessionId }),
   );
   const assertion = authenticator.assertion({
     challenge: offer.challenge,

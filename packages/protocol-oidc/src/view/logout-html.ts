@@ -1,4 +1,10 @@
-import { scriptNonce, type PageLocale, type RenderedPage } from '@odudu/kernel';
+import {
+  addressPath,
+  scriptNonce,
+  type PageLocale,
+  type RenderedPage,
+  type TenantAddress,
+} from '@odudu/kernel';
 import { escapeHtml, page } from '#/view/document';
 import { fillPage } from '#/view/template';
 import { t, tHtml } from '#/view/messages';
@@ -33,13 +39,13 @@ export interface LogoutConfirmationFields {
 // beside it. Ending a session on a bare GET would let an `<img>` tag on any
 // page log the End-User out — this form keeps it a POST from this browser.
 export function renderLogoutConfirmationPage(
-  tenant: string,
+  address: TenantAddress,
   sessionId: string,
   csrf: string,
   fields: LogoutConfirmationFields,
   locale: PageLocale,
 ): RenderedPage {
-  const action = `/tenants/${escapeHtml(encodeURIComponent(tenant))}/protocol/openid-connect/logout`;
+  const action = escapeHtml(addressPath(address, '/protocol/openid-connect/logout'));
   return page(
     t(locale, 'logout.confirm.title'),
     fillPage(

@@ -131,6 +131,13 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK (((zoneinfo IS NULL) OR (zoneinfo ~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$'::text)))",
   'client_oidc_config.client_oidc_config_id_token_ttl_ceiling':
     'CHECK (((id_token_ttl_seconds >= 1) AND (id_token_ttl_seconds <= 3600)))',
+  'tenant_domains.tenant_domains_canonical_is_verified':
+    "CHECK (((NOT canonical) OR (state = 'verified'::text)))",
+  'tenant_domains.tenant_domains_failed_checks_floor': 'CHECK ((failed_checks >= 0))',
+  'tenant_domains.tenant_domains_host_shape':
+    "CHECK (((length(host) <= 253) AND (host ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$'::text)))",
+  'tenant_domains.tenant_domains_state_check':
+    "CHECK ((state = ANY (ARRAY['pending'::text, 'verified'::text, 'failed'::text])))",
   'tenants.tenants_access_token_ttl_range':
     'CHECK (((access_token_ttl_seconds >= 1) AND (access_token_ttl_seconds <= 3600)))',
   'tenants.tenants_authorization_code_ttl_range':

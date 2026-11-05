@@ -18,6 +18,11 @@ import {
   USER_OPTIONS,
   type SeedCommand,
 } from '#/cli/seed-options';
+import {
+  parseSeedDomainArgs,
+  seedDomainInTenant,
+  type DomainCommandResult,
+} from '#/cli/seed-domain';
 import { CLIENT_LIST_LIMIT, listLimitProblem, scopeLimitMessage } from '@odudu/contracts/admin';
 import { tenantSettingsRepository, sendVerificationEmail } from '@odudu/account';
 import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
@@ -68,7 +73,14 @@ import {
   tenantSettingProblems,
   type TenantSettingValue,
 } from '@odudu/domain-tenant';
-import { loadConfig, newId, OduduError, refuseBidiControls, systemClock } from '@odudu/kernel';
+import {
+  loadConfig,
+  newId,
+  OduduError,
+  refuseBidiControls,
+  systemClock,
+  type Config,
+} from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
   GRANT_TYPES_PERMITTED,
@@ -943,7 +955,8 @@ export type SeedCommandResult =
   | JoinGroupCommandResult
   | ProfileCommandResult
   | RegistrationTokenCommandResult
-  | AdminCommandResult;
+  | AdminCommandResult
+  | DomainCommandResult;
 
 async function requireTenantId(ownerDb: Database, tenantName: string): Promise<string> {
   const found = await tenantLookupRepository(ownerDb).byName(tenantName);
@@ -1990,6 +2003,28 @@ async function runAdminCommand(argv: readonly string[]): Promise<AdminCommandRes
   };
 }
 
+async function runDomainCommand(
+  ownerDb: Database,
+  runtimeDb: Database,
+  config: Config,
+  argv: readonly string[],
+): Promise<DomainCommandResult> {
+  const input = parseSeedDomainArgs(argv, config.NODE_ENV);
+  const tenantId = await requireTenantId(ownerDb, input.tenant);
+  return withTenant(runtimeDb, tenantId, (tx) =>
+    seedDomainInTenant(
+      tx,
+      {
+        tenant: { id: tenantId, name: input.tenant },
+        publicBaseUrl: config.ODUDU_PUBLIC_BASE_URL,
+        tls: config.ODUDU_TLS,
+        now: new Date(),
+      },
+      input,
+    ),
+  );
+}
+
 function isSeedCommand(value: string): value is SeedCommand {
   return (SEED_COMMANDS as readonly string[]).includes(value);
 }
@@ -2051,6 +2086,8 @@ async function runSeedCommand(argv: readonly string[]): Promise<SeedCommandResul
         return await runProfileCommand(owner.db, runtime.db, rest);
       case 'registration-token':
         return await runRegistrationTokenCommand(owner.db, runtime.db, rest);
+      case 'domain':
+        return await runDomainCommand(owner.db, runtime.db, config, rest);
       default: {
         const exhaustive: never = command;
         throw new OduduError(
@@ -2085,3 +2122,4 @@ export function seed(
 }
 
 export { SEED_COMMANDS };
+export type { DomainCommandResult };

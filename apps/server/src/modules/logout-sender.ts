@@ -3,6 +3,7 @@ import { type Config, type OduduModule } from '@odudu/kernel';
 import { type LogoutDeliveryTransport } from '@odudu/protocol-oidc';
 import {
   logoutSenderOptionsFromConfig,
+  logoutSigningFromConfig,
   sendLogoutsAcrossTenants,
   type LogoutSenderDeps,
   type LogoutSenderOptions,
@@ -94,7 +95,7 @@ export function logoutSenderModule(
         log,
         run: async () => {
           const outcome = await pass(
-            deps,
+            { ...deps, signing: logoutSigningFromConfig(ctx.config) },
             ctx.clock.now(),
             logoutSenderOptionsFromConfig(ctx.config),
           );

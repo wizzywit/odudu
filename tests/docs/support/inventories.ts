@@ -204,6 +204,7 @@ export const PAGE_KIND_ALIASES: Readonly<Record<string, readonly string[]>> = {
   'select-account-html': ['select account', 'choose an account', 'select_account'],
   'server-error-html': ['server error', 'something went wrong'],
   'throttled-html': ['too many attempts', 'throttled'],
+  'previous-address-html': ['previous address', 'address has moved'],
 };
 
 export function pageKindFiles(): string[] {

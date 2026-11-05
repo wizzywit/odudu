@@ -52,8 +52,12 @@ export interface ClientTokenTtlRange {
 export type ClientTokenTtlField =
   'access_token_ttl_seconds' | 'id_token_ttl_seconds' | 'refresh_token_ttl_seconds';
 
+// The longest an access token may live, for a client or a tenant: a token
+// minted just before a change of address outlives it by at most this.
+export const ACCESS_TOKEN_CEILING_SECONDS = 3600;
+
 export const CLIENT_TOKEN_TTL_RANGES: Readonly<Record<ClientTokenTtlField, ClientTokenTtlRange>> = {
-  access_token_ttl_seconds: { min: 1, max: 3600 },
+  access_token_ttl_seconds: { min: 1, max: ACCESS_TOKEN_CEILING_SECONDS },
   id_token_ttl_seconds: { min: 1, max: 3600 },
   refresh_token_ttl_seconds: { min: 1 },
 };

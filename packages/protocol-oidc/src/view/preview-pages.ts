@@ -1,4 +1,4 @@
-import { type PageKind, type PreviewRender } from '@odudu/kernel';
+import { type PageKind, type PreviewRender, pathAddress } from '@odudu/kernel';
 import {
   renderAuthorizeErrorPage,
   renderEmailUnverifiedPage,
@@ -27,6 +27,7 @@ export const PREVIEW_PAGES: Readonly<Record<OidcKind, PreviewRender>> = {
   'sign-in': (tenant, locale) =>
     renderLoginForm(
       tenant,
+      pathAddress('', tenant),
       SESSION,
       'password',
       true,
@@ -41,6 +42,7 @@ export const PREVIEW_PAGES: Readonly<Record<OidcKind, PreviewRender>> = {
     renderConsentPage(
       {
         tenant,
+        address: pathAddress('', tenant),
         authSessionId: SESSION,
         clientName: 'Example app',
         clientPages: {
@@ -59,6 +61,7 @@ export const PREVIEW_PAGES: Readonly<Record<OidcKind, PreviewRender>> = {
     renderSelectAccountPage(
       {
         tenant,
+        address: pathAddress('', tenant),
         authSessionId: SESSION,
         accounts: [
           { sessionId: 'preview-account-1', displayName: 'Ada Example' },
@@ -69,7 +72,7 @@ export const PREVIEW_PAGES: Readonly<Record<OidcKind, PreviewRender>> = {
     ),
   'logout-confirm': (tenant, locale) =>
     renderLogoutConfirmationPage(
-      tenant,
+      pathAddress('', tenant),
       SESSION,
       'preview-csrf',
       { clientId: null, postLogoutRedirectUri: null, state: null },

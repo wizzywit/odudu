@@ -114,3 +114,16 @@ export {
   type ClientRule,
   type ClientSource,
 } from '#/page-kinds-registry';
+export {
+  addressIssuer,
+  addressPath,
+  addressRelyingParty,
+  addressUrl,
+  baseRelyingPartyId,
+  domainAddress,
+  isAddressLiteral,
+  pathAddress,
+  routeAddress,
+  tenantAddressOf,
+  type TenantAddress,
+} from '#/address';

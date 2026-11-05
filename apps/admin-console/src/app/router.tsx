@@ -492,6 +492,20 @@ const email = createRoute({
   },
 });
 
+const Domains = lazyFeatureRoute(
+  () => import('#/pages/domains').then((feature) => feature.DomainsPage),
+  'Loading domains',
+);
+
+const domains = createRoute({
+  getParentRoute: () => tenant,
+  path: 'domains',
+  component: function TenantDomains() {
+    const { tenant: name } = tenant.useParams();
+    return <Domains key={name} tenant={name} />;
+  },
+});
+
 const Branding = lazyFeatureRoute(
   () => import('#/pages/branding').then((feature) => feature.BrandingPage),
   'Loading branding',
@@ -554,6 +568,7 @@ export function preloadFeatures(): Promise<void> {
     Settings,
     Branding,
     Email,
+    Domains,
     Audit,
   ];
   return Promise.all(features.map((feature) => feature.preload())).then(() => undefined);
@@ -578,6 +593,7 @@ const routeTree = root.addChildren([
     settings,
     branding,
     email,
+    domains,
     audit,
   ]),
 ]);

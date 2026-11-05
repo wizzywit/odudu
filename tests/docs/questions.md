@@ -457,8 +457,8 @@ Real questions a newcomer asks, each answered strictly from the built documentat
 - Role: Administrator
 - Before: answered
 - Status: answered
-- Pages: admin-console/branding, admin-console/clients, roadmap
-- Note: Branding in the console: a tenant's colours, font, images, stylesheet and page templates, a client's own over them, preview and publish with versions; a custom domain per tenant follows in P4j.
+- Pages: admin-console/branding, admin-console/clients, operating/custom-domains, roadmap
+- Note: Branding in the console: a tenant's colours, font, images, stylesheet and page templates, a client's own over them, preview and publish with versions; a tenant's own public address (a custom domain), proved by a DNS record and switched to and from, is in operating/custom-domains.
 
 ## A30. Which languages do the pages and mail support?
 

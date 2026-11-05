@@ -425,6 +425,9 @@ importers:
       '@odudu/domain-audit':
         specifier: workspace:*
         version: link:../domain-audit
+      '@odudu/domain-tenant':
+        specifier: workspace:*
+        version: link:../domain-tenant
       '@odudu/email':
         specifier: workspace:*
         version: link:../email

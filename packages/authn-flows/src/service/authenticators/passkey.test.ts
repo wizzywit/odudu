@@ -1,4 +1,5 @@
 import { type RegistrationResponseJSON } from '@simplewebauthn/server';
+import { pathAddress } from '@odudu/kernel';
 import { softwareAuthenticator, type SoftwareAuthenticator } from '@odudu/testkit';
 import { describe, expect, it } from 'vitest';
 import {
@@ -10,11 +11,13 @@ import {
 import {
   parseRegistrationResponse,
   passkeyAuthenticationOptions,
+  relyingPartyFor,
   verifyPasskeyRegistration,
 } from '#/service/webauthn';
 
 const PUBLIC_BASE_URL = 'http://localhost:3000';
 const RP_ID = 'localhost';
+const RELYING_PARTY = relyingPartyFor(pathAddress(PUBLIC_BASE_URL, 'demo'));
 const SUBJECT_ID = '01a09678-5455-7c1f-9b1f-0f3b6f9e0001';
 const CREDENTIAL_ROW_ID = '01a09678-5455-7c1f-9b1f-0f3b6f9e0002';
 
@@ -27,7 +30,7 @@ async function enrol(
   const authenticator = softwareAuthenticator();
   const challenge = 'Zm9yLXJlZ2lzdHJhdGlvbi1vbmx5';
   const registered = await verifyPasskeyRegistration({
-    publicBaseUrl: PUBLIC_BASE_URL,
+    relyingParty: RELYING_PARTY,
     expectedChallenge: challenge,
     response: registrationJson(authenticator, challenge, signCount),
   });
@@ -58,15 +61,15 @@ function registrationJson(
 }
 
 async function offeredChallenge(): Promise<string> {
-  const { challenge } = await passkeyAuthenticationOptions(PUBLIC_BASE_URL);
+  const { challenge } = await passkeyAuthenticationOptions(RELYING_PARTY);
   return challenge;
 }
 
 function verificationFor(secret: WebauthnSecret, expectedChallenge: string): PasskeyVerification {
   return {
-    credential: { id: CREDENTIAL_ROW_ID, subjectId: SUBJECT_ID, secret },
+    credential: { id: CREDENTIAL_ROW_ID, subjectId: SUBJECT_ID, secret, rpId: RP_ID },
     expectedChallenge,
-    publicBaseUrl: PUBLIC_BASE_URL,
+    relyingParty: RELYING_PARTY,
   };
 }
 
@@ -74,7 +77,7 @@ describe('passkeyStep', () => {
   it('challenges with the passkey form when no assertion was submitted', async () => {
     const outcome = await passkeyStep(
       {},
-      { credential: null, expectedChallenge: null, publicBaseUrl: PUBLIC_BASE_URL },
+      { credential: null, expectedChallenge: null, relyingParty: RELYING_PARTY },
     );
 
     expect(outcome).toEqual({ kind: 'challenge', form: 'passkey' });
@@ -93,7 +96,7 @@ describe('passkeyStep', () => {
           signCount: secret.counter + 1,
         }),
       },
-      { credential: null, expectedChallenge: challenge, publicBaseUrl: PUBLIC_BASE_URL },
+      { credential: null, expectedChallenge: challenge, relyingParty: RELYING_PARTY },
     );
 
     expect(outcome).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
@@ -227,6 +230,27 @@ describe('passkeyStep', () => {
     expect(outcome).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
   });
 
+  it('fails a passkey recorded under another relying party id, whatever the signature says', async () => {
+    const { authenticator, secret } = await enrol(1);
+    const challenge = await offeredChallenge();
+    const assertion = authenticator.assertion({
+      challenge,
+      rpId: RP_ID,
+      origin: PUBLIC_BASE_URL,
+      signCount: 2,
+    });
+
+    const outcome = await passkeyStep(
+      { assertion },
+      {
+        ...verificationFor(secret, challenge),
+        credential: { id: CREDENTIAL_ROW_ID, subjectId: SUBJECT_ID, secret, rpId: 'old.example' },
+      },
+    );
+
+    expect(outcome).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
+  });
+
   it('[WEBAUTHN2-7.2.12-01] fails an assertion answering a challenge this server never offered', async () => {
     const { authenticator, secret } = await enrol(1);
     const offered = await offeredChallenge();
@@ -274,7 +298,7 @@ describe('counterAdvanced', () => {
 
 describe('passkeyAuthenticationOptions', () => {
   it('[WEBAUTHN2-7.2.1-01] names no credentials, so a browser offers every discoverable one it holds', async () => {
-    const { options, challenge } = await passkeyAuthenticationOptions(PUBLIC_BASE_URL);
+    const { options, challenge } = await passkeyAuthenticationOptions(RELYING_PARTY);
 
     expect(options.rpId).toBe(RP_ID);
     expect(options.allowCredentials).toBeUndefined();

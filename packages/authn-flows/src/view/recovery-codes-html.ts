@@ -1,4 +1,4 @@
-import { type PageLocale, type RenderedPage } from '@odudu/kernel';
+import { addressPath, type PageLocale, type RenderedPage, type TenantAddress } from '@odudu/kernel';
 import { type EnrolmentRefusal } from '#/schema/enrolment-refusal';
 import { escapeHtml, intro, page } from '#/view/document';
 import { t, tHtml, token } from '#/view/messages';
@@ -20,12 +20,15 @@ export interface RecoveryCodesOffer {
 // only the acknowledgement that the page was seen.
 export function renderRecoveryCodesPage(
   tenant: string,
+  address: TenantAddress,
   authSessionId: string,
   offer: RecoveryCodesOffer,
   error: EnrolmentRefusal | undefined,
   locale: PageLocale,
 ): RenderedPage {
-  const target = `/tenants/${escapeHtml(encodeURIComponent(tenant))}/login-actions/required-action?action=generate-recovery-codes`;
+  const target = escapeHtml(
+    addressPath(address, '/login-actions/required-action?action=generate-recovery-codes'),
+  );
   const replaced = offer.replaced ? `<p>${tHtml(locale, 'recoveryCodes.replaced')}</p>\n` : '';
   const items = offer.codes.map((code) => `  <li>${token(code)}</li>`).join('\n');
   const title = t(locale, 'recoveryCodes.title');

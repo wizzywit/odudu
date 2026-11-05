@@ -28,6 +28,8 @@ export const TENANT_CAPABILITIES = [
   'manage-keys',
   'manage-sessions',
   'view-audit',
+  'view-domains',
+  'manage-domains',
 ] as const;
 
 export type TenantCapability = (typeof TENANT_CAPABILITIES)[number];
@@ -62,6 +64,7 @@ export function isSystemTenantId(id: string): boolean {
 
 const VIEW_COUNTERPARTS: Partial<Record<TenantCapability, TenantCapability>> = {
   'manage-users': 'view-users',
+  'manage-domains': 'view-domains',
 };
 
 // A manage- capability implies its view- counterpart, so no subject can be

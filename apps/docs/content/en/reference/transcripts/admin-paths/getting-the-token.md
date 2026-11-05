@@ -262,12 +262,14 @@ did. The probe that says the token works at all:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3082/admin/tenants/system/whoami
+  http://localhost:3000/admin/tenants/system/whoami
 ```
 
 ```
-{"subjectId":"01a1203a-f86d-7e8e-a537-e39f5d77b04f","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","view-audit","view-users"],"crossTenant":false}
+{"subjectId":"01a1a8b1-70c0-7311-922c-8ce4551fc10b","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-domains","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","view-audit","view-domains","view-users"],"crossTenant":false}
 ```
+
+This block ran again after `view-domains` and `manage-domains` joined the built-in roles, so its ids and times are not those of the blocks around it. `ada` there is a different subject, so `subjectId` differs.
 
 ## The admin client itself
 

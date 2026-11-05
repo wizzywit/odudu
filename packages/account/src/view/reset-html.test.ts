@@ -1,4 +1,4 @@
-import { DEFAULT_PAGE_LOCALE } from '@odudu/kernel';
+import { DEFAULT_PAGE_LOCALE, pathAddress } from '@odudu/kernel';
 import { ARABIC, FRENCH } from '@odudu/testkit/i18n';
 import { describe, expect, it, vi } from 'vitest';
 import { en } from '#/view/messages';
@@ -50,14 +50,15 @@ const RULES = {
 
 describe('renderResetRequestForm', () => {
   it('returns a body fragment and a title beside the document', () => {
-    const page = renderResetRequestForm('acme', {}, EN);
+    const page = renderResetRequestForm('acme', pathAddress('https://idp.example', 'acme'), {}, EN);
     expect(page.title).toBe('Forgot your password?');
     expect(page.body).toContain('name="email"');
     expectFragment(page);
   });
 
   it('keeps the English markup exactly', () => {
-    expect(renderResetRequestForm('acme', {}, EN).body).toBe(`<header class="intro">
+    expect(renderResetRequestForm('acme', pathAddress('https://idp.example', 'acme'), {}, EN).body)
+      .toBe(`<header class="intro">
 <h1>Forgot your password?</h1>
 <p class="tenant"><bdi>acme</bdi></p>
 </header>
@@ -69,7 +70,12 @@ describe('renderResetRequestForm', () => {
 
   it('links back to sign-in and carries the way in the form', () => {
     const way = '/tenants/acme/protocol/openid-connect/auth?client_id=portal&state=x';
-    const { body } = renderResetRequestForm('acme', { signInPath: way }, EN);
+    const { body } = renderResetRequestForm(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      { signInPath: way },
+      EN,
+    );
     expect(body).toContain(
       '<input type="hidden" name="return_to" value="/tenants/acme/protocol/openid-connect/auth?client_id=portal&amp;state=x">',
     );
@@ -79,7 +85,12 @@ describe('renderResetRequestForm', () => {
   });
 
   it('comes back in place with the message, the field marked and focused', () => {
-    const { body } = renderResetRequestForm('acme', { emailRequired: true }, EN);
+    const { body } = renderResetRequestForm(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      { emailRequired: true },
+      EN,
+    );
     expect(body).toContain(`<div class="alert" role="alert" id="form-error">
 <ul>
 <li id="form-error-0">Email is required.</li>
@@ -92,24 +103,40 @@ describe('renderResetRequestForm', () => {
   });
 
   it('gives a typed address back, escaped and bounded', () => {
-    expect(renderResetRequestForm('acme', { email: '"><i>' }, EN).body).toContain(
-      'value="&quot;&gt;&lt;i&gt;"',
-    );
-    expect(renderResetRequestForm('acme', { email: 'x'.repeat(600) }, EN).body).not.toContain(
-      'xxxxxxxx',
-    );
+    expect(
+      renderResetRequestForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        { email: '"><i>' },
+        EN,
+      ).body,
+    ).toContain('value="&quot;&gt;&lt;i&gt;"');
+    expect(
+      renderResetRequestForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        { email: 'x'.repeat(600) },
+        EN,
+      ).body,
+    ).not.toContain('xxxxxxxx');
   });
 
   it('reads French, and English for what the fixture lacks', () => {
-    const page = renderResetRequestForm('acme', {}, FRENCH);
+    const page = renderResetRequestForm(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      {},
+      FRENCH,
+    );
     expect(page.title).toBe('Mot de passe oublié ?');
     expect(page.body).toContain(`<label>${en['reset.request.email']} <input`);
   });
 
   it('writes the tenant into the action as a path segment', () => {
-    expect(renderResetRequestForm('a b"><b>', {}, EN).html).toContain(
-      'action="/tenants/a%20b%22%3E%3Cb%3E/login-actions/reset-password"',
-    );
+    expect(
+      renderResetRequestForm('a b"><b>', pathAddress('https://idp.example', 'a b"><b>'), {}, EN)
+        .html,
+    ).toContain('action="/tenants/a%20b%22%3E%3Cb%3E/login-actions/reset-password"');
   });
 });
 
@@ -143,7 +170,7 @@ describe('renderResetRequestedPage', () => {
 
 describe('renderResetRequestFailedPage', () => {
   it('stays a page for the refusal that is not about the field, with the way to try again', () => {
-    const page = renderResetRequestFailedPage('acme', null, EN);
+    const page = renderResetRequestFailedPage(pathAddress('https://idp.example', 'acme'), null, EN);
     expect(page.title).toBe("Can't send a reset link");
     expect(page.body).toBe(`<h1>Can&#39;t send a reset link</h1>
 <p>Password reset is temporarily unavailable. Try again later.</p>
@@ -155,7 +182,11 @@ describe('renderResetRequestFailedPage', () => {
 
   it('keeps the way back through the retry and beside it', () => {
     const way = '/tenants/acme/protocol/openid-connect/auth?a=b';
-    const { body } = renderResetRequestFailedPage('acme', way, EN);
+    const { body } = renderResetRequestFailedPage(
+      pathAddress('https://idp.example', 'acme'),
+      way,
+      EN,
+    );
     expect(body).toContain(
       `href="/tenants/acme/login-actions/reset-password?return_to=${encodeURIComponent(way)}">Try again</a>`,
     );
@@ -163,23 +194,40 @@ describe('renderResetRequestFailedPage', () => {
   });
 
   it('reads French, and English for what the fixture lacks', () => {
-    expect(renderResetRequestFailedPage('acme', null, FRENCH).body).toContain(
-      en['reset.requestFailed.unavailable'],
-    );
+    expect(
+      renderResetRequestFailedPage(pathAddress('https://idp.example', 'acme'), null, FRENCH).body,
+    ).toContain(en['reset.requestFailed.unavailable']);
   });
 });
 
 describe('renderResetPasswordForm', () => {
   it('returns a body fragment and a title beside the document', () => {
-    const page = renderResetPasswordForm('acme', 'token-key', undefined, RULES, EN);
+    const page = renderResetPasswordForm(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      'token-key',
+      undefined,
+      RULES,
+      EN,
+    );
     expect(page.title).toBe('Choose a new password');
     expect(page.body).toContain('value="token-key"');
     expectFragment(page);
   });
 
   it('keeps the English markup exactly', () => {
-    expect(withoutScript(renderResetPasswordForm('acme', 'token-key', undefined, RULES, EN).body))
-      .toBe(`<header class="intro">
+    expect(
+      withoutScript(
+        renderResetPasswordForm(
+          'acme',
+          pathAddress('https://idp.example', 'acme'),
+          'token-key',
+          undefined,
+          RULES,
+          EN,
+        ).body,
+      ),
+    ).toBe(`<header class="intro">
 <h1>Choose a new password</h1>
 <p class="tenant"><bdi>acme</bdi></p>
 </header>
@@ -201,6 +249,7 @@ describe('renderResetPasswordForm', () => {
   it('comes back in place with every broken rule, the password field marked and focused', () => {
     const { body } = renderResetPasswordForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'token-key',
       [
         { rule: 'min-length', message: 'dev', minLength: 8 },
@@ -224,17 +273,32 @@ describe('renderResetPasswordForm', () => {
   });
 
   it('says a password is required, in French where the fixture has it', () => {
-    expect(renderResetPasswordForm('acme', 'k', 'required', RULES, EN).body).toContain(
-      '<li id="form-error-0">A new password is required.</li>',
-    );
-    expect(renderResetPasswordForm('acme', 'k', 'required', RULES, FRENCH).body).toContain(
-      '<li id="form-error-0">Un nouveau mot de passe est obligatoire.</li>',
-    );
+    expect(
+      renderResetPasswordForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'k',
+        'required',
+        RULES,
+        EN,
+      ).body,
+    ).toContain('<li id="form-error-0">A new password is required.</li>');
+    expect(
+      renderResetPasswordForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'k',
+        'required',
+        RULES,
+        FRENCH,
+      ).body,
+    ).toContain('<li id="form-error-0">Un nouveau mot de passe est obligatoire.</li>');
   });
 
   it('reads French rules, English for the rest, and isolates an unknown rule', () => {
     const { body } = renderResetPasswordForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'k',
       [
         { rule: 'min-length', message: 'dev', minLength: 1000 },
@@ -250,13 +314,27 @@ describe('renderResetPasswordForm', () => {
   });
 
   it('writes lang and dir for a right-to-left locale', () => {
-    expect(renderResetPasswordForm('acme', 'k', [], RULES, ARABIC).html).toContain(
-      '<html lang="ar" dir="rtl">',
-    );
+    expect(
+      renderResetPasswordForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'k',
+        [],
+        RULES,
+        ARABIC,
+      ).html,
+    ).toContain('<html lang="ar" dir="rtl">');
   });
 
   it('reads French, keeps the key and tenant escaped, and carries one script', () => {
-    const page = renderResetPasswordForm('<t>', '"><img src=x>', undefined, RULES, FRENCH);
+    const page = renderResetPasswordForm(
+      '<t>',
+      pathAddress('https://idp.example', '<t>'),
+      '"><img src=x>',
+      undefined,
+      RULES,
+      FRENCH,
+    );
     expect(page.body).toContain('<label>Nouveau mot de passe <input');
     expect(page.html).not.toContain('<img src=x>');
     expect(page.html).not.toContain('<t>');
@@ -326,12 +404,26 @@ describe('the reset pages a mailed link opens, with the way back it carried', ()
     '<a href="/tenants/acme/protocol/openid-connect/auth?client_id=c&amp;state=x">Back to sign in</a>';
 
   it('keeps the way back out of the form: it is held on the server, beside the token', () => {
-    expect(renderResetPasswordForm('acme', 'k', 'required', RULES, EN).body).not.toContain(
-      'return_to',
-    );
-    expect(renderResetPasswordForm('acme', 'k', undefined, RULES, EN).body).not.toContain(
-      'return_to',
-    );
+    expect(
+      renderResetPasswordForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'k',
+        'required',
+        RULES,
+        EN,
+      ).body,
+    ).not.toContain('return_to');
+    expect(
+      renderResetPasswordForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'k',
+        undefined,
+        RULES,
+        EN,
+      ).body,
+    ).not.toContain('return_to');
   });
 
   it('links back from the done page and beside the new-link one on the failed page', () => {

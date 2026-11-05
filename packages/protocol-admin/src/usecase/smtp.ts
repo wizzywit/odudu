@@ -12,7 +12,7 @@ import {
 import { type SmtpConfig } from '@odudu/contracts/admin';
 import { type MailBranding } from '@odudu/kernel';
 import { etagOf, matches } from '#/service/etag';
-import { clientMail, tenantMail } from '#/usecase/mail-preview';
+import { clientMail, tenantMail, type MailTenant } from '#/usecase/mail-preview';
 import { relayFailure, type RelayFailureKind } from '#/service/smtp-failure';
 import { checkSmtpDestination, type SmtpDestinationPolicy } from '#/service/smtp-destination';
 import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
@@ -266,7 +266,7 @@ const UNTHEMED: MailLookResolver = () => Promise.resolve({ branding: null, overr
 // included, is `client_not_found`.
 export async function readSmtpForTest(
   tx: TenantScopedDatabase,
-  tenant: { tenantId: string; tenantName: string },
+  tenant: MailTenant,
   resolveLook?: MailLookResolver,
   clientRowId?: string,
 ): Promise<ReadSmtpForTestOutcome> {

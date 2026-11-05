@@ -27,6 +27,9 @@ export interface AdminIds {
   readonly scope: string;
   readonly builtinScope: string;
   readonly registrationToken: string;
+  readonly domain: string;
+  readonly verifiedDomain: string;
+  readonly failedDomain: string;
   readonly key: string;
   readonly session: string;
 }
@@ -64,6 +67,18 @@ export async function adminIds(world: PlanWorld): Promise<AdminIds> {
     registrationToken: await one(
       sql`select id from client_registration_tokens where tenant_id = ${t} limit 1`,
       'registration token',
+    ),
+    domain: await one(
+      sql`select id from tenant_domains where tenant_id = ${t} and host = 'plans1.example.com'`,
+      'domain',
+    ),
+    verifiedDomain: await one(
+      sql`select id from tenant_domains where tenant_id = ${t} and host = 'plans2.example.com'`,
+      'verified domain',
+    ),
+    failedDomain: await one(
+      sql`select id from tenant_domains where tenant_id = ${t} and host = 'plans7.example.com'`,
+      'failed domain',
     ),
     key: await one(sql`select id from signing_keys where tenant_id = ${t} limit 1`, 'key'),
     session: await one(sql`select id from sessions where tenant_id = ${t} limit 1`, 'session'),
@@ -287,6 +302,7 @@ export function adminPaths(ids: AdminIds): {
     { path: `${C}/${ids.client}/logout-deliveries?status=failed` },
     { path: `${C}/${ids.client}/sessions` },
     { path: `${T}/registration-tokens` },
+    { path: `${T}/domains` },
     { path: `${T}/message-overrides?locale=en` },
     { path: `${T}/keys` },
     { path: `${T}/flow/executions` },
@@ -359,6 +375,9 @@ export function adminPaths(ids: AdminIds): {
     { path: `${T}/scopes/${ids.scope}/impact` },
     { path: `${T}/scopes/${ids.builtinScope}/impact` },
     { path: `${T}/scopes/builtins` },
+    { path: `${T}/domains/${ids.domain}` },
+    { path: `${T}/domains/passkey-impact?canonical=path` },
+    { path: `${T}/domains/passkey-impact?canonical=plans1.example.com` },
   ];
   return { lists, reads };
 }

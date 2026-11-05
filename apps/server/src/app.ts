@@ -16,6 +16,14 @@ import {
   type MailGate,
 } from '@odudu/account';
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import {
+  dnsChallengeResolver,
+  hostState,
+  tenantAddressing,
+  type HostState,
+  type ResolveTxt,
+  type TenantAddressing,
+} from '@odudu/domain-tenant';
 import { createBranding, type Branding } from '#/branding';
 import { createMailLook } from '#/mail-look';
 import { createDatabaseMessageOverrides, type MessageOverrides } from '#/message-overrides';
@@ -52,6 +60,7 @@ import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
   configureIssuerBase,
+  configureTenantAddress,
   endAllAccess,
   tenantIssuerFor,
   oidcRoutes,
@@ -70,12 +79,15 @@ import Fastify, {
   type RouteOptions,
   type RawServerDefault,
 } from 'fastify';
+import { randomBytes } from 'node:crypto';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
 import { findHeldSignInIn } from '#/held-sign-in';
 import { createClientKeyRequest, defaultClientKeyLookup } from '#/client-key-transport';
 import { type ConsoleKeys, missingConsoleKey } from '#/console-key';
 import { registerHealth } from '#/health';
+import { registerDomainCheck } from '#/domain-check';
+import { configureHostResolution } from '#/host-resolution';
 import { type RateLimiter, slidingWindow } from '#/throttle';
 import { mailGate as createMailGate } from '#/mail-limiter';
 import { neutraliseRequestInput } from '#/input-hygiene';
@@ -152,6 +164,13 @@ export interface AppDeps {
    * `ODUDU_TLS`; required, so a caller cannot lose it silently.
    */
   readonly tls: boolean;
+  /**
+   * The resolver a domain's ownership check reads its TXT record through: the
+   * system resolver unless a test names another.
+   */
+  readonly resolveTxt?: ResolveTxt;
+  /** The source a domain's challenge is drawn from: `crypto.randomBytes` unless a test names another. */
+  readonly randomBytes?: () => Buffer;
   /** The console gateway's clock, so a test can age a pending sign-in. */
   readonly consoleNow?: () => Date;
   /** Called with every route as it is registered, for a tool that lists what the app serves. */
@@ -200,6 +219,8 @@ export interface AppDeps {
    * `ODUDU_LOGIN_THROTTLE_*` says.
    */
   readonly loginThrottle?: ThrottleSettings;
+  /** The proxy's domain question; its own budget, per origin. */
+  readonly domainCheckThrottle?: ThrottleSettings;
   /**
    * ADR 0028's escape hatch for a `jwks_uri` resolving to a private or
    * loopback address — the same flag `main.ts` already passes to the
@@ -223,6 +244,14 @@ export interface AppDeps {
   readonly deploymentSmtp?: boolean;
   /** `ODUDU_OUTBOX_MAX_ATTEMPTS`, what the admin API's mail listing calls `failed`. */
   readonly outboxMaxAttempts?: number;
+  /**
+   * What a request's host is: served by a verified domain, registered and not
+   * serving, or nobody's. Defaults to `hostState` on `ownerDatabase`; a test
+   * passes its own to count the reads.
+   */
+  readonly hostState?: (host: string) => Promise<HostState>;
+  /** Defaults to `tenantAddressing` on `ownerDatabase`; a test counts the reads. */
+  readonly addressing?: (tenantName: string, issuer: string) => Promise<TenantAddressing | null>;
 }
 
 export interface ThrottleSettings {
@@ -231,6 +260,12 @@ export interface ThrottleSettings {
 }
 
 export const DEFAULT_THROTTLE: ThrottleSettings = { limit: 10, windowSeconds: 60 };
+
+// Per origin, and the origin is normally the one proxy. A certificate is
+// asked about once per new host and then cached by the proxy, so this leaves
+// room for a burst of a few hundred handshakes while bounding how fast the
+// registered hosts can be enumerated.
+export const DEFAULT_DOMAIN_CHECK_THROTTLE: ThrottleSettings = { limit: 300, windowSeconds: 60 };
 
 export const DEFAULT_LOGIN_THROTTLE: ThrottleSettings = { limit: 5, windowSeconds: 60 };
 
@@ -372,6 +407,19 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // The issuer is the configured public address wherever one is stated, for the
   // OIDC routes and the admin API alike; never what a Host header says.
   configureIssuerBase(app, deps.publicBaseUrl);
+  configureTenantAddress(app);
+  const hostStateOf =
+    deps.hostState ?? ((host: string) => hostState(deps.ownerDatabase.db, host, systemClock.now()));
+  const pathAddressCheck = configureHostResolution(app, {
+    publicBaseUrl: deps.publicBaseUrl,
+    trustProxy: deps.trustProxy ?? false,
+    tls,
+    state: hostStateOf,
+    addressing:
+      deps.addressing ??
+      ((tenantName, issuer) =>
+        tenantAddressing(deps.ownerDatabase.db, tenantName, issuer, systemClock.now())),
+  });
 
   if (deps.onRoute !== undefined) app.addHook('onRoute', deps.onRoute);
 
@@ -390,7 +438,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       ...(deps.docsDir === undefined ? {} : { docs: '/docs/' }),
     },
   };
-  app.setNotFoundHandler((request, reply) => answerNotFound(request, reply, unrouted));
+  // A domain is the tenant's own address: its pages name no operator link.
+  const atDomain: UnroutedDeps = { links: {} };
+  app.setNotFoundHandler((request, reply) =>
+    answerNotFound(request, reply, request.tenantAddress?.prefix === '' ? atDomain : unrouted),
+  );
   app.setErrorHandler<FastifyError>((error, request, reply) =>
     answerServerError(error, request, reply),
   );
@@ -430,10 +482,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // names) — so the two can never disagree about which mappers exist.
   const claimMappers = standardClaimMappers();
 
-  // At onRequest, so a refusal costs neither the body parse nor anything
-  // that touches the database. It is also what keeps the refusal from
-  // being an oracle: nothing here has looked an account up, so a throttled
-  // request cannot answer differently for an account that exists.
+  // At onRequest, so a refusal costs neither the body parse nor any account
+  // lookup. It is also what keeps the refusal from being an oracle: nothing
+  // here has looked an account up, so a throttled request cannot answer
+  // differently for an account that exists. A request for a domain host has
+  // already paid that host's one indexed read, because it picks the route.
   app.addHook('onRequest', async (request, reply) => {
     if (request.method !== 'POST') return;
     const route = request.routeOptions.url;
@@ -442,6 +495,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (decision.allowed) return;
     return refuse(reply, route, decision.retryAfterSeconds);
   });
+
+  // After the throttle, so a throttled request costs no statement about its
+  // tenant. A domain host's own lookup cannot wait: it decides the route.
+  app.addHook('onRequest', pathAddressCheck);
 
   // Under /tenants, before anything reads a value: a NUL or a lone surrogate
   // in a name, a form field, a query parameter or the tenant segment cannot
@@ -474,6 +531,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(cookie);
 
   registerHealth(app, deps);
+  registerDomainCheck(app, {
+    state: hostStateOf,
+    resolving: deps.publicBaseUrl !== undefined,
+    throttle: slidingWindow({
+      ...(deps.domainCheckThrottle ?? DEFAULT_DOMAIN_CHECK_THROTTLE),
+      now: () => new Date(),
+    }),
+  });
   app.register(instrumentRoutes(deps.instrumentDir ?? DEFAULT_INSTRUMENT_DIR));
   app.register(
     brandRoutes({
@@ -530,6 +595,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         invalidate: messageOverrides.invalidateTenant,
       },
       themePreviewPages: THEME_PREVIEW_PAGES,
+      resolveTxt: deps.resolveTxt ?? dnsChallengeResolver(),
+      randomBytes: deps.randomBytes ?? (() => randomBytes(32)),
+      publicBaseUrl: deps.publicBaseUrl,
+      tls,
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
       logger: deps.logger,

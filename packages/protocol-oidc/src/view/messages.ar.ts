@@ -4,6 +4,10 @@ export const ar: Readonly<Record<string, string>> = {
     'حاول مرة أخرى بعد {seconds, plural, zero {{seconds, number, ::group-off} ثانية} one {ثانية واحدة} two {ثانيتين} few {{seconds, number, ::group-off} ثوانٍ} many {{seconds, number, ::group-off} ثانية} other {{seconds, number, ::group-off} ثانية}}.',
   'throttled.goBack': 'عد إلى الصفحة السابقة عندما ينتهي الوقت.',
 
+  'movedAddress.title': 'تم نقل هذا العنوان',
+  'movedAddress.body':
+    'لم يعد تسجيل الدخول متاحًا في هذا العنوان. تابع من العنوان الجديد بدلًا من ذلك:',
+
   'notFound.title': 'الصفحة غير موجودة',
   'notFound.body': 'لا يوجد شيء في هذا العنوان.',
   'notFound.link.console': 'افتح وحدة التحكم',

@@ -1,4 +1,4 @@
-import { DEFAULT_PAGE_LOCALE } from '@odudu/kernel';
+import { DEFAULT_PAGE_LOCALE, pathAddress } from '@odudu/kernel';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -128,6 +128,7 @@ describe('renderLoginForm', () => {
   it('returns a body fragment and a title beside the document', () => {
     const page = renderLoginForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'session-id',
       'password',
       undefined,
@@ -149,6 +150,7 @@ describe('renderLoginForm', () => {
   it('titles the second-factor form for what it asks, not as a second sign-in', () => {
     const otp = renderLoginForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'session-id',
       'otp',
       undefined,
@@ -165,6 +167,7 @@ describe('renderLoginForm', () => {
     expect(otp.body).not.toContain('Sign in');
     const recovery = renderLoginForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'session-id',
       'recovery-code',
       undefined,
@@ -182,6 +185,7 @@ describe('renderLoginForm', () => {
   it('offers remember me when the tenant allows it', () => {
     const page = renderLoginForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'session-id',
       'password',
       false,
@@ -201,6 +205,7 @@ describe('renderLoginForm', () => {
   it('offers nothing when the tenant does not allow it', () => {
     const page = renderLoginForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'session-id',
       'password',
       false,
@@ -223,6 +228,7 @@ describe('renderLoginForm', () => {
   it('escapes a tenant name that is not a DNS label', () => {
     const page = renderLoginForm(
       'esc"><script>alert(1)<x',
+      pathAddress('https://idp.example', 'esc"><script>alert(1)<x'),
       'session-id',
       'password',
       undefined,
@@ -241,6 +247,7 @@ describe('renderLoginForm', () => {
   it('sets the passkey button in a paragraph, clear of the sign-in button', () => {
     const page = renderLoginForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'sid',
       'password',
       true,
@@ -259,6 +266,7 @@ describe('renderLoginForm', () => {
   it('opens with the page heading and the tenant, as a heading the person can find', () => {
     const body = renderLoginForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'sid',
       'otp',
       undefined,
@@ -278,8 +286,19 @@ describe('renderLoginForm', () => {
 
   describe('naming the client the request is for', () => {
     const render = (client: string | undefined, locale: typeof FRENCH = DEFAULT_PAGE_LOCALE) =>
-      renderLoginForm('acme', 'sid', 'password', false, false, undefined, false, client, {}, locale)
-        .body;
+      renderLoginForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'sid',
+        'password',
+        false,
+        false,
+        undefined,
+        false,
+        client,
+        {},
+        locale,
+      ).body;
 
     it('says where the person is going, isolated, between the heading and the tenant', () => {
       const body = render('Acme Portal');
@@ -311,6 +330,7 @@ describe('renderLoginForm', () => {
     it('puts the message in an alert above the form', () => {
       const page = renderLoginForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'session-id',
         'password',
         false,
@@ -334,6 +354,7 @@ describe('renderLoginForm', () => {
       expect(
         renderLoginForm(
           'acme',
+          pathAddress('https://idp.example', 'acme'),
           'session-id',
           'password',
           undefined,
@@ -351,6 +372,7 @@ describe('renderLoginForm', () => {
       const render = (locale: typeof FRENCH) =>
         renderLoginForm(
           'acme',
+          pathAddress('https://idp.example', 'acme'),
           'sid',
           'password',
           false,
@@ -372,6 +394,7 @@ describe('renderLoginForm', () => {
     it('gives the username back and moves focus to the empty password field', () => {
       const page = renderLoginForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'sid',
         'password',
         false,
@@ -393,6 +416,7 @@ describe('renderLoginForm', () => {
     it('focuses the username when there is none to give back', () => {
       const page = renderLoginForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'sid',
         'password',
         false,
@@ -410,6 +434,7 @@ describe('renderLoginForm', () => {
     it('never puts anything but the username into a value attribute', () => {
       const page = renderLoginForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'sid',
         'password',
         false,
@@ -441,6 +466,7 @@ describe('renderLoginForm', () => {
     ])('escapes %s in the username it gives back', (_name, username) => {
       const page = renderLoginForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'sid',
         'password',
         false,
@@ -476,6 +502,7 @@ describe('renderLoginForm', () => {
     ])('counts code points at the echo bound: %s', (_label, username, echoed) => {
       const page = renderLoginForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'sid',
         'password',
         false,
@@ -495,6 +522,7 @@ describe('renderLoginForm', () => {
     it('does not echo an empty username as an empty value', () => {
       const page = renderLoginForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'sid',
         'password',
         false,
@@ -515,6 +543,7 @@ describe('renderLoginForm', () => {
     it('does not reflect a very long username', () => {
       const page = renderLoginForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'sid',
         'password',
         false,
@@ -536,6 +565,7 @@ describe('renderLoginForm', () => {
     it('asks for a code with focus on the code field, and gives back nothing', () => {
       const otp = renderLoginForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'sid',
         'otp',
         false,
@@ -554,6 +584,7 @@ describe('renderLoginForm', () => {
       expect(otp.body).not.toContain('ada');
       const recovery = renderLoginForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'sid',
         'recovery-code',
         false,
@@ -571,6 +602,7 @@ describe('renderLoginForm', () => {
       expect(
         renderLoginForm(
           'acme',
+          pathAddress('https://idp.example', 'acme'),
           'sid',
           'password',
           undefined,
@@ -585,6 +617,7 @@ describe('renderLoginForm', () => {
       expect(
         renderLoginForm(
           'acme',
+          pathAddress('https://idp.example', 'acme'),
           'sid',
           'otp',
           undefined,
@@ -602,7 +635,19 @@ describe('renderLoginForm', () => {
 
 describe('the text of the sign-in pages', () => {
   const login = (form: string, locale: typeof FRENCH, passkey = false) =>
-    renderLoginForm('acme', 'sid', form, passkey, true, undefined, true, undefined, {}, locale);
+    renderLoginForm(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      'sid',
+      form,
+      passkey,
+      true,
+      undefined,
+      true,
+      undefined,
+      {},
+      locale,
+    );
 
   it('keeps the English markup of the password form', () => {
     expect(login('password', DEFAULT_PAGE_LOCALE).body).toBe(
@@ -644,6 +689,7 @@ describe('the text of the sign-in pages', () => {
     expect(
       renderLoginForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'sid',
         'password',
         false,
@@ -728,6 +774,7 @@ describe('the text of the sign-in pages', () => {
     for (const locale of [DEFAULT_PAGE_LOCALE, FRENCH]) {
       const page = renderLoginForm(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         'sid',
         'password',
         false,
@@ -807,9 +854,10 @@ describe('the text of the sign-in pages', () => {
 });
 
 describe('renderLoginForm marks what it refused', () => {
-  const render = (form: string, messageId: Parameters<typeof renderLoginForm>[5]) =>
+  const render = (form: string, messageId: Parameters<typeof renderLoginForm>[6]) =>
     renderLoginForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'sid',
       form,
       false,
@@ -844,9 +892,10 @@ describe('renderLoginForm marks what it refused', () => {
 });
 
 describe('renderLoginForm ways on', () => {
-  const render = (form: string, ways: Parameters<typeof renderLoginForm>[8]) =>
+  const render = (form: string, ways: Parameters<typeof renderLoginForm>[9]) =>
     renderLoginForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'sid',
       form,
       false,
@@ -906,6 +955,7 @@ describe('renderLoginForm with an unusual tenant name', () => {
   it('writes the name into every path as a segment, and into the page as text', () => {
     const page = renderLoginForm(
       'a b?"<%',
+      pathAddress('https://idp.example', 'a b?"<%'),
       'sid',
       'password',
       true,
@@ -947,6 +997,7 @@ describe('a refused sign-in form reads coherently to a screen reader', () => {
       expectCoherent(
         renderLoginForm(
           'acme',
+          pathAddress('https://idp.example', 'acme'),
           'sid',
           form,
           false,

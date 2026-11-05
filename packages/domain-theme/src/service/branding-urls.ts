@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { addressPath, type TenantAddress } from '@odudu/kernel';
 
 const EXTENSION: Record<string, string> = {
   'image/png': 'png',
@@ -21,11 +22,9 @@ export function assetExtension(mime: string): string | null {
 
 // Where a tenant's image is served: its content hash, so the URL changes
 // when the bytes do. Null for a type no upload produces.
-export function assetPath(tenantName: string, sha256: string, mime: string): string | null {
+export function assetPath(address: TenantAddress, sha256: string, mime: string): string | null {
   const extension = assetExtension(mime);
-  return extension === null
-    ? null
-    : `/tenants/${encodeURIComponent(tenantName)}/brand/${sha256}.${extension}`;
+  return extension === null ? null : addressPath(address, `/brand/${sha256}.${extension}`);
 }
 
 // The hashed stylesheet of a resolved theme. A route receives only the URL,
@@ -34,12 +33,12 @@ export function assetPath(tenantName: string, sha256: string, mime: string): str
 // client's row id (a uuid, safe in a CSP path), from which the route
 // resolves the same layers again.
 export function stylesheetPath(
-  tenantName: string,
+  address: TenantAddress,
   css: string,
   clientRowId: string | null = null,
 ): string {
   const scope = clientRowId === null ? '' : `c/${clientRowId}/`;
-  return `/tenants/${encodeURIComponent(tenantName)}/brand/${scope}${sha256Hex(css)}.css`;
+  return addressPath(address, `/brand/${scope}${sha256Hex(css)}.css`);
 }
 
 export type BrandFile =

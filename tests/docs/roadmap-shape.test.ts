@@ -5,7 +5,7 @@ const PAGE = 'apps/docs/content/en/roadmap.md';
 const SPEC = 'docs/superpowers/specs/2026-09-10-odudu-design.md';
 const RELEASE = 'P4g';
 // Closed after the release row in the table, which is in execution order.
-const SHIPPED_AFTER_RELEASE = ['P4b', 'P4k'];
+const SHIPPED_AFTER_RELEASE = ['P4b', 'P4k', 'P4j'];
 
 // What the roadmap table orders: every phase before the release is closed, the
 // release is this one, and the rest are ahead.
@@ -162,7 +162,6 @@ describe('the roadmap page', () => {
     ['several sign-in flows', 'P4f'],
     ['per-step authenticator configuration', 'P4f'],
     ['a breached-password check', 'P4f'],
-    ['a public address of its own', 'P4j'],
     ['custom subject attributes', 'P7'],
     ['fine-grained admin permissions', 'P9'],
     ['per-client dedicated mappers', 'P10'],

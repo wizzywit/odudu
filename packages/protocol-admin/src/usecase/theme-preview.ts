@@ -8,6 +8,7 @@ import {
   type PageKind,
   type PreviewRender,
   type RenderedPage,
+  pathAddress,
 } from '@odudu/kernel';
 import {
   dataUri,
@@ -73,7 +74,11 @@ async function prepare(
   if (tenantPublished !== null && isClient) {
     layers.push({ name: 'tenant', layer: layerOf(tenantPublished, images) });
   }
-  const built = buildBranding({ tenantName: target.tenantName, origin: input.origin, layers });
+  const built = buildBranding({
+    address: pathAddress(input.origin, target.tenantName),
+    origin: input.origin,
+    layers,
+  });
 
   const fallbacks = new Set<PageKind>(built.refused.map((entry) => entry.kind));
   const kind = input.query.kind ?? DEFAULT_KIND;

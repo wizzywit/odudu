@@ -6,7 +6,11 @@ import {
   signJwt,
   type SigningKeyRecord,
 } from '@odudu/crypto';
-import { subjectOfIdTokenHint, subjectOfLogoutHint } from '#/usecase/authorization-request';
+import {
+  subjectOfAuthorizeHint,
+  subjectOfIdTokenHint,
+  subjectOfLogoutHint,
+} from '#/usecase/authorization-request';
 
 const KEK = new Uint8Array(32).fill(3);
 const ISS = 'https://issuer.example';
@@ -43,7 +47,7 @@ describe('subjectOfIdTokenHint refuses a signed UserInfo response', () => {
     const result = await subjectOfIdTokenHint(
       { listPublishableKeys: () => Promise.resolve([key]) },
       'tenant-1',
-      ISS,
+      [ISS],
       userinfoResponse,
       AUDIENCE_UNCHECKED,
     );
@@ -64,7 +68,7 @@ describe('subjectOfIdTokenHint refuses a signed UserInfo response', () => {
     const result = await subjectOfIdTokenHint(
       { listPublishableKeys: () => Promise.resolve([key]) },
       'tenant-1',
-      ISS,
+      [ISS],
       noTypPayload,
       AUDIENCE_UNCHECKED,
     );
@@ -88,7 +92,7 @@ describe('subjectOfIdTokenHint refuses a signed UserInfo response', () => {
     const result = await subjectOfIdTokenHint(
       { listPublishableKeys: () => Promise.resolve([key]) },
       'tenant-1',
-      ISS,
+      [ISS],
       idToken,
       AUDIENCE_UNCHECKED,
     );
@@ -112,7 +116,7 @@ describe('subjectOfIdTokenHint refuses a signed UserInfo response', () => {
     const result = await subjectOfIdTokenHint(
       { listPublishableKeys: () => Promise.resolve([key]) },
       'tenant-1',
-      ISS,
+      [ISS],
       unsecured,
       AUDIENCE_UNCHECKED,
     );
@@ -139,7 +143,7 @@ describe('subjectOfLogoutHint reads a lapsed hint', () => {
   }
 
   const read = (key: SigningKeyRecord, token: string) =>
-    subjectOfLogoutHint({ listPublishableKeys: () => Promise.resolve([key]) }, 't', ISS, token);
+    subjectOfLogoutHint({ listPublishableKeys: () => Promise.resolve([key]) }, 't', [ISS], token);
 
   it('returns the claims of a hint that expired years ago', async () => {
     const key = await makeKey();
@@ -158,7 +162,7 @@ describe('subjectOfLogoutHint reads a lapsed hint', () => {
     const result = await subjectOfIdTokenHint(
       { listPublishableKeys: () => Promise.resolve([key]) },
       't',
-      ISS,
+      [ISS],
       token,
       AUDIENCE_UNCHECKED,
     );
@@ -175,6 +179,22 @@ describe('subjectOfLogoutHint reads a lapsed hint', () => {
   ])('refuses a lapsed hint with %s', async (_name, make) => {
     const key = await makeKey();
     expect(await read(key, await make(key))).toBeNull();
+  });
+
+  describe('a tenant that moved to another address', () => {
+    const PREVIOUS = 'https://old.example/tenants/acme';
+
+    it('reads a hint minted under a retired issuer while it is accepted, and not after', async () => {
+      const key = await makeKey();
+      const token = await lapsed(key, { iss: PREVIOUS });
+      const deps = { listPublishableKeys: () => Promise.resolve([key]) };
+      expect(await subjectOfLogoutHint(deps, 't', [ISS, PREVIOUS], token)).not.toBeNull();
+      expect(
+        await subjectOfAuthorizeHint(deps, 't', [ISS, PREVIOUS], token, CLIENT_ID),
+      ).not.toBeNull();
+      expect(await subjectOfLogoutHint(deps, 't', [ISS], token)).toBeNull();
+      expect(await subjectOfAuthorizeHint(deps, 't', [ISS], token, CLIENT_ID)).toBeNull();
+    });
   });
 
   it('refuses a lapsed hint signed by a key this tenant does not publish', async () => {

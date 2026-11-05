@@ -1,9 +1,18 @@
 import { type PendingRequest } from '@odudu/authn-flows';
-import Fastify from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
+import { pathAddress } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import { sendSignInExpired } from '#/view/routes/expired-sign-in';
 import { sendLoginOutcome, type LoginResponseDeps } from '#/view/routes/login-response';
 import { type ContinuationDeps } from '#/view/routes/continuation';
+
+const ADDRESS = pathAddress('https://idp.example', 'acme');
+
+// These routes have no tenant segment, so the address is fixed.
+function withAddress(app: FastifyInstance): FastifyInstance {
+  app.decorateRequest('tenantAddress', { getter: () => ADDRESS });
+  return app;
+}
 
 const PENDING: PendingRequest = {
   clientId: 'app',
@@ -30,7 +39,7 @@ function deps(
 
 async function answer(d: ContinuationDeps, ...rest: [id?: string] | [undefined]) {
   const id = rest.length === 0 ? 'x' : rest[0];
-  const app = Fastify();
+  const app = withAddress(Fastify());
   app.get('/p', (_request, reply) => sendSignInExpired(reply, d, 'acme', id));
   return app.inject({ url: '/p', headers: { host: 'op.example' } });
 }
@@ -82,7 +91,7 @@ describe('sendSignInExpired', () => {
 describe('the login outcome that resumes a parked login', () => {
   it('offers the same way on, since it answers through the same function', async () => {
     const d = { ...deps(PENDING) } as unknown as LoginResponseDeps;
-    const app = Fastify();
+    const app = withAddress(Fastify());
     app.get('/p', (_request, reply) =>
       sendLoginOutcome(reply, d, 'acme', { kind: 'unauthenticated' }, 'some-id'),
     );

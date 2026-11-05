@@ -109,3 +109,74 @@ export {
   type ProvisionAdminClientOptions,
   type ProvisionedAdminClient,
 } from '#/usecase/provision-admin-client';
+export {
+  baseIsTls,
+  canonicalAddressFor,
+  type LookupCanonicalDomain,
+} from '#/usecase/canonical-address';
+export {
+  canonicalHostOf,
+  CanonicalConflictError,
+  DomainConflictError,
+  hostState,
+  lookupHost,
+  MAX_DOMAINS_PER_TENANT,
+  tenantAddressing,
+  tenantDomainRepository,
+  verifiedDomainPage,
+  type DomainConflict,
+  type DomainRow,
+  type HostRoute,
+  type HostState,
+  type NewDomain,
+  type RetiredIssuer,
+  type TenantAddressing,
+  type VerifiedDomainRow,
+} from '#/repository/tenant-domains';
+export { tenantDomains, tenantIssuerRetirements, type DomainState } from '#/schema/tenant-domains';
+export {
+  canonicalHost,
+  challengeName,
+  CHALLENGE_PREFIX,
+  DOMAIN_CODES,
+  newChallenge,
+  refuseHost,
+  REFUSAL_CODES,
+  lookupTxtOutcome,
+  txtMatchesChallenge,
+  type ResolveTxt,
+  type TxtOutcome,
+  type DomainCode,
+  type DomainRefusal,
+} from '#/service/tenant-domain';
+export {
+  verifyDomain,
+  type VerifyDomainDomains,
+  type VerifyDomainDeps,
+  type VerifyDomainOutcome,
+} from '#/usecase/verify-domain';
+export {
+  recheckDomains,
+  type RecheckAuditEvent,
+  type RecheckDomainsDeps,
+  type RecheckReport,
+  type RecheckScope,
+} from '#/usecase/recheck-domains';
+export {
+  switchCanonical,
+  type SwitchCanonicalDeps,
+  type SwitchDomains,
+  type SwitchOptions,
+  type SwitchOutcome,
+  type SwitchTarget,
+} from '#/usecase/switch-canonical';
+export {
+  registerDomain,
+  type RegisterDomainDeps,
+  type RegisterDomainOutcome,
+} from '#/usecase/register-domain';
+export {
+  dnsChallengeResolver,
+  DEFAULT_LOOKUP_TIMEOUT_MS,
+  type DnsChallengeOptions,
+} from '#/adapter/dns-challenge';

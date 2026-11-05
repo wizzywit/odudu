@@ -9,7 +9,7 @@ import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
 beforeAll(async () => {
-  fixtureHandle = await startAdminFixture();
+  fixtureHandle = await startAdminFixture({ domainsBaseUrl: 'https://id.operator.test' });
   fixture = fixtureHandle;
 }, 180_000);
 afterAll(async () => {
@@ -102,6 +102,12 @@ describe('a create answers the ETag its record reads back with', () => {
       tail: '/keys',
       body: () => ({ alg: 'ES256' }),
       listed: '/keys',
+    },
+    {
+      route: 'POST /admin/tenants/:tenant/domains',
+      tail: '/domains',
+      body: () => ({ host: `login${newId().slice(-6)}.acme-corp.org` }),
+      read: (id) => `/domains/${id}`,
     },
     {
       route: 'POST /admin/tenants/:tenant/registration-tokens',

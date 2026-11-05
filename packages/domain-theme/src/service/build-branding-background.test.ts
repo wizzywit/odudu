@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { pathAddress } from '@odudu/kernel';
 import { backgroundCss, brandingCss, tokensCss } from '#/service/branding-css';
 import { buildBranding } from '#/service/build-branding';
 import { type PublishedLayer } from '#/service/record';
@@ -35,7 +36,7 @@ function build(
   layers: { name: 'client' | 'tenant'; layer: PublishedLayer }[],
   tenantName = 'acme',
 ) {
-  return buildBranding({ tenantName, origin: ORIGIN, layers });
+  return buildBranding({ address: pathAddress(ORIGIN, tenantName), origin: ORIGIN, layers });
 }
 
 describe('the background image', () => {

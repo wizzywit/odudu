@@ -1,4 +1,10 @@
 import {
+  domainSchema,
+  listDomainsQuerySchema,
+  listDomainsResponseSchema,
+  passkeyImpactQuerySchema,
+  passkeyImpactResponseSchema,
+  registerDomainRequestSchema,
   addRoleCompositeRequestSchema,
   listRoleCompositesResponseSchema,
   setRoleDefaultRequestSchema,
@@ -914,7 +920,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'secret a reader would expect is named under `omitted` by its JSON path. Additionally ' +
       'requires `manage-clients`, the capability every other client read requires, refused ' +
       'with `403` otherwise. `?include=subjects` adds subjects and additionally requires ' +
-      '`view-users`, refused with `403` otherwise and with `413` above 10,000 subjects.',
+      '`view-users`, refused with `403` otherwise and with `413` above 10,000 subjects. ' +
+      'The tenant\u2019s domains are not in it, and an import refuses a `domains` key as an ' +
+      'unknown field, so a host can only be claimed by proving it.',
   },
   {
     method: 'GET',
@@ -1278,6 +1286,92 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-clients',
     responseSchema: z.void(),
     successStatus: 204,
+  },
+  // A tenant's custom domains: reads under `view-domains`, which
+  // `manage-domains` composes, every change under `manage-domains`.
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/domains',
+    capability: 'view-domains',
+    responseSchema: listDomainsResponseSchema,
+    querystringSchema: listDomainsQuerySchema,
+    description:
+      'Paged by host. Answers an `ETag` over which domain, if any, is the tenant\u2019s address, ' +
+      'which `activate` and `deactivate` take in `If-Match`.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/domains',
+    capability: 'manage-domains',
+    responseSchema: domainSchema,
+    successStatus: 201,
+    bodySchema: registerDomainRequestSchema,
+    description:
+      'Registers a host, pending, and answers the TXT record to publish under `dns_record`. ' +
+      'Refused with a typed `409` or `422` for the system tenant, a server with no public base ' +
+      'URL, a tenant at its limit of domains, a host already registered, ' +
+      'an IP address, `localhost`, this server\u2019s own host, a reserved name or ' +
+      'a host that is not a lowercase punycode DNS name.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/domains/passkey-impact',
+    capability: 'view-domains',
+    responseSchema: passkeyImpactResponseSchema,
+    querystringSchema: passkeyImpactQuerySchema,
+    description:
+      'How many subjects hold a passkey that switching the tenant\u2019s address to `canonical` ' +
+      'would hide: those registered under a different relying party ID than that address uses. ' +
+      'A passkey with no recorded ID is not counted. Counted to a ceiling, then `capped`.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/domains/:id',
+    capability: 'view-domains',
+    responseSchema: domainSchema,
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/domains/:id/verify',
+    capability: 'manage-domains',
+    responseSchema: domainSchema,
+    description:
+      'Looks the TXT record up and verifies the domain when it holds the challenge; a domain ' +
+      'whose record is not there yet stays `pending`. A tenant looks a host up at most once ' +
+      'every 30 seconds and makes at most ten lookups a minute, otherwise `429` with ' +
+      '`Retry-After`. A host another tenant verified first is refused here with `409`, not at ' +
+      'registration.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/domains/:id/activate',
+    capability: 'manage-domains',
+    responseSchema: domainSchema,
+    description:
+      'Makes a verified domain the tenant\u2019s address, in one transaction that also lets the ' +
+      'previous address\u2019s tokens stay valid for an hour. Refused with `409` for a domain that ' +
+      'is not verified and when another change of the address landed first. `If-Match`, ' +
+      'from a domains read, is required: `428` without it, `412` when stale. Already the ' +
+      'address: answered unchanged.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/domains/:id/deactivate',
+    capability: 'manage-domains',
+    responseSchema: domainSchema,
+    description:
+      'Returns the tenant to its path address when this domain is its address, with the same ' +
+      'hour for the domain\u2019s tokens. Makes no DNS lookup. A domain that is not the address is ' +
+      'answered unchanged. `If-Match` is required: `428` without it, `412` when stale.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/domains/:id',
+    capability: 'manage-domains',
+    responseSchema: z.void(),
+    successStatus: 204,
+    description:
+      'Refused with `409` while the domain is the tenant\u2019s address: deactivate it first.',
   },
   // Roles, groups and client scopes: manage-tenant for all three, the same
   // shape (cursor pagination, ETag/If-Match, one audit call per mutation)

@@ -1,0 +1,176 @@
+import { domainToASCII } from 'node:url';
+
+export type DomainRefusal =
+  'ip_literal' | 'localhost' | 'operator_host' | 'reserved_name' | 'invalid';
+
+export const DOMAIN_CODES = {
+  systemTenant: 'domain_system_tenant',
+  noBaseUrl: 'domain_no_base_url',
+  limit: 'domain_limit',
+  alreadyRegistered: 'domain_already_registered',
+  verifiedElsewhere: 'domain_verified_elsewhere',
+  ipLiteral: 'domain_host_ip_literal',
+  localhost: 'domain_host_localhost',
+  operatorHost: 'domain_host_operator',
+  reservedName: 'domain_host_reserved',
+  invalid: 'domain_host_invalid',
+} as const;
+
+export type DomainCode = (typeof DOMAIN_CODES)[keyof typeof DOMAIN_CODES];
+
+export const REFUSAL_CODES: Record<DomainRefusal, DomainCode> = {
+  ip_literal: DOMAIN_CODES.ipLiteral,
+  localhost: DOMAIN_CODES.localhost,
+  operator_host: DOMAIN_CODES.operatorHost,
+  reserved_name: DOMAIN_CODES.reservedName,
+  invalid: DOMAIN_CODES.invalid,
+};
+
+export const CHALLENGE_PREFIX = 'odudu-domain-verification=';
+const CHALLENGE_LABEL = '_odudu-challenge.';
+const MIN_CHALLENGE_BYTES = 32;
+
+// The shape the tenant_domains host CHECK accepts.
+const DNS_NAME = /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$/u;
+const MAX_HOST_LENGTH = 253;
+const PORT_SUFFIX = /^(.*):(\d*)$/u;
+const IPV4 = /^\d+(\.\d+){3}$/u;
+const DEFAULT_PORTS = new Set([80, 443]);
+const RESERVED_TOP_LABELS = new Set(['test', 'example', 'invalid', 'local']);
+const RESERVED_APEXES = ['example.com', 'example.org', 'example.net'];
+
+export type ResolveTxt = (name: string) => Promise<readonly (readonly string[])[]>;
+
+interface Authority {
+  name: string;
+  // null: no port written; 'malformed': an empty port or one with leading zeros.
+  port: number | 'malformed' | null;
+}
+
+function parsePort(digits: string): number | 'malformed' {
+  if (digits === '' || (digits.length > 1 && digits.startsWith('0'))) return 'malformed';
+  return Number.parseInt(digits, 10);
+}
+
+function splitAuthority(raw: string): Authority {
+  const lower = raw.toLowerCase();
+  const match = PORT_SUFFIX.exec(lower);
+  if (match === null || lower.endsWith(']')) return { name: lower, port: null };
+  return { name: match[1] ?? '', port: parsePort(match[2] ?? '') };
+}
+
+function hasForeignPort(port: Authority['port']): boolean {
+  return port !== null && (port === 'malformed' || !DEFAULT_PORTS.has(port));
+}
+
+function withoutRootLabel(name: string): string {
+  return name.endsWith('.') ? name.slice(0, -1) : name;
+}
+
+// The name as a resolver compares it: dots and letters folded, punycode.
+function asciiOf(name: string): string {
+  return domainToASCII(withoutRootLabel(name));
+}
+
+function dnsNameOf(name: string): string | null {
+  const ascii = asciiOf(name);
+  if (ascii === '' || ascii.length > MAX_HOST_LENGTH || !DNS_NAME.test(ascii)) return null;
+  return ascii;
+}
+
+/**
+ * The spelling a host is stored and compared in: lowercase, punycode, no
+ * trailing dot and no default port. Null when it is not a plain DNS name the
+ * table accepts, which includes a host carrying any other port.
+ */
+export function canonicalHost(raw: string): string | null {
+  const { name, port } = splitAuthority(raw);
+  if (hasForeignPort(port)) return null;
+  return dnsNameOf(name);
+}
+
+function isIpLiteral(name: string): boolean {
+  return name.startsWith('[') || name.includes(':') || IPV4.test(withoutRootLabel(name));
+}
+
+function isReserved(host: string): boolean {
+  const top = host.slice(host.lastIndexOf('.') + 1);
+  if (RESERVED_TOP_LABELS.has(top)) return true;
+  return RESERVED_APEXES.some((apex) => host === apex || host.endsWith(`.${apex}`));
+}
+
+/**
+ * Why a host may not be registered, or null when it may. `operatorHost` is
+ * the host of the configured public base URL; its subdomains stay allowed.
+ */
+export function refuseHost(host: string, operatorHost: string): DomainRefusal | null {
+  const { name, port } = splitAuthority(host);
+  if (isIpLiteral(name)) return 'ip_literal';
+  const ascii = asciiOf(name);
+  if (ascii === 'localhost' || ascii.endsWith('.localhost')) return 'localhost';
+  const operatorName = splitAuthority(operatorHost).name;
+  if (ascii !== '' && ascii === asciiOf(operatorName)) return 'operator_host';
+  if (hasForeignPort(port)) return 'invalid';
+  const canonical = dnsNameOf(name);
+  if (canonical === null) return 'invalid';
+  if (isReserved(canonical)) return 'reserved_name';
+  return null;
+}
+
+export function challengeName(host: string): string {
+  return `${CHALLENGE_LABEL}${host}`;
+}
+
+export function newChallenge(random: () => Buffer): string {
+  const bytes = random();
+  if (bytes.length < MIN_CHALLENGE_BYTES) {
+    throw new Error(
+      `a domain challenge needs at least ${String(MIN_CHALLENGE_BYTES)} random bytes`,
+    );
+  }
+  return `${CHALLENGE_PREFIX}${bytes.toString('base64url')}`;
+}
+
+/** True when one TXT record, its chunks joined, is exactly the challenge. */
+export function txtMatchesChallenge(
+  records: readonly (readonly string[])[],
+  challenge: string,
+): boolean {
+  return records.some((chunks) => chunks.join('') === challenge);
+}
+
+export type TxtOutcome = 'match' | 'absent' | 'indeterminate';
+
+// What a resolver says when the name or the record is not there; any other
+// error is a resolver that could not answer, which proves nothing either way.
+const ABSENT_CODES = new Set(['ENOTFOUND', 'ENODATA']);
+
+function isAbsent(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && ABSENT_CODES.has(String(error.code));
+}
+
+/** What the challenge record of `host` says: there, not there, or unknowable. */
+export async function lookupTxtOutcome(
+  resolveTxt: ResolveTxt,
+  host: string,
+  challenge: string,
+): Promise<TxtOutcome> {
+  try {
+    const records = await resolveTxt(challengeName(host));
+    return txtMatchesChallenge(records, challenge) ? 'match' : 'absent';
+  } catch (error) {
+    return isAbsent(error) ? 'absent' : 'indeterminate';
+  }
+}
+
+/**
+ * Whether a verified host answers requests: its tenant is enabled and it is
+ * the tenant's canonical address or an issuer retired inside its window.
+ */
+export function hostServes(facts: {
+  enabled: boolean;
+  canonical: boolean;
+  retiredUntil: Date | null;
+}): boolean {
+  return facts.enabled && (facts.canonical || facts.retiredUntil !== null);
+}

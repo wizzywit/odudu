@@ -20,6 +20,7 @@ import {
   type LiveSubjectLookup,
 } from '#/service/client-enabled';
 import { mappedClaims } from '#/service/issued-claims';
+import { type AcceptedIssuersLookup } from '#/service/issuer';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 
@@ -30,6 +31,9 @@ export interface UserinfoGrant {
 export interface UserinfoDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
   listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
+  // What an access token's `iss` and `aud` may name: the canonical issuer and
+  // a retired one while its window is open.
+  acceptedIssuers: AcceptedIssuersLookup;
   loadClaimContext(tenantId: string, subjectId: string): Promise<LoadedClaimContext>;
   claimMappers: ClaimMapperRegistry<ClaimContext>;
   // The same two reads `/introspect` makes (usecase/introspection.ts) —
@@ -186,9 +190,15 @@ export async function resolveUserinfo(
 
   const keys = await deps.listPublishableKeys(tenant.id);
 
+  const accepted = await deps.acceptedIssuers({ id: tenant.id, name: tenantName }, issuer, now);
   let payload;
   try {
-    payload = await verifyJwt(token, { keys, issuer, audience: issuer, typ: 'at+jwt' });
+    payload = await verifyJwt(token, {
+      keys,
+      issuer: accepted,
+      audience: accepted,
+      typ: 'at+jwt',
+    });
   } catch {
     return { kind: 'invalid_token', clientId: undefined };
   }

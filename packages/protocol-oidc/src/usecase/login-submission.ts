@@ -10,7 +10,7 @@ import {
 } from '@odudu/authn-flows';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { type RequestContext } from '@odudu/domain-audit';
-import { isUuid } from '@odudu/kernel';
+import { isUuid, addressIssuer, type TenantAddress } from '@odudu/kernel';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { tenantLifetimesRepository } from '#/repository/tenant-lifetimes';
 import { type TenantLookup } from '#/repository/tenant-lookup';
@@ -18,7 +18,6 @@ import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/auth
 import { EMPTY_CLAIMS_REQUEST, type ClaimsRequest } from '#/service/claims-request';
 import { decideConsent } from '#/service/consent';
 import { type ConsentI18n } from '#/service/consent-i18n';
-import { tenantIssuer } from '#/service/issuer';
 import { type PromptValue } from '#/service/prompt';
 import { OAUTH_ERROR_DESCRIPTIONS, type AuthorizationErrorCode } from '#/service/oauth-errors';
 
@@ -396,15 +395,14 @@ export interface LoginSubmissionDeps extends ConsentGateDeps {
 // whose 'deny' answer is the same shape of response.
 export function errorRedirect(
   pending: PendingRequest,
-  tenantName: string,
-  issuerBase: string,
+  address: TenantAddress,
   error: AuthorizationErrorCode,
 ): string {
   const location = new URL(pending.redirectUri);
   location.searchParams.set('error', error);
   location.searchParams.set('error_description', OAUTH_ERROR_DESCRIPTIONS[error]);
   if (pending.state !== null) location.searchParams.set('state', pending.state);
-  location.searchParams.set('iss', tenantIssuer(issuerBase, tenantName));
+  location.searchParams.set('iss', addressIssuer(address));
   return location.toString();
 }
 
@@ -426,7 +424,7 @@ export async function completeAuthorizedLogin(
     rememberMeMaxSeconds: number;
     maxSessionsPerBrowser: number;
   },
-  issuerBase: string,
+  address: TenantAddress,
   authSessionId: string,
   pending: PendingRequest,
   clientId: string,
@@ -506,7 +504,7 @@ export async function completeAuthorizedLogin(
   const location = new URL(pending.redirectUri);
   location.searchParams.set('code', code);
   if (pending.state !== null) location.searchParams.set('state', pending.state);
-  location.searchParams.set('iss', tenantIssuer(issuerBase, tenant.name));
+  location.searchParams.set('iss', addressIssuer(address));
 
   // The browser's other live sessions, joined with this one, split by the
   // cookie each already belongs to — not by which cookie the request
@@ -568,7 +566,7 @@ function disabledRefusal(
 export async function handleLoginSubmission(
   deps: LoginSubmissionDeps,
   tenantName: string,
-  issuerBase: string,
+  address: TenantAddress,
   authSessionId: string | undefined,
   input: AdvanceInput,
   request: RequestContext,
@@ -658,7 +656,7 @@ export async function handleLoginSubmission(
     await deps.resetAuthenticationProgress(tenant.id, authSessionId);
     return {
       kind: 'error_redirect',
-      location: errorRedirect(pending, tenantName, issuerBase, 'login_required'),
+      location: errorRedirect(pending, address, 'login_required'),
     };
   }
 
@@ -670,7 +668,7 @@ export async function handleLoginSubmission(
     await deps.resetAuthenticationProgress(tenant.id, authSessionId);
     return {
       kind: 'error_redirect',
-      location: errorRedirect(pending, tenantName, issuerBase, 'login_required'),
+      location: errorRedirect(pending, address, 'login_required'),
     };
   }
 
@@ -711,7 +709,7 @@ export async function handleLoginSubmission(
   if (gate.kind === 'refuse') {
     return {
       kind: 'error_redirect',
-      location: errorRedirect(pending, tenantName, issuerBase, 'consent_required'),
+      location: errorRedirect(pending, address, 'consent_required'),
     };
   }
   if (gate.kind === 'ask') {
@@ -745,7 +743,7 @@ export async function handleLoginSubmission(
       rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
       maxSessionsPerBrowser: tenant.maxSessionsPerBrowser,
     },
-    issuerBase,
+    address,
     authSessionId,
     pending,
     clientId,

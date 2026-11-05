@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, lt, sql, type SQL } from 'drizzle-orm';
 import {
   userCredentials,
   type CredentialRecord,
@@ -19,6 +19,8 @@ export interface NewCredential {
   secret: CredentialSecret;
   label?: string;
   lookupKey?: string;
+  // The relying-party id a passkey is registered under.
+  rpId?: string;
 }
 
 export interface RecoveryStanding {
@@ -37,6 +39,7 @@ function toRecord(row: typeof userCredentials.$inferSelect): CredentialRecord {
     label: row.label,
     lastUsedAt: row.lastUsedAt,
     lookupKey: row.lookupKey,
+    rpId: row.rpId,
     createdAt: row.createdAt,
   };
 }
@@ -138,6 +141,33 @@ export function credentialRepository(tx: TenantScopedDatabase) {
       return rows.map(toRecord);
     },
 
+    // How many subjects hold a passkey registered under another relying
+    // party ID than `rpId`, reading at most `cap + 1` credentials. A passkey
+    // with no recorded ID is not counted. Each side of `rpId` is its own range
+    // scan of the partial index on (tenant_id, rp_id), ordered by `rp_id` so
+    // the index supplies the order and the scan stops at the cap; credentials
+    // under `rpId` itself are never read.
+    // One statement returns the rows, so the counts below cannot disagree.
+    async subjectsWithPasskeyOutside(
+      rpId: string,
+      cap: number,
+    ): Promise<{ subjects: number; capped: boolean }> {
+      const side = (range: SQL) =>
+        tx
+          .select({ subjectId: userCredentials.subjectId })
+          .from(userCredentials)
+          .where(
+            and(eq(userCredentials.type, 'webauthn'), isNotNull(userCredentials.lookupKey), range),
+          )
+          .orderBy(userCredentials.rpId)
+          .limit(cap + 1);
+      const read = await side(lt(userCredentials.rpId, rpId)).unionAll(
+        side(gt(userCredentials.rpId, rpId)),
+      );
+      const held = new Set(read.map((row) => row.subjectId));
+      return { subjects: Math.min(held.size, cap), capped: read.length > cap };
+    },
+
     async byLookupKey(lookupKey: string): Promise<CredentialRecord | null> {
       const rows = await tx
         .select()
@@ -160,6 +190,7 @@ export function credentialRepository(tx: TenantScopedDatabase) {
         hashNfc: input.type === 'password' ? true : null,
         label: input.label ?? null,
         lookupKey: input.lookupKey ?? null,
+        rpId: input.rpId ?? null,
       });
     },
 

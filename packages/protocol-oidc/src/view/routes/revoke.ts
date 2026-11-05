@@ -9,6 +9,7 @@ import { type AuditRefusalBudget } from '#/service/audit-refusal-budget';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
 import { respondToRevocationRequest, type RevocationDeps } from '#/usecase/revocation';
+import { type AcceptedIssuersLookup } from '#/service/issuer';
 import { tenantIssuerFor } from '#/view/issuer';
 import { keepingSpend, unsettle } from '#/usecase/private-key-jwt-authentication';
 import { recordRefusal } from '#/usecase/record-refusal';
@@ -20,6 +21,7 @@ export interface RevokeRouteDeps {
   trustProxy: boolean;
   tlsClientCertHeader: string;
   listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
+  acceptedIssuers: AcceptedIssuersLookup;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
   // Reused, never re-implemented — see #/usecase/client-authentication.ts.
   clientSecretLimiter: ClientSecretLimiter;
@@ -38,8 +40,12 @@ export function registerRevokeRoute(app: FastifyInstance, deps: RevokeRouteDeps)
     const tenant = await deps.findTenant(request.params.tenant);
     if (!tenant?.enabled) return reply.code(404).send();
 
-    const issuer = tenantIssuerFor(request, request.params.tenant);
     const now = clock.now();
+    const acceptedIssuers = await deps.acceptedIssuers(
+      { id: tenant.id, name: request.params.tenant },
+      tenantIssuerFor(request, request.params.tenant),
+      now,
+    );
     const keys = await deps.listPublishableKeys(tenant.id);
 
     const requestDeps: RevocationDeps = {
@@ -52,7 +58,7 @@ export function registerRevokeRoute(app: FastifyInstance, deps: RevokeRouteDeps)
       clientSecretLimiter: deps.clientSecretLimiter,
       logger: request.log,
       now: () => now,
-      issuer,
+      acceptedIssuers,
       keys,
     };
 

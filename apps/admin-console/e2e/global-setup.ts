@@ -6,6 +6,7 @@ import {
   type Seeded,
   inSubject,
   inTenant,
+  seededDomainHost,
   sqlText,
   UNBROKEN,
 } from './stack';
@@ -306,6 +307,37 @@ function seedAccess(access: Seeded['access']): void {
   grant(keys.fixedKeysOnly, 'odudu-admin:manage-keys');
   subject(keys.fixedTenantOnly);
   grant(keys.fixedTenantOnly, 'odudu-admin:manage-tenant');
+  seedDomains(access.domains);
+}
+
+// Registered and verified without DNS, which the stack has none of. A subject
+// beside the administrator holds a passkey registered at the base address,
+// which a switch to the domain would hide. It is not the administrator's own,
+// so signing in stays a password and nothing else.
+function seedDomains(domains: Seeded['access']['domains']): void {
+  for (const account of [domains.main, domains.fixed]) {
+    seed(['tenant', '--name', account.tenant]);
+    administrator(account);
+    seed([
+      'domain',
+      '--tenant',
+      account.tenant,
+      '--host',
+      seededDomainHost(account.tenant),
+      '--assume-verified',
+    ]);
+  }
+  subject(domains.fixedViewOnly);
+  grant(domains.fixedViewOnly, 'odudu-admin:view-domains');
+  const holder = {
+    tenant: domains.main.tenant,
+    username: 'passkey-holder',
+    password: randomPassword(),
+  };
+  subject(holder);
+  psql(
+    `insert into user_credentials (id, tenant_id, subject_id, type, secret_data, lookup_key, rp_id) select gen_random_uuid(), u.tenant_id, u.subject_id, 'webauthn', '{"publicKey":"seed","counter":0,"transports":[]}'::jsonb, 'seeded-passkey', 'localhost' from users u where u.tenant_id = ${inTenant(holder.tenant)} and u.username = ${sqlText(holder.username)}`,
+  );
 }
 
 // The list tenant holds sixty live sessions of its administrator, beyond the
@@ -508,6 +540,11 @@ export default function globalSetup(): void {
       fixed: { tenant: `${run}-y5`, username: 'rivest', password: password() },
       fixedKeysOnly: { tenant: `${run}-y5`, username: 'shamir', password: password() },
       fixedTenantOnly: { tenant: `${run}-y5`, username: 'adleman', password: password() },
+    },
+    domains: {
+      main: { tenant: `${run}-z1`, username: 'berners', password: password() },
+      fixed: { tenant: `${run}-z2`, username: 'cerf', password: password() },
+      fixedViewOnly: { tenant: `${run}-z2`, username: 'kahn', password: password() },
     },
   };
   const config = {

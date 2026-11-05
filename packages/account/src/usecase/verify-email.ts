@@ -9,6 +9,8 @@ import {
   type MailContext,
 } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
+import { mailAddressOf } from '#/usecase/mail-address';
+import { type LookupCanonicalDomain } from '@odudu/domain-tenant';
 
 export interface SendVerificationEmailDeps {
   readonly database: DatabaseHandle;
@@ -16,6 +18,7 @@ export interface SendVerificationEmailDeps {
   readonly tenantName: string;
   readonly tenantDisplayName: string;
   readonly issuerBase: string;
+  readonly lookupDomain?: LookupCanonicalDomain | undefined;
   // The send time of the mail, from the caller's clock.
   readonly now: () => Date;
   // Themes the mail the way the tenant's pages are; absent, it is unthemed.
@@ -51,7 +54,8 @@ export async function enqueueVerificationLink(
   input: SendVerificationEmailInput,
   context?: MailContext,
 ): Promise<void> {
-  const mail = context ?? (await mailContext(tx, tenant.resolveMailLook, tenant));
+  const address = await mailAddressOf(tx, tenant);
+  const mail = context ?? (await mailContext(tx, tenant.resolveMailLook, { ...tenant, address }));
   const tokens = actionTokenRepository(tx);
   const { token } = await tokens.issue({
     tenantId: tenant.tenantId,
@@ -60,7 +64,7 @@ export async function enqueueVerificationLink(
     email: input.email,
     ttlSeconds: await tokens.lifetimeOf(tenant.tenantId, 'verify_email'),
   });
-  const link = actionLink(tenant.issuerBase, tenant.tenantName, token);
+  const link = actionLink(address, token);
   await outboxRepository(tx).enqueue({
     tenantId: tenant.tenantId,
     ...renderVerifyEmail({

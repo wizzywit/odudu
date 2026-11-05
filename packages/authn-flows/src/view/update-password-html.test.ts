@@ -1,5 +1,5 @@
 import { evaluatePassword, REUSED_PASSWORD } from '@odudu/domain-identity';
-import { DEFAULT_PAGE_LOCALE, PASSWORD_TOO_LONG, pageHeaders } from '@odudu/kernel';
+import { DEFAULT_PAGE_LOCALE, PASSWORD_TOO_LONG, pageHeaders, pathAddress } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import { type PasswordViolation } from '#/schema/password-violation';
 import { en } from '#/view/messages';
@@ -63,13 +63,21 @@ describe('every rule the domain reports is worded by the catalogue', () => {
   const subject = { username: 'a', email: 'a@example.com' };
 
   it('carries the light or dark choice its locale holds into the document', () => {
-    const dark = renderUpdatePasswordPage('demo', 'sess-1', undefined, POLICY_RULES, {
-      ...DEFAULT_PAGE_LOCALE,
-      theme: 'dark',
-    });
+    const dark = renderUpdatePasswordPage(
+      'demo',
+      pathAddress('https://idp.example', 'demo'),
+      'sess-1',
+      undefined,
+      POLICY_RULES,
+      {
+        ...DEFAULT_PAGE_LOCALE,
+        theme: 'dark',
+      },
+    );
     expect(dark.html).toContain('<html lang="en" dir="ltr" data-theme="dark">');
     const none = renderUpdatePasswordPage(
       'demo',
+      pathAddress('https://idp.example', 'demo'),
       'sess-1',
       undefined,
       POLICY_RULES,
@@ -102,6 +110,7 @@ describe('every rule the domain reports is worded by the catalogue', () => {
     for (const { rule, message } of reported) {
       const { body } = renderUpdatePasswordPage(
         'd',
+        pathAddress('https://idp.example', 'd'),
         's',
         [{ rule, message, minLength: policy.minLength }],
         POLICY_RULES,
@@ -117,6 +126,7 @@ describe('renderUpdatePasswordPage', () => {
   it('posts the new password to the update-password action with the session it was given', () => {
     const rendered = renderUpdatePasswordPage(
       'demo',
+      pathAddress('https://idp.example', 'demo'),
       'sess-1',
       undefined,
       POLICY_RULES,
@@ -137,6 +147,7 @@ describe('renderUpdatePasswordPage', () => {
       withoutScript(
         renderUpdatePasswordPage(
           'acme',
+          pathAddress('https://idp.example', 'acme'),
           'sess-1',
           [
             { rule: 'min-length', message: 'dev', minLength: 12 },
@@ -174,13 +185,21 @@ describe('renderUpdatePasswordPage', () => {
 
   it('lists no violations when there are none', () => {
     expect(
-      renderUpdatePasswordPage('demo', 's', undefined, POLICY_RULES, DEFAULT_PAGE_LOCALE).html,
+      renderUpdatePasswordPage(
+        'demo',
+        pathAddress('https://idp.example', 'demo'),
+        's',
+        undefined,
+        POLICY_RULES,
+        DEFAULT_PAGE_LOCALE,
+      ).html,
     ).not.toContain('<ul>');
   });
 
   it('reads every rule from the catalogue by its code, with its numbers', () => {
     const { body } = renderUpdatePasswordPage(
       'demo',
+      pathAddress('https://idp.example', 'demo'),
       's',
       RULES,
       POLICY_RULES,
@@ -197,6 +216,7 @@ describe('renderUpdatePasswordPage', () => {
     expect(
       renderUpdatePasswordPage(
         'd',
+        pathAddress('https://idp.example', 'd'),
         's',
         [{ rule: 'min-length', message: 'x', minLength: 1000 }],
         POLICY_RULES,
@@ -208,6 +228,7 @@ describe('renderUpdatePasswordPage', () => {
   it('never states a minimum it was not given', () => {
     const { body } = renderUpdatePasswordPage(
       'demo',
+      pathAddress('https://idp.example', 'demo'),
       's',
       [{ rule: 'min-length', message: 'Too short' }],
       POLICY_RULES,
@@ -220,6 +241,7 @@ describe('renderUpdatePasswordPage', () => {
   it('shows an unknown rule by its developer message, isolated', () => {
     const { body } = renderUpdatePasswordPage(
       'demo',
+      pathAddress('https://idp.example', 'demo'),
       's',
       [{ rule: 'future-rule', message: 'Must be <b>blue</b>' }],
       POLICY_RULES,
@@ -232,6 +254,7 @@ describe('renderUpdatePasswordPage', () => {
   it('does not mistake a rule named like an object member for a catalogue entry', () => {
     const { body } = renderUpdatePasswordPage(
       'demo',
+      pathAddress('https://idp.example', 'demo'),
       's',
       [{ rule: 'constructor', message: 'dev' }],
       POLICY_RULES,
@@ -241,7 +264,14 @@ describe('renderUpdatePasswordPage', () => {
   });
 
   it('renders each rule it has in French, and English for the keys the fixture lacks', () => {
-    const page = renderUpdatePasswordPage('demo', 's', RULES, POLICY_RULES, FRENCH);
+    const page = renderUpdatePasswordPage(
+      'demo',
+      pathAddress('https://idp.example', 'demo'),
+      's',
+      RULES,
+      POLICY_RULES,
+      FRENCH,
+    );
     expect(page.title).toBe('Changez votre mot de passe');
     expect(page.html).toContain('<html lang="fr" dir="ltr">');
     expect(page.body).toContain('>Le mot de passe doit comporter au moins 12 caractères.</li>');
@@ -253,14 +283,22 @@ describe('renderUpdatePasswordPage', () => {
   });
 
   it('writes lang and dir for a right-to-left locale', () => {
-    expect(renderUpdatePasswordPage('demo', 's', [], POLICY_RULES, ARABIC).html).toContain(
-      '<html lang="ar" dir="rtl">',
-    );
+    expect(
+      renderUpdatePasswordPage(
+        'demo',
+        pathAddress('https://idp.example', 'demo'),
+        's',
+        [],
+        POLICY_RULES,
+        ARABIC,
+      ).html,
+    ).toContain('<html lang="ar" dir="rtl">');
   });
 
   it('escapes the tenant, the session and each unknown-rule message', () => {
     const { html } = renderUpdatePasswordPage(
       '<b>t</b>',
+      pathAddress('https://idp.example', '<b>t</b>'),
       '"><i>',
       [{ rule: 'x', message: '<img src=x onerror=1>' }],
       POLICY_RULES,
@@ -276,7 +314,14 @@ describe('renderUpdatePasswordPage', () => {
 describe('renderUpdatePasswordPage with an unusual tenant name', () => {
   it('writes the name into the action as a path segment', () => {
     expect(
-      renderUpdatePasswordPage('a b"%', 's', [], POLICY_RULES, DEFAULT_PAGE_LOCALE).html,
+      renderUpdatePasswordPage(
+        'a b"%',
+        pathAddress('https://idp.example', 'a b"%'),
+        's',
+        [],
+        POLICY_RULES,
+        DEFAULT_PAGE_LOCALE,
+      ).html,
     ).toContain(
       'action="/tenants/a%20b%22%25/login-actions/required-action?action=update-password"',
     );
@@ -301,6 +346,7 @@ describe('a refused change-password page reads coherently to a screen reader', (
     expectCoherent(
       renderUpdatePasswordPage(
         'acme',
+        pathAddress('https://idp.example', 'acme'),
         's',
         [
           { rule: 'min-length', message: 'x', minLength: 12 },
@@ -323,7 +369,14 @@ describe('the password hints on the change-password page', () => {
   };
 
   it('lists the tenant length and every rule it enables, as plain markup', () => {
-    const { body } = renderUpdatePasswordPage('acme', 's', [], ALL, DEFAULT_PAGE_LOCALE);
+    const { body } = renderUpdatePasswordPage(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      's',
+      [],
+      ALL,
+      DEFAULT_PAGE_LOCALE,
+    );
     expect([...body.matchAll(/<li[^>]*>([^<]*)<\/li>/gu)].map((match) => match[1])).toEqual([
       'At least 20 characters',
       'A digit',
@@ -337,13 +390,21 @@ describe('the password hints on the change-password page', () => {
   });
 
   it('lists no character rule the tenant has not enabled', () => {
-    const { body } = renderUpdatePasswordPage('acme', 's', [], POLICY_RULES, DEFAULT_PAGE_LOCALE);
+    const { body } = renderUpdatePasswordPage(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      's',
+      [],
+      POLICY_RULES,
+      DEFAULT_PAGE_LOCALE,
+    );
     expect(withoutScript(body)).not.toMatch(/digit|uppercase|lowercase|special character/iu);
   });
 
   it('points the field at its rules, after any message about it', () => {
     const { body } = renderUpdatePasswordPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       's',
       [{ rule: 'common-password', message: 'dev' }],
       POLICY_RULES,
@@ -353,7 +414,14 @@ describe('the password hints on the change-password page', () => {
   });
 
   it('sends a policy that names the one script it carries, and no request', () => {
-    const page = renderUpdatePasswordPage('acme', 's', [], POLICY_RULES, DEFAULT_PAGE_LOCALE);
+    const page = renderUpdatePasswordPage(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      's',
+      [],
+      POLICY_RULES,
+      DEFAULT_PAGE_LOCALE,
+    );
     const nonce = page.script?.nonce ?? '';
     const policy = pageHeaders(page).find(([name]) => name === 'content-security-policy')?.[1];
     expect(policy).toContain(`script-src 'nonce-${nonce}'`);

@@ -7,7 +7,7 @@ import {
   type PublishedLayer,
   type ThemeRecord,
 } from '@odudu/domain-theme';
-import { type PageKind } from '@odudu/kernel';
+import { type PageKind, pathAddress } from '@odudu/kernel';
 
 export interface WeighedImage {
   readonly id: string;
@@ -72,7 +72,7 @@ export function usedImages(
   const used: UsedImage[] = [];
   let weight = 0;
   for (const image of images) {
-    const path = assetPath(tenantName, image.sha256, image.mime);
+    const path = assetPath(pathAddress('', tenantName), image.sha256, image.mime);
     if (path === null) continue;
     const count = texts.reduce((total, text) => total + occurrences(text, path), 0);
     if (count === 0) continue;

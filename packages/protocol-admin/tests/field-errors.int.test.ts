@@ -97,6 +97,7 @@ describe('a refusal of the request shape names the field', () => {
     '/admin/tenants/:tenant/clients/:id/evaluate': `subject=${ABSENT_ID}&`,
     '/admin/tenants/:tenant': 'confirm=unused&',
     '/admin/tenants/:tenant/message-overrides': 'locale=fr&',
+    '/admin/tenants/:tenant/domains/passkey-impact': 'canonical=path&',
   };
 
   it.each(queried)('$method $pattern names an unknown query parameter', async (route) => {

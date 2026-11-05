@@ -52,6 +52,11 @@ export function inSubject(tenant: string, username: string): string {
   return `(${subjectSelect(tenant, username)})`;
 }
 
+// The host of the verified domain a domains tenant starts with, idle until a test makes it the address.
+export function seededDomainHost(tenant: string): string {
+  return `login.${tenant}.acme.org`;
+}
+
 // A name no narrow line can break, seeded for the layout tests that look for it.
 export const UNBROKEN = 'segment'.repeat(8);
 
@@ -198,6 +203,13 @@ const seededSchema = z.object({
       fixed: account,
       fixedKeysOnly: account,
       fixedTenantOnly: account,
+    }),
+    // The domains tenants: one the switching test changes, with an administrator, a verified
+    // domain not yet in use and a passkey registered at the base address; and one read only.
+    domains: z.object({
+      main: account,
+      fixed: account,
+      fixedViewOnly: account,
     }),
   }),
   // Tenants of their own for the Settings and Email tests.

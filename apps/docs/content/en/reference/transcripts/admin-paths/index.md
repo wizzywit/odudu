@@ -34,6 +34,7 @@ How they were captured is in [How the transcripts are captured and checked](../.
 - [GET /clients/:id/evaluate](./get-clientsidevaluate.md)
 - [GET /clients/:id/installation](./get-clientsidinstallation.md)
 - [GET /registration-tokens, POST /registration-tokens and…](./get-registration-tokens-post-registration-tokens-and-delete-registration.md)
+- [Domains: register, verify, switch, remove](./get-domains-post-domains-and-the-domain-routes.md)
 - [GET /whoami](./get-whoami.md)
 - [GET /subjects](./get-subjects.md)
 - [POST /subjects](./post-subjects.md)

@@ -130,6 +130,7 @@ async function seedSubjectOwingAPasskey(
 function begin(tenantId: string, authSessionId: string, subjectId: string) {
   return withTenant(app.db, tenantId, (tx) =>
     beginPasskeyEnrolment(tx, {
+      tenantId,
       tenantName: `tenant-${tenantId}`,
       publicBaseUrl: PUBLIC_BASE_URL,
       authSessionId,

@@ -34,6 +34,8 @@ const NEVER: Readonly<Record<string, string>> = {
     'API-only: acts on up to 100 subjects in one call for scripts and migrations. Every console list and record page acts on one subject at a time and has no multi-select.',
   'GET /admin/tenants/:tenant/audit/count':
     'The audit trail has no count, by design: over a trail that long a capped total would be an estimate the page cannot stand behind, so it says how far back the loaded rows reach instead.',
+  'GET /admin/tenants/:tenant/domains/:id':
+    'The domains list carries every field of a domain and a tenant holds no more than one page of them, so no screen reads one by its id.',
   'GET /admin/tenants/:tenant/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/clients/:id/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/mail/preview': FRAMED,

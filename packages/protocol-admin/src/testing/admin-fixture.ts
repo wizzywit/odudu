@@ -40,6 +40,7 @@ import {
   SYSTEM_TENANT_NAME,
   TENANT_CAPABILITIES,
   type ClientRecord,
+  type ResolveTxt,
 } from '@odudu/domain-tenant';
 import { DEFAULT_OUTBOX_MAX_ATTEMPTS, FakeClock, newId, type PageKind } from '@odudu/kernel';
 import {
@@ -51,6 +52,7 @@ import {
   oidcRoutes,
   provisionAdminClient,
   standardClaimMappers,
+  configureIssuerBase,
   tenantIssuerFor,
   tokenGrantRepository,
   UNLIMITED_AUDIT_REFUSAL_BUDGET,
@@ -61,6 +63,7 @@ import { and, eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { type inspectImage } from '@odudu/domain-theme';
 import { adminRoutesForTesting } from '#/index';
+import { type VerifyThrottle } from '#/service/domain-throttle';
 
 // Encrypts every signing key this fixture generates, and decrypts every one
 // it signs with — a fixed value is fine because nothing outside this
@@ -235,6 +238,18 @@ export interface AdminFixtureOptions {
   readonly messageKeys?: (key: string) => boolean;
   /** The image inspector an upload runs, where a test needs it refused or slow. */
   readonly inspectImage?: typeof inspectImage;
+  /** The resolver a domain's verification reads its TXT record through; none finds a record. */
+  readonly resolveTxt?: ResolveTxt;
+  /** The public base URL domains are registered and switched against; none by default. */
+  readonly domainsBaseUrl?: string;
+  /** Whether domains are served over https. */
+  readonly domainsTls?: boolean;
+  /** Replaces the verify throttle, for a test that needs it loose or tight. */
+  readonly verifyThrottle?: VerifyThrottle;
+}
+
+function noRecord(): Error {
+  return Object.assign(new Error('no TXT record'), { code: 'ENODATA' });
 }
 
 const defaultMessageKey = (_kind: PageKind, key: string): boolean => isOidcMessageKey(key);
@@ -272,10 +287,15 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
     catchUpToWall();
     done();
   });
+  // The issuer is the configured base wherever there is one, for the OIDC routes
+  // and the admin API alike, as in a deployment: a token minted here names the
+  // address the admin API takes as the tenant's canonical one.
+  configureIssuerBase(http, options.domainsBaseUrl);
   await http.register(formbody);
   await http.register(
     oidcRoutes({
       tls: false,
+      ...(options.domainsBaseUrl === undefined ? {} : { publicBaseUrl: options.domainsBaseUrl }),
       database: app,
       ownerDatabase: owner,
       kek: KEK,
@@ -301,6 +321,11 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         claimMappers,
         deploymentSmtp: options.deploymentSmtp ?? false,
         outboxMaxAttempts: DEFAULT_OUTBOX_MAX_ATTEMPTS,
+        resolveTxt: options.resolveTxt ?? (() => Promise.reject(noRecord())),
+        randomBytes: () => randomBytes(32),
+        publicBaseUrl: options.domainsBaseUrl,
+        tls: options.domainsTls ?? false,
+        ...(options.verifyThrottle === undefined ? {} : { verifyThrottle: options.verifyThrottle }),
         resolveMailLook: () => Promise.resolve({ branding: null, overrides: {} }),
         invalidateTheme: (tenantId) => {
           invalidatedThemes.push(tenantId);

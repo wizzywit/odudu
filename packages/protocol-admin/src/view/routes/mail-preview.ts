@@ -33,11 +33,11 @@ export function mailPreviewHandler(
 ): AdminRouteHandler {
   return async (request, reply, _principal, tenantId) => {
     const query = previewMailQuerySchema.parse(request.query);
-    const tenantName = tenantNameOf(request);
+    const tenant = { tenantId, tenantName: tenantNameOf(request), base: issuerBaseFor(request) };
     const mail = await adminTx(deps.database, request, tenantId, (tx) =>
       scope === 'client'
-        ? clientMail(tx, deps, { tenantId, tenantName }, clientRowIdOf(request))
-        : tenantMail(tx, deps, { tenantId, tenantName }),
+        ? clientMail(tx, deps, tenant, clientRowIdOf(request))
+        : tenantMail(tx, deps, tenant),
     );
     if (mail === null) return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
     const shown = previewMail(mail, {
@@ -58,15 +58,15 @@ export function mailBrandingHandler(
   scope: 'tenant' | 'client' = 'tenant',
 ): AdminRouteHandler {
   return async (request, reply, _principal, tenantId) => {
-    const tenantName = tenantNameOf(request);
+    const tenant = { tenantId, tenantName: tenantNameOf(request), base: issuerBaseFor(request) };
     if (scope === 'tenant') {
       const mail = await adminTx(deps.database, request, tenantId, (tx) =>
-        tenantMail(tx, deps, { tenantId, tenantName }, false),
+        tenantMail(tx, deps, tenant, false),
       );
       return reply.code(200).send(mailBrandingView(mail.branding));
     }
     const mail = await adminTx(deps.database, request, tenantId, (tx) =>
-      clientMail(tx, deps, { tenantId, tenantName }, clientRowIdOf(request), false),
+      clientMail(tx, deps, tenant, clientRowIdOf(request), false),
     );
     if (mail === null) return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
     return reply.code(200).send(mailBrandingView(mail.branding, mail.tenantBranding));

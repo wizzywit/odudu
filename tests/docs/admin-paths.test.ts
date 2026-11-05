@@ -58,6 +58,21 @@ const EMITTABLE_PROBLEM_TYPES = new Set([
   'about:blank#theme-no-draft',
   'about:blank#theme-nothing-to-publish',
   'about:blank#theme-preview-too-large',
+  'about:blank#domain-system-tenant',
+  'about:blank#domain-no-base-url',
+  'about:blank#domain-limit',
+  'about:blank#domain-already-registered',
+  'about:blank#domain-verified-elsewhere',
+  'about:blank#domain-host-ip-literal',
+  'about:blank#domain-host-localhost',
+  'about:blank#domain-host-operator',
+  'about:blank#domain-host-reserved',
+  'about:blank#domain-host-invalid',
+  'about:blank#domain-not-verified',
+  'about:blank#domain-failed',
+  'about:blank#domain-canonical',
+  'about:blank#domain-switch-conflict',
+  'about:blank#domain-verify-throttled',
 ]);
 
 const CAPABILITY_SHAPED = /^(?:view|manage)-[a-z]+(?:-[a-z]+)*$/u;

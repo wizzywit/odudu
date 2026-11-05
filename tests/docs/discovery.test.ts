@@ -5,6 +5,7 @@ import { standardClaimMappers } from '../../packages/protocol-oidc/src/service/c
 import { USERINFO_ENCRYPTION_ENCS_PERMITTED } from '../../packages/protocol-oidc/src/service/client-metadata.js';
 import { resolveDiscoveryDocument } from '../../packages/protocol-oidc/src/usecase/discovery.js';
 import { jsonAfter, loadPages, PROTOCOL_PAGES } from './markdown.js';
+import { pathAddress } from '../../packages/kernel/src/index.js';
 
 // Both documents show the discovery response for this tenant on this stack, so
 // the document under test fixes the issuer the comparison is made against.
@@ -60,7 +61,7 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
       trustProxy: false,
     },
     TENANT,
-    ISSUER_BASE,
+    pathAddress(ISSUER_BASE, TENANT),
   );
   if (document === null) throw new Error('the discovery usecase returned no document');
   return { ...document };

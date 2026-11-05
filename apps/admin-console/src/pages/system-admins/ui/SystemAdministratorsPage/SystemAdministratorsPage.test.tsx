@@ -224,7 +224,7 @@ it('offers a limited operator none of the changes the server would refuse, and s
   await screen.findByRole('list', { name: 'Administrators of system' });
   await waitFor(() => {
     expect(screen.getByRole('note')).toHaveTextContent(
-      'You can view system administrators but not create them or change what they hold (needs manage-users, manage-clients, manage-tenant, manage-keys, manage-sessions and view-audit).',
+      'You can view system administrators but not create them or change what they hold (needs manage-users, manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit, view-domains and manage-domains).',
     );
   });
   expect(screen.getAllByRole('note')).toHaveLength(1);

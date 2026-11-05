@@ -1,4 +1,4 @@
-import { DEFAULT_PAGE_LOCALE } from '@odudu/kernel';
+import { DEFAULT_PAGE_LOCALE, pathAddress } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import { en } from '#/view/messages';
 import { renderSelectAccountPage } from '#/view/select-account-html';
@@ -14,6 +14,7 @@ vi.mock('#/view/messages', async (importOriginal) => {
 
 const base = {
   tenant: 'demo',
+  address: pathAddress('https://idp.example', 'demo'),
   authSessionId: 'a-session',
   accounts: [
     { sessionId: 's1', displayName: 'alice@example.test' },

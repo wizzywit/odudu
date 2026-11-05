@@ -237,12 +237,28 @@ export const configSchema = z.object({
     .min(3600)
     .max(31_536_000)
     .default(2_592_000),
+  // A custom domain nobody proved ownership of, measured from its
+  // registration. Only `pending` rows are ever deleted: a verified one is a
+  // tenant's, and a failed one is kept for the tenant to read.
+  ODUDU_RETENTION_PENDING_DOMAIN_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(3600)
+    .max(31_536_000)
+    .default(604_800),
   // How often the server runs that pass itself, and whether it runs it at
   // all. `false` is for a deployment that schedules `odudu reap` as a cron
   // entry or a Kubernetes CronJob instead — a documented alternative, and
   // the reason this is a switch rather than a fact.
   ODUDU_REAP_ENABLED: enabledEnvVar,
   ODUDU_REAP_INTERVAL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(3600),
+  // Rechecks that every verified custom domain still proves ownership, as a
+  // pass of its own. `false` is for a deployment that schedules
+  // `odudu domains recheck` itself.
+  ODUDU_DOMAIN_RECHECK_ENABLED: enabledEnvVar,
+  ODUDU_DOMAIN_RECHECK_INTERVAL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(3600),
+  // Consecutive passes that find no matching record before a domain fails.
+  ODUDU_DOMAIN_RECHECK_FAILURES: z.coerce.number().int().min(1).max(100).default(3),
   // Mail is queued by the request and sent by a pass of its own, which is
   // what keeps an SMTP round trip out of a response and out of the timing
   // of one. `false` is for a deployment that schedules `odudu send-mail`

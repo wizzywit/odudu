@@ -14,7 +14,6 @@ import {
 } from '#/usecase/private-key-jwt-authentication';
 
 export interface RevocationDeps extends EndpointAuthenticationDeps {
-  readonly issuer: string;
   readonly keys: readonly SigningKeyRecord[];
 }
 
@@ -36,7 +35,7 @@ async function resolveGrantId(
   try {
     const payload = await verifyJwt(token, {
       keys: [...deps.keys],
-      issuer: deps.issuer,
+      issuer: deps.acceptedIssuers,
       audience: AUDIENCE_UNCHECKED,
       typ: 'at+jwt',
     });

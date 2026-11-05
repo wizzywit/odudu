@@ -10,6 +10,7 @@ import {
 import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { credentialRepository } from '#/repository/credentials';
 import { subjectRepository } from '#/repository/subjects';
@@ -245,6 +246,63 @@ describe('credentialRepository — widened credential types', () => {
       attempt: async (tx, subjectId) => credentialRepository(tx).listFor(subjectId, 'webauthn'),
       expectBlocked: (result) => {
         expect(result).toEqual([]);
+      },
+    });
+  });
+
+  it('counts no passkey of another tenant, whatever relying party it names', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subject = await seedSubject(tx, tenantId);
+        await credentialRepository(tx).insert({
+          tenantId,
+          subjectId: subject,
+          type: 'webauthn',
+          secret: { kind: 'webauthn', publicKey: 'pk', counter: 0, transports: ['internal'] },
+          lookupKey: `impact-${tenantId}`,
+        });
+        await tx
+          .update(userCredentials)
+          .set({ rpId: 'old.example.org' })
+          .where(eq(userCredentials.subjectId, subject));
+        return subject;
+      },
+      verifySeeded: async (tx) => {
+        expect(
+          await credentialRepository(tx).subjectsWithPasskeyOutside('new.example.org', 10),
+        ).toEqual({ subjects: 1, capped: false });
+      },
+      attempt: async (tx) =>
+        credentialRepository(tx).subjectsWithPasskeyOutside('new.example.org', 10),
+      expectBlocked: (result) => {
+        expect(result).toEqual({ subjects: 0, capped: false });
+      },
+    });
+  });
+
+  it('records the relying party id a passkey is inserted with, and reads it back by lookup key', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subject = await seedSubject(tx, tenantId);
+        const lookupKey = `rp-${tenantId}`;
+        await credentialRepository(tx).insert({
+          tenantId,
+          subjectId: subject,
+          type: 'webauthn',
+          secret: { kind: 'webauthn', publicKey: 'pk', counter: 0, transports: ['internal'] },
+          lookupKey,
+          rpId: 'login.acme.com',
+        });
+        return lookupKey;
+      },
+      verifySeeded: async (tx, lookupKey) => {
+        expect((await credentialRepository(tx).byLookupKey(lookupKey))?.rpId).toBe(
+          'login.acme.com',
+        );
+      },
+      attempt: async (tx, lookupKey) => credentialRepository(tx).byLookupKey(lookupKey),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
       },
     });
   });

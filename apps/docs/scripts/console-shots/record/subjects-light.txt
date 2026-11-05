@@ -23,6 +23,7 @@ Tenant
 Settings
 Branding
 Email
+Domains
 Export
 Observe
 Audit trail
@@ -77,6 +78,8 @@ manage-tenant
 manage-keys
 manage-sessions
 view-audit
+view-domains
+manage-domains
 manage-tenants
 tenant-admin
 Any capability

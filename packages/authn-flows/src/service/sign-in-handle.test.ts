@@ -7,6 +7,7 @@ import {
   signInHandleCookie,
   signInHandleName,
 } from '#/service/sign-in-handle';
+import { pathAddress } from '@odudu/kernel';
 
 const SESSION = '0192f2a0-0000-7000-8000-000000000001';
 
@@ -34,16 +35,26 @@ describe('signInHandleName', () => {
 
 describe('signInHandleCookie', () => {
   it('is HttpOnly, SameSite=Lax, scoped to the tenant path, and as short-lived as the request', () => {
-    expect(signInHandleCookie('acme', true, SESSION, 'secret', 1800)).toBe(
+    expect(
+      signInHandleCookie(pathAddress('https://idp.example', 'acme'), true, SESSION, 'secret', 1800),
+    ).toBe(
       `__Secure-odudu-sign-in=${SESSION}.secret; HttpOnly; SameSite=Lax; Path=/tenants/acme/; Secure; Max-Age=1800`,
     );
-    expect(signInHandleCookie('acme', false, SESSION, 'secret', 60)).toBe(
+    expect(
+      signInHandleCookie(pathAddress('https://idp.example', 'acme'), false, SESSION, 'secret', 60),
+    ).toBe(
       `odudu-sign-in=${SESSION}.secret; HttpOnly; SameSite=Lax; Path=/tenants/acme/; Max-Age=60`,
     );
   });
 
   it('encodes a tenant name that is not a safe path segment', () => {
-    const cookie = signInHandleCookie('a b;c', false, SESSION, 'secret', 60);
+    const cookie = signInHandleCookie(
+      pathAddress('https://idp.example', 'a b;c'),
+      false,
+      SESSION,
+      'secret',
+      60,
+    );
     expect(cookie).toContain('Path=/tenants/a%20b%3Bc/;');
     expect(cookie.split(';')).toHaveLength(5);
   });
@@ -114,10 +125,10 @@ describe('readSignInHandle with the name present more than once', () => {
 
 describe('clearedSignInHandleCookie', () => {
   it('expires the cookie with the attributes and path it was set with', () => {
-    expect(clearedSignInHandleCookie('acme', true)).toBe(
+    expect(clearedSignInHandleCookie(pathAddress('https://idp.example', 'acme'), true)).toBe(
       '__Secure-odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/acme/; Secure; Max-Age=0',
     );
-    expect(clearedSignInHandleCookie('a b', false)).toBe(
+    expect(clearedSignInHandleCookie(pathAddress('https://idp.example', 'a b'), false)).toBe(
       'odudu-sign-in=; HttpOnly; SameSite=Lax; Path=/tenants/a%20b/; Max-Age=0',
     );
   });

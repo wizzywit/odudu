@@ -1,4 +1,4 @@
-import { DEFAULT_PAGE_LOCALE, pageHeaders } from '@odudu/kernel';
+import { DEFAULT_PAGE_LOCALE, pageHeaders, pathAddress } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import { renderRegistrationForm } from '#/view/registration-html';
 import { renderResetPasswordForm } from '#/view/reset-html';
@@ -26,12 +26,25 @@ const hintLines = (body: string): (string | undefined)[] =>
 
 const pages = {
   registration: (rules: typeof NONE) =>
-    renderRegistrationForm('acme', { rules }, DEFAULT_PAGE_LOCALE),
+    renderRegistrationForm(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      { rules },
+      DEFAULT_PAGE_LOCALE,
+    ),
   reset: (rules: typeof NONE) =>
-    renderResetPasswordForm('acme', 'k', undefined, rules, DEFAULT_PAGE_LOCALE),
+    renderResetPasswordForm(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      'k',
+      undefined,
+      rules,
+      DEFAULT_PAGE_LOCALE,
+    ),
   actions: (rules: typeof NONE) =>
     renderRequiredActionsForm(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'k',
       ['update-password'],
       true,

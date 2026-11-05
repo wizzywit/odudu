@@ -35,7 +35,9 @@ export type IntrospectionResponse =
 
 export interface IntrospectionDeps {
   readonly tenantId: string;
-  readonly issuer: string;
+  // Every issuer a token's `iss` may name: the canonical one and any retired
+  // one still inside its window.
+  readonly acceptedIssuers: readonly string[];
   readonly keys: readonly SigningKeyRecord[];
   readonly lifespans: SessionLifespans;
   // Keyed by the token's own private `grant_id` claim — see
@@ -63,7 +65,7 @@ export async function introspect(
   try {
     payload = await verifyJwt(input.token, {
       keys: [...deps.keys],
-      issuer: deps.issuer,
+      issuer: deps.acceptedIssuers,
       // The caller's entitlement is an intersection against its own
       // registered identities (`callerIsAddressed`,
       // `#/service/introspection-audience.ts`) — a rule verification

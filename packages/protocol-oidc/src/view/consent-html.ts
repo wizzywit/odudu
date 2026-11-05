@@ -1,4 +1,4 @@
-import { type PageLocale, type RenderedPage } from '@odudu/kernel';
+import { addressPath, type PageLocale, type RenderedPage, type TenantAddress } from '@odudu/kernel';
 import { escapeHtml, intro, page } from '#/view/document';
 import {
   consentClientName,
@@ -11,6 +11,7 @@ import { bdi, t, tHtml } from '#/view/messages';
 
 export interface ConsentPageInput {
   tenant: string;
+  address: TenantAddress;
   authSessionId: string;
   // Self-asserted by the client at registration (RFC 7591 §5) — escaped
   // like every other interpolated value, the client's name most of all.
@@ -86,7 +87,7 @@ function renderPageLinks(
 // control. There is no script on this page, so `script` is null and
 // `default-src 'none'` describes it exactly.
 export function renderConsentPage(input: ConsentPageInput, locale: PageLocale): RenderedPage {
-  const action = `/tenants/${escapeHtml(encodeURIComponent(input.tenant))}/login-actions/consent`;
+  const action = escapeHtml(addressPath(input.address, '/login-actions/consent'));
   const granted = new Set(input.alreadyGranted);
   const i18n = input.i18n ?? NO_CONSENT_I18N;
   const clientName = consentClientName(input.clientName, i18n, locale.tag);

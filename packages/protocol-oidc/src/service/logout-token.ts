@@ -54,3 +54,51 @@ export function logoutTokenClaims(input: LogoutTokenInput): LogoutTokenClaims {
     events: { [BACKCHANNEL_LOGOUT_EVENT]: {} },
   };
 }
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+// A stored Logout Token's claims for one delivery attempt: another issuer, for
+// the tenant's address as it is now rather than as it was when the session
+// ended, and an `iat` and `exp` of the attempt with the lifetime the token was
+// minted with, so a retry is not refused for the age of the first try. The
+// `jti` is kept: it is the same event. Null for anything that is not a token
+// this module assembled.
+export function reissuedLogoutTokenClaims(
+  token: string,
+  issuer: string,
+  now: Date,
+): LogoutTokenClaims | null {
+  const segment = token.split('.')[1];
+  if (segment === undefined) return null;
+  let payload: unknown;
+  try {
+    payload = JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+  if (typeof payload !== 'object' || payload === null) return null;
+  const { aud, iat, exp, jti, sub, sid } = payload as Record<string, unknown>;
+  if (
+    !isNonEmptyString(aud) ||
+    !isNonEmptyString(jti) ||
+    !isNonEmptyString(sub) ||
+    !isNonEmptyString(sid) ||
+    typeof iat !== 'number' ||
+    typeof exp !== 'number'
+  ) {
+    return null;
+  }
+  const attempt = Math.floor(now.getTime() / 1000);
+  return {
+    iss: issuer,
+    aud,
+    iat: attempt,
+    exp: attempt + Math.max(exp - iat, 0),
+    jti,
+    sub,
+    sid,
+    events: { [BACKCHANNEL_LOGOUT_EVENT]: {} },
+  };
+}

@@ -162,6 +162,7 @@ describe('what it says about the product matches the roadmap', () => {
     [/single sign-on/iu, /Single sign-on across the apps of one tenant/u],
     [/back-channel logout/iu, /back-channel logout delivered/u],
     [/many tenants/iu, /Any number of tenants on one server/u],
+    [/public address of its own/iu, /A public address of its own for a tenant, a custom domain/u],
     [/passkeys/iu, /passkeys/u],
     [/recovery codes/iu, /Recovery codes: ten per person/u],
     [/theme and a client's branding/u, /renders in a tenant's theme and a client's branding/u],

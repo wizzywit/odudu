@@ -23,6 +23,7 @@ Tenant
 Settings
 Branding
 Email
+Domains
 Export
 Observe
 Audit trail
@@ -60,7 +61,7 @@ Clients
 Groups
 0 groups
 Roles
-8 roles
+10 roles
 Scopes
 8 scopes
 Discovery

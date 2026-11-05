@@ -1,7 +1,10 @@
 import {
   createFallbackReporter,
   MAX_CLIENT_ID_LENGTH,
+  addressIssuer,
+  pathAddress,
   type BrandingResolver,
+  type TenantAddress,
   type BrandingScope,
   type MailBranding,
   type PageBranding,
@@ -69,6 +72,8 @@ export function resolveBranding(deps: ResolveBrandingDeps): BrandingResolver {
 export interface MailScope {
   tenantId: string;
   tenantName: string;
+  // The tenant's canonical address, which a mail's asset URLs name.
+  address?: TenantAddress | undefined;
   // The client the flow began inside, from server-side state only; the
   // reader decides whether it is a client whose theme a mail may wear.
   clientId?: string | null | undefined;
@@ -137,7 +142,7 @@ function createResolvers(deps: ResolveBrandingDeps): {
       return null;
     }
     const built = buildBranding({
-      tenantName: scope.tenantName,
+      address: pathAddress(origin, scope.tenantName),
       origin,
       layers: [
         ...(layers.client === null ? [] : [{ name: 'client' as const, layer: layers.client }]),
@@ -191,8 +196,8 @@ function createResolvers(deps: ResolveBrandingDeps): {
     try {
       const layers = await read(scope.tenantId, clientId);
       const built = buildBranding({
-        tenantName: scope.tenantName,
-        origin,
+        address: scope.address ?? pathAddress(origin, scope.tenantName),
+        origin: scope.address?.origin ?? origin,
         layers: [
           ...(layers.client === null ? [] : [{ name: 'client' as const, layer: layers.client }]),
           ...(layers.tenant === null ? [] : [{ name: 'tenant' as const, layer: layers.tenant }]),
@@ -222,16 +227,22 @@ function createResolvers(deps: ResolveBrandingDeps): {
       }
     }
     const key = `${scope.tenantId}:`;
-    const held = deps.cache.get(key);
+    const path = pathAddress(deps.origin, scope.tenantName);
+    // The page cache holds themes built for the path address; a mail for a
+    // tenant whose canonical address is another one is built, not read from it.
+    const onPath =
+      scope.address === undefined || addressIssuer(scope.address) === addressIssuer(path);
+    const held = onPath ? deps.cache.get(key) : undefined;
     if (held !== undefined) return held.value?.mail ?? null;
     const generation = deps.cache.generation(scope.tenantId);
     try {
       const layers = await read(scope.tenantId, null);
       const built = buildBranding({
-        tenantName: scope.tenantName,
-        origin: deps.origin,
+        address: scope.address ?? path,
+        origin: scope.address?.origin ?? deps.origin,
         layers: layers.tenant === null ? [] : [{ name: 'tenant', layer: layers.tenant }],
       });
+      if (!onPath) return built.branding === null ? null : built.mail;
       return settle(built, key, scope.tenantId, generation)?.mail ?? null;
     } catch (error) {
       note(key, `the theme could not be read for a mail: ${describe(error)}`);

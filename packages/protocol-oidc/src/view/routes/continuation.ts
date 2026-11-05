@@ -7,6 +7,7 @@ import {
   type PageLocale,
   type RenderedPage,
   withPageTheme,
+  tenantAddressOf,
 } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { restartAuthorizeLocation } from '#/service/restart-request';
@@ -180,7 +181,8 @@ export async function continuation(
   return {
     locale,
     continuing: (page) => (pending === null ? page : { ...page, redirectsTo: pending.redirectUri }),
-    signInPath: pending === null ? null : restartAuthorizeLocation(tenantName, pending),
+    signInPath:
+      pending === null ? null : restartAuthorizeLocation(tenantAddressOf(reply.request), pending),
     clientName: async () =>
       tenant === null || pending === null
         ? undefined

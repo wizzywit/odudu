@@ -11,6 +11,10 @@ export const en = {
     'Try again in {seconds, plural, one {{seconds, number, ::group-off} second} other {{seconds, number, ::group-off} seconds}}.',
   'throttled.goBack': 'Go back to the previous page when the time is up.',
 
+  'movedAddress.title': 'This address has moved',
+  'movedAddress.body':
+    'Sign-in is no longer offered at this address. Continue at the new address instead:',
+
   'notFound.title': 'Page not found',
   'notFound.body': 'There is nothing at this address.',
   'notFound.link.console': 'Open the console',

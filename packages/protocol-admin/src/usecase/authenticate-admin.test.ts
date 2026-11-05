@@ -1,6 +1,6 @@
 import { generateSigningKey, signJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { ADMIN_API_AUDIENCE } from '@odudu/domain-tenant';
-import { type TenantLookup } from '@odudu/protocol-oidc';
+import { acceptedIssuers, type TenantLookup } from '@odudu/protocol-oidc';
 import { describe, expect, it } from 'vitest';
 import { authenticateAdmin, type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 
@@ -43,11 +43,14 @@ async function foreignKey(): Promise<SigningKeyRecord> {
   };
 }
 
-async function foreignToken(key: SigningKeyRecord): Promise<string> {
+async function foreignToken(
+  key: SigningKeyRecord,
+  iss = `${BASE}/tenants/foreign`,
+): Promise<string> {
   const iat = Math.floor(Date.now() / 1000);
   return signJwt(
     {
-      iss: `${BASE}/tenants/foreign`,
+      iss,
       sub: 'subject-id',
       aud: [ADMIN_API_AUDIENCE],
       iat,
@@ -66,6 +69,8 @@ function deps(key: SigningKeyRecord, overrides: Partial<AuthenticateAdminDeps>) 
     isSessionLive: () => Promise.resolve(false),
     isClientEnabled: () => Promise.resolve(false),
     isSubjectEnabled: () => Promise.resolve(false),
+    acceptedIssuers: (_tenant, requestIssuer) => Promise.resolve([requestIssuer]),
+    tenantNameAtHost: () => Promise.resolve(null),
   };
   return { ...base, ...overrides };
 }
@@ -74,6 +79,7 @@ function authenticate(d: AuthenticateAdminDeps, token: string) {
   return authenticateAdmin(d, {
     authorizationHeader: `Bearer ${token}`,
     targetTenantName: 'target',
+    targetTenant: { ...FOREIGN, id: 'target-tenant-id' },
     targetTenantIssuer: `${BASE}/tenants/target`,
     systemTenantIssuer: `${BASE}/tenants/system`,
     issuerBase: BASE,
@@ -130,7 +136,7 @@ describe('the tenant named in the path, already looked up by the caller', () => 
     );
   }
 
-  async function run(known: boolean) {
+  async function run() {
     const key = { ...(await foreignKey()), tenantId: TARGET.id };
     const lookups: string[] = [];
     const d = deps(key, {
@@ -151,7 +157,7 @@ describe('the tenant named in the path, already looked up by the caller', () => 
     const outcome = await authenticateAdmin(d, {
       authorizationHeader: `Bearer ${await targetToken(key)}`,
       targetTenantName: 'target',
-      ...(known ? { targetTenant: TARGET } : {}),
+      targetTenant: TARGET,
       targetTenantIssuer: `${BASE}/tenants/target`,
       systemTenantIssuer: `${BASE}/tenants/system`,
       issuerBase: BASE,
@@ -161,15 +167,9 @@ describe('the tenant named in the path, already looked up by the caller', () => 
   }
 
   it('is not looked up a second time to authenticate', async () => {
-    const { outcome, lookups } = await run(true);
+    const { outcome, lookups } = await run();
     expect(outcome.kind).toBe('authenticated');
     expect(lookups).toEqual([]);
-  });
-
-  it('is looked up once when the caller has not done so', async () => {
-    const { outcome, lookups } = await run(false);
-    expect(outcome.kind).toBe('authenticated');
-    expect(lookups).toEqual(['target']);
   });
 
   it('does not make a foreign issuer’s token any less foreign', async () => {
@@ -208,5 +208,157 @@ describe('the tenant named in the path, already looked up by the caller', () => 
       now: new Date(),
     });
     expect(outcome).toMatchObject({ kind: 'unauthenticated', reason: 'issuer_mismatch' });
+  });
+});
+
+describe('a tenant that has moved to its own domain', () => {
+  const TARGET: TenantLookup = { ...FOREIGN, id: 'target-tenant-id' };
+  const NOW = new Date();
+  const DOMAIN = 'https://login.target.example';
+  const PATH = `${BASE}/tenants/target`;
+  const LIVE = 'https://old.target.example';
+  const EXPIRED = 'https://older.target.example';
+  const OTHER = 'https://login.other.example';
+
+  const lookup: AuthenticateAdminDeps['acceptedIssuers'] = (_tenant, _requestIssuer, now) =>
+    Promise.resolve(
+      acceptedIssuers(
+        DOMAIN,
+        [
+          { issuer: PATH, expiresAt: new Date(now.getTime() + 60_000) },
+          { issuer: LIVE, expiresAt: new Date(now.getTime() + 1) },
+          { issuer: EXPIRED, expiresAt: now },
+        ],
+        now,
+      ),
+    );
+
+  async function outcomeFor(iss: string, requestIssuer = PATH) {
+    const key = { ...(await foreignKey()), tenantId: TARGET.id };
+    const iat = Math.floor(NOW.getTime() / 1000);
+    const token = await signJwt(
+      {
+        iss,
+        sub: 'subject-id',
+        aud: [ADMIN_API_AUDIENCE],
+        iat,
+        exp: iat + 300,
+        grant_id: 'grant-id',
+      },
+      { key, kek: KEK, typ: 'at+jwt' },
+    );
+    return authenticateAdmin(
+      deps(key, {
+        findTenant: (name) => Promise.resolve(name === 'target' ? TARGET : null),
+        loadGrant: () =>
+          Promise.resolve({ clientId: 'client-id', sessionId: null, revokedAt: null } as never),
+        isClientEnabled: () => Promise.resolve(true),
+        isSubjectEnabled: () => Promise.resolve(true),
+        acceptedIssuers: lookup,
+      }),
+      {
+        authorizationHeader: `Bearer ${token}`,
+        targetTenantName: 'target',
+        targetTenant: TARGET,
+        targetTenantIssuer: requestIssuer,
+        systemTenantIssuer: `${BASE}/tenants/system`,
+        issuerBase: BASE,
+        now: NOW,
+      },
+    );
+  }
+
+  it('accepts a token minted at its canonical domain', async () => {
+    expect((await outcomeFor(DOMAIN)).kind).toBe('authenticated');
+  });
+
+  it('accepts a token minted at an address it left, while that window is open', async () => {
+    expect((await outcomeFor(PATH)).kind).toBe('authenticated');
+    expect((await outcomeFor(LIVE)).kind).toBe('authenticated');
+  });
+
+  it('refuses a token minted at an address whose window has ended', async () => {
+    expect(await outcomeFor(EXPIRED)).toMatchObject({
+      kind: 'unauthenticated',
+      reason: 'issuer_mismatch',
+    });
+  });
+
+  it('refuses a token minted at another tenant’s domain', async () => {
+    expect(await outcomeFor(OTHER)).toMatchObject({
+      kind: 'unauthenticated',
+      reason: 'issuer_mismatch',
+    });
+  });
+
+  it('asks for the accepted set of the tenant in the path and no other', async () => {
+    const asked: string[] = [];
+    const key = await foreignKey();
+    await authenticateAdmin(
+      deps(key, {
+        acceptedIssuers: (tenant) => {
+          asked.push(tenant.name);
+          return Promise.resolve([]);
+        },
+      }),
+      {
+        authorizationHeader: `Bearer ${await foreignToken(key)}`,
+        targetTenantName: 'target',
+        targetTenant: TARGET,
+        targetTenantIssuer: PATH,
+        systemTenantIssuer: `${BASE}/tenants/system`,
+        issuerBase: BASE,
+        now: NOW,
+      },
+    );
+    expect(asked).toEqual(['target']);
+  });
+});
+
+describe('a foreign tenant that has moved to its own domain', () => {
+  const HOST = 'login.foreign.example';
+
+  it('is recorded as a foreign issuer when its token names the domain', async () => {
+    const key = await foreignKey();
+    const asked: string[] = [];
+    const outcome = await authenticate(
+      deps(key, {
+        tenantNameAtHost: (host) => {
+          asked.push(host);
+          return Promise.resolve(host === HOST ? 'foreign' : null);
+        },
+      }),
+      await foreignToken(key, `https://${HOST}`),
+    );
+
+    expect(asked).toEqual([HOST]);
+    expect(outcome).toEqual({
+      kind: 'unauthenticated',
+      reason: 'issuer_mismatch',
+      foreignIssuer: { issuerTenantId: FOREIGN.id, subjectId: 'subject-id', clientDbId: null },
+    });
+  });
+
+  it('is the plain issuer mismatch when no tenant serves that host', async () => {
+    const key = await foreignKey();
+    const outcome = await authenticate(deps(key, {}), await foreignToken(key, `https://${HOST}`));
+
+    expect(outcome).toEqual({ kind: 'unauthenticated', reason: 'issuer_mismatch' });
+  });
+
+  it('never looks a host up for an issuer that is not a bare origin', async () => {
+    const key = await foreignKey();
+    const asked: string[] = [];
+    await authenticate(
+      deps(key, {
+        tenantNameAtHost: (host) => {
+          asked.push(host);
+          return Promise.resolve('foreign');
+        },
+      }),
+      await foreignToken(key, `https://${HOST}/tenants/x`),
+    );
+
+    expect(asked).toEqual([]);
   });
 });

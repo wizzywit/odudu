@@ -406,7 +406,7 @@ describe('a client disabled after a token was issued to it', () => {
     if (typeof issuer !== 'string') throw new Error('expected a string iss claim on the id_token');
 
     const resolveDeps: ResolveDeps = {
-      issuer,
+      acceptedIssuers: [issuer],
       requestingClientId: client.clientId,
       lifespans: GENEROUS_LIFESPANS,
       now: fixture.clock.now(),

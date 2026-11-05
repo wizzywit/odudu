@@ -45,12 +45,14 @@ describe('where a resource id leads', () => {
       signing_key: 'keys',
       flow: 'flow',
       registration_token: 'registration-tokens',
+      domain: 'domains',
     });
     expect(resourceHref('acme', 'signing_key', ID, PAGES, areaPage)).toBe('/console/acme/keys');
     expect(resourceHref('acme', 'flow', ID, PAGES, areaPage)).toBe('/console/acme/flow');
     expect(resourceHref('acme', 'registration_token', ID, PAGES, areaPage)).toBe(
       '/console/acme/registration-tokens',
     );
+    expect(resourceHref('acme', 'domain', ID, PAGES, areaPage)).toBe('/console/acme/domains');
   });
 
   it('nowhere for a type with neither, or an id that is not a record id', () => {

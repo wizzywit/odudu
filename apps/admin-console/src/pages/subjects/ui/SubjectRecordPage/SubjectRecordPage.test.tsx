@@ -152,7 +152,7 @@ it('offers no change to a subject holding more than the caller, and says so once
   );
   const note = await screen.findByText(/ada holds .* which you do not/u);
   expect(note).toHaveTextContent(
-    'ada holds manage-tenant, manage-clients, manage-keys and view-audit, which you do not, so you can view ada but change nothing here.',
+    'ada holds manage-tenant, manage-clients, manage-keys, view-audit, view-domains and manage-domains, which you do not, so you can view ada but change nothing here.',
   );
   expect(screen.queryByRole('button', { name: /Disable|Delete/u })).toBeNull();
   expect(screen.queryByRole('textbox', { name: 'Full name' })).toBeNull();

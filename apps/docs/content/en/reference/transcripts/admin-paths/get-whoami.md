@@ -16,7 +16,7 @@ It answers `subjectId` (the token's `sub`), `issuerTenantId` — the tenant that
 `crossTenant`. `capabilities` is the caller's own effective admin-client roles,
 resolved on its issuing tenant exactly the way `authorizeAdmin` resolves them
 (`callerCapabilities`) — composites expanded, so a `manage-users` holder sees
-`view-users` alongside it — narrowed to the seven `TenantCapability` names plus
+`view-users` alongside it — narrowed to the `TenantCapability` names (nine, with `view-domains` and `manage-domains`) plus
 `manage-tenants` and sorted. A composite role itself, `tenant-admin` among them,
 is never a member of that list: holding one expands to what it composites, never
 to its own name, and the published schema enforces the narrowing with a `z.enum`
@@ -39,5 +39,7 @@ curl -sS \
 ```
 
 ```
-{"subjectId":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","view-audit","view-users"],"crossTenant":true}
+{"subjectId":"01a1a8b1-70c0-7311-922c-8ce4551fc10b","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-domains","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","view-audit","view-domains","view-users"],"crossTenant":true}
 ```
+
+This block ran again after `view-domains` and `manage-domains` joined the built-in roles, so its ids and times are not those of the blocks around it. The caller is the run's own `ada`, holding `tenant-admin`, so `subjectId` is hers.

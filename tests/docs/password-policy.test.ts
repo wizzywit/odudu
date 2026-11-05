@@ -3,7 +3,11 @@ import {
   evaluatePassword,
   REUSED_PASSWORD,
 } from '../../packages/domain-identity/src/service/password-policy.js';
-import { DEFAULT_PAGE_LOCALE, PASSWORD_TOO_LONG } from '../../packages/kernel/src/index.js';
+import {
+  DEFAULT_PAGE_LOCALE,
+  PASSWORD_TOO_LONG,
+  pathAddress,
+} from '../../packages/kernel/src/index.js';
 import {
   renderRegistrationForm,
   type RegistrationRefusal,
@@ -71,7 +75,14 @@ function possibleMessages(): Set<string> {
   const messages = new Set<string>();
   for (const violation of reported) {
     for (const item of itemsOf(
-      renderResetPasswordForm('acme', 'key', [violation], RULES, DEFAULT_PAGE_LOCALE).body,
+      renderResetPasswordForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'key',
+        [violation],
+        RULES,
+        DEFAULT_PAGE_LOCALE,
+      ).body,
     )) {
       expect(item, `no catalogue sentence for the rule ${violation.rule}`).not.toContain('<bdi>');
       messages.add(item);
@@ -82,7 +93,12 @@ function possibleMessages(): Set<string> {
     { missing: ['username', 'email', 'password'] as const },
   ]) {
     for (const item of itemsOf(
-      renderRegistrationForm('acme', { rules: RULES, failure }, DEFAULT_PAGE_LOCALE).body,
+      renderRegistrationForm(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        { rules: RULES, failure },
+        DEFAULT_PAGE_LOCALE,
+      ).body,
     )) {
       messages.add(item);
     }
@@ -94,8 +110,20 @@ function possibleMessages(): Set<string> {
 function violationPageHeadings(): Set<string> {
   const headings = new Set<string>();
   for (const body of [
-    renderRegistrationForm('acme', { rules: RULES }, DEFAULT_PAGE_LOCALE).body,
-    renderResetPasswordForm('acme', 'key', undefined, RULES, DEFAULT_PAGE_LOCALE).body,
+    renderRegistrationForm(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      { rules: RULES },
+      DEFAULT_PAGE_LOCALE,
+    ).body,
+    renderResetPasswordForm(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      'key',
+      undefined,
+      RULES,
+      DEFAULT_PAGE_LOCALE,
+    ).body,
   ]) {
     const title = /<h1>(?<title>[^<]+)<\/h1>/u.exec(body)?.groups?.title;
     if (title !== undefined) headings.add(title);

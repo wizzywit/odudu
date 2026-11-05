@@ -1,4 +1,4 @@
-import { type PageBranding } from '@odudu/kernel';
+import { domainAddress, type PageBranding } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
 import { type Palette } from '#/service/body';
 import { createBrandingCache } from '#/service/branding-cache';
@@ -103,6 +103,25 @@ describe('resolveMailBranding', () => {
       width: 48,
       height: 48,
     });
+  });
+
+  it('names the canonical address in a logo URL, whatever the page cache holds', async () => {
+    const { mail, page } = setup({ tenant: themed, client: null });
+    await page({ ...SCOPE, clientId: null });
+    const address = domainAddress('login.acme.com', true);
+    const found = await mail('tx', { ...SCOPE, address });
+    expect(found?.logo?.src).toBe(`https://login.acme.com/brand/${SHA}.png`);
+    expect((await mail('tx', SCOPE))?.logo?.src).toBe(`${ORIGIN}/tenants/acme/brand/${SHA}.png`);
+  });
+
+  it('names the canonical address in a client theme logo URL too', async () => {
+    const { mail } = setup({ tenant: themed, client: themed });
+    const found = await mail('tx', {
+      ...SCOPE,
+      clientId: 'web',
+      address: domainAddress('login.acme.com', true),
+    });
+    expect(found?.logo?.src).toBe(`https://login.acme.com/brand/${SHA}.png`);
   });
 
   it('reads through the transaction it is given and caches for the next mail', async () => {

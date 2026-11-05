@@ -1,3 +1,4 @@
+import { addressPath, type TenantAddress } from '@odudu/kernel';
 import { type PendingRequest } from '@odudu/authn-flows';
 import { MAX_CLAIMS_PARAMETER_BYTES } from '#/service/claims-request';
 
@@ -34,7 +35,7 @@ function claimsParameter(claims: ParkedClaims): string | null {
 // itself is not stored, only whom it named, and a rebuilt request without
 // it would no longer be constrained to that subject.
 export function restartAuthorizeLocation(
-  tenantName: string,
+  address: TenantAddress,
   pending: PendingRequest,
 ): string | null {
   if (pending.idTokenHintSubject !== undefined || pending.claimsSubject !== undefined) return null;
@@ -67,5 +68,5 @@ export function restartAuthorizeLocation(
   // list applied; naming them all would be refused as invalid_target.
   if (pending.resource?.length === 1) query.set('resource', pending.resource[0] ?? '');
   if (claims !== '') query.set('claims', claims);
-  return `/tenants/${encodeURIComponent(tenantName)}/protocol/openid-connect/auth?${query.toString()}`;
+  return addressPath(address, `/protocol/openid-connect/auth?${query.toString()}`);
 }

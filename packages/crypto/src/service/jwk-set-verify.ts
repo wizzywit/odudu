@@ -27,7 +27,7 @@ export async function verifyJwtClaims(
   jwks: unknown,
   opts: {
     issuer: string;
-    audience: string;
+    audience: string | readonly string[];
     now: Date;
     algorithms?: readonly ('RS256' | 'ES256')[];
     /** Seconds of leeway on `exp` and `nbf`; none unless named. */
@@ -39,7 +39,7 @@ export async function verifyJwtClaims(
     const keySet = createLocalJWKSet(jwks);
     const { payload } = await jwtVerify(token, keySet, {
       issuer: opts.issuer,
-      audience: opts.audience,
+      audience: typeof opts.audience === 'string' ? opts.audience : [...opts.audience],
       currentDate: opts.now,
       ...(opts.clockToleranceSeconds === undefined
         ? {}
@@ -55,7 +55,12 @@ export async function verifyJwtClaims(
 export async function verifyJwtAgainstJwkSet(
   token: string,
   jwks: unknown,
-  opts: { issuer: string; audience: string; now: Date; clockToleranceSeconds?: number },
+  opts: {
+    issuer: string;
+    audience: string | readonly string[];
+    now: Date;
+    clockToleranceSeconds?: number;
+  },
 ): Promise<boolean> {
   return (await verifyJwtClaims(token, jwks, opts)) !== null;
 }

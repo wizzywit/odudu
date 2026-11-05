@@ -88,6 +88,25 @@ describe('logout', () => {
     expect(log.mock.calls[0]?.[0]).not.toContain('elsewhere');
   });
 
+  it('follows the end-session endpoint of a tenant on its own domain', async () => {
+    const domain =
+      'https://login.acme.com/protocol/openid-connect/logout?id_token_hint=h&client_id=odudu-admin';
+    const { auth } = harness(json({ redirect: domain }));
+
+    expect(await auth.logout()).toEqual({ ok: true, redirect: domain });
+  });
+
+  it.each([
+    'https://login.acme.com/other',
+    'https://login.acme.com/protocol/openid-connect/logout/x',
+    'https://user:pw@login.acme.com/protocol/openid-connect/logout',
+    'javascript:alert(1)//protocol/openid-connect/logout',
+  ])('refuses %j on another origin', async (redirect) => {
+    const { auth } = harness(json({ redirect }));
+
+    expect(await auth.logout()).toEqual({ ok: false, kind: 'schema' });
+  });
+
   it('refuses a body without a redirect', async () => {
     const { auth } = harness(json({ location: REDIRECT }));
 

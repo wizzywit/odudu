@@ -16,6 +16,9 @@ export const CAPABILITY_TEXT: Readonly<Record<AdminCapability, string>> = {
   'manage-keys': 'Create, promote, retire and delete signing keys.',
   'manage-sessions': 'See and end sessions, and revoke grants.',
   'view-audit': 'Read the audit trail.',
+  'view-domains': 'See the tenant’s domains and which one is its address.',
+  'manage-domains':
+    'Register, verify, switch to and remove the tenant’s domains. Carries view-domains.',
   'manage-tenants': 'Create, change and disable tenants, and act inside every one.',
 };
 
@@ -71,6 +74,7 @@ export function isAdminRole(role: { name: string; client_key: string | null }): 
 
 const NESTED: Readonly<Partial<Record<AdminCapability, AdminCapability>>> = {
   'view-users': 'manage-users',
+  'view-domains': 'manage-domains',
 };
 
 // The chosen holding that already carries this one, if any.

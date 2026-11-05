@@ -3,6 +3,7 @@ import { auditRepository } from '@odudu/domain-audit';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
+import { relyingPartyOfTenant } from '#/usecase/passkey-relying-party';
 import {
   parseRegistrationResponse,
   passkeyRegistrationOptions,
@@ -11,6 +12,7 @@ import {
 import { type PasskeyEnrolmentOffer } from '#/view/passkey-enrolment-html';
 
 export interface BeginPasskeyEnrolment {
+  tenantId: string;
   tenantName: string;
   publicBaseUrl: string;
   authSessionId: string;
@@ -28,7 +30,7 @@ export async function beginPasskeyEnrolment(
   const user = await userRepository(tx).bySubjectId(input.subjectId);
   const existing = await credentialRepository(tx).listFor(input.subjectId, 'webauthn');
   const offer = await passkeyRegistrationOptions({
-    publicBaseUrl: input.publicBaseUrl,
+    relyingParty: await relyingPartyOfTenant(tx, input.tenantId, input.publicBaseUrl),
     tenantName: input.tenantName,
     username: user?.username ?? input.subjectId,
     userHandle: input.subjectId,
@@ -86,8 +88,9 @@ export async function completePasskeyEnrolment(
   const response = parseRegistrationResponse(input.response);
   if (response === null) return { kind: 'rejected', reason: 'invalid_response' };
 
+  const relyingParty = await relyingPartyOfTenant(tx, input.tenantId, input.publicBaseUrl);
   const verified = await verifyPasskeyRegistration({
-    publicBaseUrl: input.publicBaseUrl,
+    relyingParty,
     expectedChallenge: challenge,
     response,
   });
@@ -112,6 +115,7 @@ export async function completePasskeyEnrolment(
     subjectId: input.subjectId,
     type: 'webauthn',
     lookupKey: verified.credentialId,
+    rpId: relyingParty.id,
     label: boundedLabel(input.label),
     secret: {
       kind: 'webauthn',

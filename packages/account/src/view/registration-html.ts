@@ -1,9 +1,11 @@
 import {
+  addressPath,
   PASSWORD_CONFIRM_FIELD_ID,
   passwordConfirmToggle,
   type PageLocale,
   type PasswordRules,
   type RenderedPage,
+  type TenantAddress,
 } from '@odudu/kernel';
 import { escapeHtml, intro, page } from '#/view/document';
 import { links, type WayOn } from '#/view/links';
@@ -112,10 +114,11 @@ function backToSignIn(signInPath: string | null | undefined, locale: PageLocale)
 
 export function renderRegistrationForm(
   tenant: string,
+  address: TenantAddress,
   form: RegistrationForm,
   locale: PageLocale,
 ): RenderedPage {
-  const action = `/tenants/${escapeHtml(encodeURIComponent(tenant))}/login-actions/registration`;
+  const action = escapeHtml(addressPath(address, '/login-actions/registration'));
   const problems = problemsOf(form.failure, locale);
   const focus = firstInvalidField(problems, FIELD_ORDER);
   const attributes = (field: RegistrationField): string =>
@@ -159,11 +162,11 @@ export function renderRegistrationForm(
 // The one refusal that is not about a field: registration cannot run at all.
 // It stays a page, with the way to try again and the way back.
 export function renderRegistrationFailedPage(
-  tenant: string,
+  address: TenantAddress,
   signInPath: string | null,
   locale: PageLocale,
 ): RenderedPage {
-  const retry = `/tenants/${encodeURIComponent(tenant)}/login-actions/registration`;
+  const retry = addressPath(address, '/login-actions/registration');
   return page(
     t(locale, 'registration.failed.title'),
     fillNotice(
@@ -220,10 +223,10 @@ export function renderRegistrationSucceededPage(
 // The link was good, but the username it asked for went to somebody else in
 // the meantime. Nothing was created; the way on is the form again.
 export function renderRegistrationUsernameGonePage(
-  tenant: string,
+  address: TenantAddress,
   locale: PageLocale,
 ): RenderedPage {
-  const form = `/tenants/${encodeURIComponent(tenant)}/login-actions/registration`;
+  const form = addressPath(address, '/login-actions/registration');
   return page(
     t(locale, 'registration.usernameGone.title'),
     fillNotice(

@@ -49,6 +49,29 @@ shipped); it was added to the recorded blocks by hand, after `nosniff` where
 `pageHeaders` places it, and a live login-page response on the project
 `odudu-p4g-13b` confirmed its value and position.
 
+The custom-domain work of 2026-11-04 was captured on the compose project `odudu-p4j-tx`, built from the
+branch commit `cdde6fd8` plus the documentation, on port `3000` with `ODUDU_THROTTLE_LIMIT` and
+`ODUDU_LOGIN_THROTTLE_LIMIT` at `10000` and the three schedules off. The domains page of the admin
+paths ran in one pass on a stack with `ada`, `demo` and `other`; `GET /admin/openapi.json`'s figures
+and the `odudu reap` reports of the retention page, which now carry `tenant_issuer_retirements` and
+`tenant_domains` after `console_logins` as `REAP_ORDER` places them, were run on that project and
+compared with what the pages said (every report was identical). The retention page's section on domains
+registers a domain and switches `demo` to it, which is why two of its counts are `1`. The page
+on [a tenant's own address](../reference/transcripts/request-paths/custom-domains-a-domain-host-and-the-proxys-question.md)
+sends a `Host` header to the stack's port, since no DNS names the domain; the host checks are the
+real ones. Seven admin-paths pages listed the built-in roles or what `tenant-admin` carries, which grew by
+`view-domains` and `manage-domains`. The blocks that showed that were run again on the same project, each
+in a tenant made for it as its page describes (`holders-demo`, `admins-demo` with `grace` and `hana`,
+`composites-demo`, `groups-demo` with `helpdesk` and `mei2`, and `export-demo` with the setup its page
+gives): the whoami of Getting the token and of `GET /whoami`, the roles page's list a user manager picks
+from, the composites of `tenant-admin`, the export, the subjects page's capability filters and
+the whole of the groups page from its `helpdesk` section on. Each says so under the block, and its ids
+and times are that run's, not those of the blocks around it. The admin-capabilities page and the groups page (`GET /groups`)
+do not involve `tenant-admin` or the new capabilities and were not touched. The rest of the
+admin paths were not run again for this phase, which stays with the end-to-end re-run of all of them.
+`tests/docs/retention-schedule.test.ts` holds every report to `REAP_ORDER`'s keys, and
+`apps/server/tests/reap.int.test.ts` runs both rules against real rows.
+
 A page follows the colour the person chose in the console. The console writes
 the cookie `odudu-theme` (`light` or `dark`; it expires it for `system`), and
 every page's `<html>` names that value in `data-theme` and nothing else: with no

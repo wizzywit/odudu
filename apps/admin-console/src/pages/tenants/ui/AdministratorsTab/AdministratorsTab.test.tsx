@@ -117,7 +117,7 @@ it('offers no add without the capabilities it needs, and says once on the page w
   });
   // Granting tenant-admin is held to every capability the role carries.
   expect(await screen.findByRole('note')).toHaveTextContent(
-    'You can view tenants but not add their administrators (needs manage-users, manage-clients, manage-keys, manage-sessions and view-audit).',
+    'You can view tenants but not add their administrators (needs manage-users, manage-clients, manage-keys, manage-sessions, view-audit, view-domains and manage-domains).',
   );
   await screen.findByRole('list', { name: 'Administrators of acme' });
   expect(screen.queryByRole('button', { name: 'Add an administrator' })).toBeNull();

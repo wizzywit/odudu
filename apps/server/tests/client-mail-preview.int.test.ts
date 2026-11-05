@@ -13,7 +13,7 @@ import { buildApp } from '#/app';
 import { mintAdminToken } from '#/testing/plan-admin-drives';
 import { createBranding, type Branding } from '#/branding';
 import { seed } from '#/cli/seed';
-import { isWork, StatementRecorder } from '#/testing/plan-capture';
+import { isWork, StatementRecorder, withoutAcceptedIssuerReads } from '#/testing/plan-capture';
 
 // The mail a client's sign-in would send, previewed: the client's published
 // layer over the tenant's, the tenant's look for a client that is disabled,
@@ -46,10 +46,11 @@ const LIGHT = {
 const WARM = { ...LIGHT, surfacePanel: '#fffaf0' };
 const COOL = { ...LIGHT, surfacePanel: '#e0f0ff' };
 
-// The caller's checks, the client's row, the tenant's row, the client-bound
-// theme read in a savepoint and one more read: the overrides for the preview,
-// the tenant's own look for the branding view.
-const STATEMENTS = 12;
+// The caller's checks, the client's row, the tenant's row, the tenant's
+// canonical domain, the client-bound theme read in a savepoint and one more
+// read: the overrides for the preview, the tenant's own look for the branding
+// view.
+const STATEMENTS = 13;
 
 beforeAll(async () => {
   container = await startTestDatabase();
@@ -249,8 +250,9 @@ describe('what a client preview costs', () => {
       }),
     );
     expect(result.statusCode).toBe(200);
-    return statements.filter((s) => isWork(s) || /^(savepoint|release)\b/iu.test(s.query.trim()))
-      .length;
+    return withoutAcceptedIssuerReads(statements).filter(
+      (s) => isWork(s) || /^(savepoint|release)\b/iu.test(s.query.trim()),
+    ).length;
   }
 
   it('is the same few statements for a client naming two logos as for no theme', async () => {

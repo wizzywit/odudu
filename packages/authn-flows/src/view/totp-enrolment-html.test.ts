@@ -1,4 +1,4 @@
-import { DEFAULT_PAGE_LOCALE } from '@odudu/kernel';
+import { DEFAULT_PAGE_LOCALE, pathAddress } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import { en } from '#/view/messages';
 import { renderTotpEnrolmentPage } from '#/view/totp-enrolment-html';
@@ -30,6 +30,7 @@ describe('renderTotpEnrolmentPage', () => {
   it('returns a body fragment and a title beside the document', () => {
     const page = renderTotpEnrolmentPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'auth-session-1',
       OFFER,
       undefined,
@@ -43,6 +44,7 @@ describe('renderTotpEnrolmentPage', () => {
   it('draws the URI as a QR code as well as text', () => {
     const page = renderTotpEnrolmentPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'auth-session-1',
       OFFER,
       undefined,
@@ -61,6 +63,7 @@ describe('renderTotpEnrolmentPage', () => {
   it('escapes the URI where it appears as text', () => {
     const page = renderTotpEnrolmentPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'auth-session-1',
       OFFER,
       undefined,
@@ -76,6 +79,7 @@ describe('renderTotpEnrolmentPage', () => {
   it('escapes the tenant, the session id, the secret and the URI', () => {
     const page = renderTotpEnrolmentPage(
       'acme"><script>',
+      pathAddress('https://idp.example', 'acme"><script>'),
       'session"><script>',
       { secret: '"><script>S', uri: 'otpauth://x?a=<script>&b="' },
       undefined,
@@ -91,6 +95,7 @@ describe('renderTotpEnrolmentPage', () => {
   it('keeps the English markup exactly', () => {
     const { body } = renderTotpEnrolmentPage(
       'acme',
+      pathAddress('https://idp.example', 'acme'),
       'sess-1',
       OFFER,
       'code_mismatch',
@@ -118,7 +123,14 @@ describe('renderTotpEnrolmentPage', () => {
   });
 
   it('reads French where the fixture has it, English for the rest, and keeps the secret in the same places', () => {
-    const page = renderTotpEnrolmentPage('acme', 's1', OFFER, 'code_mismatch', FRENCH);
+    const page = renderTotpEnrolmentPage(
+      'acme',
+      pathAddress('https://idp.example', 'acme'),
+      's1',
+      OFFER,
+      'code_mismatch',
+      FRENCH,
+    );
     expect(page.html).toContain('<html lang="fr" dir="ltr">');
     expect(page.title).toBe("Configurez votre application d'authentification");
     expect(page.body).toContain('<li id="form-error-0">Ce code ne correspond pas.</li>');
@@ -129,21 +141,41 @@ describe('renderTotpEnrolmentPage', () => {
   });
 
   it('writes lang and dir for a right-to-left locale', () => {
-    expect(renderTotpEnrolmentPage('a', 's', OFFER, undefined, ARABIC).html).toContain(
-      '<html lang="ar" dir="rtl">',
-    );
+    expect(
+      renderTotpEnrolmentPage(
+        'a',
+        pathAddress('https://idp.example', 'a'),
+        's',
+        OFFER,
+        undefined,
+        ARABIC,
+      ).html,
+    ).toContain('<html lang="ar" dir="rtl">');
   });
 
   it('says nothing about an error when there is none', () => {
     expect(
-      renderTotpEnrolmentPage('acme', 'auth-session-1', OFFER, undefined, DEFAULT_PAGE_LOCALE).html,
+      renderTotpEnrolmentPage(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'auth-session-1',
+        OFFER,
+        undefined,
+        DEFAULT_PAGE_LOCALE,
+      ).html,
     ).not.toContain('<strong>');
   });
 
   it('needs no script, so the page asks for no policy beyond the base one', () => {
     expect(
-      renderTotpEnrolmentPage('acme', 'auth-session-1', OFFER, undefined, DEFAULT_PAGE_LOCALE)
-        .script,
+      renderTotpEnrolmentPage(
+        'acme',
+        pathAddress('https://idp.example', 'acme'),
+        'auth-session-1',
+        OFFER,
+        undefined,
+        DEFAULT_PAGE_LOCALE,
+      ).script,
     ).toBeNull();
   });
 });

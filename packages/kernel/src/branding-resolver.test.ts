@@ -5,6 +5,7 @@ import {
   type BrandingResolver,
   type OverridesResolver,
 } from '#/branding-resolver';
+import { pathAddress } from '#/address';
 import { DEFAULT_PAGE_LOCALE, type ResolvedBranding } from '#/page';
 
 const BRANDING: ResolvedBranding = {
@@ -99,14 +100,30 @@ describe('clientFromReturnTo', () => {
   const known = (id: string): Promise<boolean> => Promise.resolve(id === 'web');
 
   it('names the registered client the authorize path carries', async () => {
-    expect(await clientFromReturnTo('acme', path('response_type=code&client_id=web'), known)).toBe(
-      'web',
-    );
+    expect(
+      await clientFromReturnTo(
+        pathAddress('https://idp.example', 'acme'),
+        path('response_type=code&client_id=web'),
+        known,
+      ),
+    ).toBe('web');
   });
 
   it('is null for an unregistered or foreign client, without saying which', async () => {
-    expect(await clientFromReturnTo('acme', path('client_id=other'), known)).toBeNull();
-    expect(await clientFromReturnTo('acme', path('client_id=web', 'rival'), known)).toBeNull();
+    expect(
+      await clientFromReturnTo(
+        pathAddress('https://idp.example', 'acme'),
+        path('client_id=other'),
+        known,
+      ),
+    ).toBeNull();
+    expect(
+      await clientFromReturnTo(
+        pathAddress('https://idp.example', 'acme'),
+        path('client_id=web', 'rival'),
+        known,
+      ),
+    ).toBeNull();
   });
 
   it.each([
@@ -118,12 +135,20 @@ describe('clientFromReturnTo', () => {
     ['an oversized client_id', path(`client_id=${'a'.repeat(300)}`)],
   ])('is null for %s without asking the registry', async (_name, value) => {
     const asked = vi.fn(known);
-    expect(await clientFromReturnTo('acme', value, asked)).toBeNull();
+    expect(
+      await clientFromReturnTo(pathAddress('https://idp.example', 'acme'), value, asked),
+    ).toBeNull();
     expect(asked).not.toHaveBeenCalled();
   });
 
   it('is null when the registry cannot be read', async () => {
     const failing = (): Promise<boolean> => Promise.reject(new Error('down'));
-    expect(await clientFromReturnTo('acme', path('client_id=web'), failing)).toBeNull();
+    expect(
+      await clientFromReturnTo(
+        pathAddress('https://idp.example', 'acme'),
+        path('client_id=web'),
+        failing,
+      ),
+    ).toBeNull();
   });
 });

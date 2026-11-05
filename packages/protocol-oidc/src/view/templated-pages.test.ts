@@ -4,6 +4,7 @@ import {
   type PageLocale,
   type RenderedPage,
   type ResolvedBranding,
+  pathAddress,
 } from '@odudu/kernel';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
@@ -57,6 +58,7 @@ const CASES: Case[] = [
     render: (locale) =>
       renderLoginForm(
         't1',
+        pathAddress('https://idp.example', 't1'),
         'sess-1',
         'password',
         false,
@@ -86,6 +88,7 @@ const CASES: Case[] = [
       renderConsentPage(
         {
           tenant: 't1',
+          address: pathAddress('https://idp.example', 't1'),
           authSessionId: 'sess-1',
           clientName: 'App',
           clientPages: { clientUri: 'https://rp.test/', policyUri: null, tosUri: null },
@@ -115,6 +118,7 @@ const CASES: Case[] = [
       renderSelectAccountPage(
         {
           tenant: 't1',
+          address: pathAddress('https://idp.example', 't1'),
           authSessionId: 'sess-1',
           accounts: [{ sessionId: 's1', displayName: 'alice' }],
         },
@@ -128,7 +132,7 @@ const CASES: Case[] = [
     kind: 'logout-confirm',
     render: (locale) =>
       renderLogoutConfirmationPage(
-        't1',
+        pathAddress('https://idp.example', 't1'),
         'sid',
         'csrf-value',
         { clientId: 'c1', postLogoutRedirectUri: 'https://rp.test/', state: 'st' },
@@ -228,7 +232,12 @@ describe('a theme template that cannot be filled', () => {
   it('is reported with its kind and reason, and the default template is rendered', () => {
     told.length = 0;
     const locale = { ...themed('select-account', '{{nonesuch}}'), templateFallback: spy };
-    const input = { tenant: 't1', authSessionId: 's', accounts: [] };
+    const input = {
+      tenant: 't1',
+      address: pathAddress('https://idp.example', 't1'),
+      authSessionId: 's',
+      accounts: [],
+    };
     expect(renderSelectAccountPage(input, locale).body).toBe(
       renderSelectAccountPage(input, DEFAULT_PAGE_LOCALE).body,
     );
@@ -240,7 +249,7 @@ describe('a theme template that cannot be filled', () => {
     const own = '{{form.open}}{{t "no.such.key"}}{{form.close}}';
     const locale = { ...themed('logout-confirm', own), templateFallback: spy };
     renderLogoutConfirmationPage(
-      't1',
+      pathAddress('https://idp.example', 't1'),
       'sid',
       'c',
       { clientId: null, postLogoutRedirectUri: null, state: null },

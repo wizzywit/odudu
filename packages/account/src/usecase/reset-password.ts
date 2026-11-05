@@ -9,6 +9,9 @@ import {
   type MailContext,
 } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
+import { mailAddressOf } from '#/usecase/mail-address';
+import { type LookupCanonicalDomain } from '@odudu/domain-tenant';
+import { type TenantAddress } from '@odudu/kernel';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
 import { type MailGate } from '#/service/mail-gate';
 import { withMinimum } from '#/service/password-violations';
@@ -28,6 +31,7 @@ export interface RequestPasswordResetDeps {
   // #/view/routes/registration.ts for why a request header cannot be
   // trusted with the contents of a mail sent to a third party.
   readonly issuerBase: string | undefined;
+  readonly lookupDomain?: LookupCanonicalDomain | undefined;
   // The send time of the mail, from the caller's clock.
   readonly now: () => Date;
   // Themes the mail the way the tenant's pages are; absent, it is unthemed.
@@ -76,10 +80,11 @@ export async function requestPasswordReset(
   await withTenant(deps.database.db, deps.tenantId, async (tx) => {
     // Read before the address is looked up, so the theme costs the same
     // whether or not it names an account.
-    const mail = await mailContext(tx, deps.resolveMailLook, deps);
+    const address = await mailAddressOf(tx, { ...deps, issuerBase });
+    const mail = await mailContext(tx, deps.resolveMailLook, { ...deps, address });
     const user = await deps.findByEmail(tx, email);
     if (user === null || !deps.mailGate('reset', deps.tenantId, user.email)) return;
-    await enqueueResetLink(tx, { ...deps, issuerBase }, user, mail);
+    await enqueueResetLink(tx, { ...deps, issuerBase }, user, { address, mail });
   });
 
   return { kind: 'requested' };
@@ -91,6 +96,7 @@ export interface ActionLinkTenant {
   readonly tenantName: string;
   readonly tenantDisplayName: string;
   readonly issuerBase: string;
+  readonly lookupDomain?: LookupCanonicalDomain | undefined;
   // The send time of the mail, from the caller's clock.
   readonly now: () => Date;
   // The sign-in the link came out of, so its page can lead the same browser
@@ -112,9 +118,11 @@ export async function enqueueResetLink(
     readonly email: string;
     readonly locale?: string | null | undefined;
   },
-  context?: MailContext,
+  resolved?: { readonly address: TenantAddress; readonly mail: MailContext },
 ): Promise<void> {
-  const mail = context ?? (await mailContext(tx, tenant.resolveMailLook, tenant));
+  const address = resolved?.address ?? (await mailAddressOf(tx, tenant));
+  const mail =
+    resolved?.mail ?? (await mailContext(tx, tenant.resolveMailLook, { ...tenant, address }));
   const tokens = actionTokenRepository(tx);
   const { token } = await tokens.issue({
     tenantId: tenant.tenantId,
@@ -126,7 +134,7 @@ export async function enqueueResetLink(
       : { authenticationSessionId: tenant.authenticationSessionId }),
     ttlSeconds: await tokens.lifetimeOf(tenant.tenantId, 'reset_password'),
   });
-  const link = actionLink(tenant.issuerBase, tenant.tenantName, token);
+  const link = actionLink(address, token);
   await outboxRepository(tx).enqueue({
     tenantId: tenant.tenantId,
     ...renderResetPassword({

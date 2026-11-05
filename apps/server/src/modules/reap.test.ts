@@ -86,6 +86,8 @@ const SWEPT: ReapOutcome = {
     client_assertion_jti: 0,
     console_sessions: 0,
     console_logins: 0,
+    tenant_issuer_retirements: 0,
+    tenant_domains: 0,
     sessions: 1,
     audit_events: 0,
   },

@@ -9,10 +9,37 @@ import {
   type MailOverrides,
 } from '@odudu/email';
 import { type MailBranding } from '@odudu/kernel';
-import { clientRepository } from '@odudu/domain-tenant';
+import {
+  baseIsTls,
+  canonicalAddressFor,
+  clientRepository,
+  type LookupCanonicalDomain,
+} from '@odudu/domain-tenant';
 
 export interface MailPreviewDeps {
   readonly resolveMailLook: MailLookResolver;
+}
+
+// The tenant a mail is shown or sent for. With a `base`, its brand assets
+// are drawn from the tenant's canonical address, as a queued mail's are.
+export interface MailTenant {
+  readonly tenantId: string;
+  readonly tenantName: string;
+  readonly base?: string | undefined;
+  readonly lookupDomain?: LookupCanonicalDomain | undefined;
+}
+
+async function mailScopeOf(tx: TenantScopedDatabase, tenant: MailTenant) {
+  const { tenantId, tenantName, base } = tenant;
+  if (base === undefined) return { tenantId, tenantName };
+  const address = await canonicalAddressFor(
+    tx,
+    { id: tenantId, name: tenantName },
+    base,
+    baseIsTls(base),
+    tenant.lookupDomain,
+  );
+  return { tenantId, tenantName, address };
 }
 
 export interface TenantMail {
@@ -31,11 +58,11 @@ export interface TenantMail {
 export async function tenantMail(
   tx: TenantScopedDatabase,
   deps: MailPreviewDeps,
-  tenant: { tenantId: string; tenantName: string },
+  tenant: MailTenant,
   wording = true,
 ): Promise<TenantMail> {
   const { displayName, ...context } = await tenantMailContext(tx, deps.resolveMailLook, {
-    ...tenant,
+    ...(await mailScopeOf(tx, tenant)),
     wording,
   });
   return { ...context, displayName: displayName ?? tenant.tenantName };
@@ -56,20 +83,21 @@ export interface ClientMail extends TenantMail {
 export async function clientMail(
   tx: TenantScopedDatabase,
   deps: MailPreviewDeps,
-  tenant: { tenantId: string; tenantName: string },
+  tenant: MailTenant,
   clientRowId: string,
   wording = true,
 ): Promise<ClientMail | null> {
   const client = await clientRepository(tx).byId(clientRowId);
   if (client === null) return null;
+  const scope = await mailScopeOf(tx, tenant);
   const { displayName, ...context } = await tenantMailContext(tx, deps.resolveMailLook, {
-    ...tenant,
+    ...scope,
     wording,
     clientId: client.clientId,
   });
   const own = wording
     ? null
-    : (await deps.resolveMailLook(tx, { ...tenant, wording: false, clientId: null })).branding;
+    : (await deps.resolveMailLook(tx, { ...scope, wording: false, clientId: null })).branding;
   return {
     ...context,
     displayName: displayName ?? tenant.tenantName,

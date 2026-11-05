@@ -167,6 +167,10 @@ export const CONFIG_DOCS: Record<ConfigKey, ConfigDoc> = {
     'How long a back-channel logout that used up every attempt is kept, counted from its ' +
       'last attempt.',
   ),
+  ODUDU_RETENTION_PENDING_DOMAIN_SECONDS: retention(
+    'How long a custom domain that was registered and never verified is kept, counted from ' +
+      'its registration. A verified domain is never removed by `odudu reap`.',
+  ),
   ODUDU_REAP_ENABLED: {
     group: 'Background passes',
     summary:
@@ -177,6 +181,28 @@ export const CONFIG_DOCS: Record<ConfigKey, ConfigDoc> = {
   ODUDU_REAP_INTERVAL_SECONDS: {
     group: 'Background passes',
     summary: 'Seconds between retention passes, plus up to a tenth of that as random jitter.',
+    secret: false,
+  },
+  ODUDU_DOMAIN_RECHECK_ENABLED: {
+    group: 'Background passes',
+    summary:
+      'Whether the server rechecks the ownership of custom domains itself. Set it to `false` ' +
+      'when you schedule `odudu domains recheck`; with neither running, a domain that stops ' +
+      'proving ownership keeps serving.',
+    secret: false,
+  },
+  ODUDU_DOMAIN_RECHECK_INTERVAL_SECONDS: {
+    group: 'Background passes',
+    summary:
+      'Seconds between ownership rechecks of custom domains, plus up to a tenth of that as ' +
+      'random jitter.',
+    secret: false,
+  },
+  ODUDU_DOMAIN_RECHECK_FAILURES: {
+    group: 'Background passes',
+    summary:
+      'Consecutive rechecks that find no matching DNS record before a custom domain fails ' +
+      'and its tenant returns to the path address. A resolver error counts as nothing.',
     secret: false,
   },
   ODUDU_OUTBOX_ENABLED: {

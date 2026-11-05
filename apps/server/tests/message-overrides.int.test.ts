@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
 import { seed, seedAdmin } from '#/cli/seed';
 import { mintAdminToken } from '#/testing/plan-admin-drives';
-import { isWork, StatementRecorder } from '#/testing/plan-capture';
+import { isWork, StatementRecorder, withoutAcceptedIssuerReads } from '#/testing/plan-capture';
 
 // The admin API and the pages in one process: what an override changes is what
 // the next page shows, with no wait for a cache to age.
@@ -156,7 +156,7 @@ describe('the statements a write costs', () => {
       ),
     );
     expect(result.statusCode, result.body).toBe(200);
-    return statements.filter(isWork).length;
+    return withoutAcceptedIssuerReads(statements).filter(isWork).length;
   };
 
   it('does not grow with the overrides the tenant already holds', async () => {

@@ -84,6 +84,9 @@ const ACCESS = 'settings/services/accessSections.ts';
 const PLATFORM = 'settings/services/platformSections.ts';
 const KEYS_WORDS = 'signing-keys/services/keysWords.ts';
 const KEYS_CONFIRM = 'signing-keys/services/confirm.ts';
+const DOMAINS_WORDS = 'domains/services/domainsWords.ts';
+const DOMAINS_ROWS = 'domains/services/rows.ts';
+const DOMAINS_CONFIRM = 'domains/services/confirm.ts';
 const TOKENS_WORDS = 'registration-tokens/services/tokenWording.ts';
 const FLOW_WORDS = 'flow/services/flowWording.ts';
 const FLOW_REQUIREMENTS = 'flow/services/requirement.ts';
@@ -134,6 +137,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   Password: at(MESSAGES, "'login.password': 'Password'"),
   'Sign out': at('apps/admin-console/src/widgets/shell/ui/RailFooter/RailFooter.tsx', 'Sign out'),
+  'Switch tenant': at(
+    'apps/admin-console/src/widgets/shell/ui/RailFooter/RailFooter.tsx',
+    'Switch tenant',
+  ),
   // The panel a failed page is replaced by.
   'Something went wrong': widget(
     'failure/services/wording.ts',
@@ -479,6 +486,20 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
 
   // Signing keys.
+  // Domains.
+  Domains: rail('domains', 'Domains'),
+  'Register a domain': page(DOMAINS_WORDS, "title: 'Register a domain'"),
+  'Register domain': page(DOMAINS_WORDS, "submit: 'Register domain'"),
+  'Publish this record': page(DOMAINS_WORDS, "title: 'Publish this record'"),
+  Verify: page(DOMAINS_WORDS, "verify: 'Verify'"),
+  'Make the address': page(DOMAINS_WORDS, "activate: 'Make the address'"),
+  'Switch back': page(DOMAINS_WORDS, "deactivate: 'Switch back'"),
+  'Make it the address': page(DOMAINS_CONFIRM, "confirmLabel: 'Make it the address'"),
+  'Remove domain': page(DOMAINS_CONFIRM, "confirmLabel: 'Remove domain'"),
+  Pending: page(DOMAINS_ROWS, "label: 'Pending'"),
+  Verified: page(DOMAINS_ROWS, "label: 'Verified'"),
+  'Current address': page(DOMAINS_ROWS, "'Current address'"),
+  'Not in use': page(DOMAINS_ROWS, "'Not in use'"),
   'Stage a key': page(KEYS_WORDS, "title: 'Stage a key'"),
   'Stage key': page(KEYS_WORDS, "submit: 'Stage key'"),
   Algorithm: page(KEYS_WORDS, "algorithm: 'Algorithm'"),
@@ -521,7 +542,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
 
   // Email.
   'Mail relay': page(EMAIL_WORDS, "RELAY_TITLE = 'Mail relay'"),
-  Host: page(EMAIL_RELAY, "host: 'Host'"),
+  Host: several(page(EMAIL_RELAY, "host: 'Host'"), page(DOMAINS_WORDS, "hostLabel: 'Host'")),
   Port: page(EMAIL_RELAY, "port: 'Port'"),
   'Sender address': page(EMAIL_RELAY, "from_address: 'Sender address'"),
   'New password': page(EMAIL_RELAY, "password: 'New password'"),
@@ -545,7 +566,11 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Queued: page(EMAIL_MAIL_QUERY, "'Queued'"),
   Retrying: page(EMAIL_MAIL_QUERY, "'Retrying'"),
   Sent: page(EMAIL_MAIL_QUERY, "'Sent'"),
-  Failed: several(page(EMAIL_MAIL_QUERY, "'Failed'"), page(AUDIT_KINDS, "'Failed'")),
+  Failed: several(
+    page(EMAIL_MAIL_QUERY, "'Failed'"),
+    page(AUDIT_KINDS, "'Failed'"),
+    page(DOMAINS_ROWS, "label: 'Failed'"),
+  ),
   'not sent': entity('mail-relay/services/effective.ts', "return 'not sent'"),
   'deployment sender': entity('mail-relay/services/effective.ts', "return 'deployment sender'"),
   'own relay': entity('mail-relay/services/effective.ts', "return 'own relay'"),
@@ -587,7 +612,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     "OVERRIDES_TITLE = 'Message overrides'",
   ),
   Edit: page('branding/services/overridesView.ts', "edit: 'Edit'"),
-  Remove: page('branding/services/overridesView.ts', "remove: 'Remove'"),
+  Remove: several(
+    page('branding/services/overridesView.ts', "remove: 'Remove'"),
+    page(DOMAINS_WORDS, "remove: 'Remove'"),
+  ),
   'Colours and font': feature(
     'branding-editor/services/colourSection.ts',
     "COLOURS_TITLE = 'Colours and font'",

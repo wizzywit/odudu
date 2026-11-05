@@ -13,7 +13,7 @@ import { buildApp } from '#/app';
 import { mintAdminToken } from '#/testing/plan-admin-drives';
 import { createBranding, type Branding } from '#/branding';
 import { seed } from '#/cli/seed';
-import { isWork, StatementRecorder } from '#/testing/plan-capture';
+import { isWork, StatementRecorder, withoutAcceptedIssuerReads } from '#/testing/plan-capture';
 
 // The real composition root and a real PostgreSQL: what the console's branding
 // reads cost, counted in statements, and what they say about a theme.
@@ -176,7 +176,7 @@ async function statementsFor(w: World, path: string, capabilities?: string[]): P
   const bearer = await token(w, capabilities);
   const { result, statements } = await recorder.record(() => get(w, path, bearer));
   expect(result.statusCode, result.body).toBe(200);
-  return statements.filter(isWork).length;
+  return withoutAcceptedIssuerReads(statements).filter(isWork).length;
 }
 
 async function draftOnly(w: World, themeBody: ThemeBody, clientPath?: string): Promise<void> {
@@ -240,7 +240,7 @@ describe('discarding a draft', () => {
       }),
     );
     expect(result.statusCode, result.body).toBe(200);
-    return statements.filter(isWork).length;
+    return withoutAcceptedIssuerReads(statements).filter(isWork).length;
   }
 
   it('costs the same few statements whatever the draft names', async () => {

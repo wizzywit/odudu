@@ -341,7 +341,7 @@ beforeAll(async () => {
 
   const seed = await loginAndGetToken();
   resolveDeps = {
-    issuer: issuerOf(decode(seed.accessToken)),
+    acceptedIssuers: [issuerOf(decode(seed.accessToken))],
     requestingClientId: CLIENT_ID,
     lifespans: GENEROUS_LIFESPANS,
     now: new Date(),
@@ -366,7 +366,7 @@ async function disabledSubjectTokens(): Promise<{
   const tenantId = newId();
   await setupTenant(tenantName, tenantId);
   const tokens = await loginAndGetToken({ tenantName });
-  const deps = { ...resolveDeps, issuer: issuerOf(decode(tokens.accessToken)) };
+  const deps = { ...resolveDeps, acceptedIssuers: [issuerOf(decode(tokens.accessToken))] };
   const live = await withTenant(app.db, tenantId, (tx) =>
     resolveExchangeToken(tx, deps, 'access_token', tokens.accessToken),
   );

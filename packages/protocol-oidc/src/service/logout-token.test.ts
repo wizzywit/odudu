@@ -4,6 +4,7 @@ import {
   LOGOUT_TOKEN_LIFETIME_SECONDS,
   LOGOUT_TOKEN_TYP,
   logoutTokenClaims,
+  reissuedLogoutTokenClaims,
 } from '#/service/logout-token';
 
 const KEK = new Uint8Array(32).fill(7);
@@ -106,5 +107,43 @@ describe('signing a logout token', () => {
     await expect(
       verifyJwt(token, { keys: [key], issuer: claims.iss, audience: claims.aud, typ: 'at+jwt' }),
     ).rejects.toThrow();
+  });
+});
+
+describe('reissuedLogoutTokenClaims', () => {
+  const minted = logoutTokenClaims({
+    issuer: 'https://op.example/tenants/demo',
+    audience: 'rp-one',
+    subject: 'subject-1',
+    sessionId: 'session-1',
+    now: new Date('2026-09-19T10:00:00Z'),
+  });
+
+  async function tokenFor(claims: object): Promise<string> {
+    return signJwt({ ...claims }, { key: await makeSigningKey(), kek: KEK, typ: LOGOUT_TOKEN_TYP });
+  }
+
+  it('keeps the event and its lifetime, and names the issuer and the attempt', async () => {
+    const later = new Date('2026-09-19T10:30:00Z');
+    const reissued = reissuedLogoutTokenClaims(
+      await tokenFor(minted),
+      'https://login.acme.com',
+      later,
+    );
+    const iat = Math.floor(later.getTime() / 1000);
+    expect(reissued).toEqual({
+      ...minted,
+      iss: 'https://login.acme.com',
+      iat,
+      exp: iat + (minted.exp - minted.iat),
+    });
+    expect(reissued?.jti).toBe(minted.jti);
+  });
+
+  it('is null for text that is not a token this server minted', async () => {
+    expect(reissuedLogoutTokenClaims('signed-logout-token', 'https://x', new Date())).toBeNull();
+    expect(
+      reissuedLogoutTokenClaims(await tokenFor({ iss: 'x' }), 'https://x', new Date()),
+    ).toBeNull();
   });
 });

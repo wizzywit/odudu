@@ -42,8 +42,10 @@ data on their own servers.
 - Client credentials and token exchange, for machines, for agents and for acting on someone's behalf.
 - Single sign-on across a tenant's apps, with back-channel logout.
 - Many tenants on one server, kept apart by the database itself.
+- A public address of its own for a tenant, such as `login.acme.com`, proved by a DNS record and served behind your reverse proxy, with a switch back to the default at any moment.
 - Passwords with a policy and lockouts, passkeys, authenticator codes and recovery codes.
 - Every page the server shows, and its mail, in a tenant's theme and a client's branding: colours, font, images, a stylesheet and page templates, previewed and published as versions.
+- A public address of its own for a tenant, such as `login.acme.com`, proved by a DNS record, switched to and back, with the issuer, cookies and mail links following it.
 - An MCP server that hands an AI agent the admin API as tools, held to the same capabilities as everyone else.
 - Pages and mail in English and Arabic, chosen per tenant, with the tenant's own wording.
 - An admin API with more than a hundred operations, and a console with a page for every area.

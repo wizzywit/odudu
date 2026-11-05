@@ -37,6 +37,8 @@ The tenant is part of every address. Everything an app needs lives under `/tenan
 
 Because the tenant is in the address, a request can never be mistaken for another tenant's. There is no header to forget and no default to fall back on. If you register a client in `demo`, it signs people in at `demo`'s addresses and nowhere else.
 
+A tenant can have an address of its own instead, such as `login.acme.com`, with the same routes at the root. The host then names the tenant, and only through a domain the tenant has proved it owns, so the guarantee holds: a host nobody registered selects nothing. A tenant has exactly one address at a time, and [Custom domains](../operating/custom-domains.md) says how to give it one and what switching costs.
+
 ## What keeps tenants apart
 
 Tenants share one database, so Odudu does not rely on remembering to filter. Two defences work independently:

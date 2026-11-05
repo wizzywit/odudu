@@ -84,6 +84,7 @@ const SAMPLE_QUERIES: Readonly<Partial<Record<string, string>>> = {
   'GET /admin/tenants/:tenant/clients/:id/evaluate': 'subject=0199aa00-0000-7000-8000-0000000000fd',
   'DELETE /admin/tenants/:tenant': 'confirm=not-its-name',
   'GET /admin/tenants/:tenant/message-overrides': 'locale=fr',
+  'GET /admin/tenants/:tenant/domains/passkey-impact': 'canonical=path',
 };
 
 function routeKey(route: AdminRoute): string {

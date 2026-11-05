@@ -4,6 +4,7 @@ import {
   type PageLocale,
   type RenderedPage,
   type ResolvedBranding,
+  pathAddress,
 } from '@odudu/kernel';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
@@ -69,7 +70,15 @@ const CASES: Case[] = [
   {
     name: 'TOTP enrolment',
     kind: 'totp-enrolment',
-    render: (locale) => renderTotpEnrolmentPage('t1', 'sess-1', OFFER, 'code_mismatch', locale),
+    render: (locale) =>
+      renderTotpEnrolmentPage(
+        't1',
+        pathAddress('https://idp.example', 't1'),
+        'sess-1',
+        OFFER,
+        'code_mismatch',
+        locale,
+      ),
     template:
       '{{error}}{{form.open}}{{submit}}{{fields}}{{form.close}}<div>{{offer}}</div><p>{{intro}}</p>',
     inOrder: [
@@ -87,7 +96,14 @@ const CASES: Case[] = [
     name: 'passkey enrolment',
     kind: 'passkey-enrolment',
     render: (locale) =>
-      renderPasskeyEnrolmentPage('t1', 'sess-1', PASSKEY, 'passkey_not_added', locale),
+      renderPasskeyEnrolmentPage(
+        't1',
+        pathAddress('https://idp.example', 't1'),
+        'sess-1',
+        PASSKEY,
+        'passkey_not_added',
+        locale,
+      ),
     template: '{{script}}{{error}}{{form.open}}{{submit}}{{fields}}{{form.close}}{{intro}}',
     inOrder: [
       'id="passkey-error"',
@@ -106,6 +122,7 @@ const CASES: Case[] = [
     render: (locale) =>
       renderRecoveryCodesPage(
         't1',
+        pathAddress('https://idp.example', 't1'),
         'sess-1',
         { codes: ['aaaa-bbbb'], replaced: true },
         'codes_not_saved',
@@ -131,6 +148,7 @@ const CASES: Case[] = [
     render: (locale) =>
       renderUpdatePasswordPage(
         't1',
+        pathAddress('https://idp.example', 't1'),
         'sess-1',
         [{ rule: 'require-digit', message: 'needs a digit' }],
         RULES,
@@ -223,6 +241,7 @@ describe('the recovery codes page', () => {
   const render = (template: string, replaced = true): RenderedPage =>
     renderRecoveryCodesPage(
       't1',
+      pathAddress('https://idp.example', 't1'),
       's',
       { codes: ['aaaa-bbbb', 'cccc-dddd'], replaced },
       undefined,
@@ -252,6 +271,7 @@ describe('the passkey page script', () => {
   const render = (template: string): RenderedPage =>
     renderPasskeyEnrolmentPage(
       't1',
+      pathAddress('https://idp.example', 't1'),
       's',
       PASSKEY,
       undefined,
@@ -328,7 +348,14 @@ describe('the passkey page script', () => {
 
 describe('the password script', () => {
   const render = (template: string): RenderedPage =>
-    renderUpdatePasswordPage('t1', 's', [], RULES, themed('update-password', template));
+    renderUpdatePasswordPage(
+      't1',
+      pathAddress('https://idp.example', 't1'),
+      's',
+      [],
+      RULES,
+      themed('update-password', template),
+    );
   const names = ['form.open', 'submit', 'error', 'form.close'];
 
   it('travels with the fields it reads, wherever a theme places them', () => {
@@ -358,8 +385,24 @@ describe('a theme template that cannot be filled', () => {
   it('is reported with its kind and reason, and the default template is rendered', () => {
     told.length = 0;
     const locale = { ...themed('totp-enrolment', '{{nonesuch}}'), templateFallback: spy };
-    expect(renderTotpEnrolmentPage('t1', 's', OFFER, undefined, locale).body).toBe(
-      renderTotpEnrolmentPage('t1', 's', OFFER, undefined, DEFAULT_PAGE_LOCALE).body,
+    expect(
+      renderTotpEnrolmentPage(
+        't1',
+        pathAddress('https://idp.example', 't1'),
+        's',
+        OFFER,
+        undefined,
+        locale,
+      ).body,
+    ).toBe(
+      renderTotpEnrolmentPage(
+        't1',
+        pathAddress('https://idp.example', 't1'),
+        's',
+        OFFER,
+        undefined,
+        DEFAULT_PAGE_LOCALE,
+      ).body,
     );
     expect(told).toEqual([['totp-enrolment', 'unknown slot nonesuch']]);
   });

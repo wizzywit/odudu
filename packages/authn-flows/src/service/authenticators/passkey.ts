@@ -1,6 +1,10 @@
 import { type CredentialSecret } from '@odudu/domain-identity';
 import { PASSKEY } from '#/service/authenticators/names';
-import { parseAuthenticationResponse, verifyPasskeyAssertion } from '#/service/webauthn';
+import {
+  parseAuthenticationResponse,
+  verifyPasskeyAssertion,
+  type RelyingParty,
+} from '#/service/webauthn';
 
 export type WebauthnSecret = Extract<CredentialSecret, { kind: 'webauthn' }>;
 
@@ -9,16 +13,16 @@ export interface PasskeyInput {
   assertion?: unknown;
 }
 
-// What the caller (usecase/executor) already resolved, before this function
-// runs — this stays a leaf: no `tx`, no repository, no cross-package call.
-// verifyAuthenticationResponse needs the stored credential as an input, so
-// resolution cannot wait for verification: `credential` is null when the id
-// the assertion carries names no credential in this tenant. `id` is the
-// credential row's own id, which is what the counter is written against.
+// What the caller (usecase/executor) resolved before this runs, so this stays
+// a leaf with no `tx` or repository. `credential` is null when the asserted
+// id names no credential in this tenant; its `id` is the row's own, which the
+// counter is written against, and `rpId` is the relying party it was
+// registered under (the base host's where none was recorded). `relyingParty`
+// is the tenant's canonical one, null where none can be derived.
 export interface PasskeyVerification {
-  credential: { id: string; subjectId: string; secret: WebauthnSecret } | null;
+  credential: { id: string; subjectId: string; secret: WebauthnSecret; rpId: string | null } | null;
   expectedChallenge: string | null;
-  publicBaseUrl: string | null;
+  relyingParty: RelyingParty | null;
 }
 
 // A success says more than AuthenticatorResult can, for the same reason
@@ -57,18 +61,23 @@ export async function passkeyStep(
   }
 
   const response = parseAuthenticationResponse(input.assertion);
-  const { credential, expectedChallenge, publicBaseUrl } = verification;
+  const { credential, expectedChallenge, relyingParty } = verification;
   if (
     response === null ||
     credential === null ||
     expectedChallenge === null ||
-    publicBaseUrl === null
+    relyingParty === null
   ) {
+    return { kind: 'failure', reason: 'invalid_credentials' };
+  }
+  // A passkey registered at another address stays on file but cannot answer
+  // here: refused by name rather than left to the signature check.
+  if (credential.rpId !== relyingParty.id) {
     return { kind: 'failure', reason: 'invalid_credentials' };
   }
 
   const verified = await verifyPasskeyAssertion({
-    publicBaseUrl,
+    relyingParty,
     expectedChallenge,
     response,
     credential: {

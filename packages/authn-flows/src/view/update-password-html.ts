@@ -1,8 +1,10 @@
 import {
+  addressPath,
   MAX_PASSWORD_LENGTH,
   type PageLocale,
   type PasswordRules,
   type RenderedPage,
+  type TenantAddress,
 } from '@odudu/kernel';
 import { type PasswordViolation } from '#/schema/password-violation';
 import { escapeHtml, intro, page } from '#/view/document';
@@ -45,12 +47,15 @@ function ruleHtml(violation: PasswordViolation, locale: PageLocale): string {
 // as on the enrolment pages beside it.
 export function renderUpdatePasswordPage(
   tenant: string,
+  address: TenantAddress,
   authSessionId: string,
   violations: readonly PasswordViolation[] = [],
   rules: PasswordRules,
   locale: PageLocale,
 ): RenderedPage {
-  const target = `/tenants/${escapeHtml(encodeURIComponent(tenant))}/login-actions/required-action?action=update-password`;
+  const target = escapeHtml(
+    addressPath(address, '/login-actions/required-action?action=update-password'),
+  );
   const problems = violations.map((violation) => ({
     fields: ['password'],
     html: ruleHtml(violation, locale),

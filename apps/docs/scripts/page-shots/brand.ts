@@ -14,6 +14,7 @@ import {
   assetPath,
   sha256Hex,
 } from '../../../../packages/domain-theme/src/service/branding-urls.ts';
+import { pathAddress } from '../../../../packages/kernel/src/address.ts';
 import type { ThemeBody } from '../../../../packages/domain-theme/src/service/body.ts';
 
 export const BRAND_ORIGIN = 'http://pages.test';
@@ -163,7 +164,7 @@ function assets(): BrandAsset[] {
 // What the server would resolve for a tenant that published THEME_BODY.
 export function brandOutcome(): BuildOutcome {
   return buildBranding({
-    tenantName: BRAND_TENANT,
+    address: pathAddress(BRAND_ORIGIN, BRAND_TENANT),
     origin: BRAND_ORIGIN,
     layers: [
       {
@@ -195,7 +196,7 @@ export interface BrandFile {
 export function brandFiles(): Map<string, BrandFile> {
   const files = new Map<string, BrandFile>();
   for (const asset of assets()) {
-    const route = assetPath(BRAND_TENANT, asset.sha256, asset.mime);
+    const route = assetPath(pathAddress(BRAND_ORIGIN, BRAND_TENANT), asset.sha256, asset.mime);
     if (route !== null) files.set(route, { body: asset.bytes, contentType: asset.mime });
   }
   const { branding, css } = brandOutcome();

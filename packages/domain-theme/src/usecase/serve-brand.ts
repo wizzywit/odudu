@@ -1,4 +1,4 @@
-import { etagMatches } from '@odudu/kernel';
+import { etagMatches, pathAddress } from '@odudu/kernel';
 import { type PublishedIdentity } from '#/repository/published-themes';
 import { type PublishedLayers } from '#/service/record';
 import { createBrandingCache, type BrandingCache } from '#/service/branding-cache';
@@ -75,7 +75,7 @@ async function buildSheet(
 ): Promise<BuiltSheet> {
   const layers = await deps.readPublished(tenant.id, client);
   const built = buildBranding({
-    tenantName: tenant.name,
+    address: pathAddress(origin, tenant.name),
     origin,
     layers: [
       ...(layers.client === null ? [] : [{ name: 'client' as const, layer: layers.client }]),

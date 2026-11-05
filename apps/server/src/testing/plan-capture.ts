@@ -65,6 +65,24 @@ export function isWork(statement: Statement): boolean {
   return /^(select|with|insert|update|delete)\b/u.test(query);
 }
 
+const ACCEPTED_ISSUERS_RETIREMENTS = /^\s*select\b.*\bfrom "tenant_issuer_retirements"/isu;
+const CANONICAL_HOST_READ = /^\s*select\b.*\bfrom "tenant_domains"/isu;
+
+// A request that presents a token pays for the tenant's accepted issuers
+// before its route runs: the canonical host and the open retirements, two
+// reads one after the other. They are the door's cost, not the route's, so a
+// count of what a route does leaves them out.
+export function withoutAcceptedIssuerReads(statements: readonly Statement[]): Statement[] {
+  const dropped = new Set<number>();
+  statements.forEach((statement, index) => {
+    if (!ACCEPTED_ISSUERS_RETIREMENTS.test(statement.query)) return;
+    dropped.add(index);
+    const before = statements[index - 1];
+    if (before !== undefined && CANONICAL_HOST_READ.test(before.query)) dropped.add(index - 1);
+  });
+  return statements.filter((_, index) => !dropped.has(index));
+}
+
 export interface PlanNode {
   readonly nodeType: string;
   readonly relationName: string | undefined;

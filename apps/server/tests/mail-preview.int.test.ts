@@ -13,7 +13,7 @@ import { buildApp } from '#/app';
 import { mintAdminToken } from '#/testing/plan-admin-drives';
 import { createBranding, type Branding } from '#/branding';
 import { seed } from '#/cli/seed';
-import { isWork, StatementRecorder } from '#/testing/plan-capture';
+import { isWork, StatementRecorder, withoutAcceptedIssuerReads } from '#/testing/plan-capture';
 
 // The real composition root and a real PostgreSQL: the mail preview is the
 // mail a published theme would dress, never a draft, and it writes nothing.
@@ -161,10 +161,11 @@ async function get(w: World, path: string, bearer?: string) {
 }
 
 // Measured with the theme's cache emptied, savepoints counted: the caller's
-// own checks, the published theme's read, the tenant's row and, for the
-// preview alone, one read of the overrides in a savepoint, whatever languages
-// the tenant wrote. The branding view shows no wording and skips that read.
-const MAIL_STATEMENTS = { '/mail/preview': 11, '/mail/branding': 9 } as const;
+// own checks, the published theme's read, the tenant's row, the tenant's
+// canonical domain and, for the preview alone, one read of the overrides in a
+// savepoint, whatever languages the tenant wrote. The branding view shows no
+// wording and skips that read.
+const MAIL_STATEMENTS = { '/mail/preview': 12, '/mail/branding': 10 } as const;
 
 const header = (res: { headers: Record<string, unknown> }, name: string): string =>
   String(res.headers[name]);
@@ -305,8 +306,9 @@ describe('what a preview costs', () => {
     const { result, statements } = await recorder.record(() => get(w, path, bearer));
     expect(result.statusCode).toBe(200);
     // Savepoints are statements the database runs too: counted with the work.
-    return statements.filter((s) => isWork(s) || /^(savepoint|release)\b/iu.test(s.query.trim()))
-      .length;
+    return withoutAcceptedIssuerReads(statements).filter(
+      (s) => isWork(s) || /^(savepoint|release)\b/iu.test(s.query.trim()),
+    ).length;
   }
 
   it('is the same few statements for a theme naming two logos as for no theme', async () => {

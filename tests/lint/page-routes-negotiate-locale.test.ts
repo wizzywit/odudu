@@ -142,6 +142,7 @@ describe('every negotiation of a page locale carries the theme', () => {
 // unbranded builders are named at every call site: only the pages with no
 // tenant in scope and the three helpers that wrap them may call one.
 const NO_TENANT_ROUTES = new Set([
+  'packages/protocol-oidc/src/view/routes/previous-address.ts',
   'packages/protocol-oidc/src/view/routes/throttled.ts',
   'packages/protocol-oidc/src/view/routes/unrouted.ts',
 ]);

@@ -1,4 +1,4 @@
-import { DEFAULT_PAGE_LOCALE } from '@odudu/kernel';
+import { DEFAULT_PAGE_LOCALE, pathAddress } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import {
   renderLoggedOutPage,
@@ -32,7 +32,7 @@ function expectFragment(page: { html: string; body: string }): void {
 describe('renderLogoutConfirmationPage', () => {
   it('returns a body fragment and a title beside the document', () => {
     const page = renderLogoutConfirmationPage(
-      'acme',
+      pathAddress('https://idp.example', 'acme'),
       'session-id',
       'the-token',
       {
@@ -104,7 +104,13 @@ describe('renderLogoutUnauthenticatedPage', () => {
 describe('the text of every logout page', () => {
   const fields = { clientId: null, postLogoutRedirectUri: null, state: null };
   const pages = (locale: typeof FRENCH) => ({
-    confirm: renderLogoutConfirmationPage('acme', 'sid', 'csrf', fields, locale),
+    confirm: renderLogoutConfirmationPage(
+      pathAddress('https://idp.example', 'acme'),
+      'sid',
+      'csrf',
+      fields,
+      locale,
+    ),
     noSession: renderNoActiveSessionPage(locale),
     done: renderLoggedOutPage([], locale),
     refused: renderLogoutRedirectRefusedPage([], locale),

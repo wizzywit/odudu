@@ -110,6 +110,8 @@ const LOSS: Readonly<Record<Holding, string>> = {
   'manage-keys': 'managing signing keys',
   'manage-sessions': 'ending sessions and revoking grants',
   'view-audit': 'reading the audit trail',
+  'view-domains': 'seeing the tenant’s domains',
+  'manage-domains': 'registering, switching to and removing domains',
   'manage-tenants': 'reaching every other tenant',
 };
 

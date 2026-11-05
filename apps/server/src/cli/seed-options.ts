@@ -20,6 +20,7 @@ export const SEED_COMMANDS = [
   'profile',
   'registration-token',
   'admin',
+  'domain',
 ] as const;
 
 export type SeedCommand = (typeof SEED_COMMANDS)[number];
@@ -45,9 +46,15 @@ export const CLIENT_OPTIONS = {
   'token-endpoint-auth-method': text(
     'client_secret_basic or client_secret_post, for a confidential client.',
   ),
-  'redirect-uri': texts('A redirect URI the client may use.'),
-  'post-logout-redirect-uri': texts('A URI the client may send users to after logout.'),
-  'web-origin': texts('A browser origin allowed to call the endpoints.'),
+  'redirect-uri': texts(
+    "A redirect URI the client may use. Switching the tenant's address does not change it.",
+  ),
+  'post-logout-redirect-uri': texts(
+    "A URI the client may send users to after logout. Switching the tenant's address does not change it.",
+  ),
+  'web-origin': texts(
+    "A browser origin allowed to call the endpoints. Switching the tenant's address does not change it.",
+  ),
   'grant-type': texts('A grant type the client may use.'),
   'consent-required': flag('Ask people to allow access the first time they sign in.'),
   'client-credentials-scope': texts(
@@ -146,6 +153,17 @@ export const REGISTRATION_TOKEN_OPTIONS = {
   ttl: text('How long the token is valid, in seconds.', true),
 } as const;
 
+export const DOMAIN_OPTIONS = {
+  tenant: TENANT,
+  host: text('The host to serve the tenant on, such as login.acme.org.', true),
+  canonical: flag(
+    'Make the domain the tenant\u2019s canonical address; the domain must be verified.',
+  ),
+  'assume-verified': flag(
+    'Mark the domain verified without a DNS lookup. Refused when NODE_ENV is production.',
+  ),
+} as const;
+
 export const ADMIN_OPTIONS = {
   username: text('Username of the system-tenant administrator.', true),
 } as const;
@@ -168,6 +186,7 @@ export const SEED_COMMAND_OPTIONS: Record<SeedCommand, readonly CliOption[]> = {
   profile: cliOptions(PROFILE_OPTIONS),
   'registration-token': cliOptions(REGISTRATION_TOKEN_OPTIONS),
   admin: cliOptions(ADMIN_OPTIONS),
+  domain: cliOptions(DOMAIN_OPTIONS),
 };
 
 // The options of `seed` without a subcommand, which creates a client in one

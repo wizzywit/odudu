@@ -1,7 +1,15 @@
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
-import { PASSWORD_TOO_LONG, readPasswordField, type PageLocale } from '@odudu/kernel';
+import {
+  addressPath,
+  PASSWORD_TOO_LONG,
+  readPasswordField,
+  tenantAddressOf,
+  type PageLocale,
+  type TenantAddress,
+} from '@odudu/kernel';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
+import { ensureTenantAddress } from '#/view/routes/tenant-address';
 import { resumablePath, type FindHeldSignIn } from '#/service/sign-in-resume';
 import { peekActionToken, type LinkedRequiredAction } from '#/usecase/action-token';
 import { type PasswordFailure } from '#/view/password-rules';
@@ -149,10 +157,8 @@ function firstNonEmptyString(value: string | string[] | undefined): string | und
 
 // Where a person whose reset link failed asks for another: this tenant's
 // own request form, offered only while the tenant still allows resets.
-function newResetLink(tenantName: string, tenant: ActionTokenTenantLookup): string | null {
-  return tenant.resetPasswordAllowed
-    ? `/tenants/${encodeURIComponent(tenantName)}/login-actions/reset-password`
-    : null;
+function newResetLink(address: TenantAddress, tenant: ActionTokenTenantLookup): string | null {
+  return tenant.resetPasswordAllowed ? addressPath(address, '/login-actions/reset-password') : null;
 }
 
 // Where this link's page may send the browser: the original sign-in, only
@@ -168,6 +174,7 @@ async function resumeAt(
   const held = await deps.findHeldSignIn(
     { id: tenant.id, name: request.params.tenant },
     request.headers.cookie,
+    tenantAddressOf(request),
   );
   return resumablePath(held, reference);
 }
@@ -198,6 +205,7 @@ async function completeActionsLink(
       400,
       renderRequiredActionsForm(
         request.params.tenant,
+        tenantAddressOf(request),
         key,
         peeked.actions,
         setsPassword,
@@ -290,7 +298,7 @@ async function finishRegistration(
     return sendVerificationHtml(
       reply,
       409,
-      renderRegistrationUsernameGonePage(request.params.tenant, locale),
+      renderRegistrationUsernameGonePage(tenantAddressOf(request), locale),
     );
   }
   if (result.kind === 'invalid') {
@@ -309,6 +317,7 @@ async function finishRegistration(
 // Not under /protocol/openid-connect/: this is Odudu's own account UI, the
 // same namespace choice login.ts documents for /login-actions/authenticate.
 export function registerActionTokenRoute(app: FastifyInstance, deps: ActionTokenRouteDeps): void {
+  ensureTenantAddress(app);
   app.get<{
     Params: { tenant: string };
     Querystring: Record<string, string | string[] | undefined>;
@@ -351,7 +360,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
         : sendVerificationHtml(
             reply,
             200,
-            renderEmailConfirmPage(request.params.tenant, key, waiting.username, locale),
+            renderEmailConfirmPage(tenantAddressOf(request), key, waiting.username, locale),
           );
     }
 
@@ -368,7 +377,9 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
           reply,
           400,
           renderResetLinkFailedPage(
-            peeked.type === 'reset_password' ? newResetLink(request.params.tenant, tenant) : null,
+            peeked.type === 'reset_password'
+              ? newResetLink(tenantAddressOf(request), tenant)
+              : null,
             await resume(),
             locale,
           ),
@@ -390,6 +401,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
         200,
         renderResetPasswordForm(
           request.params.tenant,
+          tenantAddressOf(request),
           key,
           undefined,
           tenant.passwordPolicy,
@@ -413,6 +425,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
         200,
         renderRequiredActionsForm(
           request.params.tenant,
+          tenantAddressOf(request),
           key,
           peeked.actions,
           peeked.setsPassword,
@@ -426,7 +439,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
     return sendVerificationHtml(
       reply,
       200,
-      renderEmailConfirmPage(request.params.tenant, key, null, locale),
+      renderEmailConfirmPage(tenantAddressOf(request), key, null, locale),
     );
   });
 
@@ -496,7 +509,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
         reply,
         400,
         renderResetLinkFailedPage(
-          newResetLink(request.params.tenant, tenant),
+          newResetLink(tenantAddressOf(request), tenant),
           await resume(),
           locale,
         ),
@@ -507,7 +520,14 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
       sendVerificationHtml(
         reply,
         400,
-        renderResetPasswordForm(request.params.tenant, key, failure, tenant.passwordPolicy, locale),
+        renderResetPasswordForm(
+          request.params.tenant,
+          tenantAddressOf(request),
+          key,
+          failure,
+          tenant.passwordPolicy,
+          locale,
+        ),
       );
 
     // Listed as a rule of the policy, because to the person typing it that
@@ -556,7 +576,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
         reply,
         400,
         renderResetLinkFailedPage(
-          newResetLink(request.params.tenant, tenant),
+          newResetLink(tenantAddressOf(request), tenant),
           await resume(),
           locale,
         ),

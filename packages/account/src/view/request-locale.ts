@@ -2,6 +2,7 @@ import { negotiatePageLocale } from '@odudu/i18n';
 import {
   brandLocale,
   clientFromReturnTo,
+  tenantAddressOf,
   withPageTheme,
   type BrandingResolver,
   type OverridesResolver,
@@ -57,7 +58,7 @@ export async function brandedLocale(
   const clientId =
     deps.resolveBranding === undefined
       ? null
-      : await clientFromReturnTo(tenant.name, returnTo, (id) =>
+      : await clientFromReturnTo(tenantAddressOf(request), returnTo, (id) =>
           isClientOfTenant === undefined ? Promise.resolve(false) : isClientOfTenant(tenant.id, id),
         );
   return brandLocale(

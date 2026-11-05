@@ -82,6 +82,7 @@ export {
 export {
   CLIENT_AUTH_METHODS,
   CLIENT_GRANT_TYPES,
+  ACCESS_TOKEN_CEILING_SECONDS,
   CLIENT_TOKEN_TTL_RANGES,
   DEFAULT_MAX_AGE_MAX,
   ID_TOKEN_SIGNING_ALGS,
@@ -144,6 +145,23 @@ export {
   listMailResponseSchema,
   type ListMailResponse,
 } from '#/admin/mail';
+export {
+  DOMAIN_STATES,
+  domainDnsRecordSchema,
+  type DomainDnsRecord,
+  domainSchema,
+  type Domain,
+  registerDomainRequestSchema,
+  type RegisterDomainRequest,
+  listDomainsQuerySchema,
+  type ListDomainsQuery,
+  listDomainsResponseSchema,
+  type ListDomainsResponse,
+  passkeyImpactQuerySchema,
+  type PasskeyImpactQuery,
+  passkeyImpactResponseSchema,
+  type PasskeyImpactResponse,
+} from '#/admin/domains';
 export {
   registrationTokenSchema,
   type RegistrationToken,

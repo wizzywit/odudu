@@ -1,4 +1,4 @@
-import { type PageKind, type PreviewRender } from '@odudu/kernel';
+import { pathAddress, type PageKind, type PreviewRender } from '@odudu/kernel';
 import { renderPasskeyEnrolmentPage } from '#/view/passkey-enrolment-html';
 import { renderRecoveryCodesPage } from '#/view/recovery-codes-html';
 import { renderRequiredActionPage } from '#/view/required-action-html';
@@ -18,6 +18,7 @@ export const PREVIEW_PAGES: Readonly<Record<AuthnKind, PreviewRender>> = {
   'totp-enrolment': (tenant, locale) =>
     renderTotpEnrolmentPage(
       tenant,
+      pathAddress('', tenant),
       SESSION,
       {
         secret: 'JBSWY3DPEHPK3PXP',
@@ -29,6 +30,7 @@ export const PREVIEW_PAGES: Readonly<Record<AuthnKind, PreviewRender>> = {
   'passkey-enrolment': (tenant, locale) =>
     renderPasskeyEnrolmentPage(
       tenant,
+      pathAddress('', tenant),
       SESSION,
       {
         options: {
@@ -44,6 +46,7 @@ export const PREVIEW_PAGES: Readonly<Record<AuthnKind, PreviewRender>> = {
   'recovery-codes': (tenant, locale) =>
     renderRecoveryCodesPage(
       tenant,
+      pathAddress('', tenant),
       SESSION,
       { codes: ['ab12-cd34', 'ef56-gh78', 'jk90-lm12', 'np34-qr56'], replaced: false },
       undefined,
@@ -52,6 +55,7 @@ export const PREVIEW_PAGES: Readonly<Record<AuthnKind, PreviewRender>> = {
   'update-password': (tenant, locale) =>
     renderUpdatePasswordPage(
       tenant,
+      pathAddress('', tenant),
       SESSION,
       [],
       {

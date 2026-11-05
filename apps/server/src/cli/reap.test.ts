@@ -45,6 +45,8 @@ describe('the order the retention pass runs in', () => {
         'client_assertion_jti',
         'console_sessions',
         'console_logins',
+        'tenant_issuer_retirements',
+        'tenant_domains',
         'sessions',
         'audit_events',
       ]);
@@ -82,6 +84,7 @@ describe('the retention windows', () => {
       emailMaxAttempts: 5,
       logoutDeliveredSeconds: 604_800,
       logoutFailedSeconds: 2_592_000,
+      pendingDomainSeconds: 604_800,
     });
   });
 

@@ -220,7 +220,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'roles',
-    alt: "The demo tenant's Roles list: the eight built-in admin capabilities, each marked as an admin capability, and a Create a role button.",
+    alt: "The demo tenant's Roles list: the ten built-in roles of the admin client, each marked as an admin capability, and a Create a role button.",
     caption: 'Every tenant starts with the admin capabilities as roles.',
     signedIn: true,
     expect: [
@@ -236,12 +236,14 @@ export const SCREENS: readonly Screen[] = [
           'manage-keys',
           'manage-sessions',
           'view-audit',
+          'view-domains',
+          'manage-domains',
         ],
       },
     ],
     open: async (page, context) => {
       await openArea(page, context, `${DEMO}/roles`);
-      await page.getByText('8 roles').waitFor();
+      await page.getByText('10 roles').waitFor();
     },
   },
   {
@@ -364,6 +366,22 @@ export const SCREENS: readonly Screen[] = [
       { role: 'button', name: 'Send test message' },
     ],
     open: (page, context) => openArea(page, context, `${DEMO}/email`),
+  },
+  {
+    name: 'domains',
+    alt: 'The Domains page: a Register a domain form with a Host field and a Register domain button, an empty list saying the tenant signs in at its path address, and a Switching the address note.',
+    caption: 'A tenant with no domain signs in at its path address.',
+    signedIn: true,
+    expect: [
+      { heading: 'Domains' },
+      { heading: 'Register a domain' },
+      { label: 'Host' },
+      { role: 'button', name: 'Register domain' },
+    ],
+    open: async (page, context) => {
+      await openArea(page, context, `${DEMO}/domains`);
+      await page.getByText('No domains').waitFor();
+    },
   },
   {
     name: 'audit',

@@ -1,0 +1,67 @@
+@layer {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+Odudu console
+Skip to content
+odudu · demo
+Overview
+Identity
+Subjects
+Groups
+Roles
+Applications
+Clients
+Scopes
+Registration tokens
+Security
+Sign-in flow
+Signing keys
+Sessions
+Tenant
+Settings
+Branding
+Email
+Domains
+Export
+Observe
+Audit trail
+Signed in as 
+admin@odudu.local
+ from 
+system
+Theme
+System
+Light
+Dark
+Switch tenant
+Sign out
+Collapse menu
+or press 
+[
+odudu · demo
+Menu
+System
+Acting in 
+demo
+ with system authority
+Back to system
+demo
+Domains
+The addresses this tenant can sign in at, and the one it uses now. A tenant signs in at its path address until one of its domains is made the address.
+Register a domain
+Register a host you control, publish the TXT record Odudu gives you for it, then verify it. Only a verified domain can become the tenant’s address. A pending domain that is never verified is removed after a few days.
+Host
+A lowercase name such as login.acme.com, without a scheme, path or port.
+Register domain
+Domains
+This tenant signs in at its path address.
+Nothing yet
+No domains
+No domain is registered. Register a host above to give this tenant an address of its own.
+Switching the address
+A switch moves the issuer, the sign-in pages and the links in mail. Everyone signs in again at the new address, because a sign-in belongs to one address, and sessions at the address left are not ended.
+For 1 hour after a switch the previous address keeps serving the token, userinfo, introspection, revocation, key, logout and discovery endpoints, so what was already issued keeps working. It refuses sign-in, registration and password-reset pages, and points to the new address. After that it serves nothing for this tenant.
+Passkeys belong to the address they were registered at, so a switch hides the ones registered at the other address, and a switch back brings them back. Before a switch the console counts the subjects it would affect.
+Switching back to the path address is always possible, whatever state a domain is in.

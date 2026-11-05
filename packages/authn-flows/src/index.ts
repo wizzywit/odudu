@@ -106,7 +106,6 @@ export {
 } from '#/usecase/passkey-authentication';
 export {
   relyingPartyId,
-  relyingPartyOrigin,
   type PasskeyAuthenticationOffer,
   type PasskeyRegistrationOffer,
 } from '#/service/webauthn';

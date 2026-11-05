@@ -1,4 +1,10 @@
-import { type PageLocale, scriptNonce, type RenderedPage } from '@odudu/kernel';
+import {
+  addressPath,
+  type PageLocale,
+  scriptNonce,
+  type RenderedPage,
+  type TenantAddress,
+} from '@odudu/kernel';
 import { escapeHtml, intro, page } from '#/view/document';
 import { links } from '#/view/links';
 import { fillPage } from '#/view/template';
@@ -203,15 +209,16 @@ const REASON = '{reason}';
 // whichever one answers. The challenge is issued per click rather than with
 // the page, so a form left open overnight still gets a live one.
 function renderPasskeyOption(
-  tenant: string,
+  address: TenantAddress,
   authSessionId: string,
   nonce: string,
   locale: PageLocale,
 ): string {
   // The <p> keeps the button clear of the sign-in one (WCAG 2.2 target size).
-  const escaped = escapeHtml(encodeURIComponent(tenant));
+  const authenticate = escapeHtml(addressPath(address, '/login-actions/authenticate'));
+  const challenge = escapeHtml(addressPath(address, '/login-actions/passkey-challenge'));
   return `
-<form method="post" action="/tenants/${escaped}/login-actions/authenticate" id="passkey-form" data-failed="${tHtml(locale, 'login.passkey.failed', { reason: REASON })}" data-cancelled="${tHtml(locale, 'login.passkey.cancelled')}" data-not-offered="${tHtml(locale, 'login.passkey.notOffered')}">
+<form method="post" action="${authenticate}" id="passkey-form" data-failed="${tHtml(locale, 'login.passkey.failed', { reason: REASON })}" data-cancelled="${tHtml(locale, 'login.passkey.cancelled')}" data-not-offered="${tHtml(locale, 'login.passkey.notOffered')}">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
   <input type="hidden" name="assertion" id="passkey-assertion">
   <p><button type="submit" id="passkey-submit" class="secondary">${tHtml(locale, 'login.passkey.submit')}</button></p>
@@ -229,7 +236,7 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
   failure.hidden = true;
   try {
-    const offered = await fetch('/tenants/${escaped}/login-actions/passkey-challenge', {
+    const offered = await fetch('${challenge}', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ auth_session_id: form.auth_session_id.value }),
@@ -273,6 +280,7 @@ function waysHtml(ways: LoginWays, locale: PageLocale): string {
 // what CSRF-protects the whole endpoint rather than any one authenticator.
 export function renderLoginForm(
   tenant: string,
+  address: TenantAddress,
   authSessionId: string,
   form: string,
   // Whether this deployment can offer a passkey at all: the relying party
@@ -297,14 +305,14 @@ export function renderLoginForm(
   ways: LoginWays,
   locale: PageLocale,
 ): RenderedPage {
-  const action = `/tenants/${escapeHtml(encodeURIComponent(tenant))}/login-actions/authenticate`;
+  const action = escapeHtml(addressPath(address, '/login-actions/authenticate'));
   // Beside the password and nowhere else: a passkey is an alternative to
   // the first factor, not to a code asked for after one. The nonce is minted
   // here, where it is known whether a script is going to be rendered at
   // all, so the policy sent with this page never licenses one it does not
   // carry.
   const nonce = passkeyLogin && form === 'password' ? scriptNonce() : null;
-  const passkey = nonce === null ? '' : renderPasskeyOption(tenant, authSessionId, nonce, locale);
+  const passkey = nonce === null ? '' : renderPasskeyOption(address, authSessionId, nonce, locale);
   const problems: Problem[] =
     refusal === undefined
       ? []
