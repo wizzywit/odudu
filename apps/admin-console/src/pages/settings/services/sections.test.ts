@@ -4,6 +4,7 @@ import {
   TENANT_SETTING_ORDERINGS,
   TENANT_SETTING_RANGES,
 } from '@odudu/contracts/admin';
+import { SETTINGS_WORDS } from '#/pages/settings/services/settingsPageWords';
 import { describe, expect, it } from 'vitest';
 import {
   PLACED_ELSEWHERE,
@@ -78,4 +79,29 @@ it('says the brute-force section covers wrong second-factor codes as well as pas
   expect(section?.description).toBe(
     'When repeated wrong passwords or wrong second-factor codes lock an account, and for how long.',
   );
+});
+
+describe('the client registration section', () => {
+  const section = SETTINGS_SECTIONS.find((each) => each.id === 'client-registration');
+
+  it('holds the policy, with mcp among its options, and the metadata-document switch', () => {
+    const policy = section?.fields.find((field) => field.name === 'client_registration_policy');
+    expect(policy?.options?.map((option) => option.id)).toEqual([
+      'disabled',
+      'token',
+      'open',
+      'mcp',
+    ]);
+    expect(section?.fields.find((field) => field.name === 'cimd_enabled')?.control).toBe('toggle');
+  });
+
+  it('takes its wording from the page’s wording record', () => {
+    const policy = section?.fields.find((field) => field.name === 'client_registration_policy');
+    const cimd = section?.fields.find((field) => field.name === 'cimd_enabled');
+    expect(policy?.options?.find((option) => option.id === 'mcp')?.label).toBe(
+      SETTINGS_WORDS.mcpOption,
+    );
+    expect(cimd?.label).toBe(SETTINGS_WORDS.cimdLabel);
+    expect(cimd?.description).toBe(SETTINGS_WORDS.cimdDescription);
+  });
 });

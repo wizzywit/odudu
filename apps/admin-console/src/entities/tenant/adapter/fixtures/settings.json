@@ -21,6 +21,7 @@
   "brute_force_max_lockout_seconds": 900,
   "brute_force_failure_reset_seconds": 43200,
   "client_registration_policy": "disabled",
+  "cimd_enabled": false,
   "max_clients": 200,
   "max_sessions_per_browser": 25,
   "remember_me_allowed": false,

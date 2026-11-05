@@ -8,6 +8,17 @@ export const SETTINGS_PAGE_WORDS = {
   failed: 'The settings could not be loaded',
 } as const;
 
+export const SETTINGS_WORDS = {
+  registrationTitle: 'Client registration',
+  registrationDescription:
+    'How applications become clients of this tenant: by registering themselves, or by naming a metadata document.',
+  policyLabel: 'Policy',
+  mcpOption: 'MCP clients: public clients of the MCP server may register',
+  cimdLabel: 'Accept client metadata documents',
+  cimdDescription:
+    'A client may use an HTTPS address as its client_id, and the document served there describes it. Works under any policy; the MCP audience is granted only under the MCP policy.',
+} as const;
+
 export type SettingsPageWords = typeof SETTINGS_PAGE_WORDS;
 
 export function settingsPage(): { area: Area; title: string; words: SettingsPageWords } {
