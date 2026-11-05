@@ -70,6 +70,7 @@ import { type FetchLimiter } from '#/service/cimd-fetch-limiter';
 import { persistCimdClient } from '#/usecase/persist-cimd-client';
 import { resolveCimdDocument } from '#/usecase/resolve-cimd-document';
 import { refreshCimdClient } from '#/usecase/resolve-cimd-client';
+import { needsApproval } from '#/service/consent';
 import { clientSourceOf } from '#/service/client-source';
 import { isRegisteredRedirectUri } from '#/service/redirect-uri';
 import { tokenGrantRepository } from '#/repository/grants';
@@ -439,6 +440,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           scopeLabels,
           i18n,
           consentRequired: config?.consentRequired ?? false,
+          approvalRequired: client !== null && needsApproval(client.registrationOrigin),
           defaultScopes,
           optionalScopes,
           scopeIdByName,

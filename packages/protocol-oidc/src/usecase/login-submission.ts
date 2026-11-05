@@ -258,6 +258,8 @@ export interface ConsentContext {
   scopeLabels: ScopeLabels;
   i18n: ConsentI18n;
   consentRequired: boolean;
+  // See ConsentInput.approvalRequired.
+  approvalRequired: boolean;
   defaultScopes: string[];
   optionalScopes: string[];
   scopeIdByName: ReadonlyMap<string, string>;
@@ -316,6 +318,9 @@ export async function decideConsentGate(
     // request, so the cast states an invariant rather than skipping a check.
     prompt: new Set((prompt ?? []) as PromptValue[]),
     consentRequired: context.consentRequired,
+    approvalRequired: context.approvalRequired,
+    // Any grant recorded for this exact client id, never one of another's.
+    approved: grantedIds.size > 0,
   });
 
   if (decision.kind === 'not_required') return { kind: 'not_required' };
