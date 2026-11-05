@@ -114,7 +114,7 @@ A client can carry lifetimes of its own, which win over these.
 
 ### Client registration
 
-- **Policy** (`client_registration_policy`): **Closed: only an administrator creates clients**, **With a registration token** or **Open: any application may register** or **MCP clients: public clients of the MCP server may register**. The last admits only a public client with `https` or loopback `http` redirects, which may ask for `mcp:read` and whose only audience is the tenant's MCP address; see [consent and audit](../concepts/consent-and-audit.mdx).
+- **Policy** (`client_registration_policy`): **Closed: only an administrator creates clients**, **With a registration token**, **Open: any application may register** or **MCP clients: public clients of the MCP server may register**. The last admits only a public client with `https` or loopback `http` redirects, which may ask for `mcp:read` and whose only audience is the tenant's MCP address; see [consent and audit](../concepts/consent-and-audit.mdx).
 - **Accept client metadata documents** (`cimd_enabled`): a client may use an HTTPS address as its `client_id`, and the document served there describes it. It works under any policy, and a client that comes this way gets the MCP audience only while the policy admits MCP clients. Off, such an address is answered as an unknown client. It saves with the policy, in the same section.
 - **Most clients** (`max_clients`): a tenant with this many clients refuses to make more, whoever asks. 0 allows none, and a new tenant starts at 200.
 
