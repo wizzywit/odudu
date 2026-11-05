@@ -51,7 +51,12 @@ export type AdminAuthOutcome =
     }
   // An agent token is the owner's identity narrowed to what its MCP scope
   // grants; one holding no MCP scope has nothing to narrow it and is refused.
-  | { kind: 'forbidden'; reason: 'agent_without_mcp_scope' };
+  | { kind: 'forbidden'; reason: 'agent_without_mcp_scope'; principal: AdminPrincipal };
+
+export interface ClientState {
+  readonly enabled: boolean;
+  readonly builtinMcp: boolean;
+}
 
 export interface AuthenticateAdminDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
@@ -63,11 +68,9 @@ export interface AuthenticateAdminDeps {
     lifespans: SessionLifespans,
     now: Date,
   ): Promise<boolean>;
-  isClientEnabled(tenantId: string, clientDbId: string): Promise<boolean>;
+  // `builtinMcp` is the `builtin_mcp` marker, never the client_id string.
+  loadClientState(tenantId: string, clientDbId: string): Promise<ClientState | null>;
   isSubjectEnabled(tenantId: string, subjectId: string): Promise<boolean>;
-  // Whether the client row is the tenant's built-in MCP client, by its
-  // `builtin_mcp` marker and not by its client_id string.
-  isBuiltinMcpClient(tenantId: string, clientDbId: string): Promise<boolean>;
   // The issuers a token for this tenant may carry: its canonical address and
   // any it left whose window is open, the set /userinfo checks against.
   acceptedIssuers: AcceptedIssuersLookup;
@@ -322,8 +325,8 @@ export async function authenticateAdmin(
     if (!live) return unauthenticated('dead_session');
   }
 
-  const enabled = await deps.isClientEnabled(matched.id, grant.clientId);
-  if (!enabled) return unauthenticated('client_disabled');
+  const client = await deps.loadClientState(matched.id, grant.clientId);
+  if (client?.enabled !== true) return unauthenticated('client_disabled');
 
   // Disabling a subject ends nothing it holds, so an access token issued
   // before is refused here rather than living out its lifetime.
@@ -332,10 +335,7 @@ export async function authenticateAdmin(
   }
 
   const holdsMcpScope = claims.scopes.some((scope) => MCP_SCOPES.includes(scope));
-  const isAgent =
-    claims.actorClientId !== undefined ||
-    holdsMcpScope ||
-    (await deps.isBuiltinMcpClient(matched.id, grant.clientId));
+  const isAgent = claims.actorClientId !== undefined || holdsMcpScope || client.builtinMcp;
 
   const base = {
     subjectId: payload.sub,
@@ -344,7 +344,9 @@ export async function authenticateAdmin(
     scopes: claims.scopes,
   };
   if (!isAgent) return { kind: 'authenticated', principal: base };
-  if (!holdsMcpScope) return { kind: 'forbidden', reason: 'agent_without_mcp_scope' };
+  if (!holdsMcpScope) {
+    return { kind: 'forbidden', reason: 'agent_without_mcp_scope', principal: base };
+  }
 
   const clientId = claims.actorClientId ?? payload.client_id;
   if (typeof clientId !== 'string' || clientId.length === 0) {

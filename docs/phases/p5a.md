@@ -238,3 +238,29 @@ the tenant.
   admin-field and console work; the
   tenant export schema (`registrationPolicySchema`) accepts it, because an
   export of a tenant set in the database would otherwise fail.
+
+## The admin API and an agent's token
+
+The principal carries `scopes` and, for an agent, `agent`. An agent is a token
+with an `act` claim, one from the tenant's `builtin_mcp` client, or one holding
+`mcp:read` or `mcp:write`; a malformed `act` or `scope` is a 401, an agent
+holding no MCP scope a 403. An agent must pass both gates: the scope
+(`scopeAdmits`, `service/agent-scope.ts`) and the owner's capability.
+
+- `mcp:read` admits exactly the GET routes. `mcp:write` adds
+  `AGENT_WRITE_ROUTES`, admitted by field on the body the handler reads:
+  `name`, `client_name`, `description`, `name_i18n`, `description_i18n` of a
+  client and `description`, `description_i18n` of a scope. Anything else in the
+  body, `enabled`, `redirect_uris` or `consent_text` among it, is a 403
+  `insufficient_scope`. `consent_text` is left out because it is what a user
+  agrees to; an agent that renames a client does so on the consent screen too.
+- Each refusal is a `capability.refused` row with `reason` `insufficient_scope`
+  or `agent_without_mcp_scope`, the owner as actor and the client row's id
+  (`principal.clientDbId`) as the actor client. `agent.clientId` is `act.sub`
+  when the token has one and so depends on how it was minted: audit uses the
+  database id.
+- Reads are every GET: `GET …/export` and `GET …/audit/export` included, which
+  the exchange that mints agent tokens must not widen beyond a person's own
+  capabilities.
+- Not enforced anywhere an operator can see yet: no agent token exists
+  outside tests until the MCP server mints them.

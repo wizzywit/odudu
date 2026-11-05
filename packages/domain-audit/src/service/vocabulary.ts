@@ -66,6 +66,8 @@ export const AUDIT_REASONS = [
   'rate_limited',
   'foreign_issuer',
   'missing_capability',
+  'agent_without_mcp_scope',
+  'insufficient_scope',
   'already_registered',
 ] as const;
 
@@ -103,7 +105,7 @@ type AdminAccessInput =
   | (EventCommon & {
       readonly eventType: 'admin_access';
       readonly action: 'capability.refused';
-      readonly detail?: WithReason<{ capability: string; also_admits?: string[] }>;
+      readonly detail?: WithReason<{ capability?: string; also_admits?: string[] }>;
     })
   | (EventCommon & {
       readonly eventType: 'admin_access';

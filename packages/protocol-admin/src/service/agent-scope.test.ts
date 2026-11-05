@@ -78,17 +78,18 @@ describe('agentBodyAdmitted', () => {
     expect(agentBodyAdmitted(r, body)).toBe(true);
   });
 
-  it.each([
+  const proto: unknown = JSON.parse('{"name":"x","__proto__":{"enabled":true}}');
+  const ctor: unknown = JSON.parse('{"constructor":{"x":1}}');
+  const refused: [AdminRoute, unknown][] = [
     [client, { enabled: false }],
     [client, { redirect_uris: ['https://evil.example'] }],
     [client, { name: 'x', enabled: true }],
-    [client, { description: { enabled: true } }, true],
     [client, { Name: 'x' }],
     [client, { 'name ': 'x' }],
     [client, { client_name: 'x', client_uri: 'https://x' }],
     [client, { description_i18n: null, consent_required: false }],
-    [client, JSON.parse('{"name":"x","__proto__":{"enabled":true}}')],
-    [client, JSON.parse('{"constructor":{"x":1}}')],
+    [client, proto],
+    [client, ctor],
     [scope, { consent_text: 'agree' }],
     [scope, { include_in_access_token: false }],
     [scope, { default_client_assignment: 'default' }],
@@ -99,8 +100,14 @@ describe('agentBodyAdmitted', () => {
     [client, undefined],
     [route('GET', '/admin/tenants/:tenant/clients'), { name: 'x' }],
     [route('PATCH', '/admin/tenants/:tenant/roles/:id'), { name: 'x' }],
-  ])('refuses a body with anything else in it', (r, body, ok) => {
-    expect(agentBodyAdmitted(r, body)).toBe(ok === true);
+  ];
+
+  it.each(refused)('refuses a body with anything else in it', (r, body) => {
+    expect(agentBodyAdmitted(r, body)).toBe(false);
+  });
+
+  it('admits a nested object under a descriptive field, which the usecase validates', () => {
+    expect(agentBodyAdmitted(client, { description: { enabled: true } })).toBe(true);
   });
 
   it('reads a duplicate key as the parsed object holds it, the last one', () => {

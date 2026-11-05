@@ -28,7 +28,8 @@ export const AUDIT_EVENT_TYPE_DOCS: Record<AuditEventType, string> = {
 
 export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
   'capability.refused':
-    'An authenticated admin caller lacked the capability a route needs. `detail` names it.',
+    'An authenticated admin caller lacked the capability a route needs, or an agent token ' +
+    'lacked the scope: `detail` names the capability or the reason.',
   'token.foreign_issuer':
     'A genuine token issued by another tenant was presented to the admin API.',
   'login.password': 'A password was checked at sign-in.',
@@ -78,6 +79,8 @@ export const AUDIT_REASON_DOCS: Record<AuditReason, string> = {
   rate_limited: 'The request was over its budget.',
   foreign_issuer: 'The token was issued by another tenant.',
   missing_capability: 'The caller lacks the admin capability the route requires.',
+  agent_without_mcp_scope: 'An agent token reached the admin API holding no MCP scope.',
+  insufficient_scope: 'An agent token holds an MCP scope that does not admit the request.',
   already_registered: 'The email address already belongs to an account.',
 };
 

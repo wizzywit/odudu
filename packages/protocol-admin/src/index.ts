@@ -896,20 +896,17 @@ function buildAdminRoutes(
           const session = await sessionRepository(tx).liveById(sessionId, lifespans, now);
           return session !== null;
         }),
-      isClientEnabled: (tenantId, clientDbId) =>
+      loadClientState: (tenantId, clientDbId) =>
         withTenant(deps.database.db, tenantId, async (tx) => {
           const client = await clientRepository(tx).byId(clientDbId);
-          return client?.enabled === true;
+          return client === null
+            ? null
+            : { enabled: client.enabled, builtinMcp: client.builtinMcp };
         }),
       isSubjectEnabled: (tenantId, subjectId) =>
         withTenant(deps.database.db, tenantId, async (tx) =>
           subjectIsEnabled(await subjectRepository(tx).byId(subjectId)),
         ),
-      isBuiltinMcpClient: (tenantId, clientDbId) =>
-        withTenant(deps.database.db, tenantId, async (tx) => {
-          const client = await clientRepository(tx).byId(clientDbId);
-          return client?.builtinMcp === true;
-        }),
       acceptedIssuers: acceptedIssuersLookup(deps),
       tenantNameAtHost: async (host, now) => {
         const state = await hostState(deps.ownerDatabase.db, host, now);

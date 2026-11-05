@@ -24,6 +24,22 @@ export async function recordCapabilityRefused(
   });
 }
 
+export async function recordAgentRefused(
+  tx: TenantScopedDatabase,
+  principal: AdminPrincipal,
+  reason: 'agent_without_mcp_scope' | 'insufficient_scope',
+): Promise<void> {
+  await auditRepository(tx).record({
+    eventType: 'admin_access',
+    action: 'capability.refused',
+    outcome: 'refused',
+    actorTenantId: principal.issuerTenantId,
+    actorSubjectId: principal.subjectId,
+    actorClientId: principal.clientDbId,
+    detail: { reason },
+  });
+}
+
 export async function recordForeignIssuer(
   tx: TenantScopedDatabase,
   foreign: ForeignIssuer,
