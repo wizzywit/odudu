@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { subjectIsEnabled, type SubjectRecord } from '@odudu/domain-identity';
 import { type ClientRecord } from '@odudu/domain-tenant';
+import { refreshAllowedForScope } from '#/service/mcp-scopes';
 import { type TokenGrantRecord } from '#/schema/token-grants';
 
 // 32 random bytes, base64url-encoded: same shape and entropy budget as
@@ -29,7 +30,12 @@ export type RefreshGrantDecision =
   | { readonly ok: true; readonly scope: readonly string[] }
   | {
       readonly ok: false;
-      readonly reason: 'client_mismatch' | 'grant_revoked' | 'subject_disabled' | 'scope_widened';
+      readonly reason:
+        | 'client_mismatch'
+        | 'grant_revoked'
+        | 'subject_disabled'
+        | 'write_not_refreshable'
+        | 'scope_widened';
     };
 
 // Stage 3's grant-specific rules for `refresh_token`, pure: no queries, no
@@ -54,6 +60,8 @@ export function evaluateRefreshGrant(
     request.requestedScope.trim().length > 0
       ? request.requestedScope.split(' ').filter((token) => token.length > 0)
       : grantedTokens;
+
+  if (!refreshAllowedForScope(grantedTokens)) return { ok: false, reason: 'write_not_refreshable' };
 
   const grantedSet = new Set(grantedTokens);
   const widened = requestedTokens.some((token) => !grantedSet.has(token));

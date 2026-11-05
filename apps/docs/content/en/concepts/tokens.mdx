@@ -42,7 +42,7 @@ An access token that lives five minutes would mean signing in every five minutes
 
 It lives 14 days by default, and **it works once**. Each refresh gives back a new refresh token and uses up the old one. Store the new one.
 
-A grant that holds `mcp:write` is the exception. Its access token lives ten minutes at most, whatever the tenant or client sets, and it is issued with no refresh token, so the person signs in again to keep writing. Asking for `offline_access` beside `mcp:write` is not an error; it is ignored. A refresh token cannot widen a grant to `mcp:write`.
+A grant that holds `mcp:write` is the exception. Its access token lives ten minutes at most, whatever the tenant or client sets, and it is issued with no refresh token, so the person signs in again to keep writing. Asking for `offline_access` beside `mcp:write` is not an error; it is ignored. A refresh token cannot widen a grant to `mcp:write`, and exchanging a write token for a refresh token is refused with `invalid_scope`.
 
 ## A refresh token used twice
 

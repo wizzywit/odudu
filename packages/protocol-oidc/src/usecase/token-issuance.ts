@@ -467,7 +467,9 @@ async function mintAccessToken(
   if (
     !scopesCoherentWithAudience(
       input.scope,
-      input.audience,
+      // The issuer is signed into every token's audience; a stored grant
+      // already lists it, and it is no resource a scope is judged at.
+      input.audience.filter((audience) => audience !== deps.issuer),
       mcpAudienceOfIssuer(deps.issuer),
       ADMIN_API_AUDIENCE,
     )
@@ -550,7 +552,9 @@ async function issueAuthorizationCodeTokens(
   // dropped for this grant, its access token and its ID token alike. The
   // *resolved* scope decides this, never the raw request — a client
   // without the scope assigned gets it stripped by resolveScope above, and
-  // sees an ordinary session-bound grant.
+  // sees an ordinary session-bound grant. A grant holding `mcp:write` is
+  // never refreshable, so it keeps its session: offline_access beside it is
+  // ignored.
   const sessionId =
     scope.includes('offline_access') && refreshAllowedForScope(scope) ? null : code.sessionId;
 

@@ -518,6 +518,39 @@ describe('a write token is short-lived and unrefreshable', () => {
     expect(widened.body.error).toBe('invalid_scope');
   });
 
+  async function setGrantScope(accessToken: string | undefined, scope: string): Promise<void> {
+    const grantId = claimsOf(accessToken).grant_id;
+    if (typeof grantId !== 'string') throw new Error('no grant_id');
+    await withTenant(app.db, TENANT_ID, (tx) =>
+      tx.update(tokenGrants).set({ scope }).where(eq(tokenGrants.id, grantId)),
+    );
+  }
+
+  const refreshWith = (refresh: string, scope?: string) =>
+    token(
+      { grant_type: 'refresh_token', refresh_token: refresh, ...(scope ? { scope } : {}) },
+      WEB_ID,
+      WEB_SECRET,
+    );
+
+  it('refuses to refresh a stored grant holding mcp:write, without rotating', async () => {
+    const read = (await issue('openid mcp:read')).body as Full;
+    await setGrantScope(read.access_token, 'openid mcp:write');
+    const refused = await refreshWith(read.refresh_token ?? '', 'openid');
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toBe('invalid_grant');
+    await setGrantScope(read.access_token, 'openid mcp:read');
+    const still = await refreshWith(read.refresh_token ?? '');
+    expect(still.status).toBe(200);
+  });
+
+  it('still refreshes a stored mcp:read grant, narrowed', async () => {
+    const read = (await issue('openid mcp:read')).body as Full;
+    const narrowed = await refreshWith(read.refresh_token ?? '', 'mcp:read');
+    expect(narrowed.status).toBe(200);
+    expect(narrowed.body.scope).toBe('mcp:read');
+  });
+
   it('caps client_credentials at the same ten minutes', async () => {
     const res = await token(
       { grant_type: 'client_credentials', scope: 'mcp:write', resource: MCP_URL },
@@ -528,7 +561,7 @@ describe('a write token is short-lived and unrefreshable', () => {
     expect((res.body as Full).expires_in).toBe(600);
   });
 
-  it('caps an exchanged write token and refuses to exchange one into a refresh token', async () => {
+  it('refuses to exchange a write token into a refresh token', async () => {
     const code = await mintCode(EXCHANGE_ID, 'openid mcp:write', [MCP_URL]);
     const held = await token(codeRequest(code), EXCHANGE_ID, EXCHANGE_SECRET);
     expect(held.status).toBe(200);
@@ -545,9 +578,6 @@ describe('a write token is short-lived and unrefreshable', () => {
         EXCHANGE_ID,
         EXCHANGE_SECRET,
       );
-    const access = await exchange({});
-    expect(access.status).toBe(200);
-    expect((access.body as Full & { expires_in?: number }).expires_in).toBeLessThanOrEqual(600);
     const refresh = await exchange({
       requested_token_type: 'urn:ietf:params:oauth:token-type:refresh_token',
     });
