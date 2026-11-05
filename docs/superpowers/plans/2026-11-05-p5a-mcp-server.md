@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript on Node 24, Fastify 5, Drizzle, Zod 4, Vitest, Testcontainers PostgreSQL, the official MCP TypeScript SDK v2 (`@modelcontextprotocol/server`), React console.
 
-**Spec:** [2026-11-05-p5a-mcp-server-design.md](2026-11-05-p5a-mcp-server-design.md). Read it and `CLAUDE.md` first; section numbers below (§) are the spec's.
+**Spec:** [2026-11-05-p5a-mcp-server-design.md](../specs/2026-11-05-p5a-mcp-server-design.md). Read it and `CLAUDE.md` first; section numbers below (§) are the spec's.
 
 ## Global Constraints
 
@@ -52,7 +52,7 @@ Inputs the spec implies and no single task's happy path exercises; each has a te
 | `packages/db/drizzle/NNNN_*.sql`, `packages/db/src/schema/*` | settings columns, idempotency table, CIMD cache, backfill |
 | `apps/server/src/cli/mcp.ts` + registry entry | `odudu mcp` |
 | `apps/admin-console/src/pages/settings/…` | the one control |
-| `docs/protocols/{rfc8414,rfc9728,cimd,mcp-authorization}.md`, `docs/adr/00NN-*.md`, `docs/phases/p5a.md` | notes, decisions, record |
+| reading notes for RFC 8414, RFC 9728, the CIMD draft and the MCP authorization sections under `docs/protocols/`, a new ADR under `docs/adr/`, `docs/phases/p5a.md` | notes, decisions, record |
 
 ---
 
@@ -111,7 +111,7 @@ Exit: a stranger's MCP client can discover the tenant as an authorization server
 
 - [ ] **Step 1: Failing tests:** `resource` is the canonical MCP URL without a trailing slash; the metadata's `authorization_servers` entry equals the issuer in I1.1; `challengeFor` for `mcp:read` matches the spec's example form; `insufficientScope` carries `error="insufficient_scope"`.
 - [ ] **Step 2:** Run to fail; **Step 3:** implement; **Step 4:** run to pass.
-- [ ] **Step 5:** `docs/protocols/rfc9728.md`, transcript, endpoints reference. Commit; push; open the increment's PR; CI green; answer the review.
+- [ ] **Step 5:** the reading note for RFC 9728 under `docs/protocols/`, transcript, endpoints reference. Commit; push; open the increment's PR; CI green; answer the review.
 
 ---
 
@@ -171,7 +171,7 @@ Exit: a stranger's MCP client can discover the tenant as an authorization server
 **Files:** modify client lookup in `/authorize` and the token endpoint to resolve a CIMD `client_id` to a transient public client when the tenant setting `cimd_enabled` is on (migration adds the column, default false); modify I1.1 to emit `client_id_metadata_document_supported`. Tests: int tests through the real endpoints.
 
 - [ ] **Step 1: Failing tests:** off → a URL `client_id` is `invalid_client` exactly as an unknown client; on → authorize reaches consent showing the client name and every redirect URI; a redirect URI not in the document is refused; the issued token's audience still needs the MCP URL registered, so a CIMD client gets it by the MCP policy (I4), not by the document.
-- [ ] **Steps 2–5.** `docs/protocols/cimd.md`. Push; CI; review.
+- [ ] **Steps 2–5.** the reading note for the CIMD draft under `docs/protocols/`. Push; CI; review.
 
 ---
 
@@ -224,7 +224,7 @@ Exit: a stranger's MCP client can discover the tenant as an authorization server
 
 ### Task 5.3: Audit attribution and the decision records
 
-**Files:** `packages/domain-audit/src/service/vocabulary.ts` (new action `agent.tool_call` under `admin_access`, verified shape lines 9–15), `vocabulary-docs.ts`, `audit-detail.ts`; ADR `docs/adr/00NN-the-mcp-server-acts-through-an-exchanged-token.md` and an ADR 0040 amendment; `docs/NEXT.md`'s decision list entry for agent reads being audited. Tests: `audit-vocabulary-coverage.test.ts`, `vocabulary-docs.test.ts`, int test that an admin mutation by an agent writes `detail` with `agent_client` and `owner`, and no argument text.
+**Files:** `packages/domain-audit/src/service/vocabulary.ts` (new action `agent.tool_call` under `admin_access`, verified shape lines 9–15), `vocabulary-docs.ts`, `audit-detail.ts`; a new ADR ("the MCP server acts through an exchanged token", next free number under `docs/adr/`) and an ADR 0040 amendment; `docs/NEXT.md`'s decision list entry for agent reads being audited. Tests: `audit-vocabulary-coverage.test.ts`, `vocabulary-docs.test.ts`, int test that an admin mutation by an agent writes `detail` with `agent_client` and `owner`, and no argument text.
 
 - [ ] **Step 1: Failing tests** as above; **Steps 2–5.** Push the increment's PR; CI; review.
 
