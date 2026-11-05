@@ -104,6 +104,7 @@ import { type RateLimiter, slidingWindow } from '#/throttle';
 import { mailGate as createMailGate } from '#/mail-limiter';
 import { neutraliseRequestInput } from '#/input-hygiene';
 import { loginBudgetKey } from '#/login-throttle';
+import { mcpRegistrationBudget } from '#/mcp-registration-budget';
 import { throttleOrigin } from '#/throttle-origin';
 
 export interface AppDeps {
@@ -233,9 +234,12 @@ export interface AppDeps {
   readonly loginThrottle?: ThrottleSettings;
   /**
    * The registrations one address may make on a tenant whose client
-   * registration policy is `mcp`. Defaults to `DEFAULT_MCP_REGISTRATION_THROTTLE`.
+   * registration policy is `mcp`, and the tenant may take from every address
+   * together. Default to `DEFAULT_MCP_REGISTRATION_THROTTLE` and
+   * `DEFAULT_MCP_TENANT_REGISTRATION_THROTTLE`.
    */
   readonly mcpRegistrationThrottle?: ThrottleSettings;
+  readonly mcpTenantRegistrationThrottle?: ThrottleSettings;
   /** The proxy's domain question; its own budget, per origin. */
   readonly domainCheckThrottle?: ThrottleSettings;
   /**
@@ -301,6 +305,13 @@ export const DEFAULT_LOGIN_THROTTLE: ThrottleSettings = { limit: 5, windowSecond
 // (ADR 0023).
 export const DEFAULT_MCP_REGISTRATION_THROTTLE: ThrottleSettings = {
   limit: 10,
+  windowSeconds: 3600,
+};
+
+// Sixty an hour for the tenant over every address, so a tenant's `max_clients`
+// (200 by default) is not filled in the time an administrator takes to notice.
+export const DEFAULT_MCP_TENANT_REGISTRATION_THROTTLE: ThrottleSettings = {
+  limit: 60,
   windowSeconds: 3600,
 };
 
@@ -495,10 +506,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     now: () => new Date(),
   });
 
-  // Keyed by tenant and address, so the budget of one tenant is never spent
-  // by another's registrations.
-  const mcpRegistrations: RateLimiter = slidingWindow({
-    ...(deps.mcpRegistrationThrottle ?? DEFAULT_MCP_REGISTRATION_THROTTLE),
+  const mcpRegistrations = mcpRegistrationBudget({
+    perOrigin: deps.mcpRegistrationThrottle ?? DEFAULT_MCP_REGISTRATION_THROTTLE,
+    perTenant: deps.mcpTenantRegistrationThrottle ?? DEFAULT_MCP_TENANT_REGISTRATION_THROTTLE,
     now: () => new Date(),
   });
 
@@ -697,10 +707,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,
       clientSecretLimiter,
-      mcpRegistrationLimiter: {
-        check: (tenantId, origin) =>
-          mcpRegistrations.check(`${tenantId}:${throttleOrigin(origin)}`),
-      },
+      mcpRegistrationLimiter: mcpRegistrations,
       auditRefusalBudget: auditRefusalBudget(() => new Date()),
       clientKeySet: privateKeyJwtKeySet,
       cimd: {

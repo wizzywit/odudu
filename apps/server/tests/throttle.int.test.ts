@@ -14,6 +14,7 @@ import {
   buildApp,
   DEFAULT_LOGIN_THROTTLE,
   DEFAULT_MCP_REGISTRATION_THROTTLE,
+  DEFAULT_MCP_TENANT_REGISTRATION_THROTTLE,
   DEFAULT_THROTTLE,
 } from '#/app';
 import { seed } from '#/cli/seed';
@@ -608,6 +609,49 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
       expect(refused.statusCode).toBe(429);
       expect(Number(refused.headers['retry-after'])).toBeGreaterThan(0);
       expect(elsewhere.statusCode).toBe(201);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('stops the mcp registration policy at the tenant budget, however many addresses ask', async () => {
+    const tenantName = `mcp-tenant-${newId()}`;
+    const seeded = await seed({
+      tenant: tenantName,
+      clientId: 'throttle-app',
+      redirectUris: [REDIRECT_URI],
+    });
+    await owner.db
+      .update(tenants)
+      .set({ clientRegistrationPolicy: 'mcp', maxClients: 1000 })
+      .where(eq(tenants.id, seeded.tenantId));
+
+    const app = buildTestApp();
+    await app.ready();
+
+    try {
+      const url = `/tenants/${tenantName}/clients-registrations/openid-connect`;
+      const body = { redirect_uris: [REDIRECT_URI], token_endpoint_auth_method: 'none' };
+      const limit = DEFAULT_MCP_TENANT_REGISTRATION_THROTTLE.limit;
+      const perAddress = DEFAULT_MCP_REGISTRATION_THROTTLE.limit;
+      const codes: number[] = [];
+      for (let attempt = 0; attempt < limit; attempt += 1) {
+        const address = `198.51.100.${String(Math.floor(attempt / perAddress) + 1)}`;
+        codes.push(
+          (await app.inject({ method: 'POST', url, payload: body, remoteAddress: address }))
+            .statusCode,
+        );
+      }
+      const fresh = await app.inject({
+        method: 'POST',
+        url,
+        payload: body,
+        remoteAddress: '203.0.113.77',
+      });
+
+      expect(codes.every((code) => code === 201)).toBe(true);
+      expect(fresh.statusCode).toBe(429);
+      expect(Number(fresh.headers['retry-after'])).toBeGreaterThan(0);
     } finally {
       await app.close();
     }

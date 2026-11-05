@@ -1220,6 +1220,7 @@ export {
 } from '#/usecase/persist-cimd-client';
 export { holdsLiveRefreshToken } from '#/repository/cimd-clients';
 export { tenantCimdRepository } from '#/repository/tenant-cimd';
+export { type RegistrationLimiter } from '#/service/registration-throttle';
 export { parseCimdDocument, type CimdClient } from '#/service/client-id-metadata';
 export {
   resolveCimdDocument,
