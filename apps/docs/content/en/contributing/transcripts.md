@@ -49,8 +49,10 @@ shipped); it was added to the recorded blocks by hand, after `nosniff` where
 `pageHeaders` places it, and a live login-page response on the project
 `odudu-p4g-13b` confirmed its value and position.
 
-The `client_metadata_cache` key in the retention page's reports was added by editing the captured
-lines, since the table is empty throughout; those reports have not been re-run on a live stack since.
+The retention page's `odudu reap` reports gained the `client_metadata_cache` key on 2026-11-05. All seven were re-run on
+a freshly built compose project, `odudu-p5a-i3` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), driven
+only as far as Path A plus one refresh rotation and then through the page's own commands in order; each report came
+back identical to the page's. The unseeded-stack and refusal outputs were not re-run, since the key is not in them.
 
 The custom-domain work of 2026-11-04 was captured on the compose project `odudu-p4j-tx`, built from the
 branch commit `cdde6fd8` plus the documentation, on port `3000` with `ODUDU_THROTTLE_LIMIT` and
