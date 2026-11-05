@@ -17,6 +17,7 @@ const confidential = {
   fullScopeAllowed: false,
   registrationOrigin: 'seeded' as const,
   builtinAdmin: false,
+  builtinMcp: false,
   skipLogoutConfirmation: false,
   description: null,
   nameI18n: {},

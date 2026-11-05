@@ -49,6 +49,14 @@ export {
   type TenantCapability,
 } from '#/service/admin-capabilities';
 export {
+  MCP_CLIENT_ID,
+  MCP_CLIENT_LIFETIMES,
+  MCP_CLIENT_NAME,
+  MCP_CLIENT_REDIRECT_URIS,
+  MCP_READ_SCOPE,
+  MCP_WRITE_SCOPE,
+} from '#/service/mcp-client';
+export {
   isReservedTenantName,
   isValidTenantName,
   RESERVED_TENANT_NAMES,
@@ -102,6 +110,7 @@ export {
   type MintedClientRegistrationToken,
   type RegistrationTokenRecord,
 } from '#/repository/client-registration-tokens';
+export { provisionMcpClient } from '#/usecase/provision-mcp-client';
 export {
   capabilityRoleGraph,
   provisionAdminClient,

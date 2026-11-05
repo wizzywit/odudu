@@ -799,6 +799,13 @@
       "when": 1790518481737,
       "tag": "0113_mcp_scopes",
       "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1790518482737,
+      "tag": "0114_builtin_mcp_client",
+      "breakpoints": true
     }
   ]
 }

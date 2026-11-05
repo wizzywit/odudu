@@ -57,6 +57,11 @@ export const clients = pgTable('clients', {
   // Off for every client but the console's own; set only through the admin
   // API (packages/db/drizzle/0106_clients_skip_logout_confirmation.sql).
   skipLogoutConfirmation: boolean('skip_logout_confirmation').notNull().default(false),
+  // Marks the public client every tenant is provisioned with for MCP
+  // clients (`MCP_CLIENT_ID`). At most one true per tenant
+  // (clients_one_builtin_mcp); provisioning adopts a client by this column,
+  // never by the client_id alone.
+  builtinMcp: boolean('builtin_mcp').notNull().default(false),
   // Search keys, in the C collation, filled by the database
   // (packages/db/drizzle/0074_list_indexes_tenants_clients.sql).
   clientIdSearch: text('client_id_search').generatedAlwaysAs(sql`lower(client_id)`),
@@ -87,4 +92,5 @@ export interface ClientRecord {
   registrationOrigin: 'seeded' | 'anonymous' | 'token' | 'operator';
   builtinAdmin: boolean;
   skipLogoutConfirmation: boolean;
+  builtinMcp: boolean;
 }

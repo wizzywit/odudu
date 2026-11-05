@@ -17,6 +17,7 @@ const client: ClientRecord = {
   fullScopeAllowed: false,
   registrationOrigin: 'seeded',
   builtinAdmin: false,
+  builtinMcp: false,
   skipLogoutConfirmation: false,
   nameI18n: {},
   descriptionI18n: {},

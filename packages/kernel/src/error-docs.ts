@@ -112,6 +112,10 @@ export const ERROR_DOCS: Record<ErrorCode, ErrorDoc> = {
     'A client with the id of the built-in admin client already exists in the tenant but is not ' +
       'it, so the console cannot be registered.',
   ),
+  mcp_client_not_builtin: command(
+    'A client with the id of the built-in MCP client already exists in the tenant but is not ' +
+      'it, so the built-in client cannot be provisioned.',
+  ),
   admin_client_list_full: command(
     'The built-in admin client already holds as many redirect URIs as a client may, so the ' +
       'console’s address cannot be added.',
