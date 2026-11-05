@@ -26,10 +26,24 @@ export interface AuthDependencies {
 
 const CONSOLE_PATH = '/console/';
 
-// The redirect ends the tenant's SSO session, so it names this origin's own
-// end-session endpoint; anything else would send the window somewhere the
-// console has no business sending it. An ended session is sent back to the
-// console by path, and no other relative form is taken.
+// The redirect ends the tenant's SSO session, so it names an end-session
+// endpoint: this origin's own, or the tenant's domain, which the console cannot
+// know and so accepts by the endpoint's path alone. Anything else would send
+// the window somewhere the console has no business sending it. An ended
+// session is sent back to the console by path, and no other relative form is
+// taken.
+const END_SESSION = /^(?:\/tenants\/[^/]+)?\/protocol\/openid-connect\/logout$/u;
+
+function tenantDomainEndSession(redirect: string): boolean {
+  const url = new URL(redirect);
+  return (
+    (url.protocol === 'https:' || url.protocol === 'http:') &&
+    url.username === '' &&
+    url.password === '' &&
+    END_SESSION.test(url.pathname)
+  );
+}
+
 function sameOrigin(redirect: string): boolean {
   try {
     if (!URL.canParse(redirect)) {
@@ -40,7 +54,9 @@ function sameOrigin(redirect: string): boolean {
         at.pathname.startsWith(CONSOLE_PATH)
       );
     }
-    return new URL(redirect).origin === globalThis.location.origin;
+    return (
+      new URL(redirect).origin === globalThis.location.origin || tenantDomainEndSession(redirect)
+    );
   } catch {
     return false;
   }
