@@ -43,15 +43,9 @@ A client that nobody at the tenant vetted is held to step 2 until the person app
 
 An administrator can list what a person has allowed with `GET /admin/tenants/{tenant}/subjects/{id}/consents`, and remove one with `DELETE /admin/tenants/{tenant}/subjects/{id}/consents/{clientId}`. The person is asked again next time.
 
-### A client named by a URL
+### A client that names itself
 
-A tenant can let an app identify itself with a web address instead of registering first. The `cimd_enabled` setting, off by default, turns it on. A `client_id` that is an https address is then fetched: the document served there, a Client ID Metadata Document, gives the app's name and redirect addresses. Odudu keeps the result as a public client and sends people back only to a listed address. Anyone can claim a name, so the consent screen also shows the host the document came from and every redirect address. A client nobody has used for thirty days is removed and returns when its address is next used. With the setting off, sign-in and token requests for such an address are refused like any unknown client; tokens already issued stay valid until they expire.
-
-### A client that registers itself for MCP
-
-A tenant can also let an agent register itself with `client_registration_policy` set to `mcp`. The registration endpoint then admits only a public client, with https or loopback http redirect addresses, which may ask for `mcp:read` and never `mcp:write`, and whose only audience is the tenant's MCP address. Each address may register ten clients an hour and the tenant sixty, and the tenant's `max_clients` still applies. Any public client that registered itself, under `open` as well as `mcp`, and is never approved, signed in through or granted anything is deleted by `odudu reap` after a week; one with an approval or a grant that has not yet been reaped stays. Such a client, and a metadata document client on a tenant with this policy, is given that audience and `mcp:read` by the policy and not by anything it sends. If the policy is later changed, such a client stops being offered that audience and `mcp:read` at its next sign-in and its next refresh, so a refresh chain started under the policy carries neither once the policy is off; disable or delete the client to end the chain at once. A metadata document client that signs in with a key rather than as a public client is not given them. A client of these kinds is never offered `mcp:write`. `mcp:read` is optional, so the consent screen offers it as a choice. The [registration transcript](../reference/transcripts/request-paths/bootstrap.md#the-mcp-policy) shows each refusal.
-
-An administrator who changes `client_registration_policy` or `cimd_enabled` through the admin API or the console leaves a `tenant.amend_settings` audit event whose detail holds the value each had before and after. No other setting appears in that detail.
+A tenant can let an app identify itself with an https address (`cimd_enabled`) or let an agent register itself (`client_registration_policy` set to `mcp`). Anyone can claim a name, so such a client is held to step 2 until the person approves it, and the screen shows the host the document came from and every redirect address. Neither kind is ever offered `mcp:write`. The [Settings page](../admin-console/settings.mdx#client-registration) has the details, and the [registration transcript](../reference/transcripts/request-paths/bootstrap.md#the-mcp-policy) shows each refusal.
 
 ## Audit
 

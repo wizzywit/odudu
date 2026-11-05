@@ -118,6 +118,16 @@ A client can carry lifetimes of its own, which win over these.
 - **Accept client metadata documents** (`cimd_enabled`): a client may use an HTTPS address as its `client_id`, and the document served there describes it. It works under any policy, and a client that comes this way gets the MCP audience only while the policy admits MCP clients. Off, such an address is answered as an unknown client. It saves with the policy, in the same section.
 - **Most clients** (`max_clients`): a tenant with this many clients refuses to make more, whoever asks. 0 allows none, and a new tenant starts at 200.
 
+#### A client named by an address
+
+A tenant can let an app identify itself with a web address instead of registering first. The `cimd_enabled` setting, off by default, turns it on. A `client_id` that is an https address is then fetched: the document served there, a Client ID Metadata Document, gives the app's name and redirect addresses. Odudu keeps the result as a public client and sends people back only to a listed address. Anyone can claim a name, so the consent screen also shows the host the document came from and every redirect address. A client nobody has used for thirty days is removed and returns when its address is next used. With the setting off, sign-in and token requests for such an address are refused like any unknown client; tokens already issued stay valid until they expire.
+
+#### A client that registers itself for MCP
+
+A tenant can also let an agent register itself with `client_registration_policy` set to `mcp`. The registration endpoint then admits only a public client, with https or loopback http redirect addresses, which may ask for `mcp:read` and never `mcp:write`, and whose only audience is the tenant's MCP address. Each address may register ten clients an hour and the tenant sixty, and the tenant's `max_clients` still applies. Any public client that registered itself, under `open` as well as `mcp`, and is never approved, signed in through or granted anything is deleted by `odudu reap` after a week; one with an approval or a grant that has not yet been reaped stays. Such a client, and a metadata document client on a tenant with this policy, is given that audience and `mcp:read` by the policy and not by anything it sends. If the policy is later changed, such a client stops being offered that audience and `mcp:read` at its next sign-in and its next refresh, so a refresh chain started under the policy carries neither once the policy is off; disable or delete the client to end the chain at once. A metadata document client that signs in with a key rather than as a public client is not given them. A client of these kinds is never offered `mcp:write`. `mcp:read` is optional, so the consent screen offers it as a choice.
+
+An administrator who changes the policy or the switch leaves a `tenant.amend_settings` audit event whose detail holds the value each had before and after. No other setting appears in that detail.
+
 ### Audit retention
 
 - **Keep events for** (`audit_retention_days`): 1 to 3650 days.
