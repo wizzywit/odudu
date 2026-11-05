@@ -33,6 +33,7 @@ import { hashPassword, subjectRepository, userRepository } from '@odudu/domain-i
 import {
   ADMIN_API_AUDIENCE,
   ADMIN_CLIENT_ID,
+  MCP_CLIENT_ID,
   clientRepository,
   clients,
   provisionClientDefaults,
@@ -114,6 +115,14 @@ export interface AdminFixture {
   // presenting the resulting token needs to inject with the same `host`
   // header to be accepted, and a different one to be refused.
   adminTokenAt(tenantName: string, capabilities: readonly string[], host: string): Promise<string>;
+  // An admin-audience token of a subject holding `capabilities`, carrying
+  // `scope` and, when given, `act`; minted through the tenant's built-in MCP
+  // client when `viaMcpClient` is set, its admin client otherwise.
+  agentToken(
+    tenantName: string,
+    capabilities: readonly string[],
+    options: { scope: string; act?: unknown; viaMcpClient?: boolean },
+  ): Promise<string>;
   // Signs arbitrary claims with the tenant's own active key, `iss` included,
   // so a test can present a genuine signature over an issuer it chose.
   // `typ` defaults to `at+jwt`.
@@ -461,6 +470,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
       sessionId: string | null;
       audience: string[];
       scope?: string;
+      act?: unknown;
     },
   ): Promise<string> {
     const key: SigningKeyRecord = await signingKeyRepository(tx).active();
@@ -489,6 +499,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         jti: newId(),
         grant_id: grantId,
         ...(input.sessionId !== null ? { sid: input.sessionId } : {}),
+        ...(input.act === undefined ? {} : { act: input.act }),
       },
       { key, kek: KEK, typ: 'at+jwt' },
     );
@@ -517,6 +528,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
     ctx: TenantContext,
     capabilities: readonly string[],
     audience: string[],
+    extra: { scope?: string; act?: unknown; viaMcpClient?: boolean } = {},
   ): Promise<string> {
     return withTenant(app.db, ctx.id, async (tx) => {
       const adminClient = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
@@ -534,13 +546,35 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         authenticators: ['pwd'],
         secretHash: SessionEntry.issue(sessionId).secretHash(),
       });
+      const signingClient =
+        extra.viaMcpClient === true
+          ? await clientRepository(tx).byClientId(MCP_CLIENT_ID)
+          : adminClient;
+      if (signingClient === null) {
+        throw new Error(`fixture: ${ctx.name} has no built-in MCP client`);
+      }
       return mintTokenInTx(tx, ctx, {
         subjectId: subject.id,
-        client: adminClient,
+        client: signingClient,
         sessionId,
         audience,
+        ...(extra.scope === undefined ? {} : { scope: extra.scope }),
+        ...(extra.act === undefined ? {} : { act: extra.act }),
       });
     });
+  }
+
+  async function agentToken(
+    tenantName: string,
+    capabilities: readonly string[],
+    options: { scope: string; act?: unknown; viaMcpClient?: boolean },
+  ): Promise<string> {
+    return mintAdminLikeToken(
+      requireTenant(tenantName),
+      capabilities,
+      [ADMIN_API_AUDIENCE],
+      options,
+    );
   }
 
   async function clientCredentialsToken(
@@ -974,6 +1008,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
     stop,
     adminToken,
     adminTokenAt,
+    agentToken,
     signWithTenantKey,
     systemAdminToken,
     applicationToken,
