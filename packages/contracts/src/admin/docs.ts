@@ -295,7 +295,7 @@ describeFields(clientFieldsSchema, {
   skip_logout_confirmation:
     "When true, `/logout` signs a user out of this client without the confirmation page, but only for a request carrying an ID token this client was issued, for the session that is current, even an expired one. Anyone holding such a token can then sign that user out by opening a link. Off for every client but the console's own, and never settable through dynamic registration.",
   registration_origin:
-    'How the client came to exist: `seeded` by `odudu seed` or `odudu init`, `anonymous` or `token` through dynamic registration, or `operator` through the admin API.',
+    'How the client came to exist: `seeded` by `odudu seed` or `odudu init`, `anonymous` or `token` through dynamic registration, `operator` through the admin API, or `cimd` from the Client ID Metadata Document its `client_id` names.',
   created_at: 'When the client was created, as an ISO 8601 date and time.',
   redirect_uris:
     'The addresses the authorization server may send the user back to after sign-in. A request naming any other address is refused.',
@@ -982,6 +982,8 @@ describeFields(tenantSettingsDocumentSchema, {
   verify_email_ttl_seconds: 'How long a mailed email-verification link works.',
   reset_password_ttl_seconds: 'How long a mailed password-reset link works.',
   login_with_email: 'Whether a user may sign in with the email address instead of the username.',
+  cimd_enabled:
+    'Whether a client_id that is an https URL is resolved to the Client ID Metadata Document served there.',
   audit_event_types: 'The audit event types the tenant stores.',
   supported_locales:
     'The language tags the tenant’s pages are offered in, 1 to 32, each such as `fr` or `zh-Hant-TW`; discovery advertises them as `ui_locales_supported`.',

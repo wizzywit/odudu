@@ -36,6 +36,8 @@ const REFUSALS: Readonly<Record<string, string>> = {
     "builtin_admin marks the client a tenant's administration roles hang from; changing it needs its own operation, not a general amendment",
   builtin_mcp:
     'builtin_mcp marks the client every tenant is provisioned with for MCP clients; it is not amendable',
+  metadata_used_at:
+    'metadata_used_at is set each time the client metadata document is resolved and ages a client out',
   client_id_search: 'client_id_search is derived from client_id by the database',
   name_search: 'name_search is derived from name by the database; amend name instead',
 };

@@ -12,7 +12,13 @@ import {
 } from '#/admin/shared';
 
 export const clientTypeSchema = z.enum(['public', 'confidential']);
-export const registrationOriginSchema = z.enum(['seeded', 'anonymous', 'token', 'operator']);
+export const registrationOriginSchema = z.enum([
+  'seeded',
+  'anonymous',
+  'token',
+  'operator',
+  'cimd',
+]);
 
 // What the `ETag` is taken over: the stored fields alone.
 export const clientFieldsSchema = z.object({

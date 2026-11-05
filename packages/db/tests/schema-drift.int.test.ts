@@ -73,7 +73,9 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'groups.groups_name_has_no_slash': "CHECK (((name !~ '/'::text) AND (name <> ''::text)))",
   'groups.groups_path_is_absolute': "CHECK ((path ~~ '/%'::text))",
   'clients.clients_registration_origin_check':
-    "CHECK ((registration_origin = ANY (ARRAY['seeded'::text, 'anonymous'::text, 'token'::text, 'operator'::text])))",
+    "CHECK ((registration_origin = ANY (ARRAY['seeded'::text, 'anonymous'::text, 'token'::text, 'operator'::text, 'cimd'::text])))",
+  'clients.clients_metadata_used_for_cimd':
+    "CHECK (((registration_origin = 'cimd'::text) = (metadata_used_at IS NOT NULL)))",
   'clients.clients_secret_matches_type':
     "CHECK (((type <> 'public'::text) OR (secret_hash IS NULL)))",
   'clients.clients_type_check':

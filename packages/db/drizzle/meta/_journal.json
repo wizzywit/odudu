@@ -813,6 +813,13 @@
       "when": 1790518483737,
       "tag": "0115_client_metadata_cache",
       "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1790522083737,
+      "tag": "0116_cimd_clients",
+      "breakpoints": true
     }
   ]
 }

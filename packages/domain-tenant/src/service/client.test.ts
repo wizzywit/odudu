@@ -18,6 +18,7 @@ const confidential = {
   registrationOrigin: 'seeded' as const,
   builtinAdmin: false,
   builtinMcp: false,
+  metadataUsedAt: null,
   skipLogoutConfirmation: false,
   description: null,
   nameI18n: {},

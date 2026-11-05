@@ -62,6 +62,10 @@ export const clients = pgTable('clients', {
   // (clients_one_builtin_mcp); provisioning adopts a client by this column,
   // never by the client_id alone.
   builtinMcp: boolean('builtin_mcp').notNull().default(false),
+  // The last time the client's metadata document was resolved; set exactly
+  // for registration_origin 'cimd' (clients_metadata_used_for_cimd), and what
+  // `reap` ages such a client out by.
+  metadataUsedAt: timestamp('metadata_used_at', { withTimezone: true }),
   // Search keys, in the C collation, filled by the database
   // (packages/db/drizzle/0074_list_indexes_tenants_clients.sql).
   clientIdSearch: text('client_id_search').generatedAlwaysAs(sql`lower(client_id)`),
@@ -89,8 +93,9 @@ export interface ClientRecord {
   createdAt: Date;
   serviceSubjectId: string | null;
   fullScopeAllowed: boolean;
-  registrationOrigin: 'seeded' | 'anonymous' | 'token' | 'operator';
+  registrationOrigin: 'seeded' | 'anonymous' | 'token' | 'operator' | 'cimd';
   builtinAdmin: boolean;
   skipLogoutConfirmation: boolean;
   builtinMcp: boolean;
+  metadataUsedAt: Date | null;
 }

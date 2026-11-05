@@ -17,6 +17,7 @@ const TENANT = {
   resetPasswordAllowed: false,
   maxSessionsPerBrowser: 25,
   clientRegistrationPolicy: 'disabled' as 'disabled' | 'open',
+  cimdEnabled: false,
   supportedLocales: ['en'],
   defaultLocale: null,
   passwordRules: {

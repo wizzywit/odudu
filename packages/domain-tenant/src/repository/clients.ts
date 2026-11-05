@@ -34,6 +34,7 @@ function toRecord(row: typeof clients.$inferSelect): ClientRecord {
     builtinAdmin: row.builtinAdmin,
     skipLogoutConfirmation: row.skipLogoutConfirmation,
     builtinMcp: row.builtinMcp,
+    metadataUsedAt: row.metadataUsedAt,
   };
 }
 
