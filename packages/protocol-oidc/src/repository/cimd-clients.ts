@@ -1,8 +1,6 @@
+import { ACCESS_TOKEN_CEILING_SECONDS } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { sql, type SQL } from 'drizzle-orm';
-
-/** The longest an access token lives: tenants_access_token_ttl_range. */
-export const ACCESS_TOKEN_CEILING_SECONDS = 3600;
 
 // Whether the client `clientId` (a column reference) holds a refresh token
 // that is, or was within an access token's life, usable: one the grant has not

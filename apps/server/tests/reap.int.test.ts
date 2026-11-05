@@ -123,6 +123,7 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   const cimdFreshId = newId();
   const cimdHeldGrantId = newId();
   const cimdSlackId = newId();
+  const cimdDisabledId = newId();
   const cimdRevokedId = newId();
   const cimdSlackGrantId = newId();
   const cimdRevokedGrantId = newId();
@@ -171,8 +172,11 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
       (${cimdSlackId}, ${tenantId}, 'https://slack.example.com/c.json', 'Slack', 'public', 'cimd',
        ${at(-90 * DAY)}::timestamptz),
       (${cimdRevokedId}, ${tenantId}, 'https://revoked.example.com/c.json', 'Revoked', 'public', 'cimd',
+       ${at(-90 * DAY)}::timestamptz),
+      (${cimdDisabledId}, ${tenantId}, 'https://disabled.example.com/c.json', 'Disabled', 'public', 'cimd',
        ${at(-90 * DAY)}::timestamptz)
   `);
+  await owner.db.execute(sql`UPDATE clients SET enabled = false WHERE id = ${cimdDisabledId}`);
   await owner.db.execute(sql`
     INSERT INTO token_grants (id, tenant_id, client_id, subject_id, scope, created_at, session_id,
                               revoked_at)
@@ -631,7 +635,7 @@ describe('odudu reap', () => {
       console_logins: 1,
       tenant_issuer_retirements: 1,
       client_metadata_cache: 1,
-      cimd_clients: 3,
+      cimd_clients: 4,
       tenant_domains: 3,
       sessions: 1,
       audit_events: 0,
@@ -685,6 +689,7 @@ describe('odudu reap', () => {
            ORDER BY client_id`,
     );
     expect(rows.map((row) => row.client_id)).toEqual([
+      'https://disabled.example.com/c.json',
       'https://fresh.example.com/c.json',
       'https://held.example.com/c.json',
       'https://slack.example.com/c.json',

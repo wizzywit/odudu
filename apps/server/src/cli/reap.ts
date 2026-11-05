@@ -407,13 +407,15 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
   // A client that came from a metadata document and whose document nobody has
   // resolved for thirty days comes back the next time one is. One holding a
   // refresh token that can still be used, or lapsed within an access token's
-  // life, stays, so a client in use is not cut off. Served by clients_cimd_by_use and
+  // life, stays, so a client in use is not cut off. A disabled one stays too: it is an
+  // administrator's decision, which a fresh row from the next resolution would undo. Served by clients_cimd_by_use and
   // token_grants_by_client.
   cimd_clients: {
     after: [],
     statement: (now) => sql`
       DELETE FROM clients c
        WHERE c.registration_origin = 'cimd'
+         AND c.enabled
          AND c.metadata_used_at < ${before(now, CIMD_CLIENT_UNUSED_SECONDS)}::timestamptz
          AND NOT ${holdsLiveRefreshToken(sql`c.id`, now)}
     `,

@@ -137,7 +137,10 @@ no-store document is fetched every time and never cached.
   with when the fetch began); eviction and `reap` skip disabled clients (evict)
   and count a refresh token only while its grant is unrevoked and it has not
   lapsed by more than an access token's life; a late DNS answer sends nothing;
-  roles of an omitted cimd client are left out of the export.
+  roles of an omitted cimd client are left out of the export (and out of its
+  size bound); `reap` also spares disabled clients; the userinfo encryption
+  fetch is public-only for cimd clients. Every `clientKeySet.fetch` caller is
+  the private_key_jwt authentication (/token, /introspect, /revoke) and that one.
 - **Left for a policy.** The client has no audience and no MCP scope; both
   arrive with the MCP registration policy. Turning the setting off does not
   disable stored rows: `/authorize` and `/token` refuse them by reading the

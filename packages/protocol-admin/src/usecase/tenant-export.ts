@@ -238,7 +238,19 @@ async function oversized(
     {
       collection: 'roles',
       table: roles,
-      where: eq(roles.tenantId, tenantId),
+      where: and(
+        eq(roles.tenantId, tenantId),
+        or(
+          isNull(roles.clientId),
+          notInArray(
+            roles.clientId,
+            tx
+              .select({ id: clients.id })
+              .from(clients)
+              .where(eq(clients.registrationOrigin, 'cimd')),
+          ),
+        ),
+      ),
       cap: caps.collection,
     },
     {

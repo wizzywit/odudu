@@ -453,4 +453,30 @@ describe('a URL client_id with metadata documents on', () => {
 
     expect(keySetFetch).toHaveBeenCalledWith(jwksUri, tenantId, true);
   });
+
+  it('[ODUDU-CIMD-JWKS-03] fetches a jwks_uri for userinfo encryption holding it to public addresses only', async () => {
+    const jwksUri = 'https://app.example.com:8443/jwks.json';
+    serve({ jwks_uri: jwksUri });
+    const consent = await signIn(await authorize(CLIENT_URL));
+    const code = (await allow(consent)).searchParams.get('code') ?? '';
+    const redeemed = await token({
+      grant_type: 'authorization_code',
+      client_id: CLIENT_URL,
+      code,
+      redirect_uri: CALLBACK,
+      code_verifier: VERIFIER,
+    });
+    const accessToken = redeemed.json<{ access_token: string }>().access_token;
+    await owner.db
+      .execute(sql`update client_oidc_config set userinfo_encrypted_response_alg = 'RSA-OAEP-256'
+      where client_id = (select id from clients where tenant_id = ${tenantId} and client_id = ${CLIENT_URL})`);
+    keySetFetch.mockClear();
+
+    await http.inject({
+      url: `/tenants/${tenant}/protocol/openid-connect/userinfo`,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+
+    expect(keySetFetch).toHaveBeenCalledWith(jwksUri, tenantId, true);
+  });
 });

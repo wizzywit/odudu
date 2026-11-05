@@ -27,7 +27,7 @@ inactive); a refresh token of a revoked grant does not count; its address brings
 at most 1,000 of them. Resolving a document needs no sign-in, so at that count a new
 client makes room by removing the one unused longest that never completed anything: no
 consent recorded, no refresh token that can still be used, no authorization code that
-has not expired. A client an administrator disabled is never removed this way. If every row is protected, the new client is refused and the server logs the
+has not expired. A client an administrator disabled is never removed this way, nor by `odudu reap`. If every row is protected, the new client is refused and the server logs the
 tenant and host. Turning the setting off refuses `/authorize` and `/token` only: tokens
 already issued stay valid at userinfo and introspection until they expire, and the consent
 and post-logout steps still read the stored row. An administrator who disables one is not overruled by the next
@@ -64,7 +64,7 @@ server is down. The refusal reason is logged with the tenant and host, never the
 
 A document is cached per tenant for its `Cache-Control: max-age`, clamped to between one
 minute and a day. `no-store`, `no-cache`, and a missing lifetime are not kept; an error
-response and a document that fails validation never are. A refetch that finishes after a later one never replaces it. The cache holds at most 1,000
+response and a document that fails validation never are. A refetch that finishes after a later one never replaces it; that guard compares the server's own clock stamps taken when each fetch began, not any time the document states. The cache holds at most 1,000
 documents per tenant, the oldest fetched leaving first, and `odudu reap` removes expired
 rows.
 
