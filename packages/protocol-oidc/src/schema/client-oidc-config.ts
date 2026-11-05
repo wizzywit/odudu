@@ -55,6 +55,16 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   tokenExchangeImpersonationAllowed: boolean('token_exchange_impersonation_allowed')
     .notNull()
     .default(false),
+  // A public client holds no secret, so reaching the exchange grant proves
+  // nothing about who is asking; off unless an operator says otherwise.
+  tokenExchangeAllowedForPublic: boolean('token_exchange_allowed_for_public')
+    .notNull()
+    .default(false),
+  // An actor token is the credential of whoever acts; one issued to another
+  // client is accepted only where this is on.
+  tokenExchangeActorFromOtherClient: boolean('token_exchange_actor_from_other_client')
+    .notNull()
+    .default(false),
   userinfoSignedResponseAlg: text('userinfo_signed_response_alg'),
   userinfoEncryptedResponseAlg: text('userinfo_encrypted_response_alg'),
   // Requires userinfoEncryptedResponseAlg
@@ -102,6 +112,8 @@ export interface ClientOidcConfig {
   frontchannelLogoutSessionRequired: boolean;
   consentRequired: boolean;
   tokenExchangeImpersonationAllowed: boolean;
+  tokenExchangeAllowedForPublic: boolean;
+  tokenExchangeActorFromOtherClient: boolean;
   userinfoSignedResponseAlg: string | null;
   userinfoEncryptedResponseAlg: string | null;
   userinfoEncryptedResponseEnc: string | null;

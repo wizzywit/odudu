@@ -1066,6 +1066,12 @@ async function issueExchangedTokens(
       ? 'access_token'
       : accepted(request.requestedTokenType);
 
+  // A public client proves nothing by reaching this grant: it holds no
+  // secret. Refused before anything is read, like impersonation below.
+  if (client.type === 'public' && !config.tokenExchangeAllowedForPublic) {
+    throw unauthorizedClient();
+  }
+
   // Impersonation is the branch with no actor recorded, so it is the one
   // the per-client permission gates (client-oidc-config.ts's own comment
   // on the column) — checked before the subject token is ever resolved, so
@@ -1094,6 +1100,16 @@ async function issueExchangedTokens(
       ? null
       : await resolveExchangeToken(tx, resolveDeps, actorType, request.actorToken);
   if (actor !== null && actor.kind !== 'ok') {
+    throw refused('invalid_grant', subject.token.subjectId);
+  }
+
+  // An actor token is the credential of whoever acts, so another client's is
+  // not the requesting client's to present unless it was told it may.
+  if (
+    actor !== null &&
+    actor.token.clientDbId !== client.id &&
+    !config.tokenExchangeActorFromOtherClient
+  ) {
     throw refused('invalid_grant', subject.token.subjectId);
   }
 

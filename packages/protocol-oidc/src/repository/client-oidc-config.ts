@@ -29,6 +29,8 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
     frontchannelLogoutSessionRequired: row.frontchannelLogoutSessionRequired,
     consentRequired: row.consentRequired,
     tokenExchangeImpersonationAllowed: row.tokenExchangeImpersonationAllowed,
+    tokenExchangeAllowedForPublic: row.tokenExchangeAllowedForPublic,
+    tokenExchangeActorFromOtherClient: row.tokenExchangeActorFromOtherClient,
     userinfoSignedResponseAlg: row.userinfoSignedResponseAlg,
     userinfoEncryptedResponseAlg: row.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: row.userinfoEncryptedResponseEnc,
@@ -64,6 +66,8 @@ export type NewClientOidcConfig = Omit<
   | 'frontchannelLogoutSessionRequired'
   | 'consentRequired'
   | 'tokenExchangeImpersonationAllowed'
+  | 'tokenExchangeAllowedForPublic'
+  | 'tokenExchangeActorFromOtherClient'
   | 'userinfoSignedResponseAlg'
   | 'userinfoEncryptedResponseAlg'
   | 'userinfoEncryptedResponseEnc'
@@ -87,6 +91,8 @@ export type NewClientOidcConfig = Omit<
   frontchannelLogoutSessionRequired?: boolean;
   consentRequired?: boolean;
   tokenExchangeImpersonationAllowed?: boolean;
+  tokenExchangeAllowedForPublic?: boolean;
+  tokenExchangeActorFromOtherClient?: boolean;
   userinfoSignedResponseAlg?: string | null;
   userinfoEncryptedResponseAlg?: string | null;
   userinfoEncryptedResponseEnc?: string | null;
@@ -166,6 +172,8 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
           frontchannelLogoutSessionRequired: input.frontchannelLogoutSessionRequired ?? false,
           consentRequired: input.consentRequired ?? false,
           tokenExchangeImpersonationAllowed: input.tokenExchangeImpersonationAllowed ?? false,
+          tokenExchangeAllowedForPublic: input.tokenExchangeAllowedForPublic ?? false,
+          tokenExchangeActorFromOtherClient: input.tokenExchangeActorFromOtherClient ?? false,
           userinfoSignedResponseAlg: input.userinfoSignedResponseAlg ?? null,
           userinfoEncryptedResponseAlg: input.userinfoEncryptedResponseAlg ?? null,
           userinfoEncryptedResponseEnc: input.userinfoEncryptedResponseEnc ?? null,
