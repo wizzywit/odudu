@@ -74,8 +74,9 @@ ended; it stays empty here because nothing in this walkthrough fetches one.
 thirty days is deleted, unless it holds a refresh token that can still be used, and it
 comes back the next time its address is used. It stays empty here for the same reason.
 `dynamic_clients` is the public clients that registered themselves (`registration_origin`
-`anonymous`): one older than a week that nobody approved, no grant was ever made to, and
-no live code belongs to is deleted, and a disabled one stays. It stays empty here as well,
+`anonymous`): one older than a week that nobody ever approved (a withdrawn approval
+still counts), no grant was made to, and no live code or pending sign-in belongs to is
+deleted, and a disabled one stays. It stays empty here as well,
 until the section after the domains below.
 `tenant_domains` deletes only a `pending` row older than
 `ODUDU_RETENTION_PENDING_DOMAIN_SECONDS` (a week), a domain whose ownership
@@ -249,10 +250,10 @@ curl -sS -X POST http://localhost:3000/tenants/dyn-demo/clients-registrations/op
 ```
 
 ```
-{"created":true,"tenant":"dyn-demo","tenantId":"01a1ad2c-c4f1-7253-811e-a54a3291923b","clientId":"dyn-app","userSubjectId":"01a1ad2c-c583-7040-adad-c150fdf02b3d"}
-{"command":"tenant","created":false,"tenant":"dyn-demo","tenantId":"01a1ad2c-c4f1-7253-811e-a54a3291923b","settings":["client_registration_policy"]}
-{"client_id":"01a1ad2c-c7a6-74d6-84c6-4eedbcf4c197","client_id_issued_at":1793906755,"redirect_uris":["https://rp.example/unused"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"unused"}
-{"client_id":"01a1ad2c-c7bd-745e-84cb-038db9818837","client_id_issued_at":1793906755,"redirect_uris":["https://rp.example/approved"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"approved"}
+{"created":true,"tenant":"dyn-demo","tenantId":"01a1ad89-3aef-717f-9734-7efac6f0d9bd","clientId":"dyn-app","userSubjectId":"01a1ad89-3bbc-7884-bf85-dd4a9f8f87d3"}
+{"command":"tenant","created":false,"tenant":"dyn-demo","tenantId":"01a1ad89-3aef-717f-9734-7efac6f0d9bd","settings":["client_registration_policy"]}
+{"client_id":"01a1ad89-3e99-7606-8297-a8d676a62998","client_id_issued_at":1793912815,"redirect_uris":["https://rp.example/unused"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"unused"}
+{"client_id":"01a1ad89-3eb3-7a1e-9d2b-2b956b7a9f0a","client_id_issued_at":1793912815,"redirect_uris":["https://rp.example/approved"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"approved"}
 ```
 
 A person approves one of them (a consent row, written here directly), and both are
@@ -268,51 +269,7 @@ docker compose exec -T postgres psql -U odudu -d odudu -c "select c.name, c.regi
 ```
 INSERT 0 1
 UPDATE 2
-
-@@C
-  type  | registration_origin | token_endpoint_auth_method |                  audiences                   | consent_required
---------+---------------------+----------------------------+----------------------------------------------+------------------
- public | anonymous           | none                       | {http://localhost:3000/tenants/mcp-demo/mcp} | t
-(1 row)
-
-   name   | assignment
-----------+------------
- mcp:read | optional
-(1 row)
-
-@@D
-{"error":"invalid_client_metadata","error_description":"token_endpoint_auth_method must be none: this tenant's registration policy admits public clients only"}
-{"error":"invalid_redirect_uri","error_description":"redirect_uris entry http://agent.example/cb is not valid"}
-{"error":"invalid_client_metadata","error_description":"scope mcp:write is not available under this tenant's registration policy"}
-{"error":"invalid_client_metadata","error_description":"audience must be http://localhost:3000/tenants/mcp-demo/mcp and nothing else under this tenant's registration policy"}
-@@E
- max_clients
--------------
-           3
-(1 row)
-
-UPDATE 1
-HTTP/1.1 403 Forbidden
-{"error":"invalid_client_metadata","error_description":"this tenant has reached its client registration limit"}
-UPDATE 1
-201
-201
-201
-201
-HTTP/1.1 429 Too Many Requests
-retry-after: 3600
-{"error":"invalid_client_metadata","error_description":"too many registrations from this address; retry later"}
-@@F
-{"created":true,"tenant":"dyn-demo","tenantId":"01a1ad2c-c4f1-7253-811e-a54a3291923b","clientId":"dyn-app","userSubjectId":"01a1ad2c-c583-7040-adad-c150fdf02b3d"}
-{"command":"tenant","created":false,"tenant":"dyn-demo","tenantId":"01a1ad2c-c4f1-7253-811e-a54a3291923b","settings":["client_registration_policy"]}
-{"client_id":"01a1ad2c-c7a6-74d6-84c6-4eedbcf4c197","client_id_issued_at":1793906755,"redirect_uris":["https://rp.example/unused"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"unused"}
-{"client_id":"01a1ad2c-c7bd-745e-84cb-038db9818837","client_id_issued_at":1793906755,"redirect_uris":["https://rp.example/approved"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"approved"}
-@@G
-INSERT 0 1
-UPDATE 2
-@@H
 {"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"cimd_clients":0,"dynamic_clients":1,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
-@@I
    name   | registration_origin |  type
 ----------+---------------------+--------
  approved | anonymous           | public

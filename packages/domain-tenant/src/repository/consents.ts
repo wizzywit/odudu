@@ -95,6 +95,11 @@ export function consentRepository(tx: TenantScopedDatabase) {
       const consentId = row.id;
 
       await tx
+        .update(clients)
+        .set({ approvedAt: sql`coalesce(${clients.approvedAt}, now())` })
+        .where(eq(clients.id, clientId));
+
+      await tx
         .delete(consentScopes)
         .where(
           and(
