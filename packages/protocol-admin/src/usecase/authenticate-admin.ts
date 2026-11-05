@@ -1,11 +1,6 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
-import {
-  ADMIN_API_AUDIENCE,
-  MCP_READ_SCOPE,
-  MCP_WRITE_SCOPE,
-  SYSTEM_TENANT_NAME,
-} from '@odudu/domain-tenant';
+import { ADMIN_API_AUDIENCE, holdsMcpScope, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import {
   narrowActClaim,
   tenantIssuer,
@@ -249,8 +244,6 @@ function readScopes(value: unknown): readonly string[] | undefined {
   return value.split(' ').filter((scope) => scope.length > 0);
 }
 
-const MCP_SCOPES: readonly string[] = [MCP_READ_SCOPE, MCP_WRITE_SCOPE];
-
 interface AgentClaims {
   readonly scopes: readonly string[];
   readonly actorClientId: string | undefined;
@@ -335,8 +328,8 @@ export async function authenticateAdmin(
     return unauthenticated('subject_disabled');
   }
 
-  const holdsMcpScope = claims.scopes.some((scope) => MCP_SCOPES.includes(scope));
-  const isAgent = claims.actorClientId !== undefined || holdsMcpScope || client.builtinMcp;
+  const holdsScope = holdsMcpScope(claims.scopes);
+  const isAgent = claims.actorClientId !== undefined || holdsScope || client.builtinMcp;
 
   const base = {
     subjectId: payload.sub,
@@ -345,7 +338,7 @@ export async function authenticateAdmin(
     scopes: claims.scopes,
   };
   if (!isAgent) return { kind: 'authenticated', principal: base };
-  if (!holdsMcpScope) {
+  if (!holdsScope) {
     return { kind: 'forbidden', reason: 'agent_without_mcp_scope', principal: base };
   }
 

@@ -50,7 +50,12 @@ import {
   refreshAllowedForScope,
   scopesCoherentWithAudience,
 } from '#/service/mcp-scopes';
-import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
+import {
+  evaluateRefreshGrant,
+  generateRefreshToken,
+  hashRefreshToken,
+  refusalIsAboutScope,
+} from '#/service/refresh';
 import { parseResource } from '#/service/resource-indicator';
 import { resolveScope } from '#/service/scope';
 import { idTokenScopeOf, mappedClaims } from '#/service/issued-claims';
@@ -767,9 +772,7 @@ async function evaluatePresentedRefreshToken(
 
   const decision = evaluateRefreshGrant(grant, client, subject, { requestedScope: request.scope });
   if (!decision.ok) {
-    throw decision.reason === 'scope_widened' || decision.reason === 'mcp_scope_dropped'
-      ? invalidScope()
-      : invalidGrant();
+    throw refusalIsAboutScope(decision.reason) ? invalidScope() : invalidGrant();
   }
 
   // Repeated after rotation (line ~680 below), where it stays the
@@ -862,7 +865,7 @@ async function issueRefreshTokens(
 
   const decision = evaluateRefreshGrant(grant, client, subject, { requestedScope: request.scope });
   if (!decision.ok) {
-    throw decision.reason === 'scope_widened' ? invalidScope() : invalidGrant();
+    throw refusalIsAboutScope(decision.reason) ? invalidScope() : invalidGrant();
   }
 
   const derived = await refreshCeiling(tx, deps, client, decision.scope, grant.audience);

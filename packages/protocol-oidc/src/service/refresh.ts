@@ -39,6 +39,12 @@ export type RefreshGrantDecision =
         | 'mcp_scope_dropped';
     };
 
+export function refusalIsAboutScope(
+  reason: Extract<RefreshGrantDecision, { ok: false }>['reason'],
+): boolean {
+  return reason === 'scope_widened' || reason === 'mcp_scope_dropped';
+}
+
 // Stage 3's grant-specific rules for `refresh_token`, pure: no queries, no
 // I/O. `grant` and `subject` are loaded by the usecase, which runs this both
 // before rotation — so a request refused here never marks the presented

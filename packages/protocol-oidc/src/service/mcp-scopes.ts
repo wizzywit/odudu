@@ -1,15 +1,13 @@
-export const MCP_READ_SCOPE = 'mcp:read';
-export const MCP_WRITE_SCOPE = 'mcp:write';
+import { MCP_SCOPES, MCP_WRITE_SCOPE } from '@odudu/domain-tenant';
 
-const MCP_SCOPES: readonly string[] = [MCP_READ_SCOPE, MCP_WRITE_SCOPE];
-
-export function isMcpScope(scope: string): boolean {
-  return MCP_SCOPES.includes(scope);
-}
-
-export function holdsMcpScope(scope: readonly string[]): boolean {
-  return scope.some(isMcpScope);
-}
+// The names live in @odudu/domain-tenant, which the admin API reads them from too.
+export {
+  holdsMcpScope,
+  isMcpScope,
+  MCP_READ_SCOPE,
+  MCP_SCOPES,
+  MCP_WRITE_SCOPE,
+} from '@odudu/domain-tenant';
 
 // An MCP scope means something only at the MCP endpoint and the admin API it
 // calls for the person; at any other audience it would be a scope no resource

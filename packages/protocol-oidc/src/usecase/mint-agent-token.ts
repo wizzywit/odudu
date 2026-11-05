@@ -3,22 +3,14 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
 import { ADMIN_API_AUDIENCE, clientRepository } from '@odudu/domain-tenant';
 import { tenantEnabledRepository } from '#/repository/tenant-enabled';
-import { tokenGrantRepository } from '#/repository/grants';
-import { AGENT_TOKEN_MAX_TTL_SECONDS, isMcpScope } from '#/service/mcp-scopes';
+import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
+import {
+  requestRefusal,
+  standingRefusal,
+  type AgentTokenRefusal,
+} from '#/service/agent-token-rules';
+import { AGENT_TOKEN_MAX_TTL_SECONDS } from '#/service/mcp-scopes';
 import { mintSubjectAccessToken, type AccessTokenDeps } from '#/usecase/token-issuance';
-
-export type AgentTokenRefusal =
-  | 'audience_not_admin'
-  | 'scope_not_mcp'
-  | 'scope_widened'
-  | 'token_expired'
-  | 'grant_not_found'
-  | 'grant_revoked'
-  | 'grant_not_agent_client'
-  | 'client_disabled'
-  | 'tenant_disabled'
-  | 'session_ended'
-  | 'subject_disabled';
 
 // A refusal names its reason for a log and a test; the MCP layer answers its
 // caller the same way whichever it was.
@@ -49,6 +41,20 @@ export interface MintAgentTokenInput {
   readonly now: Date;
 }
 
+async function sessionLiveness(
+  tx: TenantScopedDatabase,
+  deps: MintAgentTokenDeps,
+  grant: TokenGrantRecord | null,
+  now: Date,
+): Promise<boolean | null> {
+  if (grant?.sessionId == null) return null;
+  return (await sessionRepository(tx).liveById(grant.sessionId, deps.lifespans, now)) !== null;
+}
+
+async function ownerEnabled(tx: TenantScopedDatabase, grant: TokenGrantRecord | null) {
+  return grant !== null && subjectIsEnabled(await subjectRepository(tx).byId(grant.subjectId));
+}
+
 // The admin-audience token an agent acts with for the person whose grant it
 // holds. Its only caller is the MCP layer, which has already validated the
 // MCP-audience token; there is no client authentication and no /token
@@ -60,34 +66,22 @@ export async function mintAgentToken(
   deps: MintAgentTokenDeps,
   input: MintAgentTokenInput,
 ): Promise<{ accessToken: string; expiresAt: Date }> {
-  const refuse = (reason: AgentTokenRefusal): AgentTokenRefused => new AgentTokenRefused(reason);
-
-  if (input.audience !== ADMIN_API_AUDIENCE) throw refuse('audience_not_admin');
-  if (input.scope.length === 0 || !input.scope.every(isMcpScope)) throw refuse('scope_not_mcp');
-  if (input.notAfter.getTime() <= input.now.getTime()) throw refuse('token_expired');
+  const early = requestRefusal(input);
+  if (early !== null) throw new AgentTokenRefused(early);
 
   const grant = await tokenGrantRepository(tx).byId(input.subjectGrantId);
-  if (grant?.tenantId !== deps.tenantId) throw refuse('grant_not_found');
-  if (grant.revokedAt !== null) throw refuse('grant_revoked');
-
-  const held = new Set(grant.scope.split(' '));
-  if (!input.scope.every((entry) => held.has(entry))) throw refuse('scope_widened');
-
   const client = await clientRepository(tx).byClientId(input.agentClientId);
-  if (client?.enabled !== true) throw refuse('client_disabled');
-  if (grant.clientId !== client.id) throw refuse('grant_not_agent_client');
-
-  if (!(await tenantEnabledRepository(tx).enabled(deps.tenantId))) {
-    throw refuse('tenant_disabled');
-  }
-  if (
-    grant.sessionId !== null &&
-    (await sessionRepository(tx).liveById(grant.sessionId, deps.lifespans, input.now)) === null
-  ) {
-    throw refuse('session_ended');
-  }
-  if (!subjectIsEnabled(await subjectRepository(tx).byId(grant.subjectId))) {
-    throw refuse('subject_disabled');
+  const refusal = standingRefusal({
+    tenantId: deps.tenantId,
+    scope: input.scope,
+    grant,
+    client,
+    tenantEnabled: await tenantEnabledRepository(tx).enabled(deps.tenantId),
+    sessionLive: await sessionLiveness(tx, deps, grant, input.now),
+    subjectEnabled: await ownerEnabled(tx, grant),
+  });
+  if (refusal !== null || grant === null || client === null) {
+    throw new AgentTokenRefused(refusal ?? 'grant_not_found');
   }
 
   const { accessToken, exp } = await mintSubjectAccessToken(

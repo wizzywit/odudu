@@ -2,7 +2,12 @@ import { type SubjectRecord } from '@odudu/domain-identity';
 import { type ClientRecord } from '@odudu/domain-tenant';
 import { describe, expect, it } from 'vitest';
 import { type TokenGrantRecord } from '#/schema/token-grants';
-import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
+import {
+  evaluateRefreshGrant,
+  generateRefreshToken,
+  hashRefreshToken,
+  refusalIsAboutScope,
+} from '#/service/refresh';
 
 const client: ClientRecord = {
   id: 'client-1',
@@ -129,6 +134,21 @@ describe('[RFC6749-10.4-02] a refresh token cannot be generated, modified or gue
 
     const collisions = edits.filter((edit) => hashRefreshToken(edit) === stored);
     expect(collisions).toEqual([]);
+  });
+});
+
+describe('refusalIsAboutScope', () => {
+  it('is true for both scope refusals and false for every other reason', () => {
+    expect(refusalIsAboutScope('scope_widened')).toBe(true);
+    expect(refusalIsAboutScope('mcp_scope_dropped')).toBe(true);
+    for (const reason of [
+      'client_mismatch',
+      'grant_revoked',
+      'subject_disabled',
+      'write_not_refreshable',
+    ] as const) {
+      expect(refusalIsAboutScope(reason)).toBe(false);
+    }
   });
 });
 

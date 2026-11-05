@@ -1,4 +1,4 @@
-import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '@odudu/domain-tenant';
+import { holdsMcpScope, MCP_WRITE_SCOPE } from '@odudu/domain-tenant';
 import { type AdminRoute } from '#/service/capability';
 
 interface AgentWriteRoute {
@@ -48,7 +48,7 @@ function writeEntry(route: Pick<AdminRoute, 'method' | 'pattern'>): AgentWriteRo
 export function scopeAdmits(scopes: readonly string[], route: AdminRoute): boolean {
   if (route.method === 'GET') {
     if (AGENT_DENIED_READS.includes(`${route.method} ${route.pattern}`)) return false;
-    return scopes.includes(MCP_READ_SCOPE) || scopes.includes(MCP_WRITE_SCOPE);
+    return holdsMcpScope(scopes);
   }
   return scopes.includes(MCP_WRITE_SCOPE) && writeEntry(route) !== undefined;
 }
