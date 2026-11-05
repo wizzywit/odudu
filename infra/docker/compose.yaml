@@ -7,7 +7,7 @@
 services:
   postgres:
     # digest of the multi-arch index; Dependabot moves it
-    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?see infra/docker/.env.example}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?see infra/docker/.env.example}
@@ -102,7 +102,7 @@ services:
   # `docker compose --profile swagger up`. It loads the document live from
   # the server above, so a restarted server shows its new routes on reload.
   swagger:
-    image: swaggerapi/swagger-ui:v5.34.0@sha256:58c1fbf5f5cf6d2ae857e4d1296cb02192fa5de472c1cd76f58b2be99523e1d0
+    image: swaggerapi/swagger-ui:v5.34.1@sha256:59ee9021a8884437c7fd8aae79e0a46ee6b6dd3afd7f24a587c4501585fde53b
     profiles: ['swagger']
     environment:
       URL: http://localhost:${ODUDU_HOST_PORT:-3000}/admin/openapi.json
