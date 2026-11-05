@@ -118,6 +118,9 @@ function lookupOf(row: LookupRow): TenantLookup {
 export function tenantLookupRepository(db: Database) {
   return {
     async byName(name: string): Promise<TenantLookup | null> {
+      // PostgreSQL cannot store U+0000 in text, so no tenant is named that way
+      // and the query would fail instead of finding nothing.
+      if (name.includes('\u0000')) return null;
       const rows = await db.select(LOOKUP_COLUMNS).from(tenants).where(eq(tenants.name, name));
       const row = rows[0];
       if (row === undefined) return null;
