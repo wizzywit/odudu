@@ -119,6 +119,8 @@ export {
   addressPath,
   addressRelyingParty,
   addressUrl,
+  MCP_RESOURCE_PATH,
+  mcpAudienceOfIssuer,
   baseRelyingPartyId,
   domainAddress,
   isAddressLiteral,

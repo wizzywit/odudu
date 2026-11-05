@@ -7,6 +7,7 @@ import {
   baseRelyingPartyId,
   domainAddress,
   isAddressLiteral,
+  mcpAudienceOfIssuer,
   pathAddress,
   routeAddress,
   tenantAddressOf,
@@ -115,5 +116,14 @@ describe('baseRelyingPartyId', () => {
 
   it('is null when no base URL is configured', () => {
     expect(baseRelyingPartyId(undefined)).toBeNull();
+  });
+});
+
+describe('mcpAudienceOfIssuer', () => {
+  it('is the MCP endpoint under the tenant address, whichever way it is addressed', () => {
+    const path = pathAddress('https://idp.example', 'acme');
+    const domain = domainAddress('login.acme.com', true);
+    expect(mcpAudienceOfIssuer(addressIssuer(path))).toBe(addressUrl(path, '/mcp'));
+    expect(mcpAudienceOfIssuer(addressIssuer(domain))).toBe('https://login.acme.com/mcp');
   });
 });
