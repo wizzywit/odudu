@@ -84,6 +84,8 @@ describe('POST /admin/tenants/{t}/clients', () => {
         refresh_token_ttl_seconds: 3600,
         consent_required: true,
         token_exchange_impersonation_allowed: true,
+        token_exchange_allowed_for_public: true,
+        token_exchange_actor_from_other_client: true,
         full_scope_allowed: true,
         enabled: false,
       },
@@ -99,6 +101,8 @@ describe('POST /admin/tenants/{t}/clients', () => {
       refresh_token_ttl_seconds: 3600,
       consent_required: true,
       token_exchange_impersonation_allowed: true,
+      token_exchange_allowed_for_public: true,
+      token_exchange_actor_from_other_client: true,
       full_scope_allowed: true,
       enabled: false,
     };

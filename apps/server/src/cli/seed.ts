@@ -85,6 +85,7 @@ import {
 import {
   clientOidcConfigRepository,
   GRANT_TYPES_PERMITTED,
+  TOKEN_EXCHANGE_GRANT,
   isWellFormedWebOrigin,
   provisionAdminClient,
   provisionMcpClient,
@@ -1371,6 +1372,26 @@ async function runClientCommand(
     );
   }
 
+  const exchangeFlags = [
+    'token-exchange-allowed-for-public',
+    'token-exchange-actor-from-other-client',
+  ] as const;
+  for (const flag of exchangeFlags) {
+    if (values[flag] === true && !grantTypes.includes(TOKEN_EXCHANGE_GRANT)) {
+      throw new OduduError(
+        'seed_invalid_options',
+        `--${flag} needs a client that may use the token-exchange grant: ` +
+          `add --grant-type ${TOKEN_EXCHANGE_GRANT}`,
+      );
+    }
+  }
+  if (values['token-exchange-allowed-for-public'] === true && type !== 'public') {
+    throw new OduduError(
+      'seed_invalid_options',
+      '--token-exchange-allowed-for-public is for a public client; a confidential client needs no such permission',
+    );
+  }
+
   // client_oidc_config_redirect_uris_present: only a client whose grants are
   // exactly client_credentials may have none.
   const serviceOnly = grantTypes.length === 1 && grantTypes[0] === 'client_credentials';
@@ -1427,6 +1448,8 @@ async function runClientCommand(
         type === 'confidential' ? (authMethod ?? 'client_secret_basic') : 'none',
       audiences: [],
       consentRequired: values['consent-required'] === true,
+      tokenExchangeAllowedForPublic: values['token-exchange-allowed-for-public'] === true,
+      tokenExchangeActorFromOtherClient: values['token-exchange-actor-from-other-client'] === true,
       // Null takes the tenant's lifetimes, as every other door's client does.
       accessTokenTtlSeconds: null,
       refreshTokenTtlSeconds: null,

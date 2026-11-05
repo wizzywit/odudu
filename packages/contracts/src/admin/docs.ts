@@ -332,6 +332,10 @@ describeFields(clientFieldsSchema, {
     'Whether the user must approve what the client asks for on a consent screen before tokens are issued.',
   token_exchange_impersonation_allowed:
     'Whether the client may use token exchange (RFC 8693) to act as a user rather than on behalf of one.',
+  token_exchange_allowed_for_public:
+    'Whether a public client may use token exchange at all. Off by default: a public client holds no secret, so reaching the grant proves nothing about who asked.',
+  token_exchange_actor_from_other_client:
+    'Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it.',
   userinfo_signed_response_alg:
     'The algorithm that signs this client’s UserInfo responses. Null returns plain JSON.',
   userinfo_encrypted_response_alg:
@@ -843,6 +847,10 @@ describeFields(exportedClientSchema, {
     'Whether the user must approve what the client asks for on a consent screen before tokens are issued.',
   token_exchange_impersonation_allowed:
     'Whether the client may use token exchange (RFC 8693) to act as a user rather than on behalf of one.',
+  token_exchange_allowed_for_public:
+    'Whether a public client may use token exchange at all. Off by default: a public client holds no secret, so reaching the grant proves nothing about who asked.',
+  token_exchange_actor_from_other_client:
+    'Whether an actor token issued to another client is accepted in a delegated exchange. Off by default: an actor token must belong to the client presenting it.',
   userinfo_signed_response_alg:
     'The algorithm that signs this client’s UserInfo responses. Null returns plain JSON.',
   userinfo_encrypted_response_alg:
