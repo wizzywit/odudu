@@ -1,7 +1,8 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
-import { ADMIN_API_AUDIENCE, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
+import { ADMIN_API_AUDIENCE, holdsMcpScope, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import {
+  narrowActClaim,
   tenantIssuer,
   type AcceptedIssuersLookup,
   type TenantLookup,
@@ -12,6 +13,15 @@ export interface AdminPrincipal {
   readonly subjectId: string;
   readonly issuerTenantId: string;
   readonly clientDbId: string;
+  // The token's `scope` claim, split; empty when it carries none.
+  readonly scopes: readonly string[];
+  // Present when the token was minted for an AI agent acting for `subjectId`.
+  readonly agent?: AdminAgent;
+}
+
+export interface AdminAgent {
+  readonly clientId: string;
+  readonly ownerSubjectId: string;
 }
 
 // A genuine token from another tenant of this deployment, presented at a
@@ -33,7 +43,16 @@ export type AdminAuthOutcome =
       // Why a foreign issuer could not be resolved, for the log alone: the
       // response is the same plain refusal whatever it was.
       foreignIssuerError?: unknown;
-    };
+    }
+  // An agent token is the owner's identity narrowed to what its MCP scope
+  // grants; one holding no MCP scope has nothing to narrow it and is refused.
+  | { kind: 'forbidden'; reason: 'agent_without_mcp_scope'; principal: AdminPrincipal };
+
+export interface ClientState {
+  readonly enabled: boolean;
+  readonly builtinMcp: boolean;
+  readonly builtinAdmin: boolean;
+}
 
 export interface AuthenticateAdminDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
@@ -45,7 +64,8 @@ export interface AuthenticateAdminDeps {
     lifespans: SessionLifespans,
     now: Date,
   ): Promise<boolean>;
-  isClientEnabled(tenantId: string, clientDbId: string): Promise<boolean>;
+  // `builtinMcp` is the `builtin_mcp` marker, never the client_id string.
+  loadClientState(tenantId: string, clientDbId: string): Promise<ClientState | null>;
   isSubjectEnabled(tenantId: string, subjectId: string): Promise<boolean>;
   // The issuers a token for this tenant may carry: its canonical address and
   // any it left whose window is open, the set /userinfo checks against.
@@ -218,6 +238,27 @@ async function resolveForeignIssuer(
   return { issuerTenantId: tenant.id, subjectId: payload.sub, clientDbId: grant?.clientId ?? null };
 }
 
+function readScopes(value: unknown): readonly string[] | undefined {
+  if (value === undefined) return [];
+  if (typeof value !== 'string') return undefined;
+  return value.split(' ').filter((scope) => scope.length > 0);
+}
+
+interface AgentClaims {
+  readonly scopes: readonly string[];
+  readonly actorClientId: string | undefined;
+}
+
+// `undefined` when `scope` or `act` is present and malformed: a claim that
+// narrows what a token may do is refused when unreadable, never ignored.
+function readAgentClaims(payload: Record<string, unknown>): AgentClaims | undefined {
+  const scopes = readScopes(payload.scope);
+  if (scopes === undefined) return undefined;
+  if (payload.act === undefined) return { scopes, actorClientId: undefined };
+  const act = narrowActClaim(payload.act);
+  return act === null ? undefined : { scopes, actorClientId: act.sub };
+}
+
 export async function authenticateAdmin(
   deps: AuthenticateAdminDeps,
   input: AuthenticateAdminInput,
@@ -258,6 +299,9 @@ export async function authenticateAdmin(
     return unauthenticated('invalid_token');
   }
 
+  const claims = readAgentClaims(payload);
+  if (claims === undefined) return unauthenticated('invalid_token');
+
   const grantId = payload.grant_id;
   if (typeof grantId !== 'string' || grantId.length === 0) {
     return unauthenticated('invalid_token');
@@ -275,8 +319,8 @@ export async function authenticateAdmin(
     if (!live) return unauthenticated('dead_session');
   }
 
-  const enabled = await deps.isClientEnabled(matched.id, grant.clientId);
-  if (!enabled) return unauthenticated('client_disabled');
+  const client = await deps.loadClientState(matched.id, grant.clientId);
+  if (client?.enabled !== true) return unauthenticated('client_disabled');
 
   // Disabling a subject ends nothing it holds, so an access token issued
   // before is refused here rather than living out its lifetime.
@@ -284,8 +328,26 @@ export async function authenticateAdmin(
     return unauthenticated('subject_disabled');
   }
 
+  const holdsScope = holdsMcpScope(claims.scopes);
+  const isAgent = claims.actorClientId !== undefined || holdsScope || client.builtinMcp;
+
+  const base = {
+    subjectId: payload.sub,
+    issuerTenantId: matched.id,
+    clientDbId: grant.clientId,
+    scopes: claims.scopes,
+  };
+  if (!isAgent) return { kind: 'authenticated', principal: base };
+  if (!holdsScope) {
+    return { kind: 'forbidden', reason: 'agent_without_mcp_scope', principal: base };
+  }
+
+  const clientId = claims.actorClientId ?? payload.client_id;
+  if (typeof clientId !== 'string' || clientId.length === 0) {
+    return unauthenticated('invalid_token');
+  }
   return {
     kind: 'authenticated',
-    principal: { subjectId: payload.sub, issuerTenantId: matched.id, clientDbId: grant.clientId },
+    principal: { ...base, agent: { clientId, ownerSubjectId: payload.sub } },
   };
 }

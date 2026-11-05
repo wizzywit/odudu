@@ -30,6 +30,7 @@ import {
   driveBackground,
   driveCimdClients,
   driveClientMetadataCache,
+  driveExchangeUpgrade,
   driveGateway,
   driveRepositories,
   retentionRuns,
@@ -80,6 +81,7 @@ beforeAll(async () => {
   await driveBackground(world, log.capture);
   await driveClientMetadataCache(world, log.capture);
   await driveCimdClients(world, log.capture);
+  await driveExchangeUpgrade(world, log.capture);
   await driveGateway(world, log.capture);
   log.runs.push(...retentionRuns(world));
   const tokens = await adminTokens(world);

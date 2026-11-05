@@ -1,7 +1,13 @@
-export const MCP_READ_SCOPE = 'mcp:read';
-export const MCP_WRITE_SCOPE = 'mcp:write';
+import { MCP_SCOPES, MCP_WRITE_SCOPE } from '@odudu/domain-tenant';
 
-const MCP_SCOPES: readonly string[] = [MCP_READ_SCOPE, MCP_WRITE_SCOPE];
+// The names live in @odudu/domain-tenant, which the admin API reads them from too.
+export {
+  holdsMcpScope,
+  isMcpScope,
+  MCP_READ_SCOPE,
+  MCP_SCOPES,
+  MCP_WRITE_SCOPE,
+} from '@odudu/domain-tenant';
 
 // An MCP scope means something only at the MCP endpoint and the admin API it
 // calls for the person; at any other audience it would be a scope no resource
@@ -53,3 +59,8 @@ export function capLifetimeForScope(ttlSeconds: number, scope: readonly string[]
 export function refreshAllowedForScope(scope: readonly string[]): boolean {
   return !scope.includes(MCP_WRITE_SCOPE);
 }
+
+// What an admin-audience token minted for an agent lives, at most. It is
+// minted per tool call, so a short life costs one signature and bounds what a
+// leaked token is worth.
+export const AGENT_TOKEN_MAX_TTL_SECONDS = 300;

@@ -102,6 +102,8 @@ const CLIENT_VIEW_COLUMNS = {
   backchannelLogoutSessionRequired: clientOidcConfig.backchannelLogoutSessionRequired,
   consentRequired: clientOidcConfig.consentRequired,
   tokenExchangeImpersonationAllowed: clientOidcConfig.tokenExchangeImpersonationAllowed,
+  tokenExchangeAllowedForPublic: clientOidcConfig.tokenExchangeAllowedForPublic,
+  tokenExchangeActorFromOtherClient: clientOidcConfig.tokenExchangeActorFromOtherClient,
   userinfoSignedResponseAlg: clientOidcConfig.userinfoSignedResponseAlg,
   userinfoEncryptedResponseAlg: clientOidcConfig.userinfoEncryptedResponseAlg,
   userinfoEncryptedResponseEnc: clientOidcConfig.userinfoEncryptedResponseEnc,
@@ -151,6 +153,8 @@ export interface ClientView {
   readonly backchannelLogoutSessionRequired: boolean;
   readonly consentRequired: boolean;
   readonly tokenExchangeImpersonationAllowed: boolean;
+  readonly tokenExchangeAllowedForPublic: boolean;
+  readonly tokenExchangeActorFromOtherClient: boolean;
   readonly userinfoSignedResponseAlg: string | null;
   readonly userinfoEncryptedResponseAlg: string | null;
   readonly userinfoEncryptedResponseEnc: string | null;
@@ -538,6 +542,8 @@ function toClientView(client: ClientRecord, config: ClientOidcConfig): StoredVie
     backchannelLogoutSessionRequired: config.backchannelLogoutSessionRequired,
     consentRequired: config.consentRequired,
     tokenExchangeImpersonationAllowed: config.tokenExchangeImpersonationAllowed,
+    tokenExchangeAllowedForPublic: config.tokenExchangeAllowedForPublic,
+    tokenExchangeActorFromOtherClient: config.tokenExchangeActorFromOtherClient,
     userinfoSignedResponseAlg: config.userinfoSignedResponseAlg,
     userinfoEncryptedResponseAlg: config.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: config.userinfoEncryptedResponseEnc,
@@ -789,6 +795,8 @@ export function clientWireShape(view: ClientView): ClientFields {
     backchannel_logout_session_required: view.backchannelLogoutSessionRequired,
     consent_required: view.consentRequired,
     token_exchange_impersonation_allowed: view.tokenExchangeImpersonationAllowed,
+    token_exchange_allowed_for_public: view.tokenExchangeAllowedForPublic,
+    token_exchange_actor_from_other_client: view.tokenExchangeActorFromOtherClient,
     userinfo_signed_response_alg: view.userinfoSignedResponseAlg,
     userinfo_encrypted_response_alg: view.userinfoEncryptedResponseAlg,
     userinfo_encrypted_response_enc: view.userinfoEncryptedResponseEnc,
@@ -1002,6 +1010,8 @@ const ADMIN_FIELDS = new Set<string>([
   'refresh_token_ttl_seconds',
   'consent_required',
   'token_exchange_impersonation_allowed',
+  'token_exchange_allowed_for_public',
+  'token_exchange_actor_from_other_client',
 ]);
 
 interface AdminFieldPatches {
@@ -1024,6 +1034,8 @@ interface AdminFieldPatches {
     refreshTokenTtlSeconds?: number | null;
     consentRequired?: boolean;
     tokenExchangeImpersonationAllowed?: boolean;
+    tokenExchangeAllowedForPublic?: boolean;
+    tokenExchangeActorFromOtherClient?: boolean;
   };
 }
 
@@ -1116,12 +1128,21 @@ function checkedAdminFields(
     else if (field === 'id_token_ttl_seconds') config.idTokenTtlSeconds = lifetime;
     else config.refreshTokenTtlSeconds = lifetime;
   }
-  for (const field of ['consent_required', 'token_exchange_impersonation_allowed'] as const) {
+  for (const field of [
+    'consent_required',
+    'token_exchange_impersonation_allowed',
+    'token_exchange_allowed_for_public',
+    'token_exchange_actor_from_other_client',
+  ] as const) {
     if (!(field in values)) continue;
     const checked = checkedBoolean(field, values[field]);
     if (isFieldError(checked)) return checked;
     if (field === 'consent_required') config.consentRequired = checked;
-    else config.tokenExchangeImpersonationAllowed = checked;
+    else if (field === 'token_exchange_impersonation_allowed') {
+      config.tokenExchangeImpersonationAllowed = checked;
+    } else if (field === 'token_exchange_allowed_for_public') {
+      config.tokenExchangeAllowedForPublic = checked;
+    } else config.tokenExchangeActorFromOtherClient = checked;
   }
 
   return { client, config };

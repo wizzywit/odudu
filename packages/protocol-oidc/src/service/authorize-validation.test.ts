@@ -53,6 +53,8 @@ const config: ClientOidcConfig = {
   frontchannelLogoutSessionRequired: false,
   consentRequired: false,
   tokenExchangeImpersonationAllowed: false,
+  tokenExchangeAllowedForPublic: false,
+  tokenExchangeActorFromOtherClient: false,
   userinfoSignedResponseAlg: null,
   userinfoEncryptedResponseAlg: null,
   userinfoEncryptedResponseEnc: null,

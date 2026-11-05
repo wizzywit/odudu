@@ -5,7 +5,7 @@ import { type AdminMutationAction } from '#/service/admin-mutation-actions';
 // their own `detail` allowlist lives in @odudu/protocol-admin's
 // audit-detail.ts.
 export const AUDIT_ACTIONS = {
-  admin_access: ['capability.refused', 'token.foreign_issuer'],
+  admin_access: ['capability.refused', 'token.foreign_issuer', 'agent.tool_call'],
   authentication: [
     'login.password',
     'login.otp',
@@ -66,6 +66,8 @@ export const AUDIT_REASONS = [
   'rate_limited',
   'foreign_issuer',
   'missing_capability',
+  'agent_without_mcp_scope',
+  'insufficient_scope',
   'already_registered',
 ] as const;
 
@@ -103,12 +105,22 @@ type AdminAccessInput =
   | (EventCommon & {
       readonly eventType: 'admin_access';
       readonly action: 'capability.refused';
-      readonly detail?: WithReason<{ capability: string; also_admits?: string[] }>;
+      readonly detail?: WithReason<{ capability?: string; also_admits?: string[] }>;
     })
   | (EventCommon & {
       readonly eventType: 'admin_access';
       readonly action: 'token.foreign_issuer';
       readonly detail?: ReasonOnly;
+    })
+  | (EventCommon & {
+      readonly eventType: 'admin_access';
+      readonly action: 'agent.tool_call';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        tool: string;
+        route: string;
+      }>;
     });
 
 type AuthenticationInput =
@@ -204,6 +216,7 @@ export type AuditEventInput = AdminMutationInput | VocabularyEventInput;
 // vocabulary one — its own allowlist lives in audit-detail.ts.
 const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> = {
   'capability.refused': ['capability', 'also_admits'],
+  'agent.tool_call': ['agent_client', 'owner', 'tool', 'route'],
   'login.password': ['factor'],
   'login.otp': ['factor'],
   'login.recovery_code': ['factor'],
@@ -233,9 +246,20 @@ const STRING_DETAIL_KEYS: ReadonlySet<string> = new Set([
   'grant_type',
   'requested_token_type',
   'capability',
+  'agent_client',
+  'owner',
+  'tool',
+  'route',
 ]);
 
+const TOOL_NAME = /^[a-z0-9_.-]{1,64}$/u;
+// A route is a table key, `METHOD /path/:param`, never a concrete address;
+// the admin router's own check that it is one lives with its table.
+const ROUTE_KEY = /^[A-Z]{3,7} \/[A-Za-z0-9/:_.-]{0,160}$/u;
+
 function isValidDetailValue(key: string, value: unknown): boolean {
+  if (key === 'tool') return typeof value === 'string' && TOOL_NAME.test(value);
+  if (key === 'route') return typeof value === 'string' && ROUTE_KEY.test(value);
   if (key === 'mode') return value === 'delegation' || value === 'impersonation';
   if (key === 'via') return value === 'logout' || value === 'admin' || value === 'evicted';
   if (key === 'also_admits') {

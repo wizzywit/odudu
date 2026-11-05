@@ -1398,6 +1398,123 @@ describe('seed client --client-credentials-scope', () => {
   });
 });
 
+const EXCHANGE_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange';
+
+async function exchangeLimitsOf(
+  tenantName: string,
+  oauthClientId: string,
+): Promise<{ forPublic: boolean; fromOtherClient: boolean }> {
+  const tenantId = (await owner.db.select().from(tenants).where(eq(tenants.name, tenantName)))[0]
+    ?.id;
+  if (tenantId === undefined) throw new Error(`expected tenant ${tenantName}`);
+  return withTenant(owner.db, tenantId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(clients)
+      .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, oauthClientId)));
+    const client = rows[0];
+    if (client === undefined) throw new Error(`expected client ${oauthClientId}`);
+    const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+    if (config === null) throw new Error(`no oidc config for client ${oauthClientId}`);
+    return {
+      forPublic: config.tokenExchangeAllowedForPublic,
+      fromOtherClient: config.tokenExchangeActorFromOtherClient,
+    };
+  });
+}
+
+describe('seed client --token-exchange-allowed-for-public and --token-exchange-actor-from-other-client', () => {
+  const exchangeClient = (tenant: string, clientId: string, kind: string, ...extra: string[]) => [
+    'client',
+    '--tenant',
+    tenant,
+    '--client-id',
+    clientId,
+    ...(kind === 'public' ? ['--public'] : ['--client-secret', 'a-service-secret']),
+    '--redirect-uri',
+    'https://app.example/callback',
+    '--grant-type',
+    EXCHANGE_GRANT,
+    ...extra,
+  ];
+
+  it('leave both limits off unless named', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await seed(exchangeClient(options.tenant, 'plain', 'public'));
+    expect(await exchangeLimitsOf(options.tenant, 'plain')).toEqual({
+      forPublic: false,
+      fromOtherClient: false,
+    });
+  });
+
+  it('store each limit when named', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await seed(
+      exchangeClient(
+        options.tenant,
+        'both',
+        'public',
+        '--token-exchange-allowed-for-public',
+        '--token-exchange-actor-from-other-client',
+      ),
+    );
+    await seed(
+      exchangeClient(
+        options.tenant,
+        'actor-only',
+        'confidential',
+        '--token-exchange-actor-from-other-client',
+      ),
+    );
+    expect(await exchangeLimitsOf(options.tenant, 'both')).toEqual({
+      forPublic: true,
+      fromOtherClient: true,
+    });
+    expect(await exchangeLimitsOf(options.tenant, 'actor-only')).toEqual({
+      forPublic: false,
+      fromOtherClient: true,
+    });
+  });
+
+  it('refuse --token-exchange-allowed-for-public on a confidential client', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await expect(
+      seed(
+        exchangeClient(
+          options.tenant,
+          'secret-holder',
+          'confidential',
+          '--token-exchange-allowed-for-public',
+        ),
+      ),
+    ).rejects.toThrow(/--token-exchange-allowed-for-public.*public/u);
+  });
+
+  it.each(['--token-exchange-allowed-for-public', '--token-exchange-actor-from-other-client'])(
+    'refuse %s on a client that cannot use the exchange grant',
+    async (flag) => {
+      const options = uniqueOptions();
+      await seed(options);
+      await expect(
+        seed([
+          'client',
+          '--tenant',
+          options.tenant,
+          '--client-id',
+          'no-exchange',
+          '--public',
+          '--redirect-uri',
+          'https://app.example/callback',
+          flag,
+        ]),
+      ).rejects.toThrow(/token-exchange/u);
+    },
+  );
+});
+
 async function grantTypesOf(tenantName: string, oauthClientId: string): Promise<string[]> {
   const tenantId = (await owner.db.select().from(tenants).where(eq(tenants.name, tenantName)))[0]
     ?.id;

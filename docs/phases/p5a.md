@@ -249,3 +249,108 @@ the tenant.
 - **Settings.** `seed tenant --set`, the settings API, the console and the tenant
   export all take `mcp`; `registrationPolicySchema` accepts it so an export of such
   a tenant does not fail.
+
+## The admin API and an agent's token
+
+The principal carries `scopes` and, for an agent, `agent`. An agent is a token
+with an `act` claim, one from the tenant's `builtin_mcp` client, or one holding
+`mcp:read` or `mcp:write`; a malformed `act` or `scope` is a 401, an agent
+holding no MCP scope a 403. An agent must pass both gates: the scope
+(`scopeAdmits`, `service/agent-scope.ts`) and the owner's capability.
+
+- `mcp:read` admits exactly the GET routes. `mcp:write` adds
+  `AGENT_WRITE_ROUTES`, admitted by field on the body the handler reads:
+  `name`, `description`, `name_i18n`, `description_i18n` of a
+  client and `description`, `description_i18n` of a scope. Anything else in the
+  body, `enabled`, `redirect_uris` or `consent_text` among it, is a 403
+  `insufficient_scope`. `consent_text` is left out because it is what a user
+  agrees to; an agent that renames a client does so on the consent screen too.
+- Each refusal is a `capability.refused` row with `reason` `insufficient_scope`
+  or `agent_without_mcp_scope`, the owner as actor and the client row's id
+  (`principal.clientDbId`) as the actor client. `agent.clientId` is `act.sub`
+  when the token has one and so depends on how it was minted: audit uses the
+  database id.
+- Reads are every GET except `AGENT_DENIED_READS`: the tenant export, the
+  audit export and a theme image's bytes, each a whole document or download
+  in one call that a person fetches with their own token (export is not a
+  tool).
+- `name` and `name_i18n` of a built-in client (`builtin_admin` or
+  `builtin_mcp`) are refused to an agent; the handler reads the target row
+  with `loadClientState`, no second body read. Residual for the guide: an
+  agent may still rename an ordinary client, which shows on its consent
+  screen. It is reversible and audited as `client.amend` with the agent's
+  client row as actor client.
+- Not enforced anywhere an operator can see yet: no agent token exists
+  outside tests until the MCP server mints them.
+
+## Audit attribution
+
+- `agent.tool_call` is an `admin_access` action, one row per MCP tool call,
+  reads included. Its detail is `agent_client`, `owner`, `tool` and `route`,
+  and the allowlist has no key for arguments or results; the row's actor
+  columns carry the owner and the agent client row too, so the audit list
+  filters find it. `recordAgentToolCall` (`usecase/access-audit.ts`) writes it.
+  It is called by the MCP endpoint, which lands in Increment 8, and nothing
+  calls it before. `route` must be an `ADMIN_ROUTES` key and `tool` an
+  identifier of at most 64 characters from `[a-z0-9_.-]`; the detail allowlist
+  rejects anything else, so text an agent chose cannot reach the trail.
+- Attribution is proved against `mintAgentToken`: the owner's grant belongs to
+  the named agent client, so `principal.clientDbId` is the agent client row and
+  `act.sub` is its `client_id`; the int test mints through the real function.
+- A mutation an agent makes is not given a second copy of that fact in its
+  detail: its actor columns already name the agent client row
+  (`principal.clientDbId`) and the owner, which is what `client.amend` shows.
+  `request_id` stays a correlation, not evidence.
+- `admin_access` cannot be taken out of a tenant's `audit_event_types` by the
+  database's own check, so an agent read is always recorded.
+- ADR 0050 holds the decision; ADR 0040 carries the amendment.
+
+## Minting for an agent, and the exchange's two holes
+
+- `mintAgentToken(tx, deps, input)` (`usecase/mint-agent-token.ts`, exported
+  from `@odudu/protocol-oidc`) signs the admin-audience token the MCP layer
+  acts with. It takes the owner's grant id and the presented MCP token's `exp`
+  as `notAfter`, and writes nothing: no grant, no refresh token, no audit row.
+  The token carries the owner's own `grant_id` and `sid`, so ending that grant
+  or its session, disabling the agent client or the subject, or disabling the
+  tenant ends it, because `authenticateAdmin` reads all of those from the
+  grant. Refusals are `AgentTokenRefused` with a `reason`, never an answer.
+- What it will sign: `aud` `[ADMIN_API_AUDIENCE, issuer]`, `sub` the owner,
+  `act = { sub: <agent client_id> }`, `client_id` the agent, and a scope that
+  is non-empty, only `mcp:read` and `mcp:write`, and a subset of the grant's
+  (so `openid`, `offline_access` and an admin-wide scope are refused even when
+  the grant holds them). It refuses an audience that is not the admin API's, an
+  MCP token already ended, and a grant held by a client other than the named
+  agent. Life is the lesser of `notAfter` and 300 s
+  (`AGENT_TOKEN_MAX_TTL_SECONDS`), which is under the 600 s cap on `mcp:write`.
+- It shares `mintSubjectAccessToken` with the exchange: claim context, role
+  reach, the active key and `mintAccessToken` are one path, not two.
+- Because the token shares its owner's grant, a token exchange that presents
+  it would read the grant's scope, wider than the token's. The exchange now
+  intersects the grant's scope with the presented token's own `scope` claim.
+- Two per-client settings, migration 0120, both default off:
+  `token_exchange_allowed_for_public` (a public client is refused the grant
+  with `unauthorized_client`, before any token is read) and
+  `token_exchange_actor_from_other_client` (an actor token issued to another
+  client is refused, audited as `invalid_grant`, answered `invalid_request` like
+  every actor refusal). They are client fields in the admin API (ETag, audit
+  detail, tenant document with a default for older documents) and `seed client`
+  flags. The audit allowlist now also lists `consent_required` and
+  `token_exchange_impersonation_allowed`, which changed silently before. Neither
+  is on for any built-in client.
+- A narrowing exchange or refresh could turn an agent's token into an
+  admin-audience token with no `act` and no MCP scope, which the admin API
+  admits as the person. An exchange whose subject holds an MCP scope must keep
+  one (else `invalid_scope`) and carries the subject's `act`, or the requesting
+  client as `act`; a malformed `act` is refused; the refresh path refuses a
+  narrowing that drops the last MCP scope the same way (`mcp_scope_dropped`).
+- Console: the client page's Token exchange section shows both settings beside
+  impersonation, saved together; wording lives in `services/tokenExchange.ts`.
+- A token exchange is not bound to the client that holds the subject token, with
+  the new settings off. RFC 8693 does not ask for it, and the resource server
+  that exchanges the tokens of the client it serves is the grant's ordinary use
+  (the `disableddoc-reader` of Path D), so binding would break it; the actor
+  token is the credential of whoever acts, which is why that one is bound.
+- Volume: nothing here adds a query per request on the hot path. The mint
+  reads a grant, a client, a tenant, a session and a subject by primary key
+  and writes nothing; a tool call costs those five reads and one signature.

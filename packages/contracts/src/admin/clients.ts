@@ -55,6 +55,8 @@ export const clientFieldsSchema = z.object({
   backchannel_logout_session_required: z.boolean(),
   consent_required: z.boolean(),
   token_exchange_impersonation_allowed: z.boolean(),
+  token_exchange_allowed_for_public: z.boolean(),
+  token_exchange_actor_from_other_client: z.boolean(),
   userinfo_signed_response_alg: z.string().nullable(),
   userinfo_encrypted_response_alg: z.string().nullable(),
   userinfo_encrypted_response_enc: z.string().nullable(),

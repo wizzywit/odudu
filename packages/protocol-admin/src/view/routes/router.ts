@@ -4,10 +4,20 @@ import { type Clock } from '@odudu/kernel';
 import { issuerBaseFor, tenantIssuerFor } from '@odudu/protocol-oidc';
 import { Transform } from 'node:stream';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
+import {
+  agentBodyAdmitted,
+  agentBodyNamesGuardedField,
+  agentWritesClient,
+  scopeAdmits,
+} from '#/service/agent-scope';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 import { declaredEssence, declaredTypeDetail } from '#/service/declared-type';
 import { paramsSchemaFor } from '#/service/path-params';
-import { recordCapabilityRefused, recordForeignIssuer } from '#/usecase/access-audit';
+import {
+  recordAgentRefused,
+  recordCapabilityRefused,
+  recordForeignIssuer,
+} from '#/usecase/access-audit';
 import {
   authenticateAdmin,
   type AdminPrincipal,
@@ -64,6 +74,14 @@ function sendForbidden(request: FastifyRequest, reply: FastifyReply): FastifyRep
   return sendProblem(reply, request, problem(403, 'about:blank', 'Forbidden'));
 }
 
+function sendInsufficientScope(request: FastifyRequest, reply: FastifyReply): FastifyReply {
+  return sendProblem(
+    reply,
+    request,
+    problem(403, 'about:blank', 'Forbidden', 'insufficient_scope'),
+  );
+}
+
 // A route's target tenant comes from its own path when it has one. The
 // handful with no `:tenant` segment administer the tenant collection
 // itself, not any one tenant's data — so their target is the system
@@ -98,6 +116,19 @@ interface Granted {
   readonly tenantId: string;
 }
 
+async function refuseScope(
+  deps: AdminRouterDeps,
+  request: AdminRequest,
+  reply: FastifyReply,
+  tenantId: string,
+  principal: AdminPrincipal,
+): Promise<void> {
+  await recordRefusal(deps.database, request, tenantId, (tx) =>
+    recordAgentRefused(tx, principal, 'insufficient_scope'),
+  );
+  sendInsufficientScope(request, reply);
+}
+
 // Authenticates and authorizes the request against its route; null when it
 // has already answered the refusal.
 async function authorizeRoute(
@@ -123,6 +154,13 @@ async function authorizeRoute(
     issuerBase: issuerBaseFor(request),
     now: deps.clock.now(),
   });
+  if (outcome.kind === 'forbidden') {
+    await recordRefusal(deps.database, request, targetTenant.id, (tx) =>
+      recordAgentRefused(tx, outcome.principal, outcome.reason),
+    );
+    sendForbidden(request, reply);
+    return null;
+  }
   if (outcome.kind === 'unauthenticated') {
     const foreign = outcome.foreignIssuer;
     if (outcome.foreignIssuerError !== undefined) {
@@ -138,6 +176,12 @@ async function authorizeRoute(
       );
     }
     sendUnauthorized(request, reply);
+    return null;
+  }
+
+  const { principal } = outcome;
+  if (principal.agent !== undefined && !scopeAdmits(principal.scopes, route)) {
+    await refuseScope(deps, request, reply, targetTenant.id, principal);
     return null;
   }
 
@@ -163,6 +207,19 @@ async function authorizeRoute(
 // of deciding twice.
 const GRANTED = new WeakMap<FastifyRequest, Granted>();
 
+async function agentMayWrite(
+  route: AdminRoute,
+  deps: AdminRouterDeps,
+  request: AdminRequest,
+  granted: Granted,
+): Promise<boolean> {
+  if (!agentBodyAdmitted(route, request.body)) return false;
+  if (!agentWritesClient(route) || !agentBodyNamesGuardedField(request.body)) return true;
+  const id = request.params.id;
+  const target = id === undefined ? null : await deps.auth.loadClientState(granted.tenantId, id);
+  return target === null || !(target.builtinAdmin || target.builtinMcp);
+}
+
 async function handleRoute(
   route: AdminRoute,
   handler: AdminRouteHandler,
@@ -172,6 +229,14 @@ async function handleRoute(
 ): Promise<FastifyReply> {
   const granted = GRANTED.get(request) ?? (await authorizeRoute(route, deps, request, reply));
   if (granted === null) return reply;
+  // Only now is the body parsed, so the fields an agent may write are
+  // decided here, on the object the handler is about to read.
+  if (granted.principal.agent !== undefined && route.method !== 'GET') {
+    if (!(await agentMayWrite(route, deps, request, granted))) {
+      await refuseScope(deps, request, reply, granted.tenantId, granted.principal);
+      return reply;
+    }
+  }
   return handler(request, reply, granted.principal, granted.tenantId);
 }
 

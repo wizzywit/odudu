@@ -163,6 +163,10 @@ export const exportedClientSchema = z.strictObject({
   backchannel_logout_session_required: z.boolean(),
   consent_required: z.boolean(),
   token_exchange_impersonation_allowed: z.boolean(),
+  // Absent from a document exported before these limits existed, which
+  // imports with both off.
+  token_exchange_allowed_for_public: z.boolean().default(false),
+  token_exchange_actor_from_other_client: z.boolean().default(false),
   userinfo_signed_response_alg: z.string().nullable(),
   userinfo_encrypted_response_alg: z.string().nullable(),
   userinfo_encrypted_response_enc: z.string().nullable(),

@@ -53,7 +53,10 @@ export {
   MCP_CLIENT_LIFETIMES,
   MCP_CLIENT_NAME,
   MCP_CLIENT_REDIRECT_URIS,
+  holdsMcpScope,
+  isMcpScope,
   MCP_READ_SCOPE,
+  MCP_SCOPES,
   MCP_WRITE_SCOPE,
 } from '#/service/mcp-client';
 export {

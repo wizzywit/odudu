@@ -57,6 +57,12 @@ export const CLIENT_OPTIONS = {
   ),
   'grant-type': texts('A grant type the client may use.'),
   'consent-required': flag('Ask people to allow access the first time they sign in.'),
+  'token-exchange-allowed-for-public': flag(
+    'Let a public client use the token-exchange grant; needs --public and that grant.',
+  ),
+  'token-exchange-actor-from-other-client': flag(
+    'Accept an actor token issued to another client in a token exchange; needs the token-exchange grant.',
+  ),
   'client-credentials-scope': texts(
     'A scope a service may ask for with the client_credentials grant; a service gets none without it.',
   ),

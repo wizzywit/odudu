@@ -16,6 +16,7 @@ import {
   cimdCacheRepository,
   parseCimdDocument,
   persistCimdClient,
+  publicExchangeClientsAtRisk,
   tenantCimdRepository,
 } from '@odudu/protocol-oidc';
 import { PgDialect } from 'drizzle-orm/pg-core';
@@ -288,5 +289,13 @@ export async function driveRepositories(
       await domains.retireIssuer(world.tenantId, 'https://drive-old.example.com', now);
       await domains.clearRetirement(world.tenantId, 'https://drive-old.example.com');
     }),
+  );
+}
+
+// The read the server makes at boot for public clients the exchange limits
+// stopped, across every tenant with the owner connection.
+export async function driveExchangeUpgrade(world: PlanWorld, capture: Capture): Promise<void> {
+  await capture('boot: public clients holding the exchange grant', 'oidc', () =>
+    publicExchangeClientsAtRisk(world.owner.db),
   );
 }

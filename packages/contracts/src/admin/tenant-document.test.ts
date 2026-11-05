@@ -37,6 +37,8 @@ const CLIENT: ExportedClient = {
   backchannel_logout_session_required: false,
   consent_required: false,
   token_exchange_impersonation_allowed: false,
+  token_exchange_allowed_for_public: false,
+  token_exchange_actor_from_other_client: false,
   userinfo_signed_response_alg: null,
   userinfo_encrypted_response_alg: null,
   userinfo_encrypted_response_enc: null,
@@ -176,6 +178,18 @@ describe('tenantDocumentSchema', () => {
     const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, clients: [older] });
     expect(result.success).toBe(true);
     expect(result.data?.clients[0]?.skip_logout_confirmation).toBe(false);
+  });
+
+  it('imports a client of a document from before the exchange limits with both off', () => {
+    const older: Record<string, unknown> = { ...CLIENT };
+    delete older.token_exchange_allowed_for_public;
+    delete older.token_exchange_actor_from_other_client;
+    const result = tenantDocumentSchema.safeParse({ ...DOCUMENT, clients: [older] });
+    expect(result.success).toBe(true);
+    expect(result.data?.clients[0]).toMatchObject({
+      token_exchange_allowed_for_public: false,
+      token_exchange_actor_from_other_client: false,
+    });
   });
 
   it('imports a document from before languages and overrides: English only, no default, none', () => {

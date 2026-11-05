@@ -183,7 +183,7 @@ issuer. A token for another tenant is refused with the refusal audited
   and a client's descriptive metadata (names, descriptions, display text).
   Nothing else writes in P5a.
 - **Each tool declares the capability it needs**, its route key from
-  `ADMIN_ROUTES` (145 routes today; `grep -c "pattern:" capability.ts`), and
+  `ADMIN_ROUTES`, and
   MCP annotations (`readOnlyHint`, `destructiveHint: false`, `idempotentHint`),
   which are hints only: nothing in the server relies on them.
 - **The coverage test.** Every admin route is a tool or is named in a list of

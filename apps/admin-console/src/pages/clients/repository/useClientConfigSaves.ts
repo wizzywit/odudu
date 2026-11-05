@@ -73,6 +73,8 @@ export interface AudienceValues extends Values {
 
 export interface ExchangeValues extends Values {
   token_exchange_impersonation_allowed: boolean;
+  token_exchange_allowed_for_public: boolean;
+  token_exchange_actor_from_other_client: boolean;
 }
 
 // The sections of Tokens, Logout and Advanced, each a PATCH of its own fields.
@@ -138,7 +140,11 @@ export function useClientConfigSaves(tenant: string, id: string) {
     exchange: (gateway: Gateway, { values, ifMatch }: SaveInput<ExchangeValues>) =>
       amend(
         gateway,
-        { token_exchange_impersonation_allowed: values.token_exchange_impersonation_allowed },
+        {
+          token_exchange_impersonation_allowed: values.token_exchange_impersonation_allowed,
+          token_exchange_allowed_for_public: values.token_exchange_allowed_for_public,
+          token_exchange_actor_from_other_client: values.token_exchange_actor_from_other_client,
+        },
         ifMatch,
       ),
   };

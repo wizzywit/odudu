@@ -21,3 +21,13 @@ export const MCP_CLIENT_LIFETIMES = {
 
 export const MCP_READ_SCOPE = 'mcp:read';
 export const MCP_WRITE_SCOPE = 'mcp:write';
+
+export const MCP_SCOPES: readonly string[] = [MCP_READ_SCOPE, MCP_WRITE_SCOPE];
+
+export function isMcpScope(scope: string): boolean {
+  return MCP_SCOPES.includes(scope);
+}
+
+export function holdsMcpScope(scopes: readonly string[]): boolean {
+  return scopes.some(isMcpScope);
+}

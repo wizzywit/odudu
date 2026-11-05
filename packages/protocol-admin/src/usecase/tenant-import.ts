@@ -205,6 +205,8 @@ async function writeClient(
     frontchannelLogoutSessionRequired: metadata.frontchannelLogoutSessionRequired,
     consentRequired: client.consent_required,
     tokenExchangeImpersonationAllowed: client.token_exchange_impersonation_allowed,
+    tokenExchangeAllowedForPublic: client.token_exchange_allowed_for_public,
+    tokenExchangeActorFromOtherClient: client.token_exchange_actor_from_other_client,
     userinfoSignedResponseAlg: metadata.userinfoSignedResponseAlg,
     userinfoEncryptedResponseAlg: metadata.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: metadata.userinfoEncryptedResponseEnc,

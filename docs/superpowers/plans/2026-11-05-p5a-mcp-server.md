@@ -215,7 +215,7 @@ Exit: a stranger's MCP client can discover the tenant as an authorization server
 
 ### Task 5.2: Route admission by scope
 
-**Files:** create `packages/protocol-admin/src/service/agent-scope.ts`; modify the router's authorize step (`router.ts`, `authorize-admin.ts`). Tests: `agent-scope.test.ts` and a table test over every entry of `ADMIN_ROUTES` (verified count: `grep -c "pattern:" capability.ts` = 145).
+**Files:** create `packages/protocol-admin/src/service/agent-scope.ts`; modify the router's authorize step (`router.ts`, `authorize-admin.ts`). Tests: `agent-scope.test.ts` and a table test over every entry of `ADMIN_ROUTES` (`ADMIN_ROUTES.length` is 152 at runtime; no test hardcodes it).
 
 **Interfaces:** Produces `scopeAdmits(scopes: readonly string[], route: AdminRoute): boolean` (read scope: `method === 'GET'` only; write scope: GET plus `AGENT_WRITE_ROUTES`, an exported allowlist of the descriptive-metadata PATCH routes for a scope and a client) and `agentWritableFields(route): readonly string[]` (the body fields an agent write may carry: names, descriptions and localized text only; the PATCH of a client also accepts `enabled`, `redirect_uris` and more for an ordinary caller, so admission is by field, not by route: any other field in an agent's body is refused 403 `insufficient_scope`); requests that carry neither an MCP scope nor an agent marker are unaffected.
 

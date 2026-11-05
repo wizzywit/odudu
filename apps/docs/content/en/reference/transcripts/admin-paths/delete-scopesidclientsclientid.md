@@ -98,25 +98,27 @@ curl -sS -D - -X DELETE -H "$A" $U/scopes/$OPENID/clients/$APP
 
 ```
 HTTP/1.1 204 No Content
-x-request-id: 01a18729-d156-7b6f-b17f-f01ec4d44778
+x-request-id: 01a1adb4-ce59-78a7-96f5-c2a0dfeecd0a
 cache-control: no-store
-etag: "28a3b2c557cc435bd4492ae18486db8bb543f149ce9ac3cf5339011fede0b160"
-Date: Thu, 29 Oct 2026 10:17:07 GMT
+etag: "8ee32ae0ba1b2e7d7be53986abc7dd29e709c554e5b4ca8ceec879d1700ed927"
+Date: Thu, 05 Nov 2026 21:54:30 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a18729-d099-785e-821b-bed5ea4dfbad","client_id":"scope-unassign-app","name":"scope-unassign-app","description":null,"name_i18n":{},"description_i18n":{},"type":"public","enabled":true,"full_scope_allowed":false,"skip_logout_confirmation":false,"registration_origin":"operator","created_at":"2026-10-29T10:17:06.965Z","redirect_uris":["https://app.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":null,"scopes":[{"id":"01a18729-cfc4-73c6-a8a2-1041ca7e871b","name":"profile","assignment":"default"},{"id":"01a18729-cfc9-77b8-851c-afea1f1b683a","name":"email","assignment":"default"},{"id":"01a18729-cfcf-7a9d-8a93-67621ab986e6","name":"address","assignment":"default"},{"id":"01a18729-cfd2-70e9-a496-0db55a5846b9","name":"phone","assignment":"default"},{"id":"01a18729-cfd6-7c19-a9b6-5f686f2d9c57","name":"roles","assignment":"default"},{"id":"01a18729-cfd9-7933-9663-2f53f7aa2d17","name":"groups","assignment":"default"},{"id":"01a18729-cfdd-7da2-9143-037a96554f49","name":"offline_access","assignment":"optional"}],"service_account_admin_reach":[],"supported_locales":["en"]}
+{"id":"01a1adb4-ce0a-7b36-8d73-24d04dbeecc7","client_id":"scope-unassign-app","name":"scope-unassign-app","description":null,"name_i18n":{},"description_i18n":{},"type":"public","enabled":true,"full_scope_allowed":false,"skip_logout_confirmation":false,"registration_origin":"operator","created_at":"2026-11-05T21:54:30.025Z","redirect_uris":["https://app.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"token_exchange_allowed_for_public":false,"token_exchange_actor_from_other_client":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":null,"scopes":[{"id":"01a1adb4-cdc2-7883-8979-a3c010b59aef","name":"profile","assignment":"default"},{"id":"01a1adb4-cdc3-7cdd-af5d-a391eb4d0628","name":"email","assignment":"default"},{"id":"01a1adb4-cdc4-739f-a6bd-5bfc8ea28e9f","name":"address","assignment":"default"},{"id":"01a1adb4-cdc5-7d35-90e7-ab745f9a10e4","name":"phone","assignment":"default"},{"id":"01a1adb4-cdc6-7262-932f-d6be512a754a","name":"roles","assignment":"default"},{"id":"01a1adb4-cdc8-71c8-ae07-e57677b4a972","name":"groups","assignment":"default"},{"id":"01a1adb4-cdc9-767b-875e-0793285b6bb3","name":"offline_access","assignment":"optional"}],"service_account_admin_reach":[],"supported_locales":["en"]}
 HTTP/1.1 404 Not Found
-x-request-id: 01a18729-d1d8-76e4-9020-6498acc9143a
+x-request-id: 01a1adb4-ce87-7cd5-b5b8-a4e3c94ca4a2
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 222
-Date: Thu, 29 Oct 2026 10:17:07 GMT
+Date: Thu, 05 Nov 2026 21:54:30 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Not Found","status":404,"detail":"scope 01a18729-cfbe-7acd-8337-03a6189b7885 is not assigned to client 01a18729-d099-785e-821b-bed5ea4dfbad","instance":"01a18729-d1d8-76e4-9020-6498acc9143a"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"scope 01a1adb4-cdc0-7d40-aa26-b9a16e0d2dc7 is not assigned to client 01a1adb4-ce0a-7b36-8d73-24d04dbeecc7","instance":"01a1adb4-ce87-7cd5-b5b8-a4e3c94ca4a2"}
 ```
+
+This block was run again after the token exchange limits joined the client, so its ids and times are not those of the blocks around it.
 
 `/authorize`, asked for `openid` again, now refuses it the same way an
 unregistered scope would — `state` and `iss` still carried back, the same

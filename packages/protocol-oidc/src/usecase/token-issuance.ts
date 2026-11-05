@@ -46,10 +46,16 @@ import {
 } from '#/service/errors';
 import {
   capLifetimeForScope,
+  holdsMcpScope,
   refreshAllowedForScope,
   scopesCoherentWithAudience,
 } from '#/service/mcp-scopes';
-import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
+import {
+  evaluateRefreshGrant,
+  generateRefreshToken,
+  hashRefreshToken,
+  refusalIsAboutScope,
+} from '#/service/refresh';
 import { parseResource } from '#/service/resource-indicator';
 import { resolveScope } from '#/service/scope';
 import { idTokenScopeOf, mappedClaims } from '#/service/issued-claims';
@@ -415,6 +421,10 @@ function resolveAudience(
   return [...outcome.audience];
 }
 
+// What signing an access token reads of the issuance dependencies, so a
+// caller with no request behind it (the agent token) need not invent the rest.
+export type AccessTokenDeps = Pick<TokenIssuanceDeps, 'issuer' | 'kek' | 'claimMappers'>;
+
 // Stages 5-6, shared by every grant: sign an access token bound to `sub`
 // and `scope`. The audience is the issuer itself, plus the audience the
 // caller has already resolved via `resolveAudience` — the issuer is never
@@ -423,12 +433,12 @@ function resolveAudience(
 // OIDC promised the client (RFC 9068 §4: a resource server, including
 // this one, must find itself in `aud` or refuse the token).
 async function mintAccessToken(
-  deps: TokenIssuanceDeps,
+  deps: AccessTokenDeps,
   input: {
     subjectId: string;
     clientId: string;
     scope: string[];
-    config: IssuingConfig;
+    config: Pick<IssuingConfig, 'accessTokenTtlSeconds'>;
     // The resolved audience this token is bound to, before the issuer is
     // appended — see `resolveAudience`, which every caller runs before
     // reaching here.
@@ -520,6 +530,31 @@ async function mintAccessToken(
   });
   const accessToken = await signJwt(accessTokenClaims, { key, kek: deps.kek, typ: 'at+jwt' });
   return { accessToken, audience, iat, exp };
+}
+
+// The access token of an exchange: claims loaded for the subject and signed
+// by the tenant's active key. Shared by the token endpoint's exchange and the
+// in-process agent token, which differ only in who vouches for the `act`.
+export async function mintSubjectAccessToken(
+  tx: TenantScopedDatabase,
+  deps: AccessTokenDeps & Pick<TokenIssuanceDeps, 'tenantId'>,
+  input: Omit<
+    Parameters<typeof mintAccessToken>[1],
+    'claimContext' | 'reachableRoleIds' | 'accessTokenScope'
+  >,
+  now: Date,
+): Promise<Awaited<ReturnType<typeof mintAccessToken>>> {
+  return mintAccessToken(
+    deps,
+    {
+      ...input,
+      claimContext: await loadClaimContextIn(tx, deps.tenantId, input.subjectId),
+      reachableRoleIds: await reachableRoleIds(tx, input.scope),
+      accessTokenScope: await accessTokenEligibleScope(tx, input.scope),
+    },
+    await signingKeyRepository(tx).active(),
+    now,
+  );
 }
 
 async function issueAuthorizationCodeTokens(
@@ -737,7 +772,7 @@ async function evaluatePresentedRefreshToken(
 
   const decision = evaluateRefreshGrant(grant, client, subject, { requestedScope: request.scope });
   if (!decision.ok) {
-    throw decision.reason === 'scope_widened' ? invalidScope() : invalidGrant();
+    throw refusalIsAboutScope(decision.reason) ? invalidScope() : invalidGrant();
   }
 
   // Repeated after rotation (line ~680 below), where it stays the
@@ -764,13 +799,23 @@ async function refreshCeiling(
   const policy = needsApproval(client.registrationOrigin)
     ? await tenantRegistrationPolicyRepository(tx).policy(deps.tenantId)
     : null;
-  return refreshUnderPolicy({
+  const held = refreshUnderPolicy({
     registrationOrigin: client.registrationOrigin,
     policy: policy ?? 'disabled',
     mcpAudience: mcpAudienceOfIssuer(deps.issuer),
     scope,
     audience,
   });
+  // Ending the policy takes mcp:read away; a chain that still reaches the
+  // admin API would then be the person's own token, so it ends instead.
+  if (
+    holdsMcpScope(scope) &&
+    !holdsMcpScope(held.scope) &&
+    held.audience.includes(ADMIN_API_AUDIENCE)
+  ) {
+    throw invalidScope();
+  }
+  return held;
 }
 
 // Stage 3 (and everything after) for `refresh_token`. Rotation runs in its
@@ -830,7 +875,7 @@ async function issueRefreshTokens(
 
   const decision = evaluateRefreshGrant(grant, client, subject, { requestedScope: request.scope });
   if (!decision.ok) {
-    throw decision.reason === 'scope_widened' ? invalidScope() : invalidGrant();
+    throw refusalIsAboutScope(decision.reason) ? invalidScope() : invalidGrant();
   }
 
   const derived = await refreshCeiling(tx, deps, client, decision.scope, grant.audience);
@@ -1037,6 +1082,12 @@ async function issueExchangedTokens(
       ? 'access_token'
       : accepted(request.requestedTokenType);
 
+  // A public client proves nothing by reaching this grant: it holds no
+  // secret. Refused before anything is read, like impersonation below.
+  if (client.type === 'public' && !config.tokenExchangeAllowedForPublic) {
+    throw unauthorizedClient();
+  }
+
   // Impersonation is the branch with no actor recorded, so it is the one
   // the per-client permission gates (client-oidc-config.ts's own comment
   // on the column) — checked before the subject token is ever resolved, so
@@ -1068,6 +1119,16 @@ async function issueExchangedTokens(
     throw refused('invalid_grant', subject.token.subjectId);
   }
 
+  // An actor token is the credential of whoever acts, so another client's is
+  // not the requesting client's to present unless it was told it may.
+  if (
+    actor !== null &&
+    actor.token.clientDbId !== client.id &&
+    !config.tokenExchangeActorFromOtherClient
+  ) {
+    throw refused('invalid_grant', subject.token.subjectId);
+  }
+
   const actorSubject = actor === null ? client.clientId : actor.token.subjectId;
   if (!mayActPermits(subject.token.mayAct, actorSubject)) {
     throw refused('subject_mismatch', subject.token.subjectId);
@@ -1077,11 +1138,25 @@ async function issueExchangedTokens(
   if (actChain !== undefined && actChain.kind !== 'ok') {
     throw refused('invalid_grant', subject.token.subjectId);
   }
-  const act = actChain?.kind === 'ok' ? actChain.act : undefined;
+  const delegatedAct = actChain?.kind === 'ok' ? actChain.act : undefined;
 
   const scopeOutcome = attenuateScope(request.scope, subject.token.scope);
   if (scopeOutcome.kind === 'widened') throw invalidScope();
   const scope = [...scopeOutcome.scope];
+
+  // The admin API treats a token with no `act` and no MCP scope as the
+  // person's own, so an exchange of an agent's token may neither drop the
+  // marker nor narrow away the scope it hangs from (ADR 0050).
+  let act = delegatedAct;
+  if (act === undefined && subject.token.act !== undefined) {
+    const carried = narrowActClaim(subject.token.act);
+    if (carried === null) throw refused('invalid_grant', subject.token.subjectId);
+    act = carried;
+  }
+  if (holdsMcpScope(subject.token.scope)) {
+    if (!holdsMcpScope(scope)) throw invalidScope();
+    act ??= { sub: client.clientId };
+  }
 
   const audienceOutcome = resolveExchangeAudience({
     resource: request.resource,
@@ -1090,6 +1165,11 @@ async function issueExchangedTokens(
     issuedType,
   });
   if (audienceOutcome.kind === 'invalid_target') throw invalidTarget();
+  // An ID token names no grant, scope or actor, so a token for the admin API
+  // made from one would be the person's own with nothing marking an agent.
+  if (subjectType === 'id_token' && audienceOutcome.audience.includes(ADMIN_API_AUDIENCE)) {
+    throw invalidTarget();
+  }
 
   // An exchange may not lengthen the credential it was handed —
   // mintAccessToken's own `expCeiling`, and (below) this same instant
@@ -1098,7 +1178,7 @@ async function issueExchangedTokens(
   // Recorded only for a delegated exchange (`act` present); an
   // impersonation names no actor in the claim, so none is recorded here
   // either (token-grants.ts's own comment on the column).
-  const actorSubjectId = act === undefined ? null : actorSubject;
+  const actorSubjectId = actor === null ? null : actorSubject;
   const requestedUserinfoClaims = subject.token.requestedUserinfoClaims;
   const recordExchange = (resourceId: string | null, issuedTokenType: string) =>
     auditRepository(tx).record({
@@ -1159,10 +1239,9 @@ async function issueExchangedTokens(
     };
   }
 
-  const claimContext = await loadClaimContextIn(tx, deps.tenantId, subject.token.subjectId);
-  const reachable = await reachableRoleIds(tx, scope);
-
   if (issuedType === 'id_token') {
+    const claimContext = await loadClaimContextIn(tx, deps.tenantId, subject.token.subjectId);
+    const reachable = await reachableRoleIds(tx, scope);
     const key = await signingKeyRepository(tx).active();
     const assigned = await clientScopeRepository(tx).forClient(client.id);
     const mapped = await mappedClaims(
@@ -1208,11 +1287,10 @@ async function issueExchangedTokens(
     };
   }
 
-  const accessTokenScope = await accessTokenEligibleScope(tx, scope);
-  const key = await signingKeyRepository(tx).active();
   const grantId = newId();
 
-  const { accessToken, audience, iat, exp } = await mintAccessToken(
+  const { accessToken, audience, iat, exp } = await mintSubjectAccessToken(
+    tx,
     deps,
     {
       subjectId: subject.token.subjectId,
@@ -1220,17 +1298,13 @@ async function issueExchangedTokens(
       scope,
       config,
       audience: audienceOutcome.audience,
-      claimContext,
-      reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
-      accessTokenScope,
       sessionId: subject.token.sessionId,
       grantId,
       requestedUserinfoClaims,
       ...(act === undefined ? {} : { act }),
       ...(expCeiling === undefined ? {} : { expCeiling }),
     },
-    key,
     now,
   );
 

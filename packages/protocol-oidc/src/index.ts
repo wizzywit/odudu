@@ -1187,7 +1187,21 @@ export {
   type ResolvedExchangeToken,
   type ResolveOutcome,
 } from '#/usecase/token-exchange-subject';
-export { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
+export { narrowActClaim, TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
+export {
+  AgentTokenRefused,
+  mintAgentToken,
+  type MintAgentTokenDeps,
+  type MintAgentTokenInput,
+} from '#/usecase/mint-agent-token';
+export { type AgentTokenRefusal } from '#/service/agent-token-rules';
+export { AGENT_TOKEN_MAX_TTL_SECONDS } from '#/service/mcp-scopes';
+export {
+  EXCHANGE_UPGRADE_COUNT_CAP,
+  EXCHANGE_UPGRADE_SAMPLE_LIMIT,
+  publicExchangeClientsAtRisk,
+  type ExchangeUpgradeFinding,
+} from '#/repository/exchange-upgrade';
 export {
   CIMD_DEADLINE_MS,
   CIMD_MAX_BODY_BYTES,
