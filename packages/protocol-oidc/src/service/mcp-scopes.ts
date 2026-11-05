@@ -3,6 +3,14 @@ export const MCP_WRITE_SCOPE = 'mcp:write';
 
 const MCP_SCOPES: readonly string[] = [MCP_READ_SCOPE, MCP_WRITE_SCOPE];
 
+export function isMcpScope(scope: string): boolean {
+  return MCP_SCOPES.includes(scope);
+}
+
+export function holdsMcpScope(scope: readonly string[]): boolean {
+  return scope.some(isMcpScope);
+}
+
 // An MCP scope means something only at the MCP endpoint and the admin API it
 // calls for the person; at any other audience it would be a scope no resource
 // there defines (RFC 9068 §2.2.3). Every other scope is judged elsewhere.
@@ -53,3 +61,8 @@ export function capLifetimeForScope(ttlSeconds: number, scope: readonly string[]
 export function refreshAllowedForScope(scope: readonly string[]): boolean {
   return !scope.includes(MCP_WRITE_SCOPE);
 }
+
+// What an admin-audience token minted for an agent lives, at most. It is
+// minted per tool call, so a short life costs one signature and bounds what a
+// leaked token is worth.
+export const AGENT_TOKEN_MAX_TTL_SECONDS = 300;

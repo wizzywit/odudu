@@ -415,6 +415,10 @@ function resolveAudience(
   return [...outcome.audience];
 }
 
+// What signing an access token reads of the issuance dependencies, so a
+// caller with no request behind it (the agent token) need not invent the rest.
+export type AccessTokenDeps = Pick<TokenIssuanceDeps, 'issuer' | 'kek' | 'claimMappers'>;
+
 // Stages 5-6, shared by every grant: sign an access token bound to `sub`
 // and `scope`. The audience is the issuer itself, plus the audience the
 // caller has already resolved via `resolveAudience` — the issuer is never
@@ -423,12 +427,12 @@ function resolveAudience(
 // OIDC promised the client (RFC 9068 §4: a resource server, including
 // this one, must find itself in `aud` or refuse the token).
 async function mintAccessToken(
-  deps: TokenIssuanceDeps,
+  deps: AccessTokenDeps,
   input: {
     subjectId: string;
     clientId: string;
     scope: string[];
-    config: IssuingConfig;
+    config: Pick<IssuingConfig, 'accessTokenTtlSeconds'>;
     // The resolved audience this token is bound to, before the issuer is
     // appended — see `resolveAudience`, which every caller runs before
     // reaching here.
@@ -520,6 +524,31 @@ async function mintAccessToken(
   });
   const accessToken = await signJwt(accessTokenClaims, { key, kek: deps.kek, typ: 'at+jwt' });
   return { accessToken, audience, iat, exp };
+}
+
+// The access token of an exchange: claims loaded for the subject and signed
+// by the tenant's active key. Shared by the token endpoint's exchange and the
+// in-process agent token, which differ only in who vouches for the `act`.
+export async function mintSubjectAccessToken(
+  tx: TenantScopedDatabase,
+  deps: AccessTokenDeps & Pick<TokenIssuanceDeps, 'tenantId'>,
+  input: Omit<
+    Parameters<typeof mintAccessToken>[1],
+    'claimContext' | 'reachableRoleIds' | 'accessTokenScope'
+  >,
+  now: Date,
+): Promise<Awaited<ReturnType<typeof mintAccessToken>>> {
+  return mintAccessToken(
+    deps,
+    {
+      ...input,
+      claimContext: await loadClaimContextIn(tx, deps.tenantId, input.subjectId),
+      reachableRoleIds: await reachableRoleIds(tx, input.scope),
+      accessTokenScope: await accessTokenEligibleScope(tx, input.scope),
+    },
+    await signingKeyRepository(tx).active(),
+    now,
+  );
 }
 
 async function issueAuthorizationCodeTokens(
@@ -1159,10 +1188,9 @@ async function issueExchangedTokens(
     };
   }
 
-  const claimContext = await loadClaimContextIn(tx, deps.tenantId, subject.token.subjectId);
-  const reachable = await reachableRoleIds(tx, scope);
-
   if (issuedType === 'id_token') {
+    const claimContext = await loadClaimContextIn(tx, deps.tenantId, subject.token.subjectId);
+    const reachable = await reachableRoleIds(tx, scope);
     const key = await signingKeyRepository(tx).active();
     const assigned = await clientScopeRepository(tx).forClient(client.id);
     const mapped = await mappedClaims(
@@ -1208,11 +1236,10 @@ async function issueExchangedTokens(
     };
   }
 
-  const accessTokenScope = await accessTokenEligibleScope(tx, scope);
-  const key = await signingKeyRepository(tx).active();
   const grantId = newId();
 
-  const { accessToken, audience, iat, exp } = await mintAccessToken(
+  const { accessToken, audience, iat, exp } = await mintSubjectAccessToken(
+    tx,
     deps,
     {
       subjectId: subject.token.subjectId,
@@ -1220,17 +1247,13 @@ async function issueExchangedTokens(
       scope,
       config,
       audience: audienceOutcome.audience,
-      claimContext,
-      reachableRoleIds: reachable,
       fullScopeAllowed: client.fullScopeAllowed,
-      accessTokenScope,
       sessionId: subject.token.sessionId,
       grantId,
       requestedUserinfoClaims,
       ...(act === undefined ? {} : { act }),
       ...(expCeiling === undefined ? {} : { expCeiling }),
     },
-    key,
     now,
   );
 

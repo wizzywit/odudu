@@ -43,10 +43,17 @@ import {
   type ClientRecord,
   type ResolveTxt,
 } from '@odudu/domain-tenant';
-import { DEFAULT_OUTBOX_MAX_ATTEMPTS, FakeClock, newId, type PageKind } from '@odudu/kernel';
+import {
+  DEFAULT_OUTBOX_MAX_ATTEMPTS,
+  FakeClock,
+  mcpAudienceOfIssuer,
+  newId,
+  type PageKind,
+} from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
   isOidcMessageKey,
+  mintAgentToken,
   OIDC_PAGE_MESSAGES,
   OIDC_PREVIEW_PAGES,
   NO_CLIENT_KEY_FETCHER,
@@ -123,6 +130,20 @@ export interface AdminFixture {
     capabilities: readonly string[],
     options: { scope: string; act?: unknown; viaMcpClient?: boolean },
   ): Promise<string>;
+  // The owner's grant behind an MCP token held by `agentClientId` (the
+  // built-in MCP client by default), and the admin-audience token
+  // `mintAgentToken` mints from it, so a test reaches the admin API with a
+  // token the server itself would sign rather than one built by hand.
+  mintAgentTokenForOwner(
+    tenantName: string,
+    capabilities: readonly string[],
+    options: {
+      scope: readonly string[];
+      grantScope?: string;
+      agentClientId?: string;
+      notAfter?: Date;
+    },
+  ): Promise<{ token: string; grantId: string; sessionId: string; subjectId: string }>;
   // Signs arbitrary claims with the tenant's own active key, `iss` included,
   // so a test can present a genuine signature over an issuer it chose.
   // `typ` defaults to `at+jwt`.
@@ -577,6 +598,74 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
     );
   }
 
+  async function mintAgentTokenForOwner(
+    tenantName: string,
+    capabilities: readonly string[],
+    options: {
+      scope: readonly string[];
+      grantScope?: string;
+      agentClientId?: string;
+      notAfter?: Date;
+    },
+  ): Promise<{ token: string; grantId: string; sessionId: string; subjectId: string }> {
+    const ctx = requireTenant(tenantName);
+    const agentClientId = options.agentClientId ?? MCP_CLIENT_ID;
+    return withTenant(app.db, ctx.id, async (tx) => {
+      const adminClient = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      const agent = await clientRepository(tx).byClientId(agentClientId);
+      if (adminClient === null || agent === null) {
+        throw new Error(`fixture: ${ctx.name} has no client ${agentClientId}`);
+      }
+      const subject = await subjectRepository(tx).create({ tenantId: ctx.id, type: 'user' });
+      await assignCapabilities(tx, adminClient.id, subject.id, capabilities);
+      const sessionId = newId();
+      await sessionRepository(tx).create({
+        id: sessionId,
+        tenantId: ctx.id,
+        subjectId: subject.id,
+        expiresAt: new Date(clock.now().getTime() + 24 * 3600 * 1000),
+        authenticators: ['pwd'],
+        secretHash: SessionEntry.issue(sessionId).secretHash(),
+      });
+      const grantId = newId();
+      await tokenGrantRepository(tx).create({
+        id: grantId,
+        tenantId: ctx.id,
+        clientId: agent.id,
+        subjectId: subject.id,
+        scope: options.grantScope ?? options.scope.join(' '),
+        audience: [mcpAudienceOfIssuer(ctx.issuer)],
+        sessionId,
+      });
+      recordGrant(ctx.id, grantId);
+      const now = clock.now();
+      const minted = await mintAgentToken(
+        tx,
+        {
+          tenantId: ctx.id,
+          issuer: ctx.issuer,
+          kek: KEK,
+          claimMappers,
+          lifespans: {
+            ssoSessionIdleSeconds: 24 * 3600,
+            ssoSessionMaxSeconds: 24 * 3600,
+            rememberMeIdleSeconds: 24 * 3600,
+            rememberMeMaxSeconds: 24 * 3600,
+          },
+        },
+        {
+          subjectGrantId: grantId,
+          agentClientId,
+          audience: ADMIN_API_AUDIENCE,
+          scope: options.scope,
+          notAfter: options.notAfter ?? new Date(now.getTime() + 3600_000),
+          now,
+        },
+      );
+      return { token: minted.accessToken, grantId, sessionId, subjectId: subject.id };
+    });
+  }
+
   async function clientCredentialsToken(
     ctx: TenantContext,
     clientId: string,
@@ -1009,6 +1098,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
     adminToken,
     adminTokenAt,
     agentToken,
+    mintAgentTokenForOwner,
     signWithTenantKey,
     systemAdminToken,
     applicationToken,

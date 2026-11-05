@@ -1189,6 +1189,14 @@ export {
 } from '#/usecase/token-exchange-subject';
 export { narrowActClaim, TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 export {
+  AgentTokenRefused,
+  mintAgentToken,
+  type AgentTokenRefusal,
+  type MintAgentTokenDeps,
+  type MintAgentTokenInput,
+} from '#/usecase/mint-agent-token';
+export { AGENT_TOKEN_MAX_TTL_SECONDS } from '#/service/mcp-scopes';
+export {
   CIMD_DEADLINE_MS,
   CIMD_MAX_BODY_BYTES,
   fetchCimdDocument,
