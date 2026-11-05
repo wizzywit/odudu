@@ -27,6 +27,21 @@ describe('warnOfStrandedPublicClients', () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
+  it('moves on, logging, when the read takes longer than its bound', async () => {
+    vi.useFakeTimers();
+    try {
+      const warn = vi.fn();
+      const never = new Promise<{ count: number; sample: [] }>(() => undefined);
+      const done = warnOfStrandedPublicClients(() => never, { warn }, 1_000);
+      await vi.advanceTimersByTimeAsync(1_000);
+      await expect(done).resolves.toBeUndefined();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]?.[1])).toContain('did not finish');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('never stops the server starting: a failed read is logged and returned from', async () => {
     const warn = vi.fn();
     await expect(

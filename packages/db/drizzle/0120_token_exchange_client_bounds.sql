@@ -5,9 +5,30 @@ ALTER TABLE client_oidc_config
   ADD COLUMN IF NOT EXISTS token_exchange_allowed_for_public boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS token_exchange_actor_from_other_client boolean NOT NULL DEFAULT false;
 
--- What the boot-time warning about public clients the upgrade stopped reads:
--- only a public client holding the grant with the setting off is in it.
+-- A client's type never changes after creation, so a config row records once
+-- whether its client is public. The boot-time warning about public clients
+-- the upgrade stopped then reads an index holding exactly those clients: a
+-- confidential client with the grant and the setting off is not in it.
+ALTER TABLE client_oidc_config
+  ADD COLUMN IF NOT EXISTS is_public_client boolean NOT NULL DEFAULT false;
+
+UPDATE client_oidc_config o SET is_public_client = true
+  FROM clients c WHERE c.id = o.client_id AND c.type = 'public';
+
+CREATE OR REPLACE FUNCTION client_oidc_config_set_public() RETURNS trigger
+  LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.is_public_client := COALESCE(
+    (SELECT c.type = 'public' FROM clients c WHERE c.id = NEW.client_id), false);
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER client_oidc_config_set_public
+  BEFORE INSERT ON client_oidc_config
+  FOR EACH ROW EXECUTE FUNCTION client_oidc_config_set_public();
+
 CREATE INDEX IF NOT EXISTS client_oidc_config_exchange_closed
   ON client_oidc_config (tenant_id, client_id)
-  WHERE token_exchange_allowed_for_public = false
+  WHERE is_public_client
+    AND token_exchange_allowed_for_public = false
     AND grant_types @> ARRAY['urn:ietf:params:oauth:grant-type:token-exchange']::text[];

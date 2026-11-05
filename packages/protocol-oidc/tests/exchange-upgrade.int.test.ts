@@ -86,6 +86,24 @@ describe('publicExchangeClientsAtRisk', () => {
     ]);
   });
 
+  it('indexes exactly the at-risk set: a confidential holder of the grant is outside it', async () => {
+    await tenantWith('upgrade-index', [
+      { clientId: 'stranded-p', type: 'public', exchange: true },
+      { clientId: 'secret-1', type: 'confidential', exchange: true },
+      { clientId: 'secret-2', type: 'confidential', exchange: true },
+    ]);
+    const rows = await owner.sql<{ client_id: string; is_public_client: boolean }[]>`
+      select c.client_id, o.is_public_client
+      from client_oidc_config o join clients c on c.id = o.client_id
+      where o.tenant_id = (select id from tenants where name = 'upgrade-index')
+      order by c.client_id`;
+    expect(rows).toEqual([
+      { client_id: 'secret-1', is_public_client: false },
+      { client_id: 'secret-2', is_public_client: false },
+      { client_id: 'stranded-p', is_public_client: true },
+    ]);
+  });
+
   it('names at most the sample limit and counts up to the cap', async () => {
     const many = Array.from({ length: EXCHANGE_UPGRADE_SAMPLE_LIMIT + 5 }, (_, index) => ({
       clientId: `bulk-${String(index)}`,
@@ -97,7 +115,8 @@ describe('publicExchangeClientsAtRisk', () => {
     const found = await publicExchangeClientsAtRisk(owner.db);
 
     expect(found.sample).toHaveLength(EXCHANGE_UPGRADE_SAMPLE_LIMIT);
-    expect(found.count).toBe(2 + EXCHANGE_UPGRADE_SAMPLE_LIMIT + 5);
+    // The two stranded clients of the first case and the one of the index case.
+    expect(found.count).toBe(3 + EXCHANGE_UPGRADE_SAMPLE_LIMIT + 5);
     expect(EXCHANGE_UPGRADE_COUNT_CAP).toBe(10_000);
   });
 });

@@ -13,7 +13,7 @@ describe('the client amendment allowlist', () => {
   // column, `builtin_admin`, which needs its own refusal reason rather
   // than falling silently into either list — the fourth test below is
   // what catches a column like it.
-  it('admits the five mutable columns on clients and 28 of 30 on client_oidc_config', () => {
+  it('admits the five mutable columns on clients and 28 of 31 on client_oidc_config', () => {
     expect(AMENDABLE_CLIENT_FIELDS).toHaveLength(37);
     for (const field of [
       'name',

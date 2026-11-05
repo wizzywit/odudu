@@ -65,6 +65,9 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   tokenExchangeActorFromOtherClient: boolean('token_exchange_actor_from_other_client')
     .notNull()
     .default(false),
+  // Set by a trigger from the client's type at insert, so an index can hold
+  // the public clients alone; never written by the application.
+  isPublicClient: boolean('is_public_client').notNull().default(false),
   userinfoSignedResponseAlg: text('userinfo_signed_response_alg'),
   userinfoEncryptedResponseAlg: text('userinfo_encrypted_response_alg'),
   // Requires userinfoEncryptedResponseAlg

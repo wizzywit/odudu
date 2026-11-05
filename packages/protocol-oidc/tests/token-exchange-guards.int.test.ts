@@ -661,6 +661,27 @@ describe('an exchange cannot launder a token into an unmarked admin token', () =
     expect(res.json()).toMatchObject({ error: 'invalid_target' });
   });
 
+  it('refuses an ID token for the admin API when no resource names another', async () => {
+    const w = await newWorld();
+    const res = await exchange(w, w.confidential, {
+      subject_token: await idTokenFor(w, w.confidential),
+      subject_token_type: 'urn:ietf:params:oauth:token-type:id_token',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_target' });
+  });
+
+  it('issues no refresh token for the admin API from an ID token either', async () => {
+    const w = await newWorld();
+    const res = await toAdmin(w, {
+      subject_token: await idTokenFor(w, w.confidential),
+      subject_token_type: 'urn:ietf:params:oauth:token-type:id_token',
+      requested_token_type: 'urn:ietf:params:oauth:token-type:refresh_token',
+    });
+    expect(res.statusCode, res.payload).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_target' });
+  });
+
   it('still takes an ID token as the subject of a token for another resource', async () => {
     const w = await newWorld();
     const res = await exchange(w, w.confidential, {
