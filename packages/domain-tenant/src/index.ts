@@ -110,6 +110,7 @@ export {
   type MintedClientRegistrationToken,
   type RegistrationTokenRecord,
 } from '#/repository/client-registration-tokens';
+export { assignMcpScope } from '#/usecase/assign-mcp-scope';
 export { provisionMcpClient } from '#/usecase/provision-mcp-client';
 export {
   capabilityRoleGraph,

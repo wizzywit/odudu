@@ -1,7 +1,7 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
   clientRepository,
-  clientScopeRepository,
+  assignMcpScope,
   provisionClientDefaults,
   type ClientRecord,
 } from '@odudu/domain-tenant';
@@ -11,6 +11,7 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { cimdClientRepository } from '#/repository/cimd-clients';
 import {
   audiencesUnderPolicy,
+  grantForClient,
   NO_MCP_GRANT,
   type McpPolicyGrant,
 } from '#/service/mcp-registration-policy';
@@ -48,16 +49,6 @@ async function writeConfig(
   });
 }
 
-// Optional, so the client has to ask for it and the person is shown it. A
-// tenant that has deleted the scope leaves the client without it.
-async function grantMcpRead(tx: TenantScopedDatabase, clientId: string): Promise<void> {
-  const scopes = clientScopeRepository(tx);
-  const scope = await scopes.byName(MCP_READ_SCOPE);
-  if (scope !== null && !(await scopes.assigned(clientId, scope.id))) {
-    await scopes.assignOrUpdate(clientId, scope.id, 'optional');
-  }
-}
-
 async function amend(
   tx: TenantScopedDatabase,
   existing: ClientRecord,
@@ -81,7 +72,7 @@ async function amend(
   } else if (changes.config !== null) {
     await configs.update(existing.id, changes.config);
   }
-  if (policy.granted) await grantMcpRead(tx, existing.id);
+  if (policy.granted) await assignMcpScope(tx, existing.id, MCP_READ_SCOPE, 'optional');
   if (changes.touch) await clients.markMetadataUsed(existing.id, now);
 }
 
@@ -114,7 +105,7 @@ async function insert(
     document,
     audiencesUnderPolicy([], policy.audience, policy.granted),
   );
-  if (policy.granted) await grantMcpRead(tx, created.id);
+  if (policy.granted) await assignMcpScope(tx, created.id, MCP_READ_SCOPE, 'optional');
 }
 
 export async function persistCimdClient(
@@ -123,8 +114,9 @@ export async function persistCimdClient(
   document: CimdClient,
   now: Date,
   ceiling: number = CIMD_CLIENTS_PER_TENANT,
-  policy: McpPolicyGrant = NO_MCP_GRANT,
+  requested: McpPolicyGrant = NO_MCP_GRANT,
 ): Promise<PersistCimdOutcome> {
+  const policy = grantForClient(requested, cimdClientType(document) === 'public');
   if (containsBidiControl(document.clientName)) return 'refused';
   // One writer per tenant, so two first resolutions of different documents
   // cannot both pass the ceiling check.

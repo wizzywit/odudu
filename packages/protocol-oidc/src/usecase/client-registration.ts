@@ -4,7 +4,7 @@ import { subjectRepository } from '@odudu/domain-identity';
 import {
   clientRegistrationTokenRepository,
   clientRepository,
-  clientScopeRepository,
+  assignMcpScope,
   provisionClientDefaults,
   type ClientRecord,
 } from '@odudu/domain-tenant';
@@ -14,7 +14,11 @@ import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import { extractBearerToken } from '#/service/bearer-token';
 import { parseClientMetadata, type ClientMetadata } from '#/service/client-metadata';
-import { decideMcpRegistration } from '#/service/mcp-registration-policy';
+import {
+  audiencesUnderPolicy,
+  decideMcpRegistration,
+  type McpPolicyGrant,
+} from '#/service/mcp-registration-policy';
 import { MCP_READ_SCOPE } from '#/service/mcp-scopes';
 import { type RegistrationLimiter } from '#/service/registration-throttle';
 import { parseLocalisedClientNames } from '#/service/localised-client-names';
@@ -81,23 +85,9 @@ function clientType(tokenEndpointAuthMethod: string): 'public' | 'confidential' 
   return tokenEndpointAuthMethod === 'none' ? 'public' : 'confidential';
 }
 
-// What the `mcp` policy grants a client registered under it, beyond the
-// defaults every client gets.
-interface McpGrant {
-  readonly audiences: string[];
-}
-
 // One transaction, entered only once the tenant is known to accept
 // registrations at all — a disabled tenant and an unknown one both stop at
 // `not_found` before any transaction opens.
-// Optional, so a client has to ask for it, and the person is shown it. A
-// tenant that has deleted the scope leaves the client without it.
-async function assignMcpRead(tx: TenantScopedDatabase, clientId: string): Promise<void> {
-  const scopes = clientScopeRepository(tx);
-  const scope = await scopes.byName(MCP_READ_SCOPE);
-  if (scope !== null) await scopes.assignOrUpdate(clientId, scope.id, 'optional');
-}
-
 async function performRegistration(
   deps: ClientRegistrationDeps,
   tx: TenantScopedDatabase,
@@ -106,7 +96,7 @@ async function performRegistration(
   nameI18n: Record<string, string>,
   origin: ClientRecord['registrationOrigin'],
   now: Date,
-  grant: McpGrant | null,
+  grant: McpPolicyGrant | null,
 ): Promise<ClientRegistrationOutcome> {
   const capacity = await clientRepository(tx).lockCapacity(tenantId);
   if (capacity.count >= capacity.maxClients) {
@@ -169,9 +159,9 @@ async function performRegistration(
   });
 
   await provisionClientDefaults(tx, client.id);
-  if (grant !== null) await assignMcpRead(tx, client.id);
+  if (grant !== null) await assignMcpScope(tx, client.id, MCP_READ_SCOPE, 'optional');
 
-  const audiences = grant?.audiences ?? [];
+  const audiences = grant === null ? [] : audiencesUnderPolicy([], grant.audience, grant.granted);
   await clientOidcConfigRepository(tx).create({
     clientId: client.id,
     tenantId,
@@ -252,7 +242,7 @@ async function persistRegistration(
   tenant: TenantLookup,
   presentedToken: string | undefined,
   registration: ParsedRegistration,
-  grant: McpGrant | null,
+  grant: McpPolicyGrant | null,
 ): Promise<ClientRegistrationOutcome> {
   return deps.withinTenant(tenant.id, async (tx) => {
     // A presented token is honoured or refused outright — never silently
@@ -299,19 +289,25 @@ export async function registerMcpClient(
 
   // parseClientMetadata has shown the body is an object.
   const members = body as Record<string, unknown>;
+  const mcpAudience = addressUrl(context.address, MCP_RESOURCE_PATH);
   const decision = decideMcpRegistration({
     redirectUris: registration.metadata.redirectUris,
     grantTypes: registration.metadata.grantTypes,
     tokenEndpointAuthMethod: registration.metadata.tokenEndpointAuthMethod,
     scope: members.scope,
     audience: members.audience,
-    mcpAudience: addressUrl(context.address, MCP_RESOURCE_PATH),
+    mcpAudience,
+    holdsKeys: registration.metadata.jwks !== null || registration.metadata.jwksUri !== null,
+    hasLogoutUri:
+      registration.metadata.frontchannelLogoutUri !== null ||
+      registration.metadata.backchannelLogoutUri !== null,
   });
   if (decision.kind === 'invalid') {
     return { kind: 'invalid_metadata', error: decision.error, description: decision.description };
   }
   return persistRegistration(deps, tenant, presentedToken, registration, {
-    audiences: decision.audiences,
+    audience: mcpAudience,
+    granted: true,
   });
 }
 

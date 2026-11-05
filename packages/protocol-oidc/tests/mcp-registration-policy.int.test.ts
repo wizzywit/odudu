@@ -10,6 +10,7 @@ import {
 } from '@odudu/db';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
 import { clientRepository, clientScopeRepository } from '@odudu/domain-tenant';
+import { buildClientSigningKey, jwksDocumentFor } from '#/testing/private-key-jwt-fixture';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
@@ -17,6 +18,7 @@ import { sql } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { oidcRoutes, type CimdResponse } from '#/index';
+import { tenantRegistrationPolicyRepository } from '#/repository/tenant-registration-policy';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
@@ -177,7 +179,24 @@ async function clientCount(): Promise<number> {
   return rows[0]?.count ?? 0;
 }
 
+function manyRedirects(): string[] {
+  return Array.from({ length: 5000 }, (_, i) => `https://agent.example/cb/${String(i)}`);
+}
+
 describe('registration under the mcp policy', () => {
+  it('refuses a __proto__ member and stores nothing', async () => {
+    const before = await clientCount();
+    const res = await http.inject({
+      method: 'POST',
+      url: `/tenants/${tenant}/clients-registrations/openid-connect`,
+      headers: { 'content-type': 'application/json' },
+      payload:
+        '{"__proto__":{"token_endpoint_auth_method":"client_secret_basic"},"redirect_uris":["https://rp.example/cb"],"token_endpoint_auth_method":"none"}',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(await clientCount()).toBe(before);
+  });
+
   it('admits a public client bound to the tenant MCP URL, with mcp:read optional and consent required', async () => {
     const res = await register({ ...PUBLIC, scope: 'openid mcp:read', audience: mcpUrl });
     expect(res.statusCode, res.body).toBe(201);
@@ -204,6 +223,18 @@ describe('registration under the mcp policy', () => {
     ['another audience', { audience: ['https://api.example'] }],
     ['the admin API audience', { audience: 'urn:odudu:params:admin-api' }],
     ['the client_credentials grant', { grant_types: ['client_credentials'] }],
+    [
+      'the token-exchange grant',
+      { grant_types: ['urn:ietf:params:oauth:grant-type:token-exchange'] },
+    ],
+    ['a scope split by a non-breaking space', { scope: 'openid\u00a0mcp:write' }],
+    ['two audiences, one of them the MCP URL', { audience: [mcpUrl, 'https://api.example'] }],
+    ['the same audience twice', { audience: [mcpUrl, mcpUrl] }],
+    ['inline keys', { jwks: { keys: [] } }],
+    ['a key set address', { jwks_uri: 'https://agent.example/jwks.json' }],
+    ['a back-channel logout address', { backchannel_logout_uri: 'https://agent.example/bc' }],
+    ['a front-channel logout address', { frontchannel_logout_uri: 'https://agent.example/fc' }],
+    ['more redirect addresses than a client may hold', { redirect_uris: manyRedirects() }],
   ])('refuses %s and stores nothing', async (_label, change) => {
     const before = await clientCount();
     const res = await register({ ...PUBLIC, ...change });
@@ -446,5 +477,148 @@ describe('a metadata document client under the mcp policy', () => {
     serve();
     const res = await authorize(CLIENT_URL, { scope: 'openid mcp:write', resource: mcpUrl });
     expect(errorOf(res)).toBe('invalid_scope');
+  });
+});
+
+describe('after the policy is turned off', () => {
+  function setPolicy(policy: string): Promise<unknown> {
+    return owner.db.execute(
+      sql`update tenants set client_registration_policy = ${policy}, cimd_enabled = true
+        where id = ${tenantId}`,
+    );
+  }
+
+  function claimsOf(response: LightMyRequestResponse): { aud: string | string[]; scope: string } {
+    expect(response.statusCode, response.body).toBe(200);
+    const access = response.json<{ access_token: string }>().access_token;
+    return JSON.parse(Buffer.from(access.split('.')[1] ?? '', 'base64url').toString('utf8')) as {
+      aud: string | string[];
+      scope: string;
+    };
+  }
+
+  async function startChain(clientId: string) {
+    const consent = await signIn(
+      await authorize(clientId, {
+        scope: 'openid mcp:read offline_access',
+        resource: mcpUrl,
+      }),
+    );
+    const code = (await allow(consent, ['mcp:read', 'offline_access'])).searchParams.get('code');
+    const redeemed = await form('protocol/openid-connect/token', {
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      code: code ?? '',
+      redirect_uri: CALLBACK,
+      code_verifier: VERIFIER,
+    });
+    expect(claimsOf(redeemed).scope.split(' ')).toContain('mcp:read');
+    return redeemed.json<{ refresh_token: string }>().refresh_token;
+  }
+
+  function refresh(clientId: string, token: string) {
+    return form('protocol/openid-connect/token', {
+      grant_type: 'refresh_token',
+      client_id: clientId,
+      refresh_token: token,
+    });
+  }
+
+  it.each([
+    ['a client registered under the policy', 'dcr'],
+    ['a metadata document client', 'cimd'],
+  ])('a refresh chain of %s stops carrying the MCP audience and mcp:read', async (_label, kind) => {
+    let clientId = CLIENT_URL;
+    if (kind === 'dcr') {
+      clientId = await registered({
+        ...PUBLIC,
+        grant_types: ['authorization_code', 'refresh_token'],
+      });
+    } else {
+      await setPolicy('mcp');
+      documents.set(CLIENT_URL, {
+        status: 200,
+        contentType: 'application/json',
+        cacheControl: 'no-store',
+        body: JSON.stringify({
+          client_id: CLIENT_URL,
+          client_name: 'Example Notes',
+          redirect_uris: [CALLBACK],
+        }),
+      });
+    }
+    const first = await startChain(clientId);
+
+    const whileOn = await refresh(clientId, first);
+    const stillOn = claimsOf(whileOn);
+    expect([stillOn.aud].flat()).toContain(mcpUrl);
+    expect(stillOn.scope.split(' ')).toContain('mcp:read');
+
+    await setPolicy('disabled');
+    const next = whileOn.json<{ refresh_token: string }>().refresh_token;
+    const afterOff = claimsOf(await refresh(clientId, next));
+    expect([afterOff.aud].flat()).not.toContain(mcpUrl);
+    expect(afterOff.scope.split(' ')).not.toContain('mcp:read');
+  });
+
+  it('refuses a request for the MCP URL from a client registered under the policy', async () => {
+    const client = await registered();
+    await setPolicy('disabled');
+    expect(errorOf(await authorize(client, { resource: mcpUrl }))).toBe('invalid_target');
+    expect(errorOf(await authorize(client, { scope: 'openid mcp:read', resource: mcpUrl }))).toBe(
+      'invalid_target',
+    );
+  });
+});
+
+describe('a client nobody at the tenant vetted is never given mcp:write', () => {
+  it('refuses it at /authorize even when an administrator assigned it', async () => {
+    const client = await registered();
+    await withTenant(app.db, tenantId, async (tx) => {
+      const row = await clientRepository(tx).byClientId(client);
+      const write = await clientScopeRepository(tx).byName('mcp:write');
+      if (row === null || write === null) throw new Error('fixture missing');
+      await clientScopeRepository(tx).assignOrUpdate(row.id, write.id, 'optional');
+    });
+    const res = await authorize(client, { scope: 'openid mcp:write', resource: mcpUrl });
+    expect(errorOf(res)).toBe('invalid_scope');
+  });
+});
+
+describe('a confidential metadata document client under the mcp policy', () => {
+  it('is not given the MCP audience or mcp:read: the policy is for public clients', async () => {
+    await owner.db.execute(sql`update tenants set cimd_enabled = true where id = ${tenantId}`);
+    const key = await buildClientSigningKey(KEK);
+    documents.set(CLIENT_URL, {
+      status: 200,
+      contentType: 'application/json',
+      cacheControl: 'no-store',
+      body: JSON.stringify({
+        client_id: CLIENT_URL,
+        client_name: 'Server app',
+        redirect_uris: [CALLBACK],
+        token_endpoint_auth_method: 'private_key_jwt',
+        jwks: jwksDocumentFor(key),
+      }),
+    });
+    const res = await authorize(CLIENT_URL, { resource: mcpUrl });
+    expect(errorOf(res)).toBe('invalid_target');
+    const { config, scopes } = await rowsOf(CLIENT_URL);
+    expect(config?.audiences).toEqual([]);
+    expect(scopes.map((row) => row.scope.name)).not.toContain('mcp:read');
+  });
+});
+
+describe('tenantRegistrationPolicyRepository', () => {
+  it('reads its own tenant’s policy and nothing of another’s', async () => {
+    const { id: other } = await setupTenant();
+    await owner.db.execute(
+      sql`update tenants set client_registration_policy = 'open' where id = ${other}`,
+    );
+    await withTenant(app.db, tenantId, async (tx) => {
+      const repository = tenantRegistrationPolicyRepository(tx);
+      expect(await repository.policy(tenantId)).toBe('mcp');
+      expect(await repository.policy(other)).toBeNull();
+    });
   });
 });

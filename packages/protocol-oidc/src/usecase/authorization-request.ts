@@ -17,7 +17,11 @@ import {
   type SigningKeyRecord,
 } from '@odudu/crypto';
 import { ADMIN_API_AUDIENCE, type ClientRecord } from '@odudu/domain-tenant';
-import { type McpPolicyGrant } from '#/service/mcp-registration-policy';
+import {
+  audiencesHeld,
+  refusesWriteScope,
+  type McpPolicyGrant,
+} from '#/service/mcp-registration-policy';
 import { scopesCoherentWithAudience } from '#/service/mcp-scopes';
 import { isUuid, mcpAudienceOfIssuer } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
@@ -405,14 +409,27 @@ export async function handleAuthorizationRequest(
   // it may not use is refused before a session is ever touched. A client
   // with no registered audience (every client in this repository, today)
   // still succeeds with an empty resolved audience — see parseResource.
-  const resourceOutcome = parseResource(resourceParam(rawParams), resolved.config?.audiences ?? []);
+  const mcpAudience = mcpAudienceOfIssuer(issuer);
+  const resourceOutcome = parseResource(
+    resourceParam(rawParams),
+    audiencesHeld(
+      resolved.client?.registrationOrigin ?? '',
+      tenant.clientRegistrationPolicy,
+      resolved.config?.audiences ?? [],
+      mcpAudience,
+    ),
+  );
   if (resourceOutcome.kind === 'invalid_target') return reject('invalid_target');
   const audience = resourceOutcome.audience;
   if (
+    refusesWriteScope(
+      resolved.client?.registrationOrigin ?? '',
+      requestedScopeTokens(params.scope),
+    ) ||
     !scopesCoherentWithAudience(
       requestedScopeTokens(params.scope),
       audience,
-      mcpAudienceOfIssuer(issuer),
+      mcpAudience,
       ADMIN_API_AUDIENCE,
     )
   ) {

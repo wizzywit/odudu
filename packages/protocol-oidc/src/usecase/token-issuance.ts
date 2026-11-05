@@ -15,6 +15,9 @@ import { type ClientOidcConfig } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
+import { tenantRegistrationPolicyRepository } from '#/repository/tenant-registration-policy';
+import { needsApproval } from '#/service/consent';
+import { refreshUnderPolicy } from '#/service/mcp-registration-policy';
 import { tenantLifetimesRepository } from '#/repository/tenant-lifetimes';
 import { accessTokenEligibleScope, reachableRoleIds } from '#/repository/scope-role-reach';
 import { rotateRefreshToken } from '#/usecase/refresh-rotation';
@@ -745,6 +748,29 @@ async function evaluatePresentedRefreshToken(
   return decision.scope;
 }
 
+// The scope and audience ceiling a refresh starts from. For a client nobody at
+// the tenant vetted it is the grant's, less what the tenant's registration
+// policy no longer gives such a client, so ending the policy ends what an
+// existing chain carries. Every other client's read costs nothing extra.
+async function refreshCeiling(
+  tx: TenantScopedDatabase,
+  deps: TokenIssuanceDeps,
+  client: ClientRecord,
+  scope: readonly string[],
+  audience: readonly string[],
+): Promise<{ scope: string[]; audience: string[] }> {
+  const policy = needsApproval(client.registrationOrigin)
+    ? await tenantRegistrationPolicyRepository(tx).policy(deps.tenantId)
+    : null;
+  return refreshUnderPolicy({
+    registrationOrigin: client.registrationOrigin,
+    policy: policy ?? 'disabled',
+    mcpAudience: mcpAudienceOfIssuer(deps.issuer),
+    scope,
+    audience,
+  });
+}
+
 // Stage 3 (and everything after) for `refresh_token`. Rotation runs in its
 // own transaction via `withTenant`, because reuse detection and family
 // revocation must survive a request ending in `invalid_grant`, which rolls
@@ -799,7 +825,8 @@ async function issueRefreshTokens(
     throw decision.reason === 'scope_widened' ? invalidScope() : invalidGrant();
   }
 
-  const scope = [...decision.scope];
+  const derived = await refreshCeiling(tx, deps, client, decision.scope, grant.audience);
+  const scope = derived.scope;
   const key = await signingKeyRepository(tx).active();
   const claimContext = await loadClaimContextIn(tx, deps.tenantId, grant.subjectId);
   const reachable = await reachableRoleIds(tx, scope);
@@ -812,7 +839,7 @@ async function issueRefreshTokens(
   // in on the next refresh after that redemption deliberately narrowed it.
   // A `resource` on this request may narrow `grant.audience` further, and,
   // by the same rule as the authorization_code path, may never widen it.
-  const resolvedAudience = resolveAudience(grant.audience, request.resource);
+  const resolvedAudience = resolveAudience(derived.audience, request.resource);
 
   // RFC 8693 §4.4 / schema/token-grants.ts's own comment on the columns: a grant this
   // table wrote for an ordinary authorization_code or client_credentials

@@ -1,5 +1,6 @@
 import { isLoopbackHost } from '#/service/client-metadata';
-import { MCP_READ_SCOPE } from '#/service/mcp-scopes';
+import { needsApproval } from '#/service/consent';
+import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '#/service/mcp-scopes';
 
 // What a client registered under the `mcp` policy may name for itself:
 // the sign-in scopes and the read scope, never the write scope.
@@ -21,6 +22,10 @@ export interface McpRegistrationInput {
   readonly scope: unknown;
   readonly audience: unknown;
   readonly mcpAudience: string;
+  // A public client holds no key, and a logout address would have this server
+  // call or load an address its anonymous registrant chose.
+  readonly holdsKeys: boolean;
+  readonly hasLogoutUri: boolean;
 }
 
 export type McpRegistrationDecision =
@@ -80,6 +85,18 @@ export function decideMcpRegistration(input: McpRegistrationInput): McpRegistrat
   if (badGrant !== undefined) {
     return refuse('invalid_client_metadata', `grant_types must not include ${badGrant}`);
   }
+  if (input.holdsKeys) {
+    return refuse(
+      'invalid_client_metadata',
+      'jwks and jwks_uri are not accepted: a public client holds no key',
+    );
+  }
+  if (input.hasLogoutUri) {
+    return refuse(
+      'invalid_client_metadata',
+      "logout addresses are not accepted under this tenant's registration policy",
+    );
+  }
   const badRedirect = input.redirectUris.find((uri) => !isHttpsOrLoopbackHttp(uri));
   if (badRedirect !== undefined) {
     return refuse(
@@ -118,3 +135,50 @@ export function mcpGrantOf(policy: string, mcpAudience: string): McpPolicyGrant 
 // For a caller with no tenant policy to apply: nothing is granted, and no
 // audience is taken away.
 export const NO_MCP_GRANT: McpPolicyGrant = { audience: '', granted: false };
+
+// A client registered over the wire, or resolved from a document, is never
+// given the write scope, whatever an administrator assigned it.
+export function refusesWriteScope(
+  registrationOrigin: string,
+  requestedScopes: readonly string[],
+): boolean {
+  return needsApproval(registrationOrigin) && requestedScopes.includes(MCP_WRITE_SCOPE);
+}
+
+// The audiences a client may be issued a token for under the tenant's policy
+// as it is now. A client registered over the wire or resolved from a document
+// holds the MCP URL only while the policy is `mcp`, whatever its row says.
+export function audiencesHeld(
+  registrationOrigin: string,
+  policy: string,
+  audiences: readonly string[],
+  mcpAudience: string,
+): string[] {
+  return needsApproval(registrationOrigin) && policy !== 'mcp'
+    ? audiences.filter((audience) => audience !== mcpAudience)
+    : [...audiences];
+}
+
+// What a refresh may carry, re-derived from the policy as it stands: the MCP
+// audience and mcp:read go once the tenant stops granting them.
+export function refreshUnderPolicy(input: {
+  readonly registrationOrigin: string;
+  readonly policy: string;
+  readonly mcpAudience: string;
+  readonly scope: readonly string[];
+  readonly audience: readonly string[];
+}): { scope: string[]; audience: string[] } {
+  if (!needsApproval(input.registrationOrigin) || input.policy === 'mcp') {
+    return { scope: [...input.scope], audience: [...input.audience] };
+  }
+  return {
+    scope: input.scope.filter((scope) => scope !== MCP_READ_SCOPE),
+    audience: input.audience.filter((audience) => audience !== input.mcpAudience),
+  };
+}
+
+// A metadata document client takes part in the `mcp` policy only as a public
+// client, as a registered one does.
+export function grantForClient(policy: McpPolicyGrant, publicClient: boolean): McpPolicyGrant {
+  return publicClient ? policy : { ...policy, granted: false };
+}

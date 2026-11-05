@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  audiencesHeld,
   audiencesUnderPolicy,
   decideMcpRegistration,
+  grantForClient,
+  refreshUnderPolicy,
+  refusesWriteScope,
   type McpRegistrationInput,
 } from '#/service/mcp-registration-policy';
 
@@ -15,6 +19,8 @@ function input(over: Partial<McpRegistrationInput> = {}): McpRegistrationInput {
     scope: undefined,
     audience: undefined,
     mcpAudience: MCP,
+    holdsKeys: false,
+    hasLogoutUri: false,
     ...over,
   };
 }
@@ -69,6 +75,12 @@ describe('decideMcpRegistration', () => {
     expect(refusal({ scope: 7 }).description).toContain('scope');
   });
 
+  it('refuses a scope split by a non-ASCII space, and a public client with keys or logout addresses', () => {
+    expect(refusal({ scope: 'openid\u00a0mcp:write' }).description).toContain('mcp:write');
+    expect(refusal({ holdsKeys: true }).description).toContain('jwks');
+    expect(refusal({ hasLogoutUri: true }).description).toContain('logout');
+  });
+
   it('admits only the tenant MCP URL as an audience', () => {
     expect(decideMcpRegistration(input({ audience: MCP })).kind).toBe('ok');
     expect(decideMcpRegistration(input({ audience: [MCP] })).kind).toBe('ok');
@@ -78,6 +90,7 @@ describe('decideMcpRegistration', () => {
       `${MCP}/`,
       'urn:odudu:params:admin-api',
       [],
+      [MCP, MCP],
       42,
     ]) {
       expect(refusal({ audience }).description).toContain('audience');
@@ -96,5 +109,54 @@ describe('audiencesUnderPolicy', () => {
       'https://api.example',
     ]);
     expect(audiencesUnderPolicy([], MCP, false)).toEqual([]);
+  });
+});
+
+describe('policy applied to a dynamic client', () => {
+  const ADMIN = 'urn:odudu:params:admin-api';
+
+  it('holds the MCP audience only while the policy is mcp', () => {
+    expect(audiencesHeld('anonymous', 'mcp', [MCP], MCP)).toEqual([MCP]);
+    expect(audiencesHeld('anonymous', 'open', [MCP, ADMIN], MCP)).toEqual([ADMIN]);
+    expect(audiencesHeld('cimd', 'disabled', [MCP], MCP)).toEqual([]);
+  });
+
+  it('leaves a client an administrator made as it is', () => {
+    expect(audiencesHeld('seeded', 'disabled', [MCP], MCP)).toEqual([MCP]);
+    expect(audiencesHeld('operator', 'open', [MCP], MCP)).toEqual([MCP]);
+  });
+
+  it('takes the MCP audience and mcp:read off a refresh once the policy is gone', () => {
+    const base = {
+      registrationOrigin: 'anonymous',
+      mcpAudience: MCP,
+      scope: ['openid', 'mcp:read'],
+      audience: [MCP],
+    };
+    expect(refreshUnderPolicy({ ...base, policy: 'mcp' })).toEqual({
+      scope: ['openid', 'mcp:read'],
+      audience: [MCP],
+    });
+    expect(refreshUnderPolicy({ ...base, policy: 'open' })).toEqual({
+      scope: ['openid'],
+      audience: [],
+    });
+    expect(refreshUnderPolicy({ ...base, registrationOrigin: 'seeded', policy: 'open' })).toEqual({
+      scope: ['openid', 'mcp:read'],
+      audience: [MCP],
+    });
+  });
+
+  it('refuses mcp:write for a dynamic client only', () => {
+    expect(refusesWriteScope('anonymous', ['openid', 'mcp:write'])).toBe(true);
+    expect(refusesWriteScope('cimd', ['mcp:write'])).toBe(true);
+    expect(refusesWriteScope('seeded', ['mcp:write'])).toBe(false);
+    expect(refusesWriteScope('anonymous', ['mcp:read'])).toBe(false);
+  });
+
+  it('keeps a confidential client out of the policy', () => {
+    const grant = { audience: MCP, granted: true };
+    expect(grantForClient(grant, true)).toEqual(grant);
+    expect(grantForClient(grant, false)).toEqual({ audience: MCP, granted: false });
   });
 });
