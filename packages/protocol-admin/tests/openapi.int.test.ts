@@ -166,7 +166,11 @@ describe('the published OpenAPI document', () => {
       const templated = [...path.matchAll(/\{(\w+)\}/gu)].map((match) => match[1]);
       for (const operation of Object.values(methods)) {
         const declared = operation.parameters
-          .filter((parameter) => parameter.in !== 'query')
+          .filter(
+            (parameter) =>
+              parameter.in !== 'query' &&
+              parameter.$ref !== '#/components/parameters/IdempotencyKey',
+          )
           .map((parameter) =>
             parameter.$ref === '#/components/parameters/tenant' ? 'tenant' : parameter.name,
           );
