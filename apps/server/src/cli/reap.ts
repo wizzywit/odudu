@@ -10,7 +10,11 @@ import {
 } from '@odudu/db';
 import { loadConfig, OduduError, type Config } from '@odudu/kernel';
 import { expireRotatedClientSecrets } from '@odudu/protocol-admin';
-import { BACKCHANNEL_LOGOUT_MAX_ATTEMPTS, CIMD_CLIENT_UNUSED_SECONDS } from '@odudu/protocol-oidc';
+import {
+  BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
+  CIMD_CLIENT_UNUSED_SECONDS,
+  holdsLiveRefreshToken,
+} from '@odudu/protocol-oidc';
 import { eq, sql, type SQL } from 'drizzle-orm';
 
 /**
@@ -402,8 +406,8 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
 
   // A client that came from a metadata document and whose document nobody has
   // resolved for thirty days comes back the next time one is. One holding a
-  // refresh token that can still be used stays, so a client in use without
-  // signing anyone in again is not cut off. Served by clients_cimd_by_use and
+  // refresh token that can still be used, or lapsed within an access token's
+  // life, stays, so a client in use is not cut off. Served by clients_cimd_by_use and
   // token_grants_by_client.
   cimd_clients: {
     after: [],
@@ -411,13 +415,7 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
       DELETE FROM clients c
        WHERE c.registration_origin = 'cimd'
          AND c.metadata_used_at < ${before(now, CIMD_CLIENT_UNUSED_SECONDS)}::timestamptz
-         AND NOT EXISTS (
-           SELECT 1 FROM token_grants g
-             JOIN refresh_tokens r ON r.tenant_id = g.tenant_id AND r.grant_id = g.id
-            WHERE g.tenant_id = c.tenant_id
-              AND g.client_id = c.id
-              AND r.used_at IS NULL
-              AND r.expires_at > ${now.toISOString()}::timestamptz)
+         AND NOT ${holdsLiveRefreshToken(sql`c.id`, now)}
     `,
   },
 

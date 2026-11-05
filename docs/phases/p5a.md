@@ -131,6 +131,13 @@ no-store document is fetched every time and never cached.
   deletes a client unused for thirty days unless a refresh token of it can
   still be used. An administrator's `enabled = false` is never undone by a
   resolution.
+- **Review round.** A client's `jwks_uri` is fetched public-only whatever
+  `ODUDU_ALLOW_PRIVATE_CLIENT_URLS` says; a `private_key_jwt` document needs a
+  non-empty key set or a `jwks_uri`; the cache keeps the later fetch (stamped
+  with when the fetch began); eviction and `reap` skip disabled clients (evict)
+  and count a refresh token only while its grant is unrevoked and it has not
+  lapsed by more than an access token's life; a late DNS answer sends nothing;
+  roles of an omitted cimd client are left out of the export.
 - **Left for a policy.** The client has no audience and no MCP scope; both
   arrive with the MCP registration policy. Turning the setting off does not
   disable stored rows: `/authorize` and `/token` refuse them by reading the

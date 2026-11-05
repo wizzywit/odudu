@@ -141,6 +141,12 @@ describe('parseCimdDocument', () => {
     expect(refusal({ ...minimal, jwks: 'x' })).toBe('jwks_invalid');
   });
 
+  it('refuses private_key_jwt whose inline key set holds no key', () => {
+    expect(
+      refusal({ ...minimal, token_endpoint_auth_method: 'private_key_jwt', jwks: { keys: [] } }),
+    ).toBe('jwks_invalid');
+  });
+
   it('refuses private_key_jwt with no key source', () => {
     expect(refusal({ ...minimal, token_endpoint_auth_method: 'private_key_jwt' })).toBe(
       'jwks_invalid',

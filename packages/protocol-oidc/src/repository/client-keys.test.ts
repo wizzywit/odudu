@@ -48,6 +48,31 @@ describe('clientKeySet', () => {
     expect(connectedTo).toEqual(['93.184.216.34']);
   });
 
+  it('[ODUDU-CIMD-JWKS-01] refuses a private address for a public-only fetch even with allowPrivate on', async () => {
+    const connected: string[] = [];
+    const keys = clientKeySet(
+      deps({
+        allowPrivate: true,
+        lookup: () => Promise.resolve(['10.0.0.5']),
+        request: (_url, address) => {
+          connected.push(address);
+          return Promise.resolve({
+            status: 200,
+            contentType: 'application/json',
+            body: '{"keys":[]}',
+          });
+        },
+      }),
+    );
+    const uri = 'https://rp.example/jwks.json';
+    await expect(keys.fetch(uri, TENANT, true)).rejects.toThrow();
+    expect(connected).toEqual([]);
+    await keys.fetch(uri, TENANT);
+    expect(connected).toEqual(['10.0.0.5']);
+    await expect(keys.fetch(uri, TENANT, true)).rejects.toThrow();
+    expect(connected).toEqual(['10.0.0.5']);
+  });
+
   it('refuses a redirect rather than following it', async () => {
     const keys = clientKeySet(
       deps({ request: () => Promise.resolve({ status: 302, contentType: null, body: '' }) }),

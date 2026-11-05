@@ -122,6 +122,10 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   const cimdHeldId = newId();
   const cimdFreshId = newId();
   const cimdHeldGrantId = newId();
+  const cimdSlackId = newId();
+  const cimdRevokedId = newId();
+  const cimdSlackGrantId = newId();
+  const cimdRevokedGrantId = newId();
   const logoutDeliveredLongAgoId = newId();
   const logoutDeliveredYesterdayId = newId();
   const logoutAbandonedLongAgoId = newId();
@@ -163,16 +167,27 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
       (${cimdHeldId}, ${tenantId}, 'https://held.example.com/c.json', 'Held', 'public', 'cimd',
        ${at(-90 * DAY)}::timestamptz),
       (${cimdFreshId}, ${tenantId}, 'https://fresh.example.com/c.json', 'Fresh', 'public', 'cimd',
-       ${at(-1 * DAY)}::timestamptz)
+       ${at(-1 * DAY)}::timestamptz),
+      (${cimdSlackId}, ${tenantId}, 'https://slack.example.com/c.json', 'Slack', 'public', 'cimd',
+       ${at(-90 * DAY)}::timestamptz),
+      (${cimdRevokedId}, ${tenantId}, 'https://revoked.example.com/c.json', 'Revoked', 'public', 'cimd',
+       ${at(-90 * DAY)}::timestamptz)
   `);
   await owner.db.execute(sql`
-    INSERT INTO token_grants (id, tenant_id, client_id, subject_id, scope, created_at, session_id)
+    INSERT INTO token_grants (id, tenant_id, client_id, subject_id, scope, created_at, session_id,
+                              revoked_at)
     VALUES (${cimdHeldGrantId}, ${tenantId}, ${cimdHeldId}, ${subjectId}, 'openid',
-            ${at(-1 * HOUR)}::timestamptz, NULL)
+            ${at(-1 * HOUR)}::timestamptz, NULL, NULL),
+           (${cimdSlackGrantId}, ${tenantId}, ${cimdSlackId}, ${subjectId}, 'openid',
+            ${at(-2 * HOUR)}::timestamptz, NULL, NULL),
+           (${cimdRevokedGrantId}, ${tenantId}, ${cimdRevokedId}, ${subjectId}, 'openid',
+            ${at(-1 * HOUR)}::timestamptz, NULL, ${at(-30 * MINUTE)}::timestamptz)
   `);
   await owner.db.execute(sql`
     INSERT INTO refresh_tokens (token_hash, tenant_id, grant_id, expires_at, used_at)
-    VALUES (${`rt-cimd-${tenantId}`}, ${tenantId}, ${cimdHeldGrantId}, ${at(5 * DAY)}::timestamptz, NULL)
+    VALUES (${`rt-cimd-${tenantId}`}, ${tenantId}, ${cimdHeldGrantId}, ${at(5 * DAY)}::timestamptz, NULL),
+           (${`rt-slack-${tenantId}`}, ${tenantId}, ${cimdSlackGrantId}, ${at(-30 * MINUTE)}::timestamptz, NULL),
+           (${`rt-revoked-${tenantId}`}, ${tenantId}, ${cimdRevokedGrantId}, ${at(5 * DAY)}::timestamptz, NULL)
   `);
 
   // The session the young grant is bound to is itself long past its grace:
@@ -591,7 +606,7 @@ describe('odudu reap', () => {
       console_logins: 1,
       tenant_issuer_retirements: 1,
       client_metadata_cache: 1,
-      cimd_clients: 1,
+      cimd_clients: 2,
       tenant_domains: 1,
       sessions: 1,
       audit_events: 0,
@@ -601,9 +616,9 @@ describe('odudu reap', () => {
     // token_grants: a cascade would have emptied refresh_tokens while the
     // report claimed nothing had happened there.
     expect(await counts(fixture.tenantId)).toEqual({
-      refresh_tokens: 2,
+      refresh_tokens: 3,
       authorization_codes: 1,
-      token_grants: 2,
+      token_grants: 3,
       authentication_sessions: 1,
       action_tokens: 1,
       pending_registrations: 1,
@@ -616,7 +631,7 @@ describe('odudu reap', () => {
       console_logins: 1,
       tenant_issuer_retirements: 1,
       client_metadata_cache: 1,
-      cimd_clients: 2,
+      cimd_clients: 3,
       tenant_domains: 3,
       sessions: 1,
       audit_events: 0,
@@ -672,6 +687,7 @@ describe('odudu reap', () => {
     expect(rows.map((row) => row.client_id)).toEqual([
       'https://fresh.example.com/c.json',
       'https://held.example.com/c.json',
+      'https://slack.example.com/c.json',
     ]);
     expect(await countRows(fixture.tenantId, 'refresh_tokens')).toBeGreaterThan(0);
   });
@@ -1052,7 +1068,7 @@ describe('odudu reap', () => {
     const fixture = await seedFixture();
 
     await runPass(NOW, patient);
-    expect(await countRows(fixture.tenantId, 'token_grants')).toBe(2);
+    expect(await countRows(fixture.tenantId, 'token_grants')).toBe(3);
     expect(await codeExists(fixture.tenantId)).toBe(true);
 
     // Its own window has elapsed too now, and the family it named is long
