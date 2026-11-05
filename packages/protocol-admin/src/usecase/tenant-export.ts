@@ -45,13 +45,13 @@ import { type PgTable } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { countAtMost } from '#/usecase/capped-count';
 
-// A client that arrived through its metadata document is rewritten from that
-// document when it is next used, so it is not part of what a tenant carries.
-const exportedClient = and(eq(clients.builtinAdmin, false), ne(clients.registrationOrigin, 'cimd'));
-
 import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
 import { publicJwks } from '#/service/public-jwks';
 import { profileWireShape } from '#/usecase/profile';
+
+// A client that arrived through its metadata document is rewritten from that
+// document when it is next used, so it is not part of what a tenant carries.
+const exportedClient = and(eq(clients.builtinAdmin, false), ne(clients.registrationOrigin, 'cimd'));
 
 export interface TenantExportAuditEvent {
   readonly action: 'tenant.export';
@@ -396,7 +396,10 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
         enabled: row.enabled,
         full_scope_allowed: row.fullScopeAllowed,
         skip_logout_confirmation: row.skipLogoutConfirmation,
-        registration_origin: row.registrationOrigin as Exclude<ClientRecord['registrationOrigin'], 'cimd'>,
+        registration_origin: row.registrationOrigin as Exclude<
+          ClientRecord['registrationOrigin'],
+          'cimd'
+        >,
         redirect_uris: row.redirectUris,
         grant_types: row.grantTypes,
         token_endpoint_auth_method: row.tokenEndpointAuthMethod,
