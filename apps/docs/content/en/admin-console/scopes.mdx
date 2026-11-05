@@ -37,6 +37,8 @@ A scope does nothing until a client is assigned it. There are two ways.
 
 A default scope goes to a request that names no scope. An optional scope goes only to a request that names it.
 
+`mcp:read` and `mcp:write` are refused with `invalid_scope` at any audience except the tenant's MCP URL or the admin API audience. A client registered for the MCP URL and another audience must send `resource` set to the MCP URL when it asks for one of them.
+
 ## 5. Connect roles
 
 The **Roles** tab lists the roles a token carries when it is granted this scope. With none mapped, a client that has **Include all roles in tokens** off gets no roles from this scope. That switch is set on each client, under **Tokens**.
