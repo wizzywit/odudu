@@ -56,7 +56,9 @@ Inputs the spec implies and no single task's happy path exercises; each has a te
 
 ---
 
-## Increment 0 — Spike (no merged code)
+## Increment 0 — Spike (code discarded; the record `docs/phases/p5a.md` is merged)
+
+Tasks 0.1 and 0.2 are done and recorded there: SDK 2.4.0 serves 2026-07-28 and a stateless 2025-11-25 era and mounts on Fastify 5; the exchange works in-process but needs Task 5.4. Task 0.3's client questions are answered below.
 
 Settles every `assumption:` on a load-bearing path. Throwaway code lives in the scratchpad; the result is `docs/phases/p5a.md`'s first section, merged alone.
 
@@ -226,6 +228,17 @@ Exit: a stranger's MCP client can discover the tenant as an authorization server
 
 - [ ] **Step 1: Failing tests** as above; **Steps 2–5.** Push the increment's PR; CI; review.
 
+### Task 5.4: The exchange is not open to a public client, and the server can mint for an agent in-process
+
+Found by the spike (`docs/phases/p5a.md`): a public client granted the exchange reaches it at `/token` with any valid actor token, and `issueTokens` is not exported.
+
+**Files:** modify `packages/protocol-oidc/src/usecase/token-issuance.ts` (the exchange branch, verified: `issueExchangedTokens` near line 950, grant gate near 1301), add `packages/protocol-oidc/src/usecase/mint-agent-token.ts`, export it from `packages/protocol-oidc/src/index.ts`; migration for two client columns; contracts, audit allowlist, `seed client` flags, console client page. Tests beside, plus an int test through `/token`.
+
+**Interfaces:** Produces `mintAgentToken(tx, deps, input: { subjectGrantId: string; agentClientId: string; audience: string; scope: readonly string[]; now: Date }): Promise<{ accessToken: string; expiresAt: Date }>`: takes an already-validated owner grant, sets `act = { sub: agentClientId }`, requires `scope ⊆` the grant's scope, `exp ≤` the grant's access-token `exp`, refuses a revoked grant, ended session, disabled client or tenant. It is not a `/token` request and performs no client authentication, because its only caller is the MCP layer after it has validated the MCP-audience token.
+
+- [ ] **Step 1: Failing tests:** `mintAgentToken` returns `act.sub` = the agent client and a narrowed scope; a widened scope, a revoked grant, an ended session, a disabled client are refused; a public client with the exchange grant is refused at `/token` with `unauthorized_client` unless a new per-client setting `tokenExchangeAllowedForPublic` is on (default off); an `actor_token` whose grant belongs to another client is `invalid_grant` unless the new per-client setting `tokenExchangeActorFromOtherClient` is on (default off, and on for no built-in client); both settings round-trip through the admin API and appear in the audit allowlist.
+- [ ] **Steps 2–5:** run to fail, implement, run to pass, commit. Reuse scan: `issueExchangedTokens`'s claim-building is extracted and shared, not copied.
+
 ---
 
 ## Increment 6 — Idempotency-Key
@@ -294,14 +307,14 @@ and `NOT_TOOLS: Record<routeKey, reason>`.
 
 **Files:** `packages/mcp/src/adapter/in-process-caller.ts`, `…/usecase/exchange.ts`; the server module in `apps/server/src/modules/` that supplies the token usecase and `fastify.inject` (the console gateway's shape: `packages/console-gateway/src/adapter/odudu-client.ts:85`).
 
-**Interfaces:** Produces `createInProcessCaller(deps, mcpToken: ValidatedMcpToken): AdminCaller`; `exchangeForAdmin(deps, token, scope): Promise<{ bearer: string; expiresAt: Date }>` cached for one request only.
+**Interfaces:** Consumes `mintAgentToken` (Task 5.4). Produces `createInProcessCaller(deps, mcpToken: ValidatedMcpToken): AdminCaller`; `exchangeForAdmin(deps, token, scope): Promise<{ bearer: string; expiresAt: Date }>` (a call to `mintAgentToken`, not a `/token` request) cached for one request only.
 
 - [ ] **Step 1: Failing int tests:** the admin API sees `act`, owner subject, narrowed scope; an MCP token presented at `/token` by a public client cannot mint an admin token (Review Focus, §10); the owner losing a role between two calls fails the second; a revoked grant, ended session or disabled tenant fails the next call.
 - [ ] **Steps 2–5.**
 
 ### Task 8.4: The endpoint
 
-**Files:** `packages/mcp/src/view/routes/mcp.ts` (mounted in `apps/server` at `/tenants/:tenant/mcp` and on a verified domain), `…/usecase/validate-mcp-token.ts`, `…/service/rate-limit.ts`. Uses the SDK versions recorded by the spike.
+**Files:** `packages/mcp/src/view/routes/mcp.ts` (mounted in `apps/server` at `/tenants/:tenant/mcp` and on a verified domain), `…/usecase/validate-mcp-token.ts`, `…/service/rate-limit.ts`. Uses `@modelcontextprotocol/server` 2.4.0 with `@modelcontextprotocol/node` 2.1.2: `createMcpHandler(factory, { legacy: 'stateless' })` mounted with `reply.hijack()` and `toNodeHandler`; the principal is passed as `req.raw.auth`; Host and Origin hooks are built per request from the tenant's accepted hosts (Odudu does the 401 challenge in its own `onRequest`). Whether to serve the legacy 2025 era is decided by Task 0.3's client findings, default `reject` if both target clients speak 2026-07-28.
 
 - [ ] **Step 1: Failing tests:** no token → 401 with the I1.2 challenge; wrong audience, foreign tenant, foreign issuer form, `typ` not `at+jwt`, expired → 401 and a `capability.refused`/`token.foreign_issuer` row where the existing door writes one; missing `Mcp-Method` or mismatch → 400 `-32020`; invalid `Origin` → 403; `GET` and `DELETE` → 405; `server/discover` lists supported revisions and `tools` capability; `tools/list` is deterministic, carries `ttlMs` and `cacheScope: "private"`, and omits tools the token cannot use (Review Focus 7); a tool call writes one `agent.tool_call` row; the per-principal limiter returns the MCP error and a `Retry-After`, with its bound documented (single instance; P11).
 - [ ] **Steps 2–5.** The conformance harness lands in Increment 11; here an Inspector-free SDK client test is the check. Push the increment's PR; CI; review.
