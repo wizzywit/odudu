@@ -1,6 +1,42 @@
-import { withTenant, withTenantThen, type Database, type TenantScopedDatabase } from '@odudu/db';
+import {
+  withSavepoint,
+  withTenant,
+  withTenantThen,
+  type Database,
+  type TenantScopedDatabase,
+} from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { type FastifyRequest } from 'fastify';
+
+interface RequestTransaction {
+  readonly tenantId: string;
+  readonly tx: TenantScopedDatabase;
+  joined: boolean;
+}
+
+const OPEN = new WeakMap<FastifyRequest, RequestTransaction>();
+
+/**
+ * Runs `fn` with `tx` as the transaction every `adminTx` of this request for
+ * `tenantId` joins, so what a handler writes and what the caller records
+ * about it commit together. Answers whether the handler joined it at all: one
+ * that opened a transaction of its own wrote outside it.
+ */
+export async function withRequestTransaction<T>(
+  request: FastifyRequest,
+  tenantId: string,
+  tx: TenantScopedDatabase,
+  fn: () => Promise<T>,
+): Promise<{ value: T; joined: boolean }> {
+  const open: RequestTransaction = { tenantId, tx, joined: false };
+  OPEN.set(request, open);
+  try {
+    const value = await fn();
+    return { value, joined: open.joined };
+  } finally {
+    OPEN.delete(request);
+  }
+}
 
 /**
  * Every admin route's own `withTenant`: binds the request's id and address
@@ -15,6 +51,14 @@ export function adminTx<T>(
   tenantId: string,
   fn: (tx: TenantScopedDatabase) => Promise<T>,
 ): Promise<T> {
+  const open = OPEN.get(request);
+  if (open?.tenantId === tenantId) {
+    open.joined = true;
+    // A savepoint, so a statement that fails inside `fn` undoes only its own
+    // writes and leaves the request's transaction usable, as a transaction
+    // of its own would.
+    return withSavepoint(open.tx, fn);
+  }
   return withTenant(db, tenantId, fn, requestContextFrom(request));
 }
 

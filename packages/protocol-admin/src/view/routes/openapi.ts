@@ -5,13 +5,14 @@ import { ADMIN_API_AUDIENCE } from '@odudu/domain-tenant';
 import { type FastifyInstance } from 'fastify';
 import type { z } from 'zod';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
+import { idempotentMethod } from '#/service/idempotency';
 import { pathParameterNames, rowIdSchema } from '#/service/path-params';
 
 type JsonSchema = z.core.JSONSchema.BaseSchema;
 
 interface OpenApiParameter {
   readonly name: string;
-  readonly in: 'path' | 'query';
+  readonly in: 'path' | 'query' | 'header';
   readonly required: boolean;
   readonly description?: string;
   readonly schema: JsonSchema;
@@ -41,7 +42,7 @@ export interface OpenApiDocument {
   readonly security: readonly Readonly<Record<string, readonly string[]>>[];
   readonly paths: Readonly<Record<string, Readonly<Record<string, OpenApiOperation>>>>;
   readonly components: {
-    readonly parameters: { readonly tenant: unknown };
+    readonly parameters: { readonly tenant: unknown; readonly IdempotencyKey: unknown };
     readonly securitySchemes: { readonly bearerAuth: unknown };
     readonly schemas: {
       readonly ProblemDetails: JsonSchema;
@@ -63,6 +64,26 @@ const TENANT_PARAMETER = {
   description: 'The tenant being administered, addressed by name.',
   schema: { type: 'string' },
 };
+
+const IDEMPOTENCY_KEY_PARAMETER = {
+  name: 'Idempotency-Key',
+  in: 'header',
+  required: false,
+  description:
+    'Makes a retry of this request safe: the first call with a key runs, and a repeat within ' +
+    '24 hours is answered with its status, body and `ETag`, without running again, marked ' +
+    'with `Idempotent-Replayed: true`. A repeat answers from the record before `If-Match` is ' +
+    'read again. 1 to 255 letters, digits and `_ . : -`, scoped to the tenant, the route and the ' +
+    'caller. The same key with another request is refused with `422`, one still running with ' +
+    '`409`, and a tenant holds at most 10,000 live keys (`429`). A refusal or failure is not ' +
+    'kept, so a retry runs.',
+  schema: { type: 'string', minLength: 1, maxLength: 255, pattern: '^[A-Za-z0-9_.:-]+$' },
+};
+
+const ONE_TIME_SECRET =
+  'Takes no `Idempotency-Key`: the response carries a secret shown once, which is never ' +
+  'stored, so a request naming one is refused with `400` (`about:blank#idempotency-unsupported`) ' +
+  'and nothing is applied.';
 
 const BEARER_SECURITY_SCHEME = {
   type: 'http',
@@ -172,10 +193,22 @@ function operationFor(route: AdminRoute): OpenApiOperation {
           : `Requires the "${route.capability}" capability, or ${route.alsoAdmits
               .map((also) => `"${also}"`)
               .join(' or ')}.`,
-    ...(route.description === undefined ? {} : { description: route.description }),
+    ...(route.description === undefined && route.oneTimeSecret !== true
+      ? {}
+      : {
+          description: [
+            route.description,
+            route.oneTimeSecret === true ? ONE_TIME_SECRET : undefined,
+          ]
+            .filter((part) => part !== undefined)
+            .join(' '),
+        }),
     parameters: [
       ...pathParametersFor(route.pattern),
       ...queryParametersFor(route.querystringSchema),
+      ...(idempotentMethod(route.method) && route.oneTimeSecret !== true
+        ? [{ $ref: '#/components/parameters/IdempotencyKey' }]
+        : []),
     ],
     ...(route.bodySchema === undefined
       ? {}
@@ -231,7 +264,7 @@ export function buildAdminOpenApiDocument(): OpenApiDocument {
     security: [{ bearerAuth: [] }],
     paths: shared(paths) as OpenApiDocument['paths'],
     components: {
-      parameters: { tenant: TENANT_PARAMETER },
+      parameters: { tenant: TENANT_PARAMETER, IdempotencyKey: IDEMPOTENCY_KEY_PARAMETER },
       securitySchemes: { bearerAuth: BEARER_SECURITY_SCHEME },
       schemas: {
         ProblemDetails: jsonSchemaFor(problemDetailsSchema),

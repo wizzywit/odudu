@@ -114,6 +114,60 @@ export function serviceAccountProblem(clientId: string): Problem {
   );
 }
 
+export function idempotencyKeyInvalid(): Problem {
+  return problem(
+    400,
+    'about:blank#idempotency-key-invalid',
+    'Bad Request',
+    'Idempotency-Key must be one value of 1 to 255 letters, digits and the characters _ . : -',
+  );
+}
+
+export function idempotencyUnsupported(): Problem {
+  return problem(
+    400,
+    'about:blank#idempotency-unsupported',
+    'Bad Request',
+    'this route answers with a secret shown once, which is never stored, so it takes no Idempotency-Key; repeat it without one',
+  );
+}
+
+export function idempotencyKeyReused(): Problem {
+  return problem(
+    422,
+    'about:blank#idempotency-key-reused',
+    'Unprocessable Content',
+    'this Idempotency-Key was used for a different request; use a new key for a new request',
+  );
+}
+
+export function idempotencyInFlight(): Problem {
+  return problem(
+    409,
+    'about:blank#idempotency-in-flight',
+    'Conflict',
+    'a request with this Idempotency-Key is still being processed; repeat it shortly',
+  );
+}
+
+export function idempotencyCapacity(): Problem {
+  return problem(
+    429,
+    'about:blank#idempotency-capacity',
+    'Too Many Requests',
+    'this tenant holds the most Idempotency-Keys it may; a key is kept for 24 hours, so repeat the request later or without a key',
+  );
+}
+
+export function idempotencyResponseTooLarge(): Problem {
+  return problem(
+    422,
+    'about:blank#idempotency-response-too-large',
+    'Unprocessable Content',
+    'the response is too large to keep for a replay, so the request was not applied; repeat it without an Idempotency-Key',
+  );
+}
+
 export function ifMatchStale(detail = 'If-Match no longer matches'): Problem {
   return problem(412, 'about:blank', 'Precondition Failed', detail);
 }

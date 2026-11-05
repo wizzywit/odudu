@@ -24,7 +24,15 @@ import {
   type AuthenticateAdminDeps,
 } from '#/usecase/authenticate-admin';
 import { authorizeAdmin, type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
-import { problem, queryProblem, sendProblem } from '#/view/problem';
+import { idempotencyKeyOf, idempotentMethod } from '#/service/idempotency';
+import {
+  idempotencyKeyInvalid,
+  idempotencyUnsupported,
+  problem,
+  queryProblem,
+  sendProblem,
+} from '#/view/problem';
+import { sendIdempotent } from '#/view/routes/idempotent-route';
 import { adminTx } from '#/view/routes/admin-tx';
 
 // Optional: `/admin/tenants` itself carries no `:tenant` segment (see
@@ -237,7 +245,36 @@ async function handleRoute(
       return reply;
     }
   }
-  return handler(request, reply, granted.principal, granted.tenantId);
+  return answerRoute(route, handler, deps, request, reply, granted);
+}
+
+// A POST that names an `Idempotency-Key` runs once and is answered from its
+// record afterwards; every other request goes straight to its handler.
+function answerRoute(
+  route: AdminRoute,
+  handler: AdminRouteHandler,
+  deps: AdminRouterDeps,
+  request: AdminRequest,
+  reply: FastifyReply,
+  granted: Granted,
+): FastifyReply | Promise<FastifyReply> {
+  const run = () => handler(request, reply, granted.principal, granted.tenantId);
+  if (!idempotentMethod(route.method)) return run();
+  const header = idempotencyKeyOf(request.headers['idempotency-key']);
+  if (header.kind === 'absent') return run();
+  if (header.kind === 'invalid') return sendProblem(reply, request, idempotencyKeyInvalid());
+  if (route.oneTimeSecret === true) return sendProblem(reply, request, idempotencyUnsupported());
+  return sendIdempotent({
+    database: deps.database,
+    request,
+    reply,
+    route,
+    tenantId: granted.tenantId,
+    principal: granted.principal,
+    key: header.key,
+    now: deps.clock.now(),
+    run,
+  });
 }
 
 // Before the body of a JSON route is read or checked: who is asking, and

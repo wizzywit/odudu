@@ -73,6 +73,12 @@ const EMITTABLE_PROBLEM_TYPES = new Set([
   'about:blank#domain-canonical',
   'about:blank#domain-switch-conflict',
   'about:blank#domain-verify-throttled',
+  'about:blank#idempotency-key-invalid',
+  'about:blank#idempotency-unsupported',
+  'about:blank#idempotency-key-reused',
+  'about:blank#idempotency-in-flight',
+  'about:blank#idempotency-capacity',
+  'about:blank#idempotency-response-too-large',
 ]);
 
 const CAPABILITY_SHAPED = /^(?:view|manage)-[a-z]+(?:-[a-z]+)*$/u;

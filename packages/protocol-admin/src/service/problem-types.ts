@@ -277,6 +277,43 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
       'The host or the tenant was looked up too recently. Repeat the request after the ' +
       '`Retry-After` interval.',
   },
+  'idempotency-key-invalid': {
+    status: 400,
+    summary:
+      'The `Idempotency-Key` header is empty, longer than 255 characters, repeated, or holds ' +
+      'a character outside letters, digits and `_ . : -`.',
+  },
+  'idempotency-unsupported': {
+    status: 400,
+    summary:
+      'The route answers with a secret shown once (a client secret, a one-time password, a ' +
+      'registration token), which the server never stores, so there is nothing to replay. ' +
+      'Nothing was applied; repeat the request without the header.',
+  },
+  'idempotency-key-reused': {
+    status: 422,
+    summary:
+      'The key was first used for a different request, or by a different caller. Nothing was ' +
+      'applied. Use a new key for a new request.',
+  },
+  'idempotency-in-flight': {
+    status: 409,
+    summary:
+      'A request with this key is still running. Repeat it once it has finished and it is ' +
+      'answered from the first.',
+  },
+  'idempotency-capacity': {
+    status: 429,
+    summary:
+      'The tenant holds 10,000 keys that have not yet expired (a key lives 24 hours). Nothing ' +
+      'was applied.',
+  },
+  'idempotency-response-too-large': {
+    status: 422,
+    summary:
+      'The response would be over 64 KiB, which a replay could not return. The request was ' +
+      'undone, so nothing was applied; repeat it without an `Idempotency-Key`.',
+  },
   'tenant-enabled': {
     status: 409,
     summary:
