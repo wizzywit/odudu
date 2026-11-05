@@ -1,6 +1,6 @@
 ---
 title: Read a refusal
-description: 'What an error from Odudu looks like and why it happened: a wrong password, an unknown client, a reused token, too much scope, a stale update.'
+description: 'What an error from Odudu looks like and why it happened: a wrong password, an unknown client, a reused token, too much scope, a stale update, a request sent twice.'
 sidebar_position: 4
 ---
 
@@ -136,6 +136,44 @@ HTTP/1.1 403 Forbidden
 What to do: send both `Origin` and `X-Odudu-Console: 1` from the console's own origin.
 
 Full transcript: [POST …/subjects, refused as cross-site](../reference/transcripts/console-paths/post-consoleapiadmintenantstenantsubjects-refused-as-cross-site.md).
+
+## 8. A request sent twice
+
+A client that never hears an answer to a create cannot tell whether it arrived. Every admin `POST` takes an `Idempotency-Key`: the first call with a key runs, and a repeat is answered from the first without running again. This is the same command as the first call, sent a second time.
+
+```bash
+curl -sS -D - -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 6f9c1c2e-6a0e-4b8a-9c1e-2d7b1e0a5f01" \
+  -d '{"name": "billing-viewer", "description": "read-only access to invoices"}' \
+  http://localhost:3000/admin/tenants/idem-demo/roles
+```
+
+```
+HTTP/1.1 201 Created
+x-request-id: 01a1adf9-2c85-72a2-b327-682418d54851
+cache-control: no-store
+etag: "3d09ecc5d47b8ac57c8f0558a6970fdb6134e98a752311a818d0b3eb5c5c9780"
+content-type: application/json; charset=utf-8
+idempotent-replayed: true
+content-length: 239
+Date: Thu, 05 Nov 2026 23:09:10 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a1adf9-2c73-7ce6-b8aa-37bf1c28cadd","name":"billing-viewer","description":"read-only access to invoices","client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-11-05T23:09:10.639Z","admin_reach":[]}
+```
+
+The answer is the first call's, with `idempotent-replayed: true`, and one role and one audit row exist. Sending the same key with a different request is refused, and nothing is applied.
+
+```
+{"type":"about:blank#idempotency-key-reused","title":"Unprocessable Content","status":422,"detail":"this Idempotency-Key was used for a different request; use a new key for a new request","instance":"01a1adf9-2d7e-79a0-8d07-26c7bb15196f"}
+```
+
+What to do: use a new key for each new request, and the same key only to repeat one. A refusal or a failure is not kept, so a request that failed can be sent again with its key.
+
+Full transcript: [Retrying a create with an Idempotency-Key](../reference/transcripts/admin-paths/get-roles-post-roles-get-rolesid-patch-rolesid-and-delete-rolesid.md#retrying-a-create-with-an-idempotency-key).
 
 ## Where to go next
 
