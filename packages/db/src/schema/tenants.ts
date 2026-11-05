@@ -95,6 +95,9 @@ export const tenants = pgTable('tenants', {
   // Whether the login form accepts a verified email address as well as a
   // username (packages/db/drizzle/0083_login_with_email.sql).
   loginWithEmail: boolean('login_with_email').notNull().default(false),
+  // Whether a client_id that is an https URL is resolved to the Client ID
+  // Metadata Document served there (packages/db/drizzle/0116_cimd_clients.sql).
+  cimdEnabled: boolean('cimd_enabled').notNull().default(false),
   // The audit event types the trail stores; the admin pair always
   // (packages/db/drizzle/0091_audit_event_types.sql).
   auditEventTypes: text('audit_event_types')

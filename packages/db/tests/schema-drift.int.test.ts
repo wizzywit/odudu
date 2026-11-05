@@ -73,7 +73,9 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'groups.groups_name_has_no_slash': "CHECK (((name !~ '/'::text) AND (name <> ''::text)))",
   'groups.groups_path_is_absolute': "CHECK ((path ~~ '/%'::text))",
   'clients.clients_registration_origin_check':
-    "CHECK ((registration_origin = ANY (ARRAY['seeded'::text, 'anonymous'::text, 'token'::text, 'operator'::text])))",
+    "CHECK ((registration_origin = ANY (ARRAY['seeded'::text, 'anonymous'::text, 'token'::text, 'operator'::text, 'cimd'::text])))",
+  'clients.clients_metadata_used_for_cimd':
+    "CHECK (((registration_origin = 'cimd'::text) = (metadata_used_at IS NOT NULL)))",
   'clients.clients_secret_matches_type':
     "CHECK (((type <> 'public'::text) OR (secret_hash IS NULL)))",
   'clients.clients_type_check':
@@ -131,6 +133,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK (((zoneinfo IS NULL) OR (zoneinfo ~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$'::text)))",
   'client_oidc_config.client_oidc_config_id_token_ttl_ceiling':
     'CHECK (((id_token_ttl_seconds >= 1) AND (id_token_ttl_seconds <= 3600)))',
+  'client_metadata_cache.client_metadata_cache_body_size': 'CHECK ((length((body)::text) <= 8192))',
+  'client_metadata_cache.client_metadata_cache_url_length': 'CHECK ((length(url) <= 2048))',
   'tenant_domains.tenant_domains_canonical_is_verified':
     "CHECK (((NOT canonical) OR (state = 'verified'::text)))",
   'tenant_domains.tenant_domains_failed_checks_floor': 'CHECK ((failed_checks >= 0))',

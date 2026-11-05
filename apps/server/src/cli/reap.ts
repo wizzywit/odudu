@@ -10,7 +10,11 @@ import {
 } from '@odudu/db';
 import { loadConfig, OduduError, type Config } from '@odudu/kernel';
 import { expireRotatedClientSecrets } from '@odudu/protocol-admin';
-import { BACKCHANNEL_LOGOUT_MAX_ATTEMPTS } from '@odudu/protocol-oidc';
+import {
+  BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
+  CIMD_CLIENT_UNUSED_SECONDS,
+  holdsLiveRefreshToken,
+} from '@odudu/protocol-oidc';
 import { eq, sql, type SQL } from 'drizzle-orm';
 
 /**
@@ -34,6 +38,8 @@ export type TableName =
   | 'console_sessions'
   | 'console_logins'
   | 'tenant_issuer_retirements'
+  | 'client_metadata_cache'
+  | 'cimd_clients'
   | 'tenant_domains'
   | 'sessions'
   | 'audit_events';
@@ -388,6 +394,33 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
     `,
   },
 
+  // No window of its own: past expires_at the fetcher would not serve the
+  // row and refetches. Served by client_metadata_cache_by_expiry.
+  client_metadata_cache: {
+    after: [],
+    statement: (now) => sql`
+      DELETE FROM client_metadata_cache c
+       WHERE c.expires_at <= ${now.toISOString()}::timestamptz
+    `,
+  },
+
+  // A client that came from a metadata document and whose document nobody has
+  // resolved for thirty days comes back the next time one is. One holding a
+  // refresh token that can still be used, or lapsed within an access token's
+  // life, stays, so a client in use is not cut off. A disabled one stays too: it is an
+  // administrator's decision, which a fresh row from the next resolution would undo. Served by clients_cimd_by_use and
+  // token_grants_by_client.
+  cimd_clients: {
+    after: [],
+    statement: (now) => sql`
+      DELETE FROM clients c
+       WHERE c.registration_origin = 'cimd'
+         AND c.enabled
+         AND c.metadata_used_at < ${before(now, CIMD_CLIENT_UNUSED_SECONDS)}::timestamptz
+         AND NOT ${holdsLiveRefreshToken(sql`c.id`, now)}
+    `,
+  },
+
   // Only a registration nobody proved: a verified row is the tenant's
   // address and a failed one is kept for the tenant to read, so neither is
   // reaped however old. Served by tenant_domains_pending_by_created.
@@ -455,6 +488,8 @@ export const REAP_ORDER: readonly TableName[] = [
   'console_sessions',
   'console_logins',
   'tenant_issuer_retirements',
+  'client_metadata_cache',
+  'cimd_clients',
   'tenant_domains',
   'sessions',
   'audit_events',

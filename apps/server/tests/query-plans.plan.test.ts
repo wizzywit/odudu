@@ -28,6 +28,8 @@ import {
 import { driveAccount, driveRequiredActions } from '#/testing/plan-account-drives';
 import {
   driveBackground,
+  driveCimdClients,
+  driveClientMetadataCache,
   driveGateway,
   driveRepositories,
   retentionRuns,
@@ -76,6 +78,8 @@ beforeAll(async () => {
   const ids = await adminIds(world);
   await driveRepositories(world, world.app.db, ids.subject, log.capture);
   await driveBackground(world, log.capture);
+  await driveClientMetadataCache(world, log.capture);
+  await driveCimdClients(world, log.capture);
   await driveGateway(world, log.capture);
   log.runs.push(...retentionRuns(world));
   const tokens = await adminTokens(world);

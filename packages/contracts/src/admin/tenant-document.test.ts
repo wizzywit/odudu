@@ -86,6 +86,7 @@ const DOCUMENT: TenantDocument = {
     verify_email_ttl_seconds: 43_200,
     reset_password_ttl_seconds: 300,
     login_with_email: false,
+    cimd_enabled: false,
     audit_event_types: ['admin_mutation', 'admin_access'],
     supported_locales: ['en'],
     default_locale: null,

@@ -20,7 +20,7 @@ export interface Client {
   enabled: boolean;
   full_scope_allowed: boolean;
   skip_logout_confirmation: boolean;
-  registration_origin: 'seeded' | 'anonymous' | 'token' | 'operator';
+  registration_origin: 'seeded' | 'anonymous' | 'token' | 'operator' | 'cimd';
   created_at: string;
   redirect_uris: string[];
   grant_types: string[];

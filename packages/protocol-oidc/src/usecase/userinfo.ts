@@ -99,6 +99,9 @@ export interface UserinfoEncryptionTarget {
   enc: string;
   jwks: unknown;
   jwksUri: string | null;
+  // The keys came from a document the client published itself, so a fetch for
+  // them stays on public addresses.
+  publicKeysOnly: boolean;
 }
 
 export type UserinfoEncryptionLookup =
@@ -367,7 +370,7 @@ async function encryptedBody(
     jwks = target.jwks;
   } else if (target.jwksUri !== null) {
     try {
-      jwks = await deps.clientKeySet.fetch(target.jwksUri, tenantId);
+      jwks = await deps.clientKeySet.fetch(target.jwksUri, tenantId, target.publicKeysOnly);
     } catch (err) {
       return {
         kind: 'unavailable',

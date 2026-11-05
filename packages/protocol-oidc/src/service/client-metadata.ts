@@ -122,7 +122,7 @@ const SERVER_ASSIGNED_FIELDS = [
 // refused rather than dropped, so a registrant cannot believe it set it.
 const OPERATOR_ONLY_FIELDS = ['skip_logout_confirmation'] as const;
 
-function isLoopbackHost(hostname: string): boolean {
+export function isLoopbackHost(hostname: string): boolean {
   // RFC 8252 §8.3 prefers the literal forms over `localhost`, whose
   // resolution is under the resolver's control — accepted here all the
   // same because nothing in RFC 7591 §5 forbids the weaker form.
@@ -215,7 +215,7 @@ const jwkSetShape = z.object({ keys: z.array(z.unknown()) });
 // A client registers the keys this server verifies its signatures with and
 // encrypts to, never the halves that sign or decrypt: a stored private
 // member would be served back by every read and export of the client.
-function privateMemberRefusal(keys: readonly unknown[]): string | null {
+export function privateMemberRefusal(keys: readonly unknown[]): string | null {
   for (const [index, key] of keys.entries()) {
     if (typeof key !== 'object' || key === null) continue;
     const member = PRIVATE_JWK_MEMBERS.find((name) => Object.hasOwn(key, name));

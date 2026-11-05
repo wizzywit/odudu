@@ -42,6 +42,8 @@ export interface TenantLookup {
   // and 'token' both advertise the endpoint and differ only in whether an
   // initial access token is required (ADR 0026).
   clientRegistrationPolicy: 'disabled' | 'open' | 'token';
+  // Whether a URL client_id is resolved to its Client ID Metadata Document.
+  cimdEnabled: boolean;
   // The languages the tenant's pages are offered in and, when it has set one,
   // the one used ahead of the browser's preference; discovery advertises the
   // list as `ui_locales_supported`.
@@ -72,6 +74,7 @@ const LOOKUP_COLUMNS = {
   resetPasswordAllowed: tenants.resetPasswordAllowed,
   maxSessionsPerBrowser: tenants.maxSessionsPerBrowser,
   clientRegistrationPolicy: tenants.clientRegistrationPolicy,
+  cimdEnabled: tenants.cimdEnabled,
   supportedLocales: tenants.supportedLocales,
   defaultLocale: tenants.defaultLocale,
   passwordMinLength: tenants.passwordMinLength,

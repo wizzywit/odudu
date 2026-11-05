@@ -40,6 +40,10 @@ Odudu decides in this order:
 
 An administrator can list what a person has allowed with `GET /admin/tenants/{tenant}/subjects/{id}/consents`, and remove one with `DELETE /admin/tenants/{tenant}/subjects/{id}/consents/{clientId}`. The person is asked again next time.
 
+### A client named by a URL
+
+A tenant can let an app identify itself with a web address instead of registering first. The `cimd_enabled` setting, off by default, turns it on. A `client_id` that is an https address is then fetched: the document served there, a Client ID Metadata Document, gives the app's name and redirect addresses. Odudu keeps the result as a public client and sends people back only to a listed address. Anyone can claim a name, so the consent screen also shows the host the document came from and every redirect address. A client nobody has used for thirty days is removed and returns when its address is next used. With the setting off, sign-in and token requests for such an address are refused like any unknown client; tokens already issued stay valid until they expire.
+
 ## Audit
 
 Every tenant keeps an **audit trail**. Each entry says what kind of event it was, what happened, who or what did it, to what, the outcome, when, and from where. It never holds a secret.

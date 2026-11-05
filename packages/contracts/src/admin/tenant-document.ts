@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { exportedMessageOverrideSchema, MESSAGE_OVERRIDE_LIMIT } from '#/admin/message-overrides';
 import { noBidiControls } from '#/bidi';
-import { clientTypeSchema, registrationOriginSchema } from '#/admin/clients';
+import { clientTypeSchema } from '#/admin/clients';
 import { executionRequirementSchema } from '#/admin/flow';
 import { nameClaims, profileSchema } from '#/admin/profile';
 import { clientScopeAssignmentSchema } from '#/admin/scopes';
@@ -85,6 +85,9 @@ export const tenantSettingsDocumentSchema = z.strictObject({
   verify_email_ttl_seconds: count,
   reset_password_ttl_seconds: count,
   login_with_email: z.boolean(),
+  // Absent from a document exported before the setting existed, which
+  // imports with it off.
+  cimd_enabled: z.boolean().default(false),
   audit_event_types: z.array(z.string()),
   // Absent from a document exported before tenants had languages, which
   // imports as English only with no default.
@@ -140,7 +143,8 @@ export const exportedClientSchema = z.strictObject({
   // Absent from a document exported before the setting existed, which
   // imports with it off.
   skip_logout_confirmation: z.boolean().default(false),
-  registration_origin: registrationOriginSchema,
+  // Never `cimd`: such a client is not exported, and an import refuses one.
+  registration_origin: z.enum(['seeded', 'anonymous', 'token', 'operator']),
   redirect_uris: clientList(),
   grant_types: z.array(z.string()),
   token_endpoint_auth_method: z.string(),

@@ -29,6 +29,45 @@ const BASE = {
 };
 
 describe('renderConsentPage', () => {
+  describe('a client that came from its metadata document', () => {
+    const source = {
+      host: 'app.example.com:8443',
+      redirectUris: ['https://app.example.com:8443/cb', 'http://127.0.0.1/callback'],
+    };
+    const withSource = { ...BASE, clientPages: { ...BASE.clientPages, source } };
+
+    it('shows the host with its port and every redirect address beside the name', () => {
+      const body = renderConsentPage(withSource, DEFAULT_PAGE_LOCALE).body;
+      expect(body).toContain('app.example.com:8443');
+      expect(body).toContain('https://app.example.com:8443/cb');
+      expect(body).toContain('http://127.0.0.1/callback');
+      expect(body).toContain(
+        en['consent.source.host'].replace('{host}', '<bdi>app.example.com:8443</bdi>'),
+      );
+    });
+
+    it('escapes a hostile host and redirect address', () => {
+      const body = renderConsentPage(
+        {
+          ...BASE,
+          clientPages: {
+            ...BASE.clientPages,
+            source: { host: '<i>h</i>', redirectUris: ['https://a.example/?q="><script>'] },
+          },
+        },
+        DEFAULT_PAGE_LOCALE,
+      ).body;
+      expect(body).not.toContain('<i>h</i>');
+      expect(body).not.toContain('"><script>');
+      expect(body).toContain('&lt;i&gt;h&lt;/i&gt;');
+    });
+
+    it('shows nothing of the kind for a client registered by hand', () => {
+      const body = renderConsentPage(BASE, DEFAULT_PAGE_LOCALE).body;
+      expect(body).not.toContain(en['consent.source.redirects']);
+    });
+  });
+
   it('[ODUDU-THEME-CLIENTNAME-01] names the client in the heading of the page', () => {
     const page = renderConsentPage(BASE, DEFAULT_PAGE_LOCALE);
     expect(page.body).toContain('<header class="intro">');

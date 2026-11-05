@@ -11,6 +11,13 @@ import {
 } from '@odudu/domain-tenant';
 import { capturingSender, sendPending } from '@odudu/email';
 import { loadConfig } from '@odudu/kernel';
+import {
+  CIMD_CACHE_MAX_ROWS,
+  cimdCacheRepository,
+  parseCimdDocument,
+  persistCimdClient,
+  tenantCimdRepository,
+} from '@odudu/protocol-oidc';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { type LightMyRequestResponse } from 'fastify';
 import { REAP_ORDER, RETENTION_RULES, retentionPolicyFromConfig } from '#/cli/reap';
@@ -78,6 +85,58 @@ export function retentionRuns(world: PlanWorld): PathRun[] {
       statements: [{ handle: 'app', tenantId: world.tenantId, query: sql, parameters: params }],
     };
   });
+}
+
+export async function driveClientMetadataCache(world: PlanWorld, capture: Capture): Promise<void> {
+  const cache = cimdCacheRepository(world.app);
+  const now = new Date();
+  const url = 'https://plans-5.example.com/client.json';
+  await capture('cimd cache: a fresh document', 'oidc', () => cache.find(world.tenantId, url, now));
+  await capture('cimd cache: a document nobody fetched', 'oidc', () =>
+    cache.find(world.tenantId, 'https://nobody.example.com/client.json', now),
+  );
+  await capture('cimd cache: store one and trim to the ceiling', 'oidc', () =>
+    cache.store(
+      world.tenantId,
+      'https://plans-new.example.com/client.json',
+      { client_name: 'x' },
+      now,
+      new Date(now.getTime() + 600_000),
+      CIMD_CACHE_MAX_ROWS,
+    ),
+  );
+}
+
+// The stored side of a metadata document client, in the one tenant the volume
+// fills to the ceiling of them: a new document is refused by the count alone, a stored
+// one is read and left, and the setting /token reads for such a client is one
+// row by key.
+export async function driveCimdClients(world: PlanWorld, capture: Capture): Promise<void> {
+  const now = new Date();
+  const [held] = await world.owner.sql<{ tenant_id: string }[]>`
+    select tenant_id from clients where registration_origin = 'cimd' limit 1`;
+  if (held === undefined) throw new Error('the volume holds no metadata document client');
+  const tenantId = held.tenant_id;
+  const client = (url: string) => {
+    const outcome = parseCimdDocument(url, {
+      client_id: url,
+      client_name: 'Plans',
+      redirect_uris: ['https://app.example.com/cb'],
+    });
+    if (outcome.kind !== 'ok') throw new Error('the plan document must validate');
+    return outcome.client;
+  };
+  const persist = (url: string) =>
+    withTenant(world.app.db, tenantId, (tx) => persistCimdClient(tx, tenantId, client(url), now));
+  await capture('cimd client: a stored document, refreshed', 'oidc', () =>
+    persist('https://plans-5.example.com/client.json'),
+  );
+  await capture('cimd client: a new document at the ceiling', 'oidc', () =>
+    persist('https://plans-new.example.com/client.json'),
+  );
+  await capture('cimd client: the tenant setting read at /token', 'oidc', () =>
+    withTenant(world.app.db, tenantId, (tx) => tenantCimdRepository(tx).enabled(tenantId)),
+  );
 }
 
 export async function driveGateway(world: PlanWorld, capture: Capture): Promise<void> {

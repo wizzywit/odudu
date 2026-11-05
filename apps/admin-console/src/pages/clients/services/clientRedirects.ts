@@ -15,6 +15,7 @@ const REGISTERED: Readonly<Record<string, string>> = {
   operator: 'Created by an administrator',
   anonymous: 'Registered dynamically, with no token',
   token: 'Registered dynamically, with a registration token',
+  cimd: 'Resolved from its client metadata document',
 };
 
 export function registeredText(origin: string): string {

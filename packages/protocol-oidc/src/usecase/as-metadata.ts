@@ -3,7 +3,11 @@ import { type TenantAddress } from '@odudu/kernel';
 import { resolveDiscoveryDocument, type DiscoveryUsecaseDeps } from '#/usecase/discovery';
 import { withMcpScopes } from '#/service/mcp-scopes';
 
-export type AsMetadataUsecaseDeps = DiscoveryUsecaseDeps;
+export type AsMetadataUsecaseDeps = DiscoveryUsecaseDeps & {
+  // Whether this process can fetch a metadata document at all; a tenant's
+  // setting alone does not make the server able to.
+  readonly cimdFetchable?: boolean;
+};
 
 // RFC 8414 metadata for one tenant, projected from its discovery document.
 // Null for an unknown or a disabled tenant, which the view turns into the same
@@ -23,5 +27,9 @@ export async function resolveAsMetadata(
     address,
   );
   if (discovery === null) return null;
-  return asMetadataDocument(discovery, withMcpScopes(discovery.scopes_supported ?? []));
+  return asMetadataDocument(
+    discovery,
+    withMcpScopes(discovery.scopes_supported ?? []),
+    tenant.cimdEnabled && deps.cimdFetchable === true,
+  );
 }

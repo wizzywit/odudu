@@ -107,3 +107,44 @@ matching cannot be smuggled in under that id. The replacement of the provisioned
 row by the document's happens in the import's one transaction. Its row ids come
 from `gen_random_uuid()` in the migration, not `newId()` (v7); lists key on the
 id as a total order and `isUuid` accepts any version, so nothing assumes v7.
+
+## Client ID metadata documents
+
+A URL `client_id` becomes a client row, not a transient object: the usecases
+after `/authorize` (consent, token, userinfo, introspection) all read clients
+by `client_id` from `clients`, and a second path for a client that is not there
+would have touched each of them. So `persistCimdClient` upserts the row, from
+the validated projection, every time `/authorize` resolves the document; a
+no-store document is fetched every time and never cached.
+
+- **Off is unknown.** With `cimd_enabled` off, `/authorize` answers a URL id,
+  including one with a stored row, byte for byte as it answers an unknown id,
+  and `/token` refuses a stored row's client as `invalid_client`. A client
+  registered by hand under a URL id is served whatever the setting says.
+- **A failed fetch refuses the client**, even with a stored row, so a redirect
+  address the owner has withdrawn does not keep working while their server is
+  down.
+- **Bounds.** At most 1,000 per tenant (a lock per tenant makes the check
+  hold under concurrency); at the ceiling a new client evicts the least recently
+  used one with no consent, no usable refresh token and no live code, else is
+  refused, because resolving a document needs no sign-in; last use written at most once a day, and `reap`
+  deletes a client unused for thirty days unless a refresh token of it can
+  still be used. An administrator's `enabled = false` is never undone by a
+  resolution.
+- **Review round.** A client's `jwks_uri` is fetched public-only whatever
+  `ODUDU_ALLOW_PRIVATE_CLIENT_URLS` says; a `private_key_jwt` document needs a
+  non-empty key set or a `jwks_uri`; the cache keeps the later fetch (stamped
+  with when the fetch began); eviction and `reap` skip disabled clients (evict)
+  and count a refresh token only while its grant is unrevoked and it has not
+  lapsed by more than an access token's life; a late DNS answer sends nothing;
+  roles of an omitted cimd client are left out of the export (and out of its
+  size bound); `reap` also spares disabled clients; the userinfo encryption
+  fetch is public-only for cimd clients. Every `clientKeySet.fetch` caller is
+  the private_key_jwt authentication (/token, /introspect, /revoke) and that one.
+- **Left for a policy.** The client has no audience and no MCP scope; both
+  arrive with the MCP registration policy. Turning the setting off does not
+  disable stored rows: `/authorize` and `/token` refuse them by reading the
+  setting, so a later control for the setting changes nothing else.
+- **The setting reached the admin API with its column**, because tenant
+  settings, their export and `seed tenant --set` are one map. The console
+  control is still to come (`PLACED_ELSEWHERE` in the settings page names it).

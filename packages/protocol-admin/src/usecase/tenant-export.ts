@@ -40,13 +40,30 @@ import {
   type ClientScopeAssignment,
 } from '@odudu/domain-tenant';
 import { clientOidcConfig } from '@odudu/protocol-oidc';
-import { and, asc, count, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  eq,
+  inArray,
+  isNull,
+  ne,
+  notInArray,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { type PgTable } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { countAtMost } from '#/usecase/capped-count';
+
 import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
 import { publicJwks } from '#/service/public-jwks';
 import { profileWireShape } from '#/usecase/profile';
+
+// A client that arrived through its metadata document is rewritten from that
+// document when it is next used, so it is not part of what a tenant carries.
+const exportedClient = and(eq(clients.builtinAdmin, false), ne(clients.registrationOrigin, 'cimd'));
 
 export interface TenantExportAuditEvent {
   readonly action: 'tenant.export';
@@ -148,7 +165,14 @@ async function readRoles(tx: TenantScopedDatabase, tenantId: string): Promise<Ro
     })
     .from(roles)
     .leftJoin(clients, eq(roles.clientId, clients.id))
-    .where(eq(roles.tenantId, tenantId));
+    // A role of a client the document leaves out would name a client it does
+    // not hold: tenant roles (no client) and every exported client's stay.
+    .where(
+      and(
+        eq(roles.tenantId, tenantId),
+        or(isNull(roles.clientId), ne(clients.registrationOrigin, 'cimd')),
+      ),
+    );
   return rows.map((row) => ({
     id: row.id,
     reference: { name: row.name, client: row.clientKey },
@@ -208,13 +232,25 @@ async function oversized(
     {
       collection: 'clients',
       table: clients,
-      where: and(eq(clients.tenantId, tenantId), eq(clients.builtinAdmin, false)),
+      where: and(eq(clients.tenantId, tenantId), exportedClient),
       cap: caps.collection,
     },
     {
       collection: 'roles',
       table: roles,
-      where: eq(roles.tenantId, tenantId),
+      where: and(
+        eq(roles.tenantId, tenantId),
+        or(
+          isNull(roles.clientId),
+          notInArray(
+            roles.clientId,
+            tx
+              .select({ id: clients.id })
+              .from(clients)
+              .where(eq(clients.registrationOrigin, 'cimd')),
+          ),
+        ),
+      ),
       cap: caps.collection,
     },
     {
@@ -244,7 +280,13 @@ async function oversized(
     {
       collection: 'scope assignments',
       table: clientScopeAssignments,
-      where: eq(clientScopeAssignments.tenantId, tenantId),
+      where: and(
+        eq(clientScopeAssignments.tenantId, tenantId),
+        notInArray(
+          clientScopeAssignments.clientId,
+          tx.select({ id: clients.id }).from(clients).where(eq(clients.registrationOrigin, 'cimd')),
+        ),
+      ),
       cap: caps.link,
     },
     ...(includeSubjects
@@ -366,7 +408,7 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
     })
     .from(clients)
     .innerJoin(clientOidcConfig, eq(clients.id, clientOidcConfig.clientId))
-    .where(and(eq(clients.tenantId, tenantId), eq(clients.builtinAdmin, false)));
+    .where(and(eq(clients.tenantId, tenantId), exportedClient));
   return rows.sort(byKey((row) => row.clientId)).map((row) => {
     const jwks = publicJwks(row.jwks);
     return {
@@ -385,7 +427,10 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
         enabled: row.enabled,
         full_scope_allowed: row.fullScopeAllowed,
         skip_logout_confirmation: row.skipLogoutConfirmation,
-        registration_origin: row.registrationOrigin as ClientRecord['registrationOrigin'],
+        registration_origin: row.registrationOrigin as Exclude<
+          ClientRecord['registrationOrigin'],
+          'cimd'
+        >,
         redirect_uris: row.redirectUris,
         grant_types: row.grantTypes,
         token_endpoint_auth_method: row.tokenEndpointAuthMethod,
@@ -513,7 +558,7 @@ async function exportScopes(
     })
     .from(clientScopeAssignments)
     .innerJoin(clients, eq(clientScopeAssignments.clientId, clients.id))
-    .where(and(eq(clientScopeAssignments.tenantId, tenantId), eq(clients.builtinAdmin, false)));
+    .where(and(eq(clientScopeAssignments.tenantId, tenantId), exportedClient));
   const clientsByScope = new Map<
     string,
     { client_id: string; assignment: ClientScopeAssignment }[]

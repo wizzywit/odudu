@@ -17,6 +17,7 @@ import { type TenantLookup } from '#/repository/tenant-lookup';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
 import { EMPTY_CLAIMS_REQUEST, type ClaimsRequest } from '#/service/claims-request';
 import { decideConsent } from '#/service/consent';
+import { type ClientSource } from '#/service/client-source';
 import { type ConsentI18n } from '#/service/consent-i18n';
 import { type PromptValue } from '#/service/prompt';
 import { OAUTH_ERROR_DESCRIPTIONS, type AuthorizationErrorCode } from '#/service/oauth-errors';
@@ -236,6 +237,9 @@ export interface ClientPages {
   clientUri: string | null;
   policyUri: string | null;
   tosUri: string | null;
+  // Where the client's own description of itself was fetched from, for the
+  // clients that have none registered by hand.
+  source: ClientSource | null;
 }
 
 // The consent text of each scope that has one, by scope name; a scope with

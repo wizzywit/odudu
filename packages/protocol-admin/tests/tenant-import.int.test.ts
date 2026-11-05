@@ -189,6 +189,7 @@ async function seededSource(): Promise<{ id: string; name: string; confidentialI
     await tenantSettingsRepository(tx).amend(t.id, {
       passwordMinLength: 12,
       usernameEditable: true,
+      cimdEnabled: true,
     });
 
     const grace = await subjectRepository(tx).create({ tenantId: t.id, type: 'user' });
@@ -261,6 +262,7 @@ describe('POST /admin/tenant-imports', () => {
       ['hana', false],
       ['ivan', true],
     ]);
+    expect(original.settings.cimd_enabled).toBe(true);
     expect(original.scopes.map((scope) => scope.name)).toContain('billing');
     expect(original.scopes.map((scope) => scope.name)).not.toContain('phone');
     expect(original.groups.map((group) => group.path)).toEqual(['/finance', '/finance/payroll']);
@@ -295,6 +297,38 @@ describe('POST /admin/tenant-imports', () => {
       })),
     };
     expect(withoutRenamedFields(reexported)).toEqual(withoutRenamedFields(expected));
+  });
+
+  it('exports a tenant holding a metadata document client and a role it owns, and imports the document', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    await withTenant(fixture.app.db, source.id, async (tx) => {
+      const created = await clientRepository(tx).create({
+        tenantId: source.id,
+        clientId: 'https://notes.example.com/client.json',
+        name: 'Notes',
+        type: 'public',
+        secretHash: null,
+        registrationOrigin: 'cimd',
+        metadataUsedAt: new Date(),
+      });
+      await roleRepository(tx).create({
+        tenantId: source.id,
+        name: 'notes-editor',
+        clientId: created.id,
+      });
+    });
+
+    const document = await exportOf(token, source.name);
+
+    expect(document.clients.map((client) => client.client_id)).not.toContain(
+      'https://notes.example.com/client.json',
+    );
+    expect(document.roles.map((role) => role.client)).not.toContain(
+      'https://notes.example.com/client.json',
+    );
+    const res = await postImport(token, { name: `import-${newId()}`, document });
+    expect(res.statusCode, res.payload).toBe(201);
   });
 
   async function mcpClientRows(tenantId: string) {

@@ -124,13 +124,15 @@ wide as the role the administrator gave it.
 - **CIMD**: a `client_id` that is an HTTPS URL; the authorization server
   fetches and validates the document (redirect URIs matched exactly, the
   document's `client_id` equal to its URL), with SSRF protection and caching
-  by HTTP headers. A tenant setting turns it on; off by default.
-  A validated document becomes a persistent `clients` row (grants and token
-  validation need one): created by an upsert on the first authorization, kept
-  in step with the document on every refetch, counted against `max_clients`,
-  listed and disableable like any client, and removed by the reaper after 30
-  days unused with no live grant. Turning the setting off refuses new
-  authorizations and refreshes for these clients.
+  by HTTP headers. A tenant setting (`cimd_enabled`) turns it on; off by default.
+  A resolved client is kept as an ordinary public client row
+  (`registration_origin = 'cimd'`), rewritten from its document each time it is
+  resolved, so the token endpoint, consent and userinfo need no second lookup.
+  A response that says `no-store` is never cached, a client unused for thirty
+  days is removed by `odudu reap`, and a tenant keeps at most 1,000; at that
+  count a new one replaces the least recently used that never completed a
+  sign-in, else is refused. Its audience
+  is the tenant's MCP policy, never the document's.
 - **DCR**: the existing registration endpoint stays closed by default. A tenant
   registration policy for MCP clients is added: open registration limited to
   public clients, PKCE required, loopback and HTTPS redirects only, the

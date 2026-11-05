@@ -95,6 +95,11 @@ select s.id, s.tenant_id, 'o' || row_number() over (),
 insert into clients (id, tenant_id, client_id, name, type)
 select gen_random_uuid(), o.id, 'c' || g, 'App ' || g, 'public'
   from vol_other o cross join generate_series(1, ${v.clientsPerOtherTenant}) g;
+insert into clients (id, tenant_id, client_id, name, type, registration_origin, metadata_used_at)
+select gen_random_uuid(), (select id from vol_other order by id limit 1),
+       'https://plans-' || g || '.example.com/client.json', 'Document ' || g,
+       'public', 'cimd', now() - (g || ' hours')::interval
+  from generate_series(1, 1000) g;
 insert into message_overrides (tenant_id, locale, key, message)
 select ${t}, case when g % 2 = 0 then 'en' else 'fr' end, 'bulk.' || g, 'Wording ' || g
   from generate_series(1, 499) g;
@@ -360,6 +365,11 @@ insert into backchannel_logout_deliveries (id, tenant_id, client_id, endpoint, l
 select gen_random_uuid(), ${t}, ${c0}, 'https://rp.example/b', 't',
        now() - (g || ' seconds')::interval, gen_random_uuid(), now()
   from generate_series(1, ${v.logoutDeliveries}) g;
+insert into client_metadata_cache (tenant_id, url, body, fetched_at, expires_at)
+select ${t}, 'https://plans-' || g || '.example.com/client.json', '{"client_name":"x"}'::jsonb,
+       now() - (g || ' seconds')::interval,
+       case when g <= 20 then now() - interval '1 hour' else now() + interval '1 hour' end
+  from generate_series(1, 1000) g;
 insert into client_assertion_jti (tenant_id, oauth_client_id, jti, expires_at)
 select ${t}, 'plans-app', md5(g::text),
        case when g <= ${v.assertionIds} / 50 then now() - interval '1 hour' else now() + interval '2 hours' end

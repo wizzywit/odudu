@@ -1,5 +1,10 @@
 import {
+  CIMD_DEADLINE_MS,
+  CIMD_MAX_BODY_BYTES,
   MAX_JWKS_BYTES,
+  ResponseTimedOut,
+  ResponseTooLarge,
+  type CimdRequest,
   type ClientKeyRequest,
   type ClientKeyResponse,
 } from '@odudu/protocol-oidc';
@@ -22,6 +27,8 @@ export interface ClientKeyTransportOptions {
   readonly totalTimeoutMs?: number;
   /** Bytes read from the response stream before the request is destroyed. */
   readonly maxBodyBytes?: number;
+  /** The `Accept` header sent; a JWK Set by default. */
+  readonly accept?: string;
   /**
    * Replaces the default trusted root store with this CA — Node's `ca`
    * does not add to the well-known set, it overrides it — so this is for
@@ -48,14 +55,17 @@ function firstHeaderValue(value: string | string[] | undefined): string | null {
 // then guarantees the two lookups agree. `servername` and `Host` stay on
 // the hostname throughout, so certificate validation and virtual hosting
 // are unaffected by the pin.
-export function createClientKeyRequest(options: ClientKeyTransportOptions = {}): ClientKeyRequest {
+export function createClientKeyRequest(
+  options: ClientKeyTransportOptions = {},
+): ClientKeyRequest & CimdRequest {
   const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
   const totalTimeoutMs = options.totalTimeoutMs ?? DEFAULT_TOTAL_TIMEOUT_MS;
   const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
   const ca = options.ca;
+  const accept = options.accept ?? 'application/json, application/jwk-set+json';
 
   return (url, address) =>
-    new Promise<ClientKeyResponse>((resolve, reject) => {
+    new Promise<ClientKeyResponse & { cacheControl: string | null }>((resolve, reject) => {
       let settled = false;
 
       const finish = (fn: () => void): void => {
@@ -80,7 +90,7 @@ export function createClientKeyRequest(options: ClientKeyTransportOptions = {}):
         path: `${url.pathname}${url.search}`,
         method: 'GET',
         servername: url.hostname,
-        headers: { Host: url.host, Accept: 'application/json, application/jwk-set+json' },
+        headers: { Host: url.host, Accept: accept },
         // No connection pooling across pinned addresses — each call gets
         // its own socket, so a reused keep-alive connection can never
         // carry an earlier call's pin into a later one's hostname.
@@ -102,11 +112,13 @@ export function createClientKeyRequest(options: ClientKeyTransportOptions = {}):
       });
 
       const connectTimer = setTimeout(() => {
-        fail(new Error(`connection to ${url.hostname} timed out before it was established`));
+        fail(
+          new ResponseTimedOut(`connection to ${url.hostname} timed out before it was established`),
+        );
       }, connectTimeoutMs);
 
       const totalTimer = setTimeout(() => {
-        fail(new Error(`fetching ${url.hostname} exceeded the total time budget`));
+        fail(new ResponseTimedOut(`fetching ${url.hostname} exceeded the total time budget`));
       }, totalTimeoutMs);
 
       req.on('socket', (socket) => {
@@ -127,7 +139,7 @@ export function createClientKeyRequest(options: ClientKeyTransportOptions = {}):
           received += chunk.length;
           if (received > maxBodyBytes) {
             res.destroy();
-            fail(new Error(`response from ${url.hostname} exceeded the body size cap`));
+            fail(new ResponseTooLarge(`response from ${url.hostname} exceeded the body size cap`));
           } else {
             chunks.push(chunk);
           }
@@ -138,6 +150,7 @@ export function createClientKeyRequest(options: ClientKeyTransportOptions = {}):
             resolve({
               status: res.statusCode ?? 0,
               contentType: firstHeaderValue(res.headers['content-type']),
+              cacheControl: firstHeaderValue(res.headers['cache-control']),
               body: Buffer.concat(chunks).toString('utf8'),
             });
           });
@@ -150,4 +163,18 @@ export function createClientKeyRequest(options: ClientKeyTransportOptions = {}):
 
       req.end();
     });
+}
+
+/**
+ * The fetch of a Client ID Metadata Document: the same pinned request, held
+ * to its own five KiB and three seconds, asking for JSON.
+ */
+export function createCimdRequest(options: ClientKeyTransportOptions = {}): CimdRequest {
+  return createClientKeyRequest({
+    maxBodyBytes: CIMD_MAX_BODY_BYTES,
+    totalTimeoutMs: CIMD_DEADLINE_MS,
+    connectTimeoutMs: CIMD_DEADLINE_MS,
+    accept: 'application/json',
+    ...options,
+  });
 }

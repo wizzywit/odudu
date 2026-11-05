@@ -39,6 +39,7 @@ async function serverAsMetadata(): Promise<Record<string, unknown>> {
           resetPasswordAllowed: false,
           maxSessionsPerBrowser: 25,
           clientRegistrationPolicy: 'disabled',
+          cimdEnabled: false,
           // What a tenant that never set them has: English only, no default.
           supportedLocales: ['en'],
           defaultLocale: null,
