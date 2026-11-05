@@ -271,3 +271,19 @@ holding no MCP scope a 403. An agent must pass both gates: the scope
   client row as actor client.
 - Not enforced anywhere an operator can see yet: no agent token exists
   outside tests until the MCP server mints them.
+
+## Audit attribution
+
+- `agent.tool_call` is an `admin_access` action, one row per MCP tool call,
+  reads included. Its detail is `agent_client`, `owner`, `tool` and `route`,
+  and the allowlist has no key for arguments or results; the row's actor
+  columns carry the owner and the agent client row too, so the audit list
+  filters find it. `recordAgentToolCall` (`usecase/access-audit.ts`) writes it;
+  the MCP server calls it per tool call.
+- A mutation an agent makes is not given a second copy of that fact in its
+  detail: its actor columns already name the agent client row
+  (`principal.clientDbId`) and the owner, which is what `client.amend` shows.
+  `request_id` stays a correlation, not evidence.
+- `admin_access` cannot be taken out of a tenant's `audit_event_types` by the
+  database's own check, so an agent read is always recorded.
+- ADR 0050 holds the decision; ADR 0040 carries the amendment.

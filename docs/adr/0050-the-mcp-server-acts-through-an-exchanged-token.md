@@ -1,0 +1,68 @@
+# 0050 — The MCP server acts through an exchanged token, and the admin API enforces what that token may do
+
+**Status:** Accepted · 2026-11-05
+
+## Context
+
+Odudu serves an MCP endpoint so an AI agent can administer a tenant on behalf
+of a person. The endpoint has to reach what the admin API reaches, without
+becoming a second way in: the capability ceiling of ADR 0040, the audit trail
+and the tenant boundary were all built at the admin API's door.
+
+An agent is a confused deputy by construction. It holds a person's authority,
+reads text it did not write (names, descriptions, audit detail), and acts on
+what it reads. The authority it holds therefore has to be narrower than the
+person's, and the narrowing cannot live only in the agent's own tool list,
+which is the thing prompt injection attacks.
+
+## Decision
+
+**The MCP endpoint is a resource server.** It validates tokens whose audience
+is the MCP endpoint and refuses every other. It never passes a token through
+to anything, and it holds no credential of its own.
+
+**For each tool call it mints, in process, an admin-audience token** by the
+RFC 8693 exchange the token endpoint already implements: the subject is the
+person (`sub` stays theirs), `act` names the agent client, `scope` is the MCP
+scope narrowed to `mcp:read` or `mcp:write`, and the lifetime is the shorter of
+the person's token and a few minutes. The call then goes through the admin API
+as an ordinary bearer request. A public client that presents an MCP token at
+`/token` cannot mint an admin-audience token.
+
+**The admin API enforces the narrowing, not the MCP layer alone.** The
+principal reads `scope` and `act`. A call is admitted only if the owner's
+capability holds and the scope admits the route: `mcp:read` admits GET routes
+except the bulk exports, `mcp:write` adds the descriptive fields of a client
+and a scope, by field, and never the name of a built-in client. A token that
+names an agent but holds no MCP scope is refused. The MCP layer's own check is
+a second line.
+
+**Every tool call is one audit row**, reads included (see the amendment to
+ADR 0040), and an admin mutation an agent makes carries the agent's client row
+as its actor client and the owner as its actor subject.
+
+## Consequences
+
+- The ceiling of ADR 0040, the tenant boundary and the audit trail are the
+  admin API's own, unchanged; the agent cannot reach a route the person could
+  not.
+- One in-process exchange per call, which a request may cache.
+- The scope allowlist is a security surface. A route is not an agent route
+  until it is named; a new field on an allowlisted PATCH is refused until it is
+  added.
+- A token minted by an exchange that drops the agent marker would be an
+  ordinary token; the exchange that mints agent tokens must propagate `act` and
+  the MCP scope.
+
+## Alternatives rejected
+
+- **Token passthrough:** the MCP token, or the person's own admin token, sent
+  to the admin API. The MCP audience would then be meaningless, the token would
+  carry the person's whole authority, and a resource server forwarding a token
+  it received is what RFC 8707 and the MCP authorization spec forbid.
+- **A second admin API for agents:** a parallel door with its own checks. It
+  would have to re-prove ADR 0040's ceiling and the tenant boundary, and would
+  drift from the first.
+- **Credentials held by the MCP server:** a service account the server acts as
+  for everyone. Every call would run with one identity, so the audit could not
+  name the person and the ceiling would be the server's, not theirs.

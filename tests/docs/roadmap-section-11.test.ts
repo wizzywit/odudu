@@ -316,6 +316,11 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       ['P9'],
       ['resource server as a first-class thing'],
     ],
+    [
+      "An agent's reads are audited",
+      ['P11'],
+      'a volume measurement of the audit tables, covered by partitioning',
+    ],
     ['RFC 7523 has no clause table', ['P13'], 'protocol-note bookkeeping, no product behaviour'],
     [
       'The session cap is per browser',

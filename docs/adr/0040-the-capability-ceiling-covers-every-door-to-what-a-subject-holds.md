@@ -107,3 +107,21 @@ One whole-tenant door is exempt: disabling the tenant, through
 it, held to no ceiling and counting none. A disable already shuts every subject
 out, so ending their sessions takes nothing more than the disable itself does;
 what it is held to is `manage-tenant` and the refusal of the `system` tenant.
+
+## Amendment, 2026-11-05 — an agent's reads are audited
+
+A resource server's reads (`/introspect`, `/userinfo`) write no audit row, and
+an ordinary administrator's GETs write none. An agent's do: each MCP tool call,
+read or write, is one `admin_access` row, `agent.tool_call`, naming the agent
+client, the owner, the tool and the admin route, and never its arguments or
+what came back. The two differ because an agent acts on text it reads, so what
+it read is the evidence when it does something it should not have, and because
+a person can be asked what they looked at while an agent cannot.
+
+`admin_access` is always stored: a tenant's `audit_event_types` cannot drop it
+(`tenants_audit_event_types_check`), so an agent read cannot be silently
+unrecorded by a setting. The volume is one row per tool call, bounded by the
+audit retention window and the tool rate of a model, within ADR 0041's
+100,000,000 events. An agent that calls a route its scope or field allowlist
+does not admit is refused with a `capability.refused` row (`insufficient_scope`
+or `agent_without_mcp_scope`). ADR 0050 holds the rest.
