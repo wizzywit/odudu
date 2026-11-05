@@ -301,7 +301,7 @@ Keep-Alive: timeout=72
 
 The command above names port `3000`, not `3082` like the rest of this page. This one block was run again on a
 throwaway stack on that port (see [how the transcripts were made](../../../contributing/transcripts.md)), so the
-`redirect_uris` and `post_logout_redirect_uris` in its output name that port and its ids are that run's.
+`redirect_uris` and `post_logout_redirect_uris` in its output name that port. Its ids, `ETag`s and times are that run's, not those of the blocks around it.
 
 The tenant cannot change how it authenticates. Neither the method nor the
 keys are among the fields the built-in client may be amended in, so an

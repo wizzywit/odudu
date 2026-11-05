@@ -59,7 +59,7 @@ setup with `token_exchange_allowed_for_public` on, whose public self-exchange an
 that last section that did not change were not recorded again, and the new section's ids and times are that run's. The
 `GET /admin/openapi.json` page was fetched again on it (request id, date and size, 697,119 bytes). The stack was removed afterwards.
 
-The thirteen blocks of the admin paths that show a client or the export (`delete-scopesidclientsclientid`,
+The twelve blocks of the admin paths that show a client or the export (`delete-scopesidclientsclientid`,
 `get-clients-post-clients-and-get-clientsid`, `get-export`, `getting-the-token`, `patch-clientsid` and
 `post-clientsidsecret`) were run again on a second freshly built compose project, `odudu-p5a-i5f` (port `3000`,
 `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `cd22f623` plus the change),
