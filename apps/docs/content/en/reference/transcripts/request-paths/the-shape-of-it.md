@@ -15,6 +15,8 @@ the URL and never by a header or a parameter.
 | `GET`  | `/tenants/{tenant}/.well-known/openid-configuration`         | Discovery document                                                                    |
 | `GET`  | `/.well-known/oauth-authorization-server/tenants/{tenant}`   | Authorization server metadata (RFC 8414), [below](./authorization-server-metadata.md) |
 | `GET`  | `/tenants/{tenant}/.well-known/oauth-authorization-server`   | The same document, at a tenant's own domain                                           |
+| `GET`  | `/.well-known/oauth-protected-resource/tenants/{tenant}/mcp` | Protected resource metadata (RFC 9728), [below](./protected-resource-metadata.md)     |
+| `GET`  | `/tenants/{tenant}/.well-known/oauth-protected-resource/mcp` | The same document, at a tenant's own domain                                           |
 | `GET`  | `/tenants/{tenant}/protocol/openid-connect/certs`            | JWKS (public signing keys)                                                            |
 | `GET`  | `/tenants/{tenant}/protocol/openid-connect/auth`             | Authorization endpoint                                                                |
 | `POST` | `/tenants/{tenant}/protocol/openid-connect/auth`             | Authorization endpoint (form)                                                         |

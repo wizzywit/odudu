@@ -81,6 +81,7 @@ Every directory of the workspace, grouped by what it is for.
 - `packages/account` holds registration, email verification and password reset.
 - `packages/protocol-oidc` holds the OAuth 2.1 and OpenID Connect endpoints.
 - `packages/protocol-admin` holds the admin API and its OpenAPI description.
+- `packages/mcp` holds the Model Context Protocol server's metadata for the resource and the challenge a client is answered with.
 - `packages/console-gateway` holds the server side of the console, which keeps its tokens out of the browser.
 
 **Presentation and delivery**

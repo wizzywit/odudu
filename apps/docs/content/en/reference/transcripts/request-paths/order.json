@@ -19,6 +19,7 @@
   "sending-queued-mail-odudu-send-mail.md",
   "rp-initiated-logout.md",
   "authorization-server-metadata.md",
+  "protected-resource-metadata.md",
   "a-themed-sign-in-and-the-brand-route.md",
   "custom-domains-a-domain-host-and-the-proxys-question.md",
   "path-c-client_credentials.md",

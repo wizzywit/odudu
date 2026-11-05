@@ -18,5 +18,6 @@
   "rfc8707.md": { "deferred": 0, "na": 0 },
   "rfc8705.md": { "deferred": 1, "na": 3 },
   "rfc8693.md": { "deferred": 0, "na": 2 },
-  "rfc8414.md": { "deferred": 0, "na": 5 }
+  "rfc8414.md": { "deferred": 0, "na": 5 },
+  "rfc9728.md": { "deferred": 0, "na": 12 }
 }
