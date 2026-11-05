@@ -29,29 +29,34 @@ export type CimdOutcome =
 
 const NAME_MAX = 200;
 
+const CLIENT_ID_MAX = 2048;
+const REDIRECT_URIS_MAX = 20;
+const LOOPBACK_HTTP = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(?=[:/?]|$)/;
+
 // A client_id that is a URL a document can be fetched from: https, a path
-// beyond the root, no fragment, no credentials, no dot segments.
+// beyond the root, no fragment, no credentials, and already in the form a
+// URL parser would write it, so the string fetched is the string compared.
 export function isCimdClientId(raw: string): boolean {
-  if (/[^!-~]|\\/.test(raw) || raw.includes('#')) return false;
+  if (raw.length > CLIENT_ID_MAX || /[^\u0021-\u007e]|\\/.test(raw) || raw.includes('#')) {
+    return false;
+  }
   if (!URL.canParse(raw)) return false;
   const url = new URL(raw);
+  if (url.href !== raw || raw.endsWith('?')) return false;
   if (url.protocol !== 'https:' || url.username !== '' || url.password !== '') return false;
-  if (url.pathname === '/') return false;
-  return !raw
-    .split('?')[0]
-    ?.split('/')
-    .slice(3)
-    .some((s) => s === '.' || s === '..');
+  if (url.pathname === '/' || url.hostname.endsWith('.')) return false;
+  return !url.pathname.split('/').some((s) => s === '.' || s === '..');
 }
 
 function isAllowedRedirectUri(raw: string): boolean {
-  if (/[^!-~]|\\/.test(raw) || !URL.canParse(raw)) return false;
+  if (/[^\u0021-\u007e]|\\/.test(raw) || !URL.canParse(raw)) return false;
   const url = new URL(raw);
   if (url.hash !== '' || raw.includes('#') || url.username !== '' || url.password !== '') {
     return false;
   }
+  if (url.hostname.includes('*')) return false;
   if (url.protocol === 'https:') return true;
-  return url.protocol === 'http:' && isLoopbackHost(url.hostname);
+  return url.protocol === 'http:' && LOOPBACK_HTTP.test(raw);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -77,6 +82,7 @@ function jwksOutcome(
   if (jwks === undefined) return { jwks: null, jwksUri: null };
   if (!isRecord(jwks) || !Array.isArray(jwks.keys)) return 'jwks_invalid';
   const keys: unknown[] = jwks.keys;
+  if (!keys.every(isRecord)) return 'jwks_invalid';
   return privateMemberRefusal(keys) === null ? { jwks: { keys }, jwksUri: null } : 'jwks_private';
 }
 
@@ -90,7 +96,12 @@ export function parseCimdDocument(clientIdUrl: string, body: unknown): CimdOutco
     return refuse('client_name_missing');
   }
   const uris = body.redirect_uris;
-  if (!Array.isArray(uris) || uris.length === 0 || !uris.every((u) => typeof u === 'string')) {
+  if (
+    !Array.isArray(uris) ||
+    uris.length === 0 ||
+    uris.length > REDIRECT_URIS_MAX ||
+    !uris.every((u) => typeof u === 'string')
+  ) {
     return refuse('redirect_uris_invalid');
   }
   const redirectUris: string[] = uris;
@@ -102,6 +113,9 @@ export function parseCimdDocument(clientIdUrl: string, body: unknown): CimdOutco
   if (method !== 'none' && method !== 'private_key_jwt') return refuse('auth_method_refused');
   const keys = jwksOutcome(body);
   if (typeof keys === 'string') return refuse(keys);
+  if (method === 'private_key_jwt' && keys.jwks === null && keys.jwksUri === null) {
+    return refuse('jwks_invalid');
+  }
   return {
     kind: 'ok',
     client: {

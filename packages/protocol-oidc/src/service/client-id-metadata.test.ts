@@ -33,6 +33,14 @@ describe('isCimdClientId', () => {
     'https://u:p@app.example/a',
     'https://app.example/a/../b',
     'https://app.example/./b',
+    'https://app.example/%2E/b',
+    'https://app.example/%2e%2e/b',
+    'HTTPS://app.example/a',
+    'https://APP.example/a',
+    'https://app.example./a',
+    'https://app.example:443/a',
+    'https://app.example/a?',
+    `https://app.example/${'a'.repeat(2048)}`,
     'not a url',
     'client-123',
     '',
@@ -130,6 +138,48 @@ describe('parseCimdDocument', () => {
     ).toBe('jwks_private');
     expect(refusal({ ...minimal, jwks: { keys: [{ kty: 'oct', k: 'z' }] } })).toBe('jwks_private');
     expect(refusal({ ...minimal, jwks: 'x' })).toBe('jwks_invalid');
+  });
+
+  it('refuses private_key_jwt with no key source', () => {
+    expect(refusal({ ...minimal, token_endpoint_auth_method: 'private_key_jwt' })).toBe(
+      'jwks_invalid',
+    );
+  });
+
+  it('refuses a jwks entry that is not an object', () => {
+    expect(refusal({ ...minimal, jwks: { keys: ['x'] } })).toBe('jwks_invalid');
+    expect(refusal({ ...minimal, jwks: { keys: [null] } })).toBe('jwks_invalid');
+    expect(refusal({ ...minimal, jwks: { keys: [{ kty: 'EC' }, 3] } })).toBe('jwks_invalid');
+  });
+
+  it('accepts an https jwks_uri and refuses an http one', () => {
+    expect(refusal({ ...minimal, jwks_uri: 'https://app.example/jwks' })).toBeNull();
+    expect(refusal({ ...minimal, jwks_uri: 'http://app.example/jwks' })).toBe('jwks_invalid');
+  });
+
+  it('refuses redirect_uris that is not an array', () => {
+    expect(refusal({ ...minimal, redirect_uris: 'https://app.example/cb' })).toBe(
+      'redirect_uris_invalid',
+    );
+  });
+
+  it('caps redirect_uris at 20', () => {
+    const uris = (n: number) =>
+      Array.from({ length: n }, (_, i) => `https://app.example/cb${String(i)}`);
+    expect(refusal({ ...minimal, redirect_uris: uris(20) })).toBeNull();
+    expect(refusal({ ...minimal, redirect_uris: uris(21) })).toBe('redirect_uris_invalid');
+  });
+
+  it.each([
+    'https://u@app.example/cb',
+    'https://*.example/cb',
+    'https://app.*/cb',
+    'http://127.1/cb',
+    'http://0x7f.1/cb',
+    'http://2130706433/cb',
+    'http://LOCALHOST/cb',
+  ])('refuses the redirect URI %s', (uri) => {
+    expect(refusal({ ...minimal, redirect_uris: [uri] })).toBe('redirect_uri_refused');
   });
 
   it('refuses jwks together with jwks_uri', () => {
