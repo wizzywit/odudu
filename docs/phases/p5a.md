@@ -205,6 +205,12 @@ the tenant.
   MCP URL; it is ignored, and the row is removed by the reap rule below when
   unused or with the client. An administrator who wants one chain ended sooner
   disables or deletes the client.
+  A refresh that names the MCP URL as its `resource` after the policy ended is
+  refused `invalid_target` before the token is rotated (the pre-rotation check
+  derives the held audience the same way), so a client's retry does not trip
+  reuse detection. A tenant with a domain is registered and authorized at the
+  domain, where both derive the MCP URL from the same address; its path
+  address no longer serves registration, so no other audience can be stored.
 - **mcp:write.** A client of those origins is refused `mcp:write` at
   `/authorize` (`refusesWriteScope`) even if an administrator assigned it,
   so the policy's ceiling holds for a row nobody at the tenant vetted.
@@ -214,8 +220,9 @@ the tenant.
   anonymous registrant.
 - **Reaping.** `odudu reap` reports `dynamic_clients`: a public client of
   origin `anonymous`, enabled, older than a week
-  (`UNUSED_DYNAMIC_CLIENT_SECONDS`), with no consent, no grant of any age
-  and no unexpired code, is deleted; one with any of those is kept. It
+  (`UNUSED_DYNAMIC_CLIENT_SECONDS`), with no consent, no token grant (a grant is reaped by its own rule
+  first, once past its retention, and only then can the client go) and
+  no unexpired code, is deleted; one with any of those is kept. It
   applies to every self-registered public client, not only those the `mcp`
   policy made. Served by `clients_anonymous_public_by_created` (migration 0118) with the existing `consents_by_client`, `token_grants_by_client` and
   `authorization_codes_by_client`; the plans suite covers the statement at

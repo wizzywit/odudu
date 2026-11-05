@@ -685,7 +685,7 @@ docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"mcp-demo","tenantId":"01a1acda-9e59-…"}
+{"command":"tenant","created":true,"tenant":"mcp-demo","tenantId":"01a1ad2c-bfc1-…"}
 UPDATE 1
 ```
 
@@ -697,8 +697,8 @@ curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/op
 
 ```json
 {
-  "client_id": "01a1acda-a01a-…",
-  "client_id_issued_at": 1793901371,
+  "client_id": "01a1ad2c-c0f1-…",
+  "client_id_issued_at": 1793906753,
   "redirect_uris": ["https://agent.example/cb", "http://127.0.0.1:53124/cb"],
   "audience": ["http://localhost:3000/tenants/mcp-demo/mcp"],
   "grant_types": ["authorization_code"],
@@ -716,13 +716,13 @@ not assigned to any client the policy creates:
 docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
   select c.type, c.registration_origin, o.token_endpoint_auth_method, o.audiences, o.consent_required
   from clients c join client_oidc_config o on o.client_id = c.id
-  where c.client_id = '01a1acda-a01a-78ab-8be6-acf20a83cf42'"
+  where c.client_id = '01a1ad2c-c0f1-75cd-bb2a-dcaf7ce5a2ed'"
 docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
   select s.name, a.assignment
   from client_scope_assignments a
   join client_scopes s on s.id = a.client_scope_id
   join clients c on c.id = a.client_id
-  where c.client_id = '01a1acda-a01a-78ab-8be6-acf20a83cf42' and s.name like 'mcp:%'"
+  where c.client_id = '01a1ad2c-c0f1-75cd-bb2a-dcaf7ce5a2ed' and s.name like 'mcp:%'"
 ```
 
 ```
@@ -796,6 +796,7 @@ curl -sS -i -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations
            3
 (1 row)
 
+UPDATE 1
 HTTP/1.1 403 Forbidden
 {"error":"invalid_client_metadata","error_description":"this tenant has reached its client registration limit"}
 UPDATE 1
@@ -804,7 +805,7 @@ UPDATE 1
 201
 201
 HTTP/1.1 429 Too Many Requests
-retry-after: 3586
+retry-after: 3600
 {"error":"invalid_client_metadata","error_description":"too many registrations from this address; retry later"}
 ```
 

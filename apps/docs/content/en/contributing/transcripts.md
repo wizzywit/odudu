@@ -55,14 +55,14 @@ only as far as Path A plus one refresh rotation and then through the page's own 
 came back. The unseeded-stack and refusal outputs were not re-run, since the key is not in them.
 
 The `mcp` value of `client_registration_policy` was added on 2026-11-05. The new section of the bootstrap page,
-"The `mcp` policy", was run on a freshly built compose project, `odudu-p5a-i4` (port `3000`, `ODUDU_REAP_ENABLED=false`,
-throttles at `10000`, built from the branch commit `712f51e9` plus the documentation) with a tenant made for it, `mcp-demo`,
+"The `mcp` policy", was run on a freshly built compose project, `odudu-p5a-i4d` (port `3000`, `ODUDU_REAP_ENABLED=false`,
+throttles at `10000`, built from the branch commit `83b5ad9c` plus the documentation) with a tenant made for it, `mcp-demo`,
 and only as far as the commands it shows. The tenant's policy was set with `psql`, since no seed flag or admin field sets
 the value yet. The tenant, client and instants differ from the page by being elided, and the stack was removed afterwards.
 The other registration pages predate the policy and were not run again, and no sign-in was re-run for the consent change,
 whose screen is unchanged. `GET /admin/openapi.json` was fetched again on the project `odudu-p5a-i4b`, because the
 tenant export's schema names the new value; only its request id, date and size (693,792 bytes) differ.
-The retention page of the request paths gained the `dynamic_clients` key of `odudu reap` the same day, and its seven reports were captured again on the project `odudu-p5a-i4c` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), freshly built and driven as the page says, as far as Path A plus one refresh rotation and then through the page's own commands in order. The section on `dynamic_clients` ran on a second tenant of that stack.
+The retention page of the request paths gained the `dynamic_clients` key of `odudu reap` the same day, and its seven reports were captured again on the project `odudu-p5a-i4c` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), freshly built and driven as the page says, as far as Path A plus one refresh rotation and then through the page's own commands in order. The retention page's section on `dynamic_clients` was captured on its own, on the project `odudu-p5a-i4d`, a freshly built stack that had run only the bootstrap page's `mcp` section before it; its own commands, including the seeding, are the ones the page shows, and every query is scoped to the tenant `dyn-demo`.
 
 `cimd_enabled`, the tenant setting for client ID metadata documents, was added on 2026-11-05. The
 authorization server metadata page gained a section that turns it on and off, and the settings page's

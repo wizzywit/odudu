@@ -230,12 +230,15 @@ The unproved domain and the expired retirement are gone. The verified domain,
 which is the tenant's address, stays however old it is.
 
 `dynamic_clients` is what keeps a tenant that lets clients register themselves from
-filling with ones nobody used. On a separate tenant, `dyn-demo`, seeded as `demo` is (a client, and `ada`), with registration open,
-two public clients registered and a person approved one of them (a consent row, written
-here directly); both were then backdated by eight days. The unused one is deleted and the
-approved one stays:
+filling with ones nobody used. Its state is what the commands below make, on a stack whose
+other tenants hold nothing a week old: a tenant `dyn-demo` seeded with a
+client and `ada` as [Bootstrap](./bootstrap.md) seeds `demo`, its registration policy set
+to `open`, and two public clients registered, `unused` and `approved`:
 
 ```bash
+odudu seed --tenant dyn-demo --client dyn-app \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com
 odudu seed tenant --name dyn-demo --set client_registration_policy=open
 curl -sS -X POST http://localhost:3000/tenants/dyn-demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' \
@@ -243,15 +246,73 @@ curl -sS -X POST http://localhost:3000/tenants/dyn-demo/clients-registrations/op
 curl -sS -X POST http://localhost:3000/tenants/dyn-demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' \
   -d '{"redirect_uris":["https://rp.example/approved"],"token_endpoint_auth_method":"none","client_name":"approved"}'
-docker compose exec -T postgres psql -U odudu -d odudu -c "insert into consents (id, tenant_id, subject_id, client_id) select gen_random_uuid(), c.tenant_id, u.subject_id, c.id from clients c join users u on u.tenant_id = c.tenant_id where c.name = 'approved' and u.username = 'ada'; update clients set created_at = created_at - interval '8 days' where registration_origin = 'anonymous';"
+```
+
+```
+{"created":true,"tenant":"dyn-demo","tenantId":"01a1ad2c-c4f1-7253-811e-a54a3291923b","clientId":"dyn-app","userSubjectId":"01a1ad2c-c583-7040-adad-c150fdf02b3d"}
+{"command":"tenant","created":false,"tenant":"dyn-demo","tenantId":"01a1ad2c-c4f1-7253-811e-a54a3291923b","settings":["client_registration_policy"]}
+{"client_id":"01a1ad2c-c7a6-74d6-84c6-4eedbcf4c197","client_id_issued_at":1793906755,"redirect_uris":["https://rp.example/unused"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"unused"}
+{"client_id":"01a1ad2c-c7bd-745e-84cb-038db9818837","client_id_issued_at":1793906755,"redirect_uris":["https://rp.example/approved"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"approved"}
+```
+
+A person approves one of them (a consent row, written here directly), and both are
+backdated by eight days, each statement scoped to the tenant. The unused one is deleted and
+the approved one stays:
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -c "insert into consents (id, tenant_id, subject_id, client_id) select gen_random_uuid(), c.tenant_id, u.subject_id, c.id from clients c join users u on u.tenant_id = c.tenant_id join tenants t on t.id = c.tenant_id where t.name = 'dyn-demo' and c.name = 'approved' and u.username = 'ada'; update clients set created_at = created_at - interval '8 days' where registration_origin = 'anonymous' and tenant_id = (select id from tenants where name = 'dyn-demo');"
 odudu reap
-docker compose exec -T postgres psql -U odudu -d odudu -c "select name, registration_origin, type from clients where registration_origin = 'anonymous' order by name;"
+docker compose exec -T postgres psql -U odudu -d odudu -c "select c.name, c.registration_origin, c.type from clients c join tenants t on t.id = c.tenant_id where t.name = 'dyn-demo' and c.registration_origin = 'anonymous' order by c.name;"
 ```
 
 ```
 INSERT 0 1
 UPDATE 2
+
+@@C
+  type  | registration_origin | token_endpoint_auth_method |                  audiences                   | consent_required
+--------+---------------------+----------------------------+----------------------------------------------+------------------
+ public | anonymous           | none                       | {http://localhost:3000/tenants/mcp-demo/mcp} | t
+(1 row)
+
+   name   | assignment
+----------+------------
+ mcp:read | optional
+(1 row)
+
+@@D
+{"error":"invalid_client_metadata","error_description":"token_endpoint_auth_method must be none: this tenant's registration policy admits public clients only"}
+{"error":"invalid_redirect_uri","error_description":"redirect_uris entry http://agent.example/cb is not valid"}
+{"error":"invalid_client_metadata","error_description":"scope mcp:write is not available under this tenant's registration policy"}
+{"error":"invalid_client_metadata","error_description":"audience must be http://localhost:3000/tenants/mcp-demo/mcp and nothing else under this tenant's registration policy"}
+@@E
+ max_clients
+-------------
+           3
+(1 row)
+
+UPDATE 1
+HTTP/1.1 403 Forbidden
+{"error":"invalid_client_metadata","error_description":"this tenant has reached its client registration limit"}
+UPDATE 1
+201
+201
+201
+201
+HTTP/1.1 429 Too Many Requests
+retry-after: 3600
+{"error":"invalid_client_metadata","error_description":"too many registrations from this address; retry later"}
+@@F
+{"created":true,"tenant":"dyn-demo","tenantId":"01a1ad2c-c4f1-7253-811e-a54a3291923b","clientId":"dyn-app","userSubjectId":"01a1ad2c-c583-7040-adad-c150fdf02b3d"}
+{"command":"tenant","created":false,"tenant":"dyn-demo","tenantId":"01a1ad2c-c4f1-7253-811e-a54a3291923b","settings":["client_registration_policy"]}
+{"client_id":"01a1ad2c-c7a6-74d6-84c6-4eedbcf4c197","client_id_issued_at":1793906755,"redirect_uris":["https://rp.example/unused"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"unused"}
+{"client_id":"01a1ad2c-c7bd-745e-84cb-038db9818837","client_id_issued_at":1793906755,"redirect_uris":["https://rp.example/approved"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"approved"}
+@@G
+INSERT 0 1
+UPDATE 2
+@@H
 {"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"pending_registrations":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"tenant_issuer_retirements":0,"client_metadata_cache":0,"cimd_clients":0,"dynamic_clients":1,"tenant_domains":0,"sessions":0,"audit_events":0},"cleared":{"client_previous_secrets":0}}
+@@I
    name   | registration_origin |  type
 ----------+---------------------+--------
  approved | anonymous           | public
