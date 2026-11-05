@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   MCP_READ_SCOPE,
   MCP_WRITE_SCOPE,
+  MCP_WRITE_MAX_TTL_SECONDS,
+  capLifetimeForScope,
+  refreshAllowedForScope,
   scopeAllowedAt,
   scopesCoherentWithAudience,
   withMcpScopes,
@@ -78,5 +81,33 @@ describe('scopesCoherentWithAudience', () => {
     expect(
       scopesCoherentWithAudience(['openid', 'profile'], ['https://api.example'], MCP, ADMIN),
     ).toBe(true);
+  });
+});
+
+describe('capLifetimeForScope', () => {
+  it('caps a lifetime at ten minutes when mcp:write is present', () => {
+    expect(MCP_WRITE_MAX_TTL_SECONDS).toBe(600);
+    expect(capLifetimeForScope(3600, ['openid', MCP_WRITE_SCOPE])).toBe(600);
+    expect(capLifetimeForScope(600, [MCP_WRITE_SCOPE])).toBe(600);
+  });
+
+  it('only ever lowers: a shorter lifetime stands', () => {
+    expect(capLifetimeForScope(300, [MCP_READ_SCOPE, MCP_WRITE_SCOPE])).toBe(300);
+  });
+
+  it('leaves the tenant lifetime alone without mcp:write', () => {
+    expect(capLifetimeForScope(3600, [MCP_READ_SCOPE])).toBe(3600);
+    expect(capLifetimeForScope(3600, [])).toBe(3600);
+  });
+});
+
+describe('refreshAllowedForScope', () => {
+  it('refuses a refresh token for a grant holding mcp:write, offline_access or not', () => {
+    expect(refreshAllowedForScope([MCP_WRITE_SCOPE])).toBe(false);
+    expect(refreshAllowedForScope(['offline_access', MCP_READ_SCOPE, MCP_WRITE_SCOPE])).toBe(false);
+  });
+
+  it('allows one otherwise', () => {
+    expect(refreshAllowedForScope([MCP_READ_SCOPE, 'offline_access'])).toBe(true);
   });
 });

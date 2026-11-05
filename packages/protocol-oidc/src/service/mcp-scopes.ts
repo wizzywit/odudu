@@ -38,3 +38,18 @@ export function scopesCoherentWithAudience(
 export function withMcpScopes(scopes: readonly string[]): string[] {
   return [...new Set([...scopes, ...MCP_SCOPES])].sort();
 }
+
+export const MCP_WRITE_MAX_TTL_SECONDS = 600;
+
+// A write is made on a token that dies in ten minutes at most; a tenant or
+// client setting may only lower that.
+export function capLifetimeForScope(ttlSeconds: number, scope: readonly string[]): number {
+  return scope.includes(MCP_WRITE_SCOPE)
+    ? Math.min(ttlSeconds, MCP_WRITE_MAX_TTL_SECONDS)
+    : ttlSeconds;
+}
+
+// A grant holding mcp:write is never refreshable: the holder re-authorizes.
+export function refreshAllowedForScope(scope: readonly string[]): boolean {
+  return !scope.includes(MCP_WRITE_SCOPE);
+}

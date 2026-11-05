@@ -75,6 +75,7 @@ async function addClient(
     assign: string[];
     serviceSubjectId?: string;
     impersonation?: boolean;
+    accessTtl?: number;
   },
 ): Promise<void> {
   const id = newId();
@@ -102,7 +103,7 @@ async function addClient(
     tokenEndpointAuthMethod: 'client_secret_basic',
     audiences: input.audiences,
     ...(input.impersonation === true ? { tokenExchangeImpersonationAllowed: true } : {}),
-    accessTokenTtlSeconds: 300,
+    accessTokenTtlSeconds: input.accessTtl ?? 300,
     refreshTokenTtlSeconds: 1_209_600,
     ...(input.grantTypes.includes('client_credentials')
       ? { clientCredentialsScopes: ['mcp:read', 'mcp:write'] }
@@ -128,14 +129,16 @@ async function populate(): Promise<void> {
       grantTypes: ['authorization_code', 'refresh_token'],
       audiences: [MCP_URL, OTHER],
       assign: ['mcp:read', 'mcp:write'],
+      accessTtl: 3600,
     });
     await addClient(tx, {
       clientId: EXCHANGE_ID,
       secret: EXCHANGE_SECRET,
       grantTypes: ['authorization_code', 'refresh_token', TOKEN_EXCHANGE_GRANT],
       audiences: [MCP_URL, OTHER],
-      assign: ['mcp:read'],
+      assign: ['mcp:read', 'mcp:write'],
       impersonation: true,
+      accessTtl: 3600,
     });
     await addClient(tx, {
       clientId: PLAIN_ID,
@@ -152,6 +155,7 @@ async function populate(): Promise<void> {
       audiences: [MCP_URL, OTHER, ADMIN_API_AUDIENCE],
       assign: ['mcp:read', 'mcp:write'],
       serviceSubjectId: service.id,
+      accessTtl: 3600,
     });
 
     const subject = await subjectRepository(tx).create({ tenantId: TENANT_ID, type: 'user' });
@@ -456,5 +460,98 @@ describe('the token-exchange grant', () => {
     const foreign = await exchange(OTHER);
     expect(foreign.status).toBe(400);
     expect(foreign.body.error).toBe('invalid_scope');
+  });
+});
+
+describe('a write token is short-lived and unrefreshable', () => {
+  const codeRequest = (code: string) => ({
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: REDIRECT_URI,
+    code_verifier: VERIFIER,
+  });
+
+  async function issue(scope: string) {
+    const code = await mintCode(WEB_ID, scope, [MCP_URL]);
+    return token(codeRequest(code), WEB_ID, WEB_SECRET);
+  }
+
+  type Full = TokenResult['body'] & { refresh_token?: string; expires_in?: number };
+
+  it('caps expires_in and exp at ten minutes and issues no refresh token', async () => {
+    const result = await issue('openid mcp:write');
+    expect(result.status).toBe(200);
+    const body = result.body as Full;
+    expect(body.expires_in).toBe(600);
+    expect(body.refresh_token).toBeUndefined();
+    const claims = claimsOf(body.access_token);
+    expect(Number(claims.exp) - Number(claims.iat)).toBe(600);
+  });
+
+  it('ignores offline_access beside mcp:write: no refresh token, no error', async () => {
+    const result = await issue('openid offline_access mcp:write');
+    expect(result.status).toBe(200);
+    const body = result.body as Full;
+    expect(body.refresh_token).toBeUndefined();
+    expect(body.expires_in).toBe(600);
+  });
+
+  it('lets mcp:read follow the client lifetime and keeps its refresh token', async () => {
+    const result = await issue('openid mcp:read');
+    const body = result.body as Full;
+    expect(body.expires_in).toBe(3600);
+    expect(body.refresh_token).toBeTypeOf('string');
+  });
+
+  it('refuses a refresh that would widen an mcp:read grant to mcp:write', async () => {
+    const read = (await issue('openid mcp:read')).body as Full;
+    const widened = await token(
+      {
+        grant_type: 'refresh_token',
+        refresh_token: read.refresh_token ?? '',
+        scope: 'mcp:read mcp:write',
+      },
+      WEB_ID,
+      WEB_SECRET,
+    );
+    expect(widened.status).toBe(400);
+    expect(widened.body.error).toBe('invalid_scope');
+  });
+
+  it('caps client_credentials at the same ten minutes', async () => {
+    const res = await token(
+      { grant_type: 'client_credentials', scope: 'mcp:write', resource: MCP_URL },
+      MACHINE_ID,
+      MACHINE_SECRET,
+    );
+    expect(res.status).toBe(200);
+    expect((res.body as Full).expires_in).toBe(600);
+  });
+
+  it('caps an exchanged write token and refuses to exchange one into a refresh token', async () => {
+    const code = await mintCode(EXCHANGE_ID, 'openid mcp:write', [MCP_URL]);
+    const held = await token(codeRequest(code), EXCHANGE_ID, EXCHANGE_SECRET);
+    expect(held.status).toBe(200);
+    const exchange = (extra: Record<string, string>) =>
+      token(
+        {
+          grant_type: TOKEN_EXCHANGE_GRANT,
+          subject_token: held.body.access_token ?? '',
+          subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+          scope: 'mcp:write',
+          resource: MCP_URL,
+          ...extra,
+        },
+        EXCHANGE_ID,
+        EXCHANGE_SECRET,
+      );
+    const access = await exchange({});
+    expect(access.status).toBe(200);
+    expect((access.body as Full & { expires_in?: number }).expires_in).toBeLessThanOrEqual(600);
+    const refresh = await exchange({
+      requested_token_type: 'urn:ietf:params:oauth:token-type:refresh_token',
+    });
+    expect(refresh.status).toBe(400);
+    expect(refresh.body.error).toBe('invalid_scope');
   });
 });

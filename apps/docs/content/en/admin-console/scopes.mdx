@@ -39,6 +39,8 @@ A default scope goes to a request that names no scope. An optional scope goes on
 
 `mcp:read` and `mcp:write` are refused with `invalid_scope` at any audience except the tenant's MCP URL or the admin API audience. A client registered for the MCP URL and another audience must send `resource` set to the MCP URL when it asks for one of them.
 
+A token that carries `mcp:write` lives ten minutes at most, even if the tenant or client allows longer, and no refresh token is issued with it. `mcp:read` follows the tenant's lifetimes.
+
 ## 5. Connect roles
 
 The **Roles** tab lists the roles a token carries when it is granted this scope. With none mapped, a client that has **Include all roles in tokens** off gets no roles from this scope. That switch is set on each client, under **Tokens**.
