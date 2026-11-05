@@ -93,9 +93,10 @@ blur "refused at its expiry". The admin API adds one tenant-scoped read, the
 canonical host and the live retirements in one transaction, to each request for a
 tenant other than `system`.
 
-A console session whose access token was issued at an address its tenant has since
-left is refused by the admin API once the window ends, because the console gateway
-does not refresh on a `401`: the administrator signs in again.
+A console session holds an access token issued at an address its tenant has since
+left for at most the window, because no access token lives longer. The gateway
+refreshes before expiry, always at the canonical token endpoint, and a refresh
+token is bound to the tenant, so a switch signs no administrator out.
 
 The verification limits are per process, and so is the check endpoint's limiter,
 which a flood of handshakes through the proxy can exhaust for a minute.

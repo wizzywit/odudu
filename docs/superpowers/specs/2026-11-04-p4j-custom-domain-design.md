@@ -122,8 +122,9 @@ sign in, then receives them back on the base address. The admin API accepts a
 tenant's token while its issuer is the tenant's canonical address or one it left
 inside the window; a machine client fetches tokens from the canonical token
 endpoint, and tokens from the address left stop working when the window ends. A
-console session opened before a switch works through the window and then needs a
-fresh sign-in, since the gateway does not refresh on a `401`. Switching back
+console session opened before a switch carries on: no access token outlives the
+window, so the gateway refreshes onto the canonical address before the old token
+runs out. Switching back
 returns sign-in to the path address, and tokens issued at the domain work for the
 window. The system tenant cannot have a domain and is unaffected.
 
