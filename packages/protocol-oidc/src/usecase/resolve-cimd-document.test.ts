@@ -113,6 +113,23 @@ describe('resolveCimdDocument', () => {
     expect(JSON.stringify(stored[0]?.body)).not.toContain('extra');
   });
 
+  it('stamps what it stores with when the fetch began, not when it ended', async () => {
+    const ticks = [NOW, NOW, new Date(NOW.getTime() + 2_000)];
+    const seen: Date[] = [];
+    const { deps } = setup({
+      now: () => ticks.shift() ?? NOW,
+      cache: {
+        find: () => Promise.resolve(null),
+        store: (_tenant, _url, _body, fetchedAt) => {
+          seen.push(fetchedAt);
+          return Promise.resolve();
+        },
+      },
+    });
+    await resolveCimdDocument('t1', URL_A, deps);
+    expect(seen).toEqual([NOW]);
+  });
+
   it('treats a cached projection that no longer validates as a miss', async () => {
     const { deps, fetched } = setup({
       cache: {

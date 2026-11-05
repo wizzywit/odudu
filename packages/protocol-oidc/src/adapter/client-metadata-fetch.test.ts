@@ -220,6 +220,21 @@ describe('fetchCimdDocument', () => {
     expect(await fetchCimdDocument(URL_OK, d)).toEqual({ kind: 'refused', reason: 'timeout' });
   });
 
+  it('sends nothing when the lookup answers only after the deadline', async () => {
+    const { deps: d, calls } = deps({
+      deadlineMs: 20,
+      lookup: () =>
+        new Promise<string[]>((resolve) => {
+          setTimeout(() => {
+            resolve(['93.184.216.34']);
+          }, 60);
+        }),
+    });
+    expect(await fetchCimdDocument(URL_OK, d)).toEqual({ kind: 'refused', reason: 'timeout' });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(calls.requests).toEqual([]);
+  });
+
   it('marks a no-store response as not to be kept', async () => {
     const { deps: d } = deps({ response: ok({ cacheControl: 'no-store' }) });
     const outcome = await fetchCimdDocument(URL_OK, d);

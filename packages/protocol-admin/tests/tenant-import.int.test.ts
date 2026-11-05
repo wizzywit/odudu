@@ -299,6 +299,38 @@ describe('POST /admin/tenant-imports', () => {
     expect(withoutRenamedFields(reexported)).toEqual(withoutRenamedFields(expected));
   });
 
+  it('exports a tenant holding a metadata document client and a role it owns, and imports the document', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    await withTenant(fixture.app.db, source.id, async (tx) => {
+      const created = await clientRepository(tx).create({
+        tenantId: source.id,
+        clientId: 'https://notes.example.com/client.json',
+        name: 'Notes',
+        type: 'public',
+        secretHash: null,
+        registrationOrigin: 'cimd',
+        metadataUsedAt: new Date(),
+      });
+      await roleRepository(tx).create({
+        tenantId: source.id,
+        name: 'notes-editor',
+        clientId: created.id,
+      });
+    });
+
+    const document = await exportOf(token, source.name);
+
+    expect(document.clients.map((client) => client.client_id)).not.toContain(
+      'https://notes.example.com/client.json',
+    );
+    expect(document.roles.map((role) => role.client)).not.toContain(
+      'https://notes.example.com/client.json',
+    );
+    const res = await postImport(token, { name: `import-${newId()}`, document });
+    expect(res.statusCode, res.payload).toBe(201);
+  });
+
   async function mcpClientRows(tenantId: string) {
     return withTenant(fixture.app.db, tenantId, async (tx) => {
       const repository = clientRepository(tx);

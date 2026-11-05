@@ -408,6 +408,23 @@ describe('GET /admin/tenants/{tenant}/export', () => {
     expect(JSON.stringify(res.json())).toContain('roles');
   }, 60_000);
 
+  it('does not count the roles of an omitted metadata document client against the roles bound', async () => {
+    const t = await fixture.createTenant(`export-${newId()}`);
+    const clientId = newId();
+    await fixture.owner.sql`
+      insert into clients (id, tenant_id, client_id, name, type, registration_origin, metadata_used_at)
+      values (${clientId}, ${t.id}, 'https://notes.example.com/c.json', 'Notes', 'public', 'cimd', now())`;
+    await fixture.owner.sql`
+      insert into roles (id, tenant_id, client_id, name)
+      select gen_random_uuid(), ${t.id}, ${clientId}, 'bulk-' || g
+        from generate_series(1, ${EXPORT_COLLECTION_CAP} + 1) g`;
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+
+    const res = await exportTenant(token, t.name);
+
+    expect(res.statusCode, res.payload.slice(0, 200)).toBe(200);
+  }, 60_000);
+
   it('refuses a tenant whose one role nests more composites than an import takes, naming the count', async () => {
     const t = await fixture.createTenant(`export-${newId()}`);
     await fixture.owner.sql`

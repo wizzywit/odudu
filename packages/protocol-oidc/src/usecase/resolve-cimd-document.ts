@@ -44,6 +44,7 @@ export async function resolveCimdDocument(
     return { kind: 'refused', reason: 'rate_limited' };
   }
 
+  const startedAt = deps.now();
   const fetched = await deps.fetch(url);
   if (fetched.kind === 'refused') {
     return fetched;
@@ -58,7 +59,7 @@ export async function resolveCimdDocument(
     // optimisation, and its failure must not refuse a valid client. Only the
     // error's code is logged, since its message can carry the document.
     await deps.cache
-      .store(tenantId, url, projection, deps.now(), fetched.expiresAt, CIMD_CACHE_MAX_ROWS)
+      .store(tenantId, url, projection, startedAt, fetched.expiresAt, CIMD_CACHE_MAX_ROWS)
       .catch((error: unknown) => {
         deps.warn('cimd cache store failed', { tenantId, host, code: codeOf(error) });
       });

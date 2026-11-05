@@ -313,6 +313,38 @@ describe('persistCimdClient', () => {
     expect(urls.has('https://filler.example/4')).toBe(false);
   }, 60_000);
 
+  it('never evicts a client an administrator disabled, so the decision survives a full tenant', async () => {
+    await fill(mine, CIMD_CLIENTS_PER_TENANT);
+    await ownerHandle?.db.execute(
+      sql`update clients set enabled = false where tenant_id = ${mine} and client_id = 'https://filler.example/1'`,
+    );
+
+    expect(await persist(mine, documentClient())).toBe('ok');
+
+    const urls = await urlsOf(mine);
+    expect(urls.has('https://filler.example/1')).toBe(true);
+    expect(urls.has('https://filler.example/2')).toBe(false);
+  }, 60_000);
+
+  it('does not count a refresh token of a revoked grant, and counts one that lapsed within an access token’s life', async () => {
+    await fill(mine, CIMD_CLIENTS_PER_TENANT);
+    await protect(mine, 'https://filler.example/1', 'refresh');
+    await ownerHandle?.db.execute(
+      sql`update token_grants set revoked_at = now() where tenant_id = ${mine}`,
+    );
+    await protect(mine, 'https://filler.example/2', 'refresh');
+    await ownerHandle?.db
+      .execute(sql`update refresh_tokens set expires_at = now() - interval '30 minutes'
+       where tenant_id = ${mine} and token_hash like ${`rt-%`} and grant_id in
+       (select id from token_grants where tenant_id = ${mine} and revoked_at is null)`);
+
+    expect(await persist(mine, documentClient(), new Date())).toBe('ok');
+
+    const urls = await urlsOf(mine);
+    expect(urls.has('https://filler.example/1')).toBe(false);
+    expect(urls.has('https://filler.example/2')).toBe(true);
+  }, 60_000);
+
   it('refuses a new client at the ceiling when every row is protected, and still refreshes a held one', async () => {
     await fill(mine, 3);
     await ownerHandle?.db.execute(
@@ -333,7 +365,9 @@ describe('persistCimdClient', () => {
   it('evicts nothing of another tenant, and finds nothing evictable through a foreign tenant context', async () => {
     await fill(mine, 5);
     await fill(theirs, 5);
-    const asTheirs = await withTenant(app.db, theirs, (tx) => cimdClientRepository(tx).evictable());
+    const asTheirs = await withTenant(app.db, theirs, (tx) =>
+      cimdClientRepository(tx).evictable(NOW),
+    );
     const mineId = await idOf(mine, 'https://filler.example/1');
     expect(asTheirs).not.toBe(mineId);
     const other = await withTenant(app.db, mine, (tx) =>

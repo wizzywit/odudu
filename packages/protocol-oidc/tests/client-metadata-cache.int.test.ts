@@ -60,6 +60,16 @@ async function rows(tenantId: string): Promise<string[]> {
 }
 
 describe('cimdCacheRepository', () => {
+  it('keeps the document of the later fetch when an earlier one finishes last', async () => {
+    const repo = cimdCacheRepository(app);
+    const earlier = new Date(NOW.getTime() - 5_000);
+    await repo.store(mine, URL_A, { client_name: 'newer' }, NOW, later, 1000);
+    await repo.store(mine, URL_A, { client_name: 'older' }, earlier, later, 1000);
+    expect((await repo.find(mine, URL_A, NOW))?.body).toEqual({ client_name: 'newer' });
+    await repo.store(mine, URL_A, { client_name: 'newest' }, later, later, 1000);
+    expect((await repo.find(mine, URL_A, NOW))?.body).toEqual({ client_name: 'newest' });
+  });
+
   it('[CIMD-4.4-01] returns what was stored until it expires', async () => {
     const repo = cimdCacheRepository(app);
     await repo.store(mine, URL_A, { client_name: 'App' }, NOW, later, 1000);

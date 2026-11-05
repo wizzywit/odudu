@@ -65,14 +65,18 @@ function isJson(contentType: string | null): boolean {
   return (contentType.split(';')[0] ?? '').trim().toLowerCase() === 'application/json';
 }
 
-function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
+// `work` is told when the deadline has passed, since a lookup that answers
+// late would otherwise still go on to open the connection.
+function withDeadline<T>(work: (isExpired: () => boolean) => Promise<T>, ms: number): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
+  let passed = false;
   const expired = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {
+      passed = true;
       reject(new ResponseTimedOut('the document was not fetched within its deadline'));
     }, ms);
   });
-  return Promise.race([work, expired]).finally(() => {
+  return Promise.race([work(() => passed), expired]).finally(() => {
     clearTimeout(timer);
   });
 }
@@ -91,8 +95,13 @@ async function checkedAddress(url: URL, lookup: CimdFetchDeps['lookup']): Promis
   return address;
 }
 
-async function fetchChecked(url: URL, deps: CimdFetchDeps): Promise<CimdResponse> {
+async function fetchChecked(
+  url: URL,
+  deps: CimdFetchDeps,
+  isExpired: () => boolean,
+): Promise<CimdResponse> {
   const address = await checkedAddress(url, deps.lookup);
+  if (isExpired()) throw new ResponseTimedOut('the lookup answered after the deadline');
   return deps.request(url, address);
 }
 
@@ -151,7 +160,7 @@ export async function fetchCimdDocument(
   }
   try {
     const response = await withDeadline(
-      fetchChecked(url, deps),
+      (isExpired) => fetchChecked(url, deps, isExpired),
       deps.deadlineMs ?? CIMD_DEADLINE_MS,
     );
     return interpret(response, deps.now());

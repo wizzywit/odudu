@@ -40,7 +40,19 @@ import {
   type ClientScopeAssignment,
 } from '@odudu/domain-tenant';
 import { clientOidcConfig } from '@odudu/protocol-oidc';
-import { and, asc, count, eq, inArray, ne, notInArray, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  eq,
+  inArray,
+  isNull,
+  ne,
+  notInArray,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { type PgTable } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { countAtMost } from '#/usecase/capped-count';
@@ -153,7 +165,14 @@ async function readRoles(tx: TenantScopedDatabase, tenantId: string): Promise<Ro
     })
     .from(roles)
     .leftJoin(clients, eq(roles.clientId, clients.id))
-    .where(eq(roles.tenantId, tenantId));
+    // A role of a client the document leaves out would name a client it does
+    // not hold: tenant roles (no client) and every exported client's stay.
+    .where(
+      and(
+        eq(roles.tenantId, tenantId),
+        or(isNull(roles.clientId), ne(clients.registrationOrigin, 'cimd')),
+      ),
+    );
   return rows.map((row) => ({
     id: row.id,
     reference: { name: row.name, client: row.clientKey },
@@ -219,7 +238,19 @@ async function oversized(
     {
       collection: 'roles',
       table: roles,
-      where: eq(roles.tenantId, tenantId),
+      where: and(
+        eq(roles.tenantId, tenantId),
+        or(
+          isNull(roles.clientId),
+          notInArray(
+            roles.clientId,
+            tx
+              .select({ id: clients.id })
+              .from(clients)
+              .where(eq(clients.registrationOrigin, 'cimd')),
+          ),
+        ),
+      ),
       cap: caps.collection,
     },
     {

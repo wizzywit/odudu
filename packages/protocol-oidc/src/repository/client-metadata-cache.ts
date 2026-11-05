@@ -1,5 +1,5 @@
 import { withTenant, type DatabaseHandle } from '@odudu/db';
-import { and, eq, gt, notInArray, sql } from 'drizzle-orm';
+import { and, eq, gt, lte, notInArray, sql } from 'drizzle-orm';
 import { clientMetadataCache } from '#/schema/client-metadata-cache';
 
 /** Most documents kept per tenant; a tenant's 1,001st fetch evicts its oldest. */
@@ -51,6 +51,9 @@ export function cimdCacheRepository(database: DatabaseHandle) {
           .onConflictDoUpdate({
             target: [clientMetadataCache.tenantId, clientMetadataCache.url],
             set: { body, fetchedAt: now, expiresAt },
+            // `now` is when the fetch began, so a slower earlier fetch that
+            // finishes last cannot replace a document fetched after it.
+            setWhere: lte(clientMetadataCache.fetchedAt, now),
           });
         await tx.delete(clientMetadataCache).where(
           and(

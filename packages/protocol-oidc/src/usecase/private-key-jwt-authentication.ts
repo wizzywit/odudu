@@ -126,7 +126,11 @@ export async function authenticatePrivateKeyJwt(
     jwks = config.jwks;
   } else if (config.jwksUri !== null) {
     try {
-      jwks = await deps.clientKeySet.fetch(config.jwksUri, deps.tenantId);
+      jwks = await deps.clientKeySet.fetch(
+        config.jwksUri,
+        deps.tenantId,
+        client.registrationOrigin === 'cimd',
+      );
     } catch (err) {
       // A fetch that fails is this server failing to reach the client's
       // keys, not the client failing to authenticate, so it writes no row.

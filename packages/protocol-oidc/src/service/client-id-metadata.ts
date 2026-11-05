@@ -115,7 +115,12 @@ export function parseCimdDocument(clientIdUrl: string, body: unknown): CimdOutco
   if (method !== 'none' && method !== 'private_key_jwt') return refuse('auth_method_refused');
   const keys = jwksOutcome(body);
   if (typeof keys === 'string') return refuse(keys);
-  if (method === 'private_key_jwt' && keys.jwks === null && keys.jwksUri === null) {
+  // A key set with no key authenticates nobody, so it is no key source.
+  if (
+    method === 'private_key_jwt' &&
+    keys.jwksUri === null &&
+    (keys.jwks === null || keys.jwks.keys.length === 0)
+  ) {
     return refuse('jwks_invalid');
   }
   return {

@@ -23,8 +23,8 @@ import {
   signClientAssertion,
 } from '#/testing/private-key-jwt-fixture';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
-import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
+import { type ClientKeySet } from '#/repository/client-keys';
 import { createFetchLimiter } from '#/service/cimd-fetch-limiter';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 
@@ -48,6 +48,7 @@ let tenantId: string;
 let other: string;
 let otherId: string;
 const documents = new Map<string, CimdResponse>();
+const keySetFetch = vi.fn<ClientKeySet['fetch']>().mockRejectedValue(new Error('no keys'));
 const request = vi.fn((url: URL) => {
   const found = documents.get(url.href);
   return found === undefined
@@ -119,7 +120,7 @@ beforeAll(async () => {
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
       auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
-      clientKeySet: NO_CLIENT_KEY_FETCHER,
+      clientKeySet: { fetch: keySetFetch },
       cimd: {
         lookup: () => Promise.resolve([PUBLIC_ADDRESS]),
         request,
@@ -425,5 +426,57 @@ describe('a URL client_id with metadata documents on', () => {
       client_assertion: assertion,
     });
     expect(signed.statusCode, signed.body).toBe(200);
+  });
+
+  it('[ODUDU-CIMD-JWKS-02] fetches a published jwks_uri holding it to public addresses only', async () => {
+    const key = await buildClientSigningKey(KEK);
+    const jwksUri = 'https://app.example.com:8443/jwks.json';
+    serve({ token_endpoint_auth_method: 'private_key_jwt', jwks_uri: jwksUri });
+    const consent = await signIn(await authorize(CLIENT_URL));
+    const code = (await allow(consent)).searchParams.get('code') ?? '';
+    const assertion = await signClientAssertion({
+      key,
+      clientId: CLIENT_URL,
+      audience: `http://localhost/tenants/${tenant}/protocol/openid-connect/token`,
+      kek: KEK,
+    });
+
+    await token({
+      grant_type: 'authorization_code',
+      client_id: CLIENT_URL,
+      code,
+      redirect_uri: CALLBACK,
+      code_verifier: VERIFIER,
+      client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+      client_assertion: assertion,
+    });
+
+    expect(keySetFetch).toHaveBeenCalledWith(jwksUri, tenantId, true);
+  });
+
+  it('[ODUDU-CIMD-JWKS-03] fetches a jwks_uri for userinfo encryption holding it to public addresses only', async () => {
+    const jwksUri = 'https://app.example.com:8443/jwks.json';
+    serve({ jwks_uri: jwksUri });
+    const consent = await signIn(await authorize(CLIENT_URL));
+    const code = (await allow(consent)).searchParams.get('code') ?? '';
+    const redeemed = await token({
+      grant_type: 'authorization_code',
+      client_id: CLIENT_URL,
+      code,
+      redirect_uri: CALLBACK,
+      code_verifier: VERIFIER,
+    });
+    const accessToken = redeemed.json<{ access_token: string }>().access_token;
+    await owner.db
+      .execute(sql`update client_oidc_config set userinfo_encrypted_response_alg = 'RSA-OAEP-256'
+      where client_id = (select id from clients where tenant_id = ${tenantId} and client_id = ${CLIENT_URL})`);
+    keySetFetch.mockClear();
+
+    await http.inject({
+      url: `/tenants/${tenant}/protocol/openid-connect/userinfo`,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+
+    expect(keySetFetch).toHaveBeenCalledWith(jwksUri, tenantId, true);
   });
 });

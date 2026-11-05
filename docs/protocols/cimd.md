@@ -21,11 +21,13 @@ it as they find any client. The row is rewritten from the document each time the
 document is resolved, holds no secret, asks for consent every time, and holds no
 audience: what a token may be for is the tenant's policy, never the document's. A
 client that has not been resolved for thirty days is removed by `odudu reap`, unless it
-holds a refresh token that can still be used; its address brings it back. A tenant holds
+holds a refresh token that can still be used, or lapsed within the longest access token's
+life (an access token outlives its refresh token, and removing the client would make it
+inactive); a refresh token of a revoked grant does not count; its address brings it back. A tenant holds
 at most 1,000 of them. Resolving a document needs no sign-in, so at that count a new
 client makes room by removing the one unused longest that never completed anything: no
 consent recorded, no refresh token that can still be used, no authorization code that
-has not expired. If every row has, the new client is refused and the server logs the
+has not expired. A client an administrator disabled is never removed this way, nor by `odudu reap`. If every row is protected, the new client is refused and the server logs the
 tenant and host. Turning the setting off refuses `/authorize` and `/token` only: tokens
 already issued stay valid at userinfo and introspection until they expire, and the consent
 and post-logout steps still read the stored row. An administrator who disables one is not overruled by the next
@@ -62,7 +64,7 @@ server is down. The refusal reason is logged with the tenant and host, never the
 
 A document is cached per tenant for its `Cache-Control: max-age`, clamped to between one
 minute and a day. `no-store`, `no-cache`, and a missing lifetime are not kept; an error
-response and a document that fails validation never are. The cache holds at most 1,000
+response and a document that fails validation never are. A refetch that finishes after a later one never replaces it; that guard compares the server's own clock stamps taken when each fetch began, not any time the document states. The cache holds at most 1,000
 documents per tenant, the oldest fetched leaving first, and `odudu reap` removes expired
 rows.
 
@@ -88,7 +90,10 @@ redirect address, escaped like every other interpolated value, from catalogue en
 A document may name `private_key_jwt` with an inline `jwks` or an `https` `jwks_uri`; it
 may not carry a private key member. The stored client authenticates through the
 existing `private_key_jwt` path, which holds the client to an assertion at the token
-endpoint (`docs/protocols/rfc7523.md`). A changed key set takes effect when the document
+endpoint (`docs/protocols/rfc7523.md`). A key set with no key is refused, as is `private_key_jwt` with neither a key nor a `jwks_uri`.
+A `jwks_uri` of such a client is fetched only from public addresses, whatever the
+deployment allows for the clients it registers by hand, and its cache entries are kept apart.
+A changed key set takes effect when the document
 is next resolved; Odudu does not revoke tokens or consent because the keys changed.
 
 ### Members not read

@@ -26,7 +26,9 @@ export interface ClientKeyDeps {
 }
 
 export interface ClientKeySet {
-  fetch: (uri: string, tenantId: string) => Promise<unknown>;
+  // `publicOnly` holds the fetch to public addresses whatever `allowPrivate`
+  // says, and keeps its cache entries apart from the other fetches'.
+  fetch: (uri: string, tenantId: string, publicOnly?: boolean) => Promise<unknown>;
 }
 
 // Closes off only jwks_uri-based clients — an inline-`jwks` client never
@@ -116,12 +118,12 @@ export function clientKeySet(deps: ClientKeyDeps): ClientKeySet {
     if (oldest.done === false) cache.delete(oldest.value);
   };
 
-  const fetchFresh = async (uri: string): Promise<unknown> => {
+  const fetchFresh = async (uri: string, publicOnly: boolean): Promise<unknown> => {
     const url = assertFetchableUrl(uri);
     const addresses = await deps.lookup(url.hostname);
     assertPublicAddresses(
       addresses,
-      deps.allowPrivate === undefined ? {} : { allowPrivate: deps.allowPrivate },
+      deps.allowPrivate === undefined || publicOnly ? {} : { allowPrivate: deps.allowPrivate },
     );
     const [address] = addresses;
     if (address === undefined) {
@@ -159,8 +161,9 @@ export function clientKeySet(deps: ClientKeyDeps): ClientKeySet {
     // entry outlives the attempt another tenant starts. What the handler
     // below guarantees is narrower: the entries an attempt writes appear in
     // the same microtask that clears its own `inFlight`.
-    fetch: async (uri: string, tenantId: string): Promise<unknown> => {
+    fetch: async (target: string, tenantId: string, publicOnly = false): Promise<unknown> => {
       const now = deps.now().getTime();
+      const uri = publicOnly ? `public-only|${target}` : target;
 
       const success = cache.get(uri);
       if (success?.kind === 'success' && success.expiresAt > now) {
@@ -187,7 +190,7 @@ export function clientKeySet(deps: ClientKeyDeps): ClientKeySet {
       // uri that just failed — the regression a split `.catch`/`.finally`
       // produced. `tenants` is read here, not when the caller joined, so every
       // tenant that joined before this handler runs gets its own entry.
-      const promise = fetchFresh(uri).then(
+      const promise = fetchFresh(target, publicOnly).then(
         (body) => {
           cache.delete(uri);
           evictOldestIfFull();

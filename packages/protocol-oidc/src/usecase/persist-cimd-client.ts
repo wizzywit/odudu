@@ -144,7 +144,7 @@ export async function persistCimdClient(
   if (placement === 'make_room') {
     // Resolving a document needs no sign-in, so the ceiling cannot be held by
     // whoever filled it first: a row that never completed anything makes way.
-    const evict = await cimdClientRepository(tx).evictable();
+    const evict = await cimdClientRepository(tx).evictable(now);
     if (evict === null) return 'at_capacity';
     await clients.delete(evict);
   }
