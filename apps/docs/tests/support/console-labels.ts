@@ -137,6 +137,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   Password: at(MESSAGES, "'login.password': 'Password'"),
   'Sign out': at('apps/admin-console/src/widgets/shell/ui/RailFooter/RailFooter.tsx', 'Sign out'),
+  'Switch tenant': at(
+    'apps/admin-console/src/widgets/shell/ui/RailFooter/RailFooter.tsx',
+    'Switch tenant',
+  ),
   // The panel a failed page is replaced by.
   'Something went wrong': widget(
     'failure/services/wording.ts',
