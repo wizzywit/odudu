@@ -905,6 +905,11 @@ function buildAdminRoutes(
         withTenant(deps.database.db, tenantId, async (tx) =>
           subjectIsEnabled(await subjectRepository(tx).byId(subjectId)),
         ),
+      isBuiltinMcpClient: (tenantId, clientDbId) =>
+        withTenant(deps.database.db, tenantId, async (tx) => {
+          const client = await clientRepository(tx).byId(clientDbId);
+          return client?.builtinMcp === true;
+        }),
       acceptedIssuers: acceptedIssuersLookup(deps),
       tenantNameAtHost: async (host, now) => {
         const state = await hostState(deps.ownerDatabase.db, host, now);

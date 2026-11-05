@@ -1187,7 +1187,7 @@ export {
   type ResolvedExchangeToken,
   type ResolveOutcome,
 } from '#/usecase/token-exchange-subject';
-export { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
+export { narrowActClaim, TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 export {
   CIMD_DEADLINE_MS,
   CIMD_MAX_BODY_BYTES,

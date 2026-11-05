@@ -123,6 +123,11 @@ async function authorizeRoute(
     issuerBase: issuerBaseFor(request),
     now: deps.clock.now(),
   });
+  if (outcome.kind === 'forbidden') {
+    request.log.warn({ reason: outcome.reason }, 'admin request forbidden');
+    sendForbidden(request, reply);
+    return null;
+  }
   if (outcome.kind === 'unauthenticated') {
     const foreign = outcome.foreignIssuer;
     if (outcome.foreignIssuerError !== undefined) {

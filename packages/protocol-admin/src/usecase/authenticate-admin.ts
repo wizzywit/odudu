@@ -1,7 +1,13 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
-import { ADMIN_API_AUDIENCE, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import {
+  ADMIN_API_AUDIENCE,
+  MCP_READ_SCOPE,
+  MCP_WRITE_SCOPE,
+  SYSTEM_TENANT_NAME,
+} from '@odudu/domain-tenant';
+import {
+  narrowActClaim,
   tenantIssuer,
   type AcceptedIssuersLookup,
   type TenantLookup,
@@ -12,6 +18,15 @@ export interface AdminPrincipal {
   readonly subjectId: string;
   readonly issuerTenantId: string;
   readonly clientDbId: string;
+  // The token's `scope` claim, split; empty when it carries none.
+  readonly scopes: readonly string[];
+  // Present when the token was minted for an AI agent acting for `subjectId`.
+  readonly agent?: AdminAgent;
+}
+
+export interface AdminAgent {
+  readonly clientId: string;
+  readonly ownerSubjectId: string;
 }
 
 // A genuine token from another tenant of this deployment, presented at a
@@ -33,7 +48,10 @@ export type AdminAuthOutcome =
       // Why a foreign issuer could not be resolved, for the log alone: the
       // response is the same plain refusal whatever it was.
       foreignIssuerError?: unknown;
-    };
+    }
+  // An agent token is the owner's identity narrowed to what its MCP scope
+  // grants; one holding no MCP scope has nothing to narrow it and is refused.
+  | { kind: 'forbidden'; reason: 'agent_without_mcp_scope' };
 
 export interface AuthenticateAdminDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
@@ -47,6 +65,9 @@ export interface AuthenticateAdminDeps {
   ): Promise<boolean>;
   isClientEnabled(tenantId: string, clientDbId: string): Promise<boolean>;
   isSubjectEnabled(tenantId: string, subjectId: string): Promise<boolean>;
+  // Whether the client row is the tenant's built-in MCP client, by its
+  // `builtin_mcp` marker and not by its client_id string.
+  isBuiltinMcpClient(tenantId: string, clientDbId: string): Promise<boolean>;
   // The issuers a token for this tenant may carry: its canonical address and
   // any it left whose window is open, the set /userinfo checks against.
   acceptedIssuers: AcceptedIssuersLookup;
@@ -218,6 +239,29 @@ async function resolveForeignIssuer(
   return { issuerTenantId: tenant.id, subjectId: payload.sub, clientDbId: grant?.clientId ?? null };
 }
 
+function readScopes(value: unknown): readonly string[] | undefined {
+  if (value === undefined) return [];
+  if (typeof value !== 'string') return undefined;
+  return value.split(' ').filter((scope) => scope.length > 0);
+}
+
+const MCP_SCOPES: readonly string[] = [MCP_READ_SCOPE, MCP_WRITE_SCOPE];
+
+interface AgentClaims {
+  readonly scopes: readonly string[];
+  readonly actorClientId: string | undefined;
+}
+
+// `undefined` when `scope` or `act` is present and malformed: a claim that
+// narrows what a token may do is refused when unreadable, never ignored.
+function readAgentClaims(payload: Record<string, unknown>): AgentClaims | undefined {
+  const scopes = readScopes(payload.scope);
+  if (scopes === undefined) return undefined;
+  if (payload.act === undefined) return { scopes, actorClientId: undefined };
+  const act = narrowActClaim(payload.act);
+  return act === null ? undefined : { scopes, actorClientId: act.sub };
+}
+
 export async function authenticateAdmin(
   deps: AuthenticateAdminDeps,
   input: AuthenticateAdminInput,
@@ -258,6 +302,9 @@ export async function authenticateAdmin(
     return unauthenticated('invalid_token');
   }
 
+  const claims = readAgentClaims(payload);
+  if (claims === undefined) return unauthenticated('invalid_token');
+
   const grantId = payload.grant_id;
   if (typeof grantId !== 'string' || grantId.length === 0) {
     return unauthenticated('invalid_token');
@@ -284,8 +331,27 @@ export async function authenticateAdmin(
     return unauthenticated('subject_disabled');
   }
 
+  const holdsMcpScope = claims.scopes.some((scope) => MCP_SCOPES.includes(scope));
+  const isAgent =
+    claims.actorClientId !== undefined ||
+    holdsMcpScope ||
+    (await deps.isBuiltinMcpClient(matched.id, grant.clientId));
+
+  const base = {
+    subjectId: payload.sub,
+    issuerTenantId: matched.id,
+    clientDbId: grant.clientId,
+    scopes: claims.scopes,
+  };
+  if (!isAgent) return { kind: 'authenticated', principal: base };
+  if (!holdsMcpScope) return { kind: 'forbidden', reason: 'agent_without_mcp_scope' };
+
+  const clientId = claims.actorClientId ?? payload.client_id;
+  if (typeof clientId !== 'string' || clientId.length === 0) {
+    return unauthenticated('invalid_token');
+  }
   return {
     kind: 'authenticated',
-    principal: { subjectId: payload.sub, issuerTenantId: matched.id, clientDbId: grant.clientId },
+    principal: { ...base, agent: { clientId, ownerSubjectId: payload.sub } },
   };
 }
