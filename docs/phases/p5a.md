@@ -46,7 +46,7 @@ the admin fixture:
 
 - Delegation (an `actor_token`) mints `sub = owner`, a narrowed `scope`,
   `aud = [ADMIN_API_AUDIENCE, issuer]` and `act = { sub: <actor token's
-  subject> }`, with no `may_act` anywhere. Impersonation mints no `act`.
+subject> }`, with no `may_act` anywhere. Impersonation mints no `act`.
 - **The admin API ignores `scope` and `act`.** A token narrowed to `openid`
   listed clients (`authenticate-admin.ts` checks issuer, audience, `typ`,
   grant, session, client and subject only). The plan's increment 5 owns this.
