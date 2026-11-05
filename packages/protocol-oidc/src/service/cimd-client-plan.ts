@@ -1,4 +1,5 @@
 import { type CimdClient } from '#/service/client-id-metadata';
+import { audiencesUnderPolicy, type McpPolicyGrant } from '#/service/mcp-registration-policy';
 
 const LAST_USED_GRANULARITY_MS = 24 * 60 * 60 * 1000;
 
@@ -42,6 +43,7 @@ export interface StoredCimdConfig {
   readonly tokenEndpointAuthMethod: string;
   readonly jwks: unknown;
   readonly jwksUri: string | null;
+  readonly audiences: readonly string[];
 }
 
 export interface CimdAmendment {
@@ -54,6 +56,7 @@ export interface CimdAmendment {
         readonly tokenEndpointAuthMethod: CimdClient['tokenEndpointAuthMethod'];
         readonly jwks: CimdClient['jwks'];
         readonly jwksUri: string | null;
+        readonly audiences: string[];
       }
     | null;
   readonly touch: boolean;
@@ -66,11 +69,15 @@ export function amendmentOf(
   config: StoredCimdConfig | null,
   document: CimdClient,
   now: Date,
+  policy: McpPolicyGrant,
 ): CimdAmendment {
   const type = cimdClientType(document);
+  const audiences =
+    config === null ? [] : audiencesUnderPolicy(config.audiences, policy.audience, policy.granted);
   const configChanged =
     config !== null &&
-    (!sameList(config.redirectUris, document.redirectUris) ||
+    (!sameList(config.audiences, audiences) ||
+      !sameList(config.redirectUris, document.redirectUris) ||
       config.tokenEndpointAuthMethod !== document.tokenEndpointAuthMethod ||
       !sameJson(config.jwks, document.jwks) ||
       config.jwksUri !== document.jwksUri);
@@ -88,6 +95,7 @@ export function amendmentOf(
               tokenEndpointAuthMethod: document.tokenEndpointAuthMethod,
               jwks: document.jwks,
               jwksUri: document.jwksUri,
+              audiences,
             }
           : null,
     touch:

@@ -1,9 +1,21 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { clientRepository, provisionClientDefaults, type ClientRecord } from '@odudu/domain-tenant';
+import {
+  clientRepository,
+  assignMcpScope,
+  provisionClientDefaults,
+  type ClientRecord,
+} from '@odudu/domain-tenant';
 import { containsBidiControl } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { cimdClientRepository } from '#/repository/cimd-clients';
+import {
+  audiencesUnderPolicy,
+  grantForClient,
+  NO_MCP_GRANT,
+  type McpPolicyGrant,
+} from '#/service/mcp-registration-policy';
+import { MCP_READ_SCOPE } from '#/service/mcp-scopes';
 import { amendmentOf, cimdClientType, placementOf } from '#/service/cimd-client-plan';
 import { type CimdClient } from '#/service/client-id-metadata';
 
@@ -20,6 +32,7 @@ async function writeConfig(
   tenantId: string,
   clientId: string,
   document: CimdClient,
+  audiences: string[],
 ): Promise<void> {
   await clientOidcConfigRepository(tx).create({
     clientId,
@@ -27,7 +40,7 @@ async function writeConfig(
     redirectUris: document.redirectUris,
     grantTypes: ['authorization_code', 'refresh_token'],
     tokenEndpointAuthMethod: document.tokenEndpointAuthMethod,
-    audiences: [],
+    audiences,
     accessTokenTtlSeconds: null,
     refreshTokenTtlSeconds: null,
     jwks: document.jwks,
@@ -41,17 +54,25 @@ async function amend(
   existing: ClientRecord,
   document: CimdClient,
   now: Date,
+  policy: McpPolicyGrant,
 ): Promise<void> {
   const clients = clientRepository(tx);
   const configs = clientOidcConfigRepository(tx);
   const config = await configs.byClientId(existing.id);
-  const changes = amendmentOf(existing, config, document, now);
+  const changes = amendmentOf(existing, config, document, now, policy);
   if (changes.client !== null) await clients.update(existing.id, changes.client);
   if (changes.config === 'create') {
-    await writeConfig(tx, existing.tenantId, existing.id, document);
+    await writeConfig(
+      tx,
+      existing.tenantId,
+      existing.id,
+      document,
+      audiencesUnderPolicy([], policy.audience, policy.granted),
+    );
   } else if (changes.config !== null) {
     await configs.update(existing.id, changes.config);
   }
+  if (policy.granted) await assignMcpScope(tx, existing.id, MCP_READ_SCOPE, 'optional');
   if (changes.touch) await clients.markMetadataUsed(existing.id, now);
 }
 
@@ -59,12 +80,13 @@ async function amend(
 // lookup (token, consent, userinfo) finds an ordinary client. It owns no
 // secret and no service account, asks for consent every time, and has no
 // audience: what it may reach is decided by the tenant's policy, never by
-// the document.
+// the document: the tenant's registration policy grants the MCP URL.
 async function insert(
   tx: TenantScopedDatabase,
   tenantId: string,
   document: CimdClient,
   now: Date,
+  policy: McpPolicyGrant,
 ): Promise<void> {
   const created = await clientRepository(tx).create({
     tenantId,
@@ -76,7 +98,14 @@ async function insert(
     metadataUsedAt: now,
   });
   await provisionClientDefaults(tx, created.id);
-  await writeConfig(tx, tenantId, created.id, document);
+  await writeConfig(
+    tx,
+    tenantId,
+    created.id,
+    document,
+    audiencesUnderPolicy([], policy.audience, policy.granted),
+  );
+  if (policy.granted) await assignMcpScope(tx, created.id, MCP_READ_SCOPE, 'optional');
 }
 
 export async function persistCimdClient(
@@ -85,7 +114,9 @@ export async function persistCimdClient(
   document: CimdClient,
   now: Date,
   ceiling: number = CIMD_CLIENTS_PER_TENANT,
+  requested: McpPolicyGrant = NO_MCP_GRANT,
 ): Promise<PersistCimdOutcome> {
+  const policy = grantForClient(requested, cimdClientType(document) === 'public');
   if (containsBidiControl(document.clientName)) return 'refused';
   // One writer per tenant, so two first resolutions of different documents
   // cannot both pass the ceiling check.
@@ -99,7 +130,7 @@ export async function persistCimdClient(
   );
   if (placement === 'foreign') return 'foreign';
   if (existing !== null) {
-    await amend(tx, existing, document, now);
+    await amend(tx, existing, document, now, policy);
     return 'ok';
   }
   if (placement === 'make_room') {
@@ -109,6 +140,6 @@ export async function persistCimdClient(
     if (evict === null) return 'at_capacity';
     await clients.delete(evict);
   }
-  await insert(tx, tenantId, document, now);
+  await insert(tx, tenantId, document, now, policy);
   return 'ok';
 }

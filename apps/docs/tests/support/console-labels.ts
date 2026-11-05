@@ -82,6 +82,7 @@ const EMAIL_MAIL = 'email/services/mailWording.ts';
 const EMAIL_MAIL_QUERY = 'email/services/mailQuery.ts';
 const ACCESS = 'settings/services/accessSections.ts';
 const PLATFORM = 'settings/services/platformSections.ts';
+const SETTINGS_WORDS = 'settings/services/settingsPageWords.ts';
 const KEYS_WORDS = 'signing-keys/services/keysWords.ts';
 const KEYS_CONFIRM = 'signing-keys/services/confirm.ts';
 const DOMAINS_WORDS = 'domains/services/domainsWords.ts';
@@ -449,7 +450,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Uses left': page(TOKENS_WORDS, "usesLeft: 'Uses left'"),
   Revoke: page(TOKENS_WORDS, "revoke: 'Revoke'"),
   'Revoke token': page(TOKENS_WORDS, "confirm: 'Revoke token'"),
-  Policy: page(PLATFORM, "label: 'Policy'"),
+  Policy: page(SETTINGS_WORDS, "policyLabel: 'Policy'"),
   'Closed: only an administrator creates clients': page(
     PLATFORM,
     "label: 'Closed: only an administrator creates clients'",
@@ -522,7 +523,15 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Password policy': page(ACCESS, "title: 'Password policy'"),
   'Brute force': page(ACCESS, "title: 'Brute force'"),
   'Token lifetimes': page(PLATFORM, "title: 'Token lifetimes'"),
-  'Dynamic client registration': page(PLATFORM, "title: 'Dynamic client registration'"),
+  'Client registration': page(SETTINGS_WORDS, "registrationTitle: 'Client registration'"),
+  'MCP clients: public clients of the MCP server may register': page(
+    SETTINGS_WORDS,
+    "mcpOption: 'MCP clients: public clients of the MCP server may register'",
+  ),
+  'Accept client metadata documents': page(
+    SETTINGS_WORDS,
+    "cimdLabel: 'Accept client metadata documents'",
+  ),
   'Audit retention': page(PLATFORM, "title: 'Audit retention'"),
   'Idle timeout': page(ACCESS, "label: 'Idle timeout'"),
   'Maximum lifetime': page(ACCESS, "label: 'Maximum lifetime'"),

@@ -83,7 +83,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'tenants.tenants_brute_force_bounds':
     'CHECK ((((brute_force_max_failures >= 1) AND (brute_force_max_failures <= 100)) AND ((brute_force_lockout_seconds >= 1) AND (brute_force_lockout_seconds <= 86400)) AND (brute_force_max_lockout_seconds >= brute_force_lockout_seconds) AND ((brute_force_failure_reset_seconds >= 60) AND (brute_force_failure_reset_seconds <= 2592000))))',
   'tenants.tenants_client_registration_policy_check':
-    "CHECK ((client_registration_policy = ANY (ARRAY['disabled'::text, 'open'::text, 'token'::text])))",
+    "CHECK ((client_registration_policy = ANY (ARRAY['disabled'::text, 'open'::text, 'token'::text, 'mcp'::text])))",
   'tenants.tenants_max_clients_range': 'CHECK ((max_clients >= 0))',
   'tenants.tenants_max_sessions_per_browser_range':
     'CHECK (((max_sessions_per_browser >= 1) AND (max_sessions_per_browser <= 32)))',

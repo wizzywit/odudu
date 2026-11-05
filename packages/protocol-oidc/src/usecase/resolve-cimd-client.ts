@@ -1,6 +1,7 @@
 import { type ClientRecord } from '@odudu/domain-tenant';
 import { type ResolveCimdOutcome } from '#/usecase/resolve-cimd-document';
 import { isCimdClientId, parseCimdDocument, type CimdClient } from '#/service/client-id-metadata';
+import { mcpGrantOf, type McpPolicyGrant } from '#/service/mcp-registration-policy';
 import { type PersistCimdOutcome } from '#/usecase/persist-cimd-client';
 
 export interface RefreshCimdDeps {
@@ -9,6 +10,7 @@ export interface RefreshCimdDeps {
     tenantId: string,
     client: CimdClient,
     now: Date,
+    policy: McpPolicyGrant,
   ) => Promise<PersistCimdOutcome>;
   readonly now: () => Date;
   readonly warn: (message: string, context: Record<string, string>) => void;
@@ -22,6 +24,7 @@ export async function refreshCimdClient(
   tenantId: string,
   url: string,
   deps: RefreshCimdDeps,
+  policy: McpPolicyGrant,
 ): Promise<boolean> {
   const resolved = await deps.resolveDocument(tenantId, url);
   if (resolved.kind === 'refused') {
@@ -34,7 +37,7 @@ export async function refreshCimdClient(
   }
   const parsed = parseCimdDocument(url, resolved.body);
   if (parsed.kind !== 'ok') return false;
-  const stored = await deps.persist(tenantId, parsed.client, deps.now());
+  const stored = await deps.persist(tenantId, parsed.client, deps.now(), policy);
   if (stored === 'at_capacity') {
     deps.warn('client metadata ceiling reached, no client could be evicted', {
       tenantId,
@@ -47,7 +50,11 @@ export async function refreshCimdClient(
 
 export interface AuthorizeClientDeps<R extends { client: ClientRecord | null }> {
   readonly resolveClient: (tenantId: string, oauthClientId: string) => Promise<R>;
-  readonly refreshCimdClient?: (tenantId: string, url: string) => Promise<boolean>;
+  readonly refreshCimdClient?: (
+    tenantId: string,
+    url: string,
+    policy: McpPolicyGrant,
+  ) => Promise<boolean>;
   // What resolveClient answers for a client nobody registered.
   readonly empty: R;
 }
@@ -59,14 +66,20 @@ export interface AuthorizeClientDeps<R extends { client: ClientRecord | null }> 
 // the one an unknown id gets.
 export async function resolveAuthorizeClient<R extends { client: ClientRecord | null }>(
   deps: AuthorizeClientDeps<R>,
-  tenant: { readonly id: string; readonly cimdEnabled: boolean },
+  tenant: {
+    readonly id: string;
+    readonly cimdEnabled: boolean;
+    readonly clientRegistrationPolicy: string;
+  },
   oauthClientId: string,
+  mcpAudience: string,
 ): Promise<R> {
   const held = await deps.resolveClient(tenant.id, oauthClientId);
   if (!isCimdClientId(oauthClientId)) return held;
   if (held.client !== null && held.client.registrationOrigin !== 'cimd') return held;
   if (!tenant.cimdEnabled || deps.refreshCimdClient === undefined) return deps.empty;
-  return (await deps.refreshCimdClient(tenant.id, oauthClientId))
+  const policy = mcpGrantOf(tenant.clientRegistrationPolicy, mcpAudience);
+  return (await deps.refreshCimdClient(tenant.id, oauthClientId, policy))
     ? deps.resolveClient(tenant.id, oauthClientId)
     : deps.empty;
 }

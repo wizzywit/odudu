@@ -190,6 +190,7 @@ async function seededSource(): Promise<{ id: string; name: string; confidentialI
       passwordMinLength: 12,
       usernameEditable: true,
       cimdEnabled: true,
+      clientRegistrationPolicy: 'mcp',
     });
 
     const grace = await subjectRepository(tx).create({ tenantId: t.id, type: 'user' });
@@ -263,6 +264,7 @@ describe('POST /admin/tenant-imports', () => {
       ['ivan', true],
     ]);
     expect(original.settings.cimd_enabled).toBe(true);
+    expect(original.registration_policy.client_registration_policy).toBe('mcp');
     expect(original.scopes.map((scope) => scope.name)).toContain('billing');
     expect(original.scopes.map((scope) => scope.name)).not.toContain('phone');
     expect(original.groups.map((group) => group.path)).toEqual(['/finance', '/finance/payroll']);

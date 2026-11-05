@@ -7,6 +7,12 @@ export interface ConsentInput {
   grantedScopes: readonly string[];
   prompt: ReadonlySet<PromptValue>;
   consentRequired: boolean;
+  // A client nobody at the tenant vetted: registered dynamically or resolved
+  // from a metadata document. It is asked about until a grant of its own
+  // exists, whatever its flag says, so a request covering no scope it could
+  // be granted is not waved through either.
+  approvalRequired: boolean;
+  approved: boolean;
 }
 
 export type ConsentDecision =
@@ -18,6 +24,12 @@ export type ConsentDecision =
       alreadyGranted: string[];
     }
   | { kind: 'refuse'; error: 'consent_required' };
+
+// Registered over the wire without an administrator's say-so: anonymously,
+// or from a metadata document the client's owner publishes.
+export function needsApproval(registrationOrigin: string): boolean {
+  return registrationOrigin === 'anonymous' || registrationOrigin === 'cimd';
+}
 
 // The order below is the design: prompt=consent is checked before the
 // client's own flag. OIDC Core §3.1.2.1's SHOULD is addressed to the
@@ -40,6 +52,10 @@ export function decideConsent(input: ConsentInput): ConsentDecision {
   });
 
   if (input.prompt.has('consent')) return ask();
+
+  if (input.approvalRequired && !input.approved) {
+    return input.prompt.has('none') ? { kind: 'refuse', error: 'consent_required' } : ask();
+  }
 
   if (!input.consentRequired) return { kind: 'not_required' };
 

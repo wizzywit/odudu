@@ -3,6 +3,7 @@ import { CLIENT_LIST_LIMIT, listLimitMessage } from '#/admin/shared';
 import {
   REGISTRATION_POLICY_SETTINGS,
   tenantDocumentSchema,
+  registrationPolicySchema,
   type ExportedClient,
   type TenantDocument,
 } from '#/admin/tenant-document';
@@ -259,5 +260,25 @@ describe('tenantDocumentSchema', () => {
       'registration_allowed',
       'verify_email',
     ]);
+  });
+});
+
+describe('registrationPolicySchema', () => {
+  it.each(['disabled', 'open', 'token', 'mcp'])('accepts the client policy %s', (policy) => {
+    const parsed = registrationPolicySchema.safeParse({
+      registration_allowed: false,
+      verify_email: false,
+      client_registration_policy: policy,
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('refuses a policy the server does not know', () => {
+    const parsed = registrationPolicySchema.safeParse({
+      registration_allowed: false,
+      verify_email: false,
+      client_registration_policy: 'anyone',
+    });
+    expect(parsed.success).toBe(false);
   });
 });

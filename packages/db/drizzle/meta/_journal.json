@@ -820,6 +820,27 @@
       "when": 1790522083737,
       "tag": "0116_cimd_clients",
       "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1790525683737,
+      "tag": "0117_mcp_registration_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1790529283737,
+      "tag": "0118_unused_dynamic_clients_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1790532883737,
+      "tag": "0119_clients_approved_at",
+      "breakpoints": true
     }
   ]
 }

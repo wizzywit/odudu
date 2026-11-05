@@ -1,4 +1,6 @@
+import { RATE_LIMIT_DESCRIPTIONS } from '#/service/registration-throttle';
 import { type RegistrationErrorCode } from '#/service/oauth-errors';
+import { tenantAddressOf } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import {
   registerClient,
@@ -22,6 +24,7 @@ function toResponseBody(client: RegisteredClient): Record<string, unknown> {
       ? {}
       : { client_secret: client.clientSecret, client_secret_expires_at: 0 }),
     redirect_uris: metadata.redirectUris,
+    ...(client.audiences.length === 0 ? {} : { audience: client.audiences }),
     grant_types: metadata.grantTypes,
     token_endpoint_auth_method: metadata.tokenEndpointAuthMethod,
     ...(metadata.clientName === null ? {} : { client_name: metadata.clientName }),
@@ -82,6 +85,7 @@ export function registerClientRegistrationRoute(
       request.params.tenant,
       request.headers.authorization,
       request.body,
+      { origin: request.ip, address: tenantAddressOf(request) },
     );
 
     switch (outcome.kind) {
@@ -111,6 +115,11 @@ export function registerClientRegistrationRoute(
         return reply.code(403).send({
           error: 'invalid_client_metadata',
           error_description: 'this tenant has reached its client registration limit',
+        });
+      case 'rate_limited':
+        return reply.code(429).header('retry-after', String(outcome.retryAfterSeconds)).send({
+          error: 'invalid_client_metadata',
+          error_description: RATE_LIMIT_DESCRIPTIONS[outcome.scope],
         });
       case 'ok':
         return reply.code(201).send(toResponseBody(outcome.client));

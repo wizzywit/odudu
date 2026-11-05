@@ -1,5 +1,6 @@
 import { type ClientRecord } from '@odudu/domain-tenant';
 import { describe, expect, it, vi } from 'vitest';
+import { NO_MCP_GRANT } from '#/service/mcp-registration-policy';
 import { type PersistCimdOutcome } from '#/usecase/persist-cimd-client';
 import { refreshCimdClient, resolveAuthorizeClient } from '#/usecase/resolve-cimd-client';
 
@@ -34,15 +35,20 @@ function refreshDeps(overrides: {
 describe('refreshCimdClient', () => {
   it('persists the validated document and says the client is usable', async () => {
     const { deps, persist } = refreshDeps({});
-    expect(await refreshCimdClient('t1', URL_A, deps)).toBe(true);
-    expect(persist).toHaveBeenCalledWith('t1', expect.objectContaining({ clientId: URL_A }), NOW);
+    expect(await refreshCimdClient('t1', URL_A, deps, NO_MCP_GRANT)).toBe(true);
+    expect(persist).toHaveBeenCalledWith(
+      't1',
+      expect.objectContaining({ clientId: URL_A }),
+      NOW,
+      NO_MCP_GRANT,
+    );
   });
 
   it('is not usable when the document could not be resolved, and says why', async () => {
     const { deps, persist, warn } = refreshDeps({
       resolved: { kind: 'refused', reason: 'timeout' },
     });
-    expect(await refreshCimdClient('t1', URL_A, deps)).toBe(false);
+    expect(await refreshCimdClient('t1', URL_A, deps, NO_MCP_GRANT)).toBe(false);
     expect(persist).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith('client metadata document refused', {
       tenantId: 't1',
@@ -55,13 +61,13 @@ describe('refreshCimdClient', () => {
     'is not usable when persisting says %s',
     async (persisted) => {
       const { deps } = refreshDeps({ persisted });
-      expect(await refreshCimdClient('t1', URL_A, deps)).toBe(false);
+      expect(await refreshCimdClient('t1', URL_A, deps, NO_MCP_GRANT)).toBe(false);
     },
   );
 
   it('says so, without the document, when the ceiling could not be made room under', async () => {
     const { deps, warn } = refreshDeps({ persisted: 'at_capacity' });
-    expect(await refreshCimdClient('t1', URL_A, deps)).toBe(false);
+    expect(await refreshCimdClient('t1', URL_A, deps, NO_MCP_GRANT)).toBe(false);
     expect(warn).toHaveBeenCalledWith(
       'client metadata ceiling reached, no client could be evicted',
       {
@@ -74,7 +80,7 @@ describe('refreshCimdClient', () => {
 
   it('is not usable when the resolved body no longer validates', async () => {
     const { deps, persist } = refreshDeps({ resolved: { kind: 'ok', body: { client_id: 'x' } } });
-    expect(await refreshCimdClient('t1', URL_A, deps)).toBe(false);
+    expect(await refreshCimdClient('t1', URL_A, deps, NO_MCP_GRANT)).toBe(false);
     expect(persist).not.toHaveBeenCalled();
   });
 });
@@ -96,48 +102,56 @@ function authorizeDeps(held: { client: ClientRecord | null }[], refresh?: boolea
 }
 
 describe('resolveAuthorizeClient', () => {
-  const on = { id: 't1', cimdEnabled: true };
-  const off = { id: 't1', cimdEnabled: false };
+  const on = { id: 't1', cimdEnabled: true, clientRegistrationPolicy: 'disabled' as const };
+  const off = { id: 't1', cimdEnabled: false, clientRegistrationPolicy: 'disabled' as const };
+  const MCP = 'https://idp.example/tenants/acme/mcp';
 
   it('leaves an id that is not a URL to the ordinary lookup', async () => {
     const { deps, refreshCimdClient } = authorizeDeps([record('seeded')]);
-    expect(await resolveAuthorizeClient(deps, on, 'billing-app')).toEqual(record('seeded'));
+    expect(await resolveAuthorizeClient(deps, on, 'billing-app', MCP)).toEqual(record('seeded'));
     expect(refreshCimdClient).not.toHaveBeenCalled();
   });
 
   it('serves a pre-registered client named by a URL whatever the setting says', async () => {
     const { deps, refreshCimdClient } = authorizeDeps([record('operator')]);
-    expect(await resolveAuthorizeClient(deps, off, URL_A)).toEqual(record('operator'));
+    expect(await resolveAuthorizeClient(deps, off, URL_A, MCP)).toEqual(record('operator'));
     expect(refreshCimdClient).not.toHaveBeenCalled();
   });
 
   it('answers an unknown URL id as no client while the setting is off', async () => {
     const { deps, refreshCimdClient } = authorizeDeps([NONE]);
-    expect(await resolveAuthorizeClient(deps, off, URL_A)).toBe(NONE);
+    expect(await resolveAuthorizeClient(deps, off, URL_A, MCP)).toBe(NONE);
     expect(refreshCimdClient).not.toHaveBeenCalled();
   });
 
   it('answers a stored cimd client as no client while the setting is off', async () => {
     const { deps, refreshCimdClient } = authorizeDeps([record('cimd')]);
-    expect(await resolveAuthorizeClient(deps, off, URL_A)).toBe(NONE);
+    expect(await resolveAuthorizeClient(deps, off, URL_A, MCP)).toBe(NONE);
     expect(refreshCimdClient).not.toHaveBeenCalled();
   });
 
   it('refreshes from the document and reads the client again while the setting is on', async () => {
     const { deps, refreshCimdClient, resolveClient } = authorizeDeps([NONE, record('cimd')]);
-    expect(await resolveAuthorizeClient(deps, on, URL_A)).toEqual(record('cimd'));
-    expect(refreshCimdClient).toHaveBeenCalledWith('t1', URL_A);
+    expect(await resolveAuthorizeClient(deps, on, URL_A, MCP)).toEqual(record('cimd'));
+    expect(refreshCimdClient).toHaveBeenCalledWith('t1', URL_A, { audience: MCP, granted: false });
     expect(resolveClient).toHaveBeenCalledTimes(2);
   });
 
   it('answers no client when the document cannot be refreshed, even with a stored row', async () => {
     const { deps } = authorizeDeps([record('cimd')], false);
-    expect(await resolveAuthorizeClient(deps, on, URL_A)).toBe(NONE);
+    expect(await resolveAuthorizeClient(deps, on, URL_A, MCP)).toBe(NONE);
   });
 
   it('answers no client when no fetcher is wired', async () => {
     const { deps } = authorizeDeps([NONE]);
     const unwired = { resolveClient: deps.resolveClient, empty: NONE };
-    expect(await resolveAuthorizeClient(unwired, on, URL_A)).toBe(NONE);
+    expect(await resolveAuthorizeClient(unwired, on, URL_A, MCP)).toBe(NONE);
+  });
+
+  it('grants the tenant MCP URL to the refresh when the policy is mcp, and only then', async () => {
+    const mcp = { ...on, clientRegistrationPolicy: 'mcp' as const };
+    const { deps, refreshCimdClient } = authorizeDeps([NONE, record('cimd')]);
+    await resolveAuthorizeClient(deps, mcp, URL_A, MCP);
+    expect(refreshCimdClient).toHaveBeenCalledWith('t1', URL_A, { audience: MCP, granted: true });
   });
 });

@@ -48,6 +48,7 @@ describe('the order the retention pass runs in', () => {
         'tenant_issuer_retirements',
         'client_metadata_cache',
         'cimd_clients',
+        'dynamic_clients',
         'tenant_domains',
         'sessions',
         'audit_events',

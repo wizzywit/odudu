@@ -170,7 +170,7 @@ Real questions a newcomer asks, each answered strictly from the built documentat
 - Before: answered
 - Status: answered
 - Pages: admin-console/registration-tokens, reference/protocol, admin-console/settings
-- Note: Policy under Dynamic client registration; a registration token.
+- Note: Policy under Client registration; a registration token.
 
 ## D22. How do I protect an MCP server with Odudu?
 

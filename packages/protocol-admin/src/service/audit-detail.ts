@@ -51,6 +51,12 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     display_name: 'value',
     enabled: 'value',
   },
+  // Only the two settings that decide who may become a client of the tenant;
+  // every other setting stays out of the audit detail, as an unlisted field does.
+  tenant_settings: {
+    client_registration_policy: 'value',
+    cimd_enabled: 'value',
+  },
   group: {
     name: 'value',
     description: 'value',

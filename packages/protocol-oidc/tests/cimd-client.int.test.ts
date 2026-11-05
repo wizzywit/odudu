@@ -70,6 +70,17 @@ function persist(tenantId: string, client: CimdClient, now = NOW) {
   return withTenant(app.db, tenantId, (tx) => persistCimdClient(tx, tenantId, client, now));
 }
 
+const MCP_URL = 'https://idp.example/tenants/acme/mcp';
+
+function persistUnderPolicy(tenantId: string, client: CimdClient, granted: boolean) {
+  return withTenant(app.db, tenantId, (tx) =>
+    persistCimdClient(tx, tenantId, client, NOW, CIMD_CLIENTS_PER_TENANT, {
+      audience: MCP_URL,
+      granted,
+    }),
+  );
+}
+
 function rowsOf(tenantId: string, url = URL_A) {
   return withTenant(app.db, tenantId, async (tx) => {
     const client = await clientRepository(tx).byClientId(url);
@@ -80,6 +91,41 @@ function rowsOf(tenantId: string, url = URL_A) {
     return { client, config, scopes };
   });
 }
+
+describe('persistCimdClient under the mcp registration policy', () => {
+  it('gives a new client the MCP URL as its only audience and mcp:read as an optional scope', async () => {
+    expect(await persistUnderPolicy(mine, documentClient(), true)).toBe('ok');
+    const { config, scopes } = await rowsOf(mine);
+    expect(config?.audiences).toEqual([MCP_URL]);
+    expect(scopes.filter((row) => row.scope.name.startsWith('mcp:'))).toMatchObject([
+      { scope: { name: 'mcp:read' }, assignment: 'optional' },
+    ]);
+  });
+
+  it('never takes an audience from the document', async () => {
+    const client = documentClient({ audience: 'https://evil.example' });
+    await persistUnderPolicy(mine, client, true);
+    expect((await rowsOf(mine)).config?.audiences).toEqual([MCP_URL]);
+  });
+
+  it('applies the policy to a client that already exists, and takes it back off', async () => {
+    await persist(mine, documentClient());
+    expect((await rowsOf(mine)).config?.audiences).toEqual([]);
+
+    await persistUnderPolicy(mine, documentClient(), true);
+    expect((await rowsOf(mine)).config?.audiences).toEqual([MCP_URL]);
+
+    await persistUnderPolicy(mine, documentClient(), false);
+    expect((await rowsOf(mine)).config?.audiences).toEqual([]);
+  });
+
+  it("leaves another tenant's client of the same address as it was", async () => {
+    await persist(theirs, documentClient());
+    await persistUnderPolicy(mine, documentClient(), true);
+    expect((await rowsOf(theirs)).config?.audiences).toEqual([]);
+    expect((await rowsOf(theirs)).scopes.map((row) => row.scope.name)).not.toContain('mcp:read');
+  });
+});
 
 describe('persistCimdClient', () => {
   it('writes a public client from the document, with the default scopes and consent required', async () => {

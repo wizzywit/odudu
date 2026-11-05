@@ -14,6 +14,7 @@ import {
   type TenantSettingValue,
   normalizeDisplayName,
 } from '@odudu/domain-tenant';
+import { redactedDiff } from '#/service/audit-detail';
 import { etagOf, matches } from '#/service/etag';
 
 export interface SettingsAuditEvent {
@@ -238,6 +239,7 @@ export async function amendSettings(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: redactedDiff('tenant_settings', current.settings, settings),
   });
 
   return { kind: 'amended', settings, etag: etagOf(settings) };

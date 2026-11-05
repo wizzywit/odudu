@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideConsent, type ConsentInput } from '#/service/consent';
+import { decideConsent, needsApproval, type ConsentInput } from '#/service/consent';
 
 function input(overrides: Partial<ConsentInput> = {}): ConsentInput {
   return {
@@ -9,6 +9,8 @@ function input(overrides: Partial<ConsentInput> = {}): ConsentInput {
     grantedScopes: [],
     prompt: new Set(),
     consentRequired: true,
+    approvalRequired: false,
+    approved: false,
     ...overrides,
   };
 }
@@ -112,5 +114,47 @@ describe('[OIDC-CORE-3.1.2.1-13] decideConsent', () => {
       }),
     );
     expect(decision).toEqual({ kind: 'not_required' });
+  });
+});
+
+describe('a client the person has not approved', () => {
+  const dynamic = { approvalRequired: true, approved: false };
+
+  it('asks even when the client does not require consent', () => {
+    expect(decideConsent(input({ ...dynamic, consentRequired: false })).kind).toBe('ask');
+  });
+
+  it('asks when the request names nothing a grant could cover', () => {
+    const decision = decideConsent(input({ ...dynamic, requestedScopes: ['unlisted'] }));
+    expect(decision).toMatchObject({ kind: 'ask', defaultScopes: [], optionalScopes: [] });
+  });
+
+  it('refuses under prompt=none, where nothing can be asked', () => {
+    const decision = decideConsent(input({ ...dynamic, prompt: new Set(['none']) }));
+    expect(decision).toEqual({ kind: 'refuse', error: 'consent_required' });
+  });
+
+  it("follows the client's own rules once a grant of its exists", () => {
+    const approved = { approvalRequired: true, approved: true };
+    expect(
+      decideConsent(input({ ...approved, consentRequired: false, grantedScopes: ['openid'] })),
+    ).toEqual({ kind: 'not_required' });
+    expect(decideConsent(input({ ...approved, grantedScopes: ['openid'] })).kind).toBe('ask');
+  });
+
+  it('is not asked of a client registered by an administrator', () => {
+    expect(decideConsent(input({ consentRequired: false })).kind).toBe('not_required');
+  });
+});
+
+describe('needsApproval', () => {
+  it.each([
+    ['anonymous', true],
+    ['cimd', true],
+    ['seeded', false],
+    ['operator', false],
+    ['token', false],
+  ])('%s: %s', (origin, expected) => {
+    expect(needsApproval(origin)).toBe(expected);
   });
 });

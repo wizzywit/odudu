@@ -125,6 +125,12 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
   const cimdSlackId = newId();
   const cimdDisabledId = newId();
   const cimdRevokedId = newId();
+  const dynStaleId = newId();
+  const dynFreshId = newId();
+  const dynConsentedId = newId();
+  const dynDisabledId = newId();
+  const dynConfidentialId = newId();
+  const dynConsentRowId = newId();
   const cimdSlackGrantId = newId();
   const cimdRevokedGrantId = newId();
   const logoutDeliveredLongAgoId = newId();
@@ -194,6 +200,28 @@ async function seedFixture(brute?: BruteForce): Promise<Fixture> {
            (${`rt-revoked-${tenantId}`}, ${tenantId}, ${cimdRevokedGrantId}, ${at(5 * DAY)}::timestamptz, NULL)
   `);
 
+  // Public clients that registered themselves: one unused past a week, one
+  // young, one a person approved, one an administrator
+  // disabled, and a confidential one, which the rule leaves to its owner.
+  await owner.db.execute(sql`
+    INSERT INTO clients (id, tenant_id, client_id, name, type, registration_origin, created_at)
+    VALUES
+      (${dynStaleId}, ${tenantId}, 'dyn-stale', 'Stale', 'public', 'anonymous',
+       ${at(-8 * DAY)}::timestamptz),
+      (${dynFreshId}, ${tenantId}, 'dyn-fresh', 'Fresh', 'public', 'anonymous',
+       ${at(-1 * DAY)}::timestamptz),
+      (${dynConsentedId}, ${tenantId}, 'dyn-consented', 'Consented', 'public', 'anonymous',
+       ${at(-8 * DAY)}::timestamptz),
+      (${dynDisabledId}, ${tenantId}, 'dyn-disabled', 'Disabled', 'public', 'anonymous',
+       ${at(-8 * DAY)}::timestamptz),
+      (${dynConfidentialId}, ${tenantId}, 'dyn-confidential', 'Confidential', 'confidential',
+       'anonymous', ${at(-8 * DAY)}::timestamptz)
+  `);
+  await owner.db.execute(sql`UPDATE clients SET enabled = false WHERE id = ${dynDisabledId}`);
+  await owner.db.execute(sql`
+    INSERT INTO consents (id, tenant_id, subject_id, client_id)
+    VALUES (${dynConsentRowId}, ${tenantId}, ${subjectId}, ${dynConsentedId})
+  `);
   // The session the young grant is bound to is itself long past its grace:
   // what keeps it is the grant, not its own expiry.
   await owner.db.execute(sql`
@@ -441,6 +469,9 @@ const RELATIONS: Record<TableName, SQL> = {
   tenant_issuer_retirements: sql.raw('tenant_issuer_retirements'),
   client_metadata_cache: sql.raw('client_metadata_cache'),
   cimd_clients: sql.raw("(SELECT * FROM clients WHERE registration_origin = 'cimd') AS cimd"),
+  dynamic_clients: sql.raw(
+    "(SELECT * FROM clients WHERE registration_origin = 'anonymous' AND type = 'public') AS dynamic",
+  ),
   tenant_domains: sql.raw('tenant_domains'),
   sessions: sql.raw('sessions'),
   audit_events: sql.raw('audit_events'),
@@ -611,6 +642,7 @@ describe('odudu reap', () => {
       tenant_issuer_retirements: 1,
       client_metadata_cache: 1,
       cimd_clients: 2,
+      dynamic_clients: 1,
       tenant_domains: 1,
       sessions: 1,
       audit_events: 0,
@@ -636,6 +668,7 @@ describe('odudu reap', () => {
       tenant_issuer_retirements: 1,
       client_metadata_cache: 1,
       cimd_clients: 4,
+      dynamic_clients: 3,
       tenant_domains: 3,
       sessions: 1,
       audit_events: 0,
@@ -658,6 +691,7 @@ describe('odudu reap', () => {
       tenant_issuer_retirements: 0,
       client_metadata_cache: 0,
       cimd_clients: 0,
+      dynamic_clients: 0,
       tenant_domains: 0,
       sessions: 0,
       audit_events: 0,
@@ -695,6 +729,97 @@ describe('odudu reap', () => {
       'https://slack.example.com/c.json',
     ]);
     expect(await countRows(fixture.tenantId, 'refresh_tokens')).toBeGreaterThan(0);
+  });
+
+  it('removes the self-registered public client nobody used, and keeps one approved, young or disabled', async () => {
+    const fixture = await seedFixture();
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ client_id: string }>(
+      sql`SELECT client_id FROM clients
+           WHERE tenant_id = ${fixture.tenantId} AND registration_origin = 'anonymous'
+           ORDER BY client_id`,
+    );
+    expect(rows.map((row) => row.client_id)).toEqual([
+      'dyn-confidential',
+      'dyn-consented',
+      'dyn-disabled',
+      'dyn-fresh',
+    ]);
+  });
+
+  it('keeps an old self-registered client a person once approved, though the approval was withdrawn', async () => {
+    const fixture = await seedFixture();
+    const clientId = newId();
+    await owner.db.execute(sql`
+      INSERT INTO clients (id, tenant_id, client_id, name, type, registration_origin, created_at,
+                           approved_at)
+      VALUES (${clientId}, ${fixture.tenantId}, 'dyn-withdrawn', 'Withdrawn', 'public',
+              'anonymous', ${at(-30 * DAY)}::timestamptz, ${at(-20 * DAY)}::timestamptz)
+    `);
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ client_id: string }>(
+      sql`SELECT client_id FROM clients WHERE id = ${clientId}`,
+    );
+    expect(rows.map((row) => row.client_id)).toEqual(['dyn-withdrawn']);
+  });
+
+  it('keeps an old self-registered client whose first sign-in is still pending, and not one whose sign-in lapsed', async () => {
+    const fixture = await seedFixture();
+    const pending = (clientKey: string, expiresAt: string) =>
+      owner.db.execute(sql`
+        INSERT INTO authentication_sessions (id, tenant_id, pending_request, expires_at)
+        VALUES (${newId()}, ${fixture.tenantId},
+                ${JSON.stringify({ clientId: clientKey })}::jsonb, ${expiresAt}::timestamptz)
+      `);
+    for (const key of ['dyn-signing-in', 'dyn-lapsed']) {
+      await owner.db.execute(sql`
+        INSERT INTO clients (id, tenant_id, client_id, name, type, registration_origin, created_at)
+        VALUES (${newId()}, ${fixture.tenantId}, ${key}, ${key}, 'public', 'anonymous',
+                ${at(-30 * DAY)}::timestamptz)
+      `);
+    }
+    await pending('dyn-signing-in', at(20 * MINUTE));
+    await pending('dyn-lapsed', at(-20 * MINUTE));
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ client_id: string }>(
+      sql`SELECT client_id FROM clients
+           WHERE tenant_id = ${fixture.tenantId} AND client_id LIKE 'dyn-%' ORDER BY client_id`,
+    );
+    expect(rows.map((row) => row.client_id)).toEqual(
+      ['dyn-consented', 'dyn-confidential', 'dyn-disabled', 'dyn-fresh', 'dyn-signing-in'].sort(),
+    );
+  });
+
+  it('keeps an old self-registered client that holds a grant, however spent', async () => {
+    const fixture = await seedFixture();
+    const clientId = newId();
+    const [subject] = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM subjects WHERE tenant_id = ${fixture.tenantId} LIMIT 1`,
+    );
+    await owner.db.execute(sql`
+      INSERT INTO clients (id, tenant_id, client_id, name, type, registration_origin, created_at)
+      VALUES (${clientId}, ${fixture.tenantId}, 'dyn-granted', 'Granted', 'public', 'anonymous',
+              ${at(-8 * DAY)}::timestamptz)
+    `);
+    await owner.db.execute(sql`
+      INSERT INTO token_grants (id, tenant_id, client_id, subject_id, scope, created_at, session_id,
+                                revoked_at)
+      VALUES (${newId()}, ${fixture.tenantId}, ${clientId}, ${subject?.id ?? ''}, 'openid',
+              ${at(-1 * HOUR)}::timestamptz, NULL, ${at(-30 * MINUTE)}::timestamptz)
+    `);
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ client_id: string }>(
+      sql`SELECT client_id FROM clients WHERE id = ${clientId}`,
+    );
+    expect(rows.map((row) => row.client_id)).toEqual(['dyn-granted']);
   });
 
   it('keeps the cached metadata document that is still fresh', async () => {
@@ -800,6 +925,7 @@ describe('odudu reap', () => {
     'tenant_issuer_retirements',
     'client_metadata_cache',
     'cimd_clients',
+    'dynamic_clients',
     'tenant_domains',
   ] as const)('scopes the %s delete to one tenant by row-level security alone', async (table) => {
     const mine = await seedFixture();

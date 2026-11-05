@@ -37,11 +37,12 @@ export interface TenantLookup {
   // The cap admitSession (ADR 0033) evicts down to before inserting a new
   // session.
   maxSessionsPerBrowser: number;
-  // The three-state gate the registration endpoint and discovery's
-  // registration_endpoint both read: 'disabled' answers neither, 'open'
-  // and 'token' both advertise the endpoint and differ only in whether an
-  // initial access token is required (ADR 0026).
-  clientRegistrationPolicy: 'disabled' | 'open' | 'token';
+  // The gate the registration endpoint and discovery's registration_endpoint
+  // both read: 'disabled' answers neither, 'open' and 'token' both advertise
+  // the endpoint and differ only in whether an initial access token is
+  // required (ADR 0026), and 'mcp' advertises it for public clients bound to
+  // the tenant's MCP endpoint.
+  clientRegistrationPolicy: 'disabled' | 'open' | 'token' | 'mcp';
   // Whether a URL client_id is resolved to its Client ID Metadata Document.
   cimdEnabled: boolean;
   // The languages the tenant's pages are offered in and, when it has set one,

@@ -927,7 +927,7 @@ describeFields(registrationPolicySchema, {
   registration_allowed: 'Whether people may register themselves.',
   verify_email: 'Whether a registered address must be verified before sign-in.',
   client_registration_policy:
-    'Who may register clients dynamically: nobody (`disabled`), anybody (`open`) or the holder of an initial access token (`token`).',
+    'Who may register clients dynamically: nobody (`disabled`), anybody (`open`), the holder of an initial access token (`token`) or a public client of the kind MCP clients register as (`mcp`).',
 });
 describeFields(tenantDocumentSchema, {
   version: 'The document format version; always 1.',

@@ -132,7 +132,8 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
   },
   'POST /tenants/:tenant/clients-registrations/openid-connect': {
     auth: 'Initial access token (optional)',
-    purpose: 'Dynamic client registration (RFC 7591), when the tenant allows it.',
+    purpose:
+      'Dynamic client registration (RFC 7591), when the tenant allows it. A tenant whose policy is `mcp` admits only public clients bound to its MCP address, ten an hour from one address.',
   },
   [`POST ${LOGIN}/authenticate`]: {
     auth: 'Sign-in session',

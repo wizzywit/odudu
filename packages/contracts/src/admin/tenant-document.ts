@@ -99,7 +99,7 @@ export type TenantSettingsDocument = z.infer<typeof tenantSettingsDocumentSchema
 export const registrationPolicySchema = z.strictObject({
   registration_allowed: z.boolean(),
   verify_email: z.boolean(),
-  client_registration_policy: z.enum(['disabled', 'open', 'token']),
+  client_registration_policy: z.enum(['disabled', 'open', 'token', 'mcp']),
 });
 export type RegistrationPolicy = z.infer<typeof registrationPolicySchema>;
 

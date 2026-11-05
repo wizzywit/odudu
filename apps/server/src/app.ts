@@ -104,6 +104,7 @@ import { type RateLimiter, slidingWindow } from '#/throttle';
 import { mailGate as createMailGate } from '#/mail-limiter';
 import { neutraliseRequestInput } from '#/input-hygiene';
 import { loginBudgetKey } from '#/login-throttle';
+import { mcpRegistrationBudget } from '#/mcp-registration-budget';
 import { throttleOrigin } from '#/throttle-origin';
 
 export interface AppDeps {
@@ -231,6 +232,14 @@ export interface AppDeps {
    * `ODUDU_LOGIN_THROTTLE_*` says.
    */
   readonly loginThrottle?: ThrottleSettings;
+  /**
+   * The registrations one address may make on a tenant whose client
+   * registration policy is `mcp`, and the tenant may take from every address
+   * together. Default to `DEFAULT_MCP_REGISTRATION_THROTTLE` and
+   * `DEFAULT_MCP_TENANT_REGISTRATION_THROTTLE`.
+   */
+  readonly mcpRegistrationThrottle?: ThrottleSettings;
+  readonly mcpTenantRegistrationThrottle?: ThrottleSettings;
   /** The proxy's domain question; its own budget, per origin. */
   readonly domainCheckThrottle?: ThrottleSettings;
   /**
@@ -289,6 +298,22 @@ export const DEFAULT_THROTTLE: ThrottleSettings = { limit: 10, windowSeconds: 60
 export const DEFAULT_DOMAIN_CHECK_THROTTLE: ThrottleSettings = { limit: 300, windowSeconds: 60 };
 
 export const DEFAULT_LOGIN_THROTTLE: ThrottleSettings = { limit: 5, windowSeconds: 60 };
+
+// An agent registers once per installation, so ten an hour from one address
+// is generous. At this limit the limiter keeps the exact log, which at the
+// key cap holds ten timestamps for each of at most `MAX_THROTTLE_KEYS` keys
+// (ADR 0023).
+export const DEFAULT_MCP_REGISTRATION_THROTTLE: ThrottleSettings = {
+  limit: 10,
+  windowSeconds: 3600,
+};
+
+// Sixty an hour for the tenant over every address, so a tenant's `max_clients`
+// (200 by default) is not filled in the time an administrator takes to notice.
+export const DEFAULT_MCP_TENANT_REGISTRATION_THROTTLE: ThrottleSettings = {
+  limit: 60,
+  windowSeconds: 3600,
+};
 
 // Mirrors the account lockout's own defaults (brute_force_max_failures,
 // brute_force_lockout_seconds — packages/db/drizzle/0041_login_failures.sql):
@@ -478,6 +503,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // flood cannot spend the other's window.
   const clientSecretLimiter: RateLimiter = slidingWindow({
     ...(deps.clientSecretThrottle ?? DEFAULT_CLIENT_SECRET_THROTTLE),
+    now: () => new Date(),
+  });
+
+  const mcpRegistrations = mcpRegistrationBudget({
+    perOrigin: deps.mcpRegistrationThrottle ?? DEFAULT_MCP_REGISTRATION_THROTTLE,
+    perTenant: deps.mcpTenantRegistrationThrottle ?? DEFAULT_MCP_TENANT_REGISTRATION_THROTTLE,
     now: () => new Date(),
   });
 
@@ -676,6 +707,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,
       clientSecretLimiter,
+      mcpRegistrationLimiter: mcpRegistrations,
       auditRefusalBudget: auditRefusalBudget(() => new Date()),
       clientKeySet: privateKeyJwtKeySet,
       cimd: {

@@ -1,7 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { OduduError } from '@odudu/kernel';
 import { clientRepository } from '#/repository/clients';
-import { clientScopeRepository } from '#/repository/client-scopes';
 import { type ClientRecord } from '#/schema/clients';
 import {
   MCP_CLIENT_ID,
@@ -9,6 +8,7 @@ import {
   MCP_READ_SCOPE,
   MCP_WRITE_SCOPE,
 } from '#/service/mcp-client';
+import { assignMcpScope } from '#/usecase/assign-mcp-scope';
 import { provisionClientDefaults } from '#/usecase/provision-defaults';
 
 /**
@@ -43,13 +43,7 @@ export async function provisionMcpClient(
     builtinMcp: true,
   });
   await provisionClientDefaults(tx, client.id);
-  const scopes = clientScopeRepository(tx);
-  for (const [name, assignment] of [
-    [MCP_READ_SCOPE, 'default'],
-    [MCP_WRITE_SCOPE, 'optional'],
-  ] as const) {
-    const scope = await scopes.byName(name);
-    if (scope !== null) await scopes.assignOrUpdate(client.id, scope.id, assignment);
-  }
+  await assignMcpScope(tx, client.id, MCP_READ_SCOPE, 'default');
+  await assignMcpScope(tx, client.id, MCP_WRITE_SCOPE, 'optional');
   return client;
 }

@@ -5,6 +5,7 @@ import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { inTurn, json, problem } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';
 import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
+import { SETTINGS_WORDS } from '#/pages/settings/services/settingsPageWords';
 import { settingsAnswer, settingsRoutes, ST } from '#/testing/settingsFixtures';
 
 afterEach(() => {
@@ -34,7 +35,7 @@ it('has a section for each concern, each with its own save', async () => {
     'Password policy',
     'Brute force',
     'Token lifetimes',
-    'Dynamic client registration',
+    'Client registration',
     'Audit retention',
   ]) {
     expect(screen.getByRole('region', { name: title })).toBeVisible();
@@ -114,17 +115,84 @@ it('sets a switch and a choice', async () => {
   await waitFor(() => {
     expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({ verify_email: true });
   });
-  const clients = await section('Dynamic client registration');
+  const clients = await section('Client registration');
   await user.click(within(clients).getByRole('button', { name: /Policy/u }));
   await user.click(await screen.findByRole('option', { name: /With a registration token/u }));
-  await user.click(
-    within(clients).getByRole('button', { name: 'Save Dynamic client registration' }),
-  );
+  await user.click(within(clients).getByRole('button', { name: 'Save Client registration' }));
   await waitFor(() => {
     expect(sent.filter((s) => s.method === 'PATCH').at(-1)?.body).toEqual({
       client_registration_policy: 'token',
     });
   });
+});
+
+it('offers the mcp policy and the metadata-document switch in the one section', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, {
+      [`PATCH ${ST}`]: settingsAnswer(
+        { client_registration_policy: 'mcp', cimd_enabled: true },
+        '"s2"',
+      ),
+    }),
+  );
+  const clients = await section('Client registration');
+  expect(within(clients).getByRole('switch', { name: SETTINGS_WORDS.cimdLabel })).not.toBeChecked();
+  await user.click(within(clients).getByRole('button', { name: /Policy/u }));
+  await user.click(await screen.findByRole('option', { name: SETTINGS_WORDS.mcpOption }));
+  await user.click(within(clients).getByRole('switch', { name: SETTINGS_WORDS.cimdLabel }));
+  await user.click(within(clients).getByRole('button', { name: 'Save Client registration' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')).toMatchObject({
+      ifMatch: '"s1"',
+      body: { client_registration_policy: 'mcp', cimd_enabled: true },
+    });
+  });
+});
+
+it('shows an mcp tenant with the policy named and the switch on', async () => {
+  renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, {
+      [`GET ${ST}`]: settingsAnswer({ client_registration_policy: 'mcp', cimd_enabled: true }),
+    }),
+  );
+  const clients = await section('Client registration');
+  expect(within(clients).getByRole('button', { name: /Policy/u })).toHaveTextContent(
+    SETTINGS_WORDS.mcpOption,
+  );
+  expect(within(clients).getByRole('switch', { name: SETTINGS_WORDS.cimdLabel })).toBeChecked();
+});
+
+it('counts an edit to the switch as unsaved until it is saved', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(AT, settingsRoutes());
+  const clients = await section('Client registration');
+  expect(within(clients).queryByRole('button', { name: 'Save Client registration' })).toBeNull();
+  await user.click(within(clients).getByRole('switch', { name: SETTINGS_WORDS.cimdLabel }));
+  expect(
+    within(clients).getByRole('button', { name: 'Save Client registration' }),
+  ).toBeInTheDocument();
+});
+
+it('shows a 412 on the policy as the other administrator’s value beside yours', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    settingsRoutes(undefined, {
+      [`PATCH ${ST}`]: problem(412, 'about:blank', 'Precondition Failed'),
+      [`GET ${ST}`]: inTurn(
+        settingsAnswer(),
+        settingsAnswer({ client_registration_policy: 'open' }, '"s2"'),
+      ),
+    }),
+  );
+  const clients = await section('Client registration');
+  await user.click(within(clients).getByRole('button', { name: /Policy/u }));
+  await user.click(await screen.findByRole('option', { name: SETTINGS_WORDS.mcpOption }));
+  await user.click(within(clients).getByRole('button', { name: 'Save Client registration' }));
+  expect(await within(clients).findByRole('button', { name: /Keep mine/u })).toBeVisible();
 });
 
 it('sends the events chosen as a list, and cannot leave out the two that are always kept', async () => {

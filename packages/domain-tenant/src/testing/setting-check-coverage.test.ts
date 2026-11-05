@@ -23,7 +23,7 @@ const COLUMNS = new Set([
 // (packages/db/tests/schema-drift.int.test.ts, EXPECTED_CHECKS).
 const CURRENT = [
   'CHECK ((((brute_force_max_failures >= 1) AND (brute_force_max_failures <= 100)) AND ((brute_force_lockout_seconds >= 1) AND (brute_force_lockout_seconds <= 86400)) AND (brute_force_max_lockout_seconds >= brute_force_lockout_seconds) AND ((brute_force_failure_reset_seconds >= 60) AND (brute_force_failure_reset_seconds <= 2592000))))',
-  "CHECK ((client_registration_policy = ANY (ARRAY['disabled'::text, 'open'::text, 'token'::text])))",
+  "CHECK ((client_registration_policy = ANY (ARRAY['disabled'::text, 'open'::text, 'token'::text, 'mcp'::text])))",
   'CHECK ((max_clients >= 0))',
   "CHECK ((name ~ '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$'::text))",
   'CHECK (((password_min_length >= 8) AND (password_min_length <= 256)))',

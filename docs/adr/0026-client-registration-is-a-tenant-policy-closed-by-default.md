@@ -105,3 +105,16 @@ the disable queued unverifiable. The disclosure ends when the tenant is
 deleted. Registration's `404` for a disabled tenant still refuses, but no
 longer conceals the tenant; for an enabled tenant whose policy is `disabled`,
 the reasoning above is unchanged.
+
+## Amendment, 2026-11-05
+
+A fourth state, `mcp` (migration 0117), is open to anybody the way `open` is and
+bounded in what it will register: a public client, `https` or loopback `http`
+redirects, `mcp:read` at most, the tenant's MCP URL as its only audience, and a
+budget of ten registrations an hour for each tenant and address. A client it
+registers and a client resolved from a metadata document under it are asked
+about on every sign-in until the person approves that exact client id. It is a
+narrow policy for agents, not the general registration policies the roadmap
+gives to P13; `open` stays as it was. Rejected: loosening `open` for MCP clients
+(it admits confidential clients and custom schemes), and a second boolean beside
+the state (this ADR's own argument against two flags).

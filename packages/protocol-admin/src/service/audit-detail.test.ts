@@ -49,4 +49,17 @@ describe('redactedDiff', () => {
       name: { before: undefined, after: 'a' },
     });
   });
+
+  it('names the registration policy and the client metadata switch of tenant settings by value', () => {
+    expect(
+      redactedDiff(
+        'tenant_settings',
+        { client_registration_policy: 'disabled', cimd_enabled: false, verify_email: false },
+        { client_registration_policy: 'mcp', cimd_enabled: true, verify_email: true },
+      ),
+    ).toEqual({
+      client_registration_policy: { before: 'disabled', after: 'mcp' },
+      cimd_enabled: { before: false, after: true },
+    });
+  });
 });

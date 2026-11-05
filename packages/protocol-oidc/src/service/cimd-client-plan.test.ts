@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { NO_MCP_GRANT } from '#/service/mcp-registration-policy';
 import { amendmentOf, placementOf } from '#/service/cimd-client-plan';
 import { parseCimdDocument, type CimdClient } from '#/service/client-id-metadata';
 
@@ -21,6 +22,7 @@ const config = {
   tokenEndpointAuthMethod: 'none',
   jwks: null,
   jwksUri: null,
+  audiences: [] as string[],
 };
 
 describe('placementOf', () => {
@@ -39,7 +41,7 @@ describe('placementOf', () => {
 
 describe('amendmentOf', () => {
   it('writes nothing for a document that matches what is stored', () => {
-    expect(amendmentOf(stored, config, doc(), NOW)).toEqual({
+    expect(amendmentOf(stored, config, doc(), NOW, NO_MCP_GRANT)).toEqual({
       client: null,
       config: null,
       touch: false,
@@ -51,16 +53,30 @@ describe('amendmentOf', () => {
       config,
       doc({ client_name: 'New', redirect_uris: ['https://app.example.com/other'] }),
       NOW,
+      NO_MCP_GRANT,
     );
     expect(changed.client).toEqual({ name: 'New', type: 'public' });
     expect(changed.config).toMatchObject({ redirectUris: ['https://app.example.com/other'] });
   });
   it('asks for a configuration when there is none, and touches once a day', () => {
     const later = new Date(NOW.getTime() + 86_400_000);
-    expect(amendmentOf(stored, null, doc(), later)).toMatchObject({
+    expect(amendmentOf(stored, null, doc(), later, NO_MCP_GRANT)).toMatchObject({
       config: 'create',
       touch: true,
     });
-    expect(amendmentOf({ ...stored, metadataUsedAt: null }, config, doc(), NOW).touch).toBe(true);
+    expect(
+      amendmentOf({ ...stored, metadataUsedAt: null }, config, doc(), NOW, NO_MCP_GRANT).touch,
+    ).toBe(true);
+  });
+  it('writes the MCP audience a policy grants, and only when it differs', () => {
+    const mcp = { audience: 'https://idp.example/mcp', granted: true };
+    expect(amendmentOf(stored, config, doc(), NOW, mcp).config).toMatchObject({
+      audiences: ['https://idp.example/mcp'],
+    });
+    const held = { ...config, audiences: ['https://idp.example/mcp'] };
+    expect(amendmentOf(stored, held, doc(), NOW, mcp).config).toBeNull();
+    expect(amendmentOf(stored, held, doc(), NOW, { ...mcp, granted: false }).config).toMatchObject({
+      audiences: [],
+    });
   });
 });

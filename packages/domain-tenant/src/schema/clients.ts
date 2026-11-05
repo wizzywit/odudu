@@ -66,6 +66,10 @@ export const clients = pgTable('clients', {
   // for registration_origin 'cimd' (clients_metadata_used_for_cimd), and what
   // `reap` ages such a client out by.
   metadataUsedAt: timestamp('metadata_used_at', { withTimezone: true }),
+  // When a person first approved the client; never cleared, so withdrawing the
+  // approval does not make a self-registered client look unused to `reap`
+  // (packages/db/drizzle/0119_clients_approved_at.sql).
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
   // Search keys, in the C collation, filled by the database
   // (packages/db/drizzle/0074_list_indexes_tenants_clients.sql).
   clientIdSearch: text('client_id_search').generatedAlwaysAs(sql`lower(client_id)`),

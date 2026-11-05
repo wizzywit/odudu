@@ -662,3 +662,156 @@ curl -sS -X POST http://localhost:3080/tenants/jwks-demo/clients-registrations/o
 {"type":"about:blank","title":"Bad Request","status":400,"detail":"jwks.keys[0] carries the private member k; register public keys only","errors":[{"path":"jwks","message":"jwks.keys[0] carries the private member k; register public keys only"}],"instance":"01a0ea63-bbfe-7bcd-9234-5a96705e5f51"}
 {"client_id":"01a0ea63-bc2e-76fa-b646-56b5121f644e","client_id_issued_at":1790638799,"client_secret":"_YZPORl5uy3NcYXEzMq8PSjdCnddn4XutbW7T4-QR4Y","client_secret_expires_at":0,"redirect_uris":["https://rp.example/cb"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"private_key_jwt","jwks":{"keys":[{"kty":"EC","crv":"P-256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}}
 ```
+
+### The `mcp` policy
+
+A fourth value of `client_registration_policy`, `mcp`, opens the endpoint to
+one kind of client: an agent registering itself to reach the tenant's MCP
+endpoint (ADR 0026's amendment). It is open in the way `open` is, with no
+credential, and bounded in ways `open` is not. The client has to be public
+(`token_endpoint_auth_method` of `none`, whose absence is refused rather than
+defaulted to a secret), its redirect URIs `https` or `http` on a loopback host,
+its grants `authorization_code` and `refresh_token`, no key set and no logout address, its `scope` at most
+`mcp:read` beside the sign-in scopes, and its `audience`, when it names one,
+exactly the tenant's MCP URL. A request is counted against ten an hour per
+address on that tenant and sixty an hour for the tenant, and a tenant at its `max_clients` refuses as under any
+policy. `seed tenant --set` and the settings API both take the value, and
+refuse any other spelling by naming the four:
+
+```bash
+odudu seed tenant --name mcp-demo --set client_registration_policy=mcp
+odudu seed tenant --name mcp-refused --set client_registration_policy=nonsense 2>&1 \
+  | grep -E '^OduduError|code:'
+```
+
+```
+{"command":"tenant","created":true,"tenant":"mcp-demo","tenantId":"01a1ad89-34df-…","settings":["client_registration_policy"]}
+OduduError: tenant setting client_registration_policy must be one of disabled, open, token, mcp
+  code: 'seed_invalid_options'
+```
+
+```bash
+curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://agent.example/cb","http://127.0.0.1:53124/cb"],"token_endpoint_auth_method":"none","client_name":"Example Agent","scope":"openid mcp:read"}'
+```
+
+```json
+{
+  "client_id": "01a1ad89-370d-…",
+  "client_id_issued_at": 1793912813,
+  "redirect_uris": ["https://agent.example/cb", "http://127.0.0.1:53124/cb"],
+  "audience": ["http://localhost:3000/tenants/mcp-demo/mcp"],
+  "grant_types": ["authorization_code"],
+  "token_endpoint_auth_method": "none",
+  "client_name": "Example Agent"
+}
+```
+
+The row the registration wrote, and the one scope it was given beyond the
+tenant's defaults. `mcp:read` is `optional`, so the client has to ask for it
+and the person is shown it; `consent_required` is `true`, and `mcp:write` is
+not assigned to any client the policy creates:
+
+```bash
+docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+  select c.type, c.registration_origin, o.token_endpoint_auth_method, o.audiences, o.consent_required
+  from clients c join client_oidc_config o on o.client_id = c.id
+  where c.client_id = '01a1ad89-370d-78ab-9205-c4ed703375e2'"
+docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+  select s.name, a.assignment
+  from client_scope_assignments a
+  join client_scopes s on s.id = a.client_scope_id
+  join clients c on c.id = a.client_id
+  where c.client_id = '01a1ad89-370d-78ab-9205-c4ed703375e2' and s.name like 'mcp:%'"
+```
+
+```
+  type  | registration_origin | token_endpoint_auth_method |                  audiences                   | consent_required
+--------+---------------------+----------------------------+----------------------------------------------+------------------
+ public | anonymous           | none                       | {http://localhost:3000/tenants/mcp-demo/mcp} | t
+(1 row)
+
+   name   | assignment
+----------+------------
+ mcp:read | optional
+(1 row)
+```
+
+Each refusal below is `400` and stores nothing. A client that would hold a
+secret (the first request names no `token_endpoint_auth_method`, which RFC 7591
+defaults to `client_secret_basic`), a plain-`http` redirect that is not on a
+loopback host, `mcp:write`, and an audience that is not this tenant's MCP URL:
+
+```bash
+curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://agent.example/cb"],"client_name":"Example Agent"}'
+curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["http://agent.example/cb"],"token_endpoint_auth_method":"none"}'
+curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://agent.example/cb"],"token_endpoint_auth_method":"none","scope":"mcp:read mcp:write"}'
+curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://agent.example/cb"],"token_endpoint_auth_method":"none","audience":"https://api.example"}'
+```
+
+```
+{"error":"invalid_client_metadata","error_description":"token_endpoint_auth_method must be none: this tenant's registration policy admits public clients only"}
+{"error":"invalid_redirect_uri","error_description":"redirect_uris entry http://agent.example/cb is not valid"}
+{"error":"invalid_client_metadata","error_description":"scope mcp:write is not available under this tenant's registration policy"}
+{"error":"invalid_client_metadata","error_description":"audience must be http://localhost:3000/tenants/mcp-demo/mcp and nothing else under this tenant's registration policy"}
+```
+
+The ceiling is the tenant's `max_clients`, here lowered to the number of
+clients it holds, and the budget is the eleventh request from one address
+inside an hour. Every request above was counted, refused ones too: one
+registration, four refusals and the refusal at the ceiling make six, so the
+four in the loop reach ten and the request after them is the `429`. A tenant
+is also held to sixty an hour over every address together, which this run did
+not reach. The `429` carries `retry-after` in seconds:
+
+```bash
+docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "update tenants set max_clients = (select count(*) from clients where tenant_id = tenants.id) where name = 'mcp-demo' returning max_clients"
+curl -sS -i -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://agent.example/cb"],"token_endpoint_auth_method":"none"}' | grep -iE '^HTTP|^\{'
+docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "update tenants set max_clients = 200 where name = 'mcp-demo'"
+for i in 1 2 3 4; do curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
+  http://localhost:3000/tenants/mcp-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://agent.example/cb"],"token_endpoint_auth_method":"none"}'; done
+curl -sS -i -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://agent.example/cb"],"token_endpoint_auth_method":"none"}' \
+  | grep -iE '^HTTP|^retry-after|^\{'
+```
+
+```
+ max_clients
+-------------
+           3
+(1 row)
+
+UPDATE 1
+HTTP/1.1 403 Forbidden
+{"error":"invalid_client_metadata","error_description":"this tenant has reached its client registration limit"}
+UPDATE 1
+201
+201
+201
+201
+HTTP/1.1 429 Too Many Requests
+retry-after: 3600
+{"error":"invalid_client_metadata","error_description":"too many registrations from this address; retry later"}
+```
+
+A client registered this way, and a client whose `client_id` is a metadata
+document under this policy, is shown the consent screen on every sign-in until
+the person approves that exact client; see [Consent and
+audit](../../../concepts/consent-and-audit.mdx). The consent screen's markup is
+unchanged, so no sign-in is re-run here.

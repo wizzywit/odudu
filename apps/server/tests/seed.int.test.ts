@@ -630,6 +630,8 @@ describe('seed tenant --set', () => {
         registrationAllowed: tenants.registrationAllowed,
         passwordMaxAgeDays: tenants.passwordMaxAgeDays,
         displayName: tenants.displayName,
+        cimdEnabled: tenants.cimdEnabled,
+        clientRegistrationPolicy: tenants.clientRegistrationPolicy,
       })
       .from(tenants)
       .where(eq(tenants.id, tenantId));
@@ -742,6 +744,34 @@ describe('seed tenant --set', () => {
     const name = `set-${newId()}`;
 
     await expect(seed(['tenant', '--name', name, '--set', 'max_clients=-1'])).rejects.toThrow();
+  });
+
+  it('applies the mcp registration policy and the metadata document switch', async () => {
+    const result = await seed([
+      'tenant',
+      '--name',
+      `set-${newId()}`,
+      '--set',
+      'cimd_enabled=true',
+      '--set',
+      'client_registration_policy=mcp',
+    ]);
+
+    if (result.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(result).toMatchObject({ settings: ['cimd_enabled', 'client_registration_policy'] });
+    expect(await tenantSettings(result.tenantId)).toMatchObject({
+      cimdEnabled: true,
+      clientRegistrationPolicy: 'mcp',
+    });
+  });
+
+  it('names the four registration policies when it refuses another', async () => {
+    await expect(
+      seed(['tenant', '--name', `set-${newId()}`, '--set', 'client_registration_policy=nonsense']),
+    ).rejects.toThrow(/disabled, open, token, mcp/u);
+    await expect(
+      seed(['tenant', '--name', `set-${newId()}`, '--set', 'cimd_enabled=maybe']),
+    ).rejects.toThrow(/expects a boolean/u);
   });
 
   it('cannot write a registration policy the database refuses', async () => {

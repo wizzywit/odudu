@@ -14,6 +14,7 @@ import {
   BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
   CIMD_CLIENT_UNUSED_SECONDS,
   holdsLiveRefreshToken,
+  UNUSED_DYNAMIC_CLIENT_SECONDS,
 } from '@odudu/protocol-oidc';
 import { eq, sql, type SQL } from 'drizzle-orm';
 
@@ -40,6 +41,7 @@ export type TableName =
   | 'tenant_issuer_retirements'
   | 'client_metadata_cache'
   | 'cimd_clients'
+  | 'dynamic_clients'
   | 'tenant_domains'
   | 'sessions'
   | 'audit_events';
@@ -421,6 +423,34 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
     `,
   },
 
+  // A public client that registered itself and has done nothing in a week:
+  // nobody ever approved it (approved_at survives a withdrawn consent), no
+  // grant was ever made to it, and no code or pending sign-in of it is live. Open registration would otherwise fill the tenant's `max_clients`
+  // with rows nobody will use. A disabled one stays, an administrator's
+  // decision. Served by clients_anonymous_public_by_created, with
+  // consents_by_client, token_grants_by_client and authorization_codes_by_client.
+  dynamic_clients: {
+    after: ['token_grants', 'authorization_codes'],
+    statement: (now) => sql`
+      DELETE FROM clients c
+       WHERE c.registration_origin = 'anonymous'
+         AND c.type = 'public'
+         AND c.enabled
+         AND c.created_at < ${before(now, UNUSED_DYNAMIC_CLIENT_SECONDS)}::timestamptz
+         AND c.approved_at IS NULL
+         AND NOT EXISTS (SELECT 1 FROM consents k WHERE k.client_id = c.id)
+         AND NOT EXISTS (SELECT 1 FROM token_grants g WHERE g.client_id = c.id)
+         AND NOT EXISTS (
+           SELECT 1 FROM authentication_sessions s
+            WHERE s.tenant_id = c.tenant_id
+              AND s.pending_request ->> 'clientId' = c.client_id
+              AND s.expires_at > ${now.toISOString()}::timestamptz)
+         AND NOT EXISTS (
+           SELECT 1 FROM authorization_codes a
+            WHERE a.client_id = c.id AND a.expires_at > ${now.toISOString()}::timestamptz)
+    `,
+  },
+
   // Only a registration nobody proved: a verified row is the tenant's
   // address and a failed one is kept for the tenant to read, so neither is
   // reaped however old. Served by tenant_domains_pending_by_created.
@@ -490,6 +520,7 @@ export const REAP_ORDER: readonly TableName[] = [
   'tenant_issuer_retirements',
   'client_metadata_cache',
   'cimd_clients',
+  'dynamic_clients',
   'tenant_domains',
   'sessions',
   'audit_events',

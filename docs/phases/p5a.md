@@ -141,10 +141,111 @@ no-store document is fetched every time and never cached.
   size bound); `reap` also spares disabled clients; the userinfo encryption
   fetch is public-only for cimd clients. Every `clientKeySet.fetch` caller is
   the private_key_jwt authentication (/token, /introspect, /revoke) and that one.
-- **Left for a policy.** The client has no audience and no MCP scope; both
-  arrive with the MCP registration policy. Turning the setting off does not
+- **The policy gives it an audience.** The client has no audience and no MCP
+  scope of its own; both come from the tenant's `mcp` registration policy
+  (the section below), never from the document. Turning the setting off does not
   disable stored rows: `/authorize` and `/token` refuse them by reading the
   setting, so a later control for the setting changes nothing else.
 - **The setting reached the admin API with its column**, because tenant
   settings, their export and `seed tenant --set` are one map. The console
-  control is still to come (`PLACED_ELSEWHERE` in the settings page names it).
+  control is on the Settings screen, in the Client registration section, together with the `mcp` policy.
+- **`mcp` reached the same map as a value** of `client_registration_policy`
+  (`SETTINGS`' `values`, which the settings API and `seed tenant --set` both
+  read; an unknown spelling is a 400 naming the four, as it was for three). A
+  settings amendment's audit event now carries a `tenant_settings` diff of
+  those two settings only (`ALLOWLISTS`), where it carried no detail at all.
+
+## The `mcp` registration policy
+
+`client_registration_policy` takes a fourth value, `mcp` (migration 0117 widens
+the CHECK; the default stays `disabled`). The registration endpoint is then open
+to a public client and nothing else: `decideMcpRegistration` (a pure service)
+refuses a client that would hold a secret, a redirect that is not `https` or
+loopback `http` (a reverse-DNS custom scheme, which `open` admits, is refused),
+a grant beyond `authorization_code` and `refresh_token`, a `scope` outside the
+sign-in scopes and `mcp:read`, and an `audience` that is not the tenant's MCP
+URL. The audience is not a member RFC 7591 defines; it is Odudu's, and the
+response echoes it as `audience`. A client that omits
+`token_endpoint_auth_method` is refused, not defaulted, because the RFC's
+default is a secret. `registerMcpClient` (usecase) runs the budget, the
+decision and the shared transaction; the client is written with the MCP URL as
+its only audience, `mcp:read` as an optional scope, `consent_required` true and
+`registration_origin` `anonymous`, and the existing `max_clients` lock bounds
+the tenant.
+
+- **Budget.** Ten registrations an hour per tenant and address, and sixty an
+  hour per tenant over every address (`mcpRegistrationBudget`; the address is
+  checked first, so a refused address spends none of the tenant's), over the
+  `slidingWindow` the other routes use. The bound: at most `MAX_THROTTLE_KEYS`
+  keys in each limiter, ten timestamps a key for the address one (the exact
+  log) and sixty for the tenant one, so a tenant cannot be filled by
+  addresses faster than sixty clients an hour (ADR 0023). The
+  limiter is injected into `oidcRoutes` and is optional: a tenant on `mcp` with
+  none wired answers 404, so open registration never runs without a budget.
+  The budget is per process, as the other limiters are.
+- **Consent.** `decideConsent` gained `approvalRequired` and `approved`. A
+  client registered anonymously or resolved from a metadata document is asked
+  about until a grant of its own exists, whatever `consent_required` says and
+  even for a request naming no scope a grant could cover (`needsApproval`;
+  "approved" is any grant row for that exact client id). A client registered
+  with a token or by an administrator is unchanged. A consent that can record
+  no scope (the client's vocabulary holds none of what was asked) cannot be
+  approved, so such a request asks every time.
+- **CIMD under the policy.** `/authorize` passes the tenant's MCP URL and
+  whether the policy grants it to `persistCimdClient`, which rewrites the
+  client's audiences (the MCP URL alone under `mcp`, the MCP URL removed
+  otherwise, so one an administrator assigned by hand goes too, and any other
+  audience left alone) and assigns `mcp:read` as optional when it holds none.
+  Only a public document client takes part: one that authenticates with a key
+  (`private_key_jwt`) is given neither, the same rule the registration policy
+  has, and the policy never touches a client of another origin.
+- **Ending the policy ends what it gave, for every client it touched.**
+  `audiencesHeld` is applied at `/authorize` and `refreshUnderPolicy` on every
+  refresh, to a client whose origin is `anonymous` or `cimd` (`needsApproval`):
+  while the tenant's policy is not `mcp` the MCP URL is not one of its
+  audiences and `mcp:read` is dropped from a refreshed token's scope, whatever
+  its row or its grant says. So a refresh chain started under the policy
+  carries no MCP audience once the policy is turned off, without a client row
+  being rewritten. The stored row of a self-registered client still lists the
+  MCP URL; it is ignored, and the row is removed by the reap rule below when
+  unused or with the client. An administrator who wants one chain ended sooner
+  disables or deletes the client.
+  A refresh that names the MCP URL as its `resource` after the policy ended is
+  refused `invalid_target` before the token is rotated (the pre-rotation check
+  derives the held audience the same way), so a client's retry does not trip
+  reuse detection. A tenant with a domain is registered and authorized at the
+  domain, where both derive the MCP URL from the same address; its path
+  address no longer serves registration, so no other audience can be stored.
+- **Addresses.** An MCP URL is recognised by its path (`/mcp`), so a client
+  registered at an address the tenant has since left is held to the tenant's
+  current MCP URL while the policy is `mcp` (`audiencesHeld`, at `/authorize` and
+  on refresh) and to none of the tenant's MCP URLs, old or new, once it is not.
+- **No registration token.** Under `mcp` a presented token is not read: the client
+  is stored `anonymous`, so the policy's rules and the per-sign-in consent apply to
+  it, and the token is not spent. Rows already carrying origin `token` under the
+  policy are unchanged.
+- **The 429.** The budget names which limit refused (`address` or `tenant`) and the
+  response says so.
+- **mcp:write.** A client of those origins is refused `mcp:write` at
+  `/authorize` (`refusesWriteScope`) even if an administrator assigned it,
+  so the policy's ceiling holds for a row nobody at the tenant vetted.
+- **Registration refuses more than the spec lists.** A `jwks`, a `jwks_uri` or
+  a logout address is refused under `mcp`: a public client holds no key, and a
+  logout address would have the server call or load an address chosen by an
+  anonymous registrant.
+- **Reaping.** `odudu reap` reports `dynamic_clients`: a public client of
+  origin `anonymous`, enabled, older than a week
+  (`UNUSED_DYNAMIC_CLIENT_SECONDS`), never approved (`clients.approved_at`, set when
+  a consent is first recorded and never cleared, so withdrawing an approval does not
+  make the client look unused; migration 0119, backfilled from `consents`), with no consent, no token grant (a grant is reaped by its own rule
+  first, once past its retention, and only then can the client go) and
+  no unexpired code and no unexpired pending sign-in naming it
+  (`authentication_sessions.pending_request ->> 'clientId'`), is deleted; one with
+  any of those is kept. It
+  applies to every self-registered public client, not only those the `mcp`
+  policy made. Served by `clients_anonymous_public_by_created` (migration 0118) with the existing `consents_by_client`, `token_grants_by_client` and
+  `authorization_codes_by_client`; the plans suite covers the statement at
+  volume (1,000 such clients in one tenant).
+- **Settings.** `seed tenant --set`, the settings API, the console and the tenant
+  export all take `mcp`; `registrationPolicySchema` accepts it so an export of such
+  a tenant does not fail.

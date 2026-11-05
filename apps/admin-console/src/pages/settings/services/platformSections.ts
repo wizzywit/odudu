@@ -1,3 +1,4 @@
+import { SETTINGS_WORDS } from '#/pages/settings/services/settingsPageWords';
 import type { SettingsSection } from '#/pages/settings/services/sectionTypes';
 
 export const PLATFORM_SECTIONS: readonly SettingsSection[] = [
@@ -19,18 +20,25 @@ export const PLATFORM_SECTIONS: readonly SettingsSection[] = [
   },
   {
     id: 'client-registration',
-    title: 'Dynamic client registration',
-    description: 'Whether applications may register themselves as clients of this tenant.',
+    title: SETTINGS_WORDS.registrationTitle,
+    description: SETTINGS_WORDS.registrationDescription,
     fields: [
       {
         name: 'client_registration_policy',
-        label: 'Policy',
+        label: SETTINGS_WORDS.policyLabel,
         control: 'choice',
         options: [
           { id: 'disabled', label: 'Closed: only an administrator creates clients' },
           { id: 'token', label: 'With a registration token' },
           { id: 'open', label: 'Open: any application may register' },
+          { id: 'mcp', label: SETTINGS_WORDS.mcpOption },
         ],
+      },
+      {
+        name: 'cimd_enabled',
+        label: SETTINGS_WORDS.cimdLabel,
+        control: 'toggle',
+        description: SETTINGS_WORDS.cimdDescription,
       },
       {
         name: 'max_clients',
