@@ -79,6 +79,9 @@ describe('isExemptPath', () => {
     '/health/ready?x=1',
     '/internal/domain-check',
     '/internal/domain-check?domain=a.b.co',
+    '/instrument/instrument.css',
+    '/instrument/fonts/ibm-plex-sans-latin-400-normal.3b646991.woff2',
+    '/instrument/favicon.svg',
   ])('exempts %s', (url) => {
     expect(isExemptPath(url)).toBe(true);
   });
@@ -93,6 +96,8 @@ describe('isExemptPath', () => {
     '/tenants/acme/health',
     '/protocol/openid-connect/auth',
     '//health',
+    '/instrumentation',
+    '/tenants/acme/instrument/x.css',
   ])('does not exempt %s', (url) => {
     expect(isExemptPath(url)).toBe(false);
   });

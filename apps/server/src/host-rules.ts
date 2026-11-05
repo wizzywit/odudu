@@ -35,12 +35,14 @@ export function baseHostOf(publicBaseUrl: string): string | null {
 
 const HEALTH = /^\/health(?:[/?]|$)/u;
 const DOMAIN_CHECK = /^\/internal\/domain-check(?:\?|$)/u;
+const INSTRUMENT = /^\/instrument\//u;
 
 // Paths answered for any host without asking which tenant it belongs to: a
-// probe addressed by an internal name, and the question a proxy asks about a
-// domain.
+// probe addressed by an internal name, the question a proxy asks about a
+// domain, and the stylesheet, fonts and icons every server page links at the
+// root, which a tenant's domain must not re-route under the tenant.
 export function isExemptPath(url: string): boolean {
-  return HEALTH.test(url) || DOMAIN_CHECK.test(url);
+  return HEALTH.test(url) || DOMAIN_CHECK.test(url) || INSTRUMENT.test(url);
 }
 
 // The URL a domain host's request is routed as: its path under its tenant, so
