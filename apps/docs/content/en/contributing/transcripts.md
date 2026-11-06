@@ -57,11 +57,12 @@ budget section's counts are that pass's: the first sixty requests of the minute 
 before the loop had already spent eleven. The stack was removed afterwards.
 
 The MCP write tools' page, `the-mcp-write-tools.md`, was captured on 2026-11-06 on a freshly built compose project,
-`odudu-p5a-i9a` (port `3000`, Postgres published on `5462`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch
-commit `6d90be7c5` plus the change). The stack started from an empty volume and was driven once, in the order the page shows: the tenant
-`demo` seeded with `ada` holding `view-users` and `manage-clients`, a client made through the admin API, two sign-ins, the calls. The
-audit rows the page lists are all the tenant had of those actions. The psql blocks are shown without the trailing spaces the tool pads
-a column with, as Prettier leaves them. The stack and its image were removed afterwards.
+`odudu-p5a-i9b` (port `3000`, Postgres published on `5462`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch
+commit `945baca17` plus the change). It replaces a first capture on `odudu-p5a-i9a`, which showed a write token issued with no consent
+page. The stack started from an empty volume and was driven once, in the order the page shows: the tenant `demo` seeded with `ada`
+holding `view-users`, `manage-clients` and `manage-tenant`, a client made through the admin API, four sign-ins, the calls. The audit rows
+the page lists are all the tenant had of those actions. The psql blocks are shown without the trailing spaces the tool pads a column
+with, as Prettier leaves them. The stack and its image were removed afterwards.
 
 Token exchange gained two per-client limits on 2026-11-05, `token_exchange_allowed_for_public` and
 `token_exchange_actor_from_other_client`, and `odudu seed client` two flags for them. On a freshly built

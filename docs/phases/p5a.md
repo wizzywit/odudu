@@ -878,8 +878,15 @@ exactly those fields, and no write tool exists for a route the allowlist does no
   the admin API's `412`, reported with its own type and title and a detail telling the agent to read again and send
   the etag of that read. `if_match` is required here though a client PATCH needs it only for a list field: an
   agent that overwrites unread text is the case the lock is for.
-- **Annotations.** `readOnlyHint` false, `destructiveHint` false, `idempotentHint` true. Sending the same call
-  again with the etag it returned changes nothing more.
+- **Annotations.** `readOnlyHint` false, `destructiveHint` false (why: see the residual risk), `idempotentHint` true.
+  Sending the same call again with the etag it returned changes nothing more.
+- **Text the database cannot hold.** A NUL in a name, a description, a consent text or a language text was a `500` from the
+  admin API (found by an int test through the tool's bypass); it is now `400` naming the field
+  (`containsNul` in contracts, checked in the usecases and in `checkLocalisedText`), and the tools refuse it too.
+- **A refusal says what it can mean.** The admin API answers an agent's `insufficient_scope` the same for a missing
+  scope, a field outside the allowlist and a built-in client's name; a write tool's `403` therefore starts with
+  `insufficient_scope` and adds that a token holding `mcp:write` may change only descriptive fields, never a built-in
+  client's name. The audit classification reads the first word.
 - **Visibility and refusal.** `tools/list` shows a write tool only to a token holding `mcp:write` whose owner holds
   the capability (`toolVisible`, extended in its tests); a call to one by name with a read token is `403`
   `mcp:insufficient_scope` from the exchange and an `agent.tool_call` row `refused` with that reason. The admin API's
@@ -896,6 +903,9 @@ exactly those fields, and no write tool exists for a route the allowlist does no
   admin API signs its cursors (base64url segments and a dot), so one with any other character is refused as
   `mcp:unexpected_response` rather than carried outside `data`: the unit suite that poisons every field found it.
 - **Results.** `{ data, etag?, truncated? }`, `data` cleaned as the reads are; a refusal is `{ error }`.
+- **Rate-limit test.** `mcp.test.ts` asserted `Retry-After <= 60` at the wall clock; the limiter's wait for a spent key is the
+  rest of the window plus window/limit (up to 90 s at limit 2), so it failed in half of every minute. It now injects a fixed
+  clock and asserts the exact figure at four instants.
 
 ### The injection suite
 
@@ -918,6 +928,13 @@ never what stops it). Against:
   never reached through the tool, are refused by the admin API when sent past it (six bodies, six refusals,
   nothing changed), and the built-in client's name is refused.
 
+The snapshot that must not change is every table of the tenant that the serving role can read and that has a `tenant_id`
+(43 tables, found from `information_schema`, plus the tenant's own row), the audit trail excluded. Besides the two real
+tools the fixtures tell the agent to call names no tool has (`update_client`, `delete_client`, `create_client`,
+`tenant_export`, `delete_tenant`, `rotate_client_secret`, `set_subject_roles`, `restore_builtin_scopes`): each is a
+JSON-RPC error, changes nothing and is not an `agent.tool_call` row. A separate test shows, for each of the five sources, the
+instructions the agent finds in the read that returns it.
+
 The unit suite `service/data-label.test.ts` runs every tool of the catalogue, writes included, against answers
 whose every string the schema allows is replaced by instructions: the text is under `data` (or `error`), the
 keys beside it are only `next_cursor`, `truncated` and `etag`, one text part says what `structuredContent` says,
@@ -926,16 +943,34 @@ and a refusal's `type`, `title` and `detail` are capped and cleaned.
 Mutation check: letting the admin API admit a write for `mcp:read` fails the two tests that call it through the
 unguarded caller and passes the rest, as it should, since the tool layer stood in front.
 
-### The residual risk, as the guide states it
+### The residual risk, as the guide must state it
 
 An agent holding `mcp:write` for a person who holds `manage-clients` or `manage-tenant` can be told by text it reads to
 edit the descriptive text of clients and scopes, and will. The text is shown to people (a client's name on the consent
 screen), so it can mislead. It cannot change what a client or scope may do, who is allowed in, or any secret; a
 built-in client's name is refused; every change is audited with its before and after, so it is reversible by sending
-the earlier text back. What limits it: the scope is something the person allows each time, lasts ten minutes at
+the earlier text back. What limits it: the scope is asked about at every sign-in (below), lasts ten minutes at
 most and is never refreshed; the tools admit four fields and two; the admin API refuses the rest whatever a tool
 says; the audit row names the agent's client and the person. A client's own approval of each tool call is what stops it
-before the first change; the guide says so and says that is the client's, not Odudu's.
+before the first change. **No guide page names these tools yet**: the Increment 11 guide must state this paragraph and the
+section below, and that the client's approval of a call is the client's, not Odudu's (closing-pass list).
+
+`destructiveHint` is false on both tools although they overwrite and can clear: `description: null` and an empty
+language map remove text, but text only, kept in the audit row's before value and put back by the same call
+(`mcp-write-tools.int.test.ts` clears both and reads the before values). The hint is advisory and is a deliberate
+choice, said in the tools' descriptions for the model; a client that asks before every write can still ask.
+
+### `mcp:write` is asked about at every sign-in
+
+A write token's grant is a fresh, explicit approval each time. `decideConsent` (`protocol-oidc/src/service/consent.ts`)
+asks whenever the request would be granted `mcp:write` (the scope is one of the client's default or optional scopes),
+whatever `consent_required` says (an administrator's clients leave it off) and whatever grant is on record. The box is
+not ticked for the person (`alreadyGranted` leaves it out), and `prompt=none` is refused `consent_required`, never
+issued. A request for `mcp:read` alone is as before, and `mcp:write` stays refused outright to a client that
+registered itself or came from a metadata document (`refusesWriteScope`). Proved through the real `/authorize`, sign-in
+and consent page in `apps/server/tests/mcp-write-consent.int.test.ts`, including a reused session and an earlier
+approval. Found by review: the first version of this note and of the changelog said "each time" and the code did not
+say so for an administrator's client with the consent flag off.
 
 ### What an agent can change (for the guide)
 
@@ -950,3 +985,6 @@ To undo one, send the earlier text from the audit row's `before` with the new et
 
 - Tools for the destructive routes and for the other fields of a client or scope: P5b, which owns per-call approval.
 - The injection suite exercises a scripted agent, not a model: a real client's behaviour is the closing increment's hand run.
+- Closing pass reads: the Increment 11 guide must name `update_client_metadata`, `update_scope_metadata`, the residual risk and
+  "what an agent can change" (no page does yet); the landing page and README still call the MCP server "read-only by default",
+  which stays true of what a token without `mcp:write` gets.

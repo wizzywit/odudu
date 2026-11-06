@@ -423,6 +423,17 @@ requirement, and it falls on the client, not Odudu; the table below
 carries a row for it, not for the unstated signing half, since Odudu
 already signs every ID Token unconditionally per §2.
 
+### `mcp:write` is consented to at every sign-in
+
+OIDC Core §3.1.2.4 leaves the form of consent to the server. For the one scope
+that lets an agent change data, `decideConsent` (`service/consent.ts`) asks
+whenever the request would be granted `mcp:write`, whatever the client's
+`consent_required`, an approval recorded earlier, or the client's origin; the
+box is never pre-ticked, and `prompt=none` answers `consent_required` as §3.1.2.6
+allows. A write token lives at most ten minutes and is never refreshed, so each
+one is an explicit grant. A scope the client has not been assigned cannot be
+granted, so asking about it would record nothing and it is left alone.
+
 ### Where `deferred:` rows land, and one open question
 
 Rows below name four phases. **P2b** for what needed flow tree semantics —
