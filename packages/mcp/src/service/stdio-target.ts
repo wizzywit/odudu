@@ -1,3 +1,4 @@
+import { addressIssuer, pathAddress } from '@odudu/kernel';
 import { StdioError } from '#/service/stdio-error';
 
 export interface StdioTarget {
@@ -51,12 +52,12 @@ export function stdioTarget(baseUrl: string, tenant: string): StdioTarget {
     throw new StdioError('mcp_invalid_options', '--tenant names the tenant to act in');
   }
   const base = url.origin;
-  const segment = encodeURIComponent(tenant);
+  const address = pathAddress(base, tenant);
   return {
     base,
     tenant,
-    issuer: `${base}/tenants/${segment}`,
-    metadataUrl: `${base}/.well-known/oauth-authorization-server/tenants/${segment}`,
+    issuer: addressIssuer(address),
+    metadataUrl: `${base}/.well-known/oauth-authorization-server${address.prefix}`,
     adminUrl: (path) => `${base}${path}`,
   };
 }

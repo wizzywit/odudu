@@ -64,7 +64,7 @@ function command(
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['src/main.ts', 'mcp', ...args], {
       cwd: new URL('../..', import.meta.url).pathname,
-      env: { PATH: process.env.PATH ?? '', ...env },
+      env,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let stdout = '';

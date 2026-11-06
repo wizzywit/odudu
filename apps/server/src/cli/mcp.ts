@@ -53,7 +53,7 @@ export interface McpIo {
   readonly openBrowser?: (url: string) => Promise<boolean>;
 }
 
-export function realMcpIo(): McpIo {
+export function processMcpIo(): McpIo {
   const base =
     process.env.XDG_CONFIG_HOME ??
     (process.platform === 'win32' && process.env.APPDATA !== undefined
