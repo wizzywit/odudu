@@ -6,6 +6,7 @@ import { Transform } from 'node:stream';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import {
   agentBodyAdmitted,
+  doorToolName,
   agentBodyNamesGuardedField,
   agentWritesClient,
   scopeAdmits,
@@ -15,6 +16,7 @@ import { declaredEssence, declaredTypeDetail } from '#/service/declared-type';
 import { paramsSchemaFor } from '#/service/path-params';
 import {
   recordAgentRefused,
+  recordAgentToolCall,
   recordCapabilityRefused,
   recordForeignIssuer,
 } from '#/usecase/access-audit';
@@ -252,7 +254,48 @@ async function handleRoute(
       return reply;
     }
   }
+  if (!(await recordDirectAgentCall(route, deps, request, granted))) {
+    return sendProblem(
+      reply,
+      request,
+      problem(
+        503,
+        'about:blank',
+        'Service Unavailable',
+        'the call could not be recorded, so it was not run',
+      ),
+    );
+  }
   return answerRoute(route, handler, deps, request, reply, granted, gate);
+}
+
+// An agent that holds a token issued to it, with no `act`, reached the admin
+// API without the MCP endpoint, which would have recorded the call. Its row is
+// written before the handler runs, and the call is not run without one: an
+// access nobody can see was made is what the trail exists to prevent.
+async function recordDirectAgentCall(
+  route: AdminRoute,
+  deps: AdminRouterDeps,
+  request: AdminRequest,
+  granted: Granted,
+): Promise<boolean> {
+  const { principal } = granted;
+  if (principal.agent === undefined || principal.agent.viaEndpoint === true) return true;
+  const agent = principal.agent;
+  const key = routeKey(route.method, route.pattern);
+  try {
+    await adminTx(deps.database, request, granted.tenantId, (tx) =>
+      recordAgentToolCall(
+        tx,
+        { ...principal, agent },
+        { tool: doorToolName(key), route: key, outcome: 'allowed' },
+      ),
+    );
+    return true;
+  } catch (error) {
+    request.log.error({ err: error, tenantId: granted.tenantId }, 'could not record an agent call');
+    return false;
+  }
 }
 
 // A POST that names an `Idempotency-Key` runs once and is answered from its

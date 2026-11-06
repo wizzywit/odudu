@@ -23,6 +23,9 @@ export interface AdminPrincipal {
 export interface AdminAgent {
   readonly clientId: string;
   readonly ownerSubjectId: string;
+  // Set when the token carries `act`: it was minted for a call that came
+  // through the MCP endpoint, which records the call itself.
+  readonly viaEndpoint?: true;
 }
 
 // A genuine token from another tenant of this deployment, presented at a
@@ -392,6 +395,13 @@ export async function authenticateAdmin(
   }
   return {
     kind: 'authenticated',
-    principal: { ...base, agent: { clientId, ownerSubjectId: payload.sub } },
+    principal: {
+      ...base,
+      agent: {
+        clientId,
+        ownerSubjectId: payload.sub,
+        ...(claims.actorClientId === undefined ? {} : { viaEndpoint: true as const }),
+      },
+    },
   };
 }
