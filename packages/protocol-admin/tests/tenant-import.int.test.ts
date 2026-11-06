@@ -772,6 +772,31 @@ describe('POST /admin/tenant-imports', () => {
     expect(refused.payload).toContain('max_clients is 2');
   });
 
+  it('refuses a self-registered client whose redirect address is not a URL', async () => {
+    const source = await fixture.createTenant(`bad-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const base = original.clients.find((client) => client.client_id === 'odudu-mcp');
+    if (base === undefined) throw new Error('fixture: a tenant exports no built-in MCP client');
+    const refused = await postImport(token, {
+      name: `bad-${newId()}`,
+      document: {
+        ...original,
+        clients: [
+          ...original.clients,
+          {
+            ...base,
+            client_id: 'self-registered',
+            registration_origin: 'anonymous',
+            redirect_uris: ['not a url'],
+          },
+        ],
+      },
+    });
+    expect(refused.statusCode, refused.payload).toBe(400);
+    expect(refused.payload).toContain('.redirect_uris');
+  });
+
   it('answers each confidential client a fresh secret that authenticates at /token', async () => {
     const source = await seededSource();
     const token = await operatorToken();
