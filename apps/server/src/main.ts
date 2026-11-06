@@ -97,6 +97,11 @@ if (process.argv[2] === 'console') {
   }
 }
 
+if (process.argv[2] === 'mcp') {
+  const { mcpCommand, realMcpIo } = await import('#/cli/mcp');
+  process.exit(await mcpCommand(process.argv.slice(3), realMcpIo()));
+}
+
 if (process.argv[2] === 'client-origins') {
   try {
     console.log(

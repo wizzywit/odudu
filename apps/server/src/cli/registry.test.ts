@@ -201,6 +201,7 @@ describe('main.ts before it dispatches', () => {
       'cli/help.ts',
       'cli/init-options.ts',
       'cli/init-plan.ts',
+      'cli/mcp-options.ts',
       'cli/registry.ts',
       'cli/seed-options.ts',
       'main.ts',
