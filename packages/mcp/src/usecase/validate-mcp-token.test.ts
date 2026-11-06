@@ -243,6 +243,7 @@ describe('a token that holds no MCP scope', () => {
       principal: {
         subjectId: 'subject-1',
         issuerTenantId: 'tenant-1',
+        issuerTenantName: 'acme',
         clientDbId: 'client-db-1',
         scopes: ['openid', 'profile'],
       },

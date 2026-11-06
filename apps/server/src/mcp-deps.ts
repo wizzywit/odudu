@@ -154,6 +154,7 @@ export function mcpRouteDepsFor(parts: McpDepsParts, limiter: ToolLimiter): McpR
       const principal = {
         subjectId: token.subjectId,
         issuerTenantId: token.tenant.id,
+        issuerTenantName: token.tenant.name,
         clientDbId,
         scopes: token.scope,
         agent: { clientId: token.clientId, ownerSubjectId: token.subjectId },
@@ -164,6 +165,7 @@ export function mcpRouteDepsFor(parts: McpDepsParts, limiter: ToolLimiter): McpR
         return held;
       };
       return createMcpExchange({
+        tenant: token.tenant.name,
         // A listing leaves out what the token or its owner could not use; a call
         // by name reaches the admin API for any tool, which refuses it, and one
         // row says so.

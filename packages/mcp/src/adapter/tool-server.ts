@@ -1,8 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import type { z } from 'zod';
+import { announceTenant } from '#/service/tenant-announcement';
 import type { RegisteredTool, ToolResult } from '#/service/tool';
 
-const SERVER_INFO = { name: 'odudu', version: '1.0.0' } as const;
+const SERVER_VERSION = '1.0.0';
 
 type CacheHints = NonNullable<ConstructorParameters<typeof McpServer>[1]>['cacheHints'];
 
@@ -33,20 +34,28 @@ function asSdkResult(result: ToolResult) {
 // The server both transports serve: one tool per catalogue entry the principal
 // may use, each answered by `run`. The list is built for one connection or
 // request and never changes under a client, so no change is ever announced.
+// The server says which tenant it serves (its name, title and instructions, and
+// the start of every description); the catalogue itself names no tenant.
 export function toolServer(
+  tenant: string,
   tools: readonly RegisteredTool[],
   run: (tool: RegisteredTool, args: unknown) => Promise<ToolResult>,
   cacheHints?: CacheHints,
 ): McpServer {
-  const server = new McpServer(SERVER_INFO, {
-    capabilities: { tools: { listChanged: false } },
-    ...(cacheHints === undefined ? {} : { cacheHints }),
-  });
+  const announcement = announceTenant(tenant);
+  const server = new McpServer(
+    { name: announcement.name, title: announcement.title, version: SERVER_VERSION },
+    {
+      instructions: announcement.instructions,
+      capabilities: { tools: { listChanged: false } },
+      ...(cacheHints === undefined ? {} : { cacheHints }),
+    },
+  );
   for (const tool of tools) {
     server.registerTool(
       tool.name,
       {
-        description: tool.description,
+        description: announcement.describe(tool.description),
         inputSchema: listedAs(tool.input),
         annotations: tool.annotations,
       },

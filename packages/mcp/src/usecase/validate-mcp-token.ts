@@ -138,7 +138,7 @@ export async function validateMcpToken(
 
   const live = await checkGrantLiveness(
     deps,
-    { id: tenant.id, lifespans: tenant.lifespans },
+    { id: tenant.id, name: tenant.name, lifespans: tenant.lifespans },
     payload,
     sub,
     input.now,
@@ -152,6 +152,7 @@ export async function validateMcpToken(
       principal: {
         subjectId: sub,
         issuerTenantId: tenant.id,
+        issuerTenantName: tenant.name,
         clientDbId: live.grant.clientId,
         scopes: scope,
       },

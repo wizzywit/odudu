@@ -622,6 +622,92 @@ describe('the SDK’s own client, in both eras', () => {
   });
 });
 
+describe('a connection says which tenant it serves', () => {
+  const INIT = {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2025-11-25',
+      capabilities: {},
+      clientInfo: { name: 'int-test', version: '1' },
+    },
+  };
+
+  it('announces its own tenant to each of two tenants, and to nobody else', async () => {
+    const [a, b] = [await world(EVERY_CAPABILITY), await world(EVERY_CAPABILITY)];
+    for (const w of [a, b]) {
+      const token = await sign(w);
+      const init = await send(w, { token, headers: LEGACY, body: INIT });
+      const result = init.json().result as { serverInfo: unknown; instructions: string };
+      expect(result.serverInfo).toEqual({
+        name: `odudu:${w.name}`,
+        title: `Odudu (${w.name})`,
+        version: '1.0.0',
+      });
+      expect(result.instructions).toContain(`Odudu tenant "${w.name}" only`);
+      const other = w === a ? b : a;
+      expect(JSON.stringify(result)).not.toContain(other.name);
+
+      const list = await send(w, {
+        token,
+        headers: LEGACY,
+        body: { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} },
+      });
+      const tools = (list.json().result as { tools: { name: string; description: string }[] })
+        .tools;
+      expect(tools.map((t) => t.name)).toEqual(READ_TOOLS.map((t) => t.name));
+      for (const tool of tools) {
+        const catalogued = READ_TOOLS.find((t) => t.name === tool.name);
+        expect(tool.description, tool.name).toBe(`[${w.name}] ${catalogued?.description ?? ''}`);
+      }
+    }
+  });
+
+  it('announces it in the 2026 era too', async () => {
+    const w = await world();
+    const m = modern('tools/list');
+    const list = await send(w, { token: await sign(w), headers: m.headers, body: m.body });
+    const tools = (list.json().result as { tools: { description: string }[] }).tools;
+    expect(tools.length).toBeGreaterThan(0);
+    for (const tool of tools) expect(tool.description.startsWith(`[${w.name}] `)).toBe(true);
+    const d = modern('server/discover');
+    const found = await send(w, { token: await sign(w), headers: d.headers, body: d.body });
+    expect(found.json().result).toMatchObject({
+      _meta: {
+        'io.modelcontextprotocol/serverInfo': {
+          name: `odudu:${w.name}`,
+          title: `Odudu (${w.name})`,
+        },
+      },
+      instructions: expect.stringContaining(`Odudu tenant "${w.name}" only`) as string,
+    });
+  });
+
+  it('says in whoami which tenant the calls are made for, by name and by id', async () => {
+    const [a, b] = [await world(), await world()];
+    for (const w of [a, b]) {
+      const res = await send(w, {
+        token: await sign(w),
+        headers: LEGACY,
+        body: legacyCall('whoami'),
+      });
+      const result = res.json().result as { structuredContent: { data: Record<string, unknown> } };
+      expect(result.structuredContent.data).toMatchObject({
+        issuerTenantId: w.tenantId,
+        issuerTenantName: w.name,
+      });
+    }
+  });
+
+  it('still refuses a token of tenant A at tenant B’s endpoint, announcing nothing', async () => {
+    const [a, b] = [await world(), await world()];
+    const res = await send(b, { token: await sign(a), headers: LEGACY, body: INIT });
+    expect(res.status).toBe(401);
+    expect(res.text).toBe('');
+  });
+});
+
 describe('what a tool call does', () => {
   it('returns the data and writes one agent.tool_call row naming the tool and its route', async () => {
     const w = await world();

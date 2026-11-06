@@ -60,6 +60,7 @@ function whoami(subjectId: string): Answer {
   return json({
     subjectId,
     issuerTenantId: 't1',
+    issuerTenantName: 'acme',
     capabilities: ['manage-clients'],
     crossTenant: false,
   });

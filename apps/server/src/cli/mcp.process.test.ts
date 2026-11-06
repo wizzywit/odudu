@@ -42,7 +42,13 @@ beforeAll(async () => {
         });
       } else if (req.url === '/admin/tenants/acme/whoami') {
         adminHeaders = req.headers;
-        json({ subjectId: 's1', issuerTenantId: 't1', capabilities: [], crossTenant: false });
+        json({
+          subjectId: 's1',
+          issuerTenantId: 't1',
+          issuerTenantName: 'acme',
+          capabilities: [],
+          crossTenant: false,
+        });
       } else {
         res.writeHead(404).end();
       }
