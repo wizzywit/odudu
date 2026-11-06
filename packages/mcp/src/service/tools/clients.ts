@@ -31,11 +31,13 @@ export const clientTools = [
     name: 'get_client',
     description:
       'Reads one client: its type, redirect URIs, grants, scopes, lifetimes and display text. ' +
-      "Never includes the client's secret.",
+      "Never includes the client's secret. The etag beside data is the if_match of " +
+      'update_client_metadata.',
     routeKey: tenantGet('/clients/:id'),
     capability: 'manage-clients',
     shape: { id: idField('client') },
     pathParams: ['id'],
     response: clientRecordSchema,
+    etag: true,
   }),
 ];

@@ -3,11 +3,13 @@ import type { AdminCapability } from '@odudu/protocol-admin';
 import { z } from 'zod';
 import { problemOf } from '#/service/call-tool';
 import { defineTool } from '#/service/define-tool';
+import { ETAG_PATTERN, isEtag } from '#/service/etag-shape';
 import { cleanData, type CleanStats } from '#/service/sanitize';
 import {
   ToolProblem,
   type AdminCaller,
   type AdminRequestSpec,
+  type AdminResult,
   type RegisteredTool,
 } from '#/service/tool';
 
@@ -111,10 +113,14 @@ function requestFor(
   return { method: 'GET', pattern, params, query };
 }
 
-async function okBody(caller: AdminCaller, request: AdminRequestSpec): Promise<unknown> {
+async function okResult(caller: AdminCaller, request: AdminRequestSpec): Promise<AdminResult> {
   const result = await caller.call(request);
   if (result.status < 200 || result.status >= 300) throw problemOf(result);
-  return result.body;
+  return result;
+}
+
+async function okBody(caller: AdminCaller, request: AdminRequestSpec): Promise<unknown> {
+  return (await okResult(caller, request)).body;
 }
 
 // What a tool says beside `data` when a string in it was cut to the cap.
@@ -124,14 +130,18 @@ function flagged(stats: CleanStats): { truncated?: true } {
   return stats.truncated ? { truncated: true } : {};
 }
 
+// The admin API's cursors are base64url segments joined by a dot. One with any
+// other character is not one of them, and text is never passed on outside `data`.
+const OPAQUE = /^[A-Za-z0-9_.-]+$/u;
+
 // The cursor goes back to the admin API as the client sends it, so it is never
 // cleaned or cut: one that cannot be sent back is refused instead.
 function cursorOf(next: string | undefined): { next_cursor?: string } {
   if (next === undefined) return {};
-  if (next.length > INPUT_STRING_CAP) {
+  if (next.length > INPUT_STRING_CAP || !OPAQUE.test(next)) {
     throw new ToolProblem(
       'mcp:unexpected_response',
-      'The admin API answered a cursor too long to pass back',
+      'The admin API answered a cursor that is not one to pass back',
       null,
     );
   }
@@ -184,9 +194,11 @@ export function pageTool<S extends Shape, Item extends z.ZodType>(
   });
 }
 
-// A read that answers one document: a record, a count, a setting.
+// A read that answers one document: a record, a count, a setting. `etag` is for
+// a record a write tool amends: the entity tag the route answered is passed on
+// beside `data`, only when it is one, for the write to name as its precondition.
 export function valueTool<S extends Shape>(
-  cfg: ReadBase<S> & { readonly response: z.ZodType },
+  cfg: ReadBase<S> & { readonly response: z.ZodType; readonly etag?: true },
 ): RegisteredTool {
   return defineTool({
     name: cfg.name,
@@ -197,14 +209,22 @@ export function valueTool<S extends Shape>(
     annotations: READ_ANNOTATIONS,
     input: inputOf(cfg.shape),
     response: cfg.response,
-    output: z.object({ data: cfg.response, ...TRUNCATION }),
+    output: z.object({
+      data: cfg.response,
+      ...(cfg.etag === true ? { etag: z.string().regex(ETAG_PATTERN).optional() } : {}),
+      ...TRUNCATION,
+    }),
     run: async (caller, input) => {
-      const body = cfg.response.parse(
-        await okBody(caller, requestFor(cfg.routeKey, cfg.pathParams ?? [], input)),
-      );
+      const result = await okResult(caller, requestFor(cfg.routeKey, cfg.pathParams ?? [], input));
+      const body = cfg.response.parse(result.body);
       const stats: CleanStats = { truncated: false };
       const data = cfg.response.parse(cleanData(body, stats));
-      return { data, ...flagged(stats) };
+      const etag = result.headers.etag;
+      return {
+        data,
+        ...(cfg.etag === true && isEtag(etag) ? { etag } : {}),
+        ...flagged(stats),
+      };
     },
   });
 }
