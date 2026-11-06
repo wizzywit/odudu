@@ -54,3 +54,20 @@ export function checkCallback(
   }
   return { kind: 'code', code };
 }
+
+export type RefusedCallback = Extract<CallbackVerdict, { kind: 'refused' }>;
+
+export function describeRefusal(verdict: RefusedCallback): string {
+  switch (verdict.reason) {
+    case 'issuer_mismatch':
+      return 'the sign-in response came from a different issuer and was ignored';
+    case 'issuer_missing':
+      return 'the sign-in response did not name its issuer (RFC 9207) and was ignored';
+    case 'state_mismatch':
+      return 'the sign-in response is not for this sign-in (state) and was ignored';
+    case 'no_code':
+      return 'the sign-in response carried no authorization code';
+    case 'provider_error':
+      return `the sign-in was refused (${verdict.error})`;
+  }
+}

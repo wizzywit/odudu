@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkCallback } from '#/service/callback';
+import { checkCallback, describeRefusal } from '#/service/callback';
 
 const ISSUER = 'https://id.example.com/tenants/acme';
 const expected = { state: 'st-1', issuer: ISSUER, issuerAdvertised: true } as const;
@@ -85,5 +85,21 @@ describe('what the loopback redirect may carry', () => {
       kind: 'refused',
       reason: 'no_code',
     });
+  });
+});
+
+describe('what a person is told of a refused response', () => {
+  it('says which check failed, in one line, and nothing the sender wrote', () => {
+    const lines = [
+      describeRefusal({ kind: 'refused', reason: 'issuer_mismatch' }),
+      describeRefusal({ kind: 'refused', reason: 'issuer_missing' }),
+      describeRefusal({ kind: 'refused', reason: 'state_mismatch' }),
+      describeRefusal({ kind: 'refused', reason: 'no_code' }),
+      describeRefusal({ kind: 'refused', reason: 'provider_error', error: 'access_denied' }),
+    ];
+    expect(new Set(lines).size).toBe(5);
+    for (const line of lines) expect(line).not.toContain('\n');
+    expect(lines[0]).toMatch(/issuer/u);
+    expect(lines[4]).toContain('access_denied');
   });
 });
