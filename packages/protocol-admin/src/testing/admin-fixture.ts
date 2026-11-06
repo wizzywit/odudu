@@ -661,6 +661,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         },
         {
           subjectGrantId: grantId,
+          expectedSubjectId: subject.id,
           agentClientId,
           audience: ADMIN_API_AUDIENCE,
           scope: options.scope,

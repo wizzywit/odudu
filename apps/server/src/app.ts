@@ -53,10 +53,19 @@ import {
   DEFAULT_CONSOLE_DIR,
   DEFAULT_INSTRUMENT_DIR,
   DEFAULT_OUTBOX_MAX_ATTEMPTS,
+  isDomainAddress,
   newId,
   systemClock,
 } from '@odudu/kernel';
-import { RESOURCE_METADATA_PATH_FORM, registerResourceMetadataRoute } from '@odudu/mcp';
+import {
+  createToolLimiter,
+  DEFAULT_TOOL_LIMITS,
+  MCP_PATH_FORM,
+  RESOURCE_METADATA_PATH_FORM,
+  registerMcpRoute,
+  registerResourceMetadataRoute,
+  type ToolLimiterOptions,
+} from '@odudu/mcp';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -104,6 +113,7 @@ import { type RateLimiter, slidingWindow } from '#/throttle';
 import { mailGate as createMailGate } from '#/mail-limiter';
 import { neutraliseRequestInput } from '#/input-hygiene';
 import { loginBudgetKey } from '#/login-throttle';
+import { mcpRouteDepsFor } from '#/mcp-deps';
 import { mcpRegistrationBudget } from '#/mcp-registration-budget';
 import { throttleOrigin } from '#/throttle-origin';
 
@@ -240,6 +250,17 @@ export interface AppDeps {
    */
   readonly mcpRegistrationThrottle?: ThrottleSettings;
   readonly mcpTenantRegistrationThrottle?: ThrottleSettings;
+  /**
+   * What the MCP endpoint allows a principal and a tenant, in this process.
+   * Defaults to `DEFAULT_TOOL_LIMITS`; a test passes smaller numbers or a
+   * clock of its own.
+   */
+  readonly mcpToolLimits?: Partial<ToolLimiterOptions>;
+  /**
+   * The requests one origin may make to any MCP endpoint, counted before
+   * anything is read for them. Defaults to `DEFAULT_MCP_ORIGIN_THROTTLE`.
+   */
+  readonly mcpOriginThrottle?: ThrottleSettings;
   /** The proxy's domain question; its own budget, per origin. */
   readonly domainCheckThrottle?: ThrottleSettings;
   /**
@@ -296,6 +317,12 @@ export const DEFAULT_THROTTLE: ThrottleSettings = { limit: 10, windowSeconds: 60
 // room for a burst of a few hundred handshakes while bounding how fast the
 // registered hosts can be enumerated.
 export const DEFAULT_DOMAIN_CHECK_THROTTLE: ThrottleSettings = { limit: 300, windowSeconds: 60 };
+
+// Per origin, and behind a proxy the origin is the proxy, so this is the
+// whole deployment's traffic from it: ten a second is room for many agents and
+// bounds what garbage tokens can cost in tenant and key reads before the
+// per-principal budget, which needs a verified token, applies.
+export const DEFAULT_MCP_ORIGIN_THROTTLE: ThrottleSettings = { limit: 600, windowSeconds: 60 };
 
 export const DEFAULT_LOGIN_THROTTLE: ThrottleSettings = { limit: 5, windowSeconds: 60 };
 
@@ -487,7 +514,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // A domain is the tenant's own address: its pages name no operator link.
   const atDomain: UnroutedDeps = { links: {} };
   app.setNotFoundHandler((request, reply) =>
-    answerNotFound(request, reply, request.tenantAddress?.prefix === '' ? atDomain : unrouted),
+    answerNotFound(request, reply, isDomainAddress(request.tenantAddress) ? atDomain : unrouted),
   );
   app.setErrorHandler<FastifyError>((error, request, reply) =>
     answerServerError(error, request, reply),
@@ -560,6 +587,20 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return refuse(reply, route, decision.retryAfterSeconds);
   });
 
+  // The MCP endpoint reads a tenant and verifies a token before it knows who is
+  // asking, so its own budget per origin comes first, and a tenant name is made
+  // safe to look up before anything does.
+  const mcpOriginLimiter: RateLimiter = slidingWindow({
+    ...(deps.mcpOriginThrottle ?? DEFAULT_MCP_ORIGIN_THROTTLE),
+    now: () => new Date(),
+  });
+  app.addHook('onRequest', async (request, reply) => {
+    if (request.method !== 'POST' || request.routeOptions.url !== MCP_PATH_FORM) return;
+    const decision = mcpOriginLimiter.check(throttleOrigin(request.ip));
+    if (!decision.allowed) return refuse(reply, MCP_PATH_FORM, decision.retryAfterSeconds);
+    neutraliseRequestInput(request);
+  });
+
   // After the throttle, so a throttled request costs no statement about its
   // tenant. A domain host's own lookup cannot wait: it decides the route.
   app.addHook('onRequest', pathAddressCheck);
@@ -572,7 +613,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (
       route?.startsWith('/tenants/') === true ||
       route === AS_METADATA_PATH_FORM ||
-      route === RESOURCE_METADATA_PATH_FORM
+      route === RESOURCE_METADATA_PATH_FORM ||
+      route === MCP_PATH_FORM
     ) {
       neutraliseRequestInput(request);
     }
@@ -731,6 +773,21 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerResourceMetadataRoute(app, {
     findTenant: (name) => tenantSettingsRepository(deps.ownerDatabase.db).byName(name),
   });
+  registerMcpRoute(
+    app,
+    mcpRouteDepsFor(
+      {
+        app,
+        database: deps.database,
+        ownerDatabase: deps.ownerDatabase,
+        kek: deps.kek,
+        claimMappers,
+        logger: deps.logger,
+        publicBaseUrl: deps.publicBaseUrl,
+      },
+      createToolLimiter({ ...DEFAULT_TOOL_LIMITS, ...deps.mcpToolLimits }),
+    ),
+  );
 
   // getCurrentEmail, markVerified and setPassword are the only points where
   // @odudu/account reaches @odudu/domain-identity's users and credentials

@@ -7,6 +7,7 @@ export type AgentTokenRefusal =
   | 'scope_widened'
   | 'token_expired'
   | 'grant_not_found'
+  | 'subject_mismatch'
   | 'grant_revoked'
   | 'grant_not_agent_client'
   | 'client_disabled'
@@ -29,9 +30,12 @@ export function requestRefusal(input: {
 
 export interface AgentTokenGrounds {
   readonly tenantId: string;
+  // The `sub` the presented MCP token carries, which must be the grant's owner.
+  readonly expectedSubjectId: string;
   readonly scope: readonly string[];
   readonly grant: {
     readonly tenantId: string;
+    readonly subjectId: string;
     readonly revokedAt: Date | null;
     readonly scope: string;
     readonly clientId: string;
@@ -48,6 +52,7 @@ export interface AgentTokenGrounds {
 export function standingRefusal(grounds: AgentTokenGrounds): AgentTokenRefusal | null {
   const { grant, client } = grounds;
   if (grant?.tenantId !== grounds.tenantId) return 'grant_not_found';
+  if (grant.subjectId !== grounds.expectedSubjectId) return 'subject_mismatch';
   if (grant.revokedAt !== null) return 'grant_revoked';
   const held = new Set(grant.scope.split(' '));
   if (!grounds.scope.every((entry) => held.has(entry))) return 'scope_widened';

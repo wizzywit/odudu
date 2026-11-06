@@ -87,6 +87,19 @@ export const ENDPOINT_DOCS: Readonly<Record<string, EndpointDoc>> = {
     purpose:
       'The protected resource metadata of a tenant at its own domain, where the host reads it as `/.well-known/oauth-protected-resource/mcp`; `404` at the path address.',
   },
+  'POST /tenants/:tenant/mcp': {
+    auth: 'Access token',
+    purpose:
+      'The tenant’s MCP endpoint (Streamable HTTP, stateless; revisions 2026-07-28 and 2025-11-25): JSON-RPC requests for the tools that read the admin API as the signed-in person. Takes a bearer token whose audience is this URL and whose scope holds `mcp:read` or `mcp:write`; `401` with a `WWW-Authenticate` challenge naming the protected resource metadata for no usable token, `403` for a foreign `Origin` or `Host`, `429` with `Retry-After` past the per-principal budget. At a tenant’s own domain it is `/mcp` there; `404` at the path address of a tenant that has a domain.',
+  },
+  'GET /tenants/:tenant/mcp': {
+    auth: 'None',
+    purpose: 'Answers `405` with `Allow: POST`: the endpoint keeps no session to open a stream on.',
+  },
+  'DELETE /tenants/:tenant/mcp': {
+    auth: 'None',
+    purpose: 'Answers `405` with `Allow: POST`: the endpoint keeps no session to end.',
+  },
   [`GET ${OIDC}/certs`]: {
     auth: 'None',
     purpose: 'The JWKS: the tenant’s public signing keys.',

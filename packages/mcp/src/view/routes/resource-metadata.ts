@@ -1,4 +1,4 @@
-import { tenantAddressOf } from '@odudu/kernel';
+import { isDomainAddress, tenantAddressOf } from '@odudu/kernel';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { RESOURCE_METADATA_SUFFIX } from '#/service/resource';
 import { resolveResourceMetadata, type ResourceMetadataDeps } from '#/usecase/resource-metadata';
@@ -33,6 +33,6 @@ export function registerResourceMetadataRoute(
   app.get<{ Params: { tenant: string } }>(RESOURCE_METADATA_DOMAIN_FORM, (request, reply) =>
     // Only a domain host's rewrite reaches this URL with an address of no
     // prefix; at the path address the resource's own metadata URL is the other.
-    request.tenantAddress?.prefix === '' ? answer(request, reply) : reply.code(404).send(),
+    isDomainAddress(request.tenantAddress) ? answer(request, reply) : reply.code(404).send(),
   );
 }

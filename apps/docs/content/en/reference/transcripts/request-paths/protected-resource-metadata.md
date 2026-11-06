@@ -11,9 +11,9 @@ The resource answers with the document RFC 9728 defines: the endpoint's own addr
 well-known suffix between the host and the resource's path, so the tenant's address decides where
 the document is: `/.well-known/oauth-protected-resource/tenants/<name>/mcp` at the path address, and
 `/.well-known/oauth-protected-resource/mcp` on a tenant's own domain. The reading note is
-`docs/protocols/rfc9728.md`. The MCP endpoint itself is not served yet, so no `401` carrying the
-`WWW-Authenticate` challenge that points a client here was run; the two strings that challenge is
-built from are held by unit tests, and this page shows the document they point at.
+`docs/protocols/rfc9728.md`. The `401` that carries the `WWW-Authenticate` challenge pointing a
+client here is on [the MCP endpoint's page](./the-mcp-endpoint.md); this page shows the document it
+points at.
 
 Every command was run, in this order, on a freshly built compose stack (the project
 `odudu-p5a-i1b`, port `3000`, the throttles at `10000`, the schedules off) driven only as far as

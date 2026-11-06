@@ -49,6 +49,13 @@ shipped); it was added to the recorded blocks by hand, after `nosniff` where
 `pageHeaders` places it, and a live login-page response on the project
 `odudu-p4g-13b` confirmed its value and position.
 
+The MCP endpoint's page, `the-mcp-endpoint.md`, was captured on 2026-11-06 on a freshly built compose project,
+`odudu-p5a-i8b` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `8bb36d945` plus the change).
+The project's volume was removed and the stack started again from the same image before the one pass the page records (the tenant `demo`
+seeded as the page shows, then its commands in order), so the audit rows the page lists are all the tenant had. The
+budget section's counts are that pass's: the first sixty requests of the minute are served, and the ones
+before the loop had already spent eleven. The stack was removed afterwards.
+
 Token exchange gained two per-client limits on 2026-11-05, `token_exchange_allowed_for_public` and
 `token_exchange_actor_from_other_client`, and `odudu seed client` two flags for them. On a freshly built
 compose project, `odudu-p5a-i5d` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the

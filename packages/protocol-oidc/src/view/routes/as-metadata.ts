@@ -1,4 +1,4 @@
-import { tenantAddressOf } from '@odudu/kernel';
+import { isDomainAddress, tenantAddressOf } from '@odudu/kernel';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { resolveAsMetadata, type AsMetadataUsecaseDeps } from '#/usecase/as-metadata';
 
@@ -26,6 +26,6 @@ export function registerAsMetadataRoutes(app: FastifyInstance, deps: AsMetadataU
   app.get<{ Params: { tenant: string } }>(AS_METADATA_DOMAIN_FORM, (request, reply) =>
     // Only a domain host's rewrite reaches a tenant's issuer at this URL; at
     // the path address the issuer's own metadata URL is the other one.
-    request.tenantAddress?.prefix === '' ? answer(request, reply) : reply.code(404).send(),
+    isDomainAddress(request.tenantAddress) ? answer(request, reply) : reply.code(404).send(),
   );
 }

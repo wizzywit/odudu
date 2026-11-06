@@ -14,6 +14,11 @@ export function domainAddress(host: string, tls: boolean): TenantAddress {
   return { origin: `${tls ? 'https' : 'http'}://${host}`, prefix: '' };
 }
 
+// A domain address has no path prefix: the host itself names the tenant.
+export function isDomainAddress(a: TenantAddress | undefined): boolean {
+  return a?.prefix === '';
+}
+
 export function addressIssuer(a: TenantAddress): string {
   return `${a.origin}${a.prefix}`;
 }

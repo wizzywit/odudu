@@ -123,6 +123,7 @@ export {
   mcpAudienceOfIssuer,
   baseRelyingPartyId,
   domainAddress,
+  isDomainAddress,
   isAddressLiteral,
   pathAddress,
   routeAddress,
