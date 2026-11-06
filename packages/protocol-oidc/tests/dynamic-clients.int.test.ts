@@ -96,6 +96,15 @@ describe('dynamicClientRepository.evictable', () => {
     expect(await evictable(t.id)).toBe(free);
   });
 
+  it('never offers a confidential client, whose service account would be left behind', async () => {
+    const t = await tenant();
+    const service = await client(t.id, 'service', 900);
+    await sql()`update clients set type = 'confidential', secret_hash = 'x' where id = ${service}`;
+    expect(await evictable(t.id)).toBeNull();
+    const publicOne = await client(t.id, 'public', 10);
+    expect(await evictable(t.id)).toBe(publicOne);
+  });
+
   it('passes over a client an administrator disabled', async () => {
     const t = await tenant();
     const off = await client(t.id, 'off', 100);
