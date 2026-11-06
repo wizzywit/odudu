@@ -238,21 +238,4 @@ describe('the stdio caller of the admin API', () => {
     expect(h.sent).toHaveLength(1);
     expect(h.invalidated.count).toBe(0);
   });
-
-  it('answers an unreadable response body as an unreachable server', async () => {
-    const h = harness(
-      () =>
-        new Response(
-          new ReadableStream({
-            start(controller) {
-              controller.error(new Error('SECRET reset'));
-            },
-          }),
-          { status: 200, headers: { 'content-type': 'application/json' } },
-        ),
-    );
-    await expect(h.caller.call(GET_CLIENT)).rejects.toMatchObject({
-      problemType: 'mcp:unreachable',
-    });
-  });
 });

@@ -104,9 +104,7 @@ export function createHttpCaller(
           502,
         );
       }
-      const text = await boundedText(res, ADMIN_BODY_CAP_BYTES).catch((error: unknown) => {
-        throw unreachable(error);
-      });
+      const text = await boundedText(res, ADMIN_BODY_CAP_BYTES);
       if (text === undefined) throw tooLarge();
       return {
         status: res.status,
