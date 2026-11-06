@@ -59,7 +59,7 @@ With `private_key_jwt` the client signs a short-lived token with its private key
 
 ## Service accounts and roles
 
-A client gets a **service account**, the identity it signs in as, when it is confidential and holds the `client_credentials` grant. Switching the grant on creates it. Switching it off deletes it with its roles and token grants, so a leaked secret has nothing to sign in as, though a token already issued works at a resource server that checks only its signature until it expires. Switching on again starts an empty account, except one an upgrade kept, which keeps its roles.
+A client gets a **service account**, the identity it signs in as, when it is confidential and holds the `client_credentials` grant. Switching the grant on creates it. Switching it off deletes it with its roles and token grants, and revokes the tokens exchanged with it as the actor, so a leaked secret has nothing to sign in as, though a token already issued works at a resource server that checks only its signature until it expires. Switching on again starts an empty account, except one an upgrade kept, which keeps its roles.
 
 **Include all roles in tokens** is off by default: a token carries only the roles mapped to the granted scopes. Switched on, the client still has to ask for the `roles` scope. [Scopes](./scopes.mdx) has the rule.
 

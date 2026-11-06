@@ -87,8 +87,10 @@ A client has a service account only while it holds the `client_credentials` gran
 section on what a client answers about its service account was run again with `billing` made first with `authorization_code` alone, followed by the
 new section on a service account following the grant (`etl` and `ops`); each block shows what that run printed, and the ids and times in those blocks
 are that run's, so they refer to nothing around them. The other blocks of those pages were not replaced. The stack was removed afterwards. The OpenAPI page's capture (request id, date and
-size, 805,481 bytes) was taken on a last freshly built project, `odudu-p5a-i7b` (port `3000`, built from the merge of the phase branch
-with this one, which carries both the problem responses and the longer descriptions), and removed afterwards.
+size) was taken on a last freshly built project, `odudu-p5a-i7b` (port `3000`, built from the merge of the phase branch
+with this one, which carries both the problem responses and the longer descriptions), and removed afterwards. The page was fetched
+once more (request id, date and size, now 805,568 bytes) after the client `PATCH` description named the idle account it reuses, on the
+project `odudu-p5a-i7c` (port `3197`, built from the branch commit `ad4b2d47` plus the change), removed afterwards.
 
 The retention page's `odudu reap` reports gained the `client_metadata_cache` key on 2026-11-05, and `cimd_clients` after it later the same day. All seven were re-run on
 a freshly built compose project, `odudu-p5a-i3b` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), driven
