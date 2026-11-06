@@ -290,6 +290,12 @@ async function serve(
   });
   await connection.closed;
   await connection.close();
+  // The process exits as soon as this returns; what was written is on the pipe first.
+  await new Promise<void>((resolve) => {
+    io.stdout.write('', () => {
+      resolve();
+    });
+  });
 }
 
 async function start(values: Values, io: McpIo): Promise<void> {
