@@ -241,7 +241,9 @@ describe('a tenant administrator’s agent reading branding', () => {
     });
     await save(w, null, body, true);
     await save(w, null, theme({ ...body, stylesheet: '.page { color: blue; }' }), false);
-    expect(refusal(await stack.call(w, token, 'get_theme', {})).type).toBe('mcp:result_too_large');
+    const error = refusal(await stack.call(w, token, 'get_theme', {}));
+    expect(error.type).toBe('mcp:result_too_large');
+    expect(error.detail).toContain('console');
   });
 });
 

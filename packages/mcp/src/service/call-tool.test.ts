@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import { callTool, problemOf } from '#/service/call-tool';
+import { TOOLS } from '#/service/catalogue';
 import { defineTool } from '#/service/define-tool';
 import { ToolProblem, type AdminCaller, type AdminResult, type McpTool } from '#/service/tool';
 
@@ -127,6 +128,47 @@ describe('callTool', () => {
     expect(result.isError).toBe(true);
     expect(result.structuredContent).toMatchObject({
       error: { type: 'mcp:result_too_large', detail: expect.stringContaining('limit') as string },
+    });
+  });
+
+  it.each(['get_theme', 'get_client_theme'])(
+    'gives %s its own advice when the admin read cap refuses the answer',
+    async (name) => {
+      const tool = TOOLS.find((candidate) => candidate.name === name);
+      if (tool === undefined) throw new Error(`no tool ${name}`);
+      const refusing: AdminCaller = {
+        call: () =>
+          Promise.reject(
+            new ToolProblem('mcp:result_too_large', 'The result is too large to return', null),
+          ),
+      };
+      const result = await callTool(tool, refusing, {
+        ...(name === 'get_client_theme' ? { id: '0192a0a0-0000-7000-8000-000000000001' } : {}),
+      });
+      expect(result.structuredContent).toMatchObject({
+        error: {
+          type: 'mcp:result_too_large',
+          detail: expect.stringContaining('console') as string,
+        },
+      });
+    },
+  );
+
+  it('adds no advice to a tool that has none', async () => {
+    const refusing: AdminCaller = {
+      call: () => Promise.reject(new ToolProblem('mcp:result_too_large', 'big', null)),
+    };
+    const plain = defineTool({
+      ...base,
+      name: 'plain',
+      run: async (caller) => {
+        await caller.call({ method: 'GET', pattern: '/x', params: {}, query: {} });
+        return { data: { text: '' } };
+      },
+    });
+    const result = await callTool(plain, refusing, { n: 1 });
+    expect(result.structuredContent).toEqual({
+      error: { type: 'mcp:result_too_large', title: 'big' },
     });
   });
 

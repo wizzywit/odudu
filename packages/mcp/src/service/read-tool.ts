@@ -209,8 +209,8 @@ export function valueTool<S extends Shape>(
   cfg: ReadBase<S> & {
     readonly response: z.ZodType;
     readonly etag?: true;
-    // Member names whose strings are authored documents, kept up to
-    // LONG_TEXT_CAP instead of 1,000; for this tool only.
+    // Dot paths from the root of the answer whose strings are authored
+    // documents, kept up to LONG_TEXT_CAP instead of 1,000; for this tool only.
     readonly longText?: readonly string[];
   },
 ): RegisteredTool {
