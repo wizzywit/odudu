@@ -8,7 +8,10 @@ import { ADMIN_API_AUDIENCE, MCP_CLIENT_ID } from '@odudu/domain-tenant';
 import {
   callMcpTool,
   createBrowserOpener,
+  configDirectory,
   createCredentialStore,
+  createFileLock,
+  failureLine,
   createHttpCaller,
   createOauthClient,
   createTokenSource,
@@ -30,7 +33,7 @@ import {
   type StdioTarget,
   type ToolResult,
 } from '@odudu/mcp';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -55,18 +58,13 @@ export interface McpIo {
 }
 
 export function processMcpIo(): McpIo {
-  const base =
-    process.env.XDG_CONFIG_HOME ??
-    (process.platform === 'win32' && process.env.APPDATA !== undefined
-      ? process.env.APPDATA
-      : join(homedir(), '.config'));
   return {
     stdin: process.stdin,
     stdout: process.stdout,
     stderr: (line) => process.stderr.write(`${line}\n`),
     env: process.env,
     platform: process.platform,
-    configDir: join(base, 'odudu', 'mcp'),
+    configDir: configDirectory(process.env, homedir(), process.platform),
     run: runTool,
     fetch,
     now: () => new Date(),
@@ -75,6 +73,10 @@ export function processMcpIo(): McpIo {
 }
 
 // How long a tool call may wait: a first sign-in is the person's to finish.
+function hashOf(text: string): string {
+  return createHash('sha256').update(text).digest('hex').slice(0, 32);
+}
+
 const TOOL_DEADLINE_MS = 360_000;
 const SIGN_IN_TIMEOUT_MS = 300_000;
 const MAX_BAD_REQUESTS = 20;
@@ -184,7 +186,11 @@ async function serviceAccount(values: Values, io: McpIo): Promise<ServiceAccount
 function discovering(oauth: OauthClient): OauthClient['discover'] {
   let found: ReturnType<OauthClient['discover']> | undefined;
   return () => {
-    found ??= oauth.discover();
+    // A failure is not kept: the next call, once its cooldown is over, asks again.
+    found ??= oauth.discover().catch((error: unknown) => {
+      found = undefined;
+      throw error;
+    });
     return found;
   };
 }
@@ -263,21 +269,27 @@ async function keygen(io: McpIo): Promise<void> {
   io.stderr(JSON.stringify({ keys: [key.publicJwk] }));
 }
 
+// How long a call still running at end of input is waited for.
+const DRAIN_MS = 25_000;
+
 async function serve(
   tools: readonly RegisteredTool[],
   caller: Parameters<typeof callMcpTool>[2],
   io: McpIo,
 ): Promise<void> {
+  const inFlight = new Set<Promise<ToolResult>>();
   const run = (tool: RegisteredTool, args: unknown): Promise<ToolResult> => {
     const requestId = randomUUID();
-    return callMcpTool(
+    // The admin API records a call made with a token issued to the agent, at its
+    // door and before it runs, so there is nothing to record on this side.
+    const call = callMcpTool(
       {
         requestId,
         deadlineMs: TOOL_DEADLINE_MS,
         record: () => Promise.resolve(),
         logger: {
-          error: (_context, message) => {
-            io.stderr(`odudu mcp: ${message} (${requestId})`);
+          error: (context, message) => {
+            io.stderr(failureLine(message, requestId, context.err));
           },
         },
       },
@@ -285,16 +297,29 @@ async function serve(
       caller,
       args,
     );
+    inFlight.add(call);
+    const forget = () => inFlight.delete(call);
+    call.then(forget, forget);
+    return call;
   };
   const connection = serveMcpStdio({
     stdin: io.stdin,
     stdout: io.stdout,
     server: () => toolServer(tools, run),
     onerror: (error) => {
-      io.stderr(`odudu mcp: protocol error: ${error.message.slice(0, 200)}`);
+      io.stderr(failureLine('protocol error', 'transport', error));
     },
   });
   await connection.closed;
+  // A call that began is let finish, so a write's outcome is known and recorded
+  // before the process ends, for as long as is reasonable.
+  let timer: NodeJS.Timeout | undefined;
+  const limit = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, DRAIN_MS);
+    timer.unref();
+  });
+  await Promise.race([Promise.allSettled([...inFlight]), limit]);
+  clearTimeout(timer);
   await connection.close();
   // The process exits as soon as this returns; what was written is on the pipe first.
   await new Promise<void>((resolve) => {
@@ -329,8 +354,20 @@ async function start(values: Values, io: McpIo): Promise<void> {
       : keyCredential(account, oauth, discover, scope, io);
   const tokens = createTokenSource({
     now: io.now,
-    expectation: { issuer: target.issuer, audience: ADMIN_API_AUDIENCE, scope },
+    issuer: async () => (await discover()).issuer,
+    expectation: { audience: ADMIN_API_AUDIENCE, scope },
     credential,
+    warn: io.stderr,
+    ...(store === null
+      ? {}
+      : {
+          lock: createFileLock({
+            path: join(io.configDir, `refresh-${hashOf(target.issuer)}.lock`),
+            staleMs: 30_000,
+            waitMs: 10_000,
+            pollMs: 100,
+          }),
+        }),
   });
   const caller = createHttpCaller(baseUrl, tokens, { tenant, fetch: io.fetch });
   await serve(visibleTools(TOOLS, [scope], null), caller, io);
@@ -349,7 +386,9 @@ export async function mcpCommand(argv: readonly string[], io: McpIo): Promise<nu
     return 0;
   } catch (error) {
     io.stderr(
-      `odudu mcp: ${error instanceof Error ? (error.message.split('\n')[0] ?? 'failed') : 'failed'}`,
+      error instanceof StdioError
+        ? `odudu mcp: ${error.message.split('\n')[0] ?? 'failed'}`
+        : failureLine('failed', 'startup', error),
     );
     return 1;
   }

@@ -22,6 +22,8 @@ export async function runMcp(
     fetch?: typeof fetch;
     configDir?: string;
     openBrowser?: McpIo['openBrowser'];
+    // End the input a moment after it is written, while its calls are still running.
+    eof?: 'while-running';
   } = {},
 ): Promise<Run> {
   const stdin = new PassThrough();
@@ -48,7 +50,7 @@ export async function runMcp(
   };
   const done = mcpCommand(argv, io);
   for (const message of options.input ?? []) stdin.write(`${JSON.stringify(message)}\n`);
-  if (options.input !== undefined) {
+  if (options.input !== undefined && options.eof !== 'while-running') {
     // Wait for every answer a request among them asks for, then end the input.
     const wanted = options.input.filter(
       (m) => typeof m === 'object' && m !== null && 'id' in m,
@@ -57,6 +59,7 @@ export async function runMcp(
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
   }
+  if (options.eof === 'while-running') await new Promise((resolve) => setTimeout(resolve, 60));
   stdin.end();
   const code = await done;
   return {

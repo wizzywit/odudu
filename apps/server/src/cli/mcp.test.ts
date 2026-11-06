@@ -564,3 +564,141 @@ describe('odudu mcp with a browser sign-in', () => {
     expect(r.stderr[0]).not.toContain('rt-secret');
   });
 });
+
+describe('odudu mcp at a tenant with a domain of its own', () => {
+  const DOMAIN = 'https://login.acme.org';
+  const TOKEN = `${DOMAIN}/protocol/openid-connect/token`;
+
+  function domainAuthority() {
+    const seen: string[] = [];
+    const reply = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      });
+    const stub: typeof fetch = (input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      seen.push(url);
+      if (url === `${DOMAIN}/.well-known/oauth-authorization-server`) {
+        return Promise.resolve(
+          reply({
+            issuer: DOMAIN,
+            authorization_endpoint: `${DOMAIN}/protocol/openid-connect/auth`,
+            token_endpoint: TOKEN,
+            code_challenge_methods_supported: ['S256'],
+          }),
+        );
+      }
+      if (url === TOKEN) {
+        return Promise.resolve(
+          reply({
+            access_token: `${part({ alg: 'none' })}.${part({ iss: DOMAIN, aud: [ADMIN_API_AUDIENCE], scope: 'mcp:read' })}.`,
+            token_type: 'Bearer',
+            expires_in: 300,
+          }),
+        );
+      }
+      if (url.startsWith(`${DOMAIN}/admin/tenants/acme/`)) {
+        return Promise.resolve(
+          reply({ subjectId: 's1', issuerTenantId: 't1', capabilities: [], crossTenant: false }),
+        );
+      }
+      return Promise.resolve(new Response('nope', { status: 404 }));
+    };
+    return { seen, fetch: stub };
+  }
+
+  it('signs in at the domain, which is the issuer and the host of every call', async () => {
+    const a = domainAuthority();
+    const r = await run(['--base-url', DOMAIN, '--tenant', 'acme', '--client-id', 'svc'], {
+      env: { ODUDU_MCP_KEY: keyText },
+      input: SESSION,
+      fetch: a.fetch,
+    });
+    expect(r.code).toBe(0);
+    expect(byId(r.lines, 3).result).toMatchObject({ isError: false });
+    expect(a.seen).toContain(`${DOMAIN}/admin/tenants/acme/whoami`);
+    expect(a.seen.every((url) => url.startsWith(`${DOMAIN}/`))).toBe(true);
+  });
+
+  it('refuses a domain whose metadata names another host, before any token request', async () => {
+    const a = domainAuthority();
+    const hostile: typeof fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url === `${DOMAIN}/.well-known/oauth-authorization-server`) {
+        return new Response(
+          JSON.stringify({
+            issuer: 'https://evil.example',
+            code_challenge_methods_supported: ['S256'],
+          }),
+          { headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return a.fetch(input, init);
+    };
+    const r = await run(['--base-url', DOMAIN, '--tenant', 'acme', '--client-id', 'svc'], {
+      env: { ODUDU_MCP_KEY: keyText },
+      input: SESSION,
+      fetch: hostile,
+    });
+    expect(byId(r.lines, 3).result).toMatchObject({ isError: true });
+    expect(a.seen.filter((url) => url === TOKEN)).toEqual([]);
+  });
+});
+
+describe('odudu mcp when a call is in flight at end of input', () => {
+  it('waits for it, so its outcome is known before the process ends', async () => {
+    const a = authority();
+    let finished = false;
+    const slow: typeof fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/admin/')) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        finished = true;
+      }
+      return a.fetch(input, init);
+    };
+    const r = await run(KEY_ARGS, {
+      env: { ODUDU_MCP_KEY: keyText },
+      input: [
+        INITIALIZE,
+        INITIALIZED,
+        { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'whoami', arguments: {} } },
+      ],
+      fetch: slow,
+      eof: 'while-running',
+    });
+    expect(r.code).toBe(0);
+    expect(finished).toBe(true);
+  });
+});
+
+describe('odudu mcp when something it did not expect goes wrong', () => {
+  it('says what, with the correlation id, and leaves out what could be a secret', async () => {
+    const a = authority();
+    const breaking: typeof fetch = (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (!url.includes('/admin/')) return a.fetch(input, init);
+      return Promise.resolve(
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.error(
+                new TypeError('stream broke at https://id.example.com/x?code=SECRETCODE'),
+              );
+            },
+          }),
+          { headers: { 'content-type': 'application/json' } },
+        ),
+      );
+    };
+    const r = await run(KEY_ARGS, {
+      env: { ODUDU_MCP_KEY: keyText },
+      input: SESSION,
+      fetch: breaking,
+    });
+    const line = r.stderr.find((l) => l.includes('tool failed'));
+    expect(line).toMatch(/^odudu mcp: tool failed \([0-9a-f-]{36}\): TypeError: stream broke/u);
+    expect(r.stderr.join('\n')).not.toContain('SECRETCODE');
+  });
+});
