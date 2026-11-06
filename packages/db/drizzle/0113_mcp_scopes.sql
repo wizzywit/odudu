@@ -4,11 +4,13 @@
 -- that already has a scope of the name keeps it as it is, so the statement can
 -- run again to no effect. When the migrating role is neither SUPERUSER nor
 -- BYPASSRLS, which a supported install never is (ADR 0009), FORCE ROW LEVEL
--- SECURITY is lifted around the insert and restored, as 0089_scope_client_default.sql
--- does; a supported owner takes no lock for it.
+-- SECURITY is lifted around the insert, on tenants too because the insert reads
+-- it to find every tenant, and restored, as 0089_scope_client_default.sql does;
+-- a supported owner takes no lock for it.
 DO $$
 BEGIN
   IF NOT (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) THEN
+    ALTER TABLE tenants NO FORCE ROW LEVEL SECURITY;
     ALTER TABLE client_scopes NO FORCE ROW LEVEL SECURITY;
   END IF;
 END $$;
@@ -27,6 +29,7 @@ SELECT gen_random_uuid(), t.id, s.name, s.description, false, true
 DO $$
 BEGIN
   IF NOT (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) THEN
+    ALTER TABLE tenants FORCE ROW LEVEL SECURITY;
     ALTER TABLE client_scopes FORCE ROW LEVEL SECURITY;
   END IF;
 END $$;
