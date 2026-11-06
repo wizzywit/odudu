@@ -12,6 +12,7 @@ import {
   createHttpCaller,
   createOauthClient,
   createTokenSource,
+  fileModeProblem,
   listenOnLoopback,
   loopbackLogin,
   runTool,
@@ -133,10 +134,11 @@ async function keyText(values: Values, io: McpIo): Promise<string | undefined> {
   const info = await stat(file).catch(() => null);
   if (info === null)
     throw new StdioError('mcp_invalid_options', `--key-file ${file} cannot be read`);
-  if (io.platform !== 'win32' && (info.mode & 0o077) !== 0) {
+  const problem = io.platform === 'win32' ? undefined : fileModeProblem(info.mode, 'file');
+  if (problem !== undefined) {
     throw new StdioError(
       'mcp_store_insecure',
-      `the key file ${file} is readable by group or others; fix it with chmod 600`,
+      `the key file ${file} ${problem}; fix it with chmod 600`,
     );
   }
   return (await readFile(file, 'utf8')).trim();

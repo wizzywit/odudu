@@ -336,8 +336,15 @@ describe('odudu mcp, as a service account', () => {
     const clients = byId(r.lines, 2).result as { isError: boolean };
     expect(clients.isError, JSON.stringify(r.lines)).toBe(false);
     // The account holds manage-clients and nothing for users.
-    const subjects = byId(r.lines, 3).result as { isError: boolean };
+    const subjects = byId(r.lines, 3).result as {
+      isError: boolean;
+      structuredContent: { error: Record<string, unknown> };
+    };
     expect(subjects.isError).toBe(true);
+    expect(Object.keys(subjects.structuredContent.error).sort()).toEqual(
+      ['detail', 'status', 'title', 'type'].filter((k) => k in subjects.structuredContent.error),
+    );
+    expect(subjects.structuredContent.error.status).toBe(403);
     const claims = claimsOf(w.admin[0]?.authorization ?? '');
     expect(claims).toMatchObject({ client_id: 'agent-svc', scope: 'mcp:read' });
     expect(claims.sub).toBe(subjectId);

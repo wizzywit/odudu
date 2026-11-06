@@ -53,3 +53,4 @@ export type { CredentialStore, OauthClient } from '#/service/ports';
 export type { TokenSource } from '#/service/token-source';
 export type { TokenSet } from '#/service/token-set';
 export type { RegisteredTool } from '#/service/tool';
+export { fileModeProblem } from '#/service/file-mode';
