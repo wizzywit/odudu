@@ -60,8 +60,8 @@ describe('createKeyedGate', () => {
   it('refuses a call when the queue is full', async () => {
     const gate = createKeyedGate(1, { queueMax: 2 });
     entered(await gate.acquire());
-    void gate.acquire();
-    void gate.acquire();
+    const queued = [gate.acquire(), gate.acquire()];
+    expect(queued).toHaveLength(2);
     expect(await gate.acquire()).toEqual({ kind: 'refused', reason: 'queue_full' });
   });
 

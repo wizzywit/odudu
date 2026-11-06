@@ -742,6 +742,36 @@ describe('POST /admin/tenant-imports', () => {
     });
   });
 
+  it('counts only the clients an operator made against the max_clients it carries', async () => {
+    const source = await fixture.createTenant(`cap-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const base = original.clients.find((client) => client.client_id === 'odudu-mcp');
+    if (base === undefined) throw new Error('fixture: a tenant exports no built-in MCP client');
+    const made = (n: number, origin: 'anonymous' | 'operator') => ({
+      ...base,
+      client_id: `${origin}-${String(n)}`,
+      registration_origin: origin,
+    });
+    const document = (clients: TenantDocument['clients']): TenantDocument => ({
+      ...original,
+      settings: { ...original.settings, max_clients: 2 },
+      clients,
+    });
+    const selfRegistered = [1, 2, 3].map((n) => made(n, 'anonymous'));
+    const ok = await postImport(token, {
+      name: `cap-ok-${newId()}`,
+      document: document([...original.clients, ...selfRegistered]),
+    });
+    expect(ok.statusCode, ok.payload).toBe(201);
+    const refused = await postImport(token, {
+      name: `cap-no-${newId()}`,
+      document: document([...original.clients, made(2, 'operator')]),
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.payload).toContain('max_clients is 2');
+  });
+
   it('answers each confidential client a fresh secret that authenticates at /token', async () => {
     const source = await seededSource();
     const token = await operatorToken();

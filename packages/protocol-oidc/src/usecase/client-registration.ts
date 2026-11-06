@@ -10,6 +10,7 @@ import {
 import { addressUrl, MCP_RESOURCE_PATH, newId, type TenantAddress } from '@odudu/kernel';
 import { randomBytes } from 'node:crypto';
 import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
+import { dynamicClientRepository } from '#/repository/dynamic-clients';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import { extractBearerToken } from '#/service/bearer-token';
 import { parseClientMetadata, type ClientMetadata } from '#/service/client-metadata';
@@ -27,6 +28,12 @@ import { parseLocalisedClientNames } from '#/service/localised-client-names';
 import { needsServiceAccount } from '#/service/service-account';
 import { idTokenAlgUnavailable } from '#/usecase/id-token-alg';
 import { ensureServiceAccount } from '#/usecase/service-account';
+
+// What one tenant may hold of clients that registered themselves anonymously.
+// `max_clients` is the operator's own ceiling and does not count them. At this
+// number a registration makes room by removing one that never did anything,
+// and is refused when none is.
+export const WIRE_CLIENTS_PER_TENANT = 1000;
 
 export interface ClientRegistrationDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
@@ -91,6 +98,27 @@ function clientType(tokenEndpointAuthMethod: string): 'public' | 'confidential' 
   return tokenEndpointAuthMethod === 'none' ? 'public' : 'confidential';
 }
 
+// Under the tenant lock: the registration fits under the ceiling of its kind,
+// or a self-registered client that never did anything makes way for it.
+async function makeRoom(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  origin: ClientRecord['registrationOrigin'],
+  now: Date,
+): Promise<boolean> {
+  const clients = clientRepository(tx);
+  if (origin !== 'anonymous') {
+    const capacity = await clients.lockCapacity(tenantId);
+    return capacity.count < capacity.maxClients;
+  }
+  const capacity = await clients.lockWireCapacity(tenantId, WIRE_CLIENTS_PER_TENANT);
+  if (capacity.count < capacity.maxClients) return true;
+  const evict = await dynamicClientRepository(tx).evictable(tenantId, now);
+  if (evict === null) return false;
+  await clients.delete(evict);
+  return true;
+}
+
 // One transaction, entered only once the tenant is known to accept
 // registrations at all — a disabled tenant and an unknown one both stop at
 // `not_found` before any transaction opens.
@@ -105,10 +133,7 @@ async function performRegistration(
   grant: McpPolicyGrant | null,
   scope: string | undefined,
 ): Promise<ClientRegistrationOutcome> {
-  const capacity = await clientRepository(tx).lockCapacity(tenantId);
-  if (capacity.count >= capacity.maxClients) {
-    return { kind: 'at_capacity' };
-  }
+  if (!(await makeRoom(tx, tenantId, origin, now))) return { kind: 'at_capacity' };
 
   // Checked against every algorithm a non-retired key produces, not only
   // the active one: a key staged as `rotating` (the admin API's `POST

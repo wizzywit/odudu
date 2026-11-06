@@ -104,6 +104,50 @@ insert into clients (id, tenant_id, client_id, name, type, registration_origin, 
 select gen_random_uuid(), (select id from vol_other order by id limit 1),
        'dyn-' || g, 'Agent ' || g, 'public', 'anonymous', now() - (g || ' hours')::interval
   from generate_series(1, 1000) g;
+create temp table vol_dynamic_tenant as
+  select (select id from vol_other order by id limit 1) id;
+-- The oldest of each kind are the ones something protects, so the walk that
+-- finds one to evict is as long as the volume makes it: consents on the
+-- oldest 300, grants on the next 100, a live sign-in on the next 100.
+insert into consents (id, tenant_id, subject_id, client_id)
+select gen_random_uuid(), c.tenant_id,
+       (select s.id from subjects s where s.tenant_id = c.tenant_id limit 1), c.id
+  from clients c
+ where c.tenant_id = (select id from vol_dynamic_tenant)
+   and ((c.registration_origin = 'cimd' and c.metadata_used_at < now() - interval '700 hours')
+     or (c.registration_origin = 'anonymous' and c.created_at < now() - interval '700 hours'));
+insert into token_grants (id, tenant_id, client_id, subject_id, scope)
+select gen_random_uuid(), c.tenant_id, c.id,
+       (select s.id from subjects s where s.tenant_id = c.tenant_id limit 1), 'openid'
+  from clients c
+ where c.tenant_id = (select id from vol_dynamic_tenant)
+   and c.registration_origin = 'anonymous'
+   and c.created_at < now() - interval '600 hours'
+   and c.created_at >= now() - interval '700 hours';
+insert into authentication_sessions (id, tenant_id, pending_request, expires_at)
+select gen_random_uuid(), c.tenant_id, jsonb_build_object('clientId', c.client_id),
+       now() + interval '30 minutes'
+  from clients c
+ where c.tenant_id = (select id from vol_dynamic_tenant)
+   and c.registration_origin = 'anonymous'
+   and c.created_at < now() - interval '500 hours'
+   and c.created_at >= now() - interval '600 hours';
+insert into authentication_sessions (id, tenant_id, pending_request, expires_at)
+select gen_random_uuid(), (select id from vol_dynamic_tenant),
+       jsonb_build_object('clientId', 'noise-' || g), now() + interval '30 minutes'
+  from generate_series(1, 5000) g;
+-- Confidential clients that hold an account without the grant, one per tenant
+-- for the first fifty, as the boot check reads them.
+with picked as (
+  select c.id as client, c.tenant_id as tenant, gen_random_uuid() as subject
+    from clients c
+   where c.tenant_id in (select id from vol_other) and c.client_id = 'c1'
+   limit 50),
+made as (
+  insert into subjects (id, tenant_id, type)
+  select subject, tenant, 'service' from picked returning id)
+update clients c set service_subject_id = p.subject, service_account_idle = true
+  from picked p where c.id = p.client;
 insert into message_overrides (tenant_id, locale, key, message)
 select ${t}, case when g % 2 = 0 then 'en' else 'fr' end, 'bulk.' || g, 'Wording ' || g
   from generate_series(1, 499) g;
@@ -400,7 +444,7 @@ select gen_random_uuid(), ${t}, now() - interval '10 days' - (g || ' seconds')::
        'admin_access', 'capability.refused', 'refused'
   from generate_series(1, ${v.auditRefusedEvents}) g;
 
-drop table vol_other, vol_subjects, vol_clients, vol_service, vol_roles, vol_groups, vol_scopes, vol_sessions, vol_grants;
+drop table vol_other, vol_dynamic_tenant, vol_subjects, vol_clients, vol_service, vol_roles, vol_groups, vol_scopes, vol_sessions, vol_grants;
 `;
   return script
     .split(/;\n/u)

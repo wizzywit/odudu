@@ -1,6 +1,6 @@
 import { isUniqueViolation, tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId, refuseBidiControls } from '@odudu/kernel';
-import { and, count, eq, lte, sql } from 'drizzle-orm';
+import { and, count, eq, lte, sql, type SQL } from 'drizzle-orm';
 import { clients, type ClientRecord } from '#/schema/clients';
 
 export type { ClientRecord } from '#/schema/clients';
@@ -68,6 +68,37 @@ export interface NewClient {
 export interface ClientCapacity {
   maxClients: number;
   count: number;
+}
+
+async function lockTenantRow(tx: TenantScopedDatabase, tenantId: string): Promise<number> {
+  const lockRows = await tx
+    .select({ maxClients: tenants.maxClients })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .for('no key update');
+  const maxClients = lockRows[0]?.maxClients;
+  if (maxClients === undefined) {
+    throw new Error(`tenant ${tenantId} not found while locking its client capacity`);
+  }
+  return maxClients;
+}
+
+// Counted no further than the cap, which is all the comparison needs:
+// a tenant with a million clients costs no more to refuse than one at it.
+async function countUpTo(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  origins: SQL,
+  cap: number,
+): Promise<ClientCapacity> {
+  const held = tx
+    .select({ one: sql<number>`1`.as('one') })
+    .from(clients)
+    .where(and(eq(clients.tenantId, tenantId), origins))
+    .limit(cap)
+    .as('held');
+  const countRows = await tx.select({ count: count() }).from(held);
+  return { maxClients: cap, count: countRows[0]?.count ?? 0 };
 }
 
 export function clientRepository(tx: TenantScopedDatabase) {
@@ -267,26 +298,26 @@ export function clientRepository(tx: TenantScopedDatabase) {
     // the cap. Serialises registrations within one tenant, but not behind the
     // key-share lock every foreign key to the tenant row takes (ADR 0033).
     // A different tenant's registration takes a different row.
+    // `max_clients` is the operator's ceiling: a client that arrived over the
+    // wire (a metadata document, a self-registration) is never counted
+    // against it, so nobody unauthenticated can fill it. Served by
+    // clients_operator_by_tenant.
     async lockCapacity(tenantId: string): Promise<ClientCapacity> {
-      const lockRows = await tx
-        .select({ maxClients: tenants.maxClients })
-        .from(tenants)
-        .where(eq(tenants.id, tenantId))
-        .for('no key update');
-      const maxClients = lockRows[0]?.maxClients;
-      if (maxClients === undefined) {
-        throw new Error(`tenant ${tenantId} not found while locking its client capacity`);
-      }
-      // Counted no further than the cap, which is all the comparison needs:
-      // a tenant with a million clients costs no more to refuse than one at it.
-      const held = tx
-        .select({ one: sql<number>`1`.as('one') })
-        .from(clients)
-        .where(eq(clients.tenantId, tenantId))
-        .limit(maxClients)
-        .as('held');
-      const countRows = await tx.select({ count: count() }).from(held);
-      return { maxClients, count: countRows[0]?.count ?? 0 };
+      const maxClients = await lockTenantRow(tx, tenantId);
+      return countUpTo(
+        tx,
+        tenantId,
+        sql`registration_origin NOT IN ('cimd', 'anonymous')`,
+        maxClients,
+      );
+    },
+
+    // The same lock, for the ceiling on clients that registered themselves
+    // (origin 'anonymous'), which the operator's `max_clients` does not cover.
+    // Served by clients_anonymous_by_created.
+    async lockWireCapacity(tenantId: string, ceiling: number): Promise<ClientCapacity> {
+      await lockTenantRow(tx, tenantId);
+      return countUpTo(tx, tenantId, sql`registration_origin = 'anonymous'`, ceiling);
     },
   };
 }

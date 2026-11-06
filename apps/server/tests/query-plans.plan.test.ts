@@ -29,6 +29,7 @@ import { driveAccount, driveRequiredActions } from '#/testing/plan-account-drive
 import {
   driveBackground,
   driveCimdClients,
+  driveClientCeilings,
   driveClientMetadataCache,
   driveExchangeUpgrade,
   driveGateway,
@@ -83,9 +84,13 @@ beforeAll(async () => {
   await driveClientMetadataCache(world, log.capture);
   await driveIdempotency(world, log.capture);
   await driveCimdClients(world, log.capture);
+  const [dynamic] = await world.owner.sql<{ tenant_id: string }[]>`
+    select tenant_id from clients where registration_origin = 'cimd' limit 1`;
+  if (dynamic === undefined) throw new Error('the volume holds no metadata document client');
+  await driveClientCeilings(world, dynamic.tenant_id, log.capture);
   await driveExchangeUpgrade(world, log.capture);
   await driveGateway(world, log.capture);
-  log.runs.push(...retentionRuns(world));
+  log.runs.push(...retentionRuns(world, dynamic.tenant_id));
   const tokens = await adminTokens(world);
   ({ counts, sizes } = await driveAdmin(world, recorder, log.capture, tokens, ids));
   await driveAdminWrites(world, log.capture, tokens, ids);

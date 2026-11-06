@@ -17,6 +17,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { oidcRoutes } from '#/index';
+import { WIRE_CLIENTS_PER_TENANT } from '#/usecase/client-registration';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
@@ -381,45 +382,101 @@ describe('[ODUDU-CLIENT-REGISTRATION-TOKEN-01] the token policy', () => {
   });
 });
 
+async function fillAnonymous(
+  tenantId: string,
+  count: number,
+  opts: { approved: boolean },
+): Promise<void> {
+  await owner.sql`
+    insert into clients (id, tenant_id, client_id, name, type, secret_hash,
+                         registration_origin, approved_at, created_at)
+    select gen_random_uuid(), ${tenantId}, 'bulk-' || g, 'Bulk', 'public', null,
+           'anonymous', case when ${opts.approved} then now() end,
+           now() - make_interval(secs => ${count} - g)
+      from generate_series(1, ${count}) g`;
+}
+
+async function anonymousCount(tenantId: string): Promise<number> {
+  const rows = await owner.sql<{ n: number }[]>`
+    select count(*)::int as n from clients
+     where tenant_id = ${tenantId} and registration_origin = 'anonymous'`;
+  return rows[0]?.n ?? 0;
+}
+
+async function openTenant(maxClients?: number): Promise<{ name: string; id: string }> {
+  const name = `cap-${newId()}`;
+  const id = newId();
+  await withTenant(app.db, id, (tx) =>
+    seedTenant(tx, id, {
+      name,
+      policy: 'open',
+      ...(maxClients === undefined ? {} : { maxClients }),
+    }),
+  );
+  return { name, id };
+}
+
 describe('[ODUDU-CLIENT-REGISTRATION-CAP-01] the tenant client cap', () => {
-  it('refuses once the tenant is at its client cap', async () => {
+  it('refuses a registration-token client once the operator ceiling is reached', async () => {
     const tenantName = `cap-${newId()}`;
     const tenantId = newId();
     await withTenant(app.db, tenantId, (tx) =>
-      seedTenant(tx, tenantId, { name: tenantName, policy: 'open', maxClients: 0 }),
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'token', maxClients: 0 }),
     );
 
-    const res = await http.inject({ method: 'POST', url: URL_FOR(tenantName), payload: MINIMAL });
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(tenantName),
+      payload: MINIMAL,
+      headers: { authorization: `Bearer ${await mintToken(tenantId)}` },
+    });
     expect(res.statusCode).toBe(403);
     expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
   });
 
-  // What would this test still pass under? A bare COUNT-then-INSERT (no
-  // lock) also serialises correctly if the two requests happen to run one
-  // after the other — the assertion below only discriminates from that
-  // implementation because both requests are put in flight before either
-  // can have completed (Promise.all over two separate `inject` calls, each
-  // its own transaction), so a version without the FOR UPDATE lock can
-  // observe the cap as not-yet-reached in both and let both through.
-  it('does not let two concurrent registrations exceed the cap', async () => {
-    const tenantName = `cap-race-${newId()}`;
-    const tenantId = newId();
-    await withTenant(app.db, tenantId, (tx) =>
-      seedTenant(tx, tenantId, { name: tenantName, policy: 'open', maxClients: 1 }),
-    );
+  it('does not count the clients that registered themselves against max_clients, nor stop them with it', async () => {
+    const { name } = await openTenant(0);
+    const res = await http.inject({ method: 'POST', url: URL_FOR(name), payload: MINIMAL });
+    expect(res.statusCode).toBe(201);
+  });
+
+  it('refuses a self-registration at its own ceiling when every client there is in use', async () => {
+    const { name, id } = await openTenant();
+    await fillAnonymous(id, WIRE_CLIENTS_PER_TENANT, { approved: true });
+    const res = await http.inject({ method: 'POST', url: URL_FOR(name), payload: MINIMAL });
+    expect(res.statusCode).toBe(403);
+    expect(await anonymousCount(id)).toBe(WIRE_CLIENTS_PER_TENANT);
+  });
+
+  it('at its ceiling removes the oldest self-registered client nobody used, and keeps one somebody did', async () => {
+    const { name, id } = await openTenant();
+    await fillAnonymous(id, WIRE_CLIENTS_PER_TENANT, { approved: false });
+    await owner.sql`update clients set approved_at = now()
+      where tenant_id = ${id} and client_id = 'bulk-1'`;
+    const res = await http.inject({ method: 'POST', url: URL_FOR(name), payload: MINIMAL });
+    expect(res.statusCode).toBe(201);
+    const gone = await owner.sql<{ client_id: string }[]>`
+      select client_id from clients where tenant_id = ${id} and client_id in ('bulk-1', 'bulk-2')`;
+    expect(gone.map((row) => row.client_id)).toEqual(['bulk-1']);
+    expect(await anonymousCount(id)).toBe(WIRE_CLIENTS_PER_TENANT);
+  });
+
+  // The assertion discriminates from a lock-free COUNT-then-INSERT only
+  // because both requests are in flight before either can have completed.
+  it('does not let two concurrent registrations exceed the ceiling', async () => {
+    const { name, id } = await openTenant();
+    await fillAnonymous(id, WIRE_CLIENTS_PER_TENANT - 1, { approved: true });
 
     const [first, second] = await Promise.all([
-      http.inject({ method: 'POST', url: URL_FOR(tenantName), payload: MINIMAL }),
-      http.inject({ method: 'POST', url: URL_FOR(tenantName), payload: MINIMAL }),
+      http.inject({ method: 'POST', url: URL_FOR(name), payload: MINIMAL }),
+      http.inject({ method: 'POST', url: URL_FOR(name), payload: MINIMAL }),
     ]);
 
-    const statuses = [first.statusCode, second.statusCode].sort();
-    expect(statuses).toEqual([201, 403]);
-
-    const count = await withTenant(app.db, tenantId, async (tx) =>
-      tx.select().from(clients).where(eq(clients.tenantId, tenantId)),
-    );
-    expect(count.length).toBe(1);
+    // The second either finds the ceiling reached and removes the first, which
+    // nobody has used yet, or is refused: never a thousand and one.
+    expect(first.statusCode).toBe(201);
+    expect([201, 403]).toContain(second.statusCode);
+    expect(await anonymousCount(id)).toBe(WIRE_CLIENTS_PER_TENANT);
   });
 });
 

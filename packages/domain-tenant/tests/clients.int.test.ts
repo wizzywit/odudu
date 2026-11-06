@@ -271,6 +271,85 @@ describe('clientRepository', () => {
     });
   });
 
+  it('counts only the clients an operator made against max_clients', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await tx.update(tenants).set({ maxClients: 5 }).where(eq(tenants.id, tenantId));
+      for (let n = 0; n < 4; n += 1) {
+        await insertClient(tx, tenantId, {
+          registrationOrigin: 'anonymous',
+          type: 'public',
+          secretHash: null,
+        });
+        await insertClient(tx, tenantId, {
+          registrationOrigin: 'cimd',
+          type: 'public',
+          secretHash: null,
+          metadataUsedAt: new Date(),
+        });
+      }
+      await insertClient(tx, tenantId, { registrationOrigin: 'operator' });
+      await insertClient(tx, tenantId, { registrationOrigin: 'token' });
+      await insertClient(tx, tenantId, { registrationOrigin: 'seeded' });
+      expect(await clientRepository(tx).lockCapacity(tenantId)).toEqual({
+        maxClients: 5,
+        count: 3,
+      });
+    });
+  });
+
+  it('counts the clients that registered themselves against their own ceiling', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      for (let n = 0; n < 3; n += 1) {
+        await insertClient(tx, tenantId, {
+          registrationOrigin: 'anonymous',
+          type: 'public',
+          secretHash: null,
+        });
+      }
+      await insertClient(tx, tenantId, { registrationOrigin: 'operator' });
+      expect(await clientRepository(tx).lockWireCapacity(tenantId, 2)).toEqual({
+        maxClients: 2,
+        count: 2,
+      });
+      expect(await clientRepository(tx).lockWireCapacity(tenantId, 10)).toEqual({
+        maxClients: 10,
+        count: 3,
+      });
+    });
+  });
+
+  it('counts self-registered clients for the resolved tenant only', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await insertClient(tx, tenantId, {
+          registrationOrigin: 'anonymous',
+          type: 'public',
+          secretHash: null,
+        });
+        return tenantId;
+      },
+      verifySeeded: async (tx, tenantId) => {
+        const capacity = await clientRepository(tx).lockWireCapacity(tenantId, 10);
+        expect(capacity.count).toBe(1);
+      },
+      attempt: async (tx, tenantId) => {
+        try {
+          return await clientRepository(tx).lockWireCapacity(tenantId, 10);
+        } catch (error) {
+          return { threw: true, message: error instanceof Error ? error.message : String(error) };
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toMatchObject({ threw: true });
+      },
+    });
+  });
+
   it('cannot amend a client under a different tenant context', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {

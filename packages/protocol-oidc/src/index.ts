@@ -1197,6 +1197,9 @@ export {
 } from '#/usecase/mint-agent-token';
 export { type AgentTokenRefusal } from '#/service/agent-token-rules';
 export { AGENT_TOKEN_MAX_TTL_SECONDS } from '#/service/mcp-scopes';
+export { cimdClientRepository } from '#/repository/cimd-clients';
+export { dynamicClientRepository } from '#/repository/dynamic-clients';
+export { WIRE_CLIENTS_PER_TENANT } from '#/usecase/client-registration';
 export {
   IDLE_ACCOUNT_COUNT_CAP,
   IDLE_ACCOUNT_SAMPLE_LIMIT,

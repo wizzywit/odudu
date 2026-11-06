@@ -24,6 +24,7 @@ import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fast
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { oidcRoutes, type CimdResponse } from '#/index';
 import { en } from '#/view/messages';
+import { WIRE_CLIENTS_PER_TENANT } from '#/usecase/client-registration';
 import { tenantRegistrationPolicyRepository } from '#/repository/tenant-registration-policy';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
@@ -300,11 +301,20 @@ describe('registration under the mcp policy', () => {
     }
   });
 
-  it('refuses the client past the tenant ceiling', async () => {
+  it('refuses the client past the ceiling of clients that registered themselves, and not at max_clients', async () => {
     await owner.db.execute(
       sql`update tenants set max_clients = ${(await clientCount()) + 1} where id = ${tenantId}`,
     );
     await registered();
+    expect((await register(PUBLIC)).statusCode).toBe(201);
+    await owner.db.execute(sql`
+      insert into clients (id, tenant_id, client_id, name, type, secret_hash,
+                           registration_origin, approved_at)
+      select gen_random_uuid(), ${tenantId}, 'bulk-' || g, 'Bulk', 'public', null,
+             'anonymous', now()
+        from generate_series(1, ${WIRE_CLIENTS_PER_TENANT}) g`);
+    await owner.db.execute(sql`update clients set approved_at = now()
+      where tenant_id = ${tenantId} and registration_origin = 'anonymous'`);
     const res = await register(PUBLIC);
     expect(res.statusCode).toBe(403);
     expect(res.json()).toMatchObject({ error: 'invalid_client_metadata' });
@@ -700,6 +710,40 @@ describe('after the policy is turned off', () => {
     // Refused before the token was spent: the same refusal, not a replay.
     const again = await refresh(clientId, first);
     expect(again.json<{ error: string }>().error).toBe('invalid_scope');
+  });
+
+  it('answers a refresh whose policy turns off while it rotates from the ceiling it started with', async () => {
+    const clientId = await registered({
+      ...PUBLIC,
+      grant_types: ['authorization_code', 'refresh_token'],
+    });
+    const first = await startChain(clientId);
+    await owner.db.execute(
+      sql`update token_grants set audience = audience || ARRAY[${ADMIN_API_AUDIENCE}]::text[]
+        where tenant_id = ${tenantId}`,
+    );
+    // The policy turns off in the transaction that spends the token, after the
+    // pre-check read it and before the response is built.
+    await owner.db.execute(sql`
+      create or replace function flip_policy_on_rotation() returns trigger language plpgsql as $$
+      begin
+        update tenants set client_registration_policy = 'disabled' where id = new.tenant_id;
+        return new;
+      end $$`);
+    await owner.db.execute(sql`
+      create trigger flip_policy after update of used_at on refresh_tokens
+        for each row execute function flip_policy_on_rotation()`);
+    try {
+      const refreshed = await refresh(clientId, first);
+      expect(refreshed.statusCode, refreshed.body).toBe(200);
+      const next = refreshed.json<{ refresh_token: string }>().refresh_token;
+      await setPolicy('disabled');
+      const refused = await refresh(clientId, next);
+      expect(refused.json<{ error: string }>().error).toBe('invalid_scope');
+    } finally {
+      await owner.db.execute(sql`drop trigger flip_policy on refresh_tokens`);
+      await owner.db.execute(sql`drop function flip_policy_on_rotation()`);
+    }
   });
 
   it('refuses a refresh naming the MCP URL before the token is spent', async () => {

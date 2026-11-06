@@ -60,6 +60,22 @@ async function rowCount(tenantId: string): Promise<number> {
   return (rows as unknown as { n: number }[])[0]?.n ?? 0;
 }
 
+describe('the size of what a stored response keeps', () => {
+  it('refuses a row whose response headers hold more than 8 KiB', async () => {
+    const { t, input } = await world();
+    const row = input();
+    const insert = (headers: Record<string, string>) =>
+      fixture.owner.db.execute(sql`
+        insert into idempotency_keys (tenant_id, key, route, fingerprint, status, response_status,
+                                      response_body, response_headers, created_at, expires_at)
+        values (${t.id}, ${row.key}, ${row.route}, ${row.fingerprint}, 'completed', 201, '{}',
+                ${JSON.stringify(headers)}::jsonb, ${ts(NOW)}, ${ts(new Date(NOW.getTime() + 1000))})`);
+    await expect(insert({ 'x-big': 'a'.repeat(9000) })).rejects.toThrow();
+    await insert({ 'content-type': 'application/json' });
+    expect(await rowCount(t.id)).toBe(1);
+  });
+});
+
 describe('withIdempotency', () => {
   it('runs a first call and stores its success', async () => {
     const { t, input, call } = await world();
