@@ -101,6 +101,16 @@ async function countUpTo(
   return { maxClients: cap, count: countRows[0]?.count ?? 0 };
 }
 
+// What one tenant may hold of clients that registered themselves anonymously.
+// `max_clients` is the operator's own ceiling and does not count them. At this
+// number a registration makes room by removing one that never did anything,
+// and is refused when none is; a tenant import is refused above it.
+export const WIRE_CLIENTS_PER_TENANT = 1000;
+
+// The clients `max_clients` counts: every origin but the two that arrive on
+// their own. Literal, so a partial index on the same predicate can serve it.
+export const COUNTED_BY_MAX_CLIENTS: SQL = sql`${clients.registrationOrigin} NOT IN ('cimd', 'anonymous')`;
+
 export function clientRepository(tx: TenantScopedDatabase) {
   return {
     async byClientId(clientId: string): Promise<ClientRecord | null> {
@@ -299,12 +309,7 @@ export function clientRepository(tx: TenantScopedDatabase) {
     // fill it. Served by clients_operator_by_tenant.
     async lockCapacity(tenantId: string): Promise<ClientCapacity> {
       const maxClients = await lockTenantRow(tx, tenantId);
-      return countUpTo(
-        tx,
-        tenantId,
-        sql`registration_origin NOT IN ('cimd', 'anonymous')`,
-        maxClients,
-      );
+      return countUpTo(tx, tenantId, COUNTED_BY_MAX_CLIENTS, maxClients);
     },
 
     // The same lock, for the ceiling on clients that registered themselves
