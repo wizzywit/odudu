@@ -1,9 +1,18 @@
-import { mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import type { RunTool } from '@odudu/mcp';
 import { mcpCommand, type McpIo } from '#/cli/mcp';
+
+// A credential directory laid out as production's is, <config>/odudu/mcp, where
+// the directory above it is the user's own: a bare mkdtemp directory would put
+// /tmp, which the user does not own, above it.
+export async function privateConfigDirectory(): Promise<string> {
+  const directory = join(await mkdtemp(join(tmpdir(), 'odudu-config-')), 'odudu', 'mcp');
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  return directory;
+}
 
 const NOTHING: RunTool = () => Promise.resolve({ kind: 'missing' });
 
@@ -34,7 +43,7 @@ export async function runMcp(
     out += chunk;
   });
   const stderr: string[] = [];
-  const configDir = options.configDir ?? (await mkdtemp(join(tmpdir(), 'odudu-mcp-')));
+  const configDir = options.configDir ?? (await privateConfigDirectory());
   const io: McpIo = {
     stdin,
     stdout,
