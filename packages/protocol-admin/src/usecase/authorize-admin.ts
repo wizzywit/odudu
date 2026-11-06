@@ -23,6 +23,19 @@ export type AuthorizeAdminOutcome =
 
 const ALLOWED: AuthorizeAdminOutcome = { kind: 'allowed' };
 
+// The admin capabilities a subject holds in its own tenant. A capability is a
+// role on the built-in admin client and nowhere else: matching on the name
+// alone would let an application's own role, or a tenant role, named
+// `manage-users` administer this tenant.
+export async function heldCapabilities(
+  deps: AuthorizeAdminDeps,
+  tenantId: string,
+  subjectId: string,
+): Promise<ReadonlySet<string>> {
+  const roles = await deps.effectiveRoles(tenantId, subjectId);
+  return new Set(roles.filter((role) => role.clientKey === ADMIN_CLIENT_ID).map((r) => r.name));
+}
+
 // Roles are resolved against the principal's own issuer tenant, never the
 // path tenant: that is where its subject and role rows actually live under
 // row-level security, for a tenant-local admin and a system admin alike.
@@ -39,13 +52,7 @@ export async function authorizeAdmin(
   const crossTenant = principal.issuerTenantId !== target.tenantId;
   if (!crossTenant && required === null) return ALLOWED;
 
-  const roles = await deps.effectiveRoles(principal.issuerTenantId, principal.subjectId);
-  // A capability is a role on the built-in admin client and nowhere else.
-  // Matching on the name alone would let an application's own role, or a
-  // tenant role, named `manage-users` administer this tenant.
-  const names = new Set(
-    roles.filter((role) => role.clientKey === ADMIN_CLIENT_ID).map((role) => role.name),
-  );
+  const names = await heldCapabilities(deps, principal.issuerTenantId, principal.subjectId);
 
   if (crossTenant && !names.has(MANAGE_TENANTS)) {
     return { kind: 'forbidden', missing: MANAGE_TENANTS, alsoAdmits: [] };

@@ -259,6 +259,26 @@ import { createVerifyThrottle, type VerifyThrottle } from '#/service/domain-thro
 import { type ResolveTxt } from '@odudu/domain-tenant';
 
 export { ADMIN_ROUTES, type AdminCapability, type AdminRoute } from '#/service/capability';
+export {
+  checkGrantLiveness,
+  lifespansOf,
+  resolveForeignIssuer,
+  unverifiedIssuer,
+  verifyTenantAccessToken,
+  type AdminAgent,
+  type AdminPrincipal,
+  type AuthenticateAdminDeps,
+  type ClientState,
+  type ForeignIssuer,
+  type GrantLiveness,
+  type MatchedTenant,
+} from '#/usecase/authenticate-admin';
+export { heldCapabilities, type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
+export {
+  recordAgentRefused,
+  recordAgentToolCall,
+  recordForeignIssuer,
+} from '#/usecase/access-audit';
 export { AGENT_DENIED_READS, AGENT_WRITE_ROUTES } from '#/service/agent-scope';
 export { COUNT_CAP } from '#/usecase/counts';
 export { idempotencyRepository } from '#/repository/idempotency';
@@ -373,6 +393,46 @@ export interface AdminRoutesDeps {
   // How long an audit read may run before it is refused as too broad;
   // `AUDIT_READ_TIMEOUT_MS` unless a test shortens it.
   auditReadTimeoutMs?: number;
+}
+
+export type AdminAuthParts = Pick<AdminRoutesDeps, 'database' | 'ownerDatabase' | 'publicBaseUrl'>;
+
+// The reads an access token's holder is judged by at the admin API's door, for
+// any other door that accepts the same tokens to share: the tenant, its keys,
+// the grant, the session, the client, the subject and the issuers it accepts.
+export function adminAuthDeps(deps: AdminAuthParts): AuthenticateAdminDeps {
+  return {
+    findTenant: (name) => tenantLookupRepository(deps.ownerDatabase.db).byName(name),
+    listPublishableKeys: (tenantId) =>
+      withTenant(deps.database.db, tenantId, (tx) => signingKeyRepository(tx).listPublishable()),
+    loadGrant: (tenantId, grantId) =>
+      withTenant(deps.database.db, tenantId, (tx) => tokenGrantRepository(tx).byId(grantId)),
+    isSessionLive: (tenantId, sessionId, lifespans, now) =>
+      withTenant(deps.database.db, tenantId, async (tx) => {
+        const session = await sessionRepository(tx).liveById(sessionId, lifespans, now);
+        return session !== null;
+      }),
+    loadClientState: (tenantId, clientDbId) =>
+      withTenant(deps.database.db, tenantId, async (tx) => {
+        const client = await clientRepository(tx).byId(clientDbId);
+        return client === null
+          ? null
+          : {
+              enabled: client.enabled,
+              builtinMcp: client.builtinMcp,
+              builtinAdmin: client.builtinAdmin,
+            };
+      }),
+    isSubjectEnabled: (tenantId, subjectId) =>
+      withTenant(deps.database.db, tenantId, async (tx) =>
+        subjectIsEnabled(await subjectRepository(tx).byId(subjectId)),
+      ),
+    acceptedIssuers: acceptedIssuersLookup(deps),
+    tenantNameAtHost: async (host, now) => {
+      const state = await hostState(deps.ownerDatabase.db, host, now);
+      return state.kind === 'live' ? state.route.tenantName : null;
+    },
+  };
 }
 
 export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
@@ -894,38 +954,7 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/audit/export': exportAuditHandler(auditDeps),
     };
 
-    const authDeps: AuthenticateAdminDeps = {
-      findTenant: (name) => tenantLookupRepository(deps.ownerDatabase.db).byName(name),
-      listPublishableKeys: (tenantId) =>
-        withTenant(deps.database.db, tenantId, (tx) => signingKeyRepository(tx).listPublishable()),
-      loadGrant: (tenantId, grantId) =>
-        withTenant(deps.database.db, tenantId, (tx) => tokenGrantRepository(tx).byId(grantId)),
-      isSessionLive: (tenantId, sessionId, lifespans, now) =>
-        withTenant(deps.database.db, tenantId, async (tx) => {
-          const session = await sessionRepository(tx).liveById(sessionId, lifespans, now);
-          return session !== null;
-        }),
-      loadClientState: (tenantId, clientDbId) =>
-        withTenant(deps.database.db, tenantId, async (tx) => {
-          const client = await clientRepository(tx).byId(clientDbId);
-          return client === null
-            ? null
-            : {
-                enabled: client.enabled,
-                builtinMcp: client.builtinMcp,
-                builtinAdmin: client.builtinAdmin,
-              };
-        }),
-      isSubjectEnabled: (tenantId, subjectId) =>
-        withTenant(deps.database.db, tenantId, async (tx) =>
-          subjectIsEnabled(await subjectRepository(tx).byId(subjectId)),
-        ),
-      acceptedIssuers: acceptedIssuersLookup(deps),
-      tenantNameAtHost: async (host, now) => {
-        const state = await hostState(deps.ownerDatabase.db, host, now);
-        return state.kind === 'live' ? state.route.tenantName : null;
-      },
-    };
+    const authDeps = adminAuthDeps(deps);
 
     const authzDeps: AuthorizeAdminDeps = {
       effectiveRoles: (tenantId, subjectId) =>
