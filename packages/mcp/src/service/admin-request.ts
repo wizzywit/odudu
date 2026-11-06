@@ -1,5 +1,5 @@
 import { isEtag } from '#/service/etag-shape';
-import type { AdminRequestSpec } from '#/service/tool';
+import type { AdminMethod, AdminRequestSpec } from '#/service/tool';
 
 // What a call may read back: the admin API's own page size bounds rows, not
 // bytes, and a model reads whatever is returned.
@@ -11,28 +11,58 @@ export const REQUEST_BODY_CAP_BYTES = 65_536;
 
 export const RETURNED_HEADERS = ['content-type', 'etag', 'retry-after'] as const;
 
+// The same character set the admin API accepts for `Idempotency-Key`, which
+// is a subset of visible ASCII with no space, quote or separator.
+export const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9_.:-]{1,255}$/u;
+
 // The bytes of a request body, or nothing for a call without one. A body is a
-// JSON record on a PATCH and nothing else.
+// JSON record on a PATCH, POST or PUT and on nothing else; a tool may name a
+// cap of its own for it, never above what a call may read back.
 export function payloadOf(req: AdminRequestSpec): string | undefined {
+  const cap = req.bodyCap ?? REQUEST_BODY_CAP_BYTES;
+  if (!Number.isSafeInteger(cap) || cap < 1 || cap > ADMIN_BODY_CAP_BYTES) {
+    throw new Error('a body cap is a whole number of bytes, at most the read cap');
+  }
   if (req.body === undefined) return undefined;
-  if (req.method !== 'PATCH') throw new Error('only a PATCH carries a body');
+  if (!BODY_METHODS.includes(req.method)) {
+    throw new Error('only a PATCH, POST or PUT carries a body');
+  }
   const body: unknown = req.body;
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     throw new Error('a body is a JSON record');
   }
   const payload = JSON.stringify(req.body);
-  if (Buffer.byteLength(payload) > REQUEST_BODY_CAP_BYTES) {
+  if (Buffer.byteLength(payload) > cap) {
     throw new Error('the request body is too large');
   }
   return payload;
 }
 
-// The precondition of a write: one strong etag, and only on a PATCH.
+const BODY_METHODS: readonly AdminMethod[] = ['PATCH', 'POST', 'PUT'];
+const PRECONDITION_METHODS: readonly AdminMethod[] = ['PATCH', 'PUT', 'DELETE'];
+
+// The precondition of a write: one strong etag, on a call that replaces or
+// removes what is there.
 export function preconditionOf(req: AdminRequestSpec): string | undefined {
   if (req.ifMatch === undefined) return undefined;
-  if (req.method !== 'PATCH') throw new Error('only a PATCH carries a precondition');
+  if (!PRECONDITION_METHODS.includes(req.method)) {
+    throw new Error('only a PATCH, PUT or DELETE carries a precondition');
+  }
   if (!isEtag(req.ifMatch)) throw new Error('a precondition is one strong entity tag');
   return req.ifMatch;
+}
+
+// The key a POST is sent with, so that a retry of it makes one thing and not
+// two. A POST names one and no other method does.
+export function idempotencyKeyOf(req: AdminRequestSpec): string | undefined {
+  if (req.method !== 'POST') {
+    if (req.idempotencyKey !== undefined) throw new Error('only a POST carries an idempotency key');
+    return undefined;
+  }
+  if (req.idempotencyKey === undefined || !IDEMPOTENCY_KEY_PATTERN.test(req.idempotencyKey)) {
+    throw new Error('a POST needs an idempotency key of 1 to 255 letters, digits and _.:-');
+  }
+  return req.idempotencyKey;
 }
 
 export function returnedHeaders(

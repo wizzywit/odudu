@@ -4,6 +4,7 @@ import { accessOf } from '#/service/admin-access';
 import { expandPattern } from '#/service/admin-path';
 import {
   ADMIN_BODY_CAP_BYTES,
+  idempotencyKeyOf,
   jsonBodyOf,
   payloadOf,
   preconditionOf,
@@ -62,6 +63,7 @@ export function createHttpCaller(
       const path = expandPattern(req.pattern, options.tenant, req.params);
       const payload = payloadOf(req);
       const ifMatch = preconditionOf(req);
+      const idempotencyKey = idempotencyKeyOf(req);
       const url = new URL(target.adminUrl(path));
       for (const [name, value] of Object.entries(req.query)) url.searchParams.append(name, value);
       const attempt = async (): Promise<{ res: Response; bearer: string }> => {
@@ -75,6 +77,8 @@ export function createHttpCaller(
               'x-request-id': newRequestId(),
               ...(payload === undefined ? {} : { 'content-type': 'application/json' }),
               ...(ifMatch === undefined ? {} : { 'if-match': ifMatch }),
+              ...(idempotencyKey === undefined ? {} : { 'idempotency-key': idempotencyKey }),
+          ...(idempotencyKey === undefined ? {} : { 'idempotency-key': idempotencyKey }),
             },
             ...(payload === undefined ? {} : { body: payload }),
             redirect: 'manual',

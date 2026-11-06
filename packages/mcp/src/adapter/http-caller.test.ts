@@ -150,6 +150,90 @@ describe('the stdio caller of the admin API', () => {
     expect(h.sent).toHaveLength(0);
   });
 
+  it('builds each write method from fixed parts, with only the headers it names', async () => {
+    const h = harness();
+    const etag = `"${'c'.repeat(64)}"`;
+    await h.caller.call({
+      method: 'POST',
+      pattern: '/admin/tenants/:tenant/roles',
+      params: {},
+      query: {},
+      body: { name: 'auditors' },
+      idempotencyKey: 'create-auditors-1',
+    });
+    await h.caller.call({
+      method: 'PUT',
+      pattern: '/admin/tenants/:tenant/message-overrides/:locale/:key',
+      params: { locale: 'de', key: 'login.title' },
+      query: {},
+      body: { message: 'x' },
+      ifMatch: etag,
+    });
+    await h.caller.call({
+      method: 'DELETE',
+      pattern: '/admin/tenants/:tenant/message-overrides/:locale/:key',
+      params: { locale: 'de', key: 'login.title' },
+      query: {},
+      ifMatch: etag,
+    });
+    const names = h.sent.map((s) => Object.keys(s.init.headers ?? {}).sort());
+    expect(names).toEqual([
+      ['accept', 'authorization', 'content-type', 'idempotency-key', 'x-request-id'],
+      ['accept', 'authorization', 'content-type', 'if-match', 'x-request-id'],
+      ['accept', 'authorization', 'if-match', 'x-request-id'],
+    ]);
+    expect(h.sent.map((s) => s.init.method)).toEqual(['POST', 'PUT', 'DELETE']);
+    expect(h.sent[0]?.init.body).toBe('{"name":"auditors"}');
+    expect(h.sent[2]?.init.body).toBeUndefined();
+    expect(h.asked).toEqual(['write', 'write', 'write']);
+  });
+
+  it('refuses a bad key, a body on a DELETE and a cap above the read cap before any request', async () => {
+    const h = harness();
+    const post = {
+      method: 'POST',
+      pattern: '/admin/tenants/:tenant/roles',
+      params: {},
+      query: {},
+      body: { name: 'a' },
+    } as const;
+    for (const idempotencyKey of ['a b', 'a\nb', 'k'.repeat(256), '']) {
+      await expect(h.caller.call({ ...post, idempotencyKey })).rejects.toThrow(/key/u);
+    }
+    await expect(h.caller.call(post)).rejects.toThrow(/key/u);
+    await expect(
+      h.caller.call({ ...post, idempotencyKey: 'k', bodyCap: 1_048_577 }),
+    ).rejects.toThrow(/cap/u);
+    await expect(
+      h.caller.call({
+        method: 'DELETE',
+        pattern: '/admin/tenants/:tenant/roles/:id',
+        params: { id: 'r' },
+        query: {},
+        body: { a: 'b' },
+      }),
+    ).rejects.toThrow(/PATCH, POST or PUT/u);
+    expect(h.sent).toHaveLength(0);
+  });
+
+  it('sends the same key again when a 401 makes it ask once more', async () => {
+    let calls = 0;
+    const h = harness(() =>
+      calls++ === 0 ? new Response(null, { status: 401 }) : json({ ok: 1 }),
+    );
+    await h.caller.call({
+      method: 'POST',
+      pattern: '/admin/tenants/:tenant/roles',
+      params: {},
+      query: {},
+      body: { name: 'a' },
+      idempotencyKey: 'same-key',
+    });
+    expect(
+      h.sent.map((s) => (s.init.headers as Record<string, string>)['idempotency-key']),
+    ).toEqual(['same-key', 'same-key']);
+  });
+
   it('does not follow a redirect and says so', async () => {
     const h = harness(
       () => new Response(null, { status: 302, headers: { location: 'https://evil.example/' } }),

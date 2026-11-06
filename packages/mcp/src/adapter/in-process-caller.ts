@@ -2,6 +2,7 @@ import type { InjectOptions, LightMyRequestResponse } from 'fastify';
 import { expandPattern } from '#/service/admin-path';
 import {
   ADMIN_BODY_CAP_BYTES,
+  idempotencyKeyOf,
   jsonBodyOf,
   payloadOf,
   preconditionOf,
@@ -33,8 +34,8 @@ export interface InProcessCallerDeps {
 // Calls the admin API of this same app as the owner's agent. The request is
 // built from fixed parts: the tenant is the token's, the path comes from a
 // route pattern, and the only headers are the four set here (and a fixed content
-// type with a body, and `If-Match` for a validated etag), so nothing a tool is
-// given can add a header or a cookie.
+// type with a body, `If-Match` for a validated etag and `Idempotency-Key` for a
+// validated key), so nothing a tool is given can add a header or a cookie.
 export function createInProcessCaller(
   deps: InProcessCallerDeps,
   token: ValidatedMcpToken,
@@ -44,6 +45,7 @@ export function createInProcessCaller(
       const url = expandPattern(req.pattern, token.tenant.name, req.params);
       const payload = payloadOf(req);
       const ifMatch = preconditionOf(req);
+      const idempotencyKey = idempotencyKeyOf(req);
       const bearer = await deps.adminBearer(accessOf(req.method));
       const res = await deps.inject({
         method: req.method,
@@ -57,6 +59,7 @@ export function createInProcessCaller(
           host: deps.adminHost ?? new URL(token.issuer).host,
           ...(payload === undefined ? {} : { 'content-type': 'application/json' }),
           ...(ifMatch === undefined ? {} : { 'if-match': ifMatch }),
+          ...(idempotencyKey === undefined ? {} : { 'idempotency-key': idempotencyKey }),
         },
         ...(payload === undefined ? {} : { payload }),
       });

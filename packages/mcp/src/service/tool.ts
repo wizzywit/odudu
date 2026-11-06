@@ -1,9 +1,9 @@
 import type { AdminCapability } from '@odudu/protocol-admin';
 import type { z } from 'zod';
 
-// The admin API methods a tool may use. Reads are GET; the one write an
-// agent holds is the PATCH of descriptive fields.
-export type AdminMethod = 'GET' | 'PATCH';
+// The admin API methods a tool may use. Reads are GET; every other method is
+// a write the admin API's agent allowlist names route by route.
+export type AdminMethod = 'GET' | 'PATCH' | 'POST' | 'PUT' | 'DELETE';
 
 export type JsonValue = string | number | boolean | null | readonly JsonValue[] | JsonObject;
 
@@ -12,11 +12,13 @@ export type JsonObject = { readonly [K in string]: JsonValue };
 // One admin request, before it has an address. `pattern` is an ADMIN_ROUTES
 // pattern whose `:tenant` the caller fills from the principal and never from
 // a tool's input; `params` are the other path parameters, raw, for the caller
-// to encode. There is no header field, so none can be set from input; the one
-// exception is `ifMatch`, a single entity tag the caller checks and sends as
-// `If-Match`, for a PATCH only. A body is a record the tool built from its
-// validated arguments, only for a PATCH, which the caller serialises: a tool
-// never supplies bytes.
+// to encode. There is no header field, so none can be set from input; the two
+// exceptions are `ifMatch`, a single entity tag the caller checks and sends as
+// `If-Match` on a PATCH, PUT or DELETE, and `idempotencyKey`, a validated token
+// sent as `Idempotency-Key` on a POST. A body is a record the tool built from
+// its validated arguments, on a PATCH, POST or PUT, which the caller
+// serialises: a tool never supplies bytes. `bodyCap` raises or lowers the
+// bytes that body may take, up to the read cap.
 export interface AdminRequestSpec {
   readonly method: AdminMethod;
   readonly pattern: string;
@@ -24,6 +26,8 @@ export interface AdminRequestSpec {
   readonly query: Readonly<Record<string, string>>;
   readonly body?: JsonObject;
   readonly ifMatch?: string;
+  readonly idempotencyKey?: string;
+  readonly bodyCap?: number;
 }
 
 export interface AdminResult {
