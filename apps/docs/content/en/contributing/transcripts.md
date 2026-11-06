@@ -50,7 +50,7 @@ shipped); it was added to the recorded blocks by hand, after `nosniff` where
 `odudu-p4g-13b` confirmed its value and position.
 
 The MCP endpoint's page, `the-mcp-endpoint.md`, was captured on 2026-11-06 on a freshly built compose project,
-`odudu-p5a-i8a` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `94af20b6d` plus the change).
+`odudu-p5a-i8b` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `8bb36d945` plus the change).
 The project's volume was removed and the stack started again from the same image before the one pass the page records (the tenant `demo`
 seeded as the page shows, then its commands in order), so the audit rows the page lists are all the tenant had. The
 budget section's counts are that pass's: the first sixty requests of the minute are served, and the ones
