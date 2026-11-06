@@ -195,7 +195,7 @@ describe('eviction beside a client that is being used', () => {
       values (${newId()}, ${t.id}, ${t.subject}, ${chosen})`;
     if (app === undefined) throw new Error('not started');
     const gone = await withTenant(app.db, t.id, (tx) =>
-      dynamicClientRepository(tx).removeIfUnused(chosen, NOW),
+      dynamicClientRepository(tx).removeIfUnused(chosen, 'chosen', NOW),
     );
     expect(gone).toBe(false);
     expect(await exists(chosen)).toBe(true);

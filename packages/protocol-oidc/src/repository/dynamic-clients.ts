@@ -10,7 +10,7 @@ const EVICTION_ATTEMPTS = 5;
 // rule `odudu reap` applies after a week. A confidential one is never offered:
 // it may be a working integration with a service account. The sign-in test is
 // served by authentication_sessions_by_pending_client.
-function unused(now: Date): SQL {
+function unused(now: Date, oauthClientId: SQL = sql`c.client_id`): SQL {
   const at = sql`${now.toISOString()}::timestamptz`;
   return sql`c.registration_origin = 'anonymous'
     AND c.type = 'public'
@@ -23,7 +23,7 @@ function unused(now: Date): SQL {
     AND NOT EXISTS (
       SELECT 1 FROM authentication_sessions s
        WHERE s.tenant_id = c.tenant_id
-         AND s.pending_request ->> 'clientId' = c.client_id
+         AND s.pending_request ->> 'clientId' = ${oauthClientId}
          AND s.expires_at > ${at})`;
 }
 
@@ -45,23 +45,27 @@ export function dynamicClientRepository(tx: TenantScopedDatabase) {
                 tried.map((id) => sql`${id}`),
                 sql`, `,
               )})`;
-        const rows = await tx.execute<{ id: string }>(sql`
-          SELECT c.id FROM clients c
+        const rows = await tx.execute<{ id: string; client_id: string }>(sql`
+          SELECT c.id, c.client_id FROM clients c
            WHERE c.tenant_id = ${tenantId} AND ${skipping} AND ${unused(now)}
            ORDER BY c.created_at, c.id
            LIMIT 1
              FOR UPDATE OF c SKIP LOCKED`);
-        const candidate = rows[0]?.id;
+        const candidate = rows[0];
         if (candidate === undefined) return null;
-        if (await this.removeIfUnused(candidate, now)) return candidate;
-        tried.push(candidate);
+        if (await this.removeIfUnused(candidate.id, candidate.client_id, now)) return candidate.id;
+        tried.push(candidate.id);
       }
       return null;
     },
 
-    async removeIfUnused(id: string, now: Date): Promise<boolean> {
+    // The OAuth client id is passed, not read from the row, so the sign-in
+    // lookup is an equality on a value the planner knows.
+    async removeIfUnused(id: string, oauthClientId: string, now: Date): Promise<boolean> {
       const rows = await tx.execute<{ id: string }>(
-        sql`DELETE FROM clients c WHERE c.id = ${id} AND ${unused(now)} RETURNING c.id`,
+        sql`DELETE FROM clients c
+             WHERE c.id = ${id} AND ${unused(now, sql`${oauthClientId}`)}
+         RETURNING c.id`,
       );
       return rows.length > 0;
     },
