@@ -3,7 +3,8 @@ import { chmod, mkdir, mkdtemp, readdir, rm, stat, symlink, writeFile } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createCredentialStore, type RunTool, type ToolRun } from '#/adapter/credential-store';
+import { createCredentialStore } from '#/adapter/credential-store';
+import type { RunTool, ToolRun } from '#/adapter/run-tool';
 
 const ISSUER = 'https://id.example.com/tenants/acme';
 let directory: string;
