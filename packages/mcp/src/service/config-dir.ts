@@ -14,5 +14,7 @@ export function configDirectory(
   const absolute = (value: string | undefined): value is string =>
     value !== undefined && value !== '' && (windows ? win32.isAbsolute(value) : isAbsolute(value));
   const base = absolute(candidate) ? candidate : join(home, '.config');
-  return (windows && absolute(candidate) ? win32.join : join)(base, 'odudu', 'mcp');
+  return windows && absolute(candidate)
+    ? win32.join(base, 'odudu', 'mcp')
+    : join(base, 'odudu', 'mcp');
 }
