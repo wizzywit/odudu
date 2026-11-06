@@ -725,6 +725,51 @@ ok: set-cookie: __Host-odudu-console=…; HttpOnly; SameSite=Strict; Path=/; Sec
 console check passed
 ```
 
+## Real MCP clients
+
+`run-mcp.sh` runs two MCP clients nobody here wrote against the built image,
+on plain HTTP at `localhost:3190` (`mcp-compose.yaml`; the production
+configuration behind TLS is `compose.yaml`'s): the MCP Inspector's CLI,
+`@modelcontextprotocol/inspector` **2.13.0**, and the TypeScript SDK's client,
+`@modelcontextprotocol/client` **2.4.0**. The Inspector is one release behind
+the newest because the newest was younger than `minimumReleaseAge` when the
+phase began; npm has no such floor, so the exact pin is the floor.
+`mcp/signin.mjs` is the person at the browser: it follows the authorization
+URL, signs in as a seeded administrator and ticks `mcp:read` on the consent
+page.
+
+What passes, from the `mcp` job in `verify.yml` and locally:
+
+- **The 401 challenge** has the form `Bearer resource_metadata="<PRM URL>",
+scope="mcp:read"`; the protected resource metadata it names states the MCP
+  URL as `resource`, the tenant as its first authorization server and the
+  header method; the RFC 8414 metadata lists S256 alone, a registration
+  endpoint and the `none` method; `GET` answers 405 with `Allow: POST`.
+- **The Inspector** (`mcp/inspector.mjs`) discovers the sign-in itself,
+  registers itself by DCR under the `mcp` policy, runs the code flow with PKCE
+  S256 and `resource`, and lists 42 tools and calls `whoami` and `list_clients`
+  with `--protocol-era` `modern`, `legacy` and `auto`. It cannot call a write
+  tool a read token was not listed: it checks the list first and exits 5.
+- **The SDK** (`mcp/sdk.mjs`) runs its own OAuth (the challenge's scope,
+  DCR, PKCE, `resource`, the `iss` on the redirect), then in each of its
+  negotiation modes lists the tools, calls `whoami` and `list_clients`, and
+  calls `update_client_metadata` by name with arguments the tool accepts: the
+  answer is `mcp:insufficient_scope` 403 and the client is unchanged.
+- **An older revision.** An `initialize` asking for `2025-06-18` or
+  `2025-03-26`, with the matching `mcp-protocol-version` header, is served
+  (HTTP 200, the server answers the revision asked for), and so is a
+  `tools/list` under that header.
+
+The Inspector reads the scopes to ask for from the protected resource
+metadata unless told otherwise, which is `mcp:read mcp:write` here, and under
+the `mcp` policy the registration is refused (400, `scope mcp:write is not
+available`). The run therefore gives it `oauth.scopes: "mcp:read"` in its
+config. The SDK follows the challenge and needs no such help.
+
+Not automated, because they cannot run in CI: hosted Claude, Claude Code and
+Cursor, and a client ID metadata document (it needs a public HTTPS address).
+The hand run in `docs/phases/p5a.md` carries the exit criterion for those.
+
 ## Running it yourself
 
 ```bash
@@ -744,4 +789,8 @@ pnpm conformance:dynamic-op
 
 # The console's cookies over https — runs in CI (gating), about two minutes
 ./infra/conformance/run-console-check.sh
+
+# Real MCP clients — runs in CI (gating); about half a minute with the image
+# built, plus the image build
+./infra/conformance/run-mcp.sh
 ```

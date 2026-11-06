@@ -1157,3 +1157,58 @@ given.
   for another issuer or token endpoint is forgotten and the person signs in again, so a
   configuration that changes `--tenant-address` cannot hand a refresh token to another
   server.
+
+## Real-client run
+
+`infra/conformance/run-mcp.sh`, the `mcp` job in `verify.yml` (gated by
+`server`, so a prose-only change skips it and `gate` passes it skipped), runs
+two clients nobody here wrote against the built image. The compose file is
+`mcp-compose.yaml`: plain HTTP on `localhost:3190`, the `mcp` registration
+policy, one administrator. verified: `infra/conformance/run-mcp.sh` through
+the e2e heavy slot, 2026-11-06, green twice (one with the image
+layers rebuilt, one with it built), each 24 to 26 seconds after the image
+exists; the job's limit is 20 minutes, of which the image build is nearly all.
+
+- **Versions.** `@modelcontextprotocol/inspector` 2.13.0 (`npm view` shows
+  2.14.0 published 2026-11-05; 2.13.0 is the version the release-age floor
+  allowed at the spike and is kept) and `@modelcontextprotocol/client` 2.4.0,
+  installed by `npm install --ignore-scripts --save-exact` into a scratch
+  directory. Their transitive dependencies are not locked.
+- **The Inspector can do the OAuth part headless.** The spike did not run it;
+  this run did. With `MCP_AUTO_OPEN_ENABLED=true` it prints `Please navigate
+to: <authorization URL>` on standard error and listens on the loopback
+  callback; `mcp/signin.mjs` follows the URL, signs in, ticks `mcp:read` and
+  requests the callback. It then reads the stored token with
+  `--stored-auth-only`. So the exit criterion for the Inspector is automated
+  and not left to the hand run.
+- **What was automated.** The 401 challenge's exact form and the two metadata
+  documents; DCR under the `mcp` policy; the code flow with PKCE S256, the
+  `resource` parameter and `iss` on the redirect; the token exchange; 42 read
+  tools listed; `whoami` and `list_clients`; a refused write by a read token
+  (`mcp:insufficient_scope`, 403, the client unchanged), in the Inspector's
+  three `--protocol-era` values and the SDK's `legacy`, pinned `2026-07-28`
+  and `auto` modes.
+- **Negotiated.** The SDK in `legacy` mode: 2025-11-25, no session. Pinned and
+  `auto`: 2026-07-28. The Inspector's `--protocol-era` values all listed and
+  called; it does not print the revision.
+- **2025-06-18, the plan's residual risk, closed.** An `initialize` asking
+  for `2025-06-18` (and the `mcp-protocol-version` header) is answered 200
+  with `protocolVersion` `2025-06-18`, and a `tools/list` under that header is 200. `2025-03-26` behaves the same. No 400 `-32022`, that being only what
+  `legacy: 'reject'` does. The SDK's own client cannot send it, so it is sent
+  by hand.
+- **Found: a client that takes its scope from the metadata cannot register.**
+  The Inspector, given no scope, asked for the protected resource metadata's
+  `mcp:read mcp:write offline_access`; the registration was refused 400
+  `scope mcp:write is not available under this tenant's registration policy`.
+  An SDK client that gets as far as the 401 uses its `scope="mcp:read"` and is
+  fine, and so is a registered client asking `mcp:write` at `/authorize` (also
+  `invalid_scope`, by design in `refusesWriteScope`). The Inspector run sets
+  `oauth.scopes: "mcp:read"`. A client in the field that does the first
+  would be refused with a message that names the cause; whether the policy
+  should drop `mcp:write` from a request instead of refusing it (RFC 7591
+  §3.2.1 and RFC 6749 §3.3 allow either) is a decision, left open here because
+  three int tests pin the refusal.
+- **Not automated, and said plainly.** Hosted Claude, Claude Code and Cursor
+  cannot run in CI (hosted Claude needs a public HTTPS address; the others are
+  desktop applications), and neither can a client ID metadata document, which
+  needs one. The hand run in this note carries the exit criterion for them.
