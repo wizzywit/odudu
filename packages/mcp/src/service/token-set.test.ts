@@ -119,6 +119,25 @@ describe('whether a token may be used against this tenant', () => {
     }).toThrow(/mcp:write/u);
   });
 
+  it('refuses a token whose own scope claim lacks the scope, whatever the endpoint said it granted', () => {
+    const set = tokenSetFrom(
+      response(jwtOf({ iss: ISSUER, aud: [ADMIN], scope: 'openid' }), { scope: 'mcp:read' }),
+      NOW,
+    );
+    expect(() => {
+      acceptTokenSet(set, { issuer: ISSUER, audience: ADMIN, scope: 'mcp:read' });
+    }).toThrow(/scope mcp:read/u);
+    const write = tokenSetFrom(
+      response(jwtOf({ iss: ISSUER, aud: [ADMIN], scope: 'mcp:read' }), {
+        scope: 'mcp:read mcp:write',
+      }),
+      NOW,
+    );
+    expect(() => {
+      acceptTokenSet(write, { issuer: ISSUER, audience: ADMIN, scope: 'mcp:write' });
+    }).toThrow(/scope mcp:write/u);
+  });
+
   it('does not put the token in a message', () => {
     const set = tokenSetFrom(response('opaque-SECRET'), NOW);
     expect(() => {

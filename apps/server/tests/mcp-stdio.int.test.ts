@@ -12,12 +12,16 @@ import {
 import { newId } from '@odudu/kernel';
 import { clientOidcConfig } from '@odudu/protocol-oidc';
 import { eq } from 'drizzle-orm';
-import { mkdtemp, readdir } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { readdir } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seed } from '#/cli/seed';
-import { byId, INITIALIZE, INITIALIZED, runMcp } from '#/testing/mcp-session';
+import {
+  byId,
+  INITIALIZE,
+  INITIALIZED,
+  privateConfigDirectory,
+  runMcp,
+} from '#/testing/mcp-session';
 import { type McpStack, startMcpStack } from '#/testing/mcp-stack';
 import { reachingApp, scriptedBrowser } from '#/testing/scripted-browser';
 
@@ -109,7 +113,7 @@ describe('odudu mcp, signing in as a person', () => {
   it('signs in through the real /authorize and consent, then reads as the person with a token issued to odudu-mcp', async () => {
     const t = await tenant();
     const w = wire();
-    const configDir = await mkdtemp(join(tmpdir(), 'odudu-stdio-'));
+    const configDir = await privateConfigDirectory();
     const r = await runMcp(['--base-url', BASE, '--tenant', t.name], {
       fetch: w.fetch,
       configDir,
@@ -157,7 +161,7 @@ describe('odudu mcp, signing in as a person', () => {
 
   it('uses the stored refresh token on the next run, with no browser', async () => {
     const t = await tenant();
-    const configDir = await mkdtemp(join(tmpdir(), 'odudu-stdio-'));
+    const configDir = await privateConfigDirectory();
     const signIn = (address: string) =>
       scriptedBrowser(stack.app, address, {
         host: HOST,
@@ -193,7 +197,7 @@ describe('odudu mcp, signing in as a person', () => {
   it('with --allow-writes asks again, issues mcp:write only, changes a client description and keeps nothing', async () => {
     const t = await tenant();
     const w = wire();
-    const configDir = await mkdtemp(join(tmpdir(), 'odudu-stdio-'));
+    const configDir = await privateConfigDirectory();
     const portal = await withTenant(stack.appDb.db, t.tenantId, async (tx) => {
       const row = await clientRepository(tx).byClientId('portal');
       if (row === null) throw new Error('no portal');
@@ -360,7 +364,7 @@ describe('odudu mcp, as a service account', () => {
 describe('what the admin API records of an agent that reached it directly', () => {
   it('leaves one agent.tool_call row for each read over stdio, naming odudu-mcp', async () => {
     const t = await tenant();
-    const configDir = await mkdtemp(join(tmpdir(), 'odudu-stdio-'));
+    const configDir = await privateConfigDirectory();
     const r = await runMcp(['--base-url', BASE, '--tenant', t.name], {
       fetch: wire().fetch,
       configDir,

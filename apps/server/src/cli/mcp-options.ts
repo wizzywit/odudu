@@ -6,7 +6,7 @@ export const MCP_OPTIONS = {
     true,
   ),
   'tenant-address': text(
-    'The address a tenant with a domain of its own signs in at, such as https://login.acme.org. ' +
+    'The https origin a tenant with a domain of its own signs in at (its login host, with the scheme). ' +
       'The admin API stays at --base-url. Without it the tenant is at its path address under --base-url.',
   ),
   tenant: text('Name of the tenant to act in; every call is made in this tenant.', true),

@@ -229,3 +229,26 @@ describe('the token endpoint', () => {
     ).rejects.toThrow(/redirect/u);
   });
 });
+
+describe('a response whose body cannot be read', () => {
+  const broken = () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.error(new Error('SECRET connection reset'));
+        },
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+
+  it('is an unreachable server, so the acquisition cooldown applies, from discovery and from the token endpoint', async () => {
+    const { oauth } = client(broken);
+    await expect(oauth.discover()).rejects.toMatchObject({
+      name: 'StdioError',
+      code: 'mcp_unreachable',
+    });
+    await expect(
+      oauth.refresh(server, { refreshToken: 'r', scope: 'mcp:read', resource: ADMIN }),
+    ).rejects.toMatchObject({ name: 'StdioError', code: 'mcp_unreachable' });
+  });
+});

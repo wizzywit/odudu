@@ -10,6 +10,7 @@ import {
   byId,
   INITIALIZE,
   INITIALIZED,
+  privateConfigDirectory,
   runMcp,
   SESSION,
   toolNames,
@@ -379,7 +380,7 @@ describe('odudu mcp --keygen and --logout', () => {
   });
 
   it('forgets the stored sign-in of one tenant only', async () => {
-    const configDir = await mkdtemp(join(tmpdir(), 'odudu-mcp-'));
+    const configDir = await privateConfigDirectory();
     const a = authority({ refreshTokens: true });
     const signIn = (tenant: string) =>
       run(['--base-url', BASE, '--tenant', tenant], {
@@ -431,7 +432,7 @@ describe('odudu mcp with a browser sign-in', () => {
 
   it('signs in on a loopback listener, redeems the code with the verifier, and keeps only the refresh token', async () => {
     const a = authority({ refreshTokens: true });
-    const configDir = await mkdtemp(join(tmpdir(), 'odudu-mcp-'));
+    const configDir = await privateConfigDirectory();
     let authorizeAddress: URL | undefined;
     const r = await run(['--base-url', BASE, '--tenant', 'acme'], {
       configDir,
@@ -461,7 +462,7 @@ describe('odudu mcp with a browser sign-in', () => {
 
   it('refreshes with the stored token on the next run, and does not open the browser', async () => {
     const a = authority({ refreshTokens: true });
-    const configDir = await mkdtemp(join(tmpdir(), 'odudu-mcp-'));
+    const configDir = await privateConfigDirectory();
     await run(['--base-url', BASE, '--tenant', 'acme'], {
       configDir,
       fetch: a.fetch,
@@ -506,7 +507,7 @@ describe('odudu mcp with a browser sign-in', () => {
 
   it('with --allow-writes asks for mcp:write alone and keeps nothing', async () => {
     const a = authority({ refreshTokens: true });
-    const configDir = await mkdtemp(join(tmpdir(), 'odudu-mcp-'));
+    const configDir = await privateConfigDirectory();
     let scope: string | null = null;
     const r = await run(['--base-url', BASE, '--tenant', 'acme', '--allow-writes'], {
       configDir,
@@ -525,7 +526,7 @@ describe('odudu mcp with a browser sign-in', () => {
 
   it('does not use a stored refresh token for a run that allows writes', async () => {
     const a = authority({ refreshTokens: true });
-    const configDir = await mkdtemp(join(tmpdir(), 'odudu-mcp-'));
+    const configDir = await privateConfigDirectory();
     await run(['--base-url', BASE, '--tenant', 'acme'], {
       configDir,
       fetch: a.fetch,
@@ -545,7 +546,7 @@ describe('odudu mcp with a browser sign-in', () => {
   });
 
   it('refuses a stored sign-in that group or others can read, before serving anything', async () => {
-    const configDir = await mkdtemp(join(tmpdir(), 'odudu-mcp-'));
+    const configDir = await privateConfigDirectory();
     const { createCredentialStore } = await import('@odudu/mcp');
     await createCredentialStore({
       account: ISSUER,
@@ -776,7 +777,7 @@ describe('odudu mcp keeps a sign-in for the address it was made at', () => {
 
   it('does not hand a refresh token kept for one tenant address to another', async () => {
     const s = servers();
-    const configDir = await mkdtemp(join(tmpdir(), 'odudu-mcp-'));
+    const configDir = await privateConfigDirectory();
     const args = (address: string) => [
       '--base-url',
       BASE,
@@ -812,7 +813,7 @@ describe('odudu mcp keeps a sign-in for the address it was made at', () => {
 
   it('refreshes at the address it was made at', async () => {
     const s = servers();
-    const configDir = await mkdtemp(join(tmpdir(), 'odudu-mcp-'));
+    const configDir = await privateConfigDirectory();
     const argv = ['--base-url', BASE, '--tenant-address', FIRST, '--tenant', 'acme'];
     await run(argv, { configDir, fetch: s.fetch, input: SESSION, openBrowser: approving(FIRST) });
     await run(argv, {

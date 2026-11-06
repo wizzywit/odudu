@@ -10,7 +10,7 @@ interface Sent {
 }
 
 function harness(answer: () => Response | Promise<Response> = () => json({ ok: true })) {
-  const invalidated = { count: 0 };
+  const invalidated: { count: number; rejected: string[] } = { count: 0, rejected: [] };
   const sent: Sent[] = [];
   const asked: string[] = [];
   const logged: string[] = [];
@@ -19,8 +19,9 @@ function harness(answer: () => Response | Promise<Response> = () => json({ ok: t
       asked.push(access);
       return Promise.resolve('SECRET-BEARER');
     },
-    invalidate: () => {
+    invalidate: (rejected) => {
       invalidated.count += 1;
+      invalidated.rejected.push(rejected);
     },
   };
   const fetchStub: typeof fetch = (input, init) => {
@@ -221,6 +222,7 @@ describe('the stdio caller of the admin API', () => {
     const h = harness(() => (n++ === 0 ? json({ no: 1 }, { status: 401 }) : json({ ok: true })));
     expect((await h.caller.call(GET_CLIENT)).status).toBe(200);
     expect(h.invalidated.count).toBe(1);
+    expect(h.invalidated.rejected).toEqual(['SECRET-BEARER']);
     expect(h.sent).toHaveLength(2);
     expect(h.asked).toEqual(['read', 'read']);
 

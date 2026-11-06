@@ -18,7 +18,9 @@ export interface OauthClientDeps {
 }
 
 async function jsonOf(res: Response): Promise<unknown> {
-  const text = await boundedText(res, RESPONSE_CAP_BYTES);
+  const text = await boundedText(res, RESPONSE_CAP_BYTES).catch(() => {
+    throw new StdioError('mcp_unreachable', 'the authorization server could not be reached');
+  });
   if (text === undefined) {
     throw new StdioError(
       'mcp_response_too_large',
