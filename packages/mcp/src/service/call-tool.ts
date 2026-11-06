@@ -11,8 +11,8 @@ import {
   type ToolResult,
 } from '#/service/tool';
 
-// A result a client is sent is bounded whatever the page held: it is text a
-// model reads, and the admin API's own page size bounds rows, not bytes.
+// A result a client is sent is bounded whatever the page held, in bytes of the
+// JSON text: the admin API's own page size bounds rows, not their size.
 export const RESULT_CAP = 256_000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -62,9 +62,14 @@ export async function callTool(
   try {
     const output = await tool.run(caller, input);
     const text = JSON.stringify(output);
-    if (text.length > RESULT_CAP) {
+    if (Buffer.byteLength(text) > RESULT_CAP) {
       return errorResult(
-        new ToolProblem('mcp:result_too_large', 'The result is too large to return', null),
+        new ToolProblem(
+          'mcp:result_too_large',
+          'The result is too large to return',
+          null,
+          'Ask for fewer rows with a smaller limit, or narrow the filters.',
+        ),
       );
     }
     return { isError: false, content: [{ type: 'text', text }], structuredContent: output };

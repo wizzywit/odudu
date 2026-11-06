@@ -124,6 +124,20 @@ describe('callTool', () => {
     });
     const result = await callTool(big, answering({ status: 200, headers: {}, body: {} }), { n: 1 });
     expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      error: { type: 'mcp:result_too_large', detail: expect.stringContaining('limit') as string },
+    });
+  });
+
+  it('counts the cap in bytes, so multi-byte text cannot slip under it', async () => {
+    const wide = defineTool({
+      ...base,
+      name: 'wide',
+      run: () => Promise.resolve({ data: { text: '\u6F22'.repeat(100_000) } }),
+    });
+    const result = await callTool(wide, answering({ status: 200, headers: {}, body: {} }), {
+      n: 1,
+    });
     expect(result.structuredContent).toMatchObject({ error: { type: 'mcp:result_too_large' } });
   });
 

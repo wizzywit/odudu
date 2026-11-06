@@ -28,4 +28,15 @@ describe('expandPattern', () => {
       /id/u,
     );
   });
+
+  it('refuses a value that names a path segment rather than being one', () => {
+    for (const bad of ['.', '..', '']) {
+      expect(() =>
+        expandPattern('/admin/tenants/:tenant/clients/:id', 'acme', { id: bad }),
+      ).toThrow(/segment/u);
+      expect(() => expandPattern('/admin/tenants/:tenant/clients/:id', bad, { id: 'x' })).toThrow(
+        /segment/u,
+      );
+    }
+  });
 });

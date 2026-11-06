@@ -110,6 +110,6 @@ export function tenantIssuerFor(
   tenant: string,
 ): string {
   const address = request.tenantAddress;
-  if (isDomainAddress(address)) return addressIssuer(address);
+  if (address !== undefined && isDomainAddress(address)) return addressIssuer(address);
   return addressIssuer(pathAddress(issuerBaseFor(request), tenant));
 }
