@@ -7,5 +7,5 @@ export function fileModeProblem(mode: number, kind: 'file' | 'directory'): strin
   const bits = (mode & 0o777).toString(8);
   return kind === 'file'
     ? `is readable by group or others (mode ${bits})`
-    : `directory is accessible to group or others (mode ${bits})`;
+    : `is accessible to group or others (mode ${bits})`;
 }

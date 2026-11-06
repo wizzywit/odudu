@@ -16,6 +16,6 @@ describe('the mode a credential file may have', () => {
   });
 
   it('holds a directory to the same rule', () => {
-    expect(fileModeProblem(0o755, 'directory')).toMatch(/directory/u);
+    expect(fileModeProblem(0o755, 'directory')).toMatch(/accessible to group or others/u);
   });
 });
