@@ -1,18 +1,4 @@
-// RFC 6749 §4.1.2.1, plus the OIDC Core §3.1.2.6 ones a sign-in can answer with.
-const ERROR_CODES: ReadonlySet<string> = new Set([
-  'invalid_request',
-  'unauthorized_client',
-  'access_denied',
-  'unsupported_response_type',
-  'invalid_scope',
-  'server_error',
-  'temporarily_unavailable',
-  'interaction_required',
-  'login_required',
-  'consent_required',
-  'account_selection_required',
-  'invalid_target',
-]);
+import { registeredErrorCode } from '#/service/error-code';
 
 export interface CallbackExpectation {
   readonly state: string;
@@ -55,11 +41,10 @@ export function checkCallback(
   const errors = params.getAll('error');
   if (errors.length > 0) {
     const [first] = errors;
-    const known = errors.length === 1 && first !== undefined && ERROR_CODES.has(first);
     return {
       kind: 'refused',
       reason: 'provider_error',
-      error: known ? first : 'unrecognised',
+      error: errors.length === 1 ? registeredErrorCode(first) : 'unrecognised',
     };
   }
   const codes = params.getAll('code');

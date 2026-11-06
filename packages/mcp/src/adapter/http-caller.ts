@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { boundedText } from '#/adapter/bounded-body';
 import { accessOf } from '#/service/admin-access';
 import { expandPattern } from '#/service/admin-path';
 import {
@@ -29,32 +30,6 @@ export interface HttpCallerOptions {
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const SILENT: McpLogger = { debug: () => undefined, error: () => undefined };
-
-// Reads at most the cap: a body that is longer is dropped unread, not buffered.
-async function boundedText(res: Response): Promise<string> {
-  const declared = Number(res.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > ADMIN_BODY_CAP_BYTES) {
-    await res.body?.cancel();
-    throw tooLarge();
-  }
-  if (res.body === null) return '';
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const chunk = await reader.read();
-    if (chunk.done) break;
-    const value: unknown = chunk.value;
-    if (!(value instanceof Uint8Array)) throw tooLarge();
-    size += value.byteLength;
-    if (size > ADMIN_BODY_CAP_BYTES) {
-      await reader.cancel();
-      throw tooLarge();
-    }
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks).toString('utf8');
-}
 
 function tooLarge(): ToolProblem {
   return new ToolProblem('mcp:result_too_large', 'The result is too large to return', null);
@@ -118,7 +93,8 @@ export function createHttpCaller(
           502,
         );
       }
-      const text = await boundedText(res);
+      const text = await boundedText(res, ADMIN_BODY_CAP_BYTES);
+      if (text === undefined) throw tooLarge();
       return {
         status: res.status,
         headers: returnedHeaders(Object.fromEntries(res.headers)),
