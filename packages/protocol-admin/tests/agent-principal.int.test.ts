@@ -238,6 +238,40 @@ describe('admission of an agent by its scope', () => {
     expect(person.statusCode).toBe(200);
   });
 
+  it('refuses the reads the tool catalogue withholds as personal data or credentials, to a bearer used directly', async () => {
+    const w = await world();
+    const subject = newId();
+    const everything = [...OWNER, 'view-users'];
+    const direct = await fixture.agentToken(w.t.name, everything, {
+      scope: 'mcp:read',
+      viaMcpClient: true,
+    });
+    const paths = [
+      `subjects/${subject}/profile`,
+      `subjects/${subject}/credentials`,
+      'registration-tokens',
+      'smtp',
+      `clients/${w.ordinaryId}/evaluate?subject=${subject}`,
+    ];
+    for (const path of paths) {
+      const res = await fixture.http.inject({
+        method: 'GET',
+        url: `/admin/tenants/${w.t.name}/${path}`,
+        headers: { authorization: `Bearer ${direct}` },
+      });
+      expect(res.statusCode, path).toBe(403);
+      expect(res.json(), path).toMatchObject({ detail: 'insufficient_scope' });
+    }
+    const rows = await refusals(w.t.id);
+    expect(rows).toHaveLength(paths.length);
+    const console = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${w.t.name}/registration-tokens`,
+      headers: { authorization: `Bearer ${w.admin}` },
+    });
+    expect(console.statusCode).toBe(200);
+  });
+
   it('refuses mcp:read a write and mcp:write a route outside the allowlist', async () => {
     const w = await world();
     const read = await fixture.agentToken(w.t.name, OWNER, {

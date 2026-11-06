@@ -36,11 +36,18 @@ describe('scopeAdmits over every admin route', () => {
     expect(scopeAdmits([], r)).toBe(false);
   });
 
-  it('refuses the bulk reads to both scopes, and they exist', () => {
+  it('refuses the bulk and the sensitive reads to both scopes, and they exist', () => {
     expect([...denied].sort()).toEqual([
+      'GET /admin/tenants',
       'GET /admin/tenants/:tenant/audit/export',
+      'GET /admin/tenants/:tenant/clients/:id/evaluate',
       'GET /admin/tenants/:tenant/export',
+      'GET /admin/tenants/:tenant/registration-tokens',
+      'GET /admin/tenants/:tenant/smtp',
+      'GET /admin/tenants/:tenant/subjects/:id/credentials',
+      'GET /admin/tenants/:tenant/subjects/:id/profile',
       'GET /admin/tenants/:tenant/theme/assets/:assetId/content',
+      'GET /admin/tenants/count',
     ]);
     for (const k of denied) {
       const r = ADMIN_ROUTES.find((x) => key(x) === k);

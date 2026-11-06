@@ -8,12 +8,24 @@ interface AgentWriteRoute {
   readonly fields: readonly string[];
 }
 
-// Reads an agent never gets, though a GET: each returns a whole tenant, or
-// bytes, in one call, and a person fetches those with their own token.
+// Reads an agent never gets, though a GET. The first three each return a whole
+// tenant, or bytes, in one call; a person fetches those with their own token.
+// The rest are personal data, credential metadata, the mail relay login and
+// the list of every tenant, which the MCP tool catalogue withholds
+// (`NOT_TOOLS`, kinds `denied` and `sensitive`): a tool's absence binds nobody
+// who holds the bearer, so the door refuses them too, and the coverage test
+// holds the two lists to each other.
 export const AGENT_DENIED_READS: readonly string[] = [
   'GET /admin/tenants/:tenant/export',
   'GET /admin/tenants/:tenant/audit/export',
   'GET /admin/tenants/:tenant/theme/assets/:assetId/content',
+  'GET /admin/tenants/:tenant/subjects/:id/profile',
+  'GET /admin/tenants/:tenant/subjects/:id/credentials',
+  'GET /admin/tenants/:tenant/registration-tokens',
+  'GET /admin/tenants/:tenant/smtp',
+  'GET /admin/tenants/:tenant/clients/:id/evaluate',
+  'GET /admin/tenants',
+  'GET /admin/tenants/count',
 ];
 
 // A built-in client's name is what an administrator or MCP user recognises
