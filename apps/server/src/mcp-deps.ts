@@ -1,15 +1,31 @@
 import { type DatabaseHandle, withTenant } from '@odudu/db';
+import { effectiveRoles } from '@odudu/domain-authz';
 import { ADMIN_API_AUDIENCE } from '@odudu/domain-tenant';
 import {
+  callMcpTool,
   createInProcessCaller,
+  createMcpExchange,
   exchangeForAdmin,
+  newRequestScope,
   scopeFor,
+  TOOLS,
   ToolProblem,
+  visibleTools,
+  type AdminCaller,
   type McpCallDeps,
   type McpDeps,
+  type McpRouteDeps,
+  type ToolLimiter,
   type ValidatedMcpToken,
-  type AdminCaller,
 } from '@odudu/mcp';
+import {
+  adminAuthDeps,
+  heldCapabilities,
+  recordAgentRefused,
+  recordAgentToolCall,
+  recordForeignIssuer,
+  verifyTenantAccessToken,
+} from '@odudu/protocol-admin';
 import { mintAgentToken, tenantLookupRepository } from '@odudu/protocol-oidc';
 import { type FastifyInstance } from 'fastify';
 import { type Logger as PinoLogger } from 'pino';
@@ -83,4 +99,89 @@ export function adminCallerFor(deps: McpCallDeps, token: ValidatedMcpToken): Adm
     },
     token,
   );
+}
+
+// What the MCP route needs of this process beyond the exchange: the reads a
+// token's holder is judged by (the admin API's own, shared), the rows a
+// refusal and a tool call leave, and the exchange each request is served by.
+export function mcpRouteDepsFor(parts: McpDepsParts, limiter: ToolLimiter): McpRouteDeps {
+  const deps = mcpDepsFor(parts);
+  const base = adminAuthDeps({
+    database: parts.database,
+    ownerDatabase: parts.ownerDatabase,
+    publicBaseUrl: parts.publicBaseUrl,
+  });
+  const auth = {
+    ...base,
+    verifyAccessToken: (
+      tenantId: string,
+      token: string,
+      expected: { readonly issuers: readonly string[]; readonly audience: string },
+    ) => verifyTenantAccessToken(base, tenantId, token, expected),
+  };
+  const roles = {
+    effectiveRoles: (tenantId: string, subjectId: string) =>
+      withTenant(parts.database.db, tenantId, (tx) => effectiveRoles(tx, subjectId)),
+  };
+  return {
+    auth,
+    adminAudience: deps.adminAudience,
+    limiter,
+    now: deps.now,
+    logger: parts.logger,
+    audit: {
+      foreignIssuer: (tenantId, foreign, request) =>
+        withTenant(parts.database.db, tenantId, (tx) => recordForeignIssuer(tx, foreign), request),
+      agentWithoutScope: (tenantId, principal, request) =>
+        withTenant(
+          parts.database.db,
+          tenantId,
+          (tx) => recordAgentRefused(tx, principal, 'agent_without_mcp_scope'),
+          request,
+        ),
+    },
+    open: ({ token, clientDbId }, request) => {
+      const call: McpCallDeps = {
+        ...deps,
+        request: newRequestScope(request.requestId, request.ip),
+      };
+      const caller = adminCallerFor(call, token);
+      const principal = {
+        subjectId: token.subjectId,
+        issuerTenantId: token.tenant.id,
+        clientDbId,
+        scopes: token.scope,
+        agent: { clientId: token.clientId, ownerSubjectId: token.subjectId },
+      };
+      let held: Promise<ReadonlySet<string>> | undefined;
+      const capabilities = (): Promise<ReadonlySet<string>> => {
+        held ??= heldCapabilities(roles, token.tenant.id, token.subjectId);
+        return held;
+      };
+      return createMcpExchange({
+        tools: async (purpose) =>
+          visibleTools(TOOLS, token.scope, purpose === 'list' ? await capabilities() : null),
+        run: (tool, args) =>
+          callMcpTool(
+            {
+              requestId: request.requestId,
+              record: (recorded) =>
+                withTenant(
+                  parts.database.db,
+                  token.tenant.id,
+                  (tx) => recordAgentToolCall(tx, principal, recorded),
+                  request,
+                ),
+              logger: parts.logger,
+            },
+            tool,
+            caller,
+            args,
+          ),
+        onerror: (error) => {
+          parts.logger.warn({ requestId: request.requestId, err: error }, 'mcp request rejected');
+        },
+      });
+    },
+  };
 }

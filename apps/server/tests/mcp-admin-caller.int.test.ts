@@ -1,15 +1,10 @@
-import { SessionEntry, sessionRepository } from '@odudu/authn-flows';
+import { sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository, signJwt } from '@odudu/crypto';
 import { createDatabase, MIGRATIONS_DIR, runMigrations, tenants, withTenant } from '@odudu/db';
 import type { DatabaseHandle } from '@odudu/db';
 import { roleRepository, subjectRoles } from '@odudu/domain-authz';
 import { subjectRepository } from '@odudu/domain-identity';
-import {
-  ADMIN_API_AUDIENCE,
-  ADMIN_CLIENT_ID,
-  clientRepository,
-  MCP_CLIENT_ID,
-} from '@odudu/domain-tenant';
+import { ADMIN_API_AUDIENCE, clientRepository, MCP_CLIENT_ID } from '@odudu/domain-tenant';
 import { loadConfig, mcpAudienceOfIssuer, newId } from '@odudu/kernel';
 import {
   newRequestScope,
@@ -31,8 +26,8 @@ import { and, eq } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
-import { seed } from '#/cli/seed';
 import { createLogger } from '#/logger';
+import { mcpWorld, type World } from '#/testing/mcp-world';
 import { adminCallerFor, mcpDepsFor } from '#/mcp-deps';
 
 // An MCP token's owner reaches the admin API through the in-process caller,
@@ -103,66 +98,8 @@ afterAll(async () => {
   await container.stop();
 });
 
-interface World {
-  readonly tenantId: string;
-  readonly name: string;
-  readonly subjectId: string;
-  readonly sessionId: string;
-  readonly grantId: string;
-  readonly agentDbId: string;
-  readonly adminDbId: string;
-  readonly issuer: string;
-}
-
-async function world(capabilities: readonly string[], grantScope = 'mcp:read mcp:write') {
-  const name = `mcp-${newId()}`;
-  const seeded = await seed({
-    tenant: name,
-    clientId: 'portal',
-    redirectUris: ['https://app.example/callback'],
-  });
-  const issuer = `${BASE}/tenants/${name}`;
-  return withTenant(appDb.db, seeded.tenantId, async (tx): Promise<World> => {
-    const admin = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
-    const agent = await clientRepository(tx).byClientId(MCP_CLIENT_ID);
-    if (admin === null || agent === null) throw new Error('the tenant has no built-in clients');
-    const subject = await subjectRepository(tx).create({ tenantId: seeded.tenantId, type: 'user' });
-    for (const capability of capabilities) {
-      const role = await roleRepository(tx).byName(capability, admin.id);
-      if (role === null) throw new Error(`no role ${capability}`);
-      await roleRepository(tx).assignToSubject(subject.id, role.id);
-    }
-    const sessionId = newId();
-    await sessionRepository(tx).create({
-      id: sessionId,
-      tenantId: seeded.tenantId,
-      subjectId: subject.id,
-      expiresAt: new Date(Date.now() + 24 * 3600_000),
-      authenticators: ['pwd'],
-      secretHash: SessionEntry.issue(sessionId).secretHash(),
-    });
-    const grantId = newId();
-    await tokenGrantRepository(tx).create({
-      id: grantId,
-      tenantId: seeded.tenantId,
-      clientId: agent.id,
-      subjectId: subject.id,
-      scope: grantScope,
-      audience: [mcpAudienceOfIssuer(issuer)],
-      sessionId,
-    });
-    return {
-      tenantId: seeded.tenantId,
-      name,
-      subjectId: subject.id,
-      sessionId,
-      grantId,
-      agentDbId: agent.id,
-      adminDbId: admin.id,
-      issuer,
-    };
-  });
-}
+const world = (capabilities: readonly string[], grantScope = 'mcp:read mcp:write') =>
+  mcpWorld(appDb, BASE, capabilities, grantScope);
 
 // Built as the endpoint will build it from a verified payload: `exp` in seconds.
 function tokenOf(w: World, overrides: Partial<VerifiedMcpClaims> = {}): ValidatedMcpToken {

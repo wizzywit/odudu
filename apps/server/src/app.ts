@@ -57,7 +57,15 @@ import {
   newId,
   systemClock,
 } from '@odudu/kernel';
-import { RESOURCE_METADATA_PATH_FORM, registerResourceMetadataRoute } from '@odudu/mcp';
+import {
+  createToolLimiter,
+  DEFAULT_TOOL_LIMITS,
+  MCP_PATH_FORM,
+  RESOURCE_METADATA_PATH_FORM,
+  registerMcpRoute,
+  registerResourceMetadataRoute,
+  type ToolLimiterOptions,
+} from '@odudu/mcp';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -105,6 +113,7 @@ import { type RateLimiter, slidingWindow } from '#/throttle';
 import { mailGate as createMailGate } from '#/mail-limiter';
 import { neutraliseRequestInput } from '#/input-hygiene';
 import { loginBudgetKey } from '#/login-throttle';
+import { mcpRouteDepsFor } from '#/mcp-deps';
 import { mcpRegistrationBudget } from '#/mcp-registration-budget';
 import { throttleOrigin } from '#/throttle-origin';
 
@@ -241,6 +250,12 @@ export interface AppDeps {
    */
   readonly mcpRegistrationThrottle?: ThrottleSettings;
   readonly mcpTenantRegistrationThrottle?: ThrottleSettings;
+  /**
+   * What the MCP endpoint allows a principal and a tenant, in this process.
+   * Defaults to `DEFAULT_TOOL_LIMITS`; a test passes smaller numbers or a
+   * clock of its own.
+   */
+  readonly mcpToolLimits?: Partial<ToolLimiterOptions>;
   /** The proxy's domain question; its own budget, per origin. */
   readonly domainCheckThrottle?: ThrottleSettings;
   /**
@@ -573,7 +588,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (
       route?.startsWith('/tenants/') === true ||
       route === AS_METADATA_PATH_FORM ||
-      route === RESOURCE_METADATA_PATH_FORM
+      route === RESOURCE_METADATA_PATH_FORM ||
+      route === MCP_PATH_FORM
     ) {
       neutraliseRequestInput(request);
     }
@@ -732,6 +748,21 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerResourceMetadataRoute(app, {
     findTenant: (name) => tenantSettingsRepository(deps.ownerDatabase.db).byName(name),
   });
+  registerMcpRoute(
+    app,
+    mcpRouteDepsFor(
+      {
+        app,
+        database: deps.database,
+        ownerDatabase: deps.ownerDatabase,
+        kek: deps.kek,
+        claimMappers,
+        logger: deps.logger,
+        publicBaseUrl: deps.publicBaseUrl,
+      },
+      createToolLimiter({ ...DEFAULT_TOOL_LIMITS, ...deps.mcpToolLimits }),
+    ),
+  );
 
   // getCurrentEmail, markVerified and setPassword are the only points where
   // @odudu/account reaches @odudu/domain-identity's users and credentials
