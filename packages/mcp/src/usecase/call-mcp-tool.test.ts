@@ -175,6 +175,98 @@ describe('the deadline', () => {
   });
 });
 
+describe('the deadline of a write tool', () => {
+  const route = 'PATCH /admin/tenants/:tenant/clients/:id';
+  function writeTool() {
+    return defineTool({
+      ...base,
+      name: 'update_client_metadata',
+      access: 'write',
+      routeKey: route,
+      run: async (c) => {
+        await c.call({
+          method: 'PATCH',
+          pattern: '/admin/tenants/:tenant/clients/:id',
+          params: { id: 'x' },
+          query: {},
+          body: { name: 'new' },
+        });
+        return { data: { ok: true } };
+      },
+    });
+  }
+
+  it('says the outcome is unknown, and to read again, never that it failed', async () => {
+    vi.useFakeTimers();
+    try {
+      const h = harness();
+      let committed = false;
+      const slow: AdminCaller = {
+        call: () =>
+          new Promise((resolve) => {
+            setTimeout(() => {
+              committed = true;
+              resolve({ status: 200, headers: {}, body: {} });
+            }, 30_000);
+          }),
+      };
+      const pending = callMcpTool(h.deps, writeTool(), slow, {});
+      await vi.advanceTimersByTimeAsync(20_000);
+      const result = await pending;
+      expect(committed).toBe(false);
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({
+        error: { type: 'mcp:outcome_unknown', status: 504 },
+      });
+      expect(JSON.stringify(result)).toMatch(/read .* again/iu);
+      expect(JSON.stringify(result)).not.toContain('mcp:timeout');
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(committed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('records it as failed with the reason that the outcome is unknown', async () => {
+    vi.useFakeTimers();
+    try {
+      const h = harness();
+      const hanging: AdminCaller = { call: () => new Promise(() => undefined) };
+      const pending = callMcpTool(h.deps, writeTool(), hanging, {});
+      await vi.advanceTimersByTimeAsync(20_000);
+      await pending;
+      expect(h.rows).toEqual([
+        {
+          tool: 'update_client_metadata',
+          route,
+          outcome: 'failed',
+          reason: 'timeout_outcome_unknown',
+        },
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('leaves a read tool answered as a timeout, with no reason recorded', async () => {
+    vi.useFakeTimers();
+    try {
+      const h = harness();
+      const hanging = defineTool({
+        ...base,
+        run: () => new Promise<{ data: { ok: boolean } }>(() => undefined),
+      });
+      const pending = callMcpTool(h.deps, hanging, caller, {});
+      await vi.advanceTimersByTimeAsync(20_000);
+      const result = await pending;
+      expect(result.structuredContent).toMatchObject({ error: { type: 'mcp:timeout' } });
+      expect(h.rows[0]).not.toHaveProperty('reason');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('a write tool called with a read token', () => {
   it('is refused as insufficient scope before anything reaches the admin API, and recorded', async () => {
     const h = harness();

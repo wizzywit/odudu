@@ -85,6 +85,8 @@ export const AUDIT_REASON_DOCS: Record<AuditReason, string> = {
   agent_without_mcp_scope: 'An agent token reached the admin API holding no MCP scope.',
   insufficient_scope: 'An agent token holds an MCP scope that does not admit the request.',
   already_registered: 'The email address already belongs to an account.',
+  timeout_outcome_unknown:
+    'An agent write ran past its deadline, so whether it changed anything is not known.',
 };
 
 export const AUDIT_OUTCOME_DOCS: Record<AuditOutcome, string> = {

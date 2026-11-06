@@ -37,9 +37,15 @@ export const nameField = text(z.string().min(1).max(CLIENT_NAME_MAX)).describe(
   `The display name, at most ${String(CLIENT_NAME_MAX)} characters.`,
 );
 
-export const descriptionField = text(z.string().min(1).max(DESCRIPTION_MAX))
+// The admin API stores an empty description apart from null, and its client
+// and scope amendments both accept one, so the tools do too: an earlier value
+// of "" can then be put back.
+export const descriptionField = text(z.string().max(DESCRIPTION_MAX))
   .nullable()
-  .describe(`The description, at most ${String(DESCRIPTION_MAX)} characters; null clears it.`);
+  .describe(
+    `The description, at most ${String(DESCRIPTION_MAX)} characters; null clears it, ` +
+      'and an empty string sets it to empty.',
+  );
 
 // Text by language tag, replacing the whole map. The admin API also holds it
 // to the tenant's languages, which only it knows.
@@ -93,6 +99,10 @@ const CLEARS =
   'Sending null for a description, or an empty map for a language text, clears what was there; ' +
   'the audit row keeps the earlier text, so it can be put back.';
 
+const UNKNOWN =
+  'An mcp:outcome_unknown answer means the call ran out of time and the change may still have been ' +
+  'made: read the resource with the get tool before sending it again.';
+
 const REFUSED =
   'insufficient_scope: a token holding mcp:write may change only the descriptive fields of a client ' +
   'or a scope, never the name of a built-in client; check the target and the fields.';
@@ -131,7 +141,7 @@ export function metadataTool<F extends z.ZodRawShape>(cfg: MetadataToolConfig<F>
     });
   return defineTool({
     name: cfg.name,
-    description: `${cfg.description} ${CLEARS} ${DATA_NOTICE}`,
+    description: `${cfg.description} ${CLEARS} ${UNKNOWN} ${DATA_NOTICE}`,
     routeKey: cfg.routeKey,
     capability: cfg.capability,
     access: 'write',
