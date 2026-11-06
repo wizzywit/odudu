@@ -16,7 +16,7 @@ address, and `/.well-known/oauth-authorization-server` on a tenant's own domain.
 is `docs/protocols/rfc8414.md`.
 
 Every command was run, in this order, on a freshly built compose stack (the project
-`odudu-p5a-i1`, port `3000`, the throttles at `10000`, the schedules off) driven only as far as
+`odudu-p5a-i11c`, port `3000`, the throttles at `10000`, the schedules off) driven only as far as
 this page goes: the tenant `demo`, its client `demo-spa` and its user `ada` made as
 [Bootstrap](./bootstrap.md) makes them, then a second tenant `gone-demo` made and switched off
 (below), then the domain `login.acme-corp.dev` seeded as the tenant's address. No DNS names that
@@ -34,11 +34,11 @@ curl -sS -D - -o /dev/null http://localhost:3000/.well-known/oauth-authorization
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1ab49-74da-72f8-8dd9-9b88d88b71b5
+x-request-id: 01a1b041-9a5b-7dbf-b4a3-4e0270260c82
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
 content-length: 1514
-Date: Thu, 05 Nov 2026 10:38:00 GMT
+Date: Fri, 06 Nov 2026 09:47:31 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -143,9 +143,9 @@ curl -sS http://localhost:3000/tenants/cimd-demo/.well-known/openid-configuratio
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"cimd-demo","tenantId":"01a1aca9-97e3-7791-948f-964f921e5ece"}
+{"command":"tenant","created":true,"tenant":"cimd-demo","tenantId":"01a1b041-9dcc-7394-a1d0-b244a14decb0"}
 false
-{"command":"tenant","created":false,"tenant":"cimd-demo","tenantId":"01a1aca9-97e3-7791-948f-964f921e5ece","settings":["cimd_enabled"]}
+{"command":"tenant","created":false,"tenant":"cimd-demo","tenantId":"01a1b041-9dcc-7394-a1d0-b244a14decb0","settings":["cimd_enabled"]}
 {
   "client_id_metadata_document_supported": true,
   "token_endpoint_auth_methods_supported": [
@@ -182,7 +182,7 @@ curl -sS $M | jq -c 'has("client_id_metadata_document_supported")'
 ```
 
 ```
-{"command":"tenant","created":false,"tenant":"cimd-demo","tenantId":"01a1aca9-97e3-7791-948f-964f921e5ece","settings":["cimd_enabled"]}
+{"command":"tenant","created":false,"tenant":"cimd-demo","tenantId":"01a1b041-9dcc-7394-a1d0-b244a14decb0","settings":["cimd_enabled"]}
 HTTP/1.1 400 Bad Request
 false
 ```
@@ -208,8 +208,8 @@ odudu seed tenant --name gone-demo --set enabled=false
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"gone-demo","tenantId":"01a1ab49-773a-700e-9c4e-73d29f387e86"}
-{"command":"tenant","created":false,"tenant":"gone-demo","tenantId":"01a1ab49-773a-700e-9c4e-73d29f387e86","settings":["enabled"]}
+{"command":"tenant","created":true,"tenant":"gone-demo","tenantId":"01a1b041-aef4-72d4-9dba-3187e0e72a7e"}
+{"command":"tenant","created":false,"tenant":"gone-demo","tenantId":"01a1b041-aef4-72d4-9dba-3187e0e72a7e","settings":["enabled"]}
 ```
 
 ```bash
@@ -218,10 +218,10 @@ curl -sS -D - http://localhost:3000/.well-known/oauth-authorization-server/tenan
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a1ab49-8b82-753c-b5db-a4f84a581904
+x-request-id: 01a1b041-b803-7568-8a6b-37e0c6354ef4
 access-control-allow-origin: *
 content-length: 0
-Date: Thu, 05 Nov 2026 10:38:06 GMT
+Date: Fri, 06 Nov 2026 09:47:39 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -233,10 +233,10 @@ curl -sS -D - http://localhost:3000/.well-known/oauth-authorization-server/tenan
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a1ab49-750d-7792-8bad-25da871172e6
+x-request-id: 01a1b041-b877-714e-b15a-810979436e0f
 access-control-allow-origin: *
 content-length: 0
-Date: Thu, 05 Nov 2026 10:38:00 GMT
+Date: Fri, 06 Nov 2026 09:47:39 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -255,9 +255,9 @@ curl -sS -D - http://localhost:3000/tenants/demo/.well-known/oauth-authorization
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a1ab49-7519-7757-be63-9e2144831235
+x-request-id: 01a1b041-b895-7c64-951d-29676426965f
 content-length: 0
-Date: Thu, 05 Nov 2026 10:38:00 GMT
+Date: Fri, 06 Nov 2026 09:47:39 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -274,7 +274,7 @@ odudu seed domain --tenant demo --host login.acme-corp.dev --assume-verified --c
 ```
 
 ```
-{"command":"domain","tenant":"demo","tenantId":"01a1ab49-5d03-79c7-99f1-e49a38639a68","host":"login.acme-corp.dev","state":"verified","canonical":true,"created":true}
+{"command":"domain","tenant":"demo","tenantId":"01a1b041-9605-7b7d-8ff2-e3ef207c4ef8","host":"login.acme-corp.dev","state":"verified","canonical":true,"created":true}
 ```
 
 The domain's issuer has no path, so its document is at the root of the host, and every URL in it is
@@ -286,11 +286,11 @@ curl -sS -D - -o /dev/null -H "Host: login.acme-corp.dev" http://localhost:3000/
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1ab49-8d9e-74e7-8037-587f4e5543d9
+x-request-id: 01a1b041-bbc6-7851-82fc-3663265378cf
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
 content-length: 1466
-Date: Thu, 05 Nov 2026 10:38:06 GMT
+Date: Fri, 06 Nov 2026 09:47:40 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -329,10 +329,10 @@ curl -sS -D - -o /dev/null -H "Host: login.acme-corp.dev" http://localhost:3000/
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a1ab49-8ddd-707d-8ee8-90a28ea5dd5e
+x-request-id: 01a1b041-bc54-76ff-8978-4c65bfab2546
 content-type: application/problem+json; charset=utf-8
 content-length: 151
-Date: Thu, 05 Nov 2026 10:38:06 GMT
+Date: Fri, 06 Nov 2026 09:47:40 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 

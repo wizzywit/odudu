@@ -49,12 +49,18 @@ shipped); it was added to the recorded blocks by hand, after `nosniff` where
 `pageHeaders` places it, and a live login-page response on the project
 `odudu-p4g-13b` confirmed its value and position.
 
-The MCP endpoint's page, `the-mcp-endpoint.md`, was captured on 2026-11-06 on a freshly built compose project,
-`odudu-p5a-i8b` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `8bb36d945` plus the change).
-The project's volume was removed and the stack started again from the same image before the one pass the page records (the tenant `demo`
-seeded as the page shows, then its commands in order), so the audit rows the page lists are all the tenant had. The
-budget section's counts are that pass's: the first sixty requests of the minute are served, and the ones
-before the loop had already spent eleven. The stack was removed afterwards.
+The MCP endpoint's page, `the-mcp-endpoint.md`, was captured again, end to end, on 2026-11-06 on a freshly built compose project,
+`odudu-p5a-i11c` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `77b0c85d4`). The
+project's volume was removed and the stack started again from the same image before the one pass the page records (the tenant `demo`
+seeded as the page shows, then its commands in order), so the audit rows the page lists are all the tenant had. Every output block
+was written by a replay of the page's own commands in one shell, in order, not by hand: the only steps between two blocks are the
+ones the page does not show, reading `CID` from the registration's answer and `CODE` from the consent's redirect. The two `GET` and
+`DELETE` requests are separated by `-w '\n\n'` so their outputs do not run together. The budget section's counts are that pass's: the
+first sixty requests of the minute are served, and the ones before the loop had already spent eleven. The stack was removed afterwards.
+
+The protected resource metadata page, `protected-resource-metadata.md`, and the authorization server metadata page, `authorization-server-metadata.md`, were each replayed the same way on the same project and day,
+from an empty volume, with `demo`, `demo-spa` and `ada` seeded as Bootstrap seeds them and `odudu` defined as the shell function the
+other pages define. Nothing but ids, request ids and dates changed from their first captures. The `odudu mcp` entry for Claude Desktop in the guides was checked on the same project: an `initialize` sent through `docker compose exec -T -e ODUDU_MCP_KEY` was answered by the stdio server with the key in the environment only.
 
 The MCP write tools' page, `the-mcp-write-tools.md`, was captured on 2026-11-06 on a freshly built compose project,
 `odudu-p5a-i9b` (port `3000`, Postgres published on `5462`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch

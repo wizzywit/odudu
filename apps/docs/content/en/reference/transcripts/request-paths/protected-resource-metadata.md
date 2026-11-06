@@ -16,7 +16,7 @@ client here is on [the MCP endpoint's page](./the-mcp-endpoint.md); this page sh
 points at.
 
 Every command was run, in this order, on a freshly built compose stack (the project
-`odudu-p5a-i1b`, port `3000`, the throttles at `10000`, the schedules off) driven only as far as
+`odudu-p5a-i11c`, port `3000`, the throttles at `10000`, the schedules off) driven only as far as
 this page goes: the tenant `demo`, its client `demo-spa` and its user `ada` made as
 [Bootstrap](./bootstrap.md) makes them, then a second tenant `gone-demo` made and switched off
 (below), then the domain `login.acme-corp.dev` seeded as the tenant's address. No DNS names that
@@ -34,11 +34,11 @@ curl -sS -D - -o /dev/null http://localhost:3000/.well-known/oauth-protected-res
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1ab7c-822e-728e-8f13-6ab05f4f9b30
+x-request-id: 01a1b040-94bc-7ed5-963d-47ab06fc2634
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
 content-length: 198
-Date: Thu, 05 Nov 2026 11:33:46 GMT
+Date: Fri, 06 Nov 2026 09:46:24 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -92,8 +92,8 @@ odudu seed tenant --name gone-demo --set enabled=false
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"gone-demo","tenantId":"01a1ab7c-83e5-7a47-9623-a3ac2a19ed04"}
-{"command":"tenant","created":false,"tenant":"gone-demo","tenantId":"01a1ab7c-83e5-7a47-9623-a3ac2a19ed04","settings":["enabled"]}
+{"command":"tenant","created":true,"tenant":"gone-demo","tenantId":"01a1b040-970d-72ed-b307-8521da7b9e4c"}
+{"command":"tenant","created":false,"tenant":"gone-demo","tenantId":"01a1b040-970d-72ed-b307-8521da7b9e4c","settings":["enabled"]}
 ```
 
 ```bash
@@ -102,10 +102,10 @@ curl -sS -D - http://localhost:3000/.well-known/oauth-protected-resource/tenants
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a1ab7c-860c-7ba6-8ab8-d17cf5c52f63
+x-request-id: 01a1b040-9a1e-7b0d-9cb8-4857b22d45dc
 access-control-allow-origin: *
 content-length: 0
-Date: Thu, 05 Nov 2026 11:33:47 GMT
+Date: Fri, 06 Nov 2026 09:46:26 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -117,10 +117,10 @@ curl -sS -D - http://localhost:3000/.well-known/oauth-protected-resource/tenants
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a1ab7c-8617-7c99-9042-95e952972233
+x-request-id: 01a1b040-9a2e-703b-935b-f467b30af3d3
 access-control-allow-origin: *
 content-length: 0
-Date: Thu, 05 Nov 2026 11:33:47 GMT
+Date: Fri, 06 Nov 2026 09:46:26 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -135,9 +135,9 @@ curl -sS -D - http://localhost:3000/tenants/demo/.well-known/oauth-protected-res
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a1ab7c-8621-7ef3-a99a-8a06d4400f1d
+x-request-id: 01a1b040-9a3d-7407-af5d-5b7647e66c5f
 content-length: 0
-Date: Thu, 05 Nov 2026 11:33:47 GMT
+Date: Fri, 06 Nov 2026 09:46:26 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -154,7 +154,7 @@ odudu seed domain --tenant demo --host login.acme-corp.dev --assume-verified --c
 ```
 
 ```
-{"command":"domain","tenant":"demo","tenantId":"01a1ab7c-8126-729a-93fb-1eeb163d4604","host":"login.acme-corp.dev","state":"verified","canonical":true,"created":true}
+{"command":"domain","tenant":"demo","tenantId":"01a1b040-92a2-7ca6-ab68-4969d32f991e","host":"login.acme-corp.dev","state":"verified","canonical":true,"created":true}
 ```
 
 The domain's resource has the path `/mcp` and no tenant segment, so its document is at
@@ -167,11 +167,11 @@ curl -sS -D - -o /dev/null -H "Host: login.acme-corp.dev" http://localhost:3000/
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1ab7c-8864-7cec-b13e-97006aeea376
+x-request-id: 01a1b040-9cdc-7978-b4ad-80fb4219e108
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
 content-length: 182
-Date: Thu, 05 Nov 2026 11:33:47 GMT
+Date: Fri, 06 Nov 2026 09:46:26 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -230,10 +230,10 @@ curl -sS -D - -o /dev/null -H "Host: login.acme-corp.dev" http://localhost:3000/
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a1ab7c-8888-769c-ae37-10b952f4718b
+x-request-id: 01a1b040-9d0f-7e1f-8b27-133d40fd48ff
 content-type: application/problem+json; charset=utf-8
 content-length: 151
-Date: Thu, 05 Nov 2026 11:33:47 GMT
+Date: Fri, 06 Nov 2026 09:46:26 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
