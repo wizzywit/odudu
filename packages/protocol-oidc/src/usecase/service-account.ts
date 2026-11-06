@@ -1,6 +1,7 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, type ClientRecord } from '@odudu/domain-tenant';
+import { tokenGrantRepository } from '#/repository/grants';
 
 async function lockedClient(tx: TenantScopedDatabase, client: ClientRecord): Promise<ClientRecord> {
   const row = await clientRepository(tx).byIdForUpdate(client.id);
@@ -39,7 +40,9 @@ export async function ensureServiceAccount(
  * role assignment, session and consent the account held: the subject is
  * deleted, and what names it cascades. A later account for the same client
  * starts with nothing, so switching the grant back on never restores what
- * the earlier one was allowed. A client with no account is left alone.
+ * the earlier one was allowed. Tokens exchanged with the account as the
+ * actor are revoked too: nothing cascades from `actor_subject_id`. A client
+ * with no account is left alone.
  */
 export async function retireServiceAccount(
   tx: TenantScopedDatabase,
@@ -48,6 +51,7 @@ export async function retireServiceAccount(
   const row = await lockedClient(tx, client);
   const subjectId = row.serviceSubjectId;
   if (subjectId === null) return row;
+  await tokenGrantRepository(tx).revokeForActor(subjectId);
   const updated = await clientRepository(tx).setServiceSubject(row.id, null);
   await subjectRepository(tx).delete(subjectId);
   return updated;
