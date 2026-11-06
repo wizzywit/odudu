@@ -93,7 +93,7 @@ jq -c 'select(.id==1)' out.jsonl
 {"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"odudu:demo","title":"Odudu (demo)","version":"1.0.0"},"instructions":"This server acts in the Odudu tenant \"demo\" only, as the person signed in; every tool works on that tenant. If you also have other Odudu servers connected, check the tenant before using a tool."},"jsonrpc":"2.0","id":1}
 ```
 
-The listing is the endpoint's, minus the two write tools, since the command was not asked for writes. Those are 42 tools, none of them starts with `update_`, and none is one of the two that list and count tenants, which only an agent of the `system` tenant is offered (no transcript here shows that agent, since the `system` tenant takes no `seed client` and its administrator signs in through a browser; the repository's integration tests run it):
+The listing is the endpoint's, minus the two write tools, since the command was not asked for writes. Those are 48 tools, none of them starts with `update_`, and none is one of the two that list and count tenants, which only an agent of the `system` tenant is offered (no transcript here shows that agent, since the `system` tenant takes no `seed client` and its administrator signs in through a browser; the repository's integration tests run it):
 
 ```bash
 jq -c 'select(.id==2) | .result.tools | length' out.jsonl
@@ -103,14 +103,16 @@ jq -r 'select(.id==2) | .result.tools[].name' out.jsonl | grep -c '_tenants$'
 ```
 
 ```
-42
+48
 count_audit count_clients count_groups count_roles count_scopes count_sessions count_subjects
-get_client get_domain get_flow_executions get_group get_group_roles get_role get_role_composites
-get_scope get_scope_mappers get_scope_roles get_settings get_subject get_subject_admin_capabilities
-get_subject_groups get_subject_lockout get_subject_required_actions get_subject_roles list_audit
-list_client_logout_deliveries list_client_sessions list_clients list_domains list_groups list_keys
-list_mail list_roles list_scope_clients list_scopes list_sessions list_subject_consents
-list_subject_effective_roles list_subject_grants list_subject_sessions list_subjects whoami
+get_client get_client_installation get_domain get_flow_executions get_group get_group_roles
+get_passkey_impact get_role get_role_composites get_scope get_scope_impact get_scope_mappers
+get_scope_roles get_settings get_subject get_subject_admin_capabilities get_subject_groups
+get_subject_lockout get_subject_required_actions get_subject_roles get_tenant get_username_policy
+list_audit list_builtin_scopes list_client_logout_deliveries list_client_sessions list_clients
+list_domains list_groups list_keys list_mail list_roles list_scope_clients list_scopes
+list_sessions list_subject_consents list_subject_effective_roles list_subject_grants
+list_subject_sessions list_subjects whoami
 0
 0
 ```

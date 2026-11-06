@@ -104,6 +104,13 @@ refused) came out as before. Both stacks were removed afterwards. No transcript 
 `system` tenant and its administrator signs in in a browser, so `apps/server/tests/mcp-instance-reads.int.test.ts` and
 `mcp-stdio.int.test.ts` run it against the real app with a scripted browser, and the two pages say so.
 
+The tool listings of the two MCP pages, the stdio page's 48 names and the endpoint page's list for `ada`, were captured again on 2026-11-06
+when six small reads joined the catalogue. Each page's bash blocks up to its listing were run in order on a freshly built compose project,
+`odudu-p5a-i13a` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the working tree on branch commit `3ac5ca848`
+plus the change), the stdio page's on the tenant `demo` and the endpoint page's on a second tenant, `demo2`, made the same way. Only those
+two blocks and the counts in the sentences about them were written from that run; every other block on the two pages is from the earlier
+capture, and its ids belong to it. The stack and its image were removed afterwards.
+
 The stdio server's page, `odudu-mcp-over-stdio.md`, was captured, and re-captured after the admin API began recording a direct agent call, on 2026-11-06 on a freshly built compose project,
 `odudu-p5a-i10b` (port `3000`, Postgres published on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch
 commit `2eeb90f9f` plus the change). The stack started from an empty volume and was driven once, in the order the page shows: the

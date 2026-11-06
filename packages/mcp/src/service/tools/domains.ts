@@ -1,4 +1,9 @@
-import { domainSchema, listDomainsResponseSchema } from '@odudu/contracts/admin';
+import {
+  domainSchema,
+  listDomainsResponseSchema,
+  passkeyImpactQuerySchema,
+  passkeyImpactResponseSchema,
+} from '@odudu/contracts/admin';
 import { idField, pageShape, pageTool, tenantGet, valueTool } from '#/service/read-tool';
 
 export const domainTools = [
@@ -20,5 +25,16 @@ export const domainTools = [
     shape: { id: idField('domain') },
     pathParams: ['id'],
     response: domainSchema,
+  }),
+  valueTool({
+    name: 'get_passkey_impact',
+    description:
+      'Counts the subjects whose passkeys would be hidden if the tenant moved its canonical ' +
+      'address to the one named (a path, or a host of its own domains): "capped" is true when the ' +
+      'real number is larger. It changes nothing.',
+    routeKey: tenantGet('/domains/passkey-impact'),
+    capability: 'view-domains',
+    shape: passkeyImpactQuerySchema.shape,
+    response: passkeyImpactResponseSchema,
   }),
 ];

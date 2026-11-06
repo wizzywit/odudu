@@ -223,7 +223,7 @@ const SHIPPED_CLAIMS: readonly (readonly [
   shipped: string,
   ...criterion: string[],
 ])[] = [
-  ['P5a', '44 tools that read what the admin api reads', 'exposing the admin api as tools'],
+  ['P5a', '50 tools that read what the admin api reads', 'exposing the admin api as tools'],
   ['P5a', 'the irreversible tools are not offered', 'the irreversible or wide-blast tools'],
   ['P5a', 'client id metadata documents', 'client id metadata documents'],
   ['P5a', "a tenant's `mcp` registration policy", 'narrow `mcp` client registration policy'],

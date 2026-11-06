@@ -10,10 +10,12 @@ import { keyTools } from '#/service/tools/keys';
 import { mailTools } from '#/service/tools/mail';
 import { roleTools } from '#/service/tools/roles';
 import { scopeMetadataTool } from '#/service/tools/scope-metadata';
+import { scopeCheckTools } from '#/service/tools/scope-checks';
 import { scopeTools } from '#/service/tools/scopes';
 import { sessionTools } from '#/service/tools/sessions';
 import { settingsTools } from '#/service/tools/settings';
 import { subjectTools } from '#/service/tools/subjects';
+import { tenantTool } from '#/service/tools/tenant';
 import { tenantTools } from '#/service/tools/tenants';
 import { whoamiTools } from '#/service/tools/whoami';
 import { type RegisteredTool } from '#/service/tool';
@@ -30,6 +32,7 @@ export const TOOLS: readonly RegisteredTool[] = [
   ...keyTools,
   ...mailTools,
   ...roleTools,
+  ...scopeCheckTools,
   ...scopeTools,
   ...sessionTools,
   ...settingsTools,
@@ -38,6 +41,7 @@ export const TOOLS: readonly RegisteredTool[] = [
   ...whoamiTools,
   clientMetadataTool,
   scopeMetadataTool,
+  tenantTool,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 const TENANT = '/admin/tenants/:tenant';
@@ -220,39 +224,9 @@ const WITHHELD: readonly Entry[] = [
     'sensitive',
   ],
   [
-    'The tenant record: whoami and get_settings answer what an agent needs of the tenant it acts in.',
-    [R('GET', '')],
-    'not-useful',
-  ],
-  [
     "Answers one subject's id token, access token and userinfo claims, which are personal data, under manage-clients, which does not include view-users; its open claim records have no schema to bound them.",
     [R('GET', '/clients/:id/evaluate')],
     'sensitive',
-  ],
-  [
-    "Restates what get_client returns (client id, type, authentication method, redirect URIs, grants, default scope) plus the issuer and discovery address, which the tenant's published metadata already gives.",
-    [R('GET', '/clients/:id/installation')],
-    'not-useful',
-  ],
-  [
-    'Answers the username_editable setting alone, which get_settings returns with the rest.',
-    [R('GET', '/subjects/username-policy')],
-    'not-useful',
-  ],
-  [
-    'Previews what moving the canonical address would do to passkeys (a capped count for a candidate address), an input to a change an agent cannot make.',
-    [R('GET', '/domains/passkey-impact')],
-    'not-useful',
-  ],
-  [
-    'Says which built-in scopes are absent, only so that restoring them can be offered; list_scopes shows what exists and an agent cannot restore.',
-    [R('GET', '/scopes/builtins')],
-    'not-useful',
-  ],
-  [
-    'Counts what deleting a scope would take with it, an input to a deletion an agent cannot make.',
-    [R('GET', '/scopes/:id/impact')],
-    'not-useful',
   ],
 ];
 

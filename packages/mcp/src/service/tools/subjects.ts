@@ -9,10 +9,21 @@ import {
   setRolesResponseSchema,
   setSubjectGroupsResponseSchema,
   subjectSchema,
+  usernamePolicySchema,
 } from '@odudu/contracts/admin';
 import { idField, pageShape, pageTool, tenantGet, valueTool } from '#/service/read-tool';
 
 export const subjectTools = [
+  valueTool({
+    name: 'get_username_policy',
+    description:
+      "Says whether this tenant lets a person's username be changed (username_editable), for " +
+      'whoever can read subjects.',
+    routeKey: tenantGet('/subjects/username-policy'),
+    capability: 'view-users',
+    shape: {},
+    response: usernamePolicySchema,
+  }),
   pageTool({
     name: 'list_subjects',
     description:

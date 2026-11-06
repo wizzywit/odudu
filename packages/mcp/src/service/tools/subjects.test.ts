@@ -8,8 +8,9 @@ import {
   setRolesResponseSchema,
   setSubjectGroupsResponseSchema,
   subjectSchema,
+  usernamePolicySchema,
 } from '@odudu/contracts/admin';
-import { describe } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { describeReadTool } from '#/testing/conformance';
 import { subjectTools } from '#/service/tools/subjects';
 
@@ -83,5 +84,16 @@ describe('subjects tools', () => {
     pattern: '/admin/tenants/:tenant/subjects/:id/required-actions',
     input: { id: '0192a0a0-0000-7000-8000-000000000001' },
     params: { id: '0192a0a0-0000-7000-8000-000000000001' },
+  });
+  describeReadTool({
+    tool: named('get_username_policy'),
+    response: usernamePolicySchema,
+    pattern: '/admin/tenants/:tenant/subjects/username-policy',
+  });
+
+  it('reads the username policy under view-users, with no argument', () => {
+    const tool = named('get_username_policy');
+    expect(tool.capability).toBe('view-users');
+    expect(tool.access).toBe('read');
   });
 });

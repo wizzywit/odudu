@@ -83,11 +83,21 @@ function answer(body: unknown, status = 200): ReturnType<typeof respondingWith> 
 
 describe('the label on text a model reads', () => {
   it('covers every tool of the catalogue, the writes among them', () => {
-    expect(TOOLS.length).toBeGreaterThanOrEqual(46);
+    expect(TOOLS.length).toBeGreaterThanOrEqual(52);
     expect(TOOLS.filter((tool) => tool.access === 'write')).toHaveLength(2);
     const names = TOOLS.map((tool) => tool.name);
     expect(names).toContain('list_tenants');
     expect(names).toContain('count_tenants');
+    for (const name of [
+      'get_tenant',
+      'get_username_policy',
+      'get_passkey_impact',
+      'get_scope_impact',
+      'list_builtin_scopes',
+      'get_client_installation',
+    ]) {
+      expect(names).toContain(name);
+    }
   });
 
   it('puts the poison into the answers of nearly every tool, so the label is really tested', () => {
@@ -116,7 +126,7 @@ describe('the label on text a model reads', () => {
       },
     );
 
-    if (tool.name.startsWith('list_')) {
+    if (tool.name.startsWith('list_') && tool.name !== 'list_builtin_scopes') {
       it('refuses a next cursor that is anything but opaque, instead of passing it on', async () => {
         for (const poison of POISONS) {
           const page = { ...(exampleOf(tool.response) as object), next: poison };
