@@ -706,8 +706,7 @@ curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/op
 {"client_id":"01a1b13e-4ffb-744d-be00-fc7cb9ac1bbc","client_id_issued_at":1793975013,"redirect_uris":["https://agent.example/cb","http://127.0.0.1:53124/cb"],"audience":["http://localhost:3000/tenants/mcp-demo/mcp"],"scope":"openid mcp:read","grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"Example Agent"}
 ```
 
-The `audience` names the tenant's MCP address on the port this run served on,
-3000. The two queries below name the client this response returned.
+The `audience` names the tenant's MCP address on the port this run served on, 3000. The two queries below name the client this response returned.
 
 The row the registration wrote, and the one scope it was given beyond the
 tenant's defaults. `mcp:read` is `optional`, so the client has to ask for it

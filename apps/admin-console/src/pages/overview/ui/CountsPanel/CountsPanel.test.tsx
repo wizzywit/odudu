@@ -66,7 +66,9 @@ it('counts each collection, a capped count as a floor, with a link to its list',
     '/console/acme/subjects',
   );
   expect(tile('Subjects')).toHaveTextContent('10,000+ subjects');
-  expect(tile('Clients')).toHaveTextContent('12 clients (3 of 200 made by administrators or tokens)');
+  expect(tile('Clients')).toHaveTextContent(
+    '12 clients (3 of 200 made by administrators or tokens)',
+  );
 });
 
 it('names the capability a count needs, and says when one is still counting', () => {

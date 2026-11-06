@@ -68,7 +68,9 @@ function evictable(tenantId: string, asTenant = tenantId): Promise<string | null
 }
 
 async function exists(id: string): Promise<boolean> {
-  const rows = await sql()<{ n: number }[]>`select count(*)::int as n from clients where id = ${id}`;
+  const rows = await sql()<
+    { n: number }[]
+  >`select count(*)::int as n from clients where id = ${id}`;
   return rows[0]?.n === 1;
 }
 

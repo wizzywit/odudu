@@ -236,7 +236,9 @@ for (const version of ['2025-06-18', '2025-03-26']) {
     Array.isArray(tools) && tools.length === EXPECT_READ_TOOLS,
     `${version}: tools/list gave ${Array.isArray(tools) ? tools.length : listed.text.slice(0, 160)} tools, not ${EXPECT_READ_TOOLS}`,
   );
-  results.push(`tools/list under mcp-protocol-version ${version}: HTTP ${listed.status}, ${tools.length} tools`);
+  results.push(
+    `tools/list under mcp-protocol-version ${version}: HTTP ${listed.status}, ${tools.length} tools`,
+  );
 }
 
 console.log(results.join('\n'));
