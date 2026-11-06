@@ -17,6 +17,9 @@ export interface TokenExpectation {
   readonly scope: 'mcp:read' | 'mcp:write';
 }
 
+// No token is believed to live longer than this, whatever the server says.
+const MAX_LIFETIME_SECONDS = 3600;
+
 const tokenResponse = z.object({
   access_token: z.string().min(1),
   token_type: z.string(),
@@ -40,9 +43,12 @@ export function tokenSetFrom(body: unknown, now: Date): TokenSet {
       'the token endpoint issued a token that is not a bearer token',
     );
   }
+  const stated = now.getTime() + Math.min(response.expires_in, MAX_LIFETIME_SECONDS) * 1000;
+  const claimed = claimsOf(response.access_token).exp;
+  const exp = typeof claimed === 'number' && Number.isFinite(claimed) ? claimed * 1000 : stated;
   return {
     accessToken: response.access_token,
-    expiresAt: new Date(now.getTime() + response.expires_in * 1000),
+    expiresAt: new Date(Math.min(stated, exp)),
     ...(response.refresh_token === undefined ? {} : { refreshToken: response.refresh_token }),
     scope: response.scope === undefined ? [] : response.scope.split(' ').filter((s) => s !== ''),
   };

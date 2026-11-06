@@ -52,4 +52,19 @@ describe('the instance and tenant a stdio server is configured for', () => {
       /hunter2/u,
     );
   });
+
+  it('offers the path address first and the tenant own domain second', () => {
+    const target = stdioTarget('https://login.acme.org', 'acme');
+    expect(target.forms).toEqual([
+      {
+        issuer: 'https://login.acme.org/tenants/acme',
+        metadataUrl: 'https://login.acme.org/.well-known/oauth-authorization-server/tenants/acme',
+      },
+      {
+        issuer: 'https://login.acme.org',
+        metadataUrl: 'https://login.acme.org/.well-known/oauth-authorization-server',
+      },
+    ]);
+    expect(target.issuer).toBe('https://login.acme.org/tenants/acme');
+  });
 });

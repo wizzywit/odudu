@@ -1,5 +1,5 @@
 import { StdioError } from '#/service/stdio-error';
-import type { StdioTarget } from '#/service/stdio-target';
+import type { AddressForm, StdioTarget } from '#/service/stdio-target';
 
 export interface AuthorizationServer {
   readonly issuer: string;
@@ -33,19 +33,24 @@ function endpointOf(document: Record<string, unknown>, name: string, origin: str
 }
 
 // The metadata of the tenant this command was given, or a refusal. The issuer
-// must be exactly base URL plus tenant, and both endpoints must sit on that
+// must be exactly the address form it was fetched for (base URL plus tenant, or
+// the base URL's own origin), and both endpoints must sit on that
 // origin: a different issuer or host is never trusted with a code or a bearer.
-export function readMetadata(body: unknown, target: StdioTarget): AuthorizationServer {
+export function readMetadata(
+  body: unknown,
+  target: StdioTarget,
+  form: AddressForm = target.forms[0] ?? { issuer: target.issuer, metadataUrl: target.metadataUrl },
+): AuthorizationServer {
   const document = record(body);
-  if (document.issuer !== target.issuer) {
-    return refuse('names an issuer other than this tenant at this base URL');
+  if (document.issuer !== form.issuer) {
+    return refuse('names an issuer other than this tenant address at this base URL');
   }
   const methods = document.code_challenge_methods_supported;
   if (!Array.isArray(methods) || !methods.includes('S256')) {
     return refuse('does not offer PKCE with S256');
   }
   return {
-    issuer: target.issuer,
+    issuer: form.issuer,
     authorizationEndpoint: endpointOf(document, 'authorization_endpoint', target.base),
     tokenEndpoint: endpointOf(document, 'token_endpoint', target.base),
     issuerAdvertised: document.authorization_response_iss_parameter_supported === true,

@@ -27,6 +27,29 @@ describe('a token endpoint answer, read', () => {
     });
   });
 
+  it('expires with the token itself when its exp is sooner than expires_in says', () => {
+    const early = jwtOf({
+      iss: ISSUER,
+      aud: [ADMIN],
+      scope: 'mcp:read',
+      exp: NOW.getTime() / 1000 + 60,
+    });
+    expect(tokenSetFrom(response(early), NOW).expiresAt).toEqual(new Date('2026-11-06T10:01:00Z'));
+    const late = jwtOf({
+      iss: ISSUER,
+      aud: [ADMIN],
+      scope: 'mcp:read',
+      exp: NOW.getTime() / 1000 + 9999,
+    });
+    expect(tokenSetFrom(response(late), NOW).expiresAt).toEqual(new Date('2026-11-06T10:05:00Z'));
+  });
+
+  it('never trusts an expires_in beyond an hour', () => {
+    expect(tokenSetFrom(response('t', { expires_in: 86_400 }), NOW).expiresAt).toEqual(
+      new Date('2026-11-06T11:00:00Z'),
+    );
+  });
+
   it('takes a bearer token type in any case and refuses another', () => {
     expect(tokenSetFrom(response('t', { token_type: 'bearer' }), NOW).accessToken).toBe('t');
     expect(() => tokenSetFrom(response('t', { token_type: 'DPoP' }), NOW)).toThrow(/bearer/iu);

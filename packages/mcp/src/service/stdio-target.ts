@@ -1,14 +1,25 @@
-import { addressIssuer, pathAddress } from '@odudu/kernel';
+import { addressIssuer, domainAddress, pathAddress } from '@odudu/kernel';
 import { StdioError } from '#/service/stdio-error';
+
+// One way a tenant can be addressed: the issuer its metadata must name and where
+// that metadata is. A tenant is at its path address under the instance, or, when
+// it has a domain of its own, at the domain with no path.
+export interface AddressForm {
+  readonly issuer: string;
+  readonly metadataUrl: string;
+}
 
 export interface StdioTarget {
   // The instance's origin, with no path.
   readonly base: string;
   readonly tenant: string;
-  // The tenant's issuer at its path address, which discovery must name.
+  // The tenant's issuer at its path address; also the key its sign-in is kept under.
   readonly issuer: string;
   // RFC 8414 §3.1: the well-known suffix sits between the host and the issuer's path.
   readonly metadataUrl: string;
+  // The path address, then the base URL's own origin as a domain address. Discovery
+  // takes the first the server answers for; the document's issuer must be its own.
+  readonly forms: readonly AddressForm[];
   adminUrl(path: string): string;
 }
 
@@ -53,11 +64,20 @@ export function stdioTarget(baseUrl: string, tenant: string): StdioTarget {
   }
   const base = url.origin;
   const address = pathAddress(base, tenant);
+  const own = domainAddress(url.host, url.protocol === 'https:');
+  const path: AddressForm = {
+    issuer: addressIssuer(address),
+    metadataUrl: `${base}/.well-known/oauth-authorization-server${address.prefix}`,
+  };
   return {
     base,
     tenant,
-    issuer: addressIssuer(address),
-    metadataUrl: `${base}/.well-known/oauth-authorization-server${address.prefix}`,
+    issuer: path.issuer,
+    metadataUrl: path.metadataUrl,
+    forms: [
+      path,
+      { issuer: addressIssuer(own), metadataUrl: `${base}/.well-known/oauth-authorization-server` },
+    ],
     adminUrl: (path) => `${base}${path}`,
   };
 }

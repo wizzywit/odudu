@@ -58,4 +58,37 @@ describe('the authorization server metadata of a tenant', () => {
   it.each([null, 'x', [], 3])('refuses a document that is %j', (body) => {
     expect(() => readMetadata(body, target)).toThrow();
   });
+
+  describe('at a tenant own domain', () => {
+    const domain = stdioTarget('https://login.acme.org', 'acme');
+    const form = domain.forms[1];
+    const docFor = (issuer: string, over: Record<string, unknown> = {}) => ({
+      issuer,
+      authorization_endpoint: `${issuer}/protocol/openid-connect/auth`,
+      token_endpoint: `${issuer}/protocol/openid-connect/token`,
+      code_challenge_methods_supported: ['S256'],
+      ...over,
+    });
+
+    it('accepts an issuer that is exactly the origin it was given', () => {
+      if (form === undefined) throw new Error('no domain form');
+      expect(readMetadata(docFor('https://login.acme.org'), domain, form).issuer).toBe(
+        'https://login.acme.org',
+      );
+    });
+
+    it('still refuses another host, a path under the domain and endpoints elsewhere', () => {
+      if (form === undefined) throw new Error('no domain form');
+      for (const issuer of ['https://other.example', 'https://login.acme.org/tenants/acme']) {
+        expect(() => readMetadata(docFor(issuer), domain, form), issuer).toThrow(/issuer/u);
+      }
+      expect(() =>
+        readMetadata(
+          docFor('https://login.acme.org', { token_endpoint: 'https://evil.example/token' }),
+          domain,
+          form,
+        ),
+      ).toThrow(/token_endpoint/u);
+    });
+  });
 });
