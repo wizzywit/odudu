@@ -221,6 +221,18 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       return rows.length;
     },
 
+    // The foreign key on `actor_subject_id` only clears the column when the
+    // actor goes, which would leave the delegated token live with its `act`
+    // claim intact; a caller that removes an actor revokes what it acted in.
+    async revokeForActor(actorSubjectId: string): Promise<number> {
+      const rows = await tx
+        .update(tokenGrants)
+        .set({ revokedAt: sql`now()` })
+        .where(and(eq(tokenGrants.actorSubjectId, actorSubjectId), isNull(tokenGrants.revokedAt)))
+        .returning({ id: tokenGrants.id });
+      return rows.length;
+    },
+
     async bySession(sessionId: string): Promise<TokenGrantRecord[]> {
       const rows = await tx.select().from(tokenGrants).where(eq(tokenGrants.sessionId, sessionId));
       return rows.map(toRecord);

@@ -107,7 +107,7 @@ Placed on a phase, in order, and not started. Each line names the phase that wil
 - **an audit trail the serving role cannot rewrite, signed or chained**: P12.
 - **client registration policies and client policies**: P13.
 - **admin impersonation**: P13, with its own threat model.
-- **create a client's service account when its client credentials grant is switched on, not for every confidential client**: P5a, because machine clients and agents are the ones that use `client_credentials`, following Keycloak's model. Today every confidential client gets one.
+- **create a client's service account when its client credentials grant is switched on, not for every confidential client**: P5a, because machine clients and agents are the ones that use `client_credentials`, following Keycloak's model. A client that holds the grant gets one when it is created or when the grant is switched on, and one that loses the grant loses it.
 
 ## Decided against, and why
 

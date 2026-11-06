@@ -1,6 +1,6 @@
 import { createDatabase } from '@odudu/db';
 import { loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
-import { publicExchangeClientsAtRisk } from '@odudu/protocol-oidc';
+import { idleServiceAccounts, publicExchangeClientsAtRisk } from '@odudu/protocol-oidc';
 import closeWithGrace from 'close-with-grace';
 import { buildApp } from '#/app';
 import { appDepsFromConfig } from '#/app-deps';
@@ -18,6 +18,7 @@ import { buildEmailSender, resolveSender, smtpDestinationPolicyFor } from '#/ema
 import { loadConsoleKeys } from '#/console-key';
 import { warnOfStrandedPublicClients } from '#/exchange-upgrade-warning';
 import { createLogger } from '#/logger';
+import { warnOfIdleServiceAccounts } from '#/service-account-warning';
 import { createLogoutDeliveryTransport } from '#/logout-delivery-transport';
 import { databaseModule } from '#/modules/database';
 import { httpModule } from '#/modules/http';
@@ -57,6 +58,7 @@ if (runtime === owner) {
 }
 
 await warnOfStrandedPublicClients(() => publicExchangeClientsAtRisk(owner.db), logger);
+await warnOfIdleServiceAccounts(() => idleServiceAccounts(owner.db), logger);
 
 const emailFallback = buildEmailSender(config, logger);
 

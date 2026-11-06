@@ -26,3 +26,15 @@ describe('requiredCapability', () => {
     expect(requiredCapability('DELETE', '/admin/tenants/:tenant/subjects')).toBeUndefined();
   });
 });
+
+describe('the client PATCH description', () => {
+  const description =
+    ADMIN_ROUTES.find(
+      (route) => route.method === 'PATCH' && route.pattern === '/admin/tenants/:tenant/clients/:id',
+    )?.description ?? '';
+
+  it('says an account kept idle is reused with its roles, not replaced by an empty one', () => {
+    expect(description).toContain('reuses the account it kept, with the roles it still holds');
+    expect(description).toContain('otherwise creates one with no roles');
+  });
+});

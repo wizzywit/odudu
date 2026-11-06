@@ -356,6 +356,93 @@ describe('clientRepository', () => {
       },
     });
   });
+
+  it('points a client at its service subject and takes the pointer away again', async () => {
+    const tenantId = newId();
+    const subjectId = newId();
+    const clientDbId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await tx.execute(
+        sql`insert into subjects (id, tenant_id, type) values (${subjectId}, ${tenantId}, 'service')`,
+      );
+      await insertClient(tx, tenantId, { id: clientDbId });
+      const attached = await clientRepository(tx).setServiceSubject(clientDbId, subjectId);
+      expect(attached.serviceSubjectId).toBe(subjectId);
+      const detached = await clientRepository(tx).setServiceSubject(clientDbId, null);
+      expect(detached.serviceSubjectId).toBeNull();
+    });
+  });
+
+  it('clears the idle-account marker whenever the pointer is set', async () => {
+    const tenantId = newId();
+    const clientDbId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await insertClient(tx, tenantId, { id: clientDbId, serviceAccountIdle: true });
+      await clientRepository(tx).setServiceSubject(clientDbId, null);
+      const [row] = await tx
+        .select({ idle: clients.serviceAccountIdle })
+        .from(clients)
+        .where(eq(clients.id, clientDbId));
+      expect(row?.idle).toBe(false);
+    });
+  });
+
+  it('cannot clear the idle marker of a client under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const id = newId();
+        await insertClient(tx, tenantId, { id, serviceAccountIdle: true });
+        return id;
+      },
+      verifySeeded: async (tx, id) => {
+        const [row] = await tx
+          .select({ idle: clients.serviceAccountIdle })
+          .from(clients)
+          .where(eq(clients.id, id));
+        expect(row?.idle).toBe(true);
+      },
+      attempt: (tx, id) => clientRepository(tx).clearServiceAccountIdle(id),
+      expectBlocked: () => undefined,
+      verifyTenantAUnaffected: async (tx, id) => {
+        const [row] = await tx
+          .select({ idle: clients.serviceAccountIdle })
+          .from(clients)
+          .where(eq(clients.id, id));
+        expect(row?.idle).toBe(true);
+      },
+    });
+  });
+
+  it('cannot re-point a client under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const id = newId();
+        await insertClient(tx, tenantId, { id });
+        return id;
+      },
+      verifySeeded: async (tx, clientDbId) => {
+        expect((await clientRepository(tx).byId(clientDbId))?.serviceSubjectId).toBeNull();
+      },
+      attempt: async (tx, clientDbId) => {
+        try {
+          await clientRepository(tx).setServiceSubject(clientDbId, null);
+          return 'succeeded';
+        } catch {
+          return 'blocked';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('blocked');
+      },
+      verifyTenantAUnaffected: async (tx, clientDbId) => {
+        expect(await clientRepository(tx).byId(clientDbId)).not.toBeNull();
+      },
+    });
+  });
 });
 
 // Every audited transaction holds `FOR KEY SHARE` on its tenant row until it

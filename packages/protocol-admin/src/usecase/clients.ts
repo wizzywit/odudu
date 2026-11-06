@@ -11,7 +11,7 @@ import {
 } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { roles } from '@odudu/domain-authz';
-import { subjectRepository, subjects } from '@odudu/domain-identity';
+import { subjects } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
   MCP_CLIENT_ID,
@@ -27,9 +27,15 @@ import {
   clientOidcConfig,
   clientOidcConfigRepository,
   clientTokenTtlProblem,
+  ensureServiceAccount,
   idTokenAlgUnavailable,
   isWellFormedWebOrigin,
+  canHoldServiceAccount,
+  mayRetireServiceAccount,
+  needsServiceAccount,
   parseClientMetadata,
+  retiresServiceAccount,
+  retireServiceAccount,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
 import { and, asc, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
@@ -53,6 +59,7 @@ import { publicJwks } from '#/service/public-jwks';
 import { tenantLanguages } from '#/usecase/tenant-languages';
 import {
   guardLastAdministrator,
+  lockAdministrators,
   type LastAdministratorRefusal,
 } from '#/usecase/last-administrator';
 import {
@@ -667,15 +674,6 @@ export async function createClient(
     return { kind: 'at_capacity' };
   }
 
-  let serviceSubjectId: string | null = null;
-  if (type === 'confidential') {
-    const serviceSubject = await subjectRepository(tx).create({
-      tenantId: input.tenantId,
-      type: 'service',
-    });
-    serviceSubjectId = serviceSubject.id;
-  }
-
   const secret = type === 'confidential' ? generateClientSecret() : null;
   const secretHash = secret === null ? null : await deps.hashClientSecret(secret);
 
@@ -686,13 +684,12 @@ export async function createClient(
   // resolves with and throws the raw driver error regardless — the same
   // reason `AmendSettingsRefusedError` (#/usecase/settings.ts) is thrown
   // rather than returned. The route catches it outside `withTenant`.
-  const client = await clientRepository(tx).create({
+  const created = await clientRepository(tx).create({
     tenantId: input.tenantId,
     clientId: input.clientId,
     name: admin.client.name ?? metadata.clientName ?? input.clientId,
     type,
     secretHash,
-    serviceSubjectId,
     ...(admin.client.description === undefined ? {} : { description: admin.client.description }),
     ...(admin.client.nameI18n === undefined ? {} : { nameI18n: admin.client.nameI18n }),
     ...(admin.client.descriptionI18n === undefined
@@ -711,6 +708,10 @@ export async function createClient(
     // folding it into 'seeded' and making the two indistinguishable.
     registrationOrigin: 'operator',
   });
+
+  const client = needsServiceAccount(type, metadata.grantTypes)
+    ? await ensureServiceAccount(tx, created)
+    : created;
 
   await provisionClientDefaults(tx, client.id);
 
@@ -852,6 +853,7 @@ export type AmendClientOutcome =
   | { kind: 'builtin_admin_guarded'; reason: string }
   | { kind: 'auth_method_changes_type'; reason: string }
   | TargetCeilingRefusal
+  | LastAdministratorRefusal
   | { kind: 'ok'; client: ClientView; etag: string };
 
 // The six list fields the schema stores whole (the same six
@@ -1177,6 +1179,16 @@ function metadataFieldValue(
   return effective === null ? undefined : effective;
 }
 
+function reconcileServiceAccount(
+  tx: TenantScopedDatabase,
+  client: ClientRecord,
+  grantTypes: readonly string[],
+): Promise<ClientRecord> {
+  return needsServiceAccount(client.type, grantTypes)
+    ? ensureServiceAccount(tx, client)
+    : retireServiceAccount(tx, client);
+}
+
 /**
  * Splits the supplied fields across `clients` and `client_oidc_config` in
  * one transaction, replacing every list field wholesale — never appending —
@@ -1191,15 +1203,16 @@ export async function amendClient(
 ): Promise<AmendClientOutcome> {
   const unlocked = await clientRepository(tx).byId(input.clientDbId);
   if (unlocked === null) return { kind: 'not_found' };
-  const refused = await refuseOverServiceAccountCeiling(
-    tx,
-    deps.audit,
-    'client.amend',
-    unlocked.serviceSubjectId,
-    input,
-    { type: 'client', id: input.clientDbId },
-  );
-  if (refused !== null) return refused;
+  // The administrators' lock comes before any row lock, the subject's included, the order every
+  // guarded write takes (#/usecase/last-administrator.ts), so a retirement
+  // here and a delete of the same client cannot wait on each other. It is
+  // taken for any client that could hold an account: one created while this
+  // waits is retired by the same write.
+  if (
+    mayRetireServiceAccount(canHoldServiceAccount(unlocked.type), 'grant_types' in input.values)
+  ) {
+    await lockAdministrators(tx);
+  }
 
   // Locked for the rest of the transaction, so the `If-Match` comparison
   // below and the writes that follow it cannot interleave with another
@@ -1207,6 +1220,18 @@ export async function amendClient(
   // this one, so locking it serialises both halves of the resource.
   const clientRow = await clientRepository(tx).byIdForUpdate(input.clientDbId);
   if (clientRow === null) return { kind: 'not_found' };
+
+  // Judged on the account the locked row holds: an account made, and given
+  // roles, while this waited for the lock is the one the ceiling is held to.
+  const refused = await refuseOverServiceAccountCeiling(
+    tx,
+    deps.audit,
+    'client.amend',
+    clientRow.serviceSubjectId,
+    input,
+    { type: 'client', id: input.clientDbId },
+  );
+  if (refused !== null) return refused;
 
   for (const field of Object.keys(input.values)) {
     if (!AMENDABLE_CLIENT_FIELDS.includes(field)) {
@@ -1404,14 +1429,46 @@ export async function amendClient(
     return { kind: 'precondition_failed' };
   }
 
-  const updatedClientRow =
-    Object.keys(clientPatch).length === 0
-      ? clientRow
-      : await clientRepository(tx).update(input.clientDbId, clientPatch);
-  const updatedConfigRow =
-    Object.keys(configPatch).length === 0
-      ? configRow
-      : await clientOidcConfigRepository(tx).update(input.clientDbId, configPatch);
+  const grantsChanged = 'grant_types' in input.values;
+  const write = async (inner: TenantScopedDatabase) => {
+    const patched =
+      Object.keys(clientPatch).length === 0
+        ? clientRow
+        : await clientRepository(inner).update(input.clientDbId, clientPatch);
+    const config =
+      Object.keys(configPatch).length === 0
+        ? configRow
+        : await clientOidcConfigRepository(inner).update(input.clientDbId, configPatch);
+    // Every grant change settles the account, so a client the upgrade left
+    // with one it does not use loses it the next time its grants are set.
+    const account = grantsChanged
+      ? await reconcileServiceAccount(inner, patched, config.grantTypes)
+      : patched;
+    return { client: account, config };
+  };
+  // Retiring the account removes whatever roles it held, which may be the
+  // last administrator's.
+  const retires = retiresServiceAccount(
+    clientRow.serviceSubjectId !== null,
+    grantsChanged,
+    clientRow.type,
+    configPatch.grantTypes ?? configRow.grantTypes,
+  );
+  const written = retires
+    ? await guardLastAdministrator(
+        tx,
+        {
+          action: 'client.amend',
+          resourceType: 'client',
+          resourceId: input.clientDbId,
+          actor: input,
+          audit: deps.audit,
+        },
+        write,
+      )
+    : await write(tx);
+  if ('kind' in written) return written;
+  const { client: updatedClientRow, config: updatedConfigRow } = written;
 
   const view = await attachScopes(tx, toClientView(updatedClientRow, updatedConfigRow));
 

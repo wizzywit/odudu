@@ -1161,7 +1161,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: amendClientRequestSchema,
     description:
       `${SERVICE_ACCOUNT_CEILING} ${CLIENT_LIST_BOUND}` +
-      ' `If-Match` is mandatory when the body replaces a list field: an absent header, or `*`, is refused with `428`, and a stale one with `412`. Otherwise it is optional.',
+      ' `If-Match` is mandatory when the body replaces a list field: an absent header, or `*`, is refused with `428`, and a stale one with `412`. Otherwise it is optional.' +
+      ' A `grant_types` that adds `client_credentials` to a confidential client reuses the account it kept, with the roles it still holds, when an upgrade left one idle, and otherwise creates one with no roles; one that leaves it out deletes the account with the roles, token grants and sessions it held, and is refused with `409` when the account holds the last enabled administrator role.',
   },
   {
     method: 'DELETE',

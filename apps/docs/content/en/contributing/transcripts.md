@@ -76,9 +76,21 @@ as Bootstrap seeds it, one login, one code redeemed and one refresh rotated, the
 the page is the one that run printed, the unseeded-stack and refusal outputs excepted since the key is not in them. The ids in the seed and registration
 lines around those reports are those of an earlier run. With `ada` and a token got as in Getting the token, the roles page's new section
 "Retrying a create with an Idempotency-Key" and the retention page's `idempotency_keys` block ran on the same stack, in a tenant `idem-demo`, and
-`GET /admin/openapi.json` was fetched again (request id, date and size, 803,435 bytes, fetched on the fourth stack below). The read-a-refusal guide's step 8 excerpts the roles
+`GET /admin/openapi.json` was fetched again (request id, date and size, fetched on the fourth stack below and once more on the stack the service-account paragraph below names). The read-a-refusal guide's step 8 excerpts the roles
 section. The stack was removed afterwards. After the review, a keyed `POST /admin/tenants` (refused) and the OpenAPI fetch were run again on a second
 freshly built project, `odudu-p5a-i6b`, which was removed afterwards; the roles blocks around them are the first run's. A keyed `POST …/smtp/test` (refused) and the OpenAPI fetch were run once more on a third freshly built project, `odudu-p5a-i6c`, removed afterwards. The roles page's key listing was read on the first stack, straight after the blocks above it, and now sits before the two refusals that ran on later stacks. The OpenAPI fetch was run a last time on a fourth freshly built project, `odudu-p5a-i6d` (port `3000`, built from the branch commit `a98b9573` plus the change that declares the key's refusals on the keyed operations), removed afterwards.
+
+A client has a service account only while it holds the `client_credentials` grant, and the audit detail of a client change gained
+`service_subject_id`. On a freshly built compose project, `odudu-p5a-i7a` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at
+`10000`, built from the branch commit `49085853` plus the documents), with `ada` and a token got as in Getting the token, the audit page's
+`audit-demo` and `resource-audit` setups and the four queries that show `client.create` rows were run again, and the `PATCH /clients/{id}` page's
+section on what a client answers about its service account was run again with `billing` made first with `authorization_code` alone, followed by the
+new section on a service account following the grant (`etl` and `ops`); each block shows what that run printed, and the ids and times in those blocks
+are that run's, so they refer to nothing around them. The other blocks of those pages were not replaced. The stack was removed afterwards. The OpenAPI page's capture (request id, date and
+size) was taken on a last freshly built project, `odudu-p5a-i7b` (port `3000`, built from the merge of the phase branch
+with this one, which carries both the problem responses and the longer descriptions), and removed afterwards. The page was fetched
+once more (request id, date and size, now 805,568 bytes) after the client `PATCH` description named the idle account it reuses, on the
+project `odudu-p5a-i7c` (port `3197`, built from the branch commit `ad4b2d47` plus the change), removed afterwards.
 
 The retention page's `odudu reap` reports gained the `client_metadata_cache` key on 2026-11-05, and `cimd_clients` after it later the same day. All seven were re-run on
 a freshly built compose project, `odudu-p5a-i3b` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), driven

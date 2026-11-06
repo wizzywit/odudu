@@ -70,6 +70,12 @@ export const clients = pgTable('clients', {
   // approval does not make a self-registered client look unused to `reap`
   // (packages/db/drizzle/0119_clients_approved_at.sql).
   approvedAt: timestamp('approved_at', { withTimezone: true }),
+  // True for a client that holds a service account without the
+  // client_credentials grant: left standing by the migration that stopped
+  // giving every confidential client one, because something still names the
+  // account. Cleared the moment the pointer changes
+  // (packages/db/drizzle/0122_service_accounts_by_grant.sql).
+  serviceAccountIdle: boolean('service_account_idle').notNull().default(false),
   // Search keys, in the C collation, filled by the database
   // (packages/db/drizzle/0074_list_indexes_tenants_clients.sql).
   clientIdSearch: text('client_id_search').generatedAlwaysAs(sql`lower(client_id)`),

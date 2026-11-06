@@ -178,7 +178,7 @@ export const exportedClientSchema = z.strictObject({
   default_max_age: z.number().int().nullable(),
   require_auth_time: z.boolean(),
   // The roles a confidential client's own service account holds, which
-  // its client_credentials tokens carry; empty for a public client.
+  // its client_credentials tokens carry; empty for a client without that grant.
   service_account_roles: assignmentSet(roleReferenceSchema),
 });
 export type ExportedClient = z.infer<typeof exportedClientSchema>;

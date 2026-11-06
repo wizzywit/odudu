@@ -316,6 +316,8 @@ function amendmentProblem(
       return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
     case 'target_ceiling':
       return serviceAccountCeilingProblem(reply, request, outcome.requested);
+    case 'last_administrator':
+      return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
   }
 }
 

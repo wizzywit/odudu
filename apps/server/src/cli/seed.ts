@@ -84,9 +84,11 @@ import {
 } from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
+  ensureServiceAccount,
   GRANT_TYPES_PERMITTED,
   TOKEN_EXCHANGE_GRANT,
   isWellFormedWebOrigin,
+  needsServiceAccount,
   provisionAdminClient,
   provisionMcpClient,
   tenantLookupRepository,
@@ -488,12 +490,6 @@ async function performSeed(
 
     const type: ClientRecord['type'] = opts.clientSecret === undefined ? 'public' : 'confidential';
 
-    let serviceSubjectId: string | null = null;
-    if (type === 'confidential') {
-      const serviceSubject = await subjectRepository(tx).create({ tenantId, type: 'service' });
-      serviceSubjectId = serviceSubject.id;
-    }
-
     const secretHash =
       opts.clientSecret === undefined ? null : await hashPassword(opts.clientSecret);
 
@@ -506,7 +502,6 @@ async function performSeed(
           name: opts.clientId,
           type,
           secretHash,
-          serviceSubjectId,
         }),
     );
 
@@ -514,14 +509,17 @@ async function performSeed(
     // refuse `openid` on this client's very first request.
     await provisionClientDefaults(tx, client.id);
 
+    const quickGrantTypes =
+      type === 'confidential'
+        ? ['authorization_code', 'refresh_token', 'client_credentials']
+        : ['authorization_code', 'refresh_token'];
+    if (needsServiceAccount(type, quickGrantTypes)) await ensureServiceAccount(tx, client);
+
     await clientOidcConfigRepository(tx).create({
       clientId: client.id,
       tenantId,
       redirectUris: opts.redirectUris,
-      grantTypes:
-        type === 'confidential'
-          ? ['authorization_code', 'refresh_token', 'client_credentials']
-          : ['authorization_code', 'refresh_token'],
+      grantTypes: quickGrantTypes,
       tokenEndpointAuthMethod:
         type === 'confidential' ? (opts.tokenEndpointAuthMethod ?? 'client_secret_basic') : 'none',
       audiences: [],
@@ -1414,12 +1412,6 @@ async function runClientCommand(
       );
     }
 
-    let serviceSubjectId: string | null = null;
-    if (type === 'confidential') {
-      const serviceSubject = await subjectRepository(tx).create({ tenantId, type: 'service' });
-      serviceSubjectId = serviceSubject.id;
-    }
-
     const secretHash = clientSecret === undefined ? null : await hashPassword(clientSecret);
 
     const client = await refuseRepeat(
@@ -1431,7 +1423,6 @@ async function runClientCommand(
           name: clientId,
           type,
           secretHash,
-          serviceSubjectId,
         }),
     );
 
@@ -1457,6 +1448,7 @@ async function runClientCommand(
       webOrigins,
       postLogoutRedirectUris,
     });
+    if (needsServiceAccount(type, grantTypes)) await ensureServiceAccount(tx, client);
 
     return {
       command: 'client',

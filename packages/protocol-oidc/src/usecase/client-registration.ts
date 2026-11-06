@@ -1,6 +1,5 @@
 import { signingKeyRepository } from '@odudu/crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { subjectRepository } from '@odudu/domain-identity';
 import {
   clientRegistrationTokenRepository,
   clientRepository,
@@ -25,7 +24,9 @@ import {
   type RegistrationLimiter,
 } from '#/service/registration-throttle';
 import { parseLocalisedClientNames } from '#/service/localised-client-names';
+import { needsServiceAccount } from '#/service/service-account';
 import { idTokenAlgUnavailable } from '#/usecase/id-token-alg';
+import { ensureServiceAccount } from '#/usecase/service-account';
 
 export interface ClientRegistrationDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
@@ -140,26 +141,22 @@ async function performRegistration(
   // registration-time attempt that was reverted, and why.
   const type = clientType(metadata.tokenEndpointAuthMethod);
 
-  let serviceSubjectId: string | null = null;
-  if (type === 'confidential') {
-    const serviceSubject = await subjectRepository(tx).create({ tenantId, type: 'service' });
-    serviceSubjectId = serviceSubject.id;
-  }
-
   const clientSecret = type === 'confidential' ? generateClientSecret() : null;
   const secretHash = clientSecret === null ? null : await deps.hashClientSecret(clientSecret);
 
   const oauthClientId = newId();
-  const client = await clientRepository(tx).create({
+  const created = await clientRepository(tx).create({
     tenantId,
     clientId: oauthClientId,
     name: metadata.clientName ?? oauthClientId,
     nameI18n,
     type,
     secretHash,
-    serviceSubjectId,
     registrationOrigin: origin,
   });
+  const client = needsServiceAccount(type, metadata.grantTypes)
+    ? await ensureServiceAccount(tx, created)
+    : created;
 
   await provisionClientDefaults(tx, client.id);
   if (grant !== null) await assignMcpScope(tx, client.id, MCP_READ_SCOPE, 'optional');

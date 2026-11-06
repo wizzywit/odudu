@@ -25,10 +25,13 @@ const PUBLIC_NO_ACCOUNT = 'A public client has no service account.';
 const SIGN_IN_NO_ACCOUNT =
   "No service account. This client signs people in; it doesn't sign in as itself.";
 
-const IDLE_ACCOUNT =
-  'Not in use: the client credentials grant is off. The account keeps its roles.';
+const GRANT_OFF_NO_ACCOUNT =
+  'No service account: the client credentials grant is off. Turning it on creates one.';
 
-// An account outlives the grant that uses it, so turning the grant off leaves it idle.
+const IDLE_ACCOUNT =
+  'Not in use: the client credentials grant is off. The account keeps its roles until the grant is turned on and off again, which removes it.';
+
+// Switching the grant off removes the account, so an idle one is only an upgrade's leftover.
 export function accountIdleNote(
   client: Pick<Client, 'service_subject_id' | 'grant_types'>,
 ): string | null {
@@ -37,10 +40,12 @@ export function accountIdleNote(
 }
 
 // The built-in admin client signs people in whatever its type, and a public
-// client has none by kind. Any other client lost its account, which nothing restores.
-function noAccountNote(client: Pick<Client, 'type' | 'builtin_admin'>): string {
+// client has none by kind. A confidential client has one only while the grant
+// is on; with it on and none, the account was lost and nothing restores it.
+function noAccountNote(client: Pick<Client, 'type' | 'builtin_admin' | 'grant_types'>): string {
   if (client.builtin_admin) return SIGN_IN_NO_ACCOUNT;
-  return client.type === 'public' ? PUBLIC_NO_ACCOUNT : MISSING_ACCOUNT;
+  if (client.type === 'public') return PUBLIC_NO_ACCOUNT;
+  return client.grant_types.includes('client_credentials') ? MISSING_ACCOUNT : GRANT_OFF_NO_ACCOUNT;
 }
 
 // Whether the tab can say anything of the account: there is one, and the
@@ -49,7 +54,7 @@ export type ServiceAccess =
   { status: 'none'; note: string } | { status: 'denied' } | { status: 'ready'; subjectId: string };
 
 export function serviceAccess(
-  client: Pick<Client, 'service_subject_id' | 'type' | 'builtin_admin'>,
+  client: Pick<Client, 'service_subject_id' | 'type' | 'builtin_admin' | 'grant_types'>,
   authority: Authority | undefined,
 ): ServiceAccess {
   if (client.service_subject_id === null) return { status: 'none', note: noAccountNote(client) };

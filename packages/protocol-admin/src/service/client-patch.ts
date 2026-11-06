@@ -25,7 +25,10 @@ const REFUSALS: Readonly<Record<string, string>> = {
     'identity: changing it breaks every relying party and orphans the azp of every issued token',
   created_at: 'created_at is history',
   registration_origin: 'registration_origin is provenance; rewriting it falsifies a record',
-  service_subject_id: 'service_subject_id re-points role assignments and needs its own operation',
+  service_subject_id:
+    'service_subject_id follows the client_credentials grant: setting grant_types creates or retires the account',
+  service_account_idle:
+    'service_account_idle marks an account an upgrade left standing and is cleared when it is retired',
   secret_hash: 'secret_hash is rotated through its own endpoint',
   previous_secret_hash:
     'previous_secret_hash is kept by a rotation and cleared when its window ends',

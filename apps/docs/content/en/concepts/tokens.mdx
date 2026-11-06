@@ -54,7 +54,7 @@ Each client can set its own access and refresh lifetimes, with `access_token_ttl
 
 ## Machines have tokens too
 
-A service with no person involved asks for an access token with its own secret and receives one whose subject is the client's own service account. There is no ID token and no refresh token, because nobody signed in. See [Call an API as a service](../guides/machine-to-machine.md).
+A service with no person involved asks for an access token with its own secret and receives one whose subject is the client's own service account, which a client has only while it holds that grant. There is no ID token and no refresh token, because nobody signed in. See [Call an API as a service](../guides/machine-to-machine.md).
 
 ## Working with tokens
 

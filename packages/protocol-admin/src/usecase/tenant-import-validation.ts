@@ -33,10 +33,11 @@ import {
   tenantSettingProblems,
 } from '@odudu/domain-tenant';
 import {
+  type ClientMetadata,
   clientTokenTtlProblem,
+  discardsServiceAccountRoles,
   isWellFormedWebOrigin,
   parseClientMetadata,
-  type ClientMetadata,
 } from '@odudu/protocol-oidc';
 import { checkDescription } from '#/service/description';
 import { fieldPath } from '#/service/field-path';
@@ -583,12 +584,17 @@ function clientProblems(
         problems.add(`${path}.web_origins[${String(originIndex)}]`, 'is not an origin');
       }
     });
-    referenceProblems(
-      client.service_account_roles,
-      `${path}.service_account_roles`,
-      graph,
-      problems,
-    );
+    // A document from before accounts followed the grant may list roles for a
+    // confidential client without it; they are dropped, since no account is
+    // made for them and nothing could use them, so they are not checked.
+    if (!discardsServiceAccountRoles(client.type, client.grant_types)) {
+      referenceProblems(
+        client.service_account_roles,
+        `${path}.service_account_roles`,
+        graph,
+        problems,
+      );
+    }
     if (client.type === 'public' && client.service_account_roles.length > 0) {
       problems.add(`${path}.service_account_roles`, 'a public client has no service account');
     }
@@ -701,6 +707,7 @@ function invariantProblems(
     ceiling(scope.roles, `document.scopes[${String(index)}].roles`);
   });
   document.clients.forEach((client, index) => {
+    if (discardsServiceAccountRoles(client.type, client.grant_types)) return;
     ceiling(
       client.service_account_roles,
       `document.clients[${String(index)}].service_account_roles`,

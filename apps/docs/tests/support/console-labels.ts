@@ -234,6 +234,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Logout: clientTab('logout', 'Logout'),
   Advanced: clientTab('advanced', 'Advanced'),
   'Service account': clientTab('service', 'Service account'),
+  'Grant types': page('clients/services/sectionTitles.ts', "grants: 'Grant types'"),
   Members: several(pageTab('groups', 'members', 'Members'), pageTab('roles', 'members', 'Members')),
   Composites: pageTab('roles', 'composites', 'Composites'),
   'Claim mappers': pageTab('scopes', 'mappers', 'Claim mappers'),

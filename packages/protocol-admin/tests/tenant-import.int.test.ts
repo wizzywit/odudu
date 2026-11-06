@@ -32,7 +32,7 @@ import {
   clientOidcConfigRepository,
   tenantLookupRepository,
 } from '@odudu/protocol-oidc';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -305,6 +305,127 @@ describe('POST /admin/tenant-imports', () => {
       })),
     };
     expect(withoutRenamedFields(reexported)).toEqual(withoutRenamedFields(expected));
+  });
+
+  describe('service accounts', () => {
+    async function tenantWithAccounts(): Promise<{ name: string; token: string }> {
+      const t = await fixture.createTenant(`acct-${newId()}`);
+      const token = await operatorToken();
+      const make = async (clientId: string, grants: string[]): Promise<string> => {
+        const res = await fixture.http.inject({
+          method: 'POST',
+          url: `/admin/tenants/${t.name}/clients`,
+          headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+          payload: JSON.stringify({
+            client_id: clientId,
+            redirect_uris: ['https://app.example/cb'],
+            grant_types: grants,
+            token_endpoint_auth_method: 'client_secret_basic',
+          }),
+        });
+        expect(res.statusCode, res.payload).toBe(201);
+        return (
+          res.json<{ id: string; service_subject_id: string | null }>().service_subject_id ?? ''
+        );
+      };
+      const active = await make('active', ['authorization_code', 'client_credentials']);
+      const idle = await make('idle', ['authorization_code', 'client_credentials']);
+      await withTenant(fixture.app.db, t.id, async (tx) => {
+        const role = await roleRepository(tx).create({ tenantId: t.id, name: 'reader' });
+        await roleRepository(tx).assignToSubject(active, role.id);
+        await roleRepository(tx).assignToSubject(idle, role.id);
+        await tx.execute(
+          sql`update client_oidc_config set grant_types = ARRAY['authorization_code']
+               where client_id = (select id from clients where client_id = 'idle')`,
+        );
+        await tx.execute(
+          sql`update clients set service_account_idle = true where client_id = 'idle'`,
+        );
+      });
+      return { name: t.name, token };
+    }
+
+    it('exports roles for an account in use, none for an idle one, and names the omission', async () => {
+      const { name, token } = await tenantWithAccounts();
+      const document = await exportOf(token, name);
+      const roles = (clientId: string) =>
+        document.clients.find((client) => client.client_id === clientId)?.service_account_roles;
+      expect(roles('active')).toEqual([{ name: 'reader', client: null }]);
+      expect(roles('idle')).toEqual([]);
+      const index = document.clients.findIndex((client) => client.client_id === 'idle');
+      expect(document.omitted).toContain(`clients[${String(index)}].service_account_roles`);
+    });
+
+    it('imports its own export and exports the same document again', async () => {
+      const { name, token } = await tenantWithAccounts();
+      const original = await exportOf(token, name);
+      const copy = `import-${newId()}`;
+      const res = await postImport(token, { name: copy, document: original });
+      expect(res.statusCode, res.payload).toBe(201);
+      expect(withoutRenamedFields(await exportOf(token, copy))).toEqual(
+        withoutRenamedFields(original),
+      );
+    });
+
+    it('accepts a backup that lists roles for a client without the grant, and drops them', async () => {
+      const { name, token } = await tenantWithAccounts();
+      const original = await exportOf(token, name);
+      const legacy: TenantDocument = {
+        ...original,
+        clients: original.clients.map((client) =>
+          client.client_id === 'idle'
+            ? { ...client, service_account_roles: [{ name: 'reader', client: null }] }
+            : client,
+        ),
+      };
+      const copy = `import-${newId()}`;
+      const res = await postImport(token, { name: copy, document: legacy });
+      expect(res.statusCode, res.payload).toBe(201);
+      const again = await exportOf(token, copy);
+      expect(again.clients.find((c) => c.client_id === 'idle')?.service_account_roles).toEqual([]);
+    });
+
+    async function importWith(
+      clientId: string,
+      change: Partial<TenantDocument['clients'][number]>,
+    ): Promise<{ statusCode: number; paths: string[] }> {
+      const { name, token } = await tenantWithAccounts();
+      const original = await exportOf(token, name);
+      const edited: TenantDocument = {
+        ...original,
+        clients: original.clients.map((client) =>
+          client.client_id === clientId ? { ...client, ...change } : client,
+        ),
+      };
+      const res = await postImport(token, { name: `import-${newId()}`, document: edited });
+      const errors = res.statusCode === 400 ? (res.json<ImportRefusal>().errors ?? []) : [];
+      return { statusCode: res.statusCode, paths: errors.map((error) => error.path) };
+    }
+
+    it('drops a role a client without the grant lists even when the backup lost the role', async () => {
+      const outcome = await importWith('idle', {
+        service_account_roles: [{ name: 'deleted-long-ago', client: null }],
+      });
+      expect(outcome.statusCode).toBe(201);
+    });
+
+    it('still refuses a missing role listed for a client that holds the grant', async () => {
+      const outcome = await importWith('active', {
+        service_account_roles: [{ name: 'deleted-long-ago', client: null }],
+      });
+      expect(outcome.statusCode).toBe(400);
+      expect(outcome.paths.some((path) => path.endsWith('.service_account_roles[0]'))).toBe(true);
+    });
+
+    it('still refuses roles listed for a public client', async () => {
+      const outcome = await importWith('idle', {
+        type: 'public',
+        token_endpoint_auth_method: 'none',
+        service_account_roles: [{ name: 'reader', client: null }],
+      });
+      expect(outcome.statusCode).toBe(400);
+      expect(outcome.paths.some((path) => path.endsWith('.service_account_roles'))).toBe(true);
+    });
   });
 
   it('exports a tenant holding a metadata document client and a role it owns, and imports the document', async () => {

@@ -170,16 +170,36 @@ it('says a public client has no service account', async () => {
   expect(await screen.findByText('A public client has no service account.')).toBeVisible();
 });
 
-it('says a confidential client that lost its account has none, without saying why', async () => {
+it('says a confidential client that holds the grant but lost its account has none, without saying why', async () => {
   renderConsoleAt(
     AT,
     serviceRoutes([], {
-      [`GET ${C}/c-bill`]: json({ ...BILLING, service_subject_id: null }, 200, {
-        etag: '"c-bill-1"',
-      }),
+      [`GET ${C}/c-bill`]: json(
+        { ...BILLING, service_subject_id: null, grant_types: ['client_credentials'] },
+        200,
+        { etag: '"c-bill-1"' },
+      ),
     }),
   );
   expect(await screen.findByText('This client has no service account.')).toBeVisible();
+});
+
+it('says a confidential client without the grant has no account, and what creates one', async () => {
+  renderConsoleAt(
+    AT,
+    serviceRoutes([], {
+      [`GET ${C}/c-bill`]: json(
+        { ...BILLING, service_subject_id: null, grant_types: ['authorization_code'] },
+        200,
+        { etag: '"c-bill-1"' },
+      ),
+    }),
+  );
+  expect(
+    await screen.findByText(
+      'No service account: the client credentials grant is off. Turning it on creates one.',
+    ),
+  ).toBeVisible();
 });
 
 it('says the built-in admin client has no service account, by what the record says', async () => {
@@ -203,7 +223,7 @@ it('says the account is idle while the client credentials grant is off', async (
   await open();
   expect(
     screen.getByText(
-      'Not in use: the client credentials grant is off. The account keeps its roles.',
+      'Not in use: the client credentials grant is off. The account keeps its roles until the grant is turned on and off again, which removes it.',
     ),
   ).toBeVisible();
 });
