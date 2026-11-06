@@ -3,16 +3,13 @@ import { sql } from 'drizzle-orm';
 
 export function dynamicClientRepository(tx: TenantScopedDatabase) {
   return {
-    // The self-registered client that has waited longest and never did
-    // anything: enabled (a disabled one is an administrator's decision),
-    // never approved, no consent, no grant, no live code and no sign-in under
-    // way for it, the same rule `odudu reap` applies after a week. Walks
-    // clients_anonymous_by_created in order and stops at the first such row;
-    // the sign-in test is served by authentication_sessions_by_pending_client.
-    // Only a public client is offered, as `odudu reap` only removes one: a
-    // confidential anonymous client may be a working service integration with
-    // a service account that deleting it would leave behind, so at the ceiling
-    // with nothing but those left a registration is refused instead.
+    // The self-registered public client that has waited longest and never did
+    // anything: enabled, never approved, no consent, no grant, no live code and
+    // no sign-in under way, the rule `odudu reap` applies after a week. Walks
+    // clients_anonymous_by_created in order; the sign-in test is served by
+    // authentication_sessions_by_pending_client. A confidential one is never
+    // offered: it may be a working integration with a service account, so at
+    // the ceiling with only those left a registration is refused.
     async evictable(tenantId: string, now: Date): Promise<string | null> {
       const rows = await tx.execute<{ id: string }>(sql`
         SELECT c.id FROM clients c
