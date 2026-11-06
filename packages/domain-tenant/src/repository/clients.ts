@@ -174,6 +174,22 @@ export function clientRepository(tx: TenantScopedDatabase) {
       return toRecord(row);
     },
 
+    // The one write of `service_subject_id`: the account a grant switched on
+    // creates, or null once it is retired. It also ends the idle marker, which
+    // says an account outlived its grant and no longer does either way.
+    async setServiceSubject(id: string, serviceSubjectId: string | null): Promise<ClientRecord> {
+      const rows = await tx
+        .update(clients)
+        .set({ serviceSubjectId, serviceAccountIdle: false })
+        .where(eq(clients.id, id))
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new Error(`client ${id} not found while setting its service account`);
+      }
+      return toRecord(row);
+    },
+
     // Cascades to `client_oidc_config` (client_oidc_config.clientId
     // references clients.id ON DELETE CASCADE) — nothing here deletes the
     // config row a second time.

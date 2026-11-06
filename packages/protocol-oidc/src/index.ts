@@ -1196,6 +1196,8 @@ export {
 } from '#/usecase/mint-agent-token';
 export { type AgentTokenRefusal } from '#/service/agent-token-rules';
 export { AGENT_TOKEN_MAX_TTL_SECONDS } from '#/service/mcp-scopes';
+export { CLIENT_CREDENTIALS_GRANT, needsServiceAccount } from '#/service/service-account';
+export { ensureServiceAccount, retireServiceAccount } from '#/usecase/service-account';
 export {
   EXCHANGE_UPGRADE_COUNT_CAP,
   EXCHANGE_UPGRADE_SAMPLE_LIMIT,
