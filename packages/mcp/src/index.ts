@@ -13,3 +13,4 @@ export { newRequestScope, type AdminBearer, type RequestScope } from '#/service/
 export type { McpCallDeps, McpDeps, McpLogger } from '#/service/deps';
 export type { ValidatedMcpToken } from '#/service/validated-token';
 export type { AdminCaller, AdminRequestSpec, AdminResult } from '#/service/tool';
+export { ToolProblem } from '#/service/tool';

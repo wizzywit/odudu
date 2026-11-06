@@ -1,5 +1,6 @@
 import { AgentTokenRefused, MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '@odudu/protocol-oidc';
 import { type AdminBearer } from '#/service/request-scope';
+import { insufficientScopeProblem } from '#/service/admin-access';
 import type { McpCallDeps } from '#/service/deps';
 import { ToolProblem } from '#/service/tool';
 import type { ValidatedMcpToken } from '#/service/validated-token';
@@ -17,11 +18,7 @@ export async function exchangeForAdmin(
 ): Promise<AdminBearer> {
   const held = new Set(token.scope);
   if (scope.length === 0 || !scope.every((s) => MCP_SCOPES.includes(s) && held.has(s))) {
-    throw new ToolProblem(
-      'mcp:insufficient_scope',
-      'The access token does not carry the scope this call needs',
-      403,
-    );
+    throw insufficientScopeProblem();
   }
   const key = `${token.grantId} ${[...scope].sort().join(' ')}`;
   const now = deps.now();

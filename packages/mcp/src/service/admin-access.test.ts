@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { accessOf, scopeFor } from '#/service/admin-access';
+import { ToolProblem } from '#/service/tool';
 import { tokenOf } from '#/testing/token';
 
 describe('the access an admin call needs', () => {
@@ -14,9 +15,9 @@ describe('the access an admin call needs', () => {
     expect(scopeFor(token, 'write')).toEqual(['mcp:write']);
   });
 
-  it('is null when the presented token lacks the scope', () => {
+  it('is refused when the presented token lacks the scope', () => {
     const token = tokenOf({ scope: ['mcp:read'] });
-    expect(scopeFor(token, 'write')).toBeNull();
-    expect(scopeFor(tokenOf({ scope: ['mcp:write'] }), 'read')).toBeNull();
+    expect(() => scopeFor(token, 'write')).toThrow(ToolProblem);
+    expect(() => scopeFor(tokenOf({ scope: ['mcp:write'] }), 'read')).toThrow(ToolProblem);
   });
 });
