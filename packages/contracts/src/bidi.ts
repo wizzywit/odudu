@@ -39,3 +39,11 @@ export function stripBidiControls(value: string): string {
 export function noBidiControls<T extends z.ZodString>(schema: T): T {
   return schema.regex(BIDI_FREE_PATTERN, { error: BIDI_REFUSED_MESSAGE });
 }
+
+// PostgreSQL `text` cannot hold U+0000, so a name or a description carrying one
+// would be a server error at the write instead of a refusal at the request.
+export const NUL_REFUSED_MESSAGE = 'must not contain a NUL (U+0000) character';
+
+export function containsNul(value: string): boolean {
+  return value.includes('\u0000');
+}

@@ -1,4 +1,9 @@
-import { containsBidiControl, BIDI_REFUSED_MESSAGE } from '#/bidi';
+import {
+  containsBidiControl,
+  containsNul,
+  BIDI_REFUSED_MESSAGE,
+  NUL_REFUSED_MESSAGE,
+} from '#/bidi';
 import { canonicalLocale } from '#/profile-claims';
 
 /** The most languages one text carries; the tenant's own list is held to the same number. */
@@ -36,6 +41,7 @@ function checkEntry(
   if (text.length > options.max) {
     return `${field} values must be at most ${String(options.max)} characters`;
   }
+  if (containsNul(text)) return `${field} values ${NUL_REFUSED_MESSAGE}`;
   const held = options.current === undefined ? undefined : options.current[tag];
   if (text !== held && containsBidiControl(text)) {
     return `${field} values ${BIDI_REFUSED_MESSAGE}`;

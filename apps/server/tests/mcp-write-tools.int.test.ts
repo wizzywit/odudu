@@ -406,3 +406,39 @@ describe('what the token decides', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('text the database cannot hold', () => {
+  it('is a 400 from the admin API itself, for a client and for a scope, and changes nothing', async () => {
+    const w = await stack.world(OWNER_CAPS, WRITE);
+    const caller = stack.unguardedCaller(w, ['mcp:read', 'mcp:write']);
+    const id = (await portal(w)).id;
+    const scopes = await caller.call({
+      method: 'GET',
+      pattern: '/admin/tenants/:tenant/scopes',
+      params: {},
+      query: { limit: '50' },
+    });
+    const scopeId = (scopes.body as { items: { id: string; name: string }[] }).items.find(
+      (s) => s.name === 'profile',
+    )?.id;
+    if (scopeId === undefined) throw new Error('no profile scope');
+    const before = await clientRow(w, id);
+    for (const [pattern, target, body] of [
+      ['/admin/tenants/:tenant/clients/:id', id, { description: 'a\u0000b' }],
+      ['/admin/tenants/:tenant/clients/:id', id, { name: 'a\u0000b' }],
+      ['/admin/tenants/:tenant/clients/:id', id, { name_i18n: { en: 'a\u0000b' } }],
+      ['/admin/tenants/:tenant/scopes/:id', scopeId, { description: 'a\u0000b' }],
+      ['/admin/tenants/:tenant/scopes/:id', scopeId, { description_i18n: { en: 'a\u0000b' } }],
+    ] as const) {
+      const res = await caller.call({
+        method: 'PATCH',
+        pattern,
+        params: { id: target },
+        query: {},
+        body,
+      });
+      expect(res.status, JSON.stringify(body)).toBe(400);
+    }
+    expect(await clientRow(w, id)).toEqual(before);
+  });
+});

@@ -1,4 +1,9 @@
-import { BIDI_REFUSED_MESSAGE, refusesBidi } from '@odudu/contracts';
+import {
+  BIDI_REFUSED_MESSAGE,
+  containsNul,
+  NUL_REFUSED_MESSAGE,
+  refusesBidi,
+} from '@odudu/contracts';
 import {
   type AssignScopeToClientResponse,
   type ClientScope,
@@ -454,6 +459,13 @@ export async function amendScope(
         kind: 'invalid_value',
         field: 'description',
         description: `description must be at most ${String(DESCRIPTION_MAX)} characters`,
+      };
+    }
+    if (typeof value === 'string' && containsNul(value)) {
+      return {
+        kind: 'invalid_value',
+        field: 'description',
+        description: `description ${NUL_REFUSED_MESSAGE}`,
       };
     }
     if (refusesBidi(value, locked.description)) {

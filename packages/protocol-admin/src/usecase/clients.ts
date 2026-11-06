@@ -1,4 +1,10 @@
-import { BIDI_REFUSED_MESSAGE, checkLocalisedText, refusesBidi } from '@odudu/contracts';
+import {
+  BIDI_REFUSED_MESSAGE,
+  checkLocalisedText,
+  containsNul,
+  NUL_REFUSED_MESSAGE,
+  refusesBidi,
+} from '@odudu/contracts';
 import {
   type ADMIN_CAPABILITIES,
   CLIENT_LIST_LIMIT,
@@ -1063,6 +1069,9 @@ function checkedAdminFields(
   if ('name' in values) {
     const checked = checkedString('name', values.name);
     if (isFieldError(checked)) return checked;
+    if (containsNul(checked)) {
+      return { field: 'name', description: `name ${NUL_REFUSED_MESSAGE}` };
+    }
     if (refusesBidi(checked, stored?.name)) {
       return { field: 'name', description: BIDI_REFUSED_MESSAGE };
     }

@@ -181,6 +181,8 @@ export function describeWriteTool(spec: WriteToolCase): void {
       const cases: Record<string, unknown>[] = [
         { description: 'x'.repeat(1_001) },
         { description: 'bidi‮override' },
+        { description: 'a\u0000b' },
+        { description_i18n: { en: 'a\u0000b' } },
         { description_i18n: Object.fromEntries(langs(33).map((tag) => [tag, 'x'])) },
         { description_i18n: { 'not a tag!': 'x' } },
         { description_i18n: { en: 'x'.repeat(1_001) } },

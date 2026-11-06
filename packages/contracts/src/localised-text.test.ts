@@ -4,6 +4,10 @@ import { checkLocalisedText, LOCALISED_TEXT_ENTRIES_MAX, lookupLocalised } from 
 const OPTIONS = { max: 20 } as const;
 
 describe('checkLocalisedText', () => {
+  it('refuses a NUL, which a text column cannot hold', () => {
+    expect(checkLocalisedText('name_i18n', { fr: 'a\u0000b' }, OPTIONS).kind).toBe('invalid');
+  });
+
   it('accepts a map and spells its keys canonically', () => {
     expect(checkLocalisedText('name_i18n', { fr: 'Mon app', 'pt-br': 'Meu app' }, OPTIONS)).toEqual(
       { kind: 'ok', value: { fr: 'Mon app', 'pt-BR': 'Meu app' } },

@@ -1,4 +1,4 @@
-import { LOCALISED_TEXT_ENTRIES_MAX, noBidiControls } from '@odudu/contracts';
+import { LOCALISED_TEXT_ENTRIES_MAX, noBidiControls, NUL_REFUSED_MESSAGE } from '@odudu/contracts';
 import { CLIENT_NAME_MAX, DESCRIPTION_MAX } from '@odudu/contracts/admin';
 import type { AdminCapability } from '@odudu/protocol-admin';
 import { z } from 'zod';
@@ -19,6 +19,12 @@ import {
 // each within bounds is refused as an argument and never as a failure.
 const BODY_BUDGET_BYTES = 60_000;
 
+// Text a person reads: no bidirectional control and no NUL, which a text column
+// cannot hold. A pattern, so the schema a client lists carries it.
+function text(schema: z.ZodString): z.ZodString {
+  return noBidiControls(schema).regex(/^[^\u0000]*$/u, { error: `text ${NUL_REFUSED_MESSAGE}` });
+}
+
 const TAG_PATTERN = /^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8}){0,4}$/;
 
 export const ifMatchField = z
@@ -27,11 +33,11 @@ export const ifMatchField = z
   .regex(ETAG_PATTERN, { message: 'must be one quoted ETag, as the read returned it' })
   .describe('The etag of the previous read of this resource, with its quotes.');
 
-export const nameField = noBidiControls(z.string().min(1).max(CLIENT_NAME_MAX)).describe(
+export const nameField = text(z.string().min(1).max(CLIENT_NAME_MAX)).describe(
   `The display name, at most ${String(CLIENT_NAME_MAX)} characters.`,
 );
 
-export const descriptionField = noBidiControls(z.string().min(1).max(DESCRIPTION_MAX))
+export const descriptionField = text(z.string().min(1).max(DESCRIPTION_MAX))
   .nullable()
   .describe(`The description, at most ${String(DESCRIPTION_MAX)} characters; null clears it.`);
 
@@ -41,7 +47,7 @@ export function localisedField(max: number, what: string): z.ZodType<Record<stri
   return z
     .record(
       z.string().max(35).regex(TAG_PATTERN, { message: 'must be a language tag' }),
-      noBidiControls(z.string().min(1).max(max)),
+      text(z.string().min(1).max(max)),
     )
     .refine((map) => Object.keys(map).length <= LOCALISED_TEXT_ENTRIES_MAX, {
       message: `at most ${String(LOCALISED_TEXT_ENTRIES_MAX)} languages`,
