@@ -45,7 +45,7 @@ test("a tenant administrator's overview says what needs attention and links its 
     /\d+ subjects?/u,
   );
   await expect(counts.getByRole('listitem').filter({ hasText: 'Clients' })).toContainText(
-    'allowed',
+    /\d+ of \d+ made by administrators or tokens/u,
   );
   await expect(page.getByRole('link', { name: 'Open the audit trail' })).toBeVisible();
   await expectAccessible(page);
