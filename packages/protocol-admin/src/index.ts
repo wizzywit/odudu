@@ -937,6 +937,7 @@ function buildAdminRoutes(
       authz: authzDeps,
       clock,
       database: deps.database.db,
+      poolMax: deps.database.sql.options.max,
     });
 
     deps.logger.debug({}, 'protocol-admin registered its admin routes');

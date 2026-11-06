@@ -33,6 +33,7 @@ import {
   sendProblem,
 } from '#/view/problem';
 import { sendIdempotent } from '#/view/routes/idempotent-route';
+import { createKeyedGate, keyedLimitFor, type KeyedGate } from '#/view/routes/keyed-gate';
 import { adminTx } from '#/view/routes/admin-tx';
 
 // Optional: `/admin/tenants` itself carries no `:tenant` segment (see
@@ -65,6 +66,8 @@ export interface AdminRouterDeps {
   readonly authz: AuthorizeAdminDeps;
   readonly clock: Clock;
   readonly database: Database;
+  // The serving pool's size, which bounds how many keyed calls run at once.
+  readonly poolMax: number;
 }
 
 /** Keyed by `"<method> <pattern>"`, exactly matching an `ADMIN_ROUTES` entry. */
@@ -234,6 +237,7 @@ async function handleRoute(
   deps: AdminRouterDeps,
   request: AdminRequest,
   reply: FastifyReply,
+  gate: KeyedGate,
 ): Promise<FastifyReply> {
   const granted = GRANTED.get(request) ?? (await authorizeRoute(route, deps, request, reply));
   if (granted === null) return reply;
@@ -245,7 +249,7 @@ async function handleRoute(
       return reply;
     }
   }
-  return answerRoute(route, handler, deps, request, reply, granted);
+  return answerRoute(route, handler, deps, request, reply, granted, gate);
 }
 
 // A POST that names an `Idempotency-Key` runs once and is answered from its
@@ -257,24 +261,29 @@ function answerRoute(
   request: AdminRequest,
   reply: FastifyReply,
   granted: Granted,
+  gate: KeyedGate,
 ): FastifyReply | Promise<FastifyReply> {
   const run = () => handler(request, reply, granted.principal, granted.tenantId);
   if (!idempotentMethod(route.method)) return run();
   const header = idempotencyKeyOf(request.headers['idempotency-key']);
   if (header.kind === 'absent') return run();
   if (header.kind === 'invalid') return sendProblem(reply, request, idempotencyKeyInvalid());
-  if (route.oneTimeSecret === true) return sendProblem(reply, request, idempotencyUnsupported());
-  return sendIdempotent({
-    database: deps.database,
-    request,
-    reply,
-    route,
-    tenantId: granted.tenantId,
-    principal: granted.principal,
-    key: header.key,
-    now: deps.clock.now(),
-    run,
-  });
+  if (route.noIdempotency !== undefined) {
+    return sendProblem(reply, request, idempotencyUnsupported(route.noIdempotency));
+  }
+  return gate.run(() =>
+    sendIdempotent({
+      database: deps.database,
+      request,
+      reply,
+      route,
+      tenantId: granted.tenantId,
+      principal: granted.principal,
+      key: header.key,
+      now: deps.clock.now(),
+      run,
+    }),
+  );
 }
 
 // Before the body of a JSON route is read or checked: who is asking, and
@@ -376,6 +385,7 @@ export function registerAdminRoutes(
   deps: AdminRouterDeps,
 ): void {
   const unclaimed = new Set(Object.keys(handlers));
+  const gate = createKeyedGate(keyedLimitFor(deps.poolMax));
 
   for (const route of ADMIN_ROUTES) {
     const key = routeKey(route.method, route.pattern);
@@ -397,7 +407,7 @@ export function registerAdminRoutes(
         ...(route.bodySchema !== undefined ? { body: route.bodySchema } : {}),
       },
       handler: (request: AdminRequest, reply: FastifyReply) =>
-        handleRoute(route, handler, deps, request, reply),
+        handleRoute(route, handler, deps, request, reply, gate),
     };
     // Every admin response is specific to its caller, and several carry a
     // secret shown once; set before validation, so a refusal carries it too.

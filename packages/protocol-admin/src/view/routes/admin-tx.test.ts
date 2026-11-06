@@ -1,6 +1,9 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { type TenantScopedDatabase } from '@odudu/db';
+import { type FastifyRequest } from 'fastify';
 import { describe, expect, it } from 'vitest';
+import { afterCommit, withRequestTransaction } from '#/view/routes/admin-tx';
 
 const VIEW_DIR = join(import.meta.dirname, '..');
 
@@ -51,5 +54,31 @@ describe('the view layer never imports withTenant except through adminTx', () =>
       .map((f) => f.path.slice(VIEW_DIR.length + 1));
 
     expect(offenders, 'a file under src/view/ imports withTenant instead of adminTx').toEqual([]);
+  });
+});
+
+describe('afterCommit', () => {
+  const request = {} as unknown as FastifyRequest;
+  const tx = {} as unknown as TenantScopedDatabase;
+
+  it('runs an effect at once when no request transaction is open', () => {
+    let ran = 0;
+    afterCommit(request, () => {
+      ran += 1;
+    });
+    expect(ran).toBe(1);
+  });
+
+  it('holds an effect back for a request transaction until the caller runs it', async () => {
+    let ran = 0;
+    const { after } = await withRequestTransaction(request, 'tenant', tx, () => {
+      afterCommit(request, () => {
+        ran += 1;
+      });
+      return Promise.resolve();
+    });
+    expect(ran).toBe(0);
+    for (const effect of after) effect();
+    expect(ran).toBe(1);
   });
 });

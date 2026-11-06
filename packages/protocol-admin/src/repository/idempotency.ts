@@ -2,9 +2,9 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { and, eq, gt, lte, sql } from 'drizzle-orm';
 import { idempotencyKeys } from '#/schema/idempotency-keys';
 
-// The first key of the two-integer advisory locks this repository takes, so
-// they cannot meet a lock another subsystem keys on a single value.
-const KEY_LOCK = 20_261_105;
+// The first integer of the capacity lock, which cannot meet a lock another
+// subsystem keys on a single value. The per-key lock is a 64-bit hash of a
+// text that begins `idempotency:`.
 const CAPACITY_LOCK = 20_261_106;
 
 export interface IdempotentResponse {
@@ -40,8 +40,7 @@ export function idempotencyRepository(tx: TenantScopedDatabase) {
     async tryLockKey(tenantId: string, key: string, route: string): Promise<boolean> {
       const rows = await tx.execute(
         sql`select pg_try_advisory_xact_lock(
-              ${KEY_LOCK}::int,
-              hashtext(${tenantId}::text || ':' || ${key}::text || ':' || ${route}::text)) as got`,
+              hashtextextended('idempotency:' || ${tenantId}::text || ':' || ${key}::text || ':' || ${route}::text, 0)) as got`,
       );
       return (rows as unknown as LockRow[])[0]?.got === true;
     },

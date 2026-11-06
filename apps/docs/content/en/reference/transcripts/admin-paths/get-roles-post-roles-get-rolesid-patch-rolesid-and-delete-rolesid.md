@@ -325,7 +325,7 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ## Retrying a create with an Idempotency-Key
 
 An agent or a script that never hears an answer cannot tell whether a create arrived, and sending it again may
-create the role twice. Every `POST` therefore takes an `Idempotency-Key` header (1 to 255 letters, digits and
+create the role twice. The `POST` routes therefore take an `Idempotency-Key` header (all but the few below) (1 to 255 letters, digits and
 `_ . : -`; a UUID is the usual choice). The first call with a key runs. A repeat of it within 24 hours is answered with
 the same status, the same body and the same `ETag`, marked `Idempotent-Replayed: true`, without running again and
 without a second audit row. The record is written in the transaction of the call it records, so one exists only for a
@@ -490,6 +490,33 @@ Keep-Alive: timeout=72
 {"type":"about:blank#idempotency-unsupported","title":"Bad Request","status":400,"detail":"this route answers with a secret shown once, which is never stored, so it takes no Idempotency-Key; repeat it without one","instance":"01a1adf9-2dd6-722b-995b-5adb55849d30"}
 ```
 
+Creating a tenant takes no key either, for a different reason: it writes outside the transaction a record of the call would
+share, so a record could not prove the call happened. It is refused with `400` (`about:blank#idempotency-not-atomic`) and
+creates nothing; a repeat of a create that already happened is answered `409`. This one ran on a second freshly built stack,
+`odudu-p5a-i6b`, with a token got as above:
+
+```bash
+curl -sS -D - -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 3e2f8a10-5c4b-4d7e-9f61-0a8b7c6d5e41" \
+  -d '{"name": "idem-demo"}' \
+  http://localhost:3000/admin/tenants
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a1ae19-add4-7c3e-b9a0-4f4c17ef1133
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 296
+Date: Thu, 05 Nov 2026 23:44:40 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank#idempotency-not-atomic","title":"Bad Request","status":400,"detail":"this route writes outside the transaction a record would share, so it takes no Idempotency-Key; a repeat of a create that already happened is answered 409","instance":"01a1ae19-add4-7c3e-b9a0-4f4c17ef1133"}
+```
+
 What the server kept, read as the database owner and scoped to the tenant: one row, for the one call that
 succeeded, kept for a day.
 
@@ -511,5 +538,5 @@ A tenant holds at most 10,000 keys that have not expired, past which a new key i
 (`about:blank#idempotency-capacity`), and a response over 64 KiB is refused with `422`
 (`about:blank#idempotency-response-too-large`) and undone. Two calls with one key at the same instant are not
 shown here, since which of them meets the other is a matter of timing: the one that arrives while the first runs is
-answered `409` (`about:blank#idempotency-in-flight`), and the next is replayed; the integration tests hold a call
+answered `409` (`about:blank#idempotency-in-flight`), and the next is replayed. A stored response is a copy of the one sent, kept 24 hours; it can hold subject data and erasing the subject does not purge it; the integration tests hold a call
 open to show it. [Retention](../request-paths/retention-what-odudu-reap-removes.md) shows the keys being deleted.

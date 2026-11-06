@@ -123,13 +123,20 @@ export function idempotencyKeyInvalid(): Problem {
   );
 }
 
-export function idempotencyUnsupported(): Problem {
-  return problem(
-    400,
-    'about:blank#idempotency-unsupported',
-    'Bad Request',
-    'this route answers with a secret shown once, which is never stored, so it takes no Idempotency-Key; repeat it without one',
-  );
+export function idempotencyUnsupported(reason: 'secret' | 'not-atomic'): Problem {
+  return reason === 'secret'
+    ? problem(
+        400,
+        'about:blank#idempotency-unsupported',
+        'Bad Request',
+        'this route answers with a secret shown once, which is never stored, so it takes no Idempotency-Key; repeat it without one',
+      )
+    : problem(
+        400,
+        'about:blank#idempotency-not-atomic',
+        'Bad Request',
+        'this route writes outside the transaction a record would share, so it takes no Idempotency-Key; a repeat of a create that already happened is answered 409',
+      );
 }
 
 export function idempotencyKeyReused(): Problem {

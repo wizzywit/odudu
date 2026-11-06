@@ -76,14 +76,23 @@ const IDEMPOTENCY_KEY_PARAMETER = {
     'read again. 1 to 255 letters, digits and `_ . : -`, scoped to the tenant, the route and the ' +
     'caller. The same key with another request is refused with `422`, one still running with ' +
     '`409`, and a tenant holds at most 10,000 live keys (`429`). A refusal or failure is not ' +
-    'kept, so a retry runs.',
+    'kept, so a retry runs. The record is a copy of the 2xx response, subject data included, kept ' +
+    '24 hours and not purged by erasing the subject. A call undone by the capacity or size limit ' +
+    'undoes its database work only, not a side effect such as a test mail.',
   schema: { type: 'string', minLength: 1, maxLength: 255, pattern: '^[A-Za-z0-9_.:-]+$' },
 };
 
-const ONE_TIME_SECRET =
-  'Takes no `Idempotency-Key`: the response carries a secret shown once, which is never ' +
-  'stored, so a request naming one is refused with `400` (`about:blank#idempotency-unsupported`) ' +
-  'and nothing is applied.';
+const NO_IDEMPOTENCY = {
+  secret:
+    'Takes no `Idempotency-Key`: the response carries a secret shown once, which is never ' +
+    'stored, so a request naming one is refused with `400` (`about:blank#idempotency-unsupported`) ' +
+    'and nothing is applied.',
+  'not-atomic':
+    'Takes no `Idempotency-Key`: the tenant is created outside the transaction a record of the ' +
+    'call would share, so a request naming one is refused with `400` ' +
+    '(`about:blank#idempotency-not-atomic`) and nothing is applied. A repeat of a create that ' +
+    'already happened is answered `409`.',
+} as const;
 
 const BEARER_SECURITY_SCHEME = {
   type: 'http',
@@ -193,12 +202,12 @@ function operationFor(route: AdminRoute): OpenApiOperation {
           : `Requires the "${route.capability}" capability, or ${route.alsoAdmits
               .map((also) => `"${also}"`)
               .join(' or ')}.`,
-    ...(route.description === undefined && route.oneTimeSecret !== true
+    ...(route.description === undefined && route.noIdempotency === undefined
       ? {}
       : {
           description: [
             route.description,
-            route.oneTimeSecret === true ? ONE_TIME_SECRET : undefined,
+            route.noIdempotency === undefined ? undefined : NO_IDEMPOTENCY[route.noIdempotency],
           ]
             .filter((part) => part !== undefined)
             .join(' '),
@@ -206,7 +215,7 @@ function operationFor(route: AdminRoute): OpenApiOperation {
     parameters: [
       ...pathParametersFor(route.pattern),
       ...queryParametersFor(route.querystringSchema),
-      ...(idempotentMethod(route.method) && route.oneTimeSecret !== true
+      ...(idempotentMethod(route.method) && route.noIdempotency === undefined
         ? [{ $ref: '#/components/parameters/IdempotencyKey' }]
         : []),
     ],

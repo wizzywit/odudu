@@ -277,6 +277,10 @@ export interface AdminFixtureOptions {
   readonly domainsTls?: boolean;
   /** Replaces the verify throttle, for a test that needs it loose or tight. */
   readonly verifyThrottle?: VerifyThrottle;
+  /** The serving pool's size; a test of what a request holds while it waits for a connection sets it small. */
+  readonly poolMax?: number;
+  /** Opens the serving pool, where a test needs to watch what it sends. */
+  readonly openApp?: (url: string) => DatabaseHandle;
 }
 
 function noRecord(): Error {
@@ -290,7 +294,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
   const owner = createDatabase(container.adminUrl);
   await runMigrations(owner.db, MIGRATIONS_DIR);
   const appUrl = await createAppRole(container.adminUrl);
-  const app = createDatabase(appUrl, { max: 5 });
+  const app = options.openApp?.(appUrl) ?? createDatabase(appUrl, { max: options.poolMax ?? 5 });
 
   const clock = new FakeClock(new Date(Math.floor(Date.now() / 1000) * 1000));
   // A code expires at `clock` plus its lifetime but is redeemed against the

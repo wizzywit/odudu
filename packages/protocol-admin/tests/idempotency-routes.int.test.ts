@@ -294,6 +294,26 @@ describe('a route whose response carries a secret shown once', () => {
   });
 });
 
+describe('POST /admin/tenants', () => {
+  it('refuses the key, since it writes outside the transaction a record would share', async () => {
+    const token = await fixture.systemAdminToken([...TENANT_CAPABILITIES, 'manage-tenants']);
+    const name = `made-${newId()}`;
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenants',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        'idempotency-key': `k-${newId()}`,
+      },
+      payload: JSON.stringify({ name }),
+    });
+    expect(res.statusCode).toBe(400);
+    expect(problemType(res)).toBe('about:blank#idempotency-not-atomic');
+    expect(await count(sql`select count(*)::int as n from tenants where name = ${name}`)).toBe(0);
+  });
+});
+
 describe('a PUT, PATCH or DELETE', () => {
   it('ignores the header altogether, even one that would be refused on a POST', async () => {
     const { t, token } = await world();
@@ -350,6 +370,7 @@ describe('the OpenAPI document', () => {
     }
     expect(carrying.length).toBeGreaterThan(20);
     expect(carrying).not.toContain('post /admin/tenants/{tenant}/registration-tokens');
+    expect(carrying).not.toContain('post /admin/tenants');
     expect(carrying).toContain('post /admin/tenants/{tenant}/roles');
   });
 });

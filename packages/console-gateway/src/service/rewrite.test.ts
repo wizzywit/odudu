@@ -105,6 +105,10 @@ describe('forwardedRequestHeaders', () => {
     });
   });
 
+  it('drops Idempotency-Key: the console sends none, and direct admin API callers are who use it', () => {
+    expect(forwardedRequestHeaders({ 'idempotency-key': 'k-1' })).toEqual({});
+  });
+
   it('omits a header the browser did not send', () => {
     expect(forwardedRequestHeaders({ accept: undefined })).toEqual({});
   });

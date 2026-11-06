@@ -12,6 +12,7 @@ interface RequestTransaction {
   readonly tenantId: string;
   readonly tx: TenantScopedDatabase;
   joined: boolean;
+  readonly after: (() => void)[];
 }
 
 const OPEN = new WeakMap<FastifyRequest, RequestTransaction>();
@@ -27,15 +28,27 @@ export async function withRequestTransaction<T>(
   tenantId: string,
   tx: TenantScopedDatabase,
   fn: () => Promise<T>,
-): Promise<{ value: T; joined: boolean }> {
-  const open: RequestTransaction = { tenantId, tx, joined: false };
+): Promise<{ value: T; joined: boolean; after: readonly (() => void)[] }> {
+  const open: RequestTransaction = { tenantId, tx, joined: false, after: [] };
   OPEN.set(request, open);
   try {
     const value = await fn();
-    return { value, joined: open.joined };
+    return { value, joined: open.joined, after: open.after };
   } finally {
     OPEN.delete(request);
   }
+}
+
+/**
+ * Runs `effect` once what the request wrote is committed: at once for a
+ * request with no transaction held open for it, and after the commit for one
+ * that has (a keyed call), so what it drops from a cache cannot be filled
+ * again from the data it replaces. Dropped when the call is undone.
+ */
+export function afterCommit(request: FastifyRequest, effect: () => void): void {
+  const open = OPEN.get(request);
+  if (open === undefined) effect();
+  else open.after.push(effect);
 }
 
 /**

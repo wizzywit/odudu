@@ -290,6 +290,13 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
       'registration token), which the server never stores, so there is nothing to replay. ' +
       'Nothing was applied; repeat the request without the header.',
   },
+  'idempotency-not-atomic': {
+    status: 400,
+    summary:
+      'The route (creating a tenant) writes outside the transaction a record of the call would ' +
+      'share, so a record could not prove the call happened. It takes no `Idempotency-Key`; ' +
+      'nothing was applied. A repeat of a create that already happened is answered `409`.',
+  },
   'idempotency-key-reused': {
     status: 422,
     summary:

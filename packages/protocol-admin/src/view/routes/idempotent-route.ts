@@ -105,6 +105,7 @@ export async function sendIdempotent(call: IdempotentCall): Promise<FastifyReply
   const { request, reply, route, tenantId, principal } = call;
   const held = holdSend(reply);
   let heldPayload: unknown;
+  let after: readonly (() => void)[] = [];
   let result: IdempotencyResult;
   try {
     result = await adminTx(call.database, request, tenantId, (tx) =>
@@ -128,6 +129,7 @@ export async function sendIdempotent(call: IdempotentCall): Promise<FastifyReply
           const ran = await withRequestTransaction(request, tenantId, tx, async () => {
             await call.run();
           });
+          after = ran.after;
           heldPayload = held.taken()?.payload;
           const serialised = serialise(heldPayload);
           const headers = replayedHeaders(reply.getHeaders());
@@ -159,6 +161,7 @@ export async function sendIdempotent(call: IdempotentCall): Promise<FastifyReply
 
   if (result.kind === 'stored') return replay(reply, result.response);
   if (result.kind !== 'fresh') return answerRefused(reply, request, result);
+  for (const effect of after) effect();
   if (!result.stored) return reply.send(heldPayload);
   const { body, headers } = result.response;
   if (headers['content-type'] !== undefined) reply.header('content-type', headers['content-type']);

@@ -75,6 +75,7 @@ const EMITTABLE_PROBLEM_TYPES = new Set([
   'about:blank#domain-verify-throttled',
   'about:blank#idempotency-key-invalid',
   'about:blank#idempotency-unsupported',
+  'about:blank#idempotency-not-atomic',
   'about:blank#idempotency-key-reused',
   'about:blank#idempotency-in-flight',
   'about:blank#idempotency-capacity',

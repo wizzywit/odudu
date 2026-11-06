@@ -139,7 +139,7 @@ Full transcript: [POST …/subjects, refused as cross-site](../reference/transcr
 
 ## 8. A request sent twice
 
-A client that never hears an answer to a create cannot tell whether it arrived. Every admin `POST` takes an `Idempotency-Key`: the first call with a key runs, and a repeat is answered from the first without running again. This is the same command as the first call, sent a second time.
+A client that never hears an answer to a create cannot tell whether it arrived. Admin `POST` routes take an `Idempotency-Key` (the few that answer a secret shown once, and creating a tenant, refuse it): the first call with a key runs, and a repeat is answered from the first without running again. This is the same command as the first call, sent a second time.
 
 ```bash
 curl -sS -D - -X POST \
@@ -171,7 +171,7 @@ The answer is the first call's, with `idempotent-replayed: true`, and one role a
 {"type":"about:blank#idempotency-key-reused","title":"Unprocessable Content","status":422,"detail":"this Idempotency-Key was used for a different request; use a new key for a new request","instance":"01a1adf9-2d7e-79a0-8d07-26c7bb15196f"}
 ```
 
-What to do: use a new key for each new request, and the same key only to repeat one. A refusal or a failure is not kept, so a request that failed can be sent again with its key.
+What to do: use a new key for each new request, and the same key only to repeat one. A refusal or a failure is not kept, so a request that failed can be sent again with its key. A stored answer is a copy of the response, kept for 24 hours.
 
 Full transcript: [Retrying a create with an Idempotency-Key](../reference/transcripts/admin-paths/get-roles-post-roles-get-rolesid-patch-rolesid-and-delete-rolesid.md#retrying-a-create-with-an-idempotency-key).
 
