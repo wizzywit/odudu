@@ -122,6 +122,29 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ).toHaveLength(1);
   });
 
+  it('rejects the MCP package importing a package outside its allowlist', async () => {
+    const found = await violations('mcp-allowlist');
+    expect(
+      found.some(
+        (v) => v.from.includes('mcp/src/reaches-domain') && v.to.includes('domain-identity'),
+      ),
+    ).toBe(true);
+    expect(found.some((v) => v.from.includes('mcp/src/allowed'))).toBe(false);
+  });
+
+  it('rejects a protocol package importing the MCP package', async () => {
+    const found = await violations('no-protocol-to-mcp');
+    expect(
+      found.some((v) => v.from.includes('protocol-oidc') && v.to.includes('packages/mcp')),
+    ).toBe(true);
+  });
+
+  it('lets only apps/server import the MCP package', async () => {
+    const found = await violations('mcp-imported-only-by-server');
+    expect(found.some((v) => v.from.includes('domain-example/src/imports-mcp'))).toBe(true);
+    expect(found.some((v) => v.from.includes('apps/server/src/composes-mcp'))).toBe(false);
+  });
+
   it('rejects a circular import', async () => {
     expect((await violations('no-circular')).length).toBeGreaterThan(0);
   });

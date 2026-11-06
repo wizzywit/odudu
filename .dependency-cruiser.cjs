@@ -389,6 +389,39 @@ module.exports = {
       from: { path: '(^|/)packages/protocol-admin/' },
       to: { path: '(^|/)packages/protocol-(?!oidc/|admin/)[^/]+/' },
     },
+    {
+      name: 'mcp-allowlist',
+      severity: 'error',
+      comment:
+        'The MCP package sits above the protocol packages (ADR 0051) and reaches the admin API ' +
+        'only through its HTTP surface, so of the workspace it may import the kernel, the ' +
+        'contracts, the OIDC package and the admin API package, and no database, crypto or ' +
+        'domain package. The rule covers src/ minus its *.test.ts files.',
+      from: { path: '(^|/)packages/mcp/src/', pathNot: '\\.test\\.ts$' },
+      to: {
+        path: '(^|/)packages/',
+        pathNot:
+          '(^|/)node_modules/|(^|/)packages/(?:mcp|kernel|contracts|protocol-oidc|protocol-admin)/',
+      },
+    },
+    {
+      name: 'no-protocol-to-mcp',
+      severity: 'error',
+      comment:
+        'MCP is downstream of the protocol packages (ADR 0051); a protocol package importing it ' +
+        'would make the agent surface a dependency of the protocol it administers.',
+      from: { path: '(^|/)packages/protocol-[^/]+/' },
+      to: { path: '(^|/)packages/mcp/' },
+    },
+    {
+      name: 'mcp-imported-only-by-server',
+      severity: 'error',
+      comment:
+        'Only apps/server composes the MCP package (ADR 0051); no other package or app reaches ' +
+        'into it.',
+      from: { path: '(^|/)(?:packages|apps)/', pathNot: '(^|/)(?:packages/mcp|apps/server)/' },
+      to: { path: '(^|/)packages/mcp/' },
+    },
     // `/src/(.+/)?view/` fails dependency-cruiser's safe-regex check (star
     // height > 1: the optional group wraps a quantifier). The alternation
     // below is unquantified, so it stays star-height 1 while still matching
