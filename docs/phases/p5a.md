@@ -1157,3 +1157,27 @@ given.
   for another issuer or token endpoint is forgotten and the person signs in again, so a
   configuration that changes `--tenant-address` cannot hand a refresh token to another
   server.
+- **The credential file and a swapped directory.** Node has no `openat`, so a write cannot be
+  bound to the directory it checked. The credential directory and its parent are not links,
+  belong to the effective user, and the parent is not writable by group or others (a sticky
+  bit does not excuse it); the file is made with `wx` and renamed in place; and the two
+  directories' device and inode are compared again after the open, after the write and after
+  the rename, a swap in between refusing the write and emptying the temporary file through its
+  open handle, so the secret is not written into the new target. verified:
+  `packages/mcp/src/adapter/credential-store.test.ts` (a swap after the check, a swap after
+  the write, a linked parent, a parent others can write). Residual: a root or kernel level
+  attacker, and the moment between a comparison and the next system call, are out of scope;
+  the directories above the parent (the config root) are not inspected, since they may
+  legitimately be links into a dotfiles repository.
+- **Logout confirms or says it could not.** `--logout` exits non-zero with one line, "could
+  not confirm the sign-in was removed from the OS credential store", when the OS tool cannot
+  be asked (missing, or an exit status that is not "not found") and no credential file was
+  held. A file held, or the store answering "nothing here", is a confirmed logout. A host
+  with no tool that never stored there therefore sees the line on a logout with nothing to
+  remove.
+- **Smaller sign-in hardening.** A response body that fails mid-read is "could not be
+  reached", so the cooldown applies; a JSON media type is compared without case and by
+  type and subtype; an authorization endpoint's own query is kept and one that names a
+  parameter the client sets is refused; a token whose own `scope` claim lacks the scope asked
+  for is refused before any call; a 401 invalidates only the bearer it was for; an access
+  token already expired on arrival is refused with the cooldown.

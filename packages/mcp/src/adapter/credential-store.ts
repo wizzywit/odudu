@@ -1,9 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { lstat, mkdir, open, rename, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { type RunTool } from '#/adapter/run-tool';
 import type { CredentialStore } from '#/service/ports';
-import { fileModeProblem } from '#/service/file-mode';
+import { fileModeProblem, writableProblem } from '#/service/file-mode';
 import { StdioError } from '#/service/stdio-error';
 
 export interface CredentialStoreDeps {
@@ -16,6 +16,8 @@ export interface CredentialStoreDeps {
   readonly uid?: number;
   // One line for a person; never a secret.
   readonly warn: (line: string) => void;
+  // Awaited between the steps of a write that matter to a directory swap; tests only.
+  readonly hook?: (stage: 'verified' | 'written') => Promise<void>;
 }
 
 const SERVICE = 'odudu-mcp';
@@ -115,35 +117,80 @@ function corrupt(path: string): StdioError {
   );
 }
 
+interface Identity {
+  readonly dev: number;
+  readonly ino: number;
+}
+
+interface Verified {
+  readonly directory: Identity;
+  readonly parent: Identity;
+}
+
+type FileStore = CredentialStore & { held(): Promise<boolean> };
+
 // A file in a directory only the user can enter, written with `wx` to a name of
 // its own and renamed into place, so no reader sees it partly written or wider
-// than 0600, and refused on read if any bit for group or others is set. Windows
-// has no such bits; the profile directory's own ACL is what protects it there.
+// than 0600, and refused on read if any bit for group or others is set. Node has
+// no openat, so the directory and its parent are verified and their identity
+// compared again around the write and the rename (docs/phases/p5a.md). Windows
+// has no mode bits; the profile directory's own ACL protects it there.
 function fileStore(
   account: string,
   directory: string,
   platform: NodeJS.Platform,
   uid: number | undefined,
-): CredentialStore {
+  hook: CredentialStoreDeps['hook'],
+): FileStore {
   const name = `${createHash('sha256').update(account).digest('hex').slice(0, 32)}.json`;
   const path = join(directory, name);
+  const parent = dirname(directory);
   const checkModes = platform !== 'win32';
 
   const foreign = (owner: number): boolean => checkModes && uid !== undefined && owner !== uid;
 
-  async function checkDirectory(): Promise<boolean> {
-    const info = await lstat(directory).catch(() => null);
-    if (info === null) return false;
-    if (info.isSymbolicLink()) throw insecure('directory', directory, 'is a symbolic link');
-    if (foreign(info.uid)) throw insecure('directory', directory, 'is owned by another user');
-    const problem = checkModes ? fileModeProblem(info.mode, 'directory') : undefined;
-    if (problem !== undefined) throw insecure('directory', directory, problem);
-    return true;
+  async function inspect(dir: string, whole: boolean): Promise<Identity | null> {
+    const info = await lstat(dir).catch(() => null);
+    if (info === null) return null;
+    if (info.isSymbolicLink()) throw insecure('directory', dir, 'is a symbolic link');
+    if (foreign(info.uid)) throw insecure('directory', dir, 'is owned by another user');
+    const problem = !checkModes
+      ? undefined
+      : whole
+        ? fileModeProblem(info.mode, 'directory')
+        : writableProblem(info.mode);
+    if (problem !== undefined) throw insecure('directory', dir, problem);
+    return { dev: info.dev, ino: info.ino };
+  }
+
+  async function verifyDirectory(): Promise<Verified | null> {
+    const own = await inspect(directory, true);
+    if (own === null) return null;
+    const above = await inspect(parent, false);
+    if (above === null) throw insecure('directory', parent, 'cannot be inspected');
+    return { directory: own, parent: above };
+  }
+
+  async function unchanged(verified: Verified): Promise<void> {
+    const now = await verifyDirectory();
+    const same = (a: Identity, b: Identity | undefined): boolean =>
+      a.dev === b?.dev && a.ino === b.ino;
+    if (
+      now === null ||
+      !same(verified.directory, now.directory) ||
+      !same(verified.parent, now.parent)
+    ) {
+      throw insecure('directory', directory, 'was replaced while the credential was written');
+    }
   }
 
   return {
+    async held() {
+      const info = await lstat(path).catch(() => null);
+      return info !== null;
+    },
     async get() {
-      if (!(await checkDirectory())) return null;
+      if ((await verifyDirectory()) === null) return null;
       const info = await lstat(path).catch(() => null);
       if (info === null) return null;
       if (info.isSymbolicLink() || !info.isFile()) {
@@ -173,17 +220,27 @@ function fileStore(
       }
     },
     async put(secret) {
+      await inspect(parent, false);
       await mkdir(directory, { recursive: true, mode: 0o700 });
-      await checkDirectory();
+      const verified = await verifyDirectory();
+      if (verified === null) throw insecure('directory', directory, 'cannot be inspected');
+      await hook?.('verified');
       const temporary = join(directory, `.${name}.${randomBytes(6).toString('hex')}.tmp`);
       const handle = await open(temporary, 'wx', 0o600);
+      let renamed = false;
       try {
+        await unchanged(verified);
         await handle.writeFile(JSON.stringify({ account, secret: encode(secret) }), 'utf8');
+        await hook?.('written');
+        await unchanged(verified);
         await handle.close();
         await rename(temporary, path);
+        renamed = true;
+        await unchanged(verified);
       } catch (error) {
+        await handle.truncate(0).catch(() => undefined);
         await handle.close().catch(() => undefined);
-        await rm(temporary, { force: true });
+        await rm(renamed ? path : temporary, { force: true });
         throw error;
       }
     },
@@ -202,6 +259,7 @@ export function createCredentialStore(deps: CredentialStoreDeps): CredentialStor
     deps.directory,
     deps.platform,
     deps.uid ?? process.geteuid?.(),
+    deps.hook,
   );
   const keychain = keychainStore(deps.platform, deps.account, deps.run);
   let warned = false;
@@ -239,18 +297,28 @@ export function createCredentialStore(deps: CredentialStoreDeps): CredentialStor
       } catch (error) {
         if (!(error instanceof Unavailable)) throw error;
       }
+      const hadFile = await files.held();
       await files.clear();
       // A locked or refusing keychain exits with a status of its own, so what is left is read back.
       let left: string | null = null;
+      let confirmed = true;
       try {
         left = (await keychain?.get()) ?? null;
       } catch (error) {
         if (!(error instanceof Unavailable)) throw error;
+        confirmed = false;
       }
       if (left !== null) {
         throw new StdioError(
           'mcp_logout_failed',
           'the sign-in is still in the operating system credential store; remove its odudu-mcp entry there',
+        );
+      }
+      // A file that was held shows the secret went there when the tool was out of reach.
+      if (!confirmed && !hadFile) {
+        throw new StdioError(
+          'mcp_logout_unconfirmed',
+          'could not confirm the sign-in was removed from the OS credential store; check its odudu-mcp entry there',
         );
       }
     },

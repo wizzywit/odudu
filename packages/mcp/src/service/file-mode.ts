@@ -9,3 +9,11 @@ export function fileModeProblem(mode: number, kind: 'file' | 'directory'): strin
     ? `is readable by group or others (mode ${bits})`
     : `is accessible to group or others (mode ${bits})`;
 }
+
+// A directory whose entries could be replaced by anyone but the user: a
+// sticky bit does not excuse it, since it only protects entries from other
+// users that are not the directory's own.
+export function writableProblem(mode: number): string | undefined {
+  if ((mode & 0o022) === 0) return undefined;
+  return `is writable by group or others (mode ${(mode & 0o7777).toString(8)})`;
+}

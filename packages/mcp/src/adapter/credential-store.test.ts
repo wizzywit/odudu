@@ -1,5 +1,16 @@
 import { randomBytes } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -73,9 +84,11 @@ function store(
   warned: string[] = [],
   account = ISSUER,
   uid?: number,
+  hook?: (stage: 'verified' | 'written') => Promise<void>,
 ) {
   return createCredentialStore({
     ...(uid === undefined ? {} : { uid }),
+    ...(hook === undefined ? {} : { hook }),
     account,
     directory,
     platform,
@@ -168,7 +181,7 @@ describe('the file store, where there is no OS credential store', () => {
   });
 
   it('is empty before a put, and clear removes the file, twice over', async () => {
-    const s = store('linux', none);
+    const s = store('win32', none);
     expect(await s.get()).toBeNull();
     await s.put('x');
     await s.clear();
@@ -282,6 +295,36 @@ describe('the OS credential store', () => {
   });
 
   it.each(['darwin', 'linux'] as const)(
+    'on %s cannot confirm a logout when the OS tool is gone and no file was held',
+    async (platform) => {
+      const gone: RunTool = () => Promise.resolve({ kind: 'missing' });
+      await expect(store(platform, gone).clear()).rejects.toMatchObject({
+        code: 'mcp_logout_unconfirmed',
+        message: expect.stringContaining(
+          'could not confirm the sign-in was removed from the OS credential store',
+        ) as string,
+      });
+    },
+  );
+
+  it.each(['darwin', 'linux'] as const)(
+    'on %s confirms a logout of a file kept because the OS tool was gone',
+    async (platform) => {
+      const gone: RunTool = () => Promise.resolve({ kind: 'missing' });
+      await store(platform, gone).put('x');
+      await store(platform, gone).clear();
+      expect(await files()).toEqual([]);
+    },
+  );
+
+  it.each(['darwin', 'linux'] as const)(
+    'on %s confirms a logout when the OS store says it holds nothing',
+    async (platform) => {
+      await store(platform, fakeKeychain().run).clear();
+    },
+  );
+
+  it.each(['darwin', 'linux'] as const)(
     'on %s reports a logout that left the secret behind',
     async (platform) => {
       const k = fakeKeychain();
@@ -314,5 +357,63 @@ describe('where the file may live', () => {
     const s = store('linux', none, [], ISSUER, other);
     await expect(s.get()).rejects.toMatchObject({ code: 'mcp_store_insecure' });
     await expect(s.put('y')).rejects.toThrow(/owned by another user/u);
+  });
+
+  it('refuses a parent directory that is a symbolic link', async () => {
+    const real = await mkdtemp(join(tmpdir(), 'odudu-real-'));
+    const link = `${real}-link`;
+    await symlink(real, link);
+    directory = join(link, 'mcp');
+    await expect(store('linux', none).put('x')).rejects.toMatchObject({
+      code: 'mcp_store_insecure',
+    });
+    expect(await readdir(real)).toEqual([]);
+  });
+
+  it('refuses a parent directory that others can write to', async () => {
+    const parent = join(directory, '..');
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    await chmod(parent, 0o770);
+    await expect(store('linux', none).put('x')).rejects.toMatchObject({
+      code: 'mcp_store_insecure',
+    });
+    await expect(store('linux', none).get()).rejects.toMatchObject({ code: 'mcp_store_insecure' });
+  });
+});
+
+describe('a directory replaced while a secret is being written', () => {
+  const none: RunTool = () => Promise.resolve({ kind: 'missing' });
+
+  async function swapper() {
+    const elsewhere = await mkdtemp(join(tmpdir(), 'odudu-elsewhere-'));
+    await chmod(elsewhere, 0o700);
+    return {
+      elsewhere,
+      swap: async () => {
+        await rename(directory, `${directory}.moved`);
+        await symlink(elsewhere, directory);
+      },
+    };
+  }
+
+  it('writes no token to the target when the swap comes after the directory was verified', async () => {
+    const s = await swapper();
+    const guarded = store('linux', none, [], ISSUER, undefined, (stage) =>
+      stage === 'verified' ? s.swap() : Promise.resolve(),
+    );
+    await expect(guarded.put('SECRET-TOKEN')).rejects.toMatchObject({ code: 'mcp_store_insecure' });
+    expect(await readdir(s.elsewhere)).toEqual([]);
+  });
+
+  it('does not rename into place, and leaves nothing in the target, when the swap comes after the write', async () => {
+    const s = await swapper();
+    const guarded = store('linux', none, [], ISSUER, undefined, (stage) =>
+      stage === 'written' ? s.swap() : Promise.resolve(),
+    );
+    await expect(guarded.put('SECRET-TOKEN')).rejects.toMatchObject({ code: 'mcp_store_insecure' });
+    expect(await readdir(s.elsewhere)).toEqual([]);
+    const moved = await readdir(`${directory}.moved`);
+    expect(moved.filter((n) => n.endsWith('.json'))).toEqual([]);
+    for (const n of moved) expect(await readFile(join(`${directory}.moved`, n), 'utf8')).toBe('');
   });
 });
