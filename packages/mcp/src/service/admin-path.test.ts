@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { expandPattern } from '#/service/admin-path';
+import { INSTANCE_READS } from '@odudu/protocol-admin';
+import { expandPattern, INSTANCE_PATTERNS } from '#/service/admin-path';
 
 describe('expandPattern', () => {
   it('fills the tenant and the parameters, each as one encoded segment', () => {
@@ -41,6 +42,12 @@ describe('expandPattern', () => {
   });
 
   describe('the instance-level reads', () => {
+    it('are the routes the admin API admits to the system tenant, no more and no fewer', () => {
+      expect(INSTANCE_PATTERNS.map((pattern) => `GET ${pattern}`).sort()).toEqual(
+        [...INSTANCE_READS].sort(),
+      );
+    });
+
     it.each(['/admin/tenants', '/admin/tenants/count'])(
       'leaves %s as it is, whoever the caller is',
       (pattern) => {

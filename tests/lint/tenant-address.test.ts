@@ -17,8 +17,8 @@ const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 
 // The address service itself; the admin and console gateways, which are
 // reached by path on the shared host only; the MCP catalogue, its tenant tools
-// and its path expansion, which name admin route patterns; the console's CLI client; and the app's route-prefix test,
-// which reads a route pattern.
+// and its path expansion, which name admin route patterns; the console's CLI
+// client; and the app's route-prefix test, which reads a route pattern.
 const ALLOWED = [
   'packages/kernel/src/address.ts',
   'packages/protocol-admin/',

@@ -181,6 +181,37 @@ describe('odudu mcp, signing in as a person', () => {
     expect(names(local.lines, 2)).toContain('list_clients');
   }, 90_000);
 
+  it('answers a tenant person who calls the tenant tools by name with a refusal, and asks the admin API nothing', async () => {
+    const t = await tenant();
+    const w = wire();
+    const r = await runMcp(['--base-url', BASE, '--tenant', t.name], {
+      fetch: w.fetch,
+      configDir: await privateConfigDirectory(),
+      input: [INITIALIZE, INITIALIZED, call(2, 'list_tenants'), call(3, 'count_tenants')],
+      openBrowser: async (address) => {
+        await fetch(
+          await scriptedBrowser(stack.app, address, {
+            host: HOST,
+            tenant: t.name,
+            username: t.username,
+            password: PASSWORD,
+            tick: ['mcp:read'],
+          }),
+        );
+        return true;
+      },
+    });
+    expect(r.code).toBe(0);
+    for (const id of [2, 3]) {
+      const reply = byId(r.lines, id);
+      const refused =
+        (reply.result as { isError?: boolean } | undefined)?.isError === true ||
+        reply.error !== undefined;
+      expect(refused, JSON.stringify(reply)).toBe(true);
+    }
+    expect(w.admin.map((seen) => new URL(seen.url).pathname)).toEqual([]);
+  }, 90_000);
+
   it('signs in through the real /authorize and consent, then reads as the person with a token issued to odudu-mcp', async () => {
     const t = await tenant();
     const w = wire();

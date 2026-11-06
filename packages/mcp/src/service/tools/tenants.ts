@@ -14,7 +14,7 @@ export const tenantTools = [
     name: 'list_tenants',
     description:
       "Lists the instance's tenants (name, display name, whether enabled), one page at a time, " +
-      'optionally filtered by name or display name prefix. It opens no tenant: only the list.',
+      'optionally filtered by name or display name prefix, or by whether enabled. It opens no tenant: only the list.',
     routeKey: 'GET /admin/tenants',
     capability: 'manage-tenants',
     shape: { ...countTenantsQuerySchema.shape, ...pageShape },
@@ -23,7 +23,7 @@ export const tenantTools = [
   valueTool({
     name: 'count_tenants',
     description:
-      'Counts the instance\'s tenants under the same filters as list_tenants; "capped" is true ' +
+      'Counts the instance\'s tenants under the same filters as list_tenants (name or display name prefix, enabled); "capped" is true ' +
       'when the real number is larger.',
     routeKey: 'GET /admin/tenants/count',
     capability: 'manage-tenants',
