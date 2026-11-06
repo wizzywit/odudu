@@ -77,7 +77,7 @@ function routes(capabilities: readonly string[]): Record<string, Answer> {
     [`GET ${ACME_ADMIN}/settings`]: json({
       verify_email: true,
       reset_password_allowed: false,
-      client_registration_policy: 'open',
+      client_registration_policy: 'token',
       max_clients: 3,
     }),
     [`GET ${ACME_ADMIN}/smtp`]: json({

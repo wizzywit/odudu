@@ -206,8 +206,8 @@ response echoes it as `audience`. A client that omits
 default is a secret. `registerMcpClient` (usecase) runs the budget, the
 decision and the shared transaction; the client is written with the MCP URL as
 its only audience, `mcp:read` as an optional scope, `consent_required` true and
-`registration_origin` `anonymous`, and the existing `max_clients` lock bounds
-the tenant.
+`registration_origin` `anonymous`, and the self-registered ceiling (1,000, below)
+bounds the tenant.
 
 - **Budget.** Ten registrations an hour per tenant and address, and sixty an
   hour per tenant over every address (`mcpRegistrationBudget`; the address is
@@ -654,18 +654,18 @@ exists when the phase closed:
   appearing or going is in the same row.
 - **Migration 0122, in SQL.** The set is "idle accounts nothing names", which needs the
   referencing tables. They are read from `pg_constraint` (every foreign key to `subjects(id)`)
-  plus `audit_events.actor_subject_id`, so a table added later is checked too. FORCE RLS is
-  lifted on `clients` and `client_oidc_config` (to find candidates across tenants) and on
-  `audit_events` and `tenants` (to find audit references from other tenants), each
-  ACCESS EXCLUSIVE until the migration transaction ends, as 0114 did for its two; every other table is read and
-  deleted from under the candidate's own `app.tenant_id`, one tenant with an idle client at a
-  time, so no other table is locked and each read is one tenant's rows. `SET LOCAL
+  plus `audit_events.actor_subject_id` of the account's own tenant, so a table added later is
+  checked too. FORCE RLS is lifted on `clients` and `client_oidc_config` (to find candidates
+  across tenants) only when the migrating role has neither SUPERUSER nor BYPASSRLS, which a
+  supported install never is (ADR 0009); every other table is read and deleted from under the
+  candidate's own `app.tenant_id`, one tenant with an idle client at a time, so no other table
+  is locked and each read is one tenant's rows. `SET LOCAL
 row_security = off` was rejected: for an owner under FORCE it errors rather than bypasses.
   Cost at 10,000 tenants and 100M audit events: one pass over `clients` and
   `client_oidc_config` plus, per tenant holding an idle account, about a dozen reads of that
-  tenant's rows (audit through `(tenant_id, actor_subject_id, ...)`); a large installation
-  should expect the two locks to be held for the length of that loop. The check is not run
-  against a non-superuser owner in the tests (the container's owner bypasses RLS).
+  tenant's rows (audit through `(tenant_id, actor_subject_id, ...)`). The plain-owner branch
+  is tested with a role that is neither; the superuser branch is tested by the `pg_class`
+  row of `audit_events`, `tenants` and `client_oidc_config` keeping its version.
   Kept accounts get `clients.service_account_idle` with a partial index, which the bounded
   boot warning reads. Not a command: the removal is the next `grant_types` write.
 - **Import and export.** An export lists `service_account_roles` only for a client that
@@ -701,9 +701,9 @@ row_security = off` was rejected: for an owner under FORCE it errors rather than
 
 - **Audit events of another tenant name an account too.** `audit_events.tenant_id` is the
   tenant an event happened to, so a service account that administers tenant U writes rows
-  filed under U. 0122 read audit under the candidate's own tenant and missed them; it now
-  probes `(tenant_id, actor_subject_id)` for every candidate and tenant with row security
-  lifted on `audit_events` and `tenants` for that one statement, and restores it. The seed
+  filed under U. 0122 read audit under the candidate's own tenant and missed them; it then
+  probed every candidate and tenant (superseded in the final review fix round: it reads the
+  account's own tenant only again, see there). The seed
   has a `k-xaudit` client named only by the other tenant's event, and a `k-actor` one named
   as the actor of a delegated grant (kept already: the foreign key is on `subjects`).
 - **Retiring revokes what the account acted in.** `token_grants.actor_subject_id` is
@@ -1308,6 +1308,82 @@ Placed, so that none is open without a phase (each is a row in `docs/NEXT.md`):
   pins the Inspector and the SDK client exactly and installs their dependencies
   unlocked; a drift makes the job red, never wrong, and a lockfile in
   `infra/conformance/mcp/` is the fix when it first does.
+
+### Final review fix round (code)
+
+- **A self-registered client's consent page says so.** `clientSourceOf` returns a source for
+  every client that needs approval: a metadata document's host and redirect addresses as
+  before, and for a client that registered itself the sentence that nobody at the tenant set it
+  up and up to five redirect origins (`scheme://host[:port]`, a private-use scheme as
+  `scheme:`) with "… and N more". `offline_access` was already named on the screen in plain
+  words (`consent.scope.offlineAccess`). Catalogue entries in en and ar.
+- **`max_clients` is the operator's ceiling.** `lockCapacity` counts the clients with origin
+  `seeded`, `operator` or `token`; `cimd` and `anonymous` rows are not counted, so an
+  unauthenticated party cannot keep an administrator from making a client. Two other ceilings:
+  1,000 `cimd` clients per tenant (unchanged, least-recently-used eviction) and 1,000
+  `anonymous` ones (`WIRE_CLIENTS_PER_TENANT`, `lockWireCapacity`). At the second a
+  registration removes the oldest client that is enabled, never approved and has no consent,
+  grant, live code or live sign-in (`dynamicClientRepository.evictable`, the weekly reap's
+  rule without its age), else is refused as before (`403 invalid_client_metadata`). Both
+  counts run under the tenant row lock. The registration-token path (`token`) is an operator
+  origin and still counts against `max_clients`. A tenant import counts the document's clients
+  that did not register themselves. Migration 0123 adds `clients_operator_by_tenant` and
+  `clients_anonymous_by_created` (partial), and `authentication_sessions_by_pending_client`,
+  an expression index `(tenant_id, pending_request ->> 'clientId')`: the anti-join of the
+  eviction and reap rules had only the tenant-and-expiry index and would rescan a tenant's live
+  sign-ins per candidate. Cost: one index entry per sign-in started. The plan suite now holds
+  1,000 `cimd` and 1,000 `anonymous` clients whose oldest 500 each are protected (consent,
+  grant, live sign-in) among 5,000 live sign-ins, and plans the two counts, both eviction
+  queries, the `cimd_clients` and `dynamic_clients` reap rules in that tenant, and
+  `idleServiceAccounts` against 50 idle accounts. The console's overview no longer calls open
+  registration full at `max_clients`; its clients tile still compares the count of every client
+  with `max_clients` (a NEXT row, P5b).
+- **The admin door refuses what the catalogue withholds as sensitive.** Each `NOT_TOOLS` entry has a
+  kind (`denied`, `sensitive`, `not-useful`, `destructive`, `write`). The 28 withheld reads
+  were classified one by one: personal data (`subjects/:id/profile`, `clients/:id/evaluate`),
+  credential metadata (`subjects/:id/credentials`, `registration-tokens`), the relay login
+  (`smtp`) and the list of every tenant (`GET /admin/tenants` and `/count`, an agent acts in
+  one tenant) are `sensitive`, and are now in `AGENT_DENIED_READS` beside the three bulk reads
+  (10 in all). The previews, theme, mail look, message wording, `installation`,
+  `username-policy`, `passkey-impact`, the scope `builtins` and `impact` and the tenant
+  record are `not-useful`: not worth a tool, and the door admits them. The coverage test holds
+  the two lists to each other both ways.
+- **A refresh reads the registration policy once.** The policy is read before the token is
+  rotated and the ceiling after rotation is computed from that read, so a policy turned off
+  while the token rotates cannot refuse a refresh whose old token is spent.
+- **Migrations and the upgrade window.** Drizzle runs every pending migration in one
+  transaction, so each lock is held to the end of the whole upgrade. On an upgrade from the
+  last release: 0113 (`client_scopes`) and 0114 (`clients`, `client_oidc_config`,
+  `client_scope_assignments`) lift FORCE RLS, and 0122 lifts it on `clients` and
+  `client_oidc_config`, only for a migrating role that is neither SUPERUSER nor BYPASSRLS, so a
+  supported owner takes no lock for it; `ADD COLUMN` on `clients`, `tenants` and
+  `client_oidc_config` (0114, 0116, 0117, 0120, 0122) and the `ADD CONSTRAINT` full scans (0116
+  checks every `clients` row twice, 0117 every `tenants` row; `NOT VALID` then `VALIDATE` would
+  not help: the first statement's lock is held to the end of the same transaction) and index
+  builds (0116, 0118, 0120, 0122, 0123, `SHARE` on `clients`, `tenants` or
+  `authentication_sessions`) take their locks whoever the owner is; 0119 reads every consent
+  row in one aggregate and 0120 and 0122 update `clients` and `client_oidc_config`. Stop the
+  server for the upgrade. 0122 no longer probes audit across tenants (idle accounts times
+  tenants, with no index leading on the actor): an audit event filed under another tenant that
+  names a retired account keeps the actor's id, tenant and client and loses only the subject
+  row (the `k-xaudit` seed client is now retired), and the plain `CREATE INDEX` on a 100M-row
+  `audit_events` that an exact check needed was not worth it.
+- **Idempotency storage.** `response_headers` has an 8 KiB CHECK (0123). Worst case, theoretical:
+  10,000 tenants x 10,000 live keys x (64 KiB body + 8 KiB headers) is about 7.2 TB before
+  compression. Realistic: 2xx bodies of one to two KiB, so 100 to 200 GB at the same key count,
+  which is 0.12 keyed requests a second per tenant for a day. The two `countLive` reads per
+  keyed POST (up to 10,000 index entries each, the second under the tenant lock) are kept:
+  the first refuses before the call runs, the second makes the ceiling exact, and a counter
+  would add a write to every keyed call; at the volume above the cost is a few milliseconds
+  held against a call that already holds a transaction.
+- **Audit volume of agents.** `agent.tool_call` is an always-on `admin_access` row written
+  before every agent call. The per-process limit is 600 a minute per tenant, so one saturated
+  tenant on one process writes up to 864,000 rows a day, about 78M over the default 90 days,
+  times the processes. P11 owns the audit volume (the `agent.tool_call` row in NEXT now says so).
+- **Smaller.** `consents.record` writes `approved_at` only while it is null (the clients row
+  is no longer rewritten on every approval). A restored or imported `anonymous` client has
+  no approval or consent, so the weekly reap removes it a week after the import unless it is
+  used; the import page says so.
 
 ## Hand run (owner)
 

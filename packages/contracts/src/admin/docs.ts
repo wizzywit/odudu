@@ -975,7 +975,8 @@ describeFields(tenantSettingsDocumentSchema, {
   brute_force_max_lockout_seconds: 'The longest a lockout can grow to when it is tripped again.',
   brute_force_failure_reset_seconds:
     'How long without a failed sign-in before the count starts again.',
-  max_clients: 'The most clients the tenant may hold.',
+  max_clients:
+    'The most clients an administrator or a registration token can make. Clients that register themselves or come from a metadata document have limits of their own.',
   max_sessions_per_browser: 'The most sessions one browser may hold at once.',
   remember_me_allowed: 'Whether the sign-in form offers to stay signed in.',
   remember_me_idle_seconds: 'How long a remembered session may sit idle.',

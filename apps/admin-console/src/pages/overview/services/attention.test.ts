@@ -37,21 +37,26 @@ describe('what needs attention', () => {
     expect(later[0]?.detail).toContain('kid-r');
   });
 
-  it('is open registration with no room left under the client cap', () => {
+  it('is registration by token with no room left under the client cap', () => {
+    const token = { ...QUIET.settings, client_registration_policy: 'token', max_clients: 3 };
+    expect(ids({ settings: token })).toEqual(['registration']);
+    expect(ids({ settings: { ...token, max_clients: 4 } })).toEqual([]);
+    expect(ids({ settings: { ...token, client_registration_policy: 'disabled' } })).toEqual([]);
+  });
+
+  it('is not open registration, which max_clients no longer stops', () => {
     const open = { ...QUIET.settings, client_registration_policy: 'open', max_clients: 3 };
-    expect(ids({ settings: open })).toEqual(['registration']);
-    expect(ids({ settings: { ...open, client_registration_policy: 'token' } })).toEqual([
-      'registration',
-    ]);
-    expect(ids({ settings: { ...open, max_clients: 4 } })).toEqual([]);
-    expect(ids({ settings: { ...open, client_registration_policy: 'disabled' } })).toEqual([]);
+    expect(ids({ settings: open })).toEqual([]);
   });
 
   it('is room it cannot decide when the count stopped below the cap', () => {
-    const open = { ...QUIET.settings, client_registration_policy: 'open', max_clients: 20_000 };
-    expect(ids({ settings: open, clients: { count: 10_000, capped: true } })).toEqual([]);
+    const token = { ...QUIET.settings, client_registration_policy: 'token', max_clients: 20_000 };
+    expect(ids({ settings: token, clients: { count: 10_000, capped: true } })).toEqual([]);
     expect(
-      ids({ settings: { ...open, max_clients: 10_000 }, clients: { count: 10_000, capped: true } }),
+      ids({
+        settings: { ...token, max_clients: 10_000 },
+        clients: { count: 10_000, capped: true },
+      }),
     ).toEqual(['registration']);
   });
 
