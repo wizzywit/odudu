@@ -62,7 +62,7 @@ describe('resolveAsMetadata', () => {
     expect(m?.issuer).toBe('https://idp.example/tenants/acme');
   });
 
-  it('advertises PKCE S256, the iss parameter, and none beside private_key_jwt', async () => {
+  it('[MCP-AUTH-ASMETA-01] advertises PKCE S256, the iss parameter, and none beside private_key_jwt', async () => {
     const m = await resolveAsMetadata(deps(), 'acme', PATH);
     expect(m?.code_challenge_methods_supported).toEqual(['S256']);
     expect(m?.authorization_response_iss_parameter_supported).toBe(true);

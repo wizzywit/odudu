@@ -41,7 +41,7 @@ function depsWith(
 }
 
 describe('exchanging an MCP token for an admin bearer', () => {
-  it("mints in-process for the owner grant, as the token's client, bounded by its exp", async () => {
+  it("[MCP-AUTH-TOKEN-06] mints in-process for the owner grant, as the token's client, bounded by its exp", async () => {
     const deps = depsWith();
     const token = unverifiedTokenForTests({ scope: ['mcp:read', 'mcp:write'] });
     const bearer = await exchangeForAdmin(deps, token, ['mcp:read']);

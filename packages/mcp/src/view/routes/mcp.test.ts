@@ -203,7 +203,7 @@ describe('the answers before a token is read', () => {
     expect(w.served).toHaveLength(0);
   });
 
-  it('refuses a browser Origin that is not the tenant’s own, and lets none through', async () => {
+  it('[MCP-AUTH-ORIGIN-01] refuses a browser Origin that is not the tenant’s own, and lets none through', async () => {
     const w = build();
     expect((await post(w, { headers: { origin: 'https://evil.example' } })).statusCode).toBe(403);
     expect((await post(w, { headers: { origin: 'null' } })).statusCode).toBe(403);
@@ -211,7 +211,7 @@ describe('the answers before a token is read', () => {
     expect((await post(w)).statusCode).toBe(200);
   });
 
-  it('answers 405 with Allow: POST to GET and DELETE, without asking who is asking', async () => {
+  it('[MCP-AUTH-ORIGIN-03] answers 405 with Allow: POST to GET and DELETE, without asking who is asking', async () => {
     const w = build({ auth: 'missing' });
     for (const method of ['GET', 'DELETE'] as const) {
       const res = await w.app.inject({
@@ -238,7 +238,7 @@ describe('the answers before a token is read', () => {
 });
 
 describe('the challenge', () => {
-  it('is Bearer with the metadata URL and the scope, and an empty body, for no token', async () => {
+  it('[MCP-AUTH-DISC-02] is Bearer with the metadata URL and the scope, and an empty body, for no token', async () => {
     const res = await post(build({ auth: 'missing' }), { headers: { authorization: '' } });
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toBe(
@@ -247,7 +247,7 @@ describe('the challenge', () => {
     expect(res.payload).toBe('');
   });
 
-  it('adds error="invalid_token" for a token that does not verify, and never echoes it', async () => {
+  it('[MCP-AUTH-TOKEN-01] adds error="invalid_token" for a token that does not verify, and never echoes it', async () => {
     const res = await post(build({ auth: 'foreign' }), {
       headers: {
         authorization:
@@ -261,7 +261,7 @@ describe('the challenge', () => {
     expect(JSON.stringify(res.headers) + res.payload).not.toContain('c2ln');
   });
 
-  it('is 403 insufficient_scope for a valid token without an MCP scope, and records it', async () => {
+  it('[MCP-AUTH-ERR-01] is 403 insufficient_scope for a valid token without an MCP scope, and records it', async () => {
     const w = build({ auth: 'scope' });
     const res = await post(w);
     expect(res.statusCode).toBe(403);
@@ -271,7 +271,7 @@ describe('the challenge', () => {
     expect(w.recorded).toEqual(['scope']);
   });
 
-  it('reads a token from the Authorization header alone', async () => {
+  it('[MCP-AUTH-TOKEN-04] reads a token from the Authorization header alone', async () => {
     const w = build({ auth: 'missing' });
     const url = `/tenants/acme/mcp?access_token=${TOKEN}`;
     const res = await w.app.inject({
@@ -377,7 +377,7 @@ describe('what is served', () => {
 });
 
 describe('with no configured address', () => {
-  it('refuses a Host and Origin that name only each other, and takes a loopback one', async () => {
+  it('[MCP-AUTH-ORIGIN-02] refuses a Host and Origin that name only each other, and takes a loopback one', async () => {
     const w = build({ configured: false });
     const evil = await post(w, {
       headers: { host: 'evil.example', origin: 'http://evil.example' },

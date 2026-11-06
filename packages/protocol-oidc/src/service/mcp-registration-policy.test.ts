@@ -34,7 +34,7 @@ function refusal(over: Partial<McpRegistrationInput>) {
 }
 
 describe('decideMcpRegistration', () => {
-  it('admits a public client with https and loopback redirects, bound to the MCP URL', () => {
+  it('[MCP-AUTH-REG-01] admits a public client with https and loopback redirects, bound to the MCP URL', () => {
     expect(decideMcpRegistration(input())).toEqual({ kind: 'ok', audiences: [MCP] });
   });
 

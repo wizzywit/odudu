@@ -8,7 +8,7 @@ describe('PKCE with S256', () => {
     expect(verifier).toMatch(/^[A-Za-z0-9\-._~]{43}$/u);
   });
 
-  it('challenges with the unpadded base64url SHA-256 of the verifier', () => {
+  it('[MCP-AUTH-PKCE-02] challenges with the unpadded base64url SHA-256 of the verifier', () => {
     const { verifier, challenge } = pkceFor(Buffer.alloc(32, 9));
     expect(challenge).toBe(createHash('sha256').update(verifier).digest('base64url'));
     expect(challenge).not.toContain('=');

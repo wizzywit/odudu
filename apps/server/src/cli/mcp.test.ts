@@ -201,7 +201,7 @@ describe('odudu mcp: what it needs to start', () => {
 });
 
 describe('odudu mcp with a service account key', () => {
-  it('authenticates with private_key_jwt for the token endpoint, and calls the admin API with that token', async () => {
+  it('[MCP-AUTH-STDIO-01] authenticates with private_key_jwt for the token endpoint, and calls the admin API with that token', async () => {
     const a = authority();
     const r = await run(KEY_ARGS, {
       env: { ODUDU_MCP_KEY: keyText },
@@ -545,7 +545,7 @@ describe('odudu mcp with a browser sign-in', () => {
     expect(forms[0]?.scope).toBeUndefined();
   });
 
-  it('refuses a stored sign-in that group or others can read, before serving anything', async () => {
+  it('[MCP-AUTH-REFRESH-01] refuses a stored sign-in that group or others can read, before serving anything', async () => {
     const configDir = await privateConfigDirectory();
     const { createCredentialStore } = await import('@odudu/mcp');
     await createCredentialStore({

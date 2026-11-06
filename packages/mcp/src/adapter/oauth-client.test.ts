@@ -123,7 +123,7 @@ describe('discovery at a tenants own domain', () => {
 });
 
 describe('the token endpoint', () => {
-  it('redeems a code as the public client, with the verifier and the redirect URI', async () => {
+  it('[MCP-AUTH-RES-02] redeems a code as the public client, with the verifier and the redirect URI', async () => {
     const { sent, oauth } = client(() => reply(tokenBody({ refresh_token: 'r1' })));
     const set = await oauth.redeemCode(server, {
       code: 'c1',

@@ -20,5 +20,6 @@
   "rfc8693.md": { "deferred": 0, "na": 2 },
   "rfc8414.md": { "deferred": 0, "na": 5 },
   "rfc9728.md": { "deferred": 0, "na": 12 },
-  "cimd.md": { "deferred": 0, "na": 0 }
+  "cimd.md": { "deferred": 0, "na": 0 },
+  "mcp-authorization.md": { "deferred": 0, "na": 9 }
 }

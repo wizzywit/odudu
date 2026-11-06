@@ -248,7 +248,7 @@ describe('registerClient — the mcp policy', () => {
     expect(outcome.description).toContain('token_endpoint_auth_method');
   });
 
-  it('refuses a plain-http redirect to a host that is not loopback', async () => {
+  it('[MCP-AUTH-REDIR-01] refuses a plain-http redirect to a host that is not loopback', async () => {
     const outcome = await refused({ redirect_uris: ['http://rp.example/cb'] });
     expect(outcome.error).toBe('invalid_redirect_uri');
   });

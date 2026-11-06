@@ -23,7 +23,7 @@ describe('the authorization server metadata of a tenant', () => {
     });
   });
 
-  it('is refused for an issuer that is not base URL plus tenant', () => {
+  it('[MCP-AUTH-DISC-04] is refused for an issuer that is not base URL plus tenant', () => {
     expect(() =>
       readMetadata(document({ issuer: 'https://id.example.com/tenants/other' }), target),
     ).toThrow(/issuer/u);
@@ -39,7 +39,7 @@ describe('the authorization server metadata of a tenant', () => {
     ).toThrow(/authorization_endpoint/u);
   });
 
-  it('is refused when it does not offer S256', () => {
+  it('[MCP-AUTH-PKCE-01] is refused when it does not offer S256', () => {
     expect(() =>
       readMetadata(document({ code_challenge_methods_supported: ['plain'] }), target),
     ).toThrow(/S256/u);

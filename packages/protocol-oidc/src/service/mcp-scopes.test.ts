@@ -85,7 +85,7 @@ describe('scopesCoherentWithAudience', () => {
 });
 
 describe('capLifetimeForScope', () => {
-  it('caps a lifetime at ten minutes when mcp:write is present', () => {
+  it('[MCP-AUTH-TOKEN-05] caps a lifetime at ten minutes when mcp:write is present', () => {
     expect(MCP_WRITE_MAX_TTL_SECONDS).toBe(600);
     expect(capLifetimeForScope(3600, ['openid', MCP_WRITE_SCOPE])).toBe(600);
     expect(capLifetimeForScope(600, [MCP_WRITE_SCOPE])).toBe(600);

@@ -13,7 +13,7 @@ describe('mcpResourceUrl', () => {
 });
 
 describe('resourceMetadataUrl', () => {
-  it('inserts the well-known suffix between the host and the resource path', () => {
+  it('[MCP-AUTH-DISC-03] inserts the well-known suffix between the host and the resource path', () => {
     expect(resourceMetadataUrl(PATH)).toBe(
       'https://idp.example/.well-known/oauth-protected-resource/tenants/acme/mcp',
     );
@@ -32,7 +32,7 @@ describe('resourceMetadataUrl', () => {
 });
 
 describe('resourceMetadataDocument', () => {
-  it('states the resource and names the issuer as the one authorization server', () => {
+  it('[MCP-AUTH-DISC-01] states the resource and names the issuer as the one authorization server', () => {
     expect(resourceMetadataDocument(PATH)).toEqual({
       resource: 'https://idp.example/tenants/acme/mcp',
       authorization_servers: ['https://idp.example/tenants/acme'],

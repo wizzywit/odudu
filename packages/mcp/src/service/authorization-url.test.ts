@@ -13,7 +13,7 @@ describe('the address a person is sent to', () => {
     }),
   );
 
-  it('is the authorization endpoint with a code request for the built-in client', () => {
+  it('[MCP-AUTH-RES-01] is the authorization endpoint with a code request for the built-in client', () => {
     expect(url.origin + url.pathname).toBe(
       'https://id.example.com/tenants/acme/protocol/openid-connect/auth',
     );
