@@ -122,7 +122,7 @@ describe('cleanData', () => {
 
 describe('cleanData with a long-text allowance', () => {
   const KIB = 1024;
-  const options = { longText: ['stylesheet', 'templates'] };
+  const options = { longText: ['stylesheet', 'draft.templates', 'published.body.templates'] };
 
   it('keeps a stylesheet of 100 KiB whole and cuts one of 200 KiB, saying so', () => {
     const whole = stats();
@@ -154,6 +154,28 @@ describe('cleanData with a long-text allowance', () => {
     );
     expect(JSON.stringify(big).length).toBeLessThan(LONG_TEXT_CAP + 200);
     expect(cut.truncated).toBe(true);
+  });
+
+  it('keeps a string in an array under a named member whole', () => {
+    const out = cleanData({ draft: { templates: ['a'.repeat(100 * KIB)] } }, stats(), options);
+    expect(JSON.stringify(out)).toContain('a'.repeat(100 * KIB));
+  });
+
+  it('cuts a member of the same name at another path at the ordinary cap', () => {
+    const cut = stats();
+    const out = cleanData(
+      { other: { stylesheet: 'a'.repeat(5_000) }, draft: { templates: { x: 'b'.repeat(5_000) } } },
+      cut,
+      options,
+    ) as { other: { stylesheet: string }; draft: { templates: { x: string } } };
+    expect(out.other.stylesheet).toHaveLength(TEXT_CAP);
+    expect(out.draft.templates.x).toHaveLength(5_000);
+    expect(cut.truncated).toBe(true);
+  });
+
+  it('matches one member name for a star', () => {
+    const out = cleanData({ a: { body: 'x'.repeat(5_000) } }, stats(), { longText: ['*.body'] });
+    expect((out as { a: { body: string } }).a.body).toHaveLength(5_000);
   });
 
   it('cuts every other field at the ordinary cap, beside a long one', () => {

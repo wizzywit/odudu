@@ -1550,10 +1550,11 @@ administrator's agent is now offered 48 read tools, the system tenant's 50.
 `get_client_mail_branding` left `NOT_TOOLS`. A tenant administrator's agent is now offered 59
 read tools, the system tenant's 61. The previews and the asset bytes stay withheld.
 
-- **The long-text allowance is per tool and by member name.** `cleanData` takes
-  `{ longText }`, a list of member names; a string under a member of that name, at any depth,
-  is cut at 131,072 characters (the contract's own stylesheet bound) instead of 1,000. Only
-  `get_theme` and `get_client_theme` declare `stylesheet` and `templates`, and a catalogue
+- **The long-text allowance is per tool and by path.** `cleanData` takes
+  `{ longText }`, a list of dot paths from the root of the answer (array indices left out,
+  `*` for one name); a string at or beneath a listed path is cut at 131,072 characters (the contract's own stylesheet bound) instead of 1,000. Only
+  `get_theme` and `get_client_theme` declare the stylesheet and templates of the draft and of
+  the published body, so a member of the same name elsewhere is cut at 1,000, and a catalogue
   test pins that no other tool does. The same controls and bidirectional overrides are
   stripped, and a member's key is still cut at 1,000.
 - **The plan's assumptions held.** The stylesheet-hooks route admits `manage-clients`
@@ -1568,5 +1569,5 @@ read tools, the system tenant's 61. The previews and the asset bytes stay withhe
   limit". The tools take no part argument, so there is no way to read a theme in pieces.
 - **Unpaged lists.** `list_theme_versions` and `list_client_theme_versions` answer at most 20
   versions as `{ items }` under `data`, with no cursor, like `list_builtin_scopes`.
-- **Volume.** `list_message_overrides` is paged under `MAX_LIMIT` (a locale holds at most 500
-  overrides); the catalogue and the hooks are fixed by the build and under 100 KB and 4 KB.
+- **Volume.** `list_message_overrides` is paged under `MAX_LIMIT` (a tenant holds at most 500
+  overrides across every locale); the catalogue and the hooks are fixed by the build and under 100 KB and 4 KB.

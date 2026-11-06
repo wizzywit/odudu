@@ -57,9 +57,20 @@ export function cleanText(text: string, cap: number): string {
 }
 
 export interface CleanOptions {
-  // Member names whose strings, and every string under a member of that name,
-  // are cut at LONG_TEXT_CAP. Declared by one tool for its own response.
+  // Dot paths from the root of the value (array indices left out; `*` stands
+  // for one member name) whose strings, and every string beneath them, are
+  // cut at LONG_TEXT_CAP. Declared by one tool for its own response.
   readonly longText?: readonly string[];
+}
+
+function listed(longText: ReadonlySet<string>, path: readonly string[]): boolean {
+  if (longText.size === 0) return false;
+  return [...longText].some((entry) => {
+    const parts = entry.split('.');
+    return (
+      parts.length === path.length && parts.every((part, i) => part === '*' || part === path[i])
+    );
+  });
 }
 
 function walk(
@@ -67,6 +78,7 @@ function walk(
   stats: CleanStats,
   longText: ReadonlySet<string>,
   inLong: boolean,
+  path: readonly string[],
   depth: number,
 ): unknown {
   if (typeof value === 'string') return clean(value, inLong ? LONG_TEXT_CAP : TEXT_CAP, stats);
@@ -79,7 +91,7 @@ function walk(
     );
   }
   if (Array.isArray(value)) {
-    return value.map((item: unknown) => walk(item, stats, longText, inLong, depth + 1));
+    return value.map((item: unknown) => walk(item, stats, longText, inLong, path, depth + 1));
   }
   const isKey = 'kty' in value;
   return Object.fromEntries(
@@ -87,11 +99,18 @@ function walk(
       .filter(([key]) => !withheld(key, isKey))
       .map(([key, item]) => [
         clean(key, TEXT_CAP, stats),
-        walk(item, stats, longText, inLong || longText.has(key), depth + 1),
+        walk(
+          item,
+          stats,
+          longText,
+          inLong || listed(longText, [...path, key]),
+          [...path, key],
+          depth + 1,
+        ),
       ]),
   );
 }
 
 export function cleanData(value: unknown, stats: CleanStats, options?: CleanOptions): unknown {
-  return walk(value, stats, new Set(options?.longText ?? []), false, 0);
+  return walk(value, stats, new Set(options?.longText ?? []), false, [], 0);
 }

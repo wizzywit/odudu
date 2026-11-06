@@ -14,7 +14,12 @@ import { pageShape, pageTool, tenantGet, valueTool } from '#/service/read-tool';
 // A theme's stylesheet and its page templates are authored text, kept whole
 // rather than cut at 1,000 characters, and they stay under `data` like every
 // other string.
-export const THEME_LONG_TEXT = ['stylesheet', 'templates'] as const;
+export const THEME_LONG_TEXT = [
+  'draft.stylesheet',
+  'draft.templates',
+  'published.body.stylesheet',
+  'published.body.templates',
+] as const;
 
 export const brandingTools = [
   valueTool({
