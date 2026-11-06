@@ -69,7 +69,8 @@ export interface AdminRouterDeps {
   readonly clock: Clock;
   readonly database: Database;
   // The serving pool's size, which bounds how many keyed calls run at once.
-  readonly poolMax: number;
+  // Read on the first keyed call, so an app that never keys a request never asks.
+  readonly poolMax: () => number;
 }
 
 /** Keyed by `"<method> <pattern>"`, exactly matching an `ADMIN_ROUTES` entry. */
@@ -422,7 +423,13 @@ export function registerAdminRoutes(
   deps: AdminRouterDeps,
 ): void {
   const unclaimed = new Set(Object.keys(handlers));
-  const gate = createKeyedGate(keyedLimitFor(deps.poolMax));
+  let sized: KeyedGate | undefined;
+  const gate: KeyedGate = {
+    acquire: (signal) => {
+      sized ??= createKeyedGate(keyedLimitFor(deps.poolMax()));
+      return sized.acquire(signal);
+    },
+  };
 
   for (const route of ADMIN_ROUTES) {
     const key = routeKey(route.method, route.pattern);

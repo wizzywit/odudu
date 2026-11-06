@@ -18,7 +18,7 @@ const deps: AdminRouterDeps = {
   authz: authzDeps,
   clock: { now: () => new Date(0) },
   database: {} as unknown as Database,
-  poolMax: 10,
+  poolMax: () => 10,
 };
 const noopHandler = () => {
   throw new Error('not called by these tests');
