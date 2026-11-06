@@ -17,7 +17,13 @@ export { newRequestScope, type AdminBearer, type RequestScope } from '#/service/
 export type { McpCallDeps, McpDeps, McpLogger } from '#/service/deps';
 export { validatedMcpToken } from '#/service/validated-token';
 export type { ValidatedMcpToken, VerifiedMcpClaims } from '#/service/validated-token';
-export type { AdminCaller, AdminRequestSpec, AdminResult, JsonValue } from '#/service/tool';
+export type {
+  AdminCaller,
+  AdminRequestSpec,
+  AdminResult,
+  JsonValue,
+  ToolResult,
+} from '#/service/tool';
 export { ToolProblem } from '#/service/tool';
 export { createMcpExchange, TOOLS_LIST_TTL_MS, type ExchangeParts } from '#/adapter/mcp-exchange';
 export { registerMcpRoute, MCP_PATH_FORM, MCP_BODY_LIMIT_BYTES } from '#/view/routes/mcp';
