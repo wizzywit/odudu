@@ -30,8 +30,8 @@ describe('the MCP tool counts the documents state', () => {
 
   it.each(PAGES)('%s names no other count', (file) => {
     const text = readFileSync(path.join(REPO_ROOT, file), 'utf8');
-    const reads = [...text.matchAll(/\b(\d+) (?:read tools|tools that read)/gu)];
-    const writes = [...text.matchAll(/\b(\d+|two) write tools/gu)];
+    const reads = [...text.matchAll(/\b(\d+)\s+(?:read\s+tools|tools\s+that\s+read)/gu)];
+    const writes = [...text.matchAll(/\b(\d+|two)\s+write\s+tools/gu)];
     for (const m of reads) expect(number(m[1] ?? ''), m[0]).toBe(READ);
     for (const m of writes) expect(number(m[1] ?? ''), m[0]).toBe(WRITE);
   });
@@ -39,7 +39,7 @@ describe('the MCP tool counts the documents state', () => {
   it('is said at least once, so the check reads something', () => {
     const said = PAGES.flatMap((file) => [
       ...readFileSync(path.join(REPO_ROOT, file), 'utf8').matchAll(
-        /\b42 (?:read tools|tools that read)/gu,
+        /\b42\s+(?:read\s+tools|tools\s+that\s+read)/gu,
       ),
     ]);
     expect(said.length).toBeGreaterThanOrEqual(3);

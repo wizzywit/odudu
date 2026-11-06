@@ -8,7 +8,7 @@ import { Diagram } from '@site/src/shared/ui/Diagram';
 
 # Consent and audit
 
-Two questions come up afterwards. A person asks: what did I let that app see? An administrator asks: what happened on Tuesday, and who did it? Consent answers the first. The audit trail answers the second.
+Two questions come up afterwards: what did I let that app see, and what happened on Tuesday, and who did it? Consent answers the first, the audit trail the second.
 
 <Diagram
   name="consent-and-audit"
@@ -45,7 +45,7 @@ An administrator can list a person's grants with `GET /admin/tenants/{tenant}/su
 
 ### A client that names itself
 
-A tenant can let an app identify itself with an https address (`cimd_enabled`) or let an agent register itself (`client_registration_policy` set to `mcp`). Anyone can claim a name, so such a client is held to step 2. For an app that identifies itself with an https address, the screen shows the host the document came from and every redirect address. An agent that registers itself says so, names where this request sends the person, and lists the other origins it registered. Neither kind is ever offered `mcp:write`, and a request that names it is answered without it. The [Settings page](../admin-console/settings.mdx#client-registration) has the details, and the [registration transcript](../reference/transcripts/request-paths/bootstrap.md#the-mcp-policy) shows each refusal.
+A tenant can let an app identify itself with an https address (`cimd_enabled`) or let an agent register itself (`client_registration_policy` set to `mcp`). Anyone can claim a name, so such a client meets step 2. For an app that identifies itself with an https address, the screen shows the host the document came from and every redirect address. An agent that registers itself says so, names where this request sends the person, and lists the other origins it registered. An agent that asks for `mcp:read mcp:write` is registered with `mcp:read` only, and one that asks only for scopes it may not hold is refused with `invalid_client_metadata`. Neither kind is ever offered `mcp:write`. The [Settings page](../admin-console/settings.mdx#client-registration) has the details, and the [registration transcript](../reference/transcripts/request-paths/bootstrap.md#the-mcp-policy) shows each refusal.
 
 ## Audit
 
@@ -63,7 +63,7 @@ Read it with `GET /admin/tenants/{tenant}/audit`, filtered or exported. The [aud
 
 ### Refusals are bounded
 
-Anybody can cause a refusal as often as they like, and each is a row, so one is recorded only where something limits how many a caller can cause. A registered client gets up to 20 refusals a minute. The last says the budget ran out, and later ones go to the server's log. A failed client login naming a client nobody registered writes no row. A sign-up with an address that already has an account writes one row naming that account, limited by the sign-up form's budget per address.
+Anybody can cause a refusal, and each is a row, so one is recorded only where something limits how many a caller can cause. A registered client gets up to 20 refusals a minute. The last says the budget ran out, and later ones go to the server's log. A failed client login naming a client nobody registered writes no row. A sign-up with an address that already has an account writes one row naming that account, limited by the sign-up form's budget per address.
 
 ### An agent in the trail
 
@@ -85,4 +85,4 @@ Events are kept 90 days by default, set per tenant with `audit_retention_days`. 
 ## Where to go next
 
 - [Scopes](./scopes.mdx) is where the words on the screen come from.
-- [Read a refusal](../guides/read-a-refusal.md) shows seven refusals and what they look like to each party.
+- [Read a refusal](../guides/read-a-refusal.md) shows seven refusals as each party sees them.

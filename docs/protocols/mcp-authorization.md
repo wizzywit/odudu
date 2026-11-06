@@ -60,7 +60,10 @@ CIMD draft, `cimd.md`) are behind the tenant's `cimd_enabled` setting. Dynamic r
 `mcp:read`, loopback or HTTPS redirects and the tenant's MCP URL as audience, and caps the
 rate per address and per tenant. A client an administrator creates is the pre-registered
 route, and the built-in `odudu-mcp` client serves `odudu mcp`. A client that registered
-itself cannot hold `mcp:write`, and a person is asked for consent every time it signs in.
+itself cannot hold `mcp:write`. A person is shown its consent screen until they have
+approved that exact client (a recorded grant), and again when a request asks for scopes they
+have not approved, carries `prompt=consent`, or would be granted `mcp:write`, which is asked
+every time (`decideConsent`, `protocol-oidc/src/service/consent.ts`).
 The specification's client-side priority order (pre-registered, then CIMD, then DCR) is
 addressed to clients and is not rowed.
 

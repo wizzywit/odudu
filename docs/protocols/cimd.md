@@ -18,7 +18,8 @@ A document is never trusted as it arrives. `parseCimdDocument`
 validated projection is cached or stored. A tenant that has the setting on keeps the
 client as an ordinary public client row (`registration_origin = 'cimd'`, migration 0116) written by `persistCimdClient`, so the token endpoint, consent and userinfo find
 it as they find any client. The row is rewritten from the document each time the
-document is resolved, holds no secret, asks for consent every time, and holds no
+document is resolved, holds no secret, asks for consent until the person has approved
+that exact client (and again for scopes not yet approved), and holds no
 audience: what a token may be for is the tenant's policy, never the document's. A
 client that has not been resolved for thirty days is removed by `odudu reap`, unless it
 holds a refresh token that can still be used, or lapsed within the longest access token's
