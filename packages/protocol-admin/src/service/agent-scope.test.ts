@@ -4,9 +4,11 @@ import {
   AGENT_DENIED_READS,
   AGENT_WRITE_ROUTES,
   INSTANCE_READS,
+  type AgentWriteRoute,
   agentBodyAdmitted,
   agentBodyNamesGuardedField,
   agentWritableFields,
+  agentWritesClient,
   doorToolName,
   isAdminRouteKey,
   scopeAdmits,
@@ -209,5 +211,130 @@ describe('doorToolName', () => {
     expect(doorToolName('GET /admin/tenants/:tenant/clients/:id')).toBe('admin.get.clients.id');
     expect(doorToolName('GET /admin/tenants/:tenant/whoami')).toBe('admin.get.whoami');
     expect(doorToolName('GET /admin/tenants')).toBe('admin.get.tenants');
+  });
+});
+
+describe('an allowlist of every method and body mode', () => {
+  const rolesPost: AgentWriteRoute = {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/roles',
+    target: 'none',
+    body: 'fields',
+    fields: ['name', 'description', 'client_id'],
+  };
+  const overridePut: AgentWriteRoute = {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/message-overrides/:locale/:key',
+    target: 'none',
+    body: 'whole',
+    fields: ['message'],
+  };
+  const overrideDelete: AgentWriteRoute = {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/message-overrides/:locale/:key',
+    target: 'none',
+    body: 'fields',
+    fields: [],
+  };
+  const clientPatch = AGENT_WRITE_ROUTES[0];
+  const synthetic: readonly AgentWriteRoute[] = [
+    rolesPost,
+    overridePut,
+    overrideDelete,
+    ...(clientPatch === undefined ? [] : [clientPatch]),
+  ];
+  const listed = new Set(synthetic.map(key));
+
+  it.each(ADMIN_ROUTES.map((r) => [key(r), r] as const))('admits %s as listed', (_, r) => {
+    const read = r.method === 'GET' && !denied.has(key(r));
+    const written = listed.has(key(r));
+    expect(scopeAdmits([MCP_READ_SCOPE], r, true, synthetic)).toBe(read);
+    expect(scopeAdmits([MCP_WRITE_SCOPE], r, true, synthetic)).toBe(read || written);
+    expect(scopeAdmits([MCP_READ_SCOPE, MCP_WRITE_SCOPE], r, true, synthetic)).toBe(
+      read || written,
+    );
+    expect(scopeAdmits(['openid'], r, true, synthetic)).toBe(false);
+  });
+
+  it('matches the method as well as the route', () => {
+    const put = route('PUT', rolesPost.pattern.replace('roles', 'message-overrides/:locale/:key'));
+    const patch = route('PATCH', '/admin/tenants/:tenant/roles/:id');
+    expect(scopeAdmits([MCP_WRITE_SCOPE], put, true, synthetic)).toBe(true);
+    expect(scopeAdmits([MCP_WRITE_SCOPE], patch, true, synthetic)).toBe(false);
+    const post = route('POST', '/admin/tenants/:tenant/groups');
+    expect(scopeAdmits([MCP_WRITE_SCOPE], post, true, synthetic)).toBe(false);
+  });
+
+  it('keeps the shipped allowlist to its two PATCH entries', () => {
+    expect(AGENT_WRITE_ROUTES.map(key).sort()).toEqual([
+      'PATCH /admin/tenants/:tenant/clients/:id',
+      'PATCH /admin/tenants/:tenant/scopes/:id',
+    ]);
+    for (const entry of AGENT_WRITE_ROUTES) {
+      expect(entry.body).toBe('fields');
+      expect(entry.target).not.toBe('none');
+    }
+  });
+
+  const create = route('POST', '/admin/tenants/:tenant/roles');
+  const put = route('PUT', '/admin/tenants/:tenant/message-overrides/:locale/:key');
+  const remove = route('DELETE', '/admin/tenants/:tenant/message-overrides/:locale/:key');
+  const proto: unknown = JSON.parse('{"name":"x","__proto__":{"default_for_new_subjects":true}}');
+  const protoWhole: unknown = JSON.parse('{"message":"x","__proto__":{"a":1}}');
+
+  it.each([
+    [create, { name: 'n', description: null, client_id: 'c' }],
+    [create, {}],
+    [put, { message: 'text' }],
+    [put, {}],
+  ])('admits only the named members of a body', (r, body) => {
+    expect(agentBodyAdmitted(r, body, synthetic)).toBe(true);
+  });
+
+  it.each([
+    [create, { name: 'n', default_for_new_subjects: true }],
+    [create, { Name: 'n' }],
+    [create, proto],
+    [create, []],
+    [create, null],
+    [create, 'name'],
+    [create, undefined],
+    [put, { message: 'x', locale: 'de' }],
+    [put, protoWhole],
+    [put, ['message']],
+    [put, null],
+    [put, 'message'],
+    [put, 7],
+    [put, undefined],
+  ])('refuses a body outside the named members or not a record', (r, body) => {
+    expect(agentBodyAdmitted(r, body, synthetic)).toBe(false);
+  });
+
+  it('reads a duplicate key as the parsed object holds it, in both modes', () => {
+    const ok: unknown = JSON.parse('{"message":"a","message":"b"}');
+    expect(agentBodyAdmitted(put, ok, synthetic)).toBe(true);
+    const bad: unknown = JSON.parse('{"message":"a","locale":"x","locale":"y"}');
+    expect(agentBodyAdmitted(put, bad, synthetic)).toBe(false);
+  });
+
+  it('admits no body for a DELETE and none for a route outside the list', () => {
+    expect(agentBodyAdmitted(remove, undefined, synthetic)).toBe(true);
+    expect(agentBodyAdmitted(remove, {}, synthetic)).toBe(false);
+    expect(agentBodyAdmitted(remove, null, synthetic)).toBe(false);
+    expect(agentBodyAdmitted(remove, { message: 'x' }, synthetic)).toBe(false);
+    const get = route('GET', '/admin/tenants/:tenant/roles');
+    expect(agentBodyAdmitted(get, undefined, synthetic)).toBe(false);
+    expect(agentBodyAdmitted(route('POST', '/admin/tenants/:tenant/groups'), {}, synthetic)).toBe(
+      false,
+    );
+  });
+
+  it('reads the fields and the target of the entry the route names', () => {
+    expect(agentWritableFields(create, synthetic)).toEqual(['name', 'description', 'client_id']);
+    expect(agentWritableFields(remove, synthetic)).toEqual([]);
+    expect(agentWritesClient(create, synthetic)).toBe(false);
+    expect(agentWritesClient(route('PATCH', '/admin/tenants/:tenant/clients/:id'), synthetic)).toBe(
+      true,
+    );
   });
 });
