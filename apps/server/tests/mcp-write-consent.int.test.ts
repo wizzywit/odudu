@@ -64,7 +64,11 @@ async function tenant() {
 }
 
 type T = Awaited<ReturnType<typeof tenant>>;
-type Res = { statusCode: number; headers: Record<string, unknown>; body: string };
+interface Res {
+  statusCode: number;
+  headers: Record<string, unknown>;
+  body: string;
+}
 
 function jarOf(jar: Map<string, string>, res: Res): void {
   const raw = res.headers['set-cookie'];

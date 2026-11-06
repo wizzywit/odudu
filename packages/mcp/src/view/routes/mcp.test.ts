@@ -289,14 +289,25 @@ describe('the challenge', () => {
 });
 
 describe('the budget', () => {
-  it('answers 429 with Retry-After and a JSON-RPC error once the principal has spent it', async () => {
-    const w = build({ limits: { perPrincipal: { limit: 2, windowSeconds: 60 } } });
+  // The weighted window admits again a window/limit into the next one, so a
+  // key that spent its limit at the start of a window waits the rest of it and
+  // that much more: the figures below are the limiter's own arithmetic at a
+  // fixed instant, never the wall clock's.
+  it.each([
+    ['at the start of a window', '2026-11-06T12:00:00.000Z', 90],
+    ['halfway through one', '2026-11-06T12:00:30.000Z', 60],
+    ['three quarters through one', '2026-11-06T12:00:45.000Z', 45],
+    ['a second and a half before the next opens', '2026-11-06T12:00:58.500Z', 32],
+  ])('answers 429 with Retry-After and a JSON-RPC error, %s', async (_label, instant, wait) => {
+    const at = new Date(instant);
+    const w = build({
+      limits: { perPrincipal: { limit: 2, windowSeconds: 60 }, now: () => at },
+    });
     expect((await post(w)).statusCode).toBe(200);
     expect((await post(w)).statusCode).toBe(200);
     const res = await post(w);
     expect(res.statusCode).toBe(429);
-    expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
-    expect(Number(res.headers['retry-after'])).toBeLessThanOrEqual(60);
+    expect(Number(res.headers['retry-after'])).toBe(wait);
     expect(res.json()).toMatchObject({ jsonrpc: '2.0', error: { code: -32029 } });
     expect(w.served).toHaveLength(2);
   });
