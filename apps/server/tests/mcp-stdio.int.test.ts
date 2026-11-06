@@ -14,7 +14,7 @@ import { clientOidcConfig } from '@odudu/protocol-oidc';
 import { eq } from 'drizzle-orm';
 import { readdir } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { seed } from '#/cli/seed';
+import { seed, seedAdmin } from '#/cli/seed';
 import {
   byId,
   INITIALIZE,
@@ -110,6 +110,77 @@ function claimsOf(authorization: string): Record<string, unknown> {
 }
 
 describe('odudu mcp, signing in as a person', () => {
+  it('lists and counts the tenants for a system administrator, which a tenant’s own run is not offered', async () => {
+    const username = `ops${newId().slice(-10)}`;
+    await seedAdmin({ username, password: PASSWORD });
+    const t = await tenant();
+    const w = wire();
+    const names = (lines: Parameters<typeof byId>[0], id: number) =>
+      (byId(lines, id).result as { tools: { name: string }[] }).tools.map((tool) => tool.name);
+    const system = await runMcp(['--base-url', BASE, '--tenant', 'system'], {
+      fetch: w.fetch,
+      configDir: await privateConfigDirectory(),
+      input: [
+        INITIALIZE,
+        INITIALIZED,
+        { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} },
+        call(3, 'list_tenants', { name: t.name }),
+        call(4, 'count_tenants', {}),
+      ],
+      openBrowser: async (address) => {
+        await fetch(
+          await scriptedBrowser(stack.app, address, {
+            host: HOST,
+            tenant: 'system',
+            username,
+            password: PASSWORD,
+            tick: ['mcp:read'],
+          }),
+        );
+        return true;
+      },
+    });
+    expect(system.code).toBe(0);
+    expect(names(system.lines, 2)).toEqual(
+      expect.arrayContaining(['list_tenants', 'count_tenants']),
+    );
+    const page = byId(system.lines, 3).result as {
+      isError: boolean;
+      structuredContent: { data: { name: string }[] };
+    };
+    expect(page.isError, JSON.stringify(page)).toBe(false);
+    expect(page.structuredContent.data.map((row) => row.name)).toEqual([t.name]);
+    const count = byId(system.lines, 4).result as {
+      structuredContent: { data: { count: number } };
+    };
+    expect(count.structuredContent.data.count).toBeGreaterThanOrEqual(2);
+    expect(w.admin.map((seen) => new URL(seen.url).pathname)).toEqual([
+      '/admin/tenants',
+      '/admin/tenants/count',
+    ]);
+
+    const local = await runMcp(['--base-url', BASE, '--tenant', t.name], {
+      fetch: wire().fetch,
+      configDir: await privateConfigDirectory(),
+      input: [INITIALIZE, INITIALIZED, { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }],
+      openBrowser: async (address) => {
+        await fetch(
+          await scriptedBrowser(stack.app, address, {
+            host: HOST,
+            tenant: t.name,
+            username: t.username,
+            password: PASSWORD,
+            tick: ['mcp:read'],
+          }),
+        );
+        return true;
+      },
+    });
+    expect(names(local.lines, 2)).not.toContain('list_tenants');
+    expect(names(local.lines, 2)).not.toContain('count_tenants');
+    expect(names(local.lines, 2)).toContain('list_clients');
+  }, 90_000);
+
   it('signs in through the real /authorize and consent, then reads as the person with a token issued to odudu-mcp', async () => {
     const t = await tenant();
     const w = wire();

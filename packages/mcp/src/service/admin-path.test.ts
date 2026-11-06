@@ -39,4 +39,44 @@ describe('expandPattern', () => {
       );
     }
   });
+
+  describe('the instance-level reads', () => {
+    it.each(['/admin/tenants', '/admin/tenants/count'])(
+      'leaves %s as it is, whoever the caller is',
+      (pattern) => {
+        expect(expandPattern(pattern, 'system', {})).toBe(pattern);
+        expect(expandPattern(pattern, 'acme', {})).toBe(pattern);
+      },
+    );
+
+    it('refuses a tenant or any other parameter for them', () => {
+      for (const params of [{ tenant: 'acme' }, { id: 'x' }, { tenant: '..' }]) {
+        expect(() => expandPattern('/admin/tenants', 'system', params)).toThrow();
+        expect(() => expandPattern('/admin/tenants/count', 'system', params)).toThrow();
+      }
+    });
+
+    it('refuses every other pattern that has no tenant segment', () => {
+      for (const pattern of [
+        '/admin/tenants/acme',
+        '/admin/tenants/../export',
+        '/admin/tenants/',
+        '/admin/tenants?name=x',
+        '/admin/tenants/count/x',
+        '/admin/tenant-imports',
+        '/admin',
+        '',
+        'admin/tenants',
+        '/admin/Tenants',
+      ]) {
+        expect(() => expandPattern(pattern, 'system', {}), pattern).toThrow(/tenant/u);
+      }
+    });
+
+    it('does not let a value in the tenant argument reshape the path', () => {
+      for (const tenant of ['', '.', '..']) {
+        expect(expandPattern('/admin/tenants', tenant, {})).toBe('/admin/tenants');
+      }
+    });
+  });
 });

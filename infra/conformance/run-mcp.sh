@@ -15,7 +15,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # such floor, so the pin is the floor.
 INSPECTOR_VERSION=2.13.0
 SDK_CLIENT_VERSION=2.4.0
-# The read tools a token holding mcp:read lists for an administrator.
+# The read tools a token holding mcp:read lists for a tenant's administrator;
+# the two that list tenants are the system tenant's agent's alone.
 export EXPECT_READ_TOOLS=42
 
 PROJECT=odudu-mcp

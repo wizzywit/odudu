@@ -93,12 +93,13 @@ jq -c 'select(.id==1)' out.jsonl
 {"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"odudu:demo","title":"Odudu (demo)","version":"1.0.0"},"instructions":"This server acts in the Odudu tenant \"demo\" only, as the person signed in; every tool works on that tenant. If you also have other Odudu servers connected, check the tenant before using a tool."},"jsonrpc":"2.0","id":1}
 ```
 
-The listing is the endpoint's, minus the two write tools, since the command was not asked for writes. Those are 42 tools, and none of them starts with `update_`:
+The listing is the endpoint's, minus the two write tools, since the command was not asked for writes. Those are 42 tools, none of them starts with `update_`, and none is one of the two that list and count tenants, which only an agent of the `system` tenant is offered:
 
 ```bash
 jq -c 'select(.id==2) | .result.tools | length' out.jsonl
 jq -r 'select(.id==2) | .result.tools | map(.name) | join(" ")' out.jsonl | fold -s -w 100
 jq -r 'select(.id==2) | .result.tools[].name' out.jsonl | grep -c '^update_'
+jq -r 'select(.id==2) | .result.tools[].name' out.jsonl | grep -c '_tenants$'
 ```
 
 ```
@@ -110,6 +111,7 @@ get_subject_groups get_subject_lockout get_subject_required_actions get_subject_
 list_client_logout_deliveries list_client_sessions list_clients list_domains list_groups list_keys
 list_mail list_roles list_scope_clients list_scopes list_sessions list_subject_consents
 list_subject_effective_roles list_subject_grants list_subject_sessions list_subjects whoami
+0
 0
 ```
 

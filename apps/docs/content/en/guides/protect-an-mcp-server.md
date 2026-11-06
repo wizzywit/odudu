@@ -228,7 +228,7 @@ curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application
 {"result":{"content":[{"type":"text","text":"{\"data\":{\"subjectId\":\"01a1b0fa-b0fd-7510-8914-103575c9b973\",\"issuerTenantId\":\"01a1b0fa-b046-73dc-acf8-0a963c19a71e\",\"issuerTenantName\":\"demo\",\"capabilities\":[\"view-users\"],\"crossTenant\":false}}"}],"structuredContent":{"data":{"subjectId":"01a1b0fa-b0fd-7510-8914-103575c9b973","issuerTenantId":"01a1b0fa-b046-73dc-acf8-0a963c19a71e","issuerTenantName":"demo","capabilities":["view-users"],"crossTenant":false}},"isError":false},"jsonrpc":"2.0","id":2}
 ```
 
-A tool the person cannot use is not in the list the endpoint offers, and a client that calls it by name is refused by the admin API for the missing capability. Every call, served or refused, is an `agent.tool_call` audit event that names the tool, the person and the client, and never the arguments. The endpoint also bounds a client: sixty requests a minute for each person and client, and four at once.
+A tool the person cannot use is not in the list the endpoint offers, and a client that calls it by name is refused by the admin API for the missing capability. Every call, served or refused, is an `agent.tool_call` audit event that names the tool, the person and the client, and never the arguments. Two tools, `list_tenants` and `count_tenants`, read across tenants and are offered only to an agent signed in to the `system` tenant for a person who holds `manage-tenants`: an agent of any other tenant is not offered them, and calling one anyway is refused. They list and count the tenants and open none of them. The endpoint also bounds a client: sixty requests a minute for each person and client, and four at once.
 
 ## 9. Put it back
 

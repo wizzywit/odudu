@@ -14,6 +14,7 @@ import { scopeTools } from '#/service/tools/scopes';
 import { sessionTools } from '#/service/tools/sessions';
 import { settingsTools } from '#/service/tools/settings';
 import { subjectTools } from '#/service/tools/subjects';
+import { tenantTools } from '#/service/tools/tenants';
 import { whoamiTools } from '#/service/tools/whoami';
 import { type RegisteredTool } from '#/service/tool';
 
@@ -33,6 +34,7 @@ export const TOOLS: readonly RegisteredTool[] = [
   ...sessionTools,
   ...settingsTools,
   ...subjectTools,
+  ...tenantTools,
   ...whoamiTools,
   clientMetadataTool,
   scopeMetadataTool,
@@ -215,11 +217,6 @@ const WITHHELD: readonly Entry[] = [
   [
     'The mail relay configuration, with its host and login username: not offered to an agent; list_mail shows delivery status.',
     [R('GET', '/smtp')],
-    'sensitive',
-  ],
-  [
-    'Lists every tenant (manage-tenants): an agent acts inside the one tenant its token names, never across tenants.',
-    ['GET /admin/tenants', 'GET /admin/tenants/count'],
     'sensitive',
   ],
   [

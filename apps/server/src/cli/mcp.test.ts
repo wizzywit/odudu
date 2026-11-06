@@ -116,6 +116,10 @@ beforeAll(async () => {
 const run = (argv: string[], options: Parameters<typeof runMcp>[1] = {}): Promise<Run> =>
   runMcp(argv, { fetch: authority().fetch, ...options });
 
+// What a tenant's own agent is offered: the two reads that span tenants are the
+// system tenant's alone.
+const TENANT_TOOLS = TOOLS.filter((t) => t.routeKey.includes(':tenant'));
+
 const KEY_ARGS = ['--base-url', BASE, '--tenant', 'acme', '--client-id', 'svc'];
 
 describe('odudu mcp: what it needs to start', () => {
@@ -305,7 +309,7 @@ describe('odudu mcp with a service account key', () => {
   it('lists the read tools only by default, and the write tools too with --allow-writes', async () => {
     const read = await run(KEY_ARGS, { env: { ODUDU_MCP_KEY: keyText }, input: SESSION });
     const readNames = toolNames(read.lines);
-    expect(readNames).toEqual(TOOLS.filter((t) => t.access === 'read').map((t) => t.name));
+    expect(readNames).toEqual(TENANT_TOOLS.filter((t) => t.access === 'read').map((t) => t.name));
     expect(readNames.length).toBe(42);
 
     const a = authority();
@@ -314,7 +318,7 @@ describe('odudu mcp with a service account key', () => {
       input: SESSION,
       fetch: a.fetch,
     });
-    expect(toolNames(write.lines)).toEqual(TOOLS.map((t) => t.name));
+    expect(toolNames(write.lines)).toEqual(TENANT_TOOLS.map((t) => t.name));
     expect(a.state.tokenForms[0]?.scope).toBe('mcp:write');
   });
 
@@ -539,7 +543,7 @@ describe('odudu mcp with a browser sign-in', () => {
     expect(r.code).toBe(0);
     expect(scope).toBe('mcp:write');
     expect(await readdir(configDir)).toEqual([]);
-    expect(toolNames(r.lines)).toEqual(TOOLS.map((t) => t.name));
+    expect(toolNames(r.lines)).toEqual(TENANT_TOOLS.map((t) => t.name));
   });
 
   it('does not use a stored refresh token for a run that allows writes', async () => {

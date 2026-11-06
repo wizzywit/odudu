@@ -4,7 +4,7 @@ import {
   signClientAssertion,
   type ClientKey,
 } from '@odudu/crypto';
-import { ADMIN_API_AUDIENCE, MCP_CLIENT_ID } from '@odudu/domain-tenant';
+import { ADMIN_API_AUDIENCE, MCP_CLIENT_ID, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import {
   callMcpTool,
   createBrowserOpener,
@@ -371,7 +371,12 @@ async function start(values: Values, io: McpIo): Promise<void> {
         }),
   });
   const caller = createHttpCaller(baseUrl, tokens, { tenant, fetch: io.fetch });
-  await serve(tenant, visibleTools(TOOLS, [scope], null), caller, io);
+  await serve(
+    tenant,
+    visibleTools(TOOLS, [scope], null, tenant === SYSTEM_TENANT_NAME),
+    caller,
+    io,
+  );
 }
 
 // `odudu mcp`: the admin tools over stdio for a local MCP client. It reads no
