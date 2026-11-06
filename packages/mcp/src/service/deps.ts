@@ -5,6 +5,7 @@ import type { ValidatedMcpToken } from '#/service/validated-token';
 
 export interface McpLogger {
   debug(context: Record<string, unknown>, message: string): void;
+  error(context: Record<string, unknown>, message: string): void;
 }
 
 // What the server hands the MCP layer, once per process. The layer holds no

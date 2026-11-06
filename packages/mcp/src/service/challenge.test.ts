@@ -1,6 +1,6 @@
 import { domainAddress, pathAddress } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
-import { challengeFor, insufficientScope } from '#/service/challenge';
+import { challengeFor, insufficientScope, invalidToken } from '#/service/challenge';
 
 const PATH = pathAddress('https://idp.example', 'acme');
 const PRM = 'https://idp.example/.well-known/oauth-protected-resource/tenants/acme/mcp';
@@ -23,6 +23,14 @@ describe('insufficientScope', () => {
   it('carries error="insufficient_scope" and the scopes the call needs, space separated', () => {
     expect(insufficientScope(PATH, ['mcp:read', 'mcp:write'])).toBe(
       `Bearer error="insufficient_scope", scope="mcp:read mcp:write", resource_metadata="${PRM}"`,
+    );
+  });
+});
+
+describe('invalidToken', () => {
+  it('[RFC6750-3-01] carries error="invalid_token", the metadata URL and the scope to ask for', () => {
+    expect(invalidToken(PATH, 'mcp:read')).toBe(
+      `Bearer error="invalid_token", resource_metadata="${PRM}", scope="mcp:read"`,
     );
   });
 });

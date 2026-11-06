@@ -38,7 +38,7 @@ export function problemOf(result: AdminResult): ToolProblem {
   );
 }
 
-function errorResult(problem: ToolProblem): ToolResult {
+export function errorResult(problem: ToolProblem): ToolResult {
   const error = {
     type: cleanText(problem.problemType, PROBLEM_TYPE_CAP),
     title: cleanText(problem.title, PROBLEM_TITLE_CAP),
@@ -54,27 +54,45 @@ function errorResult(problem: ToolProblem): ToolResult {
   };
 }
 
+export interface ToolRun {
+  readonly result: ToolResult;
+  // The refusal behind an error result, for a reader that classifies it; the
+  // result is all a client is ever sent.
+  readonly problem: ToolProblem | null;
+}
+
+// `callTool` with the problem it turned into an error result kept beside it.
+export async function runTool(
+  tool: RegisteredTool,
+  caller: Parameters<RegisteredTool['run']>[0],
+  input: unknown,
+): Promise<ToolRun> {
+  try {
+    const output = await tool.run(caller, input);
+    const text = JSON.stringify(output);
+    if (Buffer.byteLength(text) > RESULT_CAP) {
+      const problem = new ToolProblem(
+        'mcp:result_too_large',
+        'The result is too large to return',
+        null,
+        'Ask for fewer rows with a smaller limit, or narrow the filters.',
+      );
+      return { result: errorResult(problem), problem };
+    }
+    return {
+      result: { isError: false, content: [{ type: 'text', text }], structuredContent: output },
+      problem: null,
+    };
+  } catch (error) {
+    if (error instanceof ToolProblem) return { result: errorResult(error), problem: error };
+    throw error;
+  }
+}
+
 export async function callTool(
   tool: RegisteredTool,
   caller: Parameters<RegisteredTool['run']>[0],
   input: unknown,
 ): Promise<ToolResult> {
-  try {
-    const output = await tool.run(caller, input);
-    const text = JSON.stringify(output);
-    if (Buffer.byteLength(text) > RESULT_CAP) {
-      return errorResult(
-        new ToolProblem(
-          'mcp:result_too_large',
-          'The result is too large to return',
-          null,
-          'Ask for fewer rows with a smaller limit, or narrow the filters.',
-        ),
-      );
-    }
-    return { isError: false, content: [{ type: 'text', text }], structuredContent: output };
-  } catch (error) {
-    if (error instanceof ToolProblem) return errorResult(error);
-    throw error;
-  }
+  return (await runTool(tool, caller, input)).result;
 }

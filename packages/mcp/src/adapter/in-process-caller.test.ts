@@ -34,7 +34,10 @@ function harness(
       requestId: 'req-1',
       ip: '10.0.0.9',
       adminHost: undefined,
-      logger: { debug: (context, message) => logged.push(JSON.stringify({ context, message })) },
+      logger: {
+        debug: (context, message) => logged.push(JSON.stringify({ context, message })),
+        error: (context, message) => logged.push(JSON.stringify({ context, message })),
+      },
       ...overrides,
     },
   };

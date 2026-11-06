@@ -24,7 +24,7 @@ function depsWith(
     request,
     now: () => NOW,
     adminAudience: 'urn:odudu:admin',
-    logger: { debug: () => undefined },
+    logger: { debug: () => undefined, error: () => undefined },
     inject: () => Promise.reject(new Error('not used')),
     mintAgentToken: (_token, input) => {
       calls.push(input);
