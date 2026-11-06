@@ -51,8 +51,12 @@ export function readMetadata(
   }
   return {
     issuer: form.issuer,
-    authorizationEndpoint: endpointOf(document, 'authorization_endpoint', target.base),
-    tokenEndpoint: endpointOf(document, 'token_endpoint', target.base),
+    authorizationEndpoint: endpointOf(
+      document,
+      'authorization_endpoint',
+      new URL(form.issuer).origin,
+    ),
+    tokenEndpoint: endpointOf(document, 'token_endpoint', new URL(form.issuer).origin),
     issuerAdvertised: document.authorization_response_iss_parameter_supported === true,
   };
 }

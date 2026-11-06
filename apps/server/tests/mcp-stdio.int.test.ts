@@ -7,6 +7,7 @@ import {
   ADMIN_CLIENT_ID,
   clientRepository,
   MCP_CLIENT_ID,
+  tenantDomainRepository,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { clientOidcConfig } from '@odudu/protocol-oidc';
@@ -72,8 +73,8 @@ interface Wire {
   readonly admin: { url: string; authorization: string; headers: string[] }[];
 }
 
-function wire(): Wire {
-  const through = reachingApp(stack.app, BASE);
+function wire(...also: string[]): Wire {
+  const through = reachingApp(stack.app, [BASE, ...also]);
   const admin: Wire['admin'] = [];
   return {
     admin,
@@ -293,38 +294,43 @@ describe('odudu mcp, signing in as a person', () => {
   }, 60_000);
 });
 
+async function serviceAccount(t: { name: string; tenantId: string }, capabilities: string[]) {
+  const keyText = await generateClientKey();
+  const key = await loadClientKey(keyText);
+  await seed([
+    'client',
+    '--tenant',
+    t.name,
+    '--client-id',
+    'agent-svc',
+    '--client-secret',
+    'unused-secret-value-123456',
+    '--grant-type',
+    'client_credentials',
+    '--client-credentials-scope',
+    'mcp:read',
+  ]);
+  const subjectId = await withTenant(stack.appDb.db, t.tenantId, async (tx) => {
+    const row = await clientRepository(tx).byClientId('agent-svc');
+    if (row === null) throw new Error('no agent-svc');
+    await tx
+      .update(clientOidcConfig)
+      .set({
+        tokenEndpointAuthMethod: 'private_key_jwt',
+        jwks: { keys: [key.publicJwk] },
+        audiences: [ADMIN_API_AUDIENCE],
+      })
+      .where(eq(clientOidcConfig.clientId, row.id));
+    return row.serviceSubjectId;
+  });
+  await grant(t.tenantId, subjectId ?? undefined, capabilities);
+  return { keyText, subjectId };
+}
+
 describe('odudu mcp, as a service account', () => {
   it('signs in with its key (private_key_jwt, client_credentials) and reads with the ceiling of its roles', async () => {
     const t = await tenant();
-    const keyText = await generateClientKey();
-    const key = await loadClientKey(keyText);
-    await seed([
-      'client',
-      '--tenant',
-      t.name,
-      '--client-id',
-      'agent-svc',
-      '--client-secret',
-      'unused-secret-value-123456',
-      '--grant-type',
-      'client_credentials',
-      '--client-credentials-scope',
-      'mcp:read',
-    ]);
-    const subjectId = await withTenant(stack.appDb.db, t.tenantId, async (tx) => {
-      const row = await clientRepository(tx).byClientId('agent-svc');
-      if (row === null) throw new Error('no agent-svc');
-      await tx
-        .update(clientOidcConfig)
-        .set({
-          tokenEndpointAuthMethod: 'private_key_jwt',
-          jwks: { keys: [key.publicJwk] },
-          audiences: [ADMIN_API_AUDIENCE],
-        })
-        .where(eq(clientOidcConfig.clientId, row.id));
-      return row.serviceSubjectId;
-    });
-    await grant(t.tenantId, subjectId ?? undefined, ['manage-clients']);
+    const { keyText, subjectId } = await serviceAccount(t, ['manage-clients']);
     const w = wire();
     const r = await runMcp(['--base-url', BASE, '--tenant', t.name, '--client-id', 'agent-svc'], {
       fetch: w.fetch,
@@ -348,5 +354,123 @@ describe('odudu mcp, as a service account', () => {
     const claims = claimsOf(w.admin[0]?.authorization ?? '');
     expect(claims).toMatchObject({ client_id: 'agent-svc', scope: 'mcp:read' });
     expect(claims.sub).toBe(subjectId);
+  }, 60_000);
+});
+
+describe('what the admin API records of an agent that reached it directly', () => {
+  it('leaves one agent.tool_call row for each read over stdio, naming odudu-mcp', async () => {
+    const t = await tenant();
+    const configDir = await mkdtemp(join(tmpdir(), 'odudu-stdio-'));
+    const r = await runMcp(['--base-url', BASE, '--tenant', t.name], {
+      fetch: wire().fetch,
+      configDir,
+      input: [INITIALIZE, INITIALIZED, call(2, 'whoami'), call(3, 'list_clients')],
+      openBrowser: async (address) => {
+        const back = await scriptedBrowser(stack.app, address, {
+          host: HOST,
+          tenant: t.name,
+          username: t.username,
+          password: PASSWORD,
+          tick: ['mcp:read'],
+        });
+        await fetch(back);
+        return true;
+      },
+    });
+    expect(r.code).toBe(0);
+    const rows = await withTenant(stack.appDb.db, t.tenantId, (tx) =>
+      tx
+        .select()
+        .from(auditEvents)
+        .where(eq(auditEvents.action, 'agent.tool_call'))
+        .orderBy(auditEvents.id),
+    );
+    expect(rows.map((row) => (row.detail as { tool: string }).tool)).toEqual([
+      'admin.get.whoami',
+      'admin.get.clients',
+    ]);
+    const mcpClient = await withTenant(stack.appDb.db, t.tenantId, (tx) =>
+      clientRepository(tx).byClientId(MCP_CLIENT_ID),
+    );
+    for (const row of rows) {
+      expect(row).toMatchObject({ outcome: 'allowed', actorClientId: mcpClient?.id });
+    }
+  }, 60_000);
+
+  it('leaves a service account the same rows, and a call through the endpoint only the endpoint’s', async () => {
+    const t = await tenant();
+    const { keyText } = await serviceAccount(t, ['manage-clients']);
+    const r = await runMcp(['--base-url', BASE, '--tenant', t.name, '--client-id', 'agent-svc'], {
+      fetch: wire().fetch,
+      env: { ODUDU_MCP_KEY: keyText },
+      input: [INITIALIZE, INITIALIZED, call(2, 'list_clients')],
+    });
+    expect(byId(r.lines, 2).result).toMatchObject({ isError: false });
+    const rows = await withTenant(stack.appDb.db, t.tenantId, (tx) =>
+      tx.select().from(auditEvents).where(eq(auditEvents.action, 'agent.tool_call')),
+    );
+    expect(rows).toHaveLength(1);
+
+    const w = await stack.world(['manage-clients'], 'mcp:read');
+    const result = await stack.call(w, await stack.sign(w, 'mcp:read'), 'list_clients');
+    expect(result.isError).toBe(false);
+    const viaEndpoint = await stack.auditRows(w, 'agent.tool_call');
+    expect(viaEndpoint).toHaveLength(1);
+    expect((viaEndpoint[0]?.detail as { tool: string }).tool).toBe('list_clients');
+  }, 60_000);
+});
+
+describe('odudu mcp, at a tenant with a domain of its own', () => {
+  async function domainTenant() {
+    const t = await tenant();
+    const host = `d${t.name.slice(-8)}.domain-tests.net`;
+    await withTenant(stack.appDb.db, t.tenantId, async (tx) => {
+      const domains = tenantDomainRepository(tx);
+      const row = await domains.insert({ tenantId: t.tenantId, host, challenge: 'c' });
+      await domains.markVerified(t.tenantId, row.id, new Date());
+      await domains.setCanonical(t.tenantId, row.id);
+    });
+    return { ...t, host };
+  }
+
+  it('reads through the domain, which is the issuer, with the service account’s key', async () => {
+    const t = await domainTenant();
+    const { keyText } = await serviceAccount(t, ['manage-clients']);
+    const address = `https://${t.host}`;
+    const w = wire(address);
+    const r = await runMcp(
+      [
+        '--base-url',
+        BASE,
+        '--tenant-address',
+        address,
+        '--tenant',
+        t.name,
+        '--client-id',
+        'agent-svc',
+      ],
+      {
+        fetch: w.fetch,
+        env: { ODUDU_MCP_KEY: keyText },
+        input: [INITIALIZE, INITIALIZED, call(2, 'list_clients')],
+      },
+    );
+    expect(r.code).toBe(0);
+    const listed = byId(r.lines, 2).result as { isError: boolean };
+    expect(listed.isError, JSON.stringify(r.lines)).toBe(false);
+    expect(claimsOf(w.admin[0]?.authorization ?? '').iss).toBe(address);
+  }, 60_000);
+
+  it('says what to do when the tenant is asked for at the instance address instead', async () => {
+    const t = await domainTenant();
+    const { keyText } = await serviceAccount(t, ['manage-clients']);
+    const r = await runMcp(['--base-url', BASE, '--tenant', t.name, '--client-id', 'agent-svc'], {
+      fetch: wire().fetch,
+      env: { ODUDU_MCP_KEY: keyText },
+      input: [INITIALIZE, INITIALIZED, call(2, 'list_clients')],
+    });
+    const result = byId(r.lines, 2).result as { isError: boolean; content: { text: string }[] };
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toMatch(/domain of its own|issuer/u);
   }, 60_000);
 });

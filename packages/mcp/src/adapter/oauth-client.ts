@@ -120,8 +120,7 @@ export function createOauthClient(target: StdioTarget, deps: OauthClientDeps): O
       throw new StdioError(
         'mcp_discovery_failed',
         'no authorization server metadata was found for this tenant at this address; a tenant ' +
-          'with a domain of its own is reached with that domain as --base-url, any other at the ' +
-          'address of the instance',
+          'with a domain of its own is signed in to at that address, given as --tenant-address',
       );
     },
     redeemCode: (server, input) =>

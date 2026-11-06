@@ -53,18 +53,28 @@ describe('the instance and tenant a stdio server is configured for', () => {
     );
   });
 
-  it('offers the path address first and the tenant own domain second', () => {
-    const target = stdioTarget('https://login.acme.org', 'acme');
-    expect(target.forms).toEqual([
-      {
-        issuer: 'https://login.acme.org/tenants/acme',
-        metadataUrl: 'https://login.acme.org/.well-known/oauth-authorization-server/tenants/acme',
-      },
+  it('signs in at the path address unless it is told of a domain, and still calls the instance', () => {
+    const plain = stdioTarget('https://id.example.com', 'acme');
+    expect(plain.forms).toEqual([{ issuer: plain.issuer, metadataUrl: plain.metadataUrl }]);
+
+    const own = stdioTarget('https://id.example.com', 'acme', 'https://login.acme.org');
+    expect(own.forms).toEqual([
       {
         issuer: 'https://login.acme.org',
         metadataUrl: 'https://login.acme.org/.well-known/oauth-authorization-server',
       },
     ]);
-    expect(target.issuer).toBe('https://login.acme.org/tenants/acme');
+    expect(own.adminUrl('/admin/tenants/acme/whoami')).toBe(
+      'https://id.example.com/admin/tenants/acme/whoami',
+    );
+    expect(own.issuer).toBe('https://id.example.com/tenants/acme');
+  });
+
+  it('holds a tenant address to the rules of a base URL, naming the option', () => {
+    for (const bad of ['http://login.acme.org', 'https://login.acme.org/x', 'nope']) {
+      expect(() => stdioTarget('https://id.example.com', 'acme', bad), bad).toThrow(
+        /--tenant-address/u,
+      );
+    }
   });
 });

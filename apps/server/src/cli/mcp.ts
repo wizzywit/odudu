@@ -331,7 +331,7 @@ async function serve(
 
 async function start(values: Values, io: McpIo): Promise<void> {
   const { baseUrl, tenant } = required(values);
-  const target = stdioTarget(baseUrl, tenant);
+  const target = stdioTarget(baseUrl, tenant, values['tenant-address']);
   const scope = values['allow-writes'] === true ? 'mcp:write' : 'mcp:read';
   if (values.logout === true) {
     await storeFor(target, io).clear();

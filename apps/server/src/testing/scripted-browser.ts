@@ -106,13 +106,13 @@ export async function scriptedBrowser(
 
 // A `fetch` that reaches the app in-process for its public address, and the
 // network for anything else (the loopback listener).
-export function reachingApp(app: FastifyInstance, base: string): typeof fetch {
-  const origin = new URL(base);
+export function reachingApp(app: FastifyInstance, base: string | readonly string[]): typeof fetch {
+  const origins = new Set((typeof base === 'string' ? [base] : base).map((b) => new URL(b).origin));
   return async (input, init) => {
     const url = new URL(
       typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
     );
-    if (url.origin !== origin.origin) return fetch(input, init);
+    if (!origins.has(url.origin)) return fetch(input, init);
     const headers = Object.fromEntries(new Headers(init?.headers).entries());
     const res = await app.inject({
       method: (init?.method ?? 'GET') as 'GET' | 'POST' | 'PATCH',

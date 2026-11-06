@@ -5,6 +5,10 @@ export const MCP_OPTIONS = {
     'Address of the Odudu instance, with no path. It must be https unless it is a loopback address.',
     true,
   ),
+  'tenant-address': text(
+    'The address a tenant with a domain of its own signs in at, such as https://login.acme.org. ' +
+      'The admin API stays at --base-url. Without it the tenant is at its path address under --base-url.',
+  ),
   tenant: text('Name of the tenant to act in; every call is made in this tenant.', true),
   'read-only': flag(
     'Offer the read tools only, and ask for mcp:read at sign-in. This is the default.',

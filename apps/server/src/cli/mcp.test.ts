@@ -598,7 +598,7 @@ describe('odudu mcp at a tenant with a domain of its own', () => {
           }),
         );
       }
-      if (url.startsWith(`${DOMAIN}/admin/tenants/acme/`)) {
+      if (url.startsWith(`${BASE}/admin/tenants/acme/`)) {
         return Promise.resolve(
           reply({ subjectId: 's1', issuerTenantId: 't1', capabilities: [], crossTenant: false }),
         );
@@ -608,17 +608,23 @@ describe('odudu mcp at a tenant with a domain of its own', () => {
     return { seen, fetch: stub };
   }
 
-  it('signs in at the domain, which is the issuer and the host of every call', async () => {
+  it('signs in at the domain it is told of, and calls the admin API at the instance', async () => {
     const a = domainAuthority();
-    const r = await run(['--base-url', DOMAIN, '--tenant', 'acme', '--client-id', 'svc'], {
-      env: { ODUDU_MCP_KEY: keyText },
-      input: SESSION,
-      fetch: a.fetch,
-    });
+    const r = await run(
+      ['--base-url', BASE, '--tenant-address', DOMAIN, '--tenant', 'acme', '--client-id', 'svc'],
+      {
+        env: { ODUDU_MCP_KEY: keyText },
+        input: SESSION,
+        fetch: a.fetch,
+      },
+    );
     expect(r.code).toBe(0);
     expect(byId(r.lines, 3).result).toMatchObject({ isError: false });
-    expect(a.seen).toContain(`${DOMAIN}/admin/tenants/acme/whoami`);
-    expect(a.seen.every((url) => url.startsWith(`${DOMAIN}/`))).toBe(true);
+    expect(a.seen).toContain(`${BASE}/admin/tenants/acme/whoami`);
+    expect(a.seen.filter((url) => url.startsWith(DOMAIN))).toEqual([
+      `${DOMAIN}/.well-known/oauth-authorization-server`,
+      TOKEN,
+    ]);
   });
 
   it('refuses a domain whose metadata names another host, before any token request', async () => {
@@ -636,11 +642,14 @@ describe('odudu mcp at a tenant with a domain of its own', () => {
       }
       return a.fetch(input, init);
     };
-    const r = await run(['--base-url', DOMAIN, '--tenant', 'acme', '--client-id', 'svc'], {
-      env: { ODUDU_MCP_KEY: keyText },
-      input: SESSION,
-      fetch: hostile,
-    });
+    const r = await run(
+      ['--base-url', BASE, '--tenant-address', DOMAIN, '--tenant', 'acme', '--client-id', 'svc'],
+      {
+        env: { ODUDU_MCP_KEY: keyText },
+        input: SESSION,
+        fetch: hostile,
+      },
+    );
     expect(byId(r.lines, 3).result).toMatchObject({ isError: true });
     expect(a.seen.filter((url) => url === TOKEN)).toEqual([]);
   });

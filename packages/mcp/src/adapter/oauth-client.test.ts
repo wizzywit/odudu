@@ -78,8 +78,8 @@ describe('discovery', () => {
   });
 });
 
-describe('discovery at a tenant own domain', () => {
-  const domain = stdioTarget('https://login.acme.org', 'acme');
+describe('discovery at a tenants own domain', () => {
+  const domain = stdioTarget('https://id.example.com', 'acme', 'https://login.acme.org');
   const domainDoc = {
     issuer: 'https://login.acme.org',
     authorization_endpoint: 'https://login.acme.org/protocol/openid-connect/auth',
@@ -104,25 +104,12 @@ describe('discovery at a tenant own domain', () => {
     };
   }
 
-  it('asks the domain form when the path form is not there, and takes its issuer', async () => {
+  it('asks the domain it was told of, and takes its issuer, and never the path form', async () => {
     const r = at({
       'https://login.acme.org/.well-known/oauth-authorization-server': () => reply(domainDoc),
     });
     expect((await r.oauth.discover()).issuer).toBe('https://login.acme.org');
-    expect(r.asked).toEqual([
-      'https://login.acme.org/.well-known/oauth-authorization-server/tenants/acme',
-      'https://login.acme.org/.well-known/oauth-authorization-server',
-    ]);
-  });
-
-  it('keeps the path form when it answers, and never goes on to the domain form after another failure', async () => {
-    const failing = at({
-      'https://login.acme.org/.well-known/oauth-authorization-server/tenants/acme': () =>
-        reply('x', 500),
-      'https://login.acme.org/.well-known/oauth-authorization-server': () => reply(domainDoc),
-    });
-    await expect(failing.oauth.discover()).rejects.toThrow(/500/u);
-    expect(failing.asked).toHaveLength(1);
+    expect(r.asked).toEqual(['https://login.acme.org/.well-known/oauth-authorization-server']);
   });
 
   it('refuses a domain document of another host, and says what to do when neither form is there', async () => {
@@ -131,7 +118,7 @@ describe('discovery at a tenant own domain', () => {
         reply({ ...domainDoc, issuer: 'https://other.example' }),
     });
     await expect(other.oauth.discover()).rejects.toThrow(/issuer/u);
-    await expect(at({}).oauth.discover()).rejects.toThrow(/domain of its own.*--base-url/u);
+    await expect(at({}).oauth.discover()).rejects.toThrow(/domain of its own.*--tenant-address/u);
   });
 });
 

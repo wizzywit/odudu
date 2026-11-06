@@ -60,8 +60,8 @@ describe('the authorization server metadata of a tenant', () => {
   });
 
   describe('at a tenant own domain', () => {
-    const domain = stdioTarget('https://login.acme.org', 'acme');
-    const form = domain.forms[1];
+    const domain = stdioTarget('https://id.example.com', 'acme', 'https://login.acme.org');
+    const form = domain.forms[0];
     const docFor = (issuer: string, over: Record<string, unknown> = {}) => ({
       issuer,
       authorization_endpoint: `${issuer}/protocol/openid-connect/auth`,
