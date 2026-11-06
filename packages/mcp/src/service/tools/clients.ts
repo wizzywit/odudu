@@ -1,4 +1,5 @@
 import {
+  clientInstallationSchema,
   clientRecordSchema,
   countClientsQuerySchema,
   countResponseSchema,
@@ -40,5 +41,17 @@ export const clientTools = [
     pathParams: ['id'],
     response: clientRecordSchema,
     etag: true,
+  }),
+  valueTool({
+    name: 'get_client_installation',
+    description:
+      "Reads what a relying party is configured with for one client: the tenant's issuer and " +
+      'discovery address, and the client id, type, authentication method, redirect URIs, grants and ' +
+      "default scope. Never includes the client's secret.",
+    routeKey: tenantGet('/clients/:id/installation'),
+    capability: 'manage-clients',
+    shape: { id: idField('client') },
+    pathParams: ['id'],
+    response: clientInstallationSchema,
   }),
 ];

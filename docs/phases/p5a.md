@@ -1520,3 +1520,24 @@ tenant's clients.
   (`plan-admin-drives.ts`), so no entry was added.
 - **Worst case if an instruction is obeyed:** a W1 write in the system tenant, which the
   injection scenario holds (only a descriptive field of a non-built-in client changes).
+
+## Six small reads (parity extension, Increment 13)
+
+`get_tenant`, `get_username_policy`, `get_passkey_impact`, `get_scope_impact`,
+`list_builtin_scopes` and `get_client_installation` left `NOT_TOOLS`. A tenant
+administrator's agent is now offered 48 read tools, the system tenant's 50.
+
+- **The plan's assumption held.** `clientInstallationSchema` (`packages/contracts/src/admin/clients.ts`)
+  carries the issuer, the discovery address and the client's registered settings, and no
+  secret; the tool's test pins the key set, and the integration test asserts none of the
+  answer's text mentions one.
+- **`get_tenant` takes no argument.** Its route is `GET /admin/tenants/:tenant`, which
+  the callers fill in from the token, so there is no input an agent could name another
+  tenant with; the unit test refuses `tenant`, `tenant_id`, `name` and `id`, and the
+  integration test shows none of them sends a request.
+- **`list_builtin_scopes` is not paged.** It answers the fixed set of built-in names,
+  read over the name index, so it has no `limit`; the two tests that took every `list_`
+  tool for a paged one now name it as the exception.
+- **Volume.** `get_passkey_impact` and `get_scope_impact` answer counts capped by the
+  admin route; `canonical` is at most 512 characters, as the route's query schema says.
+  No new statement: the routes' own plans already cover them.

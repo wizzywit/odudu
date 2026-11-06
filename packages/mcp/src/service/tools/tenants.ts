@@ -9,7 +9,7 @@ import { pageShape, pageTool, valueTool } from '#/service/read-tool';
 // they answer for the whole instance to an agent of the system tenant whose
 // owner holds `manage-tenants`, and the admin API refuses everyone else. They
 // take no tenant argument and open no tenant's content.
-export const tenantTools = [
+export const instanceTenantTools = [
   pageTool({
     name: 'list_tenants',
     description:

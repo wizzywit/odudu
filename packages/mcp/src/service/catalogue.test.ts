@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { ADMIN_ROUTES } from '@odudu/protocol-admin';
 import { NOT_TOOLS, TOOLS } from '#/service/catalogue';
 
+// A fixed set of a few names, answered whole.
+const UNPAGED_LIST = 'list_builtin_scopes';
+
 describe('the catalogue', () => {
   it('lists every tool input as a JSON schema that takes no key it does not name', () => {
     for (const tool of TOOLS) {
@@ -13,7 +16,9 @@ describe('the catalogue', () => {
   });
 
   it('bounds the page size of every list in the schema a client sees', () => {
-    const paged = TOOLS.filter((tool) => tool.name.startsWith('list_'));
+    const paged = TOOLS.filter(
+      (tool) => tool.name.startsWith('list_') && tool.name !== UNPAGED_LIST,
+    );
     expect(paged.length).toBeGreaterThan(10);
     for (const tool of paged) {
       const schema = z.toJSONSchema(tool.input, { io: 'input', unrepresentable: 'any' });
@@ -44,6 +49,25 @@ describe('the catalogue', () => {
 
   it('keeps the tools and the withheld routes apart', () => {
     for (const tool of TOOLS) expect(NOT_TOOLS, tool.name).not.toHaveProperty([tool.routeKey]);
+  });
+
+  it('offers the six small reads as tools, and keeps the client evaluation withheld', () => {
+    const T = '/admin/tenants/:tenant';
+    const routes = [
+      `GET ${T}`,
+      `GET ${T}/subjects/username-policy`,
+      `GET ${T}/domains/passkey-impact`,
+      `GET ${T}/scopes/:id/impact`,
+      `GET ${T}/scopes/builtins`,
+      `GET ${T}/clients/:id/installation`,
+    ];
+    const served = TOOLS.map((tool) => tool.routeKey);
+    for (const route of routes) {
+      expect(served, route).toContain(route);
+      expect(NOT_TOOLS, route).not.toHaveProperty([route]);
+    }
+    expect(served).not.toContain(`GET ${T}/clients/:id/evaluate`);
+    expect(NOT_TOOLS).toHaveProperty([`GET ${T}/clients/:id/evaluate`]);
   });
 
   it("answers with the schema the route's own contract declares", () => {
