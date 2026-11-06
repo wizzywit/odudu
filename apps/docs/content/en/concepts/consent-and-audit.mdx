@@ -63,7 +63,7 @@ Read it with `GET /admin/tenants/{tenant}/audit`, filtered or exported. The [aud
 
 ### Refusals are bounded
 
-Anybody can cause a refusal as often as they like, and each is a row, so one is recorded only where something limits how many a caller can cause. A registered client gets up to 20 refusal rows a minute. The last says the budget ran out, and later ones go to the server's log. A failed client login naming a client nobody registered writes no row. A sign-up with an address that already has an account writes one row naming that account, limited by the sign-up form's budget per address.
+Anybody can cause a refusal as often as they like, and each is a row, so one is recorded only where something limits how many a caller can cause. A registered client gets up to 20 refusals a minute. The last says the budget ran out, and later ones go to the server's log. A failed client login naming a client nobody registered writes no row. A sign-up with an address that already has an account writes one row naming that account, limited by the sign-up form's budget per address.
 
 ### An agent in the trail
 
