@@ -4,6 +4,7 @@ import {
   ADMIN_ROUTES,
   AGENT_DENIED_READS,
   AGENT_WRITE_ROUTES,
+  INSTANCE_READS,
 } from '../../packages/protocol-admin/src/index.js';
 
 // Every admin route is exactly one of an MCP tool or a route deliberately not
@@ -74,6 +75,19 @@ describe('the MCP tool catalogue against the admin routes', () => {
       expect(TOOL_ROUTE_KEYS, route).not.toContain(route);
       expect(NOT_TOOLS, route).toHaveProperty([route]);
     }
+  });
+
+  it('gives each instance-level read the door admits a tool, and no other tool lacks a tenant', () => {
+    for (const route of INSTANCE_READS) {
+      expect(TOOL_ROUTE_KEYS, route).toContain(route);
+      expect(NOT_TOOLS, route).not.toHaveProperty([route]);
+      expect(AGENT_DENIED_READS, route).not.toContain(route);
+      const tool = TOOLS.find((candidate) => candidate.routeKey === route);
+      expect(tool?.capability, route).toBe('manage-tenants');
+      expect(tool?.access, route).toBe('read');
+    }
+    const withoutTenant = TOOLS.filter((tool) => !tool.routeKey.includes(':tenant'));
+    expect(withoutTenant.map((tool) => tool.routeKey).sort()).toEqual([...INSTANCE_READS].sort());
   });
 
   it('ties the door to the catalogue: a sensitive or denied read is refused at the door, and nothing else is', () => {

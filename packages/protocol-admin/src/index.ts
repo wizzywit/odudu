@@ -279,7 +279,7 @@ export {
   recordAgentToolCall,
   recordForeignIssuer,
 } from '#/usecase/access-audit';
-export { AGENT_DENIED_READS, AGENT_WRITE_ROUTES } from '#/service/agent-scope';
+export { AGENT_DENIED_READS, AGENT_WRITE_ROUTES, INSTANCE_READS } from '#/service/agent-scope';
 export { COUNT_CAP } from '#/usecase/counts';
 export { idempotencyRepository } from '#/repository/idempotency';
 export {
