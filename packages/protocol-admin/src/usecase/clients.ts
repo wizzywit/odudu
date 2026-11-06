@@ -30,6 +30,7 @@ import {
   ensureServiceAccount,
   idTokenAlgUnavailable,
   isWellFormedWebOrigin,
+  canHoldServiceAccount,
   mayRetireServiceAccount,
   needsServiceAccount,
   parseClientMetadata,
@@ -1204,20 +1205,14 @@ export async function amendClient(
   if (unlocked === null) return { kind: 'not_found' };
   // The administrators' lock comes before any row lock, the subject's included, the order every
   // guarded write takes (#/usecase/last-administrator.ts), so a retirement
-  // here and a delete of the same client cannot wait on each other.
-  if (mayRetireServiceAccount(unlocked.serviceSubjectId !== null, 'grant_types' in input.values)) {
+  // here and a delete of the same client cannot wait on each other. It is
+  // taken for any client that could hold an account: one created while this
+  // waits is retired by the same write.
+  if (
+    mayRetireServiceAccount(canHoldServiceAccount(unlocked.type), 'grant_types' in input.values)
+  ) {
     await lockAdministrators(tx);
   }
-
-  const refused = await refuseOverServiceAccountCeiling(
-    tx,
-    deps.audit,
-    'client.amend',
-    unlocked.serviceSubjectId,
-    input,
-    { type: 'client', id: input.clientDbId },
-  );
-  if (refused !== null) return refused;
 
   // Locked for the rest of the transaction, so the `If-Match` comparison
   // below and the writes that follow it cannot interleave with another
@@ -1225,6 +1220,18 @@ export async function amendClient(
   // this one, so locking it serialises both halves of the resource.
   const clientRow = await clientRepository(tx).byIdForUpdate(input.clientDbId);
   if (clientRow === null) return { kind: 'not_found' };
+
+  // Judged on the account the locked row holds: an account made, and given
+  // roles, while this waited for the lock is the one the ceiling is held to.
+  const refused = await refuseOverServiceAccountCeiling(
+    tx,
+    deps.audit,
+    'client.amend',
+    clientRow.serviceSubjectId,
+    input,
+    { type: 'client', id: input.clientDbId },
+  );
+  if (refused !== null) return refused;
 
   for (const field of Object.keys(input.values)) {
     if (!AMENDABLE_CLIENT_FIELDS.includes(field)) {

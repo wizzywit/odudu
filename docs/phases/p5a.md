@@ -617,8 +617,9 @@ still states what an increment has since changed:
 - **Migration 0122, in SQL.** The set is "idle accounts nothing names", which needs the
   referencing tables. They are read from `pg_constraint` (every foreign key to `subjects(id)`)
   plus `audit_events.actor_subject_id`, so a table added later is checked too. FORCE RLS is
-  lifted only on `clients` and `client_oidc_config` (ACCESS EXCLUSIVE for the migration
-  transaction, as 0114 did) to find candidates across tenants; every other table is read and
+  lifted on `clients` and `client_oidc_config` (to find candidates across tenants) and on
+  `audit_events` and `tenants` (to find audit references from other tenants), each
+  ACCESS EXCLUSIVE until the migration transaction ends, as 0114 did for its two; every other table is read and
   deleted from under the candidate's own `app.tenant_id`, one tenant with an idle client at a
   time, so no other table is locked and each read is one tenant's rows. `SET LOCAL
 row_security = off` was rejected: for an owner under FORCE it errors rather than bypasses.
@@ -657,6 +658,31 @@ row_security = off` was rejected: for an owner under FORCE it errors rather than
 - **Claims.** A token already issued stops being accepted where Odudu checks the grant row;
   a resource server checking the signature alone accepts it until `exp`. Past audit events
   keep the actor id and lose `actor_name`. Both are in the docs and CHANGELOG.
+
+### Fix round 2 (review of the pull request)
+
+- **Audit events of another tenant name an account too.** `audit_events.tenant_id` is the
+  tenant an event happened to, so a service account that administers tenant U writes rows
+  filed under U. 0122 read audit under the candidate's own tenant and missed them; it now
+  probes `(tenant_id, actor_subject_id)` for every candidate and tenant with row security
+  lifted on `audit_events` and `tenants` for that one statement, and restores it. The seed
+  has a `k-xaudit` client named only by the other tenant's event, and a `k-actor` one named
+  as the actor of a delegated grant (kept already: the foreign key is on `subjects`).
+- **Retiring revokes what the account acted in.** `token_grants.actor_subject_id` is
+  `SET NULL` on delete, which left an exchanged token live with its `act` claim intact.
+  `retireServiceAccount` revokes those grants first (`revokeForActor`), tested through
+  `/token` exchange, retire and `/introspect`.
+- **Ceiling judged on the locked row.** `amendClient` checks the account's ceiling after
+  taking the client row lock, so an account made and given roles while the PATCH waited is
+  the one judged. The administrators' lock is taken for any confidential client when
+  `grant_types` is in the body, since an account may appear while it waits.
+- **Import.** Roles listed for a confidential client without the grant are neither
+  reference- nor ceiling-checked (`discardsServiceAccountRoles`); a public client and a
+  client with the grant are refused as before.
+- **Boot read.** `idleServiceAccounts` already ran under `withStatementTimeout` (4 s, in the
+  transaction); a test now shows a read blocked on a lock ends by the database's timeout.
+- **Wording.** The boot warning and the client `PATCH` description say adding the grant
+  reuses a kept account with its roles and that retiring needs an update leaving it out.
 
 ## The MCP endpoint
 

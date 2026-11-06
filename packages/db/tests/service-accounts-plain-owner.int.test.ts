@@ -5,7 +5,7 @@ import { startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type DatabaseHandle } from '#/client';
 import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
-import { expectedOutcomes, outcomes, seed } from './service-accounts-seed.js';
+import { expectedOutcomes, outcomes, seed } from '#/testing/service-accounts-seed';
 
 const TAG = '0122_service_accounts_by_grant';
 

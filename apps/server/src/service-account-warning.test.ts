@@ -17,6 +17,17 @@ describe('idleAccountMessage', () => {
     expect(message).toContain('grant_types');
   });
 
+  it('says that granting client_credentials reuses the account and that retiring is an update without it', () => {
+    const message =
+      idleAccountMessage({ count: 1, sample: [{ tenant: 'acme', clientId: 'batch' }] }) ?? '';
+    expect(message).toContain(
+      'adding client_credentials to grant_types reuses the account and its roles',
+    );
+    expect(message).toContain('an update that leaves client_credentials out retires it');
+    expect(message).toContain('last administrator');
+    expect(message).not.toContain('setting a client');
+  });
+
   it('reads a count that reached the cap as a lower bound', () => {
     const sample = [{ tenant: 'acme', clientId: 'batch' }];
     expect(idleAccountMessage({ count: IDLE_ACCOUNT_COUNT_CAP, sample })).toContain('at least');

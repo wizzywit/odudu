@@ -20,6 +20,7 @@ export function expectedOutcomes(): Outcome[] {
   const expected = (name: string, subject: boolean, idle: boolean): Outcome[] =>
     ['one', 'two'].map((tenant) => ({ client: `${tenant}/${name}`, subject, idle }));
   return [
+    ...expected('k-actor', true, true),
     ...expected('k-audit', true, true),
     ...expected('k-bare', false, false),
     ...expected('k-consent', true, true),
@@ -28,18 +29,22 @@ export function expectedOutcomes(): Outcome[] {
     ...expected('k-keeps', true, false),
     ...expected('k-public', false, false),
     ...expected('k-role', true, true),
+    ...expected('k-xaudit', true, true),
   ].sort((a, b) => (a.client < b.client ? -1 : a.client > b.client ? 1 : 0));
 }
 
 export async function seed(raw: Sql): Promise<void> {
   await raw`insert into tenants (id, name) values (gen_random_uuid(), 'one'), (gen_random_uuid(), 'two')`;
   // keeps: has the grant. gone: none and nothing names it.
-  // grant/role/audit/consent: none, but something does.
+  // grant/role/audit/consent: none, but something does. actor: a delegated
+  // grant names it as the actor. xaudit: only an event of the other tenant does.
   const specs: { client: string; grants: string[]; type: string; account: boolean }[] = [
     { client: 'k-keeps', grants: ['client_credentials'], type: 'confidential', account: true },
     { client: 'k-gone', grants: ['authorization_code'], type: 'confidential', account: true },
     { client: 'k-grant', grants: ['authorization_code'], type: 'confidential', account: true },
     { client: 'k-role', grants: ['authorization_code'], type: 'confidential', account: true },
+    { client: 'k-actor', grants: ['authorization_code'], type: 'confidential', account: true },
+    { client: 'k-xaudit', grants: ['authorization_code'], type: 'confidential', account: true },
     { client: 'k-audit', grants: ['authorization_code'], type: 'confidential', account: true },
     { client: 'k-consent', grants: ['authorization_code'], type: 'confidential', account: true },
     { client: 'k-public', grants: ['authorization_code'], type: 'public', account: false },
@@ -79,6 +84,21 @@ export async function seed(raw: Sql): Promise<void> {
     insert into audit_events (id, tenant_id, event_type, action, outcome, actor_subject_id)
     select gen_random_uuid(), c.tenant_id, 'admin', 'client.amend', 'allowed', c.service_subject_id
       from clients c where c.client_id = 'k-audit'`;
+  await raw`
+    insert into audit_events (id, tenant_id, event_type, action, outcome, actor_tenant_id,
+                              actor_subject_id)
+    select gen_random_uuid(), other.id, 'admin', 'client.amend', 'allowed', c.tenant_id,
+           c.service_subject_id
+      from clients c
+      join tenants other on other.id <> c.tenant_id and other.name in ('one', 'two')
+     where c.client_id = 'k-xaudit'`;
+  await raw`
+    with u as (insert into subjects (id, tenant_id, type)
+               select gen_random_uuid(), c.tenant_id, 'user'
+                 from clients c where c.client_id = 'k-actor' returning id, tenant_id)
+    insert into token_grants (id, tenant_id, client_id, subject_id, scope, actor_subject_id)
+    select gen_random_uuid(), c.tenant_id, c.id, u.id, 'x', c.service_subject_id
+      from clients c join u on u.tenant_id = c.tenant_id where c.client_id = 'k-actor'`;
   await raw`
     insert into consents (id, tenant_id, subject_id, client_id)
     select gen_random_uuid(), c.tenant_id, c.service_subject_id, c.id

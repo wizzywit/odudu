@@ -7,7 +7,8 @@ export function idleAccountMessage(finding: IdleAccountFinding): string | null {
   return (
     `${finding.count >= IDLE_ACCOUNT_COUNT_CAP ? 'at least ' : ''}${String(finding.count)} confidential clients ` +
     `hold a service account without the client_credentials grant, kept because a token, role or record still names it ` +
-    `(first ${String(finding.sample.length)}: ${named}); setting a client's grant_types retires its account`
+    `(first ${String(finding.sample.length)}: ${named}); adding client_credentials to grant_types reuses the account and its roles, ` +
+    `and an update that leaves client_credentials out retires it unless that would remove the last administrator`
   );
 }
 

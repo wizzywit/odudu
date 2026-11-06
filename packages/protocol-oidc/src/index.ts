@@ -1205,6 +1205,8 @@ export {
 } from '#/repository/service-account-upgrade';
 export {
   CLIENT_CREDENTIALS_GRANT,
+  canHoldServiceAccount,
+  discardsServiceAccountRoles,
   mayRetireServiceAccount,
   needsServiceAccount,
   retiresServiceAccount,

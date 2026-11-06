@@ -90,3 +90,32 @@ describe('idleServiceAccounts', () => {
     expect(IDLE_ACCOUNT_COUNT_CAP).toBe(10_000);
   });
 });
+
+describe('the bound of the boot read', () => {
+  it('is ended by the database when the read waits on a lock, freeing its connection', async () => {
+    let release = (): void => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const locked = owner.sql.begin(async (tx) => {
+      await tx`lock table clients in access exclusive mode`;
+      await held;
+    });
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const started = Date.now();
+      await expect(idleServiceAccounts(app.db, 150)).rejects.toMatchObject({
+        cause: { message: expect.stringContaining('statement timeout') as unknown },
+      });
+      expect(Date.now() - started).toBeLessThan(3_000);
+    } finally {
+      release();
+      await locked;
+    }
+    const open = await owner.sql<{ n: number }[]>`
+      select count(*)::int as n from pg_stat_activity
+       where datname = current_database() and state like 'idle in transaction%'
+         and usename <> current_user`;
+    expect(open[0]?.n).toBe(0);
+  });
+});

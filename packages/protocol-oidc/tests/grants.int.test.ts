@@ -481,6 +481,66 @@ describe('tokenGrantRepository', () => {
     });
   });
 
+  it('cannot revoke a foreign tenant’s delegated grants by actor, even given that tenant’s own ids', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const { clientDbId, subjectId } = await seedTenantClientSubject(tx, tenantId);
+        const actor = await subjectRepository(tx).create({ tenantId, type: 'service' });
+        const grant = await tokenGrantRepository(tx).create({
+          id: newId(),
+          tenantId,
+          clientId: clientDbId,
+          subjectId,
+          scope: 'openid',
+          audience: AUDIENCE,
+          actorSubjectId: actor.id,
+        });
+        return { actorId: actor.id, grantId: grant.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const found = await tokenGrantRepository(tx).byId(seeded.grantId);
+        expect(found?.revokedAt).toBeNull();
+      },
+      attempt: async (tx, seeded) => tokenGrantRepository(tx).revokeForActor(seeded.actorId),
+      expectBlocked: (result) => {
+        expect(result).toBe(0);
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        const found = await tokenGrantRepository(tx).byId(seeded.grantId);
+        expect(found?.revokedAt).toBeNull();
+      },
+    });
+  });
+
+  it('revokes the live grants a subject acted in and leaves the rest', async () => {
+    const tenantId = newId();
+    const grants = await withTenant(app.db, tenantId, async (tx) => {
+      const { clientDbId, subjectId } = await seedTenantClientSubject(tx, tenantId);
+      const actor = await subjectRepository(tx).create({ tenantId, type: 'service' });
+      const make = (actorSubjectId?: string) =>
+        tokenGrantRepository(tx).create({
+          id: newId(),
+          tenantId,
+          clientId: clientDbId,
+          subjectId,
+          scope: 'openid',
+          audience: AUDIENCE,
+          ...(actorSubjectId === undefined ? {} : { actorSubjectId }),
+        });
+      return { actorId: actor.id, acted: await make(actor.id), plain: await make() };
+    });
+    const count = await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeForActor(grants.actorId),
+    );
+    expect(count).toBe(1);
+    const [acted, plain] = await withTenant(app.db, tenantId, async (tx) => [
+      await tokenGrantRepository(tx).byId(grants.acted.id),
+      await tokenGrantRepository(tx).byId(grants.plain.id),
+    ]);
+    expect(acted?.revokedAt).not.toBeNull();
+    expect(plain?.revokedAt).toBeNull();
+  });
+
   it('cannot find an exchanged grant by id under a different tenant context', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {
