@@ -22,6 +22,7 @@ import {
 import { isEmailAddress, isValidE164 } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  WIRE_CLIENTS_PER_TENANT,
   MCP_CLIENT_ID,
   MCP_CLIENT_REDIRECT_URIS,
   capabilityRoleGraph,
@@ -532,6 +533,15 @@ function clientProblems(
       'document.clients',
       `max_clients is ${String(document.settings.max_clients)}, which admits ` +
         `${String(document.settings.max_clients - 1)} clients besides ${ADMIN_CLIENT_ID}`,
+    );
+  }
+  // Registrations evict at most one client each, so an excess would stay.
+  const selfRegistered = document.clients.length - operatorMade;
+  if (selfRegistered > WIRE_CLIENTS_PER_TENANT) {
+    problems.add(
+      'document.clients',
+      `holds ${String(selfRegistered)} clients with registration_origin anonymous, ` +
+        `and a tenant admits ${String(WIRE_CLIENTS_PER_TENANT)}`,
     );
   }
   document.clients.forEach((client, index) => {

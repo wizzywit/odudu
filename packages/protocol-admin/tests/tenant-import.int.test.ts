@@ -25,6 +25,7 @@ import {
   clientScopeMapperRepository,
   clientScopeRepository,
   tenantSettingsRepository,
+  WIRE_CLIENTS_PER_TENANT,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import {
@@ -770,6 +771,37 @@ describe('POST /admin/tenant-imports', () => {
     });
     expect(refused.statusCode).toBe(400);
     expect(refused.payload).toContain('max_clients is 2');
+  });
+
+  it('refuses a document holding more self-registered clients than the tenant admits', async () => {
+    const source = await fixture.createTenant(`wire-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const base = original.clients.find((client) => client.client_id === 'odudu-mcp');
+    if (base === undefined) throw new Error('fixture: a tenant exports no built-in MCP client');
+    const selfRegistered = (count: number) =>
+      Array.from({ length: count }, (_, n) => ({
+        ...base,
+        client_id: `self-${String(n)}`,
+        registration_origin: 'anonymous' as const,
+      }));
+    const document = (count: number): TenantDocument => ({
+      ...original,
+      clients: [...original.clients, ...selfRegistered(count)],
+    });
+    const refused = await postImport(token, {
+      name: `wire-no-${newId()}`,
+      document: document(WIRE_CLIENTS_PER_TENANT + 1),
+    });
+    expect(refused.statusCode, refused.payload).toBe(400);
+    expect(refused.payload).toContain('document.clients');
+    expect(refused.payload).toContain(String(WIRE_CLIENTS_PER_TENANT + 1));
+    expect(refused.payload).toContain(String(WIRE_CLIENTS_PER_TENANT));
+    const ok = await postImport(token, {
+      name: `wire-ok-${newId()}`,
+      document: document(WIRE_CLIENTS_PER_TENANT),
+    });
+    expect(ok.statusCode, ok.payload).toBe(201);
   });
 
   it('refuses a self-registered client whose redirect address is not a URL', async () => {
