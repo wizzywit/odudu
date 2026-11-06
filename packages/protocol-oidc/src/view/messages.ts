@@ -71,6 +71,9 @@ export const en = {
   'consent.title': 'Allow access?',
   'consent.heading': '{client} is asking for access',
   'consent.source.host': 'This application is published at {host}',
+  'consent.source.selfRegistered':
+    'This application registered itself. Nobody at this tenant set it up, and its name is its own claim.',
+  'consent.source.more': '… and {count} more',
   'consent.source.redirects': 'After you decide, you are sent to one of these addresses:',
   'consent.link.about': 'About {client}',
   'consent.link.privacy': 'Privacy policy',

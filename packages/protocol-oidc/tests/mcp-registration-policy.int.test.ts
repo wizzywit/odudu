@@ -23,6 +23,7 @@ import { sql } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { oidcRoutes, type CimdResponse } from '#/index';
+import { en } from '#/view/messages';
 import { tenantRegistrationPolicyRepository } from '#/repository/tenant-registration-policy';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
@@ -458,6 +459,26 @@ describe('/authorize for a client registered under the mcp policy', () => {
 });
 
 describe('consent for a client registered under the mcp policy', () => {
+  it('says the client registered itself and names where a decision sends the person', async () => {
+    const client = await registered({
+      ...PUBLIC,
+      client_name: 'Claude',
+      redirect_uris: ['https://evil.example/cb'],
+    });
+    const consent = await signIn(
+      await authorize(client, {
+        scope: 'openid offline_access mcp:read',
+        resource: mcpUrl,
+        redirect_uri: 'https://evil.example/cb',
+      }),
+    );
+    expect(asksConsent(consent)).toBe(true);
+    expect(consent.body).toContain(en['consent.source.selfRegistered']);
+    expect(consent.body).toContain('<bdi>https://evil.example</bdi>');
+    expect(consent.body).toContain('offline_access');
+    expect(consent.body).toContain('ongoing access');
+  });
+
   it('is shown on every sign-in until this exact client id is approved', async () => {
     const client = await registered();
     const first = await signIn(await authorize(client));
