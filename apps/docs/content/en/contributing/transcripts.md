@@ -77,7 +77,7 @@ removed afterwards. It was fetched once more on the same day on the compose proj
 branch commit `83a96ae16`), because the description of `max_clients` changed and the document grew by 122 bytes; the block's request
 id, date and size are that fetch's, and the stack and its image were removed afterwards.
 
-The `mcp` policy's registration response in `bootstrap.md` was captured again on 2026-11-06 on the compose project `odudu-p5a-ffb` (port `3097`, built from the branch commit `a7991b8ca`, a freshly built stack with only `seed tenant` before it), because the earlier block was a tagged, reformatted copy; the stack and its image were removed afterwards.
+The `mcp` policy's registration response in `bootstrap.md` was captured again on 2026-11-06 on the compose project `odudu-p5a-ffb` (port `3097`, built from the branch commit `a7991b8ca`, a freshly built stack with only `seed tenant` before it), because the earlier block was a tagged, reformatted copy (the two queries that follow it in that section are from the page's earlier capture of the same call, and name its client); the stack and its image were removed afterwards.
 
 The stdio server's page, `odudu-mcp-over-stdio.md`, was captured, and re-captured after the admin API began recording a direct agent call, on 2026-11-06 on a freshly built compose project,
 `odudu-p5a-i10b` (port `3000`, Postgres published on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch
