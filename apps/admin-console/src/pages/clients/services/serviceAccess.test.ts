@@ -41,12 +41,12 @@ describe('serviceAccess', () => {
     crossTenant: false,
   });
 
-  const NONE = {
+  const NONE: Parameters<typeof serviceAccess>[0] = {
     service_subject_id: null,
     type: 'confidential',
     builtin_admin: false,
     grant_types: ['client_credentials'],
-  } as const;
+  };
 
   it('says a client with no account has none, whoever asks', () => {
     expect(serviceAccess(NONE, held(['manage-users']))).toMatchObject({ status: 'none' });

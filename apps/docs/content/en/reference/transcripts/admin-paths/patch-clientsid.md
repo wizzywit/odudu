@@ -181,31 +181,49 @@ target ceiling): derived on every read, one query for a whole page, and outside
 the `ETag`, which is taken over the stored fields alone, as a group's
 `admin_reach` is outside its own. It is empty for a client with no service
 account. A caller needs no `view-users` to read it, so a console can judge the
-ceiling from the record. `billing`'s service account was then given
-`manage-users`, which nests `view-users`, with `psql` (no route assigns a role
-to a service account):
+ceiling from the record. `billing`, made with `authorization_code` alone, has no
+service account, because a confidential client has one only while it holds the
+`client_credentials` grant. A `PATCH` adding the grant creates one, with no roles,
+and `billing`'s service account was then given `manage-users`, which nests
+`view-users`, with `psql` (no route assigns a role to a service account). The
+`PATCH` sent the `ETag` the `GET` before it answered:
 
 ```bash
-curl -sS -D - -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$ID | grep -i '^etag'
-jq -c '{client_id, service_account_admin_reach}' body.json
+curl -sS -D headers.txt -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$ID
+ETAG=$(grep -i '^etag:' headers.txt | cut -d' ' -f2 | tr -d '\r')
+echo "$ETAG"
+jq -c '{client_id, grant_types, service_subject_id, service_account_admin_reach}' body.json
+```
+
+```
+"a7ed472bbe52a7e820fe9412e01b2d1b1755aa02c3b26596723472b1f8006399"
+{"client_id":"billing","grant_types":["authorization_code"],"service_subject_id":null,"service_account_admin_reach":[]}
+```
+
+```bash
+curl -sS -D headers.txt -o body.json -X PATCH -H "$A" -H "$J" -H "If-Match: $ETAG" \
+  -d '{"grant_types":["authorization_code","client_credentials"]}' $P/clients/$ID
+grep -i '^\(HTTP\|etag\)' headers.txt | tr -d '\r'
+jq -c '{client_id, grant_types, has_service_account: (.service_subject_id != null), service_account_admin_reach}' body.json
 docker compose exec -T postgres psql -U odudu -d odudu -tA -c \
   "insert into subject_roles (tenant_id, subject_id, role_id) select c.tenant_id, c.service_subject_id, r.id from clients c join clients a on a.tenant_id = c.tenant_id and a.client_id = 'odudu-admin' join roles r on r.client_id = a.id and r.name = 'manage-users' where c.id = '$ID'"
-curl -sS -D - -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$ID | grep -i '^etag'
+curl -sS -D - -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$ID | grep -i '^etag' | tr -d '\r'
 jq -c '{client_id, service_account_admin_reach}' body.json
 ```
 
 ```
-etag: "ccb1d256a6bee75fef0c52ec2c7800c58b18cd4767b5788fb8b41adff4ecadfe"
-{"client_id":"billing","service_account_admin_reach":[]}
+HTTP/1.1 200 OK
+etag: "060ac550d8892be5154b0083ff960944e2bcdcc9bd4078869eef444f342d1f37"
+{"client_id":"billing","grant_types":["authorization_code","client_credentials"],"has_service_account":true,"service_account_admin_reach":[]}
 INSERT 0 1
-etag: "ccb1d256a6bee75fef0c52ec2c7800c58b18cd4767b5788fb8b41adff4ecadfe"
+etag: "060ac550d8892be5154b0083ff960944e2bcdcc9bd4078869eef444f342d1f37"
 {"client_id":"billing","service_account_admin_reach":["view-users","manage-users"]}
 ```
 
-The `ETag` did not move. `GET /clients?client_id_exact=` finds the one client
-whose `client_id` is exactly the value, case kept, through the unique index; a
-prefix finds none, and it is one of the three searches that may not be
-combined:
+The `ETag` moved once, with the new account, and did not move again with the
+role. `GET /clients?client_id_exact=` finds the one client whose `client_id` is
+exactly the value, case kept, through the unique index; a prefix finds none, and
+it is one of the three searches that may not be combined:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/clients?client_id_exact=billing" | jq -c '[.items[] | {client_id, service_account_admin_reach}]'
@@ -215,7 +233,103 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/clients?client_id_exact=bil
 
 ```
 [{"client_id":"billing","service_account_admin_reach":["view-users","manage-users"]}]
-{"items":[]}{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: client_id, client_id_exact or name, not more than one","errors":[{"path":"name","message":"search one field at a time: client_id, client_id_exact or name, not more than one"}],"instance":"01a18730-4ed1-7ba3-80e7-0adacdd38e59"}
+{"items":[]}{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: client_id, client_id_exact or name, not more than one","errors":[{"path":"name","message":"search one field at a time: client_id, client_id_exact or name, not more than one"}],"instance":"01a1ae77-2056-7126-bdc3-3de79966fadd"}
+```
+
+**A service account follows the grant.** Taking `client_credentials` out of a
+client's `grant_types` deletes its account, and with it every token grant, role and
+session it held, so a leaked secret has nothing left to sign in as. `etl` was made
+with both grants and the admin API as its audience. Its service account was given
+`manage-users` with `psql`, as above, it asked for a token and used it on
+`GET /subjects` (`200`), and `psql` then counted its subject, the token grants it
+held and its roles:
+
+```bash
+curl -sS -X POST -H "$A" -H "$J" \
+  -d '{"client_id":"etl","redirect_uris":["https://etl.example/callback"],"grant_types":["authorization_code","client_credentials"],"audiences":["urn:odudu:params:admin-api"]}' $P/clients > etl.json
+EID=$(jq -r .id etl.json); SECRET=$(jq -r .client_secret etl.json); SUB=$(jq -r .service_subject_id etl.json)
+docker compose exec -T postgres psql -U odudu -d odudu -tA -c \
+  "insert into subject_roles (tenant_id, subject_id, role_id) select c.tenant_id, c.service_subject_id, r.id from clients c join clients a on a.tenant_id = c.tenant_id and a.client_id = 'odudu-admin' join roles r on r.client_id = a.id and r.name = 'manage-users' where c.id = '$EID'"
+TOKEN=$(curl -sS -u "etl:$SECRET" -d grant_type=client_credentials \
+  http://localhost:3000/tenants/client-limits-demo/protocol/openid-connect/token | jq -r .access_token)
+curl -sS -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" "$P/subjects?limit=1"
+HELD="select (select count(*) from subjects where id = '$SUB') as account, (select count(*) from token_grants where subject_id = '$SUB') as grants, (select count(*) from subject_roles where subject_id = '$SUB') as roles"
+docker compose exec -T postgres psql -U odudu -d odudu -c "$HELD"
+```
+
+```
+INSERT 0 1
+200
+ account | grants | roles
+---------+--------+-------
+       1 |      1 |     1
+(1 row)
+```
+
+A `PATCH` leaving `authorization_code` alone took the grant out. The account, its
+grant and its role are gone. The token it held is refused with `401`, since the
+grant it names no longer exists, and the secret, presented again, is refused
+`unauthorized_client`:
+
+```bash
+curl -sS -D headers.txt -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$EID
+curl -sS -o body.json -X PATCH -H "$A" -H "$J" -H "If-Match: $(grep -i '^etag:' headers.txt | cut -d' ' -f2 | tr -d '\r')" \
+  -d '{"grant_types":["authorization_code"]}' $P/clients/$EID
+jq -c '{grant_types, service_subject_id}' body.json
+docker compose exec -T postgres psql -U odudu -d odudu -c "$HELD"
+curl -sS -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" "$P/subjects?limit=1"
+curl -sS -u "etl:$SECRET" -d grant_type=client_credentials \
+  http://localhost:3000/tenants/client-limits-demo/protocol/openid-connect/token; echo
+```
+
+```
+{"grant_types":["authorization_code"],"service_subject_id":null}
+ account | grants | roles
+---------+--------+-------
+       0 |      0 |     0
+(1 row)
+
+401
+{"error":"unauthorized_client","error_description":"This client may not use this grant type."}
+```
+
+Adding the grant back makes a new account, a different subject, which holds no
+role:
+
+```bash
+curl -sS -D headers.txt -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$EID
+curl -sS -o body.json -X PATCH -H "$A" -H "$J" -H "If-Match: $(grep -i '^etag:' headers.txt | cut -d' ' -f2 | tr -d '\r')" \
+  -d '{"grant_types":["authorization_code","client_credentials"]}' $P/clients/$EID
+jq -c '{grant_types, new_account: (.service_subject_id != null and .service_subject_id != "'"$SUB"'")}' body.json
+docker compose exec -T postgres psql -U odudu -d odudu -tA -c \
+  "select count(*) from subject_roles where subject_id = '$(jq -r .service_subject_id body.json)'"
+```
+
+```
+{"grant_types":["authorization_code","client_credentials"],"new_account":true}
+0
+```
+
+A client whose account holds the tenant's last administrator role, `tenant-admin`
+here, `ops` being the only holder in `client-limits-demo`, is refused the removal
+with `409`, and nothing changes:
+
+```bash
+curl -sS -X POST -H "$A" -H "$J" \
+  -d '{"client_id":"ops","redirect_uris":["https://ops.example/callback"],"grant_types":["authorization_code","client_credentials"]}' $P/clients > ops.json
+OID=$(jq -r .id ops.json)
+docker compose exec -T postgres psql -U odudu -d odudu -tA -c \
+  "insert into subject_roles (tenant_id, subject_id, role_id) select c.tenant_id, c.service_subject_id, r.id from clients c join clients a on a.tenant_id = c.tenant_id and a.client_id = 'odudu-admin' join roles r on r.client_id = a.id and r.name = 'tenant-admin' where c.id = '$OID'"
+curl -sS -D headers.txt -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$OID
+curl -sS -X PATCH -H "$A" -H "$J" -H "If-Match: $(grep -i '^etag:' headers.txt | cut -d' ' -f2 | tr -d '\r')" \
+  -d '{"grant_types":["authorization_code"]}' $P/clients/$OID; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$OID | jq -c '{grant_types, has_service_account: (.service_subject_id != null)}'
+```
+
+```
+INSERT 0 1
+{"type":"about:blank#last-administrator","title":"Conflict","status":409,"detail":"this would leave no enabled subject holding tenant-admin","instance":"01a1ae77-d2d8-7db8-99a2-7ec984aaf35e"}
+{"grant_types":["authorization_code","client_credentials"],"has_service_account":true}
 ```
 
 The RFC 7591 metadata fields among them — `redirect_uris`, `grant_types`,

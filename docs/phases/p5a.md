@@ -367,6 +367,10 @@ still states what an increment has since changed:
 - The same bullet: "The server does not yet publish the metadata an MCP client
   looks for". The well-known documents are published; read it against what
   exists when the phase closes.
+- `apps/docs/content/en/roadmap.md`, the P5a bullet "create a client's service account
+  when its client credentials grant is switched on": the sentence now says what shipped;
+  at close it moves to Shipped and out of Next with its mapping in
+  `tests/docs/roadmap-section-11.test.ts`.
 
 ## Idempotency keys
 
@@ -387,3 +391,48 @@ still states what an increment has since changed:
   CHANGELOG and the OpenAPI parameter.
 - Non-database effects (the test mail) are not undone when the late capacity
   check or the size cap rolls a call back.
+
+## Service accounts follow the grant
+
+- **Where it is decided.** `needsServiceAccount(type, grant_types)` (protocol-oidc `service/`)
+  is the one rule; every door that writes a client asks it (admin create, DCR, tenant
+  import, both `seed client` paths) and `reconcileServiceAccount` in `amendClient` asks it
+  after every `grant_types` write. `ensureServiceAccount` / `retireServiceAccount` are in
+  protocol-oidc `usecase/service-account.ts` because the doors that need them are
+  protocol-admin, protocol-oidc and the server, and domain-tenant may not see
+  domain-identity. `clientRepository.setServiceSubject` is the only writer of the pointer.
+- **Exactly once.** Both lock the client row `FOR UPDATE` first, so concurrent PATCHes
+  queue and the second finds the account. The pointer is one column, so no unique index is
+  needed; a test runs six transactions at once and counts the `service` subjects.
+- **Retire deletes the subject; it does not disable it.** Every table naming a subject
+  cascades (`token_grants`, `subject_roles`, `subject_groups`, `consents`, `sessions`, …) and
+  `clients.service_subject_id` is `SET NULL`, so one `DELETE` removes the grants a leaked
+  secret could have used, the roles that made them worth having and the sessions. A disabled
+  subject would keep its roles for a later grant to inherit, and `authenticate-admin` already
+  refuses a token whose grant row is gone. Cost: the account's history goes with it. An
+  access token it already held stops being accepted at once (its grant is gone) rather than
+  at expiry, and `GET /audit` no longer resolves `actor_name` for its past events (the
+  `audit_events` actor id stays; no foreign key names it). Re-adding the grant makes a new
+  subject with no roles, by test.
+- **Last administrator.** A client's account can hold `tenant-admin`, so a write that retires
+  it runs under `guardLastAdministrator`; the refusal is the existing `409`
+  (`last-administrator`) and rolls the whole amendment back with it.
+- **Audit.** No new action. `client.create` and `client.amend` already carry the
+  `grant_types` diff; `service_subject_id` is added to the client allowlist so the account
+  appearing or going is in the same row.
+- **Migration 0122, in SQL.** The set is "idle accounts nothing names", which needs the
+  referencing tables. They are read from `pg_constraint` (every foreign key to `subjects(id)`)
+  plus `audit_events.actor_subject_id`, so a table added later is checked too; one statement
+  per table, not one per client, so the cost is a pass over each referencing table. FORCE
+  RLS is lifted on what it reads and restored, as 0114 does. Idle accounts that are named
+  stay and get `clients.service_account_idle`, with a partial index, which is what the boot
+  warning reads (bounded like the exchange one: a statement timeout, a count capped at
+  10,000, a sample of 20). Not a command: the report is what it is for, and the removal is
+  the next `grant_types` write, which retires any account the client no longer needs.
+- **Import.** `service_account_roles` on a client without the grant is refused by
+  validation (the roles would have no account to land on); an export from a tenant that
+  keeps an idle account lists its roles, so that document needs the roles removed first.
+- **Console.** Only copy: the Service account tab says a confidential client without the
+  grant has no account and what creates one, the idle note says how an upgrade's leftover
+  goes, and the grant's hint says on creates and off removes. No toggle logic changed.
+- **Not done here.** The console e2e suite was not run for this increment.
