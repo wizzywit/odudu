@@ -16,7 +16,7 @@ export function domainAddress(host: string, tls: boolean): TenantAddress {
 
 // A domain address has no path prefix: the host itself names the tenant.
 export function isDomainAddress(a: TenantAddress | undefined): a is TenantAddress {
-  return a !== undefined && a.prefix === '';
+  return a?.prefix === '';
 }
 
 export function addressIssuer(a: TenantAddress): string {

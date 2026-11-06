@@ -40,7 +40,7 @@ describe('cleanData', () => {
       z: null,
     });
     expect(out).toEqual({
-      a: ['xy', { b: expect.stringMatching(/…$/u) }],
+      a: ['xy', { b: `${'z'.repeat(TEXT_CAP - 1)}…` }],
       n: 3,
       f: false,
       z: null,
