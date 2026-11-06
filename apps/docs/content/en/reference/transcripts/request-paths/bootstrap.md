@@ -671,8 +671,8 @@ endpoint (ADR 0026's amendment). It is open in the way `open` is, with no
 credential, and bounded in ways `open` is not. The client has to be public
 (`token_endpoint_auth_method` of `none`, whose absence is refused rather than
 defaulted to a secret), its redirect URIs `https` or `http` on a loopback host,
-its grants `authorization_code` and `refresh_token`, no key set and no logout address, its `scope` at most
-`mcp:read` beside the sign-in scopes, and its `audience`, when it names one,
+its grants `authorization_code` and `refresh_token`, no key set and no logout address, its `scope` kept to
+`mcp:read` beside the sign-in scopes (a request for more is registered without the rest), and its `audience`, when it names one,
 exactly the tenant's MCP URL. A request is counted against ten an hour per
 address on that tenant and sixty an hour for the tenant, and a tenant at its `max_clients` refuses as under any
 policy. `seed tenant --set` and the settings API both take the value, and
@@ -685,7 +685,7 @@ odudu seed tenant --name mcp-refused --set client_registration_policy=nonsense 2
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"mcp-demo","tenantId":"01a1ad89-34df-…","settings":["client_registration_policy"]}
+{"command":"tenant","created":true,"tenant":"mcp-demo","tenantId":"01a1b029-b5b9-…","settings":["client_registration_policy"]}
 OduduError: tenant setting client_registration_policy must be one of disabled, open, token, mcp
   code: 'seed_invalid_options'
 ```
@@ -698,10 +698,11 @@ curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/op
 
 ```json
 {
-  "client_id": "01a1ad89-370d-…",
-  "client_id_issued_at": 1793912813,
+  "client_id": "01a1b029-b900-…",
+  "client_id_issued_at": 1793956886,
   "redirect_uris": ["https://agent.example/cb", "http://127.0.0.1:53124/cb"],
   "audience": ["http://localhost:3000/tenants/mcp-demo/mcp"],
+  "scope": "openid mcp:read",
   "grant_types": ["authorization_code"],
   "token_endpoint_auth_method": "none",
   "client_name": "Example Agent"
@@ -717,13 +718,13 @@ not assigned to any client the policy creates:
 docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
   select c.type, c.registration_origin, o.token_endpoint_auth_method, o.audiences, o.consent_required
   from clients c join client_oidc_config o on o.client_id = c.id
-  where c.client_id = '01a1ad89-370d-78ab-9205-c4ed703375e2'"
+  where c.client_id = '01a1b029-b900-7a49-916f-984644db1011'"
 docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
   select s.name, a.assignment
   from client_scope_assignments a
   join client_scopes s on s.id = a.client_scope_id
   join clients c on c.id = a.client_id
-  where c.client_id = '01a1ad89-370d-78ab-9205-c4ed703375e2' and s.name like 'mcp:%'"
+  where c.client_id = '01a1b029-b900-7a49-916f-984644db1011' and s.name like 'mcp:%'"
 ```
 
 ```
@@ -738,10 +739,36 @@ docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
 (1 row)
 ```
 
+A client takes its scope from the protected resource metadata unless it is
+told otherwise, so it asks for `mcp:write` beside `mcp:read`. The policy
+registers it without what it may not hold rather than refusing it, as RFC
+7591 §3.2.1 allows, and the response's `scope` says what was kept. The row
+shows `mcp:read` as the one scope given:
+
+```bash
+curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://agent.example/cb"],"token_endpoint_auth_method":"none","client_name":"Example Agent","scope":"mcp:read mcp:write offline_access"}'
+docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+  select s.name, a.assignment
+  from client_scope_assignments a
+  join client_scopes s on s.id = a.client_scope_id
+  join clients c on c.id = a.client_id
+  where c.client_id = '01a1b029-ba3f-73fc-bd7d-6212402a5c30' and s.name like 'mcp:%'"
+```
+
+```
+{"client_id":"01a1b029-ba3f-73fc-bd7d-6212402a5c30","client_id_issued_at":1793956887,"redirect_uris":["https://agent.example/cb"],"audience":["http://localhost:3000/tenants/mcp-demo/mcp"],"scope":"mcp:read offline_access","grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"Example Agent"}
+   name   | assignment
+----------+------------
+ mcp:read | optional
+(1 row)
+```
+
 Each refusal below is `400` and stores nothing. A client that would hold a
 secret (the first request names no `token_endpoint_auth_method`, which RFC 7591
 defaults to `client_secret_basic`), a plain-`http` redirect that is not on a
-loopback host, `mcp:write`, and an audience that is not this tenant's MCP URL:
+loopback host, a `scope` of which nothing may be held (`mcp:write` alone), and an audience that is not this tenant's MCP URL:
 
 ```bash
 curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/openid-connect \
@@ -752,7 +779,7 @@ curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/op
   -d '{"redirect_uris":["http://agent.example/cb"],"token_endpoint_auth_method":"none"}'
 curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' \
-  -d '{"redirect_uris":["https://agent.example/cb"],"token_endpoint_auth_method":"none","scope":"mcp:read mcp:write"}'
+  -d '{"redirect_uris":["https://agent.example/cb"],"token_endpoint_auth_method":"none","scope":"mcp:write"}'
 curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' \
   -d '{"redirect_uris":["https://agent.example/cb"],"token_endpoint_auth_method":"none","audience":"https://api.example"}'
@@ -767,9 +794,9 @@ curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/op
 
 The ceiling is the tenant's `max_clients`, here lowered to the number of
 clients it holds, and the budget is the eleventh request from one address
-inside an hour. Every request above was counted, refused ones too: one
-registration, four refusals and the refusal at the ceiling make six, so the
-four in the loop reach ten and the request after them is the `429`. A tenant
+inside an hour. Every request above was counted, refused ones too: two
+registrations, four refusals and the refusal at the ceiling make seven, so the
+three in the loop reach ten and the request after them is the `429`. A tenant
 is also held to sixty an hour over every address together, which this run did
 not reach. The `429` carries `retry-after` in seconds:
 
@@ -781,7 +808,7 @@ curl -sS -i -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations
   -d '{"redirect_uris":["https://agent.example/cb"],"token_endpoint_auth_method":"none"}' | grep -iE '^HTTP|^\{'
 docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
   -c "update tenants set max_clients = 200 where name = 'mcp-demo'"
-for i in 1 2 3 4; do curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
+for i in 1 2 3; do curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
   http://localhost:3000/tenants/mcp-demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' \
   -d '{"redirect_uris":["https://agent.example/cb"],"token_endpoint_auth_method":"none"}'; done
@@ -794,14 +821,13 @@ curl -sS -i -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations
 ```
  max_clients
 -------------
-           3
+           4
 (1 row)
 
 UPDATE 1
 HTTP/1.1 403 Forbidden
 {"error":"invalid_client_metadata","error_description":"this tenant has reached its client registration limit"}
 UPDATE 1
-201
 201
 201
 201

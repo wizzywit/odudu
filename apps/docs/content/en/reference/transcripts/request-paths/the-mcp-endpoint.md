@@ -46,7 +46,7 @@ odudu seed tenant --name demo --set client_registration_policy=mcp
 ```bash
 MCP=http://localhost:3000/tenants/demo/mcp
 curl -sS -X POST -H 'content-type: application/json' \
-  -d '{"client_name":"Transcript agent","redirect_uris":["http://127.0.0.1:8080/callback"],"token_endpoint_auth_method":"none","grant_types":["authorization_code"],"scope":"openid mcp:read","audience":"'$MCP'"}' \
+  -d '{"client_name":"Transcript agent","redirect_uris":["http://127.0.0.1:8080/callback"],"token_endpoint_auth_method":"none","grant_types":["authorization_code"],"audience":"'$MCP'"}' \
   http://localhost:3000/tenants/demo/clients-registrations/openid-connect
 ```
 

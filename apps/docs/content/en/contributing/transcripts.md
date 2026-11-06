@@ -1078,3 +1078,12 @@ discovery read, [a refresh](../reference/transcripts/console-paths/a-refresh.md)
 lock](../reference/transcripts/console-paths/a-refresh-that-cannot-take-the-lock.md), [a refresh the server
 refuses](../reference/transcripts/console-paths/a-refresh-the-server-refuses.md), and the logout with the redirect it
 ends on. Their audit rows answer `actor_name` and `actor_origin`.
+
+A client that asks for more scope than the `mcp` policy lets it hold is now registered with the part it may hold, and the
+registration response gained a `scope` member. The bootstrap page's section "The `mcp` policy" was run again in full for that,
+on the compose project `odudu-p5a-i11b` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch
+plus the change), on a tenant made for it, `mcp-demo`, in the order the page shows; its second registration, the changed
+refusal and the budget's counts are that pass's. The MCP endpoint's page was not run again: its registration asked for
+`openid mcp:read`, which now comes back as a `scope` member, so the request no longer names a scope and its response is as
+it was. That changed command was run on the same project on a tenant of its own, `mcp-check`, and answered the page's
+response member for member, with another id, instant and tenant name. The stack was removed afterwards.

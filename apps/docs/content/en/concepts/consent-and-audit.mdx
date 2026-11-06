@@ -28,7 +28,7 @@ An allow is **recorded**: one grant for this person and this client, holding the
 
 Odudu decides in this order:
 
-1. If the request says `prompt=consent`, ask, whatever the client is set to. The app is entitled to ask for a fresh decision. A request that would be granted `mcp:write` is asked at every sign-in, whatever is recorded, and `prompt=none` refuses it.
+1. If the request says `prompt=consent`, ask, whatever the client is set to. A request that would be granted `mcp:write` is asked at every sign-in, whatever is recorded, and `prompt=none` refuses it.
 2. If the client registered itself, or arrived as a metadata document, and this person has no grant recorded for this exact client, ask. The client's own setting does not matter here, and `prompt=none` refuses with `consent_required`.
 3. If the client does not require consent, carry on without the screen.
 4. If everything it asks for is already recorded, carry on.
@@ -45,7 +45,7 @@ An administrator can list what a person has allowed with `GET /admin/tenants/{te
 
 ### A client that names itself
 
-A tenant can let an app identify itself with an https address (`cimd_enabled`) or let an agent register itself (`client_registration_policy` set to `mcp`). Anyone can claim a name, so such a client is held to step 2 until the person approves it. For an app that identifies itself with an https address, the screen shows the host the document came from and every redirect address. An agent that registers itself has no document, so the screen shows neither. Neither kind is ever offered `mcp:write`. The [Settings page](../admin-console/settings.mdx#client-registration) has the details, and the [registration transcript](../reference/transcripts/request-paths/bootstrap.md#the-mcp-policy) shows each refusal.
+A tenant can let an app identify itself with an https address (`cimd_enabled`) or let an agent register itself (`client_registration_policy` set to `mcp`). Anyone can claim a name, so such a client is held to step 2 until the person approves it. For an app that identifies itself with an https address, the screen shows the host the document came from and every redirect address. An agent that registers itself has no document, so the screen shows neither. Neither kind is ever offered `mcp:write`, and a request that names it is answered without it. The [Settings page](../admin-console/settings.mdx#client-registration) has the details, and the [registration transcript](../reference/transcripts/request-paths/bootstrap.md#the-mcp-policy) shows each refusal.
 
 ## Audit
 

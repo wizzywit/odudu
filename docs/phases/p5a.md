@@ -162,8 +162,9 @@ the CHECK; the default stays `disabled`). The registration endpoint is then open
 to a public client and nothing else: `decideMcpRegistration` (a pure service)
 refuses a client that would hold a secret, a redirect that is not `https` or
 loopback `http` (a reverse-DNS custom scheme, which `open` admits, is refused),
-a grant beyond `authorization_code` and `refresh_token`, a `scope` outside the
-sign-in scopes and `mcp:read`, and an `audience` that is not the tenant's MCP
+a grant beyond `authorization_code` and `refresh_token`, a `scope` of which
+nothing is a sign-in scope or `mcp:read` (the rest of a longer one is dropped
+and the response says what was kept), and an `audience` that is not the tenant's MCP
 URL. The audience is not a member RFC 7591 defines; it is Odudu's, and the
 response echoes it as `audience`. A client that omits
 `token_endpoint_auth_method` is refused, not defaulted, because the RFC's
@@ -226,9 +227,10 @@ the tenant.
   policy are unchanged.
 - **The 429.** The budget names which limit refused (`address` or `tenant`) and the
   response says so.
-- **mcp:write.** A client of those origins is refused `mcp:write` at
-  `/authorize` (`refusesWriteScope`) even if an administrator assigned it,
-  so the policy's ceiling holds for a row nobody at the tenant vetted.
+- **mcp:write.** A client of those origins is never given it, even if an administrator
+  assigned it (`refusesWriteScope`): `/authorize` drops it from a request that
+  names other scopes (`requestWithGrantableScope`) and refuses a request for it
+  alone with `invalid_scope`.
 - **Registration refuses more than the spec lists.** A `jwks`, a `jwks_uri` or
   a logout address is refused under `mcp`: a public client holds no key, and a
   logout address would have the server call or load an address chosen by an
@@ -1196,18 +1198,26 @@ to: <authorization URL>` on standard error and listens on the loopback
   with `protocolVersion` `2025-06-18`, and a `tools/list` under that header is 200. `2025-03-26` behaves the same. No 400 `-32022`, that being only what
   `legacy: 'reject'` does. The SDK's own client cannot send it, so it is sent
   by hand.
-- **Found: a client that takes its scope from the metadata cannot register.**
-  The Inspector, given no scope, asked for the protected resource metadata's
-  `mcp:read mcp:write offline_access`; the registration was refused 400
-  `scope mcp:write is not available under this tenant's registration policy`.
-  An SDK client that gets as far as the 401 uses its `scope="mcp:read"` and is
-  fine, and so is a registered client asking `mcp:write` at `/authorize` (also
-  `invalid_scope`, by design in `refusesWriteScope`). The Inspector run sets
-  `oauth.scopes: "mcp:read"`. A client in the field that does the first
-  would be refused with a message that names the cause; whether the policy
-  should drop `mcp:write` from a request instead of refusing it (RFC 7591
-  §3.2.1 and RFC 6749 §3.3 allow either) is a decision, left open here because
-  three int tests pin the refusal.
+- **Found, and fixed: a client that takes its scope from the metadata could not
+  register.** The Inspector with no scope configured asked for the protected
+  resource metadata's `mcp:read mcp:write offline_access`; the registration
+  was refused 400 `scope mcp:write is not available`, and a registered client
+  asking for it at `/authorize` got `invalid_scope`. Hosted Claude and
+  metadata-document clients can do the same. The decision: a self-registered or
+  metadata-document client can never be given `mcp:write`, and asking for it
+  does not break the sign-in (RFC 7591 §3.2.1, RFC 6749 §3.3).
+  Registration under `mcp` keeps the sign-in scopes and `mcp:read` and the
+  response's `scope` lists what was kept; everything else the policy refuses
+  is still refused, and so is a `scope` of which nothing may be held. `/authorize`
+  for such a client drops `mcp:write` before the request is validated, so the
+  consent screen and the token carry only what is grantable, and the token
+  response's `scope` (always sent) states it. A request for `mcp:write`
+  alone is `invalid_scope`: nothing grantable is left. A client an
+  administrator created is unchanged, and `mcp:write` is still asked about
+  at every sign-in. verified: `mcp-registration-policy.int.test.ts` (red
+  first on four tests, then green), and `run-mcp.sh` with the Inspector's
+  default scope, which signed in asking for `mcp:read mcp:write offline_access`
+  and listed 42 tools.
 - **Not automated, and said plainly.** Hosted Claude, Claude Code and Cursor
   cannot run in CI (hosted Claude needs a public HTTPS address; the others are
   desktop applications), and neither can a client ID metadata document, which
