@@ -399,7 +399,13 @@ Risk concentration, highest first:
 
 Not a risk class in this phase: personal data, credentials, grants, redirects, settings that change security.
 
-## 10. Open decisions for the owner
+## 10. Decisions
+
+The owner accepted every recommendation below on 2026-11-06 ("go with recommendation"). Decision 2 carries a
+residual risk the documents must say plainly: a message override or the tenant display name is live wording
+on credential pages, so an agent that read hostile text and held `mcp:write` could mislead a person at the
+point where they type a password. It is reversible, audited with before and after, bounded by the write
+budget and by the owner's own capability, and P5b re-examines it once a human-confirmation step exists.
 
 1. **The line at access-changing** (section 2) rather than at reversible. Recommend: as drawn.
 2. **Message overrides and the tenant display name as W1**, although they appear on credential pages. Recommend: W1,
