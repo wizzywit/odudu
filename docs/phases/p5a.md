@@ -902,6 +902,21 @@ exactly those fields, and no write tool exists for a route the allowlist does no
 - **A cursor is opaque.** A list's `next` was passed on as `next_cursor` beside `data` after a length check only. The
   admin API signs its cursors (base64url segments and a dot), so one with any other character is refused as
   `mcp:unexpected_response` rather than carried outside `data`: the unit suite that poisons every field found it.
+- **A write that runs out of time.** The 20 s deadline stops the wait, not the admin call (no abort reaches the
+  transaction, so cancelling is no guarantee), so a PATCH can commit after the caller was told it failed. For a
+  write tool the answer is `mcp:outcome_unknown` (504): the change may or may not have been made, read the resource
+  with the get tool before sending it again; the tool descriptions say it too. The audit row is `failed` with the
+  reason `timeout_outcome_unknown`, a value added to the audit reasons (and `AUDIT_REASON_DOCS`) because `failed`
+  alone cannot tell it from an error that left nothing behind. A read tool is unchanged: `mcp:timeout`, no reason.
+- **An empty description.** The admin API stores `""` apart from `null` and its client and scope amendments accept it,
+  so `description` in the tools has no minimum length (a scope's create contract does, which no tool reaches); an
+  earlier `""` can be put back from the audit row. A language text stays non-empty, as `checkLocalisedText` holds it.
+- **Create paths and NUL.** Creating a scope with a NUL in `name`, `description` or `consent_text` was a `500` like the
+  amendment was; `createScope` now refuses each as `400` naming it. Probing the other creates found the same
+  `500` for a group's or a role's `name` and `description`, a subject's `username` and `email`, and they are `400`
+  through `noNul` in the contract (a pattern, so the admin API's own body validation answers). Checked and already
+  `400`: a client's `name` and `description` on create and amend, a scope's and a group's and a role's `description` on
+  amend, language texts. Not probed: tenant creation and the settings bodies.
 - **Results.** `{ data, etag?, truncated? }`, `data` cleaned as the reads are; a refusal is `{ error }`.
 - **Rate-limit test.** `mcp.test.ts` asserted `Retry-After <= 60` at the wall clock; the limiter's wait for a spent key is the
   rest of the window plus window/limit (up to 90 s at limit 2), so it failed in half of every minute. It now injects a fixed
