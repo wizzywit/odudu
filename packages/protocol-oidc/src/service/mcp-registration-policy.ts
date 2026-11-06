@@ -3,8 +3,10 @@ import { MCP_RESOURCE_PATH } from '@odudu/kernel';
 import { needsApproval } from '#/service/consent';
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '#/service/mcp-scopes';
 
-// What a client registered under the `mcp` policy may name for itself:
-// the sign-in scopes and the read scope, never the write scope.
+// What a client registered under the `mcp` policy may hold: the sign-in
+// scopes and the read scope, never the write scope. A request for more is
+// registered as the part that is held (RFC 7591 §3.2.1), because a client
+// takes its scope from the metadata and asks for every scope listed there.
 const REGISTRATION_SCOPES: ReadonlySet<string> = new Set([
   'openid',
   'profile',
@@ -30,7 +32,8 @@ export interface McpRegistrationInput {
 }
 
 export type McpRegistrationDecision =
-  | { kind: 'ok'; audiences: string[] }
+  // `scope` is what was registered, present when one was asked for.
+  | { kind: 'ok'; audiences: string[]; scope?: string }
   | {
       kind: 'invalid';
       error: 'invalid_redirect_uri' | 'invalid_client_metadata';
@@ -61,15 +64,22 @@ function audienceRefusal(audience: unknown, mcpAudience: string): string | null 
     : `audience must be ${mcpAudience} and nothing else under this tenant's registration policy`;
 }
 
-function scopeRefusal(scope: unknown): string | null {
-  if (scope === undefined) return null;
-  if (typeof scope !== 'string') return 'scope must be a space-separated string';
-  const outside = scope
-    .split(/\s+/u)
-    .find((token) => token !== '' && !REGISTRATION_SCOPES.has(token));
-  return outside === undefined
-    ? null
-    : `scope ${outside} is not available under this tenant's registration policy`;
+type ScopeDecision = { kind: 'ok'; scope?: string } | { kind: 'refused'; description: string };
+
+function registrableScope(scope: unknown): ScopeDecision {
+  if (scope === undefined) return { kind: 'ok' };
+  if (typeof scope !== 'string') {
+    return { kind: 'refused', description: 'scope must be a space-separated string' };
+  }
+  const asked = scope.split(/\s+/u).filter((token) => token !== '');
+  const held = [...new Set(asked.filter((token) => REGISTRATION_SCOPES.has(token)))];
+  if (held.length === 0 && asked.length > 0) {
+    return {
+      kind: 'refused',
+      description: `scope ${asked[0] ?? ''} is not available under this tenant's registration policy`,
+    };
+  }
+  return { kind: 'ok', scope: held.join(' ') };
 }
 
 // The `mcp` registration policy: open to a public client that can only reach
@@ -105,9 +115,15 @@ export function decideMcpRegistration(input: McpRegistrationInput): McpRegistrat
       `redirect_uris entry ${badRedirect} must be https, or http on a loopback host`,
     );
   }
-  const problem = scopeRefusal(input.scope) ?? audienceRefusal(input.audience, input.mcpAudience);
+  const scope = registrableScope(input.scope);
+  if (scope.kind === 'refused') return refuse('invalid_client_metadata', scope.description);
+  const problem = audienceRefusal(input.audience, input.mcpAudience);
   if (problem !== null) return refuse('invalid_client_metadata', problem);
-  return { kind: 'ok', audiences: [input.mcpAudience] };
+  return {
+    kind: 'ok',
+    audiences: [input.mcpAudience],
+    ...(scope.scope === undefined ? {} : { scope: scope.scope }),
+  };
 }
 
 // What a dynamically resolved client's audience list becomes when the tenant's
@@ -147,6 +163,29 @@ export function mcpGrantOf(policy: string, mcpAudience: string): McpPolicyGrant 
 // For a caller with no tenant policy to apply: nothing is granted, and no
 // audience is taken away.
 export const NO_MCP_GRANT: McpPolicyGrant = { audience: '', granted: false };
+
+// What a client registered over the wire, or resolved from a document, is
+// asked about: the request without the write scope it can never be given
+// (RFC 6749 §3.3). A request for the write scope alone is returned whole, so
+// that `refusesWriteScope` still refuses it: nothing grantable is left.
+export function grantableScopes(
+  registrationOrigin: string,
+  requestedScopes: readonly string[],
+): string[] {
+  if (!needsApproval(registrationOrigin)) return [...requestedScopes];
+  const kept = requestedScopes.filter((scope) => scope !== MCP_WRITE_SCOPE);
+  return kept.length === 0 ? [...requestedScopes] : kept;
+}
+
+export function requestWithGrantableScope<T extends { readonly scope?: string | undefined }>(
+  registrationOrigin: string,
+  params: T,
+): T {
+  if (params.scope === undefined) return params;
+  const asked = params.scope.split(' ').filter((token) => token !== '');
+  const grantable = grantableScopes(registrationOrigin, asked);
+  return grantable.length === asked.length ? params : { ...params, scope: grantable.join(' ') };
+}
 
 // A client registered over the wire, or resolved from a document, is never
 // given the write scope, whatever an administrator assigned it.

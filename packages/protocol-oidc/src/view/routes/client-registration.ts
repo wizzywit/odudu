@@ -25,6 +25,7 @@ function toResponseBody(client: RegisteredClient): Record<string, unknown> {
       : { client_secret: client.clientSecret, client_secret_expires_at: 0 }),
     redirect_uris: metadata.redirectUris,
     ...(client.audiences.length === 0 ? {} : { audience: client.audiences }),
+    ...(client.scope === undefined ? {} : { scope: client.scope }),
     grant_types: metadata.grantTypes,
     token_endpoint_auth_method: metadata.tokenEndpointAuthMethod,
     ...(metadata.clientName === null ? {} : { client_name: metadata.clientName }),

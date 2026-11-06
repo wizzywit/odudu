@@ -59,6 +59,8 @@ export interface RegisteredClient {
   clientSecret: string | null;
   // The audiences the policy gave it; empty for every policy but `mcp`.
   audiences: string[];
+  // What the `mcp` policy registered of the scope asked for, when one was.
+  scope?: string;
   metadata: ClientMetadata;
   // `client_name#<tag>` members the tenant offers, by canonical tag.
   nameI18n: Record<string, string>;
@@ -101,6 +103,7 @@ async function performRegistration(
   origin: ClientRecord['registrationOrigin'],
   now: Date,
   grant: McpPolicyGrant | null,
+  scope: string | undefined,
 ): Promise<ClientRegistrationOutcome> {
   const capacity = await clientRepository(tx).lockCapacity(tenantId);
   if (capacity.count >= capacity.maxClients) {
@@ -201,6 +204,7 @@ async function performRegistration(
       clientIdIssuedAt: Math.floor(now.getTime() / 1000),
       clientSecret,
       audiences,
+      ...(scope === undefined ? {} : { scope }),
       metadata,
       nameI18n,
     },
@@ -243,6 +247,7 @@ async function persistRegistration(
   presentedToken: string | undefined,
   registration: ParsedRegistration,
   grant: McpPolicyGrant | null,
+  scope?: string,
 ): Promise<ClientRegistrationOutcome> {
   return deps.withinTenant(tenant.id, async (tx) => {
     // A presented token is honoured or refused outright — never silently
@@ -265,6 +270,7 @@ async function persistRegistration(
       origin,
       deps.now(),
       grant,
+      scope,
     );
   });
 }
@@ -312,10 +318,14 @@ export async function registerMcpClient(
   }
   // A credential presented here is not read: spending it would store the
   // client as one an administrator authorised, which it is not.
-  return persistRegistration(deps, tenant, undefined, registration, {
-    audience: mcpAudience,
-    granted: true,
-  });
+  return persistRegistration(
+    deps,
+    tenant,
+    undefined,
+    registration,
+    { audience: mcpAudience, granted: true },
+    decision.scope,
+  );
 }
 
 export async function registerClient(

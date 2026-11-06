@@ -216,6 +216,15 @@ describe('registration under the mcp policy', () => {
     expect(mcp.map((row) => [row.scope.name, row.assignment])).toEqual([['mcp:read', 'optional']]);
   });
 
+  it('registers a client that asks for mcp:write without it, and says what it registered', async () => {
+    const res = await register({ ...PUBLIC, scope: 'mcp:read mcp:write offline_access' });
+    expect(res.statusCode, res.body).toBe(201);
+    const body = res.json<Record<string, unknown>>();
+    expect(body.scope).toBe('mcp:read offline_access');
+    const { scopes } = await rowsOf(String(body.client_id));
+    expect(scopes.map((row) => row.scope.name)).not.toContain('mcp:write');
+  });
+
   it('gives the MCP URL to a client that names no audience', async () => {
     const { config } = await rowsOf(await registered());
     expect(config?.audiences).toEqual([mcpUrl]);
@@ -230,7 +239,7 @@ describe('registration under the mcp policy', () => {
       { redirect_uris: ['http://rp.example/cb'] },
       REDIRECT,
     ],
-    ['mcp:write', { scope: 'mcp:read mcp:write' }, MEMBER],
+    ['a scope of which nothing may be held', { scope: 'mcp:write' }, MEMBER],
     ['another audience', { audience: ['https://api.example'] }, MEMBER],
     ['the admin API audience', { audience: 'urn:odudu:params:admin-api' }, MEMBER],
     ['the client_credentials grant', { grant_types: ['client_credentials'] }, MEMBER],
@@ -239,7 +248,6 @@ describe('registration under the mcp policy', () => {
       { grant_types: ['urn:ietf:params:oauth:grant-type:token-exchange'] },
       MEMBER,
     ],
-    ['a scope split by a non-breaking space', { scope: 'openid\u00a0mcp:write' }, MEMBER],
     ['two audiences, one the MCP URL', { audience: [mcpUrl, 'https://api.example'] }, MEMBER],
     ['the same audience twice', { audience: [mcpUrl, mcpUrl] }, MEMBER],
     ['inline keys', { jwks: { keys: [] } }, MEMBER],
@@ -407,10 +415,39 @@ describe('/authorize for a client registered under the mcp policy', () => {
     expect(errorOf(res)).toBe('invalid_request');
   });
 
-  it('refuses mcp:write, which it was never assigned', async () => {
+  it('refuses a request for mcp:write alone: nothing grantable is left', async () => {
     const client = await registered();
-    const res = await authorize(client, { scope: 'openid mcp:write', resource: mcpUrl });
+    const res = await authorize(client, { scope: 'mcp:write', resource: mcpUrl });
     expect(errorOf(res)).toBe('invalid_scope');
+  });
+
+  it('asks about mcp:read and grants read only when the request also names mcp:write', async () => {
+    const client = await registered();
+    const consent = await signIn(
+      await authorize(client, { scope: 'openid mcp:read mcp:write', resource: mcpUrl }),
+    );
+    expect(asksConsent(consent)).toBe(true);
+    expect(consent.body).toContain('mcp:read');
+    expect(consent.body).not.toContain('mcp:write');
+    const code = (await allow(consent, ['mcp:read'])).searchParams.get('code') ?? '';
+    const redeemed = await form('protocol/openid-connect/token', {
+      grant_type: 'authorization_code',
+      client_id: client,
+      code,
+      redirect_uri: CALLBACK,
+      code_verifier: VERIFIER,
+    });
+    expect(redeemed.statusCode, redeemed.body).toBe(200);
+    const { access_token: access, scope } = redeemed.json<{
+      access_token: string;
+      scope: string;
+    }>();
+    expect(scope.split(' ')).toContain('mcp:read');
+    expect(scope.split(' ')).not.toContain('mcp:write');
+    const claims = JSON.parse(
+      Buffer.from(access.split('.')[1] ?? '', 'base64url').toString('utf8'),
+    ) as { scope: string };
+    expect(claims.scope).toBe(scope);
   });
 
   it('refuses a resource other than the MCP URL', async () => {
@@ -516,11 +553,30 @@ describe('a metadata document client under the mcp policy', () => {
     expect((await rowsOf(CLIENT_URL)).config?.audiences).toEqual([]);
   });
 
-  it('is never given mcp:write', async () => {
+  it('is refused a request for mcp:write alone, and asked about read only beside mcp:read', async () => {
     await setPolicy('mcp');
     serve();
-    const res = await authorize(CLIENT_URL, { scope: 'openid mcp:write', resource: mcpUrl });
-    expect(errorOf(res)).toBe('invalid_scope');
+    const alone = await authorize(CLIENT_URL, { scope: 'mcp:write', resource: mcpUrl });
+    expect(errorOf(alone)).toBe('invalid_scope');
+
+    const consent = await signIn(
+      await authorize(CLIENT_URL, { scope: 'openid mcp:read mcp:write', resource: mcpUrl }),
+    );
+    expect(asksConsent(consent)).toBe(true);
+    expect(consent.body).toContain('mcp:read');
+    expect(consent.body).not.toContain('mcp:write');
+    const code = (await allow(consent, ['mcp:read'])).searchParams.get('code') ?? '';
+    const redeemed = await form('protocol/openid-connect/token', {
+      grant_type: 'authorization_code',
+      client_id: CLIENT_URL,
+      code,
+      redirect_uri: CALLBACK,
+      code_verifier: VERIFIER,
+    });
+    expect(redeemed.statusCode, redeemed.body).toBe(200);
+    const granted = redeemed.json<{ scope: string }>().scope.split(' ');
+    expect(granted).toContain('mcp:read');
+    expect(granted).not.toContain('mcp:write');
   });
 });
 
@@ -659,7 +715,7 @@ describe('after the policy is turned off', () => {
 });
 
 describe('a client nobody at the tenant vetted is never given mcp:write', () => {
-  it('refuses it at /authorize even when an administrator assigned it', async () => {
+  it('does not grant it at /authorize even when an administrator assigned it', async () => {
     const client = await registered();
     await withTenant(app.db, tenantId, async (tx) => {
       const row = await clientRepository(tx).byClientId(client);
@@ -667,8 +723,13 @@ describe('a client nobody at the tenant vetted is never given mcp:write', () => 
       if (row === null || write === null) throw new Error('fixture missing');
       await clientScopeRepository(tx).assignOrUpdate(row.id, write.id, 'optional');
     });
-    const res = await authorize(client, { scope: 'openid mcp:write', resource: mcpUrl });
-    expect(errorOf(res)).toBe('invalid_scope');
+    expect(errorOf(await authorize(client, { scope: 'mcp:write', resource: mcpUrl }))).toBe(
+      'invalid_scope',
+    );
+    const consent = await signIn(
+      await authorize(client, { scope: 'mcp:read mcp:write', resource: mcpUrl }),
+    );
+    expect(consent.body).not.toContain('mcp:write');
   });
 });
 

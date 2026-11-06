@@ -253,8 +253,8 @@ describe('registerClient — the mcp policy', () => {
     expect(outcome.error).toBe('invalid_redirect_uri');
   });
 
-  it('refuses mcp:write', async () => {
-    expect((await refused({ scope: 'mcp:read mcp:write' })).description).toContain('mcp:write');
+  it('refuses a scope of which nothing may be held', async () => {
+    expect((await refused({ scope: 'mcp:write' })).description).toContain('mcp:write');
   });
 
   it('refuses an audience other than the tenant MCP URL', async () => {
