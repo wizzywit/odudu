@@ -1254,6 +1254,64 @@ describe('a token minted by the real flow', () => {
     expect(res.headers['www-authenticate']).toContain('error="invalid_token"');
   });
 
+  async function serviceToken(
+    t: Real,
+    clientId: string,
+    options: { audiences: string[]; scopes: string[]; resource?: string },
+  ) {
+    await seed([
+      'client',
+      '--tenant',
+      t.name,
+      '--client-id',
+      clientId,
+      '--client-secret',
+      'service-secret-for-the-test-1',
+      '--grant-type',
+      'client_credentials',
+      ...options.audiences.flatMap((audience) => ['--audience', audience]),
+      ...options.scopes.flatMap((scope) => ['--client-credentials-scope', scope]),
+    ]);
+    const res = await app.inject({
+      method: 'POST',
+      url: `/tenants/${t.name}/protocol/openid-connect/token`,
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        host: HOST,
+        authorization: `Basic ${Buffer.from(`${clientId}:service-secret-for-the-test-1`).toString('base64')}`,
+      },
+      payload: new URLSearchParams({
+        grant_type: 'client_credentials',
+        scope: options.scopes.join(' '),
+        ...(options.resource === undefined ? {} : { resource: options.resource }),
+      }).toString(),
+    });
+    return res;
+  }
+
+  it('serves a client_credentials client given the MCP audience and mcp:read, as its service account', async () => {
+    const t = await mcpTenant();
+    const res = await serviceToken(t, 'svc-reader', {
+      audiences: [t.resource],
+      scopes: ['mcp:read'],
+      resource: t.resource,
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const token = res.json<{ access_token: string }>().access_token;
+    const listed = await atEndpoint(t, token, modern('tools/list'));
+    expect(listed.status).toBe(200);
+    const names = (listed.json().result as { tools: { name: string }[] }).tools.map((x) => x.name);
+    // A service account holds no administrator role until one is given it.
+    expect(names).toEqual(['whoami']);
+  });
+
+  it('does not issue mcp:read to a client_credentials client that holds no MCP audience', async () => {
+    const t = await mcpTenant();
+    const res = await serviceToken(t, 'svc-plain', { audiences: [], scopes: ['mcp:read'] });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_scope');
+  });
+
   it('cannot be had by the built-in client, whose audience is the admin API', async () => {
     const t = await mcpTenant();
     const { page } = await authorize(t, 'odudu-mcp', {
