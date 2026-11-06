@@ -227,7 +227,6 @@ export function describeWriteTool(spec: WriteToolCase): void {
     });
 
     it.each([
-      [403, 'insufficient_scope'],
       [403, 'capability'],
       [404, 'not found'],
       [400, 'bad field'],
@@ -239,6 +238,24 @@ export function describeWriteTool(spec: WriteToolCase): void {
       const result = await callTool(tool, caller, valid);
       expect(result.isError).toBe(true);
       expect(result.structuredContent).toMatchObject({ error: { status, detail } });
+    });
+
+    it('says what an insufficient_scope refusal of a write can mean, keeping its reason first', async () => {
+      const caller = respondingWith(
+        {
+          type: 'about:blank',
+          title: 'Forbidden',
+          status: 403,
+          instance: '/x',
+          detail: 'insufficient_scope',
+        },
+        403,
+      );
+      const result = await callTool(tool, caller, valid);
+      const error = (result.structuredContent as { error: { detail: string } }).error;
+      expect(error).toMatchObject({ type: 'about:blank', title: 'Forbidden', status: 403 });
+      expect(error.detail).toMatch(/^insufficient_scope: /u);
+      expect(error.detail).toMatch(/built-in client/u);
     });
 
     it('refuses an answer that is not what the route promises, without echoing it', async () => {

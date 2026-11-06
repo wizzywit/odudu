@@ -62,6 +62,20 @@ export interface McpStack {
 
 // A real database, the real app and the real endpoint, for the tests that
 // drive a tool as an agent would.
+// A JSON-RPC error (a name that is no tool), read as the refusal it is.
+function refusalOf(title: string, status: number): ToolResult {
+  const refusal = { error: { type: 'jsonrpc:error', title, status } };
+  return {
+    isError: true,
+    content: [{ type: 'text', text: JSON.stringify(refusal) }],
+    structuredContent: refusal,
+  };
+}
+
+function unknownTool(name: string): ToolResult {
+  return refusalOf(`Tool ${name} not found`, -32602);
+}
+
 export async function startMcpStack(): Promise<McpStack> {
   const container: TestDatabase = await startTestDatabase();
   const owner = createDatabase(container.adminUrl);
@@ -155,7 +169,18 @@ export async function startMcpStack(): Promise<McpStack> {
         params: { name, arguments: args },
       });
       if (res.status !== 200) throw new Error(`tools/call answered ${String(res.status)}`);
-      return res.json().result as ToolResult;
+      const body = res.json();
+      if (body.result !== undefined) return body.result as ToolResult;
+      // A JSON-RPC error (a name that is no tool) read as the refusal it is.
+      const error = body.error as { code: number; message: string };
+      const refusal = {
+        error: { type: 'jsonrpc:error', title: error.message, status: error.code },
+      };
+      return {
+        isError: true,
+        content: [{ type: 'text', text: JSON.stringify(refusal) }],
+        structuredContent: refusal,
+      };
     },
     unguardedCaller(w, scope) {
       const token = validatedMcpToken({
@@ -182,7 +207,7 @@ export async function startMcpStack(): Promise<McpStack> {
     },
     async runUnguarded(w, scope, name, args) {
       const tool = TOOLS.find((candidate) => candidate.name === name);
-      if (tool === undefined) throw new Error(`no tool ${name}`);
+      if (tool === undefined) return unknownTool(name);
       return callMcpTool(
         { requestId: newId(), deadlineMs: 20_000, record: () => Promise.resolve(), logger },
         tool,

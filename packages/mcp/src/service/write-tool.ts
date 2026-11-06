@@ -86,6 +86,17 @@ function stringOf(input: object, field: string): string {
   return value;
 }
 
+// Why the tools are hinted as not destructive though they overwrite: what is
+// replaced is a line of text, kept in the audit row, and putting it back is the
+// same call. A client that asks before every write can still ask.
+const CLEARS =
+  'Sending null for a description, or an empty map for a language text, clears what was there; ' +
+  'the audit row keeps the earlier text, so it can be put back.';
+
+const REFUSED =
+  'insufficient_scope: a token holding mcp:write may change only the descriptive fields of a client ' +
+  'or a scope, never the name of a built-in client; check the target and the fields.';
+
 const STALE =
   'The resource changed since it was read. Read it again with the matching get tool, ' +
   'then send the etag that read returned as if_match.';
@@ -120,7 +131,7 @@ export function metadataTool<F extends z.ZodRawShape>(cfg: MetadataToolConfig<F>
     });
   return defineTool({
     name: cfg.name,
-    description: `${cfg.description} ${DATA_NOTICE}`,
+    description: `${cfg.description} ${CLEARS} ${DATA_NOTICE}`,
     routeKey: cfg.routeKey,
     capability: cfg.capability,
     access: 'write',
@@ -147,6 +158,11 @@ export function metadataTool<F extends z.ZodRawShape>(cfg: MetadataToolConfig<F>
       if (result.status === 412) {
         const problem = problemOf(result);
         throw new ToolProblem(problem.problemType, problem.title, 412, STALE);
+      }
+      if (result.status === 403) {
+        const problem = problemOf(result);
+        if (problem.detail !== 'insufficient_scope') throw problem;
+        throw new ToolProblem(problem.problemType, problem.title, 403, REFUSED);
       }
       if (result.status < 200 || result.status >= 300) throw problemOf(result);
       const stats: CleanStats = { truncated: false };

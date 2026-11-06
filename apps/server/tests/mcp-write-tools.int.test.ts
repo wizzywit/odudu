@@ -370,7 +370,10 @@ describe('what the token decides', () => {
       if_match: `"${'0'.repeat(64)}"`,
       name: 'Hijacked',
     });
-    expect(errorOf(result)).toMatchObject({ status: 403, detail: 'insufficient_scope' });
+    expect(errorOf(result)).toMatchObject({
+      status: 403,
+      detail: expect.stringMatching(/^insufficient_scope/u) as unknown,
+    });
     expect(await clientRow(w, row.id)).toEqual(row);
     const refusals = await actionRows(w, 'capability.refused');
     expect(refusals).toHaveLength(1);
@@ -440,5 +443,56 @@ describe('text the database cannot hold', () => {
       expect(res.status, JSON.stringify(body)).toBe(400);
     }
     expect(await clientRow(w, id)).toEqual(before);
+  });
+});
+
+describe('clearing text', () => {
+  it('takes null for a description and an empty map for a language text, and the audit row keeps what was there', async () => {
+    const w = await stack.world(OWNER_CAPS, WRITE);
+    const token = await stack.sign(w, WRITE);
+    const id = (await portal(w)).id;
+    const etag = async () => recOf(await stack.call(w, token, 'get_client', { id })).etag;
+    const set = recOf(
+      await stack.call(w, token, 'update_client_metadata', {
+        id,
+        if_match: await etag(),
+        description: 'Where customers pay',
+        description_i18n: { en: 'Where customers pay' },
+      }),
+    );
+    const cleared = recOf(
+      await stack.call(w, token, 'update_client_metadata', {
+        id,
+        if_match: set.etag,
+        description: null,
+        description_i18n: {},
+      }),
+    );
+    expect(cleared.data).toMatchObject({ description: null, description_i18n: {} });
+    const rows = await actionRows(w, 'client.amend');
+    expect(rows).toHaveLength(2);
+    expect(rows[1]?.detail).toEqual({
+      description: { before: 'Where customers pay', after: null },
+      description_i18n: { before: { en: 'Where customers pay' }, after: {} },
+    });
+  });
+});
+
+describe('a real list through the endpoint', () => {
+  it('is paged by the cursor the admin API signs, which the tool passes on untouched', async () => {
+    const w = await stack.world(OWNER_CAPS, 'mcp:read');
+    const token = await stack.sign(w, 'mcp:read');
+    const first = await stack.call(w, token, 'list_clients', { limit: 1 });
+    const one = first.structuredContent as { data: { id: string }[]; next_cursor?: string };
+    expect(one.data).toHaveLength(1);
+    expect(one.next_cursor).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u);
+    const second = await stack.call(w, token, 'list_clients', {
+      limit: 1,
+      cursor: one.next_cursor,
+    });
+    const two = second.structuredContent as { data: { id: string }[] };
+    expect(second.isError).toBe(false);
+    expect(two.data).toHaveLength(1);
+    expect(two.data[0]?.id).not.toBe(one.data[0]?.id);
   });
 });

@@ -30,7 +30,8 @@ function outcomeOf(problem: ToolProblem | null): Pick<RecordedToolCall, 'outcome
   if (problem === null) return { outcome: 'allowed' };
   if (problem.status !== 403) return { outcome: 'failed' };
   const scope =
-    problem.problemType === 'mcp:insufficient_scope' || problem.detail === 'insufficient_scope';
+    problem.problemType === 'mcp:insufficient_scope' ||
+    /^insufficient_scope\b/u.test(problem.detail ?? '');
   return { outcome: 'refused', reason: scope ? 'insufficient_scope' : 'missing_capability' };
 }
 
