@@ -1,6 +1,6 @@
-import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
+import { createMcpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler, type NodeIncomingMessageLike } from '@modelcontextprotocol/node';
-import type { z } from 'zod';
+import { toolServer } from '#/adapter/tool-server';
 import type { McpExchange } from '#/service/endpoint';
 import type { RegisteredTool, ToolResult } from '#/service/tool';
 
@@ -17,36 +17,10 @@ export interface ExchangeParts {
 // may keep it for a minute at most and never share it.
 export const TOOLS_LIST_TTL_MS = 60_000;
 
-const SERVER_INFO = { name: 'odudu', version: '1.0.0' } as const;
-
-// The SDK lists a tool by the JSON Schema its input converts to and would also
-// validate the arguments with it. Here it only lists: the arguments go to the
-// tool as sent, and the tool's own schema, the one listed, refuses what it does
-// not take, so a refusal has one wording and one row in the audit trail.
-function listedAs(schema: z.ZodType) {
-  const std = schema['~standard'];
-  return {
-    '~standard': {
-      version: 1 as const,
-      vendor: 'odudu',
-      validate: (value: unknown) => ({ value }),
-      jsonSchema: std.jsonSchema,
-    },
-  };
-}
-
 function namesToolsList(body: unknown): boolean {
   return (
     typeof body === 'object' && body !== null && 'method' in body && body.method === 'tools/list'
   );
-}
-
-function asSdkResult(result: ToolResult) {
-  return {
-    isError: result.isError,
-    content: result.content.map((part) => ({ ...part })),
-    structuredContent: result.structuredContent,
-  };
 }
 
 // Serves MCP requests over the SDK's stateless handler: the 2026-07-28
@@ -58,29 +32,11 @@ export function createMcpExchange(parts: ExchangeParts): McpExchange {
     async serve(req, res, body) {
       const purpose = namesToolsList(body) ? 'list' : 'call';
       const handler = createMcpHandler(
-        async () => {
-          const server = new McpServer(SERVER_INFO, {
-            // The list is built for one request and never changes under a
-            // client, so no change is ever announced.
-            capabilities: { tools: { listChanged: false } },
-            cacheHints: {
-              'tools/list': { ttlMs: TOOLS_LIST_TTL_MS, cacheScope: 'private' },
-              'server/discover': { ttlMs: TOOLS_LIST_TTL_MS, cacheScope: 'private' },
-            },
-          });
-          for (const tool of await parts.tools(purpose)) {
-            server.registerTool(
-              tool.name,
-              {
-                description: tool.description,
-                inputSchema: listedAs(tool.input),
-                annotations: tool.annotations,
-              },
-              async (args: unknown) => asSdkResult(await parts.run(tool, args)),
-            );
-          }
-          return server;
-        },
+        async () =>
+          toolServer(await parts.tools(purpose), (tool, args) => parts.run(tool, args), {
+            'tools/list': { ttlMs: TOOLS_LIST_TTL_MS, cacheScope: 'private' },
+            'server/discover': { ttlMs: TOOLS_LIST_TTL_MS, cacheScope: 'private' },
+          }),
         {
           legacy: 'stateless',
           onerror: (error) => {
