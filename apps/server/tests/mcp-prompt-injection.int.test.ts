@@ -9,15 +9,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type McpStack, startMcpStack } from '#/testing/mcp-stack';
 import type { World } from '#/testing/mcp-world';
 
-// Free text that instructs an agent, planted where an agent reads it: a client
-// name and description, a scope description, a person's name and the audit
-// trail. A scripted agent that obeys whatever it finds runs against tokens
-// that must not be able to write, and against one that may write the
-// descriptive fields: what changes is exactly what the token and its owner
-// allow, and everything else is refused by the admin API and recorded.
-//
-// The suite lives with the server's tests, not in packages/mcp: it needs the
-// real app and a database, which that package may not import.
+// Free text that instructs an agent is planted where an agent reads it: a client
+// name and description, a scope description, a username, an audit detail. A
+// scripted agent that obeys whatever it finds runs against tokens that must not
+// write and one that may write descriptive fields: only what the token and its
+// owner allow changes, and the admin API refuses and records the rest.
+// It lives with the server's tests because it needs the real app and a database.
 
 let stack: McpStack;
 
