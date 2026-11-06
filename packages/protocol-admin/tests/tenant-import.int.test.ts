@@ -25,6 +25,7 @@ import {
   clientScopeMapperRepository,
   clientScopeRepository,
   tenantSettingsRepository,
+  WIRE_CLIENTS_PER_TENANT,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import {
@@ -740,6 +741,92 @@ describe('POST /admin/tenant-imports', () => {
       expect(res.statusCode, res.payload).toBe(201);
       expect(await stored((await tenantIdOf(name)) ?? '')).toHaveLength(500);
     });
+  });
+
+  it('counts only the clients an operator made against the max_clients it carries', async () => {
+    const source = await fixture.createTenant(`cap-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const base = original.clients.find((client) => client.client_id === 'odudu-mcp');
+    if (base === undefined) throw new Error('fixture: a tenant exports no built-in MCP client');
+    const made = (n: number, origin: 'anonymous' | 'operator') => ({
+      ...base,
+      client_id: `${origin}-${String(n)}`,
+      registration_origin: origin,
+    });
+    const document = (clients: TenantDocument['clients']): TenantDocument => ({
+      ...original,
+      settings: { ...original.settings, max_clients: 2 },
+      clients,
+    });
+    const selfRegistered = [1, 2, 3].map((n) => made(n, 'anonymous'));
+    const ok = await postImport(token, {
+      name: `cap-ok-${newId()}`,
+      document: document([...original.clients, ...selfRegistered]),
+    });
+    expect(ok.statusCode, ok.payload).toBe(201);
+    const refused = await postImport(token, {
+      name: `cap-no-${newId()}`,
+      document: document([...original.clients, made(2, 'operator')]),
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.payload).toContain('max_clients is 2');
+  });
+
+  it('refuses a document holding more self-registered clients than the tenant admits', async () => {
+    const source = await fixture.createTenant(`wire-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const base = original.clients.find((client) => client.client_id === 'odudu-mcp');
+    if (base === undefined) throw new Error('fixture: a tenant exports no built-in MCP client');
+    const selfRegistered = (count: number) =>
+      Array.from({ length: count }, (_, n) => ({
+        ...base,
+        client_id: `self-${String(n)}`,
+        registration_origin: 'anonymous' as const,
+      }));
+    const document = (count: number): TenantDocument => ({
+      ...original,
+      clients: [...original.clients, ...selfRegistered(count)],
+    });
+    const refused = await postImport(token, {
+      name: `wire-no-${newId()}`,
+      document: document(WIRE_CLIENTS_PER_TENANT + 1),
+    });
+    expect(refused.statusCode, refused.payload).toBe(400);
+    expect(refused.payload).toContain('document.clients');
+    expect(refused.payload).toContain(String(WIRE_CLIENTS_PER_TENANT + 1));
+    expect(refused.payload).toContain(String(WIRE_CLIENTS_PER_TENANT));
+    const ok = await postImport(token, {
+      name: `wire-ok-${newId()}`,
+      document: document(WIRE_CLIENTS_PER_TENANT),
+    });
+    expect(ok.statusCode, ok.payload).toBe(201);
+  });
+
+  it('refuses a self-registered client whose redirect address is not a URL', async () => {
+    const source = await fixture.createTenant(`bad-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    const base = original.clients.find((client) => client.client_id === 'odudu-mcp');
+    if (base === undefined) throw new Error('fixture: a tenant exports no built-in MCP client');
+    const refused = await postImport(token, {
+      name: `bad-${newId()}`,
+      document: {
+        ...original,
+        clients: [
+          ...original.clients,
+          {
+            ...base,
+            client_id: 'self-registered',
+            registration_origin: 'anonymous',
+            redirect_uris: ['not a url'],
+          },
+        ],
+      },
+    });
+    expect(refused.statusCode, refused.payload).toBe(400);
+    expect(refused.payload).toContain('.redirect_uris');
   });
 
   it('answers each confidential client a fresh secret that authenticates at /token', async () => {

@@ -60,6 +60,7 @@ import { type FastifyPluginAsync } from 'fastify';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { loadClaimContextIn } from '#/usecase/evaluate-claims';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { dynamicClientRepository } from '#/repository/dynamic-clients';
 import {
   fetchCimdDocument,
   type CimdFetchDeps,
@@ -402,7 +403,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // assignment — named, not just counted, so the page can list them and
     // the POST can turn a ticked name back into the id consent_scopes
     // stores.
-    const consentContext = (tenantId: string, clientId: string) =>
+    const consentContext = (tenantId: string, clientId: string, redirectUri?: string) =>
       withTenant(deps.database.db, tenantId, async (tx) => {
         const [client, config, assignments] = await Promise.all([
           clientRepository(tx).byId(clientId),
@@ -442,7 +443,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             clientUri: config?.clientUri ?? null,
             policyUri: config?.policyUri ?? null,
             tosUri: config?.tosUri ?? null,
-            source: client === null ? null : clientSourceOf(client, config?.redirectUris ?? []),
+            source:
+              client === null
+                ? null
+                : clientSourceOf(client, config?.redirectUris ?? [], redirectUri),
           },
           scopeLabels,
           i18n,
@@ -803,9 +807,14 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           return { client, config, scopes: assigned.map((scope) => scope.name) };
         }),
       startAuthentication: (tenantId, request) =>
-        withTenant(deps.database.db, tenantId, (tx) =>
-          startAuthentication(tx, tenantId, request, clock),
-        ),
+        withTenant(deps.database.db, tenantId, async (tx) => {
+          // A self-registered client nobody has used may be evicted; the hold
+          // keeps it until this sign-in is written.
+          if (!(await dynamicClientRepository(tx).holdForSignIn(tenantId, request.clientId))) {
+            throw new Error('the client was removed while its authorization request began');
+          }
+          return startAuthentication(tx, tenantId, request, clock);
+        }),
       initialChallenge: (tenantId) =>
         withTenant(deps.database.db, tenantId, (tx) => initialChallenge(tx, tenantId)),
       now: () => clock.now(),
@@ -1197,6 +1206,9 @@ export {
 } from '#/usecase/mint-agent-token';
 export { type AgentTokenRefusal } from '#/service/agent-token-rules';
 export { AGENT_TOKEN_MAX_TTL_SECONDS } from '#/service/mcp-scopes';
+export { cimdClientRepository } from '#/repository/cimd-clients';
+export { dynamicClientRepository } from '#/repository/dynamic-clients';
+export { WIRE_CLIENTS_PER_TENANT } from '@odudu/domain-tenant';
 export {
   IDLE_ACCOUNT_COUNT_CAP,
   IDLE_ACCOUNT_SAMPLE_LIMIT,

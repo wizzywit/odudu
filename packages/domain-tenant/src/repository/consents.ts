@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
-import { and, asc, eq, gt, inArray, notInArray, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, notInArray, sql } from 'drizzle-orm';
 import { clientScopes } from '#/schema/client-scopes';
 import { clients } from '#/schema/clients';
 import { consentScopes, consents } from '#/schema/consents';
@@ -96,8 +96,8 @@ export function consentRepository(tx: TenantScopedDatabase) {
 
       await tx
         .update(clients)
-        .set({ approvedAt: sql`coalesce(${clients.approvedAt}, now())` })
-        .where(eq(clients.id, clientId));
+        .set({ approvedAt: sql`now()` })
+        .where(and(eq(clients.id, clientId), isNull(clients.approvedAt)));
 
       await tx
         .delete(consentScopes)

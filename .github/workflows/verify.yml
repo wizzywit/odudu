@@ -686,6 +686,38 @@ jobs:
           MAVEN_CACHE: /tmp/conformance-m2
           SUITE_DIR: /tmp/conformance-suite
 
+  # Two MCP clients nobody here wrote, the Inspector's CLI and the SDK's, run
+  # against the image built from this commit: sign-in discovery, registration
+  # under the `mcp` policy, PKCE with `resource`, both protocol eras, a read
+  # and a refused write. Exact versions are pinned in run-mcp.sh. It does not
+  # replace the hand run in docs/phases/p5a.md: hosted Claude, Claude Code
+  # and Cursor cannot run here.
+  mcp:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - uses: ./.github/actions/image
+        with:
+          revision: ${{ github.sha }}
+
+      - name: Name the image as the compose file does
+        run: docker tag odudu-smoke-odudu odudu-mcp-odudu
+
+      - name: Run the MCP clients against the image
+        run: ./infra/conformance/run-mcp.sh
+        env:
+          MCP_PREBUILT: '1'
+
   commit-messages:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -740,6 +772,7 @@ jobs:
       - examples
       - quickstart
       - conformance
+      - mcp
       - commit-messages
     if: always()
     runs-on: ubuntu-latest

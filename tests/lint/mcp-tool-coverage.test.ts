@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NOT_TOOLS, TOOLS } from '../../packages/mcp/src/service/catalogue.js';
+import { NOT_TOOL_KINDS, NOT_TOOLS, TOOLS } from '../../packages/mcp/src/service/catalogue.js';
 import {
   ADMIN_ROUTES,
   AGENT_DENIED_READS,
@@ -74,6 +74,25 @@ describe('the MCP tool catalogue against the admin routes', () => {
       expect(TOOL_ROUTE_KEYS, route).not.toContain(route);
       expect(NOT_TOOLS, route).toHaveProperty([route]);
     }
+  });
+
+  it('ties the door to the catalogue: a sensitive or denied read is refused at the door, and nothing else is', () => {
+    const refusedAtDoor = new Set(AGENT_DENIED_READS);
+    const withheldAsSensitive = Object.entries(NOT_TOOL_KINDS)
+      .filter(([, kind]) => kind === 'denied' || kind === 'sensitive')
+      .map(([route]) => route);
+    expect(withheldAsSensitive.filter((route) => !refusedAtDoor.has(route))).toEqual([]);
+    expect([...refusedAtDoor].filter((route) => !withheldAsSensitive.includes(route))).toEqual([]);
+    for (const route of withheldAsSensitive) expect(route.startsWith('GET '), route).toBe(true);
+  });
+
+  it('classifies every NOT_TOOLS entry, and a reason never spans two kinds', () => {
+    expect(Object.keys(NOT_TOOL_KINDS).sort()).toEqual(Object.keys(NOT_TOOLS).sort());
+    const kindOf = new Map<string, Set<string>>();
+    for (const [route, reason] of Object.entries(NOT_TOOLS)) {
+      kindOf.set(reason, (kindOf.get(reason) ?? new Set()).add(NOT_TOOL_KINDS[route] ?? ''));
+    }
+    for (const [reason, kinds] of kindOf) expect(kinds.size, reason).toBe(1);
   });
 
   it('withholds every destructive route, saying it is destructive', () => {

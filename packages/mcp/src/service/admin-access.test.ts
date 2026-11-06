@@ -20,7 +20,7 @@ describe('the access an admin call needs', () => {
     expect(() => scopeFor(token, 'write')).toThrow(ToolProblem);
   });
 
-  it('lets a write-only token read, with the one scope it holds', () => {
+  it('[MCP-AUTH-ERR-03] lets a write-only token read, with the one scope it holds', () => {
     expect(scopeFor(unverifiedTokenForTests({ scope: ['mcp:write'] }), 'read')).toEqual([
       'mcp:write',
     ]);

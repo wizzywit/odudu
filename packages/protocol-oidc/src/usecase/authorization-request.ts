@@ -20,6 +20,7 @@ import { ADMIN_API_AUDIENCE, type ClientRecord } from '@odudu/domain-tenant';
 import {
   audiencesHeld,
   refusesWriteScope,
+  requestWithGrantableScope,
   type McpPolicyGrant,
 } from '#/service/mcp-registration-policy';
 import { scopesCoherentWithAudience } from '#/service/mcp-scopes';
@@ -379,11 +380,14 @@ export async function handleAuthorizationRequest(
           mcpAudienceOfIssuer(issuer),
         );
 
+  // A client nobody at the tenant vetted is asked about what it can be given:
+  // a request that also names the write scope is not refused for it.
+  const asked = requestWithGrantableScope(resolved.client?.registrationOrigin ?? '', params);
   const outcome = validateAuthorizationRequest(
-    params,
+    asked,
     resolved.client,
     resolved.config,
-    new Set(await deps.scopesNamed(tenant.id, requestedScopeTokens(params.scope))),
+    new Set(await deps.scopesNamed(tenant.id, requestedScopeTokens(asked.scope))),
     new Set(resolved.scopes),
     repeatedKey,
   );
@@ -424,10 +428,10 @@ export async function handleAuthorizationRequest(
   if (
     refusesWriteScope(
       resolved.client?.registrationOrigin ?? '',
-      requestedScopeTokens(params.scope),
+      requestedScopeTokens(asked.scope),
     ) ||
     !scopesCoherentWithAudience(
-      requestedScopeTokens(params.scope),
+      requestedScopeTokens(asked.scope),
       audience,
       mcpAudience,
       ADMIN_API_AUDIENCE,
@@ -653,6 +657,7 @@ export async function handleAuthorizationRequest(
       decision.subjectId,
       request.scope,
       [...outcome.prompts],
+      request.redirectUri,
     );
     if (gate.kind === 'refuse') return reject('consent_required');
     if (gate.kind === 'ask') {
@@ -892,6 +897,7 @@ export async function handleSelectAccountSubmission(
     chosen.subjectId,
     pending.scope,
     pending.prompt,
+    pending.redirectUri,
   );
   if (gate.kind === 'refuse') return reject('consent_required');
   if (gate.kind === 'ask') {

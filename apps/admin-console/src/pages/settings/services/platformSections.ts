@@ -46,7 +46,7 @@ export const PLATFORM_SECTIONS: readonly SettingsSection[] = [
         control: 'count',
         unit: 'clients',
         description:
-          'A tenant with this many clients refuses to make more, however they are created.',
+          'The most clients an administrator or a registration token can make. Clients that register themselves have limits of their own.',
       },
     ],
   },

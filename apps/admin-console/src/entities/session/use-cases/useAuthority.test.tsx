@@ -45,6 +45,7 @@ function mount(answer: ReturnType<typeof json>) {
     [WHOAMI]: json({
       subjectId: 's1',
       issuerTenantId: 't1',
+      issuerTenantName: 'acme',
       capabilities: ['manage-clients'],
       crossTenant: false,
     }),

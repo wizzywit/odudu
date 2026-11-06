@@ -28,6 +28,7 @@ These the server does not check when it starts, so only you can.
 - [ ] **The proxy overwrites `X-Forwarded-*`.** Appending is not enough. See [Deploying](./deploying.md), step 5.
 - [ ] **The proxy strips the client-certificate header and verifies the certificate**, if you use `tls_client_auth`.
 - [ ] **Odudu has a host of its own**, served at the root, not under a path.
+- [ ] **`ODUDU_PUBLIC_BASE_URL` is set if the MCP endpoint is used.** The endpoint, at `/tenants/<name>/mcp` or at `/mcp` on a tenant's own domain, answers only the hosts the instance states as its own, and, with no base address set, only a loopback `Host` and `Origin`, so a page that rebinds a name to your machine cannot reach it. Hosted clients such as claude.ai are called from Anthropic's servers and need a public `https` address, which is the base address.
 - [ ] **The database is reachable only from the server and from you.** Odudu does not enforce this. Your network does.
 - [ ] **Administrators are named people.** Sign in as the first administrator, change its password, and make an account for each person who administers. A person's password is never chosen in the console, so nobody else handles it.
 - [ ] **Mail goes through a relay with STARTTLS**, so reset and verification links reach people.

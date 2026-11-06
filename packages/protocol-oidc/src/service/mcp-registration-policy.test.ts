@@ -5,7 +5,10 @@ import {
   decideMcpRegistration,
   grantForClient,
   refreshUnderPolicy,
+  grantableScopes,
   refusesWriteScope,
+  requestWithGrantableScope,
+  scopeHeldOf,
   type McpRegistrationInput,
 } from '#/service/mcp-registration-policy';
 
@@ -32,7 +35,7 @@ function refusal(over: Partial<McpRegistrationInput>) {
 }
 
 describe('decideMcpRegistration', () => {
-  it('admits a public client with https and loopback redirects, bound to the MCP URL', () => {
+  it('[MCP-AUTH-REG-01] admits a public client with https and loopback redirects, bound to the MCP URL', () => {
     expect(decideMcpRegistration(input())).toEqual({ kind: 'ok', audiences: [MCP] });
   });
 
@@ -66,17 +69,34 @@ describe('decideMcpRegistration', () => {
     expect(refusal({ grantTypes: ['client_credentials'] }).error).toBe('invalid_client_metadata');
   });
 
-  it('admits mcp:read and the sign-in scopes, nothing past them', () => {
-    expect(decideMcpRegistration(input({ scope: 'openid mcp:read offline_access' })).kind).toBe(
-      'ok',
-    );
-    expect(refusal({ scope: 'mcp:read mcp:write' }).description).toContain('mcp:write');
+  it('registers the scopes it may hold and says which, dropping the rest', () => {
+    expect(decideMcpRegistration(input({ scope: 'openid mcp:read offline_access' }))).toEqual({
+      kind: 'ok',
+      audiences: [MCP],
+      scope: 'openid mcp:read offline_access',
+    });
+    expect(decideMcpRegistration(input({ scope: 'mcp:read mcp:write offline_access' }))).toEqual({
+      kind: 'ok',
+      audiences: [MCP],
+      scope: 'mcp:read offline_access',
+    });
+    expect(decideMcpRegistration(input({ scope: 'mcp:read mcp:admin mcp:read' }))).toMatchObject({
+      kind: 'ok',
+      scope: 'mcp:read',
+    });
+    expect(decideMcpRegistration(input({ scope: 'openid\u00a0mcp:write' }))).toMatchObject({
+      kind: 'ok',
+      scope: 'openid',
+    });
+  });
+
+  it('refuses a scope when nothing the client may hold is left in it', () => {
+    expect(refusal({ scope: 'mcp:write' }).description).toContain('mcp:write');
     expect(refusal({ scope: 'mcp:admin' }).description).toContain('mcp:admin');
     expect(refusal({ scope: 7 }).description).toContain('scope');
   });
 
-  it('refuses a scope split by a non-ASCII space, and a public client with keys or logout addresses', () => {
-    expect(refusal({ scope: 'openid\u00a0mcp:write' }).description).toContain('mcp:write');
+  it('refuses a public client with keys or logout addresses', () => {
     expect(refusal({ holdsKeys: true }).description).toContain('jwks');
     expect(refusal({ hasLogoutUri: true }).description).toContain('logout');
   });
@@ -154,6 +174,28 @@ describe('policy applied to a dynamic client', () => {
     expect(refusesWriteScope('anonymous', ['mcp:read'])).toBe(false);
   });
 
+  it('asks a dynamic client about the request without mcp:write, unless nothing else is left', () => {
+    expect(grantableScopes('anonymous', ['openid', 'mcp:read', 'mcp:write'])).toEqual([
+      'openid',
+      'mcp:read',
+    ]);
+    expect(grantableScopes('cimd', ['mcp:write', 'mcp:read'])).toEqual(['mcp:read']);
+    expect(grantableScopes('anonymous', ['mcp:write'])).toEqual(['mcp:write']);
+    expect(grantableScopes('seeded', ['mcp:read', 'mcp:write'])).toEqual(['mcp:read', 'mcp:write']);
+  });
+
+  it('rewrites the scope of a request only when something was dropped', () => {
+    const asked = { scope: 'openid mcp:read mcp:write', state: 's' };
+    expect(requestWithGrantableScope('cimd', asked)).toEqual({
+      scope: 'openid mcp:read',
+      state: 's',
+    });
+    expect(requestWithGrantableScope('seeded', asked)).toBe(asked);
+    expect(requestWithGrantableScope('cimd', { scope: undefined })).toEqual({ scope: undefined });
+    const writeOnly = { scope: 'mcp:write' };
+    expect(requestWithGrantableScope('anonymous', writeOnly)).toBe(writeOnly);
+  });
+
   it('keeps a confidential client out of the policy', () => {
     const grant = { audience: MCP, granted: true };
     expect(grantForClient(grant, true)).toEqual(grant);
@@ -193,5 +235,16 @@ describe('policy applied after the tenant has moved address', () => {
 
   it('leaves another client’s audiences alone', () => {
     expect(audiencesHeld('seeded', 'open', [OLD], NOW)).toEqual([OLD]);
+  });
+});
+
+describe('scopeHeldOf', () => {
+  it('keeps, in the order asked, the scopes the client is assigned', () => {
+    expect(scopeHeldOf('openid profile mcp:read', ['mcp:read', 'openid'])).toBe('openid mcp:read');
+  });
+
+  it('says nothing when nothing was asked, and nothing held when none is assigned', () => {
+    expect(scopeHeldOf(undefined, ['openid'])).toBeUndefined();
+    expect(scopeHeldOf('profile', ['openid'])).toBe('');
   });
 });

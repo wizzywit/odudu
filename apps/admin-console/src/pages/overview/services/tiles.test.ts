@@ -14,6 +14,7 @@ describe('the count tiles', () => {
       scopes: OFF,
     },
     settings: ready<Settings>({ max_clients: 200 }),
+    operatorClients: ready({ count: 1, capped: false }),
   });
 
   it('leaves out the tile of an area the caller cannot read', () => {
@@ -46,7 +47,7 @@ describe('the count tiles', () => {
     const tiles = countTiles(asked, undefined, areaOf);
     expect(tiles.map((t) => t.allowance)).toEqual([
       undefined,
-      ' of 200 allowed',
+      ' (1 of 200 made by administrators or tokens)',
       undefined,
       undefined,
       undefined,
@@ -57,6 +58,17 @@ describe('the count tiles', () => {
       areaOf,
     );
     expect(none.every((t) => t.allowance === undefined)).toBe(true);
+  });
+
+  it('says nothing of the cap until the count it applies to has been read', () => {
+    const waiting = reads({ ...asked, operatorClients: LOADING });
+    expect(countTiles(waiting, undefined, areaOf).map((t) => t.allowance)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
   });
 
   it('gates a count the caller does not hold', () => {

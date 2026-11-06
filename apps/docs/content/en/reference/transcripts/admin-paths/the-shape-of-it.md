@@ -61,19 +61,19 @@ curl -sS -H "Authorization: Bearer not-a-token" "$P/whoami"
 ```
 
 ```
-{"subjectId":"01a0ed2f-31a5-7d73-87ba-7eab105cb48e","issuerTenantId":"01a0ed2f-2f91-7465-9b04-3440992c210e","capabilities":["view-users"],"crossTenant":false}
-{"id":"01a0ed2f-31a5-7d73-87ba-7eab105cb48e","type":"user","username":"vera","email":null,"enabled":false,"created_at":"2026-09-29T12:41:28.224Z"}
+{"subjectId":"01a1b0fc-0bf7-7470-bf37-110cd92149d7","issuerTenantId":"01a1b0fc-0983-7944-843a-05247c077410","issuerTenantName":"policy-demo","capabilities":["view-users"],"crossTenant":false}
+{"id":"01a1b0fc-0bf7-7470-bf37-110cd92149d7","type":"user","username":"vera","email":null,"enabled":false,"created_at":"2026-11-06T13:11:10.577Z"}
 HTTP/1.1 401 Unauthorized
-x-request-id: 01a0ed2f-67f7-714b-9a20-82edd90aebaa
+x-request-id: 01a1b0fc-109e-7935-9a65-570a9a908492
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 108
-Date: Tue, 29 Sep 2026 12:41:42 GMT
+Date: Fri, 06 Nov 2026 13:11:11 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a0ed2f-67f7-714b-9a20-82edd90aebaa"}
-{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a0ed2f-845b-7cda-bc47-6b5157abf3a0"}
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a1b0fc-109e-7935-9a65-570a9a908492"}
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a1b0fc-10b0-793f-91ca-f03858da4f34"}
 ```
 
 The console gateway reads such a `401` as the end of its session once the

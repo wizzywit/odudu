@@ -38,7 +38,7 @@ odudu seed client \
 because the actor token below was issued to `exdoc-spa`, not to the client
 that presents it; `exdoc-exchange-restricted` was not, and
 [a later section](#an-actor-token-another-client-was-issued-and-a-public-client)
-shows what that costs it. `seed client` has no `--audience` or impersonation flag (see [the roadmap](../../../roadmap.md#decided-against-and-why)), so `exdoc-exchange` and
+shows what that costs it. `seed client` has no impersonation flag (see [the roadmap](../../../roadmap.md#decided-against-and-why)), and this run did not use its `--audience`: `exdoc-exchange` and
 `exdoc-exchange-restricted` both get an audience set directly, and only the
 first gets `token_exchange_impersonation_allowed` flipped on:
 

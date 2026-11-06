@@ -204,7 +204,7 @@ A client may use an HTTPS address as its client_id, and the document served ther
 Most clients
 clients
 200 clients
-A tenant with this many clients refuses to make more, however they are created. At least 0 clients.
+The most clients an administrator or a registration token can make. Clients that register themselves have limits of their own. At least 0 clients.
 Audit retention
 How long the audit trail is kept, and which events it records.
 Keep events for

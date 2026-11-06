@@ -3,6 +3,7 @@ import { credentialRepository } from '@odudu/domain-identity';
 import { assetRepository, themeRepository } from '@odudu/domain-theme';
 import {
   canonicalHostOf,
+  clientRepository,
   hostState,
   lookupHost,
   tenantAddressing,
@@ -14,10 +15,14 @@ import { loadConfig } from '@odudu/kernel';
 import {
   CIMD_CACHE_MAX_ROWS,
   cimdCacheRepository,
+  cimdClientRepository,
+  dynamicClientRepository,
+  idleServiceAccounts,
   parseCimdDocument,
   persistCimdClient,
   publicExchangeClientsAtRisk,
   tenantCimdRepository,
+  WIRE_CLIENTS_PER_TENANT,
 } from '@odudu/protocol-oidc';
 import {
   fingerprintOf,
@@ -69,9 +74,11 @@ export async function driveBackground(world: PlanWorld, capture: Capture): Promi
   );
 }
 
+const DYNAMIC_CLIENT_RULES: ReadonlySet<string> = new Set(['cimd_clients', 'dynamic_clients']);
+
 // What the retention pass would send for one tenant, built by the pass's own
 // rules and taken as the text and parameters its driver would send.
-export function retentionRuns(world: PlanWorld): PathRun[] {
+export function retentionRuns(world: PlanWorld, volumeTenantId: string): PathRun[] {
   const tenant = {
     ssoSessionMaxSeconds: 36_000,
     bruteForceFailureResetSeconds: 900,
@@ -89,7 +96,15 @@ export function retentionRuns(world: PlanWorld): PathRun[] {
       path: `reap: ${table}`,
       area: 'reap',
       outputBound: true,
-      statements: [{ handle: 'app', tenantId: world.tenantId, query: sql, parameters: params }],
+      statements: [
+        {
+          handle: 'app',
+          // The two client rules are planned where the volume holds such rows.
+          tenantId: DYNAMIC_CLIENT_RULES.has(table) ? volumeTenantId : world.tenantId,
+          query: sql,
+          parameters: params,
+        },
+      ],
     };
   });
 }
@@ -180,6 +195,35 @@ export async function driveCimdClients(world: PlanWorld, capture: Capture): Prom
   );
   await capture('cimd client: the tenant setting read at /token', 'oidc', () =>
     withTenant(world.app.db, tenantId, (tx) => tenantCimdRepository(tx).enabled(tenantId)),
+  );
+}
+
+// What registration and the metadata path read at their ceilings, in the tenant
+// whose oldest clients are all protected, and the boot read of idle accounts.
+export async function driveClientCeilings(
+  world: PlanWorld,
+  volumeTenantId: string,
+  capture: Capture,
+): Promise<void> {
+  const now = new Date();
+  const inTenant = <T>(run: Parameters<typeof withTenant<T>>[2]) =>
+    withTenant(world.app.db, volumeTenantId, run);
+  await capture('clients: the operator ceiling count', 'oidc', () =>
+    inTenant((tx) => clientRepository(tx).lockCapacity(volumeTenantId)),
+  );
+  await capture('clients: the self-registered ceiling count', 'oidc', () =>
+    inTenant((tx) =>
+      clientRepository(tx).lockWireCapacity(volumeTenantId, WIRE_CLIENTS_PER_TENANT),
+    ),
+  );
+  await capture('clients: a self-registered client to evict', 'oidc', () =>
+    inTenant((tx) => dynamicClientRepository(tx).evict(volumeTenantId, now)),
+  );
+  await capture('clients: a metadata document client to evict', 'oidc', () =>
+    inTenant((tx) => cimdClientRepository(tx).evictable(now)),
+  );
+  await capture('boot: service accounts without the grant', 'oidc', () =>
+    idleServiceAccounts(world.owner.db),
   );
 }
 

@@ -1,20 +1,20 @@
 -- A service account now exists only while its client holds the
 -- client_credentials grant. For a confidential client that exists today
 -- without the grant, the account is deleted when nothing names it: no token
--- grant, role, group membership, consent, session or audit actor. An account
--- something does name stays, and `service_account_idle` marks it so the boot
--- check can list it; changing the client's grant_types retires it. The
--- referencing tables are read from the foreign keys on subjects, so a table
--- added later is checked too. An audit event is filed under the tenant it
--- happened to, so a service account administering another tenant is named by
--- rows of that tenant. Those are read across tenants, one indexed probe per
--- candidate and tenant. FORCE ROW LEVEL SECURITY is lifted on clients and
--- client_oidc_config, to find the candidates across tenants, as
--- 0114_builtin_mcp_client.sql does, and on audit_events and tenants for that
--- one read; every other table is read and written
--- under the candidate's own tenant context, so each read is one tenant's rows
--- and no other table is locked. Each statement writes only what is missing,
--- so the file can run again to no effect.
+-- grant, role, group membership, consent, session or audit actor in its own
+-- tenant. An account something does name stays, and `service_account_idle`
+-- marks it so the boot check can list it; changing the client's grant_types
+-- retires it. The referencing tables are read from the foreign keys on
+-- subjects, so a table added later is checked too. Audit events are read for
+-- the account's own tenant only: no index leads with the actor, so a probe of
+-- every tenant per account would cost accounts times tenants. An event filed
+-- under another tenant that names a retired account keeps the actor's id and
+-- tenant, and loses only the subject row. When the migrating role is neither
+-- SUPERUSER nor BYPASSRLS, which a supported install never is (ADR 0009),
+-- FORCE ROW LEVEL SECURITY is lifted on clients and client_oidc_config to find
+-- the candidates across tenants; every other table is read and written under
+-- the candidate's own tenant context. Each statement writes only what is
+-- missing, so the file can run again to no effect.
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS service_account_idle boolean NOT NULL DEFAULT false;
 
 CREATE INDEX IF NOT EXISTS clients_idle_service_account
@@ -24,12 +24,15 @@ DO $$
 DECLARE
   pair record;
   tid uuid;
+  plain_owner boolean;
 BEGIN
+  SELECT NOT (rolsuper OR rolbypassrls) INTO plain_owner FROM pg_roles WHERE rolname = current_user;
   CREATE TEMP TABLE IF NOT EXISTS sa_referenced (subject_id uuid PRIMARY KEY);
-  CREATE TEMP TABLE IF NOT EXISTS sa_audit_referenced (subject_id uuid PRIMARY KEY);
 
-  ALTER TABLE clients NO FORCE ROW LEVEL SECURITY;
-  ALTER TABLE client_oidc_config NO FORCE ROW LEVEL SECURITY;
+  IF plain_owner THEN
+    ALTER TABLE clients NO FORCE ROW LEVEL SECURITY;
+    ALTER TABLE client_oidc_config NO FORCE ROW LEVEL SECURITY;
+  END IF;
 
   UPDATE clients c SET service_account_idle = true
     FROM client_oidc_config o
@@ -37,18 +40,6 @@ BEGIN
      AND c.service_subject_id IS NOT NULL
      AND NOT c.service_account_idle
      AND NOT (o.grant_types @> ARRAY['client_credentials']::text[]);
-
-  ALTER TABLE audit_events NO FORCE ROW LEVEL SECURITY;
-  ALTER TABLE tenants NO FORCE ROW LEVEL SECURITY;
-  TRUNCATE sa_audit_referenced;
-  INSERT INTO sa_audit_referenced
-  SELECT DISTINCT c.service_subject_id
-    FROM clients c CROSS JOIN tenants t
-   WHERE c.service_account_idle
-     AND EXISTS (SELECT 1 FROM audit_events a
-                  WHERE a.tenant_id = t.id AND a.actor_subject_id = c.service_subject_id);
-  ALTER TABLE audit_events FORCE ROW LEVEL SECURITY;
-  ALTER TABLE tenants FORCE ROW LEVEL SECURITY;
 
   FOR tid IN SELECT DISTINCT tenant_id FROM clients WHERE service_account_idle LOOP
     PERFORM set_config('app.tenant_id', tid::text, true);
@@ -71,7 +62,12 @@ BEGIN
         || ' ON CONFLICT DO NOTHING', pair.col, pair.tbl, tid);
     END LOOP;
 
-    INSERT INTO sa_referenced SELECT subject_id FROM sa_audit_referenced ON CONFLICT DO NOTHING;
+    INSERT INTO sa_referenced
+    SELECT DISTINCT a.actor_subject_id FROM audit_events a
+     WHERE a.tenant_id = tid
+       AND a.actor_subject_id IN (SELECT service_subject_id FROM clients
+                                   WHERE service_account_idle AND tenant_id = tid)
+    ON CONFLICT DO NOTHING;
 
     DELETE FROM subjects s USING clients c
      WHERE c.tenant_id = tid
@@ -86,8 +82,9 @@ BEGIN
   UPDATE clients SET service_account_idle = false
    WHERE service_account_idle AND service_subject_id IS NULL;
 
-  ALTER TABLE clients FORCE ROW LEVEL SECURITY;
-  ALTER TABLE client_oidc_config FORCE ROW LEVEL SECURITY;
+  IF plain_owner THEN
+    ALTER TABLE clients FORCE ROW LEVEL SECURITY;
+    ALTER TABLE client_oidc_config FORCE ROW LEVEL SECURITY;
+  END IF;
   DROP TABLE sa_referenced;
-  DROP TABLE sa_audit_referenced;
 END $$;

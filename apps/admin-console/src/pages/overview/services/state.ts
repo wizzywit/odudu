@@ -29,7 +29,7 @@ export interface AttentionData extends Omit<AttentionState, 'retry'> {
 }
 
 // The attention checks read settings and the SMTP relay, the signing keys,
-// and the client count.
+// and the count of clients `max_clients` applies to.
 const CHECKED_WITH: readonly AdminCapability[] = ['manage-tenant', 'manage-keys', 'manage-clients'];
 
 export function attentionState(
@@ -39,14 +39,14 @@ export function attentionState(
   now: Date,
   rules: EntityRules,
 ): AttentionData {
-  const used = [reads.settings, reads.smtp, reads.keys, reads.counts.clients];
+  const used = [reads.settings, reads.smtp, reads.keys, reads.operatorClients];
   const unchecked = authority === undefined ? [] : CHECKED_WITH.filter((c) => !holds(authority, c));
   const retries = used.flatMap((read) => (read.status === 'failed' ? [read.retry] : []));
   const items = needsAttention({
     settings: readyData(reads.settings),
     smtp: readyData(reads.smtp),
     keys: readyData(reads.keys),
-    clients: readyData(reads.counts.clients),
+    clients: readyData(reads.operatorClients),
     now,
     rules,
   }).map((item) => {

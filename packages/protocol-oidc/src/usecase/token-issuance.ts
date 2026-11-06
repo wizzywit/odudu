@@ -768,7 +768,7 @@ async function evaluatePresentedRefreshToken(
   request: Extract<StructuredRequest, { grantType: 'refresh_token' }>,
   client: ClientRecord,
   presentedHash: string,
-): Promise<readonly string[]> {
+): Promise<{ scope: readonly string[]; policy: string }> {
   const presented = await refreshTokenRepository(tx).byHash(presentedHash);
   // Unknown here and unknown to the rotation below are the same
   // `invalid_grant`; the rotation is skipped because there is nothing to
@@ -786,33 +786,42 @@ async function evaluatePresentedRefreshToken(
     throw refusalIsAboutScope(decision.reason) ? invalidScope() : invalidGrant();
   }
 
-  // Repeated after rotation (line ~680 below), where it stays the
-  // authoritative check — the comment above `issueRefreshTokens` explains
-  // why that copy cannot move earlier. This one only needs to be right
-  // often enough to refuse before the presented token is consumed; a
-  // revocation landing between the two reads is still caught there.
-  const held = await refreshCeiling(tx, deps, client, decision.scope, grant.audience);
+  // The grant decision is repeated after rotation, where it stays the
+  // authoritative one — the comment above `issueRefreshTokens` explains why
+  // that copy cannot move earlier. The registration policy is read here once
+  // and carried to it: a policy that turns off while the token rotates must
+  // not refuse a refresh whose token is already spent.
+  const policy = await refreshPolicy(tx, deps, client);
+  const held = refreshCeiling(deps, client, decision.scope, grant.audience, policy);
   resolveAudience(held.audience, request.resource);
-  return decision.scope;
+  return { scope: decision.scope, policy };
+}
+
+// The tenant's registration policy where it limits what a client nobody at the
+// tenant vetted may hold; every other client's read costs nothing extra.
+async function refreshPolicy(
+  tx: TenantScopedDatabase,
+  deps: TokenIssuanceDeps,
+  client: ClientRecord,
+): Promise<string> {
+  if (!needsApproval(client.registrationOrigin)) return 'disabled';
+  return (await tenantRegistrationPolicyRepository(tx).policy(deps.tenantId)) ?? 'disabled';
 }
 
 // The scope and audience ceiling a refresh starts from. For a client nobody at
 // the tenant vetted it is the grant's, less what the tenant's registration
 // policy no longer gives such a client, so ending the policy ends what an
-// existing chain carries. Every other client's read costs nothing extra.
-async function refreshCeiling(
-  tx: TenantScopedDatabase,
+// existing chain carries.
+function refreshCeiling(
   deps: TokenIssuanceDeps,
   client: ClientRecord,
   scope: readonly string[],
   audience: readonly string[],
-): Promise<{ scope: string[]; audience: string[] }> {
-  const policy = needsApproval(client.registrationOrigin)
-    ? await tenantRegistrationPolicyRepository(tx).policy(deps.tenantId)
-    : null;
+  policy: string,
+): { scope: string[]; audience: string[] } {
   const held = refreshUnderPolicy({
     registrationOrigin: client.registrationOrigin,
-    policy: policy ?? 'disabled',
+    policy,
     mcpAudience: mcpAudienceOfIssuer(deps.issuer),
     scope,
     audience,
@@ -846,7 +855,7 @@ async function issueRefreshTokens(
   const now = deps.clock.now();
   const presentedHash = hashRefreshToken(request.refreshToken);
 
-  const presentedScope = await evaluatePresentedRefreshToken(
+  const { scope: presentedScope, policy } = await evaluatePresentedRefreshToken(
     tx,
     deps,
     request,
@@ -889,7 +898,7 @@ async function issueRefreshTokens(
     throw refusalIsAboutScope(decision.reason) ? invalidScope() : invalidGrant();
   }
 
-  const derived = await refreshCeiling(tx, deps, client, decision.scope, grant.audience);
+  const derived = refreshCeiling(deps, client, decision.scope, grant.audience, policy);
   const scope = derived.scope;
   const key = await signingKeyRepository(tx).active();
   const claimContext = await loadClaimContextIn(tx, deps.tenantId, grant.subjectId);

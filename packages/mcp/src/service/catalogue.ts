@@ -48,7 +48,14 @@ const R = route;
 
 // A reason is shared only by routes of one family or by the writes the one
 // agent-write allowlist covers; every other withheld read says why itself.
-type Entry = readonly [reason: string, routes: readonly string[]];
+//
+// `kind` says why the route is withheld: `denied` and `sensitive` reads are
+// also refused by the admin API's agent door (`AGENT_DENIED_READS`), because
+// they return a whole tenant, bytes, personal data or credential metadata and a
+// holder of the bearer could otherwise call them directly; `not-useful` reads
+// were simply not worth a tool, and the door admits them.
+export type NotToolKind = 'denied' | 'sensitive' | 'not-useful' | 'destructive' | 'write';
+type Entry = readonly [reason: string, routes: readonly string[], kind: NotToolKind];
 
 const OTHER_WRITES: readonly string[] = [
   route('POST', '/subjects'),
@@ -126,14 +133,17 @@ const WITHHELD: readonly Entry[] = [
   [
     'An agent is refused this read: a whole tenant document in one call, which a person fetches with their own token.',
     [R('GET', '/export')],
+    'denied',
   ],
   [
     'An agent is refused this read: the audit trail as one download of up to 10,000 events, which a person fetches with their own token; list_audit pages it.',
     [R('GET', '/audit/export')],
+    'denied',
   ],
   [
     'An agent is refused this read: the bytes of an uploaded theme image, which a person fetches with their own token.',
     [R('GET', '/theme/assets/:assetId/content')],
+    'denied',
   ],
   [
     'Destructive or wide in effect (tenant delete, end every session, clear a lockout, change a signing key): not offered to an agent until the owner can approve each call separately.',
@@ -147,18 +157,22 @@ const WITHHELD: readonly Entry[] = [
       R('POST', '/keys/:id/retire'),
       R('DELETE', '/keys/:id'),
     ],
+    'destructive',
   ],
   [
     'Not an agent write: mcp:write admits only the descriptive fields of a client and a scope, and nothing else writes.',
     OTHER_WRITES,
+    'write',
   ],
   [
     'Renders the theme as a page for a browser frame, not data an agent reads.',
     [R('GET', '/theme/preview'), R('GET', '/clients/:id/theme/preview')],
+    'not-useful',
   ],
   [
     'Renders a mail template as a page for a browser frame, not data an agent reads.',
     [R('GET', '/mail/preview'), R('GET', '/clients/:id/mail/preview')],
+    'not-useful',
   ],
   [
     "Theme documents are authored markup and stylesheets, large and nearly all free text; the read catalogue does not offer them and the console's Branding screens read them.",
@@ -171,62 +185,77 @@ const WITHHELD: readonly Entry[] = [
       R('GET', '/clients/:id/theme/versions'),
       R('GET', '/clients/:id/theme/preview/info'),
     ],
+    'not-useful',
   ],
   [
     "The mail look (logo, colours, footer) is authored branding text, not offered by the read catalogue; the console's Branding screens read it.",
     [R('GET', '/mail/branding'), R('GET', '/clients/:id/mail/branding')],
+    'not-useful',
   ],
   [
     "Message wording overrides and the catalogue of messages they replace are localised page text, not offered by the read catalogue; the console's Branding screens read them.",
     [R('GET', '/message-overrides'), R('GET', '/message-catalogue')],
+    'not-useful',
   ],
   [
     'Personal data beyond the subject record (the profile claims: birth date, address, phone): get_subject is the read an agent is offered.',
     [R('GET', '/subjects/:id/profile')],
+    'sensitive',
   ],
   [
     "Lists a subject's registered credentials (passkeys, authenticators): credential metadata, not offered to an agent.",
     [R('GET', '/subjects/:id/credentials')],
+    'sensitive',
   ],
   [
     'Lists registration tokens, which are credentials that let a client register itself: not offered to an agent.',
     [R('GET', '/registration-tokens')],
+    'sensitive',
   ],
   [
     'The mail relay configuration, with its host and login username: not offered to an agent; list_mail shows delivery status.',
     [R('GET', '/smtp')],
+    'sensitive',
   ],
   [
     'Lists every tenant (manage-tenants): an agent acts inside the one tenant its token names, never across tenants.',
     ['GET /admin/tenants', 'GET /admin/tenants/count'],
+    'sensitive',
   ],
   [
     'The tenant record: whoami and get_settings answer what an agent needs of the tenant it acts in.',
     [R('GET', '')],
+    'not-useful',
   ],
   [
     "Answers one subject's id token, access token and userinfo claims, which are personal data, under manage-clients, which does not include view-users; its open claim records have no schema to bound them.",
     [R('GET', '/clients/:id/evaluate')],
+    'sensitive',
   ],
   [
     "Restates what get_client returns (client id, type, authentication method, redirect URIs, grants, default scope) plus the issuer and discovery address, which the tenant's published metadata already gives.",
     [R('GET', '/clients/:id/installation')],
+    'not-useful',
   ],
   [
     'Answers the username_editable setting alone, which get_settings returns with the rest.',
     [R('GET', '/subjects/username-policy')],
+    'not-useful',
   ],
   [
     'Previews what moving the canonical address would do to passkeys (a capped count for a candidate address), an input to a change an agent cannot make.',
     [R('GET', '/domains/passkey-impact')],
+    'not-useful',
   ],
   [
     'Says which built-in scopes are absent, only so that restoring them can be offered; list_scopes shows what exists and an agent cannot restore.',
     [R('GET', '/scopes/builtins')],
+    'not-useful',
   ],
   [
     'Counts what deleting a scope would take with it, an input to a deletion an agent cannot make.',
     [R('GET', '/scopes/:id/impact')],
+    'not-useful',
   ],
 ];
 
@@ -234,4 +263,8 @@ const WITHHELD: readonly Entry[] = [
 // holds this and TOOLS to the route table both ways.
 export const NOT_TOOLS: Readonly<Record<string, string>> = Object.fromEntries(
   WITHHELD.flatMap(([reason, routes]) => routes.map((key) => [key, reason])),
+);
+
+export const NOT_TOOL_KINDS: Readonly<Record<string, NotToolKind>> = Object.fromEntries(
+  WITHHELD.flatMap(([, routes, kind]) => routes.map((key) => [key, kind])),
 );

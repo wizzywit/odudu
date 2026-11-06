@@ -57,7 +57,7 @@ Subjects
 1 subject
 Clients
 3 clients
- of 200 allowed
+ (3 of 200 made by administrators or tokens)
 Groups
 0 groups
 Roles

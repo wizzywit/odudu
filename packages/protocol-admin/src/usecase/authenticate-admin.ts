@@ -13,6 +13,8 @@ import {
 export interface AdminPrincipal {
   readonly subjectId: string;
   readonly issuerTenantId: string;
+  // The name of that tenant, as the token's issuer resolved it.
+  readonly issuerTenantName: string;
   readonly clientDbId: string;
   // The token's `scope` claim, split; empty when it carries none.
   readonly scopes: readonly string[];
@@ -122,6 +124,7 @@ function unauthenticated(reason: string): AdminAuthOutcome {
 
 export interface MatchedTenant {
   readonly id: string;
+  readonly name: string;
   readonly lifespans: SessionLifespans;
 }
 
@@ -172,7 +175,7 @@ async function matchIssuer(
 
   const tenant = name === input.targetTenantName ? input.targetTenant : await deps.findTenant(name);
   if (!tenant?.enabled) return undefined;
-  return { id: tenant.id, lifespans: lifespansOf(tenant) };
+  return { id: tenant.id, name, lifespans: lifespansOf(tenant) };
 }
 
 function bareOriginHost(iss: string): string | undefined {
@@ -385,6 +388,7 @@ export async function authenticateAdmin(
   const base = {
     subjectId: payload.sub,
     issuerTenantId: matched.id,
+    issuerTenantName: matched.name,
     clientDbId: grant.clientId,
     scopes: claims.scopes,
   };

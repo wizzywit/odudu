@@ -458,6 +458,22 @@ describe('the approval marker on the client', () => {
     expect(await approvedAt(tenantId, clientId)).toEqual(first);
   });
 
+  it('does not write the client row again once it is approved', async () => {
+    const { tenantId, subjectId, clientId, scopeAId } = await seedFixture();
+    const version = () =>
+      owner.sql<
+        { version: string }[]
+      >`select xmin::text as version from clients where id = ${clientId}`;
+    await withTenant(app.db, tenantId, (tx) =>
+      consentRepository(tx).record(tenantId, subjectId, clientId, [scopeAId]),
+    );
+    const approved = await version();
+    await withTenant(app.db, tenantId, (tx) =>
+      consentRepository(tx).record(tenantId, subjectId, clientId, [scopeAId]),
+    );
+    expect(await version()).toEqual(approved);
+  });
+
   it('marks nothing of another tenant’s client', async () => {
     const mine = await seedFixture();
     const theirs = await seedFixture();

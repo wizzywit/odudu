@@ -68,7 +68,9 @@ export {
 export { clients, type ClientRecord } from '#/schema/clients';
 export {
   clientRepository,
+  COUNTED_BY_MAX_CLIENTS,
   ClientIdConflictError,
+  WIRE_CLIENTS_PER_TENANT,
   type ClientCapacity,
   type NewClient,
 } from '#/repository/clients';

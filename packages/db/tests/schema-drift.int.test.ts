@@ -139,6 +139,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
     'CHECK (((length(key) >= 1) AND (length(key) <= 255)))',
   'idempotency_keys.idempotency_keys_response_body_size':
     'CHECK ((octet_length(response_body) <= 65536))',
+  'idempotency_keys.idempotency_keys_response_headers_size':
+    'CHECK ((octet_length((response_headers)::text) <= 8192))',
   'idempotency_keys.idempotency_keys_response_status':
     'CHECK (((response_status >= 200) AND (response_status <= 299)))',
   'idempotency_keys.idempotency_keys_route_length': 'CHECK ((length(route) <= 512))',

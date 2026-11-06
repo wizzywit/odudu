@@ -367,6 +367,8 @@ describeFields(listClientsQuerySchema, {
   name: 'Only clients whose name starts with this.',
   type: 'Only clients of this type.',
   enabled: '`true` for enabled clients only.',
+  counts_toward_max_clients:
+    '`true` for the clients `max_clients` counts, which are those an administrator or a registration token made; `false` for the ones that registered themselves or came from a metadata document.',
 });
 describeFields(countClientsQuerySchema, {
   client_id: 'Only clients whose `client_id` starts with this.',
@@ -374,6 +376,8 @@ describeFields(countClientsQuerySchema, {
   name: 'Only clients whose name starts with this.',
   type: 'Only clients of this type.',
   enabled: '`true` for enabled clients only.',
+  counts_toward_max_clients:
+    '`true` for the clients `max_clients` counts, which are those an administrator or a registration token made; `false` for the ones that registered themselves or came from a metadata document.',
 });
 describeFields(clientInstallationSchema, {
   issuer: 'The issuer identifier the application must trust.',
@@ -975,7 +979,8 @@ describeFields(tenantSettingsDocumentSchema, {
   brute_force_max_lockout_seconds: 'The longest a lockout can grow to when it is tripped again.',
   brute_force_failure_reset_seconds:
     'How long without a failed sign-in before the count starts again.',
-  max_clients: 'The most clients the tenant may hold.',
+  max_clients:
+    'The most clients an administrator or a registration token can make. Clients that register themselves or come from a metadata document have limits of their own.',
   max_sessions_per_browser: 'The most sessions one browser may hold at once.',
   remember_me_allowed: 'Whether the sign-in form offers to stay signed in.',
   remember_me_idle_seconds: 'How long a remembered session may sit idle.',
@@ -1135,6 +1140,8 @@ describeFields(testSmtpResponseSchema, {
 describeFields(whoamiResponseSchema, {
   subjectId: 'The subject the access token was issued to.',
   issuerTenantId: 'The tenant that issued the token, which is the caller’s own tenant.',
+  issuerTenantName:
+    'The name of that tenant, the one its address and sign-in page carry. It tells apart connections to several tenants.',
   capabilities:
     'The admin capabilities the caller holds in its own tenant, directly, through a group or nested in a role. A composite such as `tenant-admin` is reported as the capabilities it carries.',
   crossTenant:

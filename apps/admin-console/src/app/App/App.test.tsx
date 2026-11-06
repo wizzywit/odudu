@@ -34,7 +34,13 @@ const ALL = [
 ];
 
 function whoami(capabilities: readonly string[], crossTenant = false): Answer {
-  return json({ subjectId: 's', issuerTenantId: 't', capabilities, crossTenant });
+  return json({
+    subjectId: 's',
+    issuerTenantId: 't',
+    issuerTenantName: 'acme',
+    capabilities,
+    crossTenant,
+  });
 }
 
 function renderAt(path: string, routes: Record<string, Answer>) {

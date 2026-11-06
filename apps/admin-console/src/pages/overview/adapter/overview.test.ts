@@ -1,5 +1,10 @@
 import { expect, it } from 'vitest';
-import { readCount, readJwks, readLatestAudit } from '#/pages/overview/adapter/overview';
+import {
+  readCount,
+  readJwks,
+  readLatestAudit,
+  readOperatorClientCount,
+} from '#/pages/overview/adapter/overview';
 import { fakeTransport, json } from '#/testing/fakeTransport';
 import { TRANSCRIPT_JWKS } from '#/testing/overviewFixtures';
 
@@ -39,6 +44,21 @@ it('counts each collection at its own route', async () => {
     '/console/api/admin/tenants/acme/roles/count',
     '/console/api/admin/tenants/acme/scopes/count',
   ]);
+});
+
+it('counts the clients max_clients counts with a filter on the clients route', async () => {
+  const fake = fakeTransport({
+    'GET /console/api/admin/tenants/acme/clients/count': (request) =>
+      json(
+        request.search.get('counts_toward_max_clients') === 'true'
+          ? { count: 2, capped: false }
+          : { count: 900, capped: false },
+      )(request),
+  });
+  expect(await readOperatorClientCount(fake.transport.gateway, 'acme')).toMatchObject({
+    ok: true,
+    data: { count: 2, capped: false },
+  });
 });
 
 it('reads the five latest audit rows', async () => {

@@ -101,6 +101,10 @@ To get a token, the service signs a short JWT and sends it as `client_assertion`
 
 Odudu checks the signature against the registered keys, then the audience, expiry and `jti`. Any failure is the same `invalid_client`. To rotate, publish a new key set. A `jwks_uri` is read again at most every five minutes. [Getting the token](../reference/transcripts/admin-paths/getting-the-token.md) shows a client registered this way.
 
+## Use the machine route for MCP
+
+No MCP client we looked at signs in this way. Claude Code, claude.ai, Claude Desktop and Cursor all sign a person in through the browser, and none of them uses the OAuth client credentials extension for MCP yet, as their documentation stood on 6 November 2026. So an MCP client that signs in as itself is one you write or run: a script, a custom client, or `odudu mcp` with a key, below. The tenant's MCP endpoint does accept such a client when you give it the MCP address as an audience and `mcp:read` among its `client_credentials_scopes`, and the token request names the MCP address as its `resource`: the endpoint then acts as the client's service account, so a tool works only as far as the account's roles reach, and a new account lists just `whoami`. A client without that audience cannot be issued `mcp:read` (`invalid_scope`), and a service account's ordinary token, whose audience is the admin API, is `401` there. This route is for scripts and custom clients. [Protect an MCP server](./protect-an-mcp-server.md) is the route for the clients people use.
+
 ## Give a local AI tool the key
 
 `odudu mcp` serves the admin tools to an AI tool that runs on your machine, over standard input and output, and a service account can be what it signs in as. Make the key with `odudu mcp --keygen`, which prints the `ODUDU_MCP_KEY` line to keep and, on standard error, the key set to register:

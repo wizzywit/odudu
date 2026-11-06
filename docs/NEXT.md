@@ -2,7 +2,7 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b, P3a, P3b, P4a, P4b, P4c, P4d, P4e, P4j and P4k are complete, and the
+**P0, P1, P2a, P2b, P3a, P3b, P4a, P4b, P4c, P4d, P4e, P4j, P4k and P5a are complete, and the
 tenant rename is done. P4g has closed as release candidates, and only its
 stable tag is left.** Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
@@ -15,6 +15,16 @@ more phase work. What it built, and what the whole-phase review found, is in
 [`docs/phases/p4g.md`](phases/p4g.md); the licences are in `LICENSING.md`.
 What it placed on later phases is on
 [the roadmap page](../apps/docs/content/en/roadmap.md).
+
+**P5a, the MCP server, is built.** Every tenant serves an MCP endpoint with 42 read
+tools and two write tools for descriptive text, `odudu mcp` serves them over stdio,
+and the sign-in an MCP client needs (metadata, registration under an `mcp` policy,
+client ID metadata documents, `mcp:read` and `mcp:write`) is in place. What it found
+is in [`docs/phases/p5a.md`](phases/p5a.md). Claude Code 2.1.319 and Claude Desktop 3.6556.2
+were run by the owner on 2026-11-06 (reads, writes, refusals and errors worked).
+Still to run, and no CI job can: the claude.ai connectors and Cursor, and
+`odudu mcp` on Windows and with the Linux Secret Service (the note's "Hand run
+(owner)" has the record).
 
 **P4b, theming and client branding, is built.** Every server page and mail
 wears a tenant's theme and a client's over it; the tenant chooses its languages
@@ -34,10 +44,9 @@ between them is safe in both directions. What it found, what proves the domain
 path and what it left is in [`docs/phases/p4j.md`](phases/p4j.md); the argument
 is [ADR 0049](adr/0049-a-tenant-has-one-canonical-address.md).
 
-**What is next, in this order: P5a, P4f, P4h, P4i, P5, P5b**, then the
+**What is next, in this order: P4f, P4h, P4i, P5, P5b**, then the
 phases the roadmap page lists as "Later", P6 to P14. The letters do not read
-in execution order. P5a is the MCP server;
-P4f self-service through a "me" API and application-initiated actions; P4h
+in execution order. P4f is self-service through a "me" API and application-initiated actions; P4h
 console localization ([ADR 0043](adr/0043-localization-is-a-catalogue-a-negotiation-and-a-set-of-owners.md));
 P4i the SDKs.
 
@@ -65,6 +74,7 @@ open.
 The running records, split out of this file on 2026-09-17: P2b reached
 1,873 lines here, of which the part describing where the project stood was 58.
 
+- [P5a — the MCP server, first release](phases/p5a.md)
 - [P4j — a custom domain for each tenant](phases/p4j.md)
 - [P4k — the frontend architecture](phases/p4k.md)
 - [P4b — theming and client branding](phases/p4b.md)
@@ -176,6 +186,16 @@ agent identity layer's own instance, budget and `max_depth` (design spec
   the agent layer's own `max_depth`, which also owns the chain's other
   bounds (scope and TTL narrowing, budget).
 
+**What P5a built that P5 reuses, and what it leaves.** An agent is a token with an
+`act` claim or an MCP scope, and `mintAgentToken` (`@odudu/protocol-oidc`) is the one
+place an agent's admin token is made, its life the lesser of the presented token's and
+five minutes; build on it rather than beside it. The admin API's door audits every agent
+call it did not see the MCP endpoint sign (`agent.tool_call`, 503 if the row cannot be
+written), the exchange refuses a public client and a foreign actor token unless a
+per-client setting allows it, and a token holding an MCP scope keeps one through an
+exchange or a refresh. Still absent, and P5's: budgets, `may_act` minting and
+approval, which the write tools' ten-minute token and per-sign-in consent only stand in for.
+
 ## Decisions still open
 
 Two kinds of entry, split by **where the argument lives**, because that is
@@ -195,7 +215,7 @@ that should hold it, which is usually false.
 | No scope means anything in particular at an audience; RFC 9068 §2.2.3 wants `scope` coherent with `aud`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | [rfc9068.md](protocols/rfc9068.md), "Why §2.2.3 is accepted, not held"                                            | **P9**, with the row below                                                                                     |
 | `/introspect` answers every registered client alike: no per-resource scope narrowing, no "may introspect"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | [rfc7662.md](protocols/rfc7662.md), "Two MAYs left `gap`"                                                         | **P9**, with the row above                                                                                     |
 | RFC 7523 has no clause table, so the clauses of an implemented RFC are untracked by the system built for it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | [rfc7523.md](protocols/rfc7523.md)'s own header                                                                   | **P13**                                                                                                        |
-| An agent's reads are audited (`agent.tool_call`) while `/introspect` and `/userinfo` reads are not; the rows' volume at a million tool calls a day has no measurement                                                                                                                                                                                                                                                                                                                                                                                                                                                             | [ADR 0040](adr/0040-the-capability-ceiling-covers-every-door-to-what-a-subject-holds.md), "Amendment, 2026-11-05" | **P11**, when a measurement of the audit tables asks for it                                                    |
+| An agent's reads are audited (`agent.tool_call`) while `/introspect` and `/userinfo` reads are not; the rows' volume at a million tool calls a day has no measurement; the only bound is the per-process limiter, 600 a minute per tenant, which is up to 864,000 rows a day from one tenant on one process                                                                                                                                                                                                                                                                                                                       | [ADR 0040](adr/0040-the-capability-ceiling-covers-every-door-to-what-a-subject-holds.md), "Amendment, 2026-11-05" | **P11**, when a measurement of the audit tables asks for it                                                    |
 | The session cap is per browser and admits `cap + (k - 1)` under `k` concurrent logins, orphaning one                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | [ADR 0033](adr/0033-admitting-a-session-locks-the-tenant-row.md)                                                  | **P4f**, wanting a session's device                                                                            |
 | `CLAUDE.md` states an untagged-fence rule that `tests/docs/markdown.ts` cannot see, so no JSON response is byte-checked                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | [p3b.md](phases/p3b.md), "`CLAUDE.md` states a rule its own tests forbid"                                         | its own change; it untags every JSON transcript at once                                                        |
 | Migrations are hard cutovers: Drizzle runs every pending migration in one transaction, so no index is built `CONCURRENTLY`, `0073`–`0075` add stored generated columns that rewrite their tables under lock, `0076` rebuilds an `audit_events` index without `CONCURRENTLY`, `0079` adds three more such columns to `users`, `0080`, `0081` and `0097` build indexes plain, and `0095` builds twenty-odd, four of them on `audit_events`, as `0099` builds a fifth, and `0100` three on `email_outbox`, whose `failed` mail read still sorts a tenant's unsent rows (about 100 ms at 1,000,000 unsent, an incident-sized backlog) | the umbrella spec's §5, "Migrations", and §11's P11 row                                                           | **P11**, with rolling upgrades across replicas                                                                 |
@@ -217,6 +237,10 @@ that should hold it, which is usually false.
 | The domain verification throttle and the check endpoint's limiter are per process, no global cap bounds the DNS lookups a verification makes across tenants, and a verification holds its transaction across the lookup (5 s timeout, ten a minute per tenant)                                                                                                                                                                                                                                                                                                                                                                    | [`phases/p4j.md`](phases/p4j.md), "Left, and where it went"                                                       | **P11**, many instances, with the other in-process bounds                                                      |
 | The edge reads the tenant's address once per request on a non-base host and on a path address, and the admin API one tenant-scoped read per request for a tenant other than `system`, with no host-to-tenant cache; a cache has to state its bound and be invalidated on a switch, and would blur "refused at its expiry"                                                                                                                                                                                                                                                                                                         | [ADR 0049](adr/0049-a-tenant-has-one-canonical-address.md), "Consequences"                                        | **P11**, when a measurement of the p99 asks for it                                                             |
 | A person with no password and only passkeys registered at the address a tenant left has no way back inside the sign-in itself: the challenge is one they cannot answer, and a switch back, a reset or an administrator recovers them                                                                                                                                                                                                                                                                                                                                                                                              | [`phases/p4j.md`](phases/p4j.md); the guide `operating/custom-domains.md`                                         | **P4f**, whose self-service criterion owns the account's own recovery                                          |
+| The MCP endpoint's request limits, the `mcp` registration budget, the metadata fetch limiter and the keyed-request gate are per process, and a request with a garbage token costs a key read before it is refused                                                                                                                                                                                                                                                                                                                                                                                                                 | [p5a.md](phases/p5a.md), "The MCP endpoint", "Not done, and where it goes"                                        | **P11**, with the other in-process bounds                                                                      |
+| `odudu mcp` runs only from the container image or a checkout, so an AI tool on a machine with neither cannot install it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | [p5a.md](phases/p5a.md), "What the phase leaves"                                                                  | **P4i**, which publishes packages versioned apart from the server                                              |
+| The admin API's OpenAPI document grew from about 700 to 800 KB with `Idempotency-Key`, each `POST` inlining its problem schema once per status; shared components would shrink it                                                                                                                                                                                                                                                                                                                                                                                                                                                 | [p5a.md](phases/p5a.md), "What the phase leaves"                                                                  | **P4i**, which generates a typed client from that document                                                     |
+| The injection suite drives a scripted agent, not a model, so what a model does with a hostile description is not measured                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | [p5a.md](phases/p5a.md), "The injection suite"                                                                    | **P5b**, when tools that cannot be undone arrive                                                               |
 
 ### Argued here, because there is nowhere else
 

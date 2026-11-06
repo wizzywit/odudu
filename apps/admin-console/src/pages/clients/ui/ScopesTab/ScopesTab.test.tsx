@@ -297,6 +297,7 @@ it('offers no change while the service account holds what the caller does not', 
       [`GET ${ACME_ADMIN}/whoami`]: json({
         subjectId: 's',
         issuerTenantId: 't',
+        issuerTenantName: 'acme',
         capabilities: ['manage-clients', 'manage-tenant'],
         crossTenant: false,
       }),

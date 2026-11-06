@@ -92,6 +92,17 @@ function renderOptionalScope(
 // was found and where a decision sends the person.
 function sourceLines(source: ClientSource | null, locale: PageLocale): string[] {
   if (source === null) return [];
+  if (source.kind === 'self-registered') {
+    return [
+      tHtml(locale, 'consent.source.selfRegistered'),
+      ...(source.sentTo === null
+        ? []
+        : [tHtml(locale, 'consent.source.sentTo'), bdi(source.sentTo)]),
+      ...(source.origins.length === 0 ? [] : [tHtml(locale, 'consent.source.otherRedirects')]),
+      ...source.origins.map((origin) => bdi(origin)),
+      ...(source.more > 0 ? [tHtml(locale, 'consent.source.more', { count: source.more })] : []),
+    ];
+  }
   return [
     tHtml(locale, 'consent.source.host', {}, { host: source.host }),
     tHtml(locale, 'consent.source.redirects'),

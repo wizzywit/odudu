@@ -4,13 +4,22 @@
 -- merely carries the id is never mistaken for it: a tenant that already has one
 -- is skipped and keeps it as it is. Each statement writes only what is
 -- missing, so the file can run again to no effect. FORCE ROW LEVEL SECURITY is
--- lifted around the inserts and restored, as 0113_mcp_scopes.sql does.
+-- lifted around the inserts and restored, only for a migrating role that is
+-- neither SUPERUSER nor BYPASSRLS, as 0113_mcp_scopes.sql does, on tenants and
+-- client_scopes as well because the inserts read both.
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS builtin_mcp boolean NOT NULL DEFAULT false;
 CREATE UNIQUE INDEX IF NOT EXISTS clients_one_builtin_mcp ON clients (tenant_id) WHERE builtin_mcp;
 
-ALTER TABLE clients NO FORCE ROW LEVEL SECURITY;
-ALTER TABLE client_oidc_config NO FORCE ROW LEVEL SECURITY;
-ALTER TABLE client_scope_assignments NO FORCE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF NOT (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) THEN
+    ALTER TABLE tenants NO FORCE ROW LEVEL SECURITY;
+    ALTER TABLE client_scopes NO FORCE ROW LEVEL SECURITY;
+    ALTER TABLE clients NO FORCE ROW LEVEL SECURITY;
+    ALTER TABLE client_oidc_config NO FORCE ROW LEVEL SECURITY;
+    ALTER TABLE client_scope_assignments NO FORCE ROW LEVEL SECURITY;
+  END IF;
+END $$;
 
 INSERT INTO clients (id, tenant_id, client_id, name, type, secret_hash, builtin_mcp)
 SELECT gen_random_uuid(), t.id, 'odudu-mcp', 'Odudu MCP', 'public', NULL, true
@@ -40,6 +49,13 @@ SELECT c.tenant_id, c.id, s.id,
    AND (s.name IN ('mcp:read', 'mcp:write') OR s.default_client_assignment IS NOT NULL)
    AND NOT EXISTS (SELECT 1 FROM client_scope_assignments a WHERE a.client_id = c.id);
 
-ALTER TABLE clients FORCE ROW LEVEL SECURITY;
-ALTER TABLE client_oidc_config FORCE ROW LEVEL SECURITY;
-ALTER TABLE client_scope_assignments FORCE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF NOT (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) THEN
+    ALTER TABLE tenants FORCE ROW LEVEL SECURITY;
+    ALTER TABLE client_scopes FORCE ROW LEVEL SECURITY;
+    ALTER TABLE clients FORCE ROW LEVEL SECURITY;
+    ALTER TABLE client_oidc_config FORCE ROW LEVEL SECURITY;
+    ALTER TABLE client_scope_assignments FORCE ROW LEVEL SECURITY;
+  END IF;
+END $$;

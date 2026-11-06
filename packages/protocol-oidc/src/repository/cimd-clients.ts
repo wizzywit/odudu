@@ -23,8 +23,8 @@ export function cimdClientRepository(tx: TenantScopedDatabase) {
     // The metadata document client that has gone longest unused and never
     // completed anything: enabled (a disabled one is an administrator's
     // decision and stays), no consent recorded, no usable refresh token, no
-    // authorization code that has not expired. Walks clients_cimd_by_use in
-    // order and stops at the first such row.
+    // authorization code that has not expired and no sign-in under way for it.
+    // Walks clients_cimd_by_use in order and stops at the first such row.
     async evictable(now: Date): Promise<string | null> {
       const rows = await tx.execute<{ id: string }>(sql`
         SELECT c.id FROM clients c
@@ -35,6 +35,11 @@ export function cimdClientRepository(tx: TenantScopedDatabase) {
            AND NOT EXISTS (
              SELECT 1 FROM authorization_codes a
               WHERE a.client_id = c.id AND a.expires_at > ${now.toISOString()}::timestamptz)
+           AND NOT EXISTS (
+             SELECT 1 FROM authentication_sessions s
+              WHERE s.tenant_id = c.tenant_id
+                AND s.pending_request ->> 'clientId' = c.client_id
+                AND s.expires_at > ${now.toISOString()}::timestamptz)
          ORDER BY c.metadata_used_at, c.id
          LIMIT 1`);
       return rows[0]?.id ?? null;

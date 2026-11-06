@@ -1267,12 +1267,12 @@ already single-use spent by then, and the answer is `invalid_grant`, not
 only a fresh code isolates which one actually fired.
 
 `demo-spa` has no registered `audiences` — every client seeded by this document
-does not, `odudu seed` has no flag for one yet — so its code's stored `resource`
+does not, because none was given `odudu seed client --audience` — so its code's stored `resource`
 is `[]`, and no `resource` named at `/token` is ever found in it; the ordinary
 redemption above, naming none, still succeeds with `aud` the issuer alone,
 exactly as it did before this existed. A client registered for at least one
-audience — `audiences`, set directly on `client_oidc_config` today, since no
-seed flag or registration field exposes it — would see `resource` narrow `aud`
+audience — set with `odudu seed client --audience`, in the console or through the
+admin API's `audiences` — would see `resource` narrow `aud`
 to that one value instead; an integration test exercises that case, and the
 refresh grant's own derivation. The refresh path narrows from the grant that the
 original redemption already resolved, not from the client's current

@@ -29,7 +29,7 @@ export function expectedOutcomes(): Outcome[] {
     ...expected('k-keeps', true, false),
     ...expected('k-public', false, false),
     ...expected('k-role', true, true),
-    ...expected('k-xaudit', true, true),
+    ...expected('k-xaudit', false, false),
   ].sort((a, b) => (a.client < b.client ? -1 : a.client > b.client ? 1 : 0));
 }
 
@@ -37,7 +37,7 @@ export async function seed(raw: Sql): Promise<void> {
   await raw`insert into tenants (id, name) values (gen_random_uuid(), 'one'), (gen_random_uuid(), 'two')`;
   // keeps: has the grant. gone: none and nothing names it.
   // grant/role/audit/consent: none, but something does. actor: a delegated
-  // grant names it as the actor. xaudit: only an event of the other tenant does.
+  // grant names it as the actor. xaudit: only an event of the other tenant does, which is not read.
   const specs: { client: string; grants: string[]; type: string; account: boolean }[] = [
     { client: 'k-keeps', grants: ['client_credentials'], type: 'confidential', account: true },
     { client: 'k-gone', grants: ['authorization_code'], type: 'confidential', account: true },

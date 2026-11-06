@@ -120,7 +120,7 @@ describe('a token that stands', () => {
     expect(outcome.token.expiresAt).toEqual(new Date(EXP * 1000));
   });
 
-  it('is verified against the tenant’s resource URL and issuers, and nothing wider', async () => {
+  it('[MCP-AUTH-TOKEN-02] is verified against the tenant’s resource URL and issuers, and nothing wider', async () => {
     const seen: NonNullable<Fakes['seen']> = {};
     await validateMcpToken(deps({ seen }), input());
     expect(seen.expected).toEqual({ issuers: [ISSUER], audience: RESOURCE });
@@ -154,7 +154,7 @@ describe('a token that does not verify', () => {
     });
   });
 
-  it('is refused when it names the admin API beside the endpoint, so no token serves both doors', async () => {
+  it('[MCP-AUTH-TOKEN-03] is refused when it names the admin API beside the endpoint, so no token serves both doors', async () => {
     const claims = { ...CLAIMS, aud: [RESOURCE, ADMIN_AUDIENCE] };
     expect(await validateMcpToken(deps({ claims }), input())).toEqual({
       kind: 'unauthenticated',
@@ -243,6 +243,7 @@ describe('a token that holds no MCP scope', () => {
       principal: {
         subjectId: 'subject-1',
         issuerTenantId: 'tenant-1',
+        issuerTenantName: 'acme',
         clientDbId: 'client-db-1',
         scopes: ['openid', 'profile'],
       },

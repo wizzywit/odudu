@@ -248,13 +248,13 @@ describe('registerClient — the mcp policy', () => {
     expect(outcome.description).toContain('token_endpoint_auth_method');
   });
 
-  it('refuses a plain-http redirect to a host that is not loopback', async () => {
+  it('[MCP-AUTH-REDIR-01] refuses a plain-http redirect to a host that is not loopback', async () => {
     const outcome = await refused({ redirect_uris: ['http://rp.example/cb'] });
     expect(outcome.error).toBe('invalid_redirect_uri');
   });
 
-  it('refuses mcp:write', async () => {
-    expect((await refused({ scope: 'mcp:read mcp:write' })).description).toContain('mcp:write');
+  it('refuses a scope of which nothing may be held', async () => {
+    expect((await refused({ scope: 'mcp:write' })).description).toContain('mcp:write');
   });
 
   it('refuses an audience other than the tenant MCP URL', async () => {

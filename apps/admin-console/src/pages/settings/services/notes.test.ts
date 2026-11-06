@@ -33,10 +33,10 @@ describe('rangeRule', () => {
 });
 
 describe('the client cap', () => {
-  it('says it holds however a client is created, not only for registration', () => {
+  it('says whose clients it counts, and that the others have limits of their own', () => {
     const text = fieldDescription(field('max_clients'));
-    expect(text).toContain('however they are created');
-    expect(text).not.toMatch(/registration/u);
+    expect(text).toContain('administrator or a registration token');
+    expect(text).toContain('limits of their own');
   });
 });
 

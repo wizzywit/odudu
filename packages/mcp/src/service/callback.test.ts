@@ -12,7 +12,7 @@ describe('what the loopback redirect may carry', () => {
     ).toEqual({ kind: 'code', code: 'abc' });
   });
 
-  it('refuses a wrong iss, whatever else it holds, before it reads an error or a code', () => {
+  it('[MCP-AUTH-ISS-01] refuses a wrong iss, whatever else it holds, before it reads an error or a code', () => {
     const verdict = checkCallback(
       query('code=abc&state=st-1&iss=https%3A%2F%2Fevil.example%2F&error=access_denied'),
       expected,

@@ -3,19 +3,23 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import {
   clientRegistrationTokenRepository,
   clientRepository,
+  clientScopeRepository,
   assignMcpScope,
   provisionClientDefaults,
+  WIRE_CLIENTS_PER_TENANT,
   type ClientRecord,
 } from '@odudu/domain-tenant';
 import { addressUrl, MCP_RESOURCE_PATH, newId, type TenantAddress } from '@odudu/kernel';
 import { randomBytes } from 'node:crypto';
 import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/client-oidc-config';
+import { dynamicClientRepository } from '#/repository/dynamic-clients';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import { extractBearerToken } from '#/service/bearer-token';
 import { parseClientMetadata, type ClientMetadata } from '#/service/client-metadata';
 import {
   audiencesUnderPolicy,
   decideMcpRegistration,
+  scopeHeldOf,
   type McpPolicyGrant,
 } from '#/service/mcp-registration-policy';
 import { MCP_READ_SCOPE } from '#/service/mcp-scopes';
@@ -59,6 +63,8 @@ export interface RegisteredClient {
   clientSecret: string | null;
   // The audiences the policy gave it; empty for every policy but `mcp`.
   audiences: string[];
+  // What the `mcp` policy registered of the scope asked for, when one was.
+  scope?: string;
   metadata: ClientMetadata;
   // `client_name#<tag>` members the tenant offers, by canonical tag.
   nameI18n: Record<string, string>;
@@ -89,6 +95,24 @@ function clientType(tokenEndpointAuthMethod: string): 'public' | 'confidential' 
   return tokenEndpointAuthMethod === 'none' ? 'public' : 'confidential';
 }
 
+// Under the tenant lock: the registration fits under the ceiling of its kind,
+// or a self-registered client that never did anything makes way for it.
+async function makeRoom(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  origin: ClientRecord['registrationOrigin'],
+  now: Date,
+): Promise<boolean> {
+  const clients = clientRepository(tx);
+  if (origin !== 'anonymous') {
+    const capacity = await clients.lockCapacity(tenantId);
+    return capacity.count < capacity.maxClients;
+  }
+  const capacity = await clients.lockWireCapacity(tenantId, WIRE_CLIENTS_PER_TENANT);
+  if (capacity.count < capacity.maxClients) return true;
+  return (await dynamicClientRepository(tx).evict(tenantId, now)) !== null;
+}
+
 // One transaction, entered only once the tenant is known to accept
 // registrations at all — a disabled tenant and an unknown one both stop at
 // `not_found` before any transaction opens.
@@ -101,12 +125,8 @@ async function performRegistration(
   origin: ClientRecord['registrationOrigin'],
   now: Date,
   grant: McpPolicyGrant | null,
+  scope: string | undefined,
 ): Promise<ClientRegistrationOutcome> {
-  const capacity = await clientRepository(tx).lockCapacity(tenantId);
-  if (capacity.count >= capacity.maxClients) {
-    return { kind: 'at_capacity' };
-  }
-
   // Checked against every algorithm a non-retired key produces, not only
   // the active one: a key staged as `rotating` (the admin API's `POST
   // /keys`, packages/protocol-admin/src/usecase/keys.ts) must let a client
@@ -130,6 +150,10 @@ async function performRegistration(
   if (idTokenAlg !== null) {
     return { kind: 'invalid_metadata', error: 'invalid_client_metadata', description: idTokenAlg };
   }
+
+  // After every check that can refuse the request, so a refusal never follows
+  // the removal of a client.
+  if (!(await makeRoom(tx, tenantId, origin, now))) return { kind: 'at_capacity' };
 
   // jwks_uri is validated for shape only, by parseClientMetadata
   // (assertFetchableUrl) — never dereferenced here. The key is not needed
@@ -160,6 +184,9 @@ async function performRegistration(
 
   await provisionClientDefaults(tx, client.id);
   if (grant !== null) await assignMcpScope(tx, client.id, MCP_READ_SCOPE, 'optional');
+
+  const assigned = (await clientScopeRepository(tx).forClient(client.id)).map(({ name }) => name);
+  const held = scopeHeldOf(scope, assigned);
 
   const audiences = grant === null ? [] : audiencesUnderPolicy([], grant.audience, grant.granted);
   await clientOidcConfigRepository(tx).create({
@@ -201,6 +228,7 @@ async function performRegistration(
       clientIdIssuedAt: Math.floor(now.getTime() / 1000),
       clientSecret,
       audiences,
+      ...(held === undefined ? {} : { scope: held }),
       metadata,
       nameI18n,
     },
@@ -243,6 +271,7 @@ async function persistRegistration(
   presentedToken: string | undefined,
   registration: ParsedRegistration,
   grant: McpPolicyGrant | null,
+  scope?: string,
 ): Promise<ClientRegistrationOutcome> {
   return deps.withinTenant(tenant.id, async (tx) => {
     // A presented token is honoured or refused outright — never silently
@@ -265,6 +294,7 @@ async function persistRegistration(
       origin,
       deps.now(),
       grant,
+      scope,
     );
   });
 }
@@ -312,10 +342,14 @@ export async function registerMcpClient(
   }
   // A credential presented here is not read: spending it would store the
   // client as one an administrator authorised, which it is not.
-  return persistRegistration(deps, tenant, undefined, registration, {
-    audience: mcpAudience,
-    granted: true,
-  });
+  return persistRegistration(
+    deps,
+    tenant,
+    undefined,
+    registration,
+    { audience: mcpAudience, granted: true },
+    decision.scope,
+  );
 }
 
 export async function registerClient(

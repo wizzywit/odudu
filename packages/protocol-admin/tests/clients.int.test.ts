@@ -281,6 +281,43 @@ describe('POST /admin/tenants/{t}/clients', () => {
     expect(res.statusCode).toBe(403);
   });
 
+  it('is not refused for the clients that arrived over the wire, and still bounded by the ones an operator made', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const settingsToken = await fixture.adminToken(t.name, ['manage-tenant']);
+    const operatorHeld = await fixture.owner.db.execute<{ n: number }>(sql`
+      select count(*)::int as n from clients
+       where tenant_id = ${t.id} and registration_origin not in ('cimd', 'anonymous')`);
+    const held = operatorHeld[0]?.n ?? 0;
+    const settingsRes = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/settings`,
+      headers: { authorization: `Bearer ${settingsToken}`, 'content-type': 'application/json' },
+      payload: { max_clients: held + 1 },
+    });
+    expect(settingsRes.statusCode).toBe(200);
+    await fixture.owner.db.execute(sql`
+      insert into clients (id, tenant_id, client_id, name, type, secret_hash,
+                           registration_origin, metadata_used_at)
+      select gen_random_uuid(), ${t.id}, 'flood-' || o || '-' || g, 'Flood', 'public', null, o,
+             case when o = 'cimd' then now() end
+        from generate_series(1, 5) g cross join (values ('cimd'), ('anonymous')) v (o)`);
+
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const create = () =>
+      fixture.http.inject({
+        method: 'POST',
+        url: `/admin/tenants/${t.name}/clients`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload: {
+          client_id: `mine-${newId()}`,
+          redirect_uris: ['https://app.example/cb'],
+          token_endpoint_auth_method: 'none',
+        },
+      });
+    expect((await create()).statusCode).toBe(201);
+    expect((await create()).statusCode).toBe(403);
+  });
+
   it('refuses jwks and jwks_uri together the same way dynamic registration does', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     await openRegistration(t.name);

@@ -1,8 +1,43 @@
 # P5a — the MCP server, first release
 
 The running record of what building the phase found. The argument is in
-[the spec](../superpowers/specs/2026-11-05-p5a-mcp-server-design.md) and
-[the plan](../superpowers/plans/2026-11-05-p5a-mcp-server.md).
+[the spec](../archive/specs/2026-11-05-p5a-mcp-server-design.md) and
+[the plan](../archive/plans/2026-11-05-p5a-mcp-server.md).
+
+## What the phase found, in short
+
+The phase ran as eleven increments, each reviewed for spec compliance and quality
+and then answered on its pull request. What the reviews found is the record of
+where the plan was weakest:
+
+- **The token exchange was a door the plan had not seen.** A public client with the
+  exchange grant reached it with any actor token, the admin API ignored `scope` and
+  `act`, and a narrowing exchange or refresh could turn an agent's token into a
+  plain administrator's. Per-client settings, a marker that survives an exchange
+  and a door audit for agent calls followed, and none was in the first plan.
+- **Hostile text was the second.** A name or description is read by a model, so the
+  tools strip bidirectional controls and tag characters, cap and clean object keys
+  and keep text under `data`; the injection suite checks that a hostile string cannot
+  cause a write the token does not already carry.
+- **Consent claims were wrong twice.** A write scope was said to be asked about for
+  every client, and an administrator-made client was not; and a client that took its
+  scope from the metadata could not register at all. Both were found by running
+  something, the second by the real Inspector, and are fixed.
+- **A URL as a client_id needed more care than a client.** The first parse accepted a
+  non-canonical identifier; the fetch needed a deadline, a size cap, a private-address
+  guard for the key set too, a cache that never stores the raw body, a per-host rate and
+  a ceiling that evicts only what nobody uses.
+- **Retries and cleanup.** The idempotency gate starved the database pool until it
+  was sized, bounded and made to refuse; an export of a tenant with an idle service
+  account could not be imported; a stdio `--tenant-address` could have sent a stored
+  refresh token to another host until the store was keyed by the form's issuer.
+- **The process findings.** CodeRabbit read the spec and plan and found eight valid
+  defects before any code, and the plan's statements about this repository's own
+  helpers and about the SDK were wrong often enough that an increment's first act
+  was a grep. Review findings were fixed in the increment that earned them, not
+  collected for the end.
+- **What only the owner can do** is the hand run at the end of this note: no CI job
+  runs hosted Claude, Claude Code, Claude Desktop or Cursor.
 
 ## The spike (Increment 0), 2026-11-05
 
@@ -162,16 +197,17 @@ the CHECK; the default stays `disabled`). The registration endpoint is then open
 to a public client and nothing else: `decideMcpRegistration` (a pure service)
 refuses a client that would hold a secret, a redirect that is not `https` or
 loopback `http` (a reverse-DNS custom scheme, which `open` admits, is refused),
-a grant beyond `authorization_code` and `refresh_token`, a `scope` outside the
-sign-in scopes and `mcp:read`, and an `audience` that is not the tenant's MCP
+a grant beyond `authorization_code` and `refresh_token`, a `scope` of which
+nothing is a sign-in scope or `mcp:read` (the rest of a longer one is dropped
+and the response says what was kept), and an `audience` that is not the tenant's MCP
 URL. The audience is not a member RFC 7591 defines; it is Odudu's, and the
 response echoes it as `audience`. A client that omits
 `token_endpoint_auth_method` is refused, not defaulted, because the RFC's
 default is a secret. `registerMcpClient` (usecase) runs the budget, the
 decision and the shared transaction; the client is written with the MCP URL as
 its only audience, `mcp:read` as an optional scope, `consent_required` true and
-`registration_origin` `anonymous`, and the existing `max_clients` lock bounds
-the tenant.
+`registration_origin` `anonymous`, and the self-registered ceiling (1,000, below)
+bounds the tenant.
 
 - **Budget.** Ten registrations an hour per tenant and address, and sixty an
   hour per tenant over every address (`mcpRegistrationBudget`; the address is
@@ -226,9 +262,10 @@ the tenant.
   policy are unchanged.
 - **The 429.** The budget names which limit refused (`address` or `tenant`) and the
   response says so.
-- **mcp:write.** A client of those origins is refused `mcp:write` at
-  `/authorize` (`refusesWriteScope`) even if an administrator assigned it,
-  so the policy's ceiling holds for a row nobody at the tenant vetted.
+- **mcp:write.** A client of those origins is never given it, even if an administrator
+  assigned it (`refusesWriteScope`): `/authorize` drops it from a request that
+  names other scopes (`requestWithGrantableScope`) and refuses a request for it
+  alone with `invalid_scope`.
 - **Registration refuses more than the spec lists.** A `jwks`, a `jwks_uri` or
   a logout address is refused under `mcp`: a public client holds no key, and a
   logout address would have the server call or load an address chosen by an
@@ -280,8 +317,8 @@ holding no MCP scope a 403. An agent must pass both gates: the scope
   agent may still rename an ordinary client, which shows on its consent
   screen. It is reversible and audited as `client.amend` with the agent's
   client row as actor client.
-- Not enforced anywhere an operator can see yet: no agent token exists
-  outside tests until the MCP server mints them.
+- An agent token is made by the MCP endpoint and by `odudu mcp` (see "Minting for
+  an agent"), so every refusal above is reachable by an operator.
 
 ## Audit attribution
 
@@ -290,8 +327,8 @@ holding no MCP scope a 403. An agent must pass both gates: the scope
   and the allowlist has no key for arguments or results; the row's actor
   columns carry the owner and the agent client row too, so the audit list
   filters find it. `recordAgentToolCall` (`usecase/access-audit.ts`) writes it.
-  It is called by the MCP endpoint, which lands in Increment 8, and nothing
-  calls it before. `route` must be an `ADMIN_ROUTES` key and `tool` an
+  It is called by the MCP endpoint, and by the admin API's door for an agent call
+  the endpoint did not sign (see "`odudu mcp`"). `route` must be an `ADMIN_ROUTES` key and `tool` an
   identifier of at most 64 characters from `[a-z0-9_.-]`; the detail allowlist
   rejects anything else, so text an agent chose cannot reach the trail.
 - Attribution is proved against `mintAgentToken`: the owner's grant belongs to
@@ -544,25 +581,28 @@ holds the two that need a database or the app.
 - Volume: a call adds six primary-key reads (the tenant by name, then the mint's grant, client, tenant, session and subject) of the mint once per request and
   scope (none on a cached bearer), and the admin API's own per-call checks.
 
-## Closing pass reads
+## The closing pass
 
-Sentences the closing pass has to revisit, because a placement or the roadmap
-still states what an increment has since changed:
+Each sentence that earlier increments flagged for a re-read was read against what
+exists when the phase closed:
 
-- `apps/docs/content/en/roadmap.md`, the P5a bullet: "The admin API has no
-  `Idempotency-Key` header today, and P5a adds one". The header shipped in
-  increment 6; `tests/docs/roadmap-section-11.test.ts` pins the sentence, so it
-  moves with its mapping.
-- The same bullet: "The server does not yet publish the metadata an MCP client
-  looks for". The well-known documents are published; read it against what
-  exists when the phase closes.
-- ADR 0050 says the admin token is made by the RFC 8693 exchange; it is made directly
-  by `mintAgentToken`. The amendment is written there; read it against the finished
-  endpoint.
-- `apps/docs/content/en/roadmap.md`, the P5a bullet "create a client's service account
-  when its client credentials grant is switched on": the sentence now says what shipped;
-  at close it moves to Shipped and out of Next with its mapping in
-  `tests/docs/roadmap-section-11.test.ts`.
+- The roadmap's P5a bullet (`Idempotency-Key` "today", "does not yet publish the
+  metadata") and the service-account placement were all true of the code and
+  false of the page; the bullet left "Next" for "Shipped" with its words
+  rewritten, and the tests that pinned its sentences moved with it
+  (`roadmap-section-11.test.ts` now holds a shipped phase's row to what
+  "Shipped" says it built).
+- ADR 0050 keeps its title and its first reading; the amendment of 2026-11-06 says
+  the token is made by `mintAgentToken` and not by the exchange, and the finished
+  endpoint matches the amendment.
+- The landing page's planned MCP item became a line in the "Services and agents"
+  capability card, with no picture because none was made; the planned band now
+  holds the destructive tools and agent identity. The README's MCP line says the
+  writes are limited to descriptive text.
+- Three gaps this note had recorded were closed rather than carried: `seed client
+--audience`, a pending sign-in sparing a metadata client at the 1,000 ceiling,
+  and the pages naming `update_client_metadata`, `update_scope_metadata` and what an
+  agent can change.
 
 ## Idempotency keys
 
@@ -583,6 +623,11 @@ still states what an increment has since changed:
   CHANGELOG and the OpenAPI parameter.
 - Non-database effects (the test mail) are not undone when the late capacity
   check or the size cap rolls a call back.
+- **MCP and keys.** The design asked MCP tools that call POST routes to set a
+  key. No tool calls a POST route (the 42 reads are GET, the two writes PATCH and
+  carry an entity tag), so keys are not exercised through MCP, and nothing here
+  is untested for want of it. A tool that calls a POST route, as P5b's may,
+  has to send a key.
 
 ## Service accounts follow the grant
 
@@ -614,18 +659,18 @@ still states what an increment has since changed:
   appearing or going is in the same row.
 - **Migration 0122, in SQL.** The set is "idle accounts nothing names", which needs the
   referencing tables. They are read from `pg_constraint` (every foreign key to `subjects(id)`)
-  plus `audit_events.actor_subject_id`, so a table added later is checked too. FORCE RLS is
-  lifted on `clients` and `client_oidc_config` (to find candidates across tenants) and on
-  `audit_events` and `tenants` (to find audit references from other tenants), each
-  ACCESS EXCLUSIVE until the migration transaction ends, as 0114 did for its two; every other table is read and
-  deleted from under the candidate's own `app.tenant_id`, one tenant with an idle client at a
-  time, so no other table is locked and each read is one tenant's rows. `SET LOCAL
+  plus `audit_events.actor_subject_id` of the account's own tenant, so a table added later is
+  checked too. FORCE RLS is lifted on `clients` and `client_oidc_config` (to find candidates
+  across tenants) only when the migrating role has neither SUPERUSER nor BYPASSRLS, which a
+  supported install never is (ADR 0009); every other table is read and deleted from under the
+  candidate's own `app.tenant_id`, one tenant with an idle client at a time, so no other table
+  is locked and each read is one tenant's rows. `SET LOCAL
 row_security = off` was rejected: for an owner under FORCE it errors rather than bypasses.
   Cost at 10,000 tenants and 100M audit events: one pass over `clients` and
   `client_oidc_config` plus, per tenant holding an idle account, about a dozen reads of that
-  tenant's rows (audit through `(tenant_id, actor_subject_id, ...)`); a large installation
-  should expect the two locks to be held for the length of that loop. The check is not run
-  against a non-superuser owner in the tests (the container's owner bypasses RLS).
+  tenant's rows (audit through `(tenant_id, actor_subject_id, ...)`). The plain-owner branch
+  is tested with a role that is neither; the superuser branch is tested by the `pg_class`
+  row of `audit_events`, `tenants` and `client_oidc_config` keeping its version.
   Kept accounts get `clients.service_account_idle` with a partial index, which the bounded
   boot warning reads. Not a command: the removal is the next `grant_types` write.
 - **Import and export.** An export lists `service_account_roles` only for a client that
@@ -661,9 +706,9 @@ row_security = off` was rejected: for an owner under FORCE it errors rather than
 
 - **Audit events of another tenant name an account too.** `audit_events.tenant_id` is the
   tenant an event happened to, so a service account that administers tenant U writes rows
-  filed under U. 0122 read audit under the candidate's own tenant and missed them; it now
-  probes `(tenant_id, actor_subject_id)` for every candidate and tenant with row security
-  lifted on `audit_events` and `tenants` for that one statement, and restores it. The seed
+  filed under U. 0122 read audit under the candidate's own tenant and missed them; it then
+  probed every candidate and tenant (superseded in the final review fix round: it reads the
+  account's own tenant only again, see there). The seed
   has a `k-xaudit` client named only by the other tenant's event, and a `k-actor` one named
   as the actor of a delegated grant (kept already: the foreign key is on `subjects`).
 - **Retiring revokes what the account acted in.** `token_grants.actor_subject_id` is
@@ -745,10 +790,11 @@ tenant's host is per request.
    `insufficient_scope`. A genuine token of another tenant (or of this one at an address it left)
    writes `token.foreign_issuer` and a token with no MCP scope writes `capability.refused`
    (`agent_without_mcp_scope`), as the admin door does; every other refusal is a log line.
-5. **Budget** (`createToolLimiter`): 60 requests a minute per principal (subject and client), 600 a
-   minute per tenant, four in flight per principal; past one, 429 with `Retry-After` and
-   JSON-RPC `-32029`. Fixed windows, at most 10,000 principals and 10,000 tenants, the least recently
-   used dropped first (so a throttled principal that keeps asking is not forgotten). Per process: with
+5. **Budget** (`createToolLimiter`): 60 requests a minute per principal (subject and client), 120
+   per person across their clients, 600 a minute per tenant, four in flight per principal; past
+   one, 429 with `Retry-After` and JSON-RPC `-32029`. Sliding windows, at most 100,000 principals,
+   50,000 people and 10,000 tenants, the least recently used dropped first (so a throttled
+   principal that keeps asking is not forgotten). Per process: with
    several instances the limit is multiplied, and a shared budget is P11's. Every request counts, not
    only a tool call, because a POST is one message once batches are refused. The slot is freed on the
    response's `close`, so a body refused with 413 frees it.
@@ -1000,9 +1046,8 @@ To undo one, send the earlier text from the audit row's `before` with the new et
 
 - Tools for the destructive routes and for the other fields of a client or scope: P5b, which owns per-call approval.
 - The injection suite exercises a scripted agent, not a model: a real client's behaviour is the closing increment's hand run.
-- Closing pass reads: the Increment 11 guide must name `update_client_metadata`, `update_scope_metadata`, the residual risk and
-  "what an agent can change" (no page does yet); the landing page and README still call the MCP server "read-only by default",
-  which stays true of what a token without `mcp:write` gets.
+- The guide, the landing page and the README name the two write tools, the residual risk and
+  what an agent can change; "read-only by default" stays true of a token without `mcp:write`.
 
 ## `odudu mcp`, the stdio server
 
@@ -1181,3 +1226,249 @@ given.
   parameter the client sets is refused; a token whose own `scope` claim lacks the scope asked
   for is refused before any call; a 401 invalidates only the bearer it was for; an access
   token already expired on arrival is refused with the cooldown.
+
+## Real-client run
+
+`infra/conformance/run-mcp.sh`, the `mcp` job in `verify.yml` (gated by
+`server`, so a prose-only change skips it and `gate` passes it skipped), runs
+two clients nobody here wrote against the built image. The compose file is
+`mcp-compose.yaml`: plain HTTP on `localhost:3190`, the `mcp` registration
+policy, one administrator. verified: `infra/conformance/run-mcp.sh` through
+the e2e heavy slot, 2026-11-06, green twice (one with the image
+layers rebuilt, one with it built), each 24 to 26 seconds after the image
+exists; the job's limit is 20 minutes, of which the image build is nearly all.
+
+- **Versions.** `@modelcontextprotocol/inspector` 2.13.0 (`npm view` shows
+  2.14.0 published 2026-11-05; 2.13.0 is the version the release-age floor
+  allowed at the spike and is kept) and `@modelcontextprotocol/client` 2.4.0,
+  installed by `npm install --ignore-scripts --save-exact` into a scratch
+  directory. Their transitive dependencies are not locked.
+- **The Inspector can do the OAuth part headless.** The spike did not run it;
+  this run did. With `MCP_AUTO_OPEN_ENABLED=true` it prints `Please navigate
+to: <authorization URL>` on standard error and listens on the loopback
+  callback; `mcp/signin.mjs` follows the URL, signs in, ticks `mcp:read` and
+  requests the callback. It then reads the stored token with
+  `--stored-auth-only`. So the exit criterion for the Inspector is automated
+  and not left to the hand run.
+- **What was automated.** The 401 challenge's exact form and the two metadata
+  documents; DCR under the `mcp` policy; the code flow with PKCE S256, the
+  `resource` parameter and `iss` on the redirect; the token exchange; 42 read
+  tools listed; `whoami` and `list_clients`; a refused write by a read token
+  (`mcp:insufficient_scope`, 403, the client unchanged), in the Inspector's
+  three `--protocol-era` values and the SDK's `legacy`, pinned `2026-07-28`
+  and `auto` modes.
+- **Negotiated.** The SDK in `legacy` mode: 2025-11-25, no session. Pinned and
+  `auto`: 2026-07-28. The Inspector's `--protocol-era` values all listed and
+  called; it does not print the revision.
+- **2025-06-18, the plan's residual risk, closed.** An `initialize` asking
+  for `2025-06-18` (and the `mcp-protocol-version` header) is answered 200
+  with `protocolVersion` `2025-06-18`, and a `tools/list` under that header is 200. `2025-03-26` behaves the same. No 400 `-32022`, that being only what
+  `legacy: 'reject'` does. The SDK's own client cannot send it, so it is sent
+  by hand.
+- **Found, and fixed: a client that takes its scope from the metadata could not
+  register.** The Inspector with no scope configured asked for the protected
+  resource metadata's `mcp:read mcp:write offline_access`; the registration
+  was refused 400 `scope mcp:write is not available`, and a registered client
+  asking for it at `/authorize` got `invalid_scope`. Hosted Claude and
+  metadata-document clients can do the same. The decision: a self-registered or
+  metadata-document client can never be given `mcp:write`, and asking for it
+  does not break the sign-in (RFC 7591 §3.2.1, RFC 6749 §3.3).
+  Registration under `mcp` keeps the sign-in scopes and `mcp:read` and the
+  response's `scope` lists what was kept; everything else the policy refuses
+  is still refused, and so is a `scope` of which nothing may be held. `/authorize`
+  for such a client drops `mcp:write` before the request is validated, so the
+  consent screen and the token carry only what is grantable, and the token
+  response's `scope` (always sent) states it. A request for `mcp:write`
+  alone is `invalid_scope`: nothing grantable is left. A client an
+  administrator created is unchanged, and `mcp:write` is still asked about
+  at every sign-in. verified: `mcp-registration-policy.int.test.ts` (red
+  first on four tests, then green), and `run-mcp.sh` with the Inspector's
+  default scope, which signed in asking for `mcp:read mcp:write offline_access`
+  and listed 42 tools.
+- **Not automated, and said plainly.** Hosted Claude, Claude Code and Cursor
+  cannot run in CI (hosted Claude needs a public HTTPS address; the others are
+  desktop applications), and neither can a client ID metadata document, which
+  needs one. The hand run in this note carries the exit criterion for them.
+
+## What the phase leaves
+
+Placed, so that none is open without a phase (each is a row in `docs/NEXT.md`):
+
+- **`odudu mcp` outside the image or a checkout.** The stdio server runs from the
+  container image or a built checkout; a laptop with neither cannot install it. The
+  owner of a published package is P4i, which versions packages apart from the server.
+- **The OpenAPI document's size.** `Idempotency-Key` took it from about 700 to about
+  800 KB (measured when the header landed) because each `POST` inlines its problem
+  schema once per status code. Shared `components` would cut it, and P4i, which
+  generates a typed client from the document, is the phase that reads it.
+- **Per-process limits.** The endpoint's request limits, the `mcp` registration
+  budget, the metadata fetch limiter and the keyed-request gate hold their counts in
+  one process, and a request carrying a garbage token costs a key read before it is
+  refused: P11, with the other bounds.
+- **A model in the injection suite.** The suite drives a scripted agent; P5b, which
+  adds the tools that cannot be undone, is where measuring a model belongs.
+- **Not run by anyone yet:** the claude.ai connectors and Cursor (Claude Code 2.1.319
+  and Claude Desktop 3.6556.2 were run by the owner on 2026-11-06: the hand run below),
+  `odudu mcp` on Windows and with the Linux Secret Service, and a third-party MCP server
+  protected by Odudu with an audience the operator chose. The guides say so where each
+  is used.
+- **The real-client job's transitive dependencies.** `infra/conformance/run-mcp.sh`
+  pins the Inspector and the SDK client exactly and installs their dependencies
+  unlocked; a drift makes the job red, never wrong, and a lockfile in
+  `infra/conformance/mcp/` is the fix when it first does.
+
+### Final review fix round (code)
+
+- **A self-registered client's consent page says so.** `clientSourceOf` returns a source for
+  every client that needs approval: a metadata document's host and redirect addresses as
+  before, and for a client that registered itself the sentence that nobody at the tenant set it
+  up and the origin this request's own `redirect_uri` sends the person to, always first, then up
+  to five of the other registered origins (`scheme://host[:port]`, a private-use scheme as
+  `scheme:`) with "… and N more". `offline_access` was already named on the screen in plain
+  words (`consent.scope.offlineAccess`). Catalogue entries in en and ar.
+- **`max_clients` is the operator's ceiling.** `lockCapacity` counts the clients with origin
+  `seeded`, `operator` or `token`; `cimd` and `anonymous` rows are not counted, so an
+  unauthenticated party cannot keep an administrator from making a client. Two other ceilings:
+  1,000 `cimd` clients per tenant (unchanged, least-recently-used eviction) and 1,000
+  `anonymous` ones (`WIRE_CLIENTS_PER_TENANT`, `lockWireCapacity`). At the second a
+  registration removes the oldest client that is enabled, never approved and has no consent,
+  grant, live code or live sign-in (`dynamicClientRepository.evict`, the weekly reap's
+  rule without its age), else is refused as before (`403 invalid_client_metadata`). Both
+  counts run under the tenant row lock. The registration-token path (`token`) is an operator
+  origin and still counts against `max_clients`. A tenant import counts the document's clients
+  that did not register themselves. Migration 0123 adds `clients_operator_by_tenant` and
+  `clients_anonymous_by_created` (partial), and `authentication_sessions_by_pending_client`,
+  an expression index `(tenant_id, pending_request ->> 'clientId')`: the anti-join of the
+  eviction and reap rules had only the tenant-and-expiry index and would rescan a tenant's live
+  sign-ins per candidate. Cost: one index entry per sign-in started. The plan suite now holds
+  1,000 `cimd` and 1,000 `anonymous` clients whose oldest 500 each are protected (consent,
+  grant, live sign-in) among 5,000 live sign-ins, and plans the two counts, both eviction
+  queries, the `cimd_clients` and `dynamic_clients` reap rules in that tenant, and
+  `idleServiceAccounts` against 50 idle accounts. The console's overview no longer calls open
+  registration full at `max_clients`: its attention item and its clients tile read the count
+  with `counts_toward_max_clients=true`, a filter the admin clients list and count take.
+- **The admin door refuses what the catalogue withholds as sensitive.** Each `NOT_TOOLS` entry has a
+  kind (`denied`, `sensitive`, `not-useful`, `destructive`, `write`). The 28 withheld reads
+  were classified one by one: personal data (`subjects/:id/profile`, `clients/:id/evaluate`),
+  credential metadata (`subjects/:id/credentials`, `registration-tokens`), the relay login
+  (`smtp`) and the list of every tenant (`GET /admin/tenants` and `/count`, an agent acts in
+  one tenant) are `sensitive`, and are now in `AGENT_DENIED_READS` beside the three bulk reads
+  (10 in all). The previews, theme, mail look, message wording, `installation`,
+  `username-policy`, `passkey-impact`, the scope `builtins` and `impact` and the tenant
+  record are `not-useful`: not worth a tool, and the door admits them. The coverage test holds
+  the two lists to each other both ways.
+- **A refresh reads the registration policy once.** The policy is read before the token is
+  rotated and the ceiling after rotation is computed from that read, so a policy turned off
+  while the token rotates cannot refuse a refresh whose old token is spent.
+- **Migrations and the upgrade window.** Drizzle runs every pending migration in one
+  transaction, so each lock is held to the end of the whole upgrade. On an upgrade from the
+  last release: 0113 (`tenants`, `client_scopes`) and 0114 (`tenants`, `client_scopes`, `clients`,
+  `client_oidc_config`, `client_scope_assignments`) lift FORCE RLS, and 0122 lifts it on `clients` and
+  `client_oidc_config`, only for a migrating role that is neither SUPERUSER nor BYPASSRLS, so a
+  supported owner takes no lock for it; `ADD COLUMN` on `clients`, `tenants` and
+  `client_oidc_config` (0114, 0116, 0117, 0120, 0122) and the `ADD CONSTRAINT` full scans (0116
+  checks every `clients` row twice, 0117 every `tenants` row; `NOT VALID` then `VALIDATE` would
+  not help: the first statement's lock is held to the end of the same transaction) and index
+  builds (0116, 0118, 0120, 0122, 0123, `SHARE` on `clients`, `tenants` or
+  `authentication_sessions`) take their locks whoever the owner is; 0119 reads every consent
+  row in one aggregate and 0120 and 0122 update `clients` and `client_oidc_config`. Stop the
+  server for the upgrade. 0122 no longer probes audit across tenants (idle accounts times
+  tenants, with no index leading on the actor): an audit event filed under another tenant that
+  names a retired account keeps the actor's id, tenant and client and loses only the subject
+  row (the `k-xaudit` seed client is now retired), and the plain `CREATE INDEX` on a 100M-row
+  `audit_events` that an exact check needed was not worth it.
+- **Idempotency storage.** `response_headers` has an 8 KiB CHECK (0123). Worst case, theoretical:
+  10,000 tenants x 10,000 live keys x (64 KiB body + 8 KiB headers) is about 7.2 TB before
+  compression. Realistic: 2xx bodies of one to two KiB, so 100 to 200 GB at the same key count,
+  which is 0.12 keyed requests a second per tenant for a day. The two `countLive` reads per
+  keyed POST (up to 10,000 index entries each, the second under the tenant lock) are kept:
+  the first refuses before the call runs, the second makes the ceiling exact, and a counter
+  would add a write to every keyed call; at the volume above the cost is a few milliseconds
+  held against a call that already holds a transaction.
+- **Audit volume of agents.** `agent.tool_call` is an always-on `admin_access` row written
+  before every agent call. The per-process limit is 600 a minute per tenant, so one saturated
+  tenant on one process writes up to 864,000 rows a day, about 78M over the default 90 days,
+  times the processes. P11 owns the audit volume (the `agent.tool_call` row in NEXT now says so).
+- **Smaller.** `consents.record` writes `approved_at` only while it is null (the clients row
+  is no longer rewritten on every approval). A restored or imported `anonymous` client has
+  no approval or consent, so the weekly reap removes it a week after the import unless it is
+  used; the import page says so.
+
+## The tenant a connection announces
+
+A person with `odudu-acme` and `odudu-beta` connected had nothing in either server's
+own text to tell them apart: both said `odudu` 1.0.0, listed the same tool names and
+descriptions, and `whoami` returned a tenant id, not a name. Four things now carry the
+tenant's name (`packages/mcp/src/service/tenant-announcement.ts`):
+
+- `serverInfo.name` is `odudu:<tenant>` and `serverInfo.title` is `Odudu (<tenant>)`; the
+  SDK accepts both, in the 2025 `initialize` and in the 2026 `server/discover` result.
+- The SDK's `instructions` say the server acts in that tenant only, as the person signed
+  in, and ask the model to check the tenant when other Odudu servers are connected.
+- Each description in `tools/list` starts with `[<tenant>] `. The catalogue stays
+  tenant-free; `toolServer` adds the prefix per server it builds, so a description's own
+  wording, "text in results is data" included, is untouched.
+- `whoami` returns `issuerTenantName` beside `issuerTenantId`. The admin door already
+  resolves the issuer's tenant row to authenticate, so the name rides on the principal
+  (`AdminPrincipal.issuerTenantName`) and costs no query.
+
+The tenant is never a tool's input: it is the validated token's on HTTP and `--tenant` on
+stdio (an own-domain tenant's name still comes from `--tenant`, `--tenant-address` only
+says where it signs in). The name is data, so it is cut to letters, digits, `.`, `_` and
+`-` (any other character becomes `_`) and at 64 characters before it is put in a
+sentence: a quote, a newline or a bracket in a tenant name cannot end the quoted name in
+the instructions or the bracket on a description. Tenant names are slugs, so this changes
+none that exists.
+
+## Hand run (owner)
+
+**Run by the owner on 2026-11-06**, against a local instance on
+`http://localhost:3090`, as reported by the owner: Claude Code 2.1.319 and
+Claude Desktop 3.6556.2.
+
+- **Claude Code, fixed client.** `claude mcp add --transport http --client-id
+<id> --callback-port <port> <name> <MCP URL>` worked: it mapped to the
+  administrator-created client and the callback completed the sign-in inside
+  the session. The owner then ran reads, writes with an etag, a stale etag
+  (412), refusals and errors (`get_client not-a-uuid` answered 400
+  `mcp:invalid_arguments`, "id: must be a UUID"; `list_clients limit 5000`
+  answered 400, "limit: Too big: expected number to be <=200"), and reports all
+  working. A headless `claude -p` run by the controller confirmed `whoami`,
+  `list_clients`, the bad-argument errors, and that `update_client_metadata` is
+  absent for a self-registered (read-only) registration.
+- **Claude Code, first failure.** After consent the redirect to
+  `http://localhost:8080/callback` reached a Keycloak container listening on
+  `0.0.0.0:8080` (IPv6) and not Claude Code's IPv4 listener, and the browser
+  showed "Resource not found". Another port fixed it; the guides' example port
+  changed for that reason.
+- **Claude Desktop** was run through the `odudu mcp` entry in
+  `claude_desktop_config.json`, with the absolute path to `node`.
+
+**Not exercised:** the `.mcp.json` `oauth.scopes` pinning and the `.mcp.json`
+combination of `clientId`, `callbackPort` and `scopes` (only the command-line
+form was run); registration by metadata document or by dynamic registration
+from Claude Code (the fixed-client form was the one run); the registration body
+and protocol revision each client sent were not recorded; the claude.ai /
+Desktop connectors through a public https address; Cursor (`mcp.json` with a
+bare `url`, then with `auth.CLIENT_ID`; the redirect addresses and revision it
+sends); `odudu mcp` on Windows and with the Linux Secret Service, and
+Claude Desktop with a key through `docker compose exec`.
+
+Run each remaining item against an instance and record, per step, what
+happened and any place a guide differs from the software. Edit the guide
+wherever a step differs and remove its "not run yet" sentence for what was run.
+
+### Final fix round C
+
+- **The consent page names where this request sends the person.** The origin of the
+  request's own `redirect_uri` comes first, then the other registered origins, so a sixth
+  registered origin cannot be the one that is hidden. An unparseable stored address is shown
+  as stored rather than throwing; tenant import already refuses one through
+  `parseClientMetadata` (tested for a self-registered client).
+- **DCR eviction takes public clients only**, as `odudu reap` does: a confidential
+  self-registered client may be a working service integration with a service account that
+  deleting it would leave behind. At the ceiling with only such clients left, registration is
+  refused.
+- **The plain-owner branch of 0113 and 0114 is now run** (`mcp-backfills-plain-owner`). It
+  found that both read `tenants`, which is forced, and 0114 reads `client_scopes`: as a plain
+  owner they inserted nothing. Both migrations now lift and restore those tables too.

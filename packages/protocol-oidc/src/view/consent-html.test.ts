@@ -31,6 +31,7 @@ const BASE = {
 describe('renderConsentPage', () => {
   describe('a client that came from its metadata document', () => {
     const source = {
+      kind: 'metadata' as const,
       host: 'app.example.com:8443',
       redirectUris: ['https://app.example.com:8443/cb', 'http://127.0.0.1/callback'],
     };
@@ -52,7 +53,11 @@ describe('renderConsentPage', () => {
           ...BASE,
           clientPages: {
             ...BASE.clientPages,
-            source: { host: '<i>h</i>', redirectUris: ['https://a.example/?q="><script>'] },
+            source: {
+              kind: 'metadata' as const,
+              host: '<i>h</i>',
+              redirectUris: ['https://a.example/?q="><script>'],
+            },
           },
         },
         DEFAULT_PAGE_LOCALE,
@@ -65,6 +70,47 @@ describe('renderConsentPage', () => {
     it('shows nothing of the kind for a client registered by hand', () => {
       const body = renderConsentPage(BASE, DEFAULT_PAGE_LOCALE).body;
       expect(body).not.toContain(en['consent.source.redirects']);
+    });
+  });
+
+  describe('a client that registered itself', () => {
+    const source = {
+      kind: 'self-registered' as const,
+      sentTo: 'https://sent.example',
+      origins: ['https://evil.example', 'http://127.0.0.1:8123'],
+      more: 3,
+    };
+    const body = renderConsentPage(
+      { ...BASE, clientPages: { ...BASE.clientPages, source } },
+      DEFAULT_PAGE_LOCALE,
+    ).body;
+
+    it('says nobody set it up, names each redirect origin and counts the rest', () => {
+      expect(body).toContain(en['consent.source.selfRegistered']);
+      expect(body).toContain(en['consent.source.otherRedirects']);
+      expect(body).toContain('<bdi>https://evil.example</bdi>');
+      expect(body).toContain('<bdi>http://127.0.0.1:8123</bdi>');
+      expect(body).toContain(en['consent.source.more'].replace('{count}', '3'));
+    });
+
+    it('names where this request sends the person before the other registered origins', () => {
+      const sent = body.indexOf('<bdi>https://sent.example</bdi>');
+      expect(sent).toBeGreaterThan(-1);
+      expect(body).toContain(en['consent.source.sentTo']);
+      expect(sent).toBeLessThan(body.indexOf('<bdi>https://evil.example</bdi>'));
+      expect(body).toContain(en['consent.source.otherRedirects']);
+      expect(ar['consent.source.sentTo']).not.toBe('');
+      expect(ar['consent.source.otherRedirects']).not.toBe('');
+    });
+
+    it('says it in Arabic too, and says no more when no origin is left over', () => {
+      expect(ar['consent.source.selfRegistered']).not.toBe('');
+      expect(ar['consent.source.more']).toContain('{count}');
+      const none = renderConsentPage(
+        { ...BASE, clientPages: { ...BASE.clientPages, source: { ...source, more: 0 } } },
+        DEFAULT_PAGE_LOCALE,
+      ).body;
+      expect(none).not.toContain(en['consent.source.more'].replace('{count}', '0'));
     });
   });
 

@@ -23,6 +23,7 @@ export const ADMIN_CAPABILITIES = [
 export const whoamiResponseSchema = z.object({
   subjectId: z.string(),
   issuerTenantId: z.string(),
+  issuerTenantName: z.string(),
   capabilities: z.array(z.enum(ADMIN_CAPABILITIES)),
   crossTenant: z.boolean(),
 });

@@ -56,6 +56,10 @@ Each client can set its own access and refresh lifetimes, with `access_token_ttl
 
 A service with no person involved asks for an access token with its own secret and receives one whose subject is the client's own service account, which a client has only while it holds that grant. There is no ID token and no refresh token, because nobody signed in. See [Call an API as a service](../guides/machine-to-machine.md).
 
+## Tokens for an agent
+
+An AI agent reaches a tenant's MCP endpoint, `/tenants/{tenant}/mcp`, with an access token whose `aud` is that address, and it gets one only for a client the tenant allowed it. The scopes `mcp:read` and `mcp:write` mean something only at that address and at the admin API. The endpoint never passes your token on. For each tool call it signs another token in-process: the subject is the person, an `act` claim names the agent's client, the scope is cut to what that call needs, and it lives 300 seconds at most. The admin API sees the call as the agent's and the person's own capabilities decide it. [Connect Claude](../guides/connect-claude.md) shows the sign-in.
+
 ## Working with tokens
 
 1. In your app, keep the access token in memory and the refresh token somewhere only your code can reach.

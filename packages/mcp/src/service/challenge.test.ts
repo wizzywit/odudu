@@ -20,7 +20,7 @@ describe('challengeFor', () => {
 });
 
 describe('insufficientScope', () => {
-  it('carries error="insufficient_scope" and the scopes the call needs, space separated', () => {
+  it('[MCP-AUTH-ERR-02] carries error="insufficient_scope" and the scopes the call needs, space separated', () => {
     expect(insufficientScope(PATH, ['mcp:read', 'mcp:write'])).toBe(
       `Bearer error="insufficient_scope", scope="mcp:read mcp:write", resource_metadata="${PRM}"`,
     );

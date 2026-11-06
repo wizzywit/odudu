@@ -35,7 +35,10 @@ describe('useLandingPage', () => {
     expect(page.steps).toHaveLength(3);
     expect(page.readers).toHaveLength(4);
     expect(page.examples.cards).toHaveLength(4);
-    expect(page.agents.items.map((item) => item.id)).toEqual(['mcp-server', 'agent-identity']);
+    expect(page.agents.items.map((item) => item.id)).toEqual([
+      'mcp-destructive-tools',
+      'agent-identity',
+    ]);
     expect(page.agents.plannedLabel).toBe('Planned');
     expect(page.branding.id).toBe('branding');
     expect(page.pageShots.large.map((shot) => shot.name)).toEqual(['sign-in', 'create-account']);

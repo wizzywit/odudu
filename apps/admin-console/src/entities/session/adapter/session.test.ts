@@ -37,6 +37,7 @@ it("reads whoami on the tenant in the path, through the contract's schema", asyn
       {
         subjectId: 's1',
         issuerTenantId: 't1',
+        issuerTenantName: 'acme',
         capabilities: ['view-users', 'manage-tenants'],
         crossTenant: true,
       },
@@ -56,6 +57,7 @@ it('refuses a capability the contract does not name', async () => {
     gatewayAnswering({
       subjectId: 's1',
       issuerTenantId: 't1',
+      issuerTenantName: 'acme',
       capabilities: ['rule-the-world'],
       crossTenant: false,
     }),
