@@ -16,28 +16,39 @@ database package, and nothing stopped a protocol package importing it.
 
 ## Decision
 
-`mcp` is a package that sits above `protocol-oidc` and `protocol-admin`. Three
+`mcp` is a package that sits above `protocol-oidc` and `protocol-admin`. Two
 rules in `.dependency-cruiser.cjs` name the edges:
 
 - `mcp-allowlist`: `packages/mcp/src` may import the kernel, the contracts,
-  `protocol-oidc` and `protocol-admin`, and nothing else in the workspace. It
-  has no database, crypto or domain import: it reaches the admin API through
-  its HTTP surface, and what it needs from a database is handed to it.
-- `no-protocol-to-mcp`: no `protocol-*` package imports `mcp`.
-- `mcp-imported-only-by-server`: nothing but `apps/server` imports `mcp`.
+  `protocol-oidc` and `protocol-admin`, and no other workspace package. Only
+  direct imports are checked: both allowed protocol packages import the
+  database, so the rule bounds what `mcp` names, not what it reaches.
+- `mcp-imported-only-by-server`: nothing but `apps/server` imports `mcp`. This
+  also keeps every `protocol-*` package from importing it, so no separate rule
+  says so.
 
-`tests/boundaries/boundaries.test.ts` asserts each against fixtures.
+`tests/boundaries/boundaries.test.ts` asserts each against fixtures. The
+fixtures use relative paths; a bare `@odudu/db` import in `mcp` was checked by
+hand and is caught once the package resolves, which its `package.json`
+decides: an undeclared dependency does not resolve and is not seen, so
+declaring one is the second gate.
 
 ## Consequences
 
-- Deleting the MCP surface cannot break OIDC or the admin API; the reverse
-  edges are forbidden.
+- Deleting the MCP surface cannot break OIDC or the admin API; nothing but
+  `apps/server` imports it.
 - The two protocol packages stay peers under ADR 0035 and are not coupled
   through `mcp`: it imports them, they do not import each other more.
 - A new domain or crypto dependency in `mcp` fails the build until the
   allowlist is amended in a reviewed change.
 
 ## Alternatives rejected
+
+**Naming it `protocol-mcp`.** It would sit under `no-protocol-to-protocol`, which
+forbids importing a peer, so the rule would have to be exempted for it as ADR
+0035 did for the admin API. Rejected: `mcp` defines no wire format that signs
+anyone in and is not a peer of OIDC; it is a client of two protocol packages,
+and the name would claim a symmetry it does not have.
 
 **`mcp` as a directory inside `protocol-admin`.** The admin API would then own
 a second front door whose tokens it must also refuse (ADR 0050 keeps the

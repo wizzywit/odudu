@@ -62,6 +62,10 @@ describe('the MCP tool catalogue against the admin routes', () => {
     for (const tool of TOOLS.filter((candidate) => candidate.access === 'write')) {
       expect(writable, tool.name).toContain(tool.routeKey);
       expect(tool.annotations.destructiveHint, tool.name).toBe(false);
+      const route = AGENT_WRITE_ROUTES.find(
+        (entry) => `${entry.method} ${entry.pattern}` === tool.routeKey,
+      );
+      for (const field of tool.bodyFields ?? []) expect(route?.fields, tool.name).toContain(field);
     }
   });
 

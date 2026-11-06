@@ -95,3 +95,14 @@ same tool catalogue and the same admin API checks.
 - **Credentials held by the MCP server:** a service account the server acts as
   for everyone. Every call would run with one identity, so the audit could not
   name the person and the ceiling would be the server's, not theirs.
+
+## Amendment, 2026-11-06
+
+The admin-audience token is not made by the RFC 8693 exchange at the token
+endpoint. `mintAgentToken` (`@odudu/protocol-oidc`) signs it directly, in
+process, from the owner's grant: no `/token` request is made and no client
+authenticates. It shares `mintSubjectAccessToken` with the exchange, so claims,
+role reach and the signing key are one path, and it refuses a token whose
+subject is not the grant's owner. The decision above stands: `sub` stays the
+person's, `act` names the agent client, the scope is the MCP scope narrowed to
+the call, and the life is the shorter of the presented token's and five minutes.

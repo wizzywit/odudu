@@ -398,15 +398,23 @@ route's, and a read tool's route is a GET. A new admin route fails it until plac
 | `list_subjects`                 | `GET …/subjects`                      | view-users      |
 | `whoami`                        | `GET …/whoami`                        | none            |
 
-- **Thirty-one read tools, no write tool yet.** Lists answer one page under
+- **Forty-two read tools, no write tool yet.** Lists answer one page under
   `MAX_LIMIT` (the input schema's `limit` has that maximum, so a larger one is refused
   before any call) with the cursor beside it as `next_cursor`; the admin API's `next`
   is the same value. Counts, gets and singletons answer one document.
 - **Output is `{ data, next_cursor? }`.** All free text (names, descriptions, emails,
-  audit detail) sits under `data`; every string is stripped of control and
-  bidirectional-override characters and cut to 1,000 characters, a whole result to
-  256,000, a problem's `detail` to 500. Each tool's description says the text is
-  data, not instructions.
+  audit detail) sits under `data`. Every string and every object key is stripped
+  of control characters, bidirectional overrides and isolates (not the marks Persian
+  and Arabic carry: `stripBidiControls`), and of invisible characters that hide text
+  (tags, word joiner, BOM, soft hyphen, zero width space; ZWJ and ZWNJ stay), then cut
+  to 1,000 characters (UTF-16 units). A cut sets `truncated: true` beside `data`. A
+  whole result is capped at 256,000 bytes (`mcp:result_too_large`, which says to ask
+  for fewer rows) and a problem's `detail` at 500 characters. Members named
+  `client_secret`, `password`, `password_hash`, `secret_hash`, `private_jwk_encrypted`,
+  and the private members of a JWK, are dropped from any open record by name: a second
+  line, since the contracts keep none of them. The cursor is passed verbatim and never
+  cleaned; one too long to pass back is refused. Each tool's description says the text
+  is data, not instructions.
 - **Schemas are the contract's.** Output schemas are the `@odudu/contracts/admin`
   response schemas; input filters are the shape of the route's own count or list query
   schema, so a filter the API gains reaches the tool. The route's server-side checks
@@ -416,32 +424,55 @@ route's, and a read tool's route is a GET. A new admin route fails it until plac
   `detail`; no stack, no `errors` array, no other body. A success the tool cannot read
   is `mcp:unexpected_response` without the body. Unexpected failures (the caller
   throwing) are not described: they reach the endpoint, which decides.
-- **`AdminCaller`** takes `{ method, pattern, params, query }` and answers
+- **`AdminCaller`** takes `{ method, pattern, params, query, body? }` and answers
   `{ status, headers, body }`. The tenant is the caller's; `expandPattern` refuses a
-  parameter named `tenant` and encodes every value as one path segment. A read has no
-  header or body field, so no tool input can become one.
+  parameter named `tenant`, and an empty, `.` or `..` value (which a router would
+  resolve), and encodes the rest as one path segment. There is no header field. A
+  `body` is a JSON record a tool builds from its validated arguments, accepted only
+  with PATCH, serialised by the caller under a fixed `content-type`, at most 64 KiB;
+  a write tool declares its `bodyFields`, which the coverage test holds to the agent
+  allowlist's fields for its route. The admin API's `agentBodyAdmitted` remains the
+  gate.
+- **Input schemas.** An id is a pattern-checked UUID, so the JSON schema a client
+  lists says so; a limit has minimum 1 and maximum 200 and a cursor at most 1,024
+  characters. `tools/list` is generated with `z.toJSONSchema` (the MCP SDK is not yet
+  a dependency; check the SDK's own conversion when the endpoint lands).
 
-Not tools, by reason (`NOT_TOOLS`):
+Not tools (`NOT_TOOLS`, 110 routes). A reason is shared only within one family or
+among writes, and the coverage test holds that:
 
 - **Refused to agents** (`AGENT_DENIED_READS`, 3): tenant export, audit export, a
   theme asset's bytes.
-- **P5b** (8): tenant delete, end-all sessions, lockout clear (one subject, and all),
-  and the four signing-key changes (create, promote, retire, delete).
+- **Destructive** (8, deferred to P5b): tenant delete, end-all sessions, lockout
+  clear (one subject, and all), and the four signing-key changes.
 - **Descriptive writes** (2): `PATCH` of a client and of a scope; their tools are the
   write tools.
-- **Every other write** (69): not an agent write in P5a.
-- **Reads outside the catalogue** (39): preview pages (4), branding and message
-  wording (11), personal or secret-adjacent (subject profile and credentials,
-  registration tokens, the SMTP login; 4), the tenant record and the tenant list
-  (3), and narrower views of a record whose list and get tools exist (17: a subject's
-  roles, groups, effective roles and admin capabilities among them). Those last are
-  the first to add if an agent needs them.
+- **Every other write** (69): not an agent write; `mcp:write` admits only the
+  descriptive fields of a client and a scope.
+- **Reads, each with its own reason** (28): theme and mail previews (browser frames),
+  theme, mail look and message wording (authored markup and page text, which the design
+  spec's catalogue does not list and the console's Branding screens read), a subject's
+  profile, credentials, registration tokens and the mail relay login (personal data or
+  credential metadata), the tenant list and record (an agent acts in one tenant;
+  `whoami` and `get_settings` cover the record), `clients/:id/evaluate` (it answers one
+  subject's claims, personal data, under `manage-clients`, which does not include
+  `view-users`), `installation` (restates `get_client`), `username-policy` (one setting
+  `get_settings` returns), `passkey-impact` (an input to a change an agent cannot
+  make), and scope `builtins` and `impact` (inputs to a restore and a delete an agent
+  cannot make).
+
+Eleven reads were added after review because the topic owns them: a subject's
+effective roles, admin capabilities, roles, groups and required actions, a group's
+roles, a role's composites, a scope's roles, mappers and clients, and the sign-in
+flow's executions.
 
 ### The package's place (ADR 0051)
 
-`mcp` sits above the protocol packages. Three dependency-cruiser rules name the
-edges: `mcp-allowlist` (kernel, contracts, `protocol-oidc`, `protocol-admin`
-only), `no-protocol-to-mcp`, and `mcp-imported-only-by-server`.
+`mcp` sits above the protocol packages. Two dependency-cruiser rules name the
+edges: `mcp-allowlist` (direct imports of kernel, contracts, `protocol-oidc` and
+`protocol-admin` only) and `mcp-imported-only-by-server`. A bare-specifier import
+is caught once the package resolves, which its `package.json` decides; one that does
+not resolve is not seen, so declaring a dependency is the second gate.
 `isDomainAddress` in the kernel replaced four hand comparisons of
 `address.prefix === ''`.
 
@@ -453,8 +484,14 @@ holds the two that need a database or the app.
 
 - `ValidatedMcpToken` (`service/validated-token.ts`) is what the MCP endpoint
   proves of a presented token: tenant (id and name), issuer, owner, the agent's
-  `client_id`, the owner's `grant_id`, scope and `exp`. The endpoint builds it; the
-  exchange and the caller only read it. The tenant in every admin path is this
+  `client_id`, the owner's `grant_id`, scope and `exp`. It is a branded type that
+  only `validatedMcpToken(claims)` makes; the endpoint calls it after verification,
+  with `exp` in seconds as the JWT carries it, and it holds an instant. The test
+  constructor is `unverifiedTokenForTests` and is not exported. The endpoint must
+  build it from the verified payload only, take `iss` only from the tenant's accepted
+  set, and generate `requestId` itself, never copying an inbound `x-request-id`. The
+  exchange and the caller only read it. `mintAgentToken` takes `expectedSubjectId`
+  and refuses (`subject_mismatch`) a token whose `sub` is not its grant's owner. The tenant in every admin path is this
   one, never a tool's input (`expandPattern` refuses a `tenant` parameter).
 - `exchangeForAdmin(deps, token, scope)` (`usecase/exchange.ts`) refuses a scope
   that is not an MCP scope or that the presented token does not hold, then calls
@@ -467,14 +504,16 @@ holds the two that need a database or the app.
   (`newRequestScope`): a map keyed by grant and scope, dropped with the request.
   There is no module state and no cache across requests. A cached bearer that has
   expired is minted again.
-- A GET uses `mcp:read` and a PATCH `mcp:write`, each alone (`service/admin-access.ts`):
-  the admin API's own `scopeAdmits` is the second line, and a read-scope token is
-  refused a write by both.
+- A GET uses `mcp:read`, or `mcp:write` for a token holding only that (the admin API
+  admits a GET under either); a PATCH uses `mcp:write`. Each alone
+  (`service/admin-access.ts`): the admin API's own `scopeAdmits` is the second line,
+  and a read-scope token is refused a write by both.
 - `createInProcessCaller` (`adapter/in-process-caller.ts`) is `fastify.inject` into
   the same app. The request is built from fixed parts: method, a path from the
   route pattern, the query, and four headers (`authorization`, `accept`,
-  `x-request-id`, `host`). A tool's input has no way to add a header, cookie or
-  body. Only `content-type`, `etag` and `retry-after` come back; the body is parsed
+  `x-request-id`, `host`), plus a fixed `content-type` when there is a body. A tool's
+  input has no way to add a header or cookie; a body is built from validated
+  arguments. Only `content-type`, `etag` and `retry-after` come back; the body is parsed
   JSON or null, and over 1 MiB is `mcp:result_too_large`. The admin API's 401 and
   403 are returned as the result, for `problemOf` to phrase; the bearer is in
   neither the log (debug: method, pattern, status) nor any message.
@@ -493,12 +532,18 @@ holds the two that need a database or the app.
   keys: the admin API sees the owner as `sub`, `act.sub` the agent and one scope;
   a role lost between two calls fails the second (also on a cached bearer); a revoked
   grant, ended session, disabled agent client and disabled tenant each fail the next
-  call (401 on a cached bearer, `mcp:access_ended` when it must mint); the bearer
+  call, as does a disabled subject (401 on a cached bearer, `mcp:access_ended` when it
+  must mint); a token whose `sub` is not the grant owner is refused; a write-only
+  token reads; the bearer
   lives at most 300 s and never past the token's `exp`; no cookie, a fixed header
   set; two concurrent requests of different owners keep their bearers apart; and an
   MCP token presented at `/token` by the public MCP client for the admin audience is
-  `unauthorized_client`.
-- Volume: a call adds the five primary-key reads of the mint once per request and
+  `unauthorized_client`, and the same call succeeds once the operator switches the
+  exchange on for the client, so the refusal is that setting. `act` is proved on the
+  minted token; the admin API's own reading of `act` is proved in its tests.
+- Without `ODUDU_PUBLIC_BASE_URL` the host of admin calls is the issuer's, which a
+  proxy that rewrites the host would refuse; the server warns at start.
+- Volume: a call adds six primary-key reads (the tenant by name, then the mint's grant, client, tenant, session and subject) of the mint once per request and
   scope (none on a cached bearer), and the admin API's own per-call checks.
 
 ## Closing pass reads
@@ -513,6 +558,9 @@ still states what an increment has since changed:
 - The same bullet: "The server does not yet publish the metadata an MCP client
   looks for". The well-known documents are published; read it against what
   exists when the phase closes.
+- ADR 0050 says the admin token is made by the RFC 8693 exchange; it is made directly
+  by `mintAgentToken`. The amendment is written there; read it against the finished
+  endpoint.
 - `apps/docs/content/en/roadmap.md`, the P5a bullet "create a client's service account
   when its client credentials grant is switched on": the sentence now says what shipped;
   at close it moves to Shipped and out of Next with its mapping in

@@ -405,20 +405,11 @@ module.exports = {
       },
     },
     {
-      name: 'no-protocol-to-mcp',
-      severity: 'error',
-      comment:
-        'MCP is downstream of the protocol packages (ADR 0051); a protocol package importing it ' +
-        'would make the agent surface a dependency of the protocol it administers.',
-      from: { path: '(^|/)packages/protocol-[^/]+/' },
-      to: { path: '(^|/)packages/mcp/' },
-    },
-    {
       name: 'mcp-imported-only-by-server',
       severity: 'error',
       comment:
         'Only apps/server composes the MCP package (ADR 0051); no other package or app reaches ' +
-        'into it.',
+        'into it, a protocol package included.',
       from: { path: '(^|/)(?:packages|apps)/', pathNot: '(^|/)(?:packages/mcp|apps/server)/' },
       to: { path: '(^|/)packages/mcp/' },
     },

@@ -133,7 +133,7 @@ describe('boundary rules', { timeout: 60_000 }, () => {
   });
 
   it('rejects a protocol package importing the MCP package', async () => {
-    const found = await violations('no-protocol-to-mcp');
+    const found = await violations('mcp-imported-only-by-server');
     expect(
       found.some((v) => v.from.includes('protocol-oidc') && v.to.includes('packages/mcp')),
     ).toBe(true);

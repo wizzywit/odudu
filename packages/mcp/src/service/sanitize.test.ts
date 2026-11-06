@@ -36,7 +36,7 @@ describe('cleanText', () => {
   });
 
   it('removes characters that hide text from a reader', () => {
-    const hidden = [
+    const hidden: [string, string][] = [
       ['tag', '\u{E0041}\u{E0042}\u{E007F}'],
       ['word joiner', '⁠'],
       ['byte order mark', '﻿'],
