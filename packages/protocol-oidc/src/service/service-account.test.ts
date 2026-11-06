@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canHoldServiceAccount,
+  discardsServiceAccountRoles,
   mayRetireServiceAccount,
   needsServiceAccount,
   retiresServiceAccount,
@@ -25,6 +27,13 @@ describe('needsServiceAccount', () => {
   });
 });
 
+describe('canHoldServiceAccount', () => {
+  it('is true for a confidential client, whatever its grants, and false for a public one', () => {
+    expect(canHoldServiceAccount('confidential')).toBe(true);
+    expect(canHoldServiceAccount('public')).toBe(false);
+  });
+});
+
 describe('retiring', () => {
   it('may happen only to a client with an account whose grants changed', () => {
     expect(mayRetireServiceAccount(true, true)).toBe(true);
@@ -36,5 +45,13 @@ describe('retiring', () => {
     expect(retiresServiceAccount(true, true, 'confidential', ['authorization_code'])).toBe(true);
     expect(retiresServiceAccount(true, true, 'confidential', ['client_credentials'])).toBe(false);
     expect(retiresServiceAccount(true, false, 'confidential', ['authorization_code'])).toBe(false);
+  });
+});
+
+describe('discardsServiceAccountRoles', () => {
+  it('is true for a confidential client without client_credentials only', () => {
+    expect(discardsServiceAccountRoles('confidential', ['authorization_code'])).toBe(true);
+    expect(discardsServiceAccountRoles('confidential', ['client_credentials'])).toBe(false);
+    expect(discardsServiceAccountRoles('public', ['authorization_code'])).toBe(false);
   });
 });

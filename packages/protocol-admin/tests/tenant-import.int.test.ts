@@ -384,6 +384,48 @@ describe('POST /admin/tenant-imports', () => {
       const again = await exportOf(token, copy);
       expect(again.clients.find((c) => c.client_id === 'idle')?.service_account_roles).toEqual([]);
     });
+
+    async function importWith(
+      clientId: string,
+      change: Partial<TenantDocument['clients'][number]>,
+    ): Promise<{ statusCode: number; paths: string[] }> {
+      const { name, token } = await tenantWithAccounts();
+      const original = await exportOf(token, name);
+      const edited: TenantDocument = {
+        ...original,
+        clients: original.clients.map((client) =>
+          client.client_id === clientId ? { ...client, ...change } : client,
+        ),
+      };
+      const res = await postImport(token, { name: `import-${newId()}`, document: edited });
+      const errors = res.statusCode === 400 ? (res.json<ImportRefusal>().errors ?? []) : [];
+      return { statusCode: res.statusCode, paths: errors.map((error) => error.path) };
+    }
+
+    it('drops a role a client without the grant lists even when the backup lost the role', async () => {
+      const outcome = await importWith('idle', {
+        service_account_roles: [{ name: 'deleted-long-ago', client: null }],
+      });
+      expect(outcome.statusCode).toBe(201);
+    });
+
+    it('still refuses a missing role listed for a client that holds the grant', async () => {
+      const outcome = await importWith('active', {
+        service_account_roles: [{ name: 'deleted-long-ago', client: null }],
+      });
+      expect(outcome.statusCode).toBe(400);
+      expect(outcome.paths.some((path) => path.endsWith('.service_account_roles[0]'))).toBe(true);
+    });
+
+    it('still refuses roles listed for a public client', async () => {
+      const outcome = await importWith('idle', {
+        type: 'public',
+        token_endpoint_auth_method: 'none',
+        service_account_roles: [{ name: 'reader', client: null }],
+      });
+      expect(outcome.statusCode).toBe(400);
+      expect(outcome.paths.some((path) => path.endsWith('.service_account_roles'))).toBe(true);
+    });
   });
 
   it('exports a tenant holding a metadata document client and a role it owns, and imports the document', async () => {

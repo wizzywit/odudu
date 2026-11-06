@@ -18,6 +18,7 @@ import {
   TENANT_ADMIN,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
+import { clientOidcConfigRepository, ensureServiceAccount } from '@odudu/protocol-oidc';
 import { eq, sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -899,5 +900,58 @@ describe('the client theme exemption', () => {
       (route) => `${route.method} ${route.pattern}`,
     );
     expect([...CLIENT_THEME_ROUTES].sort()).toEqual(found.sort());
+  });
+});
+
+interface WaitingRow {
+  waiting: number;
+}
+
+async function awaitBlockedStatement(): Promise<void> {
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    const rows = await fixture.owner.db.execute(
+      sql`select count(*)::int as waiting from pg_locks where not granted`,
+    );
+    if (((rows as unknown as WaitingRow[])[0]?.waiting ?? 0) > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('the amendment never blocked on the client row');
+}
+
+describe('the ceiling is judged on the account the client holds once its row is locked', () => {
+  it('refuses a description PATCH when a privileged account appeared while it waited', async () => {
+    const t = await fixture.createTenant(`ceiling-race-${newId()}`);
+    const target = await fixture.createConfidentialClient(t.name, {
+      grantTypes: ['authorization_code'],
+    });
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+
+    let patch: Promise<LightMyRequestResponse> | undefined;
+    await withTenant(fixture.app.db, t.id, async (tx) => {
+      const locked = await clientRepository(tx).byIdForUpdate(target.id);
+      if (locked === null) throw new Error('fixture: client vanished');
+      patch = fixture.http.inject({
+        method: 'PATCH',
+        url: `/admin/tenants/${t.name}/clients/${target.id}`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload: JSON.stringify({ description: 'amended while the account appeared' }),
+      });
+      await awaitBlockedStatement();
+      await clientOidcConfigRepository(tx).update(target.id, {
+        grantTypes: ['authorization_code', 'client_credentials'],
+      });
+      const account = await ensureServiceAccount(tx, locked);
+      const adminClient = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      const role = await roleRepository(tx).byName(TENANT_ADMIN, adminClient?.id ?? '');
+      if (account.serviceSubjectId === null || role === null) throw new Error('fixture');
+      await roleRepository(tx).assignToSubject(account.serviceSubjectId, role.id);
+    });
+    const res = await (patch ?? Promise.reject(new Error('no patch sent')));
+
+    expect(res.statusCode).toBe(403);
+    const after = await withTenant(fixture.app.db, t.id, (tx) =>
+      clientRepository(tx).byId(target.id),
+    );
+    expect(after?.description).not.toBe('amended while the account appeared');
   });
 });

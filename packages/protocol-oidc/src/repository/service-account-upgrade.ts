@@ -19,8 +19,11 @@ export type IdleAccountFinding = ExchangeUpgradeFinding;
 // connection. `clients_idle_service_account` holds exactly these rows and the
 // marker is cleared when an account is retired, so both reads walk the set
 // and stop at their bounds: the count at the cap, the sample at its limit.
-export function idleServiceAccounts(db: Database): Promise<IdleAccountFinding> {
-  return withStatementTimeout(db, EXCHANGE_UPGRADE_STATEMENT_TIMEOUT_MS, async (tx) => {
+export function idleServiceAccounts(
+  db: Database,
+  timeoutMs = EXCHANGE_UPGRADE_STATEMENT_TIMEOUT_MS,
+): Promise<IdleAccountFinding> {
+  return withStatementTimeout(db, timeoutMs, async (tx) => {
     const capped = tx
       .select({ one: sql<number>`1`.as('one') })
       .from(clients)
