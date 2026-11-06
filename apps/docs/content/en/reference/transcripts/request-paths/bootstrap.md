@@ -696,18 +696,16 @@ curl -sS -X POST http://localhost:3000/tenants/mcp-demo/clients-registrations/op
   -d '{"redirect_uris":["https://agent.example/cb","http://127.0.0.1:53124/cb"],"token_endpoint_auth_method":"none","client_name":"Example Agent","scope":"openid mcp:read"}'
 ```
 
-```json
-{
-  "client_id": "01a1b029-b900-…",
-  "client_id_issued_at": 1793956886,
-  "redirect_uris": ["https://agent.example/cb", "http://127.0.0.1:53124/cb"],
-  "audience": ["http://localhost:3000/tenants/mcp-demo/mcp"],
-  "scope": "openid mcp:read",
-  "grant_types": ["authorization_code"],
-  "token_endpoint_auth_method": "none",
-  "client_name": "Example Agent"
-}
 ```
+{"client_id":"01a1b0fb-2c4a-…","client_id_issued_at":1793970613,"redirect_uris":["https://agent.example/cb","http://127.0.0.1:53124/cb"],"audience":["http://localhost:3097/tenants/mcp-demo/mcp"],"scope":"openid mcp:read","grant_types":["authorization_code"],"token_endpoint_auth_method":"none","client_name":"Example Agent"}
+```
+
+That response was captured again on 2026-11-06 on the compose project
+`odudu-p5a-ffb`, published on port 3097 (so its `audience` says 3097), on a
+freshly built stack whose only step before it was `seed tenant` for `mcp-demo`;
+the `client_id` is cut at its second group, as the other ids on this page are.
+The two queries after it ran on the page's earlier capture of the same call,
+whose client id they name.
 
 The row the registration wrote, and the one scope it was given beyond the
 tenant's defaults. `mcp:read` is `optional`, so the client has to ask for it
