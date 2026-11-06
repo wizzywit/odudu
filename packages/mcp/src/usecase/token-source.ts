@@ -2,6 +2,12 @@ import { insufficientScopeProblem, type AdminAccess } from '#/service/admin-acce
 import type { CredentialStore, RefreshLock } from '#/service/ports';
 import { StdioError } from '#/service/stdio-error';
 import { endsStoredSignIn, keepsRefreshToken, readsStoredSignIn } from '#/service/token-policy';
+import {
+  decodeStored,
+  encodeStored,
+  storedMatches,
+  type StoredSignIn,
+} from '#/service/stored-sign-in';
 import type { TokenSource } from '#/service/token-source';
 import { acceptTokenSet, type TokenSet } from '#/service/token-set';
 import { ToolProblem } from '#/service/tool';
@@ -19,8 +25,9 @@ export type Credential =
 
 export interface TokenSourceDeps {
   readonly now: () => Date;
-  // The issuer a token must carry: the one discovery names, known once it has run.
-  readonly issuer: () => Promise<string>;
+  // The authorization server discovery found: the issuer a token must carry, and the
+  // token endpoint a refresh token is presented to. Known once discovery has run.
+  readonly authority: () => Promise<{ readonly issuer: string; readonly tokenEndpoint: string }>;
   readonly expectation: { readonly audience: string; readonly scope: 'mcp:read' | 'mcp:write' };
   readonly credential: Credential;
   // A token this close to expiring is replaced rather than used.
@@ -49,28 +56,49 @@ export function createTokenSource(deps: TokenSourceDeps): TokenSource {
   let pending: Promise<TokenSet> | undefined;
   let failed: { readonly at: number; readonly message: string } | undefined;
   // A rotated refresh token the store would not take, used instead of the stale one it holds.
-  let unsaved: string | undefined;
+  let unsaved: StoredSignIn | undefined;
   let warned = false;
 
   async function keep(set: TokenSet): Promise<void> {
     const token = keepsRefreshToken(scope, set);
     const credential = deps.credential;
     if (token === undefined || credential.kind !== 'browser') return;
+    const server = await deps.authority();
+    const kept = {
+      refreshToken: token,
+      issuer: server.issuer,
+      tokenEndpoint: server.tokenEndpoint,
+    };
     try {
-      await credential.store?.put(token);
+      await credential.store?.put(encodeStored(kept));
       unsaved = undefined;
     } catch {
-      unsaved = token;
+      unsaved = kept;
       if (!warned)
         deps.warn?.('odudu mcp: the sign-in could not be stored; it is kept for this run only');
       warned = true;
     }
   }
 
+  // What is stored is presented only to the server it was made at: one kept for another
+  // issuer or token endpoint (a changed address, another `--tenant-address`) is forgotten, not sent.
+  async function storedSignIn(
+    credential: Extract<Credential, { kind: 'browser' }>,
+  ): Promise<string | undefined> {
+    if (!readsStoredSignIn(scope)) return undefined;
+    const text = unsaved === undefined ? ((await credential.store?.get()) ?? null) : null;
+    const held = unsaved ?? (text === null ? undefined : decodeStored(text));
+    const server = await deps.authority();
+    if (held !== undefined && storedMatches(held, server)) return held.refreshToken;
+    if (held !== undefined || text !== null) {
+      unsaved = undefined;
+      await credential.store?.clear();
+    }
+    return undefined;
+  }
+
   async function signedIn(credential: Extract<Credential, { kind: 'browser' }>): Promise<TokenSet> {
-    const stored = readsStoredSignIn(scope)
-      ? (unsaved ?? (await credential.store?.get()) ?? undefined)
-      : undefined;
+    const stored = await storedSignIn(credential);
     if (stored === undefined) return credential.login();
     try {
       return await credential.refresh(stored);
@@ -97,7 +125,7 @@ export function createTokenSource(deps: TokenSourceDeps): TokenSource {
     const credential = deps.credential;
     const guarded = credential.kind === 'browser' && readsStoredSignIn(scope);
     const set = guarded && deps.lock !== undefined ? await deps.lock.run(obtain) : await obtain();
-    acceptTokenSet(set, { ...deps.expectation, issuer: await deps.issuer() });
+    acceptTokenSet(set, { ...deps.expectation, issuer: (await deps.authority()).issuer });
     current = set;
     return set;
   }

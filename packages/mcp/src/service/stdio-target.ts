@@ -13,8 +13,11 @@ export interface StdioTarget {
   // The instance's origin, with no path.
   readonly base: string;
   readonly tenant: string;
-  // The tenant's issuer at its path address; also the key its sign-in is kept under.
+  // The tenant's issuer at its path address.
   readonly issuer: string;
+  // The key a sign-in and its lock are kept under: the issuer of the form signed in at, so
+  // a different `--tenant-address` is a different key and shares no secret.
+  readonly account: string;
   // RFC 8414 §3.1: the well-known suffix sits between the host and the issuer's path.
   readonly metadataUrl: string;
   // Where the tenant signs in: its path address, or the domain address it was told
@@ -89,6 +92,7 @@ export function stdioTarget(baseUrl: string, tenant: string, tenantAddress?: str
     base,
     tenant,
     issuer: path.issuer,
+    account: (forms[0] ?? path).issuer,
     metadataUrl: path.metadataUrl,
     forms,
     adminUrl: (route) => `${base}${route}`,

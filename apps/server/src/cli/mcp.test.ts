@@ -711,3 +711,119 @@ describe('odudu mcp when something it did not expect goes wrong', () => {
     expect(r.stderr.join('\n')).not.toContain('SECRETCODE');
   });
 });
+
+describe('odudu mcp keeps a sign-in for the address it was made at', () => {
+  const FIRST = 'https://login.acme.org';
+  const SECOND = 'https://evil.example';
+
+  // An authorization server at each address, and the admin API at the instance.
+  function servers() {
+    const tokenForms: { at: string; form: Record<string, string> }[] = [];
+    const reply = (body: unknown) =>
+      new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+    const stub: typeof fetch = (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      for (const origin of [FIRST, SECOND]) {
+        if (url === `${origin}/.well-known/oauth-authorization-server`) {
+          return Promise.resolve(
+            reply({
+              issuer: origin,
+              authorization_endpoint: `${origin}/protocol/openid-connect/auth`,
+              token_endpoint: `${origin}/protocol/openid-connect/token`,
+              code_challenge_methods_supported: ['S256'],
+              authorization_response_iss_parameter_supported: true,
+            }),
+          );
+        }
+        if (url === `${origin}/protocol/openid-connect/token`) {
+          const form = Object.fromEntries(
+            new URLSearchParams(typeof init?.body === 'string' ? init.body : ''),
+          );
+          tokenForms.push({ at: origin, form });
+          const n = String(tokenForms.length);
+          return Promise.resolve(
+            reply({
+              access_token: `${part({ alg: 'none' })}.${part({ iss: origin, aud: [ADMIN_API_AUDIENCE], scope: 'mcp:read', jti: n })}.`,
+              token_type: 'Bearer',
+              expires_in: 300,
+              scope: 'mcp:read',
+              refresh_token: `rt-${n}`,
+            }),
+          );
+        }
+      }
+      if (url.startsWith(`${BASE}/admin/`)) {
+        return Promise.resolve(
+          reply({ subjectId: 's', issuerTenantId: 't', capabilities: [], crossTenant: false }),
+        );
+      }
+      return Promise.resolve(new Response('nope', { status: 404 }));
+    };
+    return { tokenForms, fetch: stub };
+  }
+
+  const approving =
+    (issuer: string) =>
+    async (address: string): Promise<boolean> => {
+      const url = new URL(address);
+      const back = new URL(url.searchParams.get('redirect_uri') ?? '');
+      back.searchParams.set('code', 'the-code');
+      back.searchParams.set('state', url.searchParams.get('state') ?? '');
+      back.searchParams.set('iss', issuer);
+      await fetch(back);
+      return true;
+    };
+
+  it('does not hand a refresh token kept for one tenant address to another', async () => {
+    const s = servers();
+    const configDir = await mkdtemp(join(tmpdir(), 'odudu-mcp-'));
+    const args = (address: string) => [
+      '--base-url',
+      BASE,
+      '--tenant-address',
+      address,
+      '--tenant',
+      'acme',
+    ];
+    await run(args(FIRST), {
+      configDir,
+      fetch: s.fetch,
+      input: SESSION,
+      openBrowser: approving(FIRST),
+    });
+    expect(s.tokenForms.map((t) => t.form.grant_type)).toEqual(['authorization_code']);
+
+    let opened = 0;
+    await run(args(SECOND), {
+      configDir,
+      fetch: s.fetch,
+      input: SESSION,
+      openBrowser: (address) => {
+        opened += 1;
+        return approving(SECOND)(address);
+      },
+    });
+    expect(opened).toBe(1);
+    expect(s.tokenForms.filter((t) => t.at === SECOND).map((t) => t.form.grant_type)).toEqual([
+      'authorization_code',
+    ]);
+    expect(JSON.stringify(s.tokenForms.filter((t) => t.at === SECOND))).not.toContain('rt-1');
+  });
+
+  it('refreshes at the address it was made at', async () => {
+    const s = servers();
+    const configDir = await mkdtemp(join(tmpdir(), 'odudu-mcp-'));
+    const argv = ['--base-url', BASE, '--tenant-address', FIRST, '--tenant', 'acme'];
+    await run(argv, { configDir, fetch: s.fetch, input: SESSION, openBrowser: approving(FIRST) });
+    await run(argv, {
+      configDir,
+      fetch: s.fetch,
+      input: SESSION,
+      openBrowser: () => Promise.resolve(false),
+    });
+    expect(s.tokenForms.map((t) => t.form.grant_type)).toEqual([
+      'authorization_code',
+      'refresh_token',
+    ]);
+  });
+});

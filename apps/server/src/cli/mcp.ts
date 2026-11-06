@@ -254,7 +254,7 @@ function browserCredential(
 
 function storeFor(target: StdioTarget, io: McpIo): CredentialStore {
   return createCredentialStore({
-    account: target.issuer,
+    account: target.account,
     directory: io.configDir,
     platform: io.platform,
     run: io.run,
@@ -354,7 +354,7 @@ async function start(values: Values, io: McpIo): Promise<void> {
       : keyCredential(account, oauth, discover, scope, io);
   const tokens = createTokenSource({
     now: io.now,
-    issuer: async () => (await discover()).issuer,
+    authority: discover,
     expectation: { audience: ADMIN_API_AUDIENCE, scope },
     credential,
     warn: io.stderr,
@@ -362,7 +362,7 @@ async function start(values: Values, io: McpIo): Promise<void> {
       ? {}
       : {
           lock: createFileLock({
-            path: join(io.configDir, `refresh-${hashOf(target.issuer)}.lock`),
+            path: join(io.configDir, `refresh-${hashOf(target.account)}.lock`),
             staleMs: 30_000,
             waitMs: 10_000,
             pollMs: 100,

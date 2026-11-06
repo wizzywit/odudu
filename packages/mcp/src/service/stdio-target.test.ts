@@ -77,4 +77,13 @@ describe('the instance and tenant a stdio server is configured for', () => {
       );
     }
   });
+
+  it('keys a sign-in by the address it signs in at, so two never share one', () => {
+    const path = stdioTarget('https://id.example.com', 'acme');
+    const a = stdioTarget('https://id.example.com', 'acme', 'https://login.acme.org');
+    const b = stdioTarget('https://id.example.com', 'acme', 'https://evil.example');
+    expect(path.account).toBe('https://id.example.com/tenants/acme');
+    expect(a.account).toBe('https://login.acme.org');
+    expect(new Set([path.account, a.account, b.account]).size).toBe(3);
+  });
 });

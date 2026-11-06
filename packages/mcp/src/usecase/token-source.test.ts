@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CredentialStore, RefreshLock } from '#/service/ports';
+import { decodeStored, encodeStored } from '#/service/stored-sign-in';
 import { StdioError } from '#/service/stdio-error';
 import type { TokenSet } from '#/service/token-set';
 import { ToolProblem } from '#/service/tool';
@@ -8,6 +9,12 @@ import { createTokenSource, type TokenSourceDeps } from '#/usecase/token-source'
 
 const ISSUER = 'https://id.example.com/tenants/acme';
 const ADMIN = 'urn:odudu:params:admin-api';
+const TOKEN_ENDPOINT = `${ISSUER}/protocol/openid-connect/token`;
+const AUTHORITY = { issuer: ISSUER, tokenEndpoint: TOKEN_ENDPOINT };
+const keptFor = (refreshToken: string, over: Partial<typeof AUTHORITY> = {}) =>
+  encodeStored({ refreshToken, ...AUTHORITY, ...over });
+const tokenOf = (kept: string | null) =>
+  kept === null ? null : (decodeStored(kept)?.refreshToken ?? null);
 let clock = new Date('2026-11-06T10:00:00Z').getTime();
 const now = () => new Date(clock);
 
@@ -61,7 +68,7 @@ function browser(
     now,
     ...(over.lock === undefined ? {} : { lock: over.lock }),
     ...(over.warn === undefined ? {} : { warn: over.warn }),
-    issuer: () => Promise.resolve(ISSUER),
+    authority: () => Promise.resolve(AUTHORITY),
     expectation: { audience: ADMIN, scope },
     credential: {
       kind: 'browser',
@@ -90,32 +97,32 @@ describe('a read-only run that signs in with a browser', () => {
     const first = await b.source.bearer('read');
     expect(await b.source.bearer('read')).toBe(first);
     expect(b.calls).toEqual(['login']);
-    expect(m.held()).toBe('rt-1');
+    expect(tokenOf(m.held())).toBe('rt-1');
     clock += 280_000;
     await b.source.bearer('read');
     expect(b.calls).toEqual(['login', 'refresh:rt-1']);
   });
 
   it('refreshes with the stored token, and keeps the one it was rotated to', async () => {
-    const m = memoryStore('rt-0');
+    const m = memoryStore(keptFor('rt-0'));
     const b = browser('mcp:read', m.store);
     await b.source.bearer('read');
     expect(b.calls).toEqual(['refresh:rt-0']);
-    expect(m.held()).toBe('rt-2');
+    expect(tokenOf(m.held())).toBe('rt-2');
   });
 
   it('forgets a refresh token the server ended, and signs in again', async () => {
-    const m = memoryStore('rt-0');
+    const m = memoryStore(keptFor('rt-0'));
     const b = browser('mcp:read', m.store, {
       refresh: () => Promise.reject(new StdioError('mcp_grant_ended', 'ended')),
     });
     await b.source.bearer('read');
     expect(m.log).toContain('clear');
-    expect(m.held()).toBe('rt-1');
+    expect(tokenOf(m.held())).toBe('rt-1');
   });
 
   it('keeps the stored token and reports one line when a refresh fails for any other reason', async () => {
-    const m = memoryStore('rt-0');
+    const m = memoryStore(keptFor('rt-0'));
     const b = browser('mcp:read', m.store, {
       refresh: () =>
         Promise.reject(
@@ -126,7 +133,7 @@ describe('a read-only run that signs in with a browser', () => {
     expect(error).toBeInstanceOf(ToolProblem);
     expect((error as ToolProblem).status).toBe(401);
     expect((error as ToolProblem).message).toContain('could not be reached');
-    expect(m.held()).toBe('rt-0');
+    expect(tokenOf(m.held())).toBe('rt-0');
   });
 
   it('refuses a token of another issuer before it is used', async () => {
@@ -138,11 +145,11 @@ describe('a read-only run that signs in with a browser', () => {
         ),
     });
     await expect(b.source.bearer('read')).rejects.toBeInstanceOf(ToolProblem);
-    expect(m.held()).toBe('rt-x');
+    expect(tokenOf(m.held())).toBe('rt-x');
   });
 
   it('refuses a refreshed token of another issuer, but keeps the token it rotated to', async () => {
-    const m = memoryStore('rt-0');
+    const m = memoryStore(keptFor('rt-0'));
     const b = browser('mcp:read', m.store, {
       refresh: () =>
         Promise.resolve(
@@ -150,7 +157,7 @@ describe('a read-only run that signs in with a browser', () => {
         ),
     });
     await expect(b.source.bearer('read')).rejects.toBeInstanceOf(ToolProblem);
-    expect(m.held()).toBe('rt-x');
+    expect(tokenOf(m.held())).toBe('rt-x');
   });
 
   it('is refused a write, and holds no token that could', async () => {
@@ -178,7 +185,7 @@ describe('a read-only run that signs in with a browser', () => {
 
 describe('a run that allows writes', () => {
   it('neither reads nor writes the credential store, even one that holds a refresh token', async () => {
-    const m = memoryStore('rt-0');
+    const m = memoryStore(keptFor('rt-0'));
     const b = browser('mcp:write', m.store);
     await b.source.bearer('write');
     await b.source.bearer('read');
@@ -187,7 +194,7 @@ describe('a run that allows writes', () => {
   });
 
   it('signs in again when the write token lapses, instead of refreshing', async () => {
-    const m = memoryStore('rt-0');
+    const m = memoryStore(keptFor('rt-0'));
     const b = browser('mcp:write', m.store);
     await b.source.bearer('write');
     clock += 400_000;
@@ -211,7 +218,7 @@ describe('a run with a service account key', () => {
     let fetched = 0;
     const source = createTokenSource({
       now,
-      issuer: () => Promise.resolve(ISSUER),
+      authority: () => Promise.resolve(AUTHORITY),
       expectation: { audience: ADMIN, scope: 'mcp:read' },
       credential: {
         kind: 'key',
@@ -232,7 +239,7 @@ describe('a run with a service account key', () => {
   it('refuses a token of another issuer', async () => {
     const source = createTokenSource({
       now,
-      issuer: () => Promise.resolve(ISSUER),
+      authority: () => Promise.resolve(AUTHORITY),
       expectation: { audience: ADMIN, scope: 'mcp:read' },
       credential: {
         kind: 'key',
@@ -246,7 +253,7 @@ describe('a run with a service account key', () => {
   it('asks for mcp:write only when the run allows writes', async () => {
     const source = createTokenSource({
       now,
-      issuer: () => Promise.resolve(ISSUER),
+      authority: () => Promise.resolve(AUTHORITY),
       expectation: { audience: ADMIN, scope: 'mcp:write' },
       credential: { kind: 'key', fetch: () => Promise.resolve(set('mcp:write')) },
     });
@@ -255,13 +262,13 @@ describe('a run with a service account key', () => {
 });
 
 describe('a source that is told its issuer late, loses a token and is retried', () => {
-  it('asks for the issuer when it first judges a token', async () => {
+  it('asks for the authorization server when it first judges a token', async () => {
     let asked = 0;
     const source = createTokenSource({
       now,
-      issuer: () => {
+      authority: () => {
         asked += 1;
-        return Promise.resolve(ISSUER);
+        return Promise.resolve(AUTHORITY);
       },
       expectation: { audience: ADMIN, scope: 'mcp:read' },
       credential: { kind: 'key', fetch: () => Promise.resolve(set('mcp:read')) },
@@ -300,7 +307,7 @@ describe('a source that is told its issuer late, loses a token and is retried', 
   });
 
   it('keeps a rotated refresh token in memory when it cannot be stored, and says so once', async () => {
-    const m = memoryStore('rt-0');
+    const m = memoryStore(keptFor('rt-0'));
     const failing: CredentialStore = {
       ...m.store,
       put: () => Promise.reject(new Error('disk full')),
@@ -316,7 +323,7 @@ describe('a source that is told its issuer late, loses a token and is retried', 
   });
 
   it('refreshes inside the lock, reading the store after it was taken and writing before it is let go', async () => {
-    const m = memoryStore('rt-0');
+    const m = memoryStore(keptFor('rt-0'));
     const events: string[] = [];
     const lock: RefreshLock = {
       run: async (work) => {
@@ -340,5 +347,36 @@ describe('a source that is told its issuer late, loses a token and is retried', 
     const b = browser('mcp:read', logging, { lock });
     await b.source.bearer('read');
     expect(events).toEqual(['lock', 'get', 'put', 'unlock']);
+  });
+});
+
+describe('a stored sign-in is only presented to the server it was made at', () => {
+  it.each([
+    ['another issuer', { issuer: 'https://evil.example/tenants/acme' }],
+    ['another token endpoint', { tokenEndpoint: 'https://evil.example/token' }],
+  ])(
+    'does not hand it to %s: it is forgotten and the person signs in again',
+    async (_name, over) => {
+      const m = memoryStore(keptFor('rt-secret', over));
+      const b = browser('mcp:read', m.store);
+      await b.source.bearer('read');
+      expect(b.calls).toEqual(['login']);
+      expect(m.log).toContain('clear');
+      expect(tokenOf(m.held())).toBe('rt-1');
+    },
+  );
+
+  it('forgets a stored value that is not one this command wrote, without presenting it', async () => {
+    const m = memoryStore('rt-raw');
+    const b = browser('mcp:read', m.store);
+    await b.source.bearer('read');
+    expect(b.calls).toEqual(['login']);
+  });
+
+  it('keeps what it stores with the server it was issued by', async () => {
+    const m = memoryStore();
+    const b = browser('mcp:read', m.store);
+    await b.source.bearer('read');
+    expect(decodeStored(m.held() ?? '')).toEqual({ refreshToken: 'rt-1', ...AUTHORITY });
   });
 });
