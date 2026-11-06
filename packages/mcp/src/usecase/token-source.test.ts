@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CredentialStore } from '#/adapter/credential-store';
+import type { CredentialStore } from '#/service/ports';
 import { StdioError } from '#/service/stdio-error';
 import type { TokenSet } from '#/service/token-set';
 import { ToolProblem } from '#/service/tool';

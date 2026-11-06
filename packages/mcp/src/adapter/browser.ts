@@ -1,6 +1,5 @@
 import type { RunTool } from '#/adapter/run-tool';
-
-export type OpenUrl = (url: string) => Promise<boolean>;
+import type { OpenUrl } from '#/service/ports';
 
 function commandFor(platform: NodeJS.Platform, url: string): [string, string[]] | null {
   if (platform === 'darwin') return ['open', [url]];

@@ -2,16 +2,9 @@ import { createHash, randomBytes } from 'node:crypto';
 import { lstat, mkdir, open, rename, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type RunTool } from '#/adapter/run-tool';
+import type { CredentialStore } from '#/service/ports';
 import { fileModeProblem } from '#/service/file-mode';
 import { StdioError } from '#/service/stdio-error';
-
-// Where a refresh token is kept between runs, one per issuer (the instance and
-// tenant), so two tenants never share. `get` is null where nothing is kept.
-export interface CredentialStore {
-  get(): Promise<string | null>;
-  put(secret: string): Promise<void>;
-  clear(): Promise<void>;
-}
 
 export interface CredentialStoreDeps {
   // The issuer: base URL and tenant.

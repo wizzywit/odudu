@@ -1,6 +1,7 @@
 import { boundedText } from '#/adapter/bounded-body';
 import { registeredErrorCode } from '#/service/error-code';
 import { readMetadata, type AuthorizationServer } from '#/service/metadata';
+import type { OauthClient } from '#/service/ports';
 import { StdioError } from '#/service/stdio-error';
 import type { StdioTarget } from '#/service/stdio-target';
 import { tokenSetFrom, type TokenSet } from '#/service/token-set';
@@ -14,22 +15,6 @@ export interface OauthClientDeps {
   readonly now?: () => Date;
   // The built-in public client's id.
   readonly publicClientId: string;
-}
-
-export interface OauthClient {
-  discover(): Promise<AuthorizationServer>;
-  redeemCode(
-    server: AuthorizationServer,
-    input: { code: string; verifier: string; redirectUri: string; resource: string },
-  ): Promise<TokenSet>;
-  refresh(
-    server: AuthorizationServer,
-    input: { refreshToken: string; scope: string; resource: string },
-  ): Promise<TokenSet>;
-  clientCredentials(
-    server: AuthorizationServer,
-    input: { clientId: string; assertion: string; scope: string; resource: string },
-  ): Promise<TokenSet>;
 }
 
 async function jsonOf(res: Response): Promise<unknown> {

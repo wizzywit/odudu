@@ -1,5 +1,5 @@
-import type { CredentialStore } from '#/adapter/credential-store';
 import { insufficientScopeProblem, type AdminAccess } from '#/service/admin-access';
+import type { CredentialStore } from '#/service/ports';
 import { StdioError } from '#/service/stdio-error';
 import type { TokenSource } from '#/service/token-source';
 import {

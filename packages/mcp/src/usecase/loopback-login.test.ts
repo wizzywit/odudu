@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LoopbackListener } from '#/adapter/loopback-listener';
+import type { LoopbackListener } from '#/service/ports';
 import { loopbackLogin, type LoopbackLoginDeps } from '#/usecase/loopback-login';
 import { StdioError } from '#/service/stdio-error';
 import type { TokenSet } from '#/service/token-set';

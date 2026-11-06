@@ -1,15 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import type { LoopbackListener } from '#/service/ports';
 import { StdioError } from '#/service/stdio-error';
-
-export interface LoopbackListener {
-  // `http://127.0.0.1:<port>/`: the registered `http://127.0.0.1` matched on any
-  // port (RFC 8252 §7.3), at the path the client registers.
-  readonly redirectUri: string;
-  // The query of the one request that answers the sign-in.
-  readonly callback: Promise<URLSearchParams>;
-  close(): Promise<void>;
-}
 
 export interface LoopbackOptions {
   readonly timeoutMs: number;

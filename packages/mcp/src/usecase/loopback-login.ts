@@ -1,9 +1,7 @@
-import type { OpenUrl } from '#/adapter/browser';
-import type { LoopbackListener } from '#/adapter/loopback-listener';
-import type { OauthClient } from '#/adapter/oauth-client';
 import { authorizationUrl } from '#/service/authorization-url';
 import { checkCallback, describeRefusal } from '#/service/callback';
 import { pkceFor } from '#/service/pkce';
+import type { LoopbackListener, OauthClient, OpenUrl } from '#/service/ports';
 import { StdioError } from '#/service/stdio-error';
 import type { TokenSet } from '#/service/token-set';
 
