@@ -125,3 +125,12 @@ audit retention window and the tool rate of a model, within ADR 0041's
 100,000,000 events. An agent that calls a route its scope or field allowlist
 does not admit is refused with a `capability.refused` row (`insufficient_scope`
 or `agent_without_mcp_scope`). ADR 0050 holds the rest.
+
+The row has two writers, so that a call is recorded once. The MCP endpoint writes
+it for a call it serves, and that call reaches the admin API with an `act` claim.
+The admin API writes it, at its door and before the handler runs, for an agent
+whose token carries no `act`: one issued straight to the built-in `odudu-mcp`
+client or to a service account, which is how `odudu mcp` calls. The door cannot
+know a tool's name, so the row's `tool` is the route (`admin.get.clients`) and its
+`route` the route key. If the row cannot be written the call is a `503` and does not
+run, the stance the endpoint takes when it cannot record a call.
