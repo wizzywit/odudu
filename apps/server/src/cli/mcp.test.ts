@@ -97,6 +97,7 @@ function authority(
         reply({
           subjectId: 's1',
           issuerTenantId: 't1',
+          issuerTenantName: 'acme',
           capabilities: ['view-users'],
           crossTenant: false,
         }),
@@ -188,6 +189,23 @@ describe('odudu mcp: what it needs to start', () => {
     expect(r.stderr[0]).toContain(file);
     expect(r.stderr[0]).toMatch(/group or others/u);
     expect(r.stderr[0]).not.toContain(keyText);
+  });
+
+  it('announces the tenant it was given, in the server info, the instructions and every description', async () => {
+    const a = authority();
+    const r = await run(['--base-url', BASE, '--tenant', 'beta', '--client-id', 'svc'], {
+      env: { ODUDU_MCP_KEY: keyText },
+      input: SESSION,
+      fetch: a.fetch,
+    });
+    expect(r.code).toBe(0);
+    expect(byId(r.lines, 1).result).toMatchObject({
+      serverInfo: { name: 'odudu:beta', title: 'Odudu (beta)', version: '1.0.0' },
+      instructions: expect.stringContaining('Odudu tenant "beta" only') as string,
+    });
+    const tools = (byId(r.lines, 2).result as { tools: { description: string }[] }).tools;
+    expect(tools.length).toBeGreaterThan(0);
+    for (const tool of tools) expect(tool.description.startsWith('[beta] ')).toBe(true);
   });
 
   it('reads the key from a file only the user can read', async () => {
@@ -601,7 +619,13 @@ describe('odudu mcp at a tenant with a domain of its own', () => {
       }
       if (url.startsWith(`${BASE}/admin/tenants/acme/`)) {
         return Promise.resolve(
-          reply({ subjectId: 's1', issuerTenantId: 't1', capabilities: [], crossTenant: false }),
+          reply({
+            subjectId: 's1',
+            issuerTenantId: 't1',
+            issuerTenantName: 'acme',
+            capabilities: [],
+            crossTenant: false,
+          }),
         );
       }
       return Promise.resolve(new Response('nope', { status: 404 }));
@@ -622,6 +646,10 @@ describe('odudu mcp at a tenant with a domain of its own', () => {
     expect(r.code).toBe(0);
     expect(byId(r.lines, 3).result).toMatchObject({ isError: false });
     expect(a.seen).toContain(`${BASE}/admin/tenants/acme/whoami`);
+    expect(byId(r.lines, 1).result).toMatchObject({
+      serverInfo: { name: 'odudu:acme', title: 'Odudu (acme)' },
+      instructions: expect.stringContaining('Odudu tenant "acme" only') as string,
+    });
     expect(a.seen.filter((url) => url.startsWith(DOMAIN))).toEqual([
       `${DOMAIN}/.well-known/oauth-authorization-server`,
       TOKEN,
@@ -755,7 +783,13 @@ describe('odudu mcp keeps a sign-in for the address it was made at', () => {
       }
       if (url.startsWith(`${BASE}/admin/`)) {
         return Promise.resolve(
-          reply({ subjectId: 's', issuerTenantId: 't', capabilities: [], crossTenant: false }),
+          reply({
+            subjectId: 's',
+            issuerTenantId: 't',
+            issuerTenantName: 'acme',
+            capabilities: [],
+            crossTenant: false,
+          }),
         );
       }
       return Promise.resolve(new Response('nope', { status: 404 }));

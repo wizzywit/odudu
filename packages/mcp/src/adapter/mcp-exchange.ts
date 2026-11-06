@@ -5,6 +5,8 @@ import type { McpExchange } from '#/service/endpoint';
 import type { RegisteredTool, ToolResult } from '#/service/tool';
 
 export interface ExchangeParts {
+  // The tenant this exchange's token was issued for, which the server announces.
+  readonly tenant: string;
   // The tools this exchange's principal may use, in the order `tools/list`
   // answers them. Asked for each time the SDK builds a server for a request:
   // `list` for the request that lists them, `call` for every other.
@@ -33,10 +35,15 @@ export function createMcpExchange(parts: ExchangeParts): McpExchange {
       const purpose = namesToolsList(body) ? 'list' : 'call';
       const handler = createMcpHandler(
         async () =>
-          toolServer(await parts.tools(purpose), (tool, args) => parts.run(tool, args), {
-            'tools/list': { ttlMs: TOOLS_LIST_TTL_MS, cacheScope: 'private' },
-            'server/discover': { ttlMs: TOOLS_LIST_TTL_MS, cacheScope: 'private' },
-          }),
+          toolServer(
+            parts.tenant,
+            await parts.tools(purpose),
+            (tool, args) => parts.run(tool, args),
+            {
+              'tools/list': { ttlMs: TOOLS_LIST_TTL_MS, cacheScope: 'private' },
+              'server/discover': { ttlMs: TOOLS_LIST_TTL_MS, cacheScope: 'private' },
+            },
+          ),
         {
           legacy: 'stateless',
           onerror: (error) => {

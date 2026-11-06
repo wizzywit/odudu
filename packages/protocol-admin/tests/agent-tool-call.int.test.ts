@@ -30,6 +30,7 @@ async function agentWorld() {
   const principal: AdminPrincipal & { agent: { clientId: string; ownerSubjectId: string } } = {
     subjectId: owner.id,
     issuerTenantId: t.id,
+    issuerTenantName: t.name,
     clientDbId: client.id,
     scopes: ['mcp:read'],
     agent: { clientId: 'agent', ownerSubjectId: owner.id },

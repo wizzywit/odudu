@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newId } from '@odudu/kernel';
-import { MANAGE_TENANTS, TENANT_ADMIN } from '@odudu/domain-tenant';
+import { MANAGE_TENANTS, SYSTEM_TENANT_NAME, TENANT_ADMIN } from '@odudu/domain-tenant';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 
 let fixtureHandle: AdminFixture | undefined;
@@ -16,6 +16,7 @@ afterAll(async () => {
 interface WhoamiBody {
   subjectId: string;
   issuerTenantId: string;
+  issuerTenantName: string;
   capabilities: string[];
   crossTenant: boolean;
 }
@@ -39,6 +40,23 @@ describe('GET /whoami', () => {
     const body = res.json<WhoamiBody>();
     expect(body.capabilities).toEqual(['view-users']);
     expect(body.crossTenant).toBe(false);
+  });
+
+  it('names the caller’s own tenant by id and by name, whichever tenant the path names', async () => {
+    const own = await fixture.createTenant(`whoami-${newId()}`);
+    const other = await fixture.createTenant(`whoami-${newId()}`);
+    const ownBody = (
+      await whoami(await fixture.adminToken(own.name, ['view-users']), own.name)
+    ).json<WhoamiBody>();
+    expect(ownBody.issuerTenantId).toBe(own.id);
+    expect(ownBody.issuerTenantName).toBe(own.name);
+
+    const system = (
+      await whoami(await fixture.systemAdminToken([MANAGE_TENANTS]), other.name)
+    ).json<WhoamiBody>();
+    expect(system.crossTenant).toBe(true);
+    expect(system.issuerTenantName).toBe(SYSTEM_TENANT_NAME);
+    expect(system.issuerTenantName).not.toBe(other.name);
   });
 
   it('reports the composite capability a manage-* holder implies', async () => {

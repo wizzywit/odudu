@@ -273,6 +273,7 @@ async function keygen(io: McpIo): Promise<void> {
 const DRAIN_MS = 25_000;
 
 async function serve(
+  tenant: string,
   tools: readonly RegisteredTool[],
   caller: Parameters<typeof callMcpTool>[2],
   io: McpIo,
@@ -305,7 +306,7 @@ async function serve(
   const connection = serveMcpStdio({
     stdin: io.stdin,
     stdout: io.stdout,
-    server: () => toolServer(tools, run),
+    server: () => toolServer(tenant, tools, run),
     onerror: (error) => {
       io.stderr(failureLine('protocol error', 'transport', error));
     },
@@ -370,7 +371,7 @@ async function start(values: Values, io: McpIo): Promise<void> {
         }),
   });
   const caller = createHttpCaller(baseUrl, tokens, { tenant, fetch: io.fetch });
-  await serve(visibleTools(TOOLS, [scope], null), caller, io);
+  await serve(tenant, visibleTools(TOOLS, [scope], null), caller, io);
 }
 
 // `odudu mcp`: the admin tools over stdio for a local MCP client. It reads no

@@ -432,6 +432,14 @@ describe('the scope and the agent a token carries', () => {
     if (outcome.kind === 'authenticated') expect(outcome.principal.agent).toBeUndefined();
   });
 
+  it('names the tenant that issued the token, beside its id', async () => {
+    const outcome = await outcomeFor({ scope: 'openid' });
+    expect(outcome).toMatchObject({
+      kind: 'authenticated',
+      principal: { issuerTenantName: 'target' },
+    });
+  });
+
   it('names the actor as the agent and the token subject as its owner', async () => {
     const outcome = await outcomeFor({ scope: 'mcp:read', act: { sub: 'agent-client' } });
     expect(outcome).toMatchObject({

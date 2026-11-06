@@ -1136,6 +1136,8 @@ describeFields(testSmtpResponseSchema, {
 describeFields(whoamiResponseSchema, {
   subjectId: 'The subject the access token was issued to.',
   issuerTenantId: 'The tenant that issued the token, which is the caller’s own tenant.',
+  issuerTenantName:
+    'The name of that tenant, the one its address and sign-in page carry. It tells apart connections to several tenants.',
   capabilities:
     'The admin capabilities the caller holds in its own tenant, directly, through a group or nested in a role. A composite such as `tenant-admin` is reported as the capabilities it carries.',
   crossTenant:

@@ -70,6 +70,7 @@ describe('documentedJsonSchema', () => {
     expect(property(smtpConfigSchema, 'password_set').description).toMatch(/never/u);
     expect(property(putSmtpRequestSchema, 'from_address').description).toMatch(/From/u);
     expect(property(whoamiResponseSchema, 'crossTenant').description).toMatch(/path/u);
+    expect(property(whoamiResponseSchema, 'issuerTenantName').description).toMatch(/name/u);
   });
 
   it('keeps the audit trail’s own words for `to`, and gives the relay test its own', () => {
