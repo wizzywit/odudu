@@ -410,7 +410,7 @@ still states what an increment has since changed:
   secret could have used, the roles that made them worth having and the sessions. A disabled
   subject would keep its roles for a later grant to inherit, and `authenticate-admin` already
   refuses a token whose grant row is gone. Cost: the account's history goes with it. An
-  access token it already held stops being accepted at once (its grant is gone) rather than
+  access token it already held is refused by Odudu at once (its grant is gone) rather than
   at expiry, and `GET /audit` no longer resolves `actor_name` for its past events (the
   `audit_events` actor id stays; no foreign key names it). Re-adding the grant makes a new
   subject with no roles, by test.
@@ -422,17 +422,44 @@ still states what an increment has since changed:
   appearing or going is in the same row.
 - **Migration 0122, in SQL.** The set is "idle accounts nothing names", which needs the
   referencing tables. They are read from `pg_constraint` (every foreign key to `subjects(id)`)
-  plus `audit_events.actor_subject_id`, so a table added later is checked too; one statement
-  per table, not one per client, so the cost is a pass over each referencing table. FORCE
-  RLS is lifted on what it reads and restored, as 0114 does. Idle accounts that are named
-  stay and get `clients.service_account_idle`, with a partial index, which is what the boot
-  warning reads (bounded like the exchange one: a statement timeout, a count capped at
-  10,000, a sample of 20). Not a command: the report is what it is for, and the removal is
-  the next `grant_types` write, which retires any account the client no longer needs.
-- **Import.** `service_account_roles` on a client without the grant is refused by
-  validation (the roles would have no account to land on); an export from a tenant that
-  keeps an idle account lists its roles, so that document needs the roles removed first.
+  plus `audit_events.actor_subject_id`, so a table added later is checked too. FORCE RLS is
+  lifted only on `clients` and `client_oidc_config` (ACCESS EXCLUSIVE for the migration
+  transaction, as 0114 did) to find candidates across tenants; every other table is read and
+  deleted from under the candidate's own `app.tenant_id`, one tenant with an idle client at a
+  time, so no other table is locked and each read is one tenant's rows. `SET LOCAL
+row_security = off` was rejected: for an owner under FORCE it errors rather than bypasses.
+  Cost at 10,000 tenants and 100M audit events: one pass over `clients` and
+  `client_oidc_config` plus, per tenant holding an idle account, about a dozen reads of that
+  tenant's rows (audit through `(tenant_id, actor_subject_id, ...)`); a large installation
+  should expect the two locks to be held for the length of that loop. The check is not run
+  against a non-superuser owner in the tests (the container's owner bypasses RLS).
+  Kept accounts get `clients.service_account_idle` with a partial index, which the bounded
+  boot warning reads. Not a command: the removal is the next `grant_types` write.
+- **Import and export.** An export lists `service_account_roles` only for a client that
+  holds the grant and names `clients[i].service_account_roles` under `omitted` where an idle
+  account's roles are left out, so the document re-imports and re-exports equal. An import
+  ignores roles a backup lists for a confidential client without the grant (refusing an old
+  backup is worse than dropping roles nothing can use) and still refuses them for a public one.
 - **Console.** Only copy: the Service account tab says a confidential client without the
   grant has no account and what creates one, the idle note says how an upgrade's leftover
   goes, and the grant's hint says on creates and off removes. No toggle logic changed.
 - **Not done here.** The console e2e suite was not run for this increment.
+
+### Fix round 1
+
+- **Idle accounts keep their roles when the grant returns.** `ensureServiceAccount` clears
+  `service_account_idle` for an account that stays, and the roles are active again. Kept
+  deliberately: the account exists because something named it, its roles were an
+  administrator's to give, and the console tab shows them before the grant is turned on;
+  the docs say so. A retired account is different: it is gone, and nothing came back.
+- **Lock order.** The administrators' advisory lock (`lockAdministrators`) comes before any row
+  lock, the subject's included; `amendClient` takes it first when a grant change could retire
+  an account, as `guardLastAdministrator` does for the delete, so the two cannot wait on each
+  other. The first attempt took it after the ceiling check's subject lock and deadlocked
+  (a 500) under a concurrent delete, which the test now catches.
+- **Token race.** A `client_credentials` request that loses to a retirement hits the subject
+  foreign key when it records its grant; that is now `unauthorized_client`.
+- **Pure rules.** `mayRetireServiceAccount` and `retiresServiceAccount` are service functions.
+- **Claims.** A token already issued stops being accepted where Odudu checks the grant row;
+  a resource server checking the signature alone accepts it until `exp`. Past audit events
+  keep the actor id and lose `actor_name`. Both are in the docs and CHANGELOG.

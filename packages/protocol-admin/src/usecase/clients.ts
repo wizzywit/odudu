@@ -30,8 +30,10 @@ import {
   ensureServiceAccount,
   idTokenAlgUnavailable,
   isWellFormedWebOrigin,
+  mayRetireServiceAccount,
   needsServiceAccount,
   parseClientMetadata,
+  retiresServiceAccount,
   retireServiceAccount,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
@@ -56,6 +58,7 @@ import { publicJwks } from '#/service/public-jwks';
 import { tenantLanguages } from '#/usecase/tenant-languages';
 import {
   guardLastAdministrator,
+  lockAdministrators,
   type LastAdministratorRefusal,
 } from '#/usecase/last-administrator';
 import {
@@ -1175,13 +1178,6 @@ function metadataFieldValue(
   return effective === null ? undefined : effective;
 }
 
-/**
- * Splits the supplied fields across `clients` and `client_oidc_config` in
- * one transaction, replacing every list field wholesale — never appending —
- * and running the amended RFC 7591 metadata through `parseClientMetadata`
- * before the write. `If-Match` is required, answering `428`, on a `PATCH`
- * that touches any of the five wholesale list fields; optional otherwise.
- */
 function reconcileServiceAccount(
   tx: TenantScopedDatabase,
   client: ClientRecord,
@@ -1192,6 +1188,13 @@ function reconcileServiceAccount(
     : retireServiceAccount(tx, client);
 }
 
+/**
+ * Splits the supplied fields across `clients` and `client_oidc_config` in
+ * one transaction, replacing every list field wholesale — never appending —
+ * and running the amended RFC 7591 metadata through `parseClientMetadata`
+ * before the write. `If-Match` is required, answering `428`, on a `PATCH`
+ * that touches any of the five wholesale list fields; optional otherwise.
+ */
 export async function amendClient(
   tx: TenantScopedDatabase,
   deps: AmendClientDeps,
@@ -1199,6 +1202,13 @@ export async function amendClient(
 ): Promise<AmendClientOutcome> {
   const unlocked = await clientRepository(tx).byId(input.clientDbId);
   if (unlocked === null) return { kind: 'not_found' };
+  // The administrators' lock comes before any row lock, the subject's included, the order every
+  // guarded write takes (#/usecase/last-administrator.ts), so a retirement
+  // here and a delete of the same client cannot wait on each other.
+  if (mayRetireServiceAccount(unlocked.serviceSubjectId !== null, 'grant_types' in input.values)) {
+    await lockAdministrators(tx);
+  }
+
   const refused = await refuseOverServiceAccountCeiling(
     tx,
     deps.audit,
@@ -1431,10 +1441,12 @@ export async function amendClient(
   };
   // Retiring the account removes whatever roles it held, which may be the
   // last administrator's.
-  const retires =
-    clientRow.serviceSubjectId !== null &&
-    grantsChanged &&
-    !needsServiceAccount(clientRow.type, configPatch.grantTypes ?? configRow.grantTypes);
+  const retires = retiresServiceAccount(
+    clientRow.serviceSubjectId !== null,
+    grantsChanged,
+    clientRow.type,
+    configPatch.grantTypes ?? configRow.grantTypes,
+  );
   const written = retires
     ? await guardLastAdministrator(
         tx,

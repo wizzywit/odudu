@@ -36,7 +36,6 @@ import {
   type ClientMetadata,
   clientTokenTtlProblem,
   isWellFormedWebOrigin,
-  needsServiceAccount,
   parseClientMetadata,
 } from '@odudu/protocol-oidc';
 import { checkDescription } from '#/service/description';
@@ -590,16 +589,11 @@ function clientProblems(
       graph,
       problems,
     );
-    if (
-      client.service_account_roles.length > 0 &&
-      !needsServiceAccount(client.type, client.grant_types)
-    ) {
-      problems.add(
-        `${path}.service_account_roles`,
-        client.type === 'public'
-          ? 'a public client has no service account'
-          : 'a client without the client_credentials grant has no service account',
-      );
+    // A document from before accounts followed the grant may list roles for a
+    // confidential client without it; they are dropped, since no account is
+    // made for them and nothing could use them.
+    if (client.type === 'public' && client.service_account_roles.length > 0) {
+      problems.add(`${path}.service_account_roles`, 'a public client has no service account');
     }
   });
   return metadata;

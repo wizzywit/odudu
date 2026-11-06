@@ -256,6 +256,33 @@ describe('ensureServiceAccount', () => {
   });
 });
 
+describe('an account the upgrade left idle', () => {
+  async function idleFlag(w: World, clientDbId: string): Promise<boolean> {
+    return withTenant(app.db, w.id, async (tx) => {
+      const rows = await tx.execute<{ idle: boolean }>(
+        sql`select service_account_idle as idle from clients where id = ${clientDbId}`,
+      );
+      return rows[0]?.idle ?? false;
+    });
+  }
+
+  it('stops being marked idle once the grant is on and the account is ensured, keeping its roles', async () => {
+    const w = await world();
+    const created = await client(w, 'revived', ['client_credentials']);
+    const account = await withTenant(app.db, w.id, (tx) => ensureServiceAccount(tx, created));
+    await giveRole(w, account.serviceSubjectId ?? '');
+    await withTenant(app.db, w.id, (tx) =>
+      tx.execute(sql`update clients set service_account_idle = true where id = ${created.id}`),
+    );
+    expect(await idleFlag(w, created.id)).toBe(true);
+
+    const again = await withTenant(app.db, w.id, (tx) => ensureServiceAccount(tx, created));
+    expect(again.serviceSubjectId).toBe(account.serviceSubjectId);
+    expect(await idleFlag(w, created.id)).toBe(false);
+    expect(await roleCount(w, account.serviceSubjectId ?? '')).toBe(1);
+  });
+});
+
 describe('retireServiceAccount', () => {
   it('leaves no path to a bearer: the grant is refused, what it issued and held goes, a leaked secret buys nothing', async () => {
     const w = await world();
@@ -356,6 +383,35 @@ describe('retireServiceAccount', () => {
         expect(rows[0]?.n).toBe(1);
       },
     });
+  });
+});
+
+describe('a token request racing the retirement of the account', () => {
+  it('is refused as unauthorized_client, not left to fail on the subject it named', async () => {
+    const w = await world();
+    const created = await client(w, 'racer', ['client_credentials']);
+    const account = await withTenant(app.db, w.id, (tx) => ensureServiceAccount(tx, created));
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let retiring: () => void = () => undefined;
+    const started = new Promise<void>((resolve) => {
+      retiring = resolve;
+    });
+    const retirement = withTenant(app.db, w.id, async (tx) => {
+      await retireServiceAccount(tx, account);
+      retiring();
+      await held;
+    });
+    await started;
+    const request = token(w, 'racer');
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    release();
+    await retirement;
+    const res = await request;
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('unauthorized_client');
   });
 });
 

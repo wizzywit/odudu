@@ -365,6 +365,38 @@ describe('a client and its service account', () => {
     expect(res.json<ClientBody>().service_subject_id).toBe(client.service_subject_id);
   });
 
+  it('does not deadlock when its retirement and the delete of its client run together', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    for (let round = 0; round < 6; round += 1) {
+      const client = await create(t.name, token, {
+        grant_types: ['authorization_code', 'client_credentials'],
+        redirect_uris: ['https://app.example/cb'],
+        token_endpoint_auth_method: 'client_secret_basic',
+      });
+      const etag = await etagOf(t.name, token, client.id);
+      const both = Promise.all([
+        patch(t.name, token, client.id, etag, { grant_types: ['authorization_code'] }),
+        fixture.http.inject({
+          method: 'DELETE',
+          url: `/admin/tenants/${t.name}/clients/${client.id}`,
+          headers: { authorization: `Bearer ${token}` },
+        }),
+      ]);
+      const settled = await Promise.race([
+        both,
+        new Promise<'stuck'>((resolve) => {
+          setTimeout(() => {
+            resolve('stuck');
+          }, 20_000);
+        }),
+      ]);
+      expect(settled).not.toBe('stuck');
+      if (settled === 'stuck') return;
+      for (const res of settled) expect(res.statusCode, res.payload).toBeLessThan(500);
+    }
+  }, 60_000);
+
   it('is not touched by a caller of another tenant switching the grant off', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const other = await fixture.createTenant(`other-${newId()}`);

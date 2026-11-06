@@ -24,7 +24,12 @@ export async function ensureServiceAccount(
   if (row.type !== 'confidential') {
     throw new Error(`${row.clientId} is a public client and has no service account`);
   }
-  if (row.serviceSubjectId !== null) return row;
+  // An account the upgrade kept idle is in use again: it keeps the roles
+  // an operator gave it, and stops being listed as unused.
+  if (row.serviceSubjectId !== null) {
+    await clientRepository(tx).clearServiceAccountIdle(row.id);
+    return row;
+  }
   const subject = await subjectRepository(tx).create({ tenantId: row.tenantId, type: 'service' });
   return clientRepository(tx).setServiceSubject(row.id, subject.id);
 }

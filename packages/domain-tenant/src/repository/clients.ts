@@ -1,6 +1,6 @@
 import { isUniqueViolation, tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId, refuseBidiControls } from '@odudu/kernel';
-import { count, eq, lte, sql } from 'drizzle-orm';
+import { and, count, eq, lte, sql } from 'drizzle-orm';
 import { clients, type ClientRecord } from '#/schema/clients';
 
 export type { ClientRecord } from '#/schema/clients';
@@ -188,6 +188,15 @@ export function clientRepository(tx: TenantScopedDatabase) {
         throw new Error(`client ${id} not found while setting its service account`);
       }
       return toRecord(row);
+    },
+
+    // Ends the idle marker on an account that stays; a no-op for a client
+    // not marked, or not visible to this tenant.
+    async clearServiceAccountIdle(id: string): Promise<void> {
+      await tx
+        .update(clients)
+        .set({ serviceAccountIdle: false })
+        .where(and(eq(clients.id, id), eq(clients.serviceAccountIdle, true)));
     },
 
     // Cascades to `client_oidc_config` (client_oidc_config.clientId

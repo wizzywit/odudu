@@ -389,6 +389,33 @@ describe('clientRepository', () => {
     });
   });
 
+  it('cannot clear the idle marker of a client under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const id = newId();
+        await insertClient(tx, tenantId, { id, serviceAccountIdle: true });
+        return id;
+      },
+      verifySeeded: async (tx, id) => {
+        const [row] = await tx
+          .select({ idle: clients.serviceAccountIdle })
+          .from(clients)
+          .where(eq(clients.id, id));
+        expect(row?.idle).toBe(true);
+      },
+      attempt: (tx, id) => clientRepository(tx).clearServiceAccountIdle(id),
+      expectBlocked: () => undefined,
+      verifyTenantAUnaffected: async (tx, id) => {
+        const [row] = await tx
+          .select({ idle: clients.serviceAccountIdle })
+          .from(clients)
+          .where(eq(clients.id, id));
+        expect(row?.idle).toBe(true);
+      },
+    });
+  });
+
   it('cannot re-point a client under a different tenant context', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {

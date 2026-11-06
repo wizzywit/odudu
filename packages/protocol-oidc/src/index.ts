@@ -1202,7 +1202,12 @@ export {
   idleServiceAccounts,
   type IdleAccountFinding,
 } from '#/repository/service-account-upgrade';
-export { CLIENT_CREDENTIALS_GRANT, needsServiceAccount } from '#/service/service-account';
+export {
+  CLIENT_CREDENTIALS_GRANT,
+  mayRetireServiceAccount,
+  needsServiceAccount,
+  retiresServiceAccount,
+} from '#/service/service-account';
 export { ensureServiceAccount, retireServiceAccount } from '#/usecase/service-account';
 export {
   EXCHANGE_UPGRADE_COUNT_CAP,

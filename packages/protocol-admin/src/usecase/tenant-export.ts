@@ -39,7 +39,7 @@ import {
   type ClientRecord,
   type ClientScopeAssignment,
 } from '@odudu/domain-tenant';
-import { clientOidcConfig } from '@odudu/protocol-oidc';
+import { clientOidcConfig, needsServiceAccount } from '@odudu/protocol-oidc';
 import {
   and,
   asc,
@@ -735,16 +735,29 @@ export async function exportTenant(
     clientRows.flatMap((row) => (row.serviceSubjectId === null ? [] : [row.serviceSubjectId])),
     roleById,
   );
+  // An account kept without its grant has roles nothing can use, and a
+  // document that listed them could not be imported back.
+  const exportedRoles = (
+    row: (typeof clientRows)[number],
+  ): ExportedClient['service_account_roles'] =>
+    row.serviceSubjectId === null ||
+    !needsServiceAccount(row.exported.type, row.exported.grant_types)
+      ? []
+      : (serviceRoles.get(row.serviceSubjectId) ?? []);
   const exportedClients: ExportedClient[] = clientRows.map((row) => ({
     ...row.exported,
-    service_account_roles:
-      row.serviceSubjectId === null ? [] : (serviceRoles.get(row.serviceSubjectId) ?? []),
+    service_account_roles: exportedRoles(row),
   }));
   const exportedGroups = await exportGroups(tx, tenantId, roleById);
   const smtp = await tenantSmtpRepository(tx).byTenantId(tenantId);
 
   const omitted = clientRows.flatMap((row, index) => [
     ...(row.exported.type === 'confidential' ? [`clients[${String(index)}].secret`] : []),
+    ...(row.serviceSubjectId !== null &&
+    exportedClients[index]?.service_account_roles.length === 0 &&
+    (serviceRoles.get(row.serviceSubjectId)?.length ?? 0) > 0
+      ? [`clients[${String(index)}].service_account_roles`]
+      : []),
     ...row.strippedKeys.map((key) => `clients[${String(index)}].jwks.keys[${String(key)}]`),
   ]);
   if (smtp !== null && smtp.passwordEncrypted !== null) omitted.push('smtp.password');

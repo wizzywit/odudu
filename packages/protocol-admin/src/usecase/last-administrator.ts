@@ -47,6 +47,19 @@ async function guardedCapability(tx: TenantScopedDatabase): Promise<string> {
 }
 
 /**
+ * The lock every guarded write takes first, before any row it changes.
+ * One order everywhere (this lock, then rows) is what keeps two guarded
+ * writes, such as a delete of a client and an amendment that retires its
+ * account, from waiting on each other. Held to the end of the transaction,
+ * and taking it again is free.
+ */
+export async function lockAdministrators(tx: TenantScopedDatabase): Promise<void> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext('administrators'), hashtext(current_setting('app.tenant_id')))`,
+  );
+}
+
+/**
  * Runs `write`, and undoes it with a refused row when it leaves the tenant
  * with no enabled holder of `tenant-admin` (`manage-tenants` in `system`)
  * where there was one. The lock comes before anything `write` locks, so two
@@ -59,9 +72,7 @@ export async function guardLastAdministrator<T, A extends string, R extends stri
   door: GuardedDoor<A, R>,
   write: (tx: TenantScopedDatabase) => Promise<T>,
 ): Promise<T | LastAdministratorRefusal> {
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtext('administrators'), hashtext(current_setting('app.tenant_id')))`,
-  );
+  await lockAdministrators(tx);
   const capability = await guardedCapability(tx);
   if (!(await hasEnabledHolder(tx, capability))) return write(tx);
 

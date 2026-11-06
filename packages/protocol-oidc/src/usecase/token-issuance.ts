@@ -1,6 +1,7 @@
 import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
 import { signJwt, signingKeyRepository, type SigningKeyRecord } from '@odudu/crypto';
 import {
+  isForeignKeyViolation,
   withSavepoint,
   withTenant,
   type DatabaseHandle,
@@ -1010,14 +1011,21 @@ async function issueClientCredentialsTokens(
     now,
   );
 
-  await tokenGrantRepository(tx).create({
-    id: grantId,
-    tenantId: deps.tenantId,
-    clientId: client.id,
-    subjectId: serviceSubjectId,
-    scope: scope.join(' '),
-    audience,
-  });
+  try {
+    await tokenGrantRepository(tx).create({
+      id: grantId,
+      tenantId: deps.tenantId,
+      clientId: client.id,
+      subjectId: serviceSubjectId,
+      scope: scope.join(' '),
+      audience,
+    });
+  } catch (error) {
+    // The account was retired while this request waited: the client no
+    // longer has one to sign in as.
+    if (isForeignKeyViolation(error)) throw unauthorizedClient();
+    throw error;
+  }
   await auditRepository(tx).record({
     eventType: 'token',
     action: 'token.issue',
