@@ -15,8 +15,8 @@ import { scopeTools } from '#/service/tools/scopes';
 import { sessionTools } from '#/service/tools/sessions';
 import { settingsTools } from '#/service/tools/settings';
 import { subjectTools } from '#/service/tools/subjects';
-import { tenantTool } from '#/service/tools/tenant';
-import { tenantTools } from '#/service/tools/tenants';
+import { ownTenantTool } from '#/service/tools/tenant';
+import { instanceTenantTools } from '#/service/tools/tenants';
 import { whoamiTools } from '#/service/tools/whoami';
 import { type RegisteredTool } from '#/service/tool';
 
@@ -37,11 +37,11 @@ export const TOOLS: readonly RegisteredTool[] = [
   ...sessionTools,
   ...settingsTools,
   ...subjectTools,
-  ...tenantTools,
+  ...instanceTenantTools,
   ...whoamiTools,
   clientMetadataTool,
   scopeMetadataTool,
-  tenantTool,
+  ownTenantTool,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 const TENANT = '/admin/tenants/:tenant';

@@ -2,7 +2,7 @@ import { tenantSchema } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { callTool } from '#/service/call-tool';
-import { tenantTool } from '#/service/tools/tenant';
+import { ownTenantTool } from '#/service/tools/tenant';
 import { describeReadTool } from '#/testing/conformance';
 import { respondingWith } from '#/testing/fake-caller';
 
@@ -13,24 +13,24 @@ function inputKeys(tool: { readonly input: z.ZodType }): string[] {
 
 describe('tenant tool', () => {
   describeReadTool({
-    tool: tenantTool,
+    tool: ownTenantTool,
     response: tenantSchema,
     pattern: '/admin/tenants/:tenant',
     text: ['display_name'],
   });
 
   it("is get_tenant: manage-tenant, a GET of the caller's own tenant, taking no argument", () => {
-    expect(tenantTool.name).toBe('get_tenant');
-    expect(tenantTool.capability).toBe('manage-tenant');
-    expect(tenantTool.access).toBe('read');
-    expect(tenantTool.routeKey).toBe('GET /admin/tenants/:tenant');
-    expect(inputKeys(tenantTool)).toEqual([]);
+    expect(ownTenantTool.name).toBe('get_tenant');
+    expect(ownTenantTool.capability).toBe('manage-tenant');
+    expect(ownTenantTool.access).toBe('read');
+    expect(ownTenantTool.routeKey).toBe('GET /admin/tenants/:tenant');
+    expect(inputKeys(ownTenantTool)).toEqual([]);
   });
 
   it('refuses a tenant argument under any spelling, before any call', async () => {
     for (const extra of [{ tenant: 'other' }, { tenant_id: 'x' }, { name: 'other' }, { id: 'x' }]) {
       const caller = respondingWith({});
-      const result = await callTool(tenantTool, caller, extra);
+      const result = await callTool(ownTenantTool, caller, extra);
       expect(result.isError, JSON.stringify(extra)).toBe(true);
       expect(caller.requests).toHaveLength(0);
     }
@@ -44,7 +44,7 @@ describe('tenant tool', () => {
       enabled: true,
       created_at: '2026-01-01T00:00:00.000Z',
     });
-    await callTool(tenantTool, caller, {});
+    await callTool(ownTenantTool, caller, {});
     expect(caller.requests[0]?.params).toEqual({});
     expect(caller.requests[0]?.query).toEqual({});
   });

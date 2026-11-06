@@ -1,12 +1,12 @@
 import { countResponseSchema, listTenantsResponseSchema } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import { callTool } from '#/service/call-tool';
-import { tenantTools } from '#/service/tools/tenants';
+import { instanceTenantTools } from '#/service/tools/tenants';
 import { describeReadTool } from '#/testing/conformance';
 import { respondingWith } from '#/testing/fake-caller';
 
 function named(name: string) {
-  const found = tenantTools.find((tool) => tool.name === name);
+  const found = instanceTenantTools.find((tool) => tool.name === name);
   if (found === undefined) throw new Error(`no tool ${name}`);
   return found;
 }
@@ -26,12 +26,12 @@ describe('tenants tools', () => {
   });
 
   it('are the instance-level reads: manage-tenants, GET, and no tenant segment in the route', () => {
-    for (const tool of tenantTools) {
+    for (const tool of instanceTenantTools) {
       expect(tool.capability, tool.name).toBe('manage-tenants');
       expect(tool.access, tool.name).toBe('read');
       expect(tool.routeKey, tool.name).not.toContain(':tenant');
     }
-    expect(tenantTools.map((tool) => tool.routeKey)).toEqual([
+    expect(instanceTenantTools.map((tool) => tool.routeKey)).toEqual([
       'GET /admin/tenants',
       'GET /admin/tenants/count',
     ]);

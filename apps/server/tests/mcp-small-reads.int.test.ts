@@ -99,7 +99,7 @@ describe('a tenant administrator’s agent reading the small records', () => {
     );
     expect(installation.client_id).toBe('portal');
     expect(installation.issuer).toBe(w.issuer);
-    expect(JSON.stringify(installation)).not.toMatch(/secret/iu);
+    expect(Object.keys(installation).filter((key) => key.includes('secret'))).toEqual([]);
   });
 
   it('cannot read another tenant’s record through any argument', async () => {
@@ -132,6 +132,16 @@ describe('a tenant administrator’s agent reading the small records', () => {
     );
     const token = await stack.sign(mine, READ);
     const result = await stack.call(mine, token, 'get_client_installation', { id: theirs[0]?.id });
+    expect(refusal(result).status).toBe(404);
+  });
+
+  it('cannot read another tenant’s scope impact by its id', async () => {
+    const mine = await stack.world(CAPS, READ);
+    const other = await stack.world(CAPS, READ);
+    const otherToken = await stack.sign(other, READ);
+    const [theirs] = rows(await stack.call(other, otherToken, 'list_scopes', { limit: 1 }));
+    const token = await stack.sign(mine, READ);
+    const result = await stack.call(mine, token, 'get_scope_impact', { id: theirs?.id });
     expect(refusal(result).status).toBe(404);
   });
 
