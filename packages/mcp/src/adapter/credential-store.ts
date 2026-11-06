@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { lstat, mkdir, open, rename, rm, stat } from 'node:fs/promises';
+import { lstat, mkdir, open, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type RunTool } from '#/adapter/run-tool';
 import type { CredentialStore } from '#/service/ports';
@@ -12,6 +12,8 @@ export interface CredentialStoreDeps {
   readonly directory: string;
   readonly platform: NodeJS.Platform;
   readonly run: RunTool;
+  // The effective user id the files must belong to; the process's own when left out.
+  readonly uid?: number;
   // One line for a person; never a secret.
   readonly warn: (line: string) => void;
 }
@@ -117,14 +119,23 @@ function corrupt(path: string): StdioError {
 // its own and renamed into place, so no reader sees it partly written or wider
 // than 0600, and refused on read if any bit for group or others is set. Windows
 // has no such bits; the profile directory's own ACL is what protects it there.
-function fileStore(account: string, directory: string, platform: NodeJS.Platform): CredentialStore {
+function fileStore(
+  account: string,
+  directory: string,
+  platform: NodeJS.Platform,
+  uid: number | undefined,
+): CredentialStore {
   const name = `${createHash('sha256').update(account).digest('hex').slice(0, 32)}.json`;
   const path = join(directory, name);
   const checkModes = platform !== 'win32';
 
+  const foreign = (owner: number): boolean => checkModes && uid !== undefined && owner !== uid;
+
   async function checkDirectory(): Promise<boolean> {
-    const info = await stat(directory).catch(() => null);
+    const info = await lstat(directory).catch(() => null);
     if (info === null) return false;
+    if (info.isSymbolicLink()) throw insecure('directory', directory, 'is a symbolic link');
+    if (foreign(info.uid)) throw insecure('directory', directory, 'is owned by another user');
     const problem = checkModes ? fileModeProblem(info.mode, 'directory') : undefined;
     if (problem !== undefined) throw insecure('directory', directory, problem);
     return true;
@@ -138,6 +149,7 @@ function fileStore(account: string, directory: string, platform: NodeJS.Platform
       if (info.isSymbolicLink() || !info.isFile()) {
         throw insecure('file', path, 'is not a regular file');
       }
+      if (foreign(info.uid)) throw insecure('file', path, 'is owned by another user');
       const problem = checkModes ? fileModeProblem(info.mode, 'file') : undefined;
       if (problem !== undefined) throw insecure('file', path, problem);
       const handle = await open(path, 'r');
@@ -185,7 +197,12 @@ function fileStore(account: string, directory: string, platform: NodeJS.Platform
 // saying where a secret went when it could not go to the OS store. A file left
 // behind by an earlier fallback is removed once the OS store holds the secret.
 export function createCredentialStore(deps: CredentialStoreDeps): CredentialStore {
-  const files = fileStore(deps.account, deps.directory, deps.platform);
+  const files = fileStore(
+    deps.account,
+    deps.directory,
+    deps.platform,
+    deps.uid ?? process.geteuid?.(),
+  );
   const keychain = keychainStore(deps.platform, deps.account, deps.run);
   let warned = false;
 
@@ -223,6 +240,19 @@ export function createCredentialStore(deps: CredentialStoreDeps): CredentialStor
         if (!(error instanceof Unavailable)) throw error;
       }
       await files.clear();
+      // A locked or refusing keychain exits with a status of its own, so what is left is read back.
+      let left: string | null = null;
+      try {
+        left = (await keychain?.get()) ?? null;
+      } catch (error) {
+        if (!(error instanceof Unavailable)) throw error;
+      }
+      if (left !== null) {
+        throw new StdioError(
+          'mcp_logout_failed',
+          'the sign-in is still in the operating system credential store; remove its odudu-mcp entry there',
+        );
+      }
     },
   };
 }

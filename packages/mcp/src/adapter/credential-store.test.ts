@@ -20,13 +20,14 @@ interface Call {
 }
 
 // An OS tool that keeps what it is given, as `security` or `secret-tool` would.
-function fakeKeychain(options: { missing?: boolean; failPut?: boolean } = {}) {
+function fakeKeychain(options: { missing?: boolean; failPut?: boolean; stuck?: boolean } = {}) {
   const calls: Call[] = [];
   const items = new Map<string, string>();
   const run: RunTool = (file, args, input): Promise<ToolRun> => {
     calls.push({ file, args, input });
     if (options.missing === true) return Promise.resolve({ kind: 'missing' });
-    const account = args[args.indexOf('-a') + 1] ?? args[args.indexOf('account') + 1] ?? '';
+    const at = Math.max(args.indexOf('-a'), args.indexOf('account'));
+    const account = at < 0 ? '' : (args[at + 1] ?? '');
     if (file === 'security' && args[0] === 'find-generic-password') {
       const found = items.get(account);
       return Promise.resolve(
@@ -42,7 +43,7 @@ function fakeKeychain(options: { missing?: boolean; failPut?: boolean } = {}) {
       return Promise.resolve({ kind: 'exit', code: 0, stdout: '' });
     }
     if (file === 'security' && args[0] === 'delete-generic-password') {
-      const had = items.delete(account);
+      const had = options.stuck === true ? items.has(account) : items.delete(account);
       return Promise.resolve({ kind: 'exit', code: had ? 0 : 44, stdout: '' });
     }
     if (file === 'secret-tool' && args[0] === 'store') {
@@ -58,7 +59,7 @@ function fakeKeychain(options: { missing?: boolean; failPut?: boolean } = {}) {
       });
     }
     if (file === 'secret-tool' && args[0] === 'clear') {
-      items.delete(account);
+      if (options.stuck !== true) items.delete(account);
       return Promise.resolve({ kind: 'exit', code: 0, stdout: '' });
     }
     return Promise.resolve({ kind: 'missing' });
@@ -66,8 +67,15 @@ function fakeKeychain(options: { missing?: boolean; failPut?: boolean } = {}) {
   return { run, calls, items };
 }
 
-function store(platform: NodeJS.Platform, run: RunTool, warned: string[] = [], account = ISSUER) {
+function store(
+  platform: NodeJS.Platform,
+  run: RunTool,
+  warned: string[] = [],
+  account = ISSUER,
+  uid?: number,
+) {
   return createCredentialStore({
+    ...(uid === undefined ? {} : { uid }),
     account,
     directory,
     platform,
@@ -271,5 +279,40 @@ describe('the OS credential store', () => {
     expect(
       await store('darwin', k.run, [], 'https://id.example.com/tenants/other').get(),
     ).toBeNull();
+  });
+
+  it.each(['darwin', 'linux'] as const)(
+    'on %s reports a logout that left the secret behind',
+    async (platform) => {
+      const k = fakeKeychain();
+      await store(platform, k.run).put('x');
+      const stuck = fakeKeychain({ stuck: true });
+      stuck.items.set(ISSUER, Buffer.from('x').toString('hex'));
+      await expect(store(platform, stuck.run).clear()).rejects.toMatchObject({
+        code: 'mcp_logout_failed',
+      });
+    },
+  );
+});
+
+describe('where the file may live', () => {
+  const none: RunTool = () => Promise.resolve({ kind: 'missing' });
+
+  it('refuses a directory that is a symbolic link, even to a private one', async () => {
+    const real = join(directory, '..', 'real');
+    await mkdir(real, { recursive: true, mode: 0o700 });
+    await chmod(real, 0o700);
+    await symlink(real, directory);
+    const s = store('linux', none);
+    await expect(s.put('x')).rejects.toMatchObject({ code: 'mcp_store_insecure' });
+    await expect(s.get()).rejects.toMatchObject({ code: 'mcp_store_insecure' });
+  });
+
+  it('refuses a directory or file that another user owns', async () => {
+    await store('linux', none).put('x');
+    const other = (process.geteuid?.() ?? 0) + 1;
+    const s = store('linux', none, [], ISSUER, other);
+    await expect(s.get()).rejects.toMatchObject({ code: 'mcp_store_insecure' });
+    await expect(s.put('y')).rejects.toThrow(/owned by another user/u);
   });
 });
