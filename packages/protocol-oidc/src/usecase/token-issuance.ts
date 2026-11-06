@@ -468,6 +468,10 @@ async function mintAccessToken(
     // grant that named an actor. Never derived here — the caller resolves
     // it via `buildActChain` before this function ever runs.
     act?: ActClaim;
+    // Signed only for the token the MCP endpoint mints for a call it serves: the
+    // admin API reads it as "the endpoint records this call". No grant, exchange
+    // or refresh sets it, and a claim mapper cannot.
+    endpointMinted?: true;
     // An exchange may not lengthen the credential it was handed; every
     // other grant mints from one the client already owns and passes no
     // ceiling, so `exp` is never capped for them.
@@ -499,10 +503,15 @@ async function mintAccessToken(
     ? [...input.audience]
     : [...input.audience, deps.issuer];
 
-  const mapped = await mappedClaims(deps.claimMappers, input.accessTokenScope, input.claimContext, {
-    reachableRoleIds: input.reachableRoleIds,
-    fullScopeAllowed: input.fullScopeAllowed,
-  });
+  // `via` is the endpoint's marker (below) and nothing else's, so a mapper's is dropped.
+  const mapped = Object.fromEntries(
+    Object.entries(
+      await mappedClaims(deps.claimMappers, input.accessTokenScope, input.claimContext, {
+        reachableRoleIds: input.reachableRoleIds,
+        fullScopeAllowed: input.fullScopeAllowed,
+      }),
+    ).filter(([name]) => name !== 'via'),
+  );
 
   const accessTokenClaims = withRegisteredClaimsWinning(mapped, {
     iss: deps.issuer,
@@ -528,6 +537,7 @@ async function mintAccessToken(
       ? { requested_userinfo_claims: input.requestedUserinfoClaims }
       : {}),
     ...(input.act === undefined ? {} : { act: input.act }),
+    ...(input.endpointMinted === true ? { via: 'mcp' } : {}),
   });
   const accessToken = await signJwt(accessTokenClaims, { key, kek: deps.kek, typ: 'at+jwt' });
   return { accessToken, audience, iat, exp };

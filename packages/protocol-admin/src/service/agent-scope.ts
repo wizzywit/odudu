@@ -81,3 +81,22 @@ const ROUTE_KEYS: ReadonlySet<string> = new Set(
 export function isAdminRouteKey(candidate: string): boolean {
   return ROUTE_KEYS.has(candidate);
 }
+
+// What an agent that reached the admin API directly calls itself in the audit
+// trail: the door cannot know a tool's name, so it is the route's, in the
+// vocabulary's tool charset and length. `GET /admin/tenants/:tenant/clients/:id`
+// is `admin.get.clients.id`. The full route key is recorded beside it.
+export function doorToolName(routeKey: string): string {
+  const [method = '', path = ''] = routeKey.split(' ');
+  const rest = path
+    .replace(/^\/admin(?:\/tenants\/:tenant)?\/?/u, '')
+    .split('/')
+    .filter((segment) => segment !== '')
+    .map((segment) => segment.replace(/^:/u, ''))
+    .join('.');
+  const named = `admin.${method.toLowerCase()}.${rest === '' ? 'tenant' : rest}`;
+  return named
+    .toLowerCase()
+    .replace(/[^a-z0-9_.-]/gu, '_')
+    .slice(0, 64);
+}

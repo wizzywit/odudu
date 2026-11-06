@@ -35,6 +35,7 @@ How they were captured is in [How the transcripts are captured and checked](../.
 - [Protected resource metadata](./protected-resource-metadata.md)
 - [The MCP endpoint](./the-mcp-endpoint.md)
 - [The MCP write tools](./the-mcp-write-tools.md)
+- [odudu mcp over stdio](./odudu-mcp-over-stdio.md)
 - [A themed sign-in and the brand route](./a-themed-sign-in-and-the-brand-route.md)
 - [A tenant at its own address](./custom-domains-a-domain-host-and-the-proxys-question.md)
 - [`Path C: client_credentials`](./path-c-client_credentials.md)

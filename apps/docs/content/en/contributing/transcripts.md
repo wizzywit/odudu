@@ -69,6 +69,16 @@ built from the branch commit `5b55907c4` plus the change that made a NUL in a gr
 contracts), because the document grew by 226 bytes. Its request id, date and size are that fetch's; the stack and its image were
 removed afterwards.
 
+The stdio server's page, `odudu-mcp-over-stdio.md`, was captured, and re-captured after the admin API began recording a direct agent call, on 2026-11-06 on a freshly built compose project,
+`odudu-p5a-i10b` (port `3000`, Postgres published on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch
+commit `2eeb90f9f` plus the change). The stack started from an empty volume and was driven once, in the order the page shows: the
+tenant `demo` seeded, a key made with `odudu mcp --keygen`, a client made with `odudu seed client` and registered with `psql`, then the
+commands. The key line is shortened where it is shown, since it is a private key and the one used is gone with the stack. The psql blocks
+are shown without the trailing spaces the tool pads a column with, as Prettier leaves them, and the tool names are wrapped by `fold`
+at 100 columns with the trailing spaces left off. The sign-in as a person is not on the page: it ends in a browser and a loopback
+listener on the machine that runs the command. `apps/server/tests/mcp-stdio.int.test.ts` runs it against the real app with a scripted
+browser instead. The stack and its image were removed afterwards.
+
 Token exchange gained two per-client limits on 2026-11-05, `token_exchange_allowed_for_public` and
 `token_exchange_actor_from_other_client`, and `odudu seed client` two flags for them. On a freshly built
 compose project, `odudu-p5a-i5d` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the

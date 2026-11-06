@@ -1,5 +1,6 @@
 import { cliOptions, type CliCommand } from '#/cli/command-types';
 import { INIT_OPTIONS } from '#/cli/init-options';
+import { MCP_OPTIONS } from '#/cli/mcp-options';
 import {
   ASSERTION_OPTIONS,
   SEED_BOOTSTRAP_HELP,
@@ -152,6 +153,15 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
       },
     ],
     example: 'odudu console provision',
+  },
+  {
+    name: 'mcp',
+    summary:
+      'Serve the admin tools to a local MCP client over stdio, calling the instance as you or ' +
+      'as a service account. Read-only unless --allow-writes.',
+    options: cliOptions(MCP_OPTIONS),
+    subcommands: NONE,
+    example: 'odudu mcp --base-url https://id.example.com --tenant acme',
   },
   {
     name: 'client-origins',

@@ -125,12 +125,12 @@ export interface AdminFixture {
   // header to be accepted, and a different one to be refused.
   adminTokenAt(tenantName: string, capabilities: readonly string[], host: string): Promise<string>;
   // An admin-audience token of a subject holding `capabilities`, carrying
-  // `scope` and, when given, `act`; minted through the tenant's built-in MCP
+  // `scope` and, when given, `act` and the `via` marker the MCP endpoint signs; minted through the tenant's built-in MCP
   // client when `viaMcpClient` is set, its admin client otherwise.
   agentToken(
     tenantName: string,
     capabilities: readonly string[],
-    options: { scope: string; act?: unknown; viaMcpClient?: boolean },
+    options: { scope: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' },
   ): Promise<string>;
   // The owner's grant behind an MCP token held by `agentClientId` (the
   // built-in MCP client by default), and the admin-audience token
@@ -498,6 +498,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
       audience: string[];
       scope?: string;
       act?: unknown;
+      via?: 'mcp';
     },
   ): Promise<string> {
     const key: SigningKeyRecord = await signingKeyRepository(tx).active();
@@ -527,6 +528,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         grant_id: grantId,
         ...(input.sessionId !== null ? { sid: input.sessionId } : {}),
         ...(input.act === undefined ? {} : { act: input.act }),
+        ...(input.via === undefined ? {} : { via: input.via }),
       },
       { key, kek: KEK, typ: 'at+jwt' },
     );
@@ -555,7 +557,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
     ctx: TenantContext,
     capabilities: readonly string[],
     audience: string[],
-    extra: { scope?: string; act?: unknown; viaMcpClient?: boolean } = {},
+    extra: { scope?: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' } = {},
   ): Promise<string> {
     return withTenant(app.db, ctx.id, async (tx) => {
       const adminClient = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
@@ -587,6 +589,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         audience,
         ...(extra.scope === undefined ? {} : { scope: extra.scope }),
         ...(extra.act === undefined ? {} : { act: extra.act }),
+        ...(extra.via === undefined ? {} : { via: extra.via }),
       });
     });
   }
@@ -594,7 +597,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
   async function agentToken(
     tenantName: string,
     capabilities: readonly string[],
-    options: { scope: string; act?: unknown; viaMcpClient?: boolean },
+    options: { scope: string; act?: unknown; viaMcpClient?: boolean; via?: 'mcp' },
   ): Promise<string> {
     return mintAdminLikeToken(
       requireTenant(tenantName),

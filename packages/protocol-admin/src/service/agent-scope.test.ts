@@ -6,6 +6,7 @@ import {
   agentBodyAdmitted,
   agentBodyNamesGuardedField,
   agentWritableFields,
+  doorToolName,
   isAdminRouteKey,
   scopeAdmits,
 } from '#/service/agent-scope';
@@ -162,5 +163,21 @@ describe('isAdminRouteKey', () => {
   it('fits the audit allowlist for every entry', () => {
     const longest = Math.max(...ADMIN_ROUTES.map((r) => key(r).length));
     expect(longest).toBeLessThanOrEqual(170);
+  });
+});
+
+describe('doorToolName', () => {
+  it('names every admin route in the audit vocabulary’s tool charset and length', () => {
+    for (const route of ADMIN_ROUTES) {
+      const name = doorToolName(`${route.method} ${route.pattern}`);
+      expect(name, route.pattern).toMatch(/^[a-z0-9_.-]{1,64}$/u);
+      expect(name.startsWith('admin.')).toBe(true);
+    }
+  });
+
+  it('reads like the route', () => {
+    expect(doorToolName('GET /admin/tenants/:tenant/clients/:id')).toBe('admin.get.clients.id');
+    expect(doorToolName('GET /admin/tenants/:tenant/whoami')).toBe('admin.get.whoami');
+    expect(doorToolName('GET /admin/tenants')).toBe('admin.get.tenants');
   });
 });

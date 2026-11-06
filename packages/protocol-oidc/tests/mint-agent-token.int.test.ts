@@ -193,6 +193,7 @@ describe('mintAgentToken: what it mints', () => {
       scope: 'mcp:read',
       grant_id: w.grantId,
       sid: w.sessionId,
+      via: 'mcp',
     });
     expect(claims.aud).toEqual([ADMIN_API_AUDIENCE, w.issuer]);
     expect(expiresAt.getTime()).toBe((claims.exp as number) * 1000);

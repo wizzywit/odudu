@@ -101,6 +101,22 @@ To get a token, the service signs a short JWT and sends it as `client_assertion`
 
 Odudu checks the signature against the registered keys, then the audience, expiry and `jti`. Any failure is the same `invalid_client`. To rotate, publish a new key set. A `jwks_uri` is read again at most every five minutes. [Getting the token](../reference/transcripts/admin-paths/getting-the-token.md) shows a client registered this way.
 
+## Give a local AI tool the key
+
+`odudu mcp` serves the admin tools to an AI tool that runs on your machine, over standard input and output, and a service account can be what it signs in as. Make the key with `odudu mcp --keygen`, which prints the `ODUDU_MCP_KEY` line to keep and, on standard error, the key set to register:
+
+```text
+odudu mcp --keygen
+```
+
+Register a client the way this guide does, with the `client_credentials` grant, `token_endpoint_auth_method` set to `private_key_jwt`, that key set as its `jwks`, the audience `urn:odudu:params:admin-api` and the scope `mcp:read` in its `client_credentials_scopes`. The tools can then do what the service account's roles let it do, and no more. Start the command with the key in the environment:
+
+```text
+ODUDU_MCP_KEY=… odudu mcp --base-url https://id.example.com --tenant acme --client-id my-agent
+```
+
+It offers the read tools only. `--allow-writes` asks for `mcp:write` as well and offers the two tools that change a name or a description. Without a key the command opens your browser instead and you sign in as yourself, and the sign-in is kept in your operating system's credential store, or in a file only you can read. [The transcript](../reference/transcripts/request-paths/odudu-mcp-over-stdio.md) runs a handshake and a call.
+
 ## Where to go next
 
 - A service that acts for a person, rather than as itself, uses [token exchange](../reference/transcripts/request-paths/path-d-token-exchange.md).

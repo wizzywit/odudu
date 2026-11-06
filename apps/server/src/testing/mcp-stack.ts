@@ -2,7 +2,7 @@ import { signingKeyRepository, signJwt } from '@odudu/crypto';
 import { createDatabase, MIGRATIONS_DIR, runMigrations, withTenant } from '@odudu/db';
 import type { DatabaseHandle } from '@odudu/db';
 import { auditEvents } from '@odudu/domain-audit';
-import { MCP_CLIENT_ID } from '@odudu/domain-tenant';
+import { hostState, MCP_CLIENT_ID } from '@odudu/domain-tenant';
 import { loadConfig, mcpAudienceOfIssuer, newId } from '@odudu/kernel';
 import {
   callMcpTool,
@@ -39,6 +39,7 @@ export interface Sent {
 export interface McpStack {
   readonly app: FastifyInstance;
   readonly appDb: DatabaseHandle;
+  readonly owner: DatabaseHandle;
   // Every admin request the app saw, in order.
   readonly adminSeen: string[];
   world(capabilities: readonly string[], grantScope: string): Promise<World>;
@@ -94,6 +95,7 @@ export async function startMcpStack(): Promise<McpStack> {
     tls: true,
     publicBaseUrl: BASE,
     throttle: { limit: 100_000, windowSeconds: 60 },
+    hostState: (host) => hostState(owner.db, host, new Date()),
   });
   const adminSeen: string[] = [];
   app.addHook('onRequest', (request, _reply, done) => {
@@ -114,6 +116,7 @@ export async function startMcpStack(): Promise<McpStack> {
   const stack: McpStack = {
     app,
     appDb,
+    owner,
     adminSeen,
     world: (capabilities, grantScope) => mcpWorld(appDb, BASE, capabilities, grantScope),
     async sign(w, scope, claims = {}) {

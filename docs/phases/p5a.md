@@ -1003,3 +1003,181 @@ To undo one, send the earlier text from the audit row's `before` with the new et
 - Closing pass reads: the Increment 11 guide must name `update_client_metadata`, `update_scope_metadata`, the residual risk and
   "what an agent can change" (no page does yet); the landing page and README still call the MCP server "read-only by default",
   which stays true of what a token without `mcp:write` gets.
+
+## `odudu mcp`, the stdio server
+
+`odudu mcp --base-url <origin> --tenant <name> [--read-only | --allow-writes]
+[--client-id <id>] [--key-file <path>] [--logout] [--keygen]` serves the same
+catalogue as the HTTP endpoint (`TOOLS`, through `toolServer`, which the HTTP
+exchange now shares) to a local MCP client over standard input and output. It
+reads no server configuration and opens no database; it is a client of an
+instance, and the only things it trusts are the base URL and tenant it was
+given.
+
+- **No MCP endpoint is in the path.** The admin API is called over HTTP
+  (`createHttpCaller`) with a token issued to the caller directly: audience
+  `urn:odudu:params:admin-api`, scope `mcp:read` or `mcp:write` alone. For a
+  person that is the built-in `odudu-mcp` client (the admin API marks it by its
+  `builtin_mcp` row, so no `act` is minted); for a service account it is the
+  account's own client, marked an agent by the MCP scope it holds.
+  verified: `apps/server/tests/mcp-stdio.int.test.ts` (the token's claims at the
+  admin API: `client_id`, `scope`, `aud`, no `act`).
+- **The authorization request** carries `resource=urn:odudu:params:admin-api`,
+  the one audience `odudu-mcp` has registered, `scope=mcp:read` (or
+  `mcp:write`, alone, with `--allow-writes`), PKCE S256, `state`, and the
+  loopback `redirect_uri` `http://127.0.0.1:<port>/`. It asks for neither
+  `openid` nor `offline_access`: the token is not an identity, and a refresh
+  token without `offline_access` ends with the person's session, not after
+  fourteen days independent of it. Cost: a person whose session has ended signs
+  in again sooner.
+- **Two ways in, chosen by what is given.** A key (`ODUDU_MCP_KEY`, or
+  `--key-file`) with a client id (`--client-id`, or `ODUDU_MCP_CLIENT_ID`) signs
+  in as the service account with `private_key_jwt` at `client_credentials`; the
+  assertion's audience is the `token_endpoint` the metadata publishes, which
+  `private-key-jwt-authentication.ts` accepts. Otherwise the person's browser is
+  opened. A client id without a key, or a key without a client id, is one line
+  on standard error naming what to set. The key is the base64 of a P-256 private
+  JWK, the form `ODUDU_CONSOLE_CLIENT_KEY` has (`odudu mcp --keygen` prints
+  it and, on standard error, the public key set to register). A PEM was not
+  accepted: one format means one parser and one way to be wrong, at the cost of
+  a key made with `openssl` needing a conversion.
+- **A service account needs more than a key.** The client must be confidential
+  with the `client_credentials` grant, `token_endpoint_auth_method`
+  `private_key_jwt`, the key set as `jwks`, the admin API's audience, the scopes
+  it may ask for in `client_credentials_scopes`, and roles on its account: its
+  ceiling is those roles. `--allow-writes` with an account that was given only
+  `mcp:read` fails at the first call with `invalid_scope`, shown on the
+  transcript page.
+- **What is checked before a token is used** (`acceptTokenSet`, on every token
+  from every route): the `iss` claim is exactly the issuer, the audience holds
+  the admin API, the scope holds the one this run asked for, and a read-only
+  run holds no `mcp:write`. The discovery document's `issuer` must be exactly
+  base URL plus tenant, both endpoints on that origin, and S256 offered; nothing
+  else is trusted with a code or a bearer. `iss` is checked on the redirect
+  before `state`, before an `error` is read, and before the code leaves the
+  process (RFC 9207 §2.4); a missing `iss` is refused while the server
+  advertises one. A refusal is reported by the check that failed and the
+  registered error code, never by the sender's text.
+- **The listener** is bound to `127.0.0.1` only (the redirect URI is the IPv4
+  literal, so `[::1]` would never receive it), is given the sign-in's `state`, takes
+  the first `GET /` that carries exactly that one value, answers a fixed page, and
+  stops. Another path is 404, any other `state` (or none, or two) is 400 with no
+  reflection, a `Host` that is not `127.0.0.1:<port>` is 421 (a rebound name), and
+  none of those spends the one request: a stray local request that finds the port
+  cannot cost the person their sign-in. After 20 requests that were not the answer
+  it gives up, with one line. It also gives up after five minutes. The browser is
+  opened with `open`, `xdg-open` or `rundll32` and the address as one argument; the
+  address goes to standard error only when that failed.
+- **Where the sign-in is kept.** Only a read-only run keeps one: its refresh
+  token, never the access token, under the key base URL plus tenant. A run with
+  `--allow-writes` neither reads nor writes the store, whatever it holds, and
+  a refresh token that arrives with an `mcp:write` token is dropped; the token
+  lasts at most ten minutes and each lapse is a new sign-in, which asks the
+  person again.
+- **Keychain: a command-line tool per platform, a file where there is none.**
+  macOS uses `security -i` and Linux `secret-tool`, run with `execFile` and the
+  secret on the tool's standard input, hex-encoded (no quoting, and not in an
+  argument vector another process can read); what was stored is read back,
+  because `security -i` exits 0 whether or not a command worked. Where the tool
+  is missing or fails, or on Windows, the sign-in goes to
+  `$XDG_CONFIG_HOME/odudu/mcp/<hash>.json` (`%APPDATA%\odudu\mcp` on Windows),
+  written with `wx` to a name of its own and renamed, in a directory of mode
+  0700, and one line on standard error says so. A file or directory that group
+  or others can touch, a symbolic link and a file not written by this command
+  are each refused in one line naming the path, before anything is served.
+  `--logout` removes the entry and the file, and works on a file too wide to
+  read. Options weighed:
+  - `@napi-rs/keyring` 2.1.2 (MIT, modified 2026-10-19, past the 1440-minute
+    `minimumReleaseAge`) and `keytar` 7.9.0 (MIT) are compatible with
+    `LICENSING.md`, but each is a native binding shipping a prebuilt binary per
+    platform: a bigger supply-chain surface than the operating system's own tool,
+    run for one secret, and it would put a native module in the CLI's image.
+  - File only is the smallest, at the cost of no keychain on a laptop that has one.
+  - The tool route adds no dependency. Its limits: on macOS an item made by
+    `security` is readable by the next `security` call of the same user without a
+    prompt, so it protects against other users and a copied disk, not another
+    process of the same user (the file's 0600 protects exactly as much); on Linux
+    it needs a running Secret Service, and a headless one falls back to the file.
+  - verified: `security -i` taking `add-generic-password` on standard input and
+    `find-generic-password -w` reading it back (run on macOS, through
+    `createCredentialStore` with the real `runTool`, and removed).
+    assumption: `secret-tool store` reads the secret from standard input when it
+    is not a terminal (its manual says so); not run on Linux here.
+- **The tools list is the scope's.** The HTTP endpoint also leaves out a tool the
+  owner's capabilities cannot use, by reading `whoami`; the stdio server lists by
+  scope alone (read-only hides the two write tools) and lets the admin API refuse
+  the rest, so `tools/list` needs no token and answers at once. A tool call may wait
+  for a person: the first call of a run that must sign in blocks, up to six minutes,
+  on their browser.
+- **Not covered.** Windows and the Secret Service were not run. A sign-in in a
+  container needs its loopback port reachable from the browser, so a container uses
+  the key route.
+- **A tenant with a domain of its own** signs in at that domain and has its admin
+  API at the instance (ADR 0049), so two origins are needed: `--base-url` is the
+  instance and `--tenant-address` the domain. The domain's metadata is at
+  `/.well-known/oauth-authorization-server`, its `issuer` must be exactly that
+  origin and both endpoints on it. An address of the domain alone as `--base-url`
+  would have called the admin API where it does not live (a 404 on the live check),
+  so it is refused by discovery with the option named. verified:
+  `mcp-stdio.int.test.ts` (a verified, canonical domain; key flow; the token's `iss`
+  is the domain).
+- **A call over stdio is recorded by the admin API's door.** The first live run showed
+  two reads leaving only `token.issue`. The door (`handleRoute`) now writes one
+  `agent.tool_call` row, before the handler runs, for an agent principal whose token
+  does not carry the `via: mcp` claim that only `mintAgentToken` signs
+  (`AdminAgent.viaEndpoint`), so the MCP endpoint's own row is not doubled. `act` alone is
+  not the marker: a token exchange makes `act` tokens too, and a client allowed to exchange
+  could otherwise call the admin API with no row at all. Exchange, refresh and
+  `client_credentials` build their claims and copy none from a subject token, and `via` from a
+  claim mapper is dropped. `tool` is derived from the route key
+  (`admin.get.clients`, `doorToolName`), inside the vocabulary's charset, with the
+  full key in `route`. A row that cannot be written is a `503` and the handler does not
+  run (the HTTP path's stance). A write has this row and its own mutation row. ADR
+  0040's amendment names the second writer. verified:
+  `packages/protocol-admin/tests/agent-door-audit.int.test.ts` (reads, a write, an
+  `act` token and a person's token leave none, a refused call leaves only its refusal,
+  an unwritable row is a 503 with the mutation not applied) and the re-run transcript.
+  Cost: one extra insert per agent call, inside the bound the amendment states.
+- **Sign-in robustness.** The refresh token is kept before the new access token is
+  judged, because the server has already spent the old one, and kept in memory for the
+  run if the store will not take it. Reading the store, refreshing and writing happen
+  under a lock file (an owner token, `wx`, 45 s stale taken by rename, 50 s wait; never held
+  across the browser sign-in) so two `odudu mcp` of one user do not present the same token. After a failure nothing is tried again for a minute, so an
+  agent that retries does not open a browser per call. A 401 drops the token and
+  retries once. Expiry is the earlier of `expires_in` (capped at an hour) and the
+  token's `exp`. `--logout` reads back and exits non-zero if the secret is still
+  there. The credential directory must not be a link and its owner must be the
+  effective user. An empty or relative `XDG_CONFIG_HOME` is ignored. A call still
+  running at end of input is waited for, up to 25 s, so a write's outcome is known.
+  A failure line carries the error's name and a cleaned message (queries cut from
+  addresses, long opaque runs shortened) and the correlation id.
+- **A sign-in is kept for the server it was made at.** The store and the lock are keyed by
+  the issuer of the address signed in at (the path address, or what `--tenant-address`
+  names), and the refresh token is stored with its issuer and token endpoint. A stored value
+  for another issuer or token endpoint is forgotten and the person signs in again, so a
+  configuration that changes `--tenant-address` cannot hand a refresh token to another
+  server.
+- **The credential file and a swapped directory.** Node has no `openat`, so a write cannot be
+  bound to the directory it checked. The credential directory and its parent are not links,
+  belong to the effective user, and the parent is not writable by group or others (a sticky
+  bit does not excuse it); the file is made with `wx` and renamed in place; and the two
+  directories' device and inode are compared again after the open, after the write and after
+  the rename, a swap in between refusing the write and emptying the temporary file through its
+  open handle, so the secret is not written into the new target. verified:
+  `packages/mcp/src/adapter/credential-store.test.ts` (a swap after the check, a swap after
+  the write, a linked parent, a parent others can write). Residual: a root or kernel level
+  attacker, and the moment between a comparison and the next system call, are out of scope;
+  the directories above the parent (the config root) are not inspected, since they may
+  legitimately be links into a dotfiles repository.
+- **Logout confirms or says it could not.** `--logout` exits non-zero with one line, "could
+  not confirm the sign-in was removed from the OS credential store", when the OS tool cannot
+  be asked (missing, or an exit status that is not "not found") and no credential file was
+  held. A file held, or the store answering "nothing here", is a confirmed logout. A host
+  with no tool that never stored there therefore sees the line on a logout with nothing to
+  remove.
+- **Smaller sign-in hardening.** A response body that fails mid-read is "could not be
+  reached", so the cooldown applies; a JSON media type is compared without case and by
+  type and subtype; an authorization endpoint's own query is kept and one that names a
+  parameter the client sets is refused; a token whose own `scope` claim lacks the scope asked
+  for is refused before any call; a 401 invalidates only the bearer it was for; an access
+  token already expired on arrival is refused with the cooldown.
