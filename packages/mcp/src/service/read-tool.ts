@@ -167,6 +167,7 @@ export function pageTool<S extends Shape, Item extends z.ZodType>(
     access: 'read',
     annotations: READ_ANNOTATIONS,
     input: inputOf(cfg.shape),
+    response: cfg.response,
     output,
     run: async (caller, input) => {
       const body = cfg.response.parse(
@@ -195,6 +196,7 @@ export function valueTool<S extends Shape>(
     access: 'read',
     annotations: READ_ANNOTATIONS,
     input: inputOf(cfg.shape),
+    response: cfg.response,
     output: z.object({ data: cfg.response, ...TRUNCATION }),
     run: async (caller, input) => {
       const body = cfg.response.parse(

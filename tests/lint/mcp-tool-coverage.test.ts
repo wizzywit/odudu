@@ -34,7 +34,7 @@ describe('the MCP tool catalogue against the admin routes', () => {
 
   it('gives every NOT_TOOLS entry a reason', () => {
     for (const [route, reason] of Object.entries(NOT_TOOLS)) {
-      expect(reason.trim().length, route).toBeGreaterThan(10);
+      expect(reason.trim().length, route).toBeGreaterThanOrEqual(20);
     }
   });
 
@@ -72,7 +72,7 @@ describe('the MCP tool catalogue against the admin routes', () => {
     }
   });
 
-  it('withholds every destructive route with the phase that takes it', () => {
+  it('withholds every destructive route, saying it is destructive', () => {
     const destructive = [
       'DELETE /admin/tenants/:tenant',
       'DELETE /admin/tenants/:tenant/sessions',
@@ -85,8 +85,34 @@ describe('the MCP tool catalogue against the admin routes', () => {
     ];
     for (const route of destructive) {
       expect(ROUTE_KEYS, route).toContain(route);
-      expect(NOT_TOOLS[route], route).toContain('P5b');
+      expect(NOT_TOOLS[route], route).toMatch(/^Destructive/u);
     }
+  });
+
+  it('files exactly the agent-writable routes as descriptive writes', () => {
+    const writable = AGENT_WRITE_ROUTES.map((route) => `${route.method} ${route.pattern}`);
+    const filed = Object.entries(NOT_TOOLS)
+      .filter(([, reason]) => reason.startsWith('A reversible write of descriptive fields'))
+      .map(([route]) => route);
+    expect(filed.sort()).toEqual([...writable].sort());
+  });
+
+  it('gives a reason to more than one route only within a family or among writes', () => {
+    const families = new Map<string, Set<string>>();
+    for (const [route, reason] of Object.entries(NOT_TOOLS)) {
+      const [method = '', pattern = ''] = route.split(' ');
+      const rest = pattern.replace('/admin/tenants/:tenant', '').split('/').filter(Boolean);
+      const segment = rest[0] === 'clients' && rest[1] === ':id' ? rest[2] : rest[0];
+      const family = method === 'GET' ? (segment ?? 'tenants').split('-')[0] : 'write';
+      families.set(reason, (families.get(reason) ?? new Set()).add(family ?? ''));
+    }
+    for (const [reason, set] of families) {
+      expect(set.size, reason).toBe(1);
+    }
+  });
+
+  it('keeps phase names out of the reasons', () => {
+    for (const reason of Object.values(NOT_TOOLS)) expect(reason).not.toMatch(/\bP\d/u);
   });
 
   it('names tools uniquely, in the protocol alphabet, in a fixed order', () => {

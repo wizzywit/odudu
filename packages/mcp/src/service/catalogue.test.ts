@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
+import { ADMIN_ROUTES } from '@odudu/protocol-admin';
 import { NOT_TOOLS, TOOLS } from '#/service/catalogue';
 
 describe('the catalogue', () => {
@@ -35,5 +36,14 @@ describe('the catalogue', () => {
 
   it('keeps the tools and the withheld routes apart', () => {
     for (const tool of TOOLS) expect(NOT_TOOLS, tool.name).not.toHaveProperty([tool.routeKey]);
+  });
+
+  it("answers with the schema the route's own contract declares", () => {
+    for (const tool of TOOLS) {
+      const route = ADMIN_ROUTES.find(
+        (candidate) => `${candidate.method} ${candidate.pattern}` === tool.routeKey,
+      );
+      expect(tool.response, tool.name).toBe(route?.responseSchema);
+    }
   });
 });

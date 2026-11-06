@@ -40,6 +40,8 @@ export interface McpTool<I, O> {
   readonly capability: AdminCapability | null;
   readonly access: 'read' | 'write';
   readonly annotations: ToolAnnotations;
+  // The schema the admin route answers with, which `output` is built from.
+  readonly response: z.ZodType;
   readonly input: z.ZodType<I>;
   readonly output: z.ZodType<O>;
   readonly run: (caller: AdminCaller, input: I) => Promise<O>;

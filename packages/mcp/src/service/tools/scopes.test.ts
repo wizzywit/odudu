@@ -1,7 +1,10 @@
 import {
   clientScopeSchema,
   countResponseSchema,
+  listScopeClientsResponseSchema,
   listScopesResponseSchema,
+  scopeMappersSchema,
+  setScopeRolesResponseSchema,
 } from '@odudu/contracts/admin';
 import { describe } from 'vitest';
 import { describeReadTool } from '#/testing/conformance';
@@ -33,5 +36,29 @@ describe('scopes tools', () => {
     input: { id: '0192a0a0-0000-7000-8000-000000000001' },
     params: { id: '0192a0a0-0000-7000-8000-000000000001' },
     text: ['description'],
+  });
+  describeReadTool({
+    tool: named('get_scope_roles'),
+    response: setScopeRolesResponseSchema,
+    pattern: '/admin/tenants/:tenant/scopes/:id/roles',
+    input: { id: '0192a0a0-0000-7000-8000-000000000001' },
+    params: { id: '0192a0a0-0000-7000-8000-000000000001' },
+  });
+  describeReadTool({
+    tool: named('get_scope_mappers'),
+    response: scopeMappersSchema,
+    pattern: '/admin/tenants/:tenant/scopes/:id/mappers',
+    input: { id: '0192a0a0-0000-7000-8000-000000000001' },
+    params: { id: '0192a0a0-0000-7000-8000-000000000001' },
+    text: ['bound', 0],
+  });
+  describeReadTool({
+    tool: named('list_scope_clients'),
+    response: listScopeClientsResponseSchema,
+    pattern: '/admin/tenants/:tenant/scopes/:id/clients',
+    input: { id: '0192a0a0-0000-7000-8000-000000000001' },
+    params: { id: '0192a0a0-0000-7000-8000-000000000001' },
+    paged: true,
+    text: ['items', 0, 'name'],
   });
 });

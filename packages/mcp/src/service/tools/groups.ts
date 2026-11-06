@@ -3,6 +3,7 @@ import {
   countResponseSchema,
   groupSchema,
   listGroupsResponseSchema,
+  setGroupRolesResponseSchema,
 } from '@odudu/contracts/admin';
 import { idField, pageShape, pageTool, tenantGet, valueTool } from '#/service/read-tool';
 
@@ -33,5 +34,14 @@ export const groupTools = [
     shape: { id: idField('group') },
     pathParams: ['id'],
     response: groupSchema,
+  }),
+  valueTool({
+    name: 'get_group_roles',
+    description: 'Lists the roles a group grants to its members.',
+    routeKey: tenantGet('/groups/:id/roles'),
+    capability: 'manage-tenant',
+    shape: { id: idField('group') },
+    pathParams: ['id'],
+    response: setGroupRolesResponseSchema,
   }),
 ];

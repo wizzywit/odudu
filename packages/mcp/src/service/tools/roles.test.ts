@@ -1,4 +1,9 @@
-import { countResponseSchema, listRolesResponseSchema, roleSchema } from '@odudu/contracts/admin';
+import {
+  countResponseSchema,
+  listRoleCompositesResponseSchema,
+  listRolesResponseSchema,
+  roleSchema,
+} from '@odudu/contracts/admin';
 import { describe } from 'vitest';
 import { describeReadTool } from '#/testing/conformance';
 import { roleTools } from '#/service/tools/roles';
@@ -29,5 +34,13 @@ describe('roles tools', () => {
     input: { id: '0192a0a0-0000-7000-8000-000000000001' },
     params: { id: '0192a0a0-0000-7000-8000-000000000001' },
     text: ['name'],
+  });
+  describeReadTool({
+    tool: named('get_role_composites'),
+    response: listRoleCompositesResponseSchema,
+    pattern: '/admin/tenants/:tenant/roles/:id/composites',
+    input: { id: '0192a0a0-0000-7000-8000-000000000001' },
+    params: { id: '0192a0a0-0000-7000-8000-000000000001' },
+    text: ['items', 0, 'description'],
   });
 });

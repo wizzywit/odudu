@@ -22,6 +22,7 @@ const base: McpTool<{ n: number }, { data: { text: string } }> = {
   capability: null,
   access: 'read',
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+  response: z.unknown(),
   input: z.strictObject({ n: z.number().int().max(5) }),
   output: z.object({ data: z.object({ text: z.string() }) }),
   run: async (caller, input) => {

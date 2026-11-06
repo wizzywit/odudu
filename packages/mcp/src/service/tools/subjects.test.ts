@@ -1,7 +1,12 @@
 import {
+  adminCapabilitiesResponseSchema,
   countResponseSchema,
+  listEffectiveRolesResponseSchema,
   listSubjectsResponseSchema,
   lockoutSchema,
+  setRequiredActionsResponseSchema,
+  setRolesResponseSchema,
+  setSubjectGroupsResponseSchema,
   subjectSchema,
 } from '@odudu/contracts/admin';
 import { describe } from 'vitest';
@@ -39,6 +44,43 @@ describe('subjects tools', () => {
     tool: named('get_subject_lockout'),
     response: lockoutSchema,
     pattern: '/admin/tenants/:tenant/subjects/:id/lockout',
+    input: { id: '0192a0a0-0000-7000-8000-000000000001' },
+    params: { id: '0192a0a0-0000-7000-8000-000000000001' },
+  });
+  describeReadTool({
+    tool: named('list_subject_effective_roles'),
+    response: listEffectiveRolesResponseSchema,
+    pattern: '/admin/tenants/:tenant/subjects/:id/effective-roles',
+    input: { id: '0192a0a0-0000-7000-8000-000000000001' },
+    params: { id: '0192a0a0-0000-7000-8000-000000000001' },
+    paged: true,
+  });
+  describeReadTool({
+    tool: named('get_subject_admin_capabilities'),
+    response: adminCapabilitiesResponseSchema,
+    pattern: '/admin/tenants/:tenant/subjects/:id/admin-capabilities',
+    input: { id: '0192a0a0-0000-7000-8000-000000000001' },
+    params: { id: '0192a0a0-0000-7000-8000-000000000001' },
+  });
+  describeReadTool({
+    tool: named('get_subject_roles'),
+    response: setRolesResponseSchema,
+    pattern: '/admin/tenants/:tenant/subjects/:id/roles',
+    input: { id: '0192a0a0-0000-7000-8000-000000000001' },
+    params: { id: '0192a0a0-0000-7000-8000-000000000001' },
+  });
+  describeReadTool({
+    tool: named('get_subject_groups'),
+    response: setSubjectGroupsResponseSchema,
+    pattern: '/admin/tenants/:tenant/subjects/:id/groups',
+    input: { id: '0192a0a0-0000-7000-8000-000000000001' },
+    params: { id: '0192a0a0-0000-7000-8000-000000000001' },
+    text: ['items', 0, 'name'],
+  });
+  describeReadTool({
+    tool: named('get_subject_required_actions'),
+    response: setRequiredActionsResponseSchema,
+    pattern: '/admin/tenants/:tenant/subjects/:id/required-actions',
     input: { id: '0192a0a0-0000-7000-8000-000000000001' },
     params: { id: '0192a0a0-0000-7000-8000-000000000001' },
   });

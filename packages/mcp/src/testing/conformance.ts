@@ -50,8 +50,11 @@ function setAt(root: unknown, path: readonly (string | number)[], value: string)
 
 // A page answers `items` and a record answers itself; the tool puts either
 // under `data`.
-function dataPath(path: readonly (string | number)[]): readonly (string | number)[] {
-  return path[0] === 'items' ? ['data', ...path.slice(1)] : ['data', ...path];
+function dataPath(
+  path: readonly (string | number)[],
+  paged: boolean,
+): readonly (string | number)[] {
+  return paged ? ['data', ...path.slice(1)] : ['data', ...path];
 }
 
 function bodyOf(spec: ReadToolCase): Record<string, unknown> {
@@ -201,7 +204,7 @@ export function describeReadTool(spec: ReadToolCase): void {
               ['data', 'next_cursor', 'truncated'].includes(key),
             ),
           ).toBe(true);
-          const returned = at(result.structuredContent, dataPath(text));
+          const returned = at(result.structuredContent, dataPath(text, spec.paged === true));
           expect(typeof returned).toBe('string');
           expect(String(returned).length).toBeLessThanOrEqual(TEXT_CAP);
           expect(result.structuredContent.truncated === true).toBe(hostile.length > TEXT_CAP);
@@ -216,7 +219,7 @@ export function describeReadTool(spec: ReadToolCase): void {
         const body = bodyOf(spec);
         setAt(body, text, HOSTILE[0] ?? '');
         const result = await callTool(tool, respondingWith(body), input);
-        expect(at(result.structuredContent, dataPath(text))).toBe(HOSTILE[0]);
+        expect(at(result.structuredContent, dataPath(text, spec.paged === true))).toBe(HOSTILE[0]);
         expect(result.isError).toBe(false);
       });
     }

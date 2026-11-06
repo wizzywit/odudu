@@ -1,6 +1,7 @@
 import {
   countResponseSchema,
   countRolesQuerySchema,
+  listRoleCompositesResponseSchema,
   listRolesResponseSchema,
   roleSchema,
 } from '@odudu/contracts/admin';
@@ -33,5 +34,15 @@ export const roleTools = [
     shape: { id: idField('role') },
     pathParams: ['id'],
     response: roleSchema,
+  }),
+  valueTool({
+    name: 'get_role_composites',
+    description:
+      'Lists the roles nested directly under a role, which anyone holding it also holds.',
+    routeKey: tenantGet('/roles/:id/composites'),
+    capability: 'manage-tenant',
+    shape: { id: idField('role') },
+    pathParams: ['id'],
+    response: listRoleCompositesResponseSchema,
   }),
 ];
