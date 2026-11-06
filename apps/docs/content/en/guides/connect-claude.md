@@ -34,7 +34,7 @@ Which one Claude Code uses is its choice. A tenant with only `cimd_enabled` on i
 
 A client that registered itself, or came from a metadata document, is never given `mcp:write`, however it asks. To let an agent change the descriptive text of clients and scopes, an administrator makes a client for Claude Code. It is public, its audience is the tenant's MCP address, and `mcp:read` and `mcp:write` are assigned to it as optional scopes. On the server's host, with the commands the other guides use:
 
-A **redirect address** (also called the callback) is where Odudu sends the browser, with the sign-in's result, when you have signed in. A client has to say in advance which addresses it may use, and Odudu sends the browser nowhere else. For Claude Code it is a small web server on your own machine that waits for that one visit, so the address is `http://localhost:` and a port number.
+A **redirect address** (also called the callback) is where Odudu sends the browser, with the sign-in's result, when you have signed in. A client has to say in advance which addresses it may use, and Odudu sends the browser nowhere else. For Claude Code it is a small web server on your own machine that waits for that one visit, so the address is `localhost` and a port number, as in the example below.
 
 Pick a port nothing else listens on, and check it with `lsof -i :8765`, which prints nothing when the port is free. The guides use 8765 because common local services use 8080. Browsers try `localhost` as the IPv6 address `::1` before the IPv4 one, so a service listening on IPv6 on that port, a container for one, takes the redirect and answers "Resource not found" instead of Claude Code.
 
