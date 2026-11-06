@@ -258,7 +258,8 @@ import { type Audit as DomainAudit } from '#/usecase/domains';
 import { createVerifyThrottle, type VerifyThrottle } from '#/service/domain-throttle';
 import { type ResolveTxt } from '@odudu/domain-tenant';
 
-export { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
+export { ADMIN_ROUTES, type AdminCapability, type AdminRoute } from '#/service/capability';
+export { AGENT_DENIED_READS, AGENT_WRITE_ROUTES } from '#/service/agent-scope';
 export { COUNT_CAP } from '#/usecase/counts';
 export { idempotencyRepository } from '#/repository/idempotency';
 export {
