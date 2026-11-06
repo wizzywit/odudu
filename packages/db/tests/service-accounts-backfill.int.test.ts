@@ -63,7 +63,7 @@ describe('the service-account migration', () => {
     const rows = await handle().sql<{ relname: string }[]>`
       select relname from pg_class
        where relname in ('clients', 'subjects', 'client_oidc_config', 'audit_events',
-                         'token_grants', 'subject_roles', 'consents', 'sessions')
+                         'token_grants', 'subject_roles', 'consents', 'sessions', 'tenants')
          and not relforcerowsecurity`;
     expect(rows).toEqual([]);
   });
