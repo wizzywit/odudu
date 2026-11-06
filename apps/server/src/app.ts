@@ -53,6 +53,7 @@ import {
   DEFAULT_CONSOLE_DIR,
   DEFAULT_INSTRUMENT_DIR,
   DEFAULT_OUTBOX_MAX_ATTEMPTS,
+  isDomainAddress,
   newId,
   systemClock,
 } from '@odudu/kernel';
@@ -487,7 +488,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // A domain is the tenant's own address: its pages name no operator link.
   const atDomain: UnroutedDeps = { links: {} };
   app.setNotFoundHandler((request, reply) =>
-    answerNotFound(request, reply, request.tenantAddress?.prefix === '' ? atDomain : unrouted),
+    answerNotFound(request, reply, isDomainAddress(request.tenantAddress) ? atDomain : unrouted),
   );
   app.setErrorHandler<FastifyError>((error, request, reply) =>
     answerServerError(error, request, reply),
