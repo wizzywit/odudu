@@ -41,6 +41,10 @@ A row about a domain, a signing key, the sign-in flow or a registration token li
 
 Choose **Details** on a row to read the whole event. Rows written for one request share a correlation id and are labelled as one. The caller can set that id, so it links rows together and proves nothing about who sent the request. An actor marked "from elsewhere" belongs to another tenant: a system administrator acting across tenants, whose name this tenant cannot show.
 
+### When an agent acted
+
+An AI agent working through the MCP endpoint leaves an `agent.tool_call` row for every tool call, under the **Admin access** family. **Actor** is the person who signed in, and **Actor client** in **Details** is the agent's client, so the row reads as that person's agent acting. The details name the `tool` and the admin `route` it reached, never its arguments. A refused call has the outcome **Refused**. When an agent with `mcp:write` changed a client or a scope, the `client.amend` or `scope.amend` row names the same two and shows the text as before → after. See [Consent and audit](../concepts/consent-and-audit.mdx#an-agent-in-the-trail).
+
 ## 4. Take the events away
 
 Choose **Export these events**. You get the events the filters match, newest first, one JSON object per line, up to ten thousand. Past that the export is refused instead of being cut short, so narrow the time range and export again. The export is itself recorded in the trail.

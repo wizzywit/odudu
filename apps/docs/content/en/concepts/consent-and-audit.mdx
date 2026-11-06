@@ -35,17 +35,17 @@ Odudu decides in this order:
 5. If something is missing and the request says `prompt=none`, refuse with `consent_required`, because `none` means the person must not be shown anything.
 6. Otherwise, ask.
 
-`consent_required` is a setting on each client. An administrator's clients leave it off by default. A client that registered itself with no token has it on. From the command line, `odudu seed client --consent-required` creates one that asks.
+`consent_required` is a setting on each client. An administrator's clients leave it off by default; a client that registered itself has it on. `odudu seed client --consent-required` creates one that asks.
 
-A client that nobody at the tenant vetted is held to step 2 until the person approves it. The approval belongs to that client's id alone: allowing one app never allows another with the same name, and a signed-in session does not stand in for it.
+A client nobody at the tenant vetted is held to step 2 until the person approves it. The approval belongs to that client's id alone: allowing one app never allows another with the same name.
 
 ### Looking at and removing grants
 
-An administrator can list what a person has allowed with `GET /admin/tenants/{tenant}/subjects/{id}/consents`, and remove one with `DELETE /admin/tenants/{tenant}/subjects/{id}/consents/{clientId}`. The person is asked again next time.
+An administrator can list a person's grants with `GET /admin/tenants/{tenant}/subjects/{id}/consents` and remove one with `DELETE /admin/tenants/{tenant}/subjects/{id}/consents/{clientId}`, and the person is asked again.
 
 ### A client that names itself
 
-A tenant can let an app identify itself with an https address (`cimd_enabled`) or let an agent register itself (`client_registration_policy` set to `mcp`). Anyone can claim a name, so such a client is held to step 2 until the person approves it. For an app that identifies itself with an https address, the screen shows the host the document came from and every redirect address. An agent that registers itself says so and lists its redirect origins. Neither kind is ever offered `mcp:write`, and a request that names it is answered without it. The [Settings page](../admin-console/settings.mdx#client-registration) has the details, and the [registration transcript](../reference/transcripts/request-paths/bootstrap.md#the-mcp-policy) shows each refusal.
+A tenant can let an app identify itself with an https address (`cimd_enabled`) or let an agent register itself (`client_registration_policy` set to `mcp`). Anyone can claim a name, so such a client is held to step 2. For an app that identifies itself with an https address, the screen shows the host the document came from and every redirect address. An agent that registers itself says so and lists its redirect origins. Neither kind is ever offered `mcp:write`, and a request that names it is answered without it. The [Settings page](../admin-console/settings.mdx#client-registration) has the details, and the [registration transcript](../reference/transcripts/request-paths/bootstrap.md#the-mcp-policy) shows each refusal.
 
 ## Audit
 
@@ -59,24 +59,28 @@ It records:
 - **credentials** that were created or changed, and recovery codes issued or revoked;
 - **changes an administrator made**, through the admin API or the console.
 
-Read it with `GET /admin/tenants/{tenant}/audit`. Filter by what you are chasing, or export it. The [audit events reference](../reference/generated/events.md) lists every event, action and reason.
+Read it with `GET /admin/tenants/{tenant}/audit`, filtered or exported. The [audit events reference](../reference/generated/events.md) lists every event, action and reason.
 
 ### Refusals are bounded
 
-Recording every refusal has a catch: anybody can cause one, as often as they like, and each is a row. So a refusal is recorded only where something limits how many a caller can cause. A refused request from a client that is registered gets a row, up to 20 refusals per client per minute. The last row of the minute says the budget ran out, and later refusals in that minute are written to the server's log instead. A failed client login that names a client nobody registered writes no row at all. A sign-up with an email address that already has an account writes one row naming that account. The request budget the sign-up form has for each address it comes from limits those.
+Anybody can cause a refusal as often as they like, and each is a row, so one is recorded only where something limits how many a caller can cause. A registered client gets up to 20 refusal rows a minute. The last says the budget ran out, and later ones go to the server's log. A failed client login naming a client nobody registered writes no row. A sign-up with an address that already has an account writes one row naming that account, limited by the sign-up form's budget per address.
+
+### An agent in the trail
+
+When an AI agent acts through the MCP endpoint, each tool call, reads included, is an `agent.tool_call` event. The actor is the person who signed in and the actor client is the agent's client. The details name the tool and the admin route, never the arguments. A refused call is recorded too. A change made with `mcp:write` is also a `client.amend` or `scope.amend` event naming the agent's client and the person, with the text before and after.
 
 ### How long it is kept
 
-Nothing in the server or the admin API edits or deletes an event, apart from the retention pass below. Events are not signed or chained, so whoever holds the database owner's login could change them. Export the events you must keep somewhere that person cannot reach.
+Nothing in the server or the admin API edits or deletes an event, apart from the retention pass below. Events are not signed or chained, so whoever holds the database owner's login could change them: export what you must keep somewhere that person cannot reach.
 
-Events are kept 90 days by default, set per tenant with `audit_retention_days`. `odudu reap` removes older ones, and the server runs it on a schedule. The [configuration reference](../reference/generated/configuration.md) lists the schedule's settings and the [command reference](../reference/generated/cli.md) describes `odudu reap`.
+Events are kept 90 days by default, set per tenant with `audit_retention_days`. `odudu reap` removes older ones on a schedule ([configuration](../reference/generated/configuration.md), [command](../reference/generated/cli.md)).
 
 ## Working with consent and audit
 
 1. Write a clear `consent_text` for every scope a person might be asked about.
 2. Turn `consent_required` on for any client you do not run yourself.
 3. Choose a retention that matches your rules, and export what you must keep longer.
-4. When something odd happens, find it in the audit trail by who, what and when.
+4. Find something odd in the trail by who, what and when.
 
 ## Where to go next
 
