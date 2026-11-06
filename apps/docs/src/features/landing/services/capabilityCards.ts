@@ -29,7 +29,7 @@ export const CAPABILITIES: Card[] = [
   },
   {
     title: 'Services and agents',
-    body: "Client credentials for a service that signs in as itself, token exchange for acting on someone else's behalf, and an MCP server that gives an AI agent the admin API as tools.",
+    body: "Client credentials for a service that signs in as itself, token exchange for acting on someone else's behalf, and an MCP server with 42 read tools and 2 write tools over the admin API.",
     to: '/guides/protect-an-mcp-server/',
   },
   {

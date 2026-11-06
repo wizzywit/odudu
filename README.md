@@ -46,7 +46,7 @@ data on their own servers.
 - Passwords with a policy and lockouts, passkeys, authenticator codes and recovery codes.
 - Every page the server shows, and its mail, in a tenant's theme and a client's branding: colours, font, images, a stylesheet and page templates, previewed and published as versions.
 - A public address of its own for a tenant, such as `login.acme.com`, proved by a DNS record, switched to and back, with the issuer, cookies and mail links following it.
-- An MCP server that hands an AI agent the admin API as tools, held to the same capabilities as everyone else, read-only unless the person allows it to change descriptive text on a ten-minute token.
+- An MCP server that gives an AI agent 42 read tools and 2 write tools over the admin API, held to the same capabilities as everyone else, read-only unless the person allows it to change descriptive text on a ten-minute token.
 - Pages and mail in English and Arabic, chosen per tenant, with the tenant's own wording.
 - An admin API with more than a hundred operations, and a console with a page for every area.
 - An audit trail of every change, sign-in and refusal, filterable and exportable.
