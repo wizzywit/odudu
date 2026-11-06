@@ -70,7 +70,7 @@ An MCP client gets a client id one of three ways, and you choose which the tenan
 
 - **Registration.** The client registers itself. Set `client_registration_policy` to `mcp` and the registration endpoint takes public clients and nothing else: no secret, redirect addresses that are `https` or loopback `http`, and an `audience` that is the tenant's MCP address. Such a client may hold `mcp:read` and never `mcp:write`.
 - **A metadata document.** The client's `client_id` is an https address, and the document there says who it is. Turn on `cimd_enabled`. Under the `mcp` policy a client that comes this way is given the same audience and `mcp:read`. With the setting off, such an address is answered as an unknown client.
-- **A client you made.** You create it, give it the MCP address as an audience and assign `mcp:read` (and `mcp:write`, to allow writes). This is the one route to a write token, and the one a client that is handed a fixed client id uses.
+- **A client you made.** You create it with the MCP address as an audience (`odudu seed client --audience`, the console or the admin API) and assign `mcp:read` (and `mcp:write`, to allow writes). This is the one route to a write token, and the one a client that is handed a fixed client id uses.
 
 The first two are one command each. Turn both on:
 
@@ -87,6 +87,16 @@ curl -sS "$ODUDU_BASE/.well-known/oauth-authorization-server/tenants/demo" | gre
 ```
 "registration_endpoint":"http://localhost:3196/tenants/demo/clients-registrations/openid-connect"
 "client_id_metadata_document_supported":true
+```
+
+The third needs no setting. `--audience` gives the client the MCP address, and the scopes are assigned to it separately. This one is for a client that is handed a fixed client id, and the only kind that can be assigned `mcp:write`:
+
+```sh {run expect="clientDbId"}
+docker compose exec odudu odudu seed client --tenant demo --client-id my-mcp-agent --public --redirect-uri http://127.0.0.1:8123/callback --audience "$MCP"
+```
+
+```sh {run expect="my-mcp-agent"}
+docker compose exec odudu odudu seed assign-scope --tenant demo --client-id my-mcp-agent --scope mcp:read --assignment optional
 ```
 
 A person needs something to do. `mcp:read` lets the agent read what the person could read, and the person here, `ada`, can read nothing until she holds a capability. Give her the one that lets her read users:
@@ -217,7 +227,7 @@ docker compose exec odudu odudu seed tenant --name demo --set client_registratio
 The endpoint above is Odudu's own. A server of yours takes the same shape, and Odudu is its authorization server:
 
 1. Your server answers a request without a token with `401` and `WWW-Authenticate: Bearer resource_metadata="<your document>"`, and serves that document at `/.well-known/oauth-protected-resource` plus its own path (RFC 9728 §3.1). Its `resource` is your server's address, exactly, and its `authorization_servers` is `["https://<odudu>/tenants/<name>"]`.
-2. A client that signs in names your address as `resource`. Odudu puts it in the token's `aud` only when the client's **Audiences** list holds it, so register the address on the client, in the console's Advanced tab or the `audiences` field of the admin API.
+2. A client that signs in names your address as `resource`. Odudu puts it in the token's `aud` only when the client's **Audiences** list holds it, so register the address on the client: `odudu seed client --audience`, the console's Advanced tab or the `audiences` field of the admin API.
 3. Your server checks every token as [Protect an API](./api.md) does: signature from the tenant's keys, issuer, expiry and that `aud` holds your address. Check the scope your tools need.
 
 Odudu's registration policy and its metadata documents give a client the audience of Odudu's own endpoint only. For your server, the clients that reach it are ones you made. That path, an audience you chose and a `resource` that names it, is checked by the server's own tests against Odudu's own endpoint and has not been run against a third-party MCP server.

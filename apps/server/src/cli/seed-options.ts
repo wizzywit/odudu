@@ -55,6 +55,9 @@ export const CLIENT_OPTIONS = {
   'web-origin': texts(
     "A browser origin allowed to call the endpoints. Switching the tenant's address does not change it.",
   ),
+  audience: texts(
+    "A resource indicator (RFC 8707) the client may ask for, such as a tenant's MCP address; a token carries it as an audience.",
+  ),
   'grant-type': texts('A grant type the client may use.'),
   'consent-required': flag('Ask people to allow access the first time they sign in.'),
   'token-exchange-allowed-for-public': flag(

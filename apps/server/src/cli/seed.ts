@@ -1315,11 +1315,13 @@ async function runClientCommand(
   const postLogoutRedirectUris = values['post-logout-redirect-uri'] ?? [];
   const webOrigins = values['web-origin'] ?? [];
   const clientCredentialsScopes = [...new Set(values['client-credentials-scope'] ?? [])];
+  const audiences = [...new Set(values.audience ?? [])];
   for (const [field, entries] of [
     ['redirect_uris', redirectUris],
     ['post_logout_redirect_uris', postLogoutRedirectUris],
     ['web_origins', webOrigins],
     ['client_credentials_scopes', clientCredentialsScopes],
+    ['audiences', audiences],
   ] as const) {
     if (entries.length > CLIENT_LIST_LIMIT) {
       throw new OduduError('seed_invalid_options', listLimitProblem(field, entries.length));
@@ -1335,6 +1337,13 @@ async function runClientCommand(
       'seed_invalid_options',
       `--web-origin names ${badOrigins.join(', ')}, which is not an origin: ` +
         'expected a scheme and host with no path, or "+" for every registered redirect URI\u2019s origin',
+    );
+  }
+
+  if (audiences.some((audience) => audience.trim() === '')) {
+    throw new OduduError(
+      'seed_invalid_options',
+      '--audience names an empty value; an audience is the resource indicator a client asks for',
     );
   }
 
@@ -1437,7 +1446,7 @@ async function runClientCommand(
       grantTypes,
       tokenEndpointAuthMethod:
         type === 'confidential' ? (authMethod ?? 'client_secret_basic') : 'none',
-      audiences: [],
+      audiences,
       consentRequired: values['consent-required'] === true,
       tokenExchangeAllowedForPublic: values['token-exchange-allowed-for-public'] === true,
       tokenExchangeActorFromOtherClient: values['token-exchange-actor-from-other-client'] === true,

@@ -30,18 +30,15 @@ Which one Claude Code uses is its choice. A tenant with only `cimd_enabled` on i
 
 ### To change descriptions: a client of your own
 
-A client that registered itself, or came from a metadata document, is never given `mcp:write`, however it asks. To let an agent change the descriptive text of clients and scopes, an administrator makes a client for Claude Code. It is public, its audience is the tenant's MCP address, and `mcp:read` and `mcp:write` are assigned to it as optional scopes. Making it is an admin API call, with a token that holds `manage-clients`, as [Getting the token](../reference/transcripts/admin-paths/getting-the-token.md) shows. [The MCP write tools](../reference/transcripts/request-paths/the-mcp-write-tools.md) runs exactly this, and the request is:
+A client that registered itself, or came from a metadata document, is never given `mcp:write`, however it asks. To let an agent change the descriptive text of clients and scopes, an administrator makes a client for Claude Code. It is public, its audience is the tenant's MCP address, and `mcp:read` and `mcp:write` are assigned to it as optional scopes. On the server's host, with the commands the other guides use:
 
 ```text
-curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' -d '{"client_id":"claude-code","name":"Claude Code","redirect_uris":["http://localhost:8080/callback"],"token_endpoint_auth_method":"none","grant_types":["authorization_code"],"audiences":["http://localhost:3000/tenants/demo/mcp"]}' http://localhost:3000/admin/tenants/demo/clients
+docker compose exec odudu odudu seed client --tenant demo --client-id claude-code --public --redirect-uri http://localhost:8080/callback --audience http://localhost:3000/tenants/demo/mcp
+docker compose exec odudu odudu seed assign-scope --tenant demo --client-id claude-code --scope mcp:read --assignment optional
+docker compose exec odudu odudu seed assign-scope --tenant demo --client-id claude-code --scope mcp:write --assignment optional
 ```
 
-```text
-odudu seed assign-scope --tenant demo --client-id claude-code --scope mcp:read --assignment optional
-odudu seed assign-scope --tenant demo --client-id claude-code --scope mcp:write --assignment optional
-```
-
-The console does the same: create the client under **Clients**, set its **Audiences** on the Advanced tab, and assign the two scopes. The `seed client` command has no flag for audiences, so a client made only with it is not offered the MCP endpoint.
+The same client can be made in the console, under **Clients**, with its **Audiences** on the Advanced tab, or through the admin API with a token that holds `manage-clients`, as [Getting the token](../reference/transcripts/admin-paths/getting-the-token.md) shows; [The MCP write tools](../reference/transcripts/request-paths/the-mcp-write-tools.md) runs exactly that. A client made without the audience is not offered the MCP endpoint.
 
 Claude Code then takes the client id and a fixed callback port, which must match the redirect address registered above (the [vendor's documentation](https://code.claude.com/docs/en/mcp) gives `--client-id` and `--callback-port`, for a public client with no secret, and `oauth.scopes` for the scopes it asks for):
 

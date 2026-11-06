@@ -45,7 +45,7 @@ odudu seed client --tenant demo --client-id agent --client-secret "$(openssl ran
 {"command":"client","created":true,"tenant":"demo","tenantId":"01a1afd8-fba4-7436-80d7-a53f75ef80d5","clientId":"agent","clientDbId":"01a1afd9-0066-74e1-b25e-07d906c0ae89"}
 ```
 
-The seed has no flag for a key, an audience or a role on a service account, so the rest was written to the database as its owner, scoped to this tenant: the key set becomes the client's `jwks`, `private_key_jwt` its authentication method, the admin API's audience its audience, and its account holds two of the admin capabilities. The admin API's client routes do the same with a token, and the account's ceiling is these roles and nothing more:
+The seed has no flag for a key or a role on a service account, and this run set the audience in the same way rather than with `--audience`, so the rest was written to the database as its owner, scoped to this tenant: the key set becomes the client's `jwks`, `private_key_jwt` its authentication method, the admin API's audience its audience, and its account holds two of the admin capabilities. The admin API's client routes do the same with a token, and the account's ceiling is these roles and nothing more:
 
 ```bash
 JWKS=$(cat jwks.json)

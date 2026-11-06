@@ -1398,6 +1398,85 @@ describe('seed client --client-credentials-scope', () => {
   });
 });
 
+async function audiencesOf(tenantName: string, oauthClientId: string): Promise<string[]> {
+  const tenantId = (await owner.db.select().from(tenants).where(eq(tenants.name, tenantName)))[0]
+    ?.id;
+  if (tenantId === undefined) throw new Error(`expected tenant ${tenantName}`);
+  return withTenant(owner.db, tenantId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(clients)
+      .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, oauthClientId)));
+    const client = rows[0];
+    if (client === undefined) throw new Error(`expected client ${oauthClientId}`);
+    const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+    if (config === null) throw new Error(`no oidc config for client ${oauthClientId}`);
+    return config.audiences;
+  });
+}
+
+describe('seed client --audience', () => {
+  const publicClient = (tenant: string, clientId: string, ...extra: string[]) => [
+    'client',
+    '--tenant',
+    tenant,
+    '--client-id',
+    clientId,
+    '--public',
+    '--redirect-uri',
+    'http://127.0.0.1/callback',
+    ...extra,
+  ];
+
+  it('stores each audience once, in the order first named', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await seed(
+      publicClient(
+        options.tenant,
+        'mcp-agent',
+        '--audience',
+        'https://login.example/tenants/demo/mcp',
+        '--audience',
+        'https://api.example/',
+        '--audience',
+        'https://login.example/tenants/demo/mcp',
+      ),
+    );
+    expect(await audiencesOf(options.tenant, 'mcp-agent')).toEqual([
+      'https://login.example/tenants/demo/mcp',
+      'https://api.example/',
+    ]);
+  });
+
+  it('leaves a client with no audience when the flag is absent', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await seed(publicClient(options.tenant, 'plain'));
+    expect(await audiencesOf(options.tenant, 'plain')).toEqual([]);
+  });
+
+  it('refuses an empty audience, which no resource indicator can equal', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await expect(seed(publicClient(options.tenant, 'blank', '--audience', ' '))).rejects.toThrow(
+      /--audience/u,
+    );
+  });
+
+  it('refuses more audiences than a client list may hold, in the words the API uses', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    const flags = Array.from({ length: CLIENT_LIST_LIMIT + 1 }, (_, i) => [
+      '--audience',
+      `https://r${String(i)}.example/`,
+    ]).flat();
+    await expect(seed(publicClient(options.tenant, 'many', ...flags))).rejects.toThrow(
+      listLimitProblem('audiences', CLIENT_LIST_LIMIT + 1),
+    );
+  });
+});
+
 const EXCHANGE_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange';
 
 async function exchangeLimitsOf(

@@ -58,7 +58,7 @@ Cursor finds the sign-in from the endpoint's `401` and the metadata it points at
 
 ## 4. A fixed client id
 
-Use a client id you made when the tenant does not allow registration, or when you want Cursor to be able to ask for `mcp:write`. An administrator makes the client: public, with the redirect address `http://localhost:8787/callback` (and `https://www.cursor.com/agents/mcp/oauth/callback` for the web), the tenant's MCP address as its audience, and `mcp:read`, and `mcp:write` if it should write, assigned as optional scopes. [Connect Claude](./connect-claude.md#to-change-descriptions-a-client-of-your-own) shows the admin API request and the console steps, and the same client works for Cursor.
+Use a client id you made when the tenant does not allow registration, or when you want Cursor to be able to ask for `mcp:write`. An administrator makes the client: public, with the redirect address `http://localhost:8787/callback` (and `https://www.cursor.com/agents/mcp/oauth/callback` for the web), the tenant's MCP address as its audience, and `mcp:read`, and `mcp:write` if it should write, assigned as optional scopes. `odudu seed client` takes each as a flag (`--redirect-uri` once for each address, and `--audience`), and `odudu seed assign-scope` assigns the scopes, as [Connect Claude](./connect-claude.md#to-change-descriptions-a-client-of-your-own) shows for Claude Code; the same client works for Cursor.
 
 Cursor's documentation gives the `auth` object for a server that has no dynamic registration. `CLIENT_ID` is required, `CLIENT_SECRET` only for a confidential client, and `scopes` is an array:
 
