@@ -67,7 +67,11 @@ export function createInProcessCaller(
       if (Buffer.byteLength(res.payload) > ADMIN_BODY_CAP_BYTES) {
         throw new ToolProblem('mcp:result_too_large', 'The result is too large to return', null);
       }
-      return { status: res.statusCode, headers: returnedHeaders(res.headers), body: jsonBodyOf(res.headers['content-type'], res.payload) };
+      return {
+        status: res.statusCode,
+        headers: returnedHeaders(res.headers),
+        body: jsonBodyOf(res.headers['content-type'], res.payload),
+      };
     },
   };
 }

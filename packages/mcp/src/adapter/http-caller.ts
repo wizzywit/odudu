@@ -42,8 +42,10 @@ async function boundedText(res: Response): Promise<string> {
   const chunks: Uint8Array[] = [];
   let size = 0;
   for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    const value: unknown = chunk.value;
+    if (!(value instanceof Uint8Array)) throw tooLarge();
     size += value.byteLength;
     if (size > ADMIN_BODY_CAP_BYTES) {
       await reader.cancel();

@@ -20,7 +20,8 @@ function harness(answer: () => Response | Promise<Response> = () => json({ ok: t
     },
   };
   const fetchStub: typeof fetch = (input, init) => {
-    sent.push({ url: String(input), init: init ?? {} });
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    sent.push({ url, init: init ?? {} });
     return Promise.resolve(answer());
   };
   const caller = createHttpCaller('https://id.example.com', tokens, {
