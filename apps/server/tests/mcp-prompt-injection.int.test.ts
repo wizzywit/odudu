@@ -194,7 +194,7 @@ function record(value: unknown): Record<string, unknown> | null {
 function instructionsIn(text: string): Attempt[] {
   const attempts: Attempt[] = [];
   for (const match of text.matchAll(/call\s+([a-z_]+)\s+with\s+(?=\{)/gu)) {
-    const start = (match.index ?? 0) + match[0].length;
+    const start = match.index + match[0].length;
     const [args] = objectsIn(text.slice(start));
     const parsed = record(args);
     if (parsed !== null && match[1] !== undefined) attempts.push({ tool: match[1], args: parsed });
@@ -280,7 +280,7 @@ const endpointRun = (f: Fixture, scope: string): (() => Run) => {
 
 function validAgainstSchema(attempt: Attempt): boolean {
   const tool = TOOLS.find((candidate) => candidate.name === attempt.tool);
-  return tool !== undefined && tool.input.safeParse(attempt.args).success;
+  return tool?.input.safeParse(attempt.args).success === true;
 }
 
 function errorOf(result: ToolResult | undefined) {
