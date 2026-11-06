@@ -19,6 +19,9 @@ export interface RecordedToolCall {
 
 export interface CallMcpToolDeps {
   readonly requestId: string;
+  // How long a tool may take before the call is answered as failed. The admin
+  // call it made is not cancelled, only no longer waited for.
+  readonly deadlineMs: number;
   record(call: RecordedToolCall): Promise<void>;
   readonly logger: Pick<McpLogger, 'error'>;
 }
@@ -44,17 +47,38 @@ export async function callMcpTool(
 ): Promise<ToolResult> {
   let result: ToolResult;
   let problem: ToolProblem | null;
+  let timer: NodeJS.Timeout | undefined;
   try {
-    ({ result, problem } = await runTool(tool, caller, input));
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        reject(
+          new ToolProblem(
+            'mcp:timeout',
+            'The tool took too long and was given up on',
+            504,
+            undefined,
+          ),
+        );
+      }, deps.deadlineMs);
+    });
+    ({ result, problem } = await Promise.race([runTool(tool, caller, input), deadline]));
   } catch (error) {
-    deps.logger.error({ err: error, requestId: deps.requestId, tool: tool.name }, 'tool failed');
-    problem = new ToolProblem(
-      'mcp:internal_error',
-      'Something went wrong on the server',
-      500,
-      `Quote the correlation id ${deps.requestId} to the operator.`,
-    );
-    result = errorResult(problem);
+    if (error instanceof ToolProblem && error.problemType === 'mcp:timeout') {
+      deps.logger.error({ requestId: deps.requestId, tool: tool.name }, 'tool timed out');
+      problem = error;
+      result = errorResult(error);
+    } else {
+      deps.logger.error({ err: error, requestId: deps.requestId, tool: tool.name }, 'tool failed');
+      problem = new ToolProblem(
+        'mcp:internal_error',
+        'Something went wrong on the server',
+        500,
+        `Quote the correlation id ${deps.requestId} to the operator.`,
+      );
+      result = errorResult(problem);
+    }
+  } finally {
+    clearTimeout(timer);
   }
   try {
     await deps.record({ tool: tool.name, route: tool.routeKey, ...outcomeOf(problem) });

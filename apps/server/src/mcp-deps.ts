@@ -30,6 +30,10 @@ import { mintAgentToken, tenantLookupRepository } from '@odudu/protocol-oidc';
 import { type FastifyInstance } from 'fastify';
 import { type Logger as PinoLogger } from 'pino';
 
+// A tool that has not answered by now is given up on; the admin call it made
+// is left to finish.
+export const TOOL_DEADLINE_MS = 20_000;
+
 export interface McpDepsParts {
   readonly app: Pick<FastifyInstance, 'inject'>;
   readonly database: DatabaseHandle;
@@ -126,6 +130,7 @@ export function mcpRouteDepsFor(parts: McpDepsParts, limiter: ToolLimiter): McpR
   return {
     auth,
     adminAudience: deps.adminAudience,
+    addressConfigured: parts.publicBaseUrl !== undefined,
     limiter,
     now: deps.now,
     logger: parts.logger,
@@ -159,12 +164,16 @@ export function mcpRouteDepsFor(parts: McpDepsParts, limiter: ToolLimiter): McpR
         return held;
       };
       return createMcpExchange({
+        // A listing leaves out what the token or its owner could not use; a call
+        // by name reaches the admin API for any tool, which refuses it, and one
+        // row says so.
         tools: async (purpose) =>
-          visibleTools(TOOLS, token.scope, purpose === 'list' ? await capabilities() : null),
+          purpose === 'list' ? visibleTools(TOOLS, token.scope, await capabilities()) : TOOLS,
         run: (tool, args) =>
           callMcpTool(
             {
               requestId: request.requestId,
+              deadlineMs: TOOL_DEADLINE_MS,
               record: (recorded) =>
                 withTenant(
                   parts.database.db,

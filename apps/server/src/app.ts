@@ -256,6 +256,11 @@ export interface AppDeps {
    * clock of its own.
    */
   readonly mcpToolLimits?: Partial<ToolLimiterOptions>;
+  /**
+   * The requests one origin may make to any MCP endpoint, counted before
+   * anything is read for them. Defaults to `DEFAULT_MCP_ORIGIN_THROTTLE`.
+   */
+  readonly mcpOriginThrottle?: ThrottleSettings;
   /** The proxy's domain question; its own budget, per origin. */
   readonly domainCheckThrottle?: ThrottleSettings;
   /**
@@ -312,6 +317,12 @@ export const DEFAULT_THROTTLE: ThrottleSettings = { limit: 10, windowSeconds: 60
 // room for a burst of a few hundred handshakes while bounding how fast the
 // registered hosts can be enumerated.
 export const DEFAULT_DOMAIN_CHECK_THROTTLE: ThrottleSettings = { limit: 300, windowSeconds: 60 };
+
+// Per origin, and behind a proxy the origin is the proxy, so this is the
+// whole deployment's traffic from it: ten a second is room for many agents and
+// bounds what garbage tokens can cost in tenant and key reads before the
+// per-principal budget, which needs a verified token, applies.
+export const DEFAULT_MCP_ORIGIN_THROTTLE: ThrottleSettings = { limit: 600, windowSeconds: 60 };
 
 export const DEFAULT_LOGIN_THROTTLE: ThrottleSettings = { limit: 5, windowSeconds: 60 };
 
@@ -574,6 +585,20 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const decision = throttle.check(throttleOrigin(request.ip));
     if (decision.allowed) return;
     return refuse(reply, route, decision.retryAfterSeconds);
+  });
+
+  // The MCP endpoint reads a tenant and verifies a token before it knows who is
+  // asking, so its own budget per origin comes first, and a tenant name is made
+  // safe to look up before anything does.
+  const mcpOriginLimiter: RateLimiter = slidingWindow({
+    ...(deps.mcpOriginThrottle ?? DEFAULT_MCP_ORIGIN_THROTTLE),
+    now: () => new Date(),
+  });
+  app.addHook('onRequest', async (request, reply) => {
+    if (request.method !== 'POST' || request.routeOptions.url !== MCP_PATH_FORM) return;
+    const decision = mcpOriginLimiter.check(throttleOrigin(request.ip));
+    if (!decision.allowed) return refuse(reply, MCP_PATH_FORM, decision.retryAfterSeconds);
+    neutraliseRequestInput(request);
   });
 
   // After the throttle, so a throttled request costs no statement about its

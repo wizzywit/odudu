@@ -1,7 +1,9 @@
 import { z } from 'zod';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { defineTool } from '#/service/define-tool';
 import { ToolProblem, type AdminCaller, type McpTool } from '#/service/tool';
+import { accessOf, scopeFor } from '#/service/admin-access';
+import { unverifiedTokenForTests } from '#/testing/token';
 import { callMcpTool, type RecordedToolCall } from '#/usecase/call-mcp-tool';
 
 const base: McpTool<Record<string, never>, { data: { ok: boolean } }> = {
@@ -27,6 +29,7 @@ function harness(recordFails = false) {
     logged,
     deps: {
       requestId: 'req-1',
+      deadlineMs: 20_000,
       record: (call: RecordedToolCall) => {
         if (recordFails) return Promise.reject(new Error('audit down'));
         rows.push(call);
@@ -133,5 +136,85 @@ describe('callMcpTool', () => {
     expect(result.structuredContent).toMatchObject({ error: { type: 'mcp:audit_unavailable' } });
     expect(JSON.stringify(result)).not.toContain('"ok":true');
     expect(h.logged).toHaveLength(1);
+  });
+});
+
+describe('the deadline', () => {
+  it('answers a tool that never finishes as a sanitised failure, and records it', async () => {
+    vi.useFakeTimers();
+    try {
+      const h = harness();
+      const hanging = defineTool({
+        ...base,
+        run: () => new Promise<{ data: { ok: boolean } }>(() => undefined),
+      });
+      const pending = callMcpTool(h.deps, hanging, caller, {});
+      await vi.advanceTimersByTimeAsync(19_999);
+      expect(h.rows).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(1);
+      const result = await pending;
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error: { type: 'mcp:timeout' } });
+      expect(h.rows).toEqual([
+        { tool: 'whoami', route: 'GET /admin/tenants/:tenant/whoami', outcome: 'failed' },
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('leaves no timer behind once a tool has answered', async () => {
+    vi.useFakeTimers();
+    try {
+      const h = harness();
+      await callMcpTool(h.deps, defineTool(base), caller, {});
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('a write tool called with a read token', () => {
+  it('is refused as insufficient scope before anything reaches the admin API, and recorded', async () => {
+    const h = harness();
+    const sent: unknown[] = [];
+    const token = unverifiedTokenForTests({ scope: ['mcp:read'] });
+    // What the in-process caller does before it sends: the bearer for the
+    // call's access is only minted for a scope the token holds.
+    const guarded: AdminCaller = {
+      call: (req) => {
+        scopeFor(token, accessOf(req.method));
+        sent.push(req);
+        return Promise.reject(new Error('nothing may be sent'));
+      },
+    };
+    const write = defineTool({
+      ...base,
+      name: 'rename_client',
+      access: 'write',
+      routeKey: 'PATCH /admin/tenants/:tenant/clients/:id',
+      run: async (c) => {
+        await c.call({
+          method: 'PATCH',
+          pattern: '/admin/tenants/:tenant/clients/:id',
+          params: { id: 'x' },
+          query: {},
+          body: { name: 'new' },
+        });
+        return { data: { ok: true } };
+      },
+    });
+    const result = await callMcpTool(h.deps, write, guarded, {});
+    expect(result.structuredContent).toMatchObject({ error: { status: 403 } });
+    expect(sent).toEqual([]);
+    expect(h.rows).toEqual([
+      {
+        tool: 'rename_client',
+        route: 'PATCH /admin/tenants/:tenant/clients/:id',
+        outcome: 'refused',
+        reason: 'insufficient_scope',
+      },
+    ]);
   });
 });

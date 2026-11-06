@@ -1,3 +1,4 @@
+import http from 'node:http';
 import { mcpAudienceOfIssuer } from '@odudu/kernel';
 import {
   configureIssuerBase,
@@ -65,11 +66,19 @@ function build(
     tenant?: TenantLookup | null;
     serve?: McpExchange['serve'];
     limits?: Partial<ToolLimiterOptions>;
+    configured?: boolean;
+    logs?: string[];
   } = {},
 ): World {
-  const app = Fastify({ trustProxy: false });
+  const configured = over.configured ?? true;
+  const app = Fastify({
+    trustProxy: false,
+    ...(over.logs === undefined
+      ? {}
+      : { logger: { level: 'info', stream: { write: (line: string) => over.logs?.push(line) } } }),
+  });
   apps.push(app);
-  configureIssuerBase(app, BASE);
+  if (configured) configureIssuerBase(app, BASE);
   configureTenantAddress(app);
   const served: World['served'] = [];
   const recorded: string[] = [];
@@ -119,6 +128,7 @@ function build(
         ),
     },
     adminAudience: 'urn:odudu:admin-api',
+    addressConfigured: configured,
     limiter: createToolLimiter({ ...DEFAULT_TOOL_LIMITS, ...over.limits }),
     audit: {
       foreignIssuer: () => {
@@ -352,5 +362,96 @@ describe('what is served', () => {
     });
     expect(res.payload).not.toMatch(/ECONNREFUSED|hunter2|10\.0\.0\.4/u);
     expect(w.logged).toContain('mcp request failed');
+  });
+});
+
+describe('with no configured address', () => {
+  it('refuses a Host and Origin that name only each other, and takes a loopback one', async () => {
+    const w = build({ configured: false });
+    const evil = await post(w, {
+      headers: { host: 'evil.example', origin: 'http://evil.example' },
+    });
+    expect(evil.statusCode).toBe(403);
+    const refusedHost = await post(build({ configured: true }), {
+      headers: { host: 'evil.example' },
+    });
+    expect(evil.payload).toBe(refusedHost.payload);
+    expect(w.served).toHaveLength(0);
+    const local = build({ configured: false });
+    expect((await post(local, { headers: { host: 'localhost:3000' } })).statusCode).toBe(200);
+  });
+});
+
+describe('odd forms of the request', () => {
+  it.each([
+    ['a bare scheme', 'Bearer'],
+    ['a scheme and spaces', 'Bearer   '],
+    ['another scheme', 'Token abc'],
+    ['basic', 'Basic dXNlcjpwYXNz'],
+  ])('with %s is no token', async (_l, authorization) => {
+    const res = await post(build({ auth: 'missing' }), { headers: { authorization } });
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toBe(
+      `Bearer resource_metadata="${PRM}", scope="mcp:read"`,
+    );
+  });
+
+  it.each([`bearer ${TOKEN}`, `BEARER   ${TOKEN}`, `Bearer\t${TOKEN}`])(
+    'reads the token after %j however the scheme is spelled',
+    async (authorization) => {
+      expect((await post(build(), { headers: { authorization } })).statusCode).toBe(200);
+    },
+  );
+
+  it('takes the first of two Authorization headers, as the server keeps one', async () => {
+    const w = build();
+    await w.app.listen({ port: 0, host: '127.0.0.1' });
+    const address = w.app.server.address();
+    const port = typeof address === 'object' && address !== null ? address.port : 0;
+    const status = await new Promise<number>((resolve, reject) => {
+      const req = http.request(
+        {
+          port,
+          host: '127.0.0.1',
+          method: 'POST',
+          path: '/tenants/acme/mcp',
+          headers: { host: 'id.example.com', 'content-type': 'application/json' },
+        },
+        (res) => {
+          res.resume();
+          resolve(res.statusCode ?? 0);
+        },
+      );
+      req.on('error', reject);
+      req.setHeader('authorization', [`Bearer ${TOKEN}`, 'Bearer other']);
+      req.end(JSON.stringify(JSONRPC));
+    });
+    expect(status).toBe(200);
+  });
+
+  it.each([
+    ['a port', 'https://id.example.com:8443', 403],
+    ['the default port', 'https://id.example.com:443', 200],
+    ['capitals', 'HTTPS://ID.EXAMPLE.COM', 200],
+    ['null', 'null', 403],
+    ['a path', 'https://id.example.com/x', 403],
+    ['another scheme', 'http://id.example.com', 403],
+  ])('treats an Origin with %s', async (_l, origin, status) => {
+    expect((await post(build(), { headers: { origin } })).statusCode).toBe(status);
+  });
+
+  it('accepts a Host written with a trailing dot', async () => {
+    expect((await post(build(), { headers: { host: 'id.example.com.' } })).statusCode).toBe(200);
+  });
+});
+
+describe('the log', () => {
+  it('records a served request, which a hijacked reply would otherwise leave out', async () => {
+    const logs: string[] = [];
+    const w = build({ logs });
+    await post(w);
+    expect(
+      logs.some((l) => l.includes('request completed') && l.includes('"statusCode":200')),
+    ).toBe(true);
   });
 });
