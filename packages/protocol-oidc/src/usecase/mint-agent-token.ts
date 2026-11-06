@@ -100,6 +100,7 @@ export async function mintAgentToken(
       sessionId: grant.sessionId,
       grantId: grant.id,
       act: { sub: client.clientId },
+      endpointMinted: true,
       expCeiling: input.notAfter,
     },
     input.now,

@@ -95,14 +95,30 @@ describe('the door records a direct agent before the handler runs', () => {
     expect(await rows(t.id, 'scope.amend')).toHaveLength(1);
   });
 
-  it('leaves no door row for a token that carries act: the endpoint records those', async () => {
+  it('leaves no door row for a token the MCP endpoint signed: it records those itself', async () => {
+    const t = await fixture.createTenant(`door-${newId()}`);
+    const token = await fixture.agentToken(t.name, ['manage-clients'], {
+      scope: 'mcp:read',
+      act: { sub: 'agent-client' },
+      via: 'mcp',
+    });
+    expect((await get(t.name, 'whoami', token)).statusCode).toBe(200);
+    expect(await rows(t.id, 'agent.tool_call')).toEqual([]);
+  });
+
+  it('records a token that carries act without that marker, as an exchange makes them', async () => {
     const t = await fixture.createTenant(`door-${newId()}`);
     const token = await fixture.agentToken(t.name, ['manage-clients'], {
       scope: 'mcp:read',
       act: { sub: 'agent-client' },
     });
     expect((await get(t.name, 'whoami', token)).statusCode).toBe(200);
-    expect(await rows(t.id, 'agent.tool_call')).toEqual([]);
+    const found = await rows(t.id, 'agent.tool_call');
+    expect(found).toHaveLength(1);
+    expect(found[0]?.detail).toMatchObject({
+      agent_client: expect.any(String),
+      tool: 'admin.get.whoami',
+    });
   });
 
   it("leaves none for a person's own token", async () => {

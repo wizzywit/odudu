@@ -23,8 +23,9 @@ export interface AdminPrincipal {
 export interface AdminAgent {
   readonly clientId: string;
   readonly ownerSubjectId: string;
-  // Set when the token carries `act`: it was minted for a call that came
-  // through the MCP endpoint, which records the call itself.
+  // Set when the token carries the marker only the MCP endpoint signs (`via` is
+  // `mcp`, beside `act`): the endpoint records the call itself. `act` alone is
+  // not it, since a token exchange makes act tokens too.
   readonly viaEndpoint?: true;
 }
 
@@ -245,6 +246,7 @@ function readScopes(value: unknown): readonly string[] | undefined {
 interface AgentClaims {
   readonly scopes: readonly string[];
   readonly actorClientId: string | undefined;
+  readonly endpointMinted: boolean;
 }
 
 // `undefined` when `scope` or `act` is present and malformed: a claim that
@@ -252,9 +254,11 @@ interface AgentClaims {
 function readAgentClaims(payload: Record<string, unknown>): AgentClaims | undefined {
   const scopes = readScopes(payload.scope);
   if (scopes === undefined) return undefined;
-  if (payload.act === undefined) return { scopes, actorClientId: undefined };
+  if (payload.act === undefined) return { scopes, actorClientId: undefined, endpointMinted: false };
   const act = narrowActClaim(payload.act);
-  return act === null ? undefined : { scopes, actorClientId: act.sub };
+  return act === null
+    ? undefined
+    : { scopes, actorClientId: act.sub, endpointMinted: payload.via === 'mcp' };
 }
 
 // The claims of an access token this tenant signed for `audience`, or null for
@@ -400,7 +404,7 @@ export async function authenticateAdmin(
       agent: {
         clientId,
         ownerSubjectId: payload.sub,
-        ...(claims.actorClientId === undefined ? {} : { viaEndpoint: true as const }),
+        ...(claims.endpointMinted ? { viaEndpoint: true as const } : {}),
       },
     },
   };
