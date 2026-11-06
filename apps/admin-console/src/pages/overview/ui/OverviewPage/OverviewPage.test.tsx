@@ -70,7 +70,8 @@ function routes(capabilities: readonly string[]): Record<string, Answer> {
       ],
     }),
     [`GET ${ACME_ADMIN}/subjects/count`]: count(42),
-    [`GET ${ACME_ADMIN}/clients/count`]: count(3),
+    [`GET ${ACME_ADMIN}/clients/count`]: (request) =>
+      count(request.search.get('counts_toward_max_clients') === 'true' ? 3 : 40)(request),
     [`GET ${ACME_ADMIN}/groups/count`]: count(2),
     [`GET ${ACME_ADMIN}/roles/count`]: count(5),
     [`GET ${ACME_ADMIN}/scopes/count`]: count(8),
@@ -119,7 +120,7 @@ it("shows a tenant administrator the tenant's issuer, counts, attention and late
 
   const counts = screen.getByRole('region', { name: 'Counts' });
   expect(counts).toHaveTextContent('42 subjects');
-  expect(counts).toHaveTextContent('3 clients of 3 allowed');
+  expect(counts).toHaveTextContent('40 clients (3 of 3 made by administrators or tokens)');
 
   const keys = screen.getByRole('grid', { name: 'Published keys' });
   expect(await within(keys).findByText('rotating')).toBeVisible();

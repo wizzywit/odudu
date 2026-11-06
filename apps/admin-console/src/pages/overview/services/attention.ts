@@ -18,6 +18,7 @@ export interface AttentionInputs {
   settings: Settings | undefined;
   smtp: SmtpConfig | undefined;
   keys: readonly SigningKey[] | undefined;
+  // The clients `max_clients` counts, not every client.
   clients: CountResponse | undefined;
   now: Date;
   rules: EntityRules;

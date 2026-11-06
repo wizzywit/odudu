@@ -1332,7 +1332,7 @@ Placed, so that none is open without a phase (each is a row in `docs/NEXT.md`):
   1,000 `cimd` clients per tenant (unchanged, least-recently-used eviction) and 1,000
   `anonymous` ones (`WIRE_CLIENTS_PER_TENANT`, `lockWireCapacity`). At the second a
   registration removes the oldest client that is enabled, never approved and has no consent,
-  grant, live code or live sign-in (`dynamicClientRepository.evictable`, the weekly reap's
+  grant, live code or live sign-in (`dynamicClientRepository.evict`, the weekly reap's
   rule without its age), else is refused as before (`403 invalid_client_metadata`). Both
   counts run under the tenant row lock. The registration-token path (`token`) is an operator
   origin and still counts against `max_clients`. A tenant import counts the document's clients
@@ -1345,8 +1345,8 @@ Placed, so that none is open without a phase (each is a row in `docs/NEXT.md`):
   grant, live sign-in) among 5,000 live sign-ins, and plans the two counts, both eviction
   queries, the `cimd_clients` and `dynamic_clients` reap rules in that tenant, and
   `idleServiceAccounts` against 50 idle accounts. The console's overview no longer calls open
-  registration full at `max_clients`; its clients tile still compares the count of every client
-  with `max_clients` (a NEXT row, P5b).
+  registration full at `max_clients`: its attention item and its clients tile read the count
+  with `counts_toward_max_clients=true`, a filter the admin clients list and count take.
 - **The admin door refuses what the catalogue withholds as sensitive.** Each `NOT_TOOLS` entry has a
   kind (`denied`, `sensitive`, `not-useful`, `destructive`, `write`). The 28 withheld reads
   were classified one by one: personal data (`subjects/:id/profile`, `clients/:id/evaluate`),

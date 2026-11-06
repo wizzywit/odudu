@@ -367,6 +367,8 @@ describeFields(listClientsQuerySchema, {
   name: 'Only clients whose name starts with this.',
   type: 'Only clients of this type.',
   enabled: '`true` for enabled clients only.',
+  counts_toward_max_clients:
+    '`true` for the clients `max_clients` counts, which are those an administrator or a registration token made; `false` for the ones that registered themselves or came from a metadata document.',
 });
 describeFields(countClientsQuerySchema, {
   client_id: 'Only clients whose `client_id` starts with this.',
@@ -374,6 +376,8 @@ describeFields(countClientsQuerySchema, {
   name: 'Only clients whose name starts with this.',
   type: 'Only clients of this type.',
   enabled: '`true` for enabled clients only.',
+  counts_toward_max_clients:
+    '`true` for the clients `max_clients` counts, which are those an administrator or a registration token made; `false` for the ones that registered themselves or came from a metadata document.',
 });
 describeFields(clientInstallationSchema, {
   issuer: 'The issuer identifier the application must trust.',

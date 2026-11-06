@@ -19,9 +19,13 @@ describe('the words of the overview panels', () => {
     expect(unreadableTitle('JWKS')).toBe('The JWKS could not be read');
   });
 
-  it('says the allowance beside a count, with thousands grouped', () => {
-    expect(limitText(200)).toBe(' of 200 allowed');
-    expect(limitText(12_000)).toBe(' of 12,000 allowed');
+  it('says what the cap counts beside a count, with thousands grouped', () => {
+    expect(limitText(200, { count: 1, capped: false })).toBe(
+      ' (1 of 200 made by administrators or tokens)',
+    );
+    expect(limitText(12_000, { count: 1_500, capped: true })).toBe(
+      ' (1,500+ of 12,000 made by administrators or tokens)',
+    );
   });
 
   it('labels the button that counts again', () => {

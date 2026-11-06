@@ -19,7 +19,7 @@ Every tenant opens on its **Overview**. It is the page to look at first thing: i
 ## 1. Read the Overview
 
 1. Look at **Needs attention** first. It is empty, with a tick, when all is well. It lists a problem only when it is certain of it: a mail relay missing while email verification or password reset is on, a signing key that has been published long enough to promote, and registration by token with no room left for another client. Each entry links to the area that fixes it.
-2. Read **Counts**. It shows how many subjects, clients, groups, roles and scopes the tenant holds, and how many clients it allows. Each name is a link to its list.
+2. Read **Counts**. It shows how many subjects, clients, groups, roles and scopes the tenant holds, and, beside the clients, how many of the ones an administrator or a registration token made it has against the limit it allows (clients that register themselves are not counted against it). Each name is a link to its list.
 3. Copy what an application needs from **Discovery**. The **Issuer** is the tenant's address, and the discovery document lists every other address under it. The same panel holds the tenant's published keys and the raw key set.
 4. Glance at **Latest activity**. It lists the latest audit rows, the newest entries of the audit trail, with **Open the audit trail** beside it for the rest.
 

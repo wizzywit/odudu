@@ -35,6 +35,7 @@ export interface OverviewAsks {
   discovery: boolean;
   subjects: boolean;
   clients: boolean;
+  operatorClients: boolean;
   groups: boolean;
   roles: boolean;
   scopes: boolean;
@@ -50,6 +51,8 @@ export interface OverviewReads {
   discovery: OverviewRead<Discovery>;
   jwks: OverviewRead<Jwks>;
   counts: Readonly<Record<Collection, OverviewRead<CountResponse>>>;
+  // The clients `max_clients` counts, as against every client in `counts`.
+  operatorClients: OverviewRead<CountResponse>;
   settings: OverviewRead<Settings>;
   smtp: OverviewRead<SmtpConfig>;
   keys: OverviewRead<readonly SigningKey[]>;

@@ -11,7 +11,8 @@ export const clientTools = [
     name: 'list_clients',
     description:
       "Lists the tenant's OAuth clients, one page at a time, optionally filtered by client_id or " +
-      'name prefix, exact client_id, type or enabled. Never includes a client secret.',
+      'name prefix, exact client_id, type, enabled or counts_toward_max_clients. Never includes a ' +
+      'client secret.',
     routeKey: tenantGet('/clients'),
     capability: 'manage-clients',
     shape: { ...countClientsQuerySchema.shape, ...pageShape },

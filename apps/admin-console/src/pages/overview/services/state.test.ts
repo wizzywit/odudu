@@ -30,6 +30,21 @@ describe('the attention state', () => {
     },
   });
 
+  it('judges registration by the clients max_clients counts, not by every client', () => {
+    const token = { ...QUIET.settings, client_registration_policy: 'token', max_clients: 3 };
+    const withCounts = (all: number, made: number) =>
+      reads({
+        ...settled,
+        settings: ready<Settings>(token),
+        counts: { ...settled.counts, clients: ready({ count: all, capped: false }) },
+        operatorClients: ready({ count: made, capped: false }),
+      });
+    const ids = (r: typeof settled) =>
+      attentionState(r, everything, areaOf, NOW, RULES).items.map((item) => item.id);
+    expect(ids(withCounts(900, 1))).toEqual([]);
+    expect(ids(withCounts(3, 3))).toEqual(['registration']);
+  });
+
   it('is checking until whoami answers or a read it uses is loading', () => {
     expect(attentionState(settled, undefined, areaOf, NOW, RULES).status).toBe('checking');
     const loading = reads({ ...settled, smtp: LOADING });

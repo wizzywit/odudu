@@ -5,6 +5,7 @@ import { clientScopeAssignmentViewSchema } from '#/admin/scopes';
 import {
   createdAtSchema,
   cursorQuerySchema,
+  booleanFlagSchema,
   enabledFilterSchema,
   idSchema,
   localisedTextSchema,
@@ -130,6 +131,7 @@ const clientFilters = {
   name: searchPrefixSchema.optional(),
   type: clientTypeSchema.optional(),
   enabled: enabledFilterSchema.optional(),
+  counts_toward_max_clients: booleanFlagSchema.optional(),
 };
 // Addressed to the second field, the one a caller adds to an existing search.
 const oneClientSearchRule = {

@@ -20,6 +20,7 @@ import { roles } from '@odudu/domain-authz';
 import { subjects } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  COUNTED_BY_MAX_CLIENTS,
   MCP_CLIENT_ID,
   clientRepository,
   clients,
@@ -44,7 +45,7 @@ import {
   retireServiceAccount,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
-import { and, asc, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, not, sql, type SQL } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { redactedDiff } from '#/service/audit-detail';
 import {
@@ -345,6 +346,13 @@ function exactClientConditions(filters: ClientFilters): SQL[] {
       : [eq(clients.clientId, filters.client_id_exact)]),
     ...(filters.type === undefined ? [] : [eq(clients.type, filters.type)]),
     ...(filters.enabled === undefined ? [] : [eq(clients.enabled, filters.enabled === 'true')]),
+    ...(filters.counts_toward_max_clients === undefined
+      ? []
+      : [
+          filters.counts_toward_max_clients === 'true'
+            ? COUNTED_BY_MAX_CLIENTS
+            : not(COUNTED_BY_MAX_CLIENTS),
+        ]),
   ];
 }
 

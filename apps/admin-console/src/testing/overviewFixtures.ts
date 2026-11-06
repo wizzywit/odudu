@@ -47,6 +47,7 @@ export function reads(over: Partial<OverviewReads> = {}): OverviewReads {
     discovery: OFF,
     jwks: OFF,
     counts: { subjects: OFF, clients: OFF, groups: OFF, roles: OFF, scopes: OFF },
+    operatorClients: OFF,
     settings: OFF,
     smtp: OFF,
     keys: OFF,
