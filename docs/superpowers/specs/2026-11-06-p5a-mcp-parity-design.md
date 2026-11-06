@@ -252,9 +252,10 @@ The door and the owner's capability stay the control; nothing below is a tool-si
    the draft) admits the draft's own members and nothing else. A route with no entry is refused, so the 79
    remaining routes stay refused by default.
 2. **Idempotency-Key on every POST a tool makes.** The admin API takes the key as an optional header
-   (`answerRoute` runs without one). The caller sends one on each POST; a tool accepts an optional
-   `idempotency_key` argument (a pattern-checked token) and otherwise derives one from the MCP request id, so a
-   client's retry of the same call cannot create two roles. `noIdempotency` routes (domains verify, smtp test)
+   (`answerRoute` runs without one). The caller sends one on each POST, and a create tool requires an
+   `idempotency_key` argument (a pattern-checked token) that the client supplies and keeps the same across its
+   retries. The key is never derived from the MCP request id: a retry is a new JSON-RPC request with a new id, so
+   a derived key would let the retry create a second role. A create without a key is refused before any call. `noIdempotency` routes (domains verify, smtp test)
    are not W1, so none is affected.
 3. **Preconditions.** `If-Match` is required by every tool that amends an existing resource (`if_match`, as the
    two shipped tools); the theme tools take the draft's etag from their own read and send it, answering the

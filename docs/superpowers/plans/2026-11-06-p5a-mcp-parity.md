@@ -67,7 +67,7 @@ Exit: a person holding `manage-tenants` can ask their agent how many tenants exi
 
 verified: `sed -n 107,114p packages/protocol-admin/src/view/routes/router.ts` (a route with no `:tenant` targets the system tenant); `git grep -n "scopeAdmits(" -- packages | head` shows the one call site at `router.ts:199`.
 
-- [ ] **Step 1: Failing tests:** every ADMIN_ROUTES entry is judged as before except the two; the two admit `mcp:read` and `mcp:write` for a system-tenant principal and refuse a tenant-local one (the principal's `issuerTenantId` is not the system tenant), record `capability.refused` with the agent; the owner without `manage-tenants` is still refused by `authorizeAdmin` (both gates); `GET /admin/tenants/:tenant` for any tenant is unchanged.
+- [ ] **Step 1: Failing tests:** every ADMIN_ROUTES entry is judged as before except the two; the two admit `mcp:read` and `mcp:write` for a system-tenant principal and, at the unit level, refuse a principal whose `issuerTenantId` is not the system tenant (`scopeAdmits` with `tenantIsSystem` false). Correction found by running it: a real tenant-local agent token never reaches that check, because a route with no `:tenant` targets the system tenant and `authenticateAdmin` accepts only a token the system tenant signed there, so the answer is `401` and a `token.foreign_issuer` row in the system tenant naming the person (asserted in the integration test, with the tool call recorded as failed); `403` with `capability.refused` is the answer for a system-tenant owner who lacks `manage-tenants`. The owner without `manage-tenants` is still refused by `authorizeAdmin` (both gates); `GET /admin/tenants/:tenant` for any tenant is unchanged.
 - [ ] **Step 2:** `pnpm --filter @odudu/protocol-admin test -- agent-scope`; expect FAIL.
 - [ ] **Step 3:** implement. **Step 4:** run to PASS. **Step 5:** commit.
 
@@ -111,11 +111,11 @@ Exit: an agent can read a tenant's and a client's theme, mail look and message w
 
 **Files:** modify `packages/mcp/src/service/sanitize.ts` and `read-tool.ts`. Test `sanitize.test.ts`.
 
-**Interfaces:** Produces `cleanData(value, stats, options?: { longText?: readonly string[] })`: a string member whose key is in `longText` is cut at 128 KiB instead of 1,000 characters, still stripped of controls and bidirectional overrides; the whole result stays under the 256,000-byte cap. The list is declared per tool (`stylesheet`, `templates`), never global.
+**Interfaces:** Produces `cleanData(value, stats, options?: { longText?: readonly string[] })`: a string member whose key is in `longText` is cut at 128 KiB instead of 1,000 characters, still stripped of controls and bidirectional overrides; the whole result stays under the 256,000-byte cap. The list is declared per tool and never global, and it names a member by path with inheritance: `stylesheet` is one string, while `templates` is an object of page-kind keys, so the entry `templates` means every string at any depth under a member of that name, not the member's own value (a key-only match would never fire on the bodies).
 
 verified: `git grep -n "1000\|1_000" -- packages/mcp/src/service/sanitize.ts` for the cut and `ADMIN_BODY_CAP_BYTES = 1_048_576` in `admin-request.ts` for the read cap.
 
-- [ ] **Step 1: Failing tests:** a `stylesheet` of 100 KiB comes back whole, one of 200 KiB is cut with `truncated: true`; every other field is still cut at 1,000; the stripped characters are the same; a key named `stylesheet` outside a tool that declares it is cut; a result over 256,000 bytes is `mcp:result_too_large`.
+- [ ] **Step 1: Failing tests:** a `stylesheet` of 100 KiB comes back whole, one of 200 KiB is cut with `truncated: true`; a template body nested under a page-kind key (`templates` is an object whose keys are page kinds such as `sign-in` and whose values are the bodies) of 100 KiB comes back whole and one of 200 KiB is cut, in the theme and in a client's mail templates; every other field is still cut at 1,000; the stripped characters are the same; a key named `stylesheet` outside a tool that declares it is cut; a result over 256,000 bytes is `mcp:result_too_large`.
 - [ ] **Steps 2-5.** Commit.
 
 ### Task 14.2: The eleven reads
@@ -165,7 +165,7 @@ verified: `sed -n 20,40p packages/mcp/src/service/admin-request.ts` (a body is r
 
 assumption: a count over `(tenant_id, actor_subject_id, created_at)` is cheap and indexed. Verify first: `git grep -n "agent.tool_call" -- packages/domain-audit packages/db/src | head` and the audit table's indexes (`git grep -n "index(" -- packages/db/src/schema/audit*`); add an index by migration, next number from `ls packages/db/drizzle | tail -1`, only if the plan shows a scan.
 
-- [ ] **Step 1: Failing tests:** the 21st mutating call and the 11th create in one token are refused and audited; a read does not spend the budget; a second token has its own; an `mcp:outcome_unknown` still spends it; creates without an `idempotency_key` derive one from the request id, and a replay answers the stored response without a second row (against the real admin API in the integration test); `query-plans` entry for the count.
+- [ ] **Step 1: Failing tests:** the 21st mutating call and the 11th create in one token are refused and audited; a read does not spend the budget; a second token has its own; an `mcp:outcome_unknown` still spends it; a create requires a stable `idempotency_key` argument supplied by the client and is refused before any call without one (none is derived from the MCP request id, which differs on every retry); a retry of the same create under a different request id and the same key answers the stored response without a second row, and the same key with a different body is the admin API's conflict (against the real admin API in the integration test); `query-plans` entry for the count.
 - [ ] **Steps 2-5.** Commit.
 
 ### Task 15.4: The route classes, written down and pinned
@@ -189,7 +189,7 @@ Exit: an agent can create a role, group or scope that grants nothing and describ
 
 **Files:** `AGENT_WRITE_ROUTES` entries for `POST ~/roles` (`name`, `description`, `client_id`), `PATCH ~/roles/:id` (`description`), `POST ~/groups` (`name`, `description`), `PATCH ~/groups/:id` (`description`), `POST ~/scopes` (`name`, `description`, `description_i18n`, `display_order`) and `display_order` added to the shipped scope PATCH entry; create `packages/mcp/src/service/tools/{roles,groups,scopes}-write.ts`; extend `scope-metadata.ts`; move five `NOT_TOOLS` entries. Tests beside each, `agent-scope.test.ts`, the coverage lint.
 
-**Interfaces:** Produces `create_role`, `update_role_description`, `create_group`, `update_group_description`, `create_scope`, and `update_scope_metadata` with `display_order` (an integer within `displayOrderSchema`). Tools for a create take the validated fields and an optional `idempotency_key`; for an amend, `id`, `if_match` and the fields. Refused by schema before any call: `default_for_new_subjects`, `parent_id`, `include_in_*`, `default_client_assignment`, `consent_text*`.
+**Interfaces:** Produces `create_role`, `update_role_description`, `create_group`, `update_group_description`, `create_scope`, and `update_scope_metadata` with `display_order` (an integer within `displayOrderSchema`). Tools for a create take the validated fields and a required, client-supplied `idempotency_key`; for an amend, `id`, `if_match` and the fields. Refused by schema before any call: `default_for_new_subjects`, `parent_id`, `include_in_*`, `default_client_assignment`, `consent_text*`.
 
 verified: field lists from the dump of `AMENDABLE_{ROLE,GROUP,SCOPE}_FIELDS` and the three create schemas (`sed -n 54,66p packages/contracts/src/admin/scopes.ts`); `git grep -n "role.create\|group.create\|scope.create" -- packages/domain-audit/src/service/admin-mutation-actions.ts` for the audit actions. assumption: the three create usecases write a `detail` with the allowlisted fields; Step 1's integration test asserts it, and a gap is fixed in the admin API.
 

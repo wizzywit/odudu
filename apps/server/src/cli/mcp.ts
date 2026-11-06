@@ -371,12 +371,25 @@ async function start(values: Values, io: McpIo): Promise<void> {
         }),
   });
   const caller = createHttpCaller(baseUrl, tokens, { tenant, fetch: io.fetch });
-  await serve(
-    tenant,
-    visibleTools(TOOLS, [scope], null, tenant === SYSTEM_TENANT_NAME),
-    caller,
-    io,
-  );
+  const inSystemTenant = await signsInAtSystemTenant(target, discover);
+  await serve(tenant, visibleTools(TOOLS, [scope], null, inSystemTenant), caller, io);
+}
+
+// Whether the sign-in is at the system tenant's own address, which its metadata
+// has to name as its issuer: `--tenant system` given another tenant's address
+// signs in there, and that token cannot use the tools that span tenants. The
+// system tenant has no domain, so its one address is the path address. Only
+// that tenant asks, and a metadata document that cannot be read is no proof.
+async function signsInAtSystemTenant(
+  target: ReturnType<typeof stdioTarget>,
+  discover: OauthClient['discover'],
+): Promise<boolean> {
+  if (target.tenant !== SYSTEM_TENANT_NAME) return false;
+  try {
+    return (await discover()).issuer === target.issuer;
+  } catch {
+    return false;
+  }
 }
 
 // `odudu mcp`: the admin tools over stdio for a local MCP client. It reads no

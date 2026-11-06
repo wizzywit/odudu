@@ -1502,9 +1502,13 @@ tenant's clients.
   every tool's; an injection scenario plants instructions in one.
 - **Visibility.** `visibleTools` and `toolVisible` take `inSystemTenant`: a tool whose
   route has no `:tenant` is listed only in the system tenant, and only to an owner holding
-  its capability. The endpoint passes `isSystemTenantId(token.tenant.id)`; `odudu mcp`
-  passes `tenant === 'system'`. A tenant's own agent is offered 42 read tools, the
-  system tenant's 44.
+  its capability. The endpoint passes `isSystemTenantId(token.tenant.id)` and filters by
+  the owner's capabilities. `odudu mcp` does not judge the owner (its listing is by scope
+  alone), so in the system tenant it lists both tools whether or not the person holds
+  `manage-tenants`, and a call without it is a `403` from the admin API. It decides the
+  tenant from the sign-in it verified: only metadata whose issuer is the system tenant's own
+  path address counts, so `--tenant system` signed in at another tenant's `--tenant-address`
+  lists neither. A tenant's own agent is offered 42 read tools, the system tenant's 44.
 - **The callers.** `expandPattern` already left a pattern with no `:tenant` untouched; it
   now refuses one that is not exactly `/admin/tenants` or `/admin/tenants/count`, so a
   path without a tenant is never built by accident, and still refuses a parameter named

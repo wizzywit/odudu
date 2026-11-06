@@ -660,6 +660,19 @@ describe('odudu mcp at a tenant with a domain of its own', () => {
     ]);
   });
 
+  it('does not offer the tenant tools for --tenant system signed in at another address', async () => {
+    const a = domainAuthority();
+    const r = await run(
+      ['--base-url', BASE, '--tenant-address', DOMAIN, '--tenant', 'system', '--client-id', 'svc'],
+      { env: { ODUDU_MCP_KEY: keyText }, input: SESSION, fetch: a.fetch },
+    );
+    expect(r.code).toBe(0);
+    const names = toolNames(r.lines);
+    expect(names).not.toContain('list_tenants');
+    expect(names).not.toContain('count_tenants');
+    expect(names).toContain('list_clients');
+  });
+
   it('refuses a domain whose metadata names another host, before any token request', async () => {
     const a = domainAuthority();
     const hostile: typeof fetch = async (input, init) => {
