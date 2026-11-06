@@ -5,6 +5,7 @@ import type { AdminAccess } from '#/service/admin-access';
 // writes. A source refuses an access its token cannot make.
 export interface TokenSource {
   bearer(access: AdminAccess): Promise<string>;
-  // Drops the token held: the server refused it, so the next call gets another.
-  invalidate?(): void;
+  // Drops the token held if it is still the one the server refused, so the next
+  // call gets another; a refusal of an earlier token leaves its replacement.
+  invalidate?(rejected: string): void;
 }

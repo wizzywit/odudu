@@ -138,6 +138,12 @@ export function createTokenSource(deps: TokenSourceDeps): TokenSource {
   async function acquire(): Promise<TokenSet> {
     const set = await obtain();
     acceptTokenSet(set, { ...deps.expectation, issuer: (await deps.authority()).issuer });
+    if (set.expiresAt.getTime() <= deps.now().getTime()) {
+      throw new StdioError(
+        'mcp_token_expired',
+        'the access token was already expired when it was issued; check the clock of this machine and of the server',
+      );
+    }
     current = set;
     return set;
   }
@@ -153,8 +159,8 @@ export function createTokenSource(deps: TokenSourceDeps): TokenSource {
   }
 
   return {
-    invalidate(): void {
-      current = undefined;
+    invalidate(rejected: string): void {
+      if (current?.accessToken === rejected) current = undefined;
     },
     async bearer(access: AdminAccess): Promise<string> {
       if (access === 'write' && scope !== 'mcp:write') throw insufficientScopeProblem();

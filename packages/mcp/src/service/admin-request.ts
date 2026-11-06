@@ -46,10 +46,20 @@ export function returnedHeaders(
   return kept;
 }
 
+const JSON_MEDIA_TYPE = /^[^/\s]+\/(?:[^/\s]+\+)?json$/u;
+
+// The media type's type and subtype, without parameters, in lower case: media
+// types compare case-insensitively (RFC 9110 section 8.3.1).
+function mediaTypeOf(contentType: unknown): string {
+  return typeof contentType === 'string'
+    ? (contentType.split(';')[0] ?? '').trim().toLowerCase()
+    : '';
+}
+
 // A JSON body read for what it is, or nothing for anything else.
 export function jsonBodyOf(contentType: unknown, text: string): unknown {
   if (text.length === 0) return null;
-  if (!String(contentType).includes('json')) return null;
+  if (!JSON_MEDIA_TYPE.test(mediaTypeOf(contentType))) return null;
   try {
     const parsed: unknown = JSON.parse(text);
     return parsed;

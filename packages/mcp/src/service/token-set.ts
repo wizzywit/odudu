@@ -70,11 +70,15 @@ function claimsOf(token: string): Record<string, unknown> {
   }
 }
 
+// The scopes the access token itself claims, which is what the admin API reads.
+function claimedScopes(set: TokenSet): string[] {
+  const claim = claimsOf(set.accessToken).scope;
+  return typeof claim === 'string' ? claim.split(' ').filter((s) => s !== '') : [];
+}
+
 // Every scope the token holds, by its own claim and by the endpoint's say-so.
 export function scopeOf(set: TokenSet): string[] {
-  const claim = claimsOf(set.accessToken).scope;
-  const claimed = typeof claim === 'string' ? claim.split(' ').filter((s) => s !== '') : [];
-  return [...new Set([...claimed, ...set.scope])];
+  return [...new Set([...claimedScopes(set), ...set.scope])];
 }
 
 export function holdsWrite(set: TokenSet): boolean {
@@ -82,8 +86,8 @@ export function holdsWrite(set: TokenSet): boolean {
 }
 
 // Refuses a token the admin API of this tenant should never be sent: another
-// issuer's, one not for the admin API, one without the scope this run asked
-// for, and in a read-only run one that carries the write scope. The messages
+// issuer's, one not for the admin API, one whose own scope claim lacks what this run
+// asked for, and in a read-only run one that carries the write scope. The messages
 // name no token.
 export function acceptTokenSet(set: TokenSet, expected: TokenExpectation): void {
   const claims = claimsOf(set.accessToken);
@@ -102,7 +106,7 @@ export function acceptTokenSet(set: TokenSet, expected: TokenExpectation): void 
     );
   }
   const held = scopeOf(set);
-  if (!held.includes(expected.scope)) {
+  if (!claimedScopes(set).includes(expected.scope)) {
     throw new StdioError(
       'mcp_token_refused',
       `the access token does not carry the scope ${expected.scope}`,

@@ -281,8 +281,8 @@ describe('a source that is told its issuer late, loses a token and is retried', 
 
   it('gets another token after the one held is invalidated', async () => {
     const b = browser('mcp:read', null);
-    await b.source.bearer('read');
-    b.source.invalidate?.();
+    const held = await b.source.bearer('read');
+    b.source.invalidate?.(held);
     await b.source.bearer('read');
     expect(b.calls).toEqual(['login', 'login']);
   });
@@ -423,5 +423,51 @@ describe('the lock is not held while a person signs in', () => {
     });
     await b.source.bearer('read');
     expect(events.slice(0, 2)).toEqual(['authority', 'lock']);
+  });
+});
+
+describe('a token source told which bearer was refused', () => {
+  it('keeps a replacement token when a late 401 for the one before it arrives', async () => {
+    const m = memoryStore();
+    let n = 0;
+    const b = browser('mcp:write', m.store, {
+      login: () => {
+        n += 1;
+        return Promise.resolve(set('mcp:write', { refreshToken: `rt-${String(n)}` }));
+      },
+    });
+    const a = await b.source.bearer('write');
+    b.source.invalidate?.(a);
+    const replacement = await b.source.bearer('write');
+    expect(replacement).not.toBe(a);
+    b.source.invalidate?.(a);
+    expect(await b.source.bearer('write')).toBe(replacement);
+    expect(n).toBe(2);
+    b.source.invalidate?.(replacement);
+    await b.source.bearer('write');
+    expect(n).toBe(3);
+  });
+});
+
+describe('a token that is already expired when it arrives', () => {
+  it('is an acquisition failure that is not sent, and not tried again within the cooldown', async () => {
+    let fetched = 0;
+    const source = createTokenSource({
+      now,
+      authority: () => Promise.resolve(AUTHORITY),
+      expectation: { audience: ADMIN, scope: 'mcp:read' },
+      credential: {
+        kind: 'key',
+        fetch: () => {
+          fetched += 1;
+          return Promise.resolve(set('mcp:read', { expiresAt: new Date(clock - 1000) }));
+        },
+      },
+    });
+    await expect(source.bearer('read')).rejects.toMatchObject({
+      message: expect.stringMatching(/expired/u) as string,
+    });
+    await expect(source.bearer('read')).rejects.toThrow(/not tried again/u);
+    expect(fetched).toBe(1);
   });
 });
