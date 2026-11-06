@@ -12,26 +12,26 @@ into one — and is served without authentication, since a client that cannot re
 it cannot generate against it.
 
 ```bash
-curl -sS -D - -o openapi.json http://localhost:3091/admin/openapi.json
+curl -sS -D - -o openapi.json http://localhost:3000/admin/openapi.json
 jq '.paths | length' openapi.json
 wc -c < openapi.json | tr -d ' '
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a1b0fc-1114-7ee0-80ba-8a9604fc12cd
+x-request-id: 01a1b13e-c09d-75c7-829b-62410503dbc2
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 806104
-Date: Fri, 06 Nov 2026 13:11:11 GMT
+content-length: 806752
+Date: Fri, 06 Nov 2026 14:24:02 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 109
-806104
+806752
 ```
 
-787 KB and 109 paths, which is the whole route table. It is the one admin
+788 KB and 109 paths, which is the whole route table. It is the one admin
 response readable from any origin, so a viewer served from another port can load
 it — the local stack's optional Swagger UI does exactly that (see [Browsing the
 admin API](../../../contributing/run-from-a-checkout.md)). No admin route carries that header, so a page on

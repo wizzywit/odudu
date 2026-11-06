@@ -111,6 +111,42 @@ curl -sS \
 {"count":2,"capped":false}
 ```
 
+`?counts_toward_max_clients=` separates the clients a tenant's `max_clients` counts
+(the ones an administrator or a registration token made, and the built-in ones) from
+those that registered themselves or came from a metadata document. It is a filter
+of the list as well, and `true` or `false` are its only values. These run against
+`mcp-demo`, the tenant the [`mcp` policy section of the bootstrap
+page](../request-paths/bootstrap.md#the-mcp-policy) registered six clients in
+without a credential, on that section's own stack and with nothing else done to
+it, so the built-in `odudu-admin` and `odudu-mcp` are the other two:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/mcp-demo/clients/count"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/mcp-demo/clients/count?counts_toward_max_clients=true"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/mcp-demo/clients/count?counts_toward_max_clients=false"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/mcp-demo/clients?counts_toward_max_clients=true" \
+  | jq -c '[.items[].client_id]'
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/mcp-demo/clients/count?counts_toward_max_clients=maybe"
+```
+
+```
+{"count":8,"capped":false}
+{"count":2,"capped":false}
+{"count":6,"capped":false}
+["odudu-admin","odudu-mcp"]
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/counts_toward_max_clients must be equal to one of the allowed values","errors":[{"path":"counts_toward_max_clients","message":"must be equal to one of the allowed values"}],"instance":"01a1b13e-c78f-7033-9530-71bccfa17170"}
+```
+
 A page control is not a count parameter, and two search fields are refused as
 the list refuses them. The first two refusals are the generated schema's, hence
 their generic `title`; the third is the handler's. In `demo`, since none of them
