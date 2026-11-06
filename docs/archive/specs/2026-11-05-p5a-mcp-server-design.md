@@ -1,7 +1,7 @@
 # P5a — the MCP server, first release
 
 Status: awaiting approval, 2026-11-05. Umbrella row: section 11 of
-[the design spec](2026-09-10-odudu-design.md). Roadmap placement:
+[the design spec](../../superpowers/specs/2026-09-10-odudu-design.md). Roadmap placement:
 `apps/docs/content/en/roadmap.md`, "Next", P5a, and the Keycloak-model
 service-account item under "Later". ADR 0042's 2026-10-16 amendment fixes that
 the MCP server is open and that its destructive tools are P5b.

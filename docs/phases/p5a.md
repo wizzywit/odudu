@@ -1,8 +1,43 @@
 # P5a — the MCP server, first release
 
 The running record of what building the phase found. The argument is in
-[the spec](../superpowers/specs/2026-11-05-p5a-mcp-server-design.md) and
-[the plan](../superpowers/plans/2026-11-05-p5a-mcp-server.md).
+[the spec](../archive/specs/2026-11-05-p5a-mcp-server-design.md) and
+[the plan](../archive/plans/2026-11-05-p5a-mcp-server.md).
+
+## What the phase found, in short
+
+The phase ran as eleven increments, each reviewed for spec compliance and quality
+and then answered on its pull request. What the reviews found is the record of
+where the plan was weakest:
+
+- **The token exchange was a door the plan had not seen.** A public client with the
+  exchange grant reached it with any actor token, the admin API ignored `scope` and
+  `act`, and a narrowing exchange or refresh could turn an agent's token into a
+  plain administrator's. Per-client settings, a marker that survives an exchange
+  and a door audit for agent calls followed, and none was in the first plan.
+- **Hostile text was the second.** A name or description is read by a model, so the
+  tools strip bidirectional controls and tag characters, cap and clean object keys
+  and keep text under `data`; the injection suite checks that a hostile string cannot
+  cause a write the token does not already carry.
+- **Consent claims were wrong twice.** A write scope was said to be asked about for
+  every client, and an administrator-made client was not; and a client that took its
+  scope from the metadata could not register at all. Both were found by running
+  something, the second by the real Inspector, and are fixed.
+- **A URL as a client_id needed more care than a client.** The first parse accepted a
+  non-canonical identifier; the fetch needed a deadline, a size cap, a private-address
+  guard for the key set too, a cache that never stores the raw body, a per-host rate and
+  a ceiling that evicts only what nobody uses.
+- **Retries and cleanup.** The idempotency gate starved the database pool until it
+  was sized, bounded and made to refuse; an export of a tenant with an idle service
+  account could not be imported; a stdio `--tenant-address` could have sent a stored
+  refresh token to another host until the store was keyed by the form's issuer.
+- **The process findings.** CodeRabbit read the spec and plan and found eight valid
+  defects before any code, and the plan's statements about this repository's own
+  helpers and about the SDK were wrong often enough that an increment's first act
+  was a grep. Review findings were fixed in the increment that earned them, not
+  collected for the end.
+- **What only the owner can do** is the hand run at the end of this note: no CI job
+  runs hosted Claude, Claude Code, Claude Desktop or Cursor.
 
 ## The spike (Increment 0), 2026-11-05
 
@@ -282,8 +317,8 @@ holding no MCP scope a 403. An agent must pass both gates: the scope
   agent may still rename an ordinary client, which shows on its consent
   screen. It is reversible and audited as `client.amend` with the agent's
   client row as actor client.
-- Not enforced anywhere an operator can see yet: no agent token exists
-  outside tests until the MCP server mints them.
+- An agent token is made by the MCP endpoint and by `odudu mcp` (see "Minting for
+  an agent"), so every refusal above is reachable by an operator.
 
 ## Audit attribution
 
@@ -292,8 +327,8 @@ holding no MCP scope a 403. An agent must pass both gates: the scope
   and the allowlist has no key for arguments or results; the row's actor
   columns carry the owner and the agent client row too, so the audit list
   filters find it. `recordAgentToolCall` (`usecase/access-audit.ts`) writes it.
-  It is called by the MCP endpoint, which lands in Increment 8, and nothing
-  calls it before. `route` must be an `ADMIN_ROUTES` key and `tool` an
+  It is called by the MCP endpoint, and by the admin API's door for an agent call
+  the endpoint did not sign (see "`odudu mcp`"). `route` must be an `ADMIN_ROUTES` key and `tool` an
   identifier of at most 64 characters from `[a-z0-9_.-]`; the detail allowlist
   rejects anything else, so text an agent chose cannot reach the trail.
 - Attribution is proved against `mintAgentToken`: the owner's grant belongs to
@@ -546,25 +581,28 @@ holds the two that need a database or the app.
 - Volume: a call adds six primary-key reads (the tenant by name, then the mint's grant, client, tenant, session and subject) of the mint once per request and
   scope (none on a cached bearer), and the admin API's own per-call checks.
 
-## Closing pass reads
+## The closing pass
 
-Sentences the closing pass has to revisit, because a placement or the roadmap
-still states what an increment has since changed:
+Each sentence that earlier increments flagged for a re-read was read against what
+exists when the phase closed:
 
-- `apps/docs/content/en/roadmap.md`, the P5a bullet: "The admin API has no
-  `Idempotency-Key` header today, and P5a adds one". The header shipped in
-  increment 6; `tests/docs/roadmap-section-11.test.ts` pins the sentence, so it
-  moves with its mapping.
-- The same bullet: "The server does not yet publish the metadata an MCP client
-  looks for". The well-known documents are published; read it against what
-  exists when the phase closes.
-- ADR 0050 says the admin token is made by the RFC 8693 exchange; it is made directly
-  by `mintAgentToken`. The amendment is written there; read it against the finished
-  endpoint.
-- `apps/docs/content/en/roadmap.md`, the P5a bullet "create a client's service account
-  when its client credentials grant is switched on": the sentence now says what shipped;
-  at close it moves to Shipped and out of Next with its mapping in
-  `tests/docs/roadmap-section-11.test.ts`.
+- The roadmap's P5a bullet (`Idempotency-Key` "today", "does not yet publish the
+  metadata") and the service-account placement were all true of the code and
+  false of the page; the bullet left "Next" for "Shipped" with its words
+  rewritten, and the tests that pinned its sentences moved with it
+  (`roadmap-section-11.test.ts` now holds a shipped phase's row to what
+  "Shipped" says it built).
+- ADR 0050 keeps its title and its first reading; the amendment of 2026-11-06 says
+  the token is made by `mintAgentToken` and not by the exchange, and the finished
+  endpoint matches the amendment.
+- The landing page's planned MCP item became a line in the "Services and agents"
+  capability card, with no picture because none was made; the planned band now
+  holds the destructive tools and agent identity. The README's MCP line says the
+  writes are limited to descriptive text.
+- Three gaps this note had recorded were closed rather than carried: `seed client
+--audience`, a pending sign-in sparing a metadata client at the 1,000 ceiling,
+  and the pages naming `update_client_metadata`, `update_scope_metadata` and what an
+  agent can change.
 
 ## Idempotency keys
 
@@ -1002,9 +1040,8 @@ To undo one, send the earlier text from the audit row's `before` with the new et
 
 - Tools for the destructive routes and for the other fields of a client or scope: P5b, which owns per-call approval.
 - The injection suite exercises a scripted agent, not a model: a real client's behaviour is the closing increment's hand run.
-- Closing pass reads: the Increment 11 guide must name `update_client_metadata`, `update_scope_metadata`, the residual risk and
-  "what an agent can change" (no page does yet); the landing page and README still call the MCP server "read-only by default",
-  which stays true of what a token without `mcp:write` gets.
+- The guide, the landing page and the README name the two write tools, the residual risk and
+  what an agent can change; "read-only by default" stays true of a token without `mcp:write`.
 
 ## `odudu mcp`, the stdio server
 
@@ -1246,6 +1283,31 @@ to: <authorization URL>` on standard error and listens on the loopback
   cannot run in CI (hosted Claude needs a public HTTPS address; the others are
   desktop applications), and neither can a client ID metadata document, which
   needs one. The hand run in this note carries the exit criterion for them.
+
+## What the phase leaves
+
+Placed, so that none is open without a phase (each is a row in `docs/NEXT.md`):
+
+- **`odudu mcp` outside the image or a checkout.** The stdio server runs from the
+  container image or a built checkout; a laptop with neither cannot install it. The
+  owner of a published package is P4i, which versions packages apart from the server.
+- **The OpenAPI document's size.** `Idempotency-Key` took it from about 700 to about
+  800 KB (measured when the header landed) because each `POST` inlines its problem
+  schema once per status code. Shared `components` would cut it, and P4i, which
+  generates a typed client from the document, is the phase that reads it.
+- **Per-process limits.** The endpoint's request limits, the `mcp` registration
+  budget, the metadata fetch limiter and the keyed-request gate hold their counts in
+  one process, and a request carrying a garbage token costs a key read before it is
+  refused: P11, with the other bounds.
+- **A model in the injection suite.** The suite drives a scripted agent; P5b, which
+  adds the tools that cannot be undone, is where measuring a model belongs.
+- **Not run by anyone yet:** the three hosted clients (the hand run below), `odudu mcp`
+  on Windows and with the Linux Secret Service, and a third-party MCP server protected
+  by Odudu with an audience the operator chose. The guides say so where each is used.
+- **The real-client job's transitive dependencies.** `infra/conformance/run-mcp.sh`
+  pins the Inspector and the SDK client exactly and installs their dependencies
+  unlocked; a drift makes the job red, never wrong, and a lockfile in
+  `infra/conformance/mcp/` is the fix when it first does.
 
 ## Hand run (owner)
 

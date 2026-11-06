@@ -13,15 +13,11 @@ export interface Planned {
 
 export const AGENT_ITEMS: Planned[] = [
   {
-    id: 'mcp-server',
-    title: 'An MCP server',
+    id: 'mcp-destructive-tools',
+    title: 'Destructive MCP tools',
     claim:
-      'The admin API as tools for an AI agent, read-only by default. A guide to protecting an MCP server with Odudu.',
-    quotes: [
-      'The admin API as tools for an AI agent',
-      'read-only by default',
-      'a guide to protecting an MCP server with Odudu',
-    ],
+      "The irreversible tools the MCP server withholds today, each needing the owner's separate approval.",
+    quotes: ['The irreversible tools', "each needing the owner's separate approval"],
   },
   {
     id: 'agent-identity',

@@ -2,7 +2,7 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b, P3a, P3b, P4a, P4b, P4c, P4d, P4e, P4j and P4k are complete, and the
+**P0, P1, P2a, P2b, P3a, P3b, P4a, P4b, P4c, P4d, P4e, P4j, P4k and P5a are complete, and the
 tenant rename is done. P4g has closed as release candidates, and only its
 stable tag is left.** Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
@@ -15,6 +15,15 @@ more phase work. What it built, and what the whole-phase review found, is in
 [`docs/phases/p4g.md`](phases/p4g.md); the licences are in `LICENSING.md`.
 What it placed on later phases is on
 [the roadmap page](../apps/docs/content/en/roadmap.md).
+
+**P5a, the MCP server, is built.** Every tenant serves an MCP endpoint with 42 read
+tools and two write tools for descriptive text, `odudu mcp` serves them over stdio,
+and the sign-in an MCP client needs (metadata, registration under an `mcp` policy,
+client ID metadata documents, `mcp:read` and `mcp:write`) is in place. What it found
+is in [`docs/phases/p5a.md`](phases/p5a.md). Its owner steps are the hand run of
+Claude Code, Claude Desktop, claude.ai and Cursor against an instance, which no CI
+job can run, and `odudu mcp` on Windows and with the Linux Secret Service, which
+nobody has run (both are in that note's "Hand run (owner)").
 
 **P4b, theming and client branding, is built.** Every server page and mail
 wears a tenant's theme and a client's over it; the tenant chooses its languages
@@ -34,10 +43,9 @@ between them is safe in both directions. What it found, what proves the domain
 path and what it left is in [`docs/phases/p4j.md`](phases/p4j.md); the argument
 is [ADR 0049](adr/0049-a-tenant-has-one-canonical-address.md).
 
-**What is next, in this order: P5a, P4f, P4h, P4i, P5, P5b**, then the
+**What is next, in this order: P4f, P4h, P4i, P5, P5b**, then the
 phases the roadmap page lists as "Later", P6 to P14. The letters do not read
-in execution order. P5a is the MCP server;
-P4f self-service through a "me" API and application-initiated actions; P4h
+in execution order. P4f is self-service through a "me" API and application-initiated actions; P4h
 console localization ([ADR 0043](adr/0043-localization-is-a-catalogue-a-negotiation-and-a-set-of-owners.md));
 P4i the SDKs.
 
@@ -65,6 +73,7 @@ open.
 The running records, split out of this file on 2026-09-17: P2b reached
 1,873 lines here, of which the part describing where the project stood was 58.
 
+- [P5a — the MCP server, first release](phases/p5a.md)
 - [P4j — a custom domain for each tenant](phases/p4j.md)
 - [P4k — the frontend architecture](phases/p4k.md)
 - [P4b — theming and client branding](phases/p4b.md)
@@ -176,6 +185,16 @@ agent identity layer's own instance, budget and `max_depth` (design spec
   the agent layer's own `max_depth`, which also owns the chain's other
   bounds (scope and TTL narrowing, budget).
 
+**What P5a built that P5 reuses, and what it leaves.** An agent is a token with an
+`act` claim or an MCP scope, and `mintAgentToken` (`@odudu/protocol-oidc`) is the one
+place an agent's admin token is made, its life the lesser of the presented token's and
+five minutes; build on it rather than beside it. The admin API's door audits every agent
+call it did not see the MCP endpoint sign (`agent.tool_call`, 503 if the row cannot be
+written), the exchange refuses a public client and a foreign actor token unless a
+per-client setting allows it, and a token holding an MCP scope keeps one through an
+exchange or a refresh. Still absent, and P5's: budgets, `may_act` minting and
+approval, which the write tools' ten-minute token and per-sign-in consent only stand in for.
+
 ## Decisions still open
 
 Two kinds of entry, split by **where the argument lives**, because that is
@@ -217,6 +236,10 @@ that should hold it, which is usually false.
 | The domain verification throttle and the check endpoint's limiter are per process, no global cap bounds the DNS lookups a verification makes across tenants, and a verification holds its transaction across the lookup (5 s timeout, ten a minute per tenant)                                                                                                                                                                                                                                                                                                                                                                    | [`phases/p4j.md`](phases/p4j.md), "Left, and where it went"                                                       | **P11**, many instances, with the other in-process bounds                                                      |
 | The edge reads the tenant's address once per request on a non-base host and on a path address, and the admin API one tenant-scoped read per request for a tenant other than `system`, with no host-to-tenant cache; a cache has to state its bound and be invalidated on a switch, and would blur "refused at its expiry"                                                                                                                                                                                                                                                                                                         | [ADR 0049](adr/0049-a-tenant-has-one-canonical-address.md), "Consequences"                                        | **P11**, when a measurement of the p99 asks for it                                                             |
 | A person with no password and only passkeys registered at the address a tenant left has no way back inside the sign-in itself: the challenge is one they cannot answer, and a switch back, a reset or an administrator recovers them                                                                                                                                                                                                                                                                                                                                                                                              | [`phases/p4j.md`](phases/p4j.md); the guide `operating/custom-domains.md`                                         | **P4f**, whose self-service criterion owns the account's own recovery                                          |
+| The MCP endpoint's request limits, the `mcp` registration budget, the metadata fetch limiter and the keyed-request gate are per process, and a request with a garbage token costs a key read before it is refused                                                                                                                                                                                                                                                                                                                                                                                                                 | [p5a.md](phases/p5a.md), "The MCP endpoint", "Not done, and where it goes"                                        | **P11**, with the other in-process bounds                                                                      |
+| `odudu mcp` runs only from the container image or a checkout, so an AI tool on a machine with neither cannot install it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | [p5a.md](phases/p5a.md), "What the phase leaves"                                                                  | **P4i**, which publishes packages versioned apart from the server                                              |
+| The admin API's OpenAPI document grew from about 700 to 800 KB with `Idempotency-Key`, each `POST` inlining its problem schema once per status; shared components would shrink it                                                                                                                                                                                                                                                                                                                                                                                                                                                 | [p5a.md](phases/p5a.md), "What the phase leaves"                                                                  | **P4i**, which generates a typed client from that document                                                     |
+| The injection suite drives a scripted agent, not a model, so what a model does with a hostile description is not measured                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | [p5a.md](phases/p5a.md), "The injection suite"                                                                    | **P5b**, when tools that cannot be undone arrive                                                               |
 
 ### Argued here, because there is nowhere else
 

@@ -12,7 +12,7 @@ You need the stack from the [quick start](../quick-start/index.mdx), with its `d
 
 ## What was checked, and what was not
 
-The Odudu side was run: the registration below, with the redirect addresses Cursor's documentation names, and the rest of the sign-in with the MCP Inspector 2.13.0 and the TypeScript SDK's client 2.4.0, which run against the endpoint on every change (`infra/conformance/run-mcp.sh`). **Cursor itself was not run by the authors yet.** The `mcp.json` shapes and the redirect addresses follow [Cursor's documentation](https://cursor.com/docs/context/mcp) as read on 6 November 2026, and are tagged `text` where they are the vendor's syntax and not a command that runs here. Which protocol revision Cursor speaks is not published, and the endpoint serves both the 2025-11-25 and the 2026-07-28 revisions.
+The Odudu side was run: the registration below, with the redirect addresses Cursor's documentation names, and the rest of the sign-in with the MCP Inspector 2.13.0 and the TypeScript SDK's client 2.4.0, which run against the endpoint on every change (`infra/conformance/run-mcp.sh`). **Cursor itself was not run by the authors yet.** The `mcp.json` shapes and the redirect addresses follow Cursor's documentation (`https://cursor.com/docs/context/mcp`) as read on 6 November 2026, and are tagged `text` where they are the vendor's syntax and not a command that runs here. Which protocol revision Cursor speaks is not published, and the endpoint serves both the 2025-11-25 and the 2026-07-28 revisions.
 
 ## 1. Point the commands at your server
 

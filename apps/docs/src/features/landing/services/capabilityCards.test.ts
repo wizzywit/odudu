@@ -8,7 +8,7 @@ describe('the capability cards', () => {
       'Many tenants',
       'Passwords and second factors',
       'Sessions that end properly',
-      'Services and delegation',
+      'Services and agents',
       'An admin API and console',
       'An audit trail',
       'One container and Postgres',

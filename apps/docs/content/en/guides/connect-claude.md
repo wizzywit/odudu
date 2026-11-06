@@ -6,7 +6,7 @@ sidebar_position: 13
 
 # Connect Claude
 
-Claude reaches an Odudu tenant three ways, and which one you use depends on where the instance is. Claude Code, the terminal tool, connects straight to the tenant's MCP endpoint, and it can do that to an instance on `http://localhost`. Claude Desktop can run `odudu mcp`, a local program that talks to the instance for it. claude.ai and the connectors in Claude Desktop are called from Anthropic's servers, so they need an address on the public internet.
+Claude reaches an Odudu tenant three ways, and which one you use depends on where the instance is. Claude Code, the terminal tool, connects straight to the tenant's MCP endpoint, and it can do that to an instance on localhost. Claude Desktop can run `odudu mcp`, a local program that talks to the instance for it. claude.ai and the connectors in Claude Desktop are called from Anthropic's servers, so they need an address on the public internet.
 
 You need a tenant set up for MCP clients, which [Protect an MCP server](./protect-an-mcp-server.md) does in its step 4: `client_registration_policy` set to `mcp`, and `cimd_enabled` on if you want Claude Code or claude.ai to identify themselves with their own address. The examples use the quick start's `demo` tenant at `http://localhost:3000`.
 
@@ -18,7 +18,7 @@ The Odudu side of this page was run, against a stack built from this repository:
 
 ## Claude Code, to an instance on localhost
 
-Add the tenant's endpoint as an HTTP server. The command is the one the [Claude Code documentation](https://code.claude.com/docs/en/mcp) gives for a remote server:
+Add the tenant's endpoint as an HTTP server. The command is the one the Claude Code documentation (`https://code.claude.com/docs/en/mcp`) gives for a remote server:
 
 ```text
 claude mcp add --transport http odudu http://localhost:3000/tenants/demo/mcp
@@ -40,7 +40,7 @@ docker compose exec odudu odudu seed assign-scope --tenant demo --client-id clau
 
 The same client can be made in the console, under **Clients**, with its **Audiences** on the Advanced tab, or through the admin API with a token that holds `manage-clients`, as [Getting the token](../reference/transcripts/admin-paths/getting-the-token.md) shows; [The MCP write tools](../reference/transcripts/request-paths/the-mcp-write-tools.md) runs exactly that. A client made without the audience is not offered the MCP endpoint.
 
-Claude Code then takes the client id and a fixed callback port, which must match the redirect address registered above (the [vendor's documentation](https://code.claude.com/docs/en/mcp) gives `--client-id` and `--callback-port`, for a public client with no secret, and `oauth.scopes` for the scopes it asks for):
+Claude Code then takes the client id and a fixed callback port, which must match the redirect address registered above (the vendor's documentation, at `https://code.claude.com/docs/en/mcp`, gives `--client-id` and `--callback-port`, for a public client with no secret, and `oauth.scopes` for the scopes it asks for):
 
 ```text
 claude mcp add --transport http --client-id claude-code --callback-port 8080 odudu http://localhost:3000/tenants/demo/mcp
@@ -50,7 +50,7 @@ Claude Code asks for the scopes the server lists unless they are pinned, and the
 
 ## Claude Desktop, through `odudu mcp`
 
-Claude Desktop starts local programs described in its configuration file, and `odudu mcp` is one: it serves the same tools over standard input and output, and calls the instance as you or as a service account. This is the route for an instance Anthropic's servers cannot reach. The file is `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS and `%APPDATA%\Claude\claude_desktop_config.json` on Windows, which **Settings, Developer, Edit Config** opens, and Claude Desktop has to be quit and started again to read it ([the Model Context Protocol's guide](https://modelcontextprotocol.io/docs/develop/connect-local-servers) has the steps).
+Claude Desktop starts local programs described in its configuration file, and `odudu mcp` is one: it serves the same tools over standard input and output, and calls the instance as you or as a service account. This is the route for an instance Anthropic's servers cannot reach. The file is `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS and `%APPDATA%\Claude\claude_desktop_config.json` on Windows, which **Settings, Developer, Edit Config** opens, and Claude Desktop has to be quit and started again to read it (the Model Context Protocol's guide (`https://modelcontextprotocol.io/docs/develop/connect-local-servers`) has the steps).
 
 As a person, `odudu mcp` opens your browser to sign in, listens for the answer on a loopback port and keeps the sign-in in your operating system's credential store. It has to run on your machine and not in a container, and the command ships in the Odudu image and in the repository, not yet as a download. From a checkout, with Node 24 and `pnpm install` done, the entry is:
 
@@ -97,7 +97,7 @@ For a service account, which needs no browser, run the command in the container.
 
 ## claude.ai and Claude Desktop's connectors
 
-A connector is added in claude.ai under **Customize, Connectors, Add, Add custom connector**, with the tenant's MCP address, and Claude offers to use its published identity (a client metadata document), to register automatically or to use your own client ([the vendor's page](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)). Anthropic's servers make the calls, and the vendor says the server must be reachable from Anthropic's addresses over the public internet.
+A connector is added in claude.ai under **Customize, Connectors, Add, Add custom connector**, with the tenant's MCP address, and Claude offers to use its published identity (a client metadata document), to register automatically or to use your own client (the vendor's page (`https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp`)). Anthropic's servers make the calls, and the vendor says the server must be reachable from Anthropic's addresses over the public internet.
 
 An Odudu you downloaded and run on your own machine is not. Say so plainly: it needs a tunnel, or a real deployment, that gives the instance a public `https` address, and the instance has to state that address as its own (`ODUDU_PUBLIC_BASE_URL`, with TLS ended in front of it; [Deploying](../operating/deploying.md) has the settings). The MCP address you give Claude is then that public one. The tenant's `cimd_enabled` setting and `mcp` policy decide whether Claude's published identity or its registration is accepted. Claude's redirect address is `https://claude.ai/api/mcp/auth_callback`, an `https` address that a registered client or one from a metadata document may use.
 
