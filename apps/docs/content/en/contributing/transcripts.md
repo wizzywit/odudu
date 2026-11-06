@@ -91,14 +91,18 @@ id, date and size are that fetch's, and the stack and its image were removed aft
 
 The `mcp` policy section of `bootstrap.md` was captured again, whole, on 2026-11-06 on the compose project `odudu-p5a-ffd` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `540b9809e`, a freshly built stack with nothing done to it before the section). Every block is one pass of the section's own commands in order on that stack, so the client ids in the queries are the ones the registrations returned and the port is the one the audience names. The counts block added to the counts page (`?counts_toward_max_clients=`) and the `GET /admin/openapi.json` block were run on the same stack straight after it, the second because the new parameter grew the document by 648 bytes; the stack and its image were removed afterwards.
 
-The stdio page's listing block gained one command, `grep -c '_tenants$'`, on 2026-11-06 for the two tenant tools that only the `system`
-tenant's agent is offered. It was run on a freshly built compose project, `odudu-p5a-i12a` (port `3000`, `ODUDU_REAP_ENABLED=false`,
-throttles at `10000`, built from the working tree on branch commit `e8a1b797f` plus the change), by repeating the page's own setup (the tenant
-`demo`, the key, the `agent` client and its two roles) and the listing command; the 42 names and the `update_` count came out as the page
-shows them, and the new line printed `0`. The rest of the page and `the-mcp-endpoint.md`, whose only change is the sentence about the
-count, were not captured again. A system-tenant agent's listing and its calls are run by `apps/server/tests/mcp-instance-reads.int.test.ts`
-and `mcp-stdio.int.test.ts` against the real app with a scripted browser, and no transcript shows them: the system tenant takes no `seed client`, and a
-sign-in as its administrator ends in a browser.
+The two MCP pages, `the-mcp-endpoint.md` and `odudu-mcp-over-stdio.md`, were captured again, each end to end, on 2026-11-06 for the
+two tenant tools that only the `system` tenant's agent is offered (the stdio page's listing gained `grep -c '_tenants$'`, which prints `0`
+for a tenant's agent, and the endpoint page's count sentence changed). The compose project was `odudu-p5a-i12a` (port `3000`,
+`ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the working tree on branch commit `068b7384e`), started from an empty volume
+before each page. Each page's bash blocks were run in order by one script, `eval`ing the page's own text in a single shell with only the
+project name and the compose file's path changed, and every output block was written from what that run printed (trailing spaces removed,
+which Prettier leaves), so every id, key and time on the two pages is that run's. The only glue between two blocks is the one the
+endpoint page already described, `CID` from the registration and `CODE` from the consent's redirect. The endpoint page's consent block is
+the page as served now, which says "sent back to"; its `Retry-After` was 8 seconds on this run, and the budget counts (49 served, 21
+refused) came out as before. Both stacks were removed afterwards. No transcript shows a system-tenant agent: `seed client` refuses the
+`system` tenant and its administrator signs in in a browser, so `apps/server/tests/mcp-instance-reads.int.test.ts` and
+`mcp-stdio.int.test.ts` run it against the real app with a scripted browser, and the two pages say so.
 
 The stdio server's page, `odudu-mcp-over-stdio.md`, was captured, and re-captured after the admin API began recording a direct agent call, on 2026-11-06 on a freshly built compose project,
 `odudu-p5a-i10b` (port `3000`, Postgres published on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch
