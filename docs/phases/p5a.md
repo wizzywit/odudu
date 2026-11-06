@@ -355,6 +355,96 @@ holding no MCP scope a 403. An agent must pass both gates: the scope
   reads a grant, a client, a tenant, a session and a subject by primary key
   and writes nothing; a tool call costs those five reads and one signature.
 
+## The tool catalogue
+
+`packages/mcp` holds the tool model (`service/tool.ts`), the catalogue
+(`service/catalogue.ts`: `TOOLS` and `NOT_TOOLS`) and the read tools
+(`service/tools/*.ts`). `tests/lint/mcp-tool-coverage.test.ts` holds the
+catalogue to the route table: each of the 152 `ADMIN_ROUTES` is exactly one of a
+tool's route or a `NOT_TOOLS` entry with a reason, each tool's capability is its
+route's, and a read tool's route is a GET. A new admin route fails it until placed.
+
+| Tool                            | Route                                 | Capability      |
+| ------------------------------- | ------------------------------------- | --------------- |
+| `count_audit`                   | `GET …/audit/count`                   | view-audit      |
+| `count_clients`                 | `GET …/clients/count`                 | manage-clients  |
+| `count_groups`                  | `GET …/groups/count`                  | manage-tenant   |
+| `count_roles`                   | `GET …/roles/count`                   | manage-tenant   |
+| `count_scopes`                  | `GET …/scopes/count`                  | manage-tenant   |
+| `count_sessions`                | `GET …/sessions/count`                | manage-sessions |
+| `count_subjects`                | `GET …/subjects/count`                | view-users      |
+| `get_client`                    | `GET …/clients/:id`                   | manage-clients  |
+| `get_domain`                    | `GET …/domains/:id`                   | view-domains    |
+| `get_group`                     | `GET …/groups/:id`                    | manage-tenant   |
+| `get_role`                      | `GET …/roles/:id`                     | manage-tenant   |
+| `get_scope`                     | `GET …/scopes/:id`                    | manage-tenant   |
+| `get_settings`                  | `GET …/settings`                      | manage-tenant   |
+| `get_subject`                   | `GET …/subjects/:id`                  | view-users      |
+| `get_subject_lockout`           | `GET …/subjects/:id/lockout`          | view-users      |
+| `list_audit`                    | `GET …/audit`                         | view-audit      |
+| `list_client_logout_deliveries` | `GET …/clients/:id/logout-deliveries` | manage-clients  |
+| `list_client_sessions`          | `GET …/clients/:id/sessions`          | manage-sessions |
+| `list_clients`                  | `GET …/clients`                       | manage-clients  |
+| `list_domains`                  | `GET …/domains`                       | view-domains    |
+| `list_groups`                   | `GET …/groups`                        | manage-tenant   |
+| `list_keys`                     | `GET …/keys`                          | manage-keys     |
+| `list_mail`                     | `GET …/mail`                          | manage-tenant   |
+| `list_roles`                    | `GET …/roles`                         | manage-tenant   |
+| `list_scopes`                   | `GET …/scopes`                        | manage-tenant   |
+| `list_sessions`                 | `GET …/sessions`                      | manage-sessions |
+| `list_subject_consents`         | `GET …/subjects/:id/consents`         | view-users      |
+| `list_subject_grants`           | `GET …/subjects/:id/grants`           | manage-sessions |
+| `list_subject_sessions`         | `GET …/subjects/:id/sessions`         | manage-sessions |
+| `list_subjects`                 | `GET …/subjects`                      | view-users      |
+| `whoami`                        | `GET …/whoami`                        | none            |
+
+- **Thirty-one read tools, no write tool yet.** Lists answer one page under
+  `MAX_LIMIT` (the input schema's `limit` has that maximum, so a larger one is refused
+  before any call) with the cursor beside it as `next_cursor`; the admin API's `next`
+  is the same value. Counts, gets and singletons answer one document.
+- **Output is `{ data, next_cursor? }`.** All free text (names, descriptions, emails,
+  audit detail) sits under `data`; every string is stripped of control and
+  bidirectional-override characters and cut to 1,000 characters, a whole result to
+  256,000, a problem's `detail` to 500. Each tool's description says the text is
+  data, not instructions.
+- **Schemas are the contract's.** Output schemas are the `@odudu/contracts/admin`
+  response schemas; input filters are the shape of the route's own count or list query
+  schema, so a filter the API gains reaches the tool. The route's server-side checks
+  (a refinement the tool's schema drops, such as one search field at a time) still
+  apply: the admin API answers 400 and the tool reports it.
+- **A problem is an error result** carrying `type`, `title`, `status` and a capped
+  `detail`; no stack, no `errors` array, no other body. A success the tool cannot read
+  is `mcp:unexpected_response` without the body. Unexpected failures (the caller
+  throwing) are not described: they reach the endpoint, which decides.
+- **`AdminCaller`** takes `{ method, pattern, params, query }` and answers
+  `{ status, headers, body }`. The tenant is the caller's; `expandPattern` refuses a
+  parameter named `tenant` and encodes every value as one path segment. A read has no
+  header or body field, so no tool input can become one.
+
+Not tools, by reason (`NOT_TOOLS`):
+
+- **Refused to agents** (`AGENT_DENIED_READS`, 3): tenant export, audit export, a
+  theme asset's bytes.
+- **P5b** (8): tenant delete, end-all sessions, lockout clear (one subject, and all),
+  and the four signing-key changes (create, promote, retire, delete).
+- **Descriptive writes** (2): `PATCH` of a client and of a scope; their tools are the
+  write tools.
+- **Every other write** (69): not an agent write in P5a.
+- **Reads outside the catalogue** (39): preview pages (4), branding and message
+  wording (11), personal or secret-adjacent (subject profile and credentials,
+  registration tokens, the SMTP login; 4), the tenant record and the tenant list
+  (3), and narrower views of a record whose list and get tools exist (17: a subject's
+  roles, groups, effective roles and admin capabilities among them). Those last are
+  the first to add if an agent needs them.
+
+### The package's place (ADR 0051)
+
+`mcp` sits above the protocol packages. Three dependency-cruiser rules name the
+edges: `mcp-allowlist` (kernel, contracts, `protocol-oidc`, `protocol-admin`
+only), `no-protocol-to-mcp`, and `mcp-imported-only-by-server`.
+`isDomainAddress` in the kernel replaced four hand comparisons of
+`address.prefix === ''`.
+
 ## Closing pass reads
 
 Sentences the closing pass has to revisit, because a placement or the roadmap
