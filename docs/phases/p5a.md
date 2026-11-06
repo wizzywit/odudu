@@ -657,3 +657,115 @@ row_security = off` was rejected: for an owner under FORCE it errors rather than
 - **Claims.** A token already issued stops being accepted where Odudu checks the grant row;
   a resource server checking the signature alone accepts it until `exp`. Past audit events
   keep the actor id and lose `actor_name`. Both are in the docs and CHANGELOG.
+
+## The MCP endpoint
+
+`POST /tenants/:tenant/mcp` (at `/mcp` on a tenant's own domain, which the host rewrite files
+under the tenant) serves the 42 read tools. `GET` and `DELETE` answer 405 with `Allow: POST`.
+Nothing is written yet: the catalogue holds reads only.
+
+### The SDK, run
+
+verified by running scratch servers and the endpoint's own int test, `@modelcontextprotocol/server`
+2.4.0, `@modelcontextprotocol/node` 2.1.2 and, as a test dependency of `packages/mcp` and `apps/server`,
+`@modelcontextprotocol/client` 2.4.0 (all published 2026-10-23, past the 1,440-minute floor, pinned
+exact). `@modelcontextprotocol/fastify` is not used: its Host and Origin lists are static, and the
+tenant's host is per request.
+
+- **Both eras on one handler.** `createMcpHandler(factory, { legacy: 'stateless' })` answers a 2025-11-25
+  `initialize` with no session id and a 2026-07-28 request, each from a fresh server built by the
+  factory. The SDK's client reaches both through the same transport: `versionNegotiation: { mode:
+'legacy' }` and `{ mode: { pin: '2026-07-28' } }`, both listing and calling in the int test.
+- **`Mcp-Method`.** A 2026-07-28 request with the header missing, or naming another method than the
+  body, is answered 400 with JSON-RPC `-32020` by the SDK (`data.mismatch` says which), before any
+  of this layer runs. `server/discover` answers `supportedVersions: ["2026-07-28"]` and the `tools`
+  capability.
+- **Cache fields.** `McpServerOptions.cacheHints` sets `ttlMs` and `cacheScope` of `tools/list` and
+  `server/discover`; the endpoint says 60,000 and `private`. A 2025 result has neither, by
+  design of the SDK. Left out, the SDK says `ttlMs: 0`, `private`.
+- **The SDK leaks a thrown message.** A tool callback that throws has its `Error.message` returned as
+  the content of an `isError` result (`SECRET internal detail` came back verbatim). Every callback
+  here runs through `callMcpTool`, which catches everything and answers a correlation id.
+- **The SDK validates arguments before the callback.** With the tool's own schema it answers its own
+  wording and the callback never runs, so no audit row. The endpoint lists a tool by the JSON Schema of
+  its zod input and hands the SDK a validator that accepts anything, so the tool's schema is the one
+  refusal, in the tool's wording, after which a row is written (`mcp:invalid_arguments`, `failed`).
+  The listed schema carries `additionalProperties: false`, `maxLength` and the UUID pattern.
+- **Batches.** The SDK serves a JSON-RPC batch, which would let one admitted request spend many
+  budgets; the route refuses an array body with 400 `-32600`.
+- **The handler verifies nothing and reads no `Authorization`.** The endpoint does not pass the token
+  to the SDK at all (`authInfo` is optional): the factory closes over the validated principal, and the
+  handler is built per request, so nothing is shared between two requests. `handler.close()` follows each.
+- **Origin and Host are not the SDK's.** `toNodeHandler` does neither; the route does both from the
+  tenant's address before anything is read.
+- **No `outputSchema` is advertised.** The 42 response schemas would be sent in every `tools/list` and
+  read into every model's context; the result is JSON text and `structuredContent` regardless.
+
+### What a request does, in order
+
+1. **Host** must be the host of the tenant's address (`hostAccepted`, port ignored, a strict
+   hostname grammar so `evil@id.example` is not read as `id.example`), else 403. With no
+   `ODUDU_PUBLIC_BASE_URL` the address is read off the request, so the check holds nothing there; a
+   production deployment states one.
+2. **Origin**, when present, must be the tenant's own origin whole, else 403; none passes.
+3. **Tenant.** Unknown or disabled: an empty 404, as the metadata route answers, so nothing tells
+   them apart and a disabled tenant's token is no longer answered 401.
+4. **Token** (`validateMcpToken`): the `Authorization` header alone (no query, body or cookie). The
+   tenant's keys verify it (`verifyTenantAccessToken`, the verifier the admin door reads with) for
+   `typ` `at+jwt`, an issuer in `acceptedIssuers` and the audience the tenant's MCP URL exactly, no
+   trailing slash and no other case; a token naming the admin audience beside it is refused, so no
+   token serves both doors. Then `checkGrantLiveness`, the admin door's own read of grant, session,
+   client and subject, now one function both call, and the grant's owner must be the token's `sub`.
+   No token is 401 with `Bearer resource_metadata="<PRM>", scope="mcp:read"`; any other refusal
+   is 401 with `error="invalid_token"` in front; a valid token with no MCP scope is 403
+   `insufficient_scope`. A genuine token of another tenant (or of this one at an address it left)
+   writes `token.foreign_issuer` and a token with no MCP scope writes `capability.refused`
+   (`agent_without_mcp_scope`), as the admin door does; every other refusal is a log line.
+5. **Budget** (`createToolLimiter`): 60 requests a minute per principal (subject and client), 600 a
+   minute per tenant, four in flight per principal; past one, 429 with `Retry-After` and
+   JSON-RPC `-32029`. Fixed windows, at most 10,000 principals and 10,000 tenants, the least recently
+   used dropped first (so a throttled principal that keeps asking is not forgotten). Per process: with
+   several instances the limit is multiplied, and a shared budget is P11's. Every request counts, not
+   only a tool call, because a POST is one message once batches are refused. The slot is freed on the
+   response's `close`, so a body refused with 413 frees it.
+6. **Body** at most 256 KiB (Fastify's `bodyLimit`), JSON only.
+7. **The SDK serves it.** `tools/list` lists the tools the token's scope admits (a read under either
+   scope, a write under `mcp:write`) that the owner's capabilities could use; any other method registers
+   them by scope alone, so a call to a tool the owner lost the capability for still reaches the admin
+   API, is refused there, and leaves a `refused` row. Decision: a tool is **absent from the list**
+   when the owner lacks its capability (the plan's Review Focus 7) and **present-and-refused at call
+   time**. Cost: one `effective_roles` read per `tools/list` (not per call).
+
+### Identity and audit
+
+- The request id is generated here (`newId`) for every request and is the response's `x-request-id`,
+  the audit rows' `request_id` and the one the admin call carries; an inbound header is never copied.
+- `callMcpTool` writes exactly one `agent.tool_call` row per tool run: `allowed`, `refused` (403,
+  `insufficient_scope` or `missing_capability`) or `failed`, with the tool and its route and no
+  argument. A call whose row cannot be written has its data withheld (`mcp:audit_unavailable`).
+  Not recorded: `tools/list`, `server/discover`, `initialize`, a call to a name that is no tool.
+- The presented MCP token goes nowhere: the admin API gets the token `mintAgentToken` signs for the
+  call, whose audience is the admin API, whose `sub` is the owner and `act` the agent client. The int
+  test reads the `authorization` of every in-process admin request.
+
+### Shared with the admin door, not copied
+
+`authenticate-admin.ts` now exports `checkGrantLiveness`, `resolveForeignIssuer` (with the audience a
+door expects), `unverifiedIssuer` and `verifyTenantAccessToken`; `index.ts` exports `adminAuthDeps`
+(the reads, built once and used by the admin router and by the endpoint), `heldCapabilities` and the
+audit writers. `@odudu/protocol-oidc` exports `extractBearerToken`.
+
+### Volume (ADR 0041)
+
+Per request: one tenant read (owner connection), the key read, the verification, up to five reads of
+grant, session, client and subject, and one more `effective_roles` for a listing; per tool call the
+five reads of the mint and one audit insert. The limiter holds at most 20,000 small records. Nothing
+here is unbounded or scans a table.
+
+### Not done, and where it goes
+
+- A budget shared across instances, and a pre-authentication budget (a request with a garbage token
+  costs the key read and a verification before it is refused): P11, as the other in-process limiters.
+- `outputSchema` for the tools, and CORS for a browser client at another origin: the second is
+  refused by design (Origin must be the tenant's own); neither is wanted by a target client.
+- What hosted Claude, Claude Code and Cursor negotiate: the hand run of the closing increment.
