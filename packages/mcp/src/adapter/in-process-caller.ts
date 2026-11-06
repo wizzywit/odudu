@@ -1,6 +1,12 @@
 import type { InjectOptions, LightMyRequestResponse } from 'fastify';
 import { expandPattern } from '#/service/admin-path';
-import { isEtag } from '#/service/etag-shape';
+import {
+  ADMIN_BODY_CAP_BYTES,
+  jsonBodyOf,
+  payloadOf,
+  preconditionOf,
+  returnedHeaders,
+} from '#/service/admin-request';
 import { accessOf, type AdminAccess } from '#/service/admin-access';
 import type { McpLogger } from '#/service/deps';
 import {
@@ -11,15 +17,7 @@ import {
 } from '#/service/tool';
 import type { ValidatedMcpToken } from '#/service/validated-token';
 
-// What a call may read back: the admin API's own page size bounds rows, not
-// bytes, and a model reads whatever is returned.
-export const ADMIN_BODY_CAP_BYTES = 1_048_576;
-
-// What a tool may send: a description or a name is short, and the admin API
-// has its own bound, so this is only a stop on what leaves this layer.
-export const REQUEST_BODY_CAP_BYTES = 65_536;
-
-const RETURNED_HEADERS = ['content-type', 'etag', 'retry-after'] as const;
+export { ADMIN_BODY_CAP_BYTES, REQUEST_BODY_CAP_BYTES } from '#/service/admin-request';
 
 export interface InProcessCallerDeps {
   inject(options: InjectOptions): Promise<LightMyRequestResponse>;
@@ -30,50 +28,6 @@ export interface InProcessCallerDeps {
   // Left out, the issuer's own host.
   readonly adminHost: string | undefined;
   readonly logger: McpLogger;
-}
-
-function returnedHeaders(headers: LightMyRequestResponse['headers']): Record<string, string> {
-  const kept: Record<string, string> = {};
-  for (const name of RETURNED_HEADERS) {
-    const value = headers[name];
-    if (typeof value === 'string') kept[name] = value;
-  }
-  return kept;
-}
-
-// The bytes of a request body, or nothing for a call without one. A body is a
-// JSON record on a PATCH and nothing else.
-function payloadOf(req: AdminRequestSpec): string | undefined {
-  if (req.body === undefined) return undefined;
-  if (req.method !== 'PATCH') throw new Error('only a PATCH carries a body');
-  const body: unknown = req.body;
-  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-    throw new Error('a body is a JSON record');
-  }
-  const payload = JSON.stringify(req.body);
-  if (Buffer.byteLength(payload) > REQUEST_BODY_CAP_BYTES) {
-    throw new Error('the request body is too large');
-  }
-  return payload;
-}
-
-// The precondition of a write: one strong etag, and only on a PATCH.
-function preconditionOf(req: AdminRequestSpec): string | undefined {
-  if (req.ifMatch === undefined) return undefined;
-  if (req.method !== 'PATCH') throw new Error('only a PATCH carries a precondition');
-  if (!isEtag(req.ifMatch)) throw new Error('a precondition is one strong entity tag');
-  return req.ifMatch;
-}
-
-function bodyOf(res: LightMyRequestResponse): unknown {
-  if (res.payload.length === 0) return null;
-  if (!String(res.headers['content-type']).includes('json')) return null;
-  try {
-    const parsed: unknown = JSON.parse(res.payload);
-    return parsed;
-  } catch {
-    return null;
-  }
 }
 
 // Calls the admin API of this same app as the owner's agent. The request is
@@ -113,7 +67,7 @@ export function createInProcessCaller(
       if (Buffer.byteLength(res.payload) > ADMIN_BODY_CAP_BYTES) {
         throw new ToolProblem('mcp:result_too_large', 'The result is too large to return', null);
       }
-      return { status: res.statusCode, headers: returnedHeaders(res.headers), body: bodyOf(res) };
+      return { status: res.statusCode, headers: returnedHeaders(res.headers), body: jsonBodyOf(res.headers['content-type'], res.payload) };
     },
   };
 }
