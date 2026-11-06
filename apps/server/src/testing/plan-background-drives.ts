@@ -217,7 +217,7 @@ export async function driveClientCeilings(
     ),
   );
   await capture('clients: a self-registered client to evict', 'oidc', () =>
-    inTenant((tx) => dynamicClientRepository(tx).evictable(volumeTenantId, now)),
+    inTenant((tx) => dynamicClientRepository(tx).evict(volumeTenantId, now)),
   );
   await capture('clients: a metadata document client to evict', 'oidc', () =>
     inTenant((tx) => cimdClientRepository(tx).evictable(now)),

@@ -3,8 +3,10 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import {
   clientRegistrationTokenRepository,
   clientRepository,
+  clientScopeRepository,
   assignMcpScope,
   provisionClientDefaults,
+  WIRE_CLIENTS_PER_TENANT,
   type ClientRecord,
 } from '@odudu/domain-tenant';
 import { addressUrl, MCP_RESOURCE_PATH, newId, type TenantAddress } from '@odudu/kernel';
@@ -17,6 +19,7 @@ import { parseClientMetadata, type ClientMetadata } from '#/service/client-metad
 import {
   audiencesUnderPolicy,
   decideMcpRegistration,
+  scopeHeldOf,
   type McpPolicyGrant,
 } from '#/service/mcp-registration-policy';
 import { MCP_READ_SCOPE } from '#/service/mcp-scopes';
@@ -28,12 +31,6 @@ import { parseLocalisedClientNames } from '#/service/localised-client-names';
 import { needsServiceAccount } from '#/service/service-account';
 import { idTokenAlgUnavailable } from '#/usecase/id-token-alg';
 import { ensureServiceAccount } from '#/usecase/service-account';
-
-// What one tenant may hold of clients that registered themselves anonymously.
-// `max_clients` is the operator's own ceiling and does not count them. At this
-// number a registration makes room by removing one that never did anything,
-// and is refused when none is.
-export const WIRE_CLIENTS_PER_TENANT = 1000;
 
 export interface ClientRegistrationDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
@@ -113,10 +110,7 @@ async function makeRoom(
   }
   const capacity = await clients.lockWireCapacity(tenantId, WIRE_CLIENTS_PER_TENANT);
   if (capacity.count < capacity.maxClients) return true;
-  const evict = await dynamicClientRepository(tx).evictable(tenantId, now);
-  if (evict === null) return false;
-  await clients.delete(evict);
-  return true;
+  return (await dynamicClientRepository(tx).evict(tenantId, now)) !== null;
 }
 
 // One transaction, entered only once the tenant is known to accept
@@ -133,8 +127,6 @@ async function performRegistration(
   grant: McpPolicyGrant | null,
   scope: string | undefined,
 ): Promise<ClientRegistrationOutcome> {
-  if (!(await makeRoom(tx, tenantId, origin, now))) return { kind: 'at_capacity' };
-
   // Checked against every algorithm a non-retired key produces, not only
   // the active one: a key staged as `rotating` (the admin API's `POST
   // /keys`, packages/protocol-admin/src/usecase/keys.ts) must let a client
@@ -158,6 +150,10 @@ async function performRegistration(
   if (idTokenAlg !== null) {
     return { kind: 'invalid_metadata', error: 'invalid_client_metadata', description: idTokenAlg };
   }
+
+  // After every check that can refuse the request, so a refusal never follows
+  // the removal of a client.
+  if (!(await makeRoom(tx, tenantId, origin, now))) return { kind: 'at_capacity' };
 
   // jwks_uri is validated for shape only, by parseClientMetadata
   // (assertFetchableUrl) — never dereferenced here. The key is not needed
@@ -188,6 +184,9 @@ async function performRegistration(
 
   await provisionClientDefaults(tx, client.id);
   if (grant !== null) await assignMcpScope(tx, client.id, MCP_READ_SCOPE, 'optional');
+
+  const assigned = (await clientScopeRepository(tx).forClient(client.id)).map(({ name }) => name);
+  const held = scopeHeldOf(scope, assigned);
 
   const audiences = grant === null ? [] : audiencesUnderPolicy([], grant.audience, grant.granted);
   await clientOidcConfigRepository(tx).create({
@@ -229,7 +228,7 @@ async function performRegistration(
       clientIdIssuedAt: Math.floor(now.getTime() / 1000),
       clientSecret,
       audiences,
-      ...(scope === undefined ? {} : { scope }),
+      ...(held === undefined ? {} : { scope: held }),
       metadata,
       nameI18n,
     },

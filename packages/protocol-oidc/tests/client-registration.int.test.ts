@@ -9,7 +9,12 @@ import {
 } from '@odudu/db';
 import { provisionTenant } from '@odudu/authn-flows';
 import { generateSigningKey, signingKeys } from '@odudu/crypto';
-import { clientRegistrationTokenRepository, clients } from '@odudu/domain-tenant';
+import {
+  clientRegistrationTokenRepository,
+  clients,
+  consentRepository,
+  WIRE_CLIENTS_PER_TENANT,
+} from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';
@@ -17,7 +22,6 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { oidcRoutes } from '#/index';
-import { WIRE_CLIENTS_PER_TENANT } from '#/usecase/client-registration';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
@@ -459,6 +463,52 @@ describe('[ODUDU-CLIENT-REGISTRATION-CAP-01] the tenant client cap', () => {
       select client_id from clients where tenant_id = ${id} and client_id in ('bulk-1', 'bulk-2')`;
     expect(gone.map((row) => row.client_id)).toEqual(['bulk-1']);
     expect(await anonymousCount(id)).toBe(WIRE_CLIENTS_PER_TENANT);
+  });
+
+  it('keeps a client whose consent is being recorded while the ceiling removes another', async () => {
+    const { name, id } = await openTenant();
+    await fillAnonymous(id, WIRE_CLIENTS_PER_TENANT, { approved: false });
+    const subject = newId();
+    await owner.sql`insert into subjects (id, tenant_id, type) values (${subject}, ${id}, 'user')`;
+    const rows = await owner.sql<{ id: string }[]>`
+      select id from clients where tenant_id = ${id} and client_id = 'bulk-1'`;
+    const oldest = rows[0]?.id ?? '';
+    let opened!: () => void;
+    let closed!: () => void;
+    const ready = new Promise<void>((resolve) => (opened = resolve));
+    const held = new Promise<void>((resolve) => (closed = resolve));
+    const consenting = withTenant(app.db, id, async (tx) => {
+      await consentRepository(tx).record(id, subject, oldest, []);
+      opened();
+      await held;
+    });
+    await ready;
+    const timer = setTimeout(closed, 400);
+    const res = await http.inject({ method: 'POST', url: URL_FOR(name), payload: MINIMAL });
+    clearTimeout(timer);
+    closed();
+    await consenting;
+    expect(res.statusCode).toBe(201);
+    const kept = await owner.sql<{ n: number }[]>`
+      select count(*)::int as n from consents where client_id = ${oldest}`;
+    expect(kept[0]?.n).toBe(1);
+    expect(await anonymousCount(id)).toBe(WIRE_CLIENTS_PER_TENANT);
+  });
+
+  it('refuses a registration it cannot honour before removing anyone to make room', async () => {
+    const { name, id } = await openTenant();
+    await fillAnonymous(id, WIRE_CLIENTS_PER_TENANT, { approved: false });
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(name),
+      payload: { ...MINIMAL, userinfo_signed_response_alg: 'RS256' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toBe('invalid_client_metadata');
+    expect(await anonymousCount(id)).toBe(WIRE_CLIENTS_PER_TENANT);
+    const gone = await owner.sql<{ n: number }[]>`
+      select count(*)::int as n from clients where tenant_id = ${id} and client_id = 'bulk-1'`;
+    expect(gone[0]?.n).toBe(1);
   });
 
   // The assertion discriminates from a lock-free COUNT-then-INSERT only

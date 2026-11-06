@@ -60,6 +60,7 @@ import { type FastifyPluginAsync } from 'fastify';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { loadClaimContextIn } from '#/usecase/evaluate-claims';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { dynamicClientRepository } from '#/repository/dynamic-clients';
 import {
   fetchCimdDocument,
   type CimdFetchDeps,
@@ -806,9 +807,14 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           return { client, config, scopes: assigned.map((scope) => scope.name) };
         }),
       startAuthentication: (tenantId, request) =>
-        withTenant(deps.database.db, tenantId, (tx) =>
-          startAuthentication(tx, tenantId, request, clock),
-        ),
+        withTenant(deps.database.db, tenantId, async (tx) => {
+          // A self-registered client nobody has used may be evicted; the hold
+          // keeps it until this sign-in is written.
+          if (!(await dynamicClientRepository(tx).holdForSignIn(tenantId, request.clientId))) {
+            throw new Error('the client was removed while its authorization request began');
+          }
+          return startAuthentication(tx, tenantId, request, clock);
+        }),
       initialChallenge: (tenantId) =>
         withTenant(deps.database.db, tenantId, (tx) => initialChallenge(tx, tenantId)),
       now: () => clock.now(),
@@ -1202,7 +1208,7 @@ export { type AgentTokenRefusal } from '#/service/agent-token-rules';
 export { AGENT_TOKEN_MAX_TTL_SECONDS } from '#/service/mcp-scopes';
 export { cimdClientRepository } from '#/repository/cimd-clients';
 export { dynamicClientRepository } from '#/repository/dynamic-clients';
-export { WIRE_CLIENTS_PER_TENANT } from '#/usecase/client-registration';
+export { WIRE_CLIENTS_PER_TENANT } from '@odudu/domain-tenant';
 export {
   IDLE_ACCOUNT_COUNT_CAP,
   IDLE_ACCOUNT_SAMPLE_LIMIT,

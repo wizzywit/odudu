@@ -14,6 +14,7 @@ import {
   clientRegistrationTokenRepository,
   clientRepository,
   clientScopeRepository,
+  WIRE_CLIENTS_PER_TENANT,
 } from '@odudu/domain-tenant';
 import { buildClientSigningKey, jwksDocumentFor } from '#/testing/private-key-jwt-fixture';
 import { newId } from '@odudu/kernel';
@@ -24,7 +25,6 @@ import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fast
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { oidcRoutes, type CimdResponse } from '#/index';
 import { en } from '#/view/messages';
-import { WIRE_CLIENTS_PER_TENANT } from '#/usecase/client-registration';
 import { tenantRegistrationPolicyRepository } from '#/repository/tenant-registration-policy';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
@@ -225,6 +225,19 @@ describe('registration under the mcp policy', () => {
     expect(body.scope).toBe('mcp:read offline_access');
     const { scopes } = await rowsOf(String(body.client_id));
     expect(scopes.map((row) => row.scope.name)).not.toContain('mcp:write');
+  });
+
+  it('reports only the scopes the client holds when the tenant no longer assigns profile to new clients', async () => {
+    await owner.sql`update client_scopes set default_client_assignment = null
+      where tenant_id = ${tenantId} and name = 'profile'`;
+    const res = await register({ ...PUBLIC, scope: 'openid profile mcp:read' });
+    expect(res.statusCode, res.body).toBe(201);
+    const body = res.json<{ client_id: string; scope: string }>();
+    expect(body.scope).toBe('openid mcp:read');
+    const { scopes } = await rowsOf(body.client_id);
+    expect(scopes.map((row) => row.scope.name)).not.toContain('profile');
+    const authorized = await authorize(body.client_id, { scope: body.scope, resource: mcpUrl });
+    expect(authorized.statusCode, authorized.body).toBe(200);
   });
 
   it('gives the MCP URL to a client that names no audience', async () => {

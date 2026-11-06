@@ -6,7 +6,9 @@ import {
   tenants,
   withTenant,
   type DatabaseHandle,
+  type TenantScopedDatabase,
 } from '@odudu/db';
+import { consentRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -62,15 +64,47 @@ async function client(tenantId: string, name: string, secondsAgo: number): Promi
 
 function evictable(tenantId: string, asTenant = tenantId): Promise<string | null> {
   if (app === undefined) throw new Error('not started');
-  return withTenant(app.db, asTenant, (tx) => dynamicClientRepository(tx).evictable(tenantId, NOW));
+  return withTenant(app.db, asTenant, (tx) => dynamicClientRepository(tx).evict(tenantId, NOW));
 }
 
-describe('dynamicClientRepository.evictable', () => {
-  it('offers the oldest self-registered client that never did anything', async () => {
+async function exists(id: string): Promise<boolean> {
+  const rows = await sql()<{ n: number }[]>`select count(*)::int as n from clients where id = ${id}`;
+  return rows[0]?.n === 1;
+}
+
+// Holds a transaction on the tenant open until `release` is called, after
+// `work` has run inside it.
+function inFlight(
+  tenantId: string,
+  work: (tx: TenantScopedDatabase) => Promise<void>,
+): { ready: Promise<void>; release: () => Promise<void> } {
+  if (app === undefined) throw new Error('not started');
+  let open!: () => void;
+  let close!: () => void;
+  const ready = new Promise<void>((resolve) => (open = resolve));
+  const held = new Promise<void>((resolve) => (close = resolve));
+  const done = withTenant(app.db, tenantId, async (tx) => {
+    await work(tx);
+    open();
+    await held;
+  });
+  return {
+    ready,
+    release: async () => {
+      close();
+      await done;
+    },
+  };
+}
+
+describe('dynamicClientRepository.evict', () => {
+  it('removes the oldest self-registered client that never did anything', async () => {
     const t = await tenant();
-    await client(t.id, 'newer', 10);
+    const newer = await client(t.id, 'newer', 10);
     const oldest = await client(t.id, 'older', 100);
     expect(await evictable(t.id)).toBe(oldest);
+    expect(await exists(oldest)).toBe(false);
+    expect(await exists(newer)).toBe(true);
   });
 
   it('passes over a client with an approval, a consent, a grant, a live code or a live sign-in', async () => {
@@ -117,5 +151,60 @@ describe('dynamicClientRepository.evictable', () => {
     const theirs = await tenant();
     await client(mine.id, 'mine', 100);
     expect(await evictable(mine.id, theirs.id)).toBeNull();
+  });
+});
+
+describe('eviction beside a client that is being used', () => {
+  it('passes over a client a consent is being recorded for, which the transaction has not yet committed', async () => {
+    const t = await tenant();
+    const busy = await client(t.id, 'busy', 100);
+    const idle = await client(t.id, 'idle', 10);
+    const consenting = inFlight(t.id, (tx) =>
+      consentRepository(tx).record(t.id, t.subject, busy, []),
+    );
+    await consenting.ready;
+    const removed = await evictable(t.id);
+    await consenting.release();
+    expect(removed).toBe(idle);
+    expect(await exists(busy)).toBe(true);
+    const approved = await sql()<{ approved: boolean }[]>`
+      select approved_at is not null as approved from clients where id = ${busy}`;
+    expect(approved[0]?.approved).toBe(true);
+  });
+
+  it('passes over a client a sign-in is being started for', async () => {
+    const t = await tenant();
+    const busy = await client(t.id, 'busy', 100);
+    const idle = await client(t.id, 'idle', 10);
+    const starting = inFlight(t.id, async (tx) => {
+      expect(await dynamicClientRepository(tx).holdForSignIn(t.id, 'busy')).toBe(true);
+    });
+    await starting.ready;
+    const removed = await evictable(t.id);
+    await starting.release();
+    expect(removed).toBe(idle);
+    expect(await exists(busy)).toBe(true);
+  });
+
+  it('does not delete a client that was used after it was chosen', async () => {
+    const t = await tenant();
+    const chosen = await client(t.id, 'chosen', 100);
+    await sql()`insert into consents (id, tenant_id, subject_id, client_id)
+      values (${newId()}, ${t.id}, ${t.subject}, ${chosen})`;
+    if (app === undefined) throw new Error('not started');
+    const gone = await withTenant(app.db, t.id, (tx) =>
+      dynamicClientRepository(tx).removeIfUnused(chosen, NOW),
+    );
+    expect(gone).toBe(false);
+    expect(await exists(chosen)).toBe(true);
+  });
+
+  it('reports a client that is already gone to a sign-in being started', async () => {
+    const t = await tenant();
+    if (app === undefined) throw new Error('not started');
+    const held = await withTenant(app.db, t.id, (tx) =>
+      dynamicClientRepository(tx).holdForSignIn(t.id, 'nobody'),
+    );
+    expect(held).toBe(false);
   });
 });

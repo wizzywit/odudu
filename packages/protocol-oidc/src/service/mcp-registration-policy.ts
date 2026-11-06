@@ -82,6 +82,21 @@ function registrableScope(scope: unknown): ScopeDecision {
   return { kind: 'ok', scope: held.join(' ') };
 }
 
+// The registered scope as the client holds it: the part of what it asked for
+// that its assignments carry, which is what /authorize accepts from it. A
+// tenant that stopped assigning a scope to new clients leaves it out.
+export function scopeHeldOf(
+  asked: string | undefined,
+  assigned: readonly string[],
+): string | undefined {
+  if (asked === undefined) return undefined;
+  const held = new Set(assigned);
+  return asked
+    .split(' ')
+    .filter((token) => held.has(token))
+    .join(' ');
+}
+
 // The `mcp` registration policy: open to a public client that can only reach
 // the tenant's MCP endpoint, and to nothing wider. The audience it returns
 // is the whole of what the new client may be issued a token for.

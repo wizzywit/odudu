@@ -8,6 +8,7 @@ import {
   grantableScopes,
   refusesWriteScope,
   requestWithGrantableScope,
+  scopeHeldOf,
   type McpRegistrationInput,
 } from '#/service/mcp-registration-policy';
 
@@ -234,5 +235,16 @@ describe('policy applied after the tenant has moved address', () => {
 
   it('leaves another client’s audiences alone', () => {
     expect(audiencesHeld('seeded', 'open', [OLD], NOW)).toEqual([OLD]);
+  });
+});
+
+describe('scopeHeldOf', () => {
+  it('keeps, in the order asked, the scopes the client is assigned', () => {
+    expect(scopeHeldOf('openid profile mcp:read', ['mcp:read', 'openid'])).toBe('openid mcp:read');
+  });
+
+  it('says nothing when nothing was asked, and nothing held when none is assigned', () => {
+    expect(scopeHeldOf(undefined, ['openid'])).toBeUndefined();
+    expect(scopeHeldOf('profile', ['openid'])).toBe('');
   });
 });
