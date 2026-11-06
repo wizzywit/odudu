@@ -12,7 +12,7 @@ into one — and is served without authentication, since a client that cannot re
 it cannot generate against it.
 
 ```bash
-curl -sS -D - -o openapi.json http://localhost:3000/admin/openapi.json
+curl -sS -D - -o openapi.json http://localhost:3091/admin/openapi.json
 jq '.paths | length' openapi.json
 wc -c < openapi.json | tr -d ' '
 ```
