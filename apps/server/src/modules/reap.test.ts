@@ -88,6 +88,7 @@ const SWEPT: ReapOutcome = {
     console_logins: 0,
     tenant_issuer_retirements: 0,
     client_metadata_cache: 0,
+    idempotency_keys: 0,
     cimd_clients: 0,
     dynamic_clients: 0,
     tenant_domains: 0,

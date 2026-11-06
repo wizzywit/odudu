@@ -21,7 +21,7 @@ import {
   type ThemeViewResult,
 } from '#/usecase/theme';
 import { fieldProblem, ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
-import { adminTx } from '#/view/routes/admin-tx';
+import { adminTx, afterCommit } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface ThemeRouteDeps {
@@ -195,7 +195,9 @@ export function themeHandlers(deps: ThemeRouteDeps, scope: 'tenant' | 'client'):
             `the theme was not published: ${String(outcome.errors.length)} problem(s), listed under errors`,
           );
         case 'published':
-          deps.invalidateTenant(tenantId);
+          afterCommit(request, () => {
+            deps.invalidateTenant(tenantId);
+          });
           return sendView(reply, outcome.view, outcome.warnings);
       }
     },
@@ -250,7 +252,9 @@ export function themeHandlers(deps: ThemeRouteDeps, scope: 'tenant' | 'client'):
             errors: outcome.errors,
           });
         case 'restored':
-          deps.invalidateTenant(tenantId);
+          afterCommit(request, () => {
+            deps.invalidateTenant(tenantId);
+          });
           return sendView(reply, outcome.view);
       }
     },

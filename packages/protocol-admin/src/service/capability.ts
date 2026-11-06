@@ -206,6 +206,12 @@ export interface AdminRoute {
   // capability summary — for a caveat a generated client's user needs
   // without reading this repository's own docs.
   readonly description?: string;
+  // The route refuses an `Idempotency-Key`. `secret`: the response carries a
+  // secret shown once, which is never stored, so there is nothing to replay.
+  // `not-atomic`: the route writes outside the request's transaction, so a
+  // record could not prove the call happened. `external-io`: the handler waits
+  // on another server (mail, DNS) while it holds the request's connection.
+  readonly noIdempotency?: 'secret' | 'not-atomic' | 'external-io';
 }
 
 // Appended to the description of every route that mutates one subject.
@@ -554,6 +560,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/subjects/:id/password',
+    noIdempotency: 'secret',
     capability: 'manage-users',
     responseSchema: issuePasswordResponseSchema,
     successStatus: 201,
@@ -842,6 +849,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants',
+    noIdempotency: 'not-atomic',
     capability: MANAGE_TENANTS,
     responseSchema: tenantSchema,
     successStatus: 201,
@@ -853,6 +861,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenant-imports',
+    noIdempotency: 'secret',
     capability: MANAGE_TENANTS,
     responseSchema: importTenantResponseSchema,
     successStatus: 201,
@@ -1130,6 +1139,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/clients',
+    noIdempotency: 'secret',
     capability: 'manage-clients',
     responseSchema: createClientResponseSchema,
     successStatus: 201,
@@ -1167,6 +1177,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/clients/:id/secret',
+    noIdempotency: 'secret',
     capability: 'manage-clients',
     responseSchema: rotateClientSecretResponseSchema,
     querystringSchema: rotateClientSecretQuerySchema,
@@ -1272,6 +1283,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/registration-tokens',
+    noIdempotency: 'secret',
     capability: 'manage-clients',
     responseSchema: mintRegistrationTokenResponseSchema,
     successStatus: 201,
@@ -1333,6 +1345,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/domains/:id/verify',
+    noIdempotency: 'external-io',
     capability: 'manage-domains',
     responseSchema: domainSchema,
     description:
@@ -1819,6 +1832,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/smtp/test',
+    noIdempotency: 'external-io',
     capability: 'manage-tenant',
     responseSchema: testSmtpResponseSchema,
     bodySchema: testSmtpRequestSchema,

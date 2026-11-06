@@ -40,6 +40,7 @@ export type TableName =
   | 'console_logins'
   | 'tenant_issuer_retirements'
   | 'client_metadata_cache'
+  | 'idempotency_keys'
   | 'cimd_clients'
   | 'dynamic_clients'
   | 'tenant_domains'
@@ -406,6 +407,18 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
     `,
   },
 
+  // No window of its own: a key is kept for the 24 hours the admin API
+  // promises, and the row says when that ends. Past expires_at the row is
+  // never read, a new call with its key replaces it. Served by
+  // idempotency_keys_by_expiry.
+  idempotency_keys: {
+    after: [],
+    statement: (now) => sql`
+      DELETE FROM idempotency_keys k
+       WHERE k.expires_at <= ${now.toISOString()}::timestamptz
+    `,
+  },
+
   // A client that came from a metadata document and whose document nobody has
   // resolved for thirty days comes back the next time one is. One holding a
   // refresh token that can still be used, or lapsed within an access token's
@@ -519,6 +532,7 @@ export const REAP_ORDER: readonly TableName[] = [
   'console_logins',
   'tenant_issuer_retirements',
   'client_metadata_cache',
+  'idempotency_keys',
   'cimd_clients',
   'dynamic_clients',
   'tenant_domains',

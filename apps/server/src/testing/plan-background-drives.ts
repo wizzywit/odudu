@@ -19,6 +19,12 @@ import {
   publicExchangeClientsAtRisk,
   tenantCimdRepository,
 } from '@odudu/protocol-oidc';
+import {
+  fingerprintOf,
+  idempotencyRepository,
+  IDEMPOTENCY_WINDOW_SECONDS,
+  withIdempotency,
+} from '@odudu/protocol-admin';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { type LightMyRequestResponse } from 'fastify';
 import { REAP_ORDER, RETENTION_RULES, retentionPolicyFromConfig } from '#/cli/reap';
@@ -104,6 +110,43 @@ export async function driveClientMetadataCache(world: PlanWorld, capture: Captur
       now,
       new Date(now.getTime() + 600_000),
       CIMD_CACHE_MAX_ROWS,
+    ),
+  );
+}
+
+// The tenant the volume fills with idempotency keys holds 9,500 live ones and
+// 500 past their window: a stored key is one primary key read, a new key is
+// refused by a count that stops at the ceiling, and a recorded call is one
+// upsert.
+export async function driveIdempotency(world: PlanWorld, capture: Capture): Promise<void> {
+  const now = new Date();
+  const route = 'POST /admin/tenants/:tenant/roles';
+  const fingerprint = fingerprintOf('POST', '/x', { a: 1 });
+  const call = (key: string) =>
+    withTenant(world.app.db, world.tenantId, (tx) =>
+      withIdempotency(tx, { tenantId: world.tenantId, key, route, fingerprint, now }, () =>
+        Promise.resolve({
+          response: { status: 201, body: '{}', headers: {} },
+          withinTransaction: true,
+        }),
+      ),
+    );
+  await capture('idempotency: a stored key replayed', 'admin', () => call('plans-key-5000'));
+  await capture('idempotency: a lapsed key runs again', 'admin', () => call('plans-key-5'));
+  await capture('idempotency: a new key counted against the ceiling', 'admin', () =>
+    call('plans-key-new'),
+  );
+  await capture('idempotency: a call recorded', 'admin', () =>
+    withTenant(world.app.db, world.tenantId, (tx) =>
+      idempotencyRepository(tx).insert({
+        tenantId: world.tenantId,
+        key: 'plans-key-recorded',
+        route,
+        fingerprint,
+        response: { status: 201, body: '{}', headers: {} },
+        now,
+        expiresAt: new Date(now.getTime() + IDEMPOTENCY_WINDOW_SECONDS * 1000),
+      }),
     ),
   );
 }

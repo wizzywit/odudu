@@ -24,7 +24,18 @@ import {
   type AuthenticateAdminDeps,
 } from '#/usecase/authenticate-admin';
 import { authorizeAdmin, type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
-import { problem, queryProblem, sendProblem } from '#/view/problem';
+import { idempotencyKeyOf, idempotentMethod } from '#/service/idempotency';
+import {
+  idempotencyBusy,
+  idempotencyKeyInvalid,
+  idempotencyUnavailable,
+  idempotencyUnsupported,
+  problem,
+  queryProblem,
+  sendProblem,
+} from '#/view/problem';
+import { sendIdempotent } from '#/view/routes/idempotent-route';
+import { createKeyedGate, keyedLimitFor, type KeyedGate } from '#/view/routes/keyed-gate';
 import { adminTx } from '#/view/routes/admin-tx';
 
 // Optional: `/admin/tenants` itself carries no `:tenant` segment (see
@@ -57,6 +68,9 @@ export interface AdminRouterDeps {
   readonly authz: AuthorizeAdminDeps;
   readonly clock: Clock;
   readonly database: Database;
+  // The serving pool's size, which bounds how many keyed calls run at once.
+  // Read on the first keyed call, so an app that never keys a request never asks.
+  readonly poolMax: () => number;
 }
 
 /** Keyed by `"<method> <pattern>"`, exactly matching an `ADMIN_ROUTES` entry. */
@@ -226,6 +240,7 @@ async function handleRoute(
   deps: AdminRouterDeps,
   request: AdminRequest,
   reply: FastifyReply,
+  gate: KeyedGate,
 ): Promise<FastifyReply> {
   const granted = GRANTED.get(request) ?? (await authorizeRoute(route, deps, request, reply));
   if (granted === null) return reply;
@@ -237,7 +252,78 @@ async function handleRoute(
       return reply;
     }
   }
-  return handler(request, reply, granted.principal, granted.tenantId);
+  return answerRoute(route, handler, deps, request, reply, granted, gate);
+}
+
+// A POST that names an `Idempotency-Key` runs once and is answered from its
+// record afterwards; every other request goes straight to its handler.
+function answerRoute(
+  route: AdminRoute,
+  handler: AdminRouteHandler,
+  deps: AdminRouterDeps,
+  request: AdminRequest,
+  reply: FastifyReply,
+  granted: Granted,
+  gate: KeyedGate,
+): FastifyReply | Promise<FastifyReply> {
+  const run = () => handler(request, reply, granted.principal, granted.tenantId);
+  if (!idempotentMethod(route.method)) return run();
+  const header = idempotencyKeyOf(request.headers['idempotency-key']);
+  if (header.kind === 'absent') return run();
+  if (header.kind === 'invalid') return sendProblem(reply, request, idempotencyKeyInvalid());
+  if (route.noIdempotency !== undefined) {
+    return sendProblem(reply, request, idempotencyUnsupported(route.noIdempotency));
+  }
+  return enterGate(gate, request, reply, () =>
+    sendIdempotent({
+      database: deps.database,
+      request,
+      reply,
+      route,
+      tenantId: granted.tenantId,
+      principal: granted.principal,
+      key: header.key,
+      now: deps.clock.now(),
+      run,
+    }),
+  );
+}
+
+// A keyed call waits here for a slot, holding no connection, and is refused
+// when there is none to be had.
+async function enterGate(
+  gate: KeyedGate,
+  request: AdminRequest,
+  reply: FastifyReply,
+  run: () => Promise<FastifyReply>,
+): Promise<FastifyReply> {
+  const gone = new AbortController();
+  // The request's own `close` fires once its body has been read, with the
+  // caller still waiting; the response's closes with the connection.
+  const onClose = () => {
+    if (!reply.raw.writableFinished) gone.abort();
+  };
+  reply.raw.once('close', onClose);
+  try {
+    const entry = await gate.acquire(gone.signal);
+    if (entry.kind === 'refused') {
+      if (entry.reason === 'disabled') {
+        sendProblem(reply, request, idempotencyUnavailable());
+      } else {
+        reply.header('retry-after', '1');
+        sendProblem(reply, request, idempotencyBusy());
+      }
+      return await reply;
+    }
+    reply.raw.off('close', onClose);
+    try {
+      return await run();
+    } finally {
+      entry.release();
+    }
+  } finally {
+    reply.raw.off('close', onClose);
+  }
 }
 
 // Before the body of a JSON route is read or checked: who is asking, and
@@ -339,6 +425,13 @@ export function registerAdminRoutes(
   deps: AdminRouterDeps,
 ): void {
   const unclaimed = new Set(Object.keys(handlers));
+  let sized: KeyedGate | undefined;
+  const gate: KeyedGate = {
+    acquire: (signal) => {
+      sized ??= createKeyedGate(keyedLimitFor(deps.poolMax()));
+      return sized.acquire(signal);
+    },
+  };
 
   for (const route of ADMIN_ROUTES) {
     const key = routeKey(route.method, route.pattern);
@@ -360,7 +453,7 @@ export function registerAdminRoutes(
         ...(route.bodySchema !== undefined ? { body: route.bodySchema } : {}),
       },
       handler: (request: AdminRequest, reply: FastifyReply) =>
-        handleRoute(route, handler, deps, request, reply),
+        handleRoute(route, handler, deps, request, reply, gate),
     };
     // Every admin response is specific to its caller, and several carry a
     // secret shown once; set before validation, so a refusal carries it too.

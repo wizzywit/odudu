@@ -354,3 +354,36 @@ holding no MCP scope a 403. An agent must pass both gates: the scope
 - Volume: nothing here adds a query per request on the hot path. The mint
   reads a grant, a client, a tenant, a session and a subject by primary key
   and writes nothing; a tool call costs those five reads and one signature.
+
+## Closing pass reads
+
+Sentences the closing pass has to revisit, because a placement or the roadmap
+still states what an increment has since changed:
+
+- `apps/docs/content/en/roadmap.md`, the P5a bullet: "The admin API has no
+  `Idempotency-Key` header today, and P5a adds one". The header shipped in
+  increment 6; `tests/docs/roadmap-section-11.test.ts` pins the sentence, so it
+  moves with its mapping.
+- The same bullet: "The server does not yet publish the metadata an MCP client
+  looks for". The well-known documents are published; read it against what
+  exists when the phase closes.
+
+## Idempotency keys
+
+- A keyed POST joins one transaction; `POST /admin/tenants` cannot (its domain
+  service writes on the pool) and the routes that answer a secret shown once
+  would have to store it, so both refuse the key (`idempotency-not-atomic`,
+  `idempotency-unsupported`). Every other POST is held by a test that drives it
+  with a key and fails if a write leaves the transaction.
+- Keyed calls run at most `floor((pool - 1) / 2)` at a time, because each holds
+  a connection and its handler may take a second (`callerCapabilities`). A call
+  waits for a slot at most 10 s behind at most 100 others, then gets 503 with
+  `Retry-After`; a pool of one carries none and refuses them. The two POSTs that
+  wait on another server while they run (mail relay test, domain verification)
+  refuse a key (`idempotency-external-io`), so a slow host cannot hold slots.
+- A stored response is a copy of the 2xx response, subject data included, kept
+  24 hours and deleted by `odudu reap`. Erasing a subject does not purge it:
+  a record names no subject, so a purge would have to scan bodies. Stated in the
+  CHANGELOG and the OpenAPI parameter.
+- Non-database effects (the test mail) are not undone when the late capacity
+  check or the size cap rolls a call back.

@@ -260,6 +260,14 @@ import { type ResolveTxt } from '@odudu/domain-tenant';
 
 export { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 export { COUNT_CAP } from '#/usecase/counts';
+export { idempotencyRepository } from '#/repository/idempotency';
+export {
+  fingerprintOf,
+  IDEMPOTENCY_MAX_BODY_BYTES,
+  IDEMPOTENCY_MAX_LIVE_KEYS,
+  IDEMPOTENCY_WINDOW_SECONDS,
+} from '#/service/idempotency';
+export { withIdempotency } from '#/usecase/idempotent';
 export { expireRotatedClientSecrets } from '#/usecase/client-secret-expiry';
 export { composeUserSubject, type ComposeUserSubjectInput } from '#/usecase/subjects';
 export { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
@@ -929,6 +937,7 @@ function buildAdminRoutes(
       authz: authzDeps,
       clock,
       database: deps.database.db,
+      poolMax: () => deps.database.sql.options.max,
     });
 
     deps.logger.debug({}, 'protocol-admin registered its admin routes');

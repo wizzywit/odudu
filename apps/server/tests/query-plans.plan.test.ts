@@ -32,6 +32,7 @@ import {
   driveClientMetadataCache,
   driveExchangeUpgrade,
   driveGateway,
+  driveIdempotency,
   driveRepositories,
   retentionRuns,
 } from '#/testing/plan-background-drives';
@@ -80,6 +81,7 @@ beforeAll(async () => {
   await driveRepositories(world, world.app.db, ids.subject, log.capture);
   await driveBackground(world, log.capture);
   await driveClientMetadataCache(world, log.capture);
+  await driveIdempotency(world, log.capture);
   await driveCimdClients(world, log.capture);
   await driveExchangeUpgrade(world, log.capture);
   await driveGateway(world, log.capture);

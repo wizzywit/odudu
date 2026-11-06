@@ -314,7 +314,10 @@ Settled from the repository (each one grepped on 2026-11-05):
   token's client is the marker on the stdio path; the principal reads either.
 - **Idempotency scope.** Every admin POST and non-idempotent action, as
   section 11 states, whether or not a P5a tool calls it: the criterion is the
-  admin API's, and an agent client is not the only caller that retries.
+  admin API's, and an agent client is not the only caller that retries. The
+  routes that cannot keep a record refuse the key: those answering a secret
+  shown once, and `POST /admin/tenants`, which writes outside the request's
+  transaction.
 - **Loopback (my call).** Derived from the request's host being a loopback
   address, never a setting, and never in production (`NODE_ENV=production`
   already requires `ODUDU_TLS`); so no new `ODUDU_*` variable.

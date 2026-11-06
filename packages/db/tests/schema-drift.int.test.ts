@@ -133,6 +133,17 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK (((zoneinfo IS NULL) OR (zoneinfo ~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$'::text)))",
   'client_oidc_config.client_oidc_config_id_token_ttl_ceiling':
     'CHECK (((id_token_ttl_seconds >= 1) AND (id_token_ttl_seconds <= 3600)))',
+  'idempotency_keys.idempotency_keys_fingerprint_shape':
+    "CHECK ((fingerprint ~ '^[0-9a-f]{64}$'::text))",
+  'idempotency_keys.idempotency_keys_key_length':
+    'CHECK (((length(key) >= 1) AND (length(key) <= 255)))',
+  'idempotency_keys.idempotency_keys_response_body_size':
+    'CHECK ((octet_length(response_body) <= 65536))',
+  'idempotency_keys.idempotency_keys_response_status':
+    'CHECK (((response_status >= 200) AND (response_status <= 299)))',
+  'idempotency_keys.idempotency_keys_route_length': 'CHECK ((length(route) <= 512))',
+  'idempotency_keys.idempotency_keys_status': "CHECK ((status = 'completed'::text))",
+  'idempotency_keys.idempotency_keys_window': 'CHECK ((expires_at > created_at))',
   'client_metadata_cache.client_metadata_cache_body_size': 'CHECK ((length((body)::text) <= 8192))',
   'client_metadata_cache.client_metadata_cache_url_length': 'CHECK ((length(url) <= 2048))',
   'tenant_domains.tenant_domains_canonical_is_verified':

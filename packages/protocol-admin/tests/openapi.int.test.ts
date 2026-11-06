@@ -158,6 +158,7 @@ describe('the published OpenAPI document', () => {
       components: { parameters: Record<string, { name: string; in: string }> };
     }>();
     expect(doc.components.parameters.tenant).toMatchObject({ name: 'tenant', in: 'path' });
+    expect(doc.components.parameters.IdempotencyKey?.in).toBe('header');
 
     // An undeclared variable leaves a generated client unable to fill the
     // path it was given, so the check is the path's own text against what
@@ -166,7 +167,11 @@ describe('the published OpenAPI document', () => {
       const templated = [...path.matchAll(/\{(\w+)\}/gu)].map((match) => match[1]);
       for (const operation of Object.values(methods)) {
         const declared = operation.parameters
-          .filter((parameter) => parameter.in !== 'query')
+          .filter(
+            (parameter) =>
+              parameter.in !== 'query' &&
+              parameter.$ref !== '#/components/parameters/IdempotencyKey',
+          )
           .map((parameter) =>
             parameter.$ref === '#/components/parameters/tenant' ? 'tenant' : parameter.name,
           );
