@@ -13,14 +13,35 @@ const ALL = new Set([
 ]);
 
 describe('visibleTools', () => {
-  it('lists every read tool for a token holding mcp:read and an owner holding every capability', () => {
+  it('lists every read tool and no write tool for a token holding mcp:read and an owner holding every capability', () => {
     expect(visibleTools(TOOLS, ['mcp:read'], ALL).map((t) => t.name)).toEqual(
-      TOOLS.map((t) => t.name),
+      TOOLS.filter((t) => t.access === 'read').map((t) => t.name),
     );
   });
 
+  it('lists the write tools to a token holding mcp:write, and only to one', () => {
+    const names = (scope: string[]) => visibleTools(TOOLS, scope, ALL).map((t) => t.name);
+    expect(names(['mcp:write'])).toContain('update_client_metadata');
+    expect(names(['mcp:write'])).toContain('update_scope_metadata');
+    expect(names(['mcp:read', 'mcp:write'])).toContain('update_client_metadata');
+    expect(names(['mcp:read'])).not.toContain('update_client_metadata');
+    expect(names(['mcp:read'])).not.toContain('update_scope_metadata');
+    expect(names(['openid'])).toEqual([]);
+  });
+
+  it('lists a write tool only to an owner who holds its capability', () => {
+    const names = (held: string[]) =>
+      visibleTools(TOOLS, ['mcp:write'], new Set(held)).map((t) => t.name);
+    expect(names(['manage-tenant'])).toContain('update_scope_metadata');
+    expect(names(['manage-tenant'])).not.toContain('update_client_metadata');
+    expect(names(['manage-clients'])).toContain('update_client_metadata');
+    expect(names(['manage-clients'])).not.toContain('update_scope_metadata');
+  });
+
   it('lists a read tool for a token holding only mcp:write, as the admin API admits a GET under either', () => {
-    expect(visibleTools(TOOLS, ['mcp:write'], ALL)).toHaveLength(TOOLS.length);
+    expect(visibleTools(TOOLS, ['mcp:write'], ALL).map((t) => t.name)).toEqual(
+      TOOLS.map((t) => t.name),
+    );
   });
 
   it('lists nothing for a token holding neither scope', () => {
@@ -36,7 +57,10 @@ describe('visibleTools', () => {
   });
 
   it('judges the scope alone when the owner is not judged', () => {
-    expect(visibleTools(TOOLS, ['mcp:read'], null)).toHaveLength(TOOLS.length);
+    expect(visibleTools(TOOLS, ['mcp:read'], null)).toHaveLength(
+      TOOLS.filter((t) => t.access === 'read').length,
+    );
+    expect(visibleTools(TOOLS, ['mcp:write'], null)).toHaveLength(TOOLS.length);
     expect(visibleTools(TOOLS, ['openid'], null)).toEqual([]);
   });
 

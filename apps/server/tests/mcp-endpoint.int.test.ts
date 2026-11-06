@@ -105,6 +105,9 @@ afterAll(async () => {
   await container.stop();
 });
 
+// A token of `mcp:read` is listed the reads alone; the writes are the write
+// tools test's.
+const READ_TOOLS = TOOLS.filter((tool) => tool.access === 'read');
 const CAPS = ['manage-clients', 'view-users', 'view-audit', 'manage-tenant'];
 const EVERY_CAPABILITY = [...CAPS, 'manage-sessions', 'manage-keys', 'view-domains'];
 const world = (capabilities: readonly string[] = CAPS, grantScope = 'openid mcp:read') =>
@@ -522,7 +525,7 @@ describe('the protocol', () => {
     };
     const b = second.json().result as typeof a;
     expect(a.tools.map((t) => t.name)).toEqual(b.tools.map((t) => t.name));
-    expect(a.tools.map((t) => t.name)).toEqual(TOOLS.map((t) => t.name));
+    expect(a.tools.map((t) => t.name)).toEqual(READ_TOOLS.map((t) => t.name));
     expect(a).toMatchObject({ ttlMs: 60_000, cacheScope: 'private' });
     for (const tool of a.tools) {
       expect(tool.inputSchema.additionalProperties, tool.name).toBe(false);
@@ -548,7 +551,7 @@ describe('the protocol', () => {
       body: { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} },
     });
     const result = res.json().result as { tools: { name: string }[] };
-    expect(result.tools.map((t) => t.name)).toEqual(TOOLS.map((t) => t.name));
+    expect(result.tools.map((t) => t.name)).toEqual(READ_TOOLS.map((t) => t.name));
     expect(result).not.toHaveProperty('ttlMs');
   });
 
@@ -607,7 +610,7 @@ describe('the SDK’s own client, in both eras', () => {
     const client = await connect(w, await sign(w), mode);
     try {
       const listed = await client.listTools();
-      expect(listed.tools.map((t) => t.name)).toEqual(TOOLS.map((t) => t.name));
+      expect(listed.tools.map((t) => t.name)).toEqual(READ_TOOLS.map((t) => t.name));
       const result = await client.callTool({ name: 'whoami', arguments: {} });
       expect(result.isError).toBeFalsy();
       expect(result.structuredContent).toMatchObject({

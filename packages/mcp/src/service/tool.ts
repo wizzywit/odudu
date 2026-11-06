@@ -12,15 +12,18 @@ export type JsonObject = { readonly [K in string]: JsonValue };
 // One admin request, before it has an address. `pattern` is an ADMIN_ROUTES
 // pattern whose `:tenant` the caller fills from the principal and never from
 // a tool's input; `params` are the other path parameters, raw, for the caller
-// to encode. There is no header field, so none can be set from input. A body is a
-// record the tool built from its validated arguments, only for a PATCH, which the
-// caller serialises: a tool never supplies bytes.
+// to encode. There is no header field, so none can be set from input; the one
+// exception is `ifMatch`, a single entity tag the caller checks and sends as
+// `If-Match`, for a PATCH only. A body is a record the tool built from its
+// validated arguments, only for a PATCH, which the caller serialises: a tool
+// never supplies bytes.
 export interface AdminRequestSpec {
   readonly method: AdminMethod;
   readonly pattern: string;
   readonly params: Readonly<Record<string, string>>;
   readonly query: Readonly<Record<string, string>>;
   readonly body?: JsonObject;
+  readonly ifMatch?: string;
 }
 
 export interface AdminResult {

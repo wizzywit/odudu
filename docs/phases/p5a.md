@@ -398,7 +398,7 @@ route's, and a read tool's route is a GET. A new admin route fails it until plac
 | `list_subjects`                 | `GET …/subjects`                      | view-users      |
 | `whoami`                        | `GET …/whoami`                        | none            |
 
-- **Forty-two read tools, no write tool yet.** Lists answer one page under
+- **Forty-two read tools and two write tools** (the write tools are under "The write tools" below). Lists answer one page under
   `MAX_LIMIT` (the input schema's `limit` has that maximum, so a larger one is refused
   before any call) with the cursor beside it as `next_cursor`; the admin API's `next`
   is the same value. Counts, gets and singletons answer one document.
@@ -438,15 +438,13 @@ route's, and a read tool's route is a GET. A new admin route fails it until plac
   characters. `tools/list` is generated with `z.toJSONSchema` (the MCP SDK is not yet
   a dependency; check the SDK's own conversion when the endpoint lands).
 
-Not tools (`NOT_TOOLS`, 110 routes). A reason is shared only within one family or
+Not tools (`NOT_TOOLS`, 108 routes). A reason is shared only within one family or
 among writes, and the coverage test holds that:
 
 - **Refused to agents** (`AGENT_DENIED_READS`, 3): tenant export, audit export, a
   theme asset's bytes.
 - **Destructive** (8, deferred to P5b): tenant delete, end-all sessions, lockout
   clear (one subject, and all), and the four signing-key changes.
-- **Descriptive writes** (2): `PATCH` of a client and of a scope; their tools are the
-  write tools.
 - **Every other write** (69): not an agent write; `mcp:write` admits only the
   descriptive fields of a client and a scope.
 - **Reads, each with its own reason** (28): theme and mail previews (browser frames),
@@ -687,8 +685,8 @@ row_security = off` was rejected: for an owner under FORCE it errors rather than
 ## The MCP endpoint
 
 `POST /tenants/:tenant/mcp` (at `/mcp` on a tenant's own domain, which the host rewrite files
-under the tenant) serves the 42 read tools. `GET` and `DELETE` answer 405 with `Allow: POST`.
-Nothing is written yet: the catalogue holds reads only.
+under the tenant) serves the 42 read tools and, for a token holding `mcp:write`, the two write tools.
+`GET` and `DELETE` answer 405 with `Allow: POST`.
 
 ### The SDK, run
 
@@ -854,3 +852,154 @@ http://evil.example` was served). `hostAccepted`/`originAccepted` take whether t
   `@modelcontextprotocol/server` 2.4.0 2026-10-23, `node` 2.1.2 2026-10-23, `client` 2.4.0 2026-10-23, `core`
   2.4.0 2026-10-23, `@hono/node-server` 2.1.6 2026-11-02, `hono` 4.13.16 2026-11-01, `eventsource-parser`
   3.1.1 2026-08-10, `eventsource` 3.0.7 2025-05-09, `pkce-challenge` 5.0.1 2025-11-23. All older than the floor.
+
+## The write tools
+
+`update_client_metadata` (`PATCH …/clients/:id`, `manage-clients`: name, description, `name_i18n`,
+`description_i18n`) and `update_scope_metadata` (`PATCH …/scopes/:id`, `manage-tenant`: description,
+`description_i18n`), `service/tools/{client,scope}-metadata.ts`, both built by `metadataTool`
+(`service/write-tool.ts`). `bodyFields` is exactly what `AGENT_WRITE_ROUTES` admits for the route, and
+`tests/lint/mcp-tool-coverage.test.ts` now holds both directions: every allowlist entry has one write tool with
+exactly those fields, and no write tool exists for a route the allowlist does not name.
+
+- **Input.** `z.strictObject` of `id` (UUID), `if_match` (required) and at least one field, so an `enabled`,
+  `redirect_uris`, `roles`, `client_name`, `consent_text`, `tenant`, or any unknown key is a validation error
+  before any admin call (the tests assert zero admin requests). A text is at most `DESCRIPTION_MAX` (1,000) and a
+  client name `CLIENT_NAME_MAX` (256) characters, without bidirectional controls, as the contracts hold them; a
+  localised map has at most `LOCALISED_TEXT_ENTRIES_MAX` (32) language tags (a key is a tag by pattern, so an own
+  `__proto__` is not a key), each text non-empty and within its cap, and the whole body at most 60,000 bytes, under the
+  caller's 64 KiB, so a legal combination cannot become a failure. The tenant's own language list is the admin API's
+  to enforce, and its refusal reaches the agent as a `400` naming `supported_locales`. A body sent as JSON with an own
+  `__proto__` never reaches the tool: Fastify's parser answers 400.
+- **`If-Match`.** `AdminRequestSpec.ifMatch` is the one header a tool can cause. The caller sends it only on a PATCH,
+  only when it is one strong quoted tag of printable ASCII with no quote, comma or `*` (`service/etag-shape.ts`, also
+  the tool's schema pattern), and still sends no other header from input. `get_client` and `get_scope` return the
+  entity tag beside `data` as `etag` (only when it matches that shape); an update returns the new one. A stale tag is
+  the admin API's `412`, reported with its own type and title and a detail telling the agent to read again and send
+  the etag of that read. `if_match` is required here though a client PATCH needs it only for a list field: an
+  agent that overwrites unread text is the case the lock is for.
+- **Annotations.** `readOnlyHint` false, `destructiveHint` false (why: see the residual risk), `idempotentHint` true.
+  Sending the same call again with the etag it returned changes nothing more.
+- **Text the database cannot hold.** A NUL in a name, a description, a consent text or a language text was a `500` from the
+  admin API (found by an int test through the tool's bypass); it is now `400` naming the field
+  (`containsNul` in contracts, checked in the usecases and in `checkLocalisedText`), and the tools refuse it too.
+- **A refusal says what it can mean.** The admin API answers an agent's `insufficient_scope` the same for a missing
+  scope, a field outside the allowlist and a built-in client's name; a write tool's `403` therefore starts with
+  `insufficient_scope` and adds that a token holding `mcp:write` may change only descriptive fields, never a built-in
+  client's name. The audit classification reads the first word.
+- **Visibility and refusal.** `tools/list` shows a write tool only to a token holding `mcp:write` whose owner holds
+  the capability (`toolVisible`, extended in its tests); a call to one by name with a read token is `403`
+  `mcp:insufficient_scope` from the exchange and an `agent.tool_call` row `refused` with that reason. The admin API's
+  own refusal is tested apart: a caller that is handed a read bearer for a PATCH
+  (`startMcpStack().runUnguarded`) is answered `403 insufficient_scope` and leaves a `capability.refused` row with the
+  agent's client as actor client and the owner as actor subject. The 600 s cap is the token endpoint's; the test
+  signs a token at the cap, which works, and one past its end, which is `401`.
+- **Audit.** A client amendment already wrote `client.amend` with the redacted diff. **A scope amendment wrote no
+  detail at all and its audit allowlist lacked `description`**, so what an agent changed in a scope could not be read
+  back or undone; found by the int test and fixed in the admin API (`scope.amend` now carries
+  `redactedDiff('scope', …)`, and the allowlist gained `description`, `include_in_id_token` and
+  `include_in_access_token`). It owns the fix because the agent's scope write relies on it.
+- **A cursor is opaque.** A list's `next` was passed on as `next_cursor` beside `data` after a length check only. The
+  admin API signs its cursors (base64url segments and a dot), so one with any other character is refused as
+  `mcp:unexpected_response` rather than carried outside `data`: the unit suite that poisons every field found it.
+- **A write that runs out of time.** The 20 s deadline stops the wait, not the admin call (no abort reaches the
+  transaction, so cancelling is no guarantee), so a PATCH can commit after the caller was told it failed. For a
+  write tool the answer is `mcp:outcome_unknown` (504): the change may or may not have been made, read the resource
+  with the get tool before sending it again; the tool descriptions say it too. The audit row is `failed` with the
+  reason `timeout_outcome_unknown`, a value added to the audit reasons (and `AUDIT_REASON_DOCS`) because `failed`
+  alone cannot tell it from an error that left nothing behind. A read tool is unchanged: `mcp:timeout`, no reason.
+- **An empty description.** The admin API stores `""` apart from `null` and its client and scope amendments accept it,
+  so `description` in the tools has no minimum length (a scope's create contract does, which no tool reaches); an
+  earlier `""` can be put back from the audit row. A language text stays non-empty, as `checkLocalisedText` holds it.
+- **Create paths and NUL.** Creating a scope with a NUL in `name`, `description` or `consent_text` was a `500` like the
+  amendment was; `createScope` now refuses each as `400` naming it. Probing the other creates found the same
+  `500` for a group's or a role's `name` and `description`, a subject's `username` and `email`, and they are `400`
+  through `noNul` in the contract (a pattern, so the admin API's own body validation answers). Checked and already
+  `400`: a client's `name` and `description` on create and amend, a scope's and a group's and a role's `description` on
+  amend, language texts. Not probed: tenant creation and the settings bodies.
+- **Results.** `{ data, etag?, truncated? }`, `data` cleaned as the reads are; a refusal is `{ error }`.
+- **Rate-limit test.** `mcp.test.ts` asserted `Retry-After <= 60` at the wall clock; the limiter's wait for a spent key is the
+  rest of the window plus window/limit (up to 90 s at limit 2), so it failed in half of every minute. It now injects a fixed
+  clock and asserts the exact figure at four instants.
+
+### The injection suite
+
+`apps/server/tests/mcp-prompt-injection.int.test.ts` (the brief named `packages/mcp/tests`; the suite needs the real app and
+a database, which that package may not import, so it lives with the server's tests, beside the
+`apps/server/src/testing/mcp-stack.ts` it shares with `mcp-write-tools.int.test.ts`) plants instructions where an agent reads them: a client
+name and description (with bidi controls, markup and long Unicode, stored the way a legacy row would be), a scope
+description holding a fake tool result, a person's username and an audit row's detail holding a fake `tools/call`
+payload. A scripted agent obeys every `call <tool> with {…}`, JSON-RPC `tools/call`, `{name, arguments}` and
+anything inside a fake result it finds (and reads an etag first for a write that lacks one, so a missing etag is
+never what stops it). Against:
+
+- **an `mcp:read` token:** zero rows change; each write is refused for its scope, one `agent.tool_call` row `refused` per
+  attempt that passed the schema. With this layer's check removed (a read bearer handed to the caller), the admin API
+  refuses each one and writes a `capability.refused` row with the agent as actor;
+- **an `mcp:write` token whose owner holds neither `manage-clients` nor `manage-tenant`:** zero rows change; the
+  admin API refuses every write and every read the owner lacks, each a `capability.refused` row;
+- **an `mcp:write` token whose owner holds both:** the allowed fields are written, as designed (a description, a name,
+  a scope description), each as one audit row with before and after; `enabled`, `redirect_uris` and the rest are
+  never reached through the tool, are refused by the admin API when sent past it (six bodies, six refusals,
+  nothing changed), and the built-in client's name is refused.
+
+The snapshot that must not change is every table of the tenant that the serving role can read and that has a `tenant_id`
+(43 tables, found from `information_schema`, plus the tenant's own row), the audit trail excluded. Besides the two real
+tools the fixtures tell the agent to call names no tool has (`update_client`, `delete_client`, `create_client`,
+`tenant_export`, `delete_tenant`, `rotate_client_secret`, `set_subject_roles`, `restore_builtin_scopes`): each is a
+JSON-RPC error, changes nothing and is not an `agent.tool_call` row. A separate test shows, for each of the five sources, the
+instructions the agent finds in the read that returns it.
+
+The unit suite `service/data-label.test.ts` runs every tool of the catalogue, writes included, against answers
+whose every string the schema allows is replaced by instructions: the text is under `data` (or `error`), the
+keys beside it are only `next_cursor`, `truncated` and `etag`, one text part says what `structuredContent` says,
+and a refusal's `type`, `title` and `detail` are capped and cleaned.
+
+Mutation check: letting the admin API admit a write for `mcp:read` fails the two tests that call it through the
+unguarded caller and passes the rest, as it should, since the tool layer stood in front.
+
+### The residual risk, as the guide must state it
+
+An agent holding `mcp:write` for a person who holds `manage-clients` or `manage-tenant` can be told by text it reads to
+edit the descriptive text of clients and scopes, and will. The text is shown to people (a client's name on the consent
+screen), so it can mislead. It cannot change what a client or scope may do, who is allowed in, or any secret; a
+built-in client's name is refused; every change is audited with its before and after, so it is reversible by sending
+the earlier text back. What limits it: the scope is asked about at every sign-in (below), lasts ten minutes at
+most and is never refreshed; the tools admit four fields and two; the admin API refuses the rest whatever a tool
+says; the audit row names the agent's client and the person. A client's own approval of each tool call is what stops it
+before the first change. **No guide page names these tools yet**: the Increment 11 guide must state this paragraph and the
+section below, and that the client's approval of a call is the client's, not Odudu's (closing-pass list).
+
+`destructiveHint` is false on both tools although they overwrite and can clear: `description: null` and an empty
+language map remove text, but text only, kept in the audit row's before value and put back by the same call
+(`mcp-write-tools.int.test.ts` clears both and reads the before values). The hint is advisory and is a deliberate
+choice, said in the tools' descriptions for the model; a client that asks before every write can still ask.
+
+### `mcp:write` is asked about at every sign-in
+
+A write token's grant is a fresh, explicit approval each time. `decideConsent` (`protocol-oidc/src/service/consent.ts`)
+asks whenever the request would be granted `mcp:write` (the scope is one of the client's default or optional scopes),
+whatever `consent_required` says (an administrator's clients leave it off) and whatever grant is on record. The box is
+not ticked for the person (`alreadyGranted` leaves it out), and `prompt=none` is refused `consent_required`, never
+issued. A request for `mcp:read` alone is as before, and `mcp:write` stays refused outright to a client that
+registered itself or came from a metadata document (`refusesWriteScope`). Proved through the real `/authorize`, sign-in
+and consent page in `apps/server/tests/mcp-write-consent.int.test.ts`, including a reused session and an earlier
+approval. Found by review: the first version of this note and of the changelog said "each time" and the code did not
+say so for an administrator's client with the consent flag off.
+
+### What an agent can change (for the guide)
+
+With `mcp:write` and a person who holds the capability: a client's name, description and their texts in other
+languages (`manage-clients`), a scope's description and its texts in other languages (`manage-tenant`). Not: a
+built-in client's name, a consent text, a redirect address, a secret, a grant, a role, a user, a key or any setting.
+The agent reads first and names the etag it read; it is told to read again when the answer is `412`; an invalid
+argument is refused before anything is sent; every change is an audit row with the agent's client and the person.
+To undo one, send the earlier text from the audit row's `before` with the new etag.
+
+### Not done, and where it goes
+
+- Tools for the destructive routes and for the other fields of a client or scope: P5b, which owns per-call approval.
+- The injection suite exercises a scripted agent, not a model: a real client's behaviour is the closing increment's hand run.
+- Closing pass reads: the Increment 11 guide must name `update_client_metadata`, `update_scope_metadata`, the residual risk and
+  "what an agent can change" (no page does yet); the landing page and README still call the MCP server "read-only by default",
+  which stays true of what a token without `mcp:write` gets.

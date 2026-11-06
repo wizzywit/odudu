@@ -1,5 +1,6 @@
 import type { InjectOptions, LightMyRequestResponse } from 'fastify';
 import { expandPattern } from '#/service/admin-path';
+import { isEtag } from '#/service/etag-shape';
 import { accessOf, type AdminAccess } from '#/service/admin-access';
 import type { McpLogger } from '#/service/deps';
 import {
@@ -56,6 +57,14 @@ function payloadOf(req: AdminRequestSpec): string | undefined {
   return payload;
 }
 
+// The precondition of a write: one strong etag, and only on a PATCH.
+function preconditionOf(req: AdminRequestSpec): string | undefined {
+  if (req.ifMatch === undefined) return undefined;
+  if (req.method !== 'PATCH') throw new Error('only a PATCH carries a precondition');
+  if (!isEtag(req.ifMatch)) throw new Error('a precondition is one strong entity tag');
+  return req.ifMatch;
+}
+
 function bodyOf(res: LightMyRequestResponse): unknown {
   if (res.payload.length === 0) return null;
   if (!String(res.headers['content-type']).includes('json')) return null;
@@ -70,7 +79,8 @@ function bodyOf(res: LightMyRequestResponse): unknown {
 // Calls the admin API of this same app as the owner's agent. The request is
 // built from fixed parts: the tenant is the token's, the path comes from a
 // route pattern, and the only headers are the four set here (and a fixed content
-// type with a body), so nothing a tool is given can add a header or a cookie.
+// type with a body, and `If-Match` for a validated etag), so nothing a tool is
+// given can add a header or a cookie.
 export function createInProcessCaller(
   deps: InProcessCallerDeps,
   token: ValidatedMcpToken,
@@ -79,6 +89,7 @@ export function createInProcessCaller(
     async call(req: AdminRequestSpec): Promise<AdminResult> {
       const url = expandPattern(req.pattern, token.tenant.name, req.params);
       const payload = payloadOf(req);
+      const ifMatch = preconditionOf(req);
       const bearer = await deps.adminBearer(accessOf(req.method));
       const res = await deps.inject({
         method: req.method,
@@ -91,6 +102,7 @@ export function createInProcessCaller(
           'x-request-id': deps.requestId,
           host: deps.adminHost ?? new URL(token.issuer).host,
           ...(payload === undefined ? {} : { 'content-type': 'application/json' }),
+          ...(ifMatch === undefined ? {} : { 'if-match': ifMatch }),
         },
         ...(payload === undefined ? {} : { payload }),
       });

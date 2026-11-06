@@ -21,10 +21,18 @@ describe('the catalogue', () => {
     }
   });
 
-  it('has no tool that can write: every tool is a read', () => {
-    expect(TOOLS.every((tool) => tool.access === 'read' && tool.routeKey.startsWith('GET '))).toBe(
-      true,
-    );
+  it('has exactly two tools that write, each a PATCH of descriptive fields', () => {
+    const writes = TOOLS.filter((tool) => tool.access === 'write');
+    expect(writes.map((tool) => tool.name)).toEqual([
+      'update_client_metadata',
+      'update_scope_metadata',
+    ]);
+    for (const tool of writes) expect(tool.routeKey.startsWith('PATCH '), tool.name).toBe(true);
+    expect(
+      TOOLS.filter((tool) => tool.access === 'read').every((tool) =>
+        tool.routeKey.startsWith('GET '),
+      ),
+    ).toBe(true);
   });
 
   it('takes the tenant from no tool input', () => {

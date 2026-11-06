@@ -104,6 +104,24 @@ describe('POST /admin/tenants/{t}/scopes', () => {
     expect(second.statusCode).toBe(409);
   });
 
+  it.each([
+    ['name', { name: 'a\u0000b' }],
+    ['description', { description: 'a\u0000b' }],
+    ['consent_text', { consent_text: 'a\u0000b' }],
+  ])('refuses a NUL in %s with 400 naming it, not 500', async (field, extra) => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const res = await createScopeHttp(token, t.name, { name: `s-${newId()}`, ...extra });
+    expect(res.statusCode, res.body).toBe(400);
+    expect(res.body).toContain(field);
+    const listed = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/scopes?limit=200`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(listed.body).not.toContain('a\\u0000b');
+  });
+
   it('is refused for every capability but manage-tenant', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     for (const capability of ['view-users', 'manage-users', 'manage-clients']) {
@@ -161,6 +179,44 @@ describe('PATCH /admin/tenants/{t}/scopes/{id}', () => {
     const body = res.json<{ description: string | null; include_in_id_token: boolean }>();
     expect(body.description).toBe('profile claims');
     expect(body.include_in_id_token).toBe(false);
+  });
+
+  it('stores an empty description apart from null, and the audit row shows both ways', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'view-audit']);
+    const url = (tail: string) => `/admin/tenants/${t.name}${tail}`;
+    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    const { id } = (
+      await createScopeHttp(token, t.name, { name: `s-${newId()}`, description: 'first' })
+    ).json<{ id: string }>();
+    const patch = (description: string | null) =>
+      fixture.http.inject({
+        method: 'PATCH',
+        url: url(`/scopes/${id}`),
+        headers,
+        payload: { description },
+      });
+    for (const description of ['', null, '']) {
+      const res = await patch(description);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json<{ description: string | null }>().description).toBe(description);
+    }
+    const audit = await fixture.http.inject({
+      method: 'GET',
+      url: url(`/audit?resource_type=scope&resource_id=${id}&action=scope.amend`),
+      headers,
+    });
+    const rows = audit
+      .json<{ items: { detail: { description: { before: unknown; after: unknown } } }[] }>()
+      .items.map((row) => row.detail.description);
+    expect(rows).toHaveLength(3);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        { before: 'first', after: '' },
+        { before: '', after: null },
+        { before: null, after: '' },
+      ]),
+    );
   });
 
   it('refuses amending name, with a reason', async () => {
@@ -1029,6 +1085,7 @@ describe('audit', () => {
     );
     expect(amended.kind).toBe('ok');
     expect(ok.events).toHaveLength(1);
+    expect(ok.events[0]?.detail).toEqual({ description: { before: null, after: 'x' } });
 
     const refused = collector();
     const outcome = await withTenant(fixture.app.db, t.id, (tx) =>

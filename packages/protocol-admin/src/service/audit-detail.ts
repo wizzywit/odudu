@@ -75,6 +75,9 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
   },
   scope: {
     name: 'value',
+    description: 'value',
+    include_in_id_token: 'value',
+    include_in_access_token: 'value',
     default_client_assignment: 'value',
     consent_text: 'value',
     description_i18n: 'value',

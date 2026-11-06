@@ -93,12 +93,22 @@ describe('the MCP tool catalogue against the admin routes', () => {
     }
   });
 
-  it('files exactly the agent-writable routes as descriptive writes', () => {
+  it('gives every agent-writable route a write tool that sends exactly the fields it admits', () => {
+    for (const route of AGENT_WRITE_ROUTES) {
+      const tools = TOOLS.filter((tool) => tool.routeKey === `${route.method} ${route.pattern}`);
+      expect(tools, route.pattern).toHaveLength(1);
+      expect(tools[0]?.access, route.pattern).toBe('write');
+      expect([...(tools[0]?.bodyFields ?? [])].sort(), route.pattern).toEqual(
+        [...route.fields].sort(),
+      );
+      expect(NOT_TOOLS, route.pattern).not.toHaveProperty([`${route.method} ${route.pattern}`]);
+    }
+  });
+
+  it('has no write tool for any route the allowlist does not name', () => {
     const writable = AGENT_WRITE_ROUTES.map((route) => `${route.method} ${route.pattern}`);
-    const filed = Object.entries(NOT_TOOLS)
-      .filter(([, reason]) => reason.startsWith('A reversible write of descriptive fields'))
-      .map(([route]) => route);
-    expect(filed.sort()).toEqual([...writable].sort());
+    const writes = TOOLS.filter((tool) => tool.access === 'write').map((tool) => tool.routeKey);
+    expect(writes.sort()).toEqual([...writable].sort());
   });
 
   it('gives a reason to more than one route only within a family or among writes', () => {

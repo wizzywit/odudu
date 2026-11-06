@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { noBidiControls } from '#/bidi';
+import { noBidiControls, noNul } from '#/bidi';
 import { roleAssignmentSchema } from '#/admin/subjects';
 import {
   ASSIGNMENT_LIMIT,
@@ -57,7 +57,7 @@ export const listGroupsResponseSchema = z.object({
 export type ListGroupsResponse = z.infer<typeof listGroupsResponseSchema>;
 
 export const createGroupRequestSchema = z.object({
-  name: noBidiControls(z.string().min(1)),
+  name: noNul(noBidiControls(z.string().min(1))),
   description: descriptionSchema.nullable().optional(),
   parent_id: idSchema.nullable().optional(),
 });

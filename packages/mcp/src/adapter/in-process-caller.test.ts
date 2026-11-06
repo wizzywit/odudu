@@ -240,6 +240,46 @@ describe('the in-process admin caller', () => {
       }
     });
 
+    it('carries the etag it was given as If-Match, the one header a tool may cause', async () => {
+      const h = harness();
+      const etag = `"${'a'.repeat(64)}"`;
+      await createInProcessCaller(h.deps, unverifiedTokenForTests({ scope: ['mcp:write'] })).call({
+        ...PATCH,
+        body: { description: 'd' },
+        ifMatch: etag,
+      });
+      expect(Object.keys(h.injected[0]?.headers ?? {}).sort()).toEqual([
+        'accept',
+        'authorization',
+        'content-type',
+        'host',
+        'if-match',
+        'x-request-id',
+      ]);
+      expect(h.injected[0]?.headers?.['if-match']).toBe(etag);
+    });
+
+    it('refuses an If-Match that is not one strong etag, and one on a GET, before sending', async () => {
+      const refusals: unknown[] = [
+        { ...PATCH, body: { a: 'b' }, ifMatch: '*' },
+        { ...PATCH, body: { a: 'b' }, ifMatch: 'W/"x"' },
+        { ...PATCH, body: { a: 'b' }, ifMatch: '"a", "b"' },
+        { ...PATCH, body: { a: 'b' }, ifMatch: '"a"\r\nx-evil: 1' },
+        { ...PATCH, body: { a: 'b' }, ifMatch: '' },
+        { ...PATCH, body: { a: 'b' }, ifMatch: `"${'a'.repeat(300)}"` },
+        { ...GET_CLIENT, ifMatch: '"a"' },
+      ];
+      for (const spec of refusals) {
+        const h = harness();
+        await expect(
+          createInProcessCaller(h.deps, unverifiedTokenForTests({ scope: ['mcp:write'] })).call(
+            spec as AdminRequestSpec,
+          ),
+        ).rejects.toThrow();
+        expect(h.injected).toHaveLength(0);
+      }
+    });
+
     it('is sent after a bearer of write access', async () => {
       const accesses: string[] = [];
       const h = harness(

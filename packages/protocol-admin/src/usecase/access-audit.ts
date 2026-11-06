@@ -64,7 +64,7 @@ export interface AgentToolCall {
   readonly tool: string;
   readonly route: string;
   readonly outcome: 'allowed' | 'refused' | 'failed';
-  readonly reason?: 'insufficient_scope' | 'missing_capability';
+  readonly reason?: 'insufficient_scope' | 'missing_capability' | 'timeout_outcome_unknown';
 }
 
 // Only the tool's name and the route it reached are recorded, never what it

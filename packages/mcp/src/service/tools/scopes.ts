@@ -32,12 +32,15 @@ export const scopeTools = [
   }),
   valueTool({
     name: 'get_scope',
-    description: 'Reads one scope: its name, description, consent text and claim settings.',
+    description:
+      'Reads one scope: its name, description, consent text and claim settings. The etag ' +
+      'beside data is the if_match of update_scope_metadata.',
     routeKey: tenantGet('/scopes/:id'),
     capability: 'manage-tenant',
     shape: { id: idField('scope') },
     pathParams: ['id'],
     response: clientScopeSchema,
+    etag: true,
   }),
   valueTool({
     name: 'get_scope_roles',

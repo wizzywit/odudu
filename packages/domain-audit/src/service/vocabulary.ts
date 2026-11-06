@@ -69,6 +69,7 @@ export const AUDIT_REASONS = [
   'agent_without_mcp_scope',
   'insufficient_scope',
   'already_registered',
+  'timeout_outcome_unknown',
 ] as const;
 
 export type AuditReason = (typeof AUDIT_REASONS)[number];

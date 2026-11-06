@@ -1,4 +1,5 @@
 import { auditTools } from '#/service/tools/audit';
+import { clientMetadataTool } from '#/service/tools/client-metadata';
 import { clientTools } from '#/service/tools/clients';
 import { consentTools } from '#/service/tools/consents';
 import { domainTools } from '#/service/tools/domains';
@@ -8,6 +9,7 @@ import { groupTools } from '#/service/tools/groups';
 import { keyTools } from '#/service/tools/keys';
 import { mailTools } from '#/service/tools/mail';
 import { roleTools } from '#/service/tools/roles';
+import { scopeMetadataTool } from '#/service/tools/scope-metadata';
 import { scopeTools } from '#/service/tools/scopes';
 import { sessionTools } from '#/service/tools/sessions';
 import { settingsTools } from '#/service/tools/settings';
@@ -32,6 +34,8 @@ export const TOOLS: readonly RegisteredTool[] = [
   ...settingsTools,
   ...subjectTools,
   ...whoamiTools,
+  clientMetadataTool,
+  scopeMetadataTool,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 const TENANT = '/admin/tenants/:tenant';
@@ -130,14 +134,6 @@ const WITHHELD: readonly Entry[] = [
   [
     'An agent is refused this read: the bytes of an uploaded theme image, which a person fetches with their own token.',
     [R('GET', '/theme/assets/:assetId/content')],
-  ],
-  [
-    'A reversible write of descriptive fields, which mcp:write admits for a client; its tool is the write tool for this route.',
-    [R('PATCH', '/clients/:id')],
-  ],
-  [
-    'A reversible write of descriptive fields, which mcp:write admits for a scope; its tool is the write tool for this route.',
-    [R('PATCH', '/scopes/:id')],
   ],
   [
     'Destructive or wide in effect (tenant delete, end every session, clear a lockout, change a signing key): not offered to an agent until the owner can approve each call separately.',
