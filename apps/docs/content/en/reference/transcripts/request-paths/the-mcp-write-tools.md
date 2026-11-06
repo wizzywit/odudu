@@ -1,6 +1,6 @@
 ---
 title: 'The MCP write tools'
-description: 'The two MCP tools that change a client or a scope: the mcp:write token, an update under an etag, and what each refusal says and leaves behind.'
+description: 'The two MCP tools that change a client or a scope: the consent for mcp:write, an update under an etag, and what each refusal says and leaves behind.'
 ---
 
 # The MCP write tools
@@ -306,25 +306,6 @@ call "$WRITE" 5 update_client_metadata "{\"id\":\"$SPA\",\"if_match\":$ETAG,\"de
 }
 ```
 
-## A scope
-
-The scope tool is the same shape: the scope's description and its texts in other languages, under the etag of `get_scope`.
-Its audit row, `scope.amend`, carries the description before and after, as the client's does.
-
-```bash
-call "$WRITE" 12 list_scopes '{"limit":50}' | jq -c '.result.structuredContent.data[] | select(.name=="profile") | {id, name, description}' | tee scope.txt
-SCOPE=$(jq -r .id scope.txt)
-call "$WRITE" 13 get_scope "{\"id\":\"$SCOPE\"}" > getscope.json
-jq -c '.result.structuredContent | {name: .data.name, description: .data.description, etag}' getscope.json
-call "$WRITE" 14 update_scope_metadata "{\"id\":\"$SCOPE\",\"if_match\":$(jq -c .result.structuredContent.etag getscope.json),\"description\":\"Your name, picture and birthday\"}" | jq -c '.result | {isError, description: .structuredContent.data.description, etag: .structuredContent.etag}'
-```
-
-```
-{"id":"01a1af74-1d4f-7a11-be19-34043f54437b","name":"profile","description":null}
-{"name":"profile","description":null,"etag":"\"0629a99ab927da157a8ab3d9ffc90d7f890e1e67863545912900b9d604750947\""}
-{"isError":false,"description":"Your name, picture and birthday","etag":"\"61741149bf0b90a7984c411a872d9f899fbccc633ea5e43a88d82011133528bc\""}
-```
-
 ## What the schema refuses
 
 A field the tool does not name is refused before the admin API is asked, in words the model can act on, and so is a call
@@ -412,6 +393,25 @@ call "$READ" 11 update_client_metadata "{\"id\":\"$SPA\",\"if_match\":$ETAG,\"de
   },
   "isError": true
 }
+```
+
+## A scope
+
+The scope tool is the same shape: the scope's description and its texts in other languages, under the etag of `get_scope`.
+Its audit row, `scope.amend`, carries the description before and after, as the client's does.
+
+```bash
+call "$WRITE" 12 list_scopes '{"limit":50}' | jq -c '.result.structuredContent.data[] | select(.name=="profile") | {id, name, description}' | tee scope.txt
+SCOPE=$(jq -r .id scope.txt)
+call "$WRITE" 13 get_scope "{\"id\":\"$SCOPE\"}" > getscope.json
+jq -c '.result.structuredContent | {name: .data.name, description: .data.description, etag}' getscope.json
+call "$WRITE" 14 update_scope_metadata "{\"id\":\"$SCOPE\",\"if_match\":$(jq -c .result.structuredContent.etag getscope.json),\"description\":\"Your name, picture and birthday\"}" | jq -c '.result | {isError, description: .structuredContent.data.description, etag: .structuredContent.etag}'
+```
+
+```
+{"id":"01a1af74-1d4f-7a11-be19-34043f54437b","name":"profile","description":null}
+{"name":"profile","description":null,"etag":"\"0629a99ab927da157a8ab3d9ffc90d7f890e1e67863545912900b9d604750947\""}
+{"isError":false,"description":"Your name, picture and birthday","etag":"\"61741149bf0b90a7984c411a872d9f899fbccc633ea5e43a88d82011133528bc\""}
 ```
 
 ## What was recorded

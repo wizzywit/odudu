@@ -62,7 +62,12 @@ commit `945baca17` plus the change). It replaces a first capture on `odudu-p5a-i
 page. The stack started from an empty volume and was driven once, in the order the page shows: the tenant `demo` seeded with `ada`
 holding `view-users`, `manage-clients` and `manage-tenant`, a client made through the admin API, four sign-ins, the calls. The audit rows
 the page lists are all the tenant had of those actions. The psql blocks are shown without the trailing spaces the tool pads a column
-with, as Prettier leaves them. The stack and its image were removed afterwards.
+with, as Prettier leaves them. The scope update was the last call of the run (its JSON-RPC ids, 12 to 14, follow the read token's call, 11, and the audit listings order by row id), so its section comes after the refusals and before the audit listings, and the page's order is the run's. The stack and its image were removed afterwards.
+
+`GET /admin/openapi.json`'s block was fetched again on 2026-11-06 on a freshly built compose project, `odudu-p5a-i9c` (port `3091`,
+built from the branch commit `5b55907c4` plus the change that made a NUL in a group's, a role's or a subject's text a refused field in the
+contracts), because the document grew by 226 bytes. Its request id, date and size are that fetch's; the stack and its image were
+removed afterwards.
 
 The stdio server's page, `odudu-mcp-over-stdio.md`, was captured, and re-captured after the admin API began recording a direct agent call, on 2026-11-06 on a freshly built compose project,
 `odudu-p5a-i10b` (port `3000`, Postgres published on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch

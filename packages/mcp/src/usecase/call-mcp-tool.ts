@@ -14,20 +14,28 @@ export interface RecordedToolCall {
   readonly tool: string;
   readonly route: string;
   readonly outcome: 'allowed' | 'refused' | 'failed';
-  readonly reason?: 'insufficient_scope' | 'missing_capability';
+  readonly reason?: 'insufficient_scope' | 'missing_capability' | 'timeout_outcome_unknown';
 }
 
 export interface CallMcpToolDeps {
   readonly requestId: string;
-  // How long a tool may take before the call is answered as failed. The admin
-  // call it made is not cancelled, only no longer waited for.
+  // How long a tool may take before the call is answered without waiting any
+  // longer. The admin call it made is not cancelled, so a write that is given
+  // up on may still commit: its answer says the outcome is unknown.
   readonly deadlineMs: number;
   record(call: RecordedToolCall): Promise<void>;
   readonly logger: Pick<McpLogger, 'error'>;
 }
 
+const OUTCOME_UNKNOWN =
+  'The change may or may not have been made. Read the resource again with the matching get tool ' +
+  'and compare it with what you meant to write before trying again.';
+
 function outcomeOf(problem: ToolProblem | null): Pick<RecordedToolCall, 'outcome' | 'reason'> {
   if (problem === null) return { outcome: 'allowed' };
+  if (problem.problemType === 'mcp:outcome_unknown') {
+    return { outcome: 'failed', reason: 'timeout_outcome_unknown' };
+  }
   if (problem.status !== 403) return { outcome: 'failed' };
   const scope =
     problem.problemType === 'mcp:insufficient_scope' ||
@@ -66,8 +74,16 @@ export async function callMcpTool(
   } catch (error) {
     if (error instanceof ToolProblem && error.problemType === 'mcp:timeout') {
       deps.logger.error({ requestId: deps.requestId, tool: tool.name }, 'tool timed out');
-      problem = error;
-      result = errorResult(error);
+      problem =
+        tool.access === 'write'
+          ? new ToolProblem(
+              'mcp:outcome_unknown',
+              'The tool took too long and whether the change was made is not known',
+              504,
+              OUTCOME_UNKNOWN,
+            )
+          : error;
+      result = errorResult(problem);
     } else {
       deps.logger.error({ err: error, requestId: deps.requestId, tool: tool.name }, 'tool failed');
       problem = new ToolProblem(

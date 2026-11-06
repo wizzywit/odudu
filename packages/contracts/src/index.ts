@@ -40,6 +40,7 @@ export {
   containsNul,
   NUL_REFUSED_MESSAGE,
   noBidiControls,
+  noNul,
   refusesBidi,
   stripBidiControls,
 } from '#/bidi';
