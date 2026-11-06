@@ -10,7 +10,7 @@ You will decide how big to make the one server Odudu runs as, and what to do whe
 ## Why one instance
 
 - **Migrations run at start, in every process, with no lock.** Two servers starting at once would race to change the same database.
-- **The throttles count in one process's memory.** The per-origin, sign-in and client-secret limits are windows held by the process that served the request, so each of two instances would allow the full budget and a caller could spend both.
+- **The throttles count in one process's memory.** The per-origin, sign-in and client-secret limits are windows held by the process that served the request, so each of two instances would allow the full budget and a caller could spend both. The MCP endpoint's request limits (60 a minute for a person and client, 120 for a person across clients, 600 for a tenant, four at once for a person and client), the registration budget under the `mcp` policy and the limit on fetching client metadata documents work the same way.
 
 [The roadmap](../roadmap.md#later) plans replicas, a migration lock and limits shared between instances under many instances and performance. It also plans a metrics endpoint and a deadline on the two outbound lookups that `/token` and `/userinfo` make. Nothing in the product today depends on them.
 

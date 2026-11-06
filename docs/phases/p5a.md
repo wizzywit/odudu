@@ -623,6 +623,11 @@ exists when the phase closed:
   CHANGELOG and the OpenAPI parameter.
 - Non-database effects (the test mail) are not undone when the late capacity
   check or the size cap rolls a call back.
+- **MCP and keys.** The design asked MCP tools that call POST routes to set a
+  key. No tool calls a POST route (the 42 reads are GET, the two writes PATCH and
+  carry an entity tag), so keys are not exercised through MCP, and nothing here
+  is untested for want of it. A tool that calls a POST route, as P5b's may,
+  has to send a key.
 
 ## Service accounts follow the grant
 
@@ -785,10 +790,11 @@ tenant's host is per request.
    `insufficient_scope`. A genuine token of another tenant (or of this one at an address it left)
    writes `token.foreign_issuer` and a token with no MCP scope writes `capability.refused`
    (`agent_without_mcp_scope`), as the admin door does; every other refusal is a log line.
-5. **Budget** (`createToolLimiter`): 60 requests a minute per principal (subject and client), 600 a
-   minute per tenant, four in flight per principal; past one, 429 with `Retry-After` and
-   JSON-RPC `-32029`. Fixed windows, at most 10,000 principals and 10,000 tenants, the least recently
-   used dropped first (so a throttled principal that keeps asking is not forgotten). Per process: with
+5. **Budget** (`createToolLimiter`): 60 requests a minute per principal (subject and client), 120
+   per person across their clients, 600 a minute per tenant, four in flight per principal; past
+   one, 429 with `Retry-After` and JSON-RPC `-32029`. Sliding windows, at most 100,000 principals,
+   50,000 people and 10,000 tenants, the least recently used dropped first (so a throttled
+   principal that keeps asking is not forgotten). Per process: with
    several instances the limit is multiplied, and a shared budget is P11's. Every request counts, not
    only a tool call, because a POST is one message once batches are refused. The slot is freed on the
    response's `close`, so a body refused with 413 frees it.
@@ -1301,9 +1307,11 @@ Placed, so that none is open without a phase (each is a row in `docs/NEXT.md`):
   refused: P11, with the other bounds.
 - **A model in the injection suite.** The suite drives a scripted agent; P5b, which
   adds the tools that cannot be undone, is where measuring a model belongs.
-- **Not run by anyone yet:** the three hosted clients (the hand run below), `odudu mcp`
-  on Windows and with the Linux Secret Service, and a third-party MCP server protected
-  by Odudu with an audience the operator chose. The guides say so where each is used.
+- **Not run by anyone yet:** the claude.ai connectors and Cursor (Claude Code 2.1.319
+  and Claude Desktop 3.6556.2 were run by the owner on 2026-11-06: the hand run below),
+  `odudu mcp` on Windows and with the Linux Secret Service, and a third-party MCP server
+  protected by Odudu with an audience the operator chose. The guides say so where each
+  is used.
 - **The real-client job's transitive dependencies.** `infra/conformance/run-mcp.sh`
   pins the Inspector and the SDK client exactly and installs their dependencies
   unlocked; a drift makes the job red, never wrong, and a lockfile in
@@ -1387,23 +1395,38 @@ Placed, so that none is open without a phase (each is a row in `docs/NEXT.md`):
 
 ## Hand run (owner)
 
-The three guides (`connect-claude`, `connect-cursor` and the client parts of
-`protect-an-mcp-server`) follow the vendors' documentation as read on
-2026-11-06 and say so; nobody has run the real clients against Odudu yet.
-Run each against an instance and record, for each step, what happened and any
-place the page differs from the software:
+**Run by the owner on 2026-11-06**, against a local instance on
+`http://localhost:3090`, as reported by the owner: Claude Code 2.1.319 and
+Claude Desktop 3.6556.2.
 
-- **Claude Code** on `http://localhost:3000`: `claude mcp add --transport http`,
-  then `/mcp`. Record whether it registered by metadata document or by
-  registration, the registration body it sent, the revision it negotiated and
-  the scope it asked for. Then the fixed-client form (`--client-id`,
-  `--callback-port 8080`) and whether `mcp:write` needs `oauth.scopes` pinned.
-- **Claude Desktop** with `odudu mcp` in `claude_desktop_config.json`, once from
-  a checkout (person sign-in) and once through `docker compose exec` (key).
-- **claude.ai / Desktop connector** through a public https address: which of the
-  three OAuth client options worked, and the callback address it used.
-- **Cursor**: `mcp.json` with a bare `url`, then with `auth.CLIENT_ID`; the
-  redirect addresses it sent and the revision.
+- **Claude Code, fixed client.** `claude mcp add --transport http --client-id
+<id> --callback-port <port> <name> <MCP URL>` worked: it mapped to the
+  administrator-created client and the callback completed the sign-in inside
+  the session. The owner then ran reads, writes with an etag, a stale etag
+  (412), refusals and errors (`get_client not-a-uuid` answered 400
+  `mcp:invalid_arguments`, "id: must be a UUID"; `list_clients limit 5000`
+  answered 400, "limit: Too big: expected number to be <=200"), and reports all
+  working. A headless `claude -p` run by the controller confirmed `whoami`,
+  `list_clients`, the bad-argument errors, and that `update_client_metadata` is
+  absent for a self-registered (read-only) registration.
+- **Claude Code, first failure.** After consent the redirect to
+  `http://localhost:8080/callback` reached a Keycloak container listening on
+  `0.0.0.0:8080` (IPv6) and not Claude Code's IPv4 listener, and the browser
+  showed "Resource not found". Another port fixed it; the guides' example port
+  changed for that reason.
+- **Claude Desktop** was run through the `odudu mcp` entry in
+  `claude_desktop_config.json`, with the absolute path to `node`.
 
-Edit the guide wherever a step differs and remove its "not run yet" sentence for
-what was run.
+**Not exercised:** the `.mcp.json` `oauth.scopes` pinning and the `.mcp.json`
+combination of `clientId`, `callbackPort` and `scopes` (only the command-line
+form was run); registration by metadata document or by dynamic registration
+from Claude Code (the fixed-client form was the one run); the registration body
+and protocol revision each client sent were not recorded; the claude.ai /
+Desktop connectors through a public https address; Cursor (`mcp.json` with a
+bare `url`, then with `auth.CLIENT_ID`; the redirect addresses and revision it
+sends); `odudu mcp` on Windows and with the Linux Secret Service, and
+Claude Desktop with a key through `docker compose exec`.
+
+Run each remaining item against an instance and record, per step, what
+happened and any place a guide differs from the software. Edit the guide
+wherever a step differs and remove its "not run yet" sentence for what was run.

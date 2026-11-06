@@ -20,10 +20,11 @@ What it placed on later phases is on
 tools and two write tools for descriptive text, `odudu mcp` serves them over stdio,
 and the sign-in an MCP client needs (metadata, registration under an `mcp` policy,
 client ID metadata documents, `mcp:read` and `mcp:write`) is in place. What it found
-is in [`docs/phases/p5a.md`](phases/p5a.md). Its owner steps are the hand run of
-Claude Code, Claude Desktop, claude.ai and Cursor against an instance, which no CI
-job can run, and `odudu mcp` on Windows and with the Linux Secret Service, which
-nobody has run (both are in that note's "Hand run (owner)").
+is in [`docs/phases/p5a.md`](phases/p5a.md). Claude Code 2.1.319 and Claude Desktop 3.6556.2
+were run by the owner on 2026-11-06 (reads, writes, refusals and errors worked).
+Still to run, and no CI job can: the claude.ai connectors and Cursor, and
+`odudu mcp` on Windows and with the Linux Secret Service (the note's "Hand run
+(owner)" has the record).
 
 **P4b, theming and client branding, is built.** Every server page and mail
 wears a tenant's theme and a client's over it; the tenant chooses its languages

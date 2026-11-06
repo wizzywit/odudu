@@ -8,7 +8,7 @@ description: 'A tenant’s MCP endpoint run with curl in both protocol eras: the
 A tenant serves one MCP endpoint, `/tenants/<name>/mcp` at the path address and `/mcp` at its own
 domain, and nothing else answers there. It takes `POST` only, carries no session, and answers a
 client that speaks the 2026-07-28 revision and one that opens with the 2025-11-25 `initialize`
-handshake, from the same address. Its tools read what the [admin API](../admin-paths/index.md)
+handshake, from the same address (an `initialize` for 2025-06-18 or 2025-03-26 was also answered when sent by hand; no test holds it). Its tools read what the [admin API](../admin-paths/index.md)
 reads, as the person who signed in: the token it is given is for the endpoint and is never sent
 on, and each call is made with a token Odudu signs for it (audience the admin API, subject the person,
 `act` the agent), so the person's own capabilities and the token's scope decide what comes back.
@@ -534,7 +534,7 @@ docker compose -p odudu-p5a-i11c -f infra/docker/compose.yaml exec -T postgres p
 
 ## The budget
 
-A person and client may make sixty requests a minute to a tenant, and four at once; the tenant as a whole six hundred.
+A person and client may make sixty requests a minute to a tenant, and four at once; a person across all their clients a hundred and twenty; the tenant as a whole six hundred.
 The counts are kept by the one server process, so a deployment of several multiplies them. This is seventy
 requests in a row from the same token, counted by status:
 
