@@ -445,6 +445,62 @@ only), `no-protocol-to-mcp`, and `mcp-imported-only-by-server`.
 `isDomainAddress` in the kernel replaced four hand comparisons of
 `address.prefix === ''`.
 
+## The in-process caller and the exchange
+
+A tool call reaches the admin API as the owner's agent, on a bearer signed for
+that call. `packages/mcp` holds the parts that decide; `apps/server/src/mcp-deps.ts`
+holds the two that need a database or the app.
+
+- `ValidatedMcpToken` (`service/validated-token.ts`) is what the MCP endpoint
+  proves of a presented token: tenant (id and name), issuer, owner, the agent's
+  `client_id`, the owner's `grant_id`, scope and `exp`. The endpoint builds it; the
+  exchange and the caller only read it. The tenant in every admin path is this
+  one, never a tool's input (`expandPattern` refuses a `tenant` parameter).
+- `exchangeForAdmin(deps, token, scope)` (`usecase/exchange.ts`) refuses a scope
+  that is not an MCP scope or that the presented token does not hold, then calls
+  `mintAgentToken` with the owner's grant, the token's client, the admin audience
+  and `notAfter` = the token's `exp`. No `/token` request is made and no client
+  authenticates. A refusal (`AgentTokenRefused`) becomes a `ToolProblem`
+  `mcp:access_ended` (401) that names neither the reason nor a token; the reason
+  goes to the debug log. Anything else rethrows, so an outage is not called a refusal.
+- The bearer is cached in a `RequestScope` the endpoint creates per request
+  (`newRequestScope`): a map keyed by grant and scope, dropped with the request.
+  There is no module state and no cache across requests. A cached bearer that has
+  expired is minted again.
+- A GET uses `mcp:read` and a PATCH `mcp:write`, each alone (`service/admin-access.ts`):
+  the admin API's own `scopeAdmits` is the second line, and a read-scope token is
+  refused a write by both.
+- `createInProcessCaller` (`adapter/in-process-caller.ts`) is `fastify.inject` into
+  the same app. The request is built from fixed parts: method, a path from the
+  route pattern, the query, and four headers (`authorization`, `accept`,
+  `x-request-id`, `host`). A tool's input has no way to add a header, cookie or
+  body. Only `content-type`, `etag` and `retry-after` come back; the body is parsed
+  JSON or null, and over 1 MiB is `mcp:result_too_large`. The admin API's 401 and
+  403 are returned as the result, for `problemOf` to phrase; the bearer is in
+  neither the log (debug: method, pattern, status) nor any message.
+- The host is the deployment's (`ODUDU_PUBLIC_BASE_URL`), not the tenant's domain:
+  a domain host rewrites a path under `/tenants/<name>`, where `/admin` does not
+  live. Without a base URL it is the issuer's host.
+- Layering: the adapter may not import the usecase, so the composition of the two
+  (`adminCallerFor`) is in `apps/server/src/mcp-deps.ts` and is what the endpoint
+  is handed. It is not under `modules/` because those are lifecycle modules with a
+  `start` and `stop`; this has neither. `mcp` has no database import (ADR 0051), so
+  `mintAgentToken` runs in the server's `McpDeps.mintAgentToken`: it reads the
+  tenant's session lifespans and opens the tenant transaction.
+- The issuer minted under is the presented token's own `iss`, which the endpoint
+  accepted; the admin API accepts it from the tenant's accepted set.
+- Proved in `apps/server/tests/mcp-admin-caller.int.test.ts` against real signing
+  keys: the admin API sees the owner as `sub`, `act.sub` the agent and one scope;
+  a role lost between two calls fails the second (also on a cached bearer); a revoked
+  grant, ended session, disabled agent client and disabled tenant each fail the next
+  call (401 on a cached bearer, `mcp:access_ended` when it must mint); the bearer
+  lives at most 300 s and never past the token's `exp`; no cookie, a fixed header
+  set; two concurrent requests of different owners keep their bearers apart; and an
+  MCP token presented at `/token` by the public MCP client for the admin audience is
+  `unauthorized_client`.
+- Volume: a call adds the five primary-key reads of the mint once per request and
+  scope (none on a cached bearer), and the admin API's own per-call checks.
+
 ## Closing pass reads
 
 Sentences the closing pass has to revisit, because a placement or the roadmap
