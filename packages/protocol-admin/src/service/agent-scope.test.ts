@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AGENT_DENIED_READS,
   AGENT_WRITE_ROUTES,
+  INSTANCE_READS,
   agentBodyAdmitted,
   agentBodyNamesGuardedField,
   agentWritableFields,
@@ -15,6 +16,7 @@ import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 const key = (route: Pick<AdminRoute, 'method' | 'pattern'>) => `${route.method} ${route.pattern}`;
 const allowed = new Set(AGENT_WRITE_ROUTES.map(key));
 const denied = new Set(AGENT_DENIED_READS);
+const instance = new Set(INSTANCE_READS);
 
 function route(method: string, pattern: string): AdminRoute {
   const found = ADMIN_ROUTES.find((r) => r.method === method && r.pattern === pattern);
@@ -29,16 +31,19 @@ describe('scopeAdmits over every admin route', () => {
 
   it.each(ADMIN_ROUTES.map((r) => [key(r), r] as const))('%s', (_, r) => {
     const read = r.method === 'GET' && !denied.has(key(r));
-    expect(scopeAdmits([MCP_READ_SCOPE], r)).toBe(read);
-    expect(scopeAdmits([MCP_WRITE_SCOPE], r)).toBe(read || allowed.has(key(r)));
-    expect(scopeAdmits([MCP_READ_SCOPE, MCP_WRITE_SCOPE], r)).toBe(read || allowed.has(key(r)));
-    expect(scopeAdmits(['openid', 'profile'], r)).toBe(false);
-    expect(scopeAdmits([], r)).toBe(false);
+    const system = read || allowed.has(key(r));
+    const local = read && !instance.has(key(r));
+    expect(scopeAdmits([MCP_READ_SCOPE], r, true)).toBe(read);
+    expect(scopeAdmits([MCP_WRITE_SCOPE], r, true)).toBe(system);
+    expect(scopeAdmits([MCP_READ_SCOPE, MCP_WRITE_SCOPE], r, true)).toBe(system);
+    expect(scopeAdmits([MCP_READ_SCOPE], r, false)).toBe(local);
+    expect(scopeAdmits([MCP_WRITE_SCOPE], r, false)).toBe(local || allowed.has(key(r)));
+    expect(scopeAdmits(['openid', 'profile'], r, true)).toBe(false);
+    expect(scopeAdmits([], r, true)).toBe(false);
   });
 
   it('refuses the bulk and the sensitive reads to both scopes, and they exist', () => {
     expect([...denied].sort()).toEqual([
-      'GET /admin/tenants',
       'GET /admin/tenants/:tenant/audit/export',
       'GET /admin/tenants/:tenant/clients/:id/evaluate',
       'GET /admin/tenants/:tenant/export',
@@ -47,15 +52,33 @@ describe('scopeAdmits over every admin route', () => {
       'GET /admin/tenants/:tenant/subjects/:id/credentials',
       'GET /admin/tenants/:tenant/subjects/:id/profile',
       'GET /admin/tenants/:tenant/theme/assets/:assetId/content',
-      'GET /admin/tenants/count',
     ]);
     for (const k of denied) {
       const r = ADMIN_ROUTES.find((x) => key(x) === k);
       expect(r).toBeDefined();
       if (r !== undefined) {
-        expect(scopeAdmits([MCP_READ_SCOPE, MCP_WRITE_SCOPE], r)).toBe(false);
+        expect(scopeAdmits([MCP_READ_SCOPE, MCP_WRITE_SCOPE], r, true)).toBe(false);
       }
     }
+  });
+
+  it('admits the tenant list and its count to an agent of the system tenant only', () => {
+    expect([...instance].sort()).toEqual(['GET /admin/tenants', 'GET /admin/tenants/count']);
+    for (const k of instance) {
+      const r = ADMIN_ROUTES.find((x) => key(x) === k);
+      expect(r, k).toBeDefined();
+      if (r === undefined) continue;
+      expect(scopeAdmits([MCP_READ_SCOPE], r, true), k).toBe(true);
+      expect(scopeAdmits([MCP_WRITE_SCOPE], r, true), k).toBe(true);
+      expect(scopeAdmits([MCP_READ_SCOPE, MCP_WRITE_SCOPE], r, false), k).toBe(false);
+      expect(scopeAdmits(['openid'], r, true), k).toBe(false);
+    }
+  });
+
+  it('leaves one tenant record, whichever tenant it is, as it was', () => {
+    const one = route('GET', '/admin/tenants/:tenant');
+    expect(scopeAdmits([MCP_READ_SCOPE], one, true)).toBe(true);
+    expect(scopeAdmits([MCP_READ_SCOPE], one, false)).toBe(true);
   });
 
   it('lists only routes that exist, and only PATCHes', () => {

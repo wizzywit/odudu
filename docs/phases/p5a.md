@@ -310,7 +310,9 @@ holding no MCP scope a 403. An agent must pass both gates: the scope
 - Reads are every GET except `AGENT_DENIED_READS`: the tenant export, the
   audit export and a theme image's bytes, each a whole document or download
   in one call that a person fetches with their own token (export is not a
-  tool).
+  tool), and the personal-data and credential reads the catalogue withholds.
+  The two reads that span tenants, `GET /admin/tenants` and `/count`, are
+  `INSTANCE_READS`: see "Instance-level reads".
 - `name` and `name_i18n` of a built-in client (`builtin_admin` or
   `builtin_mcp`) are refused to an agent; the handler reads the target row
   with `loadClientState`, no second body read. Residual for the guide: an
@@ -435,7 +437,7 @@ route's, and a read tool's route is a GET. A new admin route fails it until plac
 | `list_subjects`                 | `GET …/subjects`                      | view-users      |
 | `whoami`                        | `GET …/whoami`                        | none            |
 
-- **Forty-two read tools and two write tools** (the write tools are under "The write tools" below). Lists answer one page under
+- **Forty-four read tools and two write tools** (the write tools are under "The write tools" below). Lists answer one page under
   `MAX_LIMIT` (the input schema's `limit` has that maximum, so a larger one is refused
   before any call) with the cursor beside it as `next_cursor`; the admin API's `next`
   is the same value. Counts, gets and singletons answer one document.
@@ -475,21 +477,21 @@ route's, and a read tool's route is a GET. A new admin route fails it until plac
   characters. `tools/list` is generated with `z.toJSONSchema` (the MCP SDK is not yet
   a dependency; check the SDK's own conversion when the endpoint lands).
 
-Not tools (`NOT_TOOLS`, 108 routes). A reason is shared only within one family or
+Not tools (`NOT_TOOLS`, 106 routes). A reason is shared only within one family or
 among writes, and the coverage test holds that:
 
-- **Refused to agents** (`AGENT_DENIED_READS`, 3): tenant export, audit export, a
-  theme asset's bytes.
+- **Refused to agents** (`AGENT_DENIED_READS`, 8): tenant export, audit export, a
+  theme asset's bytes, and the five reads below that are personal data or credential
+  metadata.
 - **Destructive** (8, deferred to P5b): tenant delete, end-all sessions, lockout
   clear (one subject, and all), and the four signing-key changes.
 - **Every other write** (69): not an agent write; `mcp:write` admits only the
   descriptive fields of a client and a scope.
-- **Reads, each with its own reason** (28): theme and mail previews (browser frames),
+- **Reads, each with its own reason** (26): theme and mail previews (browser frames),
   theme, mail look and message wording (authored markup and page text, which the design
   spec's catalogue does not list and the console's Branding screens read), a subject's
   profile, credentials, registration tokens and the mail relay login (personal data or
-  credential metadata), the tenant list and record (an agent acts in one tenant;
-  `whoami` and `get_settings` cover the record), `clients/:id/evaluate` (it answers one
+  credential metadata), the tenant record (`whoami` and `get_settings` cover it), `clients/:id/evaluate` (it answers one
   subject's claims, personal data, under `manage-clients`, which does not include
   `view-users`), `installation` (restates `get_client`), `username-policy` (one setting
   `get_settings` returns), `passkey-impact` (an input to a change an agent cannot
@@ -730,7 +732,7 @@ row_security = off` was rejected: for an owner under FORCE it errors rather than
 ## The MCP endpoint
 
 `POST /tenants/:tenant/mcp` (at `/mcp` on a tenant's own domain, which the host rewrite files
-under the tenant) serves the 42 read tools and, for a token holding `mcp:write`, the two write tools.
+under the tenant) serves the 44 read tools (the two that span tenants only to a system-tenant token) and, for a token holding `mcp:write`, the two write tools.
 `GET` and `DELETE` answer 405 with `Allow: POST`.
 
 ### The SDK, run
@@ -1472,3 +1474,49 @@ wherever a step differs and remove its "not run yet" sentence for what was run.
 - **The plain-owner branch of 0113 and 0114 is now run** (`mcp-backfills-plain-owner`). It
   found that both read `tenants`, which is forced, and 0114 reads `client_scopes`: as a plain
   owner they inserted nothing. Both migrations now lift and restore those tables too.
+
+## Instance-level reads (parity extension, Increment 12)
+
+`list_tenants` and `count_tenants` are the first reads that span tenants. The decision
+(spec section 6, owner's decision 3): they exist, for an agent of the **system tenant** whose
+owner holds `manage-tenants`, and for no other. They take no tenant argument and open no
+tenant's content; a system administrator's agent sees the list and still cannot read one
+tenant's clients.
+
+- **The door.** `GET /admin/tenants` and `/count` left `AGENT_DENIED_READS` for
+  `INSTANCE_READS`; `scopeAdmits(scopes, route, tenantIsSystem)` admits an instance read
+  only when the token's issuer tenant is the system tenant (`isSystemTenantId`), and
+  `authorizeAdmin` then asks for `manage-tenants`: both gates. The coverage test ties the
+  two lists: no other tool lacks `:tenant`.
+- **Plan claim corrected: a tenant-local agent never reaches that rule.** A route with no
+  `:tenant` targets the system tenant, and `authenticateAdmin` accepts only a token the
+  system tenant signed there, so a token of an ordinary tenant is a `401` before the
+  door's scope rule runs, recorded as `token.foreign_issuer` in the system tenant (the
+  plan expected a `403 insufficient_scope` and a `capability.refused` row). The rule stays
+  as the second line, asserted by the unit table; the integration test asserts the `401`,
+  the `token.foreign_issuer` row naming the person, and the tool call recorded as failed.
+  A system-tenant owner without `manage-tenants` is `403` with a `capability.refused` row.
+- **The tools** (`service/tools/tenants.ts`): `list_tenants` (a page under `MAX_LIMIT`,
+  cursor, the `name`, `display_name` and `enabled` filters) and `count_tenants`.
+  `display_name` is other tenants' free text and so is cleaned and kept under `data`, like
+  every tool's; an injection scenario plants instructions in one.
+- **Visibility.** `visibleTools` and `toolVisible` take `inSystemTenant`: a tool whose
+  route has no `:tenant` is listed only in the system tenant, and only to an owner holding
+  its capability. The endpoint passes `isSystemTenantId(token.tenant.id)` and filters by
+  the owner's capabilities. `odudu mcp` does not judge the owner (its listing is by scope
+  alone), so in the system tenant it lists both tools whether or not the person holds
+  `manage-tenants`, and a call without it is a `403` from the admin API. It decides the
+  tenant from the sign-in it verified: only metadata whose issuer is the system tenant's own
+  path address counts, so `--tenant system` signed in at another tenant's `--tenant-address`
+  lists neither. A tenant's own agent is offered 42 read tools, the system tenant's 44.
+- **The callers.** `expandPattern` already left a pattern with no `:tenant` untouched; it
+  now refuses one that is not exactly `/admin/tenants` or `/admin/tenants/count`, so a
+  path without a tenant is never built by accident, and still refuses a parameter named
+  `tenant` or any other parameter for these two. The in-process and HTTP callers are
+  unchanged and tested with both patterns and with hostile filter values.
+- **Volume.** Served by the admin route's existing statements: a name or display-name
+  prefix and a cursor over the name index, a page at most `MAX_LIMIT`; the plan suite
+  already plans the list and the count with each filter against 5,000 tenants
+  (`plan-admin-drives.ts`), so no entry was added.
+- **Worst case if an instruction is obeyed:** a W1 write in the system tenant, which the
+  injection scenario holds (only a descriptive field of a non-built-in client changes).

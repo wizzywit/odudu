@@ -81,6 +81,41 @@ describe('the in-process admin caller', () => {
     expect(sent?.payload).toBeUndefined();
   });
 
+  it('addresses an instance-level read without a tenant segment, with the same fixed headers', async () => {
+    const h = harness();
+    await createInProcessCaller(h.deps, unverifiedTokenForTests()).call({
+      method: 'GET',
+      pattern: '/admin/tenants',
+      params: {},
+      query: { name: '../x', limit: '5' },
+    });
+    const sent = h.injected[0];
+    expect(sent?.url).toBe('/admin/tenants');
+    expect(sent?.query).toEqual({ name: '../x', limit: '5' });
+    expect(Object.keys(sent?.headers ?? {}).sort()).toEqual([
+      'accept',
+      'authorization',
+      'host',
+      'x-request-id',
+    ]);
+  });
+
+  it('refuses a pattern with no tenant that is not an instance-level read, before anything is sent', async () => {
+    const h = harness();
+    const caller = createInProcessCaller(h.deps, unverifiedTokenForTests());
+    for (const pattern of [
+      '/admin/tenants/other',
+      '/admin/tenant-imports',
+      '/admin/tenants/../x',
+    ]) {
+      await expect(
+        caller.call({ method: 'GET', pattern, params: {}, query: {} }),
+        pattern,
+      ).rejects.toThrow();
+    }
+    expect(h.injected).toEqual([]);
+  });
+
   it('takes the host from the deployment when it names one', async () => {
     const h = harness({}, { adminHost: 'admin.internal:8443' });
     await createInProcessCaller(h.deps, unverifiedTokenForTests()).call(GET_CLIENT);

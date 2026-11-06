@@ -16,8 +16,8 @@ more phase work. What it built, and what the whole-phase review found, is in
 What it placed on later phases is on
 [the roadmap page](../apps/docs/content/en/roadmap.md).
 
-**P5a, the MCP server, is built.** Every tenant serves an MCP endpoint with 42 read
-tools and two write tools for descriptive text, `odudu mcp` serves them over stdio,
+**P5a, the MCP server, is built.** Every tenant serves an MCP endpoint with 44 read
+tools (two for the system tenant's agent alone) and two write tools for descriptive text, `odudu mcp` serves them over stdio,
 and the sign-in an MCP client needs (metadata, registration under an `mcp` policy,
 client ID metadata documents, `mcp:read` and `mcp:write`) is in place. What it found
 is in [`docs/phases/p5a.md`](phases/p5a.md). Claude Code 2.1.319 and Claude Desktop 3.6556.2

@@ -10,11 +10,11 @@ interface AgentWriteRoute {
 
 // Reads an agent never gets, though a GET. The first three each return a whole
 // tenant, or bytes, in one call; a person fetches those with their own token.
-// The rest are personal data, credential metadata, the mail relay login and
-// the list of every tenant, which the MCP tool catalogue withholds
-// (`NOT_TOOLS`, kinds `denied` and `sensitive`): a tool's absence binds nobody
-// who holds the bearer, so the door refuses them too, and the coverage test
-// holds the two lists to each other.
+// The rest are personal data, credential metadata and the mail relay login,
+// which the MCP tool catalogue withholds (`NOT_TOOLS`, kinds `denied` and
+// `sensitive`): a tool's absence binds nobody who holds the bearer, so the
+// door refuses them too, and the coverage test holds the two lists to each
+// other.
 export const AGENT_DENIED_READS: readonly string[] = [
   'GET /admin/tenants/:tenant/export',
   'GET /admin/tenants/:tenant/audit/export',
@@ -24,9 +24,14 @@ export const AGENT_DENIED_READS: readonly string[] = [
   'GET /admin/tenants/:tenant/registration-tokens',
   'GET /admin/tenants/:tenant/smtp',
   'GET /admin/tenants/:tenant/clients/:id/evaluate',
-  'GET /admin/tenants',
-  'GET /admin/tenants/count',
 ];
+
+// The two reads that span tenants. An agent acts inside the one tenant its
+// token names, except that an agent of the system tenant, whose owner holds
+// `manage-tenants`, may list and count them: the door admits these to a token
+// of the system tenant alone, and `authorizeAdmin` then asks the owner for the
+// capability.
+export const INSTANCE_READS: readonly string[] = ['GET /admin/tenants', 'GET /admin/tenants/count'];
 
 // A built-in client's name is what an administrator or MCP user recognises
 // on the consent screen, so an agent never rewrites it.
@@ -57,9 +62,15 @@ function writeEntry(route: Pick<AdminRoute, 'method' | 'pattern'>): AgentWriteRo
   );
 }
 
-export function scopeAdmits(scopes: readonly string[], route: AdminRoute): boolean {
+export function scopeAdmits(
+  scopes: readonly string[],
+  route: AdminRoute,
+  tenantIsSystem: boolean,
+): boolean {
   if (route.method === 'GET') {
-    if (AGENT_DENIED_READS.includes(`${route.method} ${route.pattern}`)) return false;
+    const key = `${route.method} ${route.pattern}`;
+    if (AGENT_DENIED_READS.includes(key)) return false;
+    if (INSTANCE_READS.includes(key) && !tenantIsSystem) return false;
     return holdsMcpScope(scopes);
   }
   return scopes.includes(MCP_WRITE_SCOPE) && writeEntry(route) !== undefined;

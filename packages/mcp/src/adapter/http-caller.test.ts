@@ -56,6 +56,25 @@ const GET_CLIENT: AdminRequestSpec = {
 };
 
 describe('the stdio caller of the admin API', () => {
+  it('asks an instance-level read at the instance, with its filters as query and no tenant', async () => {
+    const h = harness();
+    await h.caller.call({
+      method: 'GET',
+      pattern: '/admin/tenants/count',
+      params: {},
+      query: { name: 'ac' },
+    });
+    expect(h.sent[0]?.url).toBe('https://id.example.com/admin/tenants/count?name=ac');
+  });
+
+  it('refuses a pattern with no tenant that is not an instance-level read, before any request', async () => {
+    const h = harness();
+    await expect(
+      h.caller.call({ method: 'GET', pattern: '/admin/tenant-imports', params: {}, query: {} }),
+    ).rejects.toThrow();
+    expect(h.sent).toEqual([]);
+  });
+
   it('sends a fixed request for the configured tenant, and nothing else in its headers', async () => {
     const h = harness();
     const result = await h.caller.call(GET_CLIENT);

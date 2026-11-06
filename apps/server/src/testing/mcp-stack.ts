@@ -22,7 +22,7 @@ import { type FastifyInstance } from 'fastify';
 import { buildApp } from '#/app';
 import { createLogger } from '#/logger';
 import { mcpDepsFor } from '#/mcp-deps';
-import { mcpWorld, type World } from '#/testing/mcp-world';
+import { mcpSystemWorld, mcpWorld, type World } from '#/testing/mcp-world';
 
 const KEK = Buffer.alloc(32, 7);
 export const BASE = 'https://id.example.com';
@@ -43,6 +43,8 @@ export interface McpStack {
   // Every admin request the app saw, in order.
   readonly adminSeen: string[];
   world(capabilities: readonly string[], grantScope: string): Promise<World>;
+  // The same for a person in the system tenant.
+  systemWorld(capabilities: readonly string[], grantScope: string): Promise<World>;
   // An access token of the MCP audience for the world's owner, signed by the tenant.
   sign(w: World, scope: string, claims?: Record<string, unknown>): Promise<string>;
   send(w: World, token: string | null, body: unknown): Promise<Sent>;
@@ -119,6 +121,8 @@ export async function startMcpStack(): Promise<McpStack> {
     owner,
     adminSeen,
     world: (capabilities, grantScope) => mcpWorld(appDb, BASE, capabilities, grantScope),
+    systemWorld: (capabilities, grantScope) =>
+      mcpSystemWorld(appDb, BASE, capabilities, grantScope),
     async sign(w, scope, claims = {}) {
       const key = await withTenant(appDb.db, w.tenantId, (tx) => signingKeyRepository(tx).active());
       const iat = Math.floor(Date.now() / 1000);

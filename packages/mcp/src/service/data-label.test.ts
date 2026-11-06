@@ -83,8 +83,11 @@ function answer(body: unknown, status = 200): ReturnType<typeof respondingWith> 
 
 describe('the label on text a model reads', () => {
   it('covers every tool of the catalogue, the writes among them', () => {
-    expect(TOOLS.length).toBeGreaterThanOrEqual(44);
+    expect(TOOLS.length).toBeGreaterThanOrEqual(46);
     expect(TOOLS.filter((tool) => tool.access === 'write')).toHaveLength(2);
+    const names = TOOLS.map((tool) => tool.name);
+    expect(names).toContain('list_tenants');
+    expect(names).toContain('count_tenants');
   });
 
   it('puts the poison into the answers of nearly every tool, so the label is really tested', () => {

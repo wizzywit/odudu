@@ -107,7 +107,11 @@ afterAll(async () => {
 
 // A token of `mcp:read` is listed the reads alone; the writes are the write
 // tools test's.
-const READ_TOOLS = TOOLS.filter((tool) => tool.access === 'read');
+// What a tenant's own agent is offered: the reads that span tenants are the
+// system tenant's alone.
+const READ_TOOLS = TOOLS.filter(
+  (tool) => tool.access === 'read' && tool.routeKey.includes(':tenant'),
+);
 const CAPS = ['manage-clients', 'view-users', 'view-audit', 'manage-tenant'];
 const EVERY_CAPABILITY = [...CAPS, 'manage-sessions', 'manage-keys', 'view-domains'];
 const world = (capabilities: readonly string[] = CAPS, grantScope = 'openid mcp:read') =>

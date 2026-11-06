@@ -1,6 +1,6 @@
 import { type DatabaseHandle, withTenant } from '@odudu/db';
 import { effectiveRoles } from '@odudu/domain-authz';
-import { ADMIN_API_AUDIENCE } from '@odudu/domain-tenant';
+import { ADMIN_API_AUDIENCE, isSystemTenantId } from '@odudu/domain-tenant';
 import {
   callMcpTool,
   createInProcessCaller,
@@ -170,7 +170,14 @@ export function mcpRouteDepsFor(parts: McpDepsParts, limiter: ToolLimiter): McpR
         // by name reaches the admin API for any tool, which refuses it, and one
         // row says so.
         tools: async (purpose) =>
-          purpose === 'list' ? visibleTools(TOOLS, token.scope, await capabilities()) : TOOLS,
+          purpose === 'list'
+            ? visibleTools(
+                TOOLS,
+                token.scope,
+                await capabilities(),
+                isSystemTenantId(token.tenant.id),
+              )
+            : TOOLS,
         run: (tool, args) =>
           callMcpTool(
             {

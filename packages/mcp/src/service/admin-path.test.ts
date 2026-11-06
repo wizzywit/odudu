@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { expandPattern } from '#/service/admin-path';
+import { INSTANCE_READS } from '@odudu/protocol-admin';
+import { expandPattern, INSTANCE_PATTERNS } from '#/service/admin-path';
 
 describe('expandPattern', () => {
   it('fills the tenant and the parameters, each as one encoded segment', () => {
@@ -38,5 +39,51 @@ describe('expandPattern', () => {
         /segment/u,
       );
     }
+  });
+
+  describe('the instance-level reads', () => {
+    it('are the routes the admin API admits to the system tenant, no more and no fewer', () => {
+      expect(INSTANCE_PATTERNS.map((pattern) => `GET ${pattern}`).sort()).toEqual(
+        [...INSTANCE_READS].sort(),
+      );
+    });
+
+    it.each(['/admin/tenants', '/admin/tenants/count'])(
+      'leaves %s as it is, whoever the caller is',
+      (pattern) => {
+        expect(expandPattern(pattern, 'system', {})).toBe(pattern);
+        expect(expandPattern(pattern, 'acme', {})).toBe(pattern);
+      },
+    );
+
+    it('refuses a tenant or any other parameter for them', () => {
+      for (const params of [{ tenant: 'acme' }, { id: 'x' }, { tenant: '..' }]) {
+        expect(() => expandPattern('/admin/tenants', 'system', params)).toThrow();
+        expect(() => expandPattern('/admin/tenants/count', 'system', params)).toThrow();
+      }
+    });
+
+    it('refuses every other pattern that has no tenant segment', () => {
+      for (const pattern of [
+        '/admin/tenants/acme',
+        '/admin/tenants/../export',
+        '/admin/tenants/',
+        '/admin/tenants?name=x',
+        '/admin/tenants/count/x',
+        '/admin/tenant-imports',
+        '/admin',
+        '',
+        'admin/tenants',
+        '/admin/Tenants',
+      ]) {
+        expect(() => expandPattern(pattern, 'system', {}), pattern).toThrow(/tenant/u);
+      }
+    });
+
+    it('does not let a value in the tenant argument reshape the path', () => {
+      for (const tenant of ['', '.', '..']) {
+        expect(expandPattern('/admin/tenants', tenant, {})).toBe('/admin/tenants');
+      }
+    });
   });
 });

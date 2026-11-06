@@ -1,5 +1,5 @@
 import { type Database, type TenantScopedDatabase } from '@odudu/db';
-import { SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
+import { isSystemTenantId, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { type Clock } from '@odudu/kernel';
 import { issuerBaseFor, tenantIssuerFor } from '@odudu/protocol-oidc';
 import { Transform } from 'node:stream';
@@ -196,7 +196,10 @@ async function authorizeRoute(
   }
 
   const { principal } = outcome;
-  if (principal.agent !== undefined && !scopeAdmits(principal.scopes, route)) {
+  if (
+    principal.agent !== undefined &&
+    !scopeAdmits(principal.scopes, route, isSystemTenantId(principal.issuerTenantId))
+  ) {
     await refuseScope(deps, request, reply, targetTenant.id, principal);
     return null;
   }
