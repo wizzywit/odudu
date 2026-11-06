@@ -24,7 +24,7 @@ await writeFile(
   config,
   JSON.stringify({
     mcpServers: {
-      odudu: { type: 'streamable-http', url: mcpUrl, oauth: { scopes: 'mcp:read' } },
+      odudu: { type: 'streamable-http', url: mcpUrl },
     },
   }),
 );

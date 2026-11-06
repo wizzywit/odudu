@@ -760,11 +760,12 @@ scope="mcp:read"`; the protected resource metadata it names states the MCP
   (HTTP 200, the server answers the revision asked for), and so is a
   `tools/list` under that header.
 
-The Inspector reads the scopes to ask for from the protected resource
-metadata unless told otherwise, which is `mcp:read mcp:write` here, and under
-the `mcp` policy the registration is refused (400, `scope mcp:write is not
-available`). The run therefore gives it `oauth.scopes: "mcp:read"` in its
-config. The SDK follows the challenge and needs no such help.
+The Inspector takes the scopes to ask for from the protected resource
+metadata, `mcp:read mcp:write` here, so it registers and signs in asking for
+`mcp:write` as well. Under the `mcp` policy the registration keeps what a
+self-registered client may hold and the sign-in asks about `mcp:read` alone;
+the run fails if the Inspector cannot finish with that default. The SDK follows
+the challenge's `mcp:read`.
 
 Not automated, because they cannot run in CI: hosted Claude, Claude Code and
 Cursor, and a client ID metadata document (it needs a public HTTPS address).
