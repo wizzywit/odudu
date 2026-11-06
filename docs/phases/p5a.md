@@ -1097,3 +1097,11 @@ given.
 tenant at this base URL`) rather than trust another form. Windows and the
   Secret Service were not run. A sign-in in a container needs its loopback port
   reachable from the browser, so a container uses the key route.
+- **A call over stdio leaves no row of its own.** The live run
+  (`odudu-mcp-over-stdio.md`) shows the token issue as the tenant's only audit
+  rows after two reads: the MCP endpoint writes `agent.tool_call` for each call
+  it serves, the admin API wrote nothing for a `GET` made with a token issued
+  to the caller, and `odudu mcp` calls the admin API directly. What it can say
+  is which client and subject a token was issued to (`token.issue`), not which
+  tool read what. Whether the admin API should record an agent's reads is the
+  owner's call and is not made here.
