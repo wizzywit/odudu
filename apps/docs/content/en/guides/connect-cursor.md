@@ -12,7 +12,7 @@ You need the stack from the [quick start](../quick-start/index.mdx), with its `d
 
 ## What was checked, and what was not
 
-The Odudu side was run: the registration below, with the redirect addresses Cursor's documentation names, and the rest of the sign-in with the MCP Inspector 2.13.0 and the TypeScript SDK's client 2.4.0, which run against the endpoint on every change (`infra/conformance/run-mcp.sh`). **Cursor itself was not run by the authors yet.** The `mcp.json` shapes and the redirect addresses follow Cursor's documentation (`https://cursor.com/docs/context/mcp`) as read on 6 November 2026, and are tagged `text` where they are the vendor's syntax and not a command that runs here. Which protocol revision Cursor speaks is not published, and the endpoint serves both the 2025-11-25 and the 2026-07-28 revisions.
+The Odudu side was run: the registration below, with the redirect addresses Cursor's documentation names, and the rest of the sign-in with the MCP Inspector 2.13.0 and the TypeScript SDK's client 2.4.0, which run against the endpoint on every server change (`infra/conformance/run-mcp.sh`). **Cursor itself was not run by the authors yet.** The `mcp.json` shapes and the redirect addresses follow Cursor's documentation (`https://cursor.com/docs/context/mcp`) as read on 6 November 2026, and are tagged `text` where they are the vendor's syntax and not a command that runs here. Which protocol revision Cursor speaks is not published, and the endpoint serves both the 2025-11-25 and the 2026-07-28 revisions.
 
 ## 1. Point the commands at your server
 
@@ -54,7 +54,7 @@ Cursor reads `.cursor/mcp.json` in a project, or `~/.cursor/mcp.json` for every 
 }
 ```
 
-Cursor finds the sign-in from the endpoint's `401` and the metadata it points at, registers as above, and opens the tenant's sign-in page in your browser. You sign in and, on the consent page, tick `mcp:read` to allow it. Cursor is then connected to the 42 read tools, for what you may read.
+Cursor finds the sign-in from the endpoint's `401` and the metadata it points at, registers as above, and opens the tenant's sign-in page in your browser. You sign in and, on the consent page, tick `mcp:read` to allow it. Cursor is then connected to the read tools, for what you may read.
 
 ## 4. A fixed client id
 
@@ -77,6 +77,10 @@ Cursor's documentation gives the `auth` object for a server that has no dynamic 
 ```
 
 With `mcp:write` in `scopes`, the consent page asks about it at every sign-in, and the token lasts ten minutes with no refresh, so Cursor asks you to sign in again. The consent text for `mcp:write` and what an agent can change with it are in [Connect Claude](./connect-claude.md#what-claude-is-allowed-to-do), and they are the same for Cursor. So is the risk that stays: Cursor's own approval of each tool call is what stops an instruction an agent has read from changing a description, and that approval is Cursor's, not Odudu's.
+
+## Using the tools
+
+Once Cursor shows the server as connected, ask in plain language, for example "who am I signed in as?" or "list the clients in this tenant", and Cursor chooses the tool; it asks before running one unless you have told it not to, and that choice is Cursor's. A failed call comes back as an error Cursor reads to you, such as `mcp:invalid_arguments: id: must be a UUID`, and every call, refused ones included, is an `agent.tool_call` event in the console's audit trail. [Connect Claude](./connect-claude.md#using-the-tools) lists example requests, which work the same here. Claude Code and Claude Desktop were run by the owner on 6 November 2026 and Cursor was not, so what Cursor's menus call these things is its documentation's to say.
 
 ## 5. Put it back
 

@@ -12,9 +12,11 @@ You need a tenant set up for MCP clients, which [Protect an MCP server](./protec
 
 ## What was checked, and what was not
 
-The Odudu side of this page was run, against a stack built from this repository: the 401 challenge, the two metadata documents, registration under the `mcp` policy, the code flow with PKCE and the `resource` parameter, the token, 42 read tools in each protocol era, and a refused write by a read token. Two clients nobody here wrote did it, the MCP Inspector 2.13.0 and the TypeScript SDK's client 2.4.0, and they run again on every change (`infra/conformance/run-mcp.sh`).
+The Odudu side of this page was run, against a stack built from this repository: the 401 challenge, the two metadata documents, registration under the `mcp` policy, the code flow with PKCE and the `resource` parameter, the token, the read tools in each protocol era, and a refused write by a read token. Two clients nobody here wrote did it, the MCP Inspector 2.13.0 and the TypeScript SDK's client 2.4.0, and they run again on every server change (`infra/conformance/run-mcp.sh`).
 
-**The steps in Claude's own software were not run by the authors yet.** Claude Code, Claude Desktop and claude.ai are programs this page's authors could not run where it was written. The commands and settings below follow the vendor's documentation as read on 6 November 2026, linked where each is used, and a vendor can change them. Where a block is the vendor's syntax it is tagged `text`, which the guides use for what is shown and not run. If a step differs from what you see, the vendor's page is right about its own software, and a note to the Odudu project is welcome.
+**What was run in Claude's own software.** On 6 November 2026 the owner of the project ran Claude Code 2.1.319 and Claude Desktop 3.6556.2, as reported by the owner, against a local instance. In Claude Code the command-line form with `--client-id` and `--callback-port` against a client an administrator made (below) signed in and completed the sign-in inside the session, and the owner's reads, writes with an entity tag, a stale tag, refusals and bad arguments all behaved as this page says. Claude Desktop was run through the `odudu mcp` entry below, with the absolute path to `node`.
+
+**What was not run.** The `.mcp.json` settings (`oauth.scopes`, and the mix of `clientId`, `callbackPort` and `scopes`), Claude Code's own registration by metadata document or by dynamic registration, the claude.ai and Desktop connectors, and `odudu mcp` on Windows and with the Linux Secret Service. Those follow the vendor's documentation as read on 6 November 2026, linked where each is used, and a vendor can change them. Where a block is the vendor's syntax it is tagged `text`, which the guides use for what is shown and not run. If a step differs from what you see, the vendor's page is right about its own software, and a note to the Odudu project is welcome.
 
 ## Claude Code, to an instance on localhost
 
@@ -24,7 +26,7 @@ Add the tenant's endpoint as an HTTP server. The command is the one the Claude C
 claude mcp add --transport http odudu http://localhost:3000/tenants/demo/mcp
 ```
 
-Then, inside Claude Code, run `/mcp` and choose the server to sign in. Claude Code finds the sign-in from the `401` the endpoint answers with, reads the tenant's metadata, and registers itself, either by its metadata document or by dynamic registration, whichever the tenant allows. Your browser opens on the tenant's sign-in page, and then on a consent screen that names the client and offers `mcp:read` as a choice you tick. You are then signed in for reading: the 42 tools that read what you could read in the admin API.
+Then, inside Claude Code, run `/mcp` and choose the server to sign in. Claude Code finds the sign-in from the `401` the endpoint answers with, reads the tenant's metadata, and registers itself, either by its metadata document or by dynamic registration, whichever the tenant allows. Your browser opens on the tenant's sign-in page, and then on a consent screen that names the client and offers `mcp:read` as a choice you tick. You are then signed in for reading: the tools that read what you could read in the admin API.
 
 Which one Claude Code uses is its choice. A tenant with only `cimd_enabled` on is used by its metadata document, one with the `mcp` policy by registration as well. If the tenant allows neither, Claude Code says the server does not support registration, and you use a client you made, below.
 
@@ -32,8 +34,14 @@ Which one Claude Code uses is its choice. A tenant with only `cimd_enabled` on i
 
 A client that registered itself, or came from a metadata document, is never given `mcp:write`, however it asks. To let an agent change the descriptive text of clients and scopes, an administrator makes a client for Claude Code. It is public, its audience is the tenant's MCP address, and `mcp:read` and `mcp:write` are assigned to it as optional scopes. On the server's host, with the commands the other guides use:
 
+A **redirect address** (also called the callback) is where Odudu sends the browser, with the sign-in's result, when you have signed in. A client has to say in advance which addresses it may use, and Odudu sends the browser nowhere else. For Claude Code it is a small web server on your own machine that waits for that one visit, so the address is `http://localhost:` and a port number.
+
+Pick a port nothing else listens on, and check it with `lsof -i :8765`, which prints nothing when the port is free. The guides use 8765 because common local services use 8080. Browsers try `localhost` as the IPv6 address `::1` before the IPv4 one, so a service listening on IPv6 on that port, a container for one, takes the redirect and answers "Resource not found" instead of Claude Code.
+
+A client's **Audiences** setting says which servers a token issued to it may be used at. A client sends the address of the server it means to call as the `resource` of its sign-in (RFC 8707), and Odudu puts that address in the token's `aud` only if the client's Audiences list holds it exactly. The MCP endpoint takes a token only when `aud` names its own address. A client whose list does not hold the address is refused with `invalid_target`, which is why a client made without the audience is not offered the MCP endpoint.
+
 ```text
-docker compose exec odudu odudu seed client --tenant demo --client-id claude-code --public --redirect-uri http://localhost:8080/callback --audience http://localhost:3000/tenants/demo/mcp
+docker compose exec odudu odudu seed client --tenant demo --client-id claude-code --public --redirect-uri http://localhost:8765/callback --audience http://localhost:3000/tenants/demo/mcp
 docker compose exec odudu odudu seed assign-scope --tenant demo --client-id claude-code --scope mcp:read --assignment optional
 docker compose exec odudu odudu seed assign-scope --tenant demo --client-id claude-code --scope mcp:write --assignment optional
 ```
@@ -43,10 +51,18 @@ The same client can be made in the console, under **Clients**, with its **Audien
 Claude Code then takes the client id and a fixed callback port, which must match the redirect address registered above (the vendor's documentation, at `https://code.claude.com/docs/en/mcp`, gives `--client-id` and `--callback-port`, for a public client with no secret, and `oauth.scopes` for the scopes it asks for):
 
 ```text
-claude mcp add --transport http --client-id claude-code --callback-port 8080 odudu http://localhost:3000/tenants/demo/mcp
+claude mcp add --transport http --client-id claude-code --callback-port 8765 odudu http://localhost:3000/tenants/demo/mcp
 ```
 
-Claude Code asks for the scopes the server lists unless they are pinned, and the vendor's documentation shows pinning in the server's `oauth` object in `.mcp.json`. If it does not ask for `mcp:write` by itself, add `"scopes": "mcp:read mcp:write"` there. That `.mcp.json` combination of `clientId`, `callbackPort` and `scopes` is assembled from two of the vendor's examples and is the least certain step on this page.
+This command-line form, with `--client-id` and `--callback-port` against a client an administrator made, is what the owner ran on 6 November 2026, and it signed in. Claude Code asks for the scopes the server lists unless they are pinned, and the vendor's documentation shows pinning in the server's `oauth` object in `.mcp.json`. If it does not ask for `mcp:write` by itself, add `"scopes": "mcp:read mcp:write"` there. **That `.mcp.json` pinning, and the `.mcp.json` combination of `clientId`, `callbackPort` and `scopes`, were not run.** They are assembled from two of the vendor's examples and are the least certain step on this page.
+
+## Using the tools
+
+Sign in once with `/mcp` inside Claude Code and choose the server; the browser steps above happen then. After that, ask in plain language, for example "who am I signed in as?", "list the clients in this tenant", "which users logged in this week?" or "what changed in the audit trail today?". Claude picks the tool. Claude Code names an MCP server's tools `mcp__<server>__<tool>`, so for a server added as `odudu` they are `mcp__odudu__whoami`, `mcp__odudu__list_clients` and so on, and it asks you to allow a tool the first time it uses it. Read an answer's data as Claude's account of it: the audit trail has what was actually called.
+
+With a client that holds `mcp:write` you can also ask for a change, for example "rewrite the description of the `claude-code` client to say who runs it" or "add a German text for the description of the scope named `reports`". Claude reads the resource first and sends the entity tag it read; approve the call after reading what it will change.
+
+A failure comes back to Claude as an error it reads and tells you, with a reason such as `mcp:invalid_arguments: id: must be a UUID` for a malformed argument, or a refusal that says the person lacks a capability. A call you did not expect to be refused is in the console's audit trail, as an `agent.tool_call` event with the reason. In Claude Code, `/mcp` shows whether the server is connected and lets you sign in again when the sign-in has ended. Claude Desktop shows a server that failed to start in its own settings, which this page did not check further.
 
 ## Claude Desktop, through `odudu mcp`
 
@@ -101,7 +117,7 @@ A connector is added in claude.ai under **Customize, Connectors, Add, Add custom
 
 An Odudu you downloaded and run on your own machine is not. Say so plainly: it needs a tunnel, or a real deployment, that gives the instance a public `https` address, and the instance has to state that address as its own (`ODUDU_PUBLIC_BASE_URL`, with TLS ended in front of it; [Deploying](../operating/deploying.md) has the settings). The MCP address you give Claude is then that public one. The tenant's `cimd_enabled` setting and `mcp` policy decide whether Claude's published identity or its registration is accepted. Claude's redirect address is `https://claude.ai/api/mcp/auth_callback`, an `https` address that a registered client or one from a metadata document may use.
 
-None of this was run against Anthropic's servers by the authors, who had no public address to run it from. The Inspector and the SDK client run the same discovery and sign-in against the endpoint on every change, and that is all this page claims.
+None of this was run against Anthropic's servers by the authors, who had no public address to run it from. The Inspector and the SDK client run the same discovery and sign-in against the endpoint on every server change, and that is all this page claims.
 
 ## What Claude is allowed to do
 
