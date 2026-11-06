@@ -114,6 +114,26 @@ export function serviceAccountProblem(clientId: string): Problem {
   );
 }
 
+export type IdempotencyRefusal = 'secret' | 'not-atomic' | 'external-io';
+
+export function idempotencyBusy(): Problem {
+  return problem(
+    503,
+    'about:blank#idempotency-busy',
+    'Service Unavailable',
+    'too many requests with an Idempotency-Key are running; nothing was applied, repeat it shortly',
+  );
+}
+
+export function idempotencyUnavailable(): Problem {
+  return problem(
+    503,
+    'about:blank#idempotency-unavailable',
+    'Service Unavailable',
+    "this server's database pool is too small to run requests with an Idempotency-Key; nothing was applied, repeat the request without one",
+  );
+}
+
 export function idempotencyKeyInvalid(): Problem {
   return problem(
     400,
@@ -123,7 +143,15 @@ export function idempotencyKeyInvalid(): Problem {
   );
 }
 
-export function idempotencyUnsupported(reason: 'secret' | 'not-atomic'): Problem {
+export function idempotencyUnsupported(reason: IdempotencyRefusal): Problem {
+  if (reason === 'external-io') {
+    return problem(
+      400,
+      'about:blank#idempotency-external-io',
+      'Bad Request',
+      'this route waits on another server (mail or DNS) while it runs, which a record cannot cover without holding the call open, so it takes no Idempotency-Key; repeat it without one',
+    );
+  }
   return reason === 'secret'
     ? problem(
         400,

@@ -92,6 +92,10 @@ const NO_IDEMPOTENCY = {
     'call would share, so a request naming one is refused with `400` ' +
     '(`about:blank#idempotency-not-atomic`) and nothing is applied. A repeat of a create that ' +
     'already happened is answered `409`.',
+  'external-io':
+    'Takes no `Idempotency-Key`: the call waits on another server (mail or DNS) while it runs, ' +
+    'which a record cannot cover without holding the call open, so a request naming one is ' +
+    'refused with `400` (`about:blank#idempotency-external-io`) and nothing is applied.',
 } as const;
 
 const BEARER_SECURITY_SCHEME = {

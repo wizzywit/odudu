@@ -294,6 +294,41 @@ describe('a route whose response carries a secret shown once', () => {
   });
 });
 
+describe('what a keyed call does once it is committed', () => {
+  it('drops the theme cache only for a call that kept its record, never for one the ceiling undid', async () => {
+    for (let round = 0; round < 3; round += 1) {
+      const { t, token } = await world();
+      const draft = await fixture.http.inject({
+        method: 'PUT',
+        url: `/admin/tenants/${t.name}/theme`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload: JSON.stringify({ stylesheet: '.page { color: #123456; }' }),
+      });
+      expect(draft.statusCode, draft.body).toBe(200);
+      await fixture.owner.db.execute(sql`
+        insert into idempotency_keys (tenant_id, key, route, fingerprint, status, response_status,
+                                      response_body, created_at, expires_at)
+        select ${t.id}, 'fill-' || g, 'r', ${'0'.repeat(64)}, 'completed', 200, '', now(),
+               now() + interval '1 hour'
+          from generate_series(1, 9999) g`);
+      const before = fixture.invalidatedThemes.filter((id) => id === t.id).length;
+      const [publish, role] = await Promise.all([
+        post(t.name, token, '/theme/publish', undefined, { 'idempotency-key': `p-${newId()}` }),
+        post(
+          t.name,
+          token,
+          '/roles',
+          { name: `role-${newId()}` },
+          { 'idempotency-key': `r-${newId()}` },
+        ),
+      ]);
+      expect([publish.statusCode, role.statusCode].filter((code) => code === 429)).toHaveLength(1);
+      const dropped = fixture.invalidatedThemes.filter((id) => id === t.id).length - before;
+      expect(dropped).toBe(publish.statusCode === 200 ? 1 : 0);
+    }
+  });
+});
+
 describe('POST /admin/tenants', () => {
   it('refuses the key, since it writes outside the transaction a record would share', async () => {
     const token = await fixture.systemAdminToken([...TENANT_CAPABILITIES, 'manage-tenants']);

@@ -290,6 +290,25 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
       'registration token), which the server never stores, so there is nothing to replay. ' +
       'Nothing was applied; repeat the request without the header.',
   },
+  'idempotency-external-io': {
+    status: 400,
+    summary:
+      'The route (testing a mail relay, verifying a domain) waits on another server while it ' +
+      'runs. A record would have to hold the call open for that wait, so it takes no ' +
+      '`Idempotency-Key`; nothing was applied. Repeat the request without the header.',
+  },
+  'idempotency-busy': {
+    status: 503,
+    summary:
+      'Too many requests with an `Idempotency-Key` were running, and this one waited ten ' +
+      'seconds or found the queue full. Nothing was applied. Repeat it after `Retry-After`.',
+  },
+  'idempotency-unavailable': {
+    status: 503,
+    summary:
+      'The server\u2019s database pool is a single connection, too small to run a request with ' +
+      'an `Idempotency-Key`. Nothing was applied. Repeat it without the header.',
+  },
   'idempotency-not-atomic': {
     status: 400,
     summary:

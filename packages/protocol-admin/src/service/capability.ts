@@ -209,8 +209,9 @@ export interface AdminRoute {
   // The route refuses an `Idempotency-Key`. `secret`: the response carries a
   // secret shown once, which is never stored, so there is nothing to replay.
   // `not-atomic`: the route writes outside the request's transaction, so a
-  // record could not prove the call happened.
-  readonly noIdempotency?: 'secret' | 'not-atomic';
+  // record could not prove the call happened. `external-io`: the handler waits
+  // on another server (mail, DNS) while it holds the request's connection.
+  readonly noIdempotency?: 'secret' | 'not-atomic' | 'external-io';
 }
 
 // Appended to the description of every route that mutates one subject.
@@ -1344,6 +1345,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/domains/:id/verify',
+    noIdempotency: 'external-io',
     capability: 'manage-domains',
     responseSchema: domainSchema,
     description:
@@ -1830,6 +1832,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/smtp/test',
+    noIdempotency: 'external-io',
     capability: 'manage-tenant',
     responseSchema: testSmtpResponseSchema,
     bodySchema: testSmtpRequestSchema,

@@ -517,6 +517,33 @@ Keep-Alive: timeout=72
 {"type":"about:blank#idempotency-not-atomic","title":"Bad Request","status":400,"detail":"this route writes outside the transaction a record would share, so it takes no Idempotency-Key; a repeat of a create that already happened is answered 409","instance":"01a1ae19-add4-7c3e-b9a0-4f4c17ef1133"}
 ```
 
+A route that waits on another server while it runs (testing a tenant's mail relay, verifying a domain's DNS record) takes no
+key either: a slow host would hold the call, its database connection and one of the few places keyed calls run in, so it is
+refused with `400` (`about:blank#idempotency-external-io`) and nothing is applied. This ran on a third freshly built stack,
+`odudu-p5a-i6c`, in a tenant `idem-demo` made there:
+
+```bash
+curl -sS -D - -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 7b1d4c92-0e3a-4f58-8d6c-2a9e5f1b3c70" \
+  -d '{"to": "ops@example.com"}' \
+  http://localhost:3000/admin/tenants/idem-demo/smtp/test
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a1ae31-ea34-7bf9-9f3c-b83885198fcc
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 319
+Date: Fri, 06 Nov 2026 00:11:09 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank#idempotency-external-io","title":"Bad Request","status":400,"detail":"this route waits on another server (mail or DNS) while it runs, which a record cannot cover without holding the call open, so it takes no Idempotency-Key; repeat it without one","instance":"01a1ae31-ea34-7bf9-9f3c-b83885198fcc"}
+```
+
 What the server kept, read as the database owner and scoped to the tenant: one row, for the one call that
 succeeded, kept for a day.
 

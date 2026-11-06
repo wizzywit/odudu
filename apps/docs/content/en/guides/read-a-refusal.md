@@ -139,7 +139,7 @@ Full transcript: [POST …/subjects, refused as cross-site](../reference/transcr
 
 ## 8. A request sent twice
 
-A client that never hears an answer to a create cannot tell whether it arrived. Admin `POST` routes take an `Idempotency-Key` (the few that answer a secret shown once, and creating a tenant, refuse it): the first call with a key runs, and a repeat is answered from the first without running again. This is the same command as the first call, sent a second time.
+A client that never hears an answer to a create cannot tell whether it arrived. Admin `POST` routes take an `Idempotency-Key` (the few that answer a secret shown once, wait on another server, or create a tenant refuse it): the first call with a key runs, and a repeat is answered from the first without running again. This is the same command as the first call, sent a second time.
 
 ```bash
 curl -sS -D - -X POST \

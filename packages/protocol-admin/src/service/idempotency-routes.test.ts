@@ -8,7 +8,7 @@ const SUSPECT_FIELD = /setup|recovery|invite|url|link|code|key|otp|credential|pr
 
 // Every POST, classified. A new POST fails the first test until it is
 // listed here, which is where somebody decides what a replay of it would do.
-const CLASSIFIED: Record<string, 'idempotent' | 'secret' | 'not-atomic'> = {
+const CLASSIFIED: Record<string, 'idempotent' | 'secret' | 'not-atomic' | 'external-io'> = {
   '/admin/tenants/:tenant/subjects': 'idempotent',
   '/admin/tenants/:tenant/subjects/bulk': 'idempotent',
   '/admin/tenants/:tenant/subjects/:id/password': 'secret',
@@ -26,7 +26,7 @@ const CLASSIFIED: Record<string, 'idempotent' | 'secret' | 'not-atomic'> = {
   '/admin/tenants/:tenant/clients/:id/theme/versions/:versionId/restore': 'idempotent',
   '/admin/tenants/:tenant/registration-tokens': 'secret',
   '/admin/tenants/:tenant/domains': 'idempotent',
-  '/admin/tenants/:tenant/domains/:id/verify': 'idempotent',
+  '/admin/tenants/:tenant/domains/:id/verify': 'external-io',
   '/admin/tenants/:tenant/domains/:id/activate': 'idempotent',
   '/admin/tenants/:tenant/domains/:id/deactivate': 'idempotent',
   '/admin/tenants/:tenant/roles': 'idempotent',
@@ -37,7 +37,7 @@ const CLASSIFIED: Record<string, 'idempotent' | 'secret' | 'not-atomic'> = {
   '/admin/tenants/:tenant/keys': 'idempotent',
   '/admin/tenants/:tenant/keys/:id/promote': 'idempotent',
   '/admin/tenants/:tenant/keys/:id/retire': 'idempotent',
-  '/admin/tenants/:tenant/smtp/test': 'idempotent',
+  '/admin/tenants/:tenant/smtp/test': 'external-io',
 };
 
 // Response members that look like a secret by name and are not, each

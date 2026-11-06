@@ -26,7 +26,9 @@ import {
 import { authorizeAdmin, type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
 import { idempotencyKeyOf, idempotentMethod } from '#/service/idempotency';
 import {
+  idempotencyBusy,
   idempotencyKeyInvalid,
+  idempotencyUnavailable,
   idempotencyUnsupported,
   problem,
   queryProblem,
@@ -271,7 +273,7 @@ function answerRoute(
   if (route.noIdempotency !== undefined) {
     return sendProblem(reply, request, idempotencyUnsupported(route.noIdempotency));
   }
-  return gate.run(() =>
+  return enterGate(gate, request, reply, () =>
     sendIdempotent({
       database: deps.database,
       request,
@@ -284,6 +286,41 @@ function answerRoute(
       run,
     }),
   );
+}
+
+// A keyed call waits here for a slot, holding no connection, and is refused
+// when there is none to be had.
+async function enterGate(
+  gate: KeyedGate,
+  request: AdminRequest,
+  reply: FastifyReply,
+  run: () => Promise<FastifyReply>,
+): Promise<FastifyReply> {
+  const gone = new AbortController();
+  const onClose = () => {
+    gone.abort();
+  };
+  request.raw.once('close', onClose);
+  try {
+    const entry = await gate.acquire(gone.signal);
+    if (entry.kind === 'refused') {
+      if (entry.reason === 'disabled') {
+        sendProblem(reply, request, idempotencyUnavailable());
+      } else {
+        reply.header('retry-after', '1');
+        sendProblem(reply, request, idempotencyBusy());
+      }
+      return await reply;
+    }
+    request.raw.off('close', onClose);
+    try {
+      return await run();
+    } finally {
+      entry.release();
+    }
+  } finally {
+    request.raw.off('close', onClose);
+  }
 }
 
 // Before the body of a JSON route is read or checked: who is asking, and

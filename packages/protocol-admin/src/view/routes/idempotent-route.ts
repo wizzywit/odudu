@@ -101,6 +101,18 @@ function replay(reply: FastifyReply, stored: IdempotentResponse): FastifyReply {
  * share one transaction: a record proves the call happened, and a call that
  * failed or was refused leaves none.
  */
+// What the call asked to happen once it was committed. One that throws is
+// logged and skipped: the call is done, and the caller is told so.
+export function runAfterCommit(effects: readonly (() => void)[], request: FastifyRequest): void {
+  for (const effect of effects) {
+    try {
+      effect();
+    } catch (error) {
+      request.log.error({ err: error }, 'an effect after a committed keyed call failed');
+    }
+  }
+}
+
 export async function sendIdempotent(call: IdempotentCall): Promise<FastifyReply> {
   const { request, reply, route, tenantId, principal } = call;
   const held = holdSend(reply);
@@ -161,7 +173,7 @@ export async function sendIdempotent(call: IdempotentCall): Promise<FastifyReply
 
   if (result.kind === 'stored') return replay(reply, result.response);
   if (result.kind !== 'fresh') return answerRefused(reply, request, result);
-  for (const effect of after) effect();
+  runAfterCommit(after, request);
   if (!result.stored) return reply.send(heldPayload);
   const { body, headers } = result.response;
   if (headers['content-type'] !== undefined) reply.header('content-type', headers['content-type']);
