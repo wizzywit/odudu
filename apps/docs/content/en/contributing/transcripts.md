@@ -73,7 +73,9 @@ with, as Prettier leaves them. The scope update was the last call of the run (it
 `GET /admin/openapi.json`'s block was fetched again on 2026-11-06 on a freshly built compose project, `odudu-p5a-i9c` (port `3091`,
 built from the branch commit `5b55907c4` plus the change that made a NUL in a group's, a role's or a subject's text a refused field in the
 contracts), because the document grew by 226 bytes. Its request id, date and size are that fetch's; the stack and its image were
-removed afterwards.
+removed afterwards. It was fetched once more on the same day on the compose project `odudu-p5a-ffa` (port `3091`, built from the
+branch commit `83a96ae16`), because the description of `max_clients` changed and the document grew by 122 bytes; the block's request
+id, date and size are that fetch's, and the stack and its image were removed afterwards.
 
 The stdio server's page, `odudu-mcp-over-stdio.md`, was captured, and re-captured after the admin API began recording a direct agent call, on 2026-11-06 on a freshly built compose project,
 `odudu-p5a-i10b` (port `3000`, Postgres published on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch

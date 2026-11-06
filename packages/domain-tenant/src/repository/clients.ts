@@ -292,16 +292,11 @@ export function clientRepository(tx: TenantScopedDatabase) {
       return rows.map(toRecord);
     },
 
-    // `SELECT ... FOR NO KEY UPDATE` on the tenant row before the `COUNT`, in
-    // the same transaction the caller inserts the new client in — a bare
-    // COUNT then INSERT lets two concurrent registrations both see room under
-    // the cap. Serialises registrations within one tenant, but not behind the
-    // key-share lock every foreign key to the tenant row takes (ADR 0033).
-    // A different tenant's registration takes a different row.
-    // `max_clients` is the operator's ceiling: a client that arrived over the
-    // wire (a metadata document, a self-registration) is never counted
-    // against it, so nobody unauthenticated can fill it. Served by
-    // clients_operator_by_tenant.
+    // Locks the tenant row (`FOR NO KEY UPDATE`) before the `COUNT`, in the
+    // caller's insert transaction: a bare COUNT then INSERT lets two concurrent
+    // registrations both see room (ADR 0033). `max_clients` is the operator's
+    // ceiling and counts only clients an operator made, so nobody unsigned can
+    // fill it. Served by clients_operator_by_tenant.
     async lockCapacity(tenantId: string): Promise<ClientCapacity> {
       const maxClients = await lockTenantRow(tx, tenantId);
       return countUpTo(
