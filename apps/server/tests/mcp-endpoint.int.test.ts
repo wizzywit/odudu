@@ -488,7 +488,7 @@ describe('the protocol', () => {
     expect(res.status).toBe(200);
     const result = res.json().result as Record<string, unknown>;
     expect(result.supportedVersions).toContain('2026-07-28');
-    expect(result.capabilities).toHaveProperty('tools');
+    expect(result.capabilities).toEqual({ tools: { listChanged: false } });
     expect(result).toMatchObject({ cacheScope: 'private', ttlMs: 60_000 });
   });
 

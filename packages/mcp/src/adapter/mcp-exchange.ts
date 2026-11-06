@@ -60,6 +60,9 @@ export function createMcpExchange(parts: ExchangeParts): McpExchange {
       const handler = createMcpHandler(
         async () => {
           const server = new McpServer(SERVER_INFO, {
+            // The list is built for one request and never changes under a
+            // client, so no change is ever announced.
+            capabilities: { tools: { listChanged: false } },
             cacheHints: {
               'tools/list': { ttlMs: TOOLS_LIST_TTL_MS, cacheScope: 'private' },
               'server/discover': { ttlMs: TOOLS_LIST_TTL_MS, cacheScope: 'private' },
