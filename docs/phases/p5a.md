@@ -769,3 +769,62 @@ here is unbounded or scans a table.
 - `outputSchema` for the tools, and CORS for a browser client at another origin: the second is
   refused by design (Origin must be the tenant's own); neither is wanted by a target client.
 - What hosted Claude, Claude Code and Cursor negotiate: the hand run of the closing increment.
+
+### Fix round 1
+
+- **Host without a base address.** With no `ODUDU_PUBLIC_BASE_URL` the tenant's address is read off the
+  request, so comparing the two compared a header with itself (`Host: evil.example` with `Origin:
+http://evil.example` was served). `hostAccepted`/`originAccepted` take whether the address is configured;
+  when it is not, only `localhost`, `127.0.0.1` and `[::1]` (any port) pass, with the same 403 as any other
+  refusal, so the two modes answer alike. A verified custom domain cannot arrive in that mode, since host
+  resolution needs a base address too, so there is no domain host to accept. A trailing dot is read as the
+  host without it.
+- **Throttle before anything is read.** A per-origin budget (`DEFAULT_MCP_ORIGIN_THROTTLE`, 600 a minute,
+  the existing `slidingWindow`, bounded by `MAX_THROTTLE_KEYS`) runs as an `onRequest` hook on the MCP
+  route, ahead of the host check, so a burst of garbage tokens is `429` with no tenant, key or address read
+  (the int test counts the address reads). Behind a proxy the origin is the proxy, so the figure is the
+  deployment's traffic from it.
+- **The limiter** now has a per-person budget beside the per-principal one (120 a minute across a person's
+  clients, so ten registered clients do not spend the tenant's 600), and its windows are sliding (two fixed
+  windows weighted), so a burst across a boundary is bounded by the limit: a test spends 60 at the end of a
+  minute and is allowed at most two in the next two seconds. Caps: 100,000 principals, 50,000 people and
+  10,000 tenants (three numbers each, about 160,000 small records); past a cap the least recently used key
+  is dropped and starts afresh, and a key that keeps asking while refused counts as recent.
+- **A tool called by name** that the token's scope does not admit now reaches the call path: the exchange
+  refuses it before anything is sent to the admin API, the result is a 403 `insufficient_scope` and one
+  `agent.tool_call` row says `refused`. Only a listing leaves tools out. Latent until a write tool exists;
+  a unit test uses a fake write tool with a read token.
+- **A deadline** of 20 seconds per tool call (`TOOL_DEADLINE_MS`): the call is answered `mcp:timeout`
+  (504 class) and recorded failed; the admin call it started is not cancelled.
+- **Tenant segment.** `%00`, an encoded slash, bytes that are not UTF-8, a lone surrogate and a name of
+  5,000 characters are 400, 404 or 414 and never 500 (real Postgres): the segment is neutralised in the
+  route's `onRequest`, ahead of the tenant read.
+- **Layering.** The sequence of checks is `usecase/admit-mcp-request.ts`; the route maps its outcome.
+- **One `extractBearerToken`** (protocol-oidc); the admin door's private copy is gone. It trims a header's
+  trailing whitespace, which is not part of a credential.
+- **Access log.** A hijacked reply skips `onResponse`, where Fastify logs a request as completed, so the
+  route writes that line itself (statusCode and responseTime); a test holds it.
+- **Cost per request** (a throwaway benchmark of 200 runs): building a server and registering the 42 tools
+  takes 0.08 ms and converting the 42 schemas for a listing 1.2 ms, so nothing is cached.
+- **The audit detail** carries an optional `reason` (`insufficient_scope`, `missing_capability`) beside
+  `agent_client`, `owner`, `tool` and `route`: a category, never an argument.
+- **How a client gets an MCP-audience token** (each kind run by the endpoint's int test with the real
+  `/authorize`, login, consent and `/token`, except where said):
+  - A client that registered itself under the tenant's `mcp` registration policy: the registration names
+    `audience` (the tenant's MCP address, the only one allowed), `/authorize` and `/token` both carry
+    `resource` set to it, the person consents to `mcp:read` (an optional scope on the screen), and the
+    token's `aud` holds the MCP address and the issuer. Asking for `openid` alone still carries the audience
+    but no MCP scope: `403 insufficient_scope`. The policy ending removes the audience at the next refresh
+    (`aud` loses the MCP address and the scope loses `mcp:read`), and the endpoint answers `401`.
+  - A client from a metadata document: given the audience and an optional `mcp:read` by the policy while it
+    is `mcp` (not run through the endpoint here; covered by the oidc suite).
+  - A client an administrator created: its `audiences` must hold the MCP address and `mcp:read` must be
+    assigned to it; it sends `resource` (not run through the endpoint here).
+  - An ordinary client (here the seeded `portal`): its token's `aud` is the tenant's address alone, `401`.
+  - The built-in `odudu-mcp`: its audience is the admin API, so a request for the MCP address as `resource`
+    is not served at `/authorize`; it is for local tools that call the admin API directly.
+  - A machine (`client_credentials`) is not run against this endpoint.
+- **Dependencies and release age** (floor 1,440 minutes, checked with `npm view <pkg> time` on 2026-11-06):
+  `@modelcontextprotocol/server` 2.4.0 2026-10-23, `node` 2.1.2 2026-10-23, `client` 2.4.0 2026-10-23, `core`
+  2.4.0 2026-10-23, `@hono/node-server` 2.1.6 2026-11-02, `hono` 4.13.16 2026-11-01, `eventsource-parser`
+  3.1.1 2026-08-10, `eventsource` 3.0.7 2025-05-09, `pkce-challenge` 5.0.1 2025-11-23. All older than the floor.

@@ -9,9 +9,17 @@ import {
   ADMIN_API_AUDIENCE,
   clientRepository,
   MCP_CLIENT_ID,
+  tenantAddressing,
   tenantDomainRepository,
 } from '@odudu/domain-tenant';
-import { addressIssuer, domainAddress, loadConfig, mcpAudienceOfIssuer } from '@odudu/kernel';
+import {
+  addressIssuer,
+  domainAddress,
+  loadConfig,
+  mcpAudienceOfIssuer,
+  newId,
+  systemClock,
+} from '@odudu/kernel';
 import { TOOLS } from '@odudu/mcp';
 import { tokenGrantRepository } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -21,6 +29,7 @@ import { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp, type AppDeps } from '#/app';
 import { createLogger } from '#/logger';
+import { seed } from '#/cli/seed';
 import { mcpWorld, type World } from '#/testing/mcp-world';
 
 // The MCP endpoint through the real app: real signing keys, a real database,
@@ -31,6 +40,8 @@ let owner: DatabaseHandle;
 let appDb: DatabaseHandle;
 let app: FastifyInstance;
 let limitedApp: FastifyInstance;
+let throttledApp: FastifyInstance;
+let addressingReads = 0;
 let logger: ReturnType<typeof createLogger>;
 const adminSeen: { url: string; authorization: string | undefined }[] = [];
 
@@ -72,12 +83,20 @@ beforeAll(async () => {
   limitedApp = build({
     mcpToolLimits: { perPrincipal: { limit: 3, windowSeconds: 60 } },
   });
-  await Promise.all([app.ready(), limitedApp.ready()]);
+  throttledApp = build({
+    mcpOriginThrottle: { limit: 3, windowSeconds: 60 },
+    addressing: (tenantName, issuer) => {
+      addressingReads += 1;
+      return tenantAddressing(owner.db, tenantName, issuer, systemClock.now());
+    },
+  });
+  await Promise.all([app.ready(), limitedApp.ready(), throttledApp.ready()]);
 }, 120_000);
 
 afterAll(async () => {
   await app.close();
   await limitedApp.close();
+  await throttledApp.close();
   delete process.env.ODUDU_DATABASE_URL;
   delete process.env.ODUDU_APP_DATABASE_URL;
   delete process.env.ODUDU_KEK;
@@ -860,5 +879,341 @@ describe('a tenant on its own domain', () => {
     const rows = await auditRows(two.w, 'token.foreign_issuer');
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ actorTenantId: one.w.tenantId });
+  });
+});
+
+describe('before anything is looked up', () => {
+  it('answers 429 to a burst of garbage tokens from one origin without reading the tenant', async () => {
+    const w = await world();
+    const m = modern('tools/list');
+    const garbage = () =>
+      send(w, { on: throttledApp, token: 'garbage', headers: m.headers, body: m.body });
+    const before = addressingReads;
+    for (let i = 0; i < 3; i += 1) expect((await garbage()).status).toBe(401);
+    expect(addressingReads - before).toBe(3);
+    const refused = await garbage();
+    expect(refused.status).toBe(429);
+    expect(Number(refused.headers['retry-after'])).toBeGreaterThan(0);
+    expect(addressingReads - before).toBe(3);
+  });
+});
+
+describe('a tenant name that is not one', () => {
+  it.each([
+    ['a NUL', 'a%00b'],
+    ['a name far too long', 'a'.repeat(5000)],
+    ['bytes that are not UTF-8', '%ff%fe'],
+    ['an encoded slash', 'a%2Fb'],
+    ['a lone encoded surrogate', '%ED%A0%80'],
+  ])('with %s is an unknown tenant, never a server error', async (_l, name) => {
+    const w = await world();
+    const res = await send(w, {
+      url: `/tenants/${name}/mcp`,
+      token: await sign(w),
+      ...modern('tools/list'),
+    });
+    expect([400, 404, 414]).toContain(res.status);
+  });
+});
+
+describe('a token minted by the real flow', () => {
+  const PASSWORD = 'correct horse battery staple';
+  const MCP_REDIRECT = 'http://127.0.0.1:8080/callback';
+  const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
+  const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+
+  async function mcpTenant() {
+    const name = `real-${newId()}`;
+    const username = `u${newId().slice(-10)}`;
+    const seeded = await seed({
+      tenant: name,
+      clientId: 'portal',
+      redirectUris: ['https://app.example/callback'],
+      username,
+      password: PASSWORD,
+    });
+    const subjectId = seeded.userSubjectId;
+    if (subjectId === undefined) throw new Error('no user');
+    await withTenant(appDb.db, seeded.tenantId, async (tx) => {
+      const admin = await clientRepository(tx).byClientId('odudu-admin');
+      if (admin === null) throw new Error('no admin client');
+      const role = await roleRepository(tx).byName('view-users', admin.id);
+      if (role === null) throw new Error('no role');
+      await roleRepository(tx).assignToSubject(subjectId, role.id);
+    });
+    await owner.db
+      .update(tenants)
+      .set({ clientRegistrationPolicy: 'mcp' })
+      .where(eq(tenants.id, seeded.tenantId));
+    const issuer = `${BASE}/tenants/${name}`;
+    return {
+      name,
+      username,
+      tenantId: seeded.tenantId,
+      subjectId,
+      issuer,
+      resource: mcpAudienceOfIssuer(issuer),
+    };
+  }
+
+  type Real = Awaited<ReturnType<typeof mcpTenant>>;
+
+  async function register(t: Real, scope: string, grants: string[] = ['authorization_code']) {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/tenants/${t.name}/clients-registrations/openid-connect`,
+      headers: { host: HOST },
+      payload: {
+        client_name: 'Real flow agent',
+        redirect_uris: [MCP_REDIRECT],
+        token_endpoint_auth_method: 'none',
+        grant_types: grants,
+        scope,
+        audience: t.resource,
+      },
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    return res.json<{ client_id: string }>().client_id;
+  }
+
+  function jarOf(jar: Map<string, string>, res: { headers: Record<string, unknown> }): void {
+    const raw = res.headers['set-cookie'];
+    const lines: string[] = Array.isArray(raw)
+      ? raw.filter((x): x is string => typeof x === 'string')
+      : typeof raw === 'string'
+        ? [raw]
+        : [];
+    for (const line of lines) {
+      const [pair] = line.split(';');
+      const eq = pair?.indexOf('=') ?? -1;
+      if (pair === undefined || eq < 0) continue;
+      const value = pair.slice(eq + 1);
+      if (value === '') jar.delete(pair.slice(0, eq));
+      else jar.set(pair.slice(0, eq), value);
+    }
+  }
+
+  const cookieHeader = (jar: Map<string, string>) =>
+    [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
+
+  function sessionField(html: string): string {
+    const found = /name="auth_session_id" value="([^"]*)"/u.exec(html)?.[1];
+    if (found === undefined) throw new Error(`no auth_session_id in ${html.slice(0, 200)}`);
+    return found;
+  }
+
+  async function authorize(
+    t: Real,
+    clientId: string,
+    params: { scope: string; resource?: string; redirect?: string },
+  ) {
+    const jar = new Map<string, string>();
+    const query = new URLSearchParams({
+      response_type: 'code',
+      client_id: clientId,
+      redirect_uri: params.redirect ?? MCP_REDIRECT,
+      scope: params.scope,
+      state: 's',
+      code_challenge: CHALLENGE,
+      code_challenge_method: 'S256',
+      ...(params.resource === undefined ? {} : { resource: params.resource }),
+    });
+    const page = await app.inject({
+      method: 'GET',
+      url: `/tenants/${t.name}/protocol/openid-connect/auth?${query.toString()}`,
+      headers: { host: HOST },
+    });
+    jarOf(jar, page);
+    return { page, jar };
+  }
+
+  async function signInAndConsent(
+    t: Real,
+    page: { body: string },
+    jar: Map<string, string>,
+    consent: boolean,
+  ) {
+    const form = { 'content-type': 'application/x-www-form-urlencoded', host: HOST };
+    const login = await app.inject({
+      method: 'POST',
+      url: `/tenants/${t.name}/login-actions/authenticate`,
+      headers: { ...form, cookie: cookieHeader(jar) },
+      payload: new URLSearchParams({
+        auth_session_id: sessionField(page.body),
+        username: t.username,
+        password: PASSWORD,
+      }).toString(),
+    });
+    jarOf(jar, login);
+    // A client that needs no consent is sent straight back with its code.
+    if (!consent || login.statusCode === 302) return login;
+    const allowed = await app.inject({
+      method: 'POST',
+      url: `/tenants/${t.name}/login-actions/consent`,
+      headers: { ...form, cookie: cookieHeader(jar) },
+      payload: new URLSearchParams({
+        auth_session_id: sessionField(login.body),
+        ...(login.body.includes('value="mcp:read"') ? { scope: 'mcp:read' } : {}),
+        decision: 'allow',
+      }).toString(),
+    });
+    jarOf(jar, allowed);
+    return allowed;
+  }
+
+  function codeOf(res: {
+    statusCode: number;
+    headers: Record<string, unknown>;
+    body: string;
+  }): string {
+    const location = res.headers.location;
+    const code = typeof location === 'string' ? new URL(location).searchParams.get('code') : null;
+    if (code === null)
+      throw new Error(`no code: ${String(res.statusCode)} ${res.body.slice(0, 200)}`);
+    return code;
+  }
+
+  async function tokens(
+    t: Real,
+    clientId: string,
+    code: string,
+    resource?: string,
+    redirect = MCP_REDIRECT,
+  ) {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/tenants/${t.name}/protocol/openid-connect/token`,
+      headers: { 'content-type': 'application/x-www-form-urlencoded', host: HOST },
+      payload: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirect,
+        client_id: clientId,
+        code_verifier: VERIFIER,
+        ...(resource === undefined ? {} : { resource }),
+      }).toString(),
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    return res.json<{ access_token: string; refresh_token?: string }>();
+  }
+
+  async function atEndpoint(t: Real, token: string, body: ReturnType<typeof modern>) {
+    return send({ name: t.name } as World, { token, headers: body.headers, body: body.body });
+  }
+
+  it('lists the tools and calls whoami for the person who signed in', async () => {
+    const t = await mcpTenant();
+    const clientId = await register(t, 'openid mcp:read');
+    const { page, jar } = await authorize(t, clientId, {
+      scope: 'openid mcp:read',
+      resource: t.resource,
+    });
+    expect(page.statusCode).toBe(200);
+    const done = await signInAndConsent(t, page, jar, true);
+    const issued = await tokens(t, clientId, codeOf(done), t.resource);
+
+    const claims = JSON.parse(
+      Buffer.from(issued.access_token.split('.')[1] ?? '', 'base64url').toString('utf8'),
+    ) as {
+      aud: string[];
+      scope: string;
+    };
+    expect(claims.aud).toContain(t.resource);
+    expect(claims.scope).toContain('mcp:read');
+
+    const list = modern('tools/list');
+    const listed = await atEndpoint(t, issued.access_token, list);
+    expect(listed.status).toBe(200);
+    const names = (listed.json().result as { tools: { name: string }[] }).tools.map((x) => x.name);
+    expect(names).toContain('whoami');
+    expect(names).toContain('list_subjects');
+    expect(names).not.toContain('list_audit');
+
+    const call = await send({ name: t.name } as World, {
+      token: issued.access_token,
+      headers: LEGACY,
+      body: legacyCall('whoami'),
+    });
+    expect(call.json().result).toMatchObject({
+      structuredContent: { data: { subjectId: t.subjectId, issuerTenantId: t.tenantId } },
+    });
+  });
+
+  it('answers 403 for a token of the right audience that holds no MCP scope', async () => {
+    const t = await mcpTenant();
+    const clientId = await register(t, 'openid mcp:read');
+    const { page, jar } = await authorize(t, clientId, { scope: 'openid' });
+    const done = await signInAndConsent(t, page, jar, true);
+    const issued = await tokens(t, clientId, codeOf(done));
+    const res = await atEndpoint(t, issued.access_token, modern('tools/list'));
+    expect(res.status).toBe(403);
+    expect(res.headers['www-authenticate']).toContain('error="insufficient_scope"');
+  });
+
+  it('refuses a token of an ordinary client, whose audience is the issuer alone', async () => {
+    const t = await mcpTenant();
+    const redirect = 'https://app.example/callback';
+    const { page, jar } = await authorize(t, 'portal', { scope: 'openid', redirect });
+    const done = await signInAndConsent(t, page, jar, true);
+    const issued = await tokens(t, 'portal', codeOf(done), undefined, redirect);
+    const claims = JSON.parse(
+      Buffer.from(issued.access_token.split('.')[1] ?? '', 'base64url').toString('utf8'),
+    ) as { aud: string[] };
+    expect(claims.aud).toEqual([t.issuer]);
+    const res = await atEndpoint(t, issued.access_token, modern('tools/list'));
+    expect(res.status).toBe(401);
+    expect(res.headers['www-authenticate']).toContain('error="invalid_token"');
+  });
+
+  it('cannot be had by the built-in client, whose audience is the admin API', async () => {
+    const t = await mcpTenant();
+    const { page } = await authorize(t, 'odudu-mcp', {
+      scope: 'openid mcp:read',
+      resource: t.resource,
+      redirect: 'http://127.0.0.1:8080',
+    });
+    expect(page.statusCode === 200 && page.body.includes('auth_session_id')).toBe(false);
+  });
+
+  it('loses the audience at refresh once the tenant ends the policy', async () => {
+    const t = await mcpTenant();
+    const clientId = await register(t, 'openid offline_access mcp:read', [
+      'authorization_code',
+      'refresh_token',
+    ]);
+    const { page, jar } = await authorize(t, clientId, {
+      scope: 'openid offline_access mcp:read',
+      resource: t.resource,
+    });
+    const done = await signInAndConsent(t, page, jar, true);
+    const issued = await tokens(t, clientId, codeOf(done), t.resource);
+    expect(issued.refresh_token).toBeDefined();
+    expect((await atEndpoint(t, issued.access_token, modern('tools/list'))).status).toBe(200);
+
+    await owner.db
+      .update(tenants)
+      .set({ clientRegistrationPolicy: 'disabled' })
+      .where(eq(tenants.id, t.tenantId));
+    const refreshed = await app.inject({
+      method: 'POST',
+      url: `/tenants/${t.name}/protocol/openid-connect/token`,
+      headers: { 'content-type': 'application/x-www-form-urlencoded', host: HOST },
+      payload: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: issued.refresh_token ?? '',
+        client_id: clientId,
+      }).toString(),
+    });
+    expect(refreshed.statusCode, refreshed.body).toBe(200);
+    const next = refreshed.json<{ access_token: string }>().access_token;
+    const claims = JSON.parse(
+      Buffer.from(next.split('.')[1] ?? '', 'base64url').toString('utf8'),
+    ) as {
+      aud: string[];
+      scope: string;
+    };
+    expect(claims.aud).not.toContain(t.resource);
+    expect(claims.scope).not.toContain('mcp:read');
+    expect((await atEndpoint(t, next, modern('tools/list'))).status).toBe(401);
   });
 });
