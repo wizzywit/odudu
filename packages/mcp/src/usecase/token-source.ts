@@ -97,34 +97,46 @@ export function createTokenSource(deps: TokenSourceDeps): TokenSource {
     return undefined;
   }
 
-  async function signedIn(credential: Extract<Credential, { kind: 'browser' }>): Promise<TokenSet> {
+  // Under the lock: read what is stored, refresh it and keep the new one. Undefined
+  // when there is nothing usable, so the person signs in.
+  async function refreshStored(
+    credential: Extract<Credential, { kind: 'browser' }>,
+  ): Promise<TokenSet | undefined> {
     const stored = await storedSignIn(credential);
-    if (stored === undefined) return credential.login();
+    if (stored === undefined) return undefined;
     try {
-      return await credential.refresh(stored);
+      const set = await credential.refresh(stored);
+      await keep(set);
+      return set;
     } catch (error) {
       if (!endsStoredSignIn(error)) throw error;
       unsaved = undefined;
       await credential.store?.clear();
-      return credential.login();
+      return undefined;
     }
   }
 
-  // The new refresh token is stored before the access token is judged: the
-  // server has already spent the old one, so a token judged unusable must not
-  // cost the person the grant too.
+  // The lock covers a refresh and a store, which take seconds, and never a sign-in,
+  // which takes a person minutes; a keeper that waited for one would be taken for dead.
   async function obtain(): Promise<TokenSet> {
     const credential = deps.credential;
     if (credential.kind === 'key') return credential.fetch();
-    const set = await signedIn(credential);
-    await keep(set);
+    const lock = readsStoredSignIn(scope) ? deps.lock : undefined;
+    const locked = <T>(work: () => Promise<T>): Promise<T> =>
+      lock === undefined ? work() : lock.run(work);
+    // Discovery is asked for before the lock is taken, so a slow server is not waited on inside it.
+    await deps.authority();
+    const refreshed = await locked(() => refreshStored(credential));
+    if (refreshed !== undefined) return refreshed;
+    // The new refresh token is stored before the access token is judged: the server has
+    // already spent the old one, so a token judged unusable must not cost the grant too.
+    const set = await credential.login();
+    await locked(() => keep(set));
     return set;
   }
 
   async function acquire(): Promise<TokenSet> {
-    const credential = deps.credential;
-    const guarded = credential.kind === 'browser' && readsStoredSignIn(scope);
-    const set = guarded && deps.lock !== undefined ? await deps.lock.run(obtain) : await obtain();
+    const set = await obtain();
     acceptTokenSet(set, { ...deps.expectation, issuer: (await deps.authority()).issuer });
     current = set;
     return set;

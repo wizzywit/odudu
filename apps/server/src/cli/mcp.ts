@@ -363,8 +363,8 @@ async function start(values: Values, io: McpIo): Promise<void> {
       : {
           lock: createFileLock({
             path: join(io.configDir, `refresh-${hashOf(target.account)}.lock`),
-            staleMs: 30_000,
-            waitMs: 10_000,
+            staleMs: 45_000,
+            waitMs: 50_000,
             pollMs: 100,
           }),
         }),

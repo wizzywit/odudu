@@ -61,6 +61,7 @@ function browser(
     refresh: (rt: string) => Promise<TokenSet>;
     lock: RefreshLock;
     warn: (line: string) => void;
+    authority: () => Promise<typeof AUTHORITY>;
   }> = {},
 ) {
   const calls: string[] = [];
@@ -68,7 +69,7 @@ function browser(
     now,
     ...(over.lock === undefined ? {} : { lock: over.lock }),
     ...(over.warn === undefined ? {} : { warn: over.warn }),
-    authority: () => Promise.resolve(AUTHORITY),
+    authority: over.authority ?? (() => Promise.resolve(AUTHORITY)),
     expectation: { audience: ADMIN, scope },
     credential: {
       kind: 'browser',
@@ -378,5 +379,49 @@ describe('a stored sign-in is only presented to the server it was made at', () =
     const b = browser('mcp:read', m.store);
     await b.source.bearer('read');
     expect(decodeStored(m.held() ?? '')).toEqual({ refreshToken: 'rt-1', ...AUTHORITY });
+  });
+});
+
+describe('the lock is not held while a person signs in', () => {
+  it('is taken to refresh and to keep, and is let go while the browser is open', async () => {
+    const events: string[] = [];
+    const lock: RefreshLock = {
+      run: async (work) => {
+        events.push('lock');
+        const result = await work();
+        events.push('unlock');
+        return result;
+      },
+    };
+    const m = memoryStore();
+    const b = browser('mcp:read', m.store, {
+      lock,
+      login: () => {
+        events.push('login');
+        return Promise.resolve(set('mcp:read', { refreshToken: 'rt-1' }));
+      },
+    });
+    await b.source.bearer('read');
+    expect(events).toEqual(['lock', 'unlock', 'login', 'lock', 'unlock']);
+    expect(tokenOf(m.held())).toBe('rt-1');
+  });
+
+  it('asks for the authorization server before it takes the lock', async () => {
+    const events: string[] = [];
+    const m = memoryStore(keptFor('rt-0'));
+    const b = browser('mcp:read', m.store, {
+      lock: {
+        run: async (work) => {
+          events.push('lock');
+          return work();
+        },
+      },
+      authority: () => {
+        events.push('authority');
+        return Promise.resolve(AUTHORITY);
+      },
+    });
+    await b.source.bearer('read');
+    expect(events.slice(0, 2)).toEqual(['authority', 'lock']);
   });
 });
