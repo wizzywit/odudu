@@ -1029,6 +1029,7 @@ describe('audit', () => {
     );
     expect(amended.kind).toBe('ok');
     expect(ok.events).toHaveLength(1);
+    expect(ok.events[0]?.detail).toEqual({ description: { before: null, after: 'x' } });
 
     const refused = collector();
     const outcome = await withTenant(fixture.app.db, t.id, (tx) =>

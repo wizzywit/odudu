@@ -36,6 +36,7 @@ import {
 } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { readKeyedPage } from '#/service/in-order';
+import { redactedDiff } from '#/service/audit-detail';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { builtinScopeConfirmationDetail } from '#/service/scope-delete';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor } from '#/service/scope-patch';
@@ -556,6 +557,10 @@ export async function amendScope(
     }
   }
 
+  const after = await readScope(tx, input.scopeId);
+  if (after.kind !== 'ok') {
+    throw new Error(`scope ${input.scopeId} not found immediately after its own amendment`);
+  }
   await deps.audit(tx, {
     action: 'scope.amend',
     resourceType: 'scope',
@@ -564,12 +569,8 @@ export async function amendScope(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: redactedDiff('scope', scopeWireShape(locked), after.scope),
   });
-
-  const after = await readScope(tx, input.scopeId);
-  if (after.kind !== 'ok') {
-    throw new Error(`scope ${input.scopeId} not found immediately after its own amendment`);
-  }
   return { kind: 'ok', scope: after.scope, etag: etagOf(after.scope) };
 }
 
