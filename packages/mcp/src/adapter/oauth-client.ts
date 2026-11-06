@@ -97,20 +97,32 @@ export function createOauthClient(target: StdioTarget, deps: OauthClientDeps): O
 
   return {
     async discover() {
-      const res = await request(target.metadataUrl, {
-        method: 'GET',
-        headers: { accept: 'application/json' },
-      });
-      const redirected = notFollowed(res);
-      if (redirected !== undefined) throw redirected;
-      const body = await jsonOf(res);
-      if (!res.ok) {
-        throw new StdioError(
-          'mcp_discovery_failed',
-          `the authorization server metadata could not be read (${String(res.status)})`,
-        );
+      for (const form of target.forms) {
+        const res = await request(form.metadataUrl, {
+          method: 'GET',
+          headers: { accept: 'application/json' },
+        });
+        const redirected = notFollowed(res);
+        if (redirected !== undefined) throw redirected;
+        if (res.status === 404) {
+          await res.body?.cancel();
+          continue;
+        }
+        const body = await jsonOf(res);
+        if (!res.ok) {
+          throw new StdioError(
+            'mcp_discovery_failed',
+            `the authorization server metadata could not be read (${String(res.status)})`,
+          );
+        }
+        return readMetadata(body, target, form);
       }
-      return readMetadata(body, target);
+      throw new StdioError(
+        'mcp_discovery_failed',
+        'no authorization server metadata was found for this tenant at this address; a tenant ' +
+          'with a domain of its own is reached with that domain as --base-url, any other at the ' +
+          'address of the instance',
+      );
     },
     redeemCode: (server, input) =>
       token(server, {

@@ -64,25 +64,34 @@ export function createHttpCaller(
       const ifMatch = preconditionOf(req);
       const url = new URL(target.adminUrl(path));
       for (const [name, value] of Object.entries(req.query)) url.searchParams.append(name, value);
-      const bearer = await tokens.bearer(accessOf(req.method));
-      let res: Response;
-      try {
-        res = await send(url, {
-          method: req.method,
-          headers: {
-            authorization: `Bearer ${bearer}`,
-            accept: 'application/json',
-            'x-request-id': newRequestId(),
-            ...(payload === undefined ? {} : { 'content-type': 'application/json' }),
-            ...(ifMatch === undefined ? {} : { 'if-match': ifMatch }),
-          },
-          ...(payload === undefined ? {} : { body: payload }),
-          redirect: 'manual',
-          credentials: 'omit',
-          signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
-        });
-      } catch (error) {
-        throw unreachable(error);
+      const attempt = async (): Promise<Response> => {
+        const bearer = await tokens.bearer(accessOf(req.method));
+        try {
+          return await send(url, {
+            method: req.method,
+            headers: {
+              authorization: `Bearer ${bearer}`,
+              accept: 'application/json',
+              'x-request-id': newRequestId(),
+              ...(payload === undefined ? {} : { 'content-type': 'application/json' }),
+              ...(ifMatch === undefined ? {} : { 'if-match': ifMatch }),
+            },
+            ...(payload === undefined ? {} : { body: payload }),
+            redirect: 'manual',
+            credentials: 'omit',
+            signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+          });
+        } catch (error) {
+          throw unreachable(error);
+        }
+      };
+      // A 401 means the server no longer takes the token held (its grant ended,
+      // or it lapsed early): another is got once, and what that gets is the answer.
+      let res = await attempt();
+      if (res.status === 401 && tokens.invalidate !== undefined) {
+        await res.body?.cancel();
+        tokens.invalidate();
+        res = await attempt();
       }
       logger.debug({ method: req.method, pattern: req.pattern, status: res.status }, 'admin call');
       if (res.status >= 300 && res.status < 400) {

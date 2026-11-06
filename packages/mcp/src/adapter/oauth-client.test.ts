@@ -71,10 +71,67 @@ describe('discovery', () => {
         () => new Response(null, { status: 302, headers: { location: 'https://evil.example' } }),
       ).oauth.discover(),
     ).rejects.toThrow(/redirect/u);
-    await expect(client(() => reply('nope', 404)).oauth.discover()).rejects.toThrow(/404/u);
+    await expect(client(() => reply('nope', 500)).oauth.discover()).rejects.toThrow(/500/u);
     await expect(
       client(() => reply('<html>', 200, 'text/html')).oauth.discover(),
     ).rejects.toThrow();
+  });
+});
+
+describe('discovery at a tenant own domain', () => {
+  const domain = stdioTarget('https://login.acme.org', 'acme');
+  const domainDoc = {
+    issuer: 'https://login.acme.org',
+    authorization_endpoint: 'https://login.acme.org/protocol/openid-connect/auth',
+    token_endpoint: 'https://login.acme.org/protocol/openid-connect/token',
+    code_challenge_methods_supported: ['S256'],
+  };
+
+  function at(answers: Record<string, () => Response>) {
+    const asked: string[] = [];
+    const stub: typeof fetch = (input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      asked.push(url);
+      return Promise.resolve(answers[url]?.() ?? new Response('nope', { status: 404 }));
+    };
+    return {
+      asked,
+      oauth: createOauthClient(domain, {
+        fetch: stub,
+        now: () => NOW,
+        publicClientId: 'odudu-mcp',
+      }),
+    };
+  }
+
+  it('asks the domain form when the path form is not there, and takes its issuer', async () => {
+    const r = at({
+      'https://login.acme.org/.well-known/oauth-authorization-server': () => reply(domainDoc),
+    });
+    expect((await r.oauth.discover()).issuer).toBe('https://login.acme.org');
+    expect(r.asked).toEqual([
+      'https://login.acme.org/.well-known/oauth-authorization-server/tenants/acme',
+      'https://login.acme.org/.well-known/oauth-authorization-server',
+    ]);
+  });
+
+  it('keeps the path form when it answers, and never goes on to the domain form after another failure', async () => {
+    const failing = at({
+      'https://login.acme.org/.well-known/oauth-authorization-server/tenants/acme': () =>
+        reply('x', 500),
+      'https://login.acme.org/.well-known/oauth-authorization-server': () => reply(domainDoc),
+    });
+    await expect(failing.oauth.discover()).rejects.toThrow(/500/u);
+    expect(failing.asked).toHaveLength(1);
+  });
+
+  it('refuses a domain document of another host, and says what to do when neither form is there', async () => {
+    const other = at({
+      'https://login.acme.org/.well-known/oauth-authorization-server': () =>
+        reply({ ...domainDoc, issuer: 'https://other.example' }),
+    });
+    await expect(other.oauth.discover()).rejects.toThrow(/issuer/u);
+    await expect(at({}).oauth.discover()).rejects.toThrow(/domain of its own.*--base-url/u);
   });
 });
 
