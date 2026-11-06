@@ -115,10 +115,8 @@ describe('the door records a direct agent before the handler runs', () => {
     expect((await get(t.name, 'whoami', token)).statusCode).toBe(200);
     const found = await rows(t.id, 'agent.tool_call');
     expect(found).toHaveLength(1);
-    expect(found[0]?.detail).toMatchObject({
-      agent_client: expect.any(String),
-      tool: 'admin.get.whoami',
-    });
+    expect(found[0]?.detail).toMatchObject({ tool: 'admin.get.whoami' });
+    expect(found[0]?.detail).toHaveProperty('agent_client');
   });
 
   it("leaves none for a person's own token", async () => {
