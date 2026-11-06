@@ -1,6 +1,6 @@
 ---
 title: Read a refusal
-description: 'What an error from Odudu looks like and why it happened: a wrong password, an unknown client, a reused token, too much scope, a stale update, a request sent twice.'
+description: 'What an error from Odudu looks like and why it happened: a wrong password, an unknown client, a reused token, too much scope, a stale update, a retry.'
 sidebar_position: 4
 ---
 
