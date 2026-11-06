@@ -1222,3 +1222,26 @@ to: <authorization URL>` on standard error and listens on the loopback
   cannot run in CI (hosted Claude needs a public HTTPS address; the others are
   desktop applications), and neither can a client ID metadata document, which
   needs one. The hand run in this note carries the exit criterion for them.
+
+## Hand run (owner)
+
+The three guides (`connect-claude`, `connect-cursor` and the client parts of
+`protect-an-mcp-server`) follow the vendors' documentation as read on
+2026-11-06 and say so; nobody has run the real clients against Odudu yet.
+Run each against an instance and record, for each step, what happened and any
+place the page differs from the software:
+
+- **Claude Code** on `http://localhost:3000`: `claude mcp add --transport http`,
+  then `/mcp`. Record whether it registered by metadata document or by
+  registration, the registration body it sent, the revision it negotiated and
+  the scope it asked for. Then the fixed-client form (`--client-id`,
+  `--callback-port 8080`) and whether `mcp:write` needs `oauth.scopes` pinned.
+- **Claude Desktop** with `odudu mcp` in `claude_desktop_config.json`, once from
+  a checkout (person sign-in) and once through `docker compose exec` (key).
+- **claude.ai / Desktop connector** through a public https address: which of the
+  three OAuth client options worked, and the callback address it used.
+- **Cursor**: `mcp.json` with a bare `url`, then with `auth.CLIENT_ID`; the
+  redirect addresses it sent and the revision.
+
+Edit the guide wherever a step differs and remove its "not run yet" sentence for
+what was run.
