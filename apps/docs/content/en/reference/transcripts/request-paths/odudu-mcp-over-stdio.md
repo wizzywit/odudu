@@ -15,7 +15,7 @@ odudu seed tenant --name demo
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"demo","tenantId":"01a1afd8-fba4-7436-80d7-a53f75ef80d5"}
+{"command":"tenant","created":true,"tenant":"demo","tenantId":"01a1b0ef-a957-703a-8e05-cfc5f022aa17"}
 ```
 
 ## A service account and its key
@@ -31,7 +31,7 @@ cat jwks.json
 ```
 exit 0
 ODUDU_MCP_KEY=eyJrdHkiOi
-{"keys":[{"kty":"EC","crv":"P-256","x":"fUvfKET_1Z3xma3MlBG1dpP795zBwPBGuEDkNCHBvJI","y":"xdBlm4CsWtetlZqDC_8ZOki3ehbCWf9Esx-zSw3oylk","kid":"k-V9_lU8OCJOcVxbdHNsvIxlU1nM0uum2cmDQeXiE34","alg":"ES256","use":"sig"}]}
+{"keys":[{"kty":"EC","crv":"P-256","x":"AS9C_Ure784bPqxE5T2zpitrjJ5HbEs6V9AKdropbIw","y":"kOBopOW62DGieKnxzcLGs_rNyPnBQk1A03iwk5xd_o0","kid":"rPddCE56kL-x07J60VvoKtcN7xV5qChgEIVUCXqTQXk","alg":"ES256","use":"sig"}]}
 ```
 
 The client is confidential with the `client_credentials` grant and may ask for `mcp:read` and nothing else. The secret it is made with is never used again, because the client authenticates with the key instead:
@@ -42,7 +42,7 @@ odudu seed client --tenant demo --client-id agent --client-secret "$(openssl ran
 ```
 
 ```
-{"command":"client","created":true,"tenant":"demo","tenantId":"01a1afd8-fba4-7436-80d7-a53f75ef80d5","clientId":"agent","clientDbId":"01a1afd9-0066-74e1-b25e-07d906c0ae89"}
+{"command":"client","created":true,"tenant":"demo","tenantId":"01a1b0ef-a957-703a-8e05-cfc5f022aa17","clientId":"agent","clientDbId":"01a1b0ef-ae11-768c-b59b-f62f53797b85"}
 ```
 
 The seed has no flag for a key or a role on a service account, and this run set the audience in the same way rather than with `--audience`, so the rest was written to the database as its owner, scoped to this tenant: the key set becomes the client's `jwks`, `private_key_jwt` its authentication method, the admin API's audience its audience, and its account holds two of the admin capabilities. The admin API's client routes do the same with a token, and the account's ceiling is these roles and nothing more:
@@ -83,14 +83,14 @@ exit 0
        4
 ```
 
-Four lines for the four requests, and the notification, which has no answer, wrote none. Standard output carries the protocol and nothing else. The first line is the handshake:
+Four lines for the four requests, and the notification, which has no answer, wrote none. Standard output carries the protocol and nothing else. The first line is the handshake, which names the tenant from `--tenant`, in `serverInfo` and in `instructions`:
 
 ```bash
 jq -c 'select(.id==1)' out.jsonl
 ```
 
 ```
-{"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"odudu","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
+{"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"odudu:demo","title":"Odudu (demo)","version":"1.0.0"},"instructions":"This server acts in the Odudu tenant \"demo\" only, as the person signed in; every tool works on that tenant. If you also have other Odudu servers connected, check the tenant before using a tool."},"jsonrpc":"2.0","id":1}
 ```
 
 The listing is the endpoint's, minus the two write tools, since the command was not asked for writes. Those are 42 tools, and none of them starts with `update_`:
@@ -121,7 +121,7 @@ jq -c 'select(.id==4)' out.jsonl
 ```
 
 ```
-{"result":{"content":[{"type":"text","text":"{\"data\":{\"subjectId\":\"01a1afd9-0084-7b1f-a0f3-48918cb591c9\",\"issuerTenantId\":\"01a1afd8-fba4-7436-80d7-a53f75ef80d5\",\"capabilities\":[\"manage-clients\",\"view-users\"],\"crossTenant\":false}}"}],"structuredContent":{"data":{"subjectId":"01a1afd9-0084-7b1f-a0f3-48918cb591c9","issuerTenantId":"01a1afd8-fba4-7436-80d7-a53f75ef80d5","capabilities":["manage-clients","view-users"],"crossTenant":false}},"isError":false},"jsonrpc":"2.0","id":3}
+{"result":{"content":[{"type":"text","text":"{\"data\":{\"subjectId\":\"01a1b0ef-ae2e-73c7-82b3-2e3e68ee00d1\",\"issuerTenantId\":\"01a1b0ef-a957-703a-8e05-cfc5f022aa17\",\"issuerTenantName\":\"demo\",\"capabilities\":[\"manage-clients\",\"view-users\"],\"crossTenant\":false}}"}],"structuredContent":{"data":{"subjectId":"01a1b0ef-ae2e-73c7-82b3-2e3e68ee00d1","issuerTenantId":"01a1b0ef-a957-703a-8e05-cfc5f022aa17","issuerTenantName":"demo","capabilities":["manage-clients","view-users"],"crossTenant":false}},"isError":false},"jsonrpc":"2.0","id":3}
 {"result":{"content":[{"type":"text","text":"{\"data\":{\"count\":3,\"capped\":false}}"}],"structuredContent":{"data":{"count":3,"capped":false}},"isError":false},"jsonrpc":"2.0","id":4}
 ```
 
@@ -132,7 +132,7 @@ wc -c < err.txt
 ```
 
 ```
-0
+       0
 ```
 
 ## What it refuses before it starts
@@ -210,8 +210,8 @@ docker compose -p odudu-p5a-i10b -f infra/docker/compose.yaml exec -T postgres p
      action      | outcome |                                                                                              detail
 -----------------+---------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  token.issue     | allowed | {"scope": "mcp:read", "grant_type": "client_credentials"}
- agent.tool_call | allowed | {"tool": "admin.get.whoami", "owner": "01a1afd9-0084-7b1f-a0f3-48918cb591c9", "route": "GET /admin/tenants/:tenant/whoami", "agent_client": "01a1afd9-0066-74e1-b25e-07d906c0ae89"}
- agent.tool_call | allowed | {"tool": "admin.get.clients.count", "owner": "01a1afd9-0084-7b1f-a0f3-48918cb591c9", "route": "GET /admin/tenants/:tenant/clients/count", "agent_client": "01a1afd9-0066-74e1-b25e-07d906c0ae89"}
+ agent.tool_call | allowed | {"tool": "admin.get.whoami", "owner": "01a1b0ef-ae2e-73c7-82b3-2e3e68ee00d1", "route": "GET /admin/tenants/:tenant/whoami", "agent_client": "01a1b0ef-ae11-768c-b59b-f62f53797b85"}
+ agent.tool_call | allowed | {"tool": "admin.get.clients.count", "owner": "01a1b0ef-ae2e-73c7-82b3-2e3e68ee00d1", "route": "GET /admin/tenants/:tenant/clients/count", "agent_client": "01a1b0ef-ae11-768c-b59b-f62f53797b85"}
  token.issue     | refused | {"reason": "invalid_scope"}
 (4 rows)
 

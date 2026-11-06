@@ -54,6 +54,8 @@ Cursor reads `.cursor/mcp.json` in a project, or `~/.cursor/mcp.json` for every 
 }
 ```
 
+Name the entry after the tenant, for example `odudu-acme`; the server also announces its tenant, in its name, its instructions and the start of every tool description.
+
 Cursor finds the sign-in from the endpoint's `401` and the metadata it points at, registers as above, and opens the tenant's sign-in page in your browser. You sign in and, on the consent page, tick `mcp:read` to allow it. Cursor is then connected to the 42 read tools, for what you may read.
 
 ## 4. A fixed client id

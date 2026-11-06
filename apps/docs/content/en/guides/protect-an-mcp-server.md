@@ -198,18 +198,18 @@ curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application
 
 ```
 event: message
-data: {"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"odudu","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
+data: {"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"odudu:demo","title":"Odudu (demo)","version":"1.0.0"},"instructions":"This server acts in the Odudu tenant \"demo\" only, as the person signed in; every tool works on that tenant. If you also have other Odudu servers connected, check the tenant before using a tool."},"jsonrpc":"2.0","id":1}
 
 ```
 
-`whoami` is the tool that says who the call is made for. It is the person, with the capabilities she holds, and not the client.
+The server names its tenant here, in `serverInfo` and in `instructions`, and when you connect a client, name the entry after the tenant, for example `odudu-acme`. `whoami` is the tool that says who the call is made for. It is the person, with the capabilities she holds, and not the client.
 
 ```sh {run expect="view-users"}
 curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -H 'mcp-protocol-version: 2025-11-25' -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"whoami","arguments":{}}}' "$MCP" | sed -n 's/^data: //p'
 ```
 
 ```
-{"result":{"content":[{"type":"text","text":"{\"data\":{\"subjectId\":\"01a1b039-3137-7e2f-88ac-a75136bac562\",\"issuerTenantId\":\"01a1b039-2b16-7d6e-a0a1-1e121f60a4e7\",\"capabilities\":[\"view-users\"],\"crossTenant\":false}}"}],"structuredContent":{"data":{"subjectId":"01a1b039-3137-7e2f-88ac-a75136bac562","issuerTenantId":"01a1b039-2b16-7d6e-a0a1-1e121f60a4e7","capabilities":["view-users"],"crossTenant":false}},"isError":false},"jsonrpc":"2.0","id":2}
+{"result":{"content":[{"type":"text","text":"{\"data\":{\"subjectId\":\"01a1b0fa-b0fd-7510-8914-103575c9b973\",\"issuerTenantId\":\"01a1b0fa-b046-73dc-acf8-0a963c19a71e\",\"issuerTenantName\":\"demo\",\"capabilities\":[\"view-users\"],\"crossTenant\":false}}"}],"structuredContent":{"data":{"subjectId":"01a1b0fa-b0fd-7510-8914-103575c9b973","issuerTenantId":"01a1b0fa-b046-73dc-acf8-0a963c19a71e","issuerTenantName":"demo","capabilities":["view-users"],"crossTenant":false}},"isError":false},"jsonrpc":"2.0","id":2}
 ```
 
 A tool the person cannot use is not in the list the endpoint offers, and a client that calls it by name is refused by the admin API for the missing capability. Every call, served or refused, is an `agent.tool_call` audit event that names the tool, the person and the client, and never the arguments. The endpoint also bounds a client: sixty requests a minute for each person and client, and four at once.

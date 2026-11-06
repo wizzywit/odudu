@@ -58,6 +58,18 @@ ones the page does not show, reading `CID` from the registration's answer and `C
 `DELETE` requests are separated by `-w '\n\n'` so their outputs do not run together. The budget section's counts are that pass's: the
 first sixty requests of the minute are served, and the ones before the loop had already spent eleven. The stack was removed afterwards.
 
+Every connection began to name its tenant on 2026-11-06 (`serverInfo`, `instructions` and the start of each tool description), and
+`whoami` to answer `issuerTenantName`, so the blocks that show those were run again on a freshly built compose project, `odudu-p5a-tn`
+(port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch commit `e3fc80b17` plus the change). The
+stack's volume was emptied between pages, so each page's world is the one it says. `the-mcp-endpoint.md` and `odudu-mcp-over-stdio.md`
+were replayed end to end, every output block written by the replay of the page's own commands in one shell, in order, so every id and
+time on them is that run's. The consent page's block on the first is the page as served now, which has gained three lines since the
+earlier capture. The `initialize` and `whoami` blocks of `protect-an-mcp-server.md` were run on the guide's own steps with a person
+holding `view-users` alone. The `GET /whoami` block, the final probe of `getting-the-token.md` and the block of `the-shape-of-it.md`
+that disables `vera` were run again on the same project as `ada-whoami` holding `tenant-admin` and as `vera` of a tenant `policy-demo`,
+so their ids belong to nothing around them. `GET /admin/openapi.json` was fetched again (request id, date and size, 806,104 bytes) because
+the document grew by 188 bytes. The stack and its image were removed afterwards.
+
 The protected resource metadata page, `protected-resource-metadata.md`, and the authorization server metadata page, `authorization-server-metadata.md`, were each replayed the same way on the same project and day,
 from an empty volume, with `demo`, `demo-spa` and `ada` seeded as Bootstrap seeds them and `odudu` defined as the shell function the
 other pages define. Nothing but ids, request ids and dates changed from their first captures. The `odudu mcp` entry for Claude Desktop in the guides was checked on the same project: an `initialize` sent through `docker compose exec -T -e ODUDU_MCP_KEY` was answered by the stdio server with the key in the environment only.

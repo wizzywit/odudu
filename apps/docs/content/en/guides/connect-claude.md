@@ -24,6 +24,8 @@ Add the tenant's endpoint as an HTTP server. The command is the one the Claude C
 claude mcp add --transport http odudu http://localhost:3000/tenants/demo/mcp
 ```
 
+Name the entry after the tenant, for example `odudu-acme`; the server also announces its tenant, in its name, its instructions and the start of every tool description.
+
 Then, inside Claude Code, run `/mcp` and choose the server to sign in. Claude Code finds the sign-in from the `401` the endpoint answers with, reads the tenant's metadata, and registers itself, either by its metadata document or by dynamic registration, whichever the tenant allows. Your browser opens on the tenant's sign-in page, and then on a consent screen that names the client and offers `mcp:read` as a choice you tick. You are then signed in for reading: the 42 tools that read what you could read in the admin API.
 
 Which one Claude Code uses is its choice. A tenant with only `cimd_enabled` on is used by its metadata document, one with the `mcp` policy by registration as well. If the tenant allows neither, Claude Code says the server does not support registration, and you use a client you made, below.
