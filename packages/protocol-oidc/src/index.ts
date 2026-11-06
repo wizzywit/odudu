@@ -402,7 +402,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // assignment — named, not just counted, so the page can list them and
     // the POST can turn a ticked name back into the id consent_scopes
     // stores.
-    const consentContext = (tenantId: string, clientId: string) =>
+    const consentContext = (tenantId: string, clientId: string, redirectUri?: string) =>
       withTenant(deps.database.db, tenantId, async (tx) => {
         const [client, config, assignments] = await Promise.all([
           clientRepository(tx).byId(clientId),
@@ -442,7 +442,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             clientUri: config?.clientUri ?? null,
             policyUri: config?.policyUri ?? null,
             tosUri: config?.tosUri ?? null,
-            source: client === null ? null : clientSourceOf(client, config?.redirectUris ?? []),
+            source:
+              client === null
+                ? null
+                : clientSourceOf(client, config?.redirectUris ?? [], redirectUri),
           },
           scopeLabels,
           i18n,

@@ -266,7 +266,7 @@ export interface ConsentContext {
 }
 
 export interface ConsentGateDeps {
-  consentContext(tenantId: string, clientId: string): Promise<ConsentContext>;
+  consentContext(tenantId: string, clientId: string, redirectUri?: string): Promise<ConsentContext>;
   grantedScopeIds(
     tenantId: string,
     subjectId: string,
@@ -301,8 +301,9 @@ export async function decideConsentGate(
   subjectId: string,
   requestedScope: string,
   prompt: readonly string[] | undefined,
+  redirectUri?: string,
 ): Promise<ConsentGateOutcome> {
-  const context = await deps.consentContext(tenantId, clientId);
+  const context = await deps.consentContext(tenantId, clientId, redirectUri);
   const grantedIds = await deps.grantedScopeIds(tenantId, subjectId, clientId);
   const grantedScopes = [...context.scopeIdByName]
     .filter(([, id]) => grantedIds.has(id))
@@ -714,6 +715,7 @@ export async function handleLoginSubmission(
     result.subjectId,
     pending.scope,
     pending.prompt,
+    pending.redirectUri,
   );
   if (gate.kind === 'refuse') {
     return {

@@ -95,7 +95,10 @@ function sourceLines(source: ClientSource | null, locale: PageLocale): string[] 
   if (source.kind === 'self-registered') {
     return [
       tHtml(locale, 'consent.source.selfRegistered'),
-      tHtml(locale, 'consent.source.redirects'),
+      ...(source.sentTo === null
+        ? []
+        : [tHtml(locale, 'consent.source.sentTo'), bdi(source.sentTo)]),
+      ...(source.origins.length === 0 ? [] : [tHtml(locale, 'consent.source.otherRedirects')]),
       ...source.origins.map((origin) => bdi(origin)),
       ...(source.more > 0 ? [tHtml(locale, 'consent.source.more', { count: source.more })] : []),
     ];

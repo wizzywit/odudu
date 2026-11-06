@@ -489,6 +489,27 @@ describe('consent for a client registered under the mcp policy', () => {
     expect(consent.body).toContain('ongoing access');
   });
 
+  it('names the redirect this request uses even when the client registered more than are listed', async () => {
+    const benign = Array.from({ length: 6 }, (_, i) => `https://ok${String(i)}.example/cb`);
+    const client = await registered({
+      ...PUBLIC,
+      client_name: 'Claude',
+      redirect_uris: [...benign, 'https://evil.example/cb'],
+    });
+    const consent = await signIn(
+      await authorize(client, {
+        scope: 'openid mcp:read',
+        resource: mcpUrl,
+        redirect_uri: 'https://evil.example/cb',
+      }),
+    );
+    expect(asksConsent(consent)).toBe(true);
+    const sent = consent.body.indexOf('<bdi>https://evil.example</bdi>');
+    expect(sent).toBeGreaterThan(-1);
+    expect(consent.body.indexOf(en['consent.source.sentTo'])).toBeLessThan(sent);
+    expect(consent.body).toContain(en['consent.source.more'].replace('{count}', '1'));
+  });
+
   it('is shown on every sign-in until this exact client id is approved', async () => {
     const client = await registered();
     const first = await signIn(await authorize(client));

@@ -1322,7 +1322,8 @@ Placed, so that none is open without a phase (each is a row in `docs/NEXT.md`):
 - **A self-registered client's consent page says so.** `clientSourceOf` returns a source for
   every client that needs approval: a metadata document's host and redirect addresses as
   before, and for a client that registered itself the sentence that nobody at the tenant set it
-  up and up to five redirect origins (`scheme://host[:port]`, a private-use scheme as
+  up and the origin this request's own `redirect_uri` sends the person to, always first, then up
+  to five of the other registered origins (`scheme://host[:port]`, a private-use scheme as
   `scheme:`) with "… and N more". `offline_access` was already named on the screen in plain
   words (`consent.scope.offlineAccess`). Catalogue entries in en and ar.
 - **`max_clients` is the operator's ceiling.** `lockCapacity` counts the clients with origin
@@ -1361,8 +1362,8 @@ Placed, so that none is open without a phase (each is a row in `docs/NEXT.md`):
   while the token rotates cannot refuse a refresh whose old token is spent.
 - **Migrations and the upgrade window.** Drizzle runs every pending migration in one
   transaction, so each lock is held to the end of the whole upgrade. On an upgrade from the
-  last release: 0113 (`client_scopes`) and 0114 (`clients`, `client_oidc_config`,
-  `client_scope_assignments`) lift FORCE RLS, and 0122 lifts it on `clients` and
+  last release: 0113 (`tenants`, `client_scopes`) and 0114 (`tenants`, `client_scopes`, `clients`,
+  `client_oidc_config`, `client_scope_assignments`) lift FORCE RLS, and 0122 lifts it on `clients` and
   `client_oidc_config`, only for a migrating role that is neither SUPERUSER nor BYPASSRLS, so a
   supported owner takes no lock for it; `ADD COLUMN` on `clients`, `tenants` and
   `client_oidc_config` (0114, 0116, 0117, 0120, 0122) and the `ADD CONSTRAINT` full scans (0116
@@ -1456,3 +1457,18 @@ Claude Desktop with a key through `docker compose exec`.
 Run each remaining item against an instance and record, per step, what
 happened and any place a guide differs from the software. Edit the guide
 wherever a step differs and remove its "not run yet" sentence for what was run.
+
+### Final fix round C
+
+- **The consent page names where this request sends the person.** The origin of the
+  request's own `redirect_uri` comes first, then the other registered origins, so a sixth
+  registered origin cannot be the one that is hidden. An unparseable stored address is shown
+  as stored rather than throwing; tenant import already refuses one through
+  `parseClientMetadata` (tested for a self-registered client).
+- **DCR eviction takes public clients only**, as `odudu reap` does: a confidential
+  self-registered client may be a working service integration with a service account that
+  deleting it would leave behind. At the ceiling with only such clients left, registration is
+  refused.
+- **The plain-owner branch of 0113 and 0114 is now run** (`mcp-backfills-plain-owner`). It
+  found that both read `tenants`, which is forced, and 0114 reads `client_scopes`: as a plain
+  owner they inserted nothing. Both migrations now lift and restore those tables too.

@@ -657,6 +657,7 @@ export async function handleAuthorizationRequest(
       decision.subjectId,
       request.scope,
       [...outcome.prompts],
+      request.redirectUri,
     );
     if (gate.kind === 'refuse') return reject('consent_required');
     if (gate.kind === 'ask') {
@@ -896,6 +897,7 @@ export async function handleSelectAccountSubmission(
     chosen.subjectId,
     pending.scope,
     pending.prompt,
+    pending.redirectUri,
   );
   if (gate.kind === 'refuse') return reject('consent_required');
   if (gate.kind === 'ask') {

@@ -45,7 +45,7 @@ An administrator can list a person's grants with `GET /admin/tenants/{tenant}/su
 
 ### A client that names itself
 
-A tenant can let an app identify itself with an https address (`cimd_enabled`) or let an agent register itself (`client_registration_policy` set to `mcp`). Anyone can claim a name, so such a client is held to step 2. For an app that identifies itself with an https address, the screen shows the host the document came from and every redirect address. An agent that registers itself says so and lists its redirect origins. Neither kind is ever offered `mcp:write`, and a request that names it is answered without it. The [Settings page](../admin-console/settings.mdx#client-registration) has the details, and the [registration transcript](../reference/transcripts/request-paths/bootstrap.md#the-mcp-policy) shows each refusal.
+A tenant can let an app identify itself with an https address (`cimd_enabled`) or let an agent register itself (`client_registration_policy` set to `mcp`). Anyone can claim a name, so such a client is held to step 2. For an app that identifies itself with an https address, the screen shows the host the document came from and every redirect address. An agent that registers itself says so, names where this request sends the person, and lists the other origins it registered. Neither kind is ever offered `mcp:write`, and a request that names it is answered without it. The [Settings page](../admin-console/settings.mdx#client-registration) has the details, and the [registration transcript](../reference/transcripts/request-paths/bootstrap.md#the-mcp-policy) shows each refusal.
 
 ## Audit
 

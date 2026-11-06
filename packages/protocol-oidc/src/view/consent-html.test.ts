@@ -76,6 +76,7 @@ describe('renderConsentPage', () => {
   describe('a client that registered itself', () => {
     const source = {
       kind: 'self-registered' as const,
+      sentTo: 'https://sent.example',
       origins: ['https://evil.example', 'http://127.0.0.1:8123'],
       more: 3,
     };
@@ -86,10 +87,20 @@ describe('renderConsentPage', () => {
 
     it('says nobody set it up, names each redirect origin and counts the rest', () => {
       expect(body).toContain(en['consent.source.selfRegistered']);
-      expect(body).toContain(en['consent.source.redirects']);
+      expect(body).toContain(en['consent.source.otherRedirects']);
       expect(body).toContain('<bdi>https://evil.example</bdi>');
       expect(body).toContain('<bdi>http://127.0.0.1:8123</bdi>');
       expect(body).toContain(en['consent.source.more'].replace('{count}', '3'));
+    });
+
+    it('names where this request sends the person before the other registered origins', () => {
+      const sent = body.indexOf('<bdi>https://sent.example</bdi>');
+      expect(sent).toBeGreaterThan(-1);
+      expect(body).toContain(en['consent.source.sentTo']);
+      expect(sent).toBeLessThan(body.indexOf('<bdi>https://evil.example</bdi>'));
+      expect(body).toContain(en['consent.source.otherRedirects']);
+      expect(ar['consent.source.sentTo']).not.toBe('');
+      expect(ar['consent.source.otherRedirects']).not.toBe('');
     });
 
     it('says it in Arabic too, and says no more when no origin is left over', () => {
