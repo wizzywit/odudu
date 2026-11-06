@@ -5,15 +5,22 @@ import type { z } from 'zod';
 // agent holds is the PATCH of descriptive fields.
 export type AdminMethod = 'GET' | 'PATCH';
 
+export type JsonValue = string | number | boolean | null | readonly JsonValue[] | JsonObject;
+
+export type JsonObject = { readonly [K in string]: JsonValue };
+
 // One admin request, before it has an address. `pattern` is an ADMIN_ROUTES
 // pattern whose `:tenant` the caller fills from the principal and never from
 // a tool's input; `params` are the other path parameters, raw, for the caller
-// to encode. A read has no header or body, so none can be set from input.
+// to encode. There is no header field, so none can be set from input. A body is a
+// record the tool built from its validated arguments, only for a PATCH, which the
+// caller serialises: a tool never supplies bytes.
 export interface AdminRequestSpec {
   readonly method: AdminMethod;
   readonly pattern: string;
   readonly params: Readonly<Record<string, string>>;
   readonly query: Readonly<Record<string, string>>;
+  readonly body?: JsonObject;
 }
 
 export interface AdminResult {
@@ -39,6 +46,9 @@ export interface McpTool<I, O> {
   readonly routeKey: string;
   readonly capability: AdminCapability | null;
   readonly access: 'read' | 'write';
+  // For a write: the body fields the tool may send, each one the admin API's
+  // agent allowlist admits for its route.
+  readonly bodyFields?: readonly string[];
   readonly annotations: ToolAnnotations;
   // The schema the admin route answers with, which `output` is built from.
   readonly response: z.ZodType;

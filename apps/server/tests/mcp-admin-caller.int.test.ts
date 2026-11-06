@@ -14,12 +14,18 @@ import { loadConfig, mcpAudienceOfIssuer, newId } from '@odudu/kernel';
 import {
   newRequestScope,
   ToolProblem,
+  validatedMcpToken,
   type AdminRequestSpec,
   type McpCallDeps,
   type McpDeps,
   type ValidatedMcpToken,
+  type VerifiedMcpClaims,
 } from '@odudu/mcp';
-import { standardClaimMappers, tokenGrantRepository } from '@odudu/protocol-oidc';
+import {
+  clientOidcConfigRepository,
+  standardClaimMappers,
+  tokenGrantRepository,
+} from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { and, eq } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
@@ -158,17 +164,18 @@ async function world(capabilities: readonly string[], grantScope = 'mcp:read mcp
   });
 }
 
-function tokenOf(w: World, overrides: Partial<ValidatedMcpToken> = {}): ValidatedMcpToken {
-  return {
+// Built as the endpoint will build it from a verified payload: `exp` in seconds.
+function tokenOf(w: World, overrides: Partial<VerifiedMcpClaims> = {}): ValidatedMcpToken {
+  return validatedMcpToken({
     tenant: { id: w.tenantId, name: w.name },
     issuer: w.issuer,
     subjectId: w.subjectId,
     clientId: MCP_CLIENT_ID,
     grantId: w.grantId,
     scope: ['mcp:read', 'mcp:write'],
-    expiresAt: new Date(Date.now() + 3600_000),
+    expSeconds: Math.floor(Date.now() / 1000) + 3600,
     ...overrides,
-  };
+  });
 }
 
 function request(): McpCallDeps {
@@ -291,6 +298,13 @@ describe('every call is judged again', () => {
         ),
     ],
     [
+      'a disabled subject',
+      (w: World) =>
+        withTenant(appDb.db, w.tenantId, (tx) =>
+          subjectRepository(tx).setEnabled(w.subjectId, false),
+        ),
+    ],
+    [
       'a disabled tenant',
       async (w: World) => {
         await owner.db.update(tenants).set({ enabled: false }).where(eq(tenants.id, w.tenantId));
@@ -343,6 +357,25 @@ describe('scope and life', () => {
     expect(raw.statusCode).toBe(403);
   });
 
+  it('reads with a token that holds only mcp:write, under that one scope', async () => {
+    const w = await world(CAPS, 'mcp:write');
+    const before = minted.length;
+    const result = await adminCallerFor(request(), tokenOf(w, { scope: ['mcp:write'] })).call(
+      WHOAMI,
+    );
+    expect(result.status).toBe(200);
+    expect(claimsOf(minted[before] ?? '').scope).toBe('mcp:write');
+  });
+
+  it('refuses a token whose sub is not the owner of its grant', async () => {
+    const w = await world(CAPS);
+    const stranger = await world(CAPS);
+    const error = await adminCallerFor(request(), tokenOf(w, { subjectId: stranger.subjectId }))
+      .call(WHOAMI)
+      .catch((e: unknown) => e);
+    expect(error).toMatchObject({ problemType: 'mcp:access_ended', status: 401 });
+  });
+
   it('lives no longer than five minutes, nor than the token it came from', async () => {
     const w = await world(CAPS);
     const start = Math.floor(Date.now() / 1000);
@@ -352,9 +385,10 @@ describe('scope and life', () => {
     expect(long).toBeGreaterThan(290);
     expect(long).toBeLessThanOrEqual(301);
 
-    await adminCallerFor(request(), tokenOf(w, { expiresAt: new Date(Date.now() + 60_000) })).call(
-      WHOAMI,
-    );
+    await adminCallerFor(
+      request(),
+      tokenOf(w, { expSeconds: Math.floor(Date.now() / 1000) + 60 }),
+    ).call(WHOAMI);
     const short = Number(claimsOf(minted[before + 1] ?? '').exp) - start;
     expect(short).toBeLessThanOrEqual(61);
     expect(short).toBeGreaterThan(55);
@@ -364,7 +398,7 @@ describe('scope and life', () => {
     const w = await world(CAPS);
     const error = await adminCallerFor(
       request(),
-      tokenOf(w, { expiresAt: new Date(Date.now() - 1) }),
+      tokenOf(w, { expSeconds: Math.floor(Date.now() / 1000) - 1 }),
     )
       .call(WHOAMI)
       .catch((e: unknown) => e);
@@ -391,8 +425,7 @@ describe('two requests at once', () => {
 });
 
 describe('an MCP token presented at /token', () => {
-  it('does not buy a public client an admin token', async () => {
-    const w = await world(CAPS);
+  async function exchange(w: World) {
     const key = await withTenant(appDb.db, w.tenantId, (tx) => signingKeyRepository(tx).active());
     const now = Math.floor(Date.now() / 1000);
     const subjectToken = await signJwt(
@@ -410,7 +443,7 @@ describe('an MCP token presented at /token', () => {
       },
       { key, kek: KEK, typ: 'at+jwt' },
     );
-    const res = await app.inject({
+    return app.inject({
       method: 'POST',
       url: `/tenants/${w.name}/protocol/openid-connect/token`,
       headers: { host: 'id.example.com', 'content-type': 'application/x-www-form-urlencoded' },
@@ -423,8 +456,31 @@ describe('an MCP token presented at /token', () => {
         scope: 'mcp:read',
       }).toString(),
     });
+  }
+
+  it('does not buy a public client an admin token', async () => {
+    const w = await world(CAPS);
+    const res = await exchange(w);
     expect(res.statusCode).toBeGreaterThanOrEqual(400);
     expect(res.json<{ error: string }>().error).toBe('unauthorized_client');
     expect(res.body).not.toContain('access_token');
+  });
+
+  it('would, were the operator to switch the exchange on: the refusal is that setting', async () => {
+    const w = await world(CAPS);
+    await withTenant(appDb.db, w.tenantId, async (tx) => {
+      const repo = clientOidcConfigRepository(tx);
+      const config = await repo.byClientId(w.agentDbId);
+      if (config === null) throw new Error('no config');
+      await repo.update(w.agentDbId, {
+        grantTypes: [...config.grantTypes, 'urn:ietf:params:oauth:grant-type:token-exchange'],
+        audiences: [...config.audiences, ADMIN_API_AUDIENCE],
+        tokenExchangeImpersonationAllowed: true,
+        tokenExchangeAllowedForPublic: true,
+      });
+    });
+    const res = await exchange(w);
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ access_token: string }>().access_token).toBeTruthy();
   });
 });

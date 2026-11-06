@@ -27,6 +27,12 @@ export interface McpDepsParts {
 // What the MCP layer needs of this process: a way to sign the admin-audience
 // token for an agent, and the app's own `inject` to call the admin API with it.
 export function mcpDepsFor(parts: McpDepsParts): McpDeps {
+  if (parts.publicBaseUrl === undefined) {
+    parts.logger.warn(
+      'ODUDU_PUBLIC_BASE_URL is not set: admin calls for MCP are addressed at the host of the ' +
+        'token issuer, which a TLS-terminating proxy that rewrites the host would refuse',
+    );
+  }
   const lookup = tenantLookupRepository(parts.ownerDatabase.db);
   return {
     async mintAgentToken(token, input) {
