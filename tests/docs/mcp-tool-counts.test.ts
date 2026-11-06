@@ -22,8 +22,8 @@ const WORDS: Record<string, number> = { two: 2 };
 const number = (word: string): number => WORDS[word] ?? Number(word);
 
 describe('the MCP tool counts the documents state', () => {
-  it('are the catalogue’s: 50 read tools and 2 write tools', () => {
-    expect(READ).toBe(50);
+  it('are the catalogue’s: 61 read tools and 2 write tools', () => {
+    expect(READ).toBe(61);
     expect(WRITE).toBe(2);
     expect(TOOLS).toHaveLength(READ + WRITE);
   });
@@ -39,7 +39,7 @@ describe('the MCP tool counts the documents state', () => {
   it('is said at least once, so the check reads something', () => {
     const said = PAGES.flatMap((file) => [
       ...readFileSync(path.join(REPO_ROOT, file), 'utf8').matchAll(
-        /\b50\s+(?:read\s+tools|tools\s+that\s+read)/gu,
+        /\b61\s+(?:read\s+tools|tools\s+that\s+read)/gu,
       ),
     ]);
     expect(said.length).toBeGreaterThanOrEqual(3);

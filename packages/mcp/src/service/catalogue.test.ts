@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { ADMIN_ROUTES } from '@odudu/protocol-admin';
 import { NOT_TOOLS, TOOLS } from '#/service/catalogue';
 
-// A fixed set of a few names, answered whole.
-const UNPAGED_LIST = 'list_builtin_scopes';
+// Lists that answer a small fixed set whole: the built-in scopes, and at most
+// twenty theme versions.
+const UNPAGED_LISTS = ['list_builtin_scopes', 'list_theme_versions', 'list_client_theme_versions'];
 
 describe('the catalogue', () => {
   it('lists every tool input as a JSON schema that takes no key it does not name', () => {
@@ -17,7 +18,7 @@ describe('the catalogue', () => {
 
   it('bounds the page size of every list in the schema a client sees', () => {
     const paged = TOOLS.filter(
-      (tool) => tool.name.startsWith('list_') && tool.name !== UNPAGED_LIST,
+      (tool) => tool.name.startsWith('list_') && !UNPAGED_LISTS.includes(tool.name),
     );
     expect(paged.length).toBeGreaterThan(10);
     for (const tool of paged) {
@@ -68,6 +69,43 @@ describe('the catalogue', () => {
     }
     expect(served).not.toContain(`GET ${T}/clients/:id/evaluate`);
     expect(NOT_TOOLS).toHaveProperty([`GET ${T}/clients/:id/evaluate`]);
+  });
+
+  it('offers the eleven branding reads as tools, and keeps the asset bytes and the previews withheld', () => {
+    const T = '/admin/tenants/:tenant';
+    const routes = [
+      `GET ${T}/theme`,
+      `GET ${T}/theme/versions`,
+      `GET ${T}/theme/preview/info`,
+      `GET ${T}/theme/stylesheet-hooks`,
+      `GET ${T}/mail/branding`,
+      `GET ${T}/message-overrides`,
+      `GET ${T}/message-catalogue`,
+      `GET ${T}/clients/:id/theme`,
+      `GET ${T}/clients/:id/theme/versions`,
+      `GET ${T}/clients/:id/theme/preview/info`,
+      `GET ${T}/clients/:id/mail/branding`,
+    ];
+    const served = TOOLS.map((tool) => tool.routeKey);
+    for (const route of routes) {
+      expect(served, route).toContain(route);
+      expect(NOT_TOOLS, route).not.toHaveProperty([route]);
+    }
+    for (const route of [
+      `GET ${T}/theme/assets/:assetId/content`,
+      `GET ${T}/theme/preview`,
+      `GET ${T}/mail/preview`,
+      `GET ${T}/clients/:id/theme/preview`,
+      `GET ${T}/clients/:id/mail/preview`,
+    ]) {
+      expect(served, route).not.toContain(route);
+      expect(NOT_TOOLS, route).toHaveProperty([route]);
+    }
+  });
+
+  it('gives long text only to the two theme documents, by name', () => {
+    const long = TOOLS.filter((tool) => tool.description.includes('131,072'));
+    expect(long.map((tool) => tool.name)).toEqual(['get_client_theme', 'get_theme']);
   });
 
   it("answers with the schema the route's own contract declares", () => {

@@ -16,7 +16,7 @@ more phase work. What it built, and what the whole-phase review found, is in
 What it placed on later phases is on
 [the roadmap page](../apps/docs/content/en/roadmap.md).
 
-**P5a, the MCP server, is built.** Every tenant serves an MCP endpoint with 50 read
+**P5a, the MCP server, is built.** Every tenant serves an MCP endpoint with 61 read
 tools (two for the system tenant's agent alone) and two write tools for descriptive text, `odudu mcp` serves them over stdio,
 and the sign-in an MCP client needs (metadata, registration under an `mcp` policy,
 client ID metadata documents, `mcp:read` and `mcp:write`) is in place. What it found

@@ -1,3 +1,4 @@
+import { themeViewSchema } from '@odudu/contracts/admin';
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import { TOOLS } from '#/service/catalogue';
@@ -19,6 +20,7 @@ const POISONS = [
 const UUID = '0192a0a0-0000-7000-8000-000000000001';
 const ETAG = `"${'a'.repeat(64)}"`;
 const RESULT_KEYS = ['data', 'next_cursor', 'truncated', 'etag'];
+const UNPAGED = ['list_builtin_scopes', 'list_theme_versions', 'list_client_theme_versions'];
 
 function inputFor(tool: RegisteredTool): Record<string, unknown> {
   if (tool.access === 'write') {
@@ -27,7 +29,8 @@ function inputFor(tool: RegisteredTool): Record<string, unknown> {
   }
   const schema = z.toJSONSchema(tool.input, { io: 'input', unrepresentable: 'any' });
   const input: Record<string, unknown> = {};
-  for (const name of schema.required ?? []) input[name] = name === 'id' ? UUID : 'x';
+  for (const name of schema.required ?? [])
+    input[name] = name === 'id' ? UUID : name === 'locale' ? 'en' : 'x';
   return input;
 }
 
@@ -83,7 +86,7 @@ function answer(body: unknown, status = 200): ReturnType<typeof respondingWith> 
 
 describe('the label on text a model reads', () => {
   it('covers every tool of the catalogue, the writes among them', () => {
-    expect(TOOLS.length).toBeGreaterThanOrEqual(52);
+    expect(TOOLS.length).toBeGreaterThanOrEqual(63);
     expect(TOOLS.filter((tool) => tool.access === 'write')).toHaveLength(2);
     const names = TOOLS.map((tool) => tool.name);
     expect(names).toContain('list_tenants');
@@ -95,6 +98,17 @@ describe('the label on text a model reads', () => {
       'get_scope_impact',
       'list_builtin_scopes',
       'get_client_installation',
+      'get_theme',
+      'list_theme_versions',
+      'get_theme_preview_info',
+      'get_stylesheet_hooks',
+      'get_mail_branding',
+      'list_message_overrides',
+      'get_message_catalogue',
+      'get_client_theme',
+      'list_client_theme_versions',
+      'get_client_theme_preview_info',
+      'get_client_mail_branding',
     ]) {
       expect(names).toContain(name);
     }
@@ -126,7 +140,7 @@ describe('the label on text a model reads', () => {
       },
     );
 
-    if (tool.name.startsWith('list_') && tool.name !== 'list_builtin_scopes') {
+    if (tool.name.startsWith('list_') && !UNPAGED.includes(tool.name)) {
       it('refuses a next cursor that is anything but opaque, instead of passing it on', async () => {
         for (const poison of POISONS) {
           const page = { ...(exampleOf(tool.response) as object), next: poison };
@@ -166,4 +180,42 @@ describe('the label on text a model reads', () => {
       }
     });
   });
+});
+
+describe('a theme full of instructions', () => {
+  const templates = Object.fromEntries(
+    ['sign-in', 'consent', 'notice'].map((kind, i) => [
+      kind,
+      `<p>${POISONS[i] ?? ''}</p>`.repeat(50),
+    ]),
+  );
+  const body = {
+    tokens: {},
+    stylesheet: `/* ${POISONS[3] ?? ''} */`.repeat(200),
+    templates,
+    assets: {},
+  };
+  const view = {
+    ...(exampleOf(themeViewSchema) as object),
+    draft: body,
+    published: { id: UUID, version: 1, published_at: null, body },
+  };
+
+  it.each(['get_theme', 'get_client_theme'])(
+    '%s keeps the stylesheet and every template under data, stripped of controls and overrides',
+    async (name) => {
+      const tool = TOOLS.find((candidate) => candidate.name === name);
+      if (tool === undefined) throw new Error(`no tool ${name}`);
+      const result = await callTool(tool, answer(view), inputFor(tool));
+      expect(result.isError).toBe(false);
+      const { data, ...beside } = result.structuredContent;
+      expect(JSON.stringify(beside)).not.toContain(MARK);
+      expect(JSON.stringify(beside)).not.toMatch(/call |instruction|tools\/call|jsonrpc/iu);
+      const text = JSON.stringify(data);
+      expect(text).toContain(MARK);
+      expect(text).not.toMatch(/[‮\u0000]/u);
+      expect(result.content).toHaveLength(1);
+      expect(result.content[0]?.text).toBe(JSON.stringify(result.structuredContent));
+    },
+  );
 });

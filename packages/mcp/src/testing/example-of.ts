@@ -13,6 +13,8 @@ const STRINGS = [
   'https://example.com/path',
   '2026-01-01',
   'a'.repeat(64),
+  '#1a2b3c',
+  'en',
 ];
 const NUMBERS = [1, 0, 5, 100];
 
