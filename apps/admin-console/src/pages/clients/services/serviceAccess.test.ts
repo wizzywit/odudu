@@ -21,9 +21,9 @@ describe('the roles of a service account', () => {
 });
 
 describe('accountIdleNote', () => {
-  it('says an account is idle while the client credentials grant is off, and keeps its roles', () => {
+  it('says an account is idle while the client credentials grant is off, and how it goes', () => {
     expect(accountIdleNote({ service_subject_id: 's1', grant_types: ['authorization_code'] })).toBe(
-      'Not in use: the client credentials grant is off. The account keeps its roles.',
+      'Not in use: the client credentials grant is off. The account keeps its roles until the grant is turned on and off again, which removes it.',
     );
   });
 
@@ -41,7 +41,12 @@ describe('serviceAccess', () => {
     crossTenant: false,
   });
 
-  const NONE = { service_subject_id: null, type: 'confidential', builtin_admin: false } as const;
+  const NONE = {
+    service_subject_id: null,
+    type: 'confidential',
+    builtin_admin: false,
+    grant_types: ['client_credentials'],
+  } as const;
 
   it('says a client with no account has none, whoever asks', () => {
     expect(serviceAccess(NONE, held(['manage-users']))).toMatchObject({ status: 'none' });
@@ -55,6 +60,9 @@ describe('serviceAccess', () => {
     };
     expect(note({ ...NONE, type: 'public' })).toBe('A public client has no service account.');
     expect(note(NONE)).toBe('This client has no service account.');
+    expect(note({ ...NONE, grant_types: ['authorization_code'] })).toBe(
+      'No service account: the client credentials grant is off. Turning it on creates one.',
+    );
     expect(note({ ...NONE, builtin_admin: true })).toBe(
       "No service account. This client signs people in; it doesn't sign in as itself.",
     );

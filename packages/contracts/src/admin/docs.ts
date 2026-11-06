@@ -300,7 +300,7 @@ describeFields(clientFieldsSchema, {
   redirect_uris:
     'The addresses the authorization server may send the user back to after sign-in. A request naming any other address is refused.',
   grant_types:
-    'The grants the client may use at the token endpoint, such as `authorization_code`, `refresh_token`, `client_credentials`.',
+    'The grants the client may use at the token endpoint, such as `authorization_code`, `refresh_token`, `client_credentials`. A confidential client has a service account only while `client_credentials` is listed: adding it creates the account and removing it deletes the account with its roles and token grants.',
   token_endpoint_auth_method:
     'How a confidential client authenticates at the token endpoint, for example `client_secret_basic`, `client_secret_post` or `private_key_jwt`.',
   audiences:
@@ -357,7 +357,7 @@ describeFields(clientFieldsSchema, {
   builtin_admin:
     'True for the tenant’s built-in admin console client, which cannot be deleted and is limited in what can be amended.',
   service_subject_id:
-    'The service account a confidential client authenticates as, or null when it has none.',
+    'The service account a client authenticates as, or null when it holds no client_credentials grant or is public. Setting grant_types creates it when the grant is added and deletes it, with the roles and token grants it held, when the grant is removed.',
   scopes:
     'The scopes assigned to the client and whether each is `default` (always requested) or `optional` (only when asked for).',
 });

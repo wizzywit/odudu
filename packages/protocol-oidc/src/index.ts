@@ -1196,6 +1196,12 @@ export {
 } from '#/usecase/mint-agent-token';
 export { type AgentTokenRefusal } from '#/service/agent-token-rules';
 export { AGENT_TOKEN_MAX_TTL_SECONDS } from '#/service/mcp-scopes';
+export {
+  IDLE_ACCOUNT_COUNT_CAP,
+  IDLE_ACCOUNT_SAMPLE_LIMIT,
+  idleServiceAccounts,
+  type IdleAccountFinding,
+} from '#/repository/service-account-upgrade';
 export { CLIENT_CREDENTIALS_GRANT, needsServiceAccount } from '#/service/service-account';
 export { ensureServiceAccount, retireServiceAccount } from '#/usecase/service-account';
 export {
