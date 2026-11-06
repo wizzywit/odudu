@@ -127,10 +127,15 @@ does not admit is refused with a `capability.refused` row (`insufficient_scope`
 or `agent_without_mcp_scope`). ADR 0050 holds the rest.
 
 The row has two writers, so that a call is recorded once. The MCP endpoint writes
-it for a call it serves, and that call reaches the admin API with an `act` claim.
-The admin API writes it, at its door and before the handler runs, for an agent
-whose token carries no `act`: one issued straight to the built-in `odudu-mcp`
-client or to a service account, which is how `odudu mcp` calls. The door cannot
-know a tool's name, so the row's `tool` is the route (`admin.get.clients`) and its
-`route` the route key. If the row cannot be written the call is a `503` and does not
-run, the stance the endpoint takes when it cannot record a call.
+it for a call it serves, and the admin-audience token it signs for that call carries
+a `via` claim of `mcp` beside `act`, which no other path can produce: a token
+exchange or a refresh builds its claims itself and copies none from the token it is
+given, and a claim mapper's `via` is dropped. The admin API writes the row, at its
+door and before the handler runs, for every agent call whose token does not carry
+that marker: a token issued to the built-in `odudu-mcp` client or to a service
+account (how `odudu mcp` calls), and an exchanged token, which has `act` too but was
+not signed by the endpoint. The door cannot know a tool's name, so the row's `tool`
+is the route (`admin.get.clients`) and its `route` the route key. If the row cannot
+be written the call is a `503` and does not run, the stance the endpoint takes when
+it cannot record a call. A call the scope or the capability refuses leaves only its
+refusal row.

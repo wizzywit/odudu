@@ -1124,8 +1124,12 @@ given.
 - **A call over stdio is recorded by the admin API's door.** The first live run showed
   two reads leaving only `token.issue`. The door (`handleRoute`) now writes one
   `agent.tool_call` row, before the handler runs, for an agent principal whose token
-  has no `act` (`AdminAgent.viaEndpoint` is set only when it has one), so the MCP
-  endpoint's own row is not doubled. `tool` is derived from the route key
+  does not carry the `via: mcp` claim that only `mintAgentToken` signs
+  (`AdminAgent.viaEndpoint`), so the MCP endpoint's own row is not doubled. `act` alone is
+  not the marker: a token exchange makes `act` tokens too, and a client allowed to exchange
+  could otherwise call the admin API with no row at all. Exchange, refresh and
+  `client_credentials` build their claims and copy none from a subject token, and `via` from a
+  claim mapper is dropped. `tool` is derived from the route key
   (`admin.get.clients`, `doorToolName`), inside the vocabulary's charset, with the
   full key in `route`. A row that cannot be written is a `503` and the handler does not
   run (the HTTP path's stance). A write has this row and its own mutation row. ADR
@@ -1137,8 +1141,8 @@ given.
 - **Sign-in robustness.** The refresh token is kept before the new access token is
   judged, because the server has already spent the old one, and kept in memory for the
   run if the store will not take it. Reading the store, refreshing and writing happen
-  under a lock file (`wx`, 30 s stale, 10 s wait) so two `odudu mcp` of one user do not
-  present the same token. After a failure nothing is tried again for a minute, so an
+  under a lock file (an owner token, `wx`, 45 s stale taken by rename, 50 s wait; never held
+  across the browser sign-in) so two `odudu mcp` of one user do not present the same token. After a failure nothing is tried again for a minute, so an
   agent that retries does not open a browser per call. A 401 drops the token and
   retries once. Expiry is the earlier of `expires_in` (capped at an hour) and the
   token's `exp`. `--logout` reads back and exits non-zero if the secret is still
@@ -1147,3 +1151,9 @@ given.
   running at end of input is waited for, up to 25 s, so a write's outcome is known.
   A failure line carries the error's name and a cleaned message (queries cut from
   addresses, long opaque runs shortened) and the correlation id.
+- **A sign-in is kept for the server it was made at.** The store and the lock are keyed by
+  the issuer of the address signed in at (the path address, or what `--tenant-address`
+  names), and the refresh token is stored with its issuer and token endpoint. A stored value
+  for another issuer or token endpoint is forgotten and the person signs in again, so a
+  configuration that changes `--tenant-address` cannot hand a refresh token to another
+  server.

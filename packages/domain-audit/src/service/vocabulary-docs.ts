@@ -34,7 +34,7 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
     'An AI agent called one MCP tool for its owner, reads included: one row per call, naming ' +
     'the agent client, the owner, the tool and the admin route it reached, never its arguments. ' +
     'The MCP endpoint writes it for a call it serves; for a call made straight to the admin API ' +
-    'with a token issued to the agent (`odudu mcp`), the admin API writes it before the call runs, ' +
+    'with a token the endpoint did not sign (`odudu mcp`, or an exchanged token), the admin API writes it before the call runs, ' +
     'and the tool is the route (`admin.get.clients`).',
   'token.foreign_issuer':
     'A genuine token issued by another tenant was presented to the admin API.',
