@@ -4,9 +4,17 @@ import { TOOLS, type RunTool } from '@odudu/mcp';
 import { chmod, mkdtemp, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { PassThrough } from 'node:stream';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { mcpCommand, type McpIo } from '#/cli/mcp';
+import type { McpIo } from '#/cli/mcp';
+import {
+  byId,
+  INITIALIZE,
+  INITIALIZED,
+  runMcp,
+  SESSION,
+  toolNames,
+  type Run,
+} from '#/testing/mcp-session';
 
 const BASE = 'https://id.example.com';
 const ISSUER = `${BASE}/tenants/acme`;
@@ -103,105 +111,8 @@ beforeAll(async () => {
   keyText = await generateClientKey();
 });
 
-interface Run {
-  readonly code: number;
-  readonly stdout: string;
-  readonly stderr: string[];
-  readonly lines: unknown[];
-}
-
-async function run(
-  argv: string[],
-  options: {
-    env?: Record<string, string>;
-    input?: unknown[];
-    fetch?: typeof fetch;
-    configDir?: string;
-    openBrowser?: McpIo['openBrowser'];
-  } = {},
-): Promise<Run> {
-  const stdin = new PassThrough();
-  const stdout = new PassThrough();
-  let out = '';
-  stdout.setEncoding('utf8');
-  stdout.on('data', (chunk: string) => {
-    out += chunk;
-  });
-  const stderr: string[] = [];
-  const configDir = options.configDir ?? (await mkdtemp(join(tmpdir(), 'odudu-mcp-')));
-  const io: McpIo = {
-    stdin,
-    stdout,
-    stderr: (line) => stderr.push(line),
-    env: options.env ?? {},
-    platform: 'linux',
-    configDir,
-    run: NOTHING,
-    fetch: options.fetch ?? authority().fetch,
-    now: () => new Date(),
-    entropy: (bytes) => Uint8Array.from({ length: bytes }, (_, i) => (i * 7 + 3) % 251),
-    ...(options.openBrowser === undefined ? {} : { openBrowser: options.openBrowser }),
-  };
-  const done = mcpCommand(argv, io);
-  for (const message of options.input ?? []) stdin.write(`${JSON.stringify(message)}\n`);
-  if (options.input !== undefined) {
-    // Wait for every answer a request among them asks for, then end the input.
-    const wanted = options.input.filter(
-      (m) => typeof m === 'object' && m !== null && 'id' in m,
-    ).length;
-    for (let i = 0; i < 400 && out.split('\n').filter(Boolean).length < wanted; i += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-  }
-  stdin.end();
-  const code = await done;
-  return {
-    code,
-    stdout: out,
-    stderr,
-    lines: out
-      .split('\n')
-      .filter(Boolean)
-      .map((line): unknown => {
-        try {
-          return JSON.parse(line);
-        } catch {
-          return line;
-        }
-      }),
-  };
-}
-
-const INITIALIZE = {
-  jsonrpc: '2.0',
-  id: 1,
-  method: 'initialize',
-  params: {
-    protocolVersion: '2025-11-25',
-    capabilities: {},
-    clientInfo: { name: 't', version: '1' },
-  },
-};
-const INITIALIZED = { jsonrpc: '2.0', method: 'notifications/initialized' };
-const LIST = { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} };
-const WHOAMI = {
-  jsonrpc: '2.0',
-  id: 3,
-  method: 'tools/call',
-  params: { name: 'whoami', arguments: {} },
-};
-const SESSION = [INITIALIZE, INITIALIZED, LIST, WHOAMI];
-
-function byId(lines: unknown[], id: number): Record<string, unknown> {
-  const found = lines.find((l) => typeof l === 'object' && l !== null && 'id' in l && l.id === id);
-  if (typeof found !== 'object' || found === null) throw new Error(`no answer ${String(id)}`);
-  return Object.fromEntries(Object.entries(found));
-}
-
-function toolNames(lines: unknown[]): string[] {
-  const result = byId(lines, 2).result as { tools: { name: string }[] };
-  return result.tools.map((t) => t.name);
-}
+const run = (argv: string[], options: Parameters<typeof runMcp>[1] = {}): Promise<Run> =>
+  runMcp(argv, { fetch: authority().fetch, ...options });
 
 const KEY_ARGS = ['--base-url', BASE, '--tenant', 'acme', '--client-id', 'svc'];
 
