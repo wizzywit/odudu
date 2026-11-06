@@ -261,7 +261,7 @@ describe('persistCimdClient', () => {
   async function protect(
     tenant: string,
     url: string,
-    how: 'consent' | 'refresh' | 'code',
+    how: 'consent' | 'refresh' | 'code' | 'session',
   ): Promise<void> {
     const client = await idOf(tenant, url);
     const subject = newId();
@@ -279,6 +279,10 @@ describe('persistCimdClient', () => {
         values (${grant}, ${tenant}, ${client}, ${subject}, 'openid')`);
       await db.execute(sql`insert into refresh_tokens (token_hash, tenant_id, grant_id, expires_at)
         values (${`rt-${client}`}, ${tenant}, ${grant}, now() + interval '5 days')`);
+    } else if (how === 'session') {
+      await db.execute(sql`insert into authentication_sessions (id, tenant_id, pending_request, expires_at)
+        values (gen_random_uuid(), ${tenant}, ${JSON.stringify({ clientId: url })}::jsonb,
+          now() + interval '5 minutes')`);
     } else {
       await db.execute(sql`insert into authorization_codes (code_hash, tenant_id, client_id, subject_id,
           redirect_uri, scope, code_challenge, code_challenge_method, auth_time, expires_at)
@@ -299,18 +303,19 @@ describe('persistCimdClient', () => {
     expect(urls.has('https://filler.example/2')).toBe(true);
   }, 60_000);
 
-  it('never evicts a client with a consent, a live refresh token or an unexpired code', async () => {
+  it('never evicts a client with a consent, a live refresh token, an unexpired code or a sign-in under way', async () => {
     await fill(mine, CIMD_CLIENTS_PER_TENANT);
     await protect(mine, 'https://filler.example/1', 'refresh');
     await protect(mine, 'https://filler.example/2', 'consent');
     await protect(mine, 'https://filler.example/3', 'code');
+    await protect(mine, 'https://filler.example/4', 'session');
 
     expect(await persist(mine, documentClient())).toBe('ok');
 
     const urls = await urlsOf(mine);
-    for (const kept of [1, 2, 3])
+    for (const kept of [1, 2, 3, 4])
       expect(urls.has(`https://filler.example/${String(kept)}`)).toBe(true);
-    expect(urls.has('https://filler.example/4')).toBe(false);
+    expect(urls.has('https://filler.example/5')).toBe(false);
   }, 60_000);
 
   it('never evicts a client an administrator disabled, so the decision survives a full tenant', async () => {
