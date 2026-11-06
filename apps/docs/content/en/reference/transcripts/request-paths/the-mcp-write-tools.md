@@ -1,6 +1,6 @@
 ---
 title: 'The MCP write tools'
-description: 'The two tools that change a client or a scope, run over the MCP endpoint: the token that holds mcp:write, an update under an etag, and what each refusal says and leaves behind.'
+description: 'The two MCP tools that change a client or a scope: the consent for mcp:write, an update under an etag, and what each refusal says and leaves behind.'
 ---
 
 # The MCP write tools
