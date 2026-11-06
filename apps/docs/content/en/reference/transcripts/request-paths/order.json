@@ -22,6 +22,7 @@
   "protected-resource-metadata.md",
   "the-mcp-endpoint.md",
   "the-mcp-write-tools.md",
+  "odudu-mcp-over-stdio.md",
   "a-themed-sign-in-and-the-brand-route.md",
   "custom-domains-a-domain-host-and-the-proxys-question.md",
   "path-c-client_credentials.md",
