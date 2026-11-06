@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { noBidiControls } from '#/bidi';
+import { noBidiControls, noNul } from '#/bidi';
 import {
   createdAtSchema,
   cursorQuerySchema,
@@ -52,7 +52,7 @@ export const listRolesResponseSchema = z.object({
 export type ListRolesResponse = z.infer<typeof listRolesResponseSchema>;
 
 export const createRoleRequestSchema = z.object({
-  name: noBidiControls(z.string().min(1)),
+  name: noNul(noBidiControls(z.string().min(1))),
   description: descriptionSchema.nullable().optional(),
   client_id: idSchema.optional(),
   default_for_new_subjects: z.boolean().optional(),

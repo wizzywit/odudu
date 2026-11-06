@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { noBidiControls } from '#/bidi';
+import { noBidiControls, noNul } from '#/bidi';
 
 export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 200;
@@ -134,4 +134,4 @@ export const CLIENT_NAME_MAX = 256;
  */
 export const localisedTextSchema = z.record(z.string(), z.string());
 
-export const descriptionSchema = noBidiControls(z.string().min(1).max(DESCRIPTION_MAX));
+export const descriptionSchema = noNul(noBidiControls(z.string().min(1).max(DESCRIPTION_MAX)));
