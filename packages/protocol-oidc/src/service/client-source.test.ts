@@ -29,7 +29,7 @@ describe('clientSourceOf', () => {
   });
 
   it('bounds the origins named and counts the rest', () => {
-    const uris = Array.from({ length: 9 }, (_, i) => `https://h${i}.example/cb`);
+    const uris = Array.from({ length: 9 }, (_, i) => `https://h${String(i)}.example/cb`);
     const source = clientSourceOf({ clientId: 'abc', registrationOrigin: 'anonymous' }, uris);
     expect(source).toMatchObject({ kind: 'self-registered', more: 4 });
     expect(source !== null && source.kind === 'self-registered' && source.origins).toHaveLength(5);
