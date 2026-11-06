@@ -75,7 +75,7 @@ export async function runTool(
         'mcp:result_too_large',
         'The result is too large to return',
         null,
-        'Ask for fewer rows with a smaller limit, or narrow the filters.',
+        tool.tooLargeDetail ?? 'Ask for fewer rows with a smaller limit, or narrow the filters.',
       );
       return { result: errorResult(problem), problem };
     }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanData, cleanText, TEXT_CAP, type CleanStats } from '#/service/sanitize';
+import { cleanData, cleanText, LONG_TEXT_CAP, TEXT_CAP, type CleanStats } from '#/service/sanitize';
 
 function stats(): CleanStats {
   return { truncated: false };
@@ -117,5 +117,83 @@ describe('cleanData', () => {
       oct: { kty: 'oct' },
       d: 'a member named d without a kty is not a key',
     });
+  });
+});
+
+describe('cleanData with a long-text allowance', () => {
+  const KIB = 1024;
+  const options = { longText: ['stylesheet', 'templates'] };
+
+  it('keeps a stylesheet of 100 KiB whole and cuts one of 200 KiB, saying so', () => {
+    const whole = stats();
+    const out = cleanData({ stylesheet: 'a'.repeat(100 * KIB) }, whole, options) as {
+      stylesheet: string;
+    };
+    expect(out.stylesheet).toHaveLength(100 * KIB);
+    expect(whole.truncated).toBe(false);
+
+    const cut = stats();
+    const big = cleanData({ stylesheet: 'a'.repeat(200 * KIB) }, cut, options) as {
+      stylesheet: string;
+    };
+    expect(big.stylesheet).toHaveLength(LONG_TEXT_CAP);
+    expect(big.stylesheet.endsWith('…')).toBe(true);
+    expect(cut.truncated).toBe(true);
+  });
+
+  it('reaches a string at any depth under a named member, which a key-only match would miss', () => {
+    const body = { draft: { templates: { 'sign-in': 'b'.repeat(100 * KIB) } } };
+    const out = cleanData(body, stats(), options) as typeof body;
+    expect(out.draft.templates['sign-in']).toHaveLength(100 * KIB);
+
+    const cut = stats();
+    const big = cleanData(
+      { published: { body: { templates: { consent: { nested: 'b'.repeat(200 * KIB) } } } } },
+      cut,
+      options,
+    );
+    expect(JSON.stringify(big).length).toBeLessThan(LONG_TEXT_CAP + 200);
+    expect(cut.truncated).toBe(true);
+  });
+
+  it('cuts every other field at the ordinary cap, beside a long one', () => {
+    const out = cleanData(
+      {
+        stylesheet: 'a'.repeat(5_000),
+        name: 'n'.repeat(5_000),
+        other: { note: 'x'.repeat(5_000) },
+      },
+      stats(),
+      options,
+    ) as { stylesheet: string; name: string; other: { note: string } };
+    expect(out.stylesheet).toHaveLength(5_000);
+    expect(out.name).toHaveLength(TEXT_CAP);
+    expect(out.other.note).toHaveLength(TEXT_CAP);
+  });
+
+  it('strips the same characters from a long text as from any other', () => {
+    const text = 'a\u0000b‮c​d\u{E0041}e';
+    const out = cleanData({ stylesheet: text, name: text }, stats(), options) as {
+      stylesheet: string;
+      name: string;
+    };
+    expect(out.stylesheet).toBe('abcde');
+    expect(out.stylesheet).toBe(out.name);
+  });
+
+  it('cuts a member named stylesheet at the ordinary cap where no allowance is declared', () => {
+    const cut = stats();
+    const out = cleanData({ stylesheet: 'a'.repeat(100 * KIB) }, cut) as { stylesheet: string };
+    expect(out.stylesheet).toHaveLength(TEXT_CAP);
+    expect(cut.truncated).toBe(true);
+    const empty = cleanData({ stylesheet: 'a'.repeat(5_000) }, stats(), {}) as {
+      stylesheet: string;
+    };
+    expect(empty.stylesheet).toHaveLength(TEXT_CAP);
+  });
+
+  it('still drops a secret member inside a long-text member', () => {
+    const out = cleanData({ templates: { password: 'p', ok: 'fine' } }, stats(), options);
+    expect(out).toEqual({ templates: { ok: 'fine' } });
   });
 });

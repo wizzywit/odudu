@@ -49,6 +49,9 @@ export interface McpTool<I, O> {
   readonly routeKey: string;
   readonly capability: AdminCapability | null;
   readonly access: 'read' | 'write';
+  // What to say when the answer passes the result cap, for a tool whose rows
+  // cannot be narrowed with a limit or a filter.
+  readonly tooLargeDetail?: string;
   // For a write: the body fields the tool may send, each one the admin API's
   // agent allowlist admits for its route.
   readonly bodyFields?: readonly string[];
