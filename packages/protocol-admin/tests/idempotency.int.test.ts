@@ -368,6 +368,48 @@ describe('idempotencyRepository', () => {
     expect(await rowCount(a.t.id)).toBe(1);
   });
 
+  it('takes its locks per tenant, probed with a foreign tenant_id', async () => {
+    const a = await world();
+    const b = await world();
+    const key = `shared-${newId()}`;
+    let release: () => void = () => undefined;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let held: () => void = () => undefined;
+    const holding = new Promise<void>((resolve) => {
+      held = resolve;
+    });
+    const holder = withTenant(fixture.app.db, a.t.id, async (tx) => {
+      const repository = idempotencyRepository(tx);
+      expect(await repository.tryLockKey(a.t.id, key, ROUTE)).toBe(true);
+      await repository.lockCapacity(a.t.id);
+      held();
+      await released;
+    });
+    await holding;
+
+    const slow = <T>(promise: Promise<T>): Promise<T | 'waiting'> =>
+      Promise.race([promise, new Promise<'waiting'>((r) => setTimeout(() => r('waiting'), 700))]);
+    try {
+      await withTenant(fixture.app.db, b.t.id, async (tx) => {
+        const repository = idempotencyRepository(tx);
+        expect(await repository.tryLockKey(b.t.id, key, ROUTE)).toBe(true);
+        expect(await repository.tryLockKey(a.t.id, key, ROUTE)).toBe(false);
+        expect(await slow(repository.lockCapacity(b.t.id))).toBeUndefined();
+      });
+      const sameTenant = withTenant(fixture.app.db, a.t.id, (tx) =>
+        idempotencyRepository(tx).lockCapacity(a.t.id),
+      );
+      expect(await slow(sameTenant)).toBe('waiting');
+      release();
+      await sameTenant;
+    } finally {
+      release();
+      await holder;
+    }
+  });
+
   it('counts at most the limit it is given', async () => {
     const { t } = await world();
     await fixture.owner.db.execute(sql`

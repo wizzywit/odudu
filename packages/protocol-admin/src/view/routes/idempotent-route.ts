@@ -71,6 +71,14 @@ function serialise(payload: unknown): Serialised {
   return { kind: 'text', body: JSON.stringify(payload) };
 }
 
+// A refusal after the handler ran answers for a change that was undone, so
+// the headers describing that change (its ETag, its Location) go with it.
+function dropHandlerHeaders(reply: FastifyReply, before: ReadonlySet<string>): void {
+  for (const name of Object.keys(reply.getHeaders())) {
+    if (!before.has(name)) reply.removeHeader(name);
+  }
+}
+
 function problemFor(result: IdempotencyRollback['result']): Problem {
   return result.kind === 'capacity' ? idempotencyCapacity() : idempotencyResponseTooLarge();
 }
@@ -116,6 +124,7 @@ export function runAfterCommit(effects: readonly (() => void)[], request: Fastif
 export async function sendIdempotent(call: IdempotentCall): Promise<FastifyReply> {
   const { request, reply, route, tenantId, principal } = call;
   const held = holdSend(reply);
+  const headersBefore = new Set(Object.keys(reply.getHeaders()));
   let heldPayload: unknown;
   let after: readonly (() => void)[] = [];
   let result: IdempotencyResult;
@@ -165,6 +174,7 @@ export async function sendIdempotent(call: IdempotentCall): Promise<FastifyReply
   } catch (error) {
     held.release();
     if (error instanceof IdempotencyRollback) {
+      dropHandlerHeaders(reply, headersBefore);
       return sendProblem(reply, request, problemFor(error.result));
     }
     throw error;

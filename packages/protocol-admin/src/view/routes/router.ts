@@ -298,10 +298,12 @@ async function enterGate(
   run: () => Promise<FastifyReply>,
 ): Promise<FastifyReply> {
   const gone = new AbortController();
+  // The request's own `close` fires once its body has been read, with the
+  // caller still waiting; the response's closes with the connection.
   const onClose = () => {
-    gone.abort();
+    if (!reply.raw.writableFinished) gone.abort();
   };
-  request.raw.once('close', onClose);
+  reply.raw.once('close', onClose);
   try {
     const entry = await gate.acquire(gone.signal);
     if (entry.kind === 'refused') {
@@ -313,14 +315,14 @@ async function enterGate(
       }
       return await reply;
     }
-    request.raw.off('close', onClose);
+    reply.raw.off('close', onClose);
     try {
       return await run();
     } finally {
       entry.release();
     }
   } finally {
-    request.raw.off('close', onClose);
+    reply.raw.off('close', onClose);
   }
 }
 
