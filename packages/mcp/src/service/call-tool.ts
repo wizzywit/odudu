@@ -61,6 +61,19 @@ export interface ToolRun {
   readonly problem: ToolProblem | null;
 }
 
+// A caller refuses an answer past the admin read cap before the tool can speak;
+// the tool's own advice is added where that refusal has no detail of its own.
+function withAdvice(problem: ToolProblem, tool: RegisteredTool): ToolProblem {
+  if (
+    problem.problemType !== 'mcp:result_too_large' ||
+    problem.detail !== undefined ||
+    tool.tooLargeDetail === undefined
+  ) {
+    return problem;
+  }
+  return new ToolProblem(problem.problemType, problem.title, problem.status, tool.tooLargeDetail);
+}
+
 // `callTool` with the problem it turned into an error result kept beside it.
 export async function runTool(
   tool: RegisteredTool,
@@ -75,7 +88,7 @@ export async function runTool(
         'mcp:result_too_large',
         'The result is too large to return',
         null,
-        'Ask for fewer rows with a smaller limit, or narrow the filters.',
+        tool.tooLargeDetail ?? 'Ask for fewer rows with a smaller limit, or narrow the filters.',
       );
       return { result: errorResult(problem), problem };
     }
@@ -84,7 +97,10 @@ export async function runTool(
       problem: null,
     };
   } catch (error) {
-    if (error instanceof ToolProblem) return { result: errorResult(error), problem: error };
+    if (error instanceof ToolProblem) {
+      const problem = withAdvice(error, tool);
+      return { result: errorResult(problem), problem };
+    }
     throw error;
   }
 }

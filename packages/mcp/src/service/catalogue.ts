@@ -1,3 +1,5 @@
+import { brandingTools } from '#/service/tools/branding';
+import { clientBrandingTools } from '#/service/tools/client-branding';
 import { auditTools } from '#/service/tools/audit';
 import { clientMetadataTool } from '#/service/tools/client-metadata';
 import { clientTools } from '#/service/tools/clients';
@@ -23,6 +25,8 @@ import { type RegisteredTool } from '#/service/tool';
 // Sorted by name so `tools/list` answers in one order whatever the files do.
 export const TOOLS: readonly RegisteredTool[] = [
   ...auditTools,
+  ...brandingTools,
+  ...clientBrandingTools,
   ...clientTools,
   ...consentTools,
   ...domainTools,
@@ -178,29 +182,6 @@ const WITHHELD: readonly Entry[] = [
   [
     'Renders a mail template as a page for a browser frame, not data an agent reads.',
     [R('GET', '/mail/preview'), R('GET', '/clients/:id/mail/preview')],
-    'not-useful',
-  ],
-  [
-    "Theme documents are authored markup and stylesheets, large and nearly all free text; the read catalogue does not offer them and the console's Branding screens read them.",
-    [
-      R('GET', '/theme'),
-      R('GET', '/theme/versions'),
-      R('GET', '/theme/preview/info'),
-      R('GET', '/theme/stylesheet-hooks'),
-      R('GET', '/clients/:id/theme'),
-      R('GET', '/clients/:id/theme/versions'),
-      R('GET', '/clients/:id/theme/preview/info'),
-    ],
-    'not-useful',
-  ],
-  [
-    "The mail look (logo, colours, footer) is authored branding text, not offered by the read catalogue; the console's Branding screens read it.",
-    [R('GET', '/mail/branding'), R('GET', '/clients/:id/mail/branding')],
-    'not-useful',
-  ],
-  [
-    "Message wording overrides and the catalogue of messages they replace are localised page text, not offered by the read catalogue; the console's Branding screens read them.",
-    [R('GET', '/message-overrides'), R('GET', '/message-catalogue')],
     'not-useful',
   ],
   [

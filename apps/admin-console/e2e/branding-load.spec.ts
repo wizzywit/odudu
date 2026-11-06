@@ -95,6 +95,8 @@ test('the Languages tab reads the settings and the catalogue beside the theme, n
   page,
 }) => {
   const calls = await openTab(page, 'languages');
+  await expect.poll(() => calls.some((call) => call.path === 'message-overrides')).toBe(true);
+  await settled(page, calls);
   expect(paths(calls)).toEqual([
     'message-catalogue',
     'message-overrides',

@@ -122,4 +122,30 @@ describe('visibleTools', () => {
       expect(inside.filter((n) => !outside.includes(n))).toEqual(['count_tenants', 'list_tenants']);
     });
   });
+
+  it('hides the client theme tools from an owner without manage-clients, and keeps the tenant ones', () => {
+    const names = visibleTools(TOOLS, ['mcp:read'], new Set(['manage-tenant']), false).map(
+      (t) => t.name,
+    );
+    for (const tool of [
+      'get_client_theme',
+      'list_client_theme_versions',
+      'get_client_theme_preview_info',
+      'get_client_mail_branding',
+    ]) {
+      expect(names).not.toContain(tool);
+    }
+    for (const tool of ['get_theme', 'get_mail_branding', 'get_message_catalogue']) {
+      expect(names).toContain(tool);
+    }
+  });
+
+  it('offers the stylesheet hooks to an owner with manage-clients alone, as the route admits it', () => {
+    const names = visibleTools(TOOLS, ['mcp:read'], new Set(['manage-clients']), false).map(
+      (t) => t.name,
+    );
+    expect(names).toContain('get_stylesheet_hooks');
+    expect(names).toContain('get_client_theme');
+    expect(names).not.toContain('get_theme');
+  });
 });

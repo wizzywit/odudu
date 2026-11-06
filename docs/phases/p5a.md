@@ -1541,3 +1541,33 @@ administrator's agent is now offered 48 read tools, the system tenant's 50.
 - **Volume.** `get_passkey_impact` and `get_scope_impact` answer counts capped by the
   admin route; `canonical` is at most 512 characters, as the route's query schema says.
   No new statement: the routes' own plans already cover them.
+
+## The branding reads and the long-text allowance (parity extension, Increment 14)
+
+`get_theme`, `list_theme_versions`, `get_theme_preview_info`, `get_stylesheet_hooks`,
+`get_mail_branding`, `list_message_overrides`, `get_message_catalogue` and the client's
+`get_client_theme`, `list_client_theme_versions`, `get_client_theme_preview_info` and
+`get_client_mail_branding` left `NOT_TOOLS`. A tenant administrator's agent is now offered 59
+read tools, the system tenant's 61. The previews and the asset bytes stay withheld.
+
+- **The long-text allowance is per tool and by path.** `cleanData` takes
+  `{ longText }`, a list of dot paths from the root of the answer (array indices left out,
+  `*` for one name); a string at or beneath a listed path is cut at 131,072 characters (the contract's own stylesheet bound) instead of 1,000. Only
+  `get_theme` and `get_client_theme` declare the stylesheet and templates of the draft and of
+  the published body, so a member of the same name elsewhere is cut at 1,000, and a catalogue
+  test pins that no other tool does. The same controls and bidirectional overrides are
+  stripped, and a member's key is still cut at 1,000.
+- **The plan's assumptions held.** The stylesheet-hooks route admits `manage-clients`
+  beside `manage-tenant` (`alsoAdmits`), so a client-only owner is offered it and not
+  `get_theme`; the theme `GET` answers `ETag` when a draft exists, and the tool passes it on
+  only when it is one. The integration test reads both.
+- **A theme can pass the result cap.** The contract allows 17 templates of 64 KiB and a
+  128 KiB stylesheet, and a view carries a draft and a published copy, so a full theme is over
+  the 256,000-byte result cap and one over 1 MiB is over the admin read cap. Both are
+  `mcp:result_too_large`; the two theme tools answer with their own advice (read it in the
+  console, or from the admin API with your own token) instead of the lists' "use a smaller
+  limit". The tools take no part argument, so there is no way to read a theme in pieces.
+- **Unpaged lists.** `list_theme_versions` and `list_client_theme_versions` answer at most 20
+  versions as `{ items }` under `data`, with no cursor, like `list_builtin_scopes`.
+- **Volume.** `list_message_overrides` is paged under `MAX_LIMIT` (a tenant holds at most 500
+  overrides across every locale); the catalogue and the hooks are fixed by the build and under 100 KB and 4 KB.
