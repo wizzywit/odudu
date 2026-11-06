@@ -76,9 +76,9 @@ as Bootstrap seeds it, one login, one code redeemed and one refresh rotated, the
 the page is the one that run printed, the unseeded-stack and refusal outputs excepted since the key is not in them. The ids in the seed and registration
 lines around those reports are those of an earlier run. With `ada` and a token got as in Getting the token, the roles page's new section
 "Retrying a create with an Idempotency-Key" and the retention page's `idempotency_keys` block ran on the same stack, in a tenant `idem-demo`, and
-`GET /admin/openapi.json` was fetched again (request id, date and size, 700,944 bytes, fetched on the third stack below). The read-a-refusal guide's step 8 excerpts the roles
+`GET /admin/openapi.json` was fetched again (request id, date and size, 803,435 bytes, fetched on the fourth stack below). The read-a-refusal guide's step 8 excerpts the roles
 section. The stack was removed afterwards. After the review, a keyed `POST /admin/tenants` (refused) and the OpenAPI fetch were run again on a second
-freshly built project, `odudu-p5a-i6b`, which was removed afterwards; the roles blocks around them are the first run's. A keyed `POST …/smtp/test` (refused) and the OpenAPI fetch were run once more on a third freshly built project, `odudu-p5a-i6c`, removed afterwards.
+freshly built project, `odudu-p5a-i6b`, which was removed afterwards; the roles blocks around them are the first run's. A keyed `POST …/smtp/test` (refused) and the OpenAPI fetch were run once more on a third freshly built project, `odudu-p5a-i6c`, removed afterwards. The roles page's key listing was read on the first stack, straight after the blocks above it, and now sits before the two refusals that ran on later stacks. The OpenAPI fetch was run a last time on a fourth freshly built project, `odudu-p5a-i6d` (port `3000`, built from the branch commit `a98b9573` plus the change that declares the key's refusals on the keyed operations), removed afterwards.
 
 The retention page's `odudu reap` reports gained the `client_metadata_cache` key on 2026-11-05, and `cimd_clients` after it later the same day. All seven were re-run on
 a freshly built compose project, `odudu-p5a-i3b` (port `3000`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`), driven

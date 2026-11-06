@@ -490,6 +490,21 @@ Keep-Alive: timeout=72
 {"type":"about:blank#idempotency-unsupported","title":"Bad Request","status":400,"detail":"this route answers with a secret shown once, which is never stored, so it takes no Idempotency-Key; repeat it without one","instance":"01a1adf9-2dd6-722b-995b-5adb55849d30"}
 ```
 
+What the server kept, read as the database owner and scoped to the tenant: one row, for the one call that
+succeeded, kept for a day. It was read straight after the blocks above and before the refusals below,
+which is the only state those blocks leave.
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -c "select k.key, k.route, k.response_status, k.expires_at - k.created_at as kept_for from idempotency_keys k join tenants t on t.id = k.tenant_id where t.name = 'idem-demo';"
+```
+
+```
+                 key                  |               route               | response_status | kept_for
+--------------------------------------+-----------------------------------+-----------------+----------
+ 6f9c1c2e-6a0e-4b8a-9c1e-2d7b1e0a5f01 | POST /admin/tenants/:tenant/roles |             201 | 1 day
+(1 row)
+```
+
 Creating a tenant takes no key either, for a different reason: it writes outside the transaction a record of the call would
 share, so a record could not prove the call happened. It is refused with `400` (`about:blank#idempotency-not-atomic`) and
 creates nothing; a repeat of a create that already happened is answered `409`. This one ran on a second freshly built stack,
@@ -542,20 +557,6 @@ Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"type":"about:blank#idempotency-external-io","title":"Bad Request","status":400,"detail":"this route waits on another server (mail or DNS) while it runs, which a record cannot cover without holding the call open, so it takes no Idempotency-Key; repeat it without one","instance":"01a1ae31-ea34-7bf9-9f3c-b83885198fcc"}
-```
-
-What the server kept, read as the database owner and scoped to the tenant: one row, for the one call that
-succeeded, kept for a day.
-
-```bash
-docker compose exec -T postgres psql -U odudu -d odudu -c "select k.key, k.route, k.response_status, k.expires_at - k.created_at as kept_for from idempotency_keys k join tenants t on t.id = k.tenant_id where t.name = 'idem-demo';"
-```
-
-```
-                 key                  |               route               | response_status | kept_for
---------------------------------------+-----------------------------------+-----------------+----------
- 6f9c1c2e-6a0e-4b8a-9c1e-2d7b1e0a5f01 | POST /admin/tenants/:tenant/roles |             201 | 1 day
-(1 row)
 ```
 
 A `PUT`, a `PATCH` and a `DELETE` ignore the header, since repeating one lands where the first did. A repeat of

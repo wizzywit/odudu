@@ -390,7 +390,14 @@ describe('idempotencyRepository', () => {
     await holding;
 
     const slow = <T>(promise: Promise<T>): Promise<T | 'waiting'> =>
-      Promise.race([promise, new Promise<'waiting'>((r) => setTimeout(() => r('waiting'), 700))]);
+      Promise.race([
+        promise,
+        new Promise<'waiting'>((resolve) => {
+          setTimeout(() => {
+            resolve('waiting');
+          }, 700);
+        }),
+      ]);
     try {
       await withTenant(fixture.app.db, b.t.id, async (tx) => {
         const repository = idempotencyRepository(tx);

@@ -58,7 +58,12 @@ function sendRole(tenant: string, token: string, name: string): Sent {
     };
     req.end(body);
   });
-  return { status, abandon: () => abandon() };
+  return {
+    status,
+    abandon: () => {
+      abandon();
+    },
+  };
 }
 
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));

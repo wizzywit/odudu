@@ -2,6 +2,7 @@ import { assignScopeToClientResponseSchema } from '@odudu/contracts/admin';
 import { documentedJsonSchema } from '@odudu/contracts/admin/docs';
 import { describe, expect, it } from 'vitest';
 import { ADMIN_ROUTES } from '#/service/capability';
+import { idempotentMethod } from '#/service/idempotency';
 import { buildAdminOpenApiDocument } from '#/view/routes/openapi';
 
 describe('buildAdminOpenApiDocument', () => {
@@ -24,6 +25,22 @@ describe('buildAdminOpenApiDocument', () => {
         );
         expect(response.content, `${route.method} ${path} ${status}`).not.toHaveProperty(
           'application/json',
+        );
+      }
+    }
+  });
+
+  it('documents the refusals of the Idempotency-Key on the routes that take it, and 400 on those that refuse it', () => {
+    const document = buildAdminOpenApiDocument();
+    for (const route of ADMIN_ROUTES) {
+      if (!idempotentMethod(route.method)) continue;
+      const path = route.pattern.replace(/:(\w+)/gu, '{$1}');
+      const responses = document.paths[path]?.[route.method.toLowerCase()]?.responses ?? {};
+      const statuses =
+        route.noIdempotency === undefined ? ['400', '409', '422', '429', '503'] : ['400'];
+      for (const status of statuses) {
+        expect(responses[status]?.content, `${route.method} ${path} ${status}`).toHaveProperty(
+          'application/problem+json',
         );
       }
     }

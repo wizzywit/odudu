@@ -115,6 +115,11 @@ const PROBLEM_DETAILS_RESPONSE: OpenApiResponse = {
   content: { 'application/problem+json': { schema: jsonSchemaFor(problemDetailsSchema) } },
 };
 
+// What the Idempotency-Key adds to a route that takes it: a malformed key
+// (400), a call still running (409), a key used for another request (422), a
+// full tenant (429) and a server that cannot carry a keyed call (503).
+const KEYED_REFUSALS = ['400', '409', '422', '429', '503'];
+
 // Every template variable in the path, because OpenAPI requires each one to
 // be declared and a generated client cannot fill one it was not told about.
 // Derived from the same pattern `paramsSchemaFor` narrows, so the document
@@ -195,6 +200,11 @@ function operationFor(route: AdminRoute): OpenApiOperation {
   };
   if (route.capability !== null) {
     responses['403'] = PROBLEM_DETAILS_RESPONSE;
+  }
+  if (idempotentMethod(route.method)) {
+    for (const status of route.noIdempotency === undefined ? KEYED_REFUSALS : ['400']) {
+      responses[status] = PROBLEM_DETAILS_RESPONSE;
+    }
   }
 
   return {
