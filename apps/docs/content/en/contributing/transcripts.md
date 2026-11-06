@@ -64,9 +64,9 @@ holding `view-users`, `manage-clients` and `manage-tenant`, a client made throug
 the page lists are all the tenant had of those actions. The psql blocks are shown without the trailing spaces the tool pads a column
 with, as Prettier leaves them. The stack and its image were removed afterwards.
 
-The stdio server's page, `odudu-mcp-over-stdio.md`, was captured on 2026-11-06 on a freshly built compose project,
-`odudu-p5a-i10a` (port `3000`, Postgres published on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch
-commit `fd9f142f6` plus the change). The stack started from an empty volume and was driven once, in the order the page shows: the
+The stdio server's page, `odudu-mcp-over-stdio.md`, was captured, and re-captured after the admin API began recording a direct agent call, on 2026-11-06 on a freshly built compose project,
+`odudu-p5a-i10b` (port `3000`, Postgres published on `5463`, `ODUDU_REAP_ENABLED=false`, throttles at `10000`, built from the branch
+commit `2eeb90f9f` plus the change). The stack started from an empty volume and was driven once, in the order the page shows: the
 tenant `demo` seeded, a key made with `odudu mcp --keygen`, a client made with `odudu seed client` and registered with `psql`, then the
 commands. The key line is shortened where it is shown, since it is a private key and the one used is gone with the stack. The psql blocks
 are shown without the trailing spaces the tool pads a column with, as Prettier leaves them, and the tool names are wrapped by `fold`

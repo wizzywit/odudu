@@ -1044,13 +1044,15 @@ given.
   advertises one. A refusal is reported by the check that failed and the
   registered error code, never by the sender's text.
 - **The listener** is bound to `127.0.0.1` only (the redirect URI is the IPv4
-  literal, so `[::1]` would never receive it), takes the first `GET /` that
-  carries a `state`, answers a fixed page, and stops. Another path is 404, a
-  request with no `state` is 400, a `Host` that is not `127.0.0.1:<port>` is 421
-  (a rebound name), and none of those spends the one request. It gives up after
-  five minutes. The browser is opened with `open`, `xdg-open` or `rundll32` and
-  the address as one argument; the address goes to standard error only when
-  that failed.
+  literal, so `[::1]` would never receive it), is given the sign-in's `state`, takes
+  the first `GET /` that carries exactly that one value, answers a fixed page, and
+  stops. Another path is 404, any other `state` (or none, or two) is 400 with no
+  reflection, a `Host` that is not `127.0.0.1:<port>` is 421 (a rebound name), and
+  none of those spends the one request: a stray local request that finds the port
+  cannot cost the person their sign-in. After 20 requests that were not the answer
+  it gives up, with one line. It also gives up after five minutes. The browser is
+  opened with `open`, `xdg-open` or `rundll32` and the address as one argument; the
+  address goes to standard error only when that failed.
 - **Where the sign-in is kept.** Only a read-only run keeps one: its refresh
   token, never the access token, under the key base URL plus tenant. A run with
   `--allow-writes` neither reads nor writes the store, whatever it holds, and
@@ -1092,16 +1094,41 @@ given.
   the rest, so `tools/list` needs no token and answers at once. A tool call may wait
   for a person: the first call of a run that must sign in blocks, up to six minutes,
   on their browser.
-- **Not covered.** A tenant on its own domain: its issuer is the domain with no
-  `/tenants/<name>`, and the command refuses it (`names an issuer other than this
-tenant at this base URL`) rather than trust another form. Windows and the
-  Secret Service were not run. A sign-in in a container needs its loopback port
-  reachable from the browser, so a container uses the key route.
-- **A call over stdio leaves no row of its own.** The live run
-  (`odudu-mcp-over-stdio.md`) shows the token issue as the tenant's only audit
-  rows after two reads: the MCP endpoint writes `agent.tool_call` for each call
-  it serves, the admin API wrote nothing for a `GET` made with a token issued
-  to the caller, and `odudu mcp` calls the admin API directly. What it can say
-  is which client and subject a token was issued to (`token.issue`), not which
-  tool read what. Whether the admin API should record an agent's reads is the
-  owner's call and is not made here.
+- **Not covered.** Windows and the Secret Service were not run. A sign-in in a
+  container needs its loopback port reachable from the browser, so a container uses
+  the key route.
+- **A tenant with a domain of its own** signs in at that domain and has its admin
+  API at the instance (ADR 0049), so two origins are needed: `--base-url` is the
+  instance and `--tenant-address` the domain. The domain's metadata is at
+  `/.well-known/oauth-authorization-server`, its `issuer` must be exactly that
+  origin and both endpoints on it. An address of the domain alone as `--base-url`
+  would have called the admin API where it does not live (a 404 on the live check),
+  so it is refused by discovery with the option named. verified:
+  `mcp-stdio.int.test.ts` (a verified, canonical domain; key flow; the token's `iss`
+  is the domain).
+- **A call over stdio is recorded by the admin API's door.** The first live run showed
+  two reads leaving only `token.issue`. The door (`handleRoute`) now writes one
+  `agent.tool_call` row, before the handler runs, for an agent principal whose token
+  has no `act` (`AdminAgent.viaEndpoint` is set only when it has one), so the MCP
+  endpoint's own row is not doubled. `tool` is derived from the route key
+  (`admin.get.clients`, `doorToolName`), inside the vocabulary's charset, with the
+  full key in `route`. A row that cannot be written is a `503` and the handler does not
+  run (the HTTP path's stance). A write has this row and its own mutation row. ADR
+  0040's amendment names the second writer. verified:
+  `packages/protocol-admin/tests/agent-door-audit.int.test.ts` (reads, a write, an
+  `act` token and a person's token leave none, a refused call leaves only its refusal,
+  an unwritable row is a 503 with the mutation not applied) and the re-run transcript.
+  Cost: one extra insert per agent call, inside the bound the amendment states.
+- **Sign-in robustness.** The refresh token is kept before the new access token is
+  judged, because the server has already spent the old one, and kept in memory for the
+  run if the store will not take it. Reading the store, refreshing and writing happen
+  under a lock file (`wx`, 30 s stale, 10 s wait) so two `odudu mcp` of one user do not
+  present the same token. After a failure nothing is tried again for a minute, so an
+  agent that retries does not open a browser per call. A 401 drops the token and
+  retries once. Expiry is the earlier of `expires_in` (capped at an hour) and the
+  token's `exp`. `--logout` reads back and exits non-zero if the secret is still
+  there. The credential directory must not be a link and its owner must be the
+  effective user. An empty or relative `XDG_CONFIG_HOME` is ignored. A call still
+  running at end of input is waited for, up to 25 s, so a write's outcome is known.
+  A failure line carries the error's name and a cleaned message (queries cut from
+  addresses, long opaque runs shortened) and the correlation id.

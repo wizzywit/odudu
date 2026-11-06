@@ -10,12 +10,12 @@ description: 'The stdio MCP server as a process: a handshake, a listing and read
 Every command was run, in this order, on a stack built for it and started from an empty volume, driven only as far as this page goes: the tenant `demo`, one client `agent` with a key, and the calls below. The stack does not end TLS, so its address is `http://localhost:3000`, which `odudu mcp` accepts because it is a loopback address and refuses for any other host. The command runs inside the container, so `localhost` is the server. The ids and the key are that run's own, and the key is shortened where it would be shown, because it is a private key.
 
 ```bash
-odudu() { docker compose -p odudu-p5a-i10a -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
+odudu() { docker compose -p odudu-p5a-i10b -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
 odudu seed tenant --name demo
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"demo","tenantId":"01a1afa6-fc98-707a-9b2d-3da218ecec4e"}
+{"command":"tenant","created":true,"tenant":"demo","tenantId":"01a1afd8-fba4-7436-80d7-a53f75ef80d5"}
 ```
 
 ## A service account and its key
@@ -31,7 +31,7 @@ cat jwks.json
 ```
 exit 0
 ODUDU_MCP_KEY=eyJrdHkiOi
-{"keys":[{"kty":"EC","crv":"P-256","x":"YUQ0z_ZN36TkiuBlhtfO9zNqo4faotXz4JfkolUyoJE","y":"dAHPHJXGs1U9GDa-TqTH_4-RoKNexkRjCSASV8jGc_Y","kid":"R7Dhot4_c8XEvhTvnjVXduJmXbIleuQVVWr_Ssg4m4w","alg":"ES256","use":"sig"}]}
+{"keys":[{"kty":"EC","crv":"P-256","x":"fUvfKET_1Z3xma3MlBG1dpP795zBwPBGuEDkNCHBvJI","y":"xdBlm4CsWtetlZqDC_8ZOki3ehbCWf9Esx-zSw3oylk","kid":"k-V9_lU8OCJOcVxbdHNsvIxlU1nM0uum2cmDQeXiE34","alg":"ES256","use":"sig"}]}
 ```
 
 The client is confidential with the `client_credentials` grant and may ask for `mcp:read` and nothing else. The secret it is made with is never used again, because the client authenticates with the key instead:
@@ -42,16 +42,16 @@ odudu seed client --tenant demo --client-id agent --client-secret "$(openssl ran
 ```
 
 ```
-{"command":"client","created":true,"tenant":"demo","tenantId":"01a1afa6-fc98-707a-9b2d-3da218ecec4e","clientId":"agent","clientDbId":"01a1afa7-007b-7f3d-b1da-aa19e2a7646d"}
+{"command":"client","created":true,"tenant":"demo","tenantId":"01a1afd8-fba4-7436-80d7-a53f75ef80d5","clientId":"agent","clientDbId":"01a1afd9-0066-74e1-b25e-07d906c0ae89"}
 ```
 
 The seed has no flag for a key, an audience or a role on a service account, so the rest was written to the database as its owner, scoped to this tenant: the key set becomes the client's `jwks`, `private_key_jwt` its authentication method, the admin API's audience its audience, and its account holds two of the admin capabilities. The admin API's client routes do the same with a token, and the account's ceiling is these roles and nothing more:
 
 ```bash
 JWKS=$(cat jwks.json)
-docker compose -p odudu-p5a-i10a -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
+docker compose -p odudu-p5a-i10b -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
   "update client_oidc_config c set token_endpoint_auth_method = 'private_key_jwt', jwks = '$JWKS'::jsonb, audiences = array['urn:odudu:params:admin-api'] from clients k join tenants t on t.id = k.tenant_id where c.client_id = k.id and t.name = 'demo' and k.client_id = 'agent';"
-docker compose -p odudu-p5a-i10a -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
+docker compose -p odudu-p5a-i10b -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
   "insert into subject_roles (tenant_id, subject_id, role_id) select k.tenant_id, k.service_subject_id, r.id from clients k join tenants t on t.id = k.tenant_id join clients a on a.tenant_id = k.tenant_id and a.client_id = 'odudu-admin' join roles r on r.client_id = a.id where t.name = 'demo' and k.client_id = 'agent' and r.name in ('manage-clients', 'view-users');"
 ```
 
@@ -72,7 +72,7 @@ LIST='{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
 WHO='{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"whoami","arguments":{}}}'
 COUNT='{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"count_clients","arguments":{}}}'
 (printf '%s\n' "$INIT" "$INITED" "$LIST" "$WHO" "$COUNT"; sleep 6) \
-  | docker compose -p odudu-p5a-i10a -f infra/docker/compose.yaml exec -T -e ODUDU_MCP_KEY odudu \
+  | docker compose -p odudu-p5a-i10b -f infra/docker/compose.yaml exec -T -e ODUDU_MCP_KEY odudu \
     node dist/main.js mcp --base-url http://localhost:3000 --tenant demo --client-id agent \
   > out.jsonl 2> err.txt; echo "exit $?"
 wc -l < out.jsonl
@@ -121,7 +121,7 @@ jq -c 'select(.id==4)' out.jsonl
 ```
 
 ```
-{"result":{"content":[{"type":"text","text":"{\"data\":{\"subjectId\":\"01a1afa7-0092-7339-bf26-448fa431f8dc\",\"issuerTenantId\":\"01a1afa6-fc98-707a-9b2d-3da218ecec4e\",\"capabilities\":[\"manage-clients\",\"view-users\"],\"crossTenant\":false}}"}],"structuredContent":{"data":{"subjectId":"01a1afa7-0092-7339-bf26-448fa431f8dc","issuerTenantId":"01a1afa6-fc98-707a-9b2d-3da218ecec4e","capabilities":["manage-clients","view-users"],"crossTenant":false}},"isError":false},"jsonrpc":"2.0","id":3}
+{"result":{"content":[{"type":"text","text":"{\"data\":{\"subjectId\":\"01a1afd9-0084-7b1f-a0f3-48918cb591c9\",\"issuerTenantId\":\"01a1afd8-fba4-7436-80d7-a53f75ef80d5\",\"capabilities\":[\"manage-clients\",\"view-users\"],\"crossTenant\":false}}"}],"structuredContent":{"data":{"subjectId":"01a1afd9-0084-7b1f-a0f3-48918cb591c9","issuerTenantId":"01a1afd8-fba4-7436-80d7-a53f75ef80d5","capabilities":["manage-clients","view-users"],"crossTenant":false}},"isError":false},"jsonrpc":"2.0","id":3}
 {"result":{"content":[{"type":"text","text":"{\"data\":{\"count\":3,\"capped\":false}}"}],"structuredContent":{"data":{"count":3,"capped":false}},"isError":false},"jsonrpc":"2.0","id":4}
 ```
 
@@ -152,7 +152,7 @@ exit 1
 A key with no client id, the key being any value, since the check comes before it is read:
 
 ```bash
-docker compose -p odudu-p5a-i10a -f infra/docker/compose.yaml exec -T -e ODUDU_MCP_KEY=x odudu \
+docker compose -p odudu-p5a-i10b -f infra/docker/compose.yaml exec -T -e ODUDU_MCP_KEY=x odudu \
   node dist/main.js mcp --base-url http://localhost:3000 --tenant demo; echo "exit $?"
 ```
 
@@ -179,7 +179,7 @@ exit 1
 ```bash
 export ODUDU_MCP_KEY=$(sed 's/^ODUDU_MCP_KEY=//' key.env)
 (printf '%s\n' "$INIT" "$INITED" "$LIST" "$WHO"; sleep 4) \
-  | docker compose -p odudu-p5a-i10a -f infra/docker/compose.yaml exec -T -e ODUDU_MCP_KEY odudu \
+  | docker compose -p odudu-p5a-i10b -f infra/docker/compose.yaml exec -T -e ODUDU_MCP_KEY odudu \
     node dist/main.js mcp --base-url http://localhost:3000 --tenant demo --client-id agent --allow-writes \
   > out2.jsonl 2> err2.txt; echo "exit $?"
 jq -r 'select(.id==2) | .result.tools | map(.name) | map(select(startswith("update_"))) | join(" ")' out2.jsonl
@@ -197,27 +197,30 @@ The refusal names the registered error code and the status, and none of the serv
 
 ## What the trail holds
 
-The tenant's audit rows, as the database's owner, after everything above and nothing else on this stack: the token the first run got, and the one that was refused.
+The tenant's audit rows, as the database's owner, after everything above and nothing else on this stack: the token the first run got, the row the admin API wrote for each of the two reads, and the token that was refused. The admin API writes those rows itself, at its door and before the call runs, for a call made with a token issued straight to the agent, which is how `odudu mcp` calls. Its `tool` is the route, since the door cannot know a tool's name; the MCP endpoint writes the same action for a call it serves, with the tool's own name.
 
 ```bash
-docker compose -p odudu-p5a-i10a -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
+docker compose -p odudu-p5a-i10b -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
   "select a.action, a.outcome, a.detail from audit_events a join tenants t on t.id = a.tenant_id where t.name = 'demo' and a.action in ('token.issue', 'client.authenticate', 'agent.tool_call') order by a.id;"
-docker compose -p odudu-p5a-i10a -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
+docker compose -p odudu-p5a-i10b -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -c \
   "select a.action, a.outcome, count(*) from audit_events a join tenants t on t.id = a.tenant_id where t.name = 'demo' group by 1, 2 order by 1, 2;"
 ```
 
 ```
-   action    | outcome |                          detail
--------------+---------+-----------------------------------------------------------
- token.issue | allowed | {"scope": "mcp:read", "grant_type": "client_credentials"}
- token.issue | refused | {"reason": "invalid_scope"}
-(2 rows)
+     action      | outcome |                                                                                              detail
+-----------------+---------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ token.issue     | allowed | {"scope": "mcp:read", "grant_type": "client_credentials"}
+ agent.tool_call | allowed | {"tool": "admin.get.whoami", "owner": "01a1afd9-0084-7b1f-a0f3-48918cb591c9", "route": "GET /admin/tenants/:tenant/whoami", "agent_client": "01a1afd9-0066-74e1-b25e-07d906c0ae89"}
+ agent.tool_call | allowed | {"tool": "admin.get.clients.count", "owner": "01a1afd9-0084-7b1f-a0f3-48918cb591c9", "route": "GET /admin/tenants/:tenant/clients/count", "agent_client": "01a1afd9-0066-74e1-b25e-07d906c0ae89"}
+ token.issue     | refused | {"reason": "invalid_scope"}
+(4 rows)
 
-   action    | outcome | count
--------------+---------+-------
- token.issue | allowed | 1
- token.issue | refused | 1
-(2 rows)
+     action      | outcome | count
+-----------------+---------+-------
+ agent.tool_call | allowed |     2
+ token.issue     | allowed |     1
+ token.issue     | refused |     1
+(3 rows)
 ```
 
-The two reads, `whoami` and `count_clients`, left no row. The MCP endpoint writes an `agent.tool_call` row for every call it serves, and the admin API wrote none for these reads, so a call made over stdio is attributable to the token that was issued, and to nothing finer.
+The reads' rows name the owner, the service account, and the route, and never what was asked or what came back. The refused token is a `token.issue` row of its own and no admin call followed it, so no `agent.tool_call` row does.
