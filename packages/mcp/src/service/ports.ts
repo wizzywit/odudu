@@ -37,3 +37,10 @@ export interface OauthClient {
     input: { clientId: string; assertion: string; scope: string; resource: string },
   ): Promise<TokenSet>;
 }
+
+// Runs one refresh of the stored sign-in at a time across every `odudu mcp` of
+// this user: the token endpoint rotates a refresh token, so two processes that
+// present the same one cost each other the sign-in.
+export interface RefreshLock {
+  run<T>(work: () => Promise<T>): Promise<T>;
+}

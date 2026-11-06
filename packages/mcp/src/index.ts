@@ -54,3 +54,7 @@ export type { TokenSource } from '#/service/token-source';
 export type { TokenSet } from '#/service/token-set';
 export type { RegisteredTool } from '#/service/tool';
 export { fileModeProblem } from '#/service/file-mode';
+export { createFileLock, type FileLockOptions } from '#/adapter/file-lock';
+export { configDirectory } from '#/service/config-dir';
+export { failureLine } from '#/service/failure-line';
+export type { RefreshLock } from '#/service/ports';
