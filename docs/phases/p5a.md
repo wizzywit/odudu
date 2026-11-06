@@ -423,8 +423,9 @@ still states what an increment has since changed:
 - **Migration 0122, in SQL.** The set is "idle accounts nothing names", which needs the
   referencing tables. They are read from `pg_constraint` (every foreign key to `subjects(id)`)
   plus `audit_events.actor_subject_id`, so a table added later is checked too. FORCE RLS is
-  lifted only on `clients` and `client_oidc_config` (ACCESS EXCLUSIVE for the migration
-  transaction, as 0114 did) to find candidates across tenants; every other table is read and
+  lifted on `clients` and `client_oidc_config` (to find candidates across tenants) and on
+  `audit_events` and `tenants` (to find audit references from other tenants), each
+  ACCESS EXCLUSIVE until the migration transaction ends, as 0114 did for its two; every other table is read and
   deleted from under the candidate's own `app.tenant_id`, one tenant with an idle client at a
   time, so no other table is locked and each read is one tenant's rows. `SET LOCAL
 row_security = off` was rejected: for an owner under FORCE it errors rather than bypasses.
