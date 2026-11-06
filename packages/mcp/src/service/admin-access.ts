@@ -8,11 +8,6 @@ export function accessOf(method: AdminMethod): AdminAccess {
   return method === 'GET' ? 'read' : 'write';
 }
 
-const SCOPE_OF: Record<AdminAccess, string> = {
-  read: MCP_READ_SCOPE,
-  write: MCP_WRITE_SCOPE,
-};
-
 export function insufficientScopeProblem(): ToolProblem {
   return new ToolProblem(
     'mcp:insufficient_scope',
@@ -22,9 +17,12 @@ export function insufficientScopeProblem(): ToolProblem {
 }
 
 // The one scope an admin call is made with: what the call needs and nothing
-// else, and only when the presented token holds it.
+// wider, and only when the presented token holds it. A read takes `mcp:read`,
+// or `mcp:write` for a token that holds only that, since the admin API admits
+// a GET under either.
 export function scopeFor(token: ValidatedMcpToken, access: AdminAccess): readonly string[] {
-  const needed = SCOPE_OF[access];
-  if (!token.scope.includes(needed)) throw insufficientScopeProblem();
-  return [needed];
+  const candidates = access === 'read' ? [MCP_READ_SCOPE, MCP_WRITE_SCOPE] : [MCP_WRITE_SCOPE];
+  const held = candidates.find((scope) => token.scope.includes(scope));
+  if (held === undefined) throw insufficientScopeProblem();
+  return [held];
 }

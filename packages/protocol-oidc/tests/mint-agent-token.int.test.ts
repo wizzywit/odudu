@@ -135,6 +135,7 @@ async function newWorld(grantScope = 'mcp:read mcp:write'): Promise<World> {
 function input(w: World, over: Partial<MintAgentTokenInput> = {}): MintAgentTokenInput {
   return {
     subjectGrantId: w.grantId,
+    expectedSubjectId: w.subjectId,
     agentClientId: AGENT,
     audience: ADMIN_API_AUDIENCE,
     scope: ['mcp:read'],
@@ -330,6 +331,11 @@ describe('mintAgentToken: what must still be alive', () => {
       return grantFor(tx, w, client.id, 'mcp:read');
     });
     expect(await refusal(mint(w, { subjectGrantId: other }))).toBe('grant_not_agent_client');
+  });
+
+  it('refuses a token whose subject is not the grant owner', async () => {
+    const w = await newWorld();
+    expect(await refusal(mint(w, { expectedSubjectId: newId() }))).toBe('subject_mismatch');
   });
 
   it('refuses a grant of another tenant, whoever names it', async () => {

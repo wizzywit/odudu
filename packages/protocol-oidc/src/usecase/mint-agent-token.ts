@@ -32,6 +32,8 @@ export interface MintAgentTokenDeps extends AccessTokenDeps {
 export interface MintAgentTokenInput {
   // The owner's grant behind the MCP token the agent presented.
   readonly subjectGrantId: string;
+  // The `sub` of that token: the grant's owner must be this subject.
+  readonly expectedSubjectId: string;
   // The OAuth `client_id` of the agent; it becomes `act.sub`.
   readonly agentClientId: string;
   readonly audience: string;
@@ -73,6 +75,7 @@ export async function mintAgentToken(
   const client = await clientRepository(tx).byClientId(input.agentClientId);
   const refusal = standingRefusal({
     tenantId: deps.tenantId,
+    expectedSubjectId: input.expectedSubjectId,
     scope: input.scope,
     grant,
     client,

@@ -28,6 +28,7 @@ export async function exchangeForAdmin(
   try {
     const minted = await deps.mintAgentToken(token, {
       subjectGrantId: token.grantId,
+      expectedSubjectId: token.subjectId,
       agentClientId: token.clientId,
       audience: deps.adminAudience,
       scope,

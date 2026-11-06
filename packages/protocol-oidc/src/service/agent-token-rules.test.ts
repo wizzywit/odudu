@@ -27,9 +27,16 @@ describe('requestRefusal', () => {
 });
 
 describe('standingRefusal', () => {
-  const grant = { tenantId: 't1', revokedAt: null, scope: 'mcp:read mcp:write', clientId: 'c1' };
+  const grant = {
+    tenantId: 't1',
+    revokedAt: null,
+    scope: 'mcp:read mcp:write',
+    clientId: 'c1',
+    subjectId: 's1',
+  };
   const grounds: AgentTokenGrounds = {
     tenantId: 't1',
+    expectedSubjectId: 's1',
     scope: ['mcp:read'],
     grant,
     client: { id: 'c1', enabled: true },
@@ -45,6 +52,11 @@ describe('standingRefusal', () => {
   it.each([
     ['no grant', { grant: null }, 'grant_not_found'],
     ['a grant of another tenant', { grant: { ...grant, tenantId: 't2' } }, 'grant_not_found'],
+    [
+      'a token whose subject is not the grant owner',
+      { expectedSubjectId: 's2' },
+      'subject_mismatch',
+    ],
     ['a revoked grant', { grant: { ...grant, revokedAt: NOW } }, 'grant_revoked'],
     [
       'a scope the grant lacks',
