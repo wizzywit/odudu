@@ -194,6 +194,35 @@ describe('the last enabled administrator of a tenant cannot be removed', () => {
     expect((await t.api.call('GET', `/clients/${id}`)).statusCode).toBe(200);
   });
 
+  it('by switching off the grant of the client whose service account holds it, which keeps the account', async () => {
+    const t = await tenant();
+    const created = await t.api.call('POST', '/clients', {
+      client_id: `svc-${newId()}`,
+      grant_types: ['authorization_code', 'client_credentials'],
+      redirect_uris: ['https://app.example/cb'],
+      token_endpoint_auth_method: 'client_secret_basic',
+    });
+    const { id, service_subject_id: account } = created.json<{
+      id: string;
+      service_subject_id: string;
+    }>();
+    await t.grant(account, [t.tenantAdmin]);
+
+    expectLastAdministrator(
+      await t.api.call(
+        'PATCH',
+        `/clients/${id}`,
+        { grant_types: ['authorization_code'] },
+        await t.api.etag(`/clients/${id}`),
+      ),
+    );
+    expect((await t.api.call('GET', `/subjects/${account}`)).statusCode).toBe(200);
+    expect((await t.api.call('GET', `/clients/${id}`)).json()).toMatchObject({
+      grant_types: ['authorization_code', 'client_credentials'],
+      service_subject_id: account,
+    });
+  });
+
   it('by leaving, emptying, deleting or moving the group it is held through', async () => {
     const t = await tenant();
     const x = await t.subject();

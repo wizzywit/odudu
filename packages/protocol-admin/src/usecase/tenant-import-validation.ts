@@ -33,10 +33,11 @@ import {
   tenantSettingProblems,
 } from '@odudu/domain-tenant';
 import {
+  type ClientMetadata,
   clientTokenTtlProblem,
   isWellFormedWebOrigin,
+  needsServiceAccount,
   parseClientMetadata,
-  type ClientMetadata,
 } from '@odudu/protocol-oidc';
 import { checkDescription } from '#/service/description';
 import { fieldPath } from '#/service/field-path';
@@ -589,8 +590,16 @@ function clientProblems(
       graph,
       problems,
     );
-    if (client.type === 'public' && client.service_account_roles.length > 0) {
-      problems.add(`${path}.service_account_roles`, 'a public client has no service account');
+    if (
+      client.service_account_roles.length > 0 &&
+      !needsServiceAccount(client.type, client.grant_types)
+    ) {
+      problems.add(
+        `${path}.service_account_roles`,
+        client.type === 'public'
+          ? 'a public client has no service account'
+          : 'a client without the client_credentials grant has no service account',
+      );
     }
   });
   return metadata;

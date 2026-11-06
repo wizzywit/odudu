@@ -52,8 +52,10 @@ import {
 } from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
+  ensureServiceAccount,
   isOidcMessageKey,
   mintAgentToken,
+  needsServiceAccount,
   OIDC_PAGE_MESSAGES,
   OIDC_PREVIEW_PAGES,
   NO_CLIENT_KEY_FETCHER,
@@ -704,17 +706,12 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
   ): Promise<{ client: ClientRecord; secret: string }> {
     const secret = randomBytes(32).toString('base64url');
     const client = await withTenant(app.db, ctx.id, async (tx) => {
-      const serviceSubject = await subjectRepository(tx).create({
-        tenantId: ctx.id,
-        type: 'service',
-      });
       const created = await clientRepository(tx).create({
         tenantId: ctx.id,
         clientId: input.clientId,
         name: input.name,
         type: 'confidential',
         secretHash: await hashPassword(secret),
-        serviceSubjectId: serviceSubject.id,
       });
       await provisionClientDefaults(tx, created.id);
       await clientOidcConfigRepository(tx).create({
@@ -727,7 +724,9 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         accessTokenTtlSeconds: 300,
         refreshTokenTtlSeconds: 1_209_600,
       });
-      return created;
+      return needsServiceAccount('confidential', input.grantTypes)
+        ? ensureServiceAccount(tx, created)
+        : created;
     });
     return { client, secret };
   }

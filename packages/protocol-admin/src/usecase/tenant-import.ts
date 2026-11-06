@@ -37,10 +37,12 @@ import {
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import {
-  clientOidcConfigRepository,
+  type ClientJwks,
   type ClientMetadata,
   type ClientOidcConfig,
-  type ClientJwks,
+  clientOidcConfigRepository,
+  ensureServiceAccount,
+  needsServiceAccount,
 } from '@odudu/protocol-oidc';
 import { tenantSmtpRepository } from '#/repository/tenant-smtp';
 import { CLAIM_KEY } from '#/usecase/profile';
@@ -163,9 +165,6 @@ async function writeClient(
   metadata: ClientMetadata,
 ): Promise<{ id: string; serviceSubjectId: string | null; secret: string | null }> {
   const confidential = client.type === 'confidential';
-  const serviceSubjectId = confidential
-    ? (await subjectRepository(tx).create({ tenantId, type: 'service' })).id
-    : null;
   const secret = confidential ? generateClientSecret() : null;
   const created = await clientRepository(tx).create({
     tenantId,
@@ -177,7 +176,6 @@ async function writeClient(
     type: client.type,
     secretHash: secret === null ? null : await deps.hashClientSecret(secret),
     enabled: client.enabled,
-    serviceSubjectId,
     fullScopeAllowed: client.full_scope_allowed,
     skipLogoutConfirmation: client.skip_logout_confirmation,
     registrationOrigin: client.registration_origin,
@@ -218,7 +216,10 @@ async function writeClient(
     defaultMaxAge: metadata.defaultMaxAge,
     requireAuthTime: metadata.requireAuthTime,
   });
-  return { id: created.id, serviceSubjectId, secret };
+  const account = needsServiceAccount(created.type, metadata.grantTypes)
+    ? await ensureServiceAccount(tx, created)
+    : created;
+  return { id: created.id, serviceSubjectId: account.serviceSubjectId, secret };
 }
 
 // Built-in roles are provisioned already and only amended; every other role
