@@ -329,6 +329,36 @@ describe('what a keyed call does once it is committed', () => {
   });
 });
 
+describe('a keyed call whose work the ceiling undid', () => {
+  it('answers 429 without the headers of the change that never happened', async () => {
+    const { t, token } = await world();
+    await fixture.owner.db.execute(sql`
+      insert into idempotency_keys (tenant_id, key, route, fingerprint, status, response_status,
+                                    response_body, created_at, expires_at)
+      select ${t.id}, 'fill-' || g, 'r', ${'0'.repeat(64)}, 'completed', 200, '', now(),
+             now() + interval '1 hour'
+        from generate_series(1, 9999) g`);
+    const attempts = await Promise.all(
+      [1, 2, 3].map(() =>
+        post(
+          t.name,
+          token,
+          '/roles',
+          { name: `role-${newId()}` },
+          { 'idempotency-key': `r-${newId()}` },
+        ),
+      ),
+    );
+    const refused = attempts.filter((res) => res.statusCode === 429);
+    expect(refused).toHaveLength(2);
+    for (const res of refused) {
+      expect(res.headers.etag).toBeUndefined();
+      expect(res.headers.location).toBeUndefined();
+      expect(res.headers['content-type']).toContain('application/problem+json');
+    }
+  });
+});
+
 describe('POST /admin/tenants', () => {
   it('refuses the key, since it writes outside the transaction a record would share', async () => {
     const token = await fixture.systemAdminToken([...TENANT_CAPABILITIES, 'manage-tenants']);
