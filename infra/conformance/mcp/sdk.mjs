@@ -221,14 +221,22 @@ for (const version of ['2025-06-18', '2025-03-26']) {
   results.push(
     `initialize asking for ${version}: HTTP ${answer.status}, ${negotiated === undefined ? answer.text.slice(0, 160) : `server answered ${negotiated}`}`,
   );
-  check(
-    answer.status === 200 || answer.status === 400,
-    `${version}: unexpected HTTP ${answer.status}`,
-  );
+  // An older revision is served as the one asked for.
+  check(answer.status === 200, `${version}: initialize answered HTTP ${answer.status}`);
+  check(negotiated === version, `${version}: the server answered ${negotiated} to it`);
   const listed = await raw(version, { jsonrpc: '2.0', id: 2, method: 'tools/list' });
-  results.push(
-    `tools/list under mcp-protocol-version ${version}: HTTP ${listed.status}${listed.status === 200 ? '' : ` ${listed.text.slice(0, 160)}`}`,
+  check(listed.status === 200, `${version}: tools/list answered HTTP ${listed.status}`);
+  let tools;
+  try {
+    tools = JSON.parse(listed.text).result?.tools;
+  } catch {
+    tools = undefined;
+  }
+  check(
+    Array.isArray(tools) && tools.length === EXPECT_READ_TOOLS,
+    `${version}: tools/list gave ${Array.isArray(tools) ? tools.length : listed.text.slice(0, 160)} tools, not ${EXPECT_READ_TOOLS}`,
   );
+  results.push(`tools/list under mcp-protocol-version ${version}: HTTP ${listed.status}, ${tools.length} tools`);
 }
 
 console.log(results.join('\n'));

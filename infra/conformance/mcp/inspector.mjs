@@ -170,10 +170,16 @@ const write = await inspect([
   '--tool-arg',
   'client_id=x',
 ]);
+// A timeout kills the child (no exit status) and any other failure would also
+// exit non-zero, so only the refusal's own words count as evidence.
+const REFUSAL = /tool_not_found|Tool '[^']+' not found|insufficient_scope/u;
+const wrote = `${write.stdout}\n${write.stderr}`;
+if (typeof write.code !== 'number') fail('the write-tool call did not finish', write);
 if (write.code === 0) fail('the Inspector called a write tool with a read token', write);
+if (!REFUSAL.test(wrote)) fail('the write-tool call failed for no refusal we recognise', write);
 record(
   'modern',
-  `update_client_metadata refused by the client's own list check (exit ${write.code})`,
+  `update_client_metadata refused by the client's own list check (exit ${write.code}: ${REFUSAL.exec(wrote)?.[0]})`,
 );
 
 console.log(results.join('\n'));
