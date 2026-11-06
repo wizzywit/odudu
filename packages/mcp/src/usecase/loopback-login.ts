@@ -7,7 +7,8 @@ import type { TokenSet } from '#/service/token-set';
 
 export interface LoopbackLoginDeps {
   readonly oauth: Pick<OauthClient, 'discover' | 'redeemCode'>;
-  readonly listen: () => Promise<LoopbackListener>;
+  // Given the `state` of this sign-in, the one an answer must carry.
+  readonly listen: (state: string) => Promise<LoopbackListener>;
   readonly openBrowser: OpenUrl;
   readonly entropy: (bytes: number) => Uint8Array;
   // One line to a person, on standard error.
@@ -28,7 +29,7 @@ export async function loopbackLogin(deps: LoopbackLoginDeps): Promise<TokenSet> 
   const server = await deps.oauth.discover();
   const { verifier, challenge } = pkceFor(deps.entropy(32));
   const state = Buffer.from(deps.entropy(24)).toString('base64url');
-  const listener = await deps.listen();
+  const listener = await deps.listen(state);
   try {
     const address = authorizationUrl(server.authorizationEndpoint, {
       clientId: deps.clientId,

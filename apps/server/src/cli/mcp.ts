@@ -77,6 +77,7 @@ export function processMcpIo(): McpIo {
 // How long a tool call may wait: a first sign-in is the person's to finish.
 const TOOL_DEADLINE_MS = 360_000;
 const SIGN_IN_TIMEOUT_MS = 300_000;
+const MAX_BAD_REQUESTS = 20;
 
 type Values = ReturnType<typeof parse>['values'];
 
@@ -227,7 +228,12 @@ function browserCredential(
     login: () =>
       loopbackLogin({
         oauth: { discover, redeemCode: (server, input) => oauth.redeemCode(server, input) },
-        listen: () => listenOnLoopback({ timeoutMs: SIGN_IN_TIMEOUT_MS }),
+        listen: (state) =>
+          listenOnLoopback({
+            timeoutMs: SIGN_IN_TIMEOUT_MS,
+            state,
+            maxBadRequests: MAX_BAD_REQUESTS,
+          }),
         openBrowser: io.openBrowser ?? createBrowserOpener(io.platform, io.run),
         entropy: io.entropy,
         say: io.stderr,

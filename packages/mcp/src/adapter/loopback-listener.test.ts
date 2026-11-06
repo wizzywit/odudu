@@ -5,8 +5,8 @@ import type { LoopbackListener } from '#/service/ports';
 
 const open: LoopbackListener[] = [];
 
-async function listener(timeoutMs = 5_000): Promise<LoopbackListener> {
-  const made = await listenOnLoopback({ timeoutMs });
+async function listener(timeoutMs = 5_000, maxBadRequests = 20): Promise<LoopbackListener> {
+  const made = await listenOnLoopback({ timeoutMs, state: 's1', maxBadRequests });
   open.push(made);
   return made;
 }
@@ -81,7 +81,7 @@ describe('the loopback listener of a sign-in', () => {
   it('never reflects what the request carried into the page', async () => {
     const l = await listener();
     const res = await get(
-      `${l.redirectUri}?state=%3Cscript%3Ealert(1)%3C/script%3E&error_description=EVIL`,
+      `${l.redirectUri}?state=s1&x=%3Cscript%3Ealert(1)%3C/script%3E&error_description=EVIL`,
     );
     expect(res.body).not.toMatch(/script|EVIL/u);
   });
@@ -130,5 +130,23 @@ describe('the loopback listener of a sign-in', () => {
     await l.close();
     expect(await settled).toMatchObject({ code: 'mcp_login_cancelled' });
     expect(await outcome(`${l.redirectUri}?code=x&state=s`)).toBe('refused');
+  });
+
+  it('spends its one request only on the state it was given, and keeps waiting after a forged one', async () => {
+    const l = await listener();
+    const forged = await get(`${l.redirectUri}?code=evil&state=forged`);
+    expect(forged.status).toBe(400);
+    expect(forged.body).not.toMatch(/forged|evil/u);
+    expect((await get(`${l.redirectUri}?code=evil&state=s1&state=s1`)).status).toBe(400);
+    expect((await get(`${l.redirectUri}?code=c1&state=s1`)).status).toBe(200);
+    expect((await l.callback).get('code')).toBe('c1');
+  });
+
+  it('gives up, saying why, after more bad requests than it tolerates, and stops listening', async () => {
+    const l = await listener(5_000, 3);
+    const failed = l.callback.catch((error: unknown) => error);
+    for (let i = 0; i < 4; i += 1) await outcome(`${l.redirectUri}?state=forged${String(i)}`);
+    expect(await failed).toMatchObject({ code: 'mcp_login_flooded' });
+    expect(await outcome(`${l.redirectUri}?state=s1`)).toBe('refused');
   });
 });

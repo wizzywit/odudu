@@ -5,6 +5,10 @@ import { StdioError } from '#/service/stdio-error';
 
 export interface LoopbackOptions {
   readonly timeoutMs: number;
+  // The `state` of this sign-in: the one request that is spent is the one that carries it.
+  readonly state: string;
+  // How many requests that are not the answer are put up with before giving up.
+  readonly maxBadRequests: number;
 }
 
 const DONE_PAGE =
@@ -27,12 +31,14 @@ function refusalOf(
   req: IncomingMessage,
   port: number,
   consumed: boolean,
+  state: string,
 ): { readonly status: number } | undefined {
   if (req.headers.host !== `127.0.0.1:${String(port)}`) return { status: 421 };
   if (req.method !== 'GET') return { status: 405 };
   const url = new URL(req.url ?? '/', 'http://127.0.0.1');
   if (url.pathname !== '/' || consumed) return { status: 404 };
-  if (!url.searchParams.has('state')) return { status: 400 };
+  const states = url.searchParams.getAll('state');
+  if (states.length !== 1 || states[0] !== state) return { status: 400 };
   return undefined;
 }
 
@@ -44,9 +50,9 @@ function refuse(res: ServerResponse, status: number): void {
 // Waits for the redirect of one sign-in. It binds the IPv4 loopback address
 // only, which is what the redirect URI names, answers the first GET at `/`
 // that carries a `state` and then stops listening, and says nothing of what
-// the request carried: the page is fixed. A request for another path, with no
-// `state` or from another Host (a rebound name) is refused and leaves the
-// listener waiting.
+// the request carried: the page is fixed. A request for another path, with any other
+// `state`, or from another Host (a rebound name) is refused and leaves the
+// listener waiting, up to a bound.
 export async function listenOnLoopback(options: LoopbackOptions): Promise<LoopbackListener> {
   let finish: (params: URLSearchParams) => void = () => undefined;
   let fail: (error: StdioError) => void = () => undefined;
@@ -58,11 +64,22 @@ export async function listenOnLoopback(options: LoopbackOptions): Promise<Loopba
   callback.catch(() => undefined);
 
   let consumed = false;
+  let bad = 0;
   let port = 0;
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    const refusal = refusalOf(req, port, consumed);
+    const refusal = refusalOf(req, port, consumed, options.state);
     if (refusal !== undefined) {
       refuse(res, refusal.status);
+      bad += 1;
+      if (bad > options.maxBadRequests) {
+        fail(
+          new StdioError(
+            'mcp_login_flooded',
+            'the sign-in was abandoned: too many requests that were not its answer reached the listener',
+          ),
+        );
+        closed().catch(ignore);
+      }
       return;
     }
     consumed = true;
