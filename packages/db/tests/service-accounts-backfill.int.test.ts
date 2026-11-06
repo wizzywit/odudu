@@ -12,6 +12,16 @@ const TAG = '0122_service_accounts_by_grant';
 let containerHandle: TestDatabase | undefined;
 let dbHandle: DatabaseHandle | undefined;
 let before: string | undefined;
+let lifted: Record<string, string> = {};
+
+// A table whose row security was lifted and restored has a newer pg_class
+// row, which `xmin` shows; one nothing touched keeps its own.
+async function versions(): Promise<Record<string, string>> {
+  const rows = await handle().sql<{ relname: string; version: string }[]>`
+    select relname, xmin::text as version from pg_class
+     where relname in ('audit_events', 'tenants', 'client_oidc_config')`;
+  return Object.fromEntries(rows.map((row) => [row.relname, row.version]));
+}
 
 function handle(): DatabaseHandle {
   if (dbHandle === undefined) throw new Error('database not started');
@@ -30,6 +40,7 @@ beforeAll(async () => {
   journal.entries = journal.entries.filter((entry) => entry.tag < TAG);
   writeFileSync(journalPath, JSON.stringify(journal));
   await runMigrations(dbHandle.db, before);
+  lifted = await versions();
 }, 120_000);
 
 afterAll(async () => {
@@ -45,8 +56,11 @@ describe('the service-account migration', () => {
     const once = await outcomes(handle().sql);
     expect(once).toEqual(expectedOutcomes());
 
-    await handle().sql`delete from drizzle.__drizzle_migrations where created_at = (
-      select max(created_at) from drizzle.__drizzle_migrations)`;
+    const journal = JSON.parse(
+      readFileSync(join(MIGRATIONS_DIR, 'meta', '_journal.json'), 'utf8'),
+    ) as { entries: { tag: string; when: number }[] };
+    const first = journal.entries.find((entry) => entry.tag === TAG)?.when ?? 0;
+    await handle().sql`delete from drizzle.__drizzle_migrations where created_at >= ${first}`;
     await runMigrations(handle().db, MIGRATIONS_DIR);
     expect(await outcomes(handle().sql)).toEqual(once);
   });
@@ -57,6 +71,10 @@ describe('the service-account migration', () => {
        where s.type = 'service'
          and not exists (select 1 from clients c where c.service_subject_id = s.id)`;
     expect(rows[0]?.n).toBe(0);
+  });
+
+  it('lifts row security on no table when the owner is a superuser', async () => {
+    expect(await versions()).toEqual(lifted);
   });
 
   it('leaves row security forced on every table it read', async () => {
