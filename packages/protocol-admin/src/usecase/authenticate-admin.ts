@@ -2,6 +2,7 @@ import { type SessionLifespans } from '@odudu/authn-flows';
 import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { ADMIN_API_AUDIENCE, holdsMcpScope, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import {
+  extractBearerToken,
   narrowActClaim,
   tenantIssuer,
   type AcceptedIssuersLookup,
@@ -91,14 +92,6 @@ export interface AuthenticateAdminInput {
   systemTenantIssuer: string;
   issuerBase: string;
   now: Date;
-}
-
-const BEARER_PATTERN = /^Bearer\s+(.+)$/iu;
-
-function extractBearerToken(header: string | undefined): string | undefined {
-  const match = header === undefined ? null : BEARER_PATTERN.exec(header);
-  const token = match?.[1];
-  return token !== undefined && token.length > 0 ? token : undefined;
 }
 
 // Read before the signature verifies, only to decide which tenant's keys

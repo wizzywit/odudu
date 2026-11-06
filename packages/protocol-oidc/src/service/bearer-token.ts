@@ -7,7 +7,8 @@
 export function extractBearerToken(authorizationHeader: string | undefined): string | undefined {
   if (authorizationHeader === undefined) return undefined;
   const match = /^Bearer\s+(.+)$/i.exec(authorizationHeader);
-  const token = match?.[1];
+  // A header's trailing whitespace is not part of a credential.
+  const token = match?.[1]?.trim();
   return token !== undefined && token.length > 0 ? token : undefined;
 }
 
