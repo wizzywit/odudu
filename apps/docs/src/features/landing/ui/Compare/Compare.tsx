@@ -19,9 +19,9 @@ export function Compare(): ReactElement {
         stale.
       </p>
       <p className={styles.callout} data-reveal="">
-        <strong>Odudu is a release candidate.</strong> It has not had an independent security review
-        yet and it runs as one instance. The roadmap lists what is built, what comes next and what
-        is decided against.
+        <strong>Odudu is before 1.0.</strong> It has not had an independent security review yet and
+        it runs as one instance. The roadmap lists what is built, what comes next and what is
+        decided against.
       </p>
       <p className={styles.links} data-reveal="">
         <DocsLink className={styles.inline} to="/introduction/compare/">

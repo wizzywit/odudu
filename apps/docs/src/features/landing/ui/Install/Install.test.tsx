@@ -19,10 +19,10 @@ describe('Install', () => {
     expect($('label')).toHaveLength(2);
   });
 
-  it('keeps the copy button out until script has run, and says the release is to come', () => {
+  it('keeps the copy button out until script has run, and carries no release-candidate caveat', () => {
     const $ = markupOf(<Install />);
     expect($('button[hidden]')).toHaveLength(1);
-    expect($('[data-install-note]').text()).toContain(RELEASE_CAVEAT);
+    expect($('[data-install-note]').text()).not.toContain(RELEASE_CAVEAT);
   });
 
   it("holds the quick start's next step in each panel, waiting for the typing on the first", () => {

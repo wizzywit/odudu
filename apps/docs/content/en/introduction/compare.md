@@ -33,7 +33,7 @@ Each row links to a page that shows the capability working, with the requests th
 
 ## What Odudu is not
 
-- It is a release candidate. It has not had an independent security review yet, so start small.
+- It is before 1.0, and 0.1.0 is its first stable release. It has not had an independent security review yet, so start small.
 - It runs as one instance. Several copies behind a load balancer would race on migrations and each allow the full request rate. The [roadmap](../roadmap.md) places that work.
 - It does not sign people in through another identity provider, connect to LDAP, speak SAML or accept SCIM provisioning yet. The roadmap names the phase for each.
 - There is no hosted service. One is planned and has no date.

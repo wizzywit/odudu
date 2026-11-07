@@ -191,7 +191,7 @@ describe('what it says about the product matches the roadmap', () => {
   it('says plainly where it stands, links the roadmap, and promises no hosted date or price', () => {
     const status = section('Status');
     expect(status).toMatch(/before 1\.0|pre-1\.0/iu);
-    expect(status).toMatch(/release candidate/u);
+    expect(status).toMatch(/first stable release/u);
     expect(status).toContain(`${SITE_DOCS}roadmap/`);
     expect(status.replaceAll(/\[([^\]]*)\]\([^)\s]+\)/gu, '$1').replaceAll(/\s+/gu, ' ')).toContain(
       STATUS_SENTENCE,
@@ -201,9 +201,9 @@ describe('what it says about the product matches the roadmap', () => {
     expect(status).not.toMatch(/[$€£]\s?\d|\bpric(e|es|ing)\b|\b20\d\d\b/iu);
   });
 
-  it('keeps the release-candidate notice, with its security-review disclosure, at the top', () => {
+  it('keeps the first-release notice, with its security-review disclosure, at the top', () => {
     const top = LINES.slice(0, 40).join('\n');
-    expect(top).toMatch(/A release candidate/u);
+    expect(top).toMatch(/The first stable release/u);
     expect(top).toMatch(/security review/iu);
   });
 });
@@ -277,7 +277,7 @@ describe('the quick start in the README is the quick start page', () => {
   it('gives the PowerShell form of the first command, as the page does', () => {
     const [, windows = ''] = codeBlocks(section('Quick start'));
     expect(windows.trim()).toBe(
-      `curl.exe -fsSLO ${REPOSITORY_URL}/${RELEASE_ASSET}\ndocker compose up -d`,
+      `curl.exe -fsSLO ${REPOSITORY_URL}/${RELEASE_ASSET}; if ($?) { docker compose up -d }`,
     );
     for (const line of windows.trim().split('\n')) expect(onPage.has(line), line).toBe(true);
   });
