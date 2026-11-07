@@ -40,10 +40,10 @@ odudu seed grant-role --tenant demo --username ada --role odudu-admin:manage-ten
 ```
 
 ```
-{"created":true,"tenant":"demo","tenantId":"01a1b4aa-e37e-7af1-8f29-0b038a7ffe5d","clientId":"demo-spa","userSubjectId":"01a1b4aa-e44c-7415-9bb4-292ce147b10d"}
-{"command":"grant-role","tenant":"demo","tenantId":"01a1b4aa-e37e-7af1-8f29-0b038a7ffe5d","username":"ada","role":"odudu-admin:view-users"}
-{"command":"grant-role","tenant":"demo","tenantId":"01a1b4aa-e37e-7af1-8f29-0b038a7ffe5d","username":"ada","role":"odudu-admin:manage-clients"}
-{"command":"grant-role","tenant":"demo","tenantId":"01a1b4aa-e37e-7af1-8f29-0b038a7ffe5d","username":"ada","role":"odudu-admin:manage-tenant"}
+{"created":true,"tenant":"demo","tenantId":"01a1b4cd-7bff-7cc2-bb77-0afc0461d80e","clientId":"demo-spa","userSubjectId":"01a1b4cd-7d29-72de-b262-330363e2b824"}
+{"command":"grant-role","tenant":"demo","tenantId":"01a1b4cd-7bff-7cc2-bb77-0afc0461d80e","username":"ada","role":"odudu-admin:view-users"}
+{"command":"grant-role","tenant":"demo","tenantId":"01a1b4cd-7bff-7cc2-bb77-0afc0461d80e","username":"ada","role":"odudu-admin:manage-clients"}
+{"command":"grant-role","tenant":"demo","tenantId":"01a1b4cd-7bff-7cc2-bb77-0afc0461d80e","username":"ada","role":"odudu-admin:manage-tenant"}
 ```
 
 ```bash
@@ -100,8 +100,8 @@ for s in mcp:read mcp:write; do odudu seed assign-scope --tenant demo --client-i
 
 ```
 {"client_id":"agent-writer","name":"Transcript agent","type":"public","audiences":["http://localhost:3000/tenants/demo/mcp"],"consent_required":false}
-{"command":"assign-scope","tenant":"demo","tenantId":"01a1b4aa-e37e-7af1-8f29-0b038a7ffe5d","clientId":"agent-writer","scope":"mcp:read","assignment":"optional"}
-{"command":"assign-scope","tenant":"demo","tenantId":"01a1b4aa-e37e-7af1-8f29-0b038a7ffe5d","clientId":"agent-writer","scope":"mcp:write","assignment":"optional"}
+{"command":"assign-scope","tenant":"demo","tenantId":"01a1b4cd-7bff-7cc2-bb77-0afc0461d80e","clientId":"agent-writer","scope":"mcp:read","assignment":"optional"}
+{"command":"assign-scope","tenant":"demo","tenantId":"01a1b4cd-7bff-7cc2-bb77-0afc0461d80e","clientId":"agent-writer","scope":"mcp:write","assignment":"optional"}
 ```
 
 ## Two tokens, one of them able to write
@@ -137,7 +137,7 @@ SHOW=
 <p class="tenant"><bdi>demo</bdi></p>
 </header>
 <form method="post" action="/tenants/demo/login-actions/consent">
-  <input type="hidden" name="auth_session_id" value="01a1b4aa-f166-73cb-929f-8e4df34f83f4">
+  <input type="hidden" name="auth_session_id" value="01a1b4cd-8aad-7688-850e-cdfc98f901af">
   <ul>
   <li><bdi>openid</bdi></li>
   </ul>
@@ -182,7 +182,7 @@ SHOW=
 <p class="tenant"><bdi>demo</bdi></p>
 </header>
 <form method="post" action="/tenants/demo/login-actions/consent">
-  <input type="hidden" name="auth_session_id" value="01a1b4aa-f245-7876-91bb-a07b900ce721">
+  <input type="hidden" name="auth_session_id" value="01a1b4cd-8bac-7a42-a8c0-a3f4a64ef3e6">
   <ul>
   <li><bdi>openid</bdi></li>
   </ul>
@@ -264,11 +264,11 @@ ETAG=$(jq -c '.result.structuredContent.etag' get.json)
 ```
 
 ```
-{"id":"01a1b4aa-e3af-7967-8dbf-1af446e37d92","client_id":"odudu-mcp","name":"Odudu MCP"}
-{"id":"01a1b4aa-e3d0-7c1c-9a7b-982b34da1ba2","client_id":"odudu-admin","name":"Odudu administration"}
-{"id":"01a1b4aa-e409-70cb-9e24-52ef849bee8a","client_id":"demo-spa","name":"demo-spa"}
-{"id":"01a1b4aa-ecef-72b7-8628-1f6b0454821c","client_id":"agent-writer","name":"Transcript agent"}
-{"name":"demo-spa","description":null,"etag":"\"ef94280e30e4decf7e894b7420312f4cc97c7140a5deb4e37355bcb61a2be4ec\""}
+{"id":"01a1b4cd-7c3f-78e2-8159-b775abd4e6c6","client_id":"odudu-mcp","name":"Odudu MCP"}
+{"id":"01a1b4cd-7c68-7dfd-a7df-0a428f9b7666","client_id":"odudu-admin","name":"Odudu administration"}
+{"id":"01a1b4cd-7cc0-78f7-86e8-78514e6a1d82","client_id":"demo-spa","name":"demo-spa"}
+{"id":"01a1b4cd-8658-7d88-adf5-c172652033b9","client_id":"agent-writer","name":"Transcript agent"}
+{"name":"demo-spa","description":null,"etag":"\"ce9c49ec301a150de4453a0bf9162f2e3f41a18b9295513309b1c9a94c23ed98\""}
 ```
 
 The update answers the client as it is now and its new etag, which is not the one it was sent:
@@ -279,7 +279,7 @@ jq -c '.result | {isError, name: .structuredContent.data.name, description: .str
 ```
 
 ```
-{"isError":false,"name":"Customer portal","description":"Where customers pay their invoices","etag":"\"b308fcf14860ff67f17a450cdae336041c09c7e8128b9ff7bf847115a1b4f578\""}
+{"isError":false,"name":"Customer portal","description":"Where customers pay their invoices","etag":"\"c94fbd237e2b60e428f1d5d01fd5b6d7dc2c6f9d78c55926971f8573c6e8d7d4\""}
 ```
 
 Sending the etag of the earlier read again is the case the etag is for: somebody changed the client since, and the
@@ -412,9 +412,9 @@ call "$WRITE" 14 update_scope_metadata "{\"id\":\"$SCOPE\",\"if_match\":$(jq -c 
 ```
 
 ```
-{"id":"01a1b4aa-e398-7f75-bf82-d16a166dde37","name":"profile","description":null}
-{"name":"profile","description":null,"etag":"\"c211801da82e4a7eca7ec416b0710c81bc3c5bc97beb69ca5ec54979841f706d\""}
-{"isError":false,"description":"Your name, picture and birthday","etag":"\"e99b49a55660ee33fb7eb628625ee19dbb0e375e89f10c117bcb3e56daee896b\""}
+{"id":"01a1b4cd-7c21-71c6-aea1-1b3d51b2577c","name":"profile","description":null}
+{"name":"profile","description":null,"etag":"\"e7ee0e39e3d40a8653cb38b5a895f41a6380f34fb50c2befc5d7108025388457\""}
+{"isError":false,"description":"Your name, picture and birthday","etag":"\"773325b7d9c600c27ab939200c55758c66e7c0907911d3a11f05223693e51865\""}
 ```
 
 ## A role, a group and a scope that grant nothing
@@ -691,8 +691,8 @@ docker compose -p odudu-p5a-i18 -f infra/docker/compose.yaml exec -T postgres ps
 ```
 
 ```
-         action          | outcome | by_agent | has_owner |                                                                                   detail
--------------------------+---------+----------+-----------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+         action          | outcome | by_agent | has_owner |                                                                                                                                                                                                                                                                                    detail
+-------------------------+---------+----------+-----------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  client.amend            | allowed | t        | t         | {"name": {"after": "Customer portal", "before": "demo-spa"}, "description": {"after": "Where customers pay their invoices", "before": null}}
  capability.refused      | refused | t        | t         | {"reason": "insufficient_scope"}
  scope.amend             | allowed | t        | t         | {"description": {"after": "Your name, picture and birthday", "before": null}}
@@ -704,9 +704,9 @@ docker compose -p odudu-p5a-i18 -f infra/docker/compose.yaml exec -T postgres ps
  message_override.set    | allowed | t        | t         | {"key": "login.title", "after": "Connexion à Demo", "before": null, "locale": "fr"}
  message_override.set    | allowed | t        | t         | {"key": "login.title", "after": "Se connecter à Demo", "before": "Connexion à Demo", "locale": "fr"}
  message_override.delete | allowed | t        | t         | {"key": "login.title", "before": "Se connecter à Demo", "locale": "fr"}
- theme.draft_saved       | allowed | t        | t         | {"scope": "tenant"}
- theme.draft_saved       | allowed | t        | t         | {"scope": "tenant"}
- theme.draft_saved       | allowed | t        | t         | {"scope": "client"}
+ theme.draft_saved       | allowed | t        | t         | {"scope": "tenant", "changed": {"assets": {"after": {"bytes": 2, "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"}, "before": null}, "tokens": {"after": {"bytes": 24, "sha256": "5adebf12a3a9a8b9369979670bdb1dd731ee254c7f9667cc3240809812ebdc56"}, "before": null}, "templates": {"after": {"bytes": 2, "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"}, "before": null}, "stylesheet": {"after": {"bytes": 25, "sha256": "846eaf4f109610f183a7054a7f64a22e4f9203da40537ff750664d4bc826bf8d"}, "before": null}}}
+ theme.draft_saved       | allowed | t        | t         | {"scope": "tenant", "changed": {"templates": {"after": {"bytes": 103, "sha256": "29c1436f86a8b9958f8b17d2e11023ab62955a8fa53140a45c2c34c68159e8ac"}, "before": {"bytes": 2, "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"}}}}
+ theme.draft_saved       | allowed | t        | t         | {"scope": "client", "changed": {"assets": {"after": {"bytes": 2, "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"}, "before": null}, "tokens": {"after": {"bytes": 2, "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"}, "before": null}, "templates": {"after": {"bytes": 2, "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"}, "before": null}, "stylesheet": {"after": {"bytes": 25, "sha256": "846eaf4f109610f183a7054a7f64a22e4f9203da40537ff750664d4bc826bf8d"}, "before": null}}}
  capability.refused      | refused | t        | t         | {"reason": "insufficient_scope"}
 (15 rows)
 

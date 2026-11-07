@@ -15,7 +15,7 @@ odudu seed tenant --name demo
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"demo","tenantId":"01a1b4ab-5d4a-768e-835d-8ce676437723"}
+{"command":"tenant","created":true,"tenant":"demo","tenantId":"01a1b4cd-f95f-76fd-9fb5-7e72cae32f34"}
 ```
 
 ## A service account and its key
@@ -31,7 +31,7 @@ cat jwks.json
 ```
 exit 0
 ODUDU_MCP_KEY=eyJrdHkiOi
-{"keys":[{"kty":"EC","crv":"P-256","x":"sB5Kl4OBzvUWWtF7EV4TWN0dZ-b-nsdLC_vrFnftibg","y":"QcMj4p5iU3aHIYev55-jtbP8sMXHe8BeTSl2Bk9tmlo","kid":"FSLdgnb8BPUfwsEwZzCN_kK56DIy-tjIwFuJYHTu_UI","alg":"ES256","use":"sig"}]}
+{"keys":[{"kty":"EC","crv":"P-256","x":"OmGOT5BFeKbtVNv9QTXJFgetQO6wjzShJY7bm0gVM8E","y":"yUPzAExa6kjsZfoY5wAtmIOSYNAhRiiuqcAVuuTmCKI","kid":"Ghcmc4kujw1Xtu7z3Fmmu5h30FrcdDx6ADL4zzQJnAU","alg":"ES256","use":"sig"}]}
 ```
 
 The client is confidential with the `client_credentials` grant and may ask for `mcp:read` and nothing else. The secret it is made with is never used again, because the client authenticates with the key instead:
@@ -42,7 +42,7 @@ odudu seed client --tenant demo --client-id agent --client-secret "$(openssl ran
 ```
 
 ```
-{"command":"client","created":true,"tenant":"demo","tenantId":"01a1b4ab-5d4a-768e-835d-8ce676437723","clientId":"agent","clientDbId":"01a1b4ab-61d4-7299-b998-15c463c7df55"}
+{"command":"client","created":true,"tenant":"demo","tenantId":"01a1b4cd-f95f-76fd-9fb5-7e72cae32f34","clientId":"agent","clientDbId":"01a1b4cd-fd3c-705a-bef3-cdae4d284222"}
 ```
 
 The seed has no flag for a key or a role on a service account, and this run set the audience in the same way rather than with `--audience`, so the rest was written to the database as its owner, scoped to this tenant: the key set becomes the client's `jwks`, `private_key_jwt` its authentication method, the admin API's audience its audience, and its account holds two of the admin capabilities. The admin API's client routes do the same with a token, and the account's ceiling is these roles and nothing more:
@@ -133,7 +133,7 @@ jq -c 'select(.id==4)' out.jsonl
 ```
 
 ```
-{"result":{"content":[{"type":"text","text":"{\"data\":{\"subjectId\":\"01a1b4ab-61ef-7c6b-afa3-c1025faf4a52\",\"issuerTenantId\":\"01a1b4ab-5d4a-768e-835d-8ce676437723\",\"issuerTenantName\":\"demo\",\"capabilities\":[\"manage-clients\",\"view-users\"],\"crossTenant\":false}}"}],"structuredContent":{"data":{"subjectId":"01a1b4ab-61ef-7c6b-afa3-c1025faf4a52","issuerTenantId":"01a1b4ab-5d4a-768e-835d-8ce676437723","issuerTenantName":"demo","capabilities":["manage-clients","view-users"],"crossTenant":false}},"isError":false},"jsonrpc":"2.0","id":3}
+{"result":{"content":[{"type":"text","text":"{\"data\":{\"subjectId\":\"01a1b4cd-fd52-7790-8346-62308c99e7dc\",\"issuerTenantId\":\"01a1b4cd-f95f-76fd-9fb5-7e72cae32f34\",\"issuerTenantName\":\"demo\",\"capabilities\":[\"manage-clients\",\"view-users\"],\"crossTenant\":false}}"}],"structuredContent":{"data":{"subjectId":"01a1b4cd-fd52-7790-8346-62308c99e7dc","issuerTenantId":"01a1b4cd-f95f-76fd-9fb5-7e72cae32f34","issuerTenantName":"demo","capabilities":["manage-clients","view-users"],"crossTenant":false}},"isError":false},"jsonrpc":"2.0","id":3}
 {"result":{"content":[{"type":"text","text":"{\"data\":{\"count\":3,\"capped\":false}}"}],"structuredContent":{"data":{"count":3,"capped":false}},"isError":false},"jsonrpc":"2.0","id":4}
 ```
 
@@ -224,8 +224,8 @@ docker compose -p odudu-p5a-i18 -f infra/docker/compose.yaml exec -T postgres ps
      action      | outcome |                                                                                              detail
 -----------------+---------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  token.issue     | allowed | {"scope": "mcp:read", "grant_type": "client_credentials"}
- agent.tool_call | allowed | {"tool": "admin.get.whoami", "owner": "01a1b4ab-61ef-7c6b-afa3-c1025faf4a52", "route": "GET /admin/tenants/:tenant/whoami", "agent_client": "01a1b4ab-61d4-7299-b998-15c463c7df55"}
- agent.tool_call | allowed | {"tool": "admin.get.clients.count", "owner": "01a1b4ab-61ef-7c6b-afa3-c1025faf4a52", "route": "GET /admin/tenants/:tenant/clients/count", "agent_client": "01a1b4ab-61d4-7299-b998-15c463c7df55"}
+ agent.tool_call | allowed | {"tool": "admin.get.whoami", "owner": "01a1b4cd-fd52-7790-8346-62308c99e7dc", "route": "GET /admin/tenants/:tenant/whoami", "agent_client": "01a1b4cd-fd3c-705a-bef3-cdae4d284222"}
+ agent.tool_call | allowed | {"tool": "admin.get.clients.count", "owner": "01a1b4cd-fd52-7790-8346-62308c99e7dc", "route": "GET /admin/tenants/:tenant/clients/count", "agent_client": "01a1b4cd-fd3c-705a-bef3-cdae4d284222"}
  token.issue     | refused | {"reason": "invalid_scope"}
 (4 rows)
 
