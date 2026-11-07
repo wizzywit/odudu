@@ -319,6 +319,44 @@ describe('a write tool called with a read token', () => {
   });
 });
 
+describe('a write tool called by a token that holds no write scope', () => {
+  const write = defineTool({
+    ...base,
+    name: 'rename_client',
+    access: 'write',
+    spends: 'mutating',
+    routeKey: 'PATCH /admin/tenants/:tenant/clients/:id',
+  });
+
+  it('is refused before the budget is read or spent, and recorded as a refusal', async () => {
+    const reserve = vi.fn(() => Promise.resolve(true));
+    const release = vi.fn(() => Promise.resolve());
+    const h = harness(false, { reserve, release });
+    const result = await callMcpTool({ ...h.deps, holdsWrite: false }, write, caller, {});
+    expect(result.structuredContent).toMatchObject({ error: { status: 403 } });
+    expect(reserve).not.toHaveBeenCalled();
+    expect(release).not.toHaveBeenCalled();
+    expect(h.rows).toEqual([
+      {
+        tool: 'rename_client',
+        route: 'PATCH /admin/tenants/:tenant/clients/:id',
+        outcome: 'refused',
+        reason: 'insufficient_scope',
+      },
+    ]);
+  });
+
+  it('does not stop a read tool, or a token that holds the scope', async () => {
+    const h = harness();
+    expect(
+      (await callMcpTool({ ...h.deps, holdsWrite: false }, defineTool(base), caller, {})).isError,
+    ).toBe(false);
+    expect((await callMcpTool({ ...h.deps, holdsWrite: true }, write, caller, {})).isError).toBe(
+      false,
+    );
+  });
+});
+
 describe('the write budget, edge cases', () => {
   const route = 'POST /admin/tenants/:tenant/roles';
   const writing = defineTool({

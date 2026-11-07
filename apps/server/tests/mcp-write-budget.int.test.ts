@@ -234,6 +234,35 @@ describe('a grant row that is locked', () => {
   });
 });
 
+describe('a write sent by name with a token that holds no write scope', () => {
+  it('is refused as a scope problem without touching the grant row', async () => {
+    const w = await stack.world(OWNER_CAPS, 'mcp:read');
+    const token = await stack.sign(w, 'mcp:read');
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let locked: () => void = () => undefined;
+    const lockTaken = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const holder = stack.owner.db.transaction(async (tx) => {
+      await tx.execute(sql`select 1 from token_grants where id = ${w.grantId} for update`);
+      locked();
+      await held;
+    });
+    await lockTaken;
+    const result = await stack.call(w, token, 'update_client_metadata', {
+      id: newId(),
+      if_match: ETAG,
+      description: 'd',
+    });
+    release();
+    await holder;
+    expect(errorOf(result)).toMatchObject({ type: 'mcp:insufficient_scope', status: 403 });
+  });
+});
+
 describe('a grant that has ended', () => {
   it('is its own problem, not a spent budget, and nothing is called', async () => {
     const w = await stack.world(OWNER_CAPS, WRITE);

@@ -29,7 +29,12 @@ import {
   recordForeignIssuer,
   verifyTenantAccessToken,
 } from '@odudu/protocol-admin';
-import { mintAgentToken, tenantLookupRepository, tokenGrantRepository } from '@odudu/protocol-oidc';
+import {
+  MCP_WRITE_SCOPE,
+  mintAgentToken,
+  tenantLookupRepository,
+  tokenGrantRepository,
+} from '@odudu/protocol-oidc';
 import { type FastifyInstance } from 'fastify';
 import { sql } from 'drizzle-orm';
 import { type Logger as PinoLogger } from 'pino';
@@ -232,6 +237,7 @@ export function mcpRouteDepsFor(parts: McpDepsParts, limiter: ToolLimiter): McpR
               requestId: request.requestId,
               deadlineMs: TOOL_DEADLINE_MS,
               budget: grantWriteBudget(parts.database, token, request),
+              holdsWrite: token.scope.includes(MCP_WRITE_SCOPE),
               record: (recorded) =>
                 withTenant(
                   parts.database.db,
