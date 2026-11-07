@@ -4,9 +4,13 @@ export interface FakeCaller extends AdminCaller {
   readonly requests: AdminRequestSpec[];
 }
 
-export function respondingWith(body: unknown, status = 200): FakeCaller {
+export function respondingWith(
+  body: unknown,
+  status = 200,
+  headers: Readonly<Record<string, string>> = {},
+): FakeCaller {
   const requests: AdminRequestSpec[] = [];
-  const result: AdminResult = { status, headers: {}, body };
+  const result: AdminResult = { status, headers, body };
   return {
     requests,
     call(request) {

@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clients } from '@odudu/domain-tenant';
-import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { clientOidcConfig } from '#/schema/client-oidc-config';
 import { tokenGrants, type TokenGrantRecord } from '#/schema/token-grants';
 
@@ -145,6 +145,46 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         .where(and(eq(tokenGrants.id, id), isNull(tokenGrants.revokedAt)))
         .returning({ id: tokenGrants.id });
       return rows.length > 0;
+    },
+
+    // Spends one call of the grant's write budget: true when the grant was
+    // within `limits`, and the count is raised by the same statement, which the
+    // row lock serialises, so of any number of calls made at once no more than
+    // the limit are told yes. A grant that is missing, revoked or in another
+    // tenant is false. A create is also a mutating call.
+    async reserveAgentWrite(
+      id: string,
+      kind: 'mutating' | 'create',
+      limits: { readonly mutating: number; readonly creates: number },
+    ): Promise<boolean> {
+      const create = kind === 'create';
+      const rows = await tx
+        .update(tokenGrants)
+        .set({
+          agentWrites: sql`${tokenGrants.agentWrites} + 1`,
+          agentCreates: sql`${tokenGrants.agentCreates} + ${create ? 1 : 0}`,
+        })
+        .where(
+          and(
+            eq(tokenGrants.id, id),
+            isNull(tokenGrants.revokedAt),
+            lt(tokenGrants.agentWrites, limits.mutating),
+            create ? lt(tokenGrants.agentCreates, limits.creates) : undefined,
+          ),
+        )
+        .returning({ id: tokenGrants.id });
+      return rows.length > 0;
+    },
+
+    // Gives back a call known to have changed nothing, never below none.
+    async releaseAgentWrite(id: string, kind: 'mutating' | 'create'): Promise<void> {
+      await tx
+        .update(tokenGrants)
+        .set({
+          agentWrites: sql`greatest(${tokenGrants.agentWrites} - 1, 0)`,
+          agentCreates: sql`greatest(${tokenGrants.agentCreates} - ${kind === 'create' ? 1 : 0}, 0)`,
+        })
+        .where(eq(tokenGrants.id, id));
     },
 
     async byId(id: string): Promise<TokenGrantRecord | null> {

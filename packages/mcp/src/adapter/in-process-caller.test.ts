@@ -414,7 +414,13 @@ describe('the in-process admin caller', () => {
     });
 
     it('refuses a POST with no key, a key on any other method and a body on a DELETE or GET', async () => {
-      const { idempotencyKey: _unused, ...unkeyed } = POST;
+      const unkeyed: AdminRequestSpec = {
+        method: 'POST',
+        pattern: POST.pattern,
+        params: {},
+        query: {},
+        body: { name: 'auditors' },
+      };
       const refusals: AdminRequestSpec[] = [
         unkeyed,
         { ...PUT, idempotencyKey: 'k' },

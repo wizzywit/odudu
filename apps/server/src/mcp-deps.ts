@@ -1,4 +1,4 @@
-import { type DatabaseHandle, withTenant } from '@odudu/db';
+import { type DatabaseHandle, type RequestContext, withTenant } from '@odudu/db';
 import { effectiveRoles } from '@odudu/domain-authz';
 import { ADMIN_API_AUDIENCE, isSystemTenantId } from '@odudu/domain-tenant';
 import {
@@ -11,12 +11,14 @@ import {
   TOOLS,
   ToolProblem,
   visibleTools,
+  WRITE_BUDGET,
   type AdminCaller,
   type McpCallDeps,
   type McpDeps,
   type McpRouteDeps,
   type ToolLimiter,
   type ValidatedMcpToken,
+  type WriteBudget,
 } from '@odudu/mcp';
 import {
   adminAuthDeps,
@@ -26,7 +28,7 @@ import {
   recordForeignIssuer,
   verifyTenantAccessToken,
 } from '@odudu/protocol-admin';
-import { mintAgentToken, tenantLookupRepository } from '@odudu/protocol-oidc';
+import { mintAgentToken, tenantLookupRepository, tokenGrantRepository } from '@odudu/protocol-oidc';
 import { type FastifyInstance } from 'fastify';
 import { type Logger as PinoLogger } from 'pino';
 
@@ -103,6 +105,32 @@ export function adminCallerFor(deps: McpCallDeps, token: ValidatedMcpToken): Adm
     },
     token,
   );
+}
+
+// The write budget of the grant behind a token, spent in the database: one
+// statement per reservation, so calls made at once between them cannot pass
+// the limit, in this process or another.
+export function grantWriteBudget(
+  database: DatabaseHandle,
+  token: Pick<ValidatedMcpToken, 'tenant' | 'grantId'>,
+  request?: RequestContext,
+): WriteBudget {
+  return {
+    reserve: (kind) =>
+      withTenant(
+        database.db,
+        token.tenant.id,
+        (tx) => tokenGrantRepository(tx).reserveAgentWrite(token.grantId, kind, WRITE_BUDGET),
+        request,
+      ),
+    release: (kind) =>
+      withTenant(
+        database.db,
+        token.tenant.id,
+        (tx) => tokenGrantRepository(tx).releaseAgentWrite(token.grantId, kind),
+        request,
+      ),
+  };
 }
 
 // What the MCP route needs of this process beyond the exchange: the reads a
@@ -183,6 +211,7 @@ export function mcpRouteDepsFor(parts: McpDepsParts, limiter: ToolLimiter): McpR
             {
               requestId: request.requestId,
               deadlineMs: TOOL_DEADLINE_MS,
+              budget: grantWriteBudget(parts.database, token, request),
               record: (recorded) =>
                 withTenant(
                   parts.database.db,

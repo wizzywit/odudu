@@ -1,11 +1,12 @@
 import type { McpLogger } from '#/service/deps';
-import { errorResult, runTool } from '#/service/call-tool';
+import { errorResult, runTool, type ToolRun } from '#/service/call-tool';
 import {
   ToolProblem,
   type AdminCaller,
   type RegisteredTool,
   type ToolResult,
 } from '#/service/tool';
+import type { BudgetKind, WriteBudget } from '#/service/write-budget';
 
 // What the audit trail holds of a tool call: which tool, which admin route it
 // reached and how it ended. Never its arguments or its result, which can carry
@@ -14,7 +15,8 @@ export interface RecordedToolCall {
   readonly tool: string;
   readonly route: string;
   readonly outcome: 'allowed' | 'refused' | 'failed';
-  readonly reason?: 'insufficient_scope' | 'missing_capability' | 'timeout_outcome_unknown';
+  readonly reason?:
+    'insufficient_scope' | 'missing_capability' | 'timeout_outcome_unknown' | 'write_budget';
 }
 
 export interface CallMcpToolDeps {
@@ -23,6 +25,8 @@ export interface CallMcpToolDeps {
   // longer. The admin call it made is not cancelled, so a write that is given
   // up on may still commit: its answer says the outcome is unknown.
   readonly deadlineMs: number;
+  // The changes this token's grant may still make, shared by every call it makes.
+  readonly budget: WriteBudget;
   record(call: RecordedToolCall): Promise<void>;
   readonly logger: Pick<McpLogger, 'error'>;
 }
@@ -33,6 +37,9 @@ const OUTCOME_UNKNOWN =
 
 function outcomeOf(problem: ToolProblem | null): Pick<RecordedToolCall, 'outcome' | 'reason'> {
   if (problem === null) return { outcome: 'allowed' };
+  if (problem.problemType === 'mcp:write_budget') {
+    return { outcome: 'refused', reason: 'write_budget' };
+  }
   if (problem.problemType === 'mcp:outcome_unknown') {
     return { outcome: 'failed', reason: 'timeout_outcome_unknown' };
   }
@@ -43,19 +50,76 @@ function outcomeOf(problem: ToolProblem | null): Pick<RecordedToolCall, 'outcome
   return { outcome: 'refused', reason: scope ? 'insufficient_scope' : 'missing_capability' };
 }
 
-// One tool call: the tool runs against the caller and exactly one row says it
-// did, whether it succeeded, was refused or failed. A call whose row cannot be
-// written has its data withheld, because an access nobody can see was made is
-// the one a trail exists to prevent. Anything unexpected is logged with its
-// correlation id and answered as that id alone.
-export async function callMcpTool(
+const BUDGET_SPENT =
+  'This sign-in has made as many changes as it may. Nothing was changed by this call: tell the ' +
+  'person, who can sign in again to give you a new allowance.';
+
+// A write that answers 4xx was refused before it changed anything, so what it
+// reserved is given back; a timeout, a failure to reach the admin API or an
+// answer too large to read may follow a change that was made.
+function changedNothing(problem: ToolProblem | null): boolean {
+  return (
+    problem !== null &&
+    problem.problemType !== 'mcp:outcome_unknown' &&
+    problem.status !== null &&
+    problem.status >= 400 &&
+    problem.status < 500
+  );
+}
+
+// What a call spends, when it spends anything: a write whose arguments the
+// schema accepts. One it refuses is never sent, so it costs nothing.
+function spendOf(tool: RegisteredTool, input: unknown): BudgetKind | undefined {
+  if (tool.access !== 'write' || tool.spends === undefined) return undefined;
+  return tool.input.safeParse(input).success ? tool.spends : undefined;
+}
+
+// Reserves the call's place in the grant's budget, or says why it has none. A
+// budget that cannot be read is not guessed at: the call is not made.
+async function reserved(
+  deps: CallMcpToolDeps,
+  tool: RegisteredTool,
+  kind: BudgetKind,
+): Promise<ToolProblem | null> {
+  try {
+    return (await deps.budget.reserve(kind))
+      ? null
+      : new ToolProblem('mcp:write_budget', 'Too many changes in this sign-in', 429, BUDGET_SPENT);
+  } catch (error) {
+    deps.logger.error(
+      { err: error, requestId: deps.requestId, tool: tool.name },
+      'write budget not read',
+    );
+    return new ToolProblem(
+      'mcp:write_budget_unavailable',
+      'The call was not made because the allowance for changes could not be read',
+      503,
+      `Quote the correlation id ${deps.requestId} to the operator.`,
+    );
+  }
+}
+
+async function released(
+  deps: CallMcpToolDeps,
+  tool: RegisteredTool,
+  kind: BudgetKind,
+): Promise<void> {
+  try {
+    await deps.budget.release(kind);
+  } catch (error) {
+    deps.logger.error(
+      { err: error, requestId: deps.requestId, tool: tool.name },
+      'write budget not given back',
+    );
+  }
+}
+
+async function execute(
   deps: CallMcpToolDeps,
   tool: RegisteredTool,
   caller: AdminCaller,
   input: unknown,
-): Promise<ToolResult> {
-  let result: ToolResult;
-  let problem: ToolProblem | null;
+): Promise<ToolRun> {
   let timer: NodeJS.Timeout | undefined;
   try {
     const deadline = new Promise<never>((_resolve, reject) => {
@@ -70,8 +134,9 @@ export async function callMcpTool(
         );
       }, deps.deadlineMs);
     });
-    ({ result, problem } = await Promise.race([runTool(tool, caller, input), deadline]));
+    return await Promise.race([runTool(tool, caller, input), deadline]);
   } catch (error) {
+    let problem: ToolProblem;
     if (error instanceof ToolProblem && error.problemType === 'mcp:timeout') {
       deps.logger.error({ requestId: deps.requestId, tool: tool.name }, 'tool timed out');
       problem =
@@ -83,7 +148,6 @@ export async function callMcpTool(
               OUTCOME_UNKNOWN,
             )
           : error;
-      result = errorResult(problem);
     } else {
       deps.logger.error({ err: error, requestId: deps.requestId, tool: tool.name }, 'tool failed');
       problem = new ToolProblem(
@@ -92,10 +156,34 @@ export async function callMcpTool(
         500,
         `Quote the correlation id ${deps.requestId} to the operator.`,
       );
-      result = errorResult(problem);
     }
+    return { result: errorResult(problem), problem };
   } finally {
     clearTimeout(timer);
+  }
+}
+
+// One tool call: the tool runs against the caller and exactly one row says it
+// did, whether it succeeded, was refused or failed. A write first takes its
+// place in the grant's budget, which is atomic in the database, so calls made
+// at once cannot between them pass the limit. A call whose row cannot be
+// written has its data withheld, because an access nobody can see was made is
+// the one a trail exists to prevent. Anything unexpected is logged with its
+// correlation id and answered as that id alone.
+export async function callMcpTool(
+  deps: CallMcpToolDeps,
+  tool: RegisteredTool,
+  caller: AdminCaller,
+  input: unknown,
+): Promise<ToolResult> {
+  const kind = spendOf(tool, input);
+  const refusal = kind === undefined ? null : await reserved(deps, tool, kind);
+  const { result, problem } =
+    refusal === null
+      ? await execute(deps, tool, caller, input)
+      : { result: errorResult(refusal), problem: refusal };
+  if (kind !== undefined && refusal === null && changedNothing(problem)) {
+    await released(deps, tool, kind);
   }
   try {
     await deps.record({ tool: tool.name, route: tool.routeKey, ...outcomeOf(problem) });

@@ -11,7 +11,8 @@ import {
   verifiedDomainPage,
 } from '@odudu/domain-tenant';
 import { capturingSender, sendPending } from '@odudu/email';
-import { loadConfig } from '@odudu/kernel';
+import { loadConfig, newId } from '@odudu/kernel';
+import { WRITE_BUDGET } from '@odudu/mcp';
 import {
   CIMD_CACHE_MAX_ROWS,
   cimdCacheRepository,
@@ -22,6 +23,7 @@ import {
   persistCimdClient,
   publicExchangeClientsAtRisk,
   tenantCimdRepository,
+  tokenGrantRepository,
   WIRE_CLIENTS_PER_TENANT,
 } from '@odudu/protocol-oidc';
 import {
@@ -295,6 +297,24 @@ export async function driveRepositories(
       await credentials.countUnspentRecoveryCodes(subjectId);
       await credentials.deleteRecoveryCodes(subjectId);
       await credentials.rotatePassword(subjectId, { from: 'x', to: 'y' }, 3);
+    }),
+  );
+  const agentGrant = newId();
+  await withTenant(database, world.tenantId, (tx) =>
+    tokenGrantRepository(tx).create({
+      id: agentGrant,
+      tenantId: world.tenantId,
+      clientId: world.clientDbId,
+      subjectId,
+      scope: 'mcp:write',
+      audience: ['https://plans1.example.com/mcp'],
+    }),
+  );
+  await capture('grants: an agent write is spent and given back', 'oidc', () =>
+    withTenant(database, world.tenantId, async (tx) => {
+      const grants = tokenGrantRepository(tx);
+      await grants.reserveAgentWrite(agentGrant, 'create', WRITE_BUDGET);
+      await grants.releaseAgentWrite(agentGrant, 'create');
     }),
   );
   await capture('themes: what a sign-in render and an asset route read', 'authn', () =>

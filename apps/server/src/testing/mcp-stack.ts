@@ -216,7 +216,13 @@ export async function startMcpStack(): Promise<McpStack> {
       const tool = TOOLS.find((candidate) => candidate.name === name);
       if (tool === undefined) return unknownTool(name);
       return callMcpTool(
-        { requestId: newId(), deadlineMs: 20_000, record: () => Promise.resolve(), logger },
+        {
+          requestId: newId(),
+          deadlineMs: 20_000,
+          budget: { reserve: () => Promise.resolve(true), release: () => Promise.resolve() },
+          record: () => Promise.resolve(),
+          logger,
+        },
         tool,
         stack.unguardedCaller(w, scope),
         args,

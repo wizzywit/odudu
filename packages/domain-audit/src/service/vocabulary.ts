@@ -70,6 +70,7 @@ export const AUDIT_REASONS = [
   'insufficient_scope',
   'already_registered',
   'timeout_outcome_unknown',
+  'write_budget',
 ] as const;
 
 export type AuditReason = (typeof AUDIT_REASONS)[number];

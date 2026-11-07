@@ -7,6 +7,7 @@ import {
 import { ADMIN_API_AUDIENCE, MCP_CLIENT_ID, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import {
   callMcpTool,
+  memoryWriteBudget,
   createBrowserOpener,
   configDirectory,
   createCredentialStore,
@@ -279,6 +280,8 @@ async function serve(
   io: McpIo,
 ): Promise<void> {
   const inFlight = new Set<Promise<ToolResult>>();
+  // One run is one process, which is the whole of what its budget has to cover.
+  const budget = memoryWriteBudget();
   const run = (tool: RegisteredTool, args: unknown): Promise<ToolResult> => {
     const requestId = randomUUID();
     // The admin API records a call made with a token issued to the agent, at its
@@ -287,6 +290,7 @@ async function serve(
       {
         requestId,
         deadlineMs: TOOL_DEADLINE_MS,
+        budget,
         record: () => Promise.resolve(),
         logger: {
           error: (context, message) => {

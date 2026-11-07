@@ -1,5 +1,6 @@
 import type { AdminCapability } from '@odudu/protocol-admin';
 import type { z } from 'zod';
+import type { BudgetKind } from '#/service/write-budget';
 
 // The admin API methods a tool may use. Reads are GET; every other method is
 // a write the admin API's agent allowlist names route by route.
@@ -10,15 +11,12 @@ export type JsonValue = string | number | boolean | null | readonly JsonValue[] 
 export type JsonObject = { readonly [K in string]: JsonValue };
 
 // One admin request, before it has an address. `pattern` is an ADMIN_ROUTES
-// pattern whose `:tenant` the caller fills from the principal and never from
-// a tool's input; `params` are the other path parameters, raw, for the caller
-// to encode. There is no header field, so none can be set from input; the two
-// exceptions are `ifMatch`, a single entity tag the caller checks and sends as
-// `If-Match` on a PATCH, PUT or DELETE, and `idempotencyKey`, a validated token
-// sent as `Idempotency-Key` on a POST. A body is a record the tool built from
-// its validated arguments, on a PATCH, POST or PUT, which the caller
-// serialises: a tool never supplies bytes. `bodyCap` raises or lowers the
-// bytes that body may take, up to the read cap.
+// pattern whose `:tenant` the caller fills from the principal, never from input;
+// `params` are the other path parameters, raw, for the caller to encode. There
+// is no header field: the only two inputs that become headers are `ifMatch`
+// (one strong etag, on a PATCH, PUT or DELETE) and `idempotencyKey` (on a POST).
+// A body is a record the tool built from validated arguments, on a PATCH, POST
+// or PUT; a tool never supplies bytes. `bodyCap` sets the body's byte limit.
 export interface AdminRequestSpec {
   readonly method: AdminMethod;
   readonly pattern: string;
@@ -53,6 +51,8 @@ export interface McpTool<I, O> {
   readonly routeKey: string;
   readonly capability: AdminCapability | null;
   readonly access: 'read' | 'write';
+  // For a write: which budget one call of it spends.
+  readonly spends?: BudgetKind;
   // What to say when the answer passes the result cap, for a tool whose rows
   // cannot be narrowed with a limit or a filter.
   readonly tooLargeDetail?: string;

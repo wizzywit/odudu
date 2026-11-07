@@ -78,7 +78,6 @@ export function createHttpCaller(
               ...(payload === undefined ? {} : { 'content-type': 'application/json' }),
               ...(ifMatch === undefined ? {} : { 'if-match': ifMatch }),
               ...(idempotencyKey === undefined ? {} : { 'idempotency-key': idempotencyKey }),
-          ...(idempotencyKey === undefined ? {} : { 'idempotency-key': idempotencyKey }),
             },
             ...(payload === undefined ? {} : { body: payload }),
             redirect: 'manual',
