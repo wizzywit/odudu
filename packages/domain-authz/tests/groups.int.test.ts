@@ -840,16 +840,40 @@ describe('countUpTo and lockCreation', () => {
     });
   });
 
-  it('locks the tenant’s own row, and finds no row to lock for another tenant’s id', async () => {
+  it('does not take the tenant’s row, which every sign-in locks, and waits for no other kind or tenant', async () => {
     const tenantId = newId();
+    const elsewhere = newId();
     await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
-    const mine = await withTenant(app.db, tenantId, (tx) =>
-      groupRepository(tx).lockCreation(tenantId),
+    await withTenant(app.db, elsewhere, (tx) => seedTenant(tx, elsewhere));
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let taken: () => void = () => undefined;
+    const lockTaken = new Promise<void>((resolve) => {
+      taken = resolve;
+    });
+    const holder = withTenant(app.db, tenantId, async (tx) => {
+      await groupRepository(tx).lockCreation(tenantId);
+      taken();
+      await held;
+    });
+    await lockTaken;
+    const quickly = async (tenant: string, work: (tx: TenantScopedDatabase) => Promise<unknown>) =>
+      withTenant(app.db, tenant, async (tx) => {
+        await tx.execute(sql`select set_config('lock_timeout', '1000', true)`);
+        await work(tx);
+      });
+    await quickly(tenantId, (tx) =>
+      tx.execute(sql`select 1 from tenants where id = ${tenantId} for no key update`),
     );
-    const other = await withTenant(app.db, tenantId, (tx) =>
-      groupRepository(tx).lockCreation(newId()),
-    );
-    expect([mine, other]).toEqual([true, false]);
+    await quickly(tenantId, (tx) => roleRepository(tx).lockCreation(tenantId));
+    await quickly(elsewhere, (tx) => groupRepository(tx).lockCreation(elsewhere));
+    await expect(
+      quickly(tenantId, (tx) => groupRepository(tx).lockCreation(tenantId)),
+    ).rejects.toThrow();
+    release();
+    await holder;
   });
 });
 
