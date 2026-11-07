@@ -76,25 +76,20 @@ export interface FrontChannelTarget {
   frontchannelLogoutSessionRequired: boolean;
 }
 
-// How far up the grants exchanged from one another a budget is looked for.
-const EXCHANGE_DEPTH = 16;
-
 export function tokenGrantRepository(tx: TenantScopedDatabase) {
-  // A grant exchanged from another has that grant's agent write budget, so
-  // exchanging an exhausted token does not renew it: only a new sign-in does,
-  // and that makes a grant with no parent.
-  async function budgetGrant(id: string): Promise<string> {
-    let current = id;
-    for (let hop = 0; hop < EXCHANGE_DEPTH; hop += 1) {
-      const rows = await tx
-        .select({ parent: tokenGrants.exchangedFromGrantId })
-        .from(tokenGrants)
-        .where(eq(tokenGrants.id, current));
-      const parent = rows[0]?.parent;
-      if (parent === null || parent === undefined) return current;
-      current = parent;
-    }
-    return current;
+  // The grant whose counters this one spends: its own when no exchange made it,
+  // else the root named on it. A grant that was exchanged and names no root
+  // (made before the column existed) has none, and neither has one whose root is
+  // gone: both are refused, so a budget is never renewed by an error path.
+  async function budgetGrant(id: string): Promise<string | null> {
+    const rows = await tx
+      .select({ root: tokenGrants.budgetGrantId, parent: tokenGrants.exchangedFromGrantId })
+      .from(tokenGrants)
+      .where(eq(tokenGrants.id, id));
+    const row = rows[0];
+    if (row === undefined) return null;
+    if (row.root !== null) return row.root;
+    return row.parent === null ? id : null;
   }
 
   // One read behind both ways of asking for a session's clients, so the
@@ -140,6 +135,10 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
           sessionId: input.sessionId ?? null,
           actorSubjectId: input.actorSubjectId ?? null,
           exchangedFromGrantId: input.exchangedFromGrantId ?? null,
+          budgetGrantId:
+            input.exchangedFromGrantId == null
+              ? null
+              : await budgetGrant(input.exchangedFromGrantId),
           actChain: input.actChain ?? null,
           expCeiling: input.expCeiling ?? null,
           requestedUserinfoClaims:
@@ -179,6 +178,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     ): Promise<boolean> {
       const create = kind === 'create';
       const root = await budgetGrant(id);
+      if (root === null) return false;
       const rows = await tx
         .update(tokenGrants)
         .set({
@@ -201,6 +201,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // tells a spent budget from a sign-in that has ended.
     async isLive(id: string): Promise<boolean> {
       const [own, root] = [id, await budgetGrant(id)];
+      if (root === null) return false;
       const rows = await tx
         .select({ id: tokenGrants.id })
         .from(tokenGrants)
@@ -210,13 +211,15 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
 
     // Gives back a call known to have changed nothing, never below none.
     async releaseAgentWrite(id: string, kind: 'mutating' | 'create'): Promise<void> {
+      const root = await budgetGrant(id);
+      if (root === null) return;
       await tx
         .update(tokenGrants)
         .set({
           agentWrites: sql`greatest(${tokenGrants.agentWrites} - 1, 0)`,
           agentCreates: sql`greatest(${tokenGrants.agentCreates} - ${kind === 'create' ? 1 : 0}, 0)`,
         })
-        .where(eq(tokenGrants.id, await budgetGrant(id)));
+        .where(eq(tokenGrants.id, root));
     },
 
     async byId(id: string): Promise<TokenGrantRecord | null> {

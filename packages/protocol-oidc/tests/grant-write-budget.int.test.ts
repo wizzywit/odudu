@@ -192,6 +192,32 @@ describe('the write budget of a grant', () => {
     expect(await spent(tenantId, grantId)).toEqual({ writes: 20, creates: 0 });
   });
 
+  it('keeps the root’s budget however long the chain of exchanges is', async () => {
+    const { tenantId, grantId } = await grantIn();
+    let tip = grantId;
+    for (let hop = 0; hop < 17; hop += 1) tip = await exchangedFrom(tenantId, tip);
+    for (let i = 0; i < 20; i += 1) expect(await reserve(tenantId, grantId, 'mutating')).toBe(true);
+    expect(await reserve(tenantId, tip, 'mutating')).toBe(false);
+    expect(await spent(tenantId, grantId)).toEqual({ writes: 20, creates: 0 });
+  });
+
+  it('refuses, and is not live, once the grant it was exchanged from is gone', async () => {
+    const { tenantId, grantId } = await grantIn();
+    const child = await exchangedFrom(tenantId, grantId);
+    const grandchild = await exchangedFrom(tenantId, child);
+    await withTenant(app.db, tenantId, (tx) =>
+      tx.delete(tokenGrants).where(eq(tokenGrants.id, grantId)),
+    );
+    for (const id of [child, grandchild]) {
+      expect(await reserve(tenantId, id, 'mutating'), id).toBe(false);
+      expect(
+        await withTenant(app.db, tenantId, (tx) => tokenGrantRepository(tx).isLive(id)),
+        id,
+      ).toBe(false);
+    }
+    expect(await spent(tenantId, child)).toEqual({ writes: 0, creates: 0 });
+  });
+
   it('ends with the grant it was exchanged from', async () => {
     const { tenantId, grantId } = await grantIn();
     const child = await exchangedFrom(tenantId, grantId);

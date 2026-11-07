@@ -51,6 +51,10 @@ export const tokenGrants = pgTable('token_grants', {
   // compares the count with the limit it is given.
   agentWrites: smallint('agent_writes').notNull().default(0),
   agentCreates: smallint('agent_creates').notNull().default(0),
+  // The grant whose counters this one spends: null for a sign-in's own grant,
+  // the root's id for a grant an exchange made. No foreign key on purpose: a
+  // root deleted by the reaper must leave a name that matches nothing.
+  budgetGrantId: uuid('budget_grant_id'),
 }).enableRLS();
 
 export interface TokenGrantRecord {

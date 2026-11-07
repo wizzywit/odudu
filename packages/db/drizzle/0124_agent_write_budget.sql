@@ -1,5 +1,10 @@
 -- What the grant behind an MCP token has changed so far: the calls that made or
--- changed something, and of those the creates. A write is admitted by one
+-- changed something, and of those the creates. A grant made by an exchange
+-- names the grant whose counters it spends in `budget_grant_id`, copied from
+-- the grant it was exchanged from, so the chain is never walked; the column has
+-- no foreign key, so a root the reaper has deleted leaves a name that matches
+-- nothing and the budget is refused, never renewed. A grant exchanged before
+-- this column existed has none and holds no budget. A write is admitted by one
 -- UPDATE of the grant's own row, which the row lock makes atomic, so calls made
 -- at once cannot between them pass the limit the caller names. The columns are
 -- added with a constant default, so no row is rewritten, and no data is read or
@@ -7,4 +12,5 @@
 -- statement writes only what is missing, so the file can run again to no effect.
 ALTER TABLE token_grants
   ADD COLUMN IF NOT EXISTS agent_writes smallint NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS agent_creates smallint NOT NULL DEFAULT 0;
+  ADD COLUMN IF NOT EXISTS agent_creates smallint NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS budget_grant_id uuid;
