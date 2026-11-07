@@ -178,18 +178,23 @@ describe('create_role, create_group and create_scope', () => {
     const { w, token } = await sessionOf();
     recOf(await stack.call(w, token, 'create_role', { idempotency_key: key(), name: 'auditors' }));
     recOf(await stack.call(w, token, 'create_group', { idempotency_key: key(), name: 'staff' }));
+    recOf(await stack.call(w, token, 'create_scope', { idempotency_key: key(), name: 'reports' }));
     const before = await counts(w);
     for (const [tool, args] of [
       ['create_role', { name: 'auditors' }],
       ['create_role', { name: 'manage-tenant', client_id: w.adminDbId }],
       ['create_group', { name: 'staff' }],
-      ['create_scope', { name: 'profile' }],
+      ['create_scope', { name: 'reports' }],
     ] as const) {
       const refused = errorOf(
         await stack.call(w, token, tool, { idempotency_key: key(), ...args }),
       );
       expect(refused.status, `${tool} ${JSON.stringify(args)}`).toBe(409);
     }
+    const builtin = errorOf(
+      await stack.call(w, token, 'create_scope', { idempotency_key: key(), name: 'profile' }),
+    );
+    expect(builtin.status).toBe(403);
     expect(await counts(w)).toEqual(before);
   });
 
