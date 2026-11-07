@@ -1906,7 +1906,7 @@ the parts that differ from the published theme and the new etag.
   never live, so a person's Publish is still the gate. A replacement is not affected, its unnamed parts coming from the draft the etag names.
 - **A theme too large to return.** `get_theme` refuses a theme past 256,000 bytes as `mcp:result_too_large`, which left the agent with no etag for
   `update_*`, whose write limit (512 KiB) is higher. A result too large to return now names the etag of what it was about beside the error
-  (`etag`, only when it is one), and the advice says a draft tool takes it as `if_match`; tested with a draft and a published theme of 300 KiB each.
+  (`etag`, only when it is one), and the advice says a draft tool takes it as `if_match`; tested with a draft and a published theme of 300 KiB each. This holds only when the admin answer fits the caller's 1 MiB read cap and the MCP result is too large (over 256,000 bytes). When the admin answer itself is over 1 MiB the caller refuses it before any etag exists, `get_theme` has none to give, and the update tools refuse the same read (`mcp:theme_too_large`): that theme is edited in the console.
 - **A saved draft is always answered as saved.** An answer that cleaning leaves invalid (a logo alt of invisible characters only) is returned as
   `draft: null, draft_omitted: true` with the etag, not as an internal error after the write.
 - **Size, as the docs say it.** The tool reads the draft and the published theme together, which must come to under 1 MiB; what it writes is at most
