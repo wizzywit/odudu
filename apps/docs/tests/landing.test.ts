@@ -67,9 +67,9 @@ describe('the landing page as built', () => {
     expect(text).not.toMatch(/ibibio|akwa ibom|coined|means authority/iu);
   });
 
-  it('says it is a release candidate, and what is planned is said to be planned', () => {
+  it('says it is before 1.0, and what is planned is said to be planned', () => {
     const text = landing.text();
-    expect(text).toMatch(/release candidate/iu);
+    expect(text).toMatch(/first stable release/iu);
     const ai = landing.find('[data-section="agents"]');
     expect(ai).toHaveLength(1);
     expect(ai.find('[data-planned]')).toHaveLength(2);

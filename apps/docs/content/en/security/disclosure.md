@@ -27,6 +27,6 @@ Odudu is before 1.0, so only the latest release is supported. A fix goes into th
 
 Anything in the repository: the server, the admin API and console, the container and compose files, and the build configuration. The parts most likely to be subtly wrong, and so the most welcome reports, are token issuance and refresh rotation, tenant isolation (any path that reaches the database without a tenant), and signing key handling.
 
-Odudu is a release candidate and has not had an independent security review, as the README says. Findings that depend on a deployment that switches off a boot guard or ignores the [production settings](../operating/configuration.md) are out of scope. [The full security policy](https://github.com/wizzywit/odudu/blob/main/SECURITY.md) is in the repository.
+Odudu is before 1.0 and has not had an independent security review, as the README says. Findings that depend on a deployment that switches off a boot guard or ignores the [production settings](../operating/configuration.md) are out of scope. [The full security policy](https://github.com/wizzywit/odudu/blob/main/SECURITY.md) is in the repository.
 
 Read [the threat model](./threat-model.md) first if you want to know what we already count as a limit.

@@ -6,6 +6,13 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-07
+
+The first stable release. It gathers everything from the release candidates and
+adds the MCP server: each tenant serves an MCP endpoint that an AI assistant can
+read from and, within strict limits, write through. Odudu has had no
+independent security review.
+
 ### Added
 
 - Every tenant has two new scopes, `mcp:read` and `mcp:write`, for the clients that will use its MCP endpoint, and a tenant that exists before the upgrade gets them when the server migrates. Neither is given to any client until you assign it. A request for either is refused with `invalid_scope` unless the resource is the tenant's MCP address (its address followed by `/mcp`) or the admin API, at the sign-in request and at the token endpoint for every grant, so a client registered for several audiences must name the MCP address as its `resource`. The consent screen says in plain words what each lets an application do, in English and Arabic, and `odudu seed restore-scopes` creates them again if one is deleted.
@@ -231,7 +238,8 @@ The first release candidate. Odudu is not production ready: it has had no securi
 - Cookies are `Secure` and `__Host-` prefixed under `ODUDU_TLS`, from one setting; before, the session cookie ignored it.
 - Characters that change the direction of text are refused in names and usernames.
 
-[Unreleased]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.6...HEAD
+[Unreleased]: https://github.com/wizzywit/odudu/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.6...v0.1.0
 [0.1.0-rc.6]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.5...v0.1.0-rc.6
 [0.1.0-rc.5]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.4...v0.1.0-rc.5
 [0.1.0-rc.4]: https://github.com/wizzywit/odudu/compare/v0.1.0-rc.3...v0.1.0-rc.4

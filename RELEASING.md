@@ -3,11 +3,10 @@
 A release is a tag. Push `v0.1.0` and a workflow builds the image, signs it and
 publishes a GitHub Release. This page is for the people who cut one.
 
-Until the first stable release, the README and the quick start use the
-newest candidate tag, now `v0.1.0-rc.6`, in the download address. When `0.1.0` is out, switch
-them to `releases/latest/download`: edit `README.md`,
-`apps/docs/content/en/quick-start/index.mdx`,
-`apps/docs/src/features/landing/services/release.ts` and the caveats beside them.
+The README, the quick start and the landing page download
+`releases/latest/download/compose.yaml`. That address follows the newest stable
+release and skips candidates, which are fetched by tag as in "Verify an image"
+below.
 
 ## Versions
 
@@ -102,7 +101,7 @@ On macOS use `shasum -a 256 -c -` in place of `sha256sum -c -`.
 The quick start downloads
 `https://github.com/wizzywit/odudu/releases/latest/download/compose.yaml`.
 GitHub's `latest` skips pre-releases, so a release candidate never moves that
-address. Until the first stable release the address answers 404. Take a
+address. Take a
 candidate's file from `https://github.com/wizzywit/odudu/releases/download/<tag>/compose.yaml`.
 The file in the repository names version `0.0.0`. The workflow replaces it for
 the release.
