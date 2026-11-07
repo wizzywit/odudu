@@ -14,7 +14,8 @@ describe('the copy status', () => {
   });
 
   it('words the note and the button for each state', () => {
-    expect(noteFor('idle')).toContain(RELEASE_CAVEAT);
+    expect(noteFor('idle')).toContain('Docker with Compose v2');
+    expect(noteFor('idle')).not.toContain(RELEASE_CAVEAT);
     expect(noteFor('copied')).toContain('clipboard');
     expect(noteFor('failed')).toContain('by hand');
     expect(copyLabel('copied')).toBe('Copied');

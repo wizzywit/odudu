@@ -9,7 +9,7 @@ Odudu is an OpenID Connect and OAuth 2.0 identity provider that you run yourself
 
 It suits you if you build or run apps that need people to sign in: a web app, a single-page app, an API, or a service that calls another service.
 
-Odudu is a release candidate. It runs as one instance, and the [roadmap](../roadmap.md) lists what is missing and which phase brings it. Try it, build against it and tell us what you find.
+Odudu is before 1.0, and 0.1.0 is its first stable release, so a minor version may break something. It runs as one instance, and the [roadmap](../roadmap.md) lists what is missing and which phase brings it. Try it, build against it and tell us what you find.
 
 ## Licence and language
 

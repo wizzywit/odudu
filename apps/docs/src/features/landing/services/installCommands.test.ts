@@ -5,7 +5,7 @@ import { RELEASE_URL } from '@site/src/features/landing/services/release';
 describe('the install commands', () => {
   it('gives each shell its own command, both from the release address', () => {
     expect(RELEASE_URL).toMatch(
-      /^https:\/\/github\.com\/.+\/releases\/download\/v[^/]+\/compose\.yaml$/,
+      /^https:\/\/github\.com\/.+\/releases\/latest\/download\/compose\.yaml$/,
     );
     expect(COMMANDS.map((entry) => [entry.shell, entry.label])).toEqual([
       ['unix', 'bash or zsh'],

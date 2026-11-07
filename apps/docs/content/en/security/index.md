@@ -11,7 +11,7 @@ Read the status first, because it decides how much of the rest you can lean on.
 
 ## Status
 
-Odudu is a release candidate and has not had an independent security review, as the README says. Its protocol handling is checked against the OpenID Foundation's Config OP test plan in CI, and its defences each have a test written to attack them, but neither of those is a review. This section does not say otherwise. Everything under [Operating](../operating/index.md) is how to run it as safely as the product allows today.
+Odudu is before 1.0 and has not had an independent security review, as the README says. Its protocol handling is checked against the OpenID Foundation's Config OP test plan in CI, and its defences each have a test written to attack them, but neither of those is a review. This section does not say otherwise. Everything under [Operating](../operating/index.md) is how to run it as safely as the product allows today.
 
 ## The pages
 

@@ -4,9 +4,9 @@ import { markupOf } from '@site/tests/support/markup';
 import { PAGES_DOCS_BASE } from '@site/site.config';
 
 describe('Compare', () => {
-  it('says plainly that it is a release candidate', () => {
+  it('says plainly that it is before 1.0', () => {
     const $ = markupOf(<Compare />);
-    expect($('strong').text()).toBe('Odudu is a release candidate.');
+    expect($('strong').text()).toBe('Odudu is before 1.0.');
   });
 
   it('links the comparison, the Keycloak guide and the roadmap', () => {
