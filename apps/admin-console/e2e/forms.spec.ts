@@ -237,10 +237,14 @@ test.describe('a placeholder takes the height of what it stands for', () => {
       .filter({ has: page.getByRole('link', { name: 'Subjects', exact: true }) })
       .filter({ hasText: /Counting|subject/u });
     await expect(tile.getByText('Counting…')).toBeAttached();
-    const placeholder = await box(tile);
+    // The tile's own box is as tall as the tallest tile in its grid row, and
+    // the Clients tile gains a wrapping allowance line when its reads land, so
+    // the figure under the label is measured instead.
+    const figure = tile.locator(':scope > :last-child');
+    const placeholder = await box(figure);
     await release();
     await expect(tile.getByText('Counting…')).toHaveCount(0);
-    const real = await box(tile);
+    const real = await box(figure);
     expect(Math.abs(placeholder.height - real.height)).toBeLessThanOrEqual(NEAR);
   });
 });
