@@ -42,9 +42,9 @@ describe('what the documentation is served as', () => {
     expect(DOCS_TYPES['.ico']).toBe('image/x-icon');
   });
 
-  it('bounds the tree at 5,000 files and 64 MiB', () => {
+  it('bounds the tree at 5,000 files, 64 MiB, and 16 MiB a file', () => {
     expect(DOCS_LIMITS.maxFiles).toBe(5_000);
     expect(DOCS_LIMITS.maxTotalBytes).toBe(64 * 1024 * 1024);
-    expect(DOCS_LIMITS.maxFileBytes).toBe(10 * 1024 * 1024);
+    expect(DOCS_LIMITS.maxFileBytes).toBe(16 * 1024 * 1024);
   });
 });

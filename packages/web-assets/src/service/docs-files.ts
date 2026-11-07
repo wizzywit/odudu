@@ -14,10 +14,11 @@ export const DOCS_TYPES: Readonly<Record<string, string>> = {
   '.woff2': 'font/woff2',
 };
 
-// The built site is about 130 files and 6 MB. These bound what a directory
-// that is not the build can make the server hold in memory.
+// The built site is about 1,000 files and 44 MiB, the search index alone 10 MiB.
+// These bound what a directory that is not the build can make the server hold
+// in memory; a file past `maxFileBytes` is left out and answers 404.
 export const DOCS_LIMITS: StaticTreeLimits = {
-  maxFileBytes: 10 * 1024 * 1024,
+  maxFileBytes: 16 * 1024 * 1024,
   maxFiles: 5_000,
   maxTotalBytes: 64 * 1024 * 1024,
   maxEntries: 100_000,
